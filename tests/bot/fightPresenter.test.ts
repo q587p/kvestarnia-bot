@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  presentFightAlreadyCompleted,
   presentFightNoCharacter,
   presentFightResult,
   presentFightStart
@@ -11,6 +12,7 @@ const character: CharacterSummary = {
   name: "Мандрівник",
   pronoun: "they",
   pronounLabel: "Вони",
+  path: "boundary",
   raceId: "race.human-ish",
   raceName: "Людисько",
   classId: "class.warrior",
@@ -57,6 +59,25 @@ describe("fight presenter", () => {
     expect(presentFightNoCharacter()).toContain("/start");
   });
 
+  it("shows a spent fight screen with an optional quest suggestion", () => {
+    const withQuest = presentFightAlreadyCompleted({
+      state: "already-completed",
+      character,
+      questAvailable: true
+    });
+    const withoutQuest = presentFightAlreadyCompleted({
+      state: "already-completed",
+      character,
+      questAvailable: false
+    });
+
+    expect(withQuest).toContain("вже зараховано");
+    expect(withQuest).toContain("/quest");
+    expect(withQuest).not.toContain("Що робимо?");
+    expect(withoutQuest).not.toContain("/quest");
+    expect(withoutQuest).toContain("/hero");
+  });
+
   it("shows combat preview and reward for a completed action", () => {
     const text = presentFightResult(completed("attack", 9, 3));
 
@@ -80,10 +101,12 @@ describe("fight presenter", () => {
   it("does not imply duplicate rewards for already-completed fight", () => {
     const text = presentFightResult({
       state: "already-completed",
-      character
+      character,
+      questAvailable: true
     });
 
     expect(text).toContain("вже зараховано");
+    expect(text).toContain("/quest");
     expect(text).not.toContain("+9 XP");
   });
 });

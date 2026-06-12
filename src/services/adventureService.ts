@@ -3,14 +3,17 @@ import type { DailyActionRepository, RewardLevelChange } from "../db/repositorie
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
+  MIMIC_SHAWARMA_ADVENTURE_KEY,
+  MIMIC_SHAWARMA_COMBAT_PROBE_KEY
+} from "./dailyActionKeys";
+import {
   enrichRewardItemGrants,
   RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
   SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
   type RewardItemGrant
 } from "./itemGrant";
-import { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./fightService";
 
-export const MIMIC_SHAWARMA_ADVENTURE_KEY = "adventure.mimic-shawarma";
+export { MIMIC_SHAWARMA_ADVENTURE_KEY } from "./dailyActionKeys";
 export type AdventureAction = "poke" | "receipt" | "flee";
 
 export const MIMIC_SHAWARMA_REWARDS = {

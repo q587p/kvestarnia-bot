@@ -2,7 +2,11 @@ import type { Bot, Context } from "grammy";
 import type { FightService } from "../../services/fightService";
 import { telegramUserIdFromContext } from "../context";
 import { buildFightKeyboard } from "../keyboards/fightKeyboard";
-import { presentFightNoCharacter, presentFightStart } from "../presenters/fightPresenter";
+import {
+  presentFightAlreadyCompleted,
+  presentFightNoCharacter,
+  presentFightStart
+} from "../presenters/fightPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
@@ -29,6 +33,11 @@ export async function sendFight(
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentFightNoCharacter());
+    return;
+  }
+
+  if (result.state === "already-completed") {
+    await sendText(ctx, mode, presentFightAlreadyCompleted(result));
     return;
   }
 
