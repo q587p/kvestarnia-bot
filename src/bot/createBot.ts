@@ -31,8 +31,8 @@ import { registerStartCommand } from "./commands/startCommand";
 import { registerTavernCommand, sendTavern } from "./commands/tavernCommand";
 import { registerVersionCommand } from "./commands/versionCommand";
 import { playerFromContext } from "./context";
-import { buildAdventureKeyboard } from "./keyboards/adventureKeyboard";
-import { buildFightKeyboard } from "./keyboards/fightKeyboard";
+import { buildAdventureResultKeyboard } from "./keyboards/adventureKeyboard";
+import { buildFightResultKeyboard } from "./keyboards/fightKeyboard";
 import {
   buildClassKeyboard,
   buildConfirmationKeyboard,
@@ -40,7 +40,7 @@ import {
   buildRaceKeyboard
 } from "./keyboards/onboardingKeyboard";
 import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
-import { buildTavernKeyboard } from "./keyboards/tavernKeyboard";
+import { buildTavernResultKeyboard } from "./keyboards/tavernKeyboard";
 import { presentAdventureNoCharacter, presentAdventureResult } from "./presenters/adventurePresenter";
 import {
   presentDevResetCancelled,
@@ -426,7 +426,7 @@ async function handleTavernCallback(
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentTavernRaidResult(result), {
-    reply_markup: buildTavernKeyboard()
+    reply_markup: buildTavernResultKeyboard(result.state)
   });
 }
 
@@ -452,7 +452,7 @@ async function handleAdventureCallback(
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentAdventureResult(result), {
-    reply_markup: buildAdventureKeyboard()
+    reply_markup: buildAdventureResultKeyboard(result.state)
   });
 }
 
@@ -478,7 +478,7 @@ async function handleFightCallback(
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentFightResult(result), {
-    reply_markup: buildFightKeyboard()
+    reply_markup: buildFightResultKeyboard(result.state)
   });
 }
 
