@@ -31,9 +31,6 @@ npm install
 cp .env.example .env
 npm run db:generate
 npm run db:migrate
-npm run typecheck
-npm test
-npm run build
 npm run dev
 ```
 
@@ -52,6 +49,8 @@ BOT_TOKEN=replace-with-real-token
 Не коміть `.env` або реальні секрети.
 
 Перед `npm run db:migrate` переконайтесь, що PostgreSQL уже запущений і `DATABASE_URL` у `.env` вказує на доступну базу. Redis зараз не використовується runtime-кодом; `REDIS_URL` лишається placeholder-ом для майбутніх jobs/cache фіч.
+
+Для перевірки перед PR використовуйте `npm run check`.
 
 ## Prisma
 
