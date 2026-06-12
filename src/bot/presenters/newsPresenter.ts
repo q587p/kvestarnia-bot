@@ -4,6 +4,7 @@ import {
   makeNewsListCallbackData
 } from "../callbacks/newsCallbackData";
 import type { NewsEntry } from "../../news/newsMarkdown";
+import { escapeHtml } from "./telegramHtml";
 
 const NEWS_PAGE_SIZE = 8;
 const PREVIOUS_TITLE_COUNT = 8;
@@ -28,7 +29,7 @@ export function presentNewsIndex(entries: readonly NewsEntry[], requestedPage = 
   const rangeEnd = Math.min(entries.length, rangeStart + NEWS_PAGE_SIZE - 1);
   const previousTitles = entries
     .slice(1, PREVIOUS_TITLE_COUNT + 1)
-    .map((entry) => `- ${entry.title}`)
+    .map((entry) => `- <b>${escapeHtml(entry.title)}</b>`)
     .join("\n");
 
   return {
@@ -36,7 +37,7 @@ export function presentNewsIndex(entries: readonly NewsEntry[], requestedPage = 
       "📰 Новини Квестарні",
       `Канал новин: ${NEWS_CHANNEL_URL}`,
       "",
-      latest.raw,
+      renderNewsEntry(latest),
       ...(previousTitles ? ["", "Попередні новини:", previousTitles] : []),
       "",
       `Архів: ${rangeStart}-${rangeEnd} з ${entries.length}. Оберіть версію кнопкою.`
@@ -62,7 +63,7 @@ export function presentNewsEntry(
       "📰 Новини Квестарні",
       `Канал новин: ${NEWS_CHANNEL_URL}`,
       "",
-      entry?.raw ?? "Новину не знайдено."
+      entry ? renderNewsEntry(entry) : "Новину не знайдено."
     ].join("\n"),
     keyboard: buildNewsEntryKeyboard(entryIndex, requestedListPage, entries.length)
   };
@@ -124,4 +125,8 @@ function buildNewsEntryKeyboard(
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
+}
+
+function renderNewsEntry(entry: NewsEntry): string {
+  return [`<b>${escapeHtml(entry.title)}</b>`, "", escapeHtml(entry.body)].join("\n");
 }

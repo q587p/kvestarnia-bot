@@ -8,6 +8,7 @@ import { prisma } from "./db/prisma";
 import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepository";
 import { PrismaDailyActionRepository } from "./db/repositories/prismaDailyActionRepository";
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
+import { PrismaPresenceRepository } from "./db/repositories/prismaPresenceRepository";
 import { PrismaUserRepository } from "./db/repositories/prismaUserRepository";
 import { startHealthServer } from "./health/server";
 import { readAppVersion } from "./shared/appVersion";
@@ -18,6 +19,7 @@ import { FightService } from "./services/fightService";
 import { HeroService } from "./services/heroService";
 import { InventoryService } from "./services/inventoryService";
 import { OnboardingService } from "./services/onboardingService";
+import { PresenceService } from "./services/presenceService";
 import { RestartService } from "./services/restartService";
 import { TavernRaidService } from "./services/tavernRaidService";
 
@@ -26,17 +28,19 @@ const users = new PrismaUserRepository(prisma);
 const characters = new PrismaCharacterRepository(prisma);
 const dailyActions = new PrismaDailyActionRepository(prisma);
 const inventory = new PrismaInventoryRepository(prisma);
+const presence = new PrismaPresenceRepository(prisma);
 const services = {
   adventure: new AdventureService(characters, dailyActions),
   fight: new FightService(characters, dailyActions),
   onboarding: new OnboardingService(users, characters),
   hero: new HeroService(characters),
   inventory: new InventoryService(inventory),
+  presence: new PresenceService(presence),
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),
   tavern: new TavernRaidService(characters, dailyActions)
 };
-const healthServer = startHealthServer();
+const healthServer = startHealthServer({ presence: services.presence });
 let bot: Bot | null = null;
 
 function shutdown(): void {

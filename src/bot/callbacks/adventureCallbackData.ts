@@ -2,6 +2,7 @@ import { err, ok, type Result } from "../../shared/result";
 import type { AdventureAction } from "../../services/adventureService";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
+export type AdventureCallback = AdventureAction | "participants";
 export type AdventureCallbackError =
   | "invalid-version"
   | "invalid-prefix"
@@ -9,15 +10,15 @@ export type AdventureCallbackError =
   | "too-long";
 
 const PREFIX = "v1:adv:mimic";
-const adventureActions = new Set<AdventureAction>(["poke", "receipt", "flee"]);
+const adventureCallbacks = new Set<AdventureCallback>(["poke", "receipt", "flee", "participants"]);
 
-export function makeAdventureCallbackData(action: AdventureAction): string {
+export function makeAdventureCallbackData(action: AdventureCallback): string {
   return `${PREFIX}:${action}`;
 }
 
 export function parseAdventureCallbackData(
   data: string | undefined
-): Result<AdventureAction, AdventureCallbackError> {
+): Result<AdventureCallback, AdventureCallbackError> {
   if (!data?.startsWith("v1:")) {
     return err("invalid-version");
   }
@@ -36,9 +37,9 @@ export function parseAdventureCallbackData(
     return err("invalid-prefix");
   }
 
-  if (!adventureActions.has(action as AdventureAction)) {
+  if (!adventureCallbacks.has(action as AdventureCallback)) {
     return err("invalid-action");
   }
 
-  return ok(action as AdventureAction);
+  return ok(action as AdventureCallback);
 }

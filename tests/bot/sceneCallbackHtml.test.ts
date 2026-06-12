@@ -146,6 +146,15 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
     onboarding: {},
     hero: {},
     inventory: {},
+    presence: {
+      markAction: () => Promise.resolve(),
+      getRaidParticipantsForTelegramUser: () =>
+        Promise.resolve({ state: "no-character" }),
+      getAdventureParticipantsForTelegramUser: () =>
+        Promise.resolve({ state: "no-character" }),
+      getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+    },
     devReset: {
       isEnabled: () => false
     },

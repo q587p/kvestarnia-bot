@@ -9,7 +9,9 @@ export function buildAdventureKeyboard(): InlineKeyboard {
     .row()
     .text("📋 Попросити чек", makeAdventureCallbackData("receipt"))
     .row()
-    .text("🏃 Обережно відступити", makeAdventureCallbackData("flee"));
+    .text("🏃 Обережно відступити", makeAdventureCallbackData("flee"))
+    .row()
+    .text("👥 Учасники", makeAdventureCallbackData("participants"));
 }
 
 export function buildAdventureResultKeyboard(

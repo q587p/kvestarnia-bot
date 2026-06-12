@@ -39,9 +39,8 @@ async function readNewsEntriesSafe() {
 }
 
 function keyboardOptions(page: NewsPage) {
-  return page.keyboard
-    ? {
-        reply_markup: page.keyboard
-      }
-    : undefined;
+  return {
+    parse_mode: "HTML" as const,
+    ...(page.keyboard ? { reply_markup: page.keyboard } : {})
+  };
 }

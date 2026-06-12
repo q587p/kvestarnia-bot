@@ -86,6 +86,18 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     includeInMenu: false
   },
   {
+    command: "online",
+    icon: "👥",
+    description: "хто поруч",
+    includeInMenu: false
+  },
+  {
+    command: "look",
+    icon: "👀",
+    description: "озирнутися",
+    includeInMenu: false
+  },
+  {
     command: "guild",
     icon: "🛡️",
     description: "ґільдії",

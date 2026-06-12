@@ -16,6 +16,16 @@ describe("tavern callback data", () => {
     });
   });
 
+  it("parses a valid participants callback", () => {
+    const data = makeTavernCallbackData("participants");
+
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(parseTavernCallbackData(data)).toEqual({
+      ok: true,
+      value: "participants"
+    });
+  });
+
   it("rejects invalid versions and actions", () => {
     expect(parseTavernCallbackData("v2:tavern:raid")).toEqual({
       ok: false,

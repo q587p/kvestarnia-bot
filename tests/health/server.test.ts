@@ -4,8 +4,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_HEALTH_PORT,
   handleHealthRequest,
+  renderPresencePage,
   resolveHealthPort
 } from "../../src/health/server";
+import type {
+  PresenceService,
+  PublicPresenceLocationsSnapshot
+} from "../../src/services/presenceService";
 
 let server: ReturnType<typeof createServer> | null = null;
 
@@ -52,10 +57,71 @@ describe("health server", () => {
 
     expect(response.status).toBe(404);
   });
+
+  it("serves public presence locations as JSON without names or exact timestamps", async () => {
+    const baseUrl = await listen(presenceServiceWith(publicPresenceSnapshot));
+
+    const response = await fetch(`${baseUrl}/api/presence/locations`);
+    const body = JSON.parse(await response.text()) as PublicPresenceLocationsSnapshot;
+    const serialized = JSON.stringify(body);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(body).toMatchObject({
+      total: 4,
+      locations: [
+        {
+          locationId: "location.tavern",
+          title: "Таверна Квестарні",
+          regionName: "Перед шинком",
+          activeCount: 3,
+          idleCount: 1,
+          players: []
+        }
+      ]
+    });
+    expect(serialized).not.toContain("587");
+    expect(serialized).not.toContain("Дара");
+    expect(serialized).not.toContain("Нестор Межовий");
+    expect(serialized).not.toMatch(/\d+\s*(?:секунд|хвилин)\s+тому/i);
+    expect(serialized).not.toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it("serves the live presence page without names or exact timestamps", async () => {
+    const baseUrl = await listen(presenceServiceWith(publicPresenceSnapshot));
+
+    const response = await fetch(`${baseUrl}/presence`);
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(text).toContain("Жива Квестарня");
+    expect(text).toContain("👥 У грі зараз: 4");
+    expect(text).toContain("Таверна Квестарні");
+    expect(text).not.toContain("— 587");
+    expect(text).not.toContain("— Дара");
+    expect(text).not.toContain("— Нестор Межовий");
+    expect(text).not.toMatch(/\d+\s*(?:секунд|хвилин)\s+тому/i);
+    expect(text).not.toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it("renders an empty public presence page", () => {
+    const html = renderPresencePage({
+      totalActive: 0,
+      totalIdle: 0,
+      total: 0,
+      locations: []
+    });
+
+    expect(html).toContain("У грі зараз: 0");
+    expect(html).toContain("Зараз у Квестарні тихо");
+  });
 });
 
-async function listen(): Promise<string> {
-  server = createServer(handleHealthRequest);
+async function listen(presence?: PresenceService): Promise<string> {
+  server = createServer((request, response) => {
+    handleHealthRequest(request, response, presence ? { presence } : {});
+  });
 
   await new Promise<void>((resolve) => {
     server?.listen(0, "127.0.0.1", resolve);
@@ -64,3 +130,25 @@ async function listen(): Promise<string> {
   const address = server.address() as AddressInfo;
   return `http://127.0.0.1:${address.port}`;
 }
+
+function presenceServiceWith(snapshot: PublicPresenceLocationsSnapshot): PresenceService {
+  return {
+    getPublicPresenceLocations: () => Promise.resolve(snapshot)
+  } as unknown as PresenceService;
+}
+
+const publicPresenceSnapshot: PublicPresenceLocationsSnapshot = {
+  totalActive: 3,
+  totalIdle: 1,
+  total: 4,
+  locations: [
+    {
+      locationId: "location.tavern",
+      title: "Таверна Квестарні",
+      regionName: "Перед шинком",
+      activeCount: 3,
+      idleCount: 1,
+      players: []
+    }
+  ]
+};

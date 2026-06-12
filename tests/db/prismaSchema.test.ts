@@ -42,4 +42,28 @@ describe("Prisma schema", () => {
     expect(migration).toContain("WHEN 'he' THEN 'sun'");
     expect(migration).toContain("WHEN 'she' THEN 'moon'");
   });
+
+  it("stores lightweight user presence fields", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260613001000_add_user_presence",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("lastActionAt");
+    expect(schema).toContain("@map(\"last_action_at\")");
+    expect(schema).toContain("lastSeenLocationId");
+    expect(schema).toContain("currentRaidId");
+    expect(schema).toContain("currentAdventureId");
+    expect(migration).toContain("ADD COLUMN \"last_action_at\"");
+    expect(migration).toContain("ADD COLUMN \"last_seen_location_id\"");
+    expect(migration).toContain("ADD COLUMN \"current_raid_id\"");
+    expect(migration).toContain("ADD COLUMN \"current_adventure_id\"");
+  });
 });

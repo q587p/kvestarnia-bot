@@ -8,16 +8,24 @@ datasource db {
 }
 
 model User {
-  id             String      @id @default(uuid())
+  id                 String     @id @default(uuid())
   // Telegram user ids are numeric; convert ctx.from.id to BigInt at the DB boundary.
-  telegramUserId BigInt      @unique @map("telegram_user_id")
-  username       String?
-  displayName    String?     @map("display_name")
-  languageCode   String?     @map("language_code")
-  character      Character?
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
+  telegramUserId     BigInt     @unique @map("telegram_user_id")
+  username           String?
+  displayName        String?    @map("display_name")
+  languageCode       String?    @map("language_code")
+  lastActionAt       DateTime?  @map("last_action_at")
+  lastSeenLocationId String?    @map("last_seen_location_id")
+  currentRaidId      String?    @map("current_raid_id")
+  currentAdventureId String?    @map("current_adventure_id")
+  character          Character?
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
 
+  @@index([lastActionAt])
+  @@index([lastSeenLocationId])
+  @@index([currentRaidId])
+  @@index([currentAdventureId])
   @@map("users")
 }
 

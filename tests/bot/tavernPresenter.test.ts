@@ -7,6 +7,7 @@ import {
 } from "../../src/bot/presenters/tavernPresenter";
 import type { TavernRaidResult } from "../../src/services/tavernRaidService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import type { PresenceGroup } from "../../src/services/presenceService";
 
 const character: CharacterSummary = {
   name: "Мандрівник",
@@ -53,8 +54,18 @@ describe("tavern presenter", () => {
     expect(text).toContain(
       "Шинкар:\n<blockquote>Це не проблема. Це рейд на 1-3 хвилини.</blockquote>"
     );
+    expect(text).toContain("За столами: поки тільки ви й підозрілий стілець.");
     expect(text).toContain("Що робимо?");
-    expect(text.length).toBeLessThan(320);
+    expect(text.length).toBeLessThan(380);
+  });
+
+  it("shows active tavern presence at the tables", () => {
+    const text = presentTavern(character, tavernPresence);
+
+    expect(text).toContain("За столами:");
+    expect(text).toContain("• Дара · рівень 2");
+    expect(text).toContain("• Нестор &lt;Межовий&gt; · рівень 3");
+    expect(text).toContain("Що робимо?");
   });
 
   it("prompts /start when no character exists", () => {
@@ -66,6 +77,7 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Бочка Пінного Міражу сьогодні вже пережила ваш героїзм");
     expect(text).toContain("завтра знову");
+    expect(text).toContain("За столами: поки тільки ви й підозрілий стілець.");
     expect(text).toContain("/hero");
     expect(text).not.toContain("Це рейд на 1-3 хвилини");
     expect(text).not.toContain("Що робимо?");
@@ -135,3 +147,22 @@ describe("tavern presenter", () => {
     );
   });
 });
+
+const tavernPresence: PresenceGroup = {
+  active: [
+    {
+      telegramUserId: 1n,
+      name: "Дара",
+      level: 2,
+      status: "active"
+    },
+    {
+      telegramUserId: 2n,
+      name: "Нестор <Межовий>",
+      level: 3,
+      status: "active"
+    }
+  ],
+  idle: [],
+  total: 2
+};
