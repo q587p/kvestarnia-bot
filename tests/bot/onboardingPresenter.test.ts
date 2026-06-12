@@ -142,7 +142,7 @@ describe("onboarding presenters and keyboards", () => {
     );
   });
 
-  it("keeps existing hero summary compact", () => {
+  it("keeps created hero summary focused on identity", () => {
     const text = presentCharacterSummary({
       name: "Мандрівник",
       pronoun: "they",
@@ -184,9 +184,13 @@ describe("onboarding presenters and keyboards", () => {
     expect(text).toContain("Титул: <i>Пересічний Герой</i>");
     expect(text).not.toContain("Звертання:");
     expect(text).toContain("\n\nТитул:");
-    expect(text).toContain("\n\nHP");
-    expect(text.split("\n")).toHaveLength(7);
-    expect(text.length).toBeLessThan(220);
+    expect(text).not.toContain("Рівень");
+    expect(text).not.toContain("XP");
+    expect(text).not.toContain("золото");
+    expect(text).not.toContain("HP");
+    expect(text).not.toContain("мана");
+    expect(text.split("\n")).toHaveLength(4);
+    expect(text.length).toBeLessThan(160);
   });
 });
 
