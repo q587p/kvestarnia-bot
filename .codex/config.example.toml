@@ -1,0 +1,14 @@
+# Example project-local Codex config. Copy to .codex/config.toml only if needed.
+# Keep machine-local auth/provider settings in ~/.codex/config.toml.
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[agents.content]
+description = "Reviews Ukrainian RPG text, item names, monster names, and Telegram message clarity."
+
+[agents.balance]
+description = "Reviews combat math, loot tables, progression curves, and economy risks."
+
+[agents.security]
+description = "Reviews Telegram callback validation, idempotency, rate limits, privacy, and anti-abuse logic."
