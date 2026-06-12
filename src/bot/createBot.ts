@@ -27,6 +27,7 @@ import {
   presentInvalidCallback,
   presentRaceSelected
 } from "./presenters/onboardingPresenter";
+import { safeEditMessageText } from "./safeEditMessageText";
 
 export interface BotServices {
   onboarding: OnboardingService;
@@ -36,6 +37,10 @@ export interface BotServices {
 
 export function createBot(token: string, services: BotServices): Bot {
   const bot = new Bot(token);
+
+  bot.catch((error) => {
+    console.error("Квестарня: помилка в Telegram middleware.", error.error);
+  });
 
   registerStartCommand(bot, services.onboarding);
   registerHeroCommand(bot, services.hero);
@@ -92,7 +97,7 @@ async function handleOnboardingCallback(
     }
 
     await ctx.answerCallbackQuery();
-    await ctx.editMessageText(presentRaceSelected(callback.raceId), {
+    await safeEditMessageText(ctx, presentRaceSelected(callback.raceId), {
       reply_markup: buildClassKeyboard(callback.raceId)
     });
     return;
@@ -113,7 +118,7 @@ async function handleOnboardingCallback(
   }
 
   await ctx.answerCallbackQuery();
-  await ctx.editMessageText(presentCharacterCreated(result.value.character, result.value.created), {
+  await safeEditMessageText(ctx, presentCharacterCreated(result.value.character, result.value.created), {
     reply_markup: buildMainMenuKeyboard()
   });
 }
@@ -131,13 +136,13 @@ async function handleMenuCallback(
   }
 
   if (action === "help") {
-    await ctx.editMessageText(presentHelp(services.devReset.isEnabled()), {
+    await safeEditMessageText(ctx, presentHelp(services.devReset.isEnabled()), {
       reply_markup: buildMainMenuKeyboard()
     });
     return;
   }
 
-  await ctx.editMessageText(presentTavernPlaceholder(), {
+  await safeEditMessageText(ctx, presentTavernPlaceholder(), {
     reply_markup: buildMainMenuKeyboard()
   });
 }
@@ -149,7 +154,7 @@ async function handleDevResetCallback(
 ): Promise<void> {
   if (action === "cancel") {
     await ctx.answerCallbackQuery();
-    await ctx.editMessageText(presentDevResetCancelled());
+    await safeEditMessageText(ctx, presentDevResetCancelled());
     return;
   }
 
@@ -169,5 +174,5 @@ async function handleDevResetCallback(
         : presentDevResetNoCharacter();
 
   await ctx.answerCallbackQuery();
-  await ctx.editMessageText(message);
+  await safeEditMessageText(ctx, message);
 }

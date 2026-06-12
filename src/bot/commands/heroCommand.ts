@@ -3,6 +3,7 @@ import type { HeroService } from "../../services/heroService";
 import { telegramUserIdFromContext } from "../context";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { presentHero, presentHeroMissing } from "../presenters/heroPresenter";
+import { safeEditMessageText } from "../safeEditMessageText";
 
 export function registerHeroCommand(bot: Bot, heroService: HeroService): void {
   bot.command(["hero", "profile", "me"], async (ctx) => {
@@ -39,7 +40,8 @@ async function sendText(
   includeMenu = false
 ): Promise<void> {
   if (mode === "edit") {
-    await ctx.editMessageText(
+    await safeEditMessageText(
+      ctx,
       text,
       includeMenu
         ? {
