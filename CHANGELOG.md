@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.2] - 12026-06-12
+
+### Added
+- Character creation now starts with a lightweight pronoun selection step: `Він`, `Вона`, or `Вони`.
+- Race and class choices now use content-driven availability rules with short Ukrainian unavailable-reason messages.
+- Character creation now includes a confirmation screen with pronoun, race, class, and a combo title before persistence.
+- Characters persist the selected pronoun through a safe Prisma migration with a default for existing rows.
+- Hero/profile summaries now show the selected pronoun label and combo title.
+- Tests cover callback parsing, unavailable choices, direct callback bypass rejection, confirmation/back navigation, presenter output, and content validation for the expanded options.
+
+### Changed
+- Onboarding callback data now uses compact race/class keys to stay within Telegram callback data limits.
+- `/start` now sends new players to pronoun selection before race and class selection.
+
+### Not Included Yet
+- Combat, adventure loop, loot, inventory, raids, guilds, PvP, jobs, payments, and Mini App UI.
+
 ## [0.0.1] - 12026-06-12
 
 ### Added

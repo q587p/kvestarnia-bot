@@ -1,5 +1,13 @@
 import { classes } from "../content/classes";
+import {
+  getClassUnavailableReason,
+  getRaceUnavailableReason,
+  isClassAvailableForChoice,
+  isPronoun,
+  isRaceAvailableForPronoun
+} from "../content/characterOptions";
 import { races } from "../content/races";
+import type { Pronoun } from "../content/schema";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { buildStarterStats } from "../domain/characters/starterStats";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
@@ -7,17 +15,24 @@ import type { TelegramUserProfile, UserRepository } from "../db/repositories/use
 import { err, ok, type Result } from "../shared/result";
 
 export type StartOnboardingResult =
-  | { state: "needs-race-selection" }
+  | { state: "needs-gender-selection" }
   | { state: "existing-character"; character: CharacterSummary };
 
-export type RaceSelectionResult = { raceId: string };
+export type RaceSelectionResult = { pronoun: Pronoun; raceId: string };
+
+export type ClassSelectionResult = { pronoun: Pronoun; raceId: string; classId: string };
 
 export type CompleteOnboardingResult = {
   character: CharacterSummary;
   created: boolean;
 };
 
-export type OnboardingError = "invalid-race" | "invalid-class";
+export type OnboardingError =
+  | { type: "invalid-pronoun" }
+  | { type: "invalid-race" }
+  | { type: "invalid-class" }
+  | { type: "unavailable-race"; reason: string }
+  | { type: "unavailable-class"; reason: string };
 
 export class OnboardingService {
   constructor(
@@ -36,33 +51,73 @@ export class OnboardingService {
       };
     }
 
-    return { state: "needs-race-selection" };
+    return { state: "needs-gender-selection" };
   }
 
-  selectRace(raceId: string): Result<RaceSelectionResult, OnboardingError> {
-    if (!races.some((race) => race.id === raceId)) {
-      return err("invalid-race");
+  selectRace(pronoun: string, raceId: string): Result<RaceSelectionResult, OnboardingError> {
+    if (!isPronoun(pronoun)) {
+      return err({ type: "invalid-pronoun" });
     }
 
-    return ok({ raceId });
+    if (!races.some((race) => race.id === raceId)) {
+      return err({ type: "invalid-race" });
+    }
+
+    if (!isRaceAvailableForPronoun(pronoun, raceId)) {
+      return err({
+        type: "unavailable-race",
+        reason: getRaceUnavailableReason(pronoun, raceId)
+      });
+    }
+
+    return ok({ pronoun, raceId });
+  }
+
+  selectClass(
+    pronoun: string,
+    raceId: string,
+    classId: string
+  ): Result<ClassSelectionResult, OnboardingError> {
+    const raceResult = this.selectRace(pronoun, raceId);
+
+    if (!raceResult.ok) {
+      return raceResult;
+    }
+
+    if (!classes.some((characterClass) => characterClass.id === classId)) {
+      return err({ type: "invalid-class" });
+    }
+
+    if (!isClassAvailableForChoice(raceResult.value.pronoun, raceId, classId)) {
+      return err({
+        type: "unavailable-class",
+        reason: getClassUnavailableReason(raceResult.value.pronoun, raceId, classId)
+      });
+    }
+
+    return ok({
+      pronoun: raceResult.value.pronoun,
+      raceId,
+      classId
+    });
   }
 
   async complete(
     player: TelegramUserProfile,
+    pronoun: string,
     raceId: string,
     classId: string
   ): Promise<Result<CompleteOnboardingResult, OnboardingError>> {
-    if (!races.some((race) => race.id === raceId)) {
-      return err("invalid-race");
-    }
+    const selection = this.selectClass(pronoun, raceId, classId);
 
-    if (!classes.some((characterClass) => characterClass.id === classId)) {
-      return err("invalid-class");
+    if (!selection.ok) {
+      return selection;
     }
 
     const starterStats = buildStarterStats(raceId, classId);
     const result = await this.characters.createForTelegramUserIfMissing(player, {
       name: normalizeCharacterName(player.displayName),
+      pronoun: selection.value.pronoun,
       raceId,
       classId,
       level: 1,

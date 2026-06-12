@@ -26,6 +26,7 @@ model Character {
   userId    String   @unique @map("user_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
+  pronoun   String   @default("they")
   raceId    String   @map("race_id")
   classId   String   @map("class_id")
   level     Int      @default(1)

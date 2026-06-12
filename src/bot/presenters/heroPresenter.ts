@@ -4,6 +4,7 @@ export function presentHero(summary: CharacterSummary): string {
   return [
     `👤 ${summary.name}`,
     `${summary.raceName} · ${summary.className}`,
+    `Звертання: ${summary.pronounLabel} · Титул: ${summary.title}`,
     `Рівень ${summary.level} · XP ${summary.xp} · золото ${summary.gold}`,
     `HP ${summary.hpCurrent}/${summary.hpMax} · мана ${summary.manaCurrent}/${summary.manaMax}`,
     `Сили ${summary.stats.strength} · Спритн. ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,

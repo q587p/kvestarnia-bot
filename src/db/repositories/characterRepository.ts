@@ -4,6 +4,7 @@ export interface CharacterRecord {
   id: string;
   userId: string;
   name: string;
+  pronoun: string;
   raceId: string;
   classId: string;
   level: number;
@@ -18,6 +19,7 @@ export interface CharacterRecord {
 
 export interface CreateCharacterInput {
   name: string;
+  pronoun: string;
   raceId: string;
   classId: string;
   level: number;

@@ -1,13 +1,18 @@
 import { classes } from "../../content/classes";
+import { getComboTitle, getPronounLabel, isPronoun } from "../../content/characterOptions";
 import { races } from "../../content/races";
+import type { Pronoun } from "../../content/schema";
 import type { CharacterStats } from "./starterStats";
 
 export interface CharacterSummary {
   name: string;
+  pronoun: Pronoun;
+  pronounLabel: string;
   raceId: string;
   raceName: string;
   classId: string;
   className: string;
+  title: string;
   level: number;
   xp: number;
   gold: number;
@@ -20,6 +25,7 @@ export interface CharacterSummary {
 
 export interface CharacterSummaryInput {
   name: string;
+  pronoun?: string;
   raceId: string;
   classId: string;
   level: number;
@@ -35,13 +41,17 @@ export interface CharacterSummaryInput {
 export function summarizeCharacter(input: CharacterSummaryInput): CharacterSummary {
   const race = races.find((candidate) => candidate.id === input.raceId);
   const characterClass = classes.find((candidate) => candidate.id === input.classId);
+  const pronoun = parsePronoun(input.pronoun);
 
   return {
     name: input.name,
+    pronoun,
+    pronounLabel: getPronounLabel(pronoun),
     raceId: input.raceId,
     raceName: race?.name ?? input.raceId,
     classId: input.classId,
     className: characterClass?.name ?? input.classId,
+    title: getComboTitle(input.raceId, input.classId),
     level: input.level,
     xp: input.xp,
     gold: input.gold,
@@ -51,6 +61,10 @@ export function summarizeCharacter(input: CharacterSummaryInput): CharacterSumma
     manaMax: input.manaMax,
     stats: parseStats(input.statsJson)
   };
+}
+
+function parsePronoun(value: string | undefined): Pronoun {
+  return isPronoun(value) ? value : "they";
 }
 
 function parseStats(value: unknown): CharacterStats {

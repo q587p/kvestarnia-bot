@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { classes } from "../../src/content/classes";
-import { races } from "../../src/content/races";
-import { buildClassKeyboard, buildRaceKeyboard } from "../../src/bot/keyboards/onboardingKeyboard";
 import { parseOnboardingCallbackData } from "../../src/bot/callbacks/onboardingCallbackData";
 import {
+  buildClassKeyboard,
+  buildConfirmationKeyboard,
+  buildGenderKeyboard,
+  buildRaceKeyboard
+} from "../../src/bot/keyboards/onboardingKeyboard";
+import {
   presentCharacterSummary,
+  presentClassSelected,
+  presentGenderSelected,
   presentWelcome
 } from "../../src/bot/presenters/onboardingPresenter";
+import { classes } from "../../src/content/classes";
+import { races } from "../../src/content/races";
 
 describe("onboarding presenters and keyboards", () => {
   it("keeps /start welcome short and Ukrainian", () => {
@@ -16,37 +23,72 @@ describe("onboarding presenters and keyboards", () => {
     expect(text.length).toBeLessThan(180);
   });
 
-  it("builds race buttons with valid callback data", () => {
-    const buttons = buildRaceKeyboard().inline_keyboard.flat();
+  it("builds gender buttons with valid callback data", () => {
+    const buttons = buildGenderKeyboard().inline_keyboard.flat();
 
-    expect(buttons).toHaveLength(races.length);
-    for (const button of buttons) {
-      expect(button.text).toBeTruthy();
-      expect(parseOnboardingCallbackData("callback_data" in button ? button.callback_data : "")).toMatchObject({
-        ok: true
-      });
-    }
+    expect(buttons).toHaveLength(3);
+    expectAllButtonsValid(buttons);
   });
 
-  it("builds class buttons with valid callback data", () => {
-    const buttons = buildClassKeyboard("race.human-ish").inline_keyboard.flat();
+  it("builds race buttons with unavailable options and valid callback data", () => {
+    const buttons = buildRaceKeyboard("she").inline_keyboard.flat();
 
-    expect(buttons).toHaveLength(classes.length);
-    for (const button of buttons) {
-      expect(button.text).toBeTruthy();
-      expect(parseOnboardingCallbackData("callback_data" in button ? button.callback_data : "")).toMatchObject({
-        ok: true
-      });
-    }
+    expect(buttons).toHaveLength(races.length + 1);
+    expectAllButtonsValid(buttons);
+    expect(buttons.some((button) => button.text.includes("🚫 Козак-характерник"))).toBe(true);
+  });
+
+  it("shows selected gender before race selection", () => {
+    const text = presentGenderSelected("they");
+
+    expect(text).toContain("Вони");
+    expect(text).toContain("оберіть расу");
+  });
+
+  it("builds class buttons with unavailable options and valid callback data", () => {
+    const buttons = buildClassKeyboard("they", "race.molfar-soul").inline_keyboard.flat();
+
+    expect(buttons).toHaveLength(classes.length + 1);
+    expectAllButtonsValid(buttons);
+    expect(buttons.some((button) => button.text.includes("🚫 Вареник-мант"))).toBe(true);
+  });
+
+  it("builds confirmation buttons with valid callback data", () => {
+    const buttons = buildConfirmationKeyboard(
+      "they",
+      "race.molfar-soul",
+      "class.bureaucramancer"
+    ).inline_keyboard.flat();
+
+    expect(buttons.map((button) => button.text)).toEqual([
+      "Почати",
+      "Назад до класу",
+      "Назад до раси",
+      "Почати заново"
+    ]);
+    expectAllButtonsValid(buttons);
+  });
+
+  it("presents a confirmation summary", () => {
+    const text = presentClassSelected("they", "race.molfar-soul", "class.bureaucramancer");
+
+    expect(text).toContain("Звертання: Вони");
+    expect(text).not.toContain("Стать:");
+    expect(text).toContain("Мольфарська душа");
+    expect(text).toContain("Бюрокромант");
+    expect(text).toContain("Писар Оберегових Справ");
   });
 
   it("keeps existing hero summary compact", () => {
     const text = presentCharacterSummary({
       name: "Мандрівник",
+      pronoun: "they",
+      pronounLabel: "Вони",
       raceId: "race.human-ish",
       raceName: "Людисько",
       classId: "class.warrior",
       className: "Воїн",
+      title: "Пересічний Герой",
       level: 1,
       xp: 0,
       gold: 0,
@@ -64,7 +106,16 @@ describe("onboarding presenters and keyboards", () => {
     });
 
     expect(text).toContain("Мандрівник");
-    expect(text.split("\n")).toHaveLength(3);
-    expect(text.length).toBeLessThan(180);
+    expect(text.split("\n")).toHaveLength(4);
+    expect(text.length).toBeLessThan(220);
   });
 });
+
+function expectAllButtonsValid(buttons: Array<{ text: string; callback_data?: string }>): void {
+  for (const button of buttons) {
+    expect(button.text).toBeTruthy();
+    expect(parseOnboardingCallbackData(button.callback_data)).toMatchObject({
+      ok: true
+    });
+  }
+}

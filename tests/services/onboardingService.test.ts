@@ -25,12 +25,14 @@ describe("OnboardingService", () => {
     const characters = new FakeCharacterRepository(users);
     const service = new OnboardingService(users, characters);
 
-    const result = await service.complete(player, "race.human-ish", "class.warrior");
+    const result = await service.complete(player, "he", "race.human-ish", "class.warrior");
 
     expect(result.ok).toBe(true);
     expect(characters.createCount).toBe(1);
     if (result.ok) {
       expect(result.value.created).toBe(true);
+      expect(result.value.character.pronoun).toBe("he");
+      expect(result.value.character.pronounLabel).toBe("Він");
       expect(result.value.character.raceId).toBe("race.human-ish");
       expect(result.value.character.classId).toBe("class.warrior");
       expect(result.value.character.name).toBe("Тестовий Герой із надто довгим і");
@@ -43,8 +45,8 @@ describe("OnboardingService", () => {
     const characters = new FakeCharacterRepository(users);
     const service = new OnboardingService(users, characters);
 
-    await service.complete(player, "race.human-ish", "class.warrior");
-    const repeated = await service.complete(player, "race.human-ish", "class.warrior");
+    await service.complete(player, "they", "race.human-ish", "class.warrior");
+    const repeated = await service.complete(player, "they", "race.human-ish", "class.warrior");
 
     expect(repeated.ok).toBe(true);
     expect(characters.createCount).toBe(1);
@@ -59,31 +61,111 @@ describe("OnboardingService", () => {
     const characters = new FakeCharacterRepository(users);
     const service = new OnboardingService(users, characters);
 
-    await service.complete(player, "race.dwarf", "class.priest");
+    await service.complete(player, "she", "race.dwarf", "class.bureaucramancer");
     const start = await service.start(player);
 
     expect(start.state).toBe("existing-character");
     if (start.state === "existing-character") {
       expect(start.character.raceName).toBe("Гном");
-      expect(start.character.className).toBe("Жрець");
+      expect(start.character.className).toBe("Бюрокромант");
     }
   });
 
-  it("returns an error for invalid race or class", async () => {
+  it("supports the full gender, race, class, and confirm happy path", async () => {
     const service = new OnboardingService(
       new FakeUserRepository(),
       new FakeCharacterRepository(new FakeUserRepository())
     );
 
-    expect(service.selectRace("race.nope")).toEqual({ ok: false, error: "invalid-race" });
-    await expect(service.complete(player, "race.nope", "class.warrior")).resolves.toEqual({
-      ok: false,
-      error: "invalid-race"
+    expect(service.selectRace("they", "race.molfar-soul")).toEqual({
+      ok: true,
+      value: {
+        pronoun: "they",
+        raceId: "race.molfar-soul"
+      }
     });
-    await expect(service.complete(player, "race.human-ish", "class.nope")).resolves.toEqual({
-      ok: false,
-      error: "invalid-class"
+    expect(service.selectClass("they", "race.molfar-soul", "class.bureaucramancer")).toEqual({
+      ok: true,
+      value: {
+        pronoun: "they",
+        raceId: "race.molfar-soul",
+        classId: "class.bureaucramancer"
+      }
     });
+
+    const created = await service.complete(
+      player,
+      "they",
+      "race.molfar-soul",
+      "class.bureaucramancer"
+    );
+
+    expect(created.ok).toBe(true);
+    if (created.ok) {
+      expect(created.value.character.title).toBe("Писар Оберегових Справ");
+    }
+  });
+
+  it("returns an error for invalid race, class, or pronoun", async () => {
+    const service = new OnboardingService(
+      new FakeUserRepository(),
+      new FakeCharacterRepository(new FakeUserRepository())
+    );
+
+    expect(service.selectRace("dragon", "race.human-ish")).toEqual({
+      ok: false,
+      error: { type: "invalid-pronoun" }
+    });
+    expect(service.selectRace("they", "race.nope")).toEqual({
+      ok: false,
+      error: { type: "invalid-race" }
+    });
+    await expect(service.complete(player, "they", "race.nope", "class.warrior")).resolves.toEqual({
+      ok: false,
+      error: { type: "invalid-race" }
+    });
+    await expect(
+      service.complete(player, "they", "race.human-ish", "class.nope")
+    ).resolves.toEqual({
+      ok: false,
+      error: { type: "invalid-class" }
+    });
+  });
+
+  it("rejects unavailable race and class selections, including direct callback bypass", async () => {
+    const service = new OnboardingService(
+      new FakeUserRepository(),
+      new FakeCharacterRepository(new FakeUserRepository())
+    );
+
+    const unavailableRace = service.selectRace("she", "race.kharakternyk");
+    expect(unavailableRace.ok).toBe(false);
+    if (!unavailableRace.ok) {
+      expect(unavailableRace.error.type).toBe("unavailable-race");
+      expect(unavailableRace.error.reason).toContain("характерниця");
+    }
+
+    const unavailableClass = service.selectClass(
+      "they",
+      "race.molfar-soul",
+      "class.varenyk-mancer"
+    );
+    expect(unavailableClass.ok).toBe(false);
+    if (!unavailableClass.ok) {
+      expect(unavailableClass.error.type).toBe("unavailable-class");
+      expect(unavailableClass.error.reason).toContain("Обереги");
+    }
+
+    const bypass = await service.complete(
+      player,
+      "they",
+      "race.molfar-soul",
+      "class.varenyk-mancer"
+    );
+    expect(bypass.ok).toBe(false);
+    if (!bypass.ok) {
+      expect(bypass.error.type).toBe("unavailable-class");
+    }
   });
 });
 
