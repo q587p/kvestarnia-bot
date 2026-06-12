@@ -72,7 +72,8 @@ describe("onboarding presenters and keyboards", () => {
   it("presents a confirmation summary", () => {
     const text = presentClassSelected("they", "race.molfar-soul", "class.bureaucramancer");
 
-    expect(text).toContain("Стать: Вони");
+    expect(text).toContain("Звертання: Вони");
+    expect(text).not.toContain("Стать:");
     expect(text).toContain("Мольфарська душа");
     expect(text).toContain("Бюрокромант");
     expect(text).toContain("Писар Оберегових Справ");

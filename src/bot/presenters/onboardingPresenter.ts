@@ -49,7 +49,7 @@ export function presentClassSelected(pronoun: Pronoun, raceId: string, classId: 
   return [
     "Ви майже готові стати пригодою для місцевої статистики.",
     "",
-    `Стать: ${getPronounLabel(pronoun)}`,
+    `Звертання: ${getPronounLabel(pronoun)}`,
     `Раса: ${race.name}`,
     `Клас: ${characterClass.name}`,
     `Титул: ${getComboTitle(raceId, classId)}`,
@@ -67,7 +67,7 @@ export function presentCharacterCreated(summary: CharacterSummary, created: bool
 export function presentCharacterSummary(summary: CharacterSummary): string {
   return [
     `${summary.name} — ${summary.raceName}, ${summary.className}`,
-    `Стать: ${summary.pronounLabel} · Титул: ${summary.title}`,
+    `Звертання: ${summary.pronounLabel} · Титул: ${summary.title}`,
     `Рівень ${summary.level} · XP ${summary.xp} · золото ${summary.gold}`,
     `HP ${summary.hpCurrent}/${summary.hpMax} · мана ${summary.manaCurrent}/${summary.manaMax}`
   ].join("\n");

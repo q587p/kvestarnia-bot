@@ -33,6 +33,8 @@ describe("hero presenter", () => {
 
     expect(text).toContain("Людисько");
     expect(text).toContain("Воїн");
+    expect(text).toContain("Звертання: Вони");
+    expect(text).not.toContain("Стать:");
     expect(text).toContain("Вони");
     expect(text).toContain("Пересічний Герой");
     expect(text).toContain("Сили 8");
