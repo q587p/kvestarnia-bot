@@ -1,27 +1,112 @@
-# Telegram RPG Codex Pack
-
-Це стартовий пакет документації для україномовної текстової Telegram-RPG з гумором, прогресією, PvE/PvP, підземеллями, ґільдіями та сезонними подіями.
-
-## Що тут є
-
-- `AGENTS.md` — головний файл інструкцій для Codex у корені репозиторію.
-- `docs/PRODUCT_BRIEF.md` — продуктова рамка та позиціонування.
-- `docs/MARKET_ANALYSIS.md` — короткий аналіз аналогів і ніші.
-- `docs/GAME_DESIGN.md` — базовий GDD для MVP.
-- `docs/TECHNICAL_PLAN.md` — рекомендована архітектура.
-- `docs/ROADMAP.md` — етапи робіт і Definition of Done.
-- `docs/CONTENT_STYLE_GUIDE.md` — тон українського гумору та приклади повідомлень.
-- `docs/BALANCE_NOTES.md` — стартові формули, RNG, економіка.
-- `docs/SECURITY_AND_FAIR_PLAY.md` — антиаб’юз, приватність, чесна гра.
-- `docs/CODEX_WORKFLOW.md` — як ставити задачі Codex і як розбивати роботу.
-- `skills/*/SKILL.md` — опційні Codex skills для контенту та балансу.
-
-## Рекомендований порядок використання
-
-1. Поклади `AGENTS.md` у корінь майбутнього репозиторію.
-2. Скопіюй папку `docs/` без змін.
-3. Перед першою генерацією коду попроси Codex: “прочитай `AGENTS.md`, `docs/PRODUCT_BRIEF.md`, `docs/GAME_DESIGN.md`, `docs/TECHNICAL_PLAN.md` і запропонуй скелет репозиторію”.
-4. Не починай з усіх MMO-фіч. Почни з одного веселого PvE loop і тестованого combat engine.
-=======
 # kvestarnia-bot
-Квестарня — рольова Telegram-гра, де ти створюєш героя, ходиш у квести, збираєш лут, б’єшся з ворогами й ростеш від новачка до легенди
+
+Квестарня — україномовна текстова Telegram RPG. Репозиторій зараз містить Phase 0 foundation: TypeScript/Node.js, npm workflow, мінімальний grammY bot entrypoint, Prisma/PostgreSQL foundation, Zod-validated content і базові тести.
+
+## Що вже є
+
+- CommonJS TypeScript scaffold у стилі sibling Telegram bot repo.
+- `src/bot.ts` як мінімальний polling entrypoint.
+- `/start` з короткою українською заглушкою без gameplay.
+- Config layer із Zod для `BOT_TOKEN`, `DATABASE_URL`, `REDIS_URL`, `NODE_ENV`.
+- Prisma schema з мінімальними `User` і `Character`.
+- Content tables для race/class/monster/item зі stable ids.
+- Vitest tests для content validation, unique ids і fake RNG.
+- Docker Compose для PostgreSQL і Redis.
+
+Повний gameplay loop, combat, inventory, loot, raids, guilds і PvP ще не реалізовані.
+
+## Вимоги
+
+- Node.js 20 або новіший.
+- npm.
+- Docker або сумісний Docker Compose для локальних Postgres/Redis.
+
+У Windows PowerShell може блокуватися `npm.ps1`; тоді використовуй `npm.cmd`, наприклад `npm.cmd run build`.
+
+## Local Setup
+
+```bash
+npm install
+cp .env.example .env
+docker compose up -d
+npx prisma generate
+npm run typecheck
+npm test
+npm run build
+npm run dev
+```
+
+У Windows PowerShell замість `cp`:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+`BOT_TOKEN` у `.env` може бути порожнім для foundation-перевірок. У такому режимі `npm run dev` валідовує конфіг і не запускає Telegram polling. Щоб запустити реального бота, додай токен від BotFather:
+
+```env
+BOT_TOKEN=replace-with-real-token
+```
+
+Не коміть `.env` або реальні секрети.
+
+## Prisma
+
+Згенерувати Prisma Client:
+
+```bash
+npx prisma generate
+```
+
+Створити першу локальну міграцію після старту Postgres:
+
+```bash
+npx prisma migrate dev --name init
+```
+
+Міграція не додана в цьому scaffold-коміті навмисно: Phase 0 фіксує мінімальну schema contract, а застосування міграцій залежить від локальної Postgres БД. Наступний DB-крок має додати першу міграцію окремо й перевірити її проти `docker-compose.yml`.
+
+## Scripts
+
+- `npm run dev` — локальний bot polling через `ts-node-dev`.
+- `npm run build` — `prisma generate && tsc`.
+- `npm start` — запуск `dist/bot.js`.
+- `npm test` — Vitest suite без Telegram network calls.
+- `npm run typecheck` — strict TypeScript.
+- `npm run lint` — ESLint для `src` і `tests`.
+
+## Структура
+
+```text
+src/
+  bot.ts
+  bot/presenters/
+  config/
+  content/
+  db/
+  domain/
+  jobs/
+  services/
+  shared/
+prisma/
+tests/
+```
+
+Domain-код не має імпортувати Telegram/grammY. Bot layer має лишатися тонким.
+
+## Корисні документи
+
+- `AGENTS.md`
+- `docs/BRAND.md`
+- `docs/PRODUCT_BRIEF.md`
+- `docs/GAME_DESIGN.md`
+- `docs/TECHNICAL_PLAN.md`
+- `docs/ROADMAP.md`
+- `docs/CONTENT_STYLE_GUIDE.md`
+- `docs/BALANCE_NOTES.md`
+- `docs/SECURITY_AND_FAIR_PLAY.md`
+- `docs/CODEX_WORKFLOW.md`
+
+## Наступний крок
+
+Phase 1 варто починати з `/start` onboarding: вибір раси й класу через callback-и, idempotent character creation, перша Prisma migration і тести без Telegram network calls.
