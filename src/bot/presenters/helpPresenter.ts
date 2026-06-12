@@ -5,6 +5,8 @@ export function presentHelp(includeDevReset: boolean): string {
     "/hero — герой і прогрес",
     "/profile — те саме, що /hero",
     "/me — те саме, що /hero",
+    "/tavern — таверна й малий рейд на бочку",
+    "/raid — те саме, що /tavern, поки без групового рейду",
     "/help — довідка"
   ];
 
@@ -12,11 +14,7 @@ export function presentHelp(includeDevReset: boolean): string {
     lines.push("/dev_reset_me — скинути свого героя в локальній майстерні");
   }
 
-  lines.push("Пригоди ще не працюють: квестодавець шукає окуляри.");
+  lines.push("Великі пригоди ще не працюють: квестодавець шукає окуляри.");
 
   return lines.join("\n");
-}
-
-export function presentTavernPlaceholder(): string {
-  return "🍺 Таверна гуде, але квестодавець ще шукає свої окуляри. Наступний PR — пригоди.";
 }
