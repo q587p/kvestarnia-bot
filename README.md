@@ -8,7 +8,7 @@
 - `src/bot.ts` як мінімальний polling entrypoint.
 - `/start` з короткою українською заглушкою без gameplay.
 - Config layer із Zod для `BOT_TOKEN`, `DATABASE_URL`, `REDIS_URL`, `NODE_ENV`.
-- Prisma schema з мінімальними `User` і `Character`.
+- Prisma schema з `User` і мінімальним `Character` для майбутнього onboarding.
 - Content tables для race/class/monster/item зі stable ids.
 - Vitest tests для content validation, unique ids і fake RNG.
 - Docker Compose для PostgreSQL і Redis.
@@ -65,6 +65,8 @@ npx prisma migrate dev --name init
 ```
 
 Міграція не додана в цьому scaffold-коміті навмисно: Phase 0 фіксує мінімальну schema contract, а застосування міграцій залежить від локальної Postgres БД. Наступний DB-крок має додати першу міграцію окремо й перевірити її проти `docker-compose.yml`.
+
+`User.telegramUserId` зберігається як `BigInt` і мапиться у БД на `telegram_user_id`, як у `docs/TECHNICAL_PLAN.md`. На межі Telegram/DB треба конвертувати `ctx.from.id` у `BigInt`; доменний код не має знати про Telegram payload.
 
 ## Scripts
 

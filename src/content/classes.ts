@@ -1,4 +1,4 @@
-import type { ClassContent } from "./schema.js";
+import type { ClassContent } from "./schema";
 
 export const classes = [
   {

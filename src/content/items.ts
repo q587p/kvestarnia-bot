@@ -1,4 +1,4 @@
-import type { ItemContent } from "./schema.js";
+import type { ItemContent } from "./schema";
 
 export const items = [
   {

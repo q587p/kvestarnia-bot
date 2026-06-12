@@ -1,4 +1,4 @@
-import type { RaceContent } from "./schema.js";
+import type { RaceContent } from "./schema";
 
 export const races = [
   {

@@ -1,4 +1,4 @@
-import type { MonsterContent } from "./schema.js";
+import type { MonsterContent } from "./schema";
 
 export const monsters = [
   {
