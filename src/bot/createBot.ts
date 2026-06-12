@@ -3,6 +3,7 @@ import type { AdventureService } from "../services/adventureService";
 import type { DevResetService } from "../services/devResetService";
 import type { FightService } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
+import type { InventoryService } from "../services/inventoryService";
 import type { OnboardingService } from "../services/onboardingService";
 import type { RestartService } from "../services/restartService";
 import type { TavernRaidService } from "../services/tavernRaidService";
@@ -22,6 +23,7 @@ import { registerDevResetCommand } from "./commands/devResetCommand";
 import { registerFightCommand } from "./commands/fightCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
 import { registerHeroCommand, sendHero } from "./commands/heroCommand";
+import { registerInventoryCommand, sendInventory } from "./commands/inventoryCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
 import { registerPlannedCommands } from "./commands/plannedCommand";
 import { registerRestartCommand } from "./commands/restartCommand";
@@ -71,6 +73,7 @@ export interface BotServices {
   fight: FightService;
   onboarding: OnboardingService;
   hero: HeroService;
+  inventory: InventoryService;
   devReset: DevResetService;
   restart: RestartService;
   tavern: TavernRaidService;
@@ -87,6 +90,7 @@ export function createBot(token: string, services: BotServices): Bot {
   registerFightCommand(bot, services.fight);
   registerStartCommand(bot, services.onboarding);
   registerHeroCommand(bot, services.hero);
+  registerInventoryCommand(bot, services.inventory);
   registerHelpCommand(bot, services.devReset);
   registerNewsCommand(bot);
   registerVersionCommand(bot);
@@ -334,7 +338,7 @@ async function handleOnboardingCallback(
 
 async function handleMenuCallback(
   ctx: Context,
-  action: "hero" | "help" | "tavern",
+  action: "hero" | "help" | "inventory" | "tavern",
   services: BotServices
 ): Promise<void> {
   await safeAnswerCallbackQuery(ctx);
@@ -348,6 +352,11 @@ async function handleMenuCallback(
     await safeEditMessageText(ctx, presentHelp(services.devReset.isEnabled()), {
       reply_markup: buildMainMenuKeyboard()
     });
+    return;
+  }
+
+  if (action === "inventory") {
+    await sendInventory(ctx, services.inventory, "edit");
     return;
   }
 

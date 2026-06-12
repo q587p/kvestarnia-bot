@@ -44,7 +44,8 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             state: "existing",
             action: existing,
             character,
-            levelChange: null
+            levelChange: null,
+            itemGrants: []
           };
         }
 
@@ -84,6 +85,32 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
                   level: newLevel
                 }
               });
+        const itemGrants = input.itemGrants ?? [];
+
+        for (const grant of itemGrants) {
+          if (grant.quantity <= 0) {
+            continue;
+          }
+
+          await tx.characterItem.upsert({
+            where: {
+              characterId_itemId: {
+                characterId: character.id,
+                itemId: grant.itemId
+              }
+            },
+            create: {
+              characterId: character.id,
+              itemId: grant.itemId,
+              quantity: grant.quantity
+            },
+            update: {
+              quantity: {
+                increment: grant.quantity
+              }
+            }
+          });
+        }
 
         return {
           state: "created",
@@ -93,7 +120,8 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             oldLevel: rewardProgress.oldLevel,
             newLevel,
             leveledUp: newLevel > rewardProgress.oldLevel
-          }
+          },
+          itemGrants: itemGrants.filter((grant) => grant.quantity > 0)
         };
       });
     } catch (error) {
@@ -139,7 +167,8 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
       state: "existing",
       action,
       character,
-      levelChange: null
+      levelChange: null,
+      itemGrants: []
     };
   }
 }

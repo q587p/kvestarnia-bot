@@ -12,4 +12,15 @@ describe("Prisma schema", () => {
     expect(schema).toContain("@map(\"reward_xp\")");
     expect(schema).toContain("@map(\"reward_gold\")");
   });
+
+  it("represents persistent character inventory rows", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+
+    expect(schema).toContain("model CharacterItem");
+    expect(schema).toContain("items     CharacterItem[]");
+    expect(schema).toContain("@map(\"character_id\")");
+    expect(schema).toContain("@map(\"item_id\")");
+    expect(schema).toContain("@@unique([characterId, itemId])");
+    expect(schema).toContain("@@map(\"character_items\")");
+  });
 });

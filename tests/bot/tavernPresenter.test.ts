@@ -56,8 +56,14 @@ describe("tavern presenter", () => {
       reward: {
         xp: 7,
         gold: 5,
-        flavor: "квиток мокрого героя",
-        localDate: "2026-06-12"
+        localDate: "2026-06-12",
+        itemGrants: [
+          {
+            itemId: "item.wet-hero-ticket",
+            name: "Квиток мокрого героя",
+            quantity: 1
+          }
+        ]
       },
       levelChange: {
         oldLevel: 1,
@@ -72,8 +78,9 @@ describe("tavern presenter", () => {
     };
 
     expect(presentTavernRaidResult(completed)).toContain("+7 XP · +5 золота");
-    expect(presentTavernRaidResult(completed)).toContain("квиток мокрого героя");
+    expect(presentTavernRaidResult(completed)).toContain("Здобуто: Квиток мокрого героя ×1");
     expect(presentTavernRaidResult(repeated)).toContain("уже зараховано");
+    expect(presentTavernRaidResult(repeated)).not.toContain("Здобуто:");
     expect(presentTavernRaidResult(completed).toLowerCase()).not.toContain("пий");
   });
 
@@ -84,8 +91,8 @@ describe("tavern presenter", () => {
       reward: {
         xp: 7,
         gold: 5,
-        flavor: "квиток мокрого героя",
-        localDate: "2026-06-12"
+        localDate: "2026-06-12",
+        itemGrants: []
       },
       levelChange: {
         oldLevel: 1,

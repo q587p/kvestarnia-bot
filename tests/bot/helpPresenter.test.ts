@@ -16,15 +16,20 @@ describe("help presenter", () => {
     expect(text).toContain("/fight");
     expect(text).toContain("/hunt");
     expect(text).toContain("/inventory");
+    expect(text).toContain("/items");
+    expect(text).toContain("/bag");
     expect(text).toContain("/guild");
     expect(text).toContain("/restart");
     expect(text).toContain("/version");
     expect(text).toContain("/news");
     expect(text).toContain("/help");
     expect(text).not.toContain("/dev_reset_me");
-    expect(text).toContain("те саме, що /fight");
+    expect(text).toContain("/hero (/profile, /me)");
+    expect(text).toContain("/inventory (/items, /bag)");
+    expect(text).not.toContain("те саме, що");
     expect(text).not.toContain("/hunt — ще");
     expect(text).toContain("Повний бій");
+    expect(text.split("\n").length).toBeLessThanOrEqual(13);
   });
 
   it("includes dev reset only when enabled", () => {

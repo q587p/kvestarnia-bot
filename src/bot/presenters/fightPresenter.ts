@@ -1,6 +1,7 @@
 import { MIMIC_SHAWARMA_HP } from "../../domain/combat/combatProbe";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { FightResult } from "../../services/fightService";
+import { escapeHtml } from "./telegramHtml";
 
 export function presentFightStart(character: CharacterSummary): string {
   return [
@@ -31,7 +32,8 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
     ...presentOutcome(result),
     "",
     `❤️ Ви: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}   🌯 Мімік: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
-    presentRewardLine(result.reward.xp, result.reward.gold)
+    presentRewardLine(result.reward.xp, result.reward.gold),
+    ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
   if (result.levelChange.leveledUp) {
@@ -72,4 +74,14 @@ function presentRewardLine(xp: number, gold: number): string {
   }
 
   return `Нагорода: +${xp} XP · +${gold} золота`;
+}
+
+function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: number }>): string[] {
+  if (itemGrants.length === 0) {
+    return [];
+  }
+
+  return itemGrants.map(
+    (grant) => `Здобуто: ${escapeHtml(grant.name)} ×${grant.quantity}`
+  );
 }

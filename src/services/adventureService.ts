@@ -2,6 +2,12 @@ import type { CharacterRepository } from "../db/repositories/characterRepository
 import type { DailyActionRepository, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
+import {
+  enrichRewardItemGrants,
+  RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
+  SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
+  type RewardItemGrant
+} from "./itemGrant";
 
 export const MIMIC_SHAWARMA_ADVENTURE_KEY = "adventure.mimic-shawarma";
 export type AdventureAction = "poke" | "receipt" | "flee";
@@ -43,6 +49,7 @@ export interface AdventureReward {
   xp: number;
   gold: number;
   localDate: string;
+  itemGrants: RewardItemGrant[];
 }
 
 export class AdventureService {
@@ -77,7 +84,8 @@ export class AdventureService {
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,
       localDate,
       rewardXp: reward.xp,
-      rewardGold: reward.gold
+      rewardGold: reward.gold,
+      itemGrants: buildAdventureItemGrants(action)
     });
 
     if (!claim) {
@@ -97,9 +105,34 @@ export class AdventureService {
       character: summarizeCharacter(claim.character),
       reward: {
         ...reward,
-        localDate
+        localDate,
+        itemGrants: enrichRewardItemGrants(claim.itemGrants)
       },
       levelChange: claim.levelChange
     };
   }
+}
+
+function buildAdventureItemGrants(
+  action: AdventureAction
+): Array<{ itemId: string; quantity: number }> {
+  if (action === "poke") {
+    return [
+      {
+        itemId: SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
+        quantity: 1
+      }
+    ];
+  }
+
+  if (action === "receipt") {
+    return [
+      {
+        itemId: RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
+        quantity: 1
+      }
+    ];
+  }
+
+  return [];
 }

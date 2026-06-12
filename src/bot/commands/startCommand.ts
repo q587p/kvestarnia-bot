@@ -18,9 +18,7 @@ export function registerStartCommand(bot: Bot, onboardingService: OnboardingServ
     const result = await onboardingService.start(player);
 
     if (result.state === "existing-character") {
-      await ctx.reply(presentHero(result.character), {
-        reply_markup: buildMainMenuKeyboard()
-      });
+      await ctx.reply(presentHero(result.character), buildExistingCharacterReplyOptions());
       return;
     }
 
@@ -28,4 +26,14 @@ export function registerStartCommand(bot: Bot, onboardingService: OnboardingServ
       reply_markup: buildGenderKeyboard()
     });
   });
+}
+
+export function buildExistingCharacterReplyOptions(): {
+  parse_mode: "HTML";
+  reply_markup: ReturnType<typeof buildMainMenuKeyboard>;
+} {
+  return {
+    parse_mode: "HTML",
+    reply_markup: buildMainMenuKeyboard()
+  };
 }

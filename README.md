@@ -1,6 +1,6 @@
 # kvestarnia-bot
 
-Квестарня - україномовна текстова Telegram RPG. Репозиторій містить TypeScript/Node.js foundation для Telegram-бота на grammY, Prisma/SQLite local baseline, Zod-validated content і перші Phase 1 зрізи: ідемпотентний `/start` onboarding, малий таверновий рейд і першу пригоду з міміком-шаурмою.
+Квестарня - україномовна текстова Telegram RPG. Репозиторій містить TypeScript/Node.js foundation для Telegram-бота на grammY, Prisma/SQLite local baseline, Zod-validated content і перші Phase 1 зрізи: ідемпотентний `/start` onboarding, малий таверновий рейд, пригоду з міміком-шаурмою, combat probe і persistent манатки.
 
 ## Що вже є
 
@@ -11,17 +11,18 @@
 - `/tavern` і `/raid` відкривають малий solo-рейд «П’ятничний рейд на Бочку Пінного Міражу» з винагородою раз на локальний день.
 - `/adventure` і `/quest` відкривають першу коротку сцену «Перевірка підозрілої шаурми» з винагородою раз на збережену дату.
 - `/fight` і `/hunt` відкривають першу безпечну сутичку «Сутичка з Міміком-шаурмою» з ідемпотентною винагородою раз на збережену дату.
-- `/inventory` і `/guild` мають короткі заглушки, щоб Telegram-меню не вело в тишу.
+- `/inventory`, `/items` і `/bag` показують persistent манатки героя.
+- `/guild` має коротку заглушку, щоб Telegram-меню не вело в тишу.
 - `/version` показує поточну версію бота, а `/news` читає останню новину й архів із `news.md`.
 - XP rewards можуть підняти рівень героя за простими порогами прогресії.
 - `/restart` видаляє поточного героя після підтвердження, щоб почати з початку через `/start`.
 - `/dev_reset_me` у локальному режимі скидає тільки вашого героя після підтвердження.
 - Config layer із Zod для `BOT_TOKEN`, `DATABASE_URL`, `NODE_ENV`.
-- Prisma schema та перша міграція для `User` і `Character`.
+- Prisma schema та міграції для `User`, `Character`, `DailyAction` і `CharacterItem`.
 - Content tables для race/class/monster/item зі stable ids.
 - Vitest tests для content validation, callback validation, starter stats, onboarding idempotency і shared utilities.
 
-Повний gameplay loop, combat, inventory, loot, групові raids, guilds і PvP ще не реалізовані.
+Повний gameplay loop, equipment effects, random loot tables, групові raids, guilds і PvP ще не реалізовані.
 
 ## Вимоги
 
@@ -169,10 +170,11 @@ npm run dev
 9. Відкрийте `/fight` або `/hunt`.
 10. Оберіть одну дію в «Сутичці з Міміком-шаурмою»: вдарити, збити з пантелику чеком або відступити красиво.
 11. Перевірте `/hero`: XP, золото й рівень мають показати новий прогрес.
-12. Перевірте `/version` і `/news`, щоб побачити поточну версію, останню новину й архів.
-13. Натисніть той самий рейд, пригоду або сутичку ще раз і переконайтесь, що винагорода не дублюється.
-14. Щоб почати героя з початку, виконайте `/restart` і підтвердьте видалення.
-15. Для локальних dev-перевірок також доступний `/dev_reset_me`.
+12. Перевірте `/inventory`, `/items` або `/bag`: перші манатки мають з’явитися в торбі.
+13. Натисніть той самий рейд, пригоду або сутичку ще раз і переконайтесь, що XP, золото й кількість предметів не дублюються.
+14. Перевірте `/version` і `/news`, щоб побачити поточну версію, останню новину й архів.
+15. Щоб почати героя з початку, виконайте `/restart` і підтвердьте видалення.
+16. Для локальних dev-перевірок також доступний `/dev_reset_me`.
 
 `/fight` і `/hunt` зараз є combat probe: коротка безпечна перевірка кнопок, винагород і прогресу, а не повний покроковий бойовий рушій. HP після сутички поки не зберігається.
 
@@ -235,4 +237,4 @@ Domain-код не має імпортувати Telegram/grammY. Bot layer ма
 
 ## Наступний крок
 
-Наступний малий Phase 1 PR варто присвятити першим persistent combat states або покращенню таймінгу daily actions під Europe/Kyiv.
+Наступний малий Phase 1 PR варто присвятити equipment preview без stat effects або першому persistent combat state.

@@ -23,6 +23,7 @@ Deliverables:
 - Race/class selection.
 - First tiny `/adventure` scene: `Мімік-шаурма`, once-per-date reward, no full combat yet.
 - First tiny `/fight` combat probe: deterministic preview, once-per-date reward, no persistent HP loss yet.
+- First tiny `/inventory` surface: persistent deterministic item grants, no equipment effects yet.
 - Simple level-up thresholds for visible progress.
 - Combat engine.
 - Loot engine.
@@ -34,6 +35,11 @@ Done when:
 - Новий гравець за 3 хвилини отримує перший предмет.
 - Нагороди ідемпотентні.
 - Бій має unit tests.
+
+Current tiny inventory slice:
+- `/inventory`, `/items`, `/bag` show persistent манатки.
+- Tavern/adventure/fight first completions can grant fixed items.
+- Full itemization, equipment effects, random loot tables, crafting, market, and trading remain later Phase 1+ work.
 
 ## Phase 2 — Group hook
 Мета: перша фіча, заради якої бот додають у групу.

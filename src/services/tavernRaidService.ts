@@ -6,11 +6,15 @@ import type {
 } from "../db/repositories/dailyActionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
+import {
+  enrichRewardItemGrants,
+  WET_HERO_TICKET_ITEM_ID,
+  type RewardItemGrant
+} from "./itemGrant";
 
 export const FRIDAY_BARREL_RAID_KEY = "tavern.friday-barrel-raid";
 export const FRIDAY_BARREL_RAID_REWARD_XP = 7;
 export const FRIDAY_BARREL_RAID_REWARD_GOLD = 5;
-export const FRIDAY_BARREL_RAID_FLAVOR_REWARD = "квиток мокрого героя";
 
 export type TavernLookupResult =
   | { state: "no-character" }
@@ -34,8 +38,8 @@ export type TavernRaidResult =
 export interface TavernRaidReward {
   xp: number;
   gold: number;
-  flavor: string;
   localDate: string;
+  itemGrants: RewardItemGrant[];
 }
 
 export class TavernRaidService {
@@ -64,7 +68,13 @@ export class TavernRaidService {
       key: FRIDAY_BARREL_RAID_KEY,
       localDate,
       rewardXp: FRIDAY_BARREL_RAID_REWARD_XP,
-      rewardGold: FRIDAY_BARREL_RAID_REWARD_GOLD
+      rewardGold: FRIDAY_BARREL_RAID_REWARD_GOLD,
+      itemGrants: [
+        {
+          itemId: WET_HERO_TICKET_ITEM_ID,
+          quantity: 1
+        }
+      ]
     });
 
     if (!claim) {
@@ -75,7 +85,7 @@ export class TavernRaidService {
       return {
         state: "already-completed",
         character: summarizeCharacter(claim.character),
-        reward: buildReward(claim.action),
+        reward: buildReward(claim.action, claim.itemGrants),
         levelChange: null
       };
     }
@@ -83,17 +93,20 @@ export class TavernRaidService {
     return {
       state: "completed",
       character: summarizeCharacter(claim.character),
-      reward: buildReward(claim.action),
+      reward: buildReward(claim.action, claim.itemGrants),
       levelChange: claim.levelChange
     };
   }
 }
 
-function buildReward(action: DailyActionRecord): TavernRaidReward {
+function buildReward(
+  action: DailyActionRecord,
+  itemGrants: Array<{ itemId: string; quantity: number }>
+): TavernRaidReward {
   return {
     xp: action.rewardXp,
     gold: action.rewardGold,
-    flavor: FRIDAY_BARREL_RAID_FLAVOR_REWARD,
-    localDate: action.localDate
+    localDate: action.localDate,
+    itemGrants: enrichRewardItemGrants(itemGrants)
   };
 }

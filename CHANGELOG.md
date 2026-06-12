@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.6] - 12026-06-12 - First Inventory & Loot
+
+### Added
+- `/inventory`, `/items`, and `/bag` now show persistent character items from SQLite.
+- Tavern, adventure, and fight first completions can grant deterministic item rewards in the same daily-action transaction as XP and gold.
+- Added `character_items` persistence with one row per character/content item and quantity increments for repeated item types.
+- The main menu now includes `🎒 Манатки`.
+- Tests cover inventory service states, inventory presenter output, new item content IDs, Prisma schema shape, menu callback parsing, and once-per-date item grant behavior.
+
+### Changed
+- `/help` now lists inventory commands as available instead of placeholders.
+- Tavern/adventure/fight reward presenters show `Здобуто: ... ×1` only when a new item is actually granted.
+- README and design/technical docs now describe the first tiny inventory slice.
+
+### Not Included Yet
+- Equipment effects, random loot tables, item rarity rolls, selling/buying, crafting, consumables, trading, full combat state, group raids, guilds, PvP, jobs, Redis cooldowns, payments, and Mini App UI.
+
 ## [0.0.5] - 12026-06-12 - First Combat Probe
 
 ### Added

@@ -7,6 +7,12 @@ import {
   type CombatProbeResult
 } from "../domain/combat/combatProbe";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
+import {
+  enrichRewardItemGrants,
+  RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
+  SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
+  type RewardItemGrant
+} from "./itemGrant";
 
 export const MIMIC_SHAWARMA_COMBAT_PROBE_KEY = "combat.mimic-shawarma.probe";
 export type FightAction = CombatProbeAction;
@@ -49,6 +55,7 @@ export interface FightReward {
   xp: number;
   gold: number;
   localDate: string;
+  itemGrants: RewardItemGrant[];
 }
 
 export class FightService {
@@ -95,7 +102,8 @@ export class FightService {
       key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
       localDate,
       rewardXp: reward.xp,
-      rewardGold: reward.gold
+      rewardGold: reward.gold,
+      itemGrants: buildFightItemGrants(action)
     });
 
     if (!claim) {
@@ -116,9 +124,32 @@ export class FightService {
       combat,
       reward: {
         ...reward,
-        localDate
+        localDate,
+        itemGrants: enrichRewardItemGrants(claim.itemGrants)
       },
       levelChange: claim.levelChange
     };
   }
+}
+
+function buildFightItemGrants(action: FightAction): Array<{ itemId: string; quantity: number }> {
+  if (action === "attack") {
+    return [
+      {
+        itemId: SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
+        quantity: 1
+      }
+    ];
+  }
+
+  if (action === "receipt") {
+    return [
+      {
+        itemId: RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
+        quantity: 1
+      }
+    ];
+  }
+
+  return [];
 }

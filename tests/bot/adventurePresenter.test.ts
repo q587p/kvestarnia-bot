@@ -49,9 +49,13 @@ describe("adventure presenter", () => {
 
   it("shows rewards for each action", () => {
     expect(presentAdventureResult(completed("poke", 8, 4))).toContain("+8 XP · +4 золота");
+    expect(presentAdventureResult(completed("poke", 8, 4))).toContain(
+      "Здобуто: Підозрілий лавашний доказ ×1"
+    );
     expect(presentAdventureResult(completed("receipt", 6, 6))).toContain("+6 XP · +6 золота");
     expect(presentAdventureResult(completed("flee", 2, 0))).toContain("+2 XP");
     expect(presentAdventureResult(completed("flee", 2, 0))).not.toContain("золота");
+    expect(presentAdventureResult(completed("flee", 2, 0))).not.toContain("Здобуто:");
   });
 
   it("shows level-up line only when level increases", () => {
@@ -83,7 +87,23 @@ function completed(
     reward: {
       xp,
       gold,
-      localDate: "12026-06-12"
+      localDate: "12026-06-12",
+      itemGrants:
+        action === "flee"
+          ? []
+          : [
+              {
+                itemId:
+                  action === "receipt"
+                    ? "item.receipt-of-formal-suspicion"
+                    : "item.suspicious-shawarma-wrapper",
+                name:
+                  action === "receipt"
+                    ? "Чек формальної підозри"
+                    : "Підозрілий лавашний доказ",
+                quantity: 1
+              }
+            ]
     },
     levelChange: {
       oldLevel: 1,

@@ -5,7 +5,7 @@ import {
 } from "../../src/bot/presenters/plannedCommandPresenter";
 
 describe("planned command presenter", () => {
-  it.each(["inventory", "guild"] as const satisfies readonly PlannedCommand[])(
+  it.each(["guild"] as const satisfies readonly PlannedCommand[])(
     "answers /%s with a short Ukrainian placeholder",
     (command) => {
       const text = presentPlannedCommand(command);
@@ -17,8 +17,7 @@ describe("planned command presenter", () => {
     }
   );
 
-  it("does not pretend inventory or guilds are implemented", () => {
-    expect(presentPlannedCommand("inventory")).toContain("ще");
+  it("does not pretend guilds are implemented", () => {
     expect(presentPlannedCommand("guild")).toContain("ще");
   });
 });

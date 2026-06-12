@@ -54,6 +54,7 @@ describe("fight presenter", () => {
     expect(text).toContain("❤️ Ви: 19/22");
     expect(text).toContain("🌯 Мімік: 5/14");
     expect(text).toContain("Нагорода: +9 XP · +3 золота");
+    expect(text).toContain("Здобуто: Підозрілий лавашний доказ ×1");
   });
 
   it("shows level-up line only when level increases", () => {
@@ -95,7 +96,23 @@ function completed(
     reward: {
       xp,
       gold,
-      localDate: "12026-06-12"
+      localDate: "12026-06-12",
+      itemGrants:
+        action === "flee"
+          ? []
+          : [
+              {
+                itemId:
+                  action === "receipt"
+                    ? "item.receipt-of-formal-suspicion"
+                    : "item.suspicious-shawarma-wrapper",
+                name:
+                  action === "receipt"
+                    ? "Чек формальної підозри"
+                    : "Підозрілий лавашний доказ",
+                quantity: 1
+              }
+            ]
     },
     levelChange: {
       oldLevel: 1,
