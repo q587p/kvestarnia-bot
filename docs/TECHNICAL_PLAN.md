@@ -256,6 +256,8 @@ Domain result → presenter → Telegram text/buttons.
 - current HP і mana поки дорівнюють effective max, бо persistent HP loss і mana spending ще не реалізовані;
 - fight preview бере ці effective значення через `CharacterSummary`, а не напряму з БД.
 
+Future combat-state note: this is an alpha shortcut, not the final resource model. When persistent HP loss, mana spending, healing, rest, or turn-based combat state ships, `CharacterSummary` must stop treating current HP/mana as automatically full. Keep effective max calculation separate from persisted current resource state, clamp persisted current to the effective max, and avoid silent full-heal/full-mana behavior in summaries.
+
 Формули alpha slice:
 - HP max: `stored hpMax + (level - 1) * 4`.
 - Mana max: `stored manaMax + (level - 1) * 2`.

@@ -133,6 +133,8 @@ Alpha scaling рахується як derived effective values від збере
 
 Наприклад, Воїн 1 рівня з `20 HP`, `10 мани` і `8 сили` на 2 рівні бачить `24 HP`, `12 мани` і `9 сили`.
 
+Важливий майбутній борг: коли з’являться persistent combat state, поранення, витрати мани, лікування або відпочинок, «поточні HP/мана» не мають магічно відновлюватись у summary. Тоді модель треба розвести на effective max values і окремий persisted current/resource state, а presenter має показувати саме збережений current, обмежений новим effective max.
+
 Це не equipment effects, не healing/rest system і не повний stat rebalance. Майбутні бонуси предметів мають нашаровуватись поверх цього helper-а.
 
 ### Результати
