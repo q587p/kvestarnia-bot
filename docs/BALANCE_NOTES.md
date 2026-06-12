@@ -76,7 +76,7 @@ Sinks:
 - Repair після поразки.
 - Reroll одного stat на предметі.
 - Cosmetic title.
-- Guild creation.
+- Створення ґільдії.
 
 У MVP не давати гравцям багато gold без sinks.
 
@@ -113,7 +113,7 @@ item_power_budget = base_by_level + rarity_bonus
 
 ## Anti-snowball
 - Рейдові нагороди: участь + performance, але не winner-takes-all.
-- Guild perks: convenience/cosmetic/малий бонус, не x2 damage.
+- Бонуси ґільдії: convenience/cosmetic/малий бонус, не x2 damage.
 - Daily catch-up для гравців, що пропустили день.
 
 ## Симуляції

@@ -7,18 +7,22 @@ import {
 import { classes } from "../../content/classes";
 import type { Pronoun } from "../../content/schema";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import { escapeHtml } from "./telegramHtml";
 
 export function presentWelcome(): string {
   return [
     "🍺 Вітаємо в Квестарні.",
+    "",
     "Оберіть, як до вас звертатися: шинкарю треба хоч щось записати в журнал."
   ].join("\n");
 }
 
 export function presentGenderSelected(pronoun: Pronoun): string {
   return [
-    `✅ Звертання: ${getPronounLabel(pronoun)}`,
+    `✅ Звертання: <b>${escapeHtml(getPronounLabel(pronoun))}</b>`,
+    "",
     "Тепер оберіть расу.",
+    "",
     "Деякі варіянти втекли від вашої біографії."
   ].join("\n");
 }
@@ -31,9 +35,12 @@ export function presentRaceSelected(pronoun: Pronoun, raceId: string): string {
   }
 
   return [
-    `✅ Звертання: ${getPronounLabel(pronoun)}`,
-    `✅ Раса: ${race.name}`,
-    race.description,
+    `✅ Звертання: <b>${escapeHtml(getPronounLabel(pronoun))}</b>`,
+    "",
+    `✅ Раса: <b>${escapeHtml(race.name)}</b>`,
+    "",
+    `<i>${escapeHtml(race.description)}</i>`,
+    "",
     "Тепер оберіть клас."
   ].join("\n");
 }
@@ -49,10 +56,10 @@ export function presentClassSelected(pronoun: Pronoun, raceId: string, classId: 
   return [
     "Ви майже готові стати пригодою для місцевої статистики.",
     "",
-    `Звертання: ${getPronounLabel(pronoun)}`,
-    `Раса: ${race.name}`,
-    `Клас: ${characterClass.name}`,
-    `Титул: ${getComboTitle(raceId, classId)}`,
+    `Звертання: <b>${escapeHtml(getPronounLabel(pronoun))}</b>`,
+    `Раса: <b>${escapeHtml(race.name)}</b>`,
+    `Клас: <b>${escapeHtml(characterClass.name)}</b>`,
+    `Титул: <i>${escapeHtml(getComboTitle(raceId, classId))}</i>`,
     "",
     "Почати?"
   ].join("\n");
@@ -61,14 +68,17 @@ export function presentClassSelected(pronoun: Pronoun, raceId: string, classId: 
 export function presentCharacterCreated(summary: CharacterSummary, created: boolean): string {
   const title = created ? "🎒 Героя створено." : "🎒 Герой уже чекає.";
 
-  return [title, presentCharacterSummary(summary)].join("\n");
+  return [title, "", presentCharacterSummary(summary)].join("\n");
 }
 
 export function presentCharacterSummary(summary: CharacterSummary): string {
   return [
-    `${summary.name} — ${summary.raceName}, ${summary.className}`,
-    `Звертання: ${summary.pronounLabel} · Титул: ${summary.title}`,
+    `<b>${escapeHtml(summary.name)}</b>`,
+    `<i>${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}</i>`,
+    "",
+    `Звертання: <b>${escapeHtml(summary.pronounLabel)}</b> · Титул: <i>${escapeHtml(summary.title)}</i>`,
     `Рівень ${summary.level} · XP ${summary.xp} · золото ${summary.gold}`,
+    "",
     `HP ${summary.hpCurrent}/${summary.hpMax} · мана ${summary.manaCurrent}/${summary.manaMax}`
   ].join("\n");
 }

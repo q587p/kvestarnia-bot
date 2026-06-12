@@ -108,6 +108,19 @@
 
 Tavern, adventure і fight rewards оновлюють XP, золото й рівень через спільний deterministic helper.
 
+## Ріст рівня 0.0.7
+Поки немає повного бою, екіпірування й постійної втрати HP, рівень усе одно має видимо рухати «циферки».
+
+Alpha scaling рахується як derived effective values від збережених базових значень персонажа:
+- Effective HP max: `stored hpMax + (level - 1) * 4`.
+- Effective mana max: `stored manaMax + (level - 1) * 2`.
+- Effective current HP і current mana показуються як effective max, бо витрати/поранення ще не зберігаються.
+- Головна характеристика класу отримує `+1` за кожен рівень після першого.
+
+Наприклад, Воїн 1 рівня з `20 HP`, `10 мани` і `8 сили` на 2 рівні бачить `24 HP`, `12 мани` і `9 сили`.
+
+Це не equipment effects, не healing/rest system і не повний stat rebalance. Майбутні бонуси предметів мають нашаровуватись поверх цього helper-а.
+
 ### Результати
 Перемога:
 - XP.
@@ -172,13 +185,13 @@ Tavern, adventure і fight rewards оновлюють XP, золото й рів
 - Матчинг за рівнем.
 - Нагороди косметичні/рейтингові.
 
-## ґільдії
+## Ґільдії
 Post-MVP:
 - Створення ґільдії за gold sink.
 - Назва, герб emoji, опис.
-- Guild XP.
-- Guild boss.
-- Guild perks без прямого pay-to-win.
+- XP ґільдії.
+- Бос ґільдії.
+- Бонуси ґільдії без прямого pay-to-win.
 
 ## Сезони
 Сезон = 4–8 тижнів контенту:
@@ -204,6 +217,19 @@ Post-MVP:
 7. Пояснення 3 кнопок: Пригода, Герой, Манатки.
 
 ## Команди MVP
+Поточна command surface у `0.0.7`:
+- `/start`
+- `/hero`, `/profile`, `/me`
+- `/tavern`, `/raid`
+- `/adventure`, `/quest`
+- `/fight`, `/hunt`
+- `/inventory`, `/guild` як короткі заглушки
+- `/restart`
+- `/version`, `/news`
+- `/help`
+- `/dev_reset_me` тільки локально, коли dev reset увімкнений
+
+Цільова command surface для MVP:
 - `/start`
 - `/hero`
 - `/adventure`

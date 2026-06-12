@@ -1,6 +1,8 @@
 import { MIMIC_SHAWARMA_HP } from "../../domain/combat/combatProbe";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { FightResult } from "../../services/fightService";
+import { presentItemNameWithQuantity } from "./itemStackPresenter";
+import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentFightStart(character: CharacterSummary): string {
@@ -36,9 +38,7 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
-  if (result.levelChange.leveledUp) {
-    lines.push(`Рівень підріс: ${result.levelChange.oldLevel} → ${result.levelChange.newLevel}`);
-  }
+  lines.push(...presentRewardLevelGrowth(result.levelChange, result.character.classId));
 
   lines.push("Наступний крок: /hero");
 
@@ -82,6 +82,10 @@ function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: numbe
   }
 
   return itemGrants.map(
-    (grant) => `Здобуто: ${escapeHtml(grant.name)} ×${grant.quantity}`
+    (grant) =>
+      `Здобуто: ${presentItemNameWithQuantity({
+        name: escapeHtml(grant.name),
+        quantity: grant.quantity
+      })}`
   );
 }

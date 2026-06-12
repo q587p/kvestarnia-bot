@@ -1,4 +1,5 @@
 import type { InventoryResult } from "../../services/inventoryService";
+import { presentItemStackLine } from "./itemStackPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentInventory(result: InventoryResult): string {
@@ -20,7 +21,10 @@ export function presentInventory(result: InventoryResult): string {
     "Герой розклав здобич на столі. Стіл попросив надбавку.",
     "",
     ...result.items.flatMap((item) => [
-      `• <b>${escapeHtml(item.content.name)}</b> ×${item.quantity}`,
+      presentItemStackLine({
+        name: `<b>${escapeHtml(item.content.name)}</b>`,
+        quantity: item.quantity
+      }),
       `  <i>${escapeHtml(item.content.description)}</i>`
     ])
   ].join("\n");

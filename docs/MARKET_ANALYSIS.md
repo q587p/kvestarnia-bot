@@ -8,7 +8,7 @@
 Приклади:
 - Chat Wars — відомий Telegram MMORPG з ботом, API, ґільдійною/соціальною метою.
 - Ligmar — позиціонується як MMORPG у Telegram без встановлення окремого застосунку.
-- IdleRift / RiftWars / Noctis Imperivm / SynthLoom та інші новіші боти з PvE, PvP, crafting, leaderboard, guild/squad механіками.
+- IdleRift / RiftWars / Noctis Imperivm / SynthLoom та інші новіші боти з PvE, PvP, crafting, leaderboard, ґільдійними або squad-механіками.
 
 Сильні сторони:
 - Довга прогресія.
@@ -80,7 +80,7 @@ Telegram підтримує HTML5 games і Mini Apps, які запускают�
 2. Додати одну групову фічу, яку хочеться показати друзям.
 3. Відкрити альфу в 2–3 українських гік/RPG чатах.
 4. Виміряти retention і скріншотність.
-5. Лише після цього — guilds, market, seasons, Mini App.
+5. Лише після цього — ґільдії, market, seasons, Mini App.
 
 ## Джерела для подальшого аналізу
 - Chat Wars API docs: https://chatwars.github.io/chatwars-api-docs/

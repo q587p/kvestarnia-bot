@@ -42,4 +42,27 @@ describe("inventory presenter", () => {
     expect(text).toContain("<i>Трофей тавернової логістики.</i>");
     expect(text.split("\n").length).toBeLessThanOrEqual(6);
   });
+
+  it("omits quantity for a single item", () => {
+    const text = presentInventory({
+      state: "found",
+      items: [
+        {
+          id: "character-item-1",
+          itemId: "item.wet-hero-ticket",
+          quantity: 1,
+          content: {
+            id: "item.wet-hero-ticket",
+            name: "Квиток мокрого героя",
+            description: "Трофей тавернової логістики.",
+            rarity: "common",
+            slot: "junk"
+          }
+        }
+      ]
+    });
+
+    expect(text).toContain("• <b>Квиток мокрого героя</b>");
+    expect(text).not.toContain("×1");
+  });
 });

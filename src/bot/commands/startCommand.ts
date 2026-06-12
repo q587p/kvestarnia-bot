@@ -23,6 +23,7 @@ export function registerStartCommand(bot: Bot, onboardingService: OnboardingServ
     }
 
     await ctx.reply(presentWelcome(), {
+      parse_mode: "HTML" as const,
       reply_markup: buildGenderKeyboard()
     });
   });

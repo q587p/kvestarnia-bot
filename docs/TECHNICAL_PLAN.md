@@ -191,14 +191,28 @@ export interface RandomSource {
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 
 ## Telegram callback data
-Callback data коротка, версіонована:
-- `v1:adv:start`
+Callback data коротка, версіонована.
+
+Поточні callback prefixes у `0.0.7`:
+- `v1:onb:*`
+- `v1:menu:hero`
+- `v1:menu:help`
+- `v1:menu:tavern`
+- `v1:news:list:{page}`
+- `v1:news:entry:{entryIndex}:{listPage}`
+- `v1:tavern:raid`
 - `v1:adv:mimic:poke`
 - `v1:adv:mimic:receipt`
 - `v1:adv:mimic:flee`
 - `v1:fight:mimic:attack`
 - `v1:fight:mimic:receipt`
 - `v1:fight:mimic:flee`
+- `v1:devreset:confirm`
+- `v1:devreset:cancel`
+- `v1:restart:confirm`
+- `v1:restart:cancel`
+
+Заплановані приклади для майбутніх persistent systems:
 - `v1:combat:atk:{combatId}`
 - `v1:combat:skill:{combatId}:{skillId}`
 - `v1:menu:inventory`
@@ -223,15 +237,28 @@ Domain result → presenter → Telegram text/buttons.
 
 Пороги першого slice: `0`, `10`, `25`, `45`, `70` XP для рівнів 1–5. Tavern, adventure і fight rewards мають використовувати цей helper, щоб `/hero` відразу показував оновлений рівень.
 
+`0.0.7` додає derived effective stats без міграції схеми:
+- stored `hpMax`, `manaMax` і `statsJson` залишаються level-1 базою;
+- `summarizeCharacter(...)` рахує effective HP, ману й головну характеристику класу з урахуванням рівня;
+- current HP і mana поки дорівнюють effective max, бо persistent HP loss і mana spending ще не реалізовані;
+- fight preview бере ці effective значення через `CharacterSummary`, а не напряму з БД.
+
+Формули alpha slice:
+- HP max: `stored hpMax + (level - 1) * 4`.
+- Mana max: `stored manaMax + (level - 1) * 2`.
+- Primary stat: `stored primary stat + (level - 1)`.
+
+Future equipment effects should layer on top of this effective-stats helper instead of rewriting stored starter values.
+
 ## Observability
-Логи:
+Лоґи:
 - `user_id`, `character_id`, `chat_id` — де доречно.
 - action type.
 - idempotency key.
 - latency.
 - помилки валідації.
 
-Не логувати токени, приватні повідомлення повністю, персональні дані без потреби.
+Не лоґувати токени, приватні повідомлення повністю, персональні дані без потреби.
 
 ## Deployment MVP
 Найпростіше:

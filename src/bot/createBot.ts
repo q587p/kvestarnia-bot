@@ -18,14 +18,14 @@ import {
 } from "./callbacks/onboardingCallbackData";
 import { parseRestartCallbackData } from "./callbacks/restartCallbackData";
 import { parseTavernCallbackData } from "./callbacks/tavernCallbackData";
-import { registerAdventureCommand } from "./commands/adventureCommand";
+import { registerAdventureCommand, sendAdventure } from "./commands/adventureCommand";
 import { registerDevResetCommand } from "./commands/devResetCommand";
 import { registerFightCommand } from "./commands/fightCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
 import { registerHeroCommand, sendHero } from "./commands/heroCommand";
 import { registerInventoryCommand, sendInventory } from "./commands/inventoryCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
-import { registerPlannedCommands } from "./commands/plannedCommand";
+import { registerPlannedCommands, sendPlannedCommand } from "./commands/plannedCommand";
 import { registerRestartCommand } from "./commands/restartCommand";
 import { registerStartCommand } from "./commands/startCommand";
 import { registerTavernCommand, sendTavern } from "./commands/tavernCommand";
@@ -39,7 +39,7 @@ import {
   buildGenderKeyboard,
   buildRaceKeyboard
 } from "./keyboards/onboardingKeyboard";
-import { buildMainMenuKeyboard } from "./keyboards/mainMenuKeyboard";
+import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
 import { buildTavernKeyboard } from "./keyboards/tavernKeyboard";
 import { presentAdventureNoCharacter, presentAdventureResult } from "./presenters/adventurePresenter";
 import {
@@ -79,6 +79,10 @@ export interface BotServices {
   tavern: TavernRaidService;
 }
 
+const HTML_MESSAGE_OPTIONS = {
+  parse_mode: "HTML" as const
+};
+
 export function createBot(token: string, services: BotServices): Bot {
   const bot = new Bot(token);
 
@@ -98,6 +102,7 @@ export function createBot(token: string, services: BotServices): Bot {
   registerRestartCommand(bot);
   registerTavernCommand(bot, services.tavern);
   registerPlannedCommands(bot);
+  registerMainMenuKeyboard(bot, services);
 
   bot.callbackQuery(/^v1:onb:/, async (ctx) => {
     const parsed = parseOnboardingCallbackData(ctx.callbackQuery.data);
@@ -205,6 +210,7 @@ async function handleOnboardingCallback(
   if (callback.type === "gender") {
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentGenderSelected(callback.pronoun), {
+      ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildRaceKeyboard(callback.pronoun)
     });
     return;
@@ -213,6 +219,7 @@ async function handleOnboardingCallback(
   if (callback.type === "back-to-gender") {
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentWelcome(), {
+      ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildGenderKeyboard()
     });
     return;
@@ -221,6 +228,7 @@ async function handleOnboardingCallback(
   if (callback.type === "back-to-race") {
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentGenderSelected(callback.pronoun), {
+      ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildRaceKeyboard(callback.pronoun)
     });
     return;
@@ -229,6 +237,7 @@ async function handleOnboardingCallback(
   if (callback.type === "back-to-class") {
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentRaceSelected(callback.pronoun, callback.raceId), {
+      ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildClassKeyboard(callback.pronoun, callback.raceId)
     });
     return;
@@ -259,6 +268,7 @@ async function handleOnboardingCallback(
 
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentRaceSelected(callback.pronoun, callback.raceId), {
+      ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildClassKeyboard(callback.pronoun, callback.raceId)
     });
     return;
@@ -301,6 +311,7 @@ async function handleOnboardingCallback(
       ctx,
       presentClassSelected(callback.pronoun, callback.raceId, callback.classId),
       {
+        ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildConfirmationKeyboard(callback.pronoun, callback.raceId, callback.classId)
       }
     );
@@ -331,7 +342,12 @@ async function handleOnboardingCallback(
   }
 
   await safeAnswerCallbackQuery(ctx);
-  await safeEditMessageText(ctx, presentCharacterCreated(result.value.character, result.value.created), {
+  await safeEditMessageText(
+    ctx,
+    presentCharacterCreated(result.value.character, result.value.created),
+    HTML_MESSAGE_OPTIONS
+  );
+  await ctx.reply("🍺 Квестарня відчинена.", {
     reply_markup: buildMainMenuKeyboard()
   });
 }
@@ -349,9 +365,7 @@ async function handleMenuCallback(
   }
 
   if (action === "help") {
-    await safeEditMessageText(ctx, presentHelp(services.devReset.isEnabled()), {
-      reply_markup: buildMainMenuKeyboard()
-    });
+    await safeEditMessageText(ctx, presentHelp(services.devReset.isEnabled()));
     return;
   }
 
@@ -361,6 +375,34 @@ async function handleMenuCallback(
   }
 
   await sendTavern(ctx, services.tavern, "edit");
+}
+
+function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
+  bot.hears(mainMenuButtons.hero, async (ctx) => {
+    await sendHero(ctx, services.hero, "reply");
+  });
+
+  bot.hears(mainMenuButtons.tavern, async (ctx) => {
+    await sendTavern(ctx, services.tavern, "reply");
+  });
+
+  bot.hears(mainMenuButtons.quest, async (ctx) => {
+    await sendAdventure(ctx, services.adventure, "reply");
+  });
+
+  bot.hears(mainMenuButtons.inventory, async (ctx) => {
+    await sendInventory(ctx, services.inventory, "reply");
+  });
+
+  bot.hears(mainMenuButtons.guild, async (ctx) => {
+    await sendPlannedCommand(ctx, "guild");
+  });
+
+  bot.hears(mainMenuButtons.help, async (ctx) => {
+    await ctx.reply(presentHelp(services.devReset.isEnabled()), {
+      reply_markup: buildMainMenuKeyboard()
+    });
+  });
 }
 
 async function handleTavernCallback(

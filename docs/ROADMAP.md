@@ -75,9 +75,9 @@ Done when:
 Мета: ґільдії, м’яке PvP, сезонність.
 
 Deliverables:
-- Guild create/join/leave.
-- Guild XP.
-- Guild boss.
+- Створення, вступ і вихід із ґільдії.
+- XP ґільдії.
+- Бос ґільдії.
 - Дуелі без втрати цінного луту.
 - Season 1 content.
 - Cosmetic titles.
@@ -118,7 +118,7 @@ Done when:
 - Daily tavern rumor.
 - Player titles.
 - Seasonal boss.
-- Guild herald message.
+- Вісник ґільдії.
 - Meme item generator with moderation.
 - Referral без нав’язливості: нагорода косметична.
 - Moderation tools for group admins.
