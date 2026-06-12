@@ -140,6 +140,8 @@ Domain-код не має імпортувати Telegram/grammY. Bot layer ма
 
 ## Корисні документи
 
+- `CHANGELOG.md`
+- `news.md`
 - `AGENTS.md`
 - `docs/BRAND.md`
 - `docs/PRODUCT_BRIEF.md`

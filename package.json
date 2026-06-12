@@ -1,6 +1,6 @@
 {
   "name": "kvestarnia-bot",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "private": true,
   "description": "Квестарня — україномовна Telegram RPG bot foundation.",
   "main": "dist/bot.js",
@@ -15,7 +15,7 @@
     "db:validate": "prisma validate",
     "db:migrate": "node scripts/prisma-migrate-dev.cjs",
     "db:studio": "prisma studio",
-    "check": "npm run lint && npm run typecheck && npm test && npm run build"
+    "check": "npm run lint && npm run typecheck && npm run build && npm test"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
