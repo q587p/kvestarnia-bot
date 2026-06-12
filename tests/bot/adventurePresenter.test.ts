@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  presentAdventureAlreadyCompleted,
   presentAdventureNoCharacter,
   presentAdventureResult,
   presentAdventureStart
@@ -57,6 +58,26 @@ describe("adventure presenter", () => {
   it("prompts /start when no character exists", () => {
     expect(presentAdventureNoCharacter()).toContain("/start");
   });
+
+  it("shows a spent quest screen with an optional fight suggestion", () => {
+    const withFight = presentAdventureAlreadyCompleted({
+      state: "already-completed",
+      character,
+      fightAvailable: true
+    });
+    const withoutFight = presentAdventureAlreadyCompleted({
+      state: "already-completed",
+      character,
+      fightAvailable: false
+    });
+
+    expect(withFight).toContain("вже дала свідчення");
+    expect(withFight).toContain("/fight");
+    expect(withFight).not.toContain("що робимо");
+    expect(withoutFight).not.toContain("/fight");
+    expect(withoutFight).toContain("/hero");
+  });
+
 
   it("shows rewards for each action", () => {
     expect(presentAdventureResult(completed("poke", 8, 4))).toContain(

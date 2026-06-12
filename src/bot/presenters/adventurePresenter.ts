@@ -1,5 +1,5 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import type { AdventureResult } from "../../services/adventureService";
+import type { AdventureLookupResult, AdventureResult } from "../../services/adventureService";
 import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
@@ -18,6 +18,24 @@ export function presentAdventureStart(character: CharacterSummary): string {
 
 export function presentAdventureNoCharacter(): string {
   return "Спершу створіть героя через /start. Шаурма не розмовляє з анонімами.";
+}
+
+export function presentAdventureAlreadyCompleted(
+  result: Extract<AdventureLookupResult, { state: "already-completed" }>
+): string {
+  const lines = [
+    "🌯 Шаурма вже дала свідчення.",
+    "",
+    "Сьогоднішній квест із підозрілою шаурмою зараховано. Вона лежить тихо й удає звичайну вечерю."
+  ];
+
+  if (result.fightAvailable) {
+    lines.push("", "Якщо хочеться ще трохи формальної сутички, можна в /fight.");
+  } else {
+    lines.push("", "Повертайтесь завтра або перевірте героя: /hero");
+  }
+
+  return lines.join("\n");
 }
 
 export function presentAdventureResult(result: Exclude<AdventureResult, { state: "no-character" }>): string {

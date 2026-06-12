@@ -17,6 +17,7 @@ import {
   AdventureService,
   MIMIC_SHAWARMA_ADVENTURE_KEY
 } from "../../src/services/adventureService";
+import { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "../../src/services/fightService";
 
 const telegramUserId = 42n;
 
@@ -121,6 +122,26 @@ describe("AdventureService", () => {
       gold: 4
     });
   });
+
+  it("returns an already-completed lookup and only suggests fight when it is still available", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new AdventureService(characters, dailyActions, fixedClock);
+
+    await service.completeMimicShawarma(telegramUserId, "poke");
+    await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "already-completed",
+      fightAvailable: true
+    });
+
+    dailyActions.addAction(telegramUserId, MIMIC_SHAWARMA_COMBAT_PROBE_KEY);
+
+    await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "already-completed",
+      fightAvailable: false
+    });
+  });
 });
 
 function fixedClock(): Date {
@@ -221,6 +242,34 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
   get records(): DailyActionRecord[] {
     return [...this.actions.values()];
+  }
+
+  async findForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string; localDate: string }
+  ): Promise<DailyActionRecord | null> {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return null;
+    }
+
+    return this.actions.get(`${character.id}:${input.key}:${input.localDate}`) ?? null;
+  }
+
+  addAction(userTelegramId: bigint, key: string, localDate = "2026-06-12"): void {
+    const characterId = `character-${userTelegramId.toString()}`;
+    const action = {
+      id: `daily-action-${this.actions.size + 1}`,
+      characterId,
+      key,
+      localDate,
+      rewardXp: 0,
+      rewardGold: 0,
+      createdAt: fixedClock()
+    };
+
+    this.actions.set(`${characterId}:${key}:${localDate}`, action);
   }
 
   async claimForTelegramUser(
