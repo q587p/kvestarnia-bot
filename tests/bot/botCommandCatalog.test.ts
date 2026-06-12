@@ -26,7 +26,7 @@ describe("bot command catalog", () => {
     expect(commands.find((entry) => entry.command === "hero")?.description).toBe(
       "👤 герой і прогрес"
     );
-    expect(commands.find((entry) => entry.command === "help")?.description).toBe("❔ допомога");
+    expect(commands.find((entry) => entry.command === "help")?.description).toBe("📖 допомога");
     expect(commands).toHaveLength(6);
     expect(commands.some((entry) => entry.command === "profile")).toBe(false);
     expect(commands.some((entry) => entry.command === "me")).toBe(false);

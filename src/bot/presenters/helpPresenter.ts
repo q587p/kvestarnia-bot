@@ -55,7 +55,7 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
   },
   {
     commands: ["help"],
-    icon: "❔",
+    icon: "📖",
     description: "допомога"
   },
   {
@@ -75,7 +75,7 @@ export function presentHelp(includeDevReset: boolean): string {
     .filter((group) => group.commands.every((command) => availableCommands.has(command)))
     .map(presentHelpCommandGroup);
   const lines = [
-    "❔ Довідка Квестарні",
+    "📖 Довідка Квестарні",
     "",
     ...commandLines.flatMap((line) => [line, ""])
   ];
