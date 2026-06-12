@@ -18,7 +18,8 @@ export const FRIDAY_BARREL_RAID_REWARD_GOLD = 5;
 
 export type TavernLookupResult =
   | { state: "no-character" }
-  | { state: "ready"; character: CharacterSummary };
+  | { state: "ready"; character: CharacterSummary }
+  | { state: "already-completed"; character: CharacterSummary };
 
 export type TavernRaidResult =
   | { state: "no-character" }
@@ -50,10 +51,23 @@ export class TavernRaidService {
   ) {}
 
   async getTavernForTelegramUser(telegramUserId: bigint): Promise<TavernLookupResult> {
+    const localDate = toIsoDate(this.clock());
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
       return { state: "no-character" };
+    }
+
+    const existingRaid = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: FRIDAY_BARREL_RAID_KEY,
+      localDate
+    });
+
+    if (existingRaid) {
+      return {
+        state: "already-completed",
+        character: summarizeCharacter(character)
+      };
     }
 
     return {

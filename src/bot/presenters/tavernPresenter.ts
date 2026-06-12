@@ -17,6 +17,19 @@ export function presentTavern(character: CharacterSummary): string {
   ].join("\n");
 }
 
+export function presentTavernAlreadyRaided(character: CharacterSummary): string {
+  return [
+    "🍺 Таверна Квестарні",
+    `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
+    "",
+    "Бочка Пінного Міражу сьогодні вже пережила ваш героїзм.",
+    "",
+    npcQuote("Шинкар", "Вона просила передати: завтра знову буде хоробра. Можливо."),
+    "",
+    "Поки що можна перевірити героя: /hero"
+  ].join("\n");
+}
+
 export function presentTavernNoCharacter(): string {
   return "Спершу створіть героя через /start. Бочка не воює з анонімами.";
 }

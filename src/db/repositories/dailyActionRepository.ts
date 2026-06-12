@@ -46,6 +46,11 @@ export type ClaimDailyActionResult =
     };
 
 export interface DailyActionRepository {
+  findForTelegramUser(
+    telegramUserId: bigint,
+    input: { key: string; localDate: string }
+  ): Promise<DailyActionRecord | null>;
+
   claimForTelegramUser(
     telegramUserId: bigint,
     input: ClaimDailyActionInput

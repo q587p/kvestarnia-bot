@@ -2,7 +2,11 @@ import type { Bot, Context } from "grammy";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import { telegramUserIdFromContext } from "../context";
 import { buildTavernKeyboard } from "../keyboards/tavernKeyboard";
-import { presentTavern, presentTavernNoCharacter } from "../presenters/tavernPresenter";
+import {
+  presentTavern,
+  presentTavernAlreadyRaided,
+  presentTavernNoCharacter
+} from "../presenters/tavernPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
@@ -29,6 +33,11 @@ export async function sendTavern(
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentTavernNoCharacter());
+    return;
+  }
+
+  if (result.state === "already-completed") {
+    await sendText(ctx, mode, presentTavernAlreadyRaided(result.character));
     return;
   }
 

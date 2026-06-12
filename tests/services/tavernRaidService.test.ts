@@ -117,6 +117,27 @@ describe("TavernRaidService", () => {
       expect(repeated.character.gold).toBe(5);
     }
   });
+
+  it("marks tavern lookup as already completed after today's raid", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+
+    await expect(service.getTavernForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "ready"
+    });
+
+    await service.completeFridayBarrelRaid(telegramUserId);
+
+    await expect(service.getTavernForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "already-completed",
+      character: {
+        xp: 7,
+        gold: 5
+      }
+    });
+  });
 });
 
 function fixedClock(): Date {
@@ -218,6 +239,19 @@ class FakeDailyActionRepository implements DailyActionRepository {
     return [...this.actions.values()];
   }
 
+  async findForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string; localDate: string }
+  ): Promise<DailyActionRecord | null> {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return null;
+    }
+
+    return this.actions.get(`${character.id}:${input.key}:${input.localDate}`) ?? null;
+  }
+
   async claimForTelegramUser(
     userTelegramId: bigint,
     input: ClaimDailyActionInput
@@ -233,12 +267,12 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
     if (existing) {
       return {
-            state: "existing",
-            action: existing,
-            character,
-            levelChange: null,
-            itemGrants: []
-          };
+        state: "existing",
+        action: existing,
+        character,
+        levelChange: null,
+        itemGrants: []
+      };
     }
 
     this.createCount += 1;

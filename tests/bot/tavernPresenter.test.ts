@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   presentTavern,
+  presentTavernAlreadyRaided,
   presentTavernNoCharacter,
   presentTavernRaidResult
 } from "../../src/bot/presenters/tavernPresenter";
@@ -58,6 +59,16 @@ describe("tavern presenter", () => {
 
   it("prompts /start when no character exists", () => {
     expect(presentTavernNoCharacter()).toContain("/start");
+  });
+
+  it("shows a different tavern screen after today's raid is already done", () => {
+    const text = presentTavernAlreadyRaided(character);
+
+    expect(text).toContain("Бочка Пінного Міражу сьогодні вже пережила ваш героїзм");
+    expect(text).toContain("завтра знову");
+    expect(text).toContain("/hero");
+    expect(text).not.toContain("Це рейд на 1-3 хвилини");
+    expect(text).not.toContain("Що робимо?");
   });
 
   it("presents first completion and repeated completion without real drinking framing", () => {
