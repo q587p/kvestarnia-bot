@@ -37,7 +37,7 @@ Done when:
 
 Deliverables:
 - Реєстрація групи.
-- `/raid` або “бос дня”.
+- `/raid` або «бос дня».
 - Join кнопка.
 - 1–3 дії учасника.
 - Підсумок рейду з топ-учасниками.
@@ -105,7 +105,7 @@ Done when:
 
 ## Backlog фіч
 - Achievements.
-- Collections: “Бестіарій”, “Музей Манаток”.
+- Collections: «Бестіарій», «Музей Манаток».
 - Daily tavern rumor.
 - Player titles.
 - Seasonal boss.

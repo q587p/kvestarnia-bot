@@ -88,7 +88,7 @@ Spawn 4 agents and consolidate:
 - Чи не розширився scope понад задачу.
 
 ## Типові помилки
-- Codex робить “MMO все одразу”. Зупинити: просити маленький slice.
+- Codex робить «MMO все одразу». Зупинити: просити маленький slice.
 - Codex пише надто довгі повідомлення. Вказати limit у style guide.
 - Codex хардкодить Telegram-specific state в domain. Винести в presenter/service.
 - Codex додає Prisma schema, але не додає міграцію. Попросити міграцію.

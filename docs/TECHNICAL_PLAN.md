@@ -164,7 +164,7 @@ export interface RandomSource {
 - `raid:{raidId}:reward:{characterId}`
 - `daily:{characterId}:{yyyy-mm-dd}`
 
-Повторний callback має повертати “вже зараховано”, а не дублювати винагороду.
+Повторний callback має повертати «вже зараховано», а не дублювати винагороду.
 
 ## Telegram callback data
 Callback data коротка, версіонована:
