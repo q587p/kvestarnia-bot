@@ -37,6 +37,8 @@ export interface CreateCharacterResult {
 
 export interface CharacterRepository {
   findByUserId(userId: string): Promise<CharacterRecord | null>;
+  findByTelegramUserId(telegramUserId: bigint): Promise<CharacterRecord | null>;
+  deleteByTelegramUserId(telegramUserId: bigint): Promise<boolean>;
   createForTelegramUserIfMissing(
     user: TelegramUserProfile,
     input: CreateCharacterInput

@@ -66,11 +66,11 @@
 Використовуй наявні скрипти з `package.json`. Типовий набір:
 
 ```bash
-pnpm install
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm dev
+npm install
+npm run lint
+npm run typecheck
+npm test
+npm run dev
 ```
 
 Якщо скриптів немає, спочатку додай мінімальні `lint`, `typecheck`, `test`, `dev` або запропонуй їх у плані.

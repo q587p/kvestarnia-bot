@@ -119,7 +119,7 @@ item_power_budget = base_by_level + rarity_bonus
 ## Симуляції
 Після реалізації combat engine зробити script:
 ```bash
-pnpm simulate:combat --levels 1-10 --runs 10000
+npm run simulate:combat -- --levels 1-10 --runs 10000
 ```
 
 Вивід:

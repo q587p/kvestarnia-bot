@@ -12,7 +12,7 @@ Deliverables:
 - `AGENTS.md` і docs у репозиторії.
 
 Done when:
-- `pnpm test`, `pnpm typecheck`, `pnpm lint` проходять.
+- `npm test`, `npm run typecheck`, `npm run lint` проходять.
 - Є один приклад content entity: race, class, monster, item.
 
 ## Phase 1 — Solo MVP loop
