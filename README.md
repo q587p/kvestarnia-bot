@@ -94,10 +94,11 @@ npm run dev
 Після старту бота:
 
 1. Напишіть `/start` у Telegram.
-2. Оберіть расу й клас кнопками.
-3. Перевірте героя через `/hero`, `/profile` або `/me`.
-4. Натисніть кнопки `👤 Герой`, `🍺 До таверни`, `❔ Допомога`.
-5. Для повторного тесту onboarding у локальному режимі виконайте `/dev_reset_me` і підтвердьте скидання.
+2. Оберіть звертання, расу й клас кнопками.
+3. Підтвердьте героя на фінальному екрані.
+4. Перевірте героя через `/hero`, `/profile` або `/me`.
+5. Натисніть кнопки `👤 Герой`, `🍺 До таверни`, `❔ Допомога`.
+6. Для повторного тесту onboarding у локальному режимі виконайте `/dev_reset_me` і підтвердьте скидання.
 
 `/dev_reset_me` працює тільки коли `NODE_ENV !== "production"` і видаляє лише персонажа поточного Telegram-користувача.
 
@@ -111,7 +112,7 @@ npm run dev
 - `npm test` - Vitest suite без Telegram network calls.
 - `npm run typecheck` - strict TypeScript.
 - `npm run lint` - ESLint для `src` і `tests`.
-- `npm run check` - lint, typecheck, tests і build одним ланцюжком.
+- `npm run check` - lint, typecheck, build і tests одним ланцюжком.
 - `npm run db:generate` - Prisma Client.
 - `npm run db:validate` - перевірка Prisma schema.
 - `npm run db:migrate` - локальні міграції Prisma.
@@ -144,6 +145,7 @@ Domain-код не має імпортувати Telegram/grammY. Bot layer ма
 - `news.md`
 - `AGENTS.md`
 - `docs/BRAND.md`
+- `docs/CHARACTER_CREATION.md`
 - `docs/PRODUCT_BRIEF.md`
 - `docs/GAME_DESIGN.md`
 - `docs/TECHNICAL_PLAN.md`

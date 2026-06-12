@@ -11,7 +11,8 @@ export const races = [
       intelligence: 1,
       charisma: 1,
       luck: 1
-    }
+    },
+    allowedPronouns: ["he", "she", "they"]
   },
   {
     id: "race.dwarf",
@@ -23,7 +24,8 @@ export const races = [
       intelligence: 0,
       charisma: 0,
       luck: 1
-    }
+    },
+    allowedPronouns: ["he", "she", "they"]
   },
   {
     id: "race.elf",
@@ -35,7 +37,8 @@ export const races = [
       intelligence: 1,
       charisma: 0,
       luck: 0
-    }
+    },
+    allowedPronouns: ["he", "she", "they"]
   },
   {
     id: "race.kharakternyk",
@@ -47,6 +50,10 @@ export const races = [
       intelligence: 0,
       charisma: 0,
       luck: 2
+    },
+    allowedPronouns: ["he", "they"],
+    unavailableReasons: {
+      she: "Канцелярія персонажів каже: характерниця буде окремим героїчним папером."
     }
   },
   {
@@ -59,6 +66,10 @@ export const races = [
       intelligence: 0,
       charisma: 1,
       luck: 1
+    },
+    allowedPronouns: ["he", "they"],
+    unavailableReasons: {
+      she: "Домовичка ще перевіряє, чи ця хата достатньо затишна для альфи."
     }
   },
   {
@@ -71,6 +82,10 @@ export const races = [
       intelligence: 2,
       charisma: 1,
       luck: 0
+    },
+    allowedPronouns: ["she", "they"],
+    unavailableReasons: {
+      he: "Сухопутна русалка подивилась на анкету й сказала: «Ні, хвіст уявний, але принципи реальні»."
     }
   },
   {
@@ -83,7 +98,8 @@ export const races = [
       intelligence: 1,
       charisma: 0,
       luck: 0
-    }
+    },
+    allowedPronouns: ["he", "she", "they"]
   },
   {
     id: "race.scholar-cat",
@@ -95,6 +111,7 @@ export const races = [
       intelligence: 1,
       charisma: 0,
       luck: 2
-    }
+    },
+    allowedPronouns: ["he", "she", "they"]
   }
 ] satisfies RaceContent[];

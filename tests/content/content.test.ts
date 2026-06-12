@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   makeClassCallbackData,
+  makeConfirmCallbackData,
+  makeGenderCallbackData,
   makeRaceCallbackData,
   parseOnboardingCallbackData,
   TELEGRAM_CALLBACK_DATA_LIMIT
 } from "../../src/bot/callbacks/onboardingCallbackData";
 import { classes, items, monsters, races } from "../../src/content";
+import { pronounOptions } from "../../src/content/characterOptions";
 import { classSchema, itemSchema, monsterSchema, raceSchema } from "../../src/content/schema";
 
 const contentTables = [
@@ -27,9 +30,20 @@ describe("content tables", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it("keeps onboarding gender callbacks valid and within Telegram limits", () => {
+    for (const pronoun of pronounOptions) {
+      const callbackData = makeGenderCallbackData(pronoun.id);
+
+      expect(Buffer.byteLength(callbackData, "utf8")).toBeLessThanOrEqual(
+        TELEGRAM_CALLBACK_DATA_LIMIT
+      );
+      expect(parseOnboardingCallbackData(callbackData).ok).toBe(true);
+    }
+  });
+
   it("keeps onboarding race callbacks valid and within Telegram limits", () => {
     for (const race of races) {
-      const callbackData = makeRaceCallbackData(race.id);
+      const callbackData = makeRaceCallbackData("they", race.id);
 
       expect(Buffer.byteLength(callbackData, "utf8")).toBeLessThanOrEqual(
         TELEGRAM_CALLBACK_DATA_LIMIT
@@ -41,7 +55,20 @@ describe("content tables", () => {
   it("keeps onboarding class callbacks valid and within Telegram limits", () => {
     for (const race of races) {
       for (const characterClass of classes) {
-        const callbackData = makeClassCallbackData(race.id, characterClass.id);
+        const callbackData = makeClassCallbackData("they", race.id, characterClass.id);
+
+        expect(Buffer.byteLength(callbackData, "utf8")).toBeLessThanOrEqual(
+          TELEGRAM_CALLBACK_DATA_LIMIT
+        );
+        expect(parseOnboardingCallbackData(callbackData).ok).toBe(true);
+      }
+    }
+  });
+
+  it("keeps onboarding confirmation callbacks valid and within Telegram limits", () => {
+    for (const race of races) {
+      for (const characterClass of classes) {
+        const callbackData = makeConfirmCallbackData("they", race.id, characterClass.id);
 
         expect(Buffer.byteLength(callbackData, "utf8")).toBeLessThanOrEqual(
           TELEGRAM_CALLBACK_DATA_LIMIT

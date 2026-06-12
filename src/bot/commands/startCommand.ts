@@ -2,7 +2,7 @@ import type { Bot } from "grammy";
 import type { OnboardingService } from "../../services/onboardingService";
 import { playerFromContext } from "../context";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
-import { buildRaceKeyboard } from "../keyboards/onboardingKeyboard";
+import { buildGenderKeyboard } from "../keyboards/onboardingKeyboard";
 import { presentHero } from "../presenters/heroPresenter";
 import { presentWelcome } from "../presenters/onboardingPresenter";
 
@@ -25,7 +25,7 @@ export function registerStartCommand(bot: Bot, onboardingService: OnboardingServ
     }
 
     await ctx.reply(presentWelcome(), {
-      reply_markup: buildRaceKeyboard()
+      reply_markup: buildGenderKeyboard()
     });
   });
 }

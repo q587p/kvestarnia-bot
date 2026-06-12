@@ -4,10 +4,13 @@ import type { CharacterSummary } from "../../src/domain/characters/characterSumm
 
 const summary: CharacterSummary = {
   name: "Мандрівник",
+  pronoun: "they",
+  pronounLabel: "Вони",
   raceId: "race.human-ish",
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
+  title: "Пересічний Герой",
   level: 1,
   xp: 0,
   gold: 0,
@@ -30,6 +33,8 @@ describe("hero presenter", () => {
 
     expect(text).toContain("Людисько");
     expect(text).toContain("Воїн");
+    expect(text).toContain("Вони");
+    expect(text).toContain("Пересічний Герой");
     expect(text).toContain("Сили 8");
     expect(text).toContain("Вдача 6");
     expect(text).toContain("Далі:");

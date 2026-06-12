@@ -1,0 +1,144 @@
+import { classes } from "./classes";
+import { races } from "./races";
+import type { ClassContent, Pronoun, RaceContent } from "./schema";
+
+export const pronounOptions = [
+  { id: "he", label: "Він" },
+  { id: "she", label: "Вона" },
+  { id: "they", label: "Вони" }
+] as const satisfies ReadonlyArray<{ id: Pronoun; label: string }>;
+
+const GENERIC_RACE_UNAVAILABLE_REASON = "Цей варіянт вислизнув із вашої біографії.";
+const GENERIC_CLASS_UNAVAILABLE_REASON =
+  "Канцелярія персонажів не погодила таку комбінацію.";
+
+const comboTitles = new Map<string, string>([
+  [comboKey("race.human-ish", "class.warrior"), "Пересічний Герой"],
+  [comboKey("race.human-ish", "class.bureaucramancer"), "Молодший Паперорухач"],
+  [comboKey("race.dwarf", "class.bureaucramancer"), "Печатник Глибин"],
+  [comboKey("race.elf", "class.bard"), "Лютневий Довгожитель"],
+  [comboKey("race.kharakternyk", "class.mage"), "Підозрілий Дивоносій"],
+  [comboKey("race.domovyk", "class.rogue"), "Завідувач Чужої Полиці"],
+  [comboKey("race.domovyk", "class.bureaucramancer"), "Архівний Дух"],
+  [comboKey("race.dryland-rusalka", "class.bard"), "Співачка Без Моря"],
+  [comboKey("race.dryland-rusalka", "class.varenyk-mancer"), "Сирена Сметани"],
+  [comboKey("race.intellectual-orc", "class.warrior"), "Критик Прикладного Биття"],
+  [
+    comboKey("race.intellectual-orc", "class.bureaucramancer"),
+    "Завідувач Ударної Канцелярії"
+  ],
+  [comboKey("race.scholar-cat", "class.mage"), "Кандидат Муркотичних Наук"],
+  [comboKey("race.scholar-cat", "class.bureaucramancer"), "Професор Лапкографії"]
+]);
+
+export function isPronoun(value: string | undefined): value is Pronoun {
+  return pronounOptions.some((option) => option.id === value);
+}
+
+export function getPronounLabel(pronoun: Pronoun): string {
+  return pronounOptions.find((option) => option.id === pronoun)?.label ?? pronoun;
+}
+
+export function findRace(raceId: string): RaceContent | undefined {
+  return races.find((race) => race.id === raceId);
+}
+
+export function findClass(classId: string): ClassContent | undefined {
+  return classes.find((characterClass) => characterClass.id === classId);
+}
+
+export function raceIdToKey(raceId: string): string {
+  return raceId.replace(/^race\./, "");
+}
+
+export function classIdToKey(classId: string): string {
+  return classId.replace(/^class\./, "");
+}
+
+export function raceKeyToId(key: string | undefined): string | undefined {
+  if (!key) {
+    return undefined;
+  }
+
+  return findRace(`race.${key}`)?.id;
+}
+
+export function classKeyToId(key: string | undefined): string | undefined {
+  if (!key) {
+    return undefined;
+  }
+
+  return findClass(`class.${key}`)?.id;
+}
+
+export function isRaceAvailableForPronoun(pronoun: Pronoun, raceId: string): boolean {
+  const race = findRace(raceId);
+
+  if (!race) {
+    return false;
+  }
+
+  return !race.allowedPronouns || race.allowedPronouns.includes(pronoun);
+}
+
+export function isClassAvailableForChoice(
+  pronoun: Pronoun,
+  raceId: string,
+  classId: string
+): boolean {
+  const race = findRace(raceId);
+  const characterClass = findClass(classId);
+
+  if (!race || !characterClass || !isRaceAvailableForPronoun(pronoun, raceId)) {
+    return false;
+  }
+
+  if (characterClass.allowedPronouns && !characterClass.allowedPronouns.includes(pronoun)) {
+    return false;
+  }
+
+  if (race.allowedClasses && !race.allowedClasses.includes(classId)) {
+    return false;
+  }
+
+  if (race.blockedClasses?.includes(classId)) {
+    return false;
+  }
+
+  if (characterClass.allowedRaces && !characterClass.allowedRaces.includes(raceId)) {
+    return false;
+  }
+
+  if (characterClass.blockedRaces?.includes(raceId)) {
+    return false;
+  }
+
+  return true;
+}
+
+export function getRaceUnavailableReason(pronoun: Pronoun, raceId: string): string {
+  const race = findRace(raceId);
+  return race?.unavailableReasons?.[pronoun] ?? GENERIC_RACE_UNAVAILABLE_REASON;
+}
+
+export function getClassUnavailableReason(
+  pronoun: Pronoun,
+  raceId: string,
+  classId: string
+): string {
+  const characterClass = findClass(classId);
+
+  if (!isRaceAvailableForPronoun(pronoun, raceId)) {
+    return getRaceUnavailableReason(pronoun, raceId);
+  }
+
+  return characterClass?.unavailableReasons?.[raceId] ?? GENERIC_CLASS_UNAVAILABLE_REASON;
+}
+
+export function getComboTitle(raceId: string, classId: string): string {
+  return comboTitles.get(comboKey(raceId, classId)) ?? "Герой місцевого значення";
+}
+
+function comboKey(raceId: string, classId: string): string {
+  return `${raceId}:${classId}`;
+}

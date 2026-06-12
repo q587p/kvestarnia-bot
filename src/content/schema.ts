@@ -10,18 +10,28 @@ export const statBlockSchema = z.object({
   luck: z.number().int().min(0)
 });
 
+export const pronounSchema = z.enum(["he", "she", "they"]);
+
 export const raceSchema = z.object({
   id: contentIdSchema,
   name: z.string().min(1),
   description: z.string().min(1),
-  statBonus: statBlockSchema.partial()
+  statBonus: statBlockSchema.partial(),
+  allowedPronouns: z.array(pronounSchema).optional(),
+  allowedClasses: z.array(contentIdSchema).optional(),
+  blockedClasses: z.array(contentIdSchema).optional(),
+  unavailableReasons: z.record(z.string().min(1), z.string().min(1)).optional()
 });
 
 export const classSchema = z.object({
   id: contentIdSchema,
   name: z.string().min(1),
   description: z.string().min(1),
-  primaryStat: z.enum(["strength", "dexterity", "intelligence", "charisma", "luck"])
+  primaryStat: z.enum(["strength", "dexterity", "intelligence", "charisma", "luck"]),
+  allowedPronouns: z.array(pronounSchema).optional(),
+  allowedRaces: z.array(contentIdSchema).optional(),
+  blockedRaces: z.array(contentIdSchema).optional(),
+  unavailableReasons: z.record(z.string().min(1), z.string().min(1)).optional()
 });
 
 export const monsterSchema = z.object({
@@ -44,5 +54,6 @@ export const itemSchema = z.object({
 
 export type RaceContent = z.infer<typeof raceSchema>;
 export type ClassContent = z.infer<typeof classSchema>;
+export type Pronoun = z.infer<typeof pronounSchema>;
 export type MonsterContent = z.infer<typeof monsterSchema>;
 export type ItemContent = z.infer<typeof itemSchema>;
