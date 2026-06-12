@@ -6,13 +6,13 @@
 Deliverables:
 - Проєкт TypeScript.
 - Lint/typecheck/test/dev scripts.
-- Docker Compose для Postgres/Redis.
+- Локальна SQLite БД через `DATABASE_URL=file:./dev.db`.
 - Базова схема БД.
 - Content validation.
 - `AGENTS.md` і docs у репозиторії.
 
 Done when:
-- `pnpm test`, `pnpm typecheck`, `pnpm lint` проходять.
+- `npm test`, `npm run typecheck`, `npm run lint` проходять.
 - Є один приклад content entity: race, class, monster, item.
 
 ## Phase 1 — Solo MVP loop
@@ -37,7 +37,7 @@ Done when:
 
 Deliverables:
 - Реєстрація групи.
-- `/raid` або “бос дня”.
+- `/raid` або «бос дня».
 - Join кнопка.
 - 1–3 дії учасника.
 - Підсумок рейду з топ-учасниками.
@@ -105,7 +105,7 @@ Done when:
 
 ## Backlog фіч
 - Achievements.
-- Collections: “Бестіарій”, “Музей Манаток”.
+- Collections: «Бестіарій», «Музей Манаток».
 - Daily tavern rumor.
 - Player titles.
 - Seasonal boss.

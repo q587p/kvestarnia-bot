@@ -9,7 +9,7 @@ on:
 env:
   NODE_ENV: test
   BOT_TOKEN: ""
-  DATABASE_URL: postgresql://kvestarnia@localhost:5432/kvestarnia
+  DATABASE_URL: file:./dev.db
   REDIS_URL: redis://localhost:6379
 
 jobs:
@@ -33,6 +33,9 @@ jobs:
       - name: Validate Prisma schema
         run: npx prisma validate
 
+      - name: Apply Prisma migrations
+        run: npx prisma migrate deploy
+
       - name: Lint
         run: npm run lint
 
@@ -44,6 +47,3 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      - name: Validate Docker Compose
-        run: docker compose config

@@ -1,17 +1,18 @@
 # kvestarnia-bot
 
-Квестарня - україномовна текстова Telegram RPG. Репозиторій містить TypeScript/Node.js foundation для Telegram-бота на grammY, Prisma/PostgreSQL baseline, Zod-validated content і перший Phase 1 зріз: ідемпотентний `/start` onboarding з вибором раси та класу.
+Квестарня - україномовна текстова Telegram RPG. Репозиторій містить TypeScript/Node.js foundation для Telegram-бота на grammY, Prisma/SQLite local baseline, Zod-validated content і перший Phase 1 зріз: ідемпотентний `/start` onboarding з вибором раси та класу.
 
 ## Що вже є
 
 - CommonJS TypeScript scaffold у стилі sibling Telegram bot repo.
 - `src/bot.ts` як локальний polling entrypoint.
 - `/start` показує коротке вітання Квестарні, пропонує вибір раси й класу через callback-и та не створює дублікати персонажа при повторних натисканнях.
+- `/hero`, `/profile`, `/me`, `/help` і кнопкове меню показують видимий прогрес без запуску повного gameplay loop.
+- `/dev_reset_me` у локальному режимі скидає тільки вашого героя після підтвердження.
 - Config layer із Zod для `BOT_TOKEN`, `DATABASE_URL`, `REDIS_URL`, `NODE_ENV`.
 - Prisma schema та перша міграція для `User` і `Character`.
 - Content tables для race/class/monster/item зі stable ids.
 - Vitest tests для content validation, callback validation, starter stats, onboarding idempotency і shared utilities.
-- Docker Compose для PostgreSQL і Redis.
 
 Повний gameplay loop, combat, inventory, loot, raids, guilds і PvP ще не реалізовані.
 
@@ -19,7 +20,7 @@
 
 - Node.js 20 або новіший.
 - npm.
-- Docker або сумісний Docker Compose для локальних Postgres/Redis.
+- SQLite через Prisma `file:./dev.db` у `DATABASE_URL`.
 
 У Windows PowerShell може блокуватися `npm.ps1`; тоді використовуй `npm.cmd`, наприклад `npm.cmd run build`.
 
@@ -28,12 +29,8 @@
 ```bash
 npm install
 cp .env.example .env
-docker compose up -d
-npx prisma generate
-npx prisma migrate dev
-npm run typecheck
-npm test
-npm run build
+npm run db:generate
+npm run db:migrate
 npm run dev
 ```
 
@@ -51,6 +48,10 @@ BOT_TOKEN=replace-with-real-token
 
 Не коміть `.env` або реальні секрети.
 
+`npm run db:migrate` створить локальний файл `prisma/dev.db`, якщо його ще немає. Redis зараз не використовується runtime-кодом; `REDIS_URL` лишається placeholder-ом для майбутніх jobs/cache фіч.
+
+Для перевірки перед PR використовуйте `npm run check`.
+
 ## Prisma
 
 Згенерувати Prisma Client:
@@ -65,11 +66,40 @@ npx prisma generate
 npx prisma validate
 ```
 
-Застосувати першу міграцію до локальної Postgres БД:
+Застосувати першу міграцію до локальної SQLite БД:
 
 ```bash
 npx prisma migrate dev
 ```
+
+Ті самі дії доступні через npm scripts:
+
+```bash
+npm run db:generate
+npm run db:validate
+npm run db:migrate
+npm run db:studio
+```
+
+## Local Playthrough
+
+```bash
+npm install
+cp .env.example .env
+npm run db:generate
+npm run db:migrate
+npm run dev
+```
+
+Після старту бота:
+
+1. Напишіть `/start` у Telegram.
+2. Оберіть расу й клас кнопками.
+3. Перевірте героя через `/hero`, `/profile` або `/me`.
+4. Натисніть кнопки `👤 Герой`, `🍺 До таверни`, `❔ Допомога`.
+5. Для повторного тесту onboarding у локальному режимі виконайте `/dev_reset_me` і підтвердьте скидання.
+
+`/dev_reset_me` працює тільки коли `NODE_ENV !== "production"` і видаляє лише персонажа поточного Telegram-користувача.
 
 `User.telegramUserId` зберігається як `BigInt` і мапиться у БД на `telegram_user_id`, як у `docs/TECHNICAL_PLAN.md`. На межі Telegram/DB треба конвертувати `ctx.from.id` у `BigInt`; доменний код не має знати про Telegram payload.
 
@@ -81,6 +111,11 @@ npx prisma migrate dev
 - `npm test` - Vitest suite без Telegram network calls.
 - `npm run typecheck` - strict TypeScript.
 - `npm run lint` - ESLint для `src` і `tests`.
+- `npm run check` - lint, typecheck, tests і build одним ланцюжком.
+- `npm run db:generate` - Prisma Client.
+- `npm run db:validate` - перевірка Prisma schema.
+- `npm run db:migrate` - локальні міграції Prisma.
+- `npm run db:studio` - Prisma Studio.
 
 ## Структура
 
@@ -105,6 +140,8 @@ Domain-код не має імпортувати Telegram/grammY. Bot layer ма
 
 ## Корисні документи
 
+- `CHANGELOG.md`
+- `news.md`
 - `AGENTS.md`
 - `docs/BRAND.md`
 - `docs/PRODUCT_BRIEF.md`

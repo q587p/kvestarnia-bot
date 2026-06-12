@@ -8,13 +8,13 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 ## Рекомендований стек
 - TypeScript + Node.js.
 - grammY для Telegram Bot API.
-- PostgreSQL для основних даних.
+- SQLite для локального MVP; PostgreSQL лишається можливим hosted target після стабілізації схеми.
 - Prisma або Drizzle для ORM/міграцій.
 - Redis для rate limits, locks, cooldown cache.
 - BullMQ для jobs: рейди, сезони, таймери, retries.
 - Zod для конфігів і content validation.
 - Vitest для тестів.
-- Docker Compose для локального dev.
+- Локальна SQLite БД через `DATABASE_URL=file:./dev.db`.
 
 ## Структура репозиторію
 ```text
@@ -164,7 +164,7 @@ export interface RandomSource {
 - `raid:{raidId}:reward:{characterId}`
 - `daily:{characterId}:{yyyy-mm-dd}`
 
-Повторний callback має повертати “вже зараховано”, а не дублювати винагороду.
+Повторний callback має повертати «вже зараховано», а не дублювати винагороду.
 
 ## Telegram callback data
 Callback data коротка, версіонована:
@@ -197,7 +197,7 @@ Domain result → presenter → Telegram text/buttons.
 ## Deployment MVP
 Найпростіше:
 - VPS або PaaS.
-- Docker Compose: app + postgres + redis.
+- App runtime + PostgreSQL + Redis як окремі сервіси.
 - Webhook через HTTPS.
 - Backups PostgreSQL щодня.
 

@@ -15,7 +15,7 @@ Done when: як перевірити готовність.
 Goal: реалізуй чистий combat engine для MVP.
 Context: прочитай AGENTS.md, docs/GAME_DESIGN.md, docs/BALANCE_NOTES.md.
 Constraints: domain не має імпортувати Telegram/grammY; RNG через інтерфейс RandomSource; TypeScript strict.
-Done when: є unit tests для перемоги, поразки, криту, промаху, втечі; pnpm test проходить.
+Done when: є unit tests для перемоги, поразки, криту, промаху, втечі; npm test проходить.
 ```
 
 ## Перші задачі для порожнього репозиторію
@@ -24,8 +24,8 @@ Done when: є unit tests для перемоги, поразки, криту, п
 ```text
 Goal: створи TypeScript Node.js репозиторій для Telegram RPG bot.
 Context: AGENTS.md, docs/TECHNICAL_PLAN.md.
-Constraints: pnpm, Vitest, ESLint, TypeScript strict, Docker Compose для Postgres/Redis. Не реалізуй ігрові фічі.
-Done when: pnpm lint/typecheck/test проходять; README містить local setup.
+Constraints: npm, Vitest, ESLint, TypeScript strict, SQLite через DATABASE_URL. Не реалізуй ігрові фічі.
+Done when: npm run lint/typecheck і npm test проходять; README містить local setup.
 ```
 
 ### Task 2 — Content validation
@@ -88,7 +88,7 @@ Spawn 4 agents and consolidate:
 - Чи не розширився scope понад задачу.
 
 ## Типові помилки
-- Codex робить “MMO все одразу”. Зупинити: просити маленький slice.
+- Codex робить «MMO все одразу». Зупинити: просити маленький slice.
 - Codex пише надто довгі повідомлення. Вказати limit у style guide.
 - Codex хардкодить Telegram-specific state в domain. Винести в presenter/service.
 - Codex додає Prisma schema, але не додає міграцію. Попросити міграцію.

@@ -25,15 +25,15 @@ Use this skill when creating or reviewing user-facing game text.
 ## Naming formulas
 Items:
 - [ordinary object] + [emotion/function]
-- “Пательня переконання”
-- “Капці тривожної мобільності”
-- “Плащ людини, яка вже йде”
+- «Пательня переконання»
+- «Капці тривожної мобільності»
+- «Плащ людини, яка вже йде»
 
 Monsters:
 - [fantasy creature] + [bureaucracy/domestic absurdity]
-- “Скелет-вахтер”
-- “Гоблін з Excel”
-- “Павук дедлайнів”
+- «Скелет-вахтер»
+- «Гоблін з Excel»
+- «Павук дедлайнів»
 
 ## Output format for new content
 When asked to generate content, return structured data first, then examples of Telegram messages.

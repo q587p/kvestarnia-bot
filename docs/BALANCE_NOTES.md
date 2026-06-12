@@ -89,7 +89,7 @@ rare:      7%
 epic:      1%
 ```
 
-Модифікатори LUCK не мають ламати таблицю. Наприклад, LUCK додає не “+10% epic”, а маленький бонус до upgrade roll.
+Модифікатори LUCK не мають ламати таблицю. Наприклад, LUCK додає не «+10% epic», а маленький бонус до upgrade roll.
 
 ## Pity / захист від невдачі
 Навіть у MVP варто вести lightweight pity counter:
@@ -119,7 +119,7 @@ item_power_budget = base_by_level + rarity_bonus
 ## Симуляції
 Після реалізації combat engine зробити script:
 ```bash
-pnpm simulate:combat --levels 1-10 --runs 10000
+npm run simulate:combat -- --levels 1-10 --runs 10000
 ```
 
 Вивід:

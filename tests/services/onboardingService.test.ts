@@ -126,6 +126,16 @@ class FakeCharacterRepository implements CharacterRepository {
     return Promise.resolve(this.charactersByUserId.get(userId) ?? null);
   }
 
+  findByTelegramUserId(telegramUserId: bigint): Promise<CharacterRecord | null> {
+    void telegramUserId;
+    return Promise.resolve(null);
+  }
+
+  deleteByTelegramUserId(telegramUserId: bigint): Promise<boolean> {
+    void telegramUserId;
+    return Promise.resolve(false);
+  }
+
   async createForTelegramUserIfMissing(
     userInput: TelegramUserProfile,
     input: CreateCharacterInput
