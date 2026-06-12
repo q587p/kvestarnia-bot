@@ -1,13 +1,14 @@
 import type { TavernRaidResult } from "../../services/tavernRaidService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import { escapeHtml, npcQuote } from "./telegramHtml";
 
 export function presentTavern(character: CharacterSummary): string {
   return [
     "🍺 Таверна Квестарні",
-    `${character.name} · ${character.title}`,
+    `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
     "",
     "У кутку героїчно піниться Бочка Пінного Міражу.",
-    "> Шинкар: «Це не проблема. Це рейд на 1-3 хвилини».",
+    npcQuote("Шинкар", "Це не проблема. Це рейд на 1-3 хвилини."),
     "",
     "Що робимо?"
   ].join("\n");

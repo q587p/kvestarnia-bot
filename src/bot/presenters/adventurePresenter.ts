@@ -1,13 +1,14 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { AdventureResult } from "../../services/adventureService";
+import { escapeHtml, npcQuote } from "./telegramHtml";
 
 export function presentAdventureStart(character: CharacterSummary): string {
   return [
     "🌯 Підозріла шаурма",
     "На столі лежить шаурма. Вона дихає.",
-    "> Шинкар: «То не моя».",
+    npcQuote("Шинкар", "То не моя."),
     "",
-    `${character.name}, що робимо?`
+    `${escapeHtml(character.name)}, що робимо?`
   ].join("\n");
 }
 

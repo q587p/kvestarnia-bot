@@ -5,6 +5,8 @@ import { buildAdventureKeyboard } from "../keyboards/adventureKeyboard";
 import { presentAdventureNoCharacter, presentAdventureStart } from "../presenters/adventurePresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
+type ReplyOptions = Parameters<Context["reply"]>[1];
+
 export function registerAdventureCommand(bot: Bot, adventureService: AdventureService): void {
   bot.command(["adventure", "quest"], async (ctx) => {
     await sendAdventure(ctx, adventureService, "reply");
@@ -41,9 +43,10 @@ async function sendText(
 ): Promise<void> {
   const options = includeKeyboard
     ? {
+        parse_mode: "HTML" as const,
         reply_markup: buildAdventureKeyboard()
       }
-    : undefined;
+    : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
 
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, options);

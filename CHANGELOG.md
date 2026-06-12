@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - `/help` now lists `/adventure` and `/quest` as available commands.
 - `/hunt`, `/inventory`, and `/guild` remain friendly placeholders.
+- Tavern and adventure NPC speech now uses Telegram HTML blockquotes instead of raw Markdown quote markers.
 - README and design/technical docs now describe the first adventure slice and simple progression.
 
 ### Not Included Yet
