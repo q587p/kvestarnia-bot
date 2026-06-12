@@ -12,7 +12,8 @@ describe("inventory presenter", () => {
 
     expect(text).toContain("🎒 Манатки");
     expect(text).toContain("/tavern");
-    expect(text).toContain("/adventure");
+    expect(text).toContain("/quest");
+    expect(text).not.toContain("/adventure");
     expect(text).toContain("/fight");
     expect(text.length).toBeLessThan(180);
   });

@@ -55,7 +55,8 @@ describe("hero presenter", () => {
     expect(text).toContain("Сили 9");
     expect(text).toContain("Вдача 6");
     expect(text).toContain("Ріст рівня: +4 HP · +2 мани · +1 Сили");
-    expect(text).toContain("<i>Далі:");
+    expect(text).toContain("<i>Далі: /tavern, /quest або /fight.</i>");
+    expect(text).not.toContain("/adventure або /fight");
     expect(text).toContain("\n\nЗвертання:");
     expect(text).toContain("\n\nHP");
     expect(text.split("\n").length).toBeLessThanOrEqual(13);

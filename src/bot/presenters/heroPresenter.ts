@@ -20,7 +20,7 @@ export function presentHero(summary: CharacterSummary): string {
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
     ...(growthLine ? ["", `Ріст рівня: ${growthLine}`] : []),
     "",
-    "<i>Далі: /tavern, /adventure або /fight.</i>"
+    "<i>Далі: /tavern, /quest або /fight.</i>"
   ].join("\n");
 }
 

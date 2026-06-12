@@ -11,6 +11,6 @@ export function presentPlannedCommand(command: PlannedCommand): string {
   return [
     ...plannedCommandMessages[command],
     "",
-    "Доступно зараз: /start, /hero, /tavern, /adventure, /fight, /help"
+    "Доступно зараз: /start, /hero, /tavern, /quest, /fight, /help"
   ].join("\n");
 }
