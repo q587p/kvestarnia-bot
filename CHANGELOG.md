@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.0.3] - 2026-06-12
+## [0.0.3] - 2026-06-12 - Friday Tavern Raid
 
 ### Added
 - `/tavern` and `/raid` now open the first tiny playable event: `П’ятничний рейд на Бочку Пінного Міражу`.
@@ -23,7 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Not Included Yet
 - Full combat, inventory, item loot, group raids, guilds, PvP, jobs, payments, and Mini App UI.
 
-## [0.0.2] - 12026-06-12
+## [0.0.2] - 12026-06-12 - Character Creation Options
 
 ### Added
 - Character creation now starts with a lightweight pronoun selection step: `Він`, `Вона`, or `Вони`.
@@ -40,7 +40,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Not Included Yet
 - Combat, adventure loop, loot, inventory, raids, guilds, PvP, jobs, payments, and Mini App UI.
 
-## [0.0.1] - 12026-06-12
+## [0.0.1] - 12026-06-12 - Local Playability Foundation
 
 ### Added
 - Initial TypeScript + Node.js Telegram bot foundation using grammY, Prisma, Zod, Vitest, and npm scripts.
