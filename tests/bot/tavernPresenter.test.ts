@@ -88,10 +88,15 @@ describe("tavern presenter", () => {
       levelChange: null
     };
 
-    expect(presentTavernRaidResult(completed)).toContain("+7 XP · +5 золота");
-    expect(presentTavernRaidResult(completed)).toContain("Здобуто: Квиток мокрого героя");
+    expect(presentTavernRaidResult(completed)).toContain("<b>+7 XP · +5 золота</b>");
+    expect(presentTavernRaidResult(completed)).toContain(
+      "Здобуто: <i>Квиток мокрого героя</i>"
+    );
     expect(presentTavernRaidResult(completed)).not.toContain("×1");
     expect(presentTavernRaidResult(repeated)).toContain("уже зараховано");
+    expect(presentTavernRaidResult(repeated)).toContain(
+      "Вже отримано: <b>+7 XP · +5 золота</b>"
+    );
     expect(presentTavernRaidResult(repeated)).not.toContain("Здобуто:");
     expect(presentTavernRaidResult(completed).toLowerCase()).not.toContain("пий");
   });

@@ -59,13 +59,17 @@ describe("adventure presenter", () => {
   });
 
   it("shows rewards for each action", () => {
-    expect(presentAdventureResult(completed("poke", 8, 4))).toContain("+8 XP · +4 золота");
     expect(presentAdventureResult(completed("poke", 8, 4))).toContain(
-      "Здобуто: Підозрілий лавашний доказ"
+      "<b>+8 XP · +4 золота</b>"
+    );
+    expect(presentAdventureResult(completed("poke", 8, 4))).toContain(
+      "Здобуто: <i>Підозрілий лавашний доказ</i>"
     );
     expect(presentAdventureResult(completed("poke", 8, 4))).not.toContain("×1");
-    expect(presentAdventureResult(completed("receipt", 6, 6))).toContain("+6 XP · +6 золота");
-    expect(presentAdventureResult(completed("flee", 2, 0))).toContain("+2 XP");
+    expect(presentAdventureResult(completed("receipt", 6, 6))).toContain(
+      "<b>+6 XP · +6 золота</b>"
+    );
+    expect(presentAdventureResult(completed("flee", 2, 0))).toContain("<b>+2 XP</b>");
     expect(presentAdventureResult(completed("flee", 2, 0))).not.toContain("золота");
     expect(presentAdventureResult(completed("flee", 2, 0))).not.toContain("Здобуто:");
   });

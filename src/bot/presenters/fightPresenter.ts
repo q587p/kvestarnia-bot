@@ -1,8 +1,8 @@
 import { MIMIC_SHAWARMA_HP } from "../../domain/combat/combatProbe";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { FightResult } from "../../services/fightService";
-import { presentItemNameWithQuantity } from "./itemStackPresenter";
 import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
+import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentFightStart(character: CharacterSummary): string {
@@ -34,7 +34,7 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
     ...presentOutcome(result),
     "",
     `❤️ Ви: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}   🌯 Мімік: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
-    presentRewardLine(result.reward.xp, result.reward.gold),
+    presentRewardAmount({ ...result.reward, label: "Нагорода" }),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
@@ -68,14 +68,6 @@ function presentOutcome(
   ];
 }
 
-function presentRewardLine(xp: number, gold: number): string {
-  if (gold <= 0) {
-    return `Нагорода: +${xp} XP`;
-  }
-
-  return `Нагорода: +${xp} XP · +${gold} золота`;
-}
-
 function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: number }>): string[] {
   if (itemGrants.length === 0) {
     return [];
@@ -83,9 +75,9 @@ function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: numbe
 
   return itemGrants.map(
     (grant) =>
-      `Здобуто: ${presentItemNameWithQuantity({
+      presentRewardItemGrant({
         name: escapeHtml(grant.name),
         quantity: grant.quantity
-      })}`
+      })
   );
 }

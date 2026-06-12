@@ -1,7 +1,7 @@
 import type { TavernRaidResult } from "../../services/tavernRaidService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import { presentItemNameWithQuantity } from "./itemStackPresenter";
 import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
+import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
 export function presentTavern(character: CharacterSummary): string {
@@ -27,7 +27,11 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
       "🍺 Бочка вас пам’ятає.",
       "Сьогоднішній рейд уже зараховано. Вона все ще трохи нервує.",
       "",
-      `Вже отримано: +${result.reward.xp} XP · +${result.reward.gold} золота`,
+      presentRewardAmount({
+        xp: result.reward.xp,
+        gold: result.reward.gold,
+        label: "Вже отримано"
+      }),
       "Повертайтесь завтра або перевірте героя: /hero"
     ].join("\n");
   }
@@ -36,7 +40,7 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
     "🍺 Рейд завершено!",
     "Ви штурмували Бочку Пінного Міражу. Бочка відступила стратегічною піною.",
     "",
-    `+${result.reward.xp} XP · +${result.reward.gold} золота`,
+    presentRewardAmount(result.reward),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
@@ -52,9 +56,9 @@ function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: numbe
 
   return itemGrants.map(
     (grant) =>
-      `Здобуто: ${presentItemNameWithQuantity({
+      presentRewardItemGrant({
         name: escapeHtml(grant.name),
         quantity: grant.quantity
-      })}`
+      })
   );
 }

@@ -1,7 +1,7 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { AdventureResult } from "../../services/adventureService";
-import { presentItemNameWithQuantity } from "./itemStackPresenter";
 import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
+import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
 export function presentAdventureStart(character: CharacterSummary): string {
@@ -33,7 +33,7 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
   const lines = [
     ...presentActionOutcome(result.action),
     "",
-    presentRewardLine(result.reward.xp, result.reward.gold),
+    presentRewardAmount(result.reward),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
@@ -63,14 +63,6 @@ function presentActionOutcome(action: "poke" | "receipt" | "flee"): string[] {
   ];
 }
 
-function presentRewardLine(xp: number, gold: number): string {
-  if (gold <= 0) {
-    return `+${xp} XP`;
-  }
-
-  return `+${xp} XP · +${gold} золота`;
-}
-
 function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: number }>): string[] {
   if (itemGrants.length === 0) {
     return [];
@@ -78,9 +70,9 @@ function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: numbe
 
   return itemGrants.map(
     (grant) =>
-      `Здобуто: ${presentItemNameWithQuantity({
+      presentRewardItemGrant({
         name: escapeHtml(grant.name),
         quantity: grant.quantity
-      })}`
+      })
   );
 }
