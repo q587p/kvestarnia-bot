@@ -1,5 +1,7 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { AdventureResult } from "../../services/adventureService";
+import { presentItemNameWithQuantity } from "./itemStackPresenter";
+import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
 export function presentAdventureStart(character: CharacterSummary): string {
@@ -35,9 +37,7 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
-  if (result.levelChange.leveledUp) {
-    lines.push(`Рівень підріс: ${result.levelChange.oldLevel} → ${result.levelChange.newLevel}`);
-  }
+  lines.push(...presentRewardLevelGrowth(result.levelChange, result.character.classId));
 
   return lines.join("\n");
 }
@@ -77,6 +77,10 @@ function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: numbe
   }
 
   return itemGrants.map(
-    (grant) => `Здобуто: ${escapeHtml(grant.name)} ×${grant.quantity}`
+    (grant) =>
+      `Здобуто: ${presentItemNameWithQuantity({
+        name: escapeHtml(grant.name),
+        quantity: grant.quantity
+      })}`
   );
 }

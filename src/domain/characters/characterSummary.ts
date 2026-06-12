@@ -2,6 +2,11 @@ import { classes } from "../../content/classes";
 import { getComboTitle, getPronounLabel, isPronoun } from "../../content/characterOptions";
 import { races } from "../../content/races";
 import type { Pronoun } from "../../content/schema";
+import {
+  buildEffectiveCharacterStats,
+  type LevelBonus
+} from "../progression/effectiveStats";
+import { getNextLevelThreshold } from "../progression/level";
 import type { CharacterStats } from "./starterStats";
 
 export interface CharacterSummary {
@@ -15,12 +20,15 @@ export interface CharacterSummary {
   title: string;
   level: number;
   xp: number;
+  nextLevelXp: number | null;
+  xpToNextLevel: number | null;
   gold: number;
   hpCurrent: number;
   hpMax: number;
   manaCurrent: number;
   manaMax: number;
   stats: CharacterStats;
+  levelBonus: LevelBonus;
 }
 
 export interface CharacterSummaryInput {
@@ -42,6 +50,18 @@ export function summarizeCharacter(input: CharacterSummaryInput): CharacterSumma
   const race = races.find((candidate) => candidate.id === input.raceId);
   const characterClass = classes.find((candidate) => candidate.id === input.classId);
   const pronoun = parsePronoun(input.pronoun);
+  const level = Math.max(1, Math.floor(input.level));
+  const xp = Math.max(0, Math.floor(input.xp));
+  const nextLevelXp = getNextLevelThreshold(level);
+  const effectiveStats = buildEffectiveCharacterStats({
+    level,
+    classId: input.classId,
+    hpCurrent: input.hpCurrent,
+    hpMax: input.hpMax,
+    manaCurrent: input.manaCurrent,
+    manaMax: input.manaMax,
+    stats: parseStats(input.statsJson)
+  });
 
   return {
     name: input.name,
@@ -52,14 +72,17 @@ export function summarizeCharacter(input: CharacterSummaryInput): CharacterSumma
     classId: input.classId,
     className: characterClass?.name ?? input.classId,
     title: getComboTitle(input.raceId, input.classId),
-    level: input.level,
-    xp: input.xp,
+    level,
+    xp,
+    nextLevelXp,
+    xpToNextLevel: nextLevelXp === null ? null : Math.max(0, nextLevelXp - xp),
     gold: input.gold,
-    hpCurrent: input.hpCurrent,
-    hpMax: input.hpMax,
-    manaCurrent: input.manaCurrent,
-    manaMax: input.manaMax,
-    stats: parseStats(input.statsJson)
+    hpCurrent: effectiveStats.hpCurrent,
+    hpMax: effectiveStats.hpMax,
+    manaCurrent: effectiveStats.manaCurrent,
+    manaMax: effectiveStats.manaMax,
+    stats: effectiveStats.stats,
+    levelBonus: effectiveStats.levelBonus
   };
 }
 

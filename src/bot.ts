@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import type { Bot } from "grammy";
+import { getTelegramMenuCommands } from "./bot/botCommandCatalog";
 import { createBot } from "./bot/createBot";
 import { loadConfig } from "./config/env";
 import { prisma } from "./db/prisma";
@@ -54,6 +55,10 @@ if (!config.botToken) {
   console.log("Квестарня: BOT_TOKEN не задано, Telegram polling не запускається.");
 } else {
   bot = createBot(config.botToken, services);
+
+  void bot.api.setMyCommands(getTelegramMenuCommands(services.devReset.isEnabled())).catch((error) => {
+    console.error("Квестарня: бокове меню команд не оновилось.", error);
+  });
 
   console.log("Квестарня: бот запускається в polling-режимі.");
   void bot.start();

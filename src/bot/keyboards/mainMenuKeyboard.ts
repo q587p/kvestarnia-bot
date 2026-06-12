@@ -1,16 +1,29 @@
-import { InlineKeyboard } from "grammy";
+import { InlineKeyboard, Keyboard } from "grammy";
 import { makeDevResetCallbackData } from "../callbacks/devResetCallbackData";
-import { makeMenuCallbackData } from "../callbacks/menuCallbackData";
 import { makeRestartCallbackData } from "../callbacks/restartCallbackData";
 
-export function buildMainMenuKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
-    .text("👤 Герой", makeMenuCallbackData("hero"))
-    .text("🎒 Манатки", makeMenuCallbackData("inventory"))
+export const mainMenuButtons = {
+  hero: "👤 Герой",
+  tavern: "🍺 Таверна",
+  quest: "🗺️ Квест",
+  inventory: "🎒 Манатки",
+  guild: "🛡️ Ґільдія",
+  help: "❔ Допомога"
+} as const;
+
+export function buildMainMenuKeyboard(): Keyboard {
+  return new Keyboard()
+    .text(mainMenuButtons.hero)
+    .text(mainMenuButtons.tavern)
     .row()
-    .text("🍺 До таверни", makeMenuCallbackData("tavern"))
+    .text(mainMenuButtons.quest)
+    .text(mainMenuButtons.inventory)
     .row()
-    .text("❔ Допомога", makeMenuCallbackData("help"));
+    .text(mainMenuButtons.guild)
+    .text(mainMenuButtons.help)
+    .resized()
+    .persistent()
+    .placeholder("Що робимо далі?");
 }
 
 export function buildDevResetKeyboard(): InlineKeyboard {

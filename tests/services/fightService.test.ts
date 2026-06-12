@@ -76,6 +76,56 @@ describe("FightService", () => {
     }
   });
 
+  it("uses effective level stats for combat preview", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 15 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new FightService(characters, dailyActions, fixedClock);
+
+    const result = await service.completeMimicShawarma(telegramUserId, "attack");
+
+    expect(result.state).toBe("completed");
+    if (result.state === "completed") {
+      expect(result.combat).toMatchObject({
+        playerHpMaxPreview: 26,
+        playerHpPreview: 23,
+        playerDamage: 10
+      });
+      expect(result.character).toMatchObject({
+        hpMax: 26,
+        stats: {
+          strength: 9
+        }
+      });
+    }
+  });
+
+  it("keeps higher-level attack damage at least as high as level 1", async () => {
+    const levelOne = new FakeCharacterRepository();
+    levelOne.add(telegramUserId);
+    const levelOneService = new FightService(
+      levelOne,
+      new FakeDailyActionRepository(levelOne),
+      fixedClock
+    );
+    const levelTwo = new FakeCharacterRepository();
+    levelTwo.add(telegramUserId, { xp: 15 });
+    const levelTwoService = new FightService(
+      levelTwo,
+      new FakeDailyActionRepository(levelTwo),
+      fixedClock
+    );
+
+    const first = await levelOneService.completeMimicShawarma(telegramUserId, "attack");
+    const second = await levelTwoService.completeMimicShawarma(telegramUserId, "attack");
+
+    expect(first.state).toBe("completed");
+    expect(second.state).toBe("completed");
+    if (first.state === "completed" && second.state === "completed") {
+      expect(second.combat.playerDamage).toBeGreaterThanOrEqual(first.combat.playerDamage);
+    }
+  });
+
   it("does not duplicate the same action on the same date", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);

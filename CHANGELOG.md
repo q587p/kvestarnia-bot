@@ -7,6 +7,22 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.7] - 12026-06-12 - Level Growth & Bigger Numbers
+
+### Added
+- Character summaries now derive effective HP, mana, and class primary stats from stored base values plus current level.
+- `/hero` now shows next-level XP progress or the current alpha cap.
+- `/hero` now shows a concise level-growth line when level bonuses are active.
+- Tavern, adventure, and fight reward results now explain which numbers improved when a reward causes a level-up.
+- Tests cover effective stats, character summaries, level-up reward text, and fight previews using higher-level effective stats.
+
+### Changed
+- Fight previews now use effective HP and stats through the shared character summary path.
+- Existing stored characters benefit from level scaling without a database migration or manual row repair.
+
+### Not Included Yet
+- Persistent combat state, persistent HP loss, healing/rest, equipment effects, item usage, random loot tables, crafting, guilds, PvP, jobs, Redis cooldowns, payments, and Mini App UI.
+
 ## [0.0.6] - 12026-06-12 - First Inventory & Loot
 
 ### Added
@@ -18,7 +34,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - `/help` now lists inventory commands as available instead of placeholders.
-- Tavern/adventure/fight reward presenters show `Здобуто: ... ×1` only when a new item is actually granted.
+- Tavern/adventure/fight reward presenters show granted items only when a new item is actually granted.
 - README and design/technical docs now describe the first tiny inventory slice.
 
 ### Not Included Yet

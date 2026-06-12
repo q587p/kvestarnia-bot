@@ -18,17 +18,27 @@ const character: CharacterSummary = {
   title: "Пересічний Герой",
   level: 2,
   xp: 15,
+  nextLevelXp: 25,
+  xpToNextLevel: 10,
   gold: 9,
-  hpCurrent: 22,
-  hpMax: 22,
-  manaCurrent: 10,
-  manaMax: 10,
+  hpCurrent: 24,
+  hpMax: 24,
+  manaCurrent: 12,
+  manaMax: 12,
   stats: {
-    strength: 8,
+    strength: 9,
     dexterity: 6,
     intelligence: 6,
     charisma: 6,
     luck: 6
+  },
+  levelBonus: {
+    hpMax: 4,
+    manaMax: 2,
+    primaryStat: {
+      stat: "strength",
+      bonus: 1
+    }
   }
 };
 
@@ -37,7 +47,7 @@ describe("fight presenter", () => {
     const text = presentFightStart(character);
 
     expect(text).toContain("Сутичка з Міміком-шаурмою");
-    expect(text).toContain("❤️ Ви: 22/22");
+    expect(text).toContain("❤️ Ви: 24/24");
     expect(text).toContain("🌯 Мімік: 14/14");
     expect(text).toContain("Що робимо?");
     expect(text.length).toBeLessThan(240);
@@ -54,12 +64,17 @@ describe("fight presenter", () => {
     expect(text).toContain("❤️ Ви: 19/22");
     expect(text).toContain("🌯 Мімік: 5/14");
     expect(text).toContain("Нагорода: +9 XP · +3 золота");
-    expect(text).toContain("Здобуто: Підозрілий лавашний доказ ×1");
+    expect(text).toContain("Здобуто: Підозрілий лавашний доказ");
+    expect(text).not.toContain("×1");
   });
 
   it("shows level-up line only when level increases", () => {
     expect(presentFightResult(completed("receipt", 7, 5, true))).toContain("Рівень підріс: 1 → 2");
+    expect(presentFightResult(completed("receipt", 7, 5, true))).toContain(
+      "Стало краще: +4 HP · +2 мани · +1 Сили"
+    );
     expect(presentFightResult(completed("receipt", 7, 5, false))).not.toContain("Рівень підріс");
+    expect(presentFightResult(completed("receipt", 7, 5, false))).not.toContain("Стало краще");
   });
 
   it("does not imply duplicate rewards for already-completed fight", () => {

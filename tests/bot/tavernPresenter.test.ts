@@ -18,6 +18,8 @@ const character: CharacterSummary = {
   title: "Пересічний Герой",
   level: 1,
   xp: 7,
+  nextLevelXp: 10,
+  xpToNextLevel: 3,
   gold: 5,
   hpCurrent: 22,
   hpMax: 22,
@@ -29,6 +31,14 @@ const character: CharacterSummary = {
     intelligence: 6,
     charisma: 6,
     luck: 6
+  },
+  levelBonus: {
+    hpMax: 0,
+    manaMax: 0,
+    primaryStat: {
+      stat: "strength",
+      bonus: 0
+    }
   }
 };
 
@@ -78,7 +88,8 @@ describe("tavern presenter", () => {
     };
 
     expect(presentTavernRaidResult(completed)).toContain("+7 XP · +5 золота");
-    expect(presentTavernRaidResult(completed)).toContain("Здобуто: Квиток мокрого героя ×1");
+    expect(presentTavernRaidResult(completed)).toContain("Здобуто: Квиток мокрого героя");
+    expect(presentTavernRaidResult(completed)).not.toContain("×1");
     expect(presentTavernRaidResult(repeated)).toContain("уже зараховано");
     expect(presentTavernRaidResult(repeated)).not.toContain("Здобуто:");
     expect(presentTavernRaidResult(completed).toLowerCase()).not.toContain("пий");
@@ -102,5 +113,8 @@ describe("tavern presenter", () => {
     };
 
     expect(presentTavernRaidResult(completed)).toContain("Рівень підріс: 1 → 2");
+    expect(presentTavernRaidResult(completed)).toContain(
+      "Стало краще: +4 HP · +2 мани · +1 Сили"
+    );
   });
 });

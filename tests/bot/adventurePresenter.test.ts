@@ -18,17 +18,27 @@ const character: CharacterSummary = {
   title: "Пересічний Герой",
   level: 2,
   xp: 15,
+  nextLevelXp: 25,
+  xpToNextLevel: 10,
   gold: 9,
-  hpCurrent: 22,
-  hpMax: 22,
-  manaCurrent: 10,
-  manaMax: 10,
+  hpCurrent: 24,
+  hpMax: 24,
+  manaCurrent: 12,
+  manaMax: 12,
   stats: {
-    strength: 8,
+    strength: 9,
     dexterity: 6,
     intelligence: 6,
     charisma: 6,
     luck: 6
+  },
+  levelBonus: {
+    hpMax: 4,
+    manaMax: 2,
+    primaryStat: {
+      stat: "strength",
+      bonus: 1
+    }
   }
 };
 
@@ -50,8 +60,9 @@ describe("adventure presenter", () => {
   it("shows rewards for each action", () => {
     expect(presentAdventureResult(completed("poke", 8, 4))).toContain("+8 XP · +4 золота");
     expect(presentAdventureResult(completed("poke", 8, 4))).toContain(
-      "Здобуто: Підозрілий лавашний доказ ×1"
+      "Здобуто: Підозрілий лавашний доказ"
     );
+    expect(presentAdventureResult(completed("poke", 8, 4))).not.toContain("×1");
     expect(presentAdventureResult(completed("receipt", 6, 6))).toContain("+6 XP · +6 золота");
     expect(presentAdventureResult(completed("flee", 2, 0))).toContain("+2 XP");
     expect(presentAdventureResult(completed("flee", 2, 0))).not.toContain("золота");
@@ -60,7 +71,11 @@ describe("adventure presenter", () => {
 
   it("shows level-up line only when level increases", () => {
     expect(presentAdventureResult(completed("poke", 8, 4, true))).toContain("Рівень підріс: 1 → 2");
+    expect(presentAdventureResult(completed("poke", 8, 4, true))).toContain(
+      "Стало краще: +4 HP · +2 мани · +1 Сили"
+    );
     expect(presentAdventureResult(completed("poke", 8, 4, false))).not.toContain("Рівень підріс");
+    expect(presentAdventureResult(completed("poke", 8, 4, false))).not.toContain("Стало краще");
   });
 
   it("does not imply duplicate rewards for already-completed adventure", () => {
