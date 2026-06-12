@@ -58,6 +58,7 @@ import {
   presentRestartNoCharacter
 } from "./presenters/restartPresenter";
 import { presentTavernNoCharacter, presentTavernRaidResult } from "./presenters/tavernPresenter";
+import { safeAnswerCallbackQuery } from "./safeAnswerCallbackQuery";
 import { safeEditMessageText } from "./safeEditMessageText";
 
 export interface BotServices {
@@ -91,7 +92,7 @@ export function createBot(token: string, services: BotServices): Bot {
     const parsed = parseOnboardingCallbackData(ctx.callbackQuery.data);
 
     if (!parsed.ok) {
-      await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
       return;
     }
 
@@ -102,7 +103,7 @@ export function createBot(token: string, services: BotServices): Bot {
     const parsed = parseMenuCallbackData(ctx.callbackQuery.data);
 
     if (!parsed.ok) {
-      await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
       return;
     }
 
@@ -113,11 +114,11 @@ export function createBot(token: string, services: BotServices): Bot {
     const parsed = parseNewsCallbackData(ctx.callbackQuery.data);
 
     if (!parsed.ok) {
-      await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
       return;
     }
 
-    await ctx.answerCallbackQuery();
+    await safeAnswerCallbackQuery(ctx);
 
     if (parsed.value.type === "list") {
       await sendNewsList(ctx, parsed.value.page);
@@ -131,7 +132,7 @@ export function createBot(token: string, services: BotServices): Bot {
     const parsed = parseTavernCallbackData(ctx.callbackQuery.data);
 
     if (!parsed.ok) {
-      await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
       return;
     }
 
@@ -142,7 +143,7 @@ export function createBot(token: string, services: BotServices): Bot {
     const parsed = parseAdventureCallbackData(ctx.callbackQuery.data);
 
     if (!parsed.ok) {
-      await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
       return;
     }
 
@@ -153,7 +154,7 @@ export function createBot(token: string, services: BotServices): Bot {
     const parsed = parseDevResetCallbackData(ctx.callbackQuery.data);
 
     if (!parsed.ok) {
-      await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
       return;
     }
 
@@ -164,7 +165,7 @@ export function createBot(token: string, services: BotServices): Bot {
     const parsed = parseRestartCallbackData(ctx.callbackQuery.data);
 
     if (!parsed.ok) {
-      await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
       return;
     }
 
@@ -180,7 +181,7 @@ async function handleOnboardingCallback(
   onboardingService: OnboardingService
 ): Promise<void> {
   if (callback.type === "gender") {
-    await ctx.answerCallbackQuery();
+    await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentGenderSelected(callback.pronoun), {
       reply_markup: buildRaceKeyboard(callback.pronoun)
     });
@@ -188,7 +189,7 @@ async function handleOnboardingCallback(
   }
 
   if (callback.type === "back-to-gender") {
-    await ctx.answerCallbackQuery();
+    await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentWelcome(), {
       reply_markup: buildGenderKeyboard()
     });
@@ -196,7 +197,7 @@ async function handleOnboardingCallback(
   }
 
   if (callback.type === "back-to-race") {
-    await ctx.answerCallbackQuery();
+    await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentGenderSelected(callback.pronoun), {
       reply_markup: buildRaceKeyboard(callback.pronoun)
     });
@@ -204,7 +205,7 @@ async function handleOnboardingCallback(
   }
 
   if (callback.type === "back-to-class") {
-    await ctx.answerCallbackQuery();
+    await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentRaceSelected(callback.pronoun, callback.raceId), {
       reply_markup: buildClassKeyboard(callback.pronoun, callback.raceId)
     });
@@ -218,7 +219,7 @@ async function handleOnboardingCallback(
         ? presentInvalidCallback()
         : presentUnavailableChoice(selectedRace.error.reason);
 
-    await ctx.answerCallbackQuery({ text: reason, show_alert: true });
+    await safeAnswerCallbackQuery(ctx, { text: reason, show_alert: true });
     return;
   }
 
@@ -230,11 +231,11 @@ async function handleOnboardingCallback(
         selectedRace.error.type === "unavailable-race"
           ? presentUnavailableChoice(selectedRace.error.reason)
           : presentInvalidCallback();
-      await ctx.answerCallbackQuery({ text, show_alert: true });
+      await safeAnswerCallbackQuery(ctx, { text, show_alert: true });
       return;
     }
 
-    await ctx.answerCallbackQuery();
+    await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentRaceSelected(callback.pronoun, callback.raceId), {
       reply_markup: buildClassKeyboard(callback.pronoun, callback.raceId)
     });
@@ -252,7 +253,7 @@ async function handleOnboardingCallback(
         ? presentInvalidCallback()
         : presentUnavailableChoice(selectedClass.error.reason);
 
-    await ctx.answerCallbackQuery({ text: reason, show_alert: true });
+    await safeAnswerCallbackQuery(ctx, { text: reason, show_alert: true });
     return;
   }
 
@@ -269,11 +270,11 @@ async function handleOnboardingCallback(
         selectedClass.error.type === "unavailable-race"
           ? presentUnavailableChoice(selectedClass.error.reason)
           : presentInvalidCallback();
-      await ctx.answerCallbackQuery({ text, show_alert: true });
+      await safeAnswerCallbackQuery(ctx, { text, show_alert: true });
       return;
     }
 
-    await ctx.answerCallbackQuery();
+    await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(
       ctx,
       presentClassSelected(callback.pronoun, callback.raceId, callback.classId),
@@ -287,7 +288,7 @@ async function handleOnboardingCallback(
   const player = playerFromContext(ctx.from);
 
   if (!player) {
-    await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
     return;
   }
 
@@ -303,11 +304,11 @@ async function handleOnboardingCallback(
       result.error.type === "unavailable-class" || result.error.type === "unavailable-race"
         ? presentUnavailableChoice(result.error.reason)
         : presentInvalidCallback();
-    await ctx.answerCallbackQuery({ text, show_alert: true });
+    await safeAnswerCallbackQuery(ctx, { text, show_alert: true });
     return;
   }
 
-  await ctx.answerCallbackQuery();
+  await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentCharacterCreated(result.value.character, result.value.created), {
     reply_markup: buildMainMenuKeyboard()
   });
@@ -318,7 +319,7 @@ async function handleMenuCallback(
   action: "hero" | "help" | "tavern",
   services: BotServices
 ): Promise<void> {
-  await ctx.answerCallbackQuery();
+  await safeAnswerCallbackQuery(ctx);
 
   if (action === "hero") {
     await sendHero(ctx, services.hero, "edit");
@@ -342,19 +343,19 @@ async function handleTavernCallback(
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
-    await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
     return;
   }
 
   const result = await tavernRaidService.completeFridayBarrelRaid(telegramUserId);
 
   if (result.state === "no-character") {
-    await ctx.answerCallbackQuery();
+    await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentTavernNoCharacter());
     return;
   }
 
-  await ctx.answerCallbackQuery();
+  await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentTavernRaidResult(result), {
     reply_markup: buildTavernKeyboard()
   });
@@ -368,19 +369,19 @@ async function handleAdventureCallback(
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
-    await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
     return;
   }
 
   const result = await adventureService.completeMimicShawarma(telegramUserId, action);
 
   if (result.state === "no-character") {
-    await ctx.answerCallbackQuery();
+    await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentAdventureNoCharacter());
     return;
   }
 
-  await ctx.answerCallbackQuery();
+  await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentAdventureResult(result), {
     reply_markup: buildAdventureKeyboard()
   });
@@ -392,7 +393,7 @@ async function handleDevResetCallback(
   devResetService: DevResetService
 ): Promise<void> {
   if (action === "cancel") {
-    await ctx.answerCallbackQuery();
+    await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentDevResetCancelled());
     return;
   }
@@ -400,7 +401,7 @@ async function handleDevResetCallback(
   const player = playerFromContext(ctx.from);
 
   if (!player) {
-    await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
     return;
   }
 
@@ -412,7 +413,7 @@ async function handleDevResetCallback(
         ? presentDevResetDeleted()
         : presentDevResetNoCharacter();
 
-  await ctx.answerCallbackQuery();
+  await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, message);
 }
 
@@ -422,7 +423,7 @@ async function handleRestartCallback(
   restartService: RestartService
 ): Promise<void> {
   if (action === "cancel") {
-    await ctx.answerCallbackQuery();
+    await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentRestartCancelled());
     return;
   }
@@ -430,7 +431,7 @@ async function handleRestartCallback(
   const player = playerFromContext(ctx.from);
 
   if (!player) {
-    await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
     return;
   }
 
@@ -438,6 +439,6 @@ async function handleRestartCallback(
   const message =
     result.state === "deleted" ? presentRestartDeleted() : presentRestartNoCharacter();
 
-  await ctx.answerCallbackQuery();
+  await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, message);
 }
