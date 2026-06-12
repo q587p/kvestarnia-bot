@@ -8,7 +8,7 @@ import {
   TELEGRAM_CALLBACK_DATA_LIMIT
 } from "../../src/bot/callbacks/onboardingCallbackData";
 import { activeRaces, classes, items, monsters, races } from "../../src/content";
-import { pronounOptions } from "../../src/content/characterOptions";
+import { getComboTitle, pronounOptions } from "../../src/content/characterOptions";
 import { classSchema, itemSchema, monsterSchema, raceSchema } from "../../src/content/schema";
 
 const contentTables = [
@@ -48,6 +48,33 @@ describe("content tables", () => {
     expect(classes.some((characterClass) => characterClass.id === "class.kharakternyk")).toBe(
       true
     );
+  });
+
+  it("keeps a broad set of authored race and class combo titles", () => {
+    const expectedTitles = [
+      ["race.human-ish", "class.bard", "Самозваний Куплетоносець"],
+      ["race.human-ish", "class.varenyk-mancer", "Начинковий Оптиміст"],
+      ["race.dwarf", "class.warrior", "Молотковий Аргумент"],
+      ["race.dwarf", "class.ranger", "Гірський Слідознавець"],
+      ["race.elf", "class.mage", "Довговухий Теоретик Вогню"],
+      ["race.elf", "class.rogue", "Естетичний Зникальник"],
+      ["race.elf", "class.priest", "Жрець Довгих Пояснень"],
+      ["race.bisyny", "class.bard", "Редакторський Жах Куплетів"],
+      ["race.bisyny", "class.rogue", "Коментатор Тіньового Проходу"],
+      ["race.bisyny", "class.varenyk-mancer", "Начинковий Дискутант"],
+      ["race.bisyny", "class.bureaucramancer", "Бісова Правка Форми"],
+      ["race.drantohor", "class.warrior", "Остромазький Аргумент"],
+      ["race.drantohor", "class.mage", "Заблукалий Теоретик Іскор"],
+      ["race.drantohor", "class.rogue", "Межовий Обхідник"],
+      ["race.drantohor", "class.bureaucramancer", "Гість Без Печатки"],
+      ["race.drantohor", "class.ranger", "Слідознавець Чужої Карти"]
+    ] as const;
+
+    expect(expectedTitles).toHaveLength(16);
+
+    for (const [raceId, classId, title] of expectedTitles) {
+      expect(getComboTitle(raceId, classId)).toBe(title);
+    }
   });
 
   it("keeps onboarding gender callbacks valid and within Telegram limits", () => {

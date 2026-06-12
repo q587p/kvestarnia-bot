@@ -15,7 +15,8 @@ Existing characters skip onboarding and go straight to the hero summary.
 
 ## Hidden Paths
 
-The visible pronoun options also fill one internal tavern-bureaucracy field. Think of it as a канцелярська шухляда персонажа, not a grand cosmic system:
+The visible pronoun options also fill one internal tavern-bureaucracy field.
+Квестарня also slips one quiet note into the hero’s file: a канцелярська шухляда персонажа, not a grand cosmic system.
 
 | Visible option | Internal path |
 | --- | --- |
