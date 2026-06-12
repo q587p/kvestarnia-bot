@@ -41,9 +41,37 @@ export const races = [
     allowedPronouns: ["he", "she", "they"]
   },
   {
+    id: "race.bisyny",
+    name: "Бісини",
+    description:
+      "Кажуть, назву колись занесло з однієї великої брами. Відтоді словники в таверні тримають під замком.",
+    statBonus: {
+      dexterity: 1,
+      intelligence: 1,
+      charisma: 1
+    },
+    allowedPronouns: ["he", "she", "they"]
+  },
+  {
+    id: "race.drantohor",
+    name: "Дрантогор",
+    description:
+      "Заблукав із Королівства Остромаг і робить вигляд, що це був план. Межа підписала пропуск заднім числом.",
+    statBonus: {
+      strength: 1,
+      luck: 2
+    },
+    allowedPronouns: ["they"],
+    unavailableReasons: {
+      he: "Дрантогори приходять тільки стежками Межі. Пряма біографія їх не наздоганяє.",
+      she: "Дрантогори приходять тільки стежками Межі. Пряма біографія їх не наздоганяє."
+    }
+  },
+  {
     id: "race.kharakternyk",
     name: "Козак-характерник",
-    description: "Містика, вдача й погляд, після якого ворог згадує справи вдома.",
+    description:
+      "Deprecated fallback для старих героїв. Нові характерники тепер обираються як клас.",
     statBonus: {
       strength: 1,
       dexterity: 0,
@@ -52,6 +80,7 @@ export const races = [
       luck: 2
     },
     allowedPronouns: ["he", "they"],
+    availableInOnboarding: false,
     unavailableReasons: {
       she: "Канцелярія персонажів каже: характерниця буде окремим героїчним папером."
     }
@@ -115,3 +144,5 @@ export const races = [
     allowedPronouns: ["he", "she", "they"]
   }
 ] satisfies RaceContent[];
+
+export const activeRaces = races.filter((race) => race.availableInOnboarding !== false);

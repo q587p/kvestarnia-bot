@@ -11,6 +11,8 @@ describe("planned command presenter", () => {
       const text = presentPlannedCommand(command);
 
       expect(text).toContain("Доступно зараз");
+      expect(text).toContain("/quest");
+      expect(text).not.toContain("/adventure");
       expect(text).toContain("/fight");
       expect(text).toContain("/help");
       expect(text.length).toBeLessThan(240);

@@ -13,8 +13,13 @@ import {
   presentRaceSelected,
   presentWelcome
 } from "../../src/bot/presenters/onboardingPresenter";
+import {
+  getComboTitle,
+  isClassAvailableForChoice,
+  isRaceAvailableForPronoun
+} from "../../src/content/characterOptions";
 import { classes } from "../../src/content/classes";
-import { races } from "../../src/content/races";
+import { activeRaces, races } from "../../src/content/races";
 
 describe("onboarding presenters and keyboards", () => {
   it("keeps /start welcome short and Ukrainian", () => {
@@ -33,11 +38,26 @@ describe("onboarding presenters and keyboards", () => {
   });
 
   it("builds race buttons with unavailable options and valid callback data", () => {
-    const buttons = buildRaceKeyboard("she").inline_keyboard.flat();
+    const keyboard = buildRaceKeyboard("she").inline_keyboard;
+    const buttons = keyboard.flat();
 
-    expect(buttons).toHaveLength(races.length + 1);
+    expect(buttons).toHaveLength(activeRaces.length + 1);
+    expect(keyboard.map((row) => row.length)).toEqual([3, 3, 3, 1]);
     expectAllButtonsValid(buttons);
-    expect(buttons.some((button) => button.text.includes("🚫 Козак-характерник"))).toBe(true);
+    expect(buttons.some((button) => button.text.includes("Бісини"))).toBe(true);
+    expect(buttons.some((button) => button.text.includes("🚫 Дрантогор"))).toBe(true);
+    expect(buttons.some((button) => button.text.includes("Козак-характерник"))).toBe(false);
+  });
+
+  it("keeps Bisyny open to every pronoun and Drantohor on the Boundary paperwork", () => {
+    expect(
+      (["he", "she", "they"] as const).map((pronoun) =>
+        isRaceAvailableForPronoun(pronoun, "race.bisyny")
+      )
+    ).toEqual([true, true, true]);
+    expect(isRaceAvailableForPronoun("he", "race.drantohor")).toBe(false);
+    expect(isRaceAvailableForPronoun("she", "race.drantohor")).toBe(false);
+    expect(isRaceAvailableForPronoun("they", "race.drantohor")).toBe(true);
   });
 
   it("shows selected gender before race selection", () => {
@@ -60,11 +80,17 @@ describe("onboarding presenters and keyboards", () => {
   });
 
   it("builds class buttons with unavailable options and valid callback data", () => {
-    const buttons = buildClassKeyboard("they", "race.molfar-soul").inline_keyboard.flat();
+    const keyboard = buildClassKeyboard("they", "race.molfar-soul").inline_keyboard;
+    const buttons = keyboard.flat();
 
     expect(buttons).toHaveLength(classes.length + 1);
+    expect(keyboard.map((row) => row.length)).toEqual([3, 3, 3, 1]);
     expectAllButtonsValid(buttons);
     expect(buttons.some((button) => button.text.includes("🚫 Вареник-мант"))).toBe(true);
+    expect(buttons.some((button) => button.text.includes("Козак-характерник"))).toBe(true);
+    expect(isClassAvailableForChoice("they", "race.molfar-soul", "class.kharakternyk")).toBe(
+      true
+    );
   });
 
   it("builds confirmation buttons with valid callback data", () => {
@@ -86,18 +112,42 @@ describe("onboarding presenters and keyboards", () => {
   it("presents a confirmation summary", () => {
     const text = presentClassSelected("they", "race.molfar-soul", "class.bureaucramancer");
 
-    expect(text).toContain("Звертання: <b>Вони</b>");
+    expect(text).toContain("✅ Звертання: <b>Вони</b>");
     expect(text).not.toContain("Стать:");
     expect(text).toContain("<b>Мольфарська душа</b>");
     expect(text).toContain("<b>Бюрокромант</b>");
-    expect(text).toContain("<i>Писар Оберегових Справ</i>");
+    expect(text).toContain("<i>Знерухомлює ворогів формами");
+    expect(text).not.toContain("Титул:");
+    expect(text).toContain(
+      "✅ Звертання: <b>Вони</b>\n\n✅ Раса: <b>Мольфарська душа</b>\n\n✅ Клас: <b>Бюрокромант</b>\n\n<i>"
+    );
   });
 
-  it("keeps existing hero summary compact", () => {
+  it("uses new kharakternyk combo titles while keeping the old race inactive", () => {
+    expect(activeRaces.some((race) => race.id === "race.kharakternyk")).toBe(false);
+    expect(races.some((race) => race.id === "race.kharakternyk")).toBe(true);
+    expect(getComboTitle("race.human-ish", "class.kharakternyk")).toBe("Степовий Пояснювач");
+    expect(getComboTitle("race.bisyny", "class.kharakternyk")).toBe(
+      "Бісова Оселедцева Теорія"
+    );
+    expect(getComboTitle("race.drantohor", "class.kharakternyk")).toBe("Межовий Заблуканець");
+    expect(getComboTitle("race.drantohor", "class.kharakternyk", "they")).toBe(
+      "Межові Заблуканці"
+    );
+    expect(getComboTitle("race.kharakternyk", "class.mage")).toBe(
+      "Герой місцевого значення"
+    );
+    expect(getComboTitle("race.kharakternyk", "class.mage", "she")).toBe(
+      "Героїня місцевого значення"
+    );
+  });
+
+  it("keeps created hero summary focused on identity", () => {
     const text = presentCharacterSummary({
       name: "Мандрівник",
       pronoun: "they",
       pronounLabel: "Вони",
+      path: "boundary",
       raceId: "race.human-ish",
       raceName: "Людисько",
       classId: "class.warrior",
@@ -131,11 +181,16 @@ describe("onboarding presenters and keyboards", () => {
 
     expect(text).toContain("<b>Мандрівник</b>");
     expect(text).toContain("<i>Людисько · Воїн</i>");
-    expect(text).toContain("Звертання: <b>Вони</b> · Титул: <i>Пересічний Герой</i>");
-    expect(text).toContain("\n\nЗвертання:");
-    expect(text).toContain("\n\nHP");
-    expect(text.split("\n")).toHaveLength(7);
-    expect(text.length).toBeLessThan(220);
+    expect(text).toContain("Титул: <i>Пересічний Герой</i>");
+    expect(text).not.toContain("Звертання:");
+    expect(text).toContain("\n\nТитул:");
+    expect(text).not.toContain("Рівень");
+    expect(text).not.toContain("XP");
+    expect(text).not.toContain("золото");
+    expect(text).not.toContain("HP");
+    expect(text).not.toContain("мана");
+    expect(text.split("\n")).toHaveLength(4);
+    expect(text.length).toBeLessThan(160);
   });
 });
 

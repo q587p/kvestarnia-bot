@@ -6,9 +6,10 @@ import {
   isPronoun,
   isRaceAvailableForPronoun
 } from "../content/characterOptions";
-import { races } from "../content/races";
+import { activeRaces } from "../content/races";
 import type { Pronoun } from "../content/schema";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
+import { getPathForPronoun } from "../domain/characters/path";
 import { buildStarterStats } from "../domain/characters/starterStats";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type { TelegramUserProfile, UserRepository } from "../db/repositories/userRepository";
@@ -59,7 +60,7 @@ export class OnboardingService {
       return err({ type: "invalid-pronoun" });
     }
 
-    if (!races.some((race) => race.id === raceId)) {
+    if (!activeRaces.some((race) => race.id === raceId)) {
       return err({ type: "invalid-race" });
     }
 
@@ -118,6 +119,7 @@ export class OnboardingService {
     const result = await this.characters.createForTelegramUserIfMissing(player, {
       name: normalizeCharacterName(player.displayName),
       pronoun: selection.value.pronoun,
+      path: getPathForPronoun(selection.value.pronoun),
       raceId,
       classId,
       level: 1,

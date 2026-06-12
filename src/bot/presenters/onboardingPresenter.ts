@@ -1,7 +1,6 @@
 import {
   findClass,
   findRace,
-  getComboTitle,
   getPronounLabel
 } from "../../content/characterOptions";
 import { classes } from "../../content/classes";
@@ -56,10 +55,13 @@ export function presentClassSelected(pronoun: Pronoun, raceId: string, classId: 
   return [
     "Ви майже готові стати пригодою для місцевої статистики.",
     "",
-    `Звертання: <b>${escapeHtml(getPronounLabel(pronoun))}</b>`,
-    `Раса: <b>${escapeHtml(race.name)}</b>`,
-    `Клас: <b>${escapeHtml(characterClass.name)}</b>`,
-    `Титул: <i>${escapeHtml(getComboTitle(raceId, classId))}</i>`,
+    `✅ Звертання: <b>${escapeHtml(getPronounLabel(pronoun))}</b>`,
+    "",
+    `✅ Раса: <b>${escapeHtml(race.name)}</b>`,
+    "",
+    `✅ Клас: <b>${escapeHtml(characterClass.name)}</b>`,
+    "",
+    `<i>${escapeHtml(characterClass.description)}</i>`,
     "",
     "Почати?"
   ].join("\n");
@@ -76,10 +78,7 @@ export function presentCharacterSummary(summary: CharacterSummary): string {
     `<b>${escapeHtml(summary.name)}</b>`,
     `<i>${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}</i>`,
     "",
-    `Звертання: <b>${escapeHtml(summary.pronounLabel)}</b> · Титул: <i>${escapeHtml(summary.title)}</i>`,
-    `Рівень ${summary.level} · XP ${summary.xp} · золото ${summary.gold}`,
-    "",
-    `HP ${summary.hpCurrent}/${summary.hpMax} · мана ${summary.manaCurrent}/${summary.manaMax}`
+    `Титул: <i>${escapeHtml(summary.title)}</i>`
   ].join("\n");
 }
 

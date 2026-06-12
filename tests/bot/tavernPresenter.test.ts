@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   presentTavern,
+  presentTavernAlreadyRaided,
   presentTavernNoCharacter,
   presentTavernRaidResult
 } from "../../src/bot/presenters/tavernPresenter";
@@ -11,6 +12,7 @@ const character: CharacterSummary = {
   name: "Мандрівник",
   pronoun: "they",
   pronounLabel: "Вони",
+  path: "boundary",
   raceId: "race.human-ish",
   raceName: "Людисько",
   classId: "class.warrior",
@@ -59,6 +61,16 @@ describe("tavern presenter", () => {
     expect(presentTavernNoCharacter()).toContain("/start");
   });
 
+  it("shows a different tavern screen after today's raid is already done", () => {
+    const text = presentTavernAlreadyRaided(character);
+
+    expect(text).toContain("Бочка Пінного Міражу сьогодні вже пережила ваш героїзм");
+    expect(text).toContain("завтра знову");
+    expect(text).toContain("/hero");
+    expect(text).not.toContain("Це рейд на 1-3 хвилини");
+    expect(text).not.toContain("Що робимо?");
+  });
+
   it("presents first completion and repeated completion without real drinking framing", () => {
     const completed: Exclude<TavernRaidResult, { state: "no-character" }> = {
       state: "completed",
@@ -87,10 +99,15 @@ describe("tavern presenter", () => {
       levelChange: null
     };
 
-    expect(presentTavernRaidResult(completed)).toContain("+7 XP · +5 золота");
-    expect(presentTavernRaidResult(completed)).toContain("Здобуто: Квиток мокрого героя");
+    expect(presentTavernRaidResult(completed)).toContain("<b>+7 XP · +5 золота</b>");
+    expect(presentTavernRaidResult(completed)).toContain(
+      "Здобуто: <i>Квиток мокрого героя</i>"
+    );
     expect(presentTavernRaidResult(completed)).not.toContain("×1");
     expect(presentTavernRaidResult(repeated)).toContain("уже зараховано");
+    expect(presentTavernRaidResult(repeated)).toContain(
+      "Вже отримано: <b>+7 XP · +5 золота</b>"
+    );
     expect(presentTavernRaidResult(repeated)).not.toContain("Здобуто:");
     expect(presentTavernRaidResult(completed).toLowerCase()).not.toContain("пий");
   });

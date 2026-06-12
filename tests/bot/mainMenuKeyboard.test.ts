@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { buildAdventureKeyboard } from "../../src/bot/keyboards/adventureKeyboard";
-import { buildFightKeyboard } from "../../src/bot/keyboards/fightKeyboard";
+import {
+  buildAdventureKeyboard,
+  buildAdventureResultKeyboard
+} from "../../src/bot/keyboards/adventureKeyboard";
+import { buildFightKeyboard, buildFightResultKeyboard } from "../../src/bot/keyboards/fightKeyboard";
 import {
   buildMainMenuKeyboard,
   mainMenuButtons
 } from "../../src/bot/keyboards/mainMenuKeyboard";
-import { buildTavernKeyboard } from "../../src/bot/keyboards/tavernKeyboard";
+import {
+  buildTavernKeyboard,
+  buildTavernResultKeyboard
+} from "../../src/bot/keyboards/tavernKeyboard";
 
 describe("main menu and scene keyboards", () => {
   it("builds the universal menu as a persistent reply keyboard", () => {
@@ -22,22 +28,36 @@ describe("main menu and scene keyboards", () => {
 
   it("keeps tavern inline buttons scoped to tavern actions", () => {
     expect(flatInlineButtonTexts(buildTavernKeyboard())).toEqual(["🍺 У рейд на бочку"]);
+    expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual([
+      "🍺 У рейд на бочку"
+    ]);
+    expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([]);
   });
 
   it("keeps adventure inline buttons scoped to quest actions", () => {
-    expect(flatInlineButtonTexts(buildAdventureKeyboard())).toEqual([
+    const actionButtons = [
       "🌯 Тицьнути шаурму",
       "📋 Попросити чек",
       "🏃 Обережно відступити"
-    ]);
+    ];
+
+    expect(flatInlineButtonTexts(buildAdventureKeyboard())).toEqual(actionButtons);
+    expect(flatInlineButtonTexts(buildAdventureResultKeyboard("completed"))).toEqual(
+      actionButtons
+    );
+    expect(flatInlineButtonTexts(buildAdventureResultKeyboard("already-completed"))).toEqual([]);
   });
 
   it("keeps fight inline buttons scoped to fight actions", () => {
-    expect(flatInlineButtonTexts(buildFightKeyboard())).toEqual([
+    const actionButtons = [
       "🗡️ Вдарити",
       "📋 Збити з пантелику чеком",
       "🏃 Відступити красиво"
-    ]);
+    ];
+
+    expect(flatInlineButtonTexts(buildFightKeyboard())).toEqual(actionButtons);
+    expect(flatInlineButtonTexts(buildFightResultKeyboard("completed"))).toEqual(actionButtons);
+    expect(flatInlineButtonTexts(buildFightResultKeyboard("already-completed"))).toEqual([]);
   });
 });
 

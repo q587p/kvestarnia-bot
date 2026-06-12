@@ -12,7 +12,7 @@ export function presentInventory(result: InventoryResult): string {
       "🎒 Манатки",
       "Манатки ще не завелися.",
       "",
-      "Спробуйте /tavern, /adventure або /fight. Щось точно прилипне."
+      "Спробуйте /tavern, /quest або /fight. Щось точно прилипне."
     ].join("\n");
   }
 

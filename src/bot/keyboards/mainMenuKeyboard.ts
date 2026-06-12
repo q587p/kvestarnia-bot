@@ -8,7 +8,7 @@ export const mainMenuButtons = {
   quest: "🗺️ Квест",
   inventory: "🎒 Манатки",
   guild: "🛡️ Ґільдія",
-  help: "❔ Допомога"
+  help: "📖 Допомога"
 } as const;
 
 export function buildMainMenuKeyboard(): Keyboard {

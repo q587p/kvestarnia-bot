@@ -13,6 +13,7 @@ import type {
 } from "../../src/db/repositories/dailyActionRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
+import { MIMIC_SHAWARMA_ADVENTURE_KEY } from "../../src/services/adventureService";
 import {
   FightService,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY
@@ -149,6 +150,26 @@ describe("FightService", () => {
     });
   });
 
+  it("returns an already-completed lookup and only suggests quest when it is still available", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new FightService(characters, dailyActions, fixedClock);
+
+    await service.completeMimicShawarma(telegramUserId, "attack");
+    await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "already-completed",
+      questAvailable: true
+    });
+
+    dailyActions.addAction(telegramUserId, MIMIC_SHAWARMA_ADVENTURE_KEY);
+
+    await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "already-completed",
+      questAvailable: false
+    });
+  });
+
   it("does not duplicate another action after one option was claimed that date", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
@@ -270,6 +291,34 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
   get records(): DailyActionRecord[] {
     return [...this.actions.values()];
+  }
+
+  async findForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string; localDate: string }
+  ): Promise<DailyActionRecord | null> {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return null;
+    }
+
+    return this.actions.get(`${character.id}:${input.key}:${input.localDate}`) ?? null;
+  }
+
+  addAction(userTelegramId: bigint, key: string, localDate = "2026-06-12"): void {
+    const characterId = `character-${userTelegramId.toString()}`;
+    const action = {
+      id: `daily-action-${this.actions.size + 1}`,
+      characterId,
+      key,
+      localDate,
+      rewardXp: 0,
+      rewardGold: 0,
+      createdAt: fixedClock()
+    };
+
+    this.actions.set(`${characterId}:${key}:${localDate}`, action);
   }
 
   async claimForTelegramUser(

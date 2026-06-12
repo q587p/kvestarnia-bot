@@ -1,8 +1,8 @@
 import { MIMIC_SHAWARMA_HP } from "../../domain/combat/combatProbe";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import type { FightResult } from "../../services/fightService";
-import { presentItemNameWithQuantity } from "./itemStackPresenter";
+import type { FightLookupResult, FightResult } from "../../services/fightService";
 import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
+import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentFightStart(character: CharacterSummary): string {
@@ -20,21 +20,36 @@ export function presentFightNoCharacter(): string {
   return "Спершу створіть героя через /start. Мімік-шаурма не бʼється з анонімами: погано для бухгалтерії.";
 }
 
+export function presentFightAlreadyCompleted(
+  result:
+    | Extract<FightLookupResult, { state: "already-completed" }>
+    | Extract<FightResult, { state: "already-completed" }>
+): string {
+  const lines = [
+    "🌯 Сьогоднішню сутичку вже зараховано.",
+    "",
+    "Мімік лежить тихо й робить вигляд, що він просто лаваш."
+  ];
+
+  if (result.questAvailable) {
+    lines.push("", "Якщо шаурму ще не допитували, можна в /quest.");
+  } else {
+    lines.push("", "Повертайтесь завтра або перевірте героя: /hero");
+  }
+
+  return lines.join("\n");
+}
+
 export function presentFightResult(result: Exclude<FightResult, { state: "no-character" }>): string {
   if (result.state === "already-completed") {
-    return [
-      "🌯 Сьогоднішню сутичку вже зараховано.",
-      "Мімік лежить тихо й робить вигляд, що він просто лаваш.",
-      "",
-      "Повертайтесь завтра або перевірте героя: /hero"
-    ].join("\n");
+    return presentFightAlreadyCompleted(result);
   }
 
   const lines = [
     ...presentOutcome(result),
     "",
     `❤️ Ви: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}   🌯 Мімік: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
-    presentRewardLine(result.reward.xp, result.reward.gold),
+    presentRewardAmount({ ...result.reward, label: "Нагорода" }),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
@@ -68,14 +83,6 @@ function presentOutcome(
   ];
 }
 
-function presentRewardLine(xp: number, gold: number): string {
-  if (gold <= 0) {
-    return `Нагорода: +${xp} XP`;
-  }
-
-  return `Нагорода: +${xp} XP · +${gold} золота`;
-}
-
 function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: number }>): string[] {
   if (itemGrants.length === 0) {
     return [];
@@ -83,9 +90,9 @@ function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: numbe
 
   return itemGrants.map(
     (grant) =>
-      `Здобуто: ${presentItemNameWithQuantity({
+      presentRewardItemGrant({
         name: escapeHtml(grant.name),
         quantity: grant.quantity
-      })}`
+      })
   );
 }

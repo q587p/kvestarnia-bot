@@ -12,42 +12,46 @@ describe("bot command catalog", () => {
     expect(new Set(icons).size).toBe(icons.length);
   });
 
-  it("builds a broad Telegram side menu without dev commands by default", () => {
+  it("builds a short Telegram side menu without aliases or reset commands", () => {
     const commands = getTelegramMenuCommands(false);
 
     expect(commands.map((entry) => entry.command)).toEqual([
       "start",
       "hero",
-      "profile",
-      "me",
-      "tavern",
-      "raid",
-      "adventure",
       "quest",
-      "fight",
-      "hunt",
       "inventory",
-      "items",
-      "bag",
-      "guild",
-      "restart",
-      "version",
       "news",
       "help"
     ]);
     expect(commands.find((entry) => entry.command === "hero")?.description).toBe(
       "👤 герой і прогрес"
     );
-    expect(commands.find((entry) => entry.command === "help")?.description).toBe("❔ допомога");
+    expect(commands.find((entry) => entry.command === "help")?.description).toBe("📖 допомога");
+    expect(commands).toHaveLength(6);
+    expect(commands.some((entry) => entry.command === "profile")).toBe(false);
+    expect(commands.some((entry) => entry.command === "me")).toBe(false);
+    expect(commands.some((entry) => entry.command === "tavern")).toBe(false);
+    expect(commands.some((entry) => entry.command === "raid")).toBe(false);
+    expect(commands.some((entry) => entry.command === "adventure")).toBe(false);
+    expect(commands.some((entry) => entry.command === "fight")).toBe(false);
+    expect(commands.some((entry) => entry.command === "hunt")).toBe(false);
+    expect(commands.some((entry) => entry.command === "items")).toBe(false);
+    expect(commands.some((entry) => entry.command === "bag")).toBe(false);
+    expect(commands.some((entry) => entry.command === "guild")).toBe(false);
+    expect(commands.some((entry) => entry.command === "restart")).toBe(false);
+    expect(commands.some((entry) => entry.command === "version")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_me")).toBe(false);
   });
 
-  it("includes the local reset command only when requested", () => {
+  it("keeps the local reset command in help but not in the side menu", () => {
     expect(getHelpCommandEntries(false).some((entry) => entry.command === "dev_reset_me")).toBe(
       false
     );
-    expect(getTelegramMenuCommands(true).some((entry) => entry.command === "dev_reset_me")).toBe(
+    expect(getHelpCommandEntries(true).some((entry) => entry.command === "dev_reset_me")).toBe(
       true
+    );
+    expect(getTelegramMenuCommands(true).some((entry) => entry.command === "dev_reset_me")).toBe(
+      false
     );
   });
 });

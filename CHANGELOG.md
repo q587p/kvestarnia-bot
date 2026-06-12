@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.8] - 12026-06-12 - Hidden Paths & Character Content
+
+### Added
+- Characters now persist a hidden `path` metadata field derived from the visible pronoun choice.
+- New characters receive `sun`, `moon`, or `boundary` internally, and the migration backfills existing local rows.
+- Added the active `Бісини` and `Дрантогор` races.
+- Added the `Характерник` class while keeping the old `race.kharakternyk` only as a compatibility fallback.
+- Added a broader set of authored race/class combo titles for character creation summaries.
+- Tests cover hidden path helpers, onboarding validation, Prisma schema shape, active race content, combo titles, and presenter visibility.
+
+### Changed
+- Character creation docs now describe hidden paths as internal tavern-bureaucracy metadata, not player-facing doctrine.
+- Race/class availability is now driven by active content tables so deprecated races do not appear in new onboarding.
+
+### Not Included Yet
+- Player-facing path names, path bonuses, path-specific quests, achievements, dreams, seasonal gates, guilds, PvP, jobs, Redis cooldowns, payments, and Mini App UI.
+
 ## [0.0.7] - 12026-06-12 - Level Growth & Bigger Numbers
 
 ### Added

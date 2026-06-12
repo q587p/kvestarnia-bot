@@ -23,31 +23,31 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "profile",
     icon: "🪪",
     description: "профіль героя",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "me",
     icon: "🧭",
     description: "коротко про героя",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "tavern",
     icon: "🍺",
     description: "до таверни",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "raid",
     icon: "🛢️",
     description: "рейд на бочку",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "adventure",
     icon: "🌯",
     description: "пригода з шаурмою",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "quest",
@@ -59,13 +59,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "fight",
     icon: "⚔️",
     description: "сутичка з міміком",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "hunt",
     icon: "🏹",
     description: "полювання на проблему",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "inventory",
@@ -77,31 +77,31 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "items",
     icon: "📦",
     description: "перелік манаток",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "bag",
     icon: "👜",
     description: "торба героя",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "guild",
     icon: "🛡️",
     description: "ґільдії",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "restart",
     icon: "🔄",
     description: "почати з початку",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "version",
     icon: "🧾",
     description: "версія Квестарні",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "news",
@@ -111,7 +111,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   },
   {
     command: "help",
-    icon: "❔",
+    icon: "📖",
     description: "допомога",
     includeInMenu: true
   },
@@ -133,7 +133,7 @@ export function getTelegramMenuCommands(includeDevReset: boolean): Array<{
   description: string;
 }> {
   return getHelpCommandEntries(includeDevReset)
-    .filter((entry) => entry.includeInMenu || includeDevReset)
+    .filter((entry) => entry.includeInMenu)
     .map((entry) => ({
       command: entry.command,
       description: `${entry.icon} ${entry.description}`

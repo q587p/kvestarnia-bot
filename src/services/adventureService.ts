@@ -3,13 +3,17 @@ import type { DailyActionRepository, RewardLevelChange } from "../db/repositorie
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
+  MIMIC_SHAWARMA_ADVENTURE_KEY,
+  MIMIC_SHAWARMA_COMBAT_PROBE_KEY
+} from "./dailyActionKeys";
+import {
   enrichRewardItemGrants,
   RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
   SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
   type RewardItemGrant
 } from "./itemGrant";
 
-export const MIMIC_SHAWARMA_ADVENTURE_KEY = "adventure.mimic-shawarma";
+export { MIMIC_SHAWARMA_ADVENTURE_KEY } from "./dailyActionKeys";
 export type AdventureAction = "poke" | "receipt" | "flee";
 
 export const MIMIC_SHAWARMA_REWARDS = {
@@ -29,7 +33,8 @@ export const MIMIC_SHAWARMA_REWARDS = {
 
 export type AdventureLookupResult =
   | { state: "no-character" }
-  | { state: "ready"; character: CharacterSummary };
+  | { state: "ready"; character: CharacterSummary }
+  | { state: "already-completed"; character: CharacterSummary; fightAvailable: boolean };
 
 export type AdventureResult =
   | { state: "no-character" }
@@ -62,10 +67,29 @@ export class AdventureService {
   async getMimicShawarmaForTelegramUser(
     telegramUserId: bigint
   ): Promise<AdventureLookupResult> {
+    const localDate = toIsoDate(this.clock());
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
       return { state: "no-character" };
+    }
+
+    const existingAdventure = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: MIMIC_SHAWARMA_ADVENTURE_KEY,
+      localDate
+    });
+
+    if (existingAdventure) {
+      const existingFight = await this.dailyActions.findForTelegramUser(telegramUserId, {
+        key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
+        localDate
+      });
+
+      return {
+        state: "already-completed",
+        character: summarizeCharacter(character),
+        fightAvailable: !existingFight
+      };
     }
 
     return {

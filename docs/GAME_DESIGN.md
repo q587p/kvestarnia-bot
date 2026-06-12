@@ -19,6 +19,7 @@
 - `gold`
 - `race`
 - `class`
+- hidden `path`: internal tavern metadata, one of `sun`, `moon`, or `boundary`
 - `hp_current`, `hp_max`
 - `mana_current`, `mana_max`
 - `stats`: сила, спритність, розум, харизма, вдача
@@ -26,13 +27,25 @@
 - `inventory`
 - `cooldowns`
 
+### Hidden paths
+The visible onboarding choices remain `Він`, `Вона`, and `Вони`, but internally they map to a tavern paperwork field:
+
+- `Він` → `sun`.
+- `Вона` → `moon`.
+- `Вони` → `boundary`.
+
+Players do not see these path names during character creation. Paths do not grant stat bonuses; they are metadata in the шинкарська анкета for future race/class restrictions, dreams, quests, achievements, NPC reactions, and seasonal events.
+
+Future path restrictions should sound like in-world folklore or institutions, not biology. Good examples: «Межа підписала пропуск заднім числом» or «ця канцелярська шухляда персонажа сьогодні не відкривається».
+
 ## Раси MVP
-Не треба одразу 40 рас. Почати з 6–8, кожна має механіку й гумор.
+Не треба одразу 40 рас. Почати з компактного набору, де кожна має механіку й гумор.
 
 - Людисько — +1 до всього потроху, бо «якось буде».
 - Гном — бонус до захисту й крафту; штраф до втечі від високих полиць.
 - Ельф — критичний шанс, але драматично реагує на брудні чоботи.
-- Козак-характерник — вдача, контратаки, містика.
+- Бісини — спритність/розум/харизма, бісить перекладачів і дуже впевнених знавців фентезі.
+- Дрантогор — сила + вдача, заблукав із Королівства Остромаг і не визнає помилки.
 - Домовик — бонус у підземеллях/тавернах, краще знаходить дрібний лут.
 - Русалка сухопутна — магія/харизма, але підозріло дивиться на чайники.
 - Орк-інтелігент — сила + розум, унікальні репліки.
@@ -47,6 +60,7 @@
 - Вареник-мант — food magic, self-heal, абсурдний контроль.
 - Бюрокромант — печатки, дозволи, «знерухомити формою 13-Б».
 - Єгер — бонус проти beasts, пастки.
+- Козак-характерник — вдача, контратаки, містика без статусу окремої раси.
 
 ## Бій MVP
 Покроковий, простий:
@@ -118,6 +132,8 @@ Alpha scaling рахується як derived effective values від збере
 - Головна характеристика класу отримує `+1` за кожен рівень після першого.
 
 Наприклад, Воїн 1 рівня з `20 HP`, `10 мани` і `8 сили` на 2 рівні бачить `24 HP`, `12 мани` і `9 сили`.
+
+Важливий майбутній борг: коли з’являться persistent combat state, поранення, витрати мани, лікування або відпочинок, «поточні HP/мана» не мають магічно відновлюватись у summary. Тоді модель треба розвести на effective max values і окремий persisted current/resource state, а presenter має показувати саме збережений current, обмежений новим effective max.
 
 Це не equipment effects, не healing/rest system і не повний stat rebalance. Майбутні бонуси предметів мають нашаровуватись поверх цього helper-а.
 

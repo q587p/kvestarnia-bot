@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  presentAdventureAlreadyCompleted,
   presentAdventureNoCharacter,
   presentAdventureResult,
   presentAdventureStart
@@ -11,6 +12,7 @@ const character: CharacterSummary = {
   name: "Мандрівник",
   pronoun: "they",
   pronounLabel: "Вони",
+  path: "boundary",
   raceId: "race.human-ish",
   raceName: "Людисько",
   classId: "class.warrior",
@@ -57,14 +59,38 @@ describe("adventure presenter", () => {
     expect(presentAdventureNoCharacter()).toContain("/start");
   });
 
+  it("shows a spent quest screen with an optional fight suggestion", () => {
+    const withFight = presentAdventureAlreadyCompleted({
+      state: "already-completed",
+      character,
+      fightAvailable: true
+    });
+    const withoutFight = presentAdventureAlreadyCompleted({
+      state: "already-completed",
+      character,
+      fightAvailable: false
+    });
+
+    expect(withFight).toContain("вже дала свідчення");
+    expect(withFight).toContain("/fight");
+    expect(withFight).not.toContain("що робимо");
+    expect(withoutFight).not.toContain("/fight");
+    expect(withoutFight).toContain("/hero");
+  });
+
+
   it("shows rewards for each action", () => {
-    expect(presentAdventureResult(completed("poke", 8, 4))).toContain("+8 XP · +4 золота");
     expect(presentAdventureResult(completed("poke", 8, 4))).toContain(
-      "Здобуто: Підозрілий лавашний доказ"
+      "<b>+8 XP · +4 золота</b>"
+    );
+    expect(presentAdventureResult(completed("poke", 8, 4))).toContain(
+      "Здобуто: <i>Підозрілий лавашний доказ</i>"
     );
     expect(presentAdventureResult(completed("poke", 8, 4))).not.toContain("×1");
-    expect(presentAdventureResult(completed("receipt", 6, 6))).toContain("+6 XP · +6 золота");
-    expect(presentAdventureResult(completed("flee", 2, 0))).toContain("+2 XP");
+    expect(presentAdventureResult(completed("receipt", 6, 6))).toContain(
+      "<b>+6 XP · +6 золота</b>"
+    );
+    expect(presentAdventureResult(completed("flee", 2, 0))).toContain("<b>+2 XP</b>");
     expect(presentAdventureResult(completed("flee", 2, 0))).not.toContain("золота");
     expect(presentAdventureResult(completed("flee", 2, 0))).not.toContain("Здобуто:");
   });

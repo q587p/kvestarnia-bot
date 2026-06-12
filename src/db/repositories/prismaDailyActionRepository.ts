@@ -3,11 +3,42 @@ import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import type {
   ClaimDailyActionInput,
   ClaimDailyActionResult,
+  DailyActionRecord,
   DailyActionRepository
 } from "./dailyActionRepository";
 
 export class PrismaDailyActionRepository implements DailyActionRepository {
   constructor(private readonly prisma: PrismaClient) {}
+
+  async findForTelegramUser(
+    telegramUserId: bigint,
+    input: { key: string; localDate: string }
+  ): Promise<DailyActionRecord | null> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!character) {
+      return null;
+    }
+
+    return this.prisma.dailyAction.findUnique({
+      where: {
+        characterId_key_localDate: {
+          characterId: character.id,
+          key: input.key,
+          localDate: input.localDate
+        }
+      }
+    });
+  }
 
   async claimForTelegramUser(
     telegramUserId: bigint,

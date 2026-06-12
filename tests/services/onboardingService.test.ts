@@ -33,6 +33,7 @@ describe("OnboardingService", () => {
       expect(result.value.created).toBe(true);
       expect(result.value.character.pronoun).toBe("he");
       expect(result.value.character.pronounLabel).toBe("Він");
+      expect(result.value.character.path).toBe("sun");
       expect(result.value.character.raceId).toBe("race.human-ish");
       expect(result.value.character.classId).toBe("class.warrior");
       expect(result.value.character.name).toBe("Тестовий Герой із надто довгим і");
@@ -68,6 +69,7 @@ describe("OnboardingService", () => {
     if (start.state === "existing-character") {
       expect(start.character.raceName).toBe("Гном");
       expect(start.character.className).toBe("Бюрокромант");
+      expect(start.character.path).toBe("moon");
     }
   });
 
@@ -102,7 +104,8 @@ describe("OnboardingService", () => {
 
     expect(created.ok).toBe(true);
     if (created.ok) {
-      expect(created.value.character.title).toBe("Писар Оберегових Справ");
+      expect(created.value.character.title).toBe("Писарі Оберегових Справ");
+      expect(created.value.character.path).toBe("boundary");
     }
   });
 
@@ -138,11 +141,15 @@ describe("OnboardingService", () => {
       new FakeCharacterRepository(new FakeUserRepository())
     );
 
-    const unavailableRace = service.selectRace("she", "race.kharakternyk");
-    expect(unavailableRace.ok).toBe(false);
-    if (!unavailableRace.ok) {
-      expect(unavailableRace.error.type).toBe("unavailable-race");
-      expect(unavailableRace.error.reason).toContain("характерниця");
+    expect(service.selectRace("she", "race.kharakternyk")).toEqual({
+      ok: false,
+      error: { type: "invalid-race" }
+    });
+    const unavailableDrantohor = service.selectRace("he", "race.drantohor");
+    expect(unavailableDrantohor.ok).toBe(false);
+    if (!unavailableDrantohor.ok) {
+      expect(unavailableDrantohor.error.type).toBe("unavailable-race");
+      expect(unavailableDrantohor.error.reason).toContain("стежками Межі");
     }
 
     const unavailableClass = service.selectClass(
@@ -165,6 +172,28 @@ describe("OnboardingService", () => {
     expect(bypass.ok).toBe(false);
     if (!bypass.ok) {
       expect(bypass.error.type).toBe("unavailable-class");
+    }
+  });
+
+  it("creates the new kharakternyk class without exposing a path name", async () => {
+    const service = new OnboardingService(
+      new FakeUserRepository(),
+      new FakeCharacterRepository(new FakeUserRepository())
+    );
+
+    const created = await service.complete(
+      player,
+      "they",
+      "race.drantohor",
+      "class.kharakternyk"
+    );
+
+    expect(created.ok).toBe(true);
+    if (created.ok) {
+      expect(created.value.character.raceName).toBe("Дрантогор");
+      expect(created.value.character.className).toBe("Козак-характерник");
+      expect(created.value.character.title).toBe("Межові Заблуканці");
+      expect(created.value.character.path).toBe("boundary");
     }
   });
 });

@@ -5,7 +5,7 @@ import {
   pronounOptions
 } from "../../content/characterOptions";
 import { classes } from "../../content/classes";
-import { races } from "../../content/races";
+import { activeRaces } from "../../content/races";
 import type { Pronoun } from "../../content/schema";
 import {
   makeBackToClassCallbackData,
@@ -32,7 +32,7 @@ export function buildGenderKeyboard(): InlineKeyboard {
 export function buildRaceKeyboard(pronoun: Pronoun): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
-  races.forEach((race, index) => {
+  activeRaces.forEach((race, index) => {
     const available = isRaceAvailableForPronoun(pronoun, race.id);
     keyboard.text(
       available ? race.name : `🚫 ${race.name}`,
@@ -41,7 +41,7 @@ export function buildRaceKeyboard(pronoun: Pronoun): InlineKeyboard {
         : makeUnavailableRaceCallbackData(pronoun, race.id)
     );
 
-    if (index % 2 === 1) {
+    if (shouldStartNextGridRow(index, activeRaces.length)) {
       keyboard.row();
     }
   });
@@ -63,7 +63,7 @@ export function buildClassKeyboard(pronoun: Pronoun, raceId: string): InlineKeyb
         : makeUnavailableClassCallbackData(pronoun, raceId, characterClass.id)
     );
 
-    if (index % 2 === 1) {
+    if (shouldStartNextGridRow(index, classes.length)) {
       keyboard.row();
     }
   });
@@ -86,4 +86,8 @@ export function buildConfirmationKeyboard(
     .text("Назад до раси", makeBackToRaceCallbackData(pronoun))
     .row()
     .text("Почати заново", makeBackToGenderCallbackData());
+}
+
+function shouldStartNextGridRow(index: number, itemCount: number): boolean {
+  return index % 3 === 2 && index < itemCount - 1;
 }

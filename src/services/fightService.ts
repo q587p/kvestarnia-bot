@@ -8,13 +8,17 @@ import {
 } from "../domain/combat/combatProbe";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
+  MIMIC_SHAWARMA_ADVENTURE_KEY,
+  MIMIC_SHAWARMA_COMBAT_PROBE_KEY
+} from "./dailyActionKeys";
+import {
   enrichRewardItemGrants,
   RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
   SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
   type RewardItemGrant
 } from "./itemGrant";
 
-export const MIMIC_SHAWARMA_COMBAT_PROBE_KEY = "combat.mimic-shawarma.probe";
+export { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./dailyActionKeys";
 export type FightAction = CombatProbeAction;
 
 export const MIMIC_SHAWARMA_COMBAT_REWARDS = {
@@ -34,7 +38,8 @@ export const MIMIC_SHAWARMA_COMBAT_REWARDS = {
 
 export type FightLookupResult =
   | { state: "no-character" }
-  | { state: "ready"; character: CharacterSummary };
+  | { state: "ready"; character: CharacterSummary }
+  | { state: "already-completed"; character: CharacterSummary; questAvailable: boolean };
 
 export type FightResult =
   | { state: "no-character" }
@@ -49,6 +54,7 @@ export type FightResult =
   | {
       state: "already-completed";
       character: CharacterSummary;
+      questAvailable: boolean;
     };
 
 export interface FightReward {
@@ -66,10 +72,29 @@ export class FightService {
   ) {}
 
   async getMimicShawarmaForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
+    const localDate = toIsoDate(this.clock());
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
       return { state: "no-character" };
+    }
+
+    const existingFight = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
+      localDate
+    });
+
+    if (existingFight) {
+      const existingAdventure = await this.dailyActions.findForTelegramUser(telegramUserId, {
+        key: MIMIC_SHAWARMA_ADVENTURE_KEY,
+        localDate
+      });
+
+      return {
+        state: "already-completed",
+        character: summarizeCharacter(character),
+        questAvailable: !existingAdventure
+      };
     }
 
     return {
@@ -111,9 +136,15 @@ export class FightService {
     }
 
     if (claim.state === "existing") {
+      const existingAdventure = await this.dailyActions.findForTelegramUser(telegramUserId, {
+        key: MIMIC_SHAWARMA_ADVENTURE_KEY,
+        localDate
+      });
+
       return {
         state: "already-completed",
-        character: summarizeCharacter(claim.character)
+        character: summarizeCharacter(claim.character),
+        questAvailable: !existingAdventure
       };
     }
 

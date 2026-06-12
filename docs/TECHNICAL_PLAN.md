@@ -76,6 +76,8 @@ docs/
 ### characters
 - `id` UUID
 - `user_id` FK
+- `pronoun`
+- `path`
 - `race_id`
 - `class_id`
 - `level`
@@ -167,6 +169,17 @@ export interface RandomSource {
 
 У тестах — seeded/fake RNG. У production — crypto або надійний PRNG, залежно від потреб.
 
+## Hidden character paths
+Character creation stores a hidden `path` derived from the visible pronoun choice. This is internal tavern/canonic bureaucracy metadata, not a player-facing doctrine:
+
+- `he` → `sun`
+- `she` → `moon`
+- `they` → `boundary`
+
+Use `getCharacterPath()`, `isSunPath()`, `isMoonPath()`, and `isBoundaryPath()` from the domain character helpers for future content gating.
+
+Paths are not player-facing and must not add stat modifiers or gameplay bonuses. Future restrictions should use in-world explanations, not biological categories: tavern notes, weird permits, and short jokes like «Межа підписала пропуск заднім числом».
+
 ## Idempotency
 Кожен callback, що може видати нагороду, повинен мати idempotency key:
 - `combat:{combatId}:finish`
@@ -242,6 +255,8 @@ Domain result → presenter → Telegram text/buttons.
 - `summarizeCharacter(...)` рахує effective HP, ману й головну характеристику класу з урахуванням рівня;
 - current HP і mana поки дорівнюють effective max, бо persistent HP loss і mana spending ще не реалізовані;
 - fight preview бере ці effective значення через `CharacterSummary`, а не напряму з БД.
+
+Future combat-state note: this is an alpha shortcut, not the final resource model. When persistent HP loss, mana spending, healing, rest, or turn-based combat state ships, `CharacterSummary` must stop treating current HP/mana as automatically full. Keep effective max calculation separate from persisted current resource state, clamp persisted current to the effective max, and avoid silent full-heal/full-mana behavior in summaries.
 
 Формули alpha slice:
 - HP max: `stored hpMax + (level - 1) * 4`.

@@ -17,7 +17,7 @@ export {
 } from "./characterOptions";
 export { items } from "./items";
 export { monsters } from "./monsters";
-export { races } from "./races";
+export { activeRaces, races } from "./races";
 export {
   classSchema,
   contentIdSchema,

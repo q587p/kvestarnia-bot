@@ -44,6 +44,7 @@ class FakeCharacterRepository implements CharacterRepository {
       userId: `user-${telegramUserId.toString()}`,
       name: "Мандрівник",
       pronoun: "they",
+      path: "boundary",
       raceId: "race.human-ish",
       classId: "class.warrior",
       level: 1,
