@@ -38,9 +38,11 @@ describe("onboarding presenters and keyboards", () => {
   });
 
   it("builds race buttons with unavailable options and valid callback data", () => {
-    const buttons = buildRaceKeyboard("she").inline_keyboard.flat();
+    const keyboard = buildRaceKeyboard("she").inline_keyboard;
+    const buttons = keyboard.flat();
 
     expect(buttons).toHaveLength(activeRaces.length + 1);
+    expect(keyboard.map((row) => row.length)).toEqual([3, 3, 3, 1]);
     expectAllButtonsValid(buttons);
     expect(buttons.some((button) => button.text.includes("Бісини"))).toBe(true);
     expect(buttons.some((button) => button.text.includes("🚫 Дрантогор"))).toBe(true);
@@ -78,9 +80,11 @@ describe("onboarding presenters and keyboards", () => {
   });
 
   it("builds class buttons with unavailable options and valid callback data", () => {
-    const buttons = buildClassKeyboard("they", "race.molfar-soul").inline_keyboard.flat();
+    const keyboard = buildClassKeyboard("they", "race.molfar-soul").inline_keyboard;
+    const buttons = keyboard.flat();
 
     expect(buttons).toHaveLength(classes.length + 1);
+    expect(keyboard.map((row) => row.length)).toEqual([3, 3, 3, 1]);
     expectAllButtonsValid(buttons);
     expect(buttons.some((button) => button.text.includes("🚫 Вареник-мант"))).toBe(true);
     expect(buttons.some((button) => button.text.includes("Козак-характерник"))).toBe(true);
