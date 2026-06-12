@@ -1,6 +1,6 @@
 # kvestarnia-bot
 
-Квестарня - україномовна текстова Telegram RPG. Репозиторій містить TypeScript/Node.js foundation для Telegram-бота на grammY, Prisma/SQLite local baseline, Zod-validated content і перші Phase 1 зрізи: ідемпотентний `/start` onboarding та малий таверновий рейд.
+Квестарня - україномовна текстова Telegram RPG. Репозиторій містить TypeScript/Node.js foundation для Telegram-бота на grammY, Prisma/SQLite local baseline, Zod-validated content і перші Phase 1 зрізи: ідемпотентний `/start` onboarding, малий таверновий рейд і першу пригоду з міміком-шаурмою.
 
 ## Що вже є
 
@@ -9,9 +9,13 @@
 - `/start` показує коротке вітання Квестарні, пропонує вибір раси й класу через callback-и та не створює дублікати персонажа при повторних натисканнях.
 - `/hero`, `/profile`, `/me`, `/help` і кнопкове меню показують видимий прогрес без запуску повного gameplay loop.
 - `/tavern` і `/raid` відкривають малий solo-рейд «П’ятничний рейд на Бочку Пінного Міражу» з винагородою раз на локальний день.
-- `/quest`, `/hunt`, `/inventory` і `/guild` мають короткі заглушки, щоб Telegram-меню не вело в тишу.
+- `/adventure` і `/quest` відкривають першу коротку сцену «Перевірка підозрілої шаурми» з винагородою раз на збережену дату.
+- `/hunt`, `/inventory` і `/guild` мають короткі заглушки, щоб Telegram-меню не вело в тишу.
+- `/version` показує поточну версію бота, а `/news` читає останню новину й архів із `news.md`.
+- XP rewards можуть підняти рівень героя за простими порогами прогресії.
+- `/restart` видаляє поточного героя після підтвердження, щоб почати з початку через `/start`.
 - `/dev_reset_me` у локальному режимі скидає тільки вашого героя після підтвердження.
-- Config layer із Zod для `BOT_TOKEN`, `DATABASE_URL`, `REDIS_URL`, `NODE_ENV`.
+- Config layer із Zod для `BOT_TOKEN`, `DATABASE_URL`, `NODE_ENV`.
 - Prisma schema та перша міграція для `User` і `Character`.
 - Content tables для race/class/monster/item зі stable ids.
 - Vitest tests для content validation, callback validation, starter stats, onboarding idempotency і shared utilities.
@@ -52,7 +56,7 @@ npm run dev
 Copy-Item .env.example .env
 ```
 
-`BOT_TOKEN` у `.env` може бути порожнім для локальних перевірок. У такому режимі `npm run dev` валідовує конфіг і не запускає Telegram polling. Щоб запустити реального бота, додай токен від BotFather:
+`BOT_TOKEN` у `.env` може бути порожнім для локальних перевірок. У такому режимі `npm run dev` валідовує конфіг, запускає тільки healthcheck HTTP server і не запускає Telegram polling. Щоб запустити реального бота, додай токен від BotFather:
 
 ```env
 BOT_TOKEN=replace-with-real-token
@@ -60,9 +64,56 @@ BOT_TOKEN=replace-with-real-token
 
 Не коміть `.env` або реальні секрети.
 
-`npm run db:migrate` створить локальний файл `prisma/dev.db`, якщо його ще немає. Redis зараз не використовується runtime-кодом; `REDIS_URL` лишається placeholder-ом для майбутніх jobs/cache фіч.
+Minimal local `.env`:
+
+```env
+BOT_TOKEN=replace-with-real-token
+DATABASE_URL=file:./dev.db
+```
+
+`npm run db:migrate` створить локальний файл `prisma/dev.db`, якщо його ще немає. Redis зараз не використовується runtime-кодом і не потрібен для мінімального локального запуску.
 
 Для перевірки перед PR використовуйте `npm run check`.
+
+## Render Setup
+
+Квестарня поки працює як Telegram polling bot, але для Render використовується Web Service, бо SQLite database file має жити на Persistent Disk. HTTP port у цьому режимі не є webhook-ом: це маленький healthcheck server, щоб Render бачив відкритий порт і міг вважати сервіс живим.
+
+Minimal Render environment variables:
+
+```env
+BOT_TOKEN=replace-with-real-token
+DATABASE_URL=file:/var/data/kvestarnia.db
+NODE_ENV=production
+NODE_VERSION=22
+# Optional: send known users one update message per deployed version.
+DEPLOY_NOTIFICATIONS_ENABLED=false
+```
+
+Render сам передає `PORT`; якщо його немає, healthcheck server слухає `10000` на `0.0.0.0`. SQLite файл має лежати на Persistent Disk, змонтованому в `/var/data`, інакше дані можуть зникати між деплоями.
+
+Render build command:
+
+```bash
+npm install && npm run build
+```
+
+Render start command:
+
+```bash
+npm run db:deploy && npm run start
+```
+
+`REDIS_URL` is not required for the current SQLite/Render deployment. Add Redis only when a feature actually uses jobs, cache, or cooldown storage.
+
+Set `DEPLOY_NOTIFICATIONS_ENABLED=true` only when deployed users should receive a short Telegram message after a new version starts. The bot deduplicates this by a marker file on the same Persistent Disk as SQLite.
+
+Healthcheck endpoints:
+
+```text
+GET /
+GET /health
+```
 
 ## Prisma
 
@@ -90,6 +141,7 @@ npx prisma migrate dev
 npm run db:generate
 npm run db:validate
 npm run db:migrate
+npm run db:deploy
 npm run db:studio
 ```
 
@@ -111,11 +163,16 @@ npm run dev
 4. Перевірте героя через `/hero`, `/profile` або `/me`.
 5. Відкрийте `/tavern` або натисніть `🍺 До таверни`.
 6. Натисніть `🍺 У рейд на бочку`.
-7. Перевірте `/hero`: XP і золото мають зрости на `+7 XP` і `+5 золота`.
-8. Натисніть рейд ще раз і переконайтесь, що винагорода не дублюється.
-9. Для повторного тесту onboarding у локальному режимі виконайте `/dev_reset_me` і підтвердьте скидання.
+7. Відкрийте `/adventure` або `/quest`.
+8. Оберіть одну дію проти `Міміка-шаурми`: тицьнути, попросити чек або відступити.
+9. Перевірте `/hero`: XP, золото й рівень мають показати новий прогрес.
+10. Перевірте `/version` і `/news`, щоб побачити поточну версію, останню новину й архів.
+11. Натисніть той самий рейд або пригоду ще раз і переконайтесь, що винагорода не дублюється.
+12. Щоб почати героя з початку, виконайте `/restart` і підтвердьте видалення.
+13. Для локальних dev-перевірок також доступний `/dev_reset_me`.
 
 `/dev_reset_me` працює тільки коли `NODE_ENV !== "production"` і видаляє лише персонажа поточного Telegram-користувача.
+`/restart` доступний як звичайна команда, але теж видаляє лише персонажа поточного Telegram-користувача й потребує підтвердження кнопкою.
 
 `User.telegramUserId` зберігається як `BigInt` і мапиться у БД на `telegram_user_id`, як у `docs/TECHNICAL_PLAN.md`. На межі Telegram/DB треба конвертувати `ctx.from.id` у `BigInt`; доменний код не має знати про Telegram payload.
 
@@ -131,6 +188,7 @@ npm run dev
 - `npm run db:generate` - Prisma Client.
 - `npm run db:validate` - перевірка Prisma schema.
 - `npm run db:migrate` - локальні міграції Prisma.
+- `npm run db:deploy` - застосування закомічених Prisma migrations для Render/CI.
 - `npm run db:studio` - Prisma Studio.
 
 ## Структура
@@ -172,4 +230,4 @@ Domain-код не має імпортувати Telegram/grammY. Bot layer ма
 
 ## Наступний крок
 
-Наступний малий Phase 1 PR варто присвятити першій обережній `/adventure` сцені або покращенню таймінгу daily actions під Europe/Kyiv.
+Наступний малий Phase 1 PR варто присвятити першій обережній бойовій перевірці або покращенню таймінгу daily actions під Europe/Kyiv.

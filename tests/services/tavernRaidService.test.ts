@@ -12,6 +12,7 @@ import type {
   DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
+import { getLevelForXp } from "../../src/domain/progression/level";
 import {
   FRIDAY_BARREL_RAID_KEY,
   TavernRaidService
@@ -57,6 +58,29 @@ describe("TavernRaidService", () => {
     if (first.state === "completed") {
       expect(first.character.xp).toBe(7);
       expect(first.character.gold).toBe(5);
+      expect(first.levelChange.leveledUp).toBe(false);
+    }
+  });
+
+  it("updates character level when tavern XP crosses a threshold", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 7 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+
+    const result = await service.completeFridayBarrelRaid(telegramUserId);
+
+    expect(result.state).toBe("completed");
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: 14,
+      level: 2
+    });
+    if (result.state === "completed") {
+      expect(result.levelChange).toMatchObject({
+        oldLevel: 1,
+        newLevel: 2,
+        leveledUp: true
+      });
     }
   });
 
@@ -94,7 +118,8 @@ function fixedClock(): Date {
 class FakeCharacterRepository implements CharacterRepository {
   private readonly charactersByTelegramUserId = new Map<bigint, CharacterRecord>();
 
-  add(userTelegramId: bigint): void {
+  add(userTelegramId: bigint, overrides: Partial<CharacterRecord> = {}): void {
+    const xp = overrides.xp ?? 0;
     this.charactersByTelegramUserId.set(userTelegramId, {
       id: `character-${userTelegramId.toString()}`,
       userId: `user-${userTelegramId.toString()}`,
@@ -102,8 +127,8 @@ class FakeCharacterRepository implements CharacterRepository {
       pronoun: "they",
       raceId: "race.human-ish",
       classId: "class.warrior",
-      level: 1,
-      xp: 0,
+      level: getLevelForXp(xp),
+      xp,
       gold: 0,
       hpCurrent: 22,
       hpMax: 22,
@@ -115,7 +140,8 @@ class FakeCharacterRepository implements CharacterRepository {
         intelligence: 6,
         charisma: 6,
         luck: 6
-      }
+      },
+      ...overrides
     });
   }
 
@@ -126,10 +152,12 @@ class FakeCharacterRepository implements CharacterRepository {
       throw new Error("Character not found.");
     }
 
+    const nextXp = character.xp + xp;
     const updated = {
       ...character,
-      xp: character.xp + xp,
-      gold: character.gold + gold
+      xp: nextXp,
+      gold: character.gold + gold,
+      level: getLevelForXp(nextXp)
     };
     this.charactersByTelegramUserId.set(userTelegramId, updated);
     return updated;
@@ -198,7 +226,8 @@ class FakeDailyActionRepository implements DailyActionRepository {
       return {
         state: "existing",
         action: existing,
-        character
+        character,
+        levelChange: null
       };
     }
 
@@ -217,7 +246,12 @@ class FakeDailyActionRepository implements DailyActionRepository {
     return {
       state: "created",
       action,
-      character: this.characters.updateReward(userTelegramId, input.rewardXp, input.rewardGold)
+      character: this.characters.updateReward(userTelegramId, input.rewardXp, input.rewardGold),
+      levelChange: {
+        oldLevel: getLevelForXp(character.xp),
+        newLevel: getLevelForXp(character.xp + input.rewardXp),
+        leveledUp: getLevelForXp(character.xp + input.rewardXp) > getLevelForXp(character.xp)
+      }
     };
   }
 }

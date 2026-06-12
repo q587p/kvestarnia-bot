@@ -11,14 +11,18 @@ describe("help presenter", () => {
     expect(text).toContain("/me");
     expect(text).toContain("/tavern");
     expect(text).toContain("/raid");
+    expect(text).toContain("/adventure");
     expect(text).toContain("/quest");
     expect(text).toContain("/hunt");
     expect(text).toContain("/inventory");
     expect(text).toContain("/guild");
+    expect(text).toContain("/restart");
+    expect(text).toContain("/version");
+    expect(text).toContain("/news");
     expect(text).toContain("/help");
     expect(text).not.toContain("/dev_reset_me");
-    expect(text).not.toContain("/adventure");
-    expect(text).toContain("ще не працюють");
+    expect(text).toContain("те саме, що /adventure");
+    expect(text).toContain("Повний бій");
   });
 
   it("includes dev reset only when enabled", () => {

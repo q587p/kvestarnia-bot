@@ -9,7 +9,7 @@ export const configSchema = z.object({
   nodeEnv: nodeEnvSchema,
   botToken: z.string().optional(),
   databaseUrl: databaseUrlSchema,
-  redisUrl: z.string().url()
+  deployNotificationsEnabled: z.boolean().default(false)
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -19,7 +19,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     nodeEnv: env.NODE_ENV,
     botToken: blankToUndefined(env.BOT_TOKEN),
     databaseUrl: env.DATABASE_URL,
-    redisUrl: env.REDIS_URL
+    deployNotificationsEnabled: parseBoolean(env.DEPLOY_NOTIFICATIONS_ENABLED)
   });
 }
 
@@ -39,4 +39,22 @@ function isValidDatabaseUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function parseBoolean(value: string | undefined): boolean | undefined {
+  const normalized = value?.trim().toLowerCase();
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+
+  return undefined;
 }

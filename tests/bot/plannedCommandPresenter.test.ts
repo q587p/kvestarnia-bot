@@ -5,7 +5,7 @@ import {
 } from "../../src/bot/presenters/plannedCommandPresenter";
 
 describe("planned command presenter", () => {
-  it.each(["quest", "hunt", "inventory", "guild"] as const satisfies readonly PlannedCommand[])(
+  it.each(["hunt", "inventory", "guild"] as const satisfies readonly PlannedCommand[])(
     "answers /%s with a short Ukrainian placeholder",
     (command) => {
       const text = presentPlannedCommand(command);
@@ -16,9 +16,8 @@ describe("planned command presenter", () => {
     }
   );
 
-  it("points quest and hunt toward the playable tavern slice", () => {
-    expect(presentPlannedCommand("quest")).toContain("/tavern");
-    expect(presentPlannedCommand("hunt")).toContain("/tavern");
+  it("points hunt toward the playable adventure slice", () => {
+    expect(presentPlannedCommand("hunt")).toContain("/adventure");
   });
 
   it("does not pretend inventory or guilds are implemented", () => {

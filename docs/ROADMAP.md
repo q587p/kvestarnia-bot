@@ -21,6 +21,8 @@ Done when:
 Deliverables:
 - `/start`, `/hero`, `/adventure`, `/inventory`.
 - Race/class selection.
+- First tiny `/adventure` scene: `Мімік-шаурма`, once-per-date reward, no full combat yet.
+- Simple level-up thresholds for visible progress.
 - Combat engine.
 - Loot engine.
 - Level-up 1–10.

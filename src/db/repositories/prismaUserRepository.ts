@@ -22,4 +22,14 @@ export class PrismaUserRepository implements UserRepository {
       }
     });
   }
+
+  async listTelegramUserIds(): Promise<bigint[]> {
+    const users = await this.prisma.user.findMany({
+      select: {
+        telegramUserId: true
+      }
+    });
+
+    return users.map((user) => user.telegramUserId);
+  }
 }

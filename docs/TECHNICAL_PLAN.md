@@ -173,12 +173,22 @@ export interface RandomSource {
 - `combat:{combatId}:finish`
 - `raid:{raidId}:reward:{characterId}`
 - `daily:{characterId}:{yyyy-mm-dd}`
+- `daily-action:{characterId}:{key}:{localDate}`
 
 Повторний callback має повертати «вже зараховано», а не дублювати винагороду.
+
+У `0.0.4` таблиця `daily_actions` використовується для двох once-per-date keys:
+- `tavern.friday-barrel-raid`
+- `adventure.mimic-shawarma`
+
+Цей механізм поки не є повним cooldown system і не потребує Redis.
 
 ## Telegram callback data
 Callback data коротка, версіонована:
 - `v1:adv:start`
+- `v1:adv:mimic:poke`
+- `v1:adv:mimic:receipt`
+- `v1:adv:mimic:flee`
 - `v1:combat:atk:{combatId}`
 - `v1:combat:skill:{combatId}:{skillId}`
 - `v1:inv:equip:{inventoryItemId}`
@@ -194,6 +204,14 @@ Domain result → presenter → Telegram text/buttons.
 
 Це дозволяє тестувати domain окремо і міняти формат Telegram без переписування бою.
 
+## Progression helper
+`0.0.4` вводить маленький deterministic helper для рівнів:
+- `getLevelForXp(xp)`
+- `getNextLevelThreshold(level)`
+- `applyXpReward(currentXp, xpReward)`
+
+Пороги першого slice: `0`, `10`, `25`, `45`, `70` XP для рівнів 1–5. Tavern і adventure rewards мають використовувати цей helper, щоб `/hero` відразу показував оновлений рівень.
+
 ## Observability
 Логи:
 - `user_id`, `character_id`, `chat_id` — де доречно.
@@ -206,10 +224,10 @@ Domain result → presenter → Telegram text/buttons.
 
 ## Deployment MVP
 Найпростіше:
-- VPS або PaaS.
-- App runtime + PostgreSQL + Redis як окремі сервіси.
-- Webhook через HTTPS.
-- Backups PostgreSQL щодня.
+- Render або інший PaaS із Node.js runtime.
+- SQLite database file через persistent disk для поточного мінімального setup.
+- Start command: `npm run db:deploy && npm run start`.
+- Redis не є обов’язковим, доки немає features для jobs/cache/cooldowns.
 
 Для альфи polling простіший, але webhook краще для стабільності.
 

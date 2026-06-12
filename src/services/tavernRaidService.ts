@@ -1,5 +1,9 @@
 import type { CharacterRepository } from "../db/repositories/characterRepository";
-import type { DailyActionRecord, DailyActionRepository } from "../db/repositories/dailyActionRepository";
+import type {
+  DailyActionRecord,
+  DailyActionRepository,
+  RewardLevelChange
+} from "../db/repositories/dailyActionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 
@@ -18,11 +22,13 @@ export type TavernRaidResult =
       state: "completed";
       character: CharacterSummary;
       reward: TavernRaidReward;
+      levelChange: RewardLevelChange;
     }
   | {
       state: "already-completed";
       character: CharacterSummary;
       reward: TavernRaidReward;
+      levelChange: null;
     };
 
 export interface TavernRaidReward {
@@ -65,10 +71,20 @@ export class TavernRaidService {
       return { state: "no-character" };
     }
 
+    if (claim.state === "existing") {
+      return {
+        state: "already-completed",
+        character: summarizeCharacter(claim.character),
+        reward: buildReward(claim.action),
+        levelChange: null
+      };
+    }
+
     return {
-      state: claim.state === "created" ? "completed" : "already-completed",
+      state: "completed",
       character: summarizeCharacter(claim.character),
-      reward: buildReward(claim.action)
+      reward: buildReward(claim.action),
+      levelChange: claim.levelChange
     };
   }
 }

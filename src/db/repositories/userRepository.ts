@@ -15,4 +15,5 @@ export interface UserRecord {
 
 export interface UserRepository {
   upsertTelegramUser(input: TelegramUserProfile): Promise<UserRecord>;
+  listTelegramUserIds(): Promise<bigint[]>;
 }

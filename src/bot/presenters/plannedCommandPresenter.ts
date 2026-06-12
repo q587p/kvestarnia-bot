@@ -1,13 +1,9 @@
-export type PlannedCommand = "quest" | "hunt" | "inventory" | "guild";
+export type PlannedCommand = "hunt" | "inventory" | "guild";
 
 const plannedCommandMessages = {
-  quest: [
-    "🗺️ Квести ще збирають підписи.",
-    "Поки квестодавець шукає печатку, можна сходити в таверну: /tavern"
-  ],
   hunt: [
     "🗡️ Полювання ще точить ножі.",
-    "Для першої безпечної сутички з хаосом уже є малий рейд: /tavern"
+    "Для першої безпечної сутички з хаосом уже є пригода: /adventure"
   ],
   inventory: [
     "🎒 Інвентар ще шиє кишені.",
@@ -20,7 +16,9 @@ const plannedCommandMessages = {
 } satisfies Record<PlannedCommand, [string, string]>;
 
 export function presentPlannedCommand(command: PlannedCommand): string {
-  return [...plannedCommandMessages[command], "", "Доступно зараз: /start, /hero, /tavern, /help"].join(
-    "\n"
-  );
+  return [
+    ...plannedCommandMessages[command],
+    "",
+    "Доступно зараз: /start, /hero, /tavern, /adventure, /help"
+  ].join("\n");
 }
