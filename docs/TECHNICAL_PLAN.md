@@ -181,6 +181,9 @@ export interface RandomSource {
 - `tavern.friday-barrel-raid`
 - `adventure.mimic-shawarma`
 
+У `0.0.5` той самий механізм також використовується для першої безпечної combat probe:
+- `combat.mimic-shawarma.probe`
+
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 
 ## Telegram callback data
@@ -189,6 +192,9 @@ Callback data коротка, версіонована:
 - `v1:adv:mimic:poke`
 - `v1:adv:mimic:receipt`
 - `v1:adv:mimic:flee`
+- `v1:fight:mimic:attack`
+- `v1:fight:mimic:receipt`
+- `v1:fight:mimic:flee`
 - `v1:combat:atk:{combatId}`
 - `v1:combat:skill:{combatId}:{skillId}`
 - `v1:inv:equip:{inventoryItemId}`
@@ -210,7 +216,7 @@ Domain result → presenter → Telegram text/buttons.
 - `getNextLevelThreshold(level)`
 - `applyXpReward(currentXp, xpReward)`
 
-Пороги першого slice: `0`, `10`, `25`, `45`, `70` XP для рівнів 1–5. Tavern і adventure rewards мають використовувати цей helper, щоб `/hero` відразу показував оновлений рівень.
+Пороги першого slice: `0`, `10`, `25`, `45`, `70` XP для рівнів 1–5. Tavern, adventure і fight rewards мають використовувати цей helper, щоб `/hero` відразу показував оновлений рівень.
 
 ## Observability
 Логи:

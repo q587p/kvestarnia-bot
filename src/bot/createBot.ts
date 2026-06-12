@@ -1,12 +1,14 @@
 import { Bot, type Context } from "grammy";
 import type { AdventureService } from "../services/adventureService";
 import type { DevResetService } from "../services/devResetService";
+import type { FightService } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
 import type { OnboardingService } from "../services/onboardingService";
 import type { RestartService } from "../services/restartService";
 import type { TavernRaidService } from "../services/tavernRaidService";
 import { parseAdventureCallbackData } from "./callbacks/adventureCallbackData";
 import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
+import { parseFightCallbackData } from "./callbacks/fightCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
 import {
@@ -17,6 +19,7 @@ import { parseRestartCallbackData } from "./callbacks/restartCallbackData";
 import { parseTavernCallbackData } from "./callbacks/tavernCallbackData";
 import { registerAdventureCommand } from "./commands/adventureCommand";
 import { registerDevResetCommand } from "./commands/devResetCommand";
+import { registerFightCommand } from "./commands/fightCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
 import { registerHeroCommand, sendHero } from "./commands/heroCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
@@ -27,6 +30,7 @@ import { registerTavernCommand, sendTavern } from "./commands/tavernCommand";
 import { registerVersionCommand } from "./commands/versionCommand";
 import { playerFromContext } from "./context";
 import { buildAdventureKeyboard } from "./keyboards/adventureKeyboard";
+import { buildFightKeyboard } from "./keyboards/fightKeyboard";
 import {
   buildClassKeyboard,
   buildConfirmationKeyboard,
@@ -42,6 +46,7 @@ import {
   presentDevResetDisabled,
   presentDevResetNoCharacter
 } from "./presenters/devResetPresenter";
+import { presentFightNoCharacter, presentFightResult } from "./presenters/fightPresenter";
 import { presentHelp } from "./presenters/helpPresenter";
 import {
   presentCharacterCreated,
@@ -63,6 +68,7 @@ import { safeEditMessageText } from "./safeEditMessageText";
 
 export interface BotServices {
   adventure: AdventureService;
+  fight: FightService;
   onboarding: OnboardingService;
   hero: HeroService;
   devReset: DevResetService;
@@ -78,6 +84,7 @@ export function createBot(token: string, services: BotServices): Bot {
   });
 
   registerAdventureCommand(bot, services.adventure);
+  registerFightCommand(bot, services.fight);
   registerStartCommand(bot, services.onboarding);
   registerHeroCommand(bot, services.hero);
   registerHelpCommand(bot, services.devReset);
@@ -148,6 +155,17 @@ export function createBot(token: string, services: BotServices): Bot {
     }
 
     await handleAdventureCallback(ctx, parsed.value, services.adventure);
+  });
+
+  bot.callbackQuery(/^v1:fight:/, async (ctx) => {
+    const parsed = parseFightCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleFightCallback(ctx, parsed.value, services.fight);
   });
 
   bot.callbackQuery(/^v1:devreset:/, async (ctx) => {
@@ -384,6 +402,32 @@ async function handleAdventureCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentAdventureResult(result), {
     reply_markup: buildAdventureKeyboard()
+  });
+}
+
+async function handleFightCallback(
+  ctx: Context,
+  action: "attack" | "receipt" | "flee",
+  fightService: FightService
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  const result = await fightService.completeMimicShawarma(telegramUserId, action);
+
+  if (result.state === "no-character") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentFightNoCharacter());
+    return;
+  }
+
+  await safeAnswerCallbackQuery(ctx);
+  await safeEditMessageText(ctx, presentFightResult(result), {
+    reply_markup: buildFightKeyboard()
   });
 }
 

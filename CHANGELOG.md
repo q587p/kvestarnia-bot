@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.5] - 12026-06-12 - First Combat Probe
+
+### Added
+- `/fight` now opens the first tiny combat probe: `Сутичка з Міміком-шаурмою`.
+- `/hunt` now aliases `/fight` instead of returning a placeholder.
+- The mimic shawarma combat probe has three validated callback actions: attack, confuse with a receipt, or flee gracefully.
+- A deterministic domain combat probe calculates preview damage and HP without Telegram imports, randomness, persistent HP loss, or a combat state machine.
+- Fight rewards use one shared `combat.mimic-shawarma.probe` daily action key, so only one reward can be claimed per stored date regardless of selected option.
+- Tests cover fight callbacks, deterministic combat math, presenter output, service idempotency, cross-action duplicate prevention, and help text.
+
+### Changed
+- `/help` now lists `/fight` and `/hunt` as available commands.
+- README and design/technical docs now describe the combat probe boundary and explicitly keep full turn-based combat out of scope.
+
+### Not Included Yet
+- Persistent combat state, real death/failure, inventory persistence, item loot, equipment, group raids, guilds, PvP, jobs, Redis cooldowns, payments, and Mini App UI.
+
 ## [0.0.4] - 12026-06-12 - First Mimic Shawarma Adventure
 
 ### Added
