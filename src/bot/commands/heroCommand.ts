@@ -39,25 +39,15 @@ async function sendText(
   text: string,
   includeMenu = false
 ): Promise<void> {
+  const options = {
+    parse_mode: "HTML" as const,
+    ...(includeMenu ? { reply_markup: buildMainMenuKeyboard() } : {})
+  };
+
   if (mode === "edit") {
-    await safeEditMessageText(
-      ctx,
-      text,
-      includeMenu
-        ? {
-            reply_markup: buildMainMenuKeyboard()
-          }
-        : undefined
-    );
+    await safeEditMessageText(ctx, text, options);
     return;
   }
 
-  await ctx.reply(
-    text,
-    includeMenu
-      ? {
-          reply_markup: buildMainMenuKeyboard()
-        }
-      : undefined
-  );
+  await ctx.reply(text, options);
 }

@@ -1,15 +1,19 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import { escapeHtml } from "./telegramHtml";
 
 export function presentHero(summary: CharacterSummary): string {
   return [
-    `👤 ${summary.name}`,
-    `${summary.raceName} · ${summary.className}`,
-    `Звертання: ${summary.pronounLabel} · Титул: ${summary.title}`,
-    `Рівень ${summary.level} · XP ${summary.xp} · золото ${summary.gold}`,
+    `👤 <b>${escapeHtml(summary.name)}</b>`,
+    `<i>${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}</i>`,
+    "",
+    `Звертання: ${escapeHtml(summary.pronounLabel)} · Титул: ${escapeHtml(summary.title)}`,
+    `Рівень <b>${summary.level}</b> · XP ${summary.xp} · золото ${summary.gold}`,
+    "",
     `HP ${summary.hpCurrent}/${summary.hpMax} · мана ${summary.manaCurrent}/${summary.manaMax}`,
     `Сили ${summary.stats.strength} · Спритн. ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
-    "Далі: /tavern або /adventure, якщо шаурма дивиться першою."
+    "",
+    "<i>Далі: /tavern або /adventure, якщо шаурма дивиться першою.</i>"
   ].join("\n");
 }
 

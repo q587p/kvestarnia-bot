@@ -6,5 +6,5 @@ export function escapeHtml(value: string): string {
 }
 
 export function npcQuote(speaker: string, text: string): string {
-  return `${escapeHtml(speaker)}:\n\n<blockquote>${escapeHtml(text)}</blockquote>`;
+  return `${escapeHtml(speaker)}:\n<blockquote>${escapeHtml(text)}</blockquote>`;
 }

@@ -31,6 +31,8 @@ describe("hero presenter", () => {
   it("shows race, class, stats, and a next step for an existing character", () => {
     const text = presentHero(summary);
 
+    expect(text).toContain("<b>Мандрівник</b>");
+    expect(text).toContain("<i>Людисько · Воїн</i>");
     expect(text).toContain("Людисько");
     expect(text).toContain("Воїн");
     expect(text).toContain("Звертання: Вони");
@@ -39,8 +41,10 @@ describe("hero presenter", () => {
     expect(text).toContain("Пересічний Герой");
     expect(text).toContain("Сили 8");
     expect(text).toContain("Вдача 6");
-    expect(text).toContain("Далі:");
-    expect(text.split("\n").length).toBeLessThanOrEqual(8);
+    expect(text).toContain("<i>Далі:");
+    expect(text).toContain("\n\nЗвертання:");
+    expect(text).toContain("\n\nHP");
+    expect(text.split("\n").length).toBeLessThanOrEqual(11);
   });
 
   it("prompts /start when the character does not exist", () => {
