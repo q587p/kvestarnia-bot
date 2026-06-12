@@ -1,6 +1,6 @@
 # kvestarnia-bot
 
-Квестарня - україномовна текстова Telegram RPG. Репозиторій містить TypeScript/Node.js foundation для Telegram-бота на grammY, Prisma/PostgreSQL baseline, Zod-validated content і перший Phase 1 зріз: ідемпотентний `/start` onboarding з вибором раси та класу.
+Квестарня - україномовна текстова Telegram RPG. Репозиторій містить TypeScript/Node.js foundation для Telegram-бота на grammY, Prisma/SQLite local baseline, Zod-validated content і перший Phase 1 зріз: ідемпотентний `/start` onboarding з вибором раси та класу.
 
 ## Що вже є
 
@@ -20,7 +20,7 @@
 
 - Node.js 20 або новіший.
 - npm.
-- Доступний PostgreSQL для `DATABASE_URL`.
+- SQLite через Prisma `file:./dev.db` у `DATABASE_URL`.
 
 У Windows PowerShell може блокуватися `npm.ps1`; тоді використовуй `npm.cmd`, наприклад `npm.cmd run build`.
 
@@ -48,7 +48,7 @@ BOT_TOKEN=replace-with-real-token
 
 Не коміть `.env` або реальні секрети.
 
-Перед `npm run db:migrate` переконайтесь, що PostgreSQL уже запущений і `DATABASE_URL` у `.env` вказує на доступну базу. Redis зараз не використовується runtime-кодом; `REDIS_URL` лишається placeholder-ом для майбутніх jobs/cache фіч.
+`npm run db:migrate` створить локальний файл `prisma/dev.db`, якщо його ще немає. Redis зараз не використовується runtime-кодом; `REDIS_URL` лишається placeholder-ом для майбутніх jobs/cache фіч.
 
 Для перевірки перед PR використовуйте `npm run check`.
 
@@ -66,7 +66,7 @@ npx prisma generate
 npx prisma validate
 ```
 
-Застосувати першу міграцію до локальної Postgres БД:
+Застосувати першу міграцію до локальної SQLite БД:
 
 ```bash
 npx prisma migrate dev

@@ -53,12 +53,12 @@
 
 - TypeScript + Node.js.
 - Telegram bot framework: `grammY`.
-- PostgreSQL для постійних даних.
+- SQLite для локального MVP; PostgreSQL можна повернути для hosted deployment, коли це стане потрібно.
 - Prisma або Drizzle для схеми та міграцій.
 - Redis + BullMQ для кулдаунів, черг, scheduled jobs, рейдів.
 - Zod для runtime-валидації конфігів і payload-ів.
 - Vitest для unit/integration tests.
-- Локальний або керований PostgreSQL через `DATABASE_URL`.
+- Локальна SQLite БД через `DATABASE_URL=file:./dev.db`.
 
 Якщо в репозиторії вже інший стек, дотримуйся наявного стеку та не мігруй без окремого завдання.
 

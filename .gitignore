@@ -8,5 +8,10 @@ build/
 coverage/
 .eslintcache
 
+prisma/dev.db
+prisma/dev.db-journal
+prisma/dev.db-wal
+prisma/dev.db-shm
+
 .DS_Store
 Thumbs.db

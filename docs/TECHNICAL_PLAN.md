@@ -8,13 +8,13 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 ## Рекомендований стек
 - TypeScript + Node.js.
 - grammY для Telegram Bot API.
-- PostgreSQL для основних даних.
+- SQLite для локального MVP; PostgreSQL лишається можливим hosted target після стабілізації схеми.
 - Prisma або Drizzle для ORM/міграцій.
 - Redis для rate limits, locks, cooldown cache.
 - BullMQ для jobs: рейди, сезони, таймери, retries.
 - Zod для конфігів і content validation.
 - Vitest для тестів.
-- Локальний або керований PostgreSQL через `DATABASE_URL`.
+- Локальна SQLite БД через `DATABASE_URL=file:./dev.db`.
 
 ## Структура репозиторію
 ```text
