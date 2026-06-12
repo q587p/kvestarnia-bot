@@ -1,16 +1,16 @@
 # kvestarnia-bot
 
-Квестарня — україномовна текстова Telegram RPG. Репозиторій зараз містить Phase 0 foundation: TypeScript/Node.js, npm workflow, мінімальний grammY bot entrypoint, Prisma/PostgreSQL foundation, Zod-validated content і базові тести.
+Квестарня - україномовна текстова Telegram RPG. Репозиторій містить TypeScript/Node.js foundation для Telegram-бота на grammY, Prisma/PostgreSQL baseline, Zod-validated content і перший Phase 1 зріз: ідемпотентний `/start` onboarding з вибором раси та класу.
 
 ## Що вже є
 
 - CommonJS TypeScript scaffold у стилі sibling Telegram bot repo.
-- `src/bot.ts` як мінімальний polling entrypoint.
-- `/start` з короткою українською заглушкою без gameplay.
+- `src/bot.ts` як локальний polling entrypoint.
+- `/start` показує коротке вітання Квестарні, пропонує вибір раси й класу через callback-и та не створює дублікати персонажа при повторних натисканнях.
 - Config layer із Zod для `BOT_TOKEN`, `DATABASE_URL`, `REDIS_URL`, `NODE_ENV`.
-- Prisma schema з `User` і мінімальним `Character` для майбутнього onboarding.
+- Prisma schema та перша міграція для `User` і `Character`.
 - Content tables для race/class/monster/item зі stable ids.
-- Vitest tests для content validation, unique ids і fake RNG.
+- Vitest tests для content validation, callback validation, starter stats, onboarding idempotency і shared utilities.
 - Docker Compose для PostgreSQL і Redis.
 
 Повний gameplay loop, combat, inventory, loot, raids, guilds і PvP ще не реалізовані.
@@ -30,6 +30,7 @@ npm install
 cp .env.example .env
 docker compose up -d
 npx prisma generate
+npx prisma migrate dev
 npm run typecheck
 npm test
 npm run build
@@ -42,7 +43,7 @@ npm run dev
 Copy-Item .env.example .env
 ```
 
-`BOT_TOKEN` у `.env` може бути порожнім для foundation-перевірок. У такому режимі `npm run dev` валідовує конфіг і не запускає Telegram polling. Щоб запустити реального бота, додай токен від BotFather:
+`BOT_TOKEN` у `.env` може бути порожнім для локальних перевірок. У такому режимі `npm run dev` валідовує конфіг і не запускає Telegram polling. Щоб запустити реального бота, додай токен від BotFather:
 
 ```env
 BOT_TOKEN=replace-with-real-token
@@ -58,30 +59,36 @@ BOT_TOKEN=replace-with-real-token
 npx prisma generate
 ```
 
-Створити першу локальну міграцію після старту Postgres:
+Перевірити schema:
 
 ```bash
-npx prisma migrate dev --name init
+npx prisma validate
 ```
 
-Міграція не додана в цьому scaffold-коміті навмисно: Phase 0 фіксує мінімальну schema contract, а застосування міграцій залежить від локальної Postgres БД. Наступний DB-крок має додати першу міграцію окремо й перевірити її проти `docker-compose.yml`.
+Застосувати першу міграцію до локальної Postgres БД:
+
+```bash
+npx prisma migrate dev
+```
 
 `User.telegramUserId` зберігається як `BigInt` і мапиться у БД на `telegram_user_id`, як у `docs/TECHNICAL_PLAN.md`. На межі Telegram/DB треба конвертувати `ctx.from.id` у `BigInt`; доменний код не має знати про Telegram payload.
 
 ## Scripts
 
-- `npm run dev` — локальний bot polling через `ts-node-dev`.
-- `npm run build` — `prisma generate && tsc`.
-- `npm start` — запуск `dist/bot.js`.
-- `npm test` — Vitest suite без Telegram network calls.
-- `npm run typecheck` — strict TypeScript.
-- `npm run lint` — ESLint для `src` і `tests`.
+- `npm run dev` - локальний bot polling через `ts-node-dev`.
+- `npm run build` - `prisma generate && tsc`.
+- `npm start` - запуск `dist/bot.js`.
+- `npm test` - Vitest suite без Telegram network calls.
+- `npm run typecheck` - strict TypeScript.
+- `npm run lint` - ESLint для `src` і `tests`.
 
 ## Структура
 
 ```text
 src/
   bot.ts
+  bot/callbacks/
+  bot/keyboards/
   bot/presenters/
   config/
   content/
@@ -111,4 +118,4 @@ Domain-код не має імпортувати Telegram/grammY. Bot layer ма
 
 ## Наступний крок
 
-Phase 1 варто починати з `/start` onboarding: вибір раси й класу через callback-и, idempotent character creation, перша Prisma migration і тести без Telegram network calls.
+Наступний малий Phase 1 PR варто присвятити `/profile`: показати створеного персонажа з race/class, level, XP, gold, HP і mana без запуску combat/adventure loop.
