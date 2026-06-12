@@ -12,6 +12,7 @@ import { readAppVersion } from "./shared/appVersion";
 import { AdventureService } from "./services/adventureService";
 import { DevResetService } from "./services/devResetService";
 import { DeployNotificationService } from "./services/deployNotificationService";
+import { FightService } from "./services/fightService";
 import { HeroService } from "./services/heroService";
 import { OnboardingService } from "./services/onboardingService";
 import { RestartService } from "./services/restartService";
@@ -23,6 +24,7 @@ const characters = new PrismaCharacterRepository(prisma);
 const dailyActions = new PrismaDailyActionRepository(prisma);
 const services = {
   adventure: new AdventureService(characters, dailyActions),
+  fight: new FightService(characters, dailyActions),
   onboarding: new OnboardingService(users, characters),
   hero: new HeroService(characters),
   devReset: new DevResetService(characters, config.nodeEnv),
