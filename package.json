@@ -10,7 +10,12 @@
     "start": "node dist/bot.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\""
+    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "db:generate": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",

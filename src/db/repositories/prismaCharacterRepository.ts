@@ -18,6 +18,43 @@ export class PrismaCharacterRepository implements CharacterRepository {
     });
   }
 
+  async findByTelegramUserId(telegramUserId: bigint): Promise<CharacterRecord | null> {
+    return this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      }
+    });
+  }
+
+  async deleteByTelegramUserId(telegramUserId: bigint): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await tx.character.findFirst({
+        where: {
+          user: {
+            telegramUserId
+          }
+        },
+        select: {
+          id: true
+        }
+      });
+
+      if (!character) {
+        return false;
+      }
+
+      await tx.character.delete({
+        where: {
+          id: character.id
+        }
+      });
+
+      return true;
+    });
+  }
+
   async createForTelegramUserIfMissing(
     userInput: TelegramUserProfile,
     input: CreateCharacterInput

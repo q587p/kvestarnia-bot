@@ -7,6 +7,8 @@
 - CommonJS TypeScript scaffold у стилі sibling Telegram bot repo.
 - `src/bot.ts` як локальний polling entrypoint.
 - `/start` показує коротке вітання Квестарні, пропонує вибір раси й класу через callback-и та не створює дублікати персонажа при повторних натисканнях.
+- `/hero`, `/profile`, `/me`, `/help` і кнопкове меню показують видимий прогрес без запуску повного gameplay loop.
+- `/dev_reset_me` у локальному режимі скидає тільки вашого героя після підтвердження.
 - Config layer із Zod для `BOT_TOKEN`, `DATABASE_URL`, `REDIS_URL`, `NODE_ENV`.
 - Prisma schema та перша міграція для `User` і `Character`.
 - Content tables для race/class/monster/item зі stable ids.
@@ -29,8 +31,8 @@
 npm install
 cp .env.example .env
 docker compose up -d
-npx prisma generate
-npx prisma migrate dev
+npm run db:generate
+npm run db:migrate
 npm run typecheck
 npm test
 npm run build
@@ -71,6 +73,36 @@ npx prisma validate
 npx prisma migrate dev
 ```
 
+Ті самі дії доступні через npm scripts:
+
+```bash
+npm run db:generate
+npm run db:validate
+npm run db:migrate
+npm run db:studio
+```
+
+## Local Playthrough
+
+```bash
+npm install
+cp .env.example .env
+docker compose up -d
+npm run db:generate
+npm run db:migrate
+npm run dev
+```
+
+Після старту бота:
+
+1. Напишіть `/start` у Telegram.
+2. Оберіть расу й клас кнопками.
+3. Перевірте героя через `/hero`, `/profile` або `/me`.
+4. Натисніть кнопки `👤 Герой`, `🍺 До таверни`, `❔ Допомога`.
+5. Для повторного тесту onboarding у локальному режимі виконайте `/dev_reset_me` і підтвердьте скидання.
+
+`/dev_reset_me` працює тільки коли `NODE_ENV !== "production"` і видаляє лише персонажа поточного Telegram-користувача.
+
 `User.telegramUserId` зберігається як `BigInt` і мапиться у БД на `telegram_user_id`, як у `docs/TECHNICAL_PLAN.md`. На межі Telegram/DB треба конвертувати `ctx.from.id` у `BigInt`; доменний код не має знати про Telegram payload.
 
 ## Scripts
@@ -81,6 +113,11 @@ npx prisma migrate dev
 - `npm test` - Vitest suite без Telegram network calls.
 - `npm run typecheck` - strict TypeScript.
 - `npm run lint` - ESLint для `src` і `tests`.
+- `npm run check` - lint, typecheck, tests і build одним ланцюжком.
+- `npm run db:generate` - Prisma Client.
+- `npm run db:validate` - перевірка Prisma schema.
+- `npm run db:migrate` - локальні міграції Prisma.
+- `npm run db:studio` - Prisma Studio.
 
 ## Структура
 
