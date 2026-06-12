@@ -26,6 +26,16 @@
 
 ## Local Setup
 
+Quick Windows launcher:
+
+```cmd
+run-local-bot.cmd
+```
+
+The launcher creates `.env` from `.env.example` if needed, installs dependencies when `node_modules` is missing, runs Prisma generate/migrate, then starts `npm run dev`.
+
+Manual setup:
+
 ```bash
 npm install
 cp .env.example .env
