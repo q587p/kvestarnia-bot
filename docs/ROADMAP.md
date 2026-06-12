@@ -6,7 +6,7 @@
 Deliverables:
 - Проєкт TypeScript.
 - Lint/typecheck/test/dev scripts.
-- Docker Compose для Postgres/Redis.
+- Локальний PostgreSQL через `DATABASE_URL`.
 - Базова схема БД.
 - Content validation.
 - `AGENTS.md` і docs у репозиторії.

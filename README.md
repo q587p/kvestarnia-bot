@@ -13,7 +13,6 @@
 - Prisma schema та перша міграція для `User` і `Character`.
 - Content tables для race/class/monster/item зі stable ids.
 - Vitest tests для content validation, callback validation, starter stats, onboarding idempotency і shared utilities.
-- Docker Compose для PostgreSQL і Redis.
 
 Повний gameplay loop, combat, inventory, loot, raids, guilds і PvP ще не реалізовані.
 
@@ -21,7 +20,7 @@
 
 - Node.js 20 або новіший.
 - npm.
-- Docker або сумісний Docker Compose для локальних Postgres/Redis.
+- Доступний PostgreSQL для `DATABASE_URL`.
 
 У Windows PowerShell може блокуватися `npm.ps1`; тоді використовуй `npm.cmd`, наприклад `npm.cmd run build`.
 
@@ -30,7 +29,6 @@
 ```bash
 npm install
 cp .env.example .env
-docker compose up -d
 npm run db:generate
 npm run db:migrate
 npm run typecheck
@@ -52,6 +50,8 @@ BOT_TOKEN=replace-with-real-token
 ```
 
 Не коміть `.env` або реальні секрети.
+
+Перед `npm run db:migrate` переконайтесь, що PostgreSQL уже запущений і `DATABASE_URL` у `.env` вказує на доступну базу. Redis зараз не використовується runtime-кодом; `REDIS_URL` лишається placeholder-ом для майбутніх jobs/cache фіч.
 
 ## Prisma
 
@@ -87,7 +87,6 @@ npm run db:studio
 ```bash
 npm install
 cp .env.example .env
-docker compose up -d
 npm run db:generate
 npm run db:migrate
 npm run dev
