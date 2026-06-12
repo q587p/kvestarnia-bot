@@ -15,7 +15,7 @@ export const classes = [
     unavailableReasons: {
       "race.domovyk": "Домовик воює інакше: ховає ложки, скрипить підлогою і морально тисне.",
       "race.dryland-rusalka": "Хвіст уявний, але тактичні незручності реальні.",
-      "race.scholar-cat": "Кіт не танкує. Кіт оцінює меблі з безпечної висоти."
+      "race.molfar-soul": "Мольфарська душа не танкує. Вона ставить оберіг і відходить на безпечну відстань."
     }
   },
   {
@@ -30,7 +30,7 @@ export const classes = [
       "race.kharakternyk",
       "race.dryland-rusalka",
       "race.intellectual-orc",
-      "race.scholar-cat"
+      "race.molfar-soul"
     ],
     unavailableReasons: {
       "race.domovyk": "Магія магією, а пилюку хто витре?"
@@ -47,7 +47,7 @@ export const classes = [
       "race.kharakternyk",
       "race.dryland-rusalka",
       "race.intellectual-orc",
-      "race.scholar-cat"
+      "race.molfar-soul"
     ],
     unavailableReasons: {
       "race.dwarf": "Гноми співають тільки коли рахують каміння. Публіка не витримала.",
@@ -59,7 +59,7 @@ export const classes = [
     name: "Злодій",
     description: "Зникає швидше, ніж рахунок після походу в таверну.",
     primaryStat: "dexterity",
-    allowedRaces: ["race.human-ish", "race.dwarf", "race.elf", "race.domovyk", "race.scholar-cat"],
+    allowedRaces: ["race.human-ish", "race.dwarf", "race.elf", "race.domovyk", "race.molfar-soul"],
     unavailableReasons: {
       "race.kharakternyk": "Він не краде. Він тактично переміщує здобич у правильний бік.",
       "race.dryland-rusalka": "Занадто драматично заходить у кімнату, щоб красти непомітно.",
@@ -78,7 +78,7 @@ export const classes = [
       "race.domovyk",
       "race.dryland-rusalka",
       "race.intellectual-orc",
-      "race.scholar-cat"
+      "race.molfar-soul"
     ],
     unavailableReasons: {
       "race.dwarf": "Гноми не люблять стояти навколішки, якщо поруч немає корисних копалин."
@@ -96,7 +96,7 @@ export const classes = [
       "race.kharakternyk": "Гетьман Начинки ще чекає окремого дозволу від кухні.",
       "race.domovyk": "Домовик сховав качалку й відмовляється свідчити.",
       "race.intellectual-orc": "Орк-інтелігент застряг на рецензії до начинки.",
-      "race.scholar-cat": "Навчальні матеріали були з’їдені на першому занятті."
+      "race.molfar-soul": "Обереги заплутались у тісті й тепер вимагають окремої миски."
     }
   },
   {
@@ -109,7 +109,7 @@ export const classes = [
       "race.dwarf",
       "race.domovyk",
       "race.intellectual-orc",
-      "race.scholar-cat"
+      "race.molfar-soul"
     ],
     unavailableReasons: {
       "race.elf": "Ельфійське терпіння довге, але не настільки.",
@@ -126,7 +126,7 @@ export const classes = [
     unavailableReasons: {
       "race.dryland-rusalka": "Сухопутна русалка знаходить сліди тільки якщо ті ведуть до калюжі.",
       "race.intellectual-orc": "Сліди він читає, але потім пише на них рецензію.",
-      "race.scholar-cat": "Кіт може знайти кого завгодно, але тільки якщо сам так вирішив."
+      "race.molfar-soul": "Може знайти кого завгодно, але спершу питає вітер, чи він не проти."
     }
   }
 ] satisfies ClassContent[];

@@ -27,8 +27,8 @@ const comboTitles = new Map<string, string>([
     comboKey("race.intellectual-orc", "class.bureaucramancer"),
     "Завідувач Ударної Канцелярії"
   ],
-  [comboKey("race.scholar-cat", "class.mage"), "Кандидат Муркотичних Наук"],
-  [comboKey("race.scholar-cat", "class.bureaucramancer"), "Професор Лапкографії"]
+  [comboKey("race.molfar-soul", "class.mage"), "Збирач Туману"],
+  [comboKey("race.molfar-soul", "class.bureaucramancer"), "Писар Оберегових Справ"]
 ]);
 
 export function isPronoun(value: string | undefined): value is Pronoun {

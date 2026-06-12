@@ -65,27 +65,27 @@ describe("onboarding callback data", () => {
     });
     expect(
       parseOnboardingCallbackData(
-        makeUnavailableClassCallbackData("they", "race.scholar-cat", "class.varenyk-mancer")
+        makeUnavailableClassCallbackData("they", "race.molfar-soul", "class.varenyk-mancer")
       )
     ).toMatchObject({
       ok: true,
       value: {
         type: "unavailable-class",
         pronoun: "they",
-        raceId: "race.scholar-cat",
+        raceId: "race.molfar-soul",
         classId: "class.varenyk-mancer"
       }
     });
     expect(
       parseOnboardingCallbackData(
-        makeConfirmCallbackData("they", "race.scholar-cat", "class.bureaucramancer")
+        makeConfirmCallbackData("they", "race.molfar-soul", "class.bureaucramancer")
       )
     ).toMatchObject({
       ok: true,
       value: {
         type: "confirm",
         pronoun: "they",
-        raceId: "race.scholar-cat",
+        raceId: "race.molfar-soul",
         classId: "class.bureaucramancer"
       }
     });

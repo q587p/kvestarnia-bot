@@ -46,7 +46,7 @@ describe("onboarding presenters and keyboards", () => {
   });
 
   it("builds class buttons with unavailable options and valid callback data", () => {
-    const buttons = buildClassKeyboard("they", "race.scholar-cat").inline_keyboard.flat();
+    const buttons = buildClassKeyboard("they", "race.molfar-soul").inline_keyboard.flat();
 
     expect(buttons).toHaveLength(classes.length + 1);
     expectAllButtonsValid(buttons);
@@ -56,7 +56,7 @@ describe("onboarding presenters and keyboards", () => {
   it("builds confirmation buttons with valid callback data", () => {
     const buttons = buildConfirmationKeyboard(
       "they",
-      "race.scholar-cat",
+      "race.molfar-soul",
       "class.bureaucramancer"
     ).inline_keyboard.flat();
 
@@ -70,12 +70,12 @@ describe("onboarding presenters and keyboards", () => {
   });
 
   it("presents a confirmation summary", () => {
-    const text = presentClassSelected("they", "race.scholar-cat", "class.bureaucramancer");
+    const text = presentClassSelected("they", "race.molfar-soul", "class.bureaucramancer");
 
     expect(text).toContain("Стать: Вони");
-    expect(text).toContain("Кіт учений");
+    expect(text).toContain("Мольфарська душа");
     expect(text).toContain("Бюрокромант");
-    expect(text).toContain("Професор Лапкографії");
+    expect(text).toContain("Писар Оберегових Справ");
   });
 
   it("keeps existing hero summary compact", () => {

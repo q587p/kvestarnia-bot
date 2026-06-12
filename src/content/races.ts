@@ -102,9 +102,9 @@ export const races = [
     allowedPronouns: ["he", "she", "they"]
   },
   {
-    id: "race.scholar-cat",
-    name: "Кіт учений",
-    description: "Мудрий, везучий і слухає команди тільки коли це збігається з планом.",
+    id: "race.molfar-soul",
+    name: "Мольфарська душа",
+    description: "Носить у кишені оберіг, у голові туман, а в кишені ще один оберіг.",
     statBonus: {
       strength: 0,
       dexterity: 0,

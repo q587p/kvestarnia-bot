@@ -77,18 +77,18 @@ describe("OnboardingService", () => {
       new FakeCharacterRepository(new FakeUserRepository())
     );
 
-    expect(service.selectRace("they", "race.scholar-cat")).toEqual({
+    expect(service.selectRace("they", "race.molfar-soul")).toEqual({
       ok: true,
       value: {
         pronoun: "they",
-        raceId: "race.scholar-cat"
+        raceId: "race.molfar-soul"
       }
     });
-    expect(service.selectClass("they", "race.scholar-cat", "class.bureaucramancer")).toEqual({
+    expect(service.selectClass("they", "race.molfar-soul", "class.bureaucramancer")).toEqual({
       ok: true,
       value: {
         pronoun: "they",
-        raceId: "race.scholar-cat",
+        raceId: "race.molfar-soul",
         classId: "class.bureaucramancer"
       }
     });
@@ -96,13 +96,13 @@ describe("OnboardingService", () => {
     const created = await service.complete(
       player,
       "they",
-      "race.scholar-cat",
+      "race.molfar-soul",
       "class.bureaucramancer"
     );
 
     expect(created.ok).toBe(true);
     if (created.ok) {
-      expect(created.value.character.title).toBe("Професор Лапкографії");
+      expect(created.value.character.title).toBe("Писар Оберегових Справ");
     }
   });
 
@@ -147,19 +147,19 @@ describe("OnboardingService", () => {
 
     const unavailableClass = service.selectClass(
       "they",
-      "race.scholar-cat",
+      "race.molfar-soul",
       "class.varenyk-mancer"
     );
     expect(unavailableClass.ok).toBe(false);
     if (!unavailableClass.ok) {
       expect(unavailableClass.error.type).toBe("unavailable-class");
-      expect(unavailableClass.error.reason).toContain("з’їдені");
+      expect(unavailableClass.error.reason).toContain("Обереги");
     }
 
     const bypass = await service.complete(
       player,
       "they",
-      "race.scholar-cat",
+      "race.molfar-soul",
       "class.varenyk-mancer"
     );
     expect(bypass.ok).toBe(false);
