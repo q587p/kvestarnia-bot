@@ -23,13 +23,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "profile",
     icon: "🪪",
     description: "профіль героя",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "me",
     icon: "🧭",
     description: "коротко про героя",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "tavern",
@@ -41,7 +41,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "raid",
     icon: "🛢️",
     description: "рейд на бочку",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "adventure",
@@ -53,7 +53,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "quest",
     icon: "🗺️",
     description: "вирушити в квест",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "fight",
@@ -65,7 +65,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "hunt",
     icon: "🏹",
     description: "полювання на проблему",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "inventory",
@@ -77,13 +77,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "items",
     icon: "📦",
     description: "перелік манаток",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "bag",
     icon: "👜",
     description: "торба героя",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "guild",
@@ -95,13 +95,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "restart",
     icon: "🔄",
     description: "почати з початку",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "version",
     icon: "🧾",
     description: "версія Квестарні",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "news",
@@ -133,7 +133,7 @@ export function getTelegramMenuCommands(includeDevReset: boolean): Array<{
   description: string;
 }> {
   return getHelpCommandEntries(includeDevReset)
-    .filter((entry) => entry.includeInMenu || includeDevReset)
+    .filter((entry) => entry.includeInMenu)
     .map((entry) => ({
       command: entry.command,
       description: `${entry.icon} ${entry.description}`
