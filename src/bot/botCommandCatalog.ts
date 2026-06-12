@@ -35,7 +35,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "tavern",
     icon: "🍺",
     description: "до таверни",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "raid",
@@ -47,19 +47,19 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "adventure",
     icon: "🌯",
     description: "пригода з шаурмою",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "quest",
     icon: "🗺️",
     description: "вирушити в квест",
-    includeInMenu: false
+    includeInMenu: true
   },
   {
     command: "fight",
     icon: "⚔️",
     description: "сутичка з міміком",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "hunt",

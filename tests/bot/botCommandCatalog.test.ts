@@ -18,9 +18,7 @@ describe("bot command catalog", () => {
     expect(commands.map((entry) => entry.command)).toEqual([
       "start",
       "hero",
-      "tavern",
-      "adventure",
-      "fight",
+      "quest",
       "inventory",
       "guild",
       "news",
@@ -30,11 +28,13 @@ describe("bot command catalog", () => {
       "👤 герой і прогрес"
     );
     expect(commands.find((entry) => entry.command === "help")?.description).toBe("❔ допомога");
-    expect(commands).toHaveLength(9);
+    expect(commands).toHaveLength(7);
     expect(commands.some((entry) => entry.command === "profile")).toBe(false);
     expect(commands.some((entry) => entry.command === "me")).toBe(false);
+    expect(commands.some((entry) => entry.command === "tavern")).toBe(false);
     expect(commands.some((entry) => entry.command === "raid")).toBe(false);
-    expect(commands.some((entry) => entry.command === "quest")).toBe(false);
+    expect(commands.some((entry) => entry.command === "adventure")).toBe(false);
+    expect(commands.some((entry) => entry.command === "fight")).toBe(false);
     expect(commands.some((entry) => entry.command === "hunt")).toBe(false);
     expect(commands.some((entry) => entry.command === "items")).toBe(false);
     expect(commands.some((entry) => entry.command === "bag")).toBe(false);
