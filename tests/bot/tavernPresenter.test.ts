@@ -38,6 +38,7 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Таверна Квестарні");
     expect(text).toContain("Бочка Пінного Міражу");
+    expect(text).toContain("> Шинкар: «Це не проблема. Це рейд на 1-3 хвилини».");
     expect(text).toContain("Що робимо?");
     expect(text.length).toBeLessThan(320);
   });
@@ -55,16 +56,42 @@ describe("tavern presenter", () => {
         gold: 5,
         flavor: "квиток мокрого героя",
         localDate: "2026-06-12"
+      },
+      levelChange: {
+        oldLevel: 1,
+        newLevel: 1,
+        leveledUp: false
       }
     };
     const repeated = {
       ...completed,
-      state: "already-completed" as const
+      state: "already-completed" as const,
+      levelChange: null
     };
 
     expect(presentTavernRaidResult(completed)).toContain("+7 XP · +5 золота");
     expect(presentTavernRaidResult(completed)).toContain("квиток мокрого героя");
     expect(presentTavernRaidResult(repeated)).toContain("уже зараховано");
     expect(presentTavernRaidResult(completed).toLowerCase()).not.toContain("пий");
+  });
+
+  it("shows level-up only when tavern reward increases level", () => {
+    const completed: Exclude<TavernRaidResult, { state: "no-character" }> = {
+      state: "completed",
+      character,
+      reward: {
+        xp: 7,
+        gold: 5,
+        flavor: "квиток мокрого героя",
+        localDate: "2026-06-12"
+      },
+      levelChange: {
+        oldLevel: 1,
+        newLevel: 2,
+        leveledUp: true
+      }
+    };
+
+    expect(presentTavernRaidResult(completed)).toContain("Рівень підріс: 1 → 2");
   });
 });

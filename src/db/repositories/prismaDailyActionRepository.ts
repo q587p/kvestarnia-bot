@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import type {
   ClaimDailyActionInput,
   ClaimDailyActionResult,
@@ -42,7 +43,8 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           return {
             state: "existing",
             action: existing,
-            character
+            character,
+            levelChange: null
           };
         }
 
@@ -56,7 +58,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           }
         });
 
-        const updatedCharacter = await tx.character.update({
+        const rewardedCharacter = await tx.character.update({
           where: {
             id: character.id
           },
@@ -69,11 +71,29 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             }
           }
         });
+        const rewardProgress = applyXpReward(character.xp, input.rewardXp);
+        const newLevel = getLevelForXp(rewardedCharacter.xp);
+        const updatedCharacter =
+          newLevel === rewardedCharacter.level
+            ? rewardedCharacter
+            : await tx.character.update({
+                where: {
+                  id: rewardedCharacter.id
+                },
+                data: {
+                  level: newLevel
+                }
+              });
 
         return {
           state: "created",
           action,
-          character: updatedCharacter
+          character: updatedCharacter,
+          levelChange: {
+            oldLevel: rewardProgress.oldLevel,
+            newLevel,
+            leveledUp: newLevel > rewardProgress.oldLevel
+          }
         };
       });
     } catch (error) {
@@ -118,7 +138,8 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     return {
       state: "existing",
       action,
-      character
+      character,
+      levelChange: null
     };
   }
 }

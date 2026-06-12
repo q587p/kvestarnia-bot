@@ -3,8 +3,7 @@ import { loadConfig } from "../../src/config/env";
 
 const validEnv = {
   NODE_ENV: "test",
-  DATABASE_URL: "file:./dev.db",
-  REDIS_URL: "redis://localhost:6379"
+  DATABASE_URL: "file:./dev.db"
 };
 
 describe("loadConfig", () => {
@@ -52,12 +51,38 @@ describe("loadConfig", () => {
     ).toThrow();
   });
 
-  it("rejects an invalid REDIS_URL", () => {
-    expect(() =>
-      loadConfig({
-        ...validEnv,
-        REDIS_URL: "not-a-url"
-      })
-    ).toThrow();
+  it("does not require REDIS_URL for the current SQLite setup", () => {
+    const config = loadConfig({
+      ...validEnv,
+      REDIS_URL: undefined
+    });
+
+    expect(config.databaseUrl).toBe("file:./dev.db");
+  });
+
+  it("accepts the Render SQLite setup without REDIS_URL", () => {
+    const config = loadConfig({
+      BOT_TOKEN: "replace-with-real-token",
+      DATABASE_URL: "file:/var/data/kvestarnia.db",
+      NODE_ENV: "production"
+    });
+
+    expect(config.databaseUrl).toBe("file:/var/data/kvestarnia.db");
+    expect(config.nodeEnv).toBe("production");
+  });
+
+  it("keeps deploy notifications disabled by default", () => {
+    const config = loadConfig(validEnv);
+
+    expect(config.deployNotificationsEnabled).toBe(false);
+  });
+
+  it("can enable deploy notifications explicitly", () => {
+    const config = loadConfig({
+      ...validEnv,
+      DEPLOY_NOTIFICATIONS_ENABLED: "true"
+    });
+
+    expect(config.deployNotificationsEnabled).toBe(true);
   });
 });

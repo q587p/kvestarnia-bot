@@ -1,22 +1,32 @@
 import { Bot, type Context } from "grammy";
+import type { AdventureService } from "../services/adventureService";
 import type { DevResetService } from "../services/devResetService";
 import type { HeroService } from "../services/heroService";
 import type { OnboardingService } from "../services/onboardingService";
+import type { RestartService } from "../services/restartService";
 import type { TavernRaidService } from "../services/tavernRaidService";
+import { parseAdventureCallbackData } from "./callbacks/adventureCallbackData";
 import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
+import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
 import {
   parseOnboardingCallbackData,
   type OnboardingCallback
 } from "./callbacks/onboardingCallbackData";
+import { parseRestartCallbackData } from "./callbacks/restartCallbackData";
 import { parseTavernCallbackData } from "./callbacks/tavernCallbackData";
+import { registerAdventureCommand } from "./commands/adventureCommand";
 import { registerDevResetCommand } from "./commands/devResetCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
 import { registerHeroCommand, sendHero } from "./commands/heroCommand";
+import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
 import { registerPlannedCommands } from "./commands/plannedCommand";
+import { registerRestartCommand } from "./commands/restartCommand";
 import { registerStartCommand } from "./commands/startCommand";
 import { registerTavernCommand, sendTavern } from "./commands/tavernCommand";
+import { registerVersionCommand } from "./commands/versionCommand";
 import { playerFromContext } from "./context";
+import { buildAdventureKeyboard } from "./keyboards/adventureKeyboard";
 import {
   buildClassKeyboard,
   buildConfirmationKeyboard,
@@ -25,6 +35,7 @@ import {
 } from "./keyboards/onboardingKeyboard";
 import { buildMainMenuKeyboard } from "./keyboards/mainMenuKeyboard";
 import { buildTavernKeyboard } from "./keyboards/tavernKeyboard";
+import { presentAdventureNoCharacter, presentAdventureResult } from "./presenters/adventurePresenter";
 import {
   presentDevResetCancelled,
   presentDevResetDeleted,
@@ -41,13 +52,20 @@ import {
   presentUnavailableChoice,
   presentWelcome
 } from "./presenters/onboardingPresenter";
+import {
+  presentRestartCancelled,
+  presentRestartDeleted,
+  presentRestartNoCharacter
+} from "./presenters/restartPresenter";
 import { presentTavernNoCharacter, presentTavernRaidResult } from "./presenters/tavernPresenter";
 import { safeEditMessageText } from "./safeEditMessageText";
 
 export interface BotServices {
+  adventure: AdventureService;
   onboarding: OnboardingService;
   hero: HeroService;
   devReset: DevResetService;
+  restart: RestartService;
   tavern: TavernRaidService;
 }
 
@@ -58,10 +76,14 @@ export function createBot(token: string, services: BotServices): Bot {
     console.error("Квестарня: помилка в Telegram middleware.", error.error);
   });
 
+  registerAdventureCommand(bot, services.adventure);
   registerStartCommand(bot, services.onboarding);
   registerHeroCommand(bot, services.hero);
   registerHelpCommand(bot, services.devReset);
+  registerNewsCommand(bot);
+  registerVersionCommand(bot);
   registerDevResetCommand(bot, services.devReset);
+  registerRestartCommand(bot);
   registerTavernCommand(bot, services.tavern);
   registerPlannedCommands(bot);
 
@@ -87,6 +109,24 @@ export function createBot(token: string, services: BotServices): Bot {
     await handleMenuCallback(ctx, parsed.value, services);
   });
 
+  bot.callbackQuery(/^v1:news:/, async (ctx) => {
+    const parsed = parseNewsCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await ctx.answerCallbackQuery();
+
+    if (parsed.value.type === "list") {
+      await sendNewsList(ctx, parsed.value.page);
+      return;
+    }
+
+    await sendNewsEntry(ctx, parsed.value.entryIndex, parsed.value.listPage);
+  });
+
   bot.callbackQuery(/^v1:tavern:/, async (ctx) => {
     const parsed = parseTavernCallbackData(ctx.callbackQuery.data);
 
@@ -98,6 +138,17 @@ export function createBot(token: string, services: BotServices): Bot {
     await handleTavernCallback(ctx, services.tavern);
   });
 
+  bot.callbackQuery(/^v1:adv:/, async (ctx) => {
+    const parsed = parseAdventureCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleAdventureCallback(ctx, parsed.value, services.adventure);
+  });
+
   bot.callbackQuery(/^v1:devreset:/, async (ctx) => {
     const parsed = parseDevResetCallbackData(ctx.callbackQuery.data);
 
@@ -107,6 +158,17 @@ export function createBot(token: string, services: BotServices): Bot {
     }
 
     await handleDevResetCallback(ctx, parsed.value, services.devReset);
+  });
+
+  bot.callbackQuery(/^v1:restart:/, async (ctx) => {
+    const parsed = parseRestartCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleRestartCallback(ctx, parsed.value, services.restart);
   });
 
   return bot;
@@ -298,6 +360,32 @@ async function handleTavernCallback(
   });
 }
 
+async function handleAdventureCallback(
+  ctx: Context,
+  action: "poke" | "receipt" | "flee",
+  adventureService: AdventureService
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  const result = await adventureService.completeMimicShawarma(telegramUserId, action);
+
+  if (result.state === "no-character") {
+    await ctx.answerCallbackQuery();
+    await safeEditMessageText(ctx, presentAdventureNoCharacter());
+    return;
+  }
+
+  await ctx.answerCallbackQuery();
+  await safeEditMessageText(ctx, presentAdventureResult(result), {
+    reply_markup: buildAdventureKeyboard()
+  });
+}
+
 async function handleDevResetCallback(
   ctx: Context,
   action: "confirm" | "cancel",
@@ -323,6 +411,32 @@ async function handleDevResetCallback(
       : result.state === "deleted"
         ? presentDevResetDeleted()
         : presentDevResetNoCharacter();
+
+  await ctx.answerCallbackQuery();
+  await safeEditMessageText(ctx, message);
+}
+
+async function handleRestartCallback(
+  ctx: Context,
+  action: "confirm" | "cancel",
+  restartService: RestartService
+): Promise<void> {
+  if (action === "cancel") {
+    await ctx.answerCallbackQuery();
+    await safeEditMessageText(ctx, presentRestartCancelled());
+    return;
+  }
+
+  const player = playerFromContext(ctx.from);
+
+  if (!player) {
+    await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  const result = await restartService.restartCurrentUser(player.telegramUserId);
+  const message =
+    result.state === "deleted" ? presentRestartDeleted() : presentRestartNoCharacter();
 
   await ctx.answerCallbackQuery();
   await safeEditMessageText(ctx, message);

@@ -9,7 +9,7 @@ export function presentHero(summary: CharacterSummary): string {
     `HP ${summary.hpCurrent}/${summary.hpMax} · мана ${summary.manaCurrent}/${summary.manaMax}`,
     `Сили ${summary.stats.strength} · Спритн. ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
-    "Далі: зазирніть у таверну або чекайте пригоди в наступному PR."
+    "Далі: /tavern або /adventure, якщо шаурма дивиться першою."
   ].join("\n");
 }
 

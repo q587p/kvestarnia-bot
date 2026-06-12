@@ -7,7 +7,30 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.0.3] - 2026-06-12 - Friday Tavern Raid
+## [0.0.4] - 12026-06-12 - First Mimic Shawarma Adventure
+
+### Added
+- `/adventure` now opens the first tiny solo scene: `Перевірка підозрілої шаурми`.
+- `/quest` now aliases the current adventure path instead of using a placeholder reply.
+- `/restart` now lets a player delete their current character after confirmation and start over with `/start`.
+- `/version` now reports the running bot version from `package.json`.
+- `/news` now reads the latest release news from `news.md` and exposes an inline archive of older entries.
+- Optional deploy notifications can message known users once per version when `DEPLOY_NOTIFICATIONS_ENABLED=true`.
+- The `Мімік-шаурма` scene has three validated callback actions: poke, ask for a receipt, or flee.
+- Adventure rewards use one shared `adventure.mimic-shawarma` daily action key, so only one reward can be claimed per stored date regardless of selected option.
+- A deterministic level progression helper maps XP to levels 1-5 and reports level-up state for presenters.
+- Tavern rewards now use the same level-up path, so `/hero` can show updated levels after tavern or adventure rewards.
+- Tests cover adventure callbacks, presenter text, service idempotency, progression thresholds, and tavern level-up behavior.
+
+### Changed
+- `/help` now lists `/adventure` and `/quest` as available commands.
+- `/hunt`, `/inventory`, and `/guild` remain friendly placeholders.
+- README and design/technical docs now describe the first adventure slice and simple progression.
+
+### Not Included Yet
+- Turn-based combat, inventory persistence, item loot, equipment, group raids, guilds, PvP, jobs, Redis cooldowns, payments, and Mini App UI.
+
+## [0.0.3] - 12026-06-12 - Friday Tavern Raid
 
 ### Added
 - `/tavern` and `/raid` now open the first tiny playable event: `П’ятничний рейд на Бочку Пінного Міражу`.
