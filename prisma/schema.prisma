@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String      @id @default(uuid())
+  // Telegram user ids are numeric; convert ctx.from.id to BigInt at the DB boundary.
+  telegramUserId BigInt      @unique @map("telegram_user_id")
+  username       String?
+  displayName    String?     @map("display_name")
+  languageCode   String?     @map("language_code")
+  character      Character?
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Character {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  raceId    String   @map("race_id")
+  classId   String   @map("class_id")
+  level     Int      @default(1)
+  xp        Int      @default(0)
+  gold      Int      @default(0)
+  hpCurrent Int      @default(25) @map("hp_current")
+  hpMax     Int      @default(25) @map("hp_max")
+  manaCurrent Int    @default(10) @map("mana_current")
+  manaMax   Int      @default(10) @map("mana_max")
+  statsJson Json     @map("stats_json")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([raceId])
+  @@index([classId])
+  @@map("characters")
+}
