@@ -11,6 +11,7 @@ const character: CharacterSummary = {
   name: "Мандрівник",
   pronoun: "they",
   pronounLabel: "Вони",
+  path: "boundary",
   raceId: "race.human-ish",
   raceName: "Людисько",
   classId: "class.warrior",

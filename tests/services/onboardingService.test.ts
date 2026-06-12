@@ -33,6 +33,7 @@ describe("OnboardingService", () => {
       expect(result.value.created).toBe(true);
       expect(result.value.character.pronoun).toBe("he");
       expect(result.value.character.pronounLabel).toBe("Він");
+      expect(result.value.character.path).toBe("sun");
       expect(result.value.character.raceId).toBe("race.human-ish");
       expect(result.value.character.classId).toBe("class.warrior");
       expect(result.value.character.name).toBe("Тестовий Герой із надто довгим і");
@@ -68,6 +69,7 @@ describe("OnboardingService", () => {
     if (start.state === "existing-character") {
       expect(start.character.raceName).toBe("Гном");
       expect(start.character.className).toBe("Бюрокромант");
+      expect(start.character.path).toBe("moon");
     }
   });
 
@@ -103,6 +105,7 @@ describe("OnboardingService", () => {
     expect(created.ok).toBe(true);
     if (created.ok) {
       expect(created.value.character.title).toBe("Писар Оберегових Справ");
+      expect(created.value.character.path).toBe("boundary");
     }
   });
 

@@ -9,6 +9,7 @@ import {
 import { races } from "../content/races";
 import type { Pronoun } from "../content/schema";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
+import { getPathForPronoun } from "../domain/characters/path";
 import { buildStarterStats } from "../domain/characters/starterStats";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type { TelegramUserProfile, UserRepository } from "../db/repositories/userRepository";
@@ -118,6 +119,7 @@ export class OnboardingService {
     const result = await this.characters.createForTelegramUserIfMissing(player, {
       name: normalizeCharacterName(player.displayName),
       pronoun: selection.value.pronoun,
+      path: getPathForPronoun(selection.value.pronoun),
       raceId,
       classId,
       level: 1,

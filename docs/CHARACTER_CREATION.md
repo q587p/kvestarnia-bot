@@ -13,6 +13,20 @@ Kvestarnia character creation is intentionally lightweight: it collects just eno
 
 Existing characters skip onboarding and go straight to the hero summary.
 
+## Hidden Paths
+
+The visible pronoun options also establish an internal worldbuilding path:
+
+| Visible option | Internal path |
+| --- | --- |
+| `Він` | `sun` |
+| `Вона` | `moon` |
+| `Вони` | `boundary` |
+
+These path ids are stored on `Character.path` for future race/class restrictions, quests, dreams, achievements, NPC reactions, and seasonal events.
+
+Do not show path names during character creation yet. When paths eventually gate content, explain restrictions in-world rather than as biological categories. For example: «Межа не любить простих відповідей.»
+
 ## Content Rules
 
 Race and class availability is content-driven:
@@ -27,6 +41,12 @@ The bot should keep the denial text short, Ukrainian, and in Kvestarnia’s tave
 ## Persistence
 
 Characters persist the selected pronoun as `Character.pronoun`. Existing local records receive the safe default `they` through the Prisma migration.
+
+Characters also persist the hidden `Character.path`. New characters derive it from the selected pronoun, and older records are backfilled by migration:
+
+- `he` → `sun`
+- `she` → `moon`
+- `they` → `boundary`
 
 Combo titles are content-derived from race/class pairs and can be expanded without changing the database.
 

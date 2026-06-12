@@ -7,12 +7,14 @@ import {
   type LevelBonus
 } from "../progression/effectiveStats";
 import { getNextLevelThreshold } from "../progression/level";
+import { getCharacterPath, type CharacterPath } from "./path";
 import type { CharacterStats } from "./starterStats";
 
 export interface CharacterSummary {
   name: string;
   pronoun: Pronoun;
   pronounLabel: string;
+  path: CharacterPath;
   raceId: string;
   raceName: string;
   classId: string;
@@ -34,6 +36,7 @@ export interface CharacterSummary {
 export interface CharacterSummaryInput {
   name: string;
   pronoun?: string;
+  path?: string;
   raceId: string;
   classId: string;
   level: number;
@@ -67,6 +70,7 @@ export function summarizeCharacter(input: CharacterSummaryInput): CharacterSumma
     name: input.name,
     pronoun,
     pronounLabel: getPronounLabel(pronoun),
+    path: getCharacterPath({ path: input.path, pronoun }),
     raceId: input.raceId,
     raceName: race?.name ?? input.raceId,
     classId: input.classId,

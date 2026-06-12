@@ -19,12 +19,24 @@
 - `gold`
 - `race`
 - `class`
+- hidden `path`: `sun`, `moon`, or `boundary`
 - `hp_current`, `hp_max`
 - `mana_current`, `mana_max`
 - `stats`: сила, спритність, розум, харизма, вдача
 - `equipment`: weapon, head, chest, legs, accessory
 - `inventory`
 - `cooldowns`
+
+### Hidden paths
+The visible onboarding choices remain `Він`, `Вона`, and `Вони`, but internally they map to worldbuilding paths:
+
+- `Він` → `sun` / Шлях Сонця.
+- `Вона` → `moon` / Шлях Місяця.
+- `Вони` → `boundary` / Шлях Межі.
+
+Players do not see these path names during character creation. Paths do not grant stat bonuses yet; they are metadata for future race/class restrictions, dreams, quests, achievements, NPC reactions, and seasonal events.
+
+Future path restrictions should sound like in-world folklore or institutions, not biology. Good examples: «Старі берегині визнають лише дочок своєї традиції.» or «Межа не любить простих відповідей.»
 
 ## Раси MVP
 Не треба одразу 40 рас. Почати з 6–8, кожна має механіку й гумор.

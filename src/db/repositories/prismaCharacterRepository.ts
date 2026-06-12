@@ -95,6 +95,7 @@ export class PrismaCharacterRepository implements CharacterRepository {
           userId: user.id,
           name: input.name,
           pronoun: input.pronoun,
+          path: input.path,
           raceId: input.raceId,
           classId: input.classId,
           level: input.level,

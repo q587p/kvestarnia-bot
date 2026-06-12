@@ -29,6 +29,7 @@ model Character {
   items     CharacterItem[]
   name      String
   pronoun   String   @default("they")
+  path      String   @default("boundary")
   raceId    String   @map("race_id")
   classId   String   @map("class_id")
   level     Int      @default(1)
