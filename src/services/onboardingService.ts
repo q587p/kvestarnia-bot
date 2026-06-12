@@ -6,7 +6,7 @@ import {
   isPronoun,
   isRaceAvailableForPronoun
 } from "../content/characterOptions";
-import { races } from "../content/races";
+import { activeRaces } from "../content/races";
 import type { Pronoun } from "../content/schema";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { getPathForPronoun } from "../domain/characters/path";
@@ -60,7 +60,7 @@ export class OnboardingService {
       return err({ type: "invalid-pronoun" });
     }
 
-    if (!races.some((race) => race.id === raceId)) {
+    if (!activeRaces.some((race) => race.id === raceId)) {
       return err({ type: "invalid-race" });
     }
 

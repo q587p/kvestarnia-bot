@@ -1,5 +1,5 @@
 import { classes } from "./classes";
-import { races } from "./races";
+import { activeRaces, races } from "./races";
 import type { ClassContent, Pronoun, RaceContent } from "./schema";
 
 export const pronounOptions = [
@@ -14,20 +14,24 @@ const GENERIC_CLASS_UNAVAILABLE_REASON =
 
 const comboTitles = new Map<string, string>([
   [comboKey("race.human-ish", "class.warrior"), "Пересічний Герой"],
+  [comboKey("race.human-ish", "class.kharakternyk"), "Степовий Пояснювач"],
   [comboKey("race.human-ish", "class.bureaucramancer"), "Молодший Паперорухач"],
   [comboKey("race.dwarf", "class.bureaucramancer"), "Печатник Глибин"],
   [comboKey("race.elf", "class.bard"), "Лютневий Довгожитель"],
-  [comboKey("race.kharakternyk", "class.mage"), "Підозрілий Дивоносій"],
+  [comboKey("race.bisyny", "class.kharakternyk"), "Бісова Оселедцева Теорія"],
+  [comboKey("race.drantohor", "class.kharakternyk"), "Межовий Заблуканець"],
   [comboKey("race.domovyk", "class.rogue"), "Завідувач Чужої Полиці"],
   [comboKey("race.domovyk", "class.bureaucramancer"), "Архівний Дух"],
   [comboKey("race.dryland-rusalka", "class.bard"), "Співачка Без Моря"],
   [comboKey("race.dryland-rusalka", "class.varenyk-mancer"), "Сирена Сметани"],
   [comboKey("race.intellectual-orc", "class.warrior"), "Критик Прикладного Биття"],
+  [comboKey("race.intellectual-orc", "class.kharakternyk"), "Доцент Прикладного Туману"],
   [
     comboKey("race.intellectual-orc", "class.bureaucramancer"),
     "Завідувач Ударної Канцелярії"
   ],
   [comboKey("race.molfar-soul", "class.mage"), "Збирач Туману"],
+  [comboKey("race.molfar-soul", "class.kharakternyk"), "Кум Туману"],
   [comboKey("race.molfar-soul", "class.bureaucramancer"), "Писар Оберегових Справ"]
 ]);
 
@@ -60,7 +64,7 @@ export function raceKeyToId(key: string | undefined): string | undefined {
     return undefined;
   }
 
-  return findRace(`race.${key}`)?.id;
+  return activeRaces.find((race) => race.id === `race.${key}`)?.id;
 }
 
 export function classKeyToId(key: string | undefined): string | undefined {
@@ -78,7 +82,10 @@ export function isRaceAvailableForPronoun(pronoun: Pronoun, raceId: string): boo
     return false;
   }
 
-  return !race.allowedPronouns || race.allowedPronouns.includes(pronoun);
+  return (
+    race.availableInOnboarding !== false &&
+    (!race.allowedPronouns || race.allowedPronouns.includes(pronoun))
+  );
 }
 
 export function isClassAvailableForChoice(

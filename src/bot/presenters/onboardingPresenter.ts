@@ -59,6 +59,7 @@ export function presentClassSelected(pronoun: Pronoun, raceId: string, classId: 
     `Звертання: <b>${escapeHtml(getPronounLabel(pronoun))}</b>`,
     `Раса: <b>${escapeHtml(race.name)}</b>`,
     `Клас: <b>${escapeHtml(characterClass.name)}</b>`,
+    escapeHtml(characterClass.description),
     `Титул: <i>${escapeHtml(getComboTitle(raceId, classId))}</i>`,
     "",
     "Почати?"

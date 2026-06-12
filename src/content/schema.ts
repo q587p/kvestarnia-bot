@@ -20,6 +20,7 @@ export const raceSchema = z.object({
   allowedPronouns: z.array(pronounSchema).optional(),
   allowedClasses: z.array(contentIdSchema).optional(),
   blockedClasses: z.array(contentIdSchema).optional(),
+  availableInOnboarding: z.boolean().optional(),
   unavailableReasons: z.record(z.string().min(1), z.string().min(1)).optional()
 });
 

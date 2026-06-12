@@ -7,7 +7,7 @@ import {
   parseOnboardingCallbackData,
   TELEGRAM_CALLBACK_DATA_LIMIT
 } from "../../src/bot/callbacks/onboardingCallbackData";
-import { classes, items, monsters, races } from "../../src/content";
+import { activeRaces, classes, items, monsters, races } from "../../src/content";
 import { pronounOptions } from "../../src/content/characterOptions";
 import { classSchema, itemSchema, monsterSchema, raceSchema } from "../../src/content/schema";
 
@@ -40,6 +40,16 @@ describe("content tables", () => {
     );
   });
 
+  it("keeps legacy kharakternyk race out of active onboarding races", () => {
+    expect(activeRaces.map((race) => race.id)).toEqual(
+      expect.arrayContaining(["race.bisyny", "race.drantohor"])
+    );
+    expect(activeRaces.some((race) => race.id === "race.kharakternyk")).toBe(false);
+    expect(classes.some((characterClass) => characterClass.id === "class.kharakternyk")).toBe(
+      true
+    );
+  });
+
   it("keeps onboarding gender callbacks valid and within Telegram limits", () => {
     for (const pronoun of pronounOptions) {
       const callbackData = makeGenderCallbackData(pronoun.id);
@@ -52,7 +62,7 @@ describe("content tables", () => {
   });
 
   it("keeps onboarding race callbacks valid and within Telegram limits", () => {
-    for (const race of races) {
+    for (const race of activeRaces) {
       const callbackData = makeRaceCallbackData("they", race.id);
 
       expect(Buffer.byteLength(callbackData, "utf8")).toBeLessThanOrEqual(
@@ -63,7 +73,7 @@ describe("content tables", () => {
   });
 
   it("keeps onboarding class callbacks valid and within Telegram limits", () => {
-    for (const race of races) {
+    for (const race of activeRaces) {
       for (const characterClass of classes) {
         const callbackData = makeClassCallbackData("they", race.id, characterClass.id);
 
@@ -76,7 +86,7 @@ describe("content tables", () => {
   });
 
   it("keeps onboarding confirmation callbacks valid and within Telegram limits", () => {
-    for (const race of races) {
+    for (const race of activeRaces) {
       for (const characterClass of classes) {
         const callbackData = makeConfirmCallbackData("they", race.id, characterClass.id);
 

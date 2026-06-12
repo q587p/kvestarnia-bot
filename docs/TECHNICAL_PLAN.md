@@ -170,7 +170,7 @@ export interface RandomSource {
 У тестах — seeded/fake RNG. У production — crypto або надійний PRNG, залежно від потреб.
 
 ## Hidden character paths
-Character creation stores a hidden `path` derived from the visible pronoun choice:
+Character creation stores a hidden `path` derived from the visible pronoun choice. This is internal tavern/canonic bureaucracy metadata, not a player-facing doctrine:
 
 - `he` → `sun`
 - `she` → `moon`
@@ -178,7 +178,7 @@ Character creation stores a hidden `path` derived from the visible pronoun choic
 
 Use `getCharacterPath()`, `isSunPath()`, `isMoonPath()`, and `isBoundaryPath()` from the domain character helpers for future content gating.
 
-Paths are not player-facing yet and must not add stat modifiers or gameplay bonuses until a future design task explicitly adds them. Future restrictions should use in-world explanations, not biological categories.
+Paths are not player-facing and must not add stat modifiers or gameplay bonuses. Future restrictions should use in-world explanations, not biological categories: tavern notes, weird permits, and short jokes like «Межа підписала пропуск заднім числом».
 
 ## Idempotency
 Кожен callback, що може видати нагороду, повинен мати idempotency key:

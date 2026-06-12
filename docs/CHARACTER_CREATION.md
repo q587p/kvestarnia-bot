@@ -15,7 +15,7 @@ Existing characters skip onboarding and go straight to the hero summary.
 
 ## Hidden Paths
 
-The visible pronoun options also establish an internal worldbuilding path:
+The visible pronoun options also fill one internal tavern-bureaucracy field. Think of it as a канцелярська шухляда персонажа, not a grand cosmic system:
 
 | Visible option | Internal path |
 | --- | --- |
@@ -23,9 +23,9 @@ The visible pronoun options also establish an internal worldbuilding path:
 | `Вона` | `moon` |
 | `Вони` | `boundary` |
 
-These path ids are stored on `Character.path` for future race/class restrictions, quests, dreams, achievements, NPC reactions, and seasonal events.
+These path ids are stored on `Character.path` as internal metadata for future race/class restrictions, quests, dreams, achievements, NPC reactions, and seasonal events.
 
-Do not show path names during character creation yet. When paths eventually gate content, explain restrictions in-world rather than as biological categories. For example: «Межа не любить простих відповідей.»
+Do not show path names during character creation. When paths eventually gate content, explain restrictions in-world rather than as biological categories. Keep it short and tavern-bureaucratic: «Межа підписала пропуск заднім числом», «ця шухляда анкети сьогодні не відкривається».
 
 ## Content Rules
 
@@ -48,7 +48,7 @@ Characters also persist the hidden `Character.path`. New characters derive it fr
 - `she` → `moon`
 - `they` → `boundary`
 
-Combo titles are content-derived from race/class pairs and can be expanded without changing the database.
+Combo titles are content-derived from race/class pairs and can be expanded without changing the database. `race.kharakternyk` remains only as a deprecated compatibility fallback for older local characters; new characters choose `class.kharakternyk`.
 
 ## Not In Scope Yet
 

@@ -9,7 +9,8 @@ export const classes = [
     allowedRaces: [
       "race.human-ish",
       "race.dwarf",
-      "race.kharakternyk",
+      "race.bisyny",
+      "race.drantohor",
       "race.intellectual-orc"
     ],
     unavailableReasons: {
@@ -27,7 +28,8 @@ export const classes = [
       "race.human-ish",
       "race.dwarf",
       "race.elf",
-      "race.kharakternyk",
+      "race.bisyny",
+      "race.drantohor",
       "race.dryland-rusalka",
       "race.intellectual-orc",
       "race.molfar-soul"
@@ -44,13 +46,14 @@ export const classes = [
     allowedRaces: [
       "race.human-ish",
       "race.elf",
-      "race.kharakternyk",
+      "race.bisyny",
       "race.dryland-rusalka",
       "race.intellectual-orc",
       "race.molfar-soul"
     ],
     unavailableReasons: {
       "race.dwarf": "Гноми співають тільки коли рахують каміння. Публіка не витримала.",
+      "race.drantohor": "Дрантогор почав баладу з середини карти. Публіка не знайшла приспів.",
       "race.domovyk": "Домовик не виступає. Домовик бурчить з-за печі."
     }
   },
@@ -59,9 +62,16 @@ export const classes = [
     name: "Злодій",
     description: "Зникає швидше, ніж рахунок після походу в таверну.",
     primaryStat: "dexterity",
-    allowedRaces: ["race.human-ish", "race.dwarf", "race.elf", "race.domovyk", "race.molfar-soul"],
+    allowedRaces: [
+      "race.human-ish",
+      "race.dwarf",
+      "race.elf",
+      "race.bisyny",
+      "race.drantohor",
+      "race.domovyk",
+      "race.molfar-soul"
+    ],
     unavailableReasons: {
-      "race.kharakternyk": "Він не краде. Він тактично переміщує здобич у правильний бік.",
       "race.dryland-rusalka": "Занадто драматично заходить у кімнату, щоб красти непомітно.",
       "race.intellectual-orc": "Орк-інтелігент спершу пише етичне обґрунтування крадіжки. Жертва встигає піти."
     }
@@ -74,26 +84,27 @@ export const classes = [
     allowedRaces: [
       "race.human-ish",
       "race.elf",
-      "race.kharakternyk",
+      "race.bisyny",
       "race.domovyk",
       "race.dryland-rusalka",
       "race.intellectual-orc",
       "race.molfar-soul"
     ],
     unavailableReasons: {
-      "race.dwarf": "Гноми не люблять стояти навколішки, якщо поруч немає корисних копалин."
+      "race.dwarf": "Гноми не люблять стояти навколішки, якщо поруч немає корисних копалин.",
+      "race.drantohor": "Дрантогор переплутав храм із прикордонною канцелярією. Формально близько, але ні."
     }
   },
   {
     id: "class.varenyk-mancer",
     name: "Вареник-мант",
-    description: "Керує тістом, долею й легким відчуттям ситості.",
+    description: "Керує тістом, настроєм і легким відчуттям ситості.",
     primaryStat: "intelligence",
-    allowedRaces: ["race.human-ish", "race.dryland-rusalka"],
+    allowedRaces: ["race.human-ish", "race.bisyny", "race.dryland-rusalka"],
     unavailableReasons: {
       "race.dwarf": "Тісто занадто швидко набуває форми бойового молота.",
       "race.elf": "Ельфи кажуть, що це неестетично. Вареники кажуть, що ельфи душні.",
-      "race.kharakternyk": "Гетьман Начинки ще чекає окремого дозволу від кухні.",
+      "race.drantohor": "Дрантогор приніс рецепт з іншого королівства. Тісто подало скаргу.",
       "race.domovyk": "Домовик сховав качалку й відмовляється свідчити.",
       "race.intellectual-orc": "Орк-інтелігент застряг на рецензії до начинки.",
       "race.molfar-soul": "Обереги заплутались у тісті й тепер вимагають окремої миски."
@@ -107,13 +118,14 @@ export const classes = [
     allowedRaces: [
       "race.human-ish",
       "race.dwarf",
+      "race.bisyny",
+      "race.drantohor",
       "race.domovyk",
       "race.intellectual-orc",
       "race.molfar-soul"
     ],
     unavailableReasons: {
       "race.elf": "Ельфійське терпіння довге, але не настільки.",
-      "race.kharakternyk": "Характерник не заповнює форму. Форма сама має здогадатися.",
       "race.dryland-rusalka": "Канцелярія змокла від одного погляду на анкету."
     }
   },
@@ -122,11 +134,37 @@ export const classes = [
     name: "Єгер",
     description: "Знає стежки, пастки й де ховається ваша остання стріла.",
     primaryStat: "dexterity",
-    allowedRaces: ["race.human-ish", "race.dwarf", "race.elf", "race.kharakternyk", "race.domovyk"],
+    allowedRaces: [
+      "race.human-ish",
+      "race.dwarf",
+      "race.elf",
+      "race.bisyny",
+      "race.drantohor",
+      "race.domovyk"
+    ],
     unavailableReasons: {
       "race.dryland-rusalka": "Сухопутна русалка знаходить сліди тільки якщо ті ведуть до калюжі.",
       "race.intellectual-orc": "Сліди він читає, але потім пише на них рецензію.",
       "race.molfar-soul": "Може знайти кого завгодно, але спершу питає вітер, чи він не проти."
+    }
+  },
+  {
+    id: "class.kharakternyk",
+    name: "Козак-характерник",
+    description: "Дивиться на проблему так, що проблема сама шукає собі іншу пригоду.",
+    primaryStat: "luck",
+    allowedRaces: [
+      "race.human-ish",
+      "race.bisyny",
+      "race.drantohor",
+      "race.intellectual-orc",
+      "race.molfar-soul"
+    ],
+    unavailableReasons: {
+      "race.dwarf": "Гном спробував характерництво, але закопав туман у шахті.",
+      "race.elf": "Ельф хотів бути характерником красиво. Туман не витримав очікувань.",
+      "race.domovyk": "Домовик уже характерник у межах однієї хати. На виїзди не погоджується.",
+      "race.dryland-rusalka": "Сухопутна русалка подивилась на степ і попросила хоча б калюжу для драматизму."
     }
   }
 ] satisfies ClassContent[];

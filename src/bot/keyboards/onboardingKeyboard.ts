@@ -5,7 +5,7 @@ import {
   pronounOptions
 } from "../../content/characterOptions";
 import { classes } from "../../content/classes";
-import { races } from "../../content/races";
+import { activeRaces } from "../../content/races";
 import type { Pronoun } from "../../content/schema";
 import {
   makeBackToClassCallbackData,
@@ -32,7 +32,7 @@ export function buildGenderKeyboard(): InlineKeyboard {
 export function buildRaceKeyboard(pronoun: Pronoun): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
-  races.forEach((race, index) => {
+  activeRaces.forEach((race, index) => {
     const available = isRaceAvailableForPronoun(pronoun, race.id);
     keyboard.text(
       available ? race.name : `🚫 ${race.name}`,

@@ -54,13 +54,13 @@ describe("onboarding callback data", () => {
 
   it("parses unavailable, confirm, and back callbacks", () => {
     expect(
-      parseOnboardingCallbackData(makeUnavailableRaceCallbackData("she", "race.kharakternyk"))
+      parseOnboardingCallbackData(makeUnavailableRaceCallbackData("she", "race.drantohor"))
     ).toMatchObject({
       ok: true,
       value: {
         type: "unavailable-race",
         pronoun: "she",
-        raceId: "race.kharakternyk"
+        raceId: "race.drantohor"
       }
     });
     expect(
