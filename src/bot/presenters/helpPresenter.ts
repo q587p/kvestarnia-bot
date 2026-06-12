@@ -2,22 +2,14 @@ export function presentHelp(includeDevReset: boolean): string {
   const lines = [
     "❔ Довідка Квестарні",
     "/start — створити або показати героя",
-    "/hero — герой і прогрес",
-    "/profile — те саме, що /hero",
-    "/me — те саме, що /hero",
-    "/tavern — таверна й малий рейд на бочку",
-    "/raid — те саме, що /tavern, поки без групового рейду",
-    "/adventure — пригода з підозрілою шаурмою",
-    "/quest — те саме, що /adventure",
-    "/fight — перша безпечна сутичка",
-    "/hunt — те саме, що /fight",
-    "/inventory — показати манатки",
-    "/items — те саме, що /inventory",
-    "/bag — те саме, що /inventory",
+    "/hero (/profile, /me) — герой і прогрес",
+    "/tavern (/raid) — таверна й малий рейд",
+    "/adventure (/quest) — пригода з підозрілою шаурмою",
+    "/fight (/hunt) — перша безпечна сутичка",
+    "/inventory (/items, /bag) — манатки",
     "/guild — ґільдії ще пишуть статут",
-    "/restart — видалити поточного героя і почати з початку",
-    "/version — поточна версія Квестарні",
-    "/news — останні новини й архів",
+    "/restart — почати героя з початку",
+    "/version, /news — версія й новини",
     "/help — довідка"
   ];
 
@@ -25,7 +17,7 @@ export function presentHelp(includeDevReset: boolean): string {
     lines.push("/dev_reset_me — скинути свого героя в локальній майстерні");
   }
 
-  lines.push("Повний бій, спорядження й ґільдії ще не працюють: квестодавець бере розгін.");
+  lines.push("Повний бій, спорядження й ґільдії ще готуються.");
 
   return lines.join("\n");
 }
