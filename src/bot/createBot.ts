@@ -426,6 +426,7 @@ async function handleTavernCallback(
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentTavernRaidResult(result), {
+    ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildTavernResultKeyboard(result.state)
   });
 }
@@ -452,6 +453,7 @@ async function handleAdventureCallback(
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentAdventureResult(result), {
+    ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildAdventureResultKeyboard(result.state)
   });
 }
@@ -478,6 +480,7 @@ async function handleFightCallback(
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentFightResult(result), {
+    ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildFightResultKeyboard(result.state)
   });
 }
