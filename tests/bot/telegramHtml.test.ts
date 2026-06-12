@@ -8,7 +8,7 @@ describe("telegram HTML presenter helpers", () => {
 
   it("formats NPC speech as a Telegram blockquote", () => {
     expect(npcQuote("Шинкар", "То не моя.")).toBe(
-      "Шинкар:\n<blockquote>То не моя.</blockquote>"
+      "Шинкар:\n\n<blockquote>То не моя.</blockquote>"
     );
   });
 });

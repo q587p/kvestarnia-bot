@@ -8,6 +8,7 @@ export function presentTavern(character: CharacterSummary): string {
     `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
     "",
     "У кутку героїчно піниться Бочка Пінного Міражу.",
+    "",
     npcQuote("Шинкар", "Це не проблема. Це рейд на 1-3 хвилини."),
     "",
     "Що робимо?"

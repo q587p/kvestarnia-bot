@@ -60,7 +60,7 @@
 - Емоджі допомагають сканувати, а не замінюють текст.
 - Важливі числа видимі.
 - Кнопки мають дієслова.
-- Прямі репліки NPC у Telegram-сценах оформлювати через HTML blockquote на межі bot/presenter: `Шинкар:\n<blockquote>То не моя.</blockquote>` із `parse_mode: "HTML"`. Не покладатися на сирий Markdown-рядок `> ...`, бо Telegram не зробить із нього цитату без parse mode.
+- Прямі репліки NPC у Telegram-сценах оформлювати через HTML blockquote на межі bot/presenter і відділяти порожніми рядками від опису: `Шинкар:\n\n<blockquote>То не моя.</blockquote>` із `parse_mode: "HTML"`. Не покладатися на сирий Markdown-рядок `> ...`, бо Telegram не зробить із нього цитату без parse mode.
 
 ## Гумор
 Добре:

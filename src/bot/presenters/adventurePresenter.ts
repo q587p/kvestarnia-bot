@@ -6,6 +6,7 @@ export function presentAdventureStart(character: CharacterSummary): string {
   return [
     "🌯 Підозріла шаурма",
     "На столі лежить шаурма. Вона дихає.",
+    "",
     npcQuote("Шинкар", "То не моя."),
     "",
     `${escapeHtml(character.name)}, що робимо?`
