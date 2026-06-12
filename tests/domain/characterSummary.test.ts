@@ -43,6 +43,21 @@ describe("summarizeCharacter", () => {
       xpToNextLevel: null
     });
   });
+
+  it("uses the selected pronoun for content-derived titles", () => {
+    expect(
+      summarizeCharacter(
+        character({
+          pronoun: "she",
+          raceId: "race.intellectual-orc",
+          classId: "class.priest"
+        })
+      )
+    ).toMatchObject({
+      pronounLabel: "Вона",
+      title: "Етична Зцілювачка Кулаком"
+    });
+  });
 });
 
 function character(overrides: Partial<Parameters<typeof summarizeCharacter>[0]> = {}) {

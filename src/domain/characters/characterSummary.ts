@@ -75,7 +75,7 @@ export function summarizeCharacter(input: CharacterSummaryInput): CharacterSumma
     raceName: race?.name ?? input.raceId,
     classId: input.classId,
     className: characterClass?.name ?? input.classId,
-    title: getComboTitle(input.raceId, input.classId),
+    title: getComboTitle(input.raceId, input.classId, pronoun),
     level,
     xp,
     nextLevelXp,

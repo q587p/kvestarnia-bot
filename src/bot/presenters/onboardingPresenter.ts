@@ -1,7 +1,6 @@
 import {
   findClass,
   findRace,
-  getComboTitle,
   getPronounLabel
 } from "../../content/characterOptions";
 import { classes } from "../../content/classes";
@@ -56,11 +55,13 @@ export function presentClassSelected(pronoun: Pronoun, raceId: string, classId: 
   return [
     "Ви майже готові стати пригодою для місцевої статистики.",
     "",
-    `Звертання: <b>${escapeHtml(getPronounLabel(pronoun))}</b>`,
-    `Раса: <b>${escapeHtml(race.name)}</b>`,
-    `Клас: <b>${escapeHtml(characterClass.name)}</b>`,
-    escapeHtml(characterClass.description),
-    `Титул: <i>${escapeHtml(getComboTitle(raceId, classId))}</i>`,
+    `✅ Звертання: <b>${escapeHtml(getPronounLabel(pronoun))}</b>`,
+    "",
+    `✅ Раса: <b>${escapeHtml(race.name)}</b>`,
+    "",
+    `✅ Клас: <b>${escapeHtml(characterClass.name)}</b>`,
+    "",
+    `<i>${escapeHtml(characterClass.description)}</i>`,
     "",
     "Почати?"
   ].join("\n");

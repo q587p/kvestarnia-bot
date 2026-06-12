@@ -104,7 +104,7 @@ describe("OnboardingService", () => {
 
     expect(created.ok).toBe(true);
     if (created.ok) {
-      expect(created.value.character.title).toBe("Писар Оберегових Справ");
+      expect(created.value.character.title).toBe("Писарі Оберегових Справ");
       expect(created.value.character.path).toBe("boundary");
     }
   });
@@ -192,7 +192,7 @@ describe("OnboardingService", () => {
     if (created.ok) {
       expect(created.value.character.raceName).toBe("Дрантогор");
       expect(created.value.character.className).toBe("Козак-характерник");
-      expect(created.value.character.title).toBe("Межовий Заблуканець");
+      expect(created.value.character.title).toBe("Межові Заблуканці");
       expect(created.value.character.path).toBe("boundary");
     }
   });

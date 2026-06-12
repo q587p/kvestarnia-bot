@@ -112,12 +112,15 @@ describe("onboarding presenters and keyboards", () => {
   it("presents a confirmation summary", () => {
     const text = presentClassSelected("they", "race.molfar-soul", "class.bureaucramancer");
 
-    expect(text).toContain("Звертання: <b>Вони</b>");
+    expect(text).toContain("✅ Звертання: <b>Вони</b>");
     expect(text).not.toContain("Стать:");
     expect(text).toContain("<b>Мольфарська душа</b>");
     expect(text).toContain("<b>Бюрокромант</b>");
-    expect(text).toContain("Знерухомлює ворогів формами");
-    expect(text).toContain("<i>Писар Оберегових Справ</i>");
+    expect(text).toContain("<i>Знерухомлює ворогів формами");
+    expect(text).not.toContain("Титул:");
+    expect(text).toContain(
+      "✅ Звертання: <b>Вони</b>\n\n✅ Раса: <b>Мольфарська душа</b>\n\n✅ Клас: <b>Бюрокромант</b>\n\n<i>"
+    );
   });
 
   it("uses new kharakternyk combo titles while keeping the old race inactive", () => {
@@ -128,8 +131,14 @@ describe("onboarding presenters and keyboards", () => {
       "Бісова Оселедцева Теорія"
     );
     expect(getComboTitle("race.drantohor", "class.kharakternyk")).toBe("Межовий Заблуканець");
+    expect(getComboTitle("race.drantohor", "class.kharakternyk", "they")).toBe(
+      "Межові Заблуканці"
+    );
     expect(getComboTitle("race.kharakternyk", "class.mage")).toBe(
       "Герой місцевого значення"
+    );
+    expect(getComboTitle("race.kharakternyk", "class.mage", "she")).toBe(
+      "Героїня місцевого значення"
     );
   });
 

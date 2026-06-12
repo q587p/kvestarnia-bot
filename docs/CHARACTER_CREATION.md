@@ -49,11 +49,11 @@ Characters also persist the hidden `Character.path`. New characters derive it fr
 - `she` → `moon`
 - `they` → `boundary`
 
-Combo titles are content-derived from race/class pairs and can be expanded without changing the database. `race.kharakternyk` remains only as a deprecated compatibility fallback for older local characters; new characters choose `class.kharakternyk`.
+Combo titles are content-derived from race/class/pronoun and can be expanded without changing the database. The confirmation step does not reveal the title; it appears after character creation and in hero summaries. `race.kharakternyk` remains only as a deprecated compatibility fallback for older local characters; new characters choose `class.kharakternyk`.
 
 ## Not In Scope Yet
 
-- full Ukrainian grammar inflection;
+- full Ukrainian grammar inflection beyond authored combo titles;
 - combat, loot, inventory, raids, guilds, or PvP;
 - race/class stat rebalance beyond the existing starter stats;
 - copying external race/lore systems.

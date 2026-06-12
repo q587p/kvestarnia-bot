@@ -75,6 +75,13 @@ describe("content tables", () => {
     for (const [raceId, classId, title] of expectedTitles) {
       expect(getComboTitle(raceId, classId)).toBe(title);
     }
+
+    expect(getComboTitle("race.intellectual-orc", "class.priest", "she")).toBe(
+      "Етична Зцілювачка Кулаком"
+    );
+    expect(getComboTitle("race.molfar-soul", "class.bureaucramancer", "they")).toBe(
+      "Писарі Оберегових Справ"
+    );
   });
 
   it("keeps onboarding gender callbacks valid and within Telegram limits", () => {
