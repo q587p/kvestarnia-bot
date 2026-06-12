@@ -13,6 +13,7 @@ describe("help presenter", () => {
     expect(text).toContain("/raid");
     expect(text).toContain("/adventure");
     expect(text).toContain("/quest");
+    expect(text).toContain("/fight");
     expect(text).toContain("/hunt");
     expect(text).toContain("/inventory");
     expect(text).toContain("/guild");
@@ -21,7 +22,8 @@ describe("help presenter", () => {
     expect(text).toContain("/news");
     expect(text).toContain("/help");
     expect(text).not.toContain("/dev_reset_me");
-    expect(text).toContain("те саме, що /adventure");
+    expect(text).toContain("те саме, що /fight");
+    expect(text).not.toContain("/hunt — ще");
     expect(text).toContain("Повний бій");
   });
 

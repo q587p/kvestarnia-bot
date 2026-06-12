@@ -19,9 +19,10 @@ Done when:
 Мета: гравець може створити персонажа, пройти бій, отримати XP/лут, екіпірувати предмет.
 
 Deliverables:
-- `/start`, `/hero`, `/adventure`, `/inventory`.
+- `/start`, `/hero`, `/adventure`, `/fight`, `/inventory`.
 - Race/class selection.
 - First tiny `/adventure` scene: `Мімік-шаурма`, once-per-date reward, no full combat yet.
+- First tiny `/fight` combat probe: deterministic preview, once-per-date reward, no persistent HP loss yet.
 - Simple level-up thresholds for visible progress.
 - Combat engine.
 - Loot engine.

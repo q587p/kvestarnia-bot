@@ -39,7 +39,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("Таверна Квестарні");
     expect(text).toContain("Бочка Пінного Міражу");
     expect(text).toContain(
-      "Шинкар:\n\n<blockquote>Це не проблема. Це рейд на 1-3 хвилини.</blockquote>"
+      "Шинкар:\n<blockquote>Це не проблема. Це рейд на 1-3 хвилини.</blockquote>"
     );
     expect(text).toContain("Що робимо?");
     expect(text.length).toBeLessThan(320);

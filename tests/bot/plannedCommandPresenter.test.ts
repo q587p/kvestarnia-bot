@@ -5,20 +5,17 @@ import {
 } from "../../src/bot/presenters/plannedCommandPresenter";
 
 describe("planned command presenter", () => {
-  it.each(["hunt", "inventory", "guild"] as const satisfies readonly PlannedCommand[])(
+  it.each(["inventory", "guild"] as const satisfies readonly PlannedCommand[])(
     "answers /%s with a short Ukrainian placeholder",
     (command) => {
       const text = presentPlannedCommand(command);
 
       expect(text).toContain("Доступно зараз");
+      expect(text).toContain("/fight");
       expect(text).toContain("/help");
       expect(text.length).toBeLessThan(240);
     }
   );
-
-  it("points hunt toward the playable adventure slice", () => {
-    expect(presentPlannedCommand("hunt")).toContain("/adventure");
-  });
 
   it("does not pretend inventory or guilds are implemented", () => {
     expect(presentPlannedCommand("inventory")).toContain("ще");
