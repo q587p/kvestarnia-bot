@@ -1,0 +1,223 @@
+import { describe, expect, it } from "vitest";
+import type {
+  CharacterRecord,
+  CharacterRepository,
+  CreateCharacterInput,
+  CreateCharacterResult
+} from "../../src/db/repositories/characterRepository";
+import type {
+  ClaimDailyActionInput,
+  ClaimDailyActionResult,
+  DailyActionRecord,
+  DailyActionRepository
+} from "../../src/db/repositories/dailyActionRepository";
+import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
+import {
+  FRIDAY_BARREL_RAID_KEY,
+  TavernRaidService
+} from "../../src/services/tavernRaidService";
+
+const telegramUserId = 42n;
+
+describe("TavernRaidService", () => {
+  it("prompts /start path when no character exists", async () => {
+    const characters = new FakeCharacterRepository();
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+
+    await expect(service.getTavernForTelegramUser(telegramUserId)).resolves.toEqual({
+      state: "no-character"
+    });
+    await expect(service.completeFridayBarrelRaid(telegramUserId)).resolves.toEqual({
+      state: "no-character"
+    });
+  });
+
+  it("creates one daily action and increments XP/gold once", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+
+    const first = await service.completeFridayBarrelRaid(telegramUserId);
+
+    expect(first.state).toBe("completed");
+    expect(dailyActions.createCount).toBe(1);
+    expect(dailyActions.records).toHaveLength(1);
+    expect(dailyActions.records[0]).toMatchObject({
+      key: FRIDAY_BARREL_RAID_KEY,
+      localDate: "2026-06-12",
+      rewardXp: 7,
+      rewardGold: 5
+    });
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: 7,
+      gold: 5
+    });
+    if (first.state === "completed") {
+      expect(first.character.xp).toBe(7);
+      expect(first.character.gold).toBe(5);
+    }
+  });
+
+  it("does not duplicate rewards for repeated completion on the same day", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+
+    await service.completeFridayBarrelRaid(telegramUserId);
+    const repeated = await service.completeFridayBarrelRaid(telegramUserId);
+
+    expect(repeated.state).toBe("already-completed");
+    expect(dailyActions.createCount).toBe(1);
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: 7,
+      gold: 5
+    });
+    if (repeated.state === "already-completed") {
+      expect(repeated.reward).toMatchObject({
+        xp: 7,
+        gold: 5,
+        localDate: "2026-06-12"
+      });
+      expect(repeated.character.xp).toBe(7);
+      expect(repeated.character.gold).toBe(5);
+    }
+  });
+});
+
+function fixedClock(): Date {
+  return new Date("2026-06-12T10:30:00.000Z");
+}
+
+class FakeCharacterRepository implements CharacterRepository {
+  private readonly charactersByTelegramUserId = new Map<bigint, CharacterRecord>();
+
+  add(userTelegramId: bigint): void {
+    this.charactersByTelegramUserId.set(userTelegramId, {
+      id: `character-${userTelegramId.toString()}`,
+      userId: `user-${userTelegramId.toString()}`,
+      name: "Мандрівник",
+      pronoun: "they",
+      raceId: "race.human-ish",
+      classId: "class.warrior",
+      level: 1,
+      xp: 0,
+      gold: 0,
+      hpCurrent: 22,
+      hpMax: 22,
+      manaCurrent: 10,
+      manaMax: 10,
+      statsJson: {
+        strength: 8,
+        dexterity: 6,
+        intelligence: 6,
+        charisma: 6,
+        luck: 6
+      }
+    });
+  }
+
+  updateReward(userTelegramId: bigint, xp: number, gold: number): CharacterRecord {
+    const character = this.charactersByTelegramUserId.get(userTelegramId);
+
+    if (!character) {
+      throw new Error("Character not found.");
+    }
+
+    const updated = {
+      ...character,
+      xp: character.xp + xp,
+      gold: character.gold + gold
+    };
+    this.charactersByTelegramUserId.set(userTelegramId, updated);
+    return updated;
+  }
+
+  findByUserId(userId: string): Promise<CharacterRecord | null> {
+    return Promise.resolve(
+      [...this.charactersByTelegramUserId.values()].find((character) => character.userId === userId) ??
+        null
+    );
+  }
+
+  findByTelegramUserId(userTelegramId: bigint): Promise<CharacterRecord | null> {
+    return Promise.resolve(this.charactersByTelegramUserId.get(userTelegramId) ?? null);
+  }
+
+  deleteByTelegramUserId(userTelegramId: bigint): Promise<boolean> {
+    return Promise.resolve(this.charactersByTelegramUserId.delete(userTelegramId));
+  }
+
+  createForTelegramUserIfMissing(
+    user: TelegramUserProfile,
+    input: CreateCharacterInput
+  ): Promise<CreateCharacterResult> {
+    const existing = this.charactersByTelegramUserId.get(user.telegramUserId);
+
+    if (existing) {
+      return Promise.resolve({ character: existing, created: false });
+    }
+
+    const character: CharacterRecord = {
+      id: `character-${user.telegramUserId.toString()}`,
+      userId: `user-${user.telegramUserId.toString()}`,
+      ...input
+    };
+    this.charactersByTelegramUserId.set(user.telegramUserId, character);
+
+    return Promise.resolve({ character, created: true });
+  }
+}
+
+class FakeDailyActionRepository implements DailyActionRepository {
+  private readonly actions = new Map<string, DailyActionRecord>();
+  createCount = 0;
+
+  constructor(private readonly characters: FakeCharacterRepository) {}
+
+  get records(): DailyActionRecord[] {
+    return [...this.actions.values()];
+  }
+
+  async claimForTelegramUser(
+    userTelegramId: bigint,
+    input: ClaimDailyActionInput
+  ): Promise<ClaimDailyActionResult | null> {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return null;
+    }
+
+    const claimKey = `${character.id}:${input.key}:${input.localDate}`;
+    const existing = this.actions.get(claimKey);
+
+    if (existing) {
+      return {
+        state: "existing",
+        action: existing,
+        character
+      };
+    }
+
+    this.createCount += 1;
+    const action = {
+      id: `daily-action-${this.createCount}`,
+      characterId: character.id,
+      key: input.key,
+      localDate: input.localDate,
+      rewardXp: input.rewardXp,
+      rewardGold: input.rewardGold,
+      createdAt: fixedClock()
+    };
+    this.actions.set(claimKey, action);
+
+    return {
+      state: "created",
+      action,
+      character: this.characters.updateReward(userTelegramId, input.rewardXp, input.rewardGold)
+    };
+  }
+}

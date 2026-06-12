@@ -1,6 +1,6 @@
 # kvestarnia-bot
 
-Квестарня - україномовна текстова Telegram RPG. Репозиторій містить TypeScript/Node.js foundation для Telegram-бота на grammY, Prisma/SQLite local baseline, Zod-validated content і перший Phase 1 зріз: ідемпотентний `/start` onboarding з вибором раси та класу.
+Квестарня - україномовна текстова Telegram RPG. Репозиторій містить TypeScript/Node.js foundation для Telegram-бота на grammY, Prisma/SQLite local baseline, Zod-validated content і перші Phase 1 зрізи: ідемпотентний `/start` onboarding та малий таверновий рейд.
 
 ## Що вже є
 
@@ -8,13 +8,15 @@
 - `src/bot.ts` як локальний polling entrypoint.
 - `/start` показує коротке вітання Квестарні, пропонує вибір раси й класу через callback-и та не створює дублікати персонажа при повторних натисканнях.
 - `/hero`, `/profile`, `/me`, `/help` і кнопкове меню показують видимий прогрес без запуску повного gameplay loop.
+- `/tavern` і `/raid` відкривають малий solo-рейд «П’ятничний рейд на Бочку Пінного Міражу» з винагородою раз на локальний день.
+- `/quest`, `/hunt`, `/inventory` і `/guild` мають короткі заглушки, щоб Telegram-меню не вело в тишу.
 - `/dev_reset_me` у локальному режимі скидає тільки вашого героя після підтвердження.
 - Config layer із Zod для `BOT_TOKEN`, `DATABASE_URL`, `REDIS_URL`, `NODE_ENV`.
 - Prisma schema та перша міграція для `User` і `Character`.
 - Content tables для race/class/monster/item зі stable ids.
 - Vitest tests для content validation, callback validation, starter stats, onboarding idempotency і shared utilities.
 
-Повний gameplay loop, combat, inventory, loot, raids, guilds і PvP ще не реалізовані.
+Повний gameplay loop, combat, inventory, loot, групові raids, guilds і PvP ще не реалізовані.
 
 ## Вимоги
 
@@ -107,8 +109,11 @@ npm run dev
 2. Оберіть звертання, расу й клас кнопками.
 3. Підтвердьте героя на фінальному екрані.
 4. Перевірте героя через `/hero`, `/profile` або `/me`.
-5. Натисніть кнопки `👤 Герой`, `🍺 До таверни`, `❔ Допомога`.
-6. Для повторного тесту onboarding у локальному режимі виконайте `/dev_reset_me` і підтвердьте скидання.
+5. Відкрийте `/tavern` або натисніть `🍺 До таверни`.
+6. Натисніть `🍺 У рейд на бочку`.
+7. Перевірте `/hero`: XP і золото мають зрости на `+7 XP` і `+5 золота`.
+8. Натисніть рейд ще раз і переконайтесь, що винагорода не дублюється.
+9. Для повторного тесту onboarding у локальному режимі виконайте `/dev_reset_me` і підтвердьте скидання.
 
 `/dev_reset_me` працює тільки коли `NODE_ENV !== "production"` і видаляє лише персонажа поточного Telegram-користувача.
 
@@ -167,4 +172,4 @@ Domain-код не має імпортувати Telegram/grammY. Bot layer ма
 
 ## Наступний крок
 
-Наступний малий Phase 1 PR варто присвятити `/profile`: показати створеного персонажа з race/class, level, XP, gold, HP і mana без запуску combat/adventure loop.
+Наступний малий Phase 1 PR варто присвятити першій обережній `/adventure` сцені або покращенню таймінгу daily actions під Europe/Kyiv.

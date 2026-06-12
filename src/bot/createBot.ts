@@ -2,16 +2,20 @@ import { Bot, type Context } from "grammy";
 import type { DevResetService } from "../services/devResetService";
 import type { HeroService } from "../services/heroService";
 import type { OnboardingService } from "../services/onboardingService";
+import type { TavernRaidService } from "../services/tavernRaidService";
 import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import {
   parseOnboardingCallbackData,
   type OnboardingCallback
 } from "./callbacks/onboardingCallbackData";
+import { parseTavernCallbackData } from "./callbacks/tavernCallbackData";
 import { registerDevResetCommand } from "./commands/devResetCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
 import { registerHeroCommand, sendHero } from "./commands/heroCommand";
+import { registerPlannedCommands } from "./commands/plannedCommand";
 import { registerStartCommand } from "./commands/startCommand";
+import { registerTavernCommand, sendTavern } from "./commands/tavernCommand";
 import { playerFromContext } from "./context";
 import {
   buildClassKeyboard,
@@ -20,13 +24,14 @@ import {
   buildRaceKeyboard
 } from "./keyboards/onboardingKeyboard";
 import { buildMainMenuKeyboard } from "./keyboards/mainMenuKeyboard";
+import { buildTavernKeyboard } from "./keyboards/tavernKeyboard";
 import {
   presentDevResetCancelled,
   presentDevResetDeleted,
   presentDevResetDisabled,
   presentDevResetNoCharacter
 } from "./presenters/devResetPresenter";
-import { presentHelp, presentTavernPlaceholder } from "./presenters/helpPresenter";
+import { presentHelp } from "./presenters/helpPresenter";
 import {
   presentCharacterCreated,
   presentClassSelected,
@@ -36,12 +41,14 @@ import {
   presentUnavailableChoice,
   presentWelcome
 } from "./presenters/onboardingPresenter";
+import { presentTavernNoCharacter, presentTavernRaidResult } from "./presenters/tavernPresenter";
 import { safeEditMessageText } from "./safeEditMessageText";
 
 export interface BotServices {
   onboarding: OnboardingService;
   hero: HeroService;
   devReset: DevResetService;
+  tavern: TavernRaidService;
 }
 
 export function createBot(token: string, services: BotServices): Bot {
@@ -55,6 +62,8 @@ export function createBot(token: string, services: BotServices): Bot {
   registerHeroCommand(bot, services.hero);
   registerHelpCommand(bot, services.devReset);
   registerDevResetCommand(bot, services.devReset);
+  registerTavernCommand(bot, services.tavern);
+  registerPlannedCommands(bot);
 
   bot.callbackQuery(/^v1:onb:/, async (ctx) => {
     const parsed = parseOnboardingCallbackData(ctx.callbackQuery.data);
@@ -76,6 +85,17 @@ export function createBot(token: string, services: BotServices): Bot {
     }
 
     await handleMenuCallback(ctx, parsed.value, services);
+  });
+
+  bot.callbackQuery(/^v1:tavern:/, async (ctx) => {
+    const parsed = parseTavernCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleTavernCallback(ctx, services.tavern);
   });
 
   bot.callbackQuery(/^v1:devreset:/, async (ctx) => {
@@ -250,8 +270,31 @@ async function handleMenuCallback(
     return;
   }
 
-  await safeEditMessageText(ctx, presentTavernPlaceholder(), {
-    reply_markup: buildMainMenuKeyboard()
+  await sendTavern(ctx, services.tavern, "edit");
+}
+
+async function handleTavernCallback(
+  ctx: Context,
+  tavernRaidService: TavernRaidService
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.answerCallbackQuery({ text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  const result = await tavernRaidService.completeFridayBarrelRaid(telegramUserId);
+
+  if (result.state === "no-character") {
+    await ctx.answerCallbackQuery();
+    await safeEditMessageText(ctx, presentTavernNoCharacter());
+    return;
+  }
+
+  await ctx.answerCallbackQuery();
+  await safeEditMessageText(ctx, presentTavernRaidResult(result), {
+    reply_markup: buildTavernKeyboard()
   });
 }
 

@@ -105,6 +105,16 @@ docs/
 - `key`
 - `available_at`
 
+### daily_actions
+- `id` UUID
+- `character_id` FK
+- `key`
+- `local_date`
+- `reward_xp`
+- `reward_gold`
+- `created_at`
+- unique (`character_id`, `key`, `local_date`)
+
 ### combats
 - `id` UUID
 - `character_id` FK
