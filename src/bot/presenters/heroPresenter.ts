@@ -12,7 +12,7 @@ export function presentHero(summary: CharacterSummary): string {
     `👤 <b>${escapeHtml(summary.name)}</b>`,
     `<i>${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}</i>`,
     "",
-    `Звертання: ${escapeHtml(summary.pronounLabel)} · Титул: ${escapeHtml(summary.title)}`,
+    `Титул: <i>${escapeHtml(summary.title)}</i>`,
     progressLine,
     "",
     `HP ${summary.hpCurrent}/${summary.hpMax} · мана ${summary.manaCurrent}/${summary.manaMax}`,

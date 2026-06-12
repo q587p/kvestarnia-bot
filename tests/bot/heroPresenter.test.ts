@@ -46,10 +46,9 @@ describe("hero presenter", () => {
     expect(text).toContain("<i>Людисько · Воїн</i>");
     expect(text).toContain("Людисько");
     expect(text).toContain("Воїн");
-    expect(text).toContain("Звертання: Вони");
+    expect(text).not.toContain("Звертання:");
     expect(text).not.toContain("Стать:");
-    expect(text).toContain("Вони");
-    expect(text).toContain("Пересічний Герой");
+    expect(text).toContain("Титул: <i>Пересічний Герой</i>");
     expect(text).toContain("до рівня 3: 10 XP");
     expect(text).toContain("HP 24/24 · мана 12/12");
     expect(text).toContain("Сили 9");
@@ -57,7 +56,7 @@ describe("hero presenter", () => {
     expect(text).toContain("Ріст рівня: +4 HP · +2 мани · +1 Сили");
     expect(text).toContain("<i>Далі: /tavern, /quest або /fight.</i>");
     expect(text).not.toContain("/adventure або /fight");
-    expect(text).toContain("\n\nЗвертання:");
+    expect(text).toContain("\n\nТитул:");
     expect(text).toContain("\n\nHP");
     expect(text.split("\n").length).toBeLessThanOrEqual(13);
   });

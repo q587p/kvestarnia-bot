@@ -78,7 +78,7 @@ export function presentCharacterSummary(summary: CharacterSummary): string {
     `<b>${escapeHtml(summary.name)}</b>`,
     `<i>${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}</i>`,
     "",
-    `Звертання: <b>${escapeHtml(summary.pronounLabel)}</b> · Титул: <i>${escapeHtml(summary.title)}</i>`,
+    `Титул: <i>${escapeHtml(summary.title)}</i>`,
     `Рівень ${summary.level} · XP ${summary.xp} · золото ${summary.gold}`,
     "",
     `HP ${summary.hpCurrent}/${summary.hpMax} · мана ${summary.manaCurrent}/${summary.manaMax}`

@@ -181,8 +181,9 @@ describe("onboarding presenters and keyboards", () => {
 
     expect(text).toContain("<b>Мандрівник</b>");
     expect(text).toContain("<i>Людисько · Воїн</i>");
-    expect(text).toContain("Звертання: <b>Вони</b> · Титул: <i>Пересічний Герой</i>");
-    expect(text).toContain("\n\nЗвертання:");
+    expect(text).toContain("Титул: <i>Пересічний Герой</i>");
+    expect(text).not.toContain("Звертання:");
+    expect(text).toContain("\n\nТитул:");
     expect(text).toContain("\n\nHP");
     expect(text.split("\n")).toHaveLength(7);
     expect(text.length).toBeLessThan(220);
