@@ -14,7 +14,7 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 - BullMQ для jobs: рейди, сезони, таймери, retries.
 - Zod для конфігів і content validation.
 - Vitest для тестів.
-- Docker Compose для локального dev.
+- Локальний або керований PostgreSQL через `DATABASE_URL`.
 
 ## Структура репозиторію
 ```text
@@ -197,7 +197,7 @@ Domain result → presenter → Telegram text/buttons.
 ## Deployment MVP
 Найпростіше:
 - VPS або PaaS.
-- Docker Compose: app + postgres + redis.
+- App runtime + PostgreSQL + Redis як окремі сервіси.
 - Webhook через HTTPS.
 - Backups PostgreSQL щодня.
 

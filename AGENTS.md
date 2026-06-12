@@ -58,7 +58,7 @@
 - Redis + BullMQ для кулдаунів, черг, scheduled jobs, рейдів.
 - Zod для runtime-валидації конфігів і payload-ів.
 - Vitest для unit/integration tests.
-- Docker Compose для локальної бази й Redis.
+- Локальний або керований PostgreSQL через `DATABASE_URL`.
 
 Якщо в репозиторії вже інший стек, дотримуйся наявного стеку та не мігруй без окремого завдання.
 
