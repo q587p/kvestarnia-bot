@@ -66,6 +66,13 @@ describe("FightService", () => {
         newLevel: 2,
         leveledUp: true
       });
+      expect(result.reward.itemGrants).toEqual([
+        {
+          itemId: "item.suspicious-shawarma-wrapper",
+          name: "Підозрілий лавашний доказ",
+          quantity: 1
+        }
+      ]);
     }
   });
 
@@ -80,6 +87,12 @@ describe("FightService", () => {
 
     expect(repeated.state).toBe("already-completed");
     expect(dailyActions.createCount).toBe(1);
+    expect(dailyActions.grantedItems).toEqual([
+      {
+        itemId: "item.receipt-of-formal-suspicion",
+        quantity: 1
+      }
+    ]);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       xp: 7,
       gold: 5
@@ -97,6 +110,12 @@ describe("FightService", () => {
 
     expect(secondOption.state).toBe("already-completed");
     expect(dailyActions.createCount).toBe(1);
+    expect(dailyActions.grantedItems).toEqual([
+      {
+        itemId: "item.suspicious-shawarma-wrapper",
+        quantity: 1
+      }
+    ]);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       xp: 9,
       gold: 3
@@ -194,6 +213,7 @@ class FakeCharacterRepository implements CharacterRepository {
 
 class FakeDailyActionRepository implements DailyActionRepository {
   private readonly actions = new Map<string, DailyActionRecord>();
+  readonly grantedItems: Array<{ itemId: string; quantity: number }> = [];
   createCount = 0;
 
   constructor(private readonly characters: FakeCharacterRepository) {}
@@ -217,11 +237,12 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
     if (existing) {
       return {
-        state: "existing",
-        action: existing,
-        character,
-        levelChange: null
-      };
+            state: "existing",
+            action: existing,
+            character,
+            levelChange: null,
+            itemGrants: []
+          };
     }
 
     this.createCount += 1;
@@ -241,11 +262,14 @@ class FakeDailyActionRepository implements DailyActionRepository {
       input.rewardXp,
       input.rewardGold
     );
+    const itemGrants = input.itemGrants ?? [];
+    this.grantedItems.push(...itemGrants);
 
     return {
       state: "created",
       action,
       character: updatedCharacter,
+      itemGrants,
       levelChange: {
         oldLevel: getLevelForXp(character.xp),
         newLevel: updatedCharacter.level,

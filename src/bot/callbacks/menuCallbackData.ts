@@ -1,11 +1,11 @@
 import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
-export type MenuCallback = "hero" | "help" | "tavern";
+export type MenuCallback = "hero" | "help" | "inventory" | "tavern";
 export type MenuCallbackError = "invalid-version" | "invalid-prefix" | "invalid-action" | "too-long";
 
 const PREFIX = "v1:menu";
-const menuActions = new Set<MenuCallback>(["hero", "help", "tavern"]);
+const menuActions = new Set<MenuCallback>(["hero", "help", "inventory", "tavern"]);
 
 export function makeMenuCallbackData(action: MenuCallback): string {
   return `${PREFIX}:${action}`;

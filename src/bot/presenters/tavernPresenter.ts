@@ -35,7 +35,7 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
     "Ви штурмували Бочку Пінного Міражу. Бочка відступила стратегічною піною.",
     "",
     `+${result.reward.xp} XP · +${result.reward.gold} золота`,
-    `Здобуто: ${result.reward.flavor}`
+    ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
   if (result.levelChange.leveledUp) {
@@ -43,4 +43,14 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
   }
 
   return lines.join("\n");
+}
+
+function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: number }>): string[] {
+  if (itemGrants.length === 0) {
+    return [];
+  }
+
+  return itemGrants.map(
+    (grant) => `Здобуто: ${escapeHtml(grant.name)} ×${grant.quantity}`
+  );
 }

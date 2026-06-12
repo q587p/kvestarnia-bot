@@ -89,15 +89,14 @@ docs/
 - `created_at`
 - `updated_at`
 
-### inventory_items
+### character_items
 - `id` UUID
 - `character_id` FK
 - `item_id` content id
-- `rarity`
-- `slot` nullable
-- `is_equipped`
-- `meta_json`
+- `quantity`
 - `created_at`
+- `updated_at`
+- unique (`character_id`, `item_id`)
 
 ### cooldowns
 - `id` UUID
@@ -184,6 +183,11 @@ export interface RandomSource {
 У `0.0.5` той самий механізм також використовується для першої безпечної combat probe:
 - `combat.mimic-shawarma.probe`
 
+У `0.0.6` той самий claim transaction може upsert/increment `character_items` тільки коли daily action створюється вперше:
+- `tavern.friday-barrel-raid` → `item.wet-hero-ticket`
+- `adventure.mimic-shawarma` → `item.suspicious-shawarma-wrapper` або `item.receipt-of-formal-suspicion`
+- `combat.mimic-shawarma.probe` → `item.suspicious-shawarma-wrapper` або `item.receipt-of-formal-suspicion`
+
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 
 ## Telegram callback data
@@ -197,7 +201,8 @@ Callback data коротка, версіонована:
 - `v1:fight:mimic:flee`
 - `v1:combat:atk:{combatId}`
 - `v1:combat:skill:{combatId}:{skillId}`
-- `v1:inv:equip:{inventoryItemId}`
+- `v1:menu:inventory`
+- `v1:inv:equip:{inventoryItemId}` — future equipment callback, not implemented in 0.0.6.
 
 Валідація обов’язкова. Не довіряти даним з callback.
 

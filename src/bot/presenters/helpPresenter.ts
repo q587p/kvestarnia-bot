@@ -11,7 +11,9 @@ export function presentHelp(includeDevReset: boolean): string {
     "/quest — те саме, що /adventure",
     "/fight — перша безпечна сутичка",
     "/hunt — те саме, що /fight",
-    "/inventory — манатки ще шиють кишені",
+    "/inventory — показати манатки",
+    "/items — те саме, що /inventory",
+    "/bag — те саме, що /inventory",
     "/guild — ґільдії ще пишуть статут",
     "/restart — видалити поточного героя і почати з початку",
     "/version — поточна версія Квестарні",
@@ -23,7 +25,7 @@ export function presentHelp(includeDevReset: boolean): string {
     lines.push("/dev_reset_me — скинути свого героя в локальній майстерні");
   }
 
-  lines.push("Повний бій і манатки ще не працюють: квестодавець бере розгін.");
+  lines.push("Повний бій, спорядження й ґільдії ще не працюють: квестодавець бере розгін.");
 
   return lines.join("\n");
 }

@@ -16,11 +16,17 @@ export interface DailyActionRecord {
   createdAt: Date;
 }
 
+export interface ItemGrant {
+  itemId: string;
+  quantity: number;
+}
+
 export interface ClaimDailyActionInput {
   key: string;
   localDate: string;
   rewardXp: number;
   rewardGold: number;
+  itemGrants?: ItemGrant[];
 }
 
 export type ClaimDailyActionResult =
@@ -29,12 +35,14 @@ export type ClaimDailyActionResult =
       action: DailyActionRecord;
       character: CharacterRecord;
       levelChange: RewardLevelChange;
+      itemGrants: ItemGrant[];
     }
   | {
       state: "existing";
       action: DailyActionRecord;
       character: CharacterRecord;
       levelChange: null;
+      itemGrants: [];
     };
 
 export interface DailyActionRepository {

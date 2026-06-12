@@ -1,10 +1,6 @@
-export type PlannedCommand = "inventory" | "guild";
+export type PlannedCommand = "guild";
 
 const plannedCommandMessages = {
-  inventory: [
-    "🎒 Інвентар ще шиє кишені.",
-    "Манатки скоро матимуть власну полицю, а поки перевірте героя: /hero"
-  ],
   guild: [
     "🛡️ Ґільдії ще сперечаються про статут.",
     "Поки рада ґільдій шукає кворум, можна подивитись героя: /hero"

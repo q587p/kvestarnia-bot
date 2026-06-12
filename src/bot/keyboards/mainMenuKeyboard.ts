@@ -6,6 +6,8 @@ import { makeRestartCallbackData } from "../callbacks/restartCallbackData";
 export function buildMainMenuKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("👤 Герой", makeMenuCallbackData("hero"))
+    .text("🎒 Манатки", makeMenuCallbackData("inventory"))
+    .row()
     .text("🍺 До таверни", makeMenuCallbackData("tavern"))
     .row()
     .text("❔ Допомога", makeMenuCallbackData("help"));

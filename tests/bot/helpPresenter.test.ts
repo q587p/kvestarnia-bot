@@ -16,6 +16,8 @@ describe("help presenter", () => {
     expect(text).toContain("/fight");
     expect(text).toContain("/hunt");
     expect(text).toContain("/inventory");
+    expect(text).toContain("/items");
+    expect(text).toContain("/bag");
     expect(text).toContain("/guild");
     expect(text).toContain("/restart");
     expect(text).toContain("/version");

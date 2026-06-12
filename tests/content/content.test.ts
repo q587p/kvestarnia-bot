@@ -30,6 +30,16 @@ describe("content tables", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it("includes first persistent loot item ids", () => {
+    expect(items.map((item) => item.id)).toEqual(
+      expect.arrayContaining([
+        "item.wet-hero-ticket",
+        "item.suspicious-shawarma-wrapper",
+        "item.receipt-of-formal-suspicion"
+      ])
+    );
+  });
+
   it("keeps onboarding gender callbacks valid and within Telegram limits", () => {
     for (const pronoun of pronounOptions) {
       const callbackData = makeGenderCallbackData(pronoun.id);

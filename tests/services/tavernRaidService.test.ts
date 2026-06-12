@@ -58,6 +58,13 @@ describe("TavernRaidService", () => {
     if (first.state === "completed") {
       expect(first.character.xp).toBe(7);
       expect(first.character.gold).toBe(5);
+      expect(first.reward.itemGrants).toEqual([
+        {
+          itemId: "item.wet-hero-ticket",
+          name: "Квиток мокрого героя",
+          quantity: 1
+        }
+      ]);
       expect(first.levelChange.leveledUp).toBe(false);
     }
   });
@@ -103,7 +110,8 @@ describe("TavernRaidService", () => {
       expect(repeated.reward).toMatchObject({
         xp: 7,
         gold: 5,
-        localDate: "2026-06-12"
+        localDate: "2026-06-12",
+        itemGrants: []
       });
       expect(repeated.character.xp).toBe(7);
       expect(repeated.character.gold).toBe(5);
@@ -224,11 +232,12 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
     if (existing) {
       return {
-        state: "existing",
-        action: existing,
-        character,
-        levelChange: null
-      };
+            state: "existing",
+            action: existing,
+            character,
+            levelChange: null,
+            itemGrants: []
+          };
     }
 
     this.createCount += 1;
@@ -247,6 +256,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
       state: "created",
       action,
       character: this.characters.updateReward(userTelegramId, input.rewardXp, input.rewardGold),
+      itemGrants: input.itemGrants ?? [],
       levelChange: {
         oldLevel: getLevelForXp(character.xp),
         newLevel: getLevelForXp(character.xp + input.rewardXp),

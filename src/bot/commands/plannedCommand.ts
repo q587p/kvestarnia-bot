@@ -5,7 +5,7 @@ import {
   type PlannedCommand
 } from "../presenters/plannedCommandPresenter";
 
-const plannedCommands = ["inventory", "guild"] as const satisfies readonly PlannedCommand[];
+const plannedCommands = ["guild"] as const satisfies readonly PlannedCommand[];
 
 export function registerPlannedCommands(bot: Bot): void {
   for (const command of plannedCommands) {

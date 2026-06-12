@@ -31,7 +31,8 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
   const lines = [
     ...presentActionOutcome(result.action),
     "",
-    presentRewardLine(result.reward.xp, result.reward.gold)
+    presentRewardLine(result.reward.xp, result.reward.gold),
+    ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
   if (result.levelChange.leveledUp) {
@@ -68,4 +69,14 @@ function presentRewardLine(xp: number, gold: number): string {
   }
 
   return `+${xp} XP · +${gold} золота`;
+}
+
+function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: number }>): string[] {
+  if (itemGrants.length === 0) {
+    return [];
+  }
+
+  return itemGrants.map(
+    (grant) => `Здобуто: ${escapeHtml(grant.name)} ×${grant.quantity}`
+  );
 }
