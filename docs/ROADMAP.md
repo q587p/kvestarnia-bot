@@ -6,7 +6,7 @@
 Deliverables:
 - Проєкт TypeScript.
 - Lint/typecheck/test/dev scripts.
-- Локальний PostgreSQL через `DATABASE_URL`.
+- Локальна SQLite БД через `DATABASE_URL=file:./dev.db`.
 - Базова схема БД.
 - Content validation.
 - `AGENTS.md` і docs у репозиторії.

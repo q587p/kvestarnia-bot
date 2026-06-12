@@ -24,7 +24,7 @@ Done when: є unit tests для перемоги, поразки, криту, п
 ```text
 Goal: створи TypeScript Node.js репозиторій для Telegram RPG bot.
 Context: AGENTS.md, docs/TECHNICAL_PLAN.md.
-Constraints: npm, Vitest, ESLint, TypeScript strict, PostgreSQL через DATABASE_URL. Не реалізуй ігрові фічі.
+Constraints: npm, Vitest, ESLint, TypeScript strict, SQLite через DATABASE_URL. Не реалізуй ігрові фічі.
 Done when: npm run lint/typecheck і npm test проходять; README містить local setup.
 ```
 

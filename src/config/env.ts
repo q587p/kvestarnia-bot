@@ -1,11 +1,14 @@
 import { z } from "zod";
 
 const nodeEnvSchema = z.enum(["development", "test", "production"]).default("development");
+const databaseUrlSchema = z.string().min(1).refine(isValidDatabaseUrl, {
+  message: "DATABASE_URL must be a URL or a Prisma SQLite file: path"
+});
 
 export const configSchema = z.object({
   nodeEnv: nodeEnvSchema,
   botToken: z.string().optional(),
-  databaseUrl: z.string().url(),
+  databaseUrl: databaseUrlSchema,
   redisUrl: z.string().url()
 });
 
@@ -23,4 +26,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 function blankToUndefined(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function isValidDatabaseUrl(value: string): boolean {
+  if (value.startsWith("file:")) {
+    return value.length > "file:".length;
+  }
+
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
