@@ -89,7 +89,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "guild",
     icon: "🛡️",
     description: "ґільдії",
-    includeInMenu: true
+    includeInMenu: false
   },
   {
     command: "restart",
