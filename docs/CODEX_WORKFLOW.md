@@ -104,6 +104,7 @@ Spawn 4 agents and consolidate:
 - `fix/idempotent-rewards`
 
 PR має містити:
+- Назву у форматі `<version> — <CHANGELOG title>`, наприклад `0.0.4 — First Mimic Shawarma Adventure`.
 - Summary.
 - Gameplay impact.
 - Tests run.
