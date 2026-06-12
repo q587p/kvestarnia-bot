@@ -11,6 +11,10 @@ describe("help presenter", () => {
     expect(text).toContain("/me");
     expect(text).toContain("/tavern");
     expect(text).toContain("/raid");
+    expect(text).toContain("/quest");
+    expect(text).toContain("/hunt");
+    expect(text).toContain("/inventory");
+    expect(text).toContain("/guild");
     expect(text).toContain("/help");
     expect(text).not.toContain("/dev_reset_me");
     expect(text).not.toContain("/adventure");

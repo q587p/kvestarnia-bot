@@ -13,6 +13,7 @@ import { parseTavernCallbackData } from "./callbacks/tavernCallbackData";
 import { registerDevResetCommand } from "./commands/devResetCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
 import { registerHeroCommand, sendHero } from "./commands/heroCommand";
+import { registerPlannedCommands } from "./commands/plannedCommand";
 import { registerStartCommand } from "./commands/startCommand";
 import { registerTavernCommand, sendTavern } from "./commands/tavernCommand";
 import { playerFromContext } from "./context";
@@ -62,6 +63,7 @@ export function createBot(token: string, services: BotServices): Bot {
   registerHelpCommand(bot, services.devReset);
   registerDevResetCommand(bot, services.devReset);
   registerTavernCommand(bot, services.tavern);
+  registerPlannedCommands(bot);
 
   bot.callbackQuery(/^v1:onb:/, async (ctx) => {
     const parsed = parseOnboardingCallbackData(ctx.callbackQuery.data);
