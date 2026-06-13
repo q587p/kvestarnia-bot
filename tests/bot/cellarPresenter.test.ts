@@ -57,7 +57,8 @@ describe("cellar presenter", () => {
     expect(text).toContain("🧀 Пастка спрацювала частково.");
     expect(text).toContain("Миша лишила сир і записку.\n<blockquote>Ваші умови смішні.</blockquote>");
     expect(text).toContain("<b>+2 XP · +1 золота</b>");
-    expect(text).toContain("Підвал знову чекатиме за: 3 хвилини.");
+    expect(text).toContain("Підвал знову чекатиме за 3 хвилини.");
+    expect(text).not.toContain("за:");
     expect(text).not.toMatch(/\d{1,2}:\d{2}/);
     expect(text).not.toMatch(/\d+\s*(?:секунд|хвилин)\s+тому/i);
   });
@@ -66,7 +67,8 @@ describe("cellar presenter", () => {
     const text = presentCellarCooldown(onCooldown);
 
     expect(text).toContain("🐭 Підвал тимчасово тихий.");
-    expect(text).toContain("Можна повернутись за: 2 хвилини.");
+    expect(text).toContain("Можна повернутись за 2 хвилини.");
+    expect(text).not.toContain("за:");
     expect(text).not.toMatch(/\d{1,2}:\d{2}/);
   });
 });

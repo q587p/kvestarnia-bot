@@ -38,7 +38,7 @@ export function presentCellarCooldown(
     "",
     "Миша взяла паузу на переосмислення сирної політики.",
     "",
-    `Можна повернутись за: ${formatCooldown(result.availableAt, result.now)}.`
+    `Можна повернутись за ${formatCooldown(result.availableAt, result.now)}.`
   ].join("\n");
 }
 
@@ -58,7 +58,7 @@ export function presentCellarResult(
   ];
 
   lines.push(...presentRewardLevelGrowth(result.levelChange, result.character.classId));
-  lines.push("", `Підвал знову чекатиме за: ${formatCooldown(result.availableAt, result.now)}.`);
+  lines.push("", `Підвал знову чекатиме за ${formatCooldown(result.availableAt, result.now)}.`);
 
   return lines.join("\n");
 }
