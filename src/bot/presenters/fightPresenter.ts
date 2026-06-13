@@ -51,11 +51,12 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
     ...presentCharacterFlavor(result.character, "quest.outcome", "fight", result.action),
     "",
     `❤️ Ви: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}   🌯 Мімік: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
+    "",
     presentRewardAmount({ ...result.reward, label: "Нагорода" }),
-    ...presentItemGrantLines(result.reward.itemGrants)
+    ...presentItemGrantBlock(result.reward.itemGrants)
   ];
 
-  lines.push("Наступний крок: /hero");
+  lines.push("", "Наступний крок: /hero");
 
   return lines.join("\n");
 }
@@ -98,16 +99,18 @@ function presentOutcome(
   ];
 }
 
-function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: number }>): string[] {
+function presentItemGrantBlock(itemGrants: Array<{ name: string; quantity: number }>): string[] {
   if (itemGrants.length === 0) {
     return [];
   }
 
-  return itemGrants.map(
-    (grant) =>
+  return [
+    "",
+    ...itemGrants.map((grant) =>
       presentRewardItemGrant({
         name: escapeHtml(grant.name),
         quantity: grant.quantity
       })
-  );
+    )
+  ];
 }

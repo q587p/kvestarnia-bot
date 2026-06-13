@@ -89,6 +89,17 @@ describe("fight presenter", () => {
     expect(text).toContain("🌯 Мімік: 5/14");
     expect(text).toContain("Нагорода: <b>+9 XP · +3 золота</b>");
     expect(text).toContain("Здобуто: <i>Підозрілий лавашний доказ</i>");
+    expect(text).toContain(
+      [
+        "❤️ Ви: 19/22   🌯 Мімік: 5/14",
+        "",
+        "Нагорода: <b>+9 XP · +3 золота</b>",
+        "",
+        "Здобуто: <i>Підозрілий лавашний доказ</i>",
+        "",
+        "Наступний крок: /hero"
+      ].join("\n")
+    );
     expect(text).not.toContain("×1");
   });
 
