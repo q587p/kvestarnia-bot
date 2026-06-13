@@ -51,10 +51,15 @@ describe("main menu and scene keyboards", () => {
   it("keeps tavern inline buttons scoped to tavern actions", () => {
     expect(flatInlineButtonTexts(buildTavernKeyboard())).toEqual([
       "🍺 У рейд на бочку",
+      "🍻 Всім пива",
       "👥 Учасники"
     ]);
-    expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual(["👥 Учасники"]);
+    expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual([
+      "🍻 Всім пива",
+      "👥 Учасники"
+    ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([
+      "🍻 Всім пива",
       "👥 Учасники"
     ]);
     expect(flatInlineButtonTexts(buildTavernParticipantsKeyboard())).toEqual(["⬅️ Назад"]);

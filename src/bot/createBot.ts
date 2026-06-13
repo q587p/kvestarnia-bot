@@ -79,6 +79,7 @@ import {
 import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
 import {
   buildTavernParticipantsKeyboard,
+  buildTavernKeyboard,
   buildTavernResultKeyboard
 } from "./keyboards/tavernKeyboard";
 import { presentAdventureNoCharacter, presentAdventureResult } from "./presenters/adventurePresenter";
@@ -106,7 +107,11 @@ import {
   presentRestartNoCharacter
 } from "./presenters/restartPresenter";
 import { presentParticipants } from "./presenters/presencePresenter";
-import { presentTavernNoCharacter, presentTavernRaidResult } from "./presenters/tavernPresenter";
+import {
+  presentTavernNoCharacter,
+  presentTavernRaidResult,
+  presentTavernRoundResult
+} from "./presenters/tavernPresenter";
 import { safeAnswerCallbackQuery } from "./safeAnswerCallbackQuery";
 import { safeEditMessageText } from "./safeEditMessageText";
 
@@ -331,7 +336,11 @@ function getPresenceContext(ctx: Context): PresenceContext | null {
 }
 
 function getCallbackPresenceContext(data: string): PresenceContext | null {
-  if (data === "v1:tavern:raid" || data === "v1:tavern:participants") {
+  if (
+    data === "v1:tavern:raid" ||
+    data === "v1:tavern:participants" ||
+    data === "v1:tavern:round"
+  ) {
     return {
       locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
       currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
@@ -829,7 +838,7 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
 
 async function handleTavernCallback(
   ctx: Context,
-  action: "raid" | "participants",
+  action: "raid" | "participants" | "round",
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService
 ): Promise<void> {
@@ -850,6 +859,26 @@ async function handleTavernCallback(
     await safeEditMessageText(ctx, presentParticipants(snapshot), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildTavernParticipantsKeyboard()
+    });
+    return;
+  }
+
+  if (action === "round") {
+    const result = await tavernRaidService.buyRoundForTelegramUser(telegramUserId);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentTavernNoCharacter());
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentTavernRoundResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        result.state === "raid-required"
+          ? buildTavernKeyboard()
+          : buildTavernResultKeyboard("already-completed")
     });
     return;
   }

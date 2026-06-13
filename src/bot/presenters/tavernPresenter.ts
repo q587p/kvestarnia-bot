@@ -1,4 +1,4 @@
-import type { TavernRaidResult } from "../../services/tavernRaidService";
+import type { TavernRaidResult, TavernRoundResult } from "../../services/tavernRaidService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { PresenceGroup } from "../../services/presenceService";
 import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
@@ -61,7 +61,7 @@ export function presentTavernAlreadyRaided(
     "",
     ...presentTavernPresence(presence),
     "",
-    "Поки що можна перевірити героя: /hero"
+    "Поки що можна пригостити всіх пивом або перевірити героя: /hero"
   ].join("\n");
 }
 
@@ -95,6 +95,47 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
   lines.push(...presentRewardLevelGrowth(result.levelChange, result.character.classId));
 
   return lines.join("\n");
+}
+
+export function presentTavernRoundResult(
+  result: Exclude<TavernRoundResult, { state: "no-character" }>
+): string {
+  if (result.state === "raid-required") {
+    return [
+      "🍻 Корчмар ховає кухоль.",
+      "",
+      npcQuote(
+        "Корчмар",
+        "Не можу підійти. Спочатку розберіться з Бочкою, вона знову робить вигляд, що це її заклад."
+      )
+    ].join("\n");
+  }
+
+  if (result.state === "not-enough-gold") {
+    return [
+      "🍻 Корчмар рахує монети.",
+      "",
+      npcQuote(
+        "Корчмар",
+        "На всіх не вистачить. Заробіть ще трохи. Кажуть, у підвалі миші ведуть дрібний бізнес."
+      ),
+      "",
+      `Маєте: <b>${result.gold} золота</b>`
+    ].join("\n");
+  }
+
+  const quality =
+    result.state === "fine-round"
+      ? "Корчмар виставив якісне пиво. Таке, після якого навіть табурети тримають поставу."
+      : "Корчмар виставив просте пиво. Воно просте тільки за ціною; характер у нього складний.";
+
+  return [
+    result.state === "fine-round" ? "🍻 Всім якісного пива!" : "🍻 Всім простого пива!",
+    quality,
+    "",
+    `Списано: <b>${result.spentGold} золота</b>`,
+    `Залишилось: <b>${result.remainingGold} золота</b>`
+  ].join("\n");
 }
 
 function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: number }>): string[] {

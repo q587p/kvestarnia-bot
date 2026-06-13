@@ -1,4 +1,7 @@
-import type { CharacterRepository } from "../db/repositories/characterRepository";
+import type {
+  CharacterRecord,
+  CharacterRepository
+} from "../db/repositories/characterRepository";
 import type {
   DailyActionRecord,
   DailyActionRepository,
@@ -15,6 +18,8 @@ import {
 export const FRIDAY_BARREL_RAID_KEY = "tavern.friday-barrel-raid";
 export const FRIDAY_BARREL_RAID_REWARD_XP = 7;
 export const FRIDAY_BARREL_RAID_REWARD_GOLD = 5;
+export const KORCHMA_SIMPLE_ROUND_COST = 10;
+export const KORCHMA_FINE_ROUND_COST = 100;
 
 export type TavernLookupResult =
   | { state: "no-character" }
@@ -36,6 +41,28 @@ export type TavernRaidResult =
       levelChange: null;
     };
 
+export type TavernRoundResult =
+  | { state: "no-character" }
+  | { state: "raid-required"; character: CharacterSummary }
+  | { state: "not-enough-gold"; character: CharacterSummary; gold: number }
+  | {
+      state: "simple-round" | "fine-round";
+      character: CharacterSummary;
+      spentGold: number;
+      remainingGold: number;
+    };
+
+export interface GoldSpendingCharacterRepository extends CharacterRepository {
+  spendGoldForTelegramUser(
+    telegramUserId: bigint,
+    amount: number
+  ): Promise<
+    | { state: "spent"; character: CharacterRecord }
+    | { state: "insufficient"; character: CharacterRecord }
+    | null
+  >;
+}
+
 export interface TavernRaidReward {
   xp: number;
   gold: number;
@@ -45,7 +72,7 @@ export interface TavernRaidReward {
 
 export class TavernRaidService {
   constructor(
-    private readonly characters: CharacterRepository,
+    private readonly characters: GoldSpendingCharacterRepository,
     private readonly dailyActions: DailyActionRepository,
     private readonly clock: Clock = systemClock
   ) {}
@@ -109,6 +136,63 @@ export class TavernRaidService {
       character: summarizeCharacter(claim.character),
       reward: buildReward(claim.action, claim.itemGrants),
       levelChange: claim.levelChange
+    };
+  }
+
+  async buyRoundForTelegramUser(telegramUserId: bigint): Promise<TavernRoundResult> {
+    const localDate = toIsoDate(this.clock());
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const existingRaid = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: FRIDAY_BARREL_RAID_KEY,
+      localDate
+    });
+
+    if (!existingRaid) {
+      return {
+        state: "raid-required",
+        character: summarizeCharacter(character)
+      };
+    }
+
+    const cost =
+      character.gold >= KORCHMA_FINE_ROUND_COST
+        ? KORCHMA_FINE_ROUND_COST
+        : character.gold >= KORCHMA_SIMPLE_ROUND_COST
+          ? KORCHMA_SIMPLE_ROUND_COST
+          : 0;
+
+    if (cost === 0) {
+      return {
+        state: "not-enough-gold",
+        character: summarizeCharacter(character),
+        gold: character.gold
+      };
+    }
+
+    const spend = await this.characters.spendGoldForTelegramUser(telegramUserId, cost);
+
+    if (!spend) {
+      return { state: "no-character" };
+    }
+
+    if (spend.state === "insufficient") {
+      return {
+        state: "not-enough-gold",
+        character: summarizeCharacter(spend.character),
+        gold: spend.character.gold
+      };
+    }
+
+    return {
+      state: cost === KORCHMA_FINE_ROUND_COST ? "fine-round" : "simple-round",
+      character: summarizeCharacter(spend.character),
+      spentGold: cost,
+      remainingGold: spend.character.gold
     };
   }
 }

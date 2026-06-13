@@ -4,7 +4,8 @@ import {
   presentTavernAlreadyRaided,
   presentKorchmaHall,
   presentTavernNoCharacter,
-  presentTavernRaidResult
+  presentTavernRaidResult,
+  presentTavernRoundResult
 } from "../../src/bot/presenters/tavernPresenter";
 import type { TavernRaidResult } from "../../src/services/tavernRaidService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -155,6 +156,44 @@ describe("tavern presenter", () => {
     expect(presentTavernRaidResult(completed)).toContain(
       "Стало краще: +4 HP · +2 мани · +1 Сили"
     );
+  });
+
+  it("presents round states with gold spending humor", () => {
+    expect(
+      presentTavernRoundResult({
+        state: "raid-required",
+        character
+      })
+    ).toContain("Спочатку розберіться з Бочкою");
+    expect(
+      presentTavernRoundResult({
+        state: "not-enough-gold",
+        character,
+        gold: 5
+      })
+    ).toContain("у підвалі миші ведуть дрібний бізнес");
+    expect(
+      presentTavernRoundResult({
+        state: "simple-round",
+        character: {
+          ...character,
+          gold: 2
+        },
+        spentGold: 10,
+        remainingGold: 2
+      })
+    ).toContain("Списано: <b>10 золота</b>");
+    expect(
+      presentTavernRoundResult({
+        state: "fine-round",
+        character: {
+          ...character,
+          gold: 25
+        },
+        spentGold: 100,
+        remainingGold: 25
+      })
+    ).toContain("Всім якісного пива");
   });
 });
 

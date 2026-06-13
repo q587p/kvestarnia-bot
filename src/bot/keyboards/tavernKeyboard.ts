@@ -8,6 +8,8 @@ export function buildTavernKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("🍺 У рейд на бочку", makeTavernCallbackData("raid"))
     .row()
+    .text("🍻 Всім пива", makeTavernCallbackData("round"))
+    .row()
     .text("👥 Учасники", makeTavernCallbackData("participants"));
 }
 
@@ -34,7 +36,10 @@ export function buildTavernResultKeyboard(
   state: TavernResultKeyboardState
 ): InlineKeyboard {
   if (state === "completed" || state === "already-completed") {
-    return new InlineKeyboard().text("👥 Учасники", makeTavernCallbackData("participants"));
+    return new InlineKeyboard()
+      .text("🍻 Всім пива", makeTavernCallbackData("round"))
+      .row()
+      .text("👥 Учасники", makeTavernCallbackData("participants"));
   }
 
   return buildTavernKeyboard();

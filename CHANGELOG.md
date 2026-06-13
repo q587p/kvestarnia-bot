@@ -7,13 +7,14 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.0.11] - 12026-06-13 - Korchma Quest Hub & Routing Cleanup
+## [0.0.11] - 12026-06-13 - Korchma Quest Hub, Routing Cleanup & First Gold Sink
 
 ### Added
 - Added a compact `Стіл зі справами` quest hub for `/quest`, the `🗺️ Квест` reply button, and the korchma quest-table place callback.
 - Added quest-hub buttons for the daily shawarma adventure, daily mimic fight probe, repeatable cellar errand, and return to the korchma hall.
 - Added `v1:quest:*` callback parsing for hub action routing.
 - Added secondary `/cellar` command as a fallback surface without adding it to the Telegram side command menu or persistent reply keyboard.
+- Added `🍻 Всім пива` as the first tiny korchma gold sink after the barrel raid: 100 gold for a fine round, 10 gold for a simple round, and a joke when the hero cannot afford even that.
 - Tests cover quest hub rendering, outside gates, `/fight` and `/cellar` routing, quest callback parsing, and presence middleware behavior.
 
 ### Changed
@@ -22,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `/fight` and `/hunt` update quest-table presence only after the player is inside the korchma.
 - The hub keeps the repeatable cellar errand visible after daily shawarma and fight actions are spent.
 - Place and quest callbacks continue clearing stale raid/adventure ids when moving between korchma places.
+- Tavern participant views now include a back button to return to the previous scene.
 
 ### Not Included Yet
 - Persistent combat state, equipment effects, random loot tables, group raids, pending raid timers, Redis, market/economy/crafting, Mini App UI, or a full activity-service refactor.

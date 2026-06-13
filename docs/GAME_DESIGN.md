@@ -78,6 +78,7 @@ Future path restrictions should sound like in-world folklore or institutions, no
 - Раз на локальний день видається `+7 XP` і `+5 золота`.
 - Повторні натискання того ж дня повертають «уже зараховано» і не дублюють винагороду.
 - У 0.0.6 flavor reward «квиток мокрого героя» став persistent item `item.wet-hero-ticket`.
+- У 0.0.11 після зарахованого рейду кнопка `🍻 Всім пива` стала першим tiny gold sink: 100 золота за якісний раунд, 10 золота за простий, менше — жарт і порада заробити.
 - Це не справжній combat engine і не group raid; лише форма для майбутніх idempotent reward actions.
 
 Майбутній рейдовий стан:

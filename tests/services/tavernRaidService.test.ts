@@ -15,6 +15,8 @@ import type { TelegramUserProfile } from "../../src/db/repositories/userReposito
 import { getLevelForXp } from "../../src/domain/progression/level";
 import {
   FRIDAY_BARREL_RAID_KEY,
+  KORCHMA_FINE_ROUND_COST,
+  KORCHMA_SIMPLE_ROUND_COST,
   TavernRaidService
 } from "../../src/services/tavernRaidService";
 
@@ -138,6 +140,73 @@ describe("TavernRaidService", () => {
       }
     });
   });
+
+  it("blocks buying a round until today's barrel raid is done", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { gold: 100 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+
+    const result = await service.buyRoundForTelegramUser(telegramUserId);
+
+    expect(result.state).toBe("raid-required");
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      gold: 100
+    });
+  });
+
+  it("spends 100 gold on a fine round after the barrel raid", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { gold: 125 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+
+    await service.completeFridayBarrelRaid(telegramUserId);
+    const result = await service.buyRoundForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "fine-round",
+      spentGold: KORCHMA_FINE_ROUND_COST,
+      remainingGold: 30
+    });
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      gold: 30
+    });
+  });
+
+  it("spends 10 gold on a simple round when the hero cannot afford a fine one", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { gold: 12 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+
+    await service.completeFridayBarrelRaid(telegramUserId);
+    const result = await service.buyRoundForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "simple-round",
+      spentGold: KORCHMA_SIMPLE_ROUND_COST,
+      remainingGold: 7
+    });
+  });
+
+  it("does not spend gold when the hero cannot afford even a simple round", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { gold: 4 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+
+    await service.completeFridayBarrelRaid(telegramUserId);
+    const result = await service.buyRoundForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "not-enough-gold",
+      gold: 9
+    });
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      gold: 9
+    });
+  });
 });
 
 function fixedClock(): Date {
@@ -191,6 +260,39 @@ class FakeCharacterRepository implements CharacterRepository {
     };
     this.charactersByTelegramUserId.set(userTelegramId, updated);
     return updated;
+  }
+
+  spendGoldForTelegramUser(
+    userTelegramId: bigint,
+    amount: number
+  ): Promise<
+    | { state: "spent"; character: CharacterRecord }
+    | { state: "insufficient"; character: CharacterRecord }
+    | null
+  > {
+    const character = this.charactersByTelegramUserId.get(userTelegramId);
+
+    if (!character) {
+      return Promise.resolve(null);
+    }
+
+    if (character.gold < amount) {
+      return Promise.resolve({
+        state: "insufficient",
+        character
+      });
+    }
+
+    const updated = {
+      ...character,
+      gold: character.gold - amount
+    };
+    this.charactersByTelegramUserId.set(userTelegramId, updated);
+
+    return Promise.resolve({
+      state: "spent",
+      character: updated
+    });
   }
 
   findByUserId(userId: string): Promise<CharacterRecord | null> {

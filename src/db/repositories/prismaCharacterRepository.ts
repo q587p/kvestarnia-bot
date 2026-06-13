@@ -7,6 +7,10 @@ import type {
 } from "./characterRepository";
 import type { TelegramUserProfile } from "./userRepository";
 
+export type SpendGoldForTelegramUserResult =
+  | { state: "spent"; character: CharacterRecord }
+  | { state: "insufficient"; character: CharacterRecord };
+
 export class PrismaCharacterRepository implements CharacterRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -130,6 +134,62 @@ export class PrismaCharacterRepository implements CharacterRepository {
       return {
         character: { ...character, currentLocationId: user.lastSeenLocationId },
         created: true
+      };
+    });
+  }
+
+  async spendGoldForTelegramUser(
+    telegramUserId: bigint,
+    amount: number
+  ): Promise<SpendGoldForTelegramUserResult | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await tx.character.findFirst({
+        where: {
+          user: {
+            telegramUserId
+          }
+        },
+        include: {
+          user: {
+            select: {
+              lastSeenLocationId: true
+            }
+          }
+        }
+      });
+
+      if (!character) {
+        return null;
+      }
+
+      if (character.gold < amount) {
+        return {
+          state: "insufficient",
+          character: toCharacterRecord(character)
+        };
+      }
+
+      const updated = await tx.character.update({
+        where: {
+          id: character.id
+        },
+        data: {
+          gold: {
+            decrement: amount
+          }
+        },
+        include: {
+          user: {
+            select: {
+              lastSeenLocationId: true
+            }
+          }
+        }
+      });
+
+      return {
+        state: "spent",
+        character: toCharacterRecord(updated)
       };
     });
   }
