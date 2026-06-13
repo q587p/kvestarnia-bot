@@ -66,6 +66,16 @@ describe("adventure presenter", () => {
     expect(text).toContain("дуже амбітний часник");
   });
 
+  it("escapes character names in adventure start text", () => {
+    const text = presentAdventureStart({
+      ...character,
+      name: "<b>Мандрівник</b>"
+    });
+
+    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;, що робимо?");
+    expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
+  });
+
   it("prompts /start when no character exists", () => {
     expect(presentAdventureNoCharacter()).toContain("/start");
   });

@@ -38,6 +38,19 @@ describe("cellar presenter", () => {
     ).toContain("автономію за шафою");
   });
 
+  it("escapes character names in cellar start text", () => {
+    const text = presentCellarStart({
+      state: "ready",
+      character: {
+        ...character,
+        name: "<b>Мандрівник</b>"
+      }
+    });
+
+    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;, що робимо?");
+    expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
+  });
+
   it("renders completed result with reward and no exact timestamp", () => {
     const text = presentCellarResult(completed);
 

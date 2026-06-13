@@ -92,6 +92,19 @@ describe("fight presenter", () => {
     expect(text).not.toContain("×1");
   });
 
+  it("escapes character names in fight outcomes", () => {
+    const text = presentFightResult({
+      ...completed("flee", 2, 0),
+      character: {
+        ...character,
+        name: "<b>Мандрівник</b>"
+      }
+    });
+
+    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt; зберіг обличчя");
+    expect(text).not.toContain("<b>Мандрівник</b> зберіг обличчя");
+  });
+
   it("shows level-up line only when level increases", () => {
     expect(presentFightResult(completed("receipt", 7, 5, true))).toContain("Рівень підріс: 1 → 2");
     expect(presentFightResult(completed("receipt", 7, 5, true))).toContain(

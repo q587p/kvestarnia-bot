@@ -97,7 +97,7 @@ function presentOutcome(
 
   return [
     "🏃 Ви відступили красиво.",
-    `${result.character.name} зберіг обличчя, нерви й підозру до лаваша.`
+    `${escapeHtml(result.character.name)} зберіг обличчя, нерви й підозру до лаваша.`
   ];
 }
 

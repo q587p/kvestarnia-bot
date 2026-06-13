@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  characterFlavorLines,
   selectCharacterFlavorLine,
   type CharacterFlavorQuery
 } from "../../src/content/characterFlavor";
@@ -39,6 +40,72 @@ const baseCharacter: CharacterSummary = {
 };
 
 describe("character flavor content", () => {
+  it("keeps all flavor ids unique", () => {
+    const ids = characterFlavorLines.map((line) => line.id);
+
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("does not expose hidden path ids, path labels, or raw HTML markers", () => {
+    const forbiddenPatterns = [
+      /\bsun\b/i,
+      /\bmoon\b/i,
+      /\bboundary\b/i,
+      /Шлях Сонця/i,
+      /Шлях Місяця/i,
+      /Шлях Межі/i,
+      /Сонячний шлях/i,
+      /Місячний шлях/i,
+      /Межовий шлях/i,
+      /[<>]/
+    ];
+
+    for (const line of characterFlavorLines) {
+      const inspected = `${line.id}: ${line.text}`;
+
+      for (const pattern of forbiddenPatterns) {
+        expect(inspected).not.toMatch(pattern);
+      }
+    }
+  });
+
+  it("keeps placement, scene, and action combinations valid", () => {
+    const allowedPlacements = new Set([
+      "korchma.greeting",
+      "quest.start",
+      "quest.outcome",
+      "raid.prep-hint"
+    ]);
+    const allowedScenes = new Set(["shawarma", "fight", "cellar", "barrel"]);
+    const allowedActionsByScene = {
+      shawarma: new Set(["poke", "receipt", "flee"]),
+      fight: new Set(["attack", "receipt", "flee"]),
+      cellar: new Set(["negotiate", "cheese-trap", "sweep-bravely"]),
+      barrel: new Set<string>()
+    };
+
+    for (const line of characterFlavorLines) {
+      expect(allowedPlacements.has(line.placement)).toBe(true);
+
+      if (line.scene) {
+        expect(allowedScenes.has(line.scene)).toBe(true);
+      }
+
+      if (line.placement === "raid.prep-hint") {
+        expect(line.scene).toBe("barrel");
+      }
+
+      if (line.placement === "quest.outcome") {
+        expect(line.scene).toBeDefined();
+      }
+
+      for (const action of line.selector?.actions ?? []) {
+        expect(line.scene).toBeDefined();
+        expect(allowedActionsByScene[line.scene ?? "barrel"].has(action)).toBe(true);
+      }
+    }
+  });
+
   it("falls back to general korchma greeting when no specific scene line matches", () => {
     const line = selectCharacterFlavorLine(
       {
@@ -66,6 +133,34 @@ describe("character flavor content", () => {
 
     expect(line?.id).toBe("korchma.greeting.combo.bisyny-bard");
     expect(line?.text).toContain("культурний скандал");
+  });
+
+  it("keeps scene-specific flavor ahead of generic fallback flavor", () => {
+    const line = selectCharacterFlavorLine(
+      {
+        ...baseCharacter,
+        classId: "class.warrior",
+        className: "Воїн"
+      },
+      fixed("raid.prep-hint", "barrel")
+    );
+
+    expect(line?.id).toBe("barrel.raid-hint.class.warrior");
+    expect(line?.id).not.toMatch(/fallback/);
+  });
+
+  it("does not let one scene action flavor leak into another scene", () => {
+    const rogue = {
+      ...baseCharacter,
+      classId: "class.rogue",
+      className: "Злодій"
+    };
+
+    const shawarma = selectCharacterFlavorLine(rogue, fixed("quest.start", "shawarma"));
+    const fight = selectCharacterFlavorLine(rogue, fixed("quest.start", "fight"));
+
+    expect(shawarma?.id).toBe("shawarma.start.class.rogue");
+    expect(fight?.id).toBe("fight.start.class.rogue");
   });
 
   it("selects the same line for the same character and seed", () => {

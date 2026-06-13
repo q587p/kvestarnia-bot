@@ -90,6 +90,20 @@ describe("tavern presenter", () => {
     expect(text).toContain("Що робимо?");
   });
 
+  it("escapes character names and titles in tavern scene headers", () => {
+    const text = presentTavern({
+      ...character,
+      name: "<b>Мандрівник</b>",
+      title: "<i>Пересічний Герой</i>"
+    });
+
+    expect(text).toContain(
+      "&lt;b&gt;Мандрівник&lt;/b&gt; · &lt;i&gt;Пересічний Герой&lt;/i&gt;"
+    );
+    expect(text).not.toContain("<b>Мандрівник</b>");
+    expect(text).not.toContain("<i>Пересічний Герой</i>");
+  });
+
   it("prompts /start when no character exists", () => {
     expect(presentTavernNoCharacter()).toContain("/start");
   });
@@ -261,6 +275,31 @@ describe("tavern presenter", () => {
     expect(fineRound).toContain("Ви вирвались на перше місце");
     expect(fineRound).toContain("За добу");
     expect(fineRound).toContain("Мандрівник — 2 частування · 110 золота");
+  });
+
+  it("escapes leaderboard names in tavern round results", () => {
+    const text = presentTavernRoundResult({
+      state: "simple-round",
+      character,
+      spentGold: 10,
+      remainingGold: 2,
+      leaderboard: {
+        day: [
+          {
+            characterId: "character-unsafe",
+            name: "<b>Дара</b>",
+            roundCount: 1,
+            spentGold: 10
+          }
+        ],
+        week: [],
+        month: []
+      },
+      becameLeader: []
+    });
+
+    expect(text).toContain("&lt;b&gt;Дара&lt;/b&gt; — 1 частування · 10 золота");
+    expect(text).not.toContain("<b>Дара</b>");
   });
 
   it("presents a round offer before any gold is spent", () => {
