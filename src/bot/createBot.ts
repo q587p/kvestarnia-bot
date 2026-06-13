@@ -395,59 +395,31 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
   }
 
   if (data === "v1:menu:tavern") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data === "v1:place:hall") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data === "v1:place:front") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data === "v1:place:quest-table") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data === "v1:place:barrel") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data === "v1:place:cellar") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data === "v1:place:news-corner") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data.startsWith("v1:news:")) {
@@ -477,11 +449,7 @@ function getTextPresenceContext(text: string): PresenceContext | null {
   }
 
   if (text === mainMenuButtons.tavern) {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (text === mainMenuButtons.quest) {
@@ -510,19 +478,11 @@ function getCommandPresenceContext(command: string): PresenceContext | null {
   }
 
   if (command === "tavern") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (command === "raid") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (command === "adventure" || command === "quest" || command === "cellar") {
@@ -742,6 +702,20 @@ async function handlePlaceCallback(
   action: PlaceCallback,
   services: BotServices
 ): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (
+    action !== "barrel" &&
+    (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
+  ) {
+    return;
+  }
+
   await safeAnswerCallbackQuery(ctx);
 
   if (action === "hall") {
@@ -755,7 +729,7 @@ async function handlePlaceCallback(
   }
 
   if (action === "barrel") {
-    await sendTavernBarrel(ctx, services.tavern, "edit");
+    await sendTavernBarrel(ctx, services.tavern, services.presence, "edit");
     return;
   }
 

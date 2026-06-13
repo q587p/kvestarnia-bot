@@ -1,7 +1,13 @@
 import type { Bot, Context } from "grammy";
 import type { PresenceGroup, PresenceService } from "../../services/presenceService";
+import {
+  PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_FRONT,
+  PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_RAID_FRIDAY_BARREL
+} from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
-import { telegramUserIdFromContext } from "../context";
+import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
@@ -31,7 +37,7 @@ export function registerTavernCommand(
   });
 
   bot.command("raid", async (ctx) => {
-    await sendTavernBarrel(ctx, tavernRaidService, "reply");
+    await sendTavernBarrel(ctx, tavernRaidService, presenceService, "reply");
   });
 }
 
@@ -55,6 +61,19 @@ export async function sendTavern(
     return;
   }
 
+  if (result.state === "pending") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
+    return;
+  }
+
+  if (result.state === "pending-complete") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
+    return;
+  }
+
+  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_HALL);
   const presence = await getPlacePresence(telegramUserId, presenceService);
 
   await sendText(ctx, mode, presentKorchmaHall(result.character, presence), "hall");
@@ -80,12 +99,26 @@ export async function sendKorchmaFront(
     return;
   }
 
+  if (result.state === "pending") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
+    return;
+  }
+
+  if (result.state === "pending-complete") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
+    return;
+  }
+
+  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FRONT);
   await sendText(ctx, mode, presentKorchmaFront(result.character), "front");
 }
 
 export async function sendTavernBarrel(
   ctx: Context,
   tavernRaidService: TavernRaidService,
+  presenceService: PresenceService,
   mode: "reply" | "edit"
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
@@ -103,21 +136,45 @@ export async function sendTavernBarrel(
   }
 
   if (result.state === "already-completed") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
     await sendText(ctx, mode, presentTavernAlreadyRaided(result.character), "barrel-result");
     return;
   }
 
   if (result.state === "pending") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
     await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
     return;
   }
 
   if (result.state === "pending-complete") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
     await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
     return;
   }
 
+  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
   await sendText(ctx, mode, presentTavern(result.character), true);
+}
+
+async function markTavernPlace(
+  ctx: Context,
+  presenceService: PresenceService,
+  locationId: string,
+  inPendingRaid = false
+): Promise<void> {
+  const player = playerFromContext(ctx.from);
+
+  if (!player) {
+    return;
+  }
+
+  await presenceService.markAction({
+    user: player,
+    locationId,
+    currentRaidId: inPendingRaid ? PRESENCE_RAID_FRIDAY_BARREL : null,
+    currentAdventureId: null
+  });
 }
 
 async function getPlacePresence(

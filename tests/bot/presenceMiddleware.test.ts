@@ -12,7 +12,6 @@ import {
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
-  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
   type MarkPlayerPresenceInput
 } from "../../src/services/presenceService";
@@ -80,15 +79,23 @@ describe("presence middleware", () => {
     });
   });
 
-  it("marks korchma place callbacks with actual place context", async () => {
+  it("marks korchma place callbacks only after handler gates pass", async () => {
     const presence = new CapturingPresenceService();
-    const bot = createTestBot(presence);
+    const bot = createTestBot(presence, {
+      tavern: readyTavernService()
+    });
     await bot.init();
 
-    await bot.handleUpdate(callbackUpdate(makePlaceCallbackData("quest-table")));
+    await bot.handleUpdate(callbackUpdate(makePlaceCallbackData("hall")));
 
-    expect(presence.marks[0]).toMatchObject({
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+    expect(presence.marks[0]).toEqual({
+      user: {
+        telegramUserId: 42n,
+        displayName: "Тест"
+      }
+    });
+    expect(presence.marks[1]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
       currentRaidId: null,
       currentAdventureId: null
     });
@@ -110,12 +117,20 @@ describe("presence middleware", () => {
 
   it("marks the korchma menu button as the hall", async () => {
     const presence = new CapturingPresenceService();
-    const bot = createTestBot(presence);
+    const bot = createTestBot(presence, {
+      tavern: readyTavernService()
+    });
     await bot.init();
 
     await bot.handleUpdate(messageUpdate("🍺 Корчма"));
 
-    expect(presence.marks[0]).toMatchObject({
+    expect(presence.marks[0]).toEqual({
+      user: {
+        telegramUserId: 42n,
+        displayName: "Тест"
+      }
+    });
+    expect(presence.marks[1]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_HALL,
       currentRaidId: null,
       currentAdventureId: null
@@ -166,6 +181,40 @@ describe("presence middleware", () => {
 
   it.each([
     {
+      name: "korchma menu button",
+      update: messageUpdate("🍺 Корчма")
+    },
+    {
+      name: "/tavern command",
+      update: commandUpdate("/tavern")
+    }
+  ])(
+    "keeps $name at the barrel during a pending raid",
+    async ({ update }) => {
+      const presence = new CapturingPresenceService();
+      const bot = createTestBot(presence, {
+        tavern: pendingTavernService()
+      });
+      await bot.init();
+
+      await bot.handleUpdate(update);
+
+      expect(presence.marks[0]).toEqual({
+        user: {
+          telegramUserId: 42n,
+          displayName: "Тест"
+        }
+      });
+      expect(presence.marks[1]).toMatchObject({
+        locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+        currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
+        currentAdventureId: null
+      });
+    }
+  );
+
+  it.each([
+    {
       name: "adventure",
       callbackData: makeAdventureCallbackData("poke")
     },
@@ -176,6 +225,22 @@ describe("presence middleware", () => {
     {
       name: "cellar",
       callbackData: makeCellarCallbackData("negotiate")
+    },
+    {
+      name: "hall place",
+      callbackData: makePlaceCallbackData("hall")
+    },
+    {
+      name: "quest-table place",
+      callbackData: makePlaceCallbackData("quest-table")
+    },
+    {
+      name: "cellar place",
+      callbackData: makePlaceCallbackData("cellar")
+    },
+    {
+      name: "front place",
+      callbackData: makePlaceCallbackData("front")
     }
   ])("does not move presence from stale $name callbacks during a pending barrel raid", async ({ callbackData }) => {
     const presence = new CapturingPresenceService();
@@ -330,6 +395,44 @@ const character: CharacterSummary = {
   }
 };
 
+function readyTavernService() {
+  return {
+    getTavernForTelegramUser: () =>
+      Promise.resolve({
+        state: "ready",
+        character
+      }),
+    advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+    completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+    getActivePendingFridayBarrelRaidForTelegramUser: () => Promise.resolve({ state: "none" }),
+    getRoundOfferForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+    buyRoundForTelegramUser: () => Promise.resolve({ state: "no-character" })
+  };
+}
+
+function pendingTavernService() {
+  return {
+    getTavernForTelegramUser: () =>
+      Promise.resolve({
+        state: "pending",
+        character,
+        availableAt: new Date("2026-06-13T10:33:00.000Z"),
+        now: new Date("2026-06-13T10:30:00.000Z")
+      }),
+    advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+    completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+    getActivePendingFridayBarrelRaidForTelegramUser: () =>
+      Promise.resolve({
+        state: "pending",
+        character,
+        availableAt: new Date("2026-06-13T10:33:00.000Z"),
+        now: new Date("2026-06-13T10:30:00.000Z")
+      }),
+    getRoundOfferForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+    buyRoundForTelegramUser: () => Promise.resolve({ state: "no-character" })
+  };
+}
+
 function servicesWith(overrides: Partial<BotServices>): BotServices {
   return {
     adventure: {
@@ -382,6 +485,24 @@ function messageUpdate(text: string) {
         first_name: "Тест"
       },
       text
+    }
+  };
+}
+
+function commandUpdate(text: string) {
+  const update = messageUpdate(text);
+
+  return {
+    ...update,
+    message: {
+      ...update.message,
+      entities: [
+        {
+          type: "bot_command" as const,
+          offset: 0,
+          length: text.length
+        }
+      ]
     }
   };
 }

@@ -171,6 +171,7 @@ describe("tavern presenter", () => {
     const text = presentTavernRaidPending(pending);
 
     expect(text).toContain("Рейд почався");
+    expect(text).toContain("Єгер у капюшоні");
     expect(text).toContain("Поверніться через <b>8 хв.</b>");
     expect(text).not.toContain("хв..");
     expect(text).toContain("не видаю нових пригод");

@@ -47,9 +47,7 @@ export function buildTavernResultKeyboard(
     return new InlineKeyboard()
       .text("🍺 Перевірити бочку", makeTavernCallbackData("raid"))
       .row()
-      .text("👥 Учасники", makeTavernCallbackData("participants"))
-      .row()
-      .text("⬅️ До зали", makePlaceCallbackData("hall"));
+      .text("👥 Учасники", makeTavernCallbackData("participants"));
   }
 
   if (state === "completed" || state === "already-completed") {
