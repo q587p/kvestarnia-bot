@@ -126,15 +126,20 @@ Hidden `path` може бути внутрішнім selector-ом, але на�
 - У 0.0.6 дії `attack` і `receipt` можуть видати маленький persistent item, але не впливають на stats.
 - HP не зберігається після сутички, герой не може померти, combat state machine ще не створюється.
 
-## Перші манатки 0.0.6
+## Манатки й preview спорядження
 Перший persistent inventory slice до повної itemization system.
 
 - Вхід через `/inventory`, `/items`, `/bag` або кнопку `🎒 Манатки`.
+- `0.0.13` додає вторинні команди `/equipment`, `/gear`, `/equip` і inline-кнопку `🧥 Спорядження` з інвентаря.
 - Предмети зберігаються як content id + quantity для конкретного героя.
 - Tavern/adventure/fight grants deterministic і прив’язані до existing daily action keys.
 - Повторний callback того ж key/date не дублює XP, золото або items.
-- Перші предмети: `item.wet-hero-ticket`, `item.suspicious-shawarma-wrapper`, `item.receipt-of-formal-suspicion`.
-- Предмети поки не екіпіруються, не продаються, не роляться випадково і не змінюють stats.
+- Перші persistent reward items: `item.wet-hero-ticket`, `item.suspicious-shawarma-wrapper`, `item.receipt-of-formal-suspicion`.
+- Перший preview-equippable content item: `item.pan-of-persuasion`, показаний у вітрині спорядження як приклад, якщо герой його ще не має.
+- Item detail показує назву, рідкість, категорію/слот, вартість або `безцінна`, опис, quantity і чи предмет preview-equippable.
+- У `0.0.13` кожна манатка має `goldValue` або `priceless`; це тільки metadata для огляду й майбутніх sinks, не продаж і не обмін.
+- Спорядження у `0.0.13` preview-only: воно не зберігає equipped state, не продається, не ролиться випадково і не змінює stats, HP, ману, combat preview або reward math.
+- Callback-и `v1:item:*` і `v1:equip:*` валідовані; item detail перевіряє ownership перед показом.
 
 Майбутній itemization/equipment борг:
 - Манатки можуть випадати раніше, ніж герой здатен їх вдягнути; inventory має чесно зберігати такі речі, а equipment UI має показувати потрібний рівень замість тихого провалу.
@@ -334,7 +339,7 @@ Post-MVP:
 7. Пояснення 3 кнопок: Пригода, Герой, Манатки.
 
 ## Команди MVP
-Поточна command surface у `0.0.11`:
+Поточна command surface у `0.0.13`:
 - `/start`
 - `/hero`, `/profile`, `/me`
 - `/tavern`, `/raid`
@@ -342,6 +347,7 @@ Post-MVP:
 - `/fight`, `/hunt`
 - `/cellar` як secondary fallback, без side menu
 - `/inventory`, `/items`, `/bag`
+- `/equipment`, `/gear`, `/equip` як secondary preview-команди, без side menu
 - `/guild` як коротка заглушка
 - `/online`, `/look`
 - `/restart`
@@ -349,7 +355,7 @@ Post-MVP:
 - `/help`
 - `/dev_reset_me` тільки локально, коли dev reset увімкнений
 
-`/quest` у `0.0.11` лишається основним входом, але квести видають тільки всередині корчми. Надворі герой бачить коротку відповідь «Квести видають усередині.»; у залі або біля столу `/quest` показує `Стіл зі справами` з денною шаурмою, fight probe і повторюваною «Підвальною справою».
+`/quest` лишається основним входом, але квести видають тільки всередині корчми. Надворі герой бачить коротку відповідь «Квести видають усередині.»; у залі або біля столу `/quest` показує `Стіл зі справами` з денною шаурмою, fight probe і повторюваною «Підвальною справою».
 
 Цільова command surface для MVP:
 - `/start`

@@ -33,11 +33,33 @@ describe("content tables", () => {
   it("includes first persistent loot item ids", () => {
     expect(items.map((item) => item.id)).toEqual(
       expect.arrayContaining([
+        "item.pan-of-persuasion",
         "item.wet-hero-ticket",
         "item.suspicious-shawarma-wrapper",
         "item.receipt-of-formal-suspicion"
       ])
     );
+  });
+
+  it("keeps equipment preview content free of stat effects", () => {
+    const equippablePreviewItems = items.filter((item) =>
+      ["weapon", "armor", "accessory"].includes(item.slot)
+    );
+
+    expect(equippablePreviewItems.map((item) => item.id)).toContain("item.pan-of-persuasion");
+    for (const item of items) {
+      expect(item).not.toHaveProperty("stats");
+      expect(item).not.toHaveProperty("effects");
+      expect(item).not.toHaveProperty("combatBonus");
+      expect(item).not.toHaveProperty("rewardBonus");
+    }
+  });
+
+  it("gives every item either a gold value or a priceless marker", () => {
+    for (const item of items) {
+      expect(item.goldValue !== undefined || item.priceless === true).toBe(true);
+      expect(item.goldValue !== undefined && item.priceless === true).toBe(false);
+    }
   });
 
   it("keeps legacy kharakternyk race out of active onboarding races", () => {

@@ -105,8 +105,9 @@ docs/
 - unique (`character_id`, `item_id`)
 
 Future equipment/trading notes:
+- `0.0.13` adds preview-only equipment and item detail views without schema changes. It reuses `character_items` for ownership checks and content metadata for rarity/slot/value/description.
 - Item content metadata should eventually support `requiredLevel`, allowed `raceId`/`classId` lists, and optional hidden `path`/pronoun selectors for rare restricted манатки.
-- Item content metadata should include `goldValue` for most items or an explicit `priceless`/non-sellable marker for story trophies and special collectibles.
+- Item content metadata includes `goldValue` for priced items or an explicit `priceless` marker for story trophies and special collectibles. Current code only displays this in item detail; it does not sell, trade, convert, or spend items.
 - `character_items` stays the ownership/count table. Actual equipment slots, temporary permission effects, cursed exceptions, attunement, respec/form-change state, and trade offers should be separate rows or state machines.
 - Equipping must validate ownership, level, restrictions, and any active bypass in one domain/service path; callbacks should never trust button text or stale presenter state.
 - Player-to-player exchange/gifting needs an idempotent transaction: remove/decrement from sender, create/increment for receiver, write an audit/transfer row, and fail cleanly if the sender no longer owns the item.
@@ -283,7 +284,7 @@ Routing rule у `0.0.11`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar`
 ## Telegram callback data
 Callback data коротка, версіонована.
 
-Поточні callback prefixes у `0.0.11`:
+Поточні callback prefixes у `0.0.13`:
 - `v1:onb:*`
 - `v1:menu:hero`
 - `v1:menu:help`
@@ -313,6 +314,9 @@ Callback data коротка, версіонована.
 - `v1:cellar:sweep-bravely`
 - `v1:cellar:negotiate`
 - `v1:cellar:participants`
+- `v1:item:inventory`
+- `v1:item:detail:{itemId}`
+- `v1:equip:view`
 - `v1:fight:mimic:attack`
 - `v1:fight:mimic:receipt`
 - `v1:fight:mimic:flee`
@@ -324,10 +328,9 @@ Callback data коротка, версіонована.
 Заплановані приклади для майбутніх persistent systems:
 - `v1:combat:atk:{combatId}`
 - `v1:combat:skill:{combatId}:{skillId}`
-- `v1:menu:inventory`
-- `v1:inv:equip:{inventoryItemId}` — future equipment callback, not implemented in 0.0.6.
+- `v1:equip:wear:{itemId}` або коротший equivalent — future equipment mutation, not implemented in `0.0.13`.
 
-Валідація обов’язкова. Не довіряти даним з callback.
+Валідація обов’язкова. Не довіряти даним з callback: `v1:item:detail:{itemId}` має перевірити, що item id валідний, content існує або має fallback, і герой реально володіє цією манаткою перед показом деталей.
 
 Майбутній UX-борг для `safeEditMessageText`:
 - Перед редагуванням callback-повідомлення перевіряти, що це останнє актуальне повідомлення бота в цьому chat/user flow, або що конкретний екран явно дозволено редагувати старим `message_id`.

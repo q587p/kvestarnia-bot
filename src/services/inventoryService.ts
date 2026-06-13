@@ -10,6 +10,11 @@ export type InventoryResult =
   | { state: "empty" }
   | { state: "found"; items: InventoryItemSummary[] };
 
+export type InventoryItemDetailResult =
+  | { state: "no-character" }
+  | { state: "not-owned" }
+  | { state: "found"; item: InventoryItemSummary };
+
 export interface InventoryItemSummary {
   id: string;
   itemId: string;
@@ -36,6 +41,28 @@ export class InventoryService {
       items: rows.map(enrichItem)
     };
   }
+
+  async getItemForTelegramUser(
+    telegramUserId: bigint,
+    itemId: string
+  ): Promise<InventoryItemDetailResult> {
+    const rows = await this.inventory.listByTelegramUserId(telegramUserId);
+
+    if (!rows) {
+      return { state: "no-character" };
+    }
+
+    const row = rows.find((candidate) => candidate.itemId === itemId);
+
+    if (!row) {
+      return { state: "not-owned" };
+    }
+
+    return {
+      state: "found",
+      item: enrichItem(row)
+    };
+  }
 }
 
 function enrichItem(row: CharacterItemRecord): InventoryItemSummary {
@@ -44,7 +71,8 @@ function enrichItem(row: CharacterItemRecord): InventoryItemSummary {
     name: "Невідома манатка",
     description: "Вона є в торбі, але документи ще десь ідуть.",
     rarity: "common",
-    slot: "junk"
+    slot: "junk",
+    priceless: true
   };
 
   return {

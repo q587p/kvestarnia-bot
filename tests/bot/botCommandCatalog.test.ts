@@ -38,6 +38,9 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "cellar")).toBe(false);
     expect(commands.some((entry) => entry.command === "items")).toBe(false);
     expect(commands.some((entry) => entry.command === "bag")).toBe(false);
+    expect(commands.some((entry) => entry.command === "equipment")).toBe(false);
+    expect(commands.some((entry) => entry.command === "gear")).toBe(false);
+    expect(commands.some((entry) => entry.command === "equip")).toBe(false);
     expect(commands.some((entry) => entry.command === "online")).toBe(false);
     expect(commands.some((entry) => entry.command === "look")).toBe(false);
     expect(commands.some((entry) => entry.command === "guild")).toBe(false);

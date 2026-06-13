@@ -7,6 +7,22 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.13] - 12026-06-13 - Equipment Preview & Item Details
+
+### Added
+- Added item inspection callbacks from the inventory surface: owned манатки now have a detail view with rarity, category, value/priceless marker, quantity, description, and equippable-vs-trophy wording.
+- Added preview-only equipment commands `/equipment`, `/gear`, and `/equip`, plus an inline `🧥 Спорядження` button from `/inventory`.
+- Added the first equipment preview surface with weapon, head, chest, legs, and accessory slots.
+- Added callback validation for `v1:item:*` and `v1:equip:*`, including ownership checks before item detail rendering.
+- Tests cover item callback parsing, inventory/equipment keyboards, item detail escaping, equipment preview wording, ownership checks, value/priceless metadata, and content remaining free of stat/effect fields.
+
+### Changed
+- Inventory replies now use inline item/detail buttons so players can inspect манатки without command arguments.
+- Help lists equipment aliases as secondary commands without adding them to the Telegram side command menu.
+
+### Not Included Yet
+- Persistent equipped items, stat effects, combat changes, reward changes, random loot tables, shops, trading, crafting, item selling, or schema changes.
+
 ## [0.0.12] - 12026-06-13 - Character Impact Loop
 
 ### Added
