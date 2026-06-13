@@ -197,6 +197,65 @@ describe("scene callback HTML options", () => {
     expect(notification?.payload.parse_mode).toBe("HTML");
     expect(String(notification?.payload.text)).toContain("<b>+7 XP · +5 золота</b>");
   });
+
+  it("does not send a barrel raid timer notification after manual completion claims the reward", async () => {
+    vi.useFakeTimers();
+
+    let rewardClaimed = false;
+    const tavern: Partial<BotServices["tavern"]> = {
+      advanceFridayBarrelRaid: () =>
+        Promise.resolve({
+          state: "pending-started",
+          character,
+          availableAt: new Date("2026-06-13T10:31:00.000Z"),
+          now: new Date("2026-06-13T10:30:00.000Z"),
+          periodId: "2026-06-13T10:23"
+        }),
+      completeFridayBarrelRaid: () => {
+        if (rewardClaimed) {
+          return Promise.resolve({
+            state: "already-completed",
+            character,
+            reward: {
+              xp: 7,
+              gold: 5,
+              localDate: "2026-06-13T10:23",
+              itemGrants: []
+            },
+            levelChange: noLevelChange
+          });
+        }
+
+        rewardClaimed = true;
+        return Promise.resolve({
+          state: "completed",
+          character,
+          reward: {
+            xp: 7,
+            gold: 5,
+            localDate: "2026-06-13T10:23",
+            itemGrants: []
+          },
+          levelChange: noLevelChange
+        });
+      }
+    };
+
+    const calls = await captureApiCalls(
+      makeTavernCallbackData("raid"),
+      servicesWith({
+        tavern
+      })
+    );
+
+    await tavern.completeFridayBarrelRaid?.(42n, "2026-06-13T10:23");
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(rewardClaimed).toBe(true);
+    expect(
+      calls.find((call) => call.method === "sendMessage" && String(call.payload.text).includes("Рейд завершено"))
+    ).toBeUndefined();
+  });
 });
 
 interface ApiCall {

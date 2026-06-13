@@ -239,13 +239,13 @@ Cooldown reward claim має бути transactional:
 Redis лишається майбутнім cache/job інструментом, не dependency для `0.0.10`.
 
 Tavern raid timing in `0.0.11`/`0.0.15`:
-- `v1:tavern:raid` створює lightweight pending action через годинний `CharacterCooldown` key з prefix `tavern.friday-barrel-raid.pending` і period id `YYYY-MM-DDTHH:23`, з випадковим завершенням через 5–8 хвилин, а не одразу видає reward.
-- Новий raid period відкривається на 23-й хвилині кожної години. З 04:00 до 08:00 нові старти повертають audit-break copy про переоблік; уже pending рейди все ще можуть завершитись. Після 08:00 рейд знову доступний у поточному period bucket, а далі лічильник перемикається за звичайним правилом 23-ї хвилини.
+- `v1:tavern:raid` створює lightweight pending action через годинний `CharacterCooldown` key з prefix `tavern.friday-barrel-raid.pending` і period id `YYYY-MM-DDTHH:23`, з випадковим завершенням через 5–8 хвилин, а не одразу видає reward. Period id є київським wall-time bucket-ом у `Europe/Kyiv`, а не UTC timestamp-ом.
+- Новий raid period відкривається на 23-й хвилині кожної години за київським часом. З 04:00 до 08:00 за київським часом нові старти повертають audit-break copy про переоблік; уже pending рейди все ще можуть завершитись. Після 08:00 рейд знову доступний у поточному period bucket, а далі лічильник перемикається за звичайним правилом 23-ї хвилини.
 - Поки pending raid активний, handlers для `/quest`, `/adventure`, `/fight`, `/hunt`, `/cellar` і схожих action callback-ів відповідають блокувальним станом без видачі інших нагород.
 - Завершення idempotent: після `available_at <= now` той самий callback завершує reward claim для period id старту; повторний callback показує completed/already-completed без дублювання XP/gold/items.
-- Bot layer ставить in-process `setTimeout` notification після `pending-started`, а `completeFridayBarrelRaid(telegramUserId, periodId)` лишається джерелом правди для reward claim. Після restart процесу таймери губляться, тому ручна кнопка перевірки лишається fallback.
-- Manual fallback шукає pending raid у поточному й останніх 23 годинних period id, щоб завершення не губилося після restart або довгої паузи гравця.
-- Для MVP це лишається cooldown/action state без persistent job scheduler; для group raids треба перейти на `raids`, `raid_participants` і persistent jobs.
+- Bot layer ставить in-process `setTimeout` notification після `pending-started`, а `completeFridayBarrelRaid(telegramUserId, periodId)` лишається джерелом правди для reward claim. Ця нотифікація best-effort: після restart/deploy таймери губляться, а за кількох bot worker-ів локальні timer map-и можуть дублювати повідомлення, якщо deployment не гарантує один worker.
+- Manual fallback шукає pending raid у поточному й останніх 23 годинних period id, щоб завершення не губилося після restart або довгої паузи гравця. Старіші pending рейди потребують cleanup/migration або durable replay, бо поточний fallback не сканує безмежну історію.
+- Для MVP це лишається cooldown/action state без persistent job scheduler; перед горизонтальним scaling або group raids треба перейти на outbox/persistent jobs, `raids` і `raid_participants`.
 
 Рішення й борги для raid timing:
 - Pending-рейд на Бочку має переживати rollover годинного відтинку й видавати винагороду за period id старту. Поточний MVP зберігає period id у полі `daily_actions.local_date`; перед повним activity model це імʼя поля варто переглянути або задокументувати як generic idempotency bucket.

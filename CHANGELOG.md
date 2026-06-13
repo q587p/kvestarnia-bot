@@ -21,7 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Item detail flavor now gives armor and accessories their own tiny equipment-preview jokes instead of sharing one generic non-weapon line.
 - The current deterministic starter loop now reaches weapon, armor, and accessory examples without seeded/dev inventory.
-- Barrel raids are now gated by hourly raid periods that flip on the 23rd minute instead of by one daily claim. New starts pause from 04:00 through 08:00 for korchma accounting.
+- Barrel raids are now gated by hourly Kyiv-local raid periods that flip on the 23rd minute instead of by one daily claim. New starts pause from 04:00 through 08:00 Kyiv time for korchma accounting.
 - The front-of-korchma screen now lists the main interior destinations and includes a `/tavern` fallback line in case Telegram hides an old inline button.
 - Hero profile resource line now marks HP and mana with `❤️` and `🔮` icons for faster scanning.
 - Korchma hall presence now says `поки тільки ви` only when the player is truly the sole active person inside, otherwise it summarizes active and idle heroes across interior korchma zones.
@@ -253,7 +253,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `/quest`, `/hunt`, `/inventory`, and `/guild` now return short Ukrainian placeholder responses instead of staying silent.
 - The tavern screen shows the current hero, short event scene, and buttons for the barrel raid, hero summary, and help.
 - `DailyAction` persistence records once-per-day local rewards with a unique character/key/date constraint.
-- The tavern raid grants `+7 XP` and `+5 gold` once per stored UTC date, then returns an already-completed result on repeated taps.
+- The tavern raid grants `+7 XP` and `+5 gold` once per stored reward date, then returns an already-completed result on repeated taps.
 - Tests cover tavern callback parsing, presenter output, no-character handling, idempotent service rewards, and Prisma daily-action uniqueness.
 
 ### Changed

@@ -286,8 +286,8 @@ describe("tavern presenter", () => {
     const text = presentTavernRaidAuditBreak({
       state: "audit-break",
       character,
-      now: new Date("2026-06-13T04:30:00.000Z"),
-      nextAvailableAt: new Date("2026-06-13T08:00:00.000Z")
+      now: new Date("2026-06-13T01:30:00.000Z"),
+      nextAvailableAt: new Date("2026-06-13T05:00:00.000Z")
     });
 
     expect(text).toContain("Бочка на переобліку");
