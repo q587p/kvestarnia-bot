@@ -3,7 +3,11 @@ import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import type { TavernRoundOfferResult } from "../../services/tavernRaidService";
 
-export type TavernResultKeyboardState = "completed" | "already-completed";
+export type TavernResultKeyboardState =
+  | "completed"
+  | "already-completed"
+  | "pending"
+  | "pending-started";
 
 export function buildTavernKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
@@ -36,6 +40,13 @@ export function buildBackToKorchmaHallKeyboard(): InlineKeyboard {
 export function buildTavernResultKeyboard(
   state: TavernResultKeyboardState
 ): InlineKeyboard {
+  if (state === "pending" || state === "pending-started") {
+    return new InlineKeyboard()
+      .text("🍺 Перевірити бочку", makeTavernCallbackData("raid"))
+      .row()
+      .text("👥 Учасники", makeTavernCallbackData("participants"));
+  }
+
   if (state === "completed" || state === "already-completed") {
     return new InlineKeyboard().text("👥 Учасники", makeTavernCallbackData("participants"));
   }

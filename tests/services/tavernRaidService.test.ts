@@ -6,6 +6,12 @@ import type {
   CreateCharacterResult
 } from "../../src/db/repositories/characterRepository";
 import type {
+  CharacterCooldownRecord,
+  ClaimCooldownRewardInput,
+  ClaimCooldownRewardResult,
+  CooldownRepository
+} from "../../src/db/repositories/cooldownRepository";
+import type {
   ClaimDailyActionInput,
   ClaimDailyActionResult,
   DailyActionRecord,
@@ -18,8 +24,10 @@ import type {
 } from "../../src/db/repositories/korchmaRoundPurchaseRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
+import { FakeRandomSource } from "../../src/shared/random";
 import {
   FRIDAY_BARREL_RAID_KEY,
+  FRIDAY_BARREL_RAID_PENDING_KEY,
   KORCHMA_FINE_ROUND_COST,
   KORCHMA_SIMPLE_ROUND_COST,
   TavernRaidService
@@ -143,6 +151,148 @@ describe("TavernRaidService", () => {
         xp: 7,
         gold: 5
       }
+    });
+  });
+
+  it("starts the barrel raid as a pending action before awarding rewards", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const service = createTavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      new FakeRandomSource([0])
+    );
+
+    const result = await service.advanceFridayBarrelRaid(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "pending-started",
+      availableAt: new Date("2026-06-12T10:31:00.000Z"),
+      now: fixedClock()
+    });
+    expect(pendingRaids.records[0]).toMatchObject({
+      key: `${FRIDAY_BARREL_RAID_PENDING_KEY}:2026-06-12`,
+      availableAt: new Date("2026-06-12T10:31:00.000Z")
+    });
+    expect(dailyActions.records).toHaveLength(0);
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: 0,
+      gold: 0
+    });
+  });
+
+  it("keeps the barrel raid pending until the wait ends", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const service = createTavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      new FakeRandomSource([0.999])
+    );
+
+    await service.advanceFridayBarrelRaid(telegramUserId);
+    const repeated = await service.advanceFridayBarrelRaid(telegramUserId);
+
+    expect(repeated).toMatchObject({
+      state: "pending",
+      availableAt: new Date("2026-06-12T10:33:00.000Z")
+    });
+    expect(dailyActions.records).toHaveLength(0);
+  });
+
+  it("completes the barrel raid after the pending wait and keeps rewards idempotent", async () => {
+    let now = new Date("2026-06-12T10:30:00.000Z");
+    const clock = () => now;
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const service = new TavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      clock,
+      new FakeRandomSource([0])
+    );
+
+    await service.advanceFridayBarrelRaid(telegramUserId);
+    now = new Date("2026-06-12T10:31:01.000Z");
+    const completed = await service.advanceFridayBarrelRaid(telegramUserId);
+    const repeated = await service.advanceFridayBarrelRaid(telegramUserId);
+
+    expect(completed).toMatchObject({
+      state: "completed",
+      reward: {
+        xp: 7,
+        gold: 5
+      }
+    });
+    expect(repeated).toMatchObject({
+      state: "already-completed"
+    });
+    expect(dailyActions.createCount).toBe(1);
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: 7,
+      gold: 5
+    });
+  });
+
+  it("starts a fresh pending raid on the next local day instead of reusing yesterday's wait", async () => {
+    let now = new Date("2026-06-12T10:30:00.000Z");
+    const clock = () => now;
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const service = new TavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      clock,
+      new FakeRandomSource([0])
+    );
+
+    await service.advanceFridayBarrelRaid(telegramUserId);
+    now = new Date("2026-06-12T10:31:01.000Z");
+    await service.advanceFridayBarrelRaid(telegramUserId);
+
+    now = new Date("2026-06-13T10:30:00.000Z");
+    const nextDay = await service.advanceFridayBarrelRaid(telegramUserId);
+
+    expect(nextDay).toMatchObject({
+      state: "pending-started",
+      availableAt: new Date("2026-06-13T10:31:00.000Z")
+    });
+    expect(dailyActions.createCount).toBe(1);
+    expect(pendingRaids.records.map((record) => record.key)).toEqual([
+      `${FRIDAY_BARREL_RAID_PENDING_KEY}:2026-06-12`,
+      `${FRIDAY_BARREL_RAID_PENDING_KEY}:2026-06-13`
+    ]);
+  });
+
+  it("reports active pending raid for blocking other actions", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = createTavernRaidService(characters, dailyActions);
+
+    await service.advanceFridayBarrelRaid(telegramUserId);
+
+    await expect(
+      service.getActivePendingFridayBarrelRaidForTelegramUser(telegramUserId)
+    ).resolves.toMatchObject({
+      state: "pending",
+      availableAt: new Date("2026-06-12T10:31:00.000Z")
     });
   });
 
@@ -289,9 +439,18 @@ describe("TavernRaidService", () => {
 function createTavernRaidService(
   characters: FakeCharacterRepository,
   dailyActions: FakeDailyActionRepository,
-  roundPurchases = new FakeKorchmaRoundPurchaseRepository(characters)
+  roundPurchases = new FakeKorchmaRoundPurchaseRepository(characters),
+  pendingRaids = new FakeCooldownRepository(characters),
+  random = new FakeRandomSource([0])
 ): TavernRaidService {
-  return new TavernRaidService(characters, dailyActions, roundPurchases, fixedClock);
+  return new TavernRaidService(
+    characters,
+    dailyActions,
+    roundPurchases,
+    pendingRaids,
+    fixedClock,
+    random
+  );
 }
 
 function fixedClock(): Date {
@@ -487,6 +646,83 @@ interface FakeKorchmaRoundPurchase {
   tier: "simple" | "fine";
   spentGold: number;
   localDate: string;
+}
+
+class FakeCooldownRepository implements CooldownRepository {
+  private readonly cooldowns = new Map<string, CharacterCooldownRecord>();
+  private cursor = 0;
+
+  constructor(private readonly characters: FakeCharacterRepository) {}
+
+  get records(): CharacterCooldownRecord[] {
+    return [...this.cooldowns.values()];
+  }
+
+  async findForTelegramUser(
+    userTelegramId: bigint,
+    key: string
+  ): Promise<{ cooldown: CharacterCooldownRecord | null; character: CharacterRecord } | null> {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return null;
+    }
+
+    return {
+      character,
+      cooldown: this.cooldowns.get(`${character.id}:${key}`) ?? null
+    };
+  }
+
+  async claimRewardForTelegramUser(
+    userTelegramId: bigint,
+    input: ClaimCooldownRewardInput
+  ): Promise<ClaimCooldownRewardResult | null> {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return null;
+    }
+
+    const key = `${character.id}:${input.key}`;
+    const existing = this.cooldowns.get(key);
+
+    if (existing && existing.availableAt > input.now) {
+      return {
+        state: "on-cooldown",
+        cooldown: existing,
+        character
+      };
+    }
+
+    const cooldown = {
+      id: existing?.id ?? `cooldown-${++this.cursor}`,
+      characterId: character.id,
+      key: input.key,
+      availableAt: input.availableAt,
+      updatedAt: input.now
+    };
+    this.cooldowns.set(key, cooldown);
+
+    const updated = this.characters.updateReward(
+      userTelegramId,
+      input.rewardXp,
+      input.rewardGold
+    );
+
+    return {
+      state: "completed",
+      cooldown,
+      character: updated,
+      itemGrants: input.itemGrants ?? [],
+      levelChange: {
+        oldLevel: getLevelForXp(character.xp),
+        newLevel: getLevelForXp(character.xp + input.rewardXp),
+        leveledUp:
+          getLevelForXp(character.xp + input.rewardXp) > getLevelForXp(character.xp)
+      }
+    };
+  }
 }
 
 class FakeDailyActionRepository implements DailyActionRepository {

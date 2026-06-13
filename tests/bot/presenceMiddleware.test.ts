@@ -242,7 +242,10 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
     restart: {},
     tavern: {
       getTavernForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
       completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+      getActivePendingFridayBarrelRaidForTelegramUser: () =>
+        Promise.resolve({ state: "none" }),
       getRoundOfferForTelegramUser: () => Promise.resolve({ state: "no-character" }),
       buyRoundForTelegramUser: () => Promise.resolve({ state: "no-character" })
     },

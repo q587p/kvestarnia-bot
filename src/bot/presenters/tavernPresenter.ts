@@ -1,5 +1,7 @@
 import type {
   KorchmaRoundLeaderboardPeriod,
+  TavernLookupResult,
+  TavernPendingRaidResult,
   TavernRaidResult,
   TavernRoundOfferResult,
   TavernRoundResult
@@ -74,11 +76,46 @@ export function presentTavernAlreadyRaided(
   ].join("\n");
 }
 
+export function presentTavernRaidPending(
+  result: Extract<TavernRaidResult, { state: "pending" | "pending-started" }>
+): string {
+  const intro =
+    result.state === "pending-started"
+      ? "🍺 Рейд почався."
+      : "🍺 Рейд ще триває.";
+
+  return [
+    intro,
+    "Ви пішли розбиратися з Бочкою Пінного Міражу. Бочка робить вигляд, що це довга стратегія, а не паніка.",
+    "",
+    npcQuote("Корчмар", "Поки ви там, я не видаю нових пригод. У корчмі теж є техніка безпеки."),
+    "",
+    `Поверніться за: <b>${formatRaidWait(result.availableAt, result.now)}</b>.`
+  ].join("\n");
+}
+
+export function presentTavernRaidReadyToComplete(
+  result: Extract<TavernLookupResult, { state: "pending-complete" }>
+): string {
+  return [
+    "🍺 Бочка підозріло притихла.",
+    "Рейд мав уже завершитись. Лишилось урочисто перевірити, хто кого переміг і чому це знову піна.",
+    "",
+    `Очікування: <b>${result.availableAt <= result.now ? "час уже вийшов" : formatRaidWait(result.availableAt, result.now)}</b>.`,
+    "",
+    "Натисніть `🍺 Перевірити бочку`."
+  ].join("\n");
+}
+
 export function presentTavernNoCharacter(): string {
   return "Спершу створіть героя через /start. Бочка не воює з анонімами.";
 }
 
 export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { state: "no-character" }>): string {
+  if (result.state === "pending" || result.state === "pending-started") {
+    return presentTavernRaidPending(result);
+  }
+
   if (result.state === "already-completed") {
     return [
       "🍺 Бочка вас пам’ятає.",
@@ -104,6 +141,17 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
   lines.push(...presentRewardLevelGrowth(result.levelChange, result.character.classId));
 
   return lines.join("\n");
+}
+
+export function presentPendingRaidActionBlock(
+  result: Extract<TavernPendingRaidResult, { state: "pending" }>
+): string {
+  return [
+    "🍺 Ви зараз у рейді.",
+    "Інші пригоди тимчасово недоступні: Бочка Пінного Міражу не любить, коли її ігнорують посеред драматичної піни.",
+    "",
+    `Перевірте бочку за: <b>${formatRaidWait(result.availableAt, result.now)}</b>.`
+  ].join("\n");
 }
 
 export function presentTavernRoundResult(
@@ -196,6 +244,13 @@ function presentNewLeaderLines(periods: KorchmaRoundLeaderboardPeriod[]): string
     "",
     `🏆 Ви вирвались на перше місце: <b>${label}</b>. Відвідувачі це не забудуть, бо корчмар записав на видному місці.`
   ];
+}
+
+function formatRaidWait(availableAt: Date, now: Date): string {
+  const remainingMs = Math.max(0, availableAt.getTime() - now.getTime());
+  const minutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+
+  return `${minutes} хв.`;
 }
 
 function presentKorchmaRoundLeaderboard(leaderboard: KorchmaRoundLeaderboard): string[] {

@@ -44,7 +44,7 @@ const services = {
   presence: new PresenceService(presence),
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),
-  tavern: new TavernRaidService(characters, dailyActions, roundPurchases)
+  tavern: new TavernRaidService(characters, dailyActions, roundPurchases, cooldowns)
 };
 const healthServer = startHealthServer({ presence: services.presence });
 let bot: Bot | null = null;

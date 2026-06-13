@@ -1,5 +1,6 @@
 import type { Bot, Context } from "grammy";
 import type { PresenceService } from "../../services/presenceService";
+import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
   PRESENCE_LOCATION_KORCHMA_CELLAR
@@ -15,16 +16,24 @@ import {
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 
 export function registerCellarCommand(
   bot: Bot,
   cellarErrandService: CellarErrandService,
-  presenceService: PresenceService
+  presenceService: PresenceService,
+  tavernRaidService?: TavernRaidService
 ): void {
   bot.command("cellar", async (ctx) => {
-    await sendCellarErrandRouted(ctx, cellarErrandService, presenceService, "reply");
+    await sendCellarErrandRouted(
+      ctx,
+      cellarErrandService,
+      presenceService,
+      "reply",
+      tavernRaidService ? { tavernRaid: tavernRaidService } : undefined
+    );
   });
 }
 
@@ -32,12 +41,19 @@ export async function sendCellarErrandRouted(
   ctx: Context,
   cellarErrandService: CellarErrandService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  options?: { tavernRaid?: TavernRaidService }
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
   if (!telegramUserId) {
     await sendText(ctx, mode, presentCellarNoCharacter());
+    return;
+  }
+
+  if (
+    await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options?.tavernRaid, mode)
+  ) {
     return;
   }
 

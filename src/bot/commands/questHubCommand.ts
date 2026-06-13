@@ -2,6 +2,7 @@ import type { Bot, Context } from "grammy";
 import type { AdventureService } from "../../services/adventureService";
 import type { CellarErrandService } from "../../services/cellarErrandService";
 import type { FightService } from "../../services/fightService";
+import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type PresenceService
@@ -16,6 +17,7 @@ import {
   type QuestHubSnapshot
 } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 
@@ -24,6 +26,7 @@ export interface QuestHubCommandOptions {
   cellarErrand: CellarErrandService;
   fight: FightService;
   presence: PresenceService;
+  tavernRaid?: TavernRaidService;
 }
 
 export function registerQuestHubCommand(bot: Bot, options: QuestHubCommandOptions): void {
@@ -41,6 +44,12 @@ export async function sendQuestHub(
 
   if (!telegramUserId) {
     await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  if (
+    await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options.tavernRaid, mode)
+  ) {
     return;
   }
 

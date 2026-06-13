@@ -13,7 +13,7 @@ describe("scene callback HTML options", () => {
       callbackData: makeTavernCallbackData("raid"),
       services: servicesWith({
         tavern: {
-          completeFridayBarrelRaid: () => Promise.resolve({
+          advanceFridayBarrelRaid: () => Promise.resolve({
             state: "already-completed",
             character,
             reward: {
@@ -188,7 +188,10 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
     restart: {},
     tavern: {
       getTavernForTelegramUser: () => Promise.resolve({ state: "no-character" }),
-      completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" })
+      completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+      advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+      getActivePendingFridayBarrelRaidForTelegramUser: () =>
+        Promise.resolve({ state: "none" })
     },
     ...overrides
   } as unknown as BotServices;

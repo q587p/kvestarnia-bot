@@ -219,11 +219,11 @@ Cooldown reward claim має бути transactional:
 
 Redis лишається майбутнім cache/job інструментом, не dependency для `0.0.10`.
 
-Future tavern raid timing:
-- `v1:tavern:raid` має створювати pending raid/action state з випадковим завершенням через 1–3 хвилини, а не одразу видавати reward.
-- Поки pending raid активний, handlers для `/quest`, `/adventure`, `/fight`, `/hunt` і схожих action callback-ів мають відповідати блокувальним станом без видачі інших нагород.
-- Завершення має бути idempotent: delayed completion не дублює XP/gold/items, а повторний callback тільки показує поточний або завершений стан.
-- Для MVP це може жити у lightweight action/session таблиці; для group raids треба перейти на `raids` і `raid_participants`.
+Tavern raid timing in `0.0.11`:
+- `v1:tavern:raid` створює lightweight pending action через денний `CharacterCooldown` key з prefix `tavern.friday-barrel-raid.pending` з випадковим завершенням через 1–3 хвилини, а не одразу видає reward.
+- Поки pending raid активний, handlers для `/quest`, `/adventure`, `/fight`, `/hunt`, `/cellar` і схожих action callback-ів відповідають блокувальним станом без видачі інших нагород.
+- Завершення idempotent: після `available_at <= now` той самий callback завершує daily reward claim; повторний callback показує completed/already-completed без дублювання XP/gold/items.
+- Для MVP це лишається cooldown/action state без background scheduler; для group raids треба перейти на `raids` і `raid_participants`.
 
 ## Presence MVP
 `0.0.9` додає легку in-game присутність на рівні `users`, бо окремої session table ще немає:

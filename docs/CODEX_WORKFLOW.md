@@ -118,4 +118,4 @@ PR має містити:
 - `/adventure`, `/fight`, `/hunt` і `/cellar` не телепортують героя з надвору.
 - `location.korchma.*` лишаються lightweight place ids для presence, не full session engine.
 
-Після merge найменший корисний крок: pending-стан рейду на бочку на 1-3 хвилини або дуже малий equipment preview без stat effects. Не змішувати це з persistent combat, груповими рейдами чи activity-service refactor в одному PR.
+Після merge найменший корисний крок: дуже малий equipment preview без stat effects або перший вузький крок до групового рейду без persistent combat, Redis чи повного activity-service refactor.

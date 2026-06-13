@@ -1,4 +1,5 @@
-import type { CharacterRepository } from "../db/repositories/characterRepository";
+import type { CharacterRecord, CharacterRepository } from "../db/repositories/characterRepository";
+import type { CooldownRepository } from "../db/repositories/cooldownRepository";
 import type {
   DailyActionRecord,
   DailyActionRepository,
@@ -11,6 +12,7 @@ import type {
   KorchmaRoundTier
 } from "../db/repositories/korchmaRoundPurchaseRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
+import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
   enrichRewardItemGrants,
@@ -19,18 +21,25 @@ import {
 } from "./itemGrant";
 
 export const FRIDAY_BARREL_RAID_KEY = "tavern.friday-barrel-raid";
+export const FRIDAY_BARREL_RAID_PENDING_KEY = "tavern.friday-barrel-raid.pending";
 export const FRIDAY_BARREL_RAID_REWARD_XP = 7;
 export const FRIDAY_BARREL_RAID_REWARD_GOLD = 5;
+export const FRIDAY_BARREL_RAID_MIN_WAIT_MINUTES = 1;
+export const FRIDAY_BARREL_RAID_MAX_WAIT_MINUTES = 3;
 export const KORCHMA_SIMPLE_ROUND_COST = 10;
 export const KORCHMA_FINE_ROUND_COST = 100;
 
 export type TavernLookupResult =
   | { state: "no-character" }
   | { state: "ready"; character: CharacterSummary }
+  | { state: "pending"; character: CharacterSummary; availableAt: Date; now: Date }
+  | { state: "pending-complete"; character: CharacterSummary; availableAt: Date; now: Date }
   | { state: "already-completed"; character: CharacterSummary };
 
 export type TavernRaidResult =
   | { state: "no-character" }
+  | { state: "pending-started"; character: CharacterSummary; availableAt: Date; now: Date }
+  | { state: "pending"; character: CharacterSummary; availableAt: Date; now: Date }
   | {
       state: "completed";
       character: CharacterSummary;
@@ -72,6 +81,16 @@ export type TavernRoundOfferResult =
 
 export type KorchmaRoundLeaderboardPeriod = "day" | "week" | "month";
 
+export type TavernPendingRaidResult =
+  | { state: "no-character" }
+  | { state: "none" }
+  | { state: "pending"; character: CharacterSummary; availableAt: Date; now: Date };
+
+interface PendingFridayBarrelRaid {
+  availableAt: Date | null;
+  character: CharacterRecord;
+}
+
 export interface TavernRaidReward {
   xp: number;
   gold: number;
@@ -84,7 +103,9 @@ export class TavernRaidService {
     private readonly characters: CharacterRepository,
     private readonly dailyActions: DailyActionRepository,
     private readonly roundPurchases: KorchmaRoundPurchaseRepository,
-    private readonly clock: Clock = systemClock
+    private readonly pendingRaids?: CooldownRepository,
+    private readonly clock: Clock = systemClock,
+    private readonly random: RandomSource = new CryptoRandomSource()
   ) {}
 
   async getTavernForTelegramUser(telegramUserId: bigint): Promise<TavernLookupResult> {
@@ -107,10 +128,92 @@ export class TavernRaidService {
       };
     }
 
+    const pending = await this.findPendingFridayBarrelRaid(telegramUserId, localDate);
+    const now = this.clock();
+
+    if (pending?.availableAt && pending.availableAt > now) {
+      return {
+        state: "pending",
+        character: summarizeCharacter(character),
+        availableAt: pending.availableAt,
+        now
+      };
+    }
+
+    if (pending?.availableAt && pending.availableAt <= now) {
+      return {
+        state: "pending-complete",
+        character: summarizeCharacter(character),
+        availableAt: pending.availableAt,
+        now
+      };
+    }
+
     return {
       state: "ready",
       character: summarizeCharacter(character)
     };
+  }
+
+  async getActivePendingFridayBarrelRaidForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<TavernPendingRaidResult> {
+    const current = await this.findPendingFridayBarrelRaid(
+      telegramUserId,
+      toIsoDate(this.clock())
+    );
+
+    if (!current) {
+      return { state: "no-character" };
+    }
+
+    const now = this.clock();
+
+    if (!current.availableAt || current.availableAt <= now) {
+      return { state: "none" };
+    }
+
+    return {
+      state: "pending",
+      character: summarizeCharacter(current.character),
+      availableAt: current.availableAt,
+      now
+    };
+  }
+
+  async advanceFridayBarrelRaid(telegramUserId: bigint): Promise<TavernRaidResult> {
+    const localDate = toIsoDate(this.clock());
+    const existingRaid = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: FRIDAY_BARREL_RAID_KEY,
+      localDate
+    });
+
+    if (existingRaid) {
+      return this.completeFridayBarrelRaid(telegramUserId);
+    }
+
+    const pending = await this.findPendingFridayBarrelRaid(telegramUserId, localDate);
+
+    if (!pending) {
+      return { state: "no-character" };
+    }
+
+    const now = this.clock();
+
+    if (pending.availableAt && pending.availableAt > now) {
+      return {
+        state: "pending",
+        character: summarizeCharacter(pending.character),
+        availableAt: pending.availableAt,
+        now
+      };
+    }
+
+    if (pending.availableAt && pending.availableAt <= now) {
+      return this.completeFridayBarrelRaid(telegramUserId);
+    }
+
+    return this.startFridayBarrelRaid(telegramUserId, localDate);
   }
 
   async completeFridayBarrelRaid(telegramUserId: bigint): Promise<TavernRaidResult> {
@@ -146,6 +249,87 @@ export class TavernRaidService {
       character: summarizeCharacter(claim.character),
       reward: buildReward(claim.action, claim.itemGrants),
       levelChange: claim.levelChange
+    };
+  }
+
+  private async startFridayBarrelRaid(
+    telegramUserId: bigint,
+    localDate: string
+  ): Promise<TavernRaidResult> {
+    if (!this.pendingRaids) {
+      return this.completeFridayBarrelRaid(telegramUserId);
+    }
+
+    const now = this.clock();
+    const availableAt = new Date(
+      now.getTime() +
+        this.random.nextInt(
+          FRIDAY_BARREL_RAID_MIN_WAIT_MINUTES,
+          FRIDAY_BARREL_RAID_MAX_WAIT_MINUTES
+        ) *
+          60_000
+    );
+    const claim = await this.pendingRaids.claimRewardForTelegramUser(telegramUserId, {
+      key: buildFridayBarrelRaidPendingKey(localDate),
+      now,
+      availableAt,
+      rewardXp: 0,
+      rewardGold: 0
+    });
+
+    if (!claim) {
+      return { state: "no-character" };
+    }
+
+    if (claim.state === "on-cooldown") {
+      return {
+        state: "pending",
+        character: summarizeCharacter(claim.character),
+        availableAt: claim.cooldown.availableAt,
+        now
+      };
+    }
+
+    return {
+      state: "pending-started",
+      character: summarizeCharacter(claim.character),
+      availableAt: claim.cooldown.availableAt,
+      now
+    };
+  }
+
+  private async findPendingFridayBarrelRaid(
+    telegramUserId: bigint,
+    localDate: string
+  ): Promise<PendingFridayBarrelRaid | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return null;
+    }
+
+    if (!this.pendingRaids) {
+      return {
+        availableAt: null,
+        character
+      };
+    }
+
+    const current = await this.pendingRaids.findForTelegramUser(
+      telegramUserId,
+      buildFridayBarrelRaidPendingKey(localDate)
+    );
+
+    if (!current) {
+      return {
+        availableAt: null,
+        character
+      };
+    }
+
+    return {
+      availableAt: current.cooldown?.availableAt ?? null,
+      character: current.character
     };
   }
 
@@ -249,6 +433,10 @@ export class TavernRaidService {
       becameLeader: getNewLeaderPeriods(spend.character.id, beforeLeaderboard, leaderboard)
     };
   }
+}
+
+function buildFridayBarrelRaidPendingKey(localDate: string): string {
+  return `${FRIDAY_BARREL_RAID_PENDING_KEY}:${localDate}`;
 }
 
 function getNewLeaderPeriods(

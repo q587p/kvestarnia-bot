@@ -7,6 +7,7 @@ import type { CharacterSummary } from "../../src/domain/characters/characterSumm
 import type { AdventureService } from "../../src/services/adventureService";
 import type { CellarErrandService } from "../../src/services/cellarErrandService";
 import type { FightService } from "../../src/services/fightService";
+import type { TavernRaidService } from "../../src/services/tavernRaidService";
 import {
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
@@ -108,6 +109,35 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual(["🧹 У підвал", "🍺 До зали"]);
   });
+
+  it("blocks the quest hub while a barrel raid is pending", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        presence,
+        tavernRaid: {
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({
+              state: "pending",
+              character,
+              availableAt: new Date("2026-06-13T10:33:00.000Z"),
+              now: new Date("2026-06-13T10:30:00.000Z")
+            })
+        } as unknown as TavernRaidService
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("Ви зараз у рейді");
+    expect(replies[0]?.text).toContain("Інші пригоди тимчасово недоступні");
+    expect(presence.marks).toEqual([]);
+  });
 });
 
 const character: CharacterSummary = {
@@ -184,6 +214,7 @@ function servicesWith(overrides: {
   cellarErrand?: CellarErrandService;
   fight?: FightService;
   presence?: CapturingPresenceService;
+  tavernRaid?: TavernRaidService;
 } = {}) {
   return {
     adventure:
@@ -216,7 +247,8 @@ function servicesWith(overrides: {
           }),
         completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
       } as unknown as FightService),
-    presence: overrides.presence ?? new CapturingPresenceService()
+    presence: overrides.presence ?? new CapturingPresenceService(),
+    tavernRaid: overrides.tavernRaid
   };
 }
 

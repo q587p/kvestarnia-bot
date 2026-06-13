@@ -1,5 +1,6 @@
 import type { Bot, Context } from "grammy";
 import type { FightService } from "../../services/fightService";
+import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
@@ -15,11 +16,13 @@ import {
 } from "../presenters/fightPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 
 export interface FightCommandOptions {
   presence: PresenceService;
+  tavernRaid?: TavernRaidService;
 }
 
 export function registerFightCommand(
@@ -47,6 +50,12 @@ export async function sendFight(
 
   if (!telegramUserId) {
     await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  if (
+    await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options?.tavernRaid, mode)
+  ) {
     return;
   }
 

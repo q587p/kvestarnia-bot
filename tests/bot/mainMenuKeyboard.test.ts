@@ -59,6 +59,14 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([
       "👥 Учасники"
     ]);
+    expect(flatInlineButtonTexts(buildTavernResultKeyboard("pending"))).toEqual([
+      "🍺 Перевірити бочку",
+      "👥 Учасники"
+    ]);
+    expect(flatInlineButtonCallbacks(buildTavernResultKeyboard("pending"))).toEqual([
+      "v1:tavern:raid",
+      "v1:tavern:participants"
+    ]);
     expect(flatInlineButtonTexts(buildTavernParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
     expect(flatInlineButtonCallbacks(buildTavernParticipantsKeyboard())).toEqual(["v1:place:barrel"]);
   });

@@ -3,7 +3,10 @@ import {
   presentTavern,
   presentTavernAlreadyRaided,
   presentKorchmaHall,
+  presentPendingRaidActionBlock,
   presentTavernNoCharacter,
+  presentTavernRaidPending,
+  presentTavernRaidReadyToComplete,
   presentTavernRaidResult,
   presentTavernRoundOffer,
   presentTavernRoundResult
@@ -134,6 +137,47 @@ describe("tavern presenter", () => {
     );
     expect(presentTavernRaidResult(repeated)).not.toContain("Здобуто:");
     expect(presentTavernRaidResult(completed).toLowerCase()).not.toContain("пий");
+  });
+
+  it("presents pending barrel raid without awarding rewards yet", () => {
+    const pending: Exclude<TavernRaidResult, { state: "no-character" }> = {
+      state: "pending-started",
+      character,
+      availableAt: new Date("2026-06-13T10:33:00.000Z"),
+      now: new Date("2026-06-13T10:30:00.000Z")
+    };
+    const text = presentTavernRaidPending(pending);
+
+    expect(text).toContain("Рейд почався");
+    expect(text).toContain("Поверніться за: <b>3 хв.</b>");
+    expect(text).toContain("не видаю нових пригод");
+    expect(text).not.toContain("+7 XP");
+  });
+
+  it("presents pending raid block for other activities", () => {
+    const text = presentPendingRaidActionBlock({
+      state: "pending",
+      character,
+      availableAt: new Date("2026-06-13T10:31:00.000Z"),
+      now: new Date("2026-06-13T10:30:01.000Z")
+    });
+
+    expect(text).toContain("Ви зараз у рейді");
+    expect(text).toContain("Інші пригоди тимчасово недоступні");
+    expect(text).toContain("Перевірте бочку за:");
+  });
+
+  it("presents ready-to-complete barrel raid without exact timestamps", () => {
+    const text = presentTavernRaidReadyToComplete({
+      state: "pending-complete",
+      character,
+      availableAt: new Date("2026-06-13T10:31:00.000Z"),
+      now: new Date("2026-06-13T10:32:00.000Z")
+    });
+
+    expect(text).toContain("Бочка підозріло притихла");
+    expect(text).toContain("час уже вийшов");
+    expect(text).not.toContain("10:31");
   });
 
   it("shows level-up only when tavern reward increases level", () => {
