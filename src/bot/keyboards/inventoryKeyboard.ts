@@ -64,7 +64,7 @@ export function buildEquipmentKeyboard(result: EquipmentResult): InlineKeyboard 
   if (result.state === "ready") {
     for (const slot of result.slots) {
       if (slot.item) {
-        keyboard.text(`Зняти: ${presentSlotButtonLabel(slot.slot)}`, makeUnequipSlotCallbackData(slot.slot)).row();
+        keyboard.text(presentUnequipSlotButtonLabel(slot.slot), makeUnequipSlotCallbackData(slot.slot)).row();
       }
     }
   }
@@ -72,13 +72,13 @@ export function buildEquipmentKeyboard(result: EquipmentResult): InlineKeyboard 
   return keyboard.text("⬅️ До манаток", makeInventoryCallbackData());
 }
 
-function presentSlotButtonLabel(slot: EquipmentSlot): string {
+function presentUnequipSlotButtonLabel(slot: EquipmentSlot): string {
   const labels: Record<EquipmentSlot, string> = {
-    weapon: "зброя",
-    head: "голова",
-    chest: "тулуб",
-    legs: "ноги",
-    accessory: "аксесуар"
+    weapon: "Зняти зброю",
+    head: "Зняти шолом",
+    chest: "Зняти обладунок",
+    legs: "Зняти поножі",
+    accessory: "Зняти аксесуар"
   };
 
   return labels[slot];

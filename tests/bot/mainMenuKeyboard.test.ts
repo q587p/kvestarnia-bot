@@ -319,11 +319,24 @@ describe("main menu and scene keyboards", () => {
             { slot: "head", item: null },
             { slot: "chest", item: null },
             { slot: "legs", item: null },
-            { slot: "accessory", item: null }
+            {
+              slot: "accessory",
+              item: {
+                itemId: "item.cork-ring-of-serious-business",
+                content: {
+                  id: "item.cork-ring-of-serious-business",
+                  name: "Корковий перстень серйозних справ",
+                  description: "Малий гачок обережно блищить.",
+                  rarity: "common",
+                  slot: "accessory",
+                  goldValue: 6
+                }
+              }
+            }
           ]
         })
       )
-    ).toEqual(["Зняти: зброя", "⬅️ До манаток"]);
+    ).toEqual(["Зняти зброю", "Зняти аксесуар", "⬅️ До манаток"]);
   });
 
   it("builds quest hub buttons from available actions", () => {
