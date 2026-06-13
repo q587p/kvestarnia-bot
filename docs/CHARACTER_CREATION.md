@@ -53,7 +53,7 @@ Combo titles are content-derived from race/class/pronoun and can be expanded wit
 
 ## Character Impact Loop
 
-Starting in `0.0.11`, created-character metadata also feeds a small flavor selector in `src/content/characterFlavor.ts`.
+Starting in `0.0.12`, created-character metadata also feeds a small flavor selector in `src/content/characterFlavor.ts`.
 
 The first supported placements are:
 
