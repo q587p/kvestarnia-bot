@@ -55,6 +55,7 @@ describe("cellar presenter", () => {
     const text = presentCellarResult(completed);
 
     expect(text).toContain("🧀 Пастка спрацювала частково.");
+    expect(text).toContain("Миша лишила сир і записку.\n<blockquote>Ваші умови смішні.</blockquote>");
     expect(text).toContain("<b>+2 XP · +1 золота</b>");
     expect(text).toContain("Підвал знову чекатиме за: 3 хвилини.");
     expect(text).not.toMatch(/\d{1,2}:\d{2}/);

@@ -82,7 +82,8 @@ function presentCellarOutcome(action: CellarErrandAction): string[] {
   if (action === "cheese-trap") {
     return [
       "🧀 Пастка спрацювала частково.",
-      "Миша лишила сир і записку: «Ваші умови смішні»."
+      "Миша лишила сир і записку.",
+      "<blockquote>Ваші умови смішні.</blockquote>"
     ];
   }
 
