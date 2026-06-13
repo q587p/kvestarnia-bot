@@ -101,10 +101,10 @@ describe("onboarding presenters and keyboards", () => {
     ).inline_keyboard.flat();
 
     expect(buttons.map((button) => button.text)).toEqual([
-      "Почати",
-      "Назад до класу",
-      "Назад до раси",
-      "Почати заново"
+      "✅ Почати",
+      "⬅️ Назад до класу",
+      "⬅️ Назад до раси",
+      "🔄 Почати заново"
     ]);
     expectAllButtonsValid(buttons);
   });

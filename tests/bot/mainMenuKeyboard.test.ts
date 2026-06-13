@@ -11,7 +11,9 @@ import {
 } from "../../src/bot/keyboards/cellarKeyboard";
 import { buildFightKeyboard, buildFightResultKeyboard } from "../../src/bot/keyboards/fightKeyboard";
 import {
+  buildDevResetKeyboard,
   buildMainMenuKeyboard,
+  buildRestartKeyboard,
   mainMenuButtons
 } from "../../src/bot/keyboards/mainMenuKeyboard";
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
@@ -76,6 +78,17 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonTexts(buildTavernParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
     expect(flatInlineButtonCallbacks(buildTavernParticipantsKeyboard())).toEqual(["v1:place:barrel"]);
+  });
+
+  it("uses icons for destructive confirmation keyboards", () => {
+    expect(flatInlineButtonTexts(buildRestartKeyboard())).toEqual([
+      "🔄 Так, почати з початку",
+      "⬅️ Ні, лишити героя"
+    ]);
+    expect(flatInlineButtonTexts(buildDevResetKeyboard())).toEqual([
+      "✅ Так, скинути",
+      "⬅️ Ні, лишити"
+    ]);
   });
 
   it("asks for explicit confirmation before spending korchma round gold", () => {

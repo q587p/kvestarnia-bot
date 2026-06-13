@@ -46,7 +46,7 @@ export function buildRaceKeyboard(pronoun: Pronoun): InlineKeyboard {
     }
   });
 
-  keyboard.row().text("Назад", makeBackToGenderCallbackData());
+  keyboard.row().text("⬅️ Назад", makeBackToGenderCallbackData());
 
   return keyboard;
 }
@@ -68,7 +68,7 @@ export function buildClassKeyboard(pronoun: Pronoun, raceId: string): InlineKeyb
     }
   });
 
-  keyboard.row().text("Назад до раси", makeBackToRaceCallbackData(pronoun));
+  keyboard.row().text("⬅️ Назад до раси", makeBackToRaceCallbackData(pronoun));
 
   return keyboard;
 }
@@ -79,13 +79,13 @@ export function buildConfirmationKeyboard(
   classId: string
 ): InlineKeyboard {
   return new InlineKeyboard()
-    .text("Почати", makeConfirmCallbackData(pronoun, raceId, classId))
+    .text("✅ Почати", makeConfirmCallbackData(pronoun, raceId, classId))
     .row()
-    .text("Назад до класу", makeBackToClassCallbackData(pronoun, raceId))
+    .text("⬅️ Назад до класу", makeBackToClassCallbackData(pronoun, raceId))
     .row()
-    .text("Назад до раси", makeBackToRaceCallbackData(pronoun))
+    .text("⬅️ Назад до раси", makeBackToRaceCallbackData(pronoun))
     .row()
-    .text("Почати заново", makeBackToGenderCallbackData());
+    .text("🔄 Почати заново", makeBackToGenderCallbackData());
 }
 
 function shouldStartNextGridRow(index: number, itemCount: number): boolean {
