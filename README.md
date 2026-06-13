@@ -120,6 +120,9 @@
 - [`docs/BALANCE_NOTES.md`](docs/BALANCE_NOTES.md) — формули, економіка, RNG і балансні guardrails.
 - [`docs/SECURITY_AND_FAIR_PLAY.md`](docs/SECURITY_AND_FAIR_PLAY.md) — антиаб’юз, приватність, idempotency і чесна гра.
 - [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md) — архітектура, домени, дані й майбутні технічні рішення.
+- [`docs/GROUP_HOOK_DESIGN.md`](docs/GROUP_HOOK_DESIGN.md) — дизайн першого малого групового рейду й Telegram flow.
+- [`docs/GROUP_RAID_SESSION_NOTES.md`](docs/GROUP_RAID_SESSION_NOTES.md) — концепт сесій, учасників, дій і idempotency для групового hook-а.
+- [`docs/SOCIAL_ACTIONS_BACKLOG.md`](docs/SOCIAL_ACTIONS_BACKLOG.md) — соціяльні дії після першого групового рейду.
 - [`docs/CODEX_WORKFLOW.md`](docs/CODEX_WORKFLOW.md) — як ставити задачі Codex і приймати PR.
 - [`AGENTS.md`](AGENTS.md) — робочі інструкції для coding agents.
 
