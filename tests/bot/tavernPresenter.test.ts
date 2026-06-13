@@ -211,7 +211,7 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("10:31");
   });
 
-  it("shows level-up only when tavern reward increases level", () => {
+  it("keeps level-up out of the raid result message", () => {
     const completed: Exclude<TavernRaidResult, { state: "no-character" }> = {
       state: "completed",
       character,
@@ -228,10 +228,8 @@ describe("tavern presenter", () => {
       }
     };
 
-    expect(presentTavernRaidResult(completed)).toContain("Рівень підріс: 1 → 2");
-    expect(presentTavernRaidResult(completed)).toContain(
-      "Стало краще: +4 HP · +2 мани · +1 Сили"
-    );
+    expect(presentTavernRaidResult(completed)).not.toContain("Рівень підріс");
+    expect(presentTavernRaidResult(completed)).not.toContain("Стало краще");
   });
 
   it("presents round states with gold spending humor", () => {

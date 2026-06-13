@@ -138,6 +138,7 @@ Done when:
 - Real time-of-day modifiers for tagged enemies and scenes: night strengthens night/dark enemies, while morning/day/evening can affect other encounter types without exposing exact timestamps.
 - Надвірний журнал прибулих перед корчмою: пагінований список героїв, які вперше приєдналися або дісталися корчми, щоб зала не перевантажувалась.
 - Надвірна дошка рівневих досягнень: останні level-up записи, рейтинг за досягнутим рівнем і особливе оформлення 10 рівня.
+- Стікерпак для level-up: коли герой бере новий рівень, бот зможе надсилати коротке привітання стікером перед або після текстового святкування.
 - Daily tavern rumor.
 - Korchma social treat: пригостити їжею/питвом присутніх у корчмі після появи location presence list.
 - Player titles.

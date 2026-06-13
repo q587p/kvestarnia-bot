@@ -2,7 +2,6 @@ import { MIMIC_SHAWARMA_HP } from "../../domain/combat/combatProbe";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { FightLookupResult, FightResult } from "../../services/fightService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
-import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
 
@@ -55,8 +54,6 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
     presentRewardAmount({ ...result.reward, label: "Нагорода" }),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
-
-  lines.push(...presentRewardLevelGrowth(result.levelChange, result.character.classId));
 
   lines.push("Наступний крок: /hero");
 

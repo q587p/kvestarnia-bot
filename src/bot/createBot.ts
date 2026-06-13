@@ -94,6 +94,7 @@ import {
 } from "./presenters/devResetPresenter";
 import { presentFightNoCharacter, presentFightResult } from "./presenters/fightPresenter";
 import { presentHelp } from "./presenters/helpPresenter";
+import { presentLevelUpCelebration } from "./presenters/levelGrowthPresenter";
 import {
   presentCharacterCreated,
   presentClassSelected,
@@ -927,6 +928,9 @@ async function handleTavernCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildTavernResultKeyboard(result.state)
   });
+  if (result.state === "completed") {
+    await sendLevelUpCelebration(ctx, result);
+  }
 }
 
 async function editPendingRaidBlockIfNeeded(
@@ -1007,6 +1011,9 @@ async function handleAdventureCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildAdventureResultKeyboard(result.state)
   });
+  if (result.state === "completed") {
+    await sendLevelUpCelebration(ctx, result);
+  }
 }
 
 async function handleCellarCallback(
@@ -1066,6 +1073,9 @@ async function handleCellarCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildCellarResultKeyboard(result.state)
   });
+  if (result.state === "completed") {
+    await sendLevelUpCelebration(ctx, result);
+  }
 }
 
 async function handleFightCallback(
@@ -1103,6 +1113,25 @@ async function handleFightCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildFightResultKeyboard(result.state)
   });
+  if (result.state === "completed") {
+    await sendLevelUpCelebration(ctx, result);
+  }
+}
+
+async function sendLevelUpCelebration(
+  ctx: Context,
+  result: {
+    levelChange: Parameters<typeof presentLevelUpCelebration>[0];
+    character: { classId: string };
+  }
+): Promise<void> {
+  const text = presentLevelUpCelebration(result.levelChange, result.character.classId);
+
+  if (!text) {
+    return;
+  }
+
+  await ctx.reply(text, HTML_MESSAGE_OPTIONS);
 }
 
 async function markScenePresence(

@@ -107,6 +107,43 @@ describe("scene callback HTML options", () => {
     });
     expect(String(edit?.payload.text)).toMatch(/<b>|<i>/);
   });
+
+  it("sends level-up celebration as a separate HTML message after the result edit", async () => {
+    const calls = await captureApiCalls(
+      makeAdventureCallbackData("poke"),
+      servicesWith({
+        adventure: {
+          completeMimicShawarma: () =>
+            Promise.resolve({
+              state: "completed",
+              action: "poke",
+              character: {
+                ...character,
+                classId: "class.rogue"
+              },
+              reward: {
+                xp: 8,
+                gold: 4,
+                localDate: "12026-06-12",
+                itemGrants: [{ name: "Підозрілий лавашний доказ", quantity: 1 }]
+              },
+              levelChange
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const celebration = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("🎉 Рівень підріс!")
+    );
+
+    expect(String(edit?.payload.text)).not.toContain("Рівень підріс");
+    expect(celebration?.payload.parse_mode).toBe("HTML");
+    expect(String(celebration?.payload.text)).toContain("✨ <b>2 → 3</b>");
+    expect(String(celebration?.payload.text)).toContain(
+      "📈 Стало краще: <b>+4 HP · +2 мани · +1 Спритності</b>"
+    );
+  });
 });
 
 interface ApiCall {
@@ -154,6 +191,12 @@ const noLevelChange = {
   leveledUp: false,
   oldLevel: 1,
   newLevel: 1
+};
+
+const levelChange = {
+  leveledUp: true,
+  oldLevel: 2,
+  newLevel: 3
 };
 
 function servicesWith(overrides: Partial<BotServices>): BotServices {

@@ -1,7 +1,6 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { AdventureLookupResult, AdventureResult } from "../../services/adventureService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
-import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
@@ -59,8 +58,6 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
     presentRewardAmount(result.reward),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
-
-  lines.push(...presentRewardLevelGrowth(result.levelChange, result.character.classId));
 
   return lines.join("\n");
 }

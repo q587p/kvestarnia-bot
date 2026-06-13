@@ -5,7 +5,6 @@ import type {
 } from "../../services/cellarErrandService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
-import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
@@ -57,7 +56,6 @@ export function presentCellarResult(
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
-  lines.push(...presentRewardLevelGrowth(result.levelChange, result.character.classId));
   lines.push("", `Підвал знову чекатиме за ${formatCooldown(result.availableAt, result.now)}.`);
 
   return lines.join("\n");

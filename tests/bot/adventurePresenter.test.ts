@@ -129,11 +129,9 @@ describe("adventure presenter", () => {
     expect(text).toContain("Форма на лаваш");
   });
 
-  it("shows level-up line only when level increases", () => {
-    expect(presentAdventureResult(completed("poke", 8, 4, true))).toContain("Рівень підріс: 1 → 2");
-    expect(presentAdventureResult(completed("poke", 8, 4, true))).toContain(
-      "Стало краще: +4 HP · +2 мани · +1 Сили"
-    );
+  it("keeps level-up out of the result message", () => {
+    expect(presentAdventureResult(completed("poke", 8, 4, true))).not.toContain("Рівень підріс");
+    expect(presentAdventureResult(completed("poke", 8, 4, true))).not.toContain("Стало краще");
     expect(presentAdventureResult(completed("poke", 8, 4, false))).not.toContain("Рівень підріс");
     expect(presentAdventureResult(completed("poke", 8, 4, false))).not.toContain("Стало краще");
   });

@@ -105,11 +105,9 @@ describe("fight presenter", () => {
     expect(text).not.toContain("<b>Мандрівник</b> зберіг обличчя");
   });
 
-  it("shows level-up line only when level increases", () => {
-    expect(presentFightResult(completed("receipt", 7, 5, true))).toContain("Рівень підріс: 1 → 2");
-    expect(presentFightResult(completed("receipt", 7, 5, true))).toContain(
-      "Стало краще: +4 HP · +2 мани · +1 Сили"
-    );
+  it("keeps level-up out of the result message", () => {
+    expect(presentFightResult(completed("receipt", 7, 5, true))).not.toContain("Рівень підріс");
+    expect(presentFightResult(completed("receipt", 7, 5, true))).not.toContain("Стало краще");
     expect(presentFightResult(completed("receipt", 7, 5, false))).not.toContain("Рівень підріс");
     expect(presentFightResult(completed("receipt", 7, 5, false))).not.toContain("Стало краще");
   });

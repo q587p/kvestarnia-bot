@@ -13,7 +13,6 @@ import type {
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
 import type { PresenceGroup } from "../../services/presenceService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
-import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
@@ -149,8 +148,6 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
     presentRewardAmount(result.reward),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
-
-  lines.push(...presentRewardLevelGrowth(result.levelChange, result.character.classId));
 
   return lines.join("\n");
 }
