@@ -22,6 +22,7 @@ import {
   buildKorchmaHallKeyboard,
   buildKorchmaRoundOfferKeyboard,
   buildTavernParticipantsKeyboard,
+  buildTavernRangerKeyboard,
   buildTavernKeyboard,
   buildTavernResultKeyboard
 } from "../../src/bot/keyboards/tavernKeyboard";
@@ -56,14 +57,17 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildTavernKeyboard())).toEqual([
       "🍺 У рейд на бочку",
       "👥 Учасники",
+      "🧥 Єгер",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual([
       "👥 Учасники",
+      "🧥 Єгер",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([
       "👥 Учасники",
+      "🧥 Єгер",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("pending"))).toEqual([
@@ -78,6 +82,7 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonTexts(buildTavernParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
     expect(flatInlineButtonCallbacks(buildTavernParticipantsKeyboard())).toEqual(["v1:place:barrel"]);
+    expect(flatInlineButtonTexts(buildTavernRangerKeyboard())).toEqual(["⬅️ До зали"]);
   });
 
   it("uses icons for destructive confirmation keyboards", () => {

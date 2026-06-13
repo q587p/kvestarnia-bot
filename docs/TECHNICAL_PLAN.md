@@ -299,6 +299,7 @@ Callback data коротка, версіонована.
 - `v1:news:entry:{entryIndex}:{listPage}`
 - `v1:tavern:raid`
 - `v1:tavern:participants`
+- `v1:tavern:ranger`
 - `v1:tavern:round`
 - `v1:tavern:round-simple`
 - `v1:tavern:round-fine`

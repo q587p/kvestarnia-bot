@@ -37,6 +37,7 @@ export function presentKorchmaHall(
     `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
     "",
     "Корчма Квестарні тримає тепло, шум і кілька справ, які краще не залишати без нагляду.",
+    "Праворуч стоїть Стіл зі справами, у кутку піниться Бочка Пінного Міражу, під ногами бурчить Підвал, а біля дверей висить Дошка вістей.",
     "",
     ...presentKorchmaGreeting(character),
     "",
@@ -52,6 +53,7 @@ export function presentTavern(character: CharacterSummary, presence?: PresenceGr
     `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
     "",
     "У кутку героїчно піниться Бочка Пінного Міражу.",
+    "Поруч із нею сидить людисько-єгер у капюшоні, курить трубку й дивиться на всіх так, ніби вже бачив їхні сліди.",
     "",
     npcQuote("Корчмар", "Це не проблема. Дві-три хвилини. Максимум."),
     ...presentRaidPrepHint(character),
@@ -71,6 +73,7 @@ export function presentTavernAlreadyRaided(
     `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
     "",
     "Бочка Пінного Міражу сьогодні вже пережила ваш героїзм.",
+    "Єгер у капюшоні все ще сидить у кутку. Схоже, він підозрював, що цим усе й скінчиться.",
     "",
     npcQuote("Корчмар", "Вона просила передати: завтра знову буде хоробра. Можливо."),
     "",
@@ -113,6 +116,16 @@ export function presentTavernRaidReadyToComplete(
 
 export function presentTavernNoCharacter(): string {
   return "Спершу створіть героя через /start. Бочка не воює з анонімами.";
+}
+
+export function presentTavernRanger(character: CharacterSummary): string {
+  return [
+    "🧥 Єгер у кутку",
+    "",
+    "У темному кутку сидить людисько-єгер у капюшоні. Він курить трубку, підозріло дивиться на всіх і має вигляд людини, яка точно не чекає на сюжетний гачок.",
+    "",
+    npcQuote("Єгер", presentRangerReaction(character))
+  ].join("\n");
 }
 
 export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { state: "no-character" }>): string {
@@ -193,10 +206,15 @@ export function presentTavernRoundResult(
     result.state === "fine-round"
       ? "Корчмар виставив якісне пиво. Таке, після якого навіть табурети тримають поставу."
       : "Корчмар виставив просте пиво. Воно просте тільки за ціною; характер у нього складний.";
+  const rangerReaction =
+    result.state === "fine-round"
+      ? "Єгер у кутку двічі плескає в долоні. Для нього це вже майже овація."
+      : "Єгер у кутку мовчки піднімає кухоль. Підозріло, але ввічливо.";
 
   return [
     result.state === "fine-round" ? "🍻 Всім якісного пива!" : "🍻 Всім простого пива!",
     quality,
+    rangerReaction,
     "",
     `Списано: <b>${result.spentGold} золота</b>`,
     `Залишилось: <b>${result.remainingGold} золота</b>`,
@@ -352,7 +370,7 @@ function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: numbe
 
 function presentTavernPresence(presence: PresenceGroup | null | undefined): string[] {
   if (!presence || presence.total <= 1) {
-    return ["За столами: поки тільки ви й підозрілий стілець."];
+    return ["За столами: поки тільки ви й підозрілий єгер у кутку."];
   }
 
   const people = [...presence.active, ...presence.idle].slice(0, 5);
@@ -370,4 +388,32 @@ function presentPresencePerson(person: PresenceGroup["active"][number]): string 
   const level = person.level === undefined ? "" : ` · рівень ${person.level}`;
 
   return `${escapeHtml(person.name)}${level}`;
+}
+
+function presentRangerReaction(character: CharacterSummary): string {
+  if (character.raceId === "race.human-ish" && character.classId === "class.ranger") {
+    return "Людисько-єгер. Нарешті хтось, хто розуміє, що капюшон — це не стиль, а документація намірів.";
+  }
+
+  if (character.raceId === "race.domovyk") {
+    return "На мить я подумав про гобітів. Але їх тут немає з причин, які корчмар називає «ліцензійною магією».";
+  }
+
+  if (character.classId === "class.ranger") {
+    return "Єгер єгеря бачить здалеку. Навіть якщо один із них робить вигляд, що просто сидить біля бочки.";
+  }
+
+  if (character.classId === "class.rogue") {
+    return "Ваші руки надто чесно поводяться. Це мене непокоїть.";
+  }
+
+  if (character.raceId === "race.elf") {
+    return "Ельф у корчмі — це завжди або балада, або скарга на дим. Сьогодні перевіримо, що швидше.";
+  }
+
+  if (character.classId === "class.bureaucramancer") {
+    return "Якщо у вас є форма на підозрілий погляд, не показуйте. Я працюю без печаток.";
+  }
+
+  return "Сидіть рівно. Не тому, що небезпечно. Просто так легше зрозуміти, хто першим збреше.";
 }

@@ -81,6 +81,7 @@ import {
   buildKorchmaHallKeyboard,
   buildKorchmaRoundOfferKeyboard,
   buildTavernParticipantsKeyboard,
+  buildTavernRangerKeyboard,
   buildTavernResultKeyboard
 } from "./keyboards/tavernKeyboard";
 import { presentAdventureNoCharacter, presentAdventureResult } from "./presenters/adventurePresenter";
@@ -111,6 +112,7 @@ import { presentParticipants } from "./presenters/presencePresenter";
 import {
   presentTavernNoCharacter,
   presentPendingRaidActionBlock,
+  presentTavernRanger,
   presentTavernRaidResult,
   presentTavernRoundOffer,
   presentTavernRoundResult
@@ -356,6 +358,14 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
     return {
       locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
       currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
+      currentAdventureId: null
+    };
+  }
+
+  if (data === "v1:tavern:ranger") {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+      currentRaidId: null,
       currentAdventureId: null
     };
   }
@@ -872,6 +882,23 @@ async function handleTavernCallback(
     await safeEditMessageText(ctx, presentParticipants(snapshot), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildTavernParticipantsKeyboard()
+    });
+    return;
+  }
+
+  if (action === "ranger") {
+    const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentTavernNoCharacter());
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentTavernRanger(result.character), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildTavernRangerKeyboard()
     });
     return;
   }

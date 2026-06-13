@@ -4,6 +4,7 @@ import {
   presentTavernAlreadyRaided,
   presentKorchmaHall,
   presentPendingRaidActionBlock,
+  presentTavernRanger,
   presentTavernNoCharacter,
   presentTavernRaidPending,
   presentTavernRaidReadyToComplete,
@@ -57,6 +58,9 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Зала корчми");
     expect(text).toContain("Корчма Квестарні");
+    expect(text).toContain("Стіл зі справами");
+    expect(text).toContain("Підвал");
+    expect(text).toContain("Дошка вістей");
     expect(text).toContain("Залізо тримайте спокійно");
     expect(text).toContain("Куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
@@ -70,10 +74,11 @@ describe("tavern presenter", () => {
     expect(text).toContain(
       "Корчмар:\n<blockquote>Це не проблема. Дві-три хвилини. Максимум.</blockquote>"
     );
+    expect(text).toContain("людисько-єгер у капюшоні");
     expect(text).toContain("стояти між бочкою");
-    expect(text).toContain("За столами: поки тільки ви й підозрілий стілець.");
+    expect(text).toContain("За столами: поки тільки ви й підозрілий єгер у кутку.");
     expect(text).toContain("Що робимо?");
-    expect(text.length).toBeLessThan(520);
+    expect(text.length).toBeLessThan(720);
   });
 
   it("shows active tavern presence at the tables", () => {
@@ -93,8 +98,9 @@ describe("tavern presenter", () => {
     const text = presentTavernAlreadyRaided(character);
 
     expect(text).toContain("Бочка Пінного Міражу сьогодні вже пережила ваш героїзм");
+    expect(text).toContain("Єгер у капюшоні все ще сидить у кутку");
     expect(text).toContain("завтра знову");
-    expect(text).toContain("За столами: поки тільки ви й підозрілий стілець.");
+    expect(text).toContain("За столами: поки тільки ви й підозрілий єгер у кутку.");
     expect(text).toContain("/hero");
     expect(text).not.toContain("Дві-три хвилини. Максимум");
     expect(text).not.toContain("Що робимо?");
@@ -251,6 +257,7 @@ describe("tavern presenter", () => {
         becameLeader: ["day", "week"]
       });
     expect(fineRound).toContain("Всім якісного пива");
+    expect(fineRound).toContain("Єгер у кутку двічі плескає");
     expect(fineRound).toContain("Ви вирвались на перше місце");
     expect(fineRound).toContain("За добу");
     expect(fineRound).toContain("Мандрівник — 2 частування · 110 золота");
@@ -271,6 +278,28 @@ describe("tavern presenter", () => {
     expect(text).toContain("просте за 10");
     expect(text).toContain("Рейтинг щедрості");
     expect(text).not.toContain("Списано");
+  });
+
+  it("presents the hooded ranger with biography-aware reactions", () => {
+    const humanRanger = {
+      ...character,
+      classId: "class.ranger",
+      className: "Єгер"
+    };
+    const domovyk = {
+      ...character,
+      raceId: "race.domovyk",
+      raceName: "Домовик"
+    };
+    const rogue = {
+      ...character,
+      classId: "class.rogue",
+      className: "Злодій"
+    };
+
+    expect(presentTavernRanger(humanRanger)).toContain("Людисько-єгер");
+    expect(presentTavernRanger(domovyk)).toContain("ліцензійною магією");
+    expect(presentTavernRanger(rogue)).toContain("Ваші руки надто чесно поводяться");
   });
 });
 
