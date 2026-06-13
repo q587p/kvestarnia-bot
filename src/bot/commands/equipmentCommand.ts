@@ -1,22 +1,22 @@
 import type { Bot, Context } from "grammy";
-import type { InventoryService } from "../../services/inventoryService";
+import type { EquipmentService } from "../../services/equipmentService";
 import { playerFromContext } from "../context";
 import { buildEquipmentKeyboard } from "../keyboards/inventoryKeyboard";
-import { presentEquipmentPreview } from "../presenters/equipmentPresenter";
+import { presentEquipment } from "../presenters/equipmentPresenter";
 import { presentInvalidCallback } from "../presenters/onboardingPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
 type SendMode = "reply" | "edit";
 
-export function registerEquipmentCommand(bot: Bot, inventoryService: InventoryService): void {
+export function registerEquipmentCommand(bot: Bot, equipmentService: EquipmentService): void {
   bot.command(["equipment", "gear", "equip"], async (ctx) => {
-    await sendEquipment(ctx, inventoryService, "reply");
+    await sendEquipment(ctx, equipmentService, "reply");
   });
 }
 
 export async function sendEquipment(
   ctx: Context,
-  inventoryService: InventoryService,
+  equipmentService: EquipmentService,
   mode: SendMode
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
@@ -26,19 +26,19 @@ export async function sendEquipment(
     return;
   }
 
-  const result = await inventoryService.listForTelegramUser(telegramUserId);
-  const text = presentEquipmentPreview(result);
+  const result = await equipmentService.getEquipmentForTelegramUser(telegramUserId);
+  const text = presentEquipment(result);
 
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, {
       parse_mode: "HTML" as const,
-      reply_markup: buildEquipmentKeyboard()
+      reply_markup: buildEquipmentKeyboard(result)
     });
     return;
   }
 
   await ctx.reply(text, {
     parse_mode: "HTML" as const,
-    reply_markup: buildEquipmentKeyboard()
+    reply_markup: buildEquipmentKeyboard(result)
   });
 }

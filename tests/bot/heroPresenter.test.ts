@@ -59,13 +59,20 @@ describe("hero presenter", () => {
     expect(text).toContain("Вдача 6");
     expect(text).toContain("Ріст: +4 HP · +2 мани · +1 Сили");
     expect(text).not.toContain("Ріст рівня:");
-    expect(text).toContain("\n\nЗолото: <b>12</b>\n\nЗараз герой тут:");
+    expect(text).toContain("\n\nЗолото: <b>12</b> <i>(а в манатках ще 0; корчмар уже примружився)</i>\n\nЗараз герой тут:");
     expect(text).toContain("\n\nЗараз герой тут: <b>Підвал корчми</b>.");
     expect(text).toContain("<i>Далі: /tavern, /quest або /fight.</i>");
     expect(text).not.toContain("/adventure або /fight");
     expect(text).toContain("\n\nТитул:");
     expect(text).toContain("\n\nHP");
     expect(text.split("\n").length).toBeLessThanOrEqual(18);
+  });
+
+  it("shows inventory value next to carried gold", () => {
+    const text = presentHero(summary, { inventoryGoldValue: 28 });
+
+    expect(text).toContain("Золото: <b>12</b>");
+    expect(text).toContain("а в манатках ще 28");
   });
 
   it("shows alpha cap wording at the current level cap", () => {

@@ -106,8 +106,13 @@ docs/
 
 Future equipment/trading notes:
 - `0.0.13` adds preview-only equipment and item detail views without schema changes. It reuses `character_items` for ownership checks and content metadata for rarity/slot/value/description.
+- `0.0.14` adds `character_equipment` as a separate persistent equipment shell. It stores content `item_id` per `character_id` + `slot`, while `character_items` remains the ownership/count table.
+- Equipping validates current ownership and known equippable content before upserting a slot. Unknown content ids, trophies, consumables, cosmetics, and junk are not equippable in this shell.
+- Current slot mapping: `weapon` → `weapon`, `armor` → `chest`, `accessory` → `accessory`. The repository slot vocabulary still allows `head` and `legs` for future compatibility, but the visible UI hides them until content/schema has real supported items.
+- Known equipment debt: `character_equipment` stores content `item_id`, not a concrete `character_item.id`. That is acceptable for the current MVP because equipping does not change quantity and there is no selling, trading, item instance state, or item-to-level exchange yet. Before any sell/trade/item-to-level flow, revisit this relation so equipped state cannot point at a stack that was consumed, transferred, split, or instance-mutated.
+- Equipment currently has no stat effects. `/hero`, fight preview, rewards, cooldowns, HP/mana, and level-up math remain unchanged. Future stat effects should layer through one equipment/effective-stats helper, not ad hoc presenter math.
 - Item content metadata should eventually support `requiredLevel`, allowed `raceId`/`classId` lists, and optional hidden `path`/pronoun selectors for rare restricted манатки.
-- Item content metadata includes `goldValue` for priced items or an explicit `priceless` marker for story trophies and special collectibles. Current code only displays this in item detail; it does not sell, trade, convert, or spend items.
+- Item content metadata includes `goldValue` for priced items or an explicit `priceless` marker for story trophies and special collectibles. Current code displays this in item detail, inventory total value, and hero wallet context; it does not sell, trade, convert, or spend items.
 - `character_items` stays the ownership/count table. Actual equipment slots, temporary permission effects, cursed exceptions, attunement, respec/form-change state, and trade offers should be separate rows or state machines.
 - Equipping must validate ownership, level, restrictions, and any active bypass in one domain/service path; callbacks should never trust button text or stale presenter state.
 - Player-to-player exchange/gifting needs an idempotent transaction: remove/decrement from sender, create/increment for receiver, write an audit/transfer row, and fail cleanly if the sender no longer owns the item.
@@ -284,7 +289,7 @@ Routing rule у `0.0.11`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar`
 ## Telegram callback data
 Callback data коротка, версіонована.
 
-Поточні callback prefixes у `0.0.13`:
+Поточні callback prefixes у `0.0.14`:
 - `v1:onb:*`
 - `v1:menu:hero`
 - `v1:menu:help`
@@ -317,6 +322,8 @@ Callback data коротка, версіонована.
 - `v1:item:inventory`
 - `v1:item:detail:{itemId}`
 - `v1:equip:view`
+- `v1:equip:item:{itemId}`
+- `v1:equip:clear:{slot}`
 - `v1:fight:mimic:attack`
 - `v1:fight:mimic:receipt`
 - `v1:fight:mimic:flee`
@@ -328,9 +335,9 @@ Callback data коротка, версіонована.
 Заплановані приклади для майбутніх persistent systems:
 - `v1:combat:atk:{combatId}`
 - `v1:combat:skill:{combatId}:{skillId}`
-- `v1:equip:wear:{itemId}` або коротший equivalent — future equipment mutation, not implemented in `0.0.13`.
+- `v1:equip:wear:{itemId}` або коротший equivalent — future richer equipment mutation after the `0.0.14` shell, if slots, restrictions, or item instances need more data than content ids.
 
-Валідація обов’язкова. Не довіряти даним з callback: `v1:item:detail:{itemId}` має перевірити, що item id валідний, content існує або має fallback, і герой реально володіє цією манаткою перед показом деталей.
+Валідація обов’язкова. Не довіряти даним з callback: `v1:item:detail:{itemId}` має перевірити, що item id валідний, content існує або має fallback, і герой реально володіє цією манаткою перед показом деталей. `v1:equip:item:{itemId}` має додатково перевірити ownership і equippable content metadata; `v1:equip:clear:{slot}` має відхилити невідомий slot.
 
 Майбутній UX-борг для `safeEditMessageText`:
 - Перед редагуванням callback-повідомлення перевіряти, що це останнє актуальне повідомлення бота в цьому chat/user flow, або що конкретний екран явно дозволено редагувати старим `message_id`.

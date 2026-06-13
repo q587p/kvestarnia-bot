@@ -110,4 +110,28 @@ describe("Prisma schema", () => {
     expect(migration).toContain("CREATE TABLE \"korchma_round_purchases\"");
     expect(migration).toContain("CREATE INDEX \"korchma_round_purchases_local_date_idx\"");
   });
+
+  it("stores persistent equipment rows per character slot", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260613210000_add_character_equipment",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model CharacterEquipment");
+    expect(schema).toContain("equipment CharacterEquipment[]");
+    expect(schema).toContain("@map(\"character_id\")");
+    expect(schema).toContain("@map(\"item_id\")");
+    expect(schema).toContain("@@unique([characterId, slot])");
+    expect(schema).toContain("@@map(\"character_equipment\")");
+    expect(migration).toContain("CREATE TABLE \"character_equipment\"");
+    expect(migration).toContain("CREATE UNIQUE INDEX \"character_equipment_character_id_slot_key\"");
+    expect(migration).toContain("CREATE INDEX \"character_equipment_item_id_idx\"");
+  });
 });

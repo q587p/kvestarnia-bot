@@ -19,6 +19,7 @@ export function presentInventory(result: InventoryResult): string {
   return [
     "🎒 <b>Манатки</b>",
     "Герой розклав здобич на столі. Стіл попросив надбавку.",
+    `Оціночна вартість столу: <b>${result.totalGoldValue} золота</b>. Стіл уже поводиться як фінансовий радник.`,
     "",
     ...result.items.flatMap((item) => [
       presentItemStackLine({

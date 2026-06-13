@@ -189,10 +189,12 @@ describe("main menu and scene keyboards", () => {
   });
 
   it("builds inventory and equipment preview navigation", () => {
+    expect(flatInlineButtonTexts(buildInventoryKeyboard({ state: "no-character" }))).toEqual([]);
     expect(
       flatInlineButtonTexts(
         buildInventoryKeyboard({
           state: "found",
+          totalGoldValue: 0,
           items: [
             {
               id: "character-item-1",
@@ -203,7 +205,8 @@ describe("main menu and scene keyboards", () => {
                 name: "Квиток мокрого героя",
                 description: "Трофей.",
                 rarity: "common",
-                slot: "junk"
+                slot: "junk",
+                priceless: true
               }
             }
           ]
@@ -214,6 +217,7 @@ describe("main menu and scene keyboards", () => {
       flatInlineButtonCallbacks(
         buildInventoryKeyboard({
           state: "found",
+          totalGoldValue: 0,
           items: [
             {
               id: "character-item-1",
@@ -224,18 +228,90 @@ describe("main menu and scene keyboards", () => {
                 name: "Квиток мокрого героя",
                 description: "Трофей.",
                 rarity: "common",
-                slot: "junk"
+                slot: "junk",
+                priceless: true
               }
             }
           ]
         })
       )
     ).toEqual(["v1:equip:view", "v1:item:detail:item.wet-hero-ticket"]);
-    expect(flatInlineButtonTexts(buildItemDetailKeyboard())).toEqual([
+    expect(flatInlineButtonTexts(buildItemDetailKeyboard({ state: "not-owned" }))).toEqual([
       "⬅️ До манаток",
       "🧥 Спорядження"
     ]);
-    expect(flatInlineButtonTexts(buildEquipmentKeyboard())).toEqual(["⬅️ До манаток"]);
+    expect(flatInlineButtonTexts(buildItemDetailKeyboard({ state: "no-character" }))).toEqual([]);
+    expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard({
+          state: "found",
+          item: {
+            id: "character-item-1",
+            itemId: "item.pan-of-persuasion",
+            quantity: 1,
+            content: {
+              id: "item.pan-of-persuasion",
+              name: "Пательня переконання",
+              description: "Важкий аргумент.",
+              rarity: "common",
+              slot: "weapon",
+              goldValue: 25
+            }
+          }
+        })
+      )
+    ).toEqual(["🧥 Екіпірувати", "⬅️ До манаток", "🧥 Спорядження"]);
+    expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-1",
+              itemId: "item.pan-of-persuasion",
+              quantity: 1,
+              content: {
+                id: "item.pan-of-persuasion",
+                name: "Пательня переконання",
+                description: "Важкий аргумент.",
+                rarity: "common",
+                slot: "weapon",
+                goldValue: 25
+              }
+            }
+          },
+          "weapon"
+        )
+      )
+    ).toEqual(["Зняти", "⬅️ До манаток", "🧥 Спорядження"]);
+    expect(flatInlineButtonTexts(buildEquipmentKeyboard({ state: "no-character" }))).toEqual([]);
+    expect(
+      flatInlineButtonTexts(
+        buildEquipmentKeyboard({
+          state: "ready",
+          slots: [
+            {
+              slot: "weapon",
+              item: {
+                itemId: "item.pan-of-persuasion",
+                content: {
+                  id: "item.pan-of-persuasion",
+                  name: "Пательня переконання",
+                  description: "Важкий аргумент.",
+                  rarity: "common",
+                  slot: "weapon",
+                  goldValue: 25
+                }
+              }
+            },
+            { slot: "head", item: null },
+            { slot: "chest", item: null },
+            { slot: "legs", item: null },
+            { slot: "accessory", item: null }
+          ]
+        })
+      )
+    ).toEqual(["Зняти: зброя", "⬅️ До манаток"]);
   });
 
   it("builds quest hub buttons from available actions", () => {

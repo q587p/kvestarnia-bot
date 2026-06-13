@@ -34,7 +34,11 @@ describe("content tables", () => {
     expect(items.map((item) => item.id)).toEqual(
       expect.arrayContaining([
         "item.pan-of-persuasion",
+        "item.pot-helmet-of-early-access",
         "item.wet-hero-ticket",
+        "item.cheese-of-procedural-doubt",
+        "item.bristle-of-basement-order",
+        "item.napkin-of-mouse-diplomacy",
         "item.suspicious-shawarma-wrapper",
         "item.receipt-of-formal-suspicion"
       ])

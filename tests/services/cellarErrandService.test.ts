@@ -50,7 +50,13 @@ describe("CellarErrandService", () => {
       expect(result.reward).toMatchObject({
         xp: 2,
         gold: 1,
-        itemGrants: []
+        itemGrants: [
+          {
+            itemId: "item.cheese-of-procedural-doubt",
+            name: "Сир процедурного сумніву",
+            quantity: 1
+          }
+        ]
       });
       expect(result.availableAt).toEqual(
         new Date(startedAt.getTime() + CELLAR_MOUSE_ERRAND_COOLDOWN_MS)
@@ -73,6 +79,12 @@ describe("CellarErrandService", () => {
 
     expect(repeated.state).toBe("on-cooldown");
     expect(cooldowns.claimCount).toBe(1);
+    expect(cooldowns.grantedItems).toEqual([
+      {
+        itemId: "item.napkin-of-mouse-diplomacy",
+        quantity: 1
+      }
+    ]);
     await expect(cooldowns.findCharacter(telegramUserId)).resolves.toMatchObject({
       xp: 2,
       gold: 0
@@ -91,6 +103,16 @@ describe("CellarErrandService", () => {
 
     expect(second.state).toBe("completed");
     expect(cooldowns.claimCount).toBe(2);
+    expect(cooldowns.grantedItems).toEqual([
+      {
+        itemId: "item.bristle-of-basement-order",
+        quantity: 1
+      },
+      {
+        itemId: "item.cheese-of-procedural-doubt",
+        quantity: 1
+      }
+    ]);
     await expect(cooldowns.findCharacter(telegramUserId)).resolves.toMatchObject({
       xp: 3,
       gold: 1
@@ -101,6 +123,7 @@ describe("CellarErrandService", () => {
 class FakeCooldownRepository implements CooldownRepository {
   private readonly characters = new Map<bigint, CharacterRecord>();
   private readonly cooldowns = new Map<string, CharacterCooldownRecord>();
+  readonly grantedItems: Array<{ itemId: string; quantity: number }> = [];
   claimCount = 0;
 
   addCharacter(userTelegramId: bigint, overrides: Partial<CharacterRecord> = {}): void {
@@ -173,6 +196,7 @@ class FakeCooldownRepository implements CooldownRepository {
     }
 
     this.claimCount += 1;
+    const itemGrants = input.itemGrants ?? [];
     const cooldown = {
       id: `cooldown-${this.claimCount}`,
       characterId: character.id,
@@ -190,12 +214,13 @@ class FakeCooldownRepository implements CooldownRepository {
       level: getLevelForXp(nextXp)
     };
     this.characters.set(userTelegramId, updatedCharacter);
+    this.grantedItems.push(...itemGrants);
 
     return Promise.resolve({
       state: "completed",
       cooldown,
       character: updatedCharacter,
-      itemGrants: input.itemGrants ?? [],
+      itemGrants,
       levelChange: {
         oldLevel: getLevelForXp(character.xp),
         newLevel: updatedCharacter.level,

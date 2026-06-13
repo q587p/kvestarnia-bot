@@ -13,6 +13,7 @@ import {
 } from "./dailyActionKeys";
 import {
   enrichRewardItemGrants,
+  PAN_OF_PERSUASION_ITEM_ID,
   RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
   SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
   type RewardItemGrant
@@ -166,6 +167,10 @@ export class FightService {
 function buildFightItemGrants(action: FightAction): Array<{ itemId: string; quantity: number }> {
   if (action === "attack") {
     return [
+      {
+        itemId: PAN_OF_PERSUASION_ITEM_ID,
+        quantity: 1
+      },
       {
         itemId: SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
         quantity: 1

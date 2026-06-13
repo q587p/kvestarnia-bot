@@ -1,41 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { presentEquipmentPreview } from "../../src/bot/presenters/equipmentPresenter";
-import type { InventoryResult } from "../../src/services/inventoryService";
+import { presentEquipment } from "../../src/bot/presenters/equipmentPresenter";
+import type { EquipmentResult } from "../../src/services/equipmentService";
 
 describe("equipment presenter", () => {
   it("prompts /start when there is no character", () => {
-    expect(presentEquipmentPreview({ state: "no-character" })).toContain("/start");
+    expect(presentEquipment({ state: "no-character" })).toContain("/start");
   });
 
-  it("shows preview slots without claiming stat effects", () => {
-    const text = presentEquipmentPreview({ state: "empty" });
+  it("shows persistent slots without claiming stat effects", () => {
+    const text = presentEquipment(emptyEquipment());
 
     expect(text).toContain("🧥 <b>Спорядження</b>");
-    expect(text).toContain("🗡️ <b>Зброя</b>: <i>Пательня переконання — приклад, ще не у торбі.</i>");
-    expect(text).toContain("🎩 <b>Голова</b>");
+    expect(text).toContain("🗡️ <b>Зброя</b>: <i>гачок чекає важкий аргумент.</i>");
     expect(text).toContain("🧥 <b>Тулуб</b>");
-    expect(text).toContain("🥾 <b>Ноги</b>");
     expect(text).toContain("💍 <b>Аксесуар</b>");
+    expect(text).not.toContain("🎩 <b>Голова</b>");
+    expect(text).not.toContain("🥾 <b>Ноги</b>");
+    expect(text).toContain("Бонуси спорядження ще не рахуються");
     expect(text).toContain("HP, мана, бій і нагороди не змінюються");
     expect(text).not.toContain("+2");
     expect(text).not.toContain("додає");
   });
 
-  it("shows owned equippable item in its preview slot", () => {
-    const text = presentEquipmentPreview(foundInventory());
+  it("shows equipped items in their persisted slots", () => {
+    const text = presentEquipment(foundEquipment());
 
     expect(text).toContain("🗡️ <b>Зброя</b>: Пательня переконання");
     expect(text).not.toContain("Пательня переконання — приклад");
   });
 
   it("escapes owned item names in slots", () => {
-    const text = presentEquipmentPreview({
-      state: "found",
-      items: [
-        {
-          id: "character-item-1",
+    const text = presentEquipment({
+      state: "ready",
+      slots: [
+        { slot: "weapon", item: {
           itemId: "item.unsafe-test",
-          quantity: 1,
           content: {
             id: "item.unsafe-test",
             name: "<b>Пательня</b>",
@@ -44,6 +43,13 @@ describe("equipment presenter", () => {
             slot: "weapon",
             goldValue: 13
           }
+        } },
+        { slot: "head", item: null },
+        { slot: "chest", item: null },
+        { slot: "legs", item: null },
+        {
+          slot: "accessory",
+          item: null
         }
       ]
     });
@@ -53,23 +59,41 @@ describe("equipment presenter", () => {
   });
 });
 
-function foundInventory(): InventoryResult {
+function emptyEquipment(): EquipmentResult {
   return {
-    state: "found",
-    items: [
+    state: "ready",
+    slots: [
+      { slot: "weapon", item: null },
+      { slot: "head", item: null },
+      { slot: "chest", item: null },
+      { slot: "legs", item: null },
+      { slot: "accessory", item: null }
+    ]
+  };
+}
+
+function foundEquipment(): EquipmentResult {
+  return {
+    state: "ready",
+    slots: [
       {
-        id: "character-item-1",
-        itemId: "item.pan-of-persuasion",
-        quantity: 1,
-        content: {
-          id: "item.pan-of-persuasion",
-          name: "Пательня переконання",
-          description: "Важкий аргумент.",
-          rarity: "common",
-          slot: "weapon",
-          goldValue: 25
+        slot: "weapon",
+        item: {
+          itemId: "item.pan-of-persuasion",
+          content: {
+            id: "item.pan-of-persuasion",
+            name: "Пательня переконання",
+            description: "Важкий аргумент.",
+            rarity: "common",
+            slot: "weapon",
+            goldValue: 25
+          }
         }
-      }
+      },
+      { slot: "head", item: null },
+      { slot: "chest", item: null },
+      { slot: "legs", item: null },
+      { slot: "accessory", item: null }
     ]
   };
 }

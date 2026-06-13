@@ -1,11 +1,21 @@
 import type { ItemContent } from "../../content/schema";
+import type { EquipmentSlot } from "../../services/equipmentService";
+import { isEquippableItem } from "../../services/equipmentService";
 import type {
   InventoryItemDetailResult,
   InventoryItemSummary
 } from "../../services/inventoryService";
+import { presentEquipmentSlotLabel } from "./equipmentPresenter";
 import { escapeHtml } from "./telegramHtml";
 
-export function presentItemDetail(result: InventoryItemDetailResult): string {
+export interface ItemDetailOptions {
+  equippedSlot?: EquipmentSlot | null;
+}
+
+export function presentItemDetail(
+  result: InventoryItemDetailResult,
+  options: ItemDetailOptions = {}
+): string {
   if (result.state === "no-character") {
     return "Спершу створіть героя через /start. Манатки не довіряють порожнім торбам.";
   }
@@ -14,12 +24,14 @@ export function presentItemDetail(result: InventoryItemDetailResult): string {
     return "Такої манатки в торбі не знайшлося. Можливо, вона сама себе проінспектувала.";
   }
 
-  return presentOwnedItemDetail(result.item);
+  return presentOwnedItemDetail(result.item, options);
 }
 
-export function presentOwnedItemDetail(item: InventoryItemSummary): string {
+export function presentOwnedItemDetail(
+  item: InventoryItemSummary,
+  options: ItemDetailOptions = {}
+): string {
   const content = item.content;
-  const equippable = isPreviewEquippable(content);
   const quantity = Math.max(1, Math.floor(item.quantity));
   return [
     `🔎 <b>${escapeHtml(content.name)}</b>`,
@@ -31,16 +43,10 @@ export function presentOwnedItemDetail(item: InventoryItemSummary): string {
     "",
     `<i>${escapeHtml(content.description)}</i>`,
     "",
-    equippable
-      ? "Екіпірування: <i>можна буде приміряти, але бонуси поки лежать у бухгалтерії.</i>"
-      : "Екіпірування: <i>не вдягається. Корчма визнала це смішним трофеєм.</i>",
+    presentEquipmentLine(content, options.equippedSlot ?? null),
     "",
     presentItemFlavor(content)
   ].join("\n");
-}
-
-export function isPreviewEquippable(item: ItemContent): boolean {
-  return item.slot === "weapon" || item.slot === "armor" || item.slot === "accessory";
 }
 
 export function presentRarity(rarity: ItemContent["rarity"]): string {
@@ -52,6 +58,18 @@ export function presentRarity(rarity: ItemContent["rarity"]): string {
   };
 
   return labels[rarity];
+}
+
+function presentEquipmentLine(item: ItemContent, equippedSlot: EquipmentSlot | null): string {
+  if (!isEquippableItem(item)) {
+    return "Екіпірування: <i>не вдягається. Корчма визнала це смішним трофеєм.</i>";
+  }
+
+  if (equippedSlot) {
+    return `Екіпірування: <b>вдягнено — ${presentEquipmentSlotLabel(equippedSlot)}</b>. <i>Бонуси ще не рахуються.</i>`;
+  }
+
+  return "Екіпірування: <i>можна екіпірувати, але бонуси поки лежать у бухгалтерії.</i>";
 }
 
 export function presentItemSlot(slot: ItemContent["slot"]): string {

@@ -21,6 +21,7 @@ describe("inventory presenter", () => {
   it("shows item names, quantities, and descriptions", () => {
     const result: InventoryResult = {
       state: "found",
+      totalGoldValue: 6,
       items: [
         {
           id: "character-item-1",
@@ -31,7 +32,8 @@ describe("inventory presenter", () => {
             name: "Квиток мокрого героя",
             description: "Трофей тавернової логістики.",
             rarity: "common",
-            slot: "junk"
+            slot: "junk",
+            goldValue: 3
           }
         }
       ]
@@ -39,14 +41,16 @@ describe("inventory presenter", () => {
     const text = presentInventory(result);
 
     expect(text).toContain("<b>Манатки</b>");
+    expect(text).toContain("Оціночна вартість столу: <b>6 золота</b>");
     expect(text).toContain("<b>Квиток мокрого героя</b> ×2");
     expect(text).toContain("<i>Трофей тавернової логістики.</i>");
-    expect(text.split("\n").length).toBeLessThanOrEqual(6);
+    expect(text.split("\n").length).toBeLessThanOrEqual(7);
   });
 
   it("omits quantity for a single item", () => {
     const text = presentInventory({
       state: "found",
+      totalGoldValue: 0,
       items: [
         {
           id: "character-item-1",
@@ -57,7 +61,8 @@ describe("inventory presenter", () => {
             name: "Квиток мокрого героя",
             description: "Трофей тавернової логістики.",
             rarity: "common",
-            slot: "junk"
+            slot: "junk",
+            priceless: true
           }
         }
       ]

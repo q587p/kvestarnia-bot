@@ -69,6 +69,11 @@ describe("FightService", () => {
       });
       expect(result.reward.itemGrants).toEqual([
         {
+          itemId: "item.pan-of-persuasion",
+          name: "Пательня переконання",
+          quantity: 1
+        },
+        {
           itemId: "item.suspicious-shawarma-wrapper",
           name: "Підозрілий лавашний доказ",
           quantity: 1
@@ -182,6 +187,10 @@ describe("FightService", () => {
     expect(secondOption.state).toBe("already-completed");
     expect(dailyActions.createCount).toBe(1);
     expect(dailyActions.grantedItems).toEqual([
+      {
+        itemId: "item.pan-of-persuasion",
+        quantity: 1
+      },
       {
         itemId: "item.suspicious-shawarma-wrapper",
         quantity: 1

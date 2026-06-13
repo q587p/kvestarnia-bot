@@ -8,7 +8,7 @@ import type {
 export type InventoryResult =
   | { state: "no-character" }
   | { state: "empty" }
-  | { state: "found"; items: InventoryItemSummary[] };
+  | { state: "found"; items: InventoryItemSummary[]; totalGoldValue: number };
 
 export type InventoryItemDetailResult =
   | { state: "no-character" }
@@ -36,9 +36,12 @@ export class InventoryService {
       return { state: "empty" };
     }
 
+    const enrichedItems = rows.map(enrichItem);
+
     return {
       state: "found",
-      items: rows.map(enrichItem)
+      items: enrichedItems,
+      totalGoldValue: calculateInventoryGoldValue(enrichedItems)
     };
   }
 
@@ -63,6 +66,21 @@ export class InventoryService {
       item: enrichItem(row)
     };
   }
+}
+
+export function calculateInventoryRowsGoldValue(rows: readonly CharacterItemRecord[]): number {
+  return calculateInventoryGoldValue(rows.map(enrichItem));
+}
+
+export function calculateInventoryGoldValue(
+  inventoryItems: readonly Pick<InventoryItemSummary, "quantity" | "content">[]
+): number {
+  return inventoryItems.reduce((sum, item) => {
+    const quantity = Math.max(0, Math.floor(item.quantity));
+    const value = Math.max(0, Math.floor(item.content.goldValue ?? 0));
+
+    return sum + value * quantity;
+  }, 0);
 }
 
 function enrichItem(row: CharacterItemRecord): InventoryItemSummary {
