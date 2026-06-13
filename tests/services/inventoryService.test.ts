@@ -47,7 +47,36 @@ describe("InventoryService", () => {
           name: "Квиток мокрого героя"
         }
       });
+      expect(result.totalGoldValue).toBe(0);
     }
+  });
+
+  it("sums gold values for all priced inventory stacks", async () => {
+    const service = new InventoryService(
+      new FakeInventoryRepository([
+        buildItem({
+          itemId: "item.suspicious-shawarma-wrapper",
+          quantity: 3
+        }),
+        buildItem({
+          id: "character-item-2",
+          itemId: "item.pan-of-persuasion",
+          quantity: 2
+        }),
+        buildItem({
+          id: "character-item-3",
+          itemId: "item.wet-hero-ticket",
+          quantity: 4
+        })
+      ])
+    );
+
+    const result = await service.listForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "found",
+      totalGoldValue: 53
+    });
   });
 
   it("returns owned item details only for rows in the character inventory", async () => {

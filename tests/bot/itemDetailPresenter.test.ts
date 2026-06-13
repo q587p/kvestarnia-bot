@@ -47,8 +47,28 @@ describe("item detail presenter", () => {
 
     expect(text).toContain("Категорія: <b>зброя</b>");
     expect(text).toContain("Вартість: <b>25 золота</b>");
-    expect(text).toContain("можна буде приміряти");
+    expect(text).toContain("можна екіпірувати");
     expect(text).toContain("бонуси поки лежать у бухгалтерії");
+  });
+
+  it("shows when an item is already equipped", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        content: {
+          id: "item.pan-of-persuasion",
+          name: "Пательня переконання",
+          description: "Важкий аргумент.",
+          rarity: "common",
+          slot: "weapon",
+          goldValue: 25
+        }
+      }),
+      { equippedSlot: "weapon" }
+    );
+
+    expect(text).toContain("вдягнено");
+    expect(text).toContain("Зброя");
+    expect(text).toContain("Бонуси ще не рахуються");
   });
 
   it("escapes unsafe item names and descriptions", () => {

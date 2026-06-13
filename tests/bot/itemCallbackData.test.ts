@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  makeEquipItemCallbackData,
   makeEquipmentCallbackData,
   makeInventoryCallbackData,
   makeItemDetailCallbackData,
+  makeUnequipSlotCallbackData,
   parseEquipmentCallbackData,
   parseItemCallbackData
 } from "../../src/bot/callbacks/itemCallbackData";
@@ -37,11 +39,44 @@ describe("item and equipment callback data", () => {
     });
   });
 
+  it("parses valid equip and unequip callbacks", () => {
+    const equip = makeEquipItemCallbackData("item.pan-of-persuasion");
+    const clear = makeUnequipSlotCallbackData("weapon");
+
+    expect(Buffer.byteLength(equip, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(clear, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(parseEquipmentCallbackData(equip)).toEqual({
+      ok: true,
+      value: {
+        type: "equip-item",
+        itemId: "item.pan-of-persuasion"
+      }
+    });
+    expect(parseEquipmentCallbackData(clear)).toEqual({
+      ok: true,
+      value: {
+        type: "clear-slot",
+        slot: "weapon"
+      }
+    });
+  });
+
   it("rejects invalid item and equipment callbacks", () => {
     expect(parseItemCallbackData("v1:item:detail:<b>oops</b>").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:detail:item.wet-hero-ticket:extra").ok).toBe(false);
     expect(parseItemCallbackData("v1:equip:view").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:equip:wear:item.pan-of-persuasion").ok).toBe(false);
+    expect(parseEquipmentCallbackData("v1:equip:item:<b>oops</b>").ok).toBe(false);
+    expect(parseEquipmentCallbackData("v1:equip:clear:boots").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:item:inventory").ok).toBe(false);
+  });
+
+  it("rejects too-long callback data", () => {
+    const tooLongItemId = `item.${"very-".repeat(20)}long`;
+
+    expect(parseItemCallbackData(`v1:item:detail:${tooLongItemId}`).ok).toBe(false);
+    expect(parseEquipmentCallbackData(`v1:equip:item:${tooLongItemId}`).ok).toBe(false);
+    expect(() => makeItemDetailCallbackData(tooLongItemId)).toThrow(RangeError);
+    expect(() => makeEquipItemCallbackData(tooLongItemId)).toThrow(RangeError);
   });
 });

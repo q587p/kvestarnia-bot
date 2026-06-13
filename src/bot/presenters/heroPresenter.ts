@@ -3,7 +3,10 @@ import { getLocationName } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 import { presentLevelBonus } from "./levelGrowthPresenter";
 
-export function presentHero(summary: CharacterSummary): string {
+export function presentHero(
+  summary: CharacterSummary,
+  options: { inventoryGoldValue?: number } = {}
+): string {
   const progressLine =
     summary.nextLevelXp === null
       ? `Рівень <b>${summary.level}</b> · XP ${summary.xp} · поточна стеля альфи`
@@ -22,7 +25,7 @@ export function presentHero(summary: CharacterSummary): string {
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
     ...(growthLine ? ["", `Ріст: ${growthLine}`] : []),
     "",
-    `Золото: <b>${summary.gold}</b>`,
+    `Золото: <b>${summary.gold}</b> <i>(а в манатках ще ${options.inventoryGoldValue ?? 0}; корчмар уже примружився)</i>`,
     "",
     `Зараз герой тут: <b>${escapeHtml(getLocationName(summary.currentLocationId ?? ""))}</b>.`,
     "",

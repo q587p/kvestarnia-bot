@@ -8,6 +8,7 @@ import { prisma } from "./db/prisma";
 import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepository";
 import { PrismaCooldownRepository } from "./db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "./db/repositories/prismaDailyActionRepository";
+import { PrismaEquipmentRepository } from "./db/repositories/prismaEquipmentRepository";
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "./db/repositories/prismaKorchmaRoundPurchaseRepository";
 import { PrismaPresenceRepository } from "./db/repositories/prismaPresenceRepository";
@@ -18,6 +19,7 @@ import { AdventureService } from "./services/adventureService";
 import { CellarErrandService } from "./services/cellarErrandService";
 import { DevResetService } from "./services/devResetService";
 import { DeployNotificationService } from "./services/deployNotificationService";
+import { EquipmentService } from "./services/equipmentService";
 import { FightService } from "./services/fightService";
 import { HeroService } from "./services/heroService";
 import { InventoryService } from "./services/inventoryService";
@@ -31,6 +33,7 @@ const users = new PrismaUserRepository(prisma);
 const characters = new PrismaCharacterRepository(prisma);
 const cooldowns = new PrismaCooldownRepository(prisma);
 const dailyActions = new PrismaDailyActionRepository(prisma);
+const equipment = new PrismaEquipmentRepository(prisma);
 const inventory = new PrismaInventoryRepository(prisma);
 const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
@@ -39,7 +42,8 @@ const services = {
   cellarErrand: new CellarErrandService(cooldowns),
   fight: new FightService(characters, dailyActions),
   onboarding: new OnboardingService(users, characters),
-  hero: new HeroService(characters),
+  hero: new HeroService(characters, inventory),
+  equipment: new EquipmentService(equipment, inventory),
   inventory: new InventoryService(inventory),
   presence: new PresenceService(presence),
   devReset: new DevResetService(characters, config.nodeEnv),

@@ -2,7 +2,13 @@ import type { CooldownRepository } from "../db/repositories/cooldownRepository";
 import type { RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { systemClock, type Clock } from "../shared/time";
-import { enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
+import {
+  BRISTLE_OF_BASEMENT_ORDER_ITEM_ID,
+  CHEESE_OF_PROCEDURAL_DOUBT_ITEM_ID,
+  enrichRewardItemGrants,
+  NAPKIN_OF_MOUSE_DIPLOMACY_ITEM_ID,
+  type RewardItemGrant
+} from "./itemGrant";
 
 export const CELLAR_MOUSE_ERRAND_KEY = "cellar.mouse-errand";
 export const CELLAR_MOUSE_ERRAND_COOLDOWN_MS = 3 * 60 * 1000;
@@ -97,7 +103,8 @@ export class CellarErrandService {
       now,
       availableAt,
       rewardXp: reward.xp,
-      rewardGold: reward.gold
+      rewardGold: reward.gold,
+      itemGrants: buildCellarItemGrants(action)
     });
 
     if (!claim) {
@@ -126,4 +133,31 @@ export class CellarErrandService {
       levelChange: claim.levelChange
     };
   }
+}
+
+function buildCellarItemGrants(action: CellarErrandAction): Array<{ itemId: string; quantity: number }> {
+  if (action === "cheese-trap") {
+    return [
+      {
+        itemId: CHEESE_OF_PROCEDURAL_DOUBT_ITEM_ID,
+        quantity: 1
+      }
+    ];
+  }
+
+  if (action === "sweep-bravely") {
+    return [
+      {
+        itemId: BRISTLE_OF_BASEMENT_ORDER_ITEM_ID,
+        quantity: 1
+      }
+    ];
+  }
+
+  return [
+    {
+      itemId: NAPKIN_OF_MOUSE_DIPLOMACY_ITEM_ID,
+      quantity: 1
+    }
+  ];
 }

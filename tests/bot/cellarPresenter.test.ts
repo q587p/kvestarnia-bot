@@ -15,8 +15,9 @@ describe("cellar presenter", () => {
 
     expect(text).toContain("🐭 Підвальна справа");
     expect(text).toContain("<blockquote>");
+    expect(text).toContain("Миша:");
     expect(text).toContain("що робимо?");
-    expect(text.split("\n").length).toBeLessThanOrEqual(8);
+    expect(text.split("\n").length).toBeLessThanOrEqual(11);
   });
 
   it("adds character-aware flavor to cellar start and outcome scenes", () => {
@@ -54,13 +55,50 @@ describe("cellar presenter", () => {
   it("renders completed result with reward and no exact timestamp", () => {
     const text = presentCellarResult(completed);
 
-    expect(text).toContain("🧀 Пастка спрацювала частково.");
-    expect(text).toContain("Миша лишила сир і записку.\n<blockquote>Ваші умови смішні.</blockquote>");
+    expect(text).toContain("🧀");
+    expect(text).toContain("Миша:");
+    expect(text).toContain("<blockquote>");
     expect(text).toContain("<b>+2 XP · +1 золота</b>");
+    expect(text).toContain("Здобуто: <i>Сир процедурного сумніву</i>");
     expect(text).toContain("Підвал знову чекатиме за 3 хвилини.");
     expect(text).not.toContain("за:");
     expect(text).not.toMatch(/\d{1,2}:\d{2}/);
     expect(text).not.toMatch(/\d+\s*(?:секунд|хвилин)\s+тому/i);
+  });
+
+  it("changes mouse outcomes by race, class, and pronoun", () => {
+    const bisynyTrap = presentCellarResult({
+      ...completed,
+      character: {
+        ...character,
+        raceId: "race.bisyny",
+        raceName: "Бісини"
+      }
+    });
+    const mageSweep = presentCellarResult({
+      ...completed,
+      action: "sweep-bravely",
+      character: {
+        ...character,
+        classId: "class.mage",
+        className: "Маг"
+      }
+    });
+    const heroineSweep = presentCellarResult({
+      ...completed,
+      action: "sweep-bravely",
+      character: {
+        ...character,
+        pronoun: "she",
+        pronounLabel: "Вона",
+        classId: "class.priest",
+        className: "Жрець"
+      }
+    });
+
+    expect(bisynyTrap).toContain("термінологію");
+    expect(mageSweep).toContain("прогноз");
+    expect(heroineSweep).toContain("Героїня");
   });
 
   it("renders cooldown without exact timestamp", () => {
@@ -123,7 +161,13 @@ const completed: Exclude<CellarErrandResult, { state: "no-character" }> = {
   reward: {
     xp: 2,
     gold: 1,
-    itemGrants: []
+    itemGrants: [
+      {
+        itemId: "item.cheese-of-procedural-doubt",
+        name: "Сир процедурного сумніву",
+        quantity: 1
+      }
+    ]
   },
   availableAt: new Date("2026-06-13T10:03:00.000Z"),
   now,

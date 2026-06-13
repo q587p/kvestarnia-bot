@@ -4,6 +4,7 @@ import type { CellarErrandService } from "../services/cellarErrandService";
 import type { DevResetService } from "../services/devResetService";
 import type { FightService } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
+import type { EquipmentService } from "../services/equipmentService";
 import type { InventoryService } from "../services/inventoryService";
 import type { OnboardingService } from "../services/onboardingService";
 import {
@@ -29,6 +30,7 @@ import { parseFightCallbackData } from "./callbacks/fightCallbackData";
 import {
   parseEquipmentCallbackData,
   parseItemCallbackData,
+  type EquipmentCallback,
   type ItemCallback
 } from "./callbacks/itemCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
@@ -76,7 +78,7 @@ import {
   buildCellarResultKeyboard
 } from "./keyboards/cellarKeyboard";
 import { buildFightResultKeyboard } from "./keyboards/fightKeyboard";
-import { buildItemDetailKeyboard } from "./keyboards/inventoryKeyboard";
+import { buildEquipmentKeyboard, buildItemDetailKeyboard } from "./keyboards/inventoryKeyboard";
 import {
   buildClassKeyboard,
   buildConfirmationKeyboard,
@@ -101,6 +103,11 @@ import {
 } from "./presenters/devResetPresenter";
 import { presentFightNoCharacter, presentFightResult } from "./presenters/fightPresenter";
 import { presentHelp } from "./presenters/helpPresenter";
+import {
+  presentEquipment,
+  presentEquipItemResult,
+  presentUnequipSlotResult
+} from "./presenters/equipmentPresenter";
 import { presentItemDetail } from "./presenters/itemDetailPresenter";
 import { presentLevelUpCelebration } from "./presenters/levelGrowthPresenter";
 import {
@@ -135,6 +142,7 @@ export interface BotServices {
   fight: FightService;
   onboarding: OnboardingService;
   hero: HeroService;
+  equipment: EquipmentService;
   inventory: InventoryService;
   presence: PresenceService;
   devReset: DevResetService;
@@ -176,7 +184,7 @@ export function createBot(token: string, services: BotServices): Bot {
   registerStartCommand(bot, services.onboarding);
   registerHeroCommand(bot, services.hero);
   registerInventoryCommand(bot, services.inventory);
-  registerEquipmentCommand(bot, services.inventory);
+  registerEquipmentCommand(bot, services.equipment);
   registerOnlineCommand(bot, services.presence);
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset);
@@ -218,8 +226,7 @@ export function createBot(token: string, services: BotServices): Bot {
       return;
     }
 
-    await safeAnswerCallbackQuery(ctx);
-    await sendEquipment(ctx, services.inventory, "edit");
+    await handleEquipmentCallback(ctx, parsed.value, services);
   });
 
   bot.callbackQuery(/^v1:item:/, async (ctx) => {
@@ -230,7 +237,7 @@ export function createBot(token: string, services: BotServices): Bot {
       return;
     }
 
-    await handleItemCallback(ctx, parsed.value, services.inventory);
+    await handleItemCallback(ctx, parsed.value, services);
   });
 
   bot.callbackQuery(/^v1:news:/, async (ctx) => {
@@ -740,11 +747,11 @@ async function handleMenuCallback(
 async function handleItemCallback(
   ctx: Context,
   action: ItemCallback,
-  inventoryService: InventoryService
+  services: BotServices
 ): Promise<void> {
   if (action.type === "inventory") {
     await safeAnswerCallbackQuery(ctx);
-    await sendInventory(ctx, inventoryService, "edit");
+    await sendInventory(ctx, services.inventory, "edit");
     return;
   }
 
@@ -755,12 +762,74 @@ async function handleItemCallback(
     return;
   }
 
-  const result = await inventoryService.getItemForTelegramUser(telegramUserId, action.itemId);
+  const result = await services.inventory.getItemForTelegramUser(telegramUserId, action.itemId);
+  const equipment = await services.equipment.getEquipmentForTelegramUser(telegramUserId);
+  const equippedSlot =
+    equipment.state === "ready"
+      ? (equipment.slots.find((slot) => slot.item?.itemId === action.itemId)?.slot ?? null)
+      : null;
 
   await safeAnswerCallbackQuery(ctx);
-  await safeEditMessageText(ctx, presentItemDetail(result), {
+  await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot }), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemDetailKeyboard()
+    reply_markup: buildItemDetailKeyboard(result, equippedSlot)
+  });
+}
+
+async function handleEquipmentCallback(
+  ctx: Context,
+  action: EquipmentCallback,
+  services: BotServices
+): Promise<void> {
+  if (action.type === "view") {
+    await safeAnswerCallbackQuery(ctx);
+    await sendEquipment(ctx, services.equipment, "edit");
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (action.type === "equip-item") {
+    const result = await services.equipment.equipItemForTelegramUser(
+      telegramUserId,
+      action.itemId
+    );
+
+    await safeAnswerCallbackQuery(ctx, {
+      text: presentEquipItemResult(result),
+      show_alert: result.state !== "equipped"
+    });
+
+    if (result.state === "equipped") {
+      const equipment = await services.equipment.getEquipmentForTelegramUser(telegramUserId);
+      await safeEditMessageText(ctx, presentEquipment(equipment), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildEquipmentKeyboard(equipment)
+      });
+    }
+    return;
+  }
+
+  const result = await services.equipment.unequipSlotForTelegramUser(telegramUserId, action.slot);
+
+  await safeAnswerCallbackQuery(ctx, {
+    text: presentUnequipSlotResult(result),
+    show_alert: result.state === "no-character"
+  });
+
+  const equipment =
+    result.state === "no-character"
+      ? await services.equipment.getEquipmentForTelegramUser(telegramUserId)
+      : { state: "ready" as const, slots: result.slots };
+
+  await safeEditMessageText(ctx, presentEquipment(equipment), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildEquipmentKeyboard(equipment)
   });
 }
 

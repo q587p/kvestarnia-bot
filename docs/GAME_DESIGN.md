@@ -132,13 +132,17 @@ Hidden `path` може бути внутрішнім selector-ом, але на�
 - Вхід через `/inventory`, `/items`, `/bag` або кнопку `🎒 Манатки`.
 - `0.0.13` додає вторинні команди `/equipment`, `/gear`, `/equip` і inline-кнопку `🧥 Спорядження` з інвентаря.
 - Предмети зберігаються як content id + quantity для конкретного героя.
+- `0.0.14` додає окремий persistent shell для обраного спорядження: `character_equipment` зберігає, яка owned манатка висить у кожному слоті.
 - Tavern/adventure/fight grants deterministic і прив’язані до existing daily action keys.
 - Повторний callback того ж key/date не дублює XP, золото або items.
-- Перші persistent reward items: `item.wet-hero-ticket`, `item.suspicious-shawarma-wrapper`, `item.receipt-of-formal-suspicion`.
-- Перший preview-equippable content item: `item.pan-of-persuasion`, показаний у вітрині спорядження як приклад, якщо герой його ще не має.
+- Перші persistent reward items: `item.wet-hero-ticket`, `item.pan-of-persuasion`, `item.suspicious-shawarma-wrapper`, `item.receipt-of-formal-suspicion`.
+- Перші preview-equippable content items: `item.pan-of-persuasion` і `item.pot-helmet-of-early-access`.
 - Item detail показує назву, рідкість, категорію/слот, вартість або `безцінна`, опис, quantity і чи предмет preview-equippable.
 - У `0.0.13` кожна манатка має `goldValue` або `priceless`; це тільки metadata для огляду й майбутніх sinks, не продаж і не обмін.
-- Спорядження у `0.0.13` preview-only: воно не зберігає equipped state, не продається, не ролиться випадково і не змінює stats, HP, ману, combat preview або reward math.
+- У `0.0.14` `/inventory` показує сумарну оціночну вартість priced манаток, а `/hero` показує це число поруч із живим золотом героя. Це display-only: золото не додається, предмети не списуються.
+- Спорядження у `0.0.14` persistent, але без stat effects: можна екіпірувати owned weapon у `weapon`, armor у `chest`, accessory у `accessory`, а також зняти зайнятий слот.
+- Видимий equipment UI у `0.0.14` показує тільки чесно підтримані слоти: зброя, тулуб, аксесуар. Head і legs лишаються future vocabulary, доки content/schema не матимуть реальних речей для них.
+- Екіпірування не змінює inventory quantity, не продається, не ролиться випадково і не змінює stats, HP, ману, combat preview або reward math.
 - Callback-и `v1:item:*` і `v1:equip:*` валідовані; item detail перевіряє ownership перед показом.
 
 Майбутній itemization/equipment борг:
@@ -146,6 +150,7 @@ Hidden `path` може бути внутрішнім selector-ом, але на�
 - Рідкісніші предмети можуть мати обмеження за рівнем, расою, класом і корчмарським `path`/звертанням. Це має звучати як корчемна бюрократія, прокляття або дивний крій, а не як суха заборона.
 - Пізніше можна додати способи «схитрувати»: тимчасовий дозвіл, проклятий виняток, ритуал підгонки, зміна форми або постійна перебудова персонажа. Такі обходи не мають перетворювати rare item на обов’язковий pay-to-win шлях.
 - Потрібна база для обміну/передачі: якщо манатка не підходить вашому герою, її можна буде віддати іншому гравцю через безпечну транзакційну дію.
+- Перед продажем, обміном або item-to-level sink треба переглянути зв’язок спорядження з інвентарем: `0.0.14` зберігає equipped content `itemId`, а не конкретний `character_item.id`, бо зараз немає instance/stack mutation.
 - Більшість манаток має мати номінальну вартість у золоті; окремі трофеї можуть бути явно `безцінні`, тобто не продаються і не рахуються як валюта для sinks.
 - Майбутній Munchkin-like gold/item sink: біля корчми може сидіти підозрілий тип, який міняє здані манатки на рівень, якщо їхня сумарна вартість добирає потрібний поріг, наприклад `1000 золота`. Це має бути явна дія з підтвердженням, не автоматичний продаж.
 
@@ -215,7 +220,8 @@ Alpha scaling рахується як derived effective values від збере
 - `/cellar` у `0.0.11` існує як secondary fallback-команда, але не додається до side command menu чи persistent reply keyboard.
 - Сцена: підвал Квестарні, миша, сирна політика й дуже маленька адміністративна криза.
 - Дії: `cheese-trap`, `sweep-bravely`, `negotiate`.
-- Нагороди маленькі: `+1–2 XP`, `+0–1 золота`, без нового loot table.
+- Нагороди маленькі: `+1–2 XP`, `+0–1 золота` і deterministic дрібний лут за дію: сирний сумнів, щетина порядку або серветка дипломатії.
+- У `0.0.14` підвальна миша має кілька стартових і outcome-реплік; вибір стабільний від героя/дії, без RNG. Частина outcome-дiйства спеціально реагує на расу, клас і займенники героя, а не лише підставляє generic фразу.
 - Cooldown: 3 хвилини через persisted `character_cooldowns`, без Redis.
 - Повторний callback під час cooldown не дублює XP/золото й показує coarse час повернення, не точний timestamp.
 - Presence: герой переходить у `location.korchma.cellar`; це відкрита aggregate-місцина для public `/presence`, але public web усе одно показує counts-only без імен.
@@ -339,7 +345,7 @@ Post-MVP:
 7. Пояснення 3 кнопок: Пригода, Герой, Манатки.
 
 ## Команди MVP
-Поточна command surface у `0.0.13`:
+Поточна command surface у `0.0.14`:
 - `/start`
 - `/hero`, `/profile`, `/me`
 - `/tavern`, `/raid`
@@ -347,7 +353,7 @@ Post-MVP:
 - `/fight`, `/hunt`
 - `/cellar` як secondary fallback, без side menu
 - `/inventory`, `/items`, `/bag`
-- `/equipment`, `/gear`, `/equip` як secondary preview-команди, без side menu
+- `/equipment`, `/gear`, `/equip` як secondary equipment-команди, без side menu
 - `/guild` як коротка заглушка
 - `/online`, `/look`
 - `/restart`

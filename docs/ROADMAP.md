@@ -39,8 +39,10 @@ Done when:
 Current tiny inventory slice:
 - `/inventory`, `/items`, `/bag` show persistent манатки.
 - `0.0.13` adds item detail callbacks, visible item value/priceless metadata, and preview-only `/equipment`, `/gear`, `/equip` without equipped state or stat effects.
+- `0.0.14` persists selected equipment per slot through `character_equipment`, with equip/unequip actions for owned weapon/armor/accessory items, visible inventory total value, and hero wallet context for value in манатки.
 - Tavern/adventure/fight first completions can grant fixed items.
 - Full itemization, equipment effects, random loot tables, crafting, market, and trading remain later Phase 1+ work.
+- Future equipment effects should layer through one equipment/effective-stats helper before combat uses them; the current shell must not change `/hero`, fight preview, rewards, cooldowns, HP, mana, or level-up math.
 - Future equipment rules should support level-gated items that can drop before they are wearable, plus rarer race/class/path-specific манатки with future bypass/attunement/respec tricks.
 - Future player-to-player exchange should let heroes give unsuitable манатки to others without duplicating items or bypassing anti-abuse checks.
 - Future item economy should give most манатки a gold value or explicit priceless marker, then use that value for selling, trading, and a later item-to-level exchange.

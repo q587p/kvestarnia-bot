@@ -36,6 +36,7 @@ model Character {
   dailyActions DailyAction[]
   cooldowns CharacterCooldown[]
   items     CharacterItem[]
+  equipment CharacterEquipment[]
   korchmaRoundPurchases KorchmaRoundPurchase[]
   name      String
   pronoun   String   @default("they")
@@ -56,6 +57,20 @@ model Character {
   @@index([raceId])
   @@index([classId])
   @@map("characters")
+}
+
+model CharacterEquipment {
+  id          String    @id @default(uuid())
+  characterId String    @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  slot        String
+  itemId      String    @map("item_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([characterId, slot])
+  @@index([itemId])
+  @@map("character_equipment")
 }
 
 model KorchmaRoundPurchase {
