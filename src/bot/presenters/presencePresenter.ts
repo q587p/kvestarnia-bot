@@ -52,7 +52,7 @@ export function presentParticipants(snapshot: ParticipantsSnapshot): string {
   const title =
     snapshot.activity.kind === "raid"
       ? `🍺 ${escapeHtml(snapshot.activity.name)}`
-      : `🌯 ${escapeHtml(snapshot.activity.name)}`;
+      : `${presentAdventureIcon(snapshot.activity)} ${escapeHtml(snapshot.activity.name)}`;
 
   return [
     title,
@@ -95,7 +95,8 @@ function presentLocationBlock(group: PresenceGroup): string[] {
 }
 
 function presentActivitySummary(activity: PresenceActivitySnapshot): string[] {
-  const prefix = activity.kind === "raid" ? "🍺 У рейді" : "🌯 У пригоді";
+  const prefix =
+    activity.kind === "raid" ? "🍺 У рейді" : `${presentAdventureIcon(activity)} У пригоді`;
 
   if (activity.people.total === 0) {
     return [`${prefix} «${escapeHtml(activity.name)}»: поки тихо.`];
@@ -105,6 +106,18 @@ function presentActivitySummary(activity: PresenceActivitySnapshot): string[] {
     `${prefix} «${escapeHtml(activity.name)}»: ${activity.people.total}`,
     ...presentPeople([...activity.people.active, ...activity.people.idle])
   ];
+}
+
+function presentAdventureIcon(activity: PresenceActivitySnapshot): string {
+  if (activity.id === "adventure.cellar.mouse-errand") {
+    return "🐭";
+  }
+
+  if (activity.id === "adventure.mimic-shawarma-fight") {
+    return "⚔️";
+  }
+
+  return "🌯";
 }
 
 function presentStatusSection(title: string, people: PresencePerson[]): string[] {
