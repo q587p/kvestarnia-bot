@@ -58,7 +58,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "fight",
     icon: "⚔️",
-    description: "сутичка з міміком",
+    description: "сутичка з монстром",
     includeInMenu: false
   },
   {

@@ -55,6 +55,27 @@ describe("adventure presenter", () => {
     expect(text.length).toBeLessThan(260);
   });
 
+  it("adds character-aware flavor when race or class content exists", () => {
+    const mage = {
+      ...character,
+      classId: "class.mage",
+      className: "Маг"
+    };
+    const text = presentAdventureStart(mage);
+
+    expect(text).toContain("дуже амбітний часник");
+  });
+
+  it("escapes character names in adventure start text", () => {
+    const text = presentAdventureStart({
+      ...character,
+      name: "<b>Мандрівник</b>"
+    });
+
+    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;, що робимо?");
+    expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
+  });
+
   it("prompts /start when no character exists", () => {
     expect(presentAdventureNoCharacter()).toContain("/start");
   });
@@ -95,11 +116,22 @@ describe("adventure presenter", () => {
     expect(presentAdventureResult(completed("flee", 2, 0))).not.toContain("Здобуто:");
   });
 
-  it("shows level-up line only when level increases", () => {
-    expect(presentAdventureResult(completed("poke", 8, 4, true))).toContain("Рівень підріс: 1 → 2");
-    expect(presentAdventureResult(completed("poke", 8, 4, true))).toContain(
-      "Стало краще: +4 HP · +2 мани · +1 Сили"
-    );
+  it("adds action-aware flavor to completed adventure outcomes", () => {
+    const text = presentAdventureResult({
+      ...completed("receipt", 6, 6),
+      character: {
+        ...character,
+        classId: "class.bureaucramancer",
+        className: "Бюрокромант"
+      }
+    });
+
+    expect(text).toContain("Форма на лаваш");
+  });
+
+  it("keeps level-up out of the result message", () => {
+    expect(presentAdventureResult(completed("poke", 8, 4, true))).not.toContain("Рівень підріс");
+    expect(presentAdventureResult(completed("poke", 8, 4, true))).not.toContain("Стало краще");
     expect(presentAdventureResult(completed("poke", 8, 4, false))).not.toContain("Рівень підріс");
     expect(presentAdventureResult(completed("poke", 8, 4, false))).not.toContain("Стало краще");
   });

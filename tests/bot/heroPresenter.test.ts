@@ -51,17 +51,21 @@ describe("hero presenter", () => {
     expect(text).not.toContain("Стать:");
     expect(text).toContain("Титул: <i>Пересічний Герой</i>");
     expect(text).toContain("Титул: <i>Пересічний Герой</i>\n\nРівень");
-    expect(text).toContain("до рівня 3: 10 XP");
+    expect(text).toContain("Рівень <b>2</b> · XP 15 · до наступного: 10 XP");
+    expect(text).not.toContain("до рівня 3");
+    expect(text).not.toContain("XP 15 · до наступного: 10 XP · золото");
     expect(text).toContain("HP 24/24 · мана 12/12");
     expect(text).toContain("Сили 9");
     expect(text).toContain("Вдача 6");
-    expect(text).toContain("Ріст рівня: +4 HP · +2 мани · +1 Сили");
+    expect(text).toContain("Ріст: +4 HP · +2 мани · +1 Сили");
+    expect(text).not.toContain("Ріст рівня:");
+    expect(text).toContain("\n\nЗолото: <b>12</b>\n\nЗараз герой тут:");
     expect(text).toContain("\n\nЗараз герой тут: <b>Підвал корчми</b>.");
     expect(text).toContain("<i>Далі: /tavern, /quest або /fight.</i>");
     expect(text).not.toContain("/adventure або /fight");
     expect(text).toContain("\n\nТитул:");
     expect(text).toContain("\n\nHP");
-    expect(text.split("\n").length).toBeLessThanOrEqual(16);
+    expect(text.split("\n").length).toBeLessThanOrEqual(18);
   });
 
   it("shows alpha cap wording at the current level cap", () => {

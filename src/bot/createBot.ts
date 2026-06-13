@@ -81,6 +81,7 @@ import {
   buildKorchmaHallKeyboard,
   buildKorchmaRoundOfferKeyboard,
   buildTavernParticipantsKeyboard,
+  buildTavernRangerKeyboard,
   buildTavernResultKeyboard
 } from "./keyboards/tavernKeyboard";
 import { presentAdventureNoCharacter, presentAdventureResult } from "./presenters/adventurePresenter";
@@ -93,6 +94,7 @@ import {
 } from "./presenters/devResetPresenter";
 import { presentFightNoCharacter, presentFightResult } from "./presenters/fightPresenter";
 import { presentHelp } from "./presenters/helpPresenter";
+import { presentLevelUpCelebration } from "./presenters/levelGrowthPresenter";
 import {
   presentCharacterCreated,
   presentClassSelected,
@@ -111,6 +113,7 @@ import { presentParticipants } from "./presenters/presencePresenter";
 import {
   presentTavernNoCharacter,
   presentPendingRaidActionBlock,
+  presentTavernRanger,
   presentTavernRaidResult,
   presentTavernRoundOffer,
   presentTavernRoundResult
@@ -360,6 +363,14 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
     };
   }
 
+  if (data === "v1:tavern:ranger") {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
   if (data.startsWith("v1:adv:mimic:")) {
     return {};
   }
@@ -385,59 +396,31 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
   }
 
   if (data === "v1:menu:tavern") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data === "v1:place:hall") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data === "v1:place:front") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data === "v1:place:quest-table") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data === "v1:place:barrel") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data === "v1:place:cellar") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data === "v1:place:news-corner") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data.startsWith("v1:news:")) {
@@ -467,11 +450,7 @@ function getTextPresenceContext(text: string): PresenceContext | null {
   }
 
   if (text === mainMenuButtons.tavern) {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (text === mainMenuButtons.quest) {
@@ -500,19 +479,11 @@ function getCommandPresenceContext(command: string): PresenceContext | null {
   }
 
   if (command === "tavern") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (command === "raid") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (command === "adventure" || command === "quest" || command === "cellar") {
@@ -732,6 +703,20 @@ async function handlePlaceCallback(
   action: PlaceCallback,
   services: BotServices
 ): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (
+    action !== "barrel" &&
+    (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
+  ) {
+    return;
+  }
+
   await safeAnswerCallbackQuery(ctx);
 
   if (action === "hall") {
@@ -876,6 +861,23 @@ async function handleTavernCallback(
     return;
   }
 
+  if (action === "ranger") {
+    const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentTavernNoCharacter());
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentTavernRanger(result.character), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildTavernRangerKeyboard()
+    });
+    return;
+  }
+
   if (action === "round") {
     const result = await tavernRaidService.getRoundOfferForTelegramUser(telegramUserId);
 
@@ -926,6 +928,9 @@ async function handleTavernCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildTavernResultKeyboard(result.state)
   });
+  if (result.state === "completed") {
+    await sendLevelUpCelebration(ctx, result);
+  }
 }
 
 async function editPendingRaidBlockIfNeeded(
@@ -1006,6 +1011,9 @@ async function handleAdventureCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildAdventureResultKeyboard(result.state)
   });
+  if (result.state === "completed") {
+    await sendLevelUpCelebration(ctx, result);
+  }
 }
 
 async function handleCellarCallback(
@@ -1065,6 +1073,9 @@ async function handleCellarCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildCellarResultKeyboard(result.state)
   });
+  if (result.state === "completed") {
+    await sendLevelUpCelebration(ctx, result);
+  }
 }
 
 async function handleFightCallback(
@@ -1102,6 +1113,25 @@ async function handleFightCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildFightResultKeyboard(result.state)
   });
+  if (result.state === "completed") {
+    await sendLevelUpCelebration(ctx, result);
+  }
+}
+
+async function sendLevelUpCelebration(
+  ctx: Context,
+  result: {
+    levelChange: Parameters<typeof presentLevelUpCelebration>[0];
+    character: { classId: string };
+  }
+): Promise<void> {
+  const text = presentLevelUpCelebration(result.levelChange, result.character.classId);
+
+  if (!text) {
+    return;
+  }
+
+  await ctx.reply(text, HTML_MESSAGE_OPTIONS);
 }
 
 async function markScenePresence(

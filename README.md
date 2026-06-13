@@ -1,261 +1,133 @@
-# kvestarnia-bot
+# 🍺 Квестарня
 
-Квестарня - україномовна текстова Telegram RPG. Репозиторій містить TypeScript/Node.js foundation для Telegram-бота на grammY, Prisma/SQLite local baseline, Zod-validated content і перші Phase 1 зрізи: ідемпотентний `/start` onboarding, малий корчемний рейд, quest hub у корчмі, пригоду з міміком-шаурмою, combat probe, persistent манатки й repeatable підвальне доручення.
+**Квестарня** — україномовна текстова Telegram RPG про героїв, які заходять у корчму «на один квест», а прокидаються з манатками, рівнями, боргами перед корчмарем і підозрілим лавашем у кишені.
 
-## Що вже є
+Це гра для Telegram: короткі сцени, кнопки замість складного інтерфейсу, швидкий прогрес, смішний лут і соціяльні пригоди, які хочеться переказати друзям у чаті.
 
-- CommonJS TypeScript scaffold у стилі sibling Telegram bot repo.
-- `src/bot.ts` як локальний polling entrypoint.
-- `/start` показує коротке вітання Квестарні, пропонує вибір раси й класу через callback-и та не створює дублікати персонажа при повторних натисканнях.
-- `/hero`, `/profile`, `/me`, `/help` і кнопкове меню показують видимий прогрес без запуску повного gameplay loop.
-- `/tavern` і `/raid` відкривають малий solo-рейд «П’ятничний рейд на Бочку Пінного Міражу» з винагородою раз на локальний день; у залі корчми є `🍻 Всім пива`, що працює тільки після рейду, показує рейтинг щедрості й списує золото лише після явного вибору якості.
-- `/quest` і `🗺️ Квест` відкривають компактний `Стіл зі справами`; `/adventure` фокусується на першій короткій сцені «Перевірка підозрілої шаурми».
-- `/fight` і `/hunt` відкривають першу безпечну сутичку «Сутичка з Міміком-шаурмою» з ідемпотентною винагородою раз на збережену дату.
-- Коли денна шаурма й fight probe уже витрачені, `Стіл зі справами` лишає доступною repeatable активність «Підвальна справа» з маленькою винагородою і коротким SQLite cooldown.
-- `/inventory`, `/items` і `/bag` показують persistent манатки героя.
-- `/online`, `/look`, корчемне `За столами` і сторінка `/presence` показують легку присутність без точних timestamp-ів і Telegram-стеження; публічний веб показує лічильники без імен гравців.
-- `/guild` має коротку заглушку, щоб Telegram-меню не вело в тишу.
-- `/version` показує поточну версію бота, а `/news` читає останню новину й архів із `news.md`.
-- XP rewards можуть підняти рівень героя за простими порогами прогресії.
-- Рівні тепер видимо піднімають effective HP, ману й головну характеристику класу без міграції чи ручного ремонту старих персонажів.
-- `/restart` видаляє поточного героя після підтвердження, щоб почати з початку через `/start`.
-- `/dev_reset_me` у локальному режимі скидає тільки вашого героя після підтвердження.
-- Config layer із Zod для `BOT_TOKEN`, `DATABASE_URL`, `NODE_ENV`.
-- Prisma schema та міграції для `User`, `Character`, `DailyAction`, `CharacterItem` і `CharacterCooldown`.
-- Content tables для race/class/monster/item зі stable ids.
-- Vitest tests для content validation, callback validation, starter stats, onboarding idempotency і shared utilities.
+> Обираєш расу й клас, виконуєш квести, б’єш дурнуватих монстрів, збираєш манатки, ростеш по рівнях, вступаєш у ґільдію й разом з іншими робиш героїчні помилки українською.
 
-Повний gameplay loop, equipment effects, random loot tables, групові raids, guilds і PvP ще не реалізовані.
+## 🧭 Бачення
 
-## Вимоги
+Квестарня має відчуватись як жива фентезійна корчма, що завжди поруч у Telegram.
 
-- Node.js 20 або новіший.
-- npm.
-- SQLite через Prisma `file:./dev.db` у `DATABASE_URL`.
+Не потрібно встановлювати клієнт, читати довгий мануал або виділяти вечір на «серйозну» сесію. Гравець відкриває бот, бачить одну зрозумілу дію, натискає кнопку — і отримує сцену, жарт, трофей або маленьку проблему, яку сам собі героїчно створив.
 
-У Windows PowerShell може блокуватися `npm.ps1`; тоді використовуй `npm.cmd`, наприклад `npm.cmd run build`.
+Глибина має виростати поступово: спочатку герой, перша сутичка й перша манатка; потім лут, екіпірування, групові рейди, ґільдії, сезони, рейтинги, колекції та локальні легенди корчми.
 
-## Local Setup
+Квестарня не хоче бути «ще одним технічним RPG-ботом». Вона має продаватися голосом: українська мова як основа, Telegram як природне місце гри, гумор як нагорода, соціяльні дії як причина повернутися.
 
-Quick Windows launcher:
+Основні принципи:
 
-```cmd
-run-local-bot.cmd
-```
+- 🇺🇦 **Українська з початку, не локалізація.** Назви, жарти, монстри, предмети й системні повідомлення народжуються українською.
+- 🍻 **Fun-per-message.** Майже кожна дія має дати маленький прогрес, смішний наслідок або корисний сигнал.
+- 🧳 **Коротка сесія, довга прогресія.** Можна зіграти за хвилину, але хочеться повертатися днями й тижнями.
+- 👥 **Telegram-first соціяльна гра.** Рейди, ґільдії, присутність, рейтинги й корчемні жарти мають працювати там, де вже є люди й чати.
+- ⚖️ **Fair free-to-play.** Без pay-to-win, крипти, NFT і примусових рефералок.
+- 🧙 **Абсурдне фентезі з людяністю.** Світ дурнуватий, але не злий до гравця.
 
-The launcher creates `.env` from `.env.example` if needed, installs dependencies when `node_modules` is missing, runs Prisma generate/migrate, then starts `npm run dev`.
+## 🎲 Що це за гра
 
-Manual setup:
+Квестарня — це легка рольова гра в боті:
 
-```bash
-npm install
-cp .env.example .env
-npm run db:generate
-npm run db:migrate
-npm run dev
-```
+- створюєш героя через `/start`;
+- обираєш звертання, расу й клас;
+- дивишся профіль, рівень, HP, ману, золото й головну характеристику;
+- ходиш у корчму, береш справи, проходиш малі пригоди;
+- отримуєш XP, золото й манатки;
+- повертаєшся після кулдауну або кличеш інших у майбутні групові активності.
 
-У Windows PowerShell замість `cp`:
+Поточна версія — це ще не повна MMO і не завершений бойовий рушій. Це foundation з першим playable loop: достатньо маленький, щоб швидко змінювати, і достатньо живий, щоб уже показувати тон гри.
 
-```powershell
-Copy-Item .env.example .env
-```
+## 🔥 Що вже можна спробувати
 
-`BOT_TOKEN` у `.env` може бути порожнім для локальних перевірок. У такому режимі `npm run dev` валідовує конфіг, запускає тільки healthcheck HTTP server і не запускає Telegram polling. Щоб запустити реального бота, додай токен від BotFather:
+- `/start` — ідемпотентне створення героя з вибором звертання, раси й класу.
+- `/hero`, `/profile`, `/me` — видимий прогрес героя.
+- `/tavern`, `/raid`, `🍺 Корчма` — корчма й малий solo-рейд на Бочку Пінного Міражу.
+- `🍻 Всім пива` — перший жартівливий gold sink і рейтинг щедрості.
+- `/quest`, `🗺️ Квест` — компактний «Стіл зі справами».
+- `/adventure` — перша коротка пригода з підозрілою шаурмою.
+- `/fight`, `/hunt` — безпечна бойова перевірка з підозрілим монстром без повної persistent combat state machine.
+- `/cellar` — repeatable підвальна справа, коли денні активності вже витрачені.
+- `/inventory`, `/items`, `/bag` — persistent манатки героя.
+- `/online`, `/look`, корчемне «За столами» і `/presence` — легка присутність без точного стеження за гравцями.
+- раса, клас і дивна біографія героя вже можуть змінювати короткі репліки в корчмі, пригодах і outcome-флейворі.
+- `/version`, `/news`, `/restart` — сервісні команди для версії, новин і перезапуску героя.
 
-```env
-BOT_TOKEN=replace-with-real-token
-```
+Ще попереду: повний покроковий бій, equipment effects, random loot tables, групові рейди, ґільдії, сезони, PvP без токсичної втрати цінного луту та економічні sinks.
 
-Не коміть `.env` або реальні секрети.
+## 🌫 Тон
 
-Minimal local `.env`:
+Квестарня має звучати як українська корчма в абсурдному фентезі-світі: тепло, іронічно, швидко й трохи підозріло.
 
-```env
-BOT_TOKEN=replace-with-real-token
-DATABASE_URL=file:./dev.db
-```
+Світ гри має бути:
 
-`npm run db:migrate` створить локальний файл `prisma/dev.db`, якщо його ще немає. Redis зараз не використовується runtime-кодом і не потрібен для мінімального локального запуску.
+- дружнім до новачка;
+- смішним без приниження гравця;
+- фентезійним, але побутово впізнаваним;
+- достатньо системним, щоб цифри мали значення;
+- достатньо дурнуватим, щоб лут хотілося скріншотити.
 
-Для перевірки перед PR використовуйте `npm run check`.
+Приклади правильного відчуття:
 
-## Render Setup
+- мімік прикидається шаурмою, але забуває про чек;
+- бюрокромант знерухомлює ворога формою 13-Б;
+- корчмар обіцяє «дві-три хвилини», а рейд чесно триває довше;
+- манатка може бути слабкою механічно, але сильною як історія.
 
-Квестарня поки працює як Telegram polling bot, але для Render використовується Web Service, бо SQLite database file має жити на Persistent Disk. HTTP port у цьому режимі не є webhook-ом: це маленький healthcheck server, щоб Render бачив відкритий порт і міг вважати сервіс живим.
+## ✨ Чим Квестарня відрізняється
 
-Minimal Render environment variables:
+**Українська як core feature.** Це не переклад чужої гри, а гра, де гумор, темп і назви працюють українською з першого рядка.
 
-```env
-BOT_TOKEN=replace-with-real-token
-DATABASE_URL=file:/var/data/kvestarnia.db
-NODE_ENV=production
-NODE_VERSION=22
-# Optional: send known users one update message per deployed version.
-DEPLOY_NOTIFICATIONS_ENABLED=false
-```
+**Telegram як сцена, а не компроміс.** Кнопки, короткі повідомлення, групи, реакції, рейтинги й соціяльні ритуали — природна частина дизайну.
 
-Render сам передає `PORT`; якщо його немає, healthcheck server слухає `10000` на `0.0.0.0`. SQLite файл має лежати на Persistent Disk, змонтованому в `/var/data`, інакше дані можуть зникати між деплоями.
+**Комедійна прогресія.** Гравець росте не тільки числами, а й колекцією історій: що переміг, що знайшов, кого пригостив, який дивний предмет тепер носить у торбі.
 
-Render build command:
+**Без токсичної монетизації.** Підтримка сервера, косметика й комфорт можуть з’явитись пізніше; бойова сила не має продаватися.
 
-```bash
-npm install && npm run build
-```
+## 🗺️ Куди рухається проєкт
 
-Render start command:
+Найближча мета — довести solo MVP loop до стану, де новий гравець за кілька хвилин отримує першого героя, першу перемогу, перший предмет і причину повернутися.
 
-```bash
-npm run db:deploy && npm run start
-```
+Далі фокус зміщується до соціяльного гачка: групові міні-рейди, корчемна присутність, ґільдії, сезонні події, рейтинги й колекції. Квестарня має стати ботом, який хочеться додати в чат не тому, що «так треба для гри», а тому, що там буде смішніше разом.
 
-`REDIS_URL` is not required for the current SQLite/Render deployment. Add Redis only when a feature actually uses jobs, cache, or cooldown storage.
+Детальні фази живуть у [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-Set `DEPLOY_NOTIFICATIONS_ENABLED=true` only when deployed users should receive a short Telegram message after a new version starts. The bot deduplicates this by a marker file on the same Persistent Disk as SQLite.
+## 🧱 Технічний зріз
 
-Healthcheck endpoints:
+Квестарня зараз побудована як TypeScript/Node.js Telegram bot:
 
-```text
-GET /
-GET /health
-```
-
-Public presence endpoints:
+- TypeScript + Node.js;
+- grammY для Telegram bot layer;
+- Prisma ORM;
+- SQLite для локального й поточного hosted MVP baseline;
+- Zod для runtime-валидації конфігів і payload-ів;
+- Vitest, ESLint і strict TypeScript для перевірок;
+- Render Web Service з маленьким healthcheck server для production-процесу.
 
-```text
-GET /presence
-GET /api/presence/locations
-```
-
-`/presence` показує «Живу Квестарню»: тільки активні/притихлі місцини, без точних timestamp-ів, без публічних імен гравців за замовчуванням і без публічних назв прихованих локацій.
-
-## Prisma
-
-Згенерувати Prisma Client:
-
-```bash
-npx prisma generate
-```
-
-Перевірити schema:
-
-```bash
-npx prisma validate
-```
-
-Застосувати першу міграцію до локальної SQLite БД:
-
-```bash
-npx prisma migrate dev
-```
-
-Ті самі дії доступні через npm scripts:
-
-```bash
-npm run db:generate
-npm run db:validate
-npm run db:migrate
-npm run db:deploy
-npm run db:studio
-```
-
-## Local Playthrough
-
-```bash
-npm install
-cp .env.example .env
-npm run db:generate
-npm run db:migrate
-npm run dev
-```
-
-Після старту бота:
-
-1. Напишіть `/start` у Telegram.
-2. Оберіть звертання, расу й клас кнопками.
-3. Підтвердьте героя на фінальному екрані.
-4. Перевірте героя через `/hero`, `/profile` або `/me`.
-5. Натисніть `🗺️ Квест` надворі: бот має відповісти, що квести видають усередині.
-6. Відкрийте `/tavern` або натисніть `🍺 Корчма`: екран має показати `Залу корчми` і хто нещодавно сидів за столами.
-7. Перевірте `/online` і `/look`, щоб побачити присутність без точних timestamp-ів.
-8. Перейдіть до `🛢️ Бочка` й натисніть `🍺 У рейд на бочку`: корчмар має пообіцяти «Дві-три хвилини. Максимум», а бот має показати очікування в межах 5-8 хвилин.
-9. Поки рейд триває, спробуйте `🗺️ Квест`, `/adventure`, `/fight`, `/hunt` або `/cellar`: бот має сказати, що ви зараз у рейді.
-10. Після очікування натисніть `🍺 Перевірити бочку`: має з’явитися підсумок і винагорода.
-11. У залі корчми натисніть `🍻 Всім пива`: до рейду корчмар має відмовити, після рейду має показати рейтинг щедрості й вибір `🍻 Якісне — 100` або `🍺 Просте — 10`; золото списується тільки після вибору якості.
-12. Перейдіть до `📋 Стіл зі справами` або відкрийте `/quest` усередині корчми.
-13. Натисніть `🌯 До шаурми` або відкрийте `/adventure`, тоді оберіть одну дію проти `Міміка-шаурми`: тицьнути, попросити чек або відступити.
-14. Натисніть `⚔️ До сутички` або відкрийте `/fight` чи `/hunt`.
-15. Оберіть одну дію в «Сутичці з Міміком-шаурмою»: вдарити, збити з пантелику чеком або відступити красиво.
-16. Коли денні шаурма й сутичка витрачені, відкрийте `/quest` або кнопку `🗺️ Квест` усередині корчми: hub має лишити доступною «Підвальну справу».
-17. Оберіть підвальну дію й одразу повторіть її: cooldown має не дублювати XP/золото.
-18. Перевірте `/hero`: XP, золото, рівень, HP, мана й головна характеристика класу мають показати новий прогрес.
-19. Перевірте `/inventory`, `/items` або `/bag`: перші манатки мають з’явитися в торбі.
-20. Натисніть той самий рейд, пригоду або сутичку ще раз і переконайтесь, що XP, золото й кількість предметів не дублюються.
-21. Перевірте `/version` і `/news`, щоб побачити поточну версію, останню новину й архів.
-22. Щоб почати героя з початку, виконайте `/restart` і підтвердьте видалення.
-23. Для локальних dev-перевірок також доступний `/dev_reset_me`.
-
-`/fight` і `/hunt` зараз є combat probe: коротка безпечна перевірка кнопок, винагород і прогресу, а не повний покроковий бойовий рушій. HP після сутички поки не зберігається.
-
-`Стіл зі справами` зараз є маленьким quest hub: він показує денну шаурму, сутичку й repeatable підвальну справу, але ще не є повною дошкою справ. Cooldown підвалу зберігається в SQLite, а Redis не потрібен.
-
-`/dev_reset_me` працює тільки коли `NODE_ENV !== "production"` і видаляє лише персонажа поточного Telegram-користувача.
-`/restart` доступний як звичайна команда, але теж видаляє лише персонажа поточного Telegram-користувача й потребує підтвердження кнопкою.
-
-`User.telegramUserId` зберігається як `BigInt` і мапиться у БД на `telegram_user_id`, як у `docs/TECHNICAL_PLAN.md`. На межі Telegram/DB треба конвертувати `ctx.from.id` у `BigInt`; доменний код не має знати про Telegram payload.
-
-## Scripts
-
-- `npm run dev` - локальний bot polling через `ts-node-dev`.
-- `npm run build` - `prisma generate && tsc`.
-- `npm start` - запуск `dist/bot.js`.
-- `npm test` - Vitest suite без Telegram network calls.
-- `npm run typecheck` - strict TypeScript.
-- `npm run lint` - ESLint для `src` і `tests`.
-- `npm run check` - lint, typecheck, build і tests одним ланцюжком.
-- `npm run db:generate` - Prisma Client.
-- `npm run db:validate` - перевірка Prisma schema.
-- `npm run db:migrate` - локальні міграції Prisma.
-- `npm run db:deploy` - застосування закомічених Prisma migrations для Render/CI.
-- `npm run db:studio` - Prisma Studio.
-
-## Структура
-
-```text
-src/
-  bot.ts
-  bot/callbacks/
-  bot/keyboards/
-  bot/presenters/
-  config/
-  content/
-  db/
-  domain/
-  jobs/
-  services/
-  shared/
-prisma/
-tests/
-```
-
-Domain-код не має імпортувати Telegram/grammY. Bot layer має лишатися тонким.
-
-## Корисні документи
-
-- `CHANGELOG.md`
-- `news.md`
-- `AGENTS.md`
-- `docs/BRAND.md`
-- `docs/CHARACTER_CREATION.md`
-- `docs/PRODUCT_BRIEF.md`
-- `docs/GAME_DESIGN.md`
-- `docs/TECHNICAL_PLAN.md`
-- `docs/ROADMAP.md`
-- `docs/CONTENT_STYLE_GUIDE.md`
-- `docs/BALANCE_NOTES.md`
-- `docs/SECURITY_AND_FAIR_PLAY.md`
-- `docs/CODEX_WORKFLOW.md`
-
-## Наступний крок
-
-Наступний малий Phase 1 PR варто присвятити equipment preview без stat effects або першому маленькому кроку до групового рейду без повного raid/session refactor.
+Технічні інструкції свідомо винесені з README, щоб цей файл лишався вітриною проєкту:
+
+- [`docs/DEVELOPER_SETUP.md`](docs/DEVELOPER_SETUP.md) — локальний запуск, `.env`, Prisma, Render, scripts і troubleshooting.
+- [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md) — ручний smoke test поточного playable loop.
+
+## 📚 Документація
+
+- [`docs/PRODUCT_BRIEF.md`](docs/PRODUCT_BRIEF.md) — позиціонування, аудиторія, обіцянка гри й MVP scope.
+- [`docs/BRAND.md`](docs/BRAND.md) — назва, voice, tone, public wording і заборонені варіанти неймінґу.
+- [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) — core loop, персонаж, раси, класи, бойові й пригодові зрізи.
+- [`docs/CONTENT_STYLE_GUIDE.md`](docs/CONTENT_STYLE_GUIDE.md) — український тон, гумор, лапки, формат Telegram-повідомлень.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — фази розвитку й Definition of Done для продукту.
+- [`docs/BALANCE_NOTES.md`](docs/BALANCE_NOTES.md) — формули, економіка, RNG і балансні guardrails.
+- [`docs/SECURITY_AND_FAIR_PLAY.md`](docs/SECURITY_AND_FAIR_PLAY.md) — антиаб’юз, приватність, idempotency і чесна гра.
+- [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md) — архітектура, домени, дані й майбутні технічні рішення.
+- [`docs/CODEX_WORKFLOW.md`](docs/CODEX_WORKFLOW.md) — як ставити задачі Codex і приймати PR.
+- [`AGENTS.md`](AGENTS.md) — робочі інструкції для coding agents.
+
+## 🧙 Натхнення
+
+Квестарня дивиться в бік настільних RPG, Munchkin, MythAdventures Роберта Аспріна, «Монті Пайтон і Священний Ґрааль», Epic NPC Man від VLDL, класичних MMORPG, гумору Террі Пратчетта, метамодернізму, українських мемів і фольклору.
+
+Це не список речей для копіювання. Це джерела смаку: швидкий жарт, впізнаваний архетип, абсурдна системність, радість від луту, групове «ну давай ще один раз» і відчуття, що герой трохи смішний, але все одно герой.
+
+---
+
+🍺 Заходьте. Корчмар каже, що квест короткий. Корчмар часто каже неправду.

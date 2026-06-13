@@ -12,7 +12,7 @@ import type {
   KorchmaRoundLeaderboardEntry
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
 import type { PresenceGroup } from "../../services/presenceService";
-import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
+import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
@@ -37,40 +37,40 @@ export function presentKorchmaHall(
     "",
     "Корчма Квестарні тримає тепло, шум і кілька справ, які краще не залишати без нагляду.",
     "",
+    "Праворуч стоїть <i>Стіл зі справами</i>, у кутку піниться <i>Бочка Пінного Міражу</i>, під ногами бурчить <i>Підвал</i>, а біля дверей висить <i>Дошка вістей</i>.",
+    "",
+    ...presentKorchmaGreeting(character),
+    "",
     ...presentTavernPresence(presence),
     "",
     "Куди йдемо?"
   ].join("\n");
 }
 
-export function presentTavern(character: CharacterSummary, presence?: PresenceGroup | null): string {
+export function presentTavern(character: CharacterSummary): string {
   return [
     "🛢️ Біля Бочки Пінного Міражу",
     `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
     "",
     "У кутку героїчно піниться Бочка Пінного Міражу.",
+    "Поруч із нею сидить людисько-єгер у капюшоні, курить трубку й дивиться на всіх так, ніби вже бачив їхні сліди.",
     "",
     npcQuote("Корчмар", "Це не проблема. Дві-три хвилини. Максимум."),
-    "",
-    ...presentTavernPresence(presence),
+    ...presentRaidPrepHint(character),
     "",
     "Що робимо?"
   ].join("\n");
 }
 
-export function presentTavernAlreadyRaided(
-  character: CharacterSummary,
-  presence?: PresenceGroup | null
-): string {
+export function presentTavernAlreadyRaided(character: CharacterSummary): string {
   return [
     "🛢️ Біля Бочки Пінного Міражу",
     `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
     "",
     "Бочка Пінного Міражу сьогодні вже пережила ваш героїзм.",
+    "Єгер у капюшоні все ще сидить у кутку. Схоже, він підозрював, що цим усе й скінчиться.",
     "",
     npcQuote("Корчмар", "Вона просила передати: завтра знову буде хоробра. Можливо."),
-    "",
-    ...presentTavernPresence(presence),
     "",
     "Поки що можна пригостити всіх пивом або перевірити героя: /hero"
   ].join("\n");
@@ -87,10 +87,11 @@ export function presentTavernRaidPending(
   return [
     intro,
     "Ви пішли розбиратися з Бочкою Пінного Міражу. Бочка робить вигляд, що це довга стратегія, а не паніка.",
+    "Єгер у капюшоні не втручається. Тільки курить трубку й дивиться так, ніби вже знає, кому дістанеться піна.",
     "",
     npcQuote("Корчмар", "Поки ви там, я не видаю нових пригод. У корчмі теж є техніка безпеки."),
     "",
-    `Поверніться за: <b>${formatRaidWait(result.availableAt, result.now)}</b>.`
+    `Поверніться через <b>${formatRaidWait(result.availableAt, result.now)}</b>`
   ].join("\n");
 }
 
@@ -101,7 +102,7 @@ export function presentTavernRaidReadyToComplete(
     "🍺 Бочка підозріло притихла.",
     "Рейд мав уже завершитись. Лишилось урочисто перевірити, хто кого переміг і чому це знову піна.",
     "",
-    `Очікування: <b>${result.availableAt <= result.now ? "час уже вийшов" : formatRaidWait(result.availableAt, result.now)}</b>.`,
+    `Очікування <b>${result.availableAt <= result.now ? "вже скінчилось" : formatRaidWait(result.availableAt, result.now)}</b>`,
     "",
     "Натисніть <b>🍺 Перевірити бочку</b>."
   ].join("\n");
@@ -109,6 +110,16 @@ export function presentTavernRaidReadyToComplete(
 
 export function presentTavernNoCharacter(): string {
   return "Спершу створіть героя через /start. Бочка не воює з анонімами.";
+}
+
+export function presentTavernRanger(character: CharacterSummary): string {
+  return [
+    "🧥 Єгер у кутку",
+    "",
+    "У темному кутку сидить людисько-єгер у капюшоні. Він курить трубку, підозріло дивиться на всіх і має вигляд людини, яка точно не чекає на сюжетний гачок.",
+    "",
+    npcQuote("Єгер", presentRangerReaction(character))
+  ].join("\n");
 }
 
 export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { state: "no-character" }>): string {
@@ -138,8 +149,6 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
-  lines.push(...presentRewardLevelGrowth(result.levelChange, result.character.classId));
-
   return lines.join("\n");
 }
 
@@ -150,7 +159,7 @@ export function presentPendingRaidActionBlock(
     "🍺 Ви зараз у рейді.",
     "Інші пригоди тимчасово недоступні: Бочка Пінного Міражу не любить, коли її ігнорують посеред драматичної піни.",
     "",
-    `Перевірте бочку за: <b>${formatRaidWait(result.availableAt, result.now)}</b>.`
+    `Перевірте бочку через <b>${formatRaidWait(result.availableAt, result.now)}</b>`
   ].join("\n");
 }
 
@@ -189,10 +198,15 @@ export function presentTavernRoundResult(
     result.state === "fine-round"
       ? "Корчмар виставив якісне пиво. Таке, після якого навіть табурети тримають поставу."
       : "Корчмар виставив просте пиво. Воно просте тільки за ціною; характер у нього складний.";
+  const rangerReaction =
+    result.state === "fine-round"
+      ? "Єгер у кутку двічі плескає в долоні. Для нього це вже майже овація."
+      : "Єгер у кутку мовчки піднімає кухоль. Підозріло, але ввічливо.";
 
   return [
     result.state === "fine-round" ? "🍻 Всім якісного пива!" : "🍻 Всім простого пива!",
     quality,
+    rangerReaction,
     "",
     `Списано: <b>${result.spentGold} золота</b>`,
     `Залишилось: <b>${result.remainingGold} золота</b>`,
@@ -231,6 +245,23 @@ export function presentTavernRoundOffer(
     "",
     ...presentKorchmaRoundLeaderboard(result.leaderboard)
   ].join("\n");
+}
+
+function presentKorchmaGreeting(character: CharacterSummary): string[] {
+  const flavor = selectCharacterFlavorLine(character, {
+    placement: "korchma.greeting"
+  });
+
+  return flavor ? [npcQuote("Корчмар", flavor.text)] : [];
+}
+
+function presentRaidPrepHint(character: CharacterSummary): string[] {
+  const flavor = selectCharacterFlavorLine(character, {
+    placement: "raid.prep-hint",
+    scene: "barrel"
+  });
+
+  return flavor ? ["", `<i>Порада дня: ${escapeHtml(flavor.text)}</i>`] : [];
 }
 
 function presentNewLeaderLines(periods: KorchmaRoundLeaderboardPeriod[]): string[] {
@@ -331,7 +362,7 @@ function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: numbe
 
 function presentTavernPresence(presence: PresenceGroup | null | undefined): string[] {
   if (!presence || presence.total <= 1) {
-    return ["За столами: поки тільки ви й підозрілий стілець."];
+    return ["За столами: поки тільки ви й підозрілий єгер у кутку."];
   }
 
   const people = [...presence.active, ...presence.idle].slice(0, 5);
@@ -349,4 +380,32 @@ function presentPresencePerson(person: PresenceGroup["active"][number]): string 
   const level = person.level === undefined ? "" : ` · рівень ${person.level}`;
 
   return `${escapeHtml(person.name)}${level}`;
+}
+
+function presentRangerReaction(character: CharacterSummary): string {
+  if (character.raceId === "race.human-ish" && character.classId === "class.ranger") {
+    return "Людисько-єгер. Нарешті хтось, хто розуміє, що капюшон — це не стиль, а документація намірів.";
+  }
+
+  if (character.raceId === "race.domovyk") {
+    return "На мить я подумав про гобітів. Але їх тут немає з причин, які корчмар називає «ліцензійною магією».";
+  }
+
+  if (character.classId === "class.ranger") {
+    return "Єгер єгеря бачить здалеку. Навіть якщо один із них робить вигляд, що просто сидить біля бочки.";
+  }
+
+  if (character.classId === "class.rogue") {
+    return "Ваші руки надто чесно поводяться. Це мене непокоїть.";
+  }
+
+  if (character.raceId === "race.elf") {
+    return "Ельф у корчмі — це завжди або балада, або скарга на дим. Сьогодні перевіримо, що швидше.";
+  }
+
+  if (character.classId === "class.bureaucramancer") {
+    return "Якщо у вас є форма на підозрілий погляд, не показуйте. Я працюю без печаток.";
+  }
+
+  return "Сидіть рівно. Не тому, що небезпечно. Просто так легше зрозуміти, хто першим збреше.";
 }

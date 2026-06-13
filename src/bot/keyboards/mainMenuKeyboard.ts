@@ -28,13 +28,13 @@ export function buildMainMenuKeyboard(): Keyboard {
 
 export function buildDevResetKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
-    .text("Так, скинути", makeDevResetCallbackData("confirm"))
-    .text("Ні, лишити", makeDevResetCallbackData("cancel"));
+    .text("✅ Так, скинути", makeDevResetCallbackData("confirm"))
+    .text("⬅️ Ні, лишити", makeDevResetCallbackData("cancel"));
 }
 
 export function buildRestartKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
-    .text("Так, почати з початку", makeRestartCallbackData("confirm"))
+    .text("🔄 Так, почати з початку", makeRestartCallbackData("confirm"))
     .row()
-    .text("Ні, лишити героя", makeRestartCallbackData("cancel"));
+    .text("⬅️ Ні, лишити героя", makeRestartCallbackData("cancel"));
 }

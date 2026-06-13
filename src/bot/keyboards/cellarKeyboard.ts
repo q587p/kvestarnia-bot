@@ -1,5 +1,6 @@
 import { InlineKeyboard } from "grammy";
 import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
+import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 
 export type CellarKeyboardState = "ready" | "completed" | "on-cooldown";
@@ -12,7 +13,9 @@ export function buildCellarKeyboard(): InlineKeyboard {
     .row()
     .text("🤝 Домовитись із мишею", makeCellarCallbackData("negotiate"))
     .row()
-    .text("👥 Учасники", makeCellarCallbackData("participants"));
+    .text("👥 Учасники", makeCellarCallbackData("participants"))
+    .row()
+    .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
 export function buildCellarResultKeyboard(state: CellarKeyboardState): InlineKeyboard {
@@ -20,7 +23,10 @@ export function buildCellarResultKeyboard(state: CellarKeyboardState): InlineKey
     return buildCellarKeyboard();
   }
 
-  return new InlineKeyboard().text("👥 Учасники", makeCellarCallbackData("participants"));
+  return new InlineKeyboard()
+    .text("👥 Учасники", makeCellarCallbackData("participants"))
+    .row()
+    .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
 export function buildCellarParticipantsKeyboard(): InlineKeyboard {

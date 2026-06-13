@@ -48,11 +48,13 @@ describe("fight presenter", () => {
   it("shows a short Ukrainian start scene", () => {
     const text = presentFightStart(character);
 
-    expect(text).toContain("Сутичка з Міміком-шаурмою");
+    expect(text).toContain("Сутичка з підозрілим монстром");
+    expect(text).toContain("Це Мімік-шаурма");
+    expect(text).toContain("дуже простий і металевий");
     expect(text).toContain("❤️ Ви: 24/24");
     expect(text).toContain("🌯 Мімік: 14/14");
     expect(text).toContain("Що робимо?");
-    expect(text.length).toBeLessThan(240);
+    expect(text.length).toBeLessThan(320);
   });
 
   it("prompts /start when no character exists", () => {
@@ -82,6 +84,7 @@ describe("fight presenter", () => {
     const text = presentFightResult(completed("attack", 9, 3));
 
     expect(text).toContain("Ви вдарили");
+    expect(text).toContain("навіть лаваш зрозумів сюжет");
     expect(text).toContain("❤️ Ви: 19/22");
     expect(text).toContain("🌯 Мімік: 5/14");
     expect(text).toContain("Нагорода: <b>+9 XP · +3 золота</b>");
@@ -89,11 +92,22 @@ describe("fight presenter", () => {
     expect(text).not.toContain("×1");
   });
 
-  it("shows level-up line only when level increases", () => {
-    expect(presentFightResult(completed("receipt", 7, 5, true))).toContain("Рівень підріс: 1 → 2");
-    expect(presentFightResult(completed("receipt", 7, 5, true))).toContain(
-      "Стало краще: +4 HP · +2 мани · +1 Сили"
-    );
+  it("escapes character names in fight outcomes", () => {
+    const text = presentFightResult({
+      ...completed("flee", 2, 0),
+      character: {
+        ...character,
+        name: "<b>Мандрівник</b>"
+      }
+    });
+
+    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt; зберіг обличчя");
+    expect(text).not.toContain("<b>Мандрівник</b> зберіг обличчя");
+  });
+
+  it("keeps level-up out of the result message", () => {
+    expect(presentFightResult(completed("receipt", 7, 5, true))).not.toContain("Рівень підріс");
+    expect(presentFightResult(completed("receipt", 7, 5, true))).not.toContain("Стало краще");
     expect(presentFightResult(completed("receipt", 7, 5, false))).not.toContain("Рівень підріс");
     expect(presentFightResult(completed("receipt", 7, 5, false))).not.toContain("Стало краще");
   });

@@ -47,7 +47,7 @@ function presentAdventureRow(
 function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string {
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
 
-  return `⚔️ Сутичка з Міміком-шаурмою — ${status}.`;
+  return `⚔️ Сутичка з підозрілим монстром — ${status}.`;
 }
 
 function presentCellarRow(

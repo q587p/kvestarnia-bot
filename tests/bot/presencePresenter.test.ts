@@ -63,6 +63,16 @@ describe("presence presenter", () => {
     expect(text).toContain("— Дара");
     expect(text).toContain("📍 Поточна місцина: Біля Бочки Пінного Міражу");
   });
+
+  it("uses cellar icon for cellar adventure participants and online summaries", () => {
+    const participants = presentParticipants(cellarParticipantsSnapshot);
+    const online = presentOnline(cellarOnlineSnapshot);
+
+    expect(participants).toContain("🐭 Підвальна справа");
+    expect(participants).not.toContain("🌯 Підвальна справа");
+    expect(online).toContain("🐭 У пригоді «Підвальна справа»: 1");
+    expect(online).not.toContain("🌯 У пригоді «Підвальна справа»");
+  });
 });
 
 const onlineSnapshot: OnlineSnapshot = {
@@ -117,6 +127,36 @@ const participantsSnapshot: ParticipantsSnapshot = {
       active: [{ telegramUserId: 1n, name: "587", status: "active" }],
       idle: [{ telegramUserId: 2n, name: "Дара", status: "idle" }],
       total: 2
+    }
+  }
+};
+
+const cellarParticipantsSnapshot: ParticipantsSnapshot = {
+  state: "ready",
+  activity: {
+    kind: "adventure",
+    id: "adventure.cellar.mouse-errand",
+    name: "Підвальна справа",
+    locationName: "Підвал корчми",
+    people: {
+      active: [{ telegramUserId: 1n, name: "587", status: "active" }],
+      idle: [],
+      total: 1
+    }
+  }
+};
+
+const cellarOnlineSnapshot: OnlineSnapshot = {
+  ...onlineSnapshot,
+  activity: {
+    kind: "adventure",
+    id: "adventure.cellar.mouse-errand",
+    name: "Підвальна справа",
+    locationName: "Підвал корчми",
+    people: {
+      active: [{ telegramUserId: 1n, name: "587", status: "active" }],
+      idle: [],
+      total: 1
     }
   }
 };

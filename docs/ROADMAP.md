@@ -40,6 +40,9 @@ Current tiny inventory slice:
 - `/inventory`, `/items`, `/bag` show persistent манатки.
 - Tavern/adventure/fight first completions can grant fixed items.
 - Full itemization, equipment effects, random loot tables, crafting, market, and trading remain later Phase 1+ work.
+- Future equipment rules should support level-gated items that can drop before they are wearable, plus rarer race/class/path-specific манатки with future bypass/attunement/respec tricks.
+- Future player-to-player exchange should let heroes give unsuitable манатки to others without duplicating items or bypassing anti-abuse checks.
+- Future item economy should give most манатки a gold value or explicit priceless marker, then use that value for selling, trading, and a later item-to-level exchange.
 
 Current repeatable slice:
 - `0.0.10` adds «Підвальна справа» as the first low-stakes repeatable fallback after the daily shawarma quest and fight probe are spent.
@@ -47,6 +50,7 @@ Current repeatable slice:
 - `0.0.11` adds a compact `Стіл зі справами` quest hub for `/quest`, `🗺️ Квест`, daily shawarma, fight probe, and cellar fallback.
 - `/cellar` exists only as a secondary fallback command; more repeatable activities and a full activity refactor remain later work.
 - Корчемний рейд у `0.0.11` отримав pending state на випадкові 5–8 хвилин: герой «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
+- A future progression/balance pass should make level matter more strongly in HP, mana, combat math, event checks, content gates, and reward-facing decisions.
 
 ## Phase 2 — Group hook
 Мета: перша фіча, заради якої бот додають у групу.
@@ -56,12 +60,16 @@ Deliverables:
 - `/raid` або «бос дня».
 - Join кнопка.
 - Майбутній справжній рейд має вимагати мінімум 3 учасників перед стартом або підсумком; поточна Бочка Пінного Міражу лишається solo-compatible placeholder до цього зрізу.
-- Коли з’явиться список присутніх у локаціях, корчма має отримати social action: пригостити їжею або питвом тих, хто зараз у корчмі.
+- Коли з’явиться список присутніх у локаціях, корчма має отримати соціяльну дію: пригостити їжею або питвом тих, хто зараз у корчмі.
 - Легка presence-система вже є з `0.0.9`: `/online`, `/look`, локальні counts і participants для перших сцен; майбутні групові рейди мають перейти з scene-based ids на справжні raid/session rows.
 - Перед розширенням рейдів зберегти малі рішення з `0.0.11`: pending-рейд на Бочку має завершуватися за день старту після date rollover, stale adventure/fight/cellar callback-и не мають переносити presence з Бочки під час pending-рейду, а пивні рейтинги потребують детермінованих tie-breaker-ів.
+- Для group gate або виходу з корчми додати впізнавану відсилку до `You must gather your party before venturing forth.` з перших Baldur's Gate; спершу перевірити канонічний український переклад, інакше адаптувати українською без дослівної кальки.
+- Колись обіграти `Джурозвір` як мета-жарт про переклад `Familiar` від ШБТ і суперечку довкола нього.
+- Колись обіграти дискусію довкола перекладу `dwarf`/`gnome`: Два(о)рфи, Гноми, Карлики, Дверги, Ґноми, Цверґи, Коротуни тощо.
 - 1–3 дії учасника.
 - Підсумок рейду з топ-учасниками.
 - Group leaderboard.
+- Fresh-edit guard для Telegram callbacks: якщо callback прийшов зі старого повідомлення, а після нього вже були нові повідомлення бота, слати нове повідомлення замість редагування старого.
 
 Done when:
 - 3–5 гравців можуть завершити рейд у групі без ручного втручання.
@@ -82,7 +90,7 @@ Done when:
 - Зібрані 20+ якісних фідбеків.
 - Визначені 5 найбільших friction points.
 
-## Phase 4 — Social progression
+## Phase 4 — Соціяльна прогресія
 Мета: ґільдії, м’яке PvP, сезонність.
 
 Deliverables:
@@ -126,13 +134,21 @@ Done when:
 ## Backlog фіч
 - Achievements.
 - Collections: «Бестіарій», «Музей Манаток».
+- Level-gated equipment, race/class/path-specific rare items, and safe player-to-player item exchange.
+- Item values, priceless trophies, and a suspicious outside-korchma item-to-level exchange inspired by Munchkin.
+- Stronger level impact pass for resources, combat, event checks, and activity gates.
+- Epic levels `11-20`: milestone abilities for races/classes in the spirit of Munchkin-style extra tricks, with visible text flavor and tested balance guardrails.
+- Real time-of-day modifiers for tagged enemies and scenes: night strengthens night/dark enemies, while morning/day/evening can affect other encounter types without exposing exact timestamps.
+- Надвірний журнал прибулих перед корчмою: пагінований список героїв, які вперше приєдналися або дісталися корчми, щоб зала не перевантажувалась.
+- Надвірна дошка рівневих досягнень: останні level-up записи, рейтинг за досягнутим рівнем і особливе оформлення 10 рівня.
+- Стікерпак для level-up: коли герой бере новий рівень, бот зможе надсилати коротке привітання стікером перед або після текстового святкування.
 - Daily tavern rumor.
-- Korchma social treat: пригостити їжею/питвом присутніх у корчмі після появи location presence list.
+- Корчемне соціяльне частування: пригостити їжею/питвом присутніх у корчмі після появи location presence list.
 - Player titles.
 - Seasonal boss.
 - Вісник ґільдії.
 - Meme item generator with moderation.
-- Referral без нав’язливості: нагорода косметична.
+- Рефералка без ігрових бонусів: запрошення для корчемного обліку, внутрішньої статистики й жартів у записах корчмаря про те, хто кого привів.
 - Moderation tools for group admins.
 - Web dashboard for balancing.
 

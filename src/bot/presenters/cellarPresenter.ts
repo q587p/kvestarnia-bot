@@ -3,7 +3,8 @@ import type {
   CellarErrandLookupResult,
   CellarErrandResult
 } from "../../services/cellarErrandService";
-import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
+import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
@@ -16,6 +17,7 @@ export function presentCellarStart(
     "Корчмар показує на люк під баром.",
     "",
     npcQuote("Корчмар", "Там миша. Вона мала бути побічним квестом, але вже вимагає титул."),
+    ...presentCharacterFlavor(result.character, "quest.start", "cellar"),
     "",
     `${escapeHtml(result.character.name)}, що робимо?`
   ].join("\n");
@@ -35,7 +37,7 @@ export function presentCellarCooldown(
     "",
     "Миша взяла паузу на переосмислення сирної політики.",
     "",
-    `Можна повернутись за: ${formatCooldown(result.availableAt, result.now)}.`
+    `Можна повернутись за ${formatCooldown(result.availableAt, result.now)}.`
   ].join("\n");
 }
 
@@ -48,22 +50,38 @@ export function presentCellarResult(
 
   const lines = [
     ...presentCellarOutcome(result.action),
+    ...presentCharacterFlavor(result.character, "quest.outcome", "cellar", result.action),
     "",
     presentRewardAmount(result.reward),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
-  lines.push(...presentRewardLevelGrowth(result.levelChange, result.character.classId));
-  lines.push("", `Підвал знову чекатиме за: ${formatCooldown(result.availableAt, result.now)}.`);
+  lines.push("", `Підвал знову чекатиме за ${formatCooldown(result.availableAt, result.now)}.`);
 
   return lines.join("\n");
+}
+
+function presentCharacterFlavor(
+  character: CharacterSummary,
+  placement: "quest.start" | "quest.outcome",
+  scene: "cellar",
+  action?: CellarErrandAction
+): string[] {
+  const flavor = selectCharacterFlavorLine(character, {
+    placement,
+    scene,
+    ...(action ? { action } : {})
+  });
+
+  return flavor ? ["", escapeHtml(flavor.text)] : [];
 }
 
 function presentCellarOutcome(action: CellarErrandAction): string[] {
   if (action === "cheese-trap") {
     return [
       "🧀 Пастка спрацювала частково.",
-      "Миша лишила сир і записку: «Ваші умови смішні»."
+      "Миша лишила сир і записку.",
+      "<blockquote>Ваші умови смішні.</blockquote>"
     ];
   }
 

@@ -26,6 +26,16 @@ describe("tavern callback data", () => {
     });
   });
 
+  it("parses a valid ranger callback", () => {
+    const data = makeTavernCallbackData("ranger");
+
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(parseTavernCallbackData(data)).toEqual({
+      ok: true,
+      value: "ranger"
+    });
+  });
+
   it("parses a valid round callback", () => {
     const data = makeTavernCallbackData("round");
 

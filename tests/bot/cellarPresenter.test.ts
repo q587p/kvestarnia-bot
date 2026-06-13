@@ -19,12 +19,46 @@ describe("cellar presenter", () => {
     expect(text.split("\n").length).toBeLessThanOrEqual(8);
   });
 
+  it("adds character-aware flavor to cellar start and outcome scenes", () => {
+    const domovyk = {
+      ...character,
+      raceId: "race.domovyk",
+      raceName: "Домовик"
+    };
+
+    expect(presentCellarStart({ state: "ready", character: domovyk })).toContain(
+      "законного, хоч і неоформленого"
+    );
+    expect(
+      presentCellarResult({
+        ...completed,
+        action: "negotiate",
+        character: domovyk
+      })
+    ).toContain("автономію за шафою");
+  });
+
+  it("escapes character names in cellar start text", () => {
+    const text = presentCellarStart({
+      state: "ready",
+      character: {
+        ...character,
+        name: "<b>Мандрівник</b>"
+      }
+    });
+
+    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;, що робимо?");
+    expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
+  });
+
   it("renders completed result with reward and no exact timestamp", () => {
     const text = presentCellarResult(completed);
 
     expect(text).toContain("🧀 Пастка спрацювала частково.");
+    expect(text).toContain("Миша лишила сир і записку.\n<blockquote>Ваші умови смішні.</blockquote>");
     expect(text).toContain("<b>+2 XP · +1 золота</b>");
-    expect(text).toContain("Підвал знову чекатиме за: 3 хвилини.");
+    expect(text).toContain("Підвал знову чекатиме за 3 хвилини.");
+    expect(text).not.toContain("за:");
     expect(text).not.toMatch(/\d{1,2}:\d{2}/);
     expect(text).not.toMatch(/\d+\s*(?:секунд|хвилин)\s+тому/i);
   });
@@ -33,7 +67,8 @@ describe("cellar presenter", () => {
     const text = presentCellarCooldown(onCooldown);
 
     expect(text).toContain("🐭 Підвал тимчасово тихий.");
-    expect(text).toContain("Можна повернутись за: 2 хвилини.");
+    expect(text).toContain("Можна повернутись за 2 хвилини.");
+    expect(text).not.toContain("за:");
     expect(text).not.toMatch(/\d{1,2}:\d{2}/);
   });
 });

@@ -104,6 +104,14 @@ docs/
 - `updated_at`
 - unique (`character_id`, `item_id`)
 
+Future equipment/trading notes:
+- Item content metadata should eventually support `requiredLevel`, allowed `raceId`/`classId` lists, and optional hidden `path`/pronoun selectors for rare restricted манатки.
+- Item content metadata should include `goldValue` for most items or an explicit `priceless`/non-sellable marker for story trophies and special collectibles.
+- `character_items` stays the ownership/count table. Actual equipment slots, temporary permission effects, cursed exceptions, attunement, respec/form-change state, and trade offers should be separate rows or state machines.
+- Equipping must validate ownership, level, restrictions, and any active bypass in one domain/service path; callbacks should never trust button text or stale presenter state.
+- Player-to-player exchange/gifting needs an idempotent transaction: remove/decrement from sender, create/increment for receiver, write an audit/transfer row, and fail cleanly if the sender no longer owns the item.
+- Future item-to-level exchange needs a dedicated transaction: validate selected inventory quantities, ignore/reject priceless items, sum `goldValue * quantity`, consume the selected items, grant exactly the allowed level-up, and write an audit row/idempotency key so repeated callbacks cannot duplicate levels.
+
 ### cooldowns
 - `id` UUID
 - `character_id` FK
@@ -293,6 +301,7 @@ Callback data коротка, версіонована.
 - `v1:news:entry:{entryIndex}:{listPage}`
 - `v1:tavern:raid`
 - `v1:tavern:participants`
+- `v1:tavern:ranger`
 - `v1:tavern:round`
 - `v1:tavern:round-simple`
 - `v1:tavern:round-fine`
@@ -319,6 +328,12 @@ Callback data коротка, версіонована.
 - `v1:inv:equip:{inventoryItemId}` — future equipment callback, not implemented in 0.0.6.
 
 Валідація обов’язкова. Не довіряти даним з callback.
+
+Майбутній UX-борг для `safeEditMessageText`:
+- Перед редагуванням callback-повідомлення перевіряти, що це останнє актуальне повідомлення бота в цьому chat/user flow, або що конкретний екран явно дозволено редагувати старим `message_id`.
+- Якщо після старого callback-повідомлення вже були нові повідомлення бота, не редагувати старе повідомлення високо в історії. Замість цього надіслати нове повідомлення, щоб гравець бачив зміну без скролу вгору.
+- Для реалізації може знадобитись lightweight облік останнього bot `message_id` на chat/user/session або wrapper, який після `reply`/`edit` оновлює цей стан.
+- Додати тести на stale callback: старе повідомлення з кнопкою натиснули після нового тексту, handler не ховає результат у старому edit, а надсилає нове повідомлення.
 
 ## Presenters
 Domain result → presenter → Telegram text/buttons.
@@ -351,6 +366,26 @@ Future combat-state note: this is an alpha shortcut, not the final resource mode
 - Primary stat: `stored primary stat + (level - 1)`.
 
 Future equipment effects should layer on top of this effective-stats helper instead of rewriting stored starter values.
+
+Future progression pass:
+- Revisit the alpha formulas so level has a stronger, visible impact on HP, mana, combat coefficients, event checks, and activity/content gates.
+- Keep the source of truth centralized in progression/effective-stat helpers; presenters, services, and combat/event logic should not each invent their own level math.
+- Add tests around level breakpoints so raising level changes real outcomes, not only displayed summary numbers.
+- Model levels `11-20` as an epic bracket with milestone unlocks for race/class abilities, inspired by Munchkin-style extra class/race tricks. Keep unlock definitions data-driven enough for tests and presenters to answer «what changed at this level?» without hard-coded string checks.
+
+Future time-of-day combat modifiers:
+- Derive a coarse local phase from the shared time helper: `morning`, `day`, `evening`, `night`.
+- Store monster affinity as content tags or explicit modifiers, not presenter text: e.g. `night`, `dark`, `underground`, `sunlit`, `dawn`.
+- Apply phase modifiers in the deterministic combat/effective-enemy helper before presenters render HP/attack previews.
+- Test each phase with fixed clocks; never depend on wall-clock time directly in domain tests.
+- Keep UI wording coarse and flavorful. Do not show exact server timestamps; say the night makes a tagged enemy bolder, not «+17% о 23:04».
+
+Future korchma progression boards:
+- Add a durable event/log source for first arrival and level-up milestones instead of deriving them from mutable current character state.
+- Level-up records should be idempotent per `character_id` + reached `level`; repeated reward callbacks must not duplicate the same milestone.
+- The front-of-korchma level board can show recent level-ups plus a ranking by highest reached level. Use deterministic tie-breakers: reached level desc, achieved time asc, then stable `character_id`.
+- Level 10 needs a distinct milestone type or presenter branch so it can be highlighted without hard-coding string searches.
+- Keep these boards as in-game Telegram surfaces near `location.korchma.front`; public web presence must still avoid exposing player names by default.
 
 ## Observability
 Лоґи:

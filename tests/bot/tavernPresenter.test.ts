@@ -4,6 +4,7 @@ import {
   presentTavernAlreadyRaided,
   presentKorchmaHall,
   presentPendingRaidActionBlock,
+  presentTavernRanger,
   presentTavernNoCharacter,
   presentTavernRaidPending,
   presentTavernRaidReadyToComplete,
@@ -13,7 +14,6 @@ import {
 } from "../../src/bot/presenters/tavernPresenter";
 import type { TavernRaidResult } from "../../src/services/tavernRaidService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
-import type { PresenceGroup } from "../../src/services/presenceService";
 
 const character: CharacterSummary = {
   name: "Мандрівник",
@@ -57,6 +57,13 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Зала корчми");
     expect(text).toContain("Корчма Квестарні");
+    expect(text).toContain(
+      "без нагляду.\n\nПраворуч стоїть <i>Стіл зі справами</i>"
+    );
+    expect(text).toContain("<i>Бочка Пінного Міражу</i>");
+    expect(text).toContain("<i>Підвал</i>");
+    expect(text).toContain("<i>Дошка вістей</i>");
+    expect(text).toContain("Залізо тримайте спокійно");
     expect(text).toContain("Куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
   });
@@ -69,18 +76,35 @@ describe("tavern presenter", () => {
     expect(text).toContain(
       "Корчмар:\n<blockquote>Це не проблема. Дві-три хвилини. Максимум.</blockquote>"
     );
-    expect(text).toContain("За столами: поки тільки ви й підозрілий стілець.");
+    expect(text).toContain("людисько-єгер у капюшоні");
+    expect(text).toContain("<i>Порада дня:");
+    expect(text).toContain("стояти між бочкою");
+    expect(text).not.toContain("За столами:");
     expect(text).toContain("Що робимо?");
-    expect(text.length).toBeLessThan(380);
+    expect(text.length).toBeLessThan(720);
   });
 
-  it("shows active tavern presence at the tables", () => {
-    const text = presentTavern(character, tavernPresence);
+  it("keeps barrel screen focused on the barrel instead of table presence", () => {
+    const text = presentTavern(character);
 
-    expect(text).toContain("За столами:");
-    expect(text).toContain("• Дара · рівень 2");
-    expect(text).toContain("• Нестор &lt;Межовий&gt; · рівень 3");
+    expect(text).not.toContain("За столами:");
+    expect(text).not.toContain("Дара");
+    expect(text).not.toContain("Нестор");
     expect(text).toContain("Що робимо?");
+  });
+
+  it("escapes character names and titles in tavern scene headers", () => {
+    const text = presentTavern({
+      ...character,
+      name: "<b>Мандрівник</b>",
+      title: "<i>Пересічний Герой</i>"
+    });
+
+    expect(text).toContain(
+      "&lt;b&gt;Мандрівник&lt;/b&gt; · &lt;i&gt;Пересічний Герой&lt;/i&gt;"
+    );
+    expect(text).not.toContain("<b>Мандрівник</b>");
+    expect(text).not.toContain("<i>Пересічний Герой</i>");
   });
 
   it("prompts /start when no character exists", () => {
@@ -91,8 +115,9 @@ describe("tavern presenter", () => {
     const text = presentTavernAlreadyRaided(character);
 
     expect(text).toContain("Бочка Пінного Міражу сьогодні вже пережила ваш героїзм");
+    expect(text).toContain("Єгер у капюшоні все ще сидить у кутку");
     expect(text).toContain("завтра знову");
-    expect(text).toContain("За столами: поки тільки ви й підозрілий стілець.");
+    expect(text).not.toContain("За столами:");
     expect(text).toContain("/hero");
     expect(text).not.toContain("Дві-три хвилини. Максимум");
     expect(text).not.toContain("Що робимо?");
@@ -149,7 +174,9 @@ describe("tavern presenter", () => {
     const text = presentTavernRaidPending(pending);
 
     expect(text).toContain("Рейд почався");
-    expect(text).toContain("Поверніться за: <b>8 хв.</b>");
+    expect(text).toContain("Єгер у капюшоні");
+    expect(text).toContain("Поверніться через <b>8 хв.</b>");
+    expect(text).not.toContain("хв..");
     expect(text).toContain("не видаю нових пригод");
     expect(text).not.toContain("+7 XP");
   });
@@ -164,7 +191,9 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Ви зараз у рейді");
     expect(text).toContain("Інші пригоди тимчасово недоступні");
-    expect(text).toContain("Перевірте бочку за:");
+    expect(text).toContain("Перевірте бочку через <b>1 хв.</b>");
+    expect(text).not.toContain("за:");
+    expect(text).not.toContain("хв..");
   });
 
   it("presents ready-to-complete barrel raid without exact timestamps", () => {
@@ -176,13 +205,13 @@ describe("tavern presenter", () => {
     });
 
     expect(text).toContain("Бочка підозріло притихла");
-    expect(text).toContain("час уже вийшов");
+    expect(text).toContain("Очікування <b>вже скінчилось</b>");
     expect(text).toContain("Натисніть <b>🍺 Перевірити бочку</b>.");
     expect(text).not.toContain("`🍺 Перевірити бочку`");
     expect(text).not.toContain("10:31");
   });
 
-  it("shows level-up only when tavern reward increases level", () => {
+  it("keeps level-up out of the raid result message", () => {
     const completed: Exclude<TavernRaidResult, { state: "no-character" }> = {
       state: "completed",
       character,
@@ -199,10 +228,8 @@ describe("tavern presenter", () => {
       }
     };
 
-    expect(presentTavernRaidResult(completed)).toContain("Рівень підріс: 1 → 2");
-    expect(presentTavernRaidResult(completed)).toContain(
-      "Стало краще: +4 HP · +2 мани · +1 Сили"
-    );
+    expect(presentTavernRaidResult(completed)).not.toContain("Рівень підріс");
+    expect(presentTavernRaidResult(completed)).not.toContain("Стало краще");
   });
 
   it("presents round states with gold spending humor", () => {
@@ -246,9 +273,35 @@ describe("tavern presenter", () => {
         becameLeader: ["day", "week"]
       });
     expect(fineRound).toContain("Всім якісного пива");
+    expect(fineRound).toContain("Єгер у кутку двічі плескає");
     expect(fineRound).toContain("Ви вирвались на перше місце");
     expect(fineRound).toContain("За добу");
     expect(fineRound).toContain("Мандрівник — 2 частування · 110 золота");
+  });
+
+  it("escapes leaderboard names in tavern round results", () => {
+    const text = presentTavernRoundResult({
+      state: "simple-round",
+      character,
+      spentGold: 10,
+      remainingGold: 2,
+      leaderboard: {
+        day: [
+          {
+            characterId: "character-unsafe",
+            name: "<b>Дара</b>",
+            roundCount: 1,
+            spentGold: 10
+          }
+        ],
+        week: [],
+        month: []
+      },
+      becameLeader: []
+    });
+
+    expect(text).toContain("&lt;b&gt;Дара&lt;/b&gt; — 1 частування · 10 золота");
+    expect(text).not.toContain("<b>Дара</b>");
   });
 
   it("presents a round offer before any gold is spent", () => {
@@ -266,6 +319,28 @@ describe("tavern presenter", () => {
     expect(text).toContain("просте за 10");
     expect(text).toContain("Рейтинг щедрості");
     expect(text).not.toContain("Списано");
+  });
+
+  it("presents the hooded ranger with biography-aware reactions", () => {
+    const humanRanger = {
+      ...character,
+      classId: "class.ranger",
+      className: "Єгер"
+    };
+    const domovyk = {
+      ...character,
+      raceId: "race.domovyk",
+      raceName: "Домовик"
+    };
+    const rogue = {
+      ...character,
+      classId: "class.rogue",
+      className: "Злодій"
+    };
+
+    expect(presentTavernRanger(humanRanger)).toContain("Людисько-єгер");
+    expect(presentTavernRanger(domovyk)).toContain("ліцензійною магією");
+    expect(presentTavernRanger(rogue)).toContain("Ваші руки надто чесно поводяться");
   });
 });
 
@@ -302,21 +377,3 @@ const roundLeaderboard = {
   ]
 };
 
-const tavernPresence: PresenceGroup = {
-  active: [
-    {
-      telegramUserId: 1n,
-      name: "Дара",
-      level: 2,
-      status: "active"
-    },
-    {
-      telegramUserId: 2n,
-      name: "Нестор <Межовий>",
-      level: 3,
-      status: "active"
-    }
-  ],
-  idle: [],
-  total: 2
-};

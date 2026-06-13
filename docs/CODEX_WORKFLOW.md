@@ -1,6 +1,7 @@
 # Codex Workflow
 
 ## Як ставити задачі Codex
+
 Структура промпту:
 
 ```text
@@ -11,6 +12,7 @@ Done when: як перевірити готовність.
 ```
 
 Приклад:
+
 ```text
 Goal: реалізуй чистий combat engine для MVP.
 Context: прочитай AGENTS.md, docs/GAME_DESIGN.md, docs/BALANCE_NOTES.md.
@@ -18,17 +20,46 @@ Constraints: domain не має імпортувати Telegram/grammY; RNG че
 Done when: є unit tests для перемоги, поразки, криту, промаху, втечі; npm test проходить.
 ```
 
+## Типи змін
+
+### Версійні gameplay/runtime зміни
+
+Версійними вважаються зміни, які впливають на поведінку бота, дані, міграції, баланс, гравецькі повідомлення в runtime або production deployment.
+
+Для таких змін:
+
+- онови `package.json` version тільки коли це прямо входить у задачу;
+- онови `CHANGELOG.md` і `news.md`, якщо зміна має йти як реліз;
+- заголовки release notes мають містити номер, дату за Holocene calendar і короткий опис;
+- PR title для release-oriented зміни починається з номера версії й короткого опису, наприклад `0.0.4 — First Mimic Shawarma Adventure`.
+
+### Docs-only / presentation зміни
+
+Docs-only зміни, які лише покращують README, бренд, product docs, setup docs або workflow docs, **не є номерним релізом**.
+
+Для таких змін:
+
+- не bump-ати `package.json` version;
+- не створювати git tag;
+- не створювати GitHub Release;
+- не оновлювати `CHANGELOG.md` і `news.md`, якщо користувач прямо не попросив;
+- не змінювати runtime-код, Prisma schema, migrations або generated files;
+- PR title має бути звичайним docs title, наприклад `docs: Polish public README and project docs`;
+- у PR body писати `Tests: Not run — docs-only change`, якщо технічні checks не запускалися.
+
 ## Перші задачі для порожнього репозиторію
 
 ### Task 1 — Scaffold
+
 ```text
 Goal: створи TypeScript Node.js репозиторій для Telegram RPG bot.
 Context: AGENTS.md, docs/TECHNICAL_PLAN.md.
 Constraints: npm, Vitest, ESLint, TypeScript strict, SQLite через DATABASE_URL. Не реалізуй ігрові фічі.
-Done when: npm run lint/typecheck і npm test проходять; README містить local setup.
+Done when: npm run lint/typecheck і npm test проходять; README містить короткий public pitch, а local setup винесено в docs/DEVELOPER_SETUP.md.
 ```
 
 ### Task 2 — Content validation
+
 ```text
 Goal: додай content model для races, classes, monsters, items.
 Context: docs/GAME_DESIGN.md, docs/CONTENT_STYLE_GUIDE.md.
@@ -37,6 +68,7 @@ Done when: є приклади контенту і тест, що всі таб�
 ```
 
 ### Task 3 — Combat domain
+
 ```text
 Goal: реалізуй domain combat engine.
 Context: docs/GAME_DESIGN.md, docs/BALANCE_NOTES.md.
@@ -45,6 +77,7 @@ Done when: тести покривають 5 сценаріїв бою.
 ```
 
 ### Task 4 — Character creation bot flow
+
 ```text
 Goal: реалізуй /start flow з вибором раси й класу.
 Context: docs/GAME_DESIGN.md, docs/CONTENT_STYLE_GUIDE.md, src/content.
@@ -53,6 +86,7 @@ Done when: integration test mocks Telegram context; повторний /start н
 ```
 
 ### Task 5 — Adventure loop
+
 ```text
 Goal: зв’яжи /adventure з combat, loot і inventory.
 Context: docs/GAME_DESIGN.md, docs/TECHNICAL_PLAN.md, docs/SECURITY_AND_FAIR_PLAY.md.
@@ -61,6 +95,7 @@ Done when: гравець може пройти бій і отримати item;
 ```
 
 ## Робота з subagents
+
 Для складних змін можна попросити Codex створити кілька агентів:
 
 ```text
@@ -71,51 +106,59 @@ Spawn 4 agents and consolidate:
 4. Test reviewer: знайди непокриті edge cases.
 ```
 
-## Skills
-У цьому пакеті є два приклади skills:
-- `skills/ukrainian-rpg-content` — для генерації/редагування монстрів, предметів, текстів.
-- `skills/balance-review` — для рев’ю формул, loot tables, combat simulations.
+Для docs-only задач корисніші інші ролі:
 
-Їх можна встановити/перенести в конфігурацію Codex за потреби. Навіть без окремого встановлення тексти `SKILL.md` корисні як промпти.
+```text
+Spawn 3 agents and consolidate:
+1. Public pitch reviewer: чи README зацікавить людину поза проєктом.
+2. Product consistency reviewer: чи docs не обіцяють неготові фічі як готові.
+3. Developer docs reviewer: чи setup/playtesting винесено без втрати потрібної інформації.
+```
 
 ## Як приймати роботу Codex
+
 Після кожного diff перевірити:
+
 - Чи не з’явився Telegram import у `domain/`.
-- Чи всі тексти українською.
+- Чи всі user-facing тексти українською.
 - Чи не дублюються нагороди при повторі callback.
 - Чи є tests для нової логіки.
 - Чи не з’явились магічні числа замість content/balance config.
 - Чи не розширився scope понад задачу.
+- Для docs-only змін: чи README лишається вітриною, а setup/runbook живе в окремих docs.
 
 ## Типові помилки
+
 - Codex робить «MMO все одразу». Зупинити: просити маленький slice.
-- Codex пише надто довгі повідомлення. Вказати limit у style guide.
+- Codex пише надто довгі Telegram-повідомлення. Вказати limit у style guide.
 - Codex хардкодить Telegram-specific state в domain. Винести в presenter/service.
 - Codex додає Prisma schema, але не додає міграцію. Попросити міграцію.
 - Codex змінює контент без тестів валідації. Додати tests.
+- Codex ставить docs-only polish як номерний реліз. Для presentation docs цього не робити.
 
 ## Гілки й PR
-Рекомендація:
-- `main` завжди зелений.
-- `feat/combat-engine`
-- `feat/start-flow`
-- `feat/adventure-loop`
-- `feat/group-raid`
-- `fix/idempotent-rewards`
+
+Рекомендації для гілок:
+
+- `main` завжди зелений;
+- `docs/public-readme-polish`;
+- `feat/combat-engine`;
+- `feat/start-flow`;
+- `feat/adventure-loop`;
+- `feat/group-raid`;
+- `fix/idempotent-rewards`.
 
 PR має містити:
-- Назву у форматі `<version> — <CHANGELOG title>`, наприклад `0.0.4 — First Mimic Shawarma Adventure`.
+
 - Summary.
-- Gameplay impact.
+- Gameplay impact або `None — docs-only change`.
 - Tests run.
 - Screenshots або sample bot messages, якщо змінено UI.
 - Balance notes, якщо змінені формули.
+- Release notes тільки для release-oriented змін.
 
 ## Поточна послідовність маленьких PR
 
-Після `0.0.10 — Repeatable Cellar Errands` наступний малий routing slice — `0.0.11 — Korchma Quest Hub & Routing Cleanup`:
-- `/quest` відкриває `Стіл зі справами` всередині корчми.
-- `/adventure`, `/fight`, `/hunt` і `/cellar` не телепортують героя з надвору.
-- `location.korchma.*` лишаються lightweight place ids для presence, не full session engine.
+Після routing/presence зрізів найменший корисний gameplay-крок: дуже малий equipment preview без stat effects або перший вузький крок до групового рейду без persistent combat, Redis чи повного activity-service refactor.
 
-Після merge найменший корисний крок: дуже малий equipment preview без stat effects або перший вузький крок до групового рейду без persistent combat, Redis чи повного activity-service refactor.
+Docs-only polish README/brand/setup можна публікувати окремим PR без номера версії, без changelog/news і без GitHub Release.

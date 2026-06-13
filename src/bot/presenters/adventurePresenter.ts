@@ -1,16 +1,19 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { AdventureLookupResult, AdventureResult } from "../../services/adventureService";
-import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
+import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
 export function presentAdventureStart(character: CharacterSummary): string {
+  const flavor = presentCharacterFlavor(character, "quest.start", "shawarma");
+
   return [
     "🌯 Підозріла шаурма",
     "",
     "На столі лежить шаурма. Вона дихає.",
     "",
     npcQuote("Корчмар", "То не моя."),
+    ...flavor,
     "",
     `${escapeHtml(character.name)}, що робимо?`
   ].join("\n");
@@ -50,14 +53,28 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
 
   const lines = [
     ...presentActionOutcome(result.action),
+    ...presentCharacterFlavor(result.character, "quest.outcome", "shawarma", result.action),
     "",
     presentRewardAmount(result.reward),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
-  lines.push(...presentRewardLevelGrowth(result.levelChange, result.character.classId));
-
   return lines.join("\n");
+}
+
+function presentCharacterFlavor(
+  character: CharacterSummary,
+  placement: "quest.start" | "quest.outcome",
+  scene: "shawarma",
+  action?: "poke" | "receipt" | "flee"
+): string[] {
+  const flavor = selectCharacterFlavorLine(character, {
+    placement,
+    scene,
+    ...(action ? { action } : {})
+  });
+
+  return flavor ? ["", escapeHtml(flavor.text)] : [];
 }
 
 function presentActionOutcome(action: "poke" | "receipt" | "flee"): string[] {

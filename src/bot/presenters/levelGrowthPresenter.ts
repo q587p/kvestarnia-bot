@@ -25,22 +25,28 @@ export function presentLevelBonus(bonus: LevelBonus): string | null {
   return parts.join(" · ");
 }
 
-export function presentRewardLevelGrowth(
+export function presentLevelUpCelebration(
   levelChange: RewardLevelChange,
   classId: string
-): string[] {
+): string | null {
   if (!levelChange.leveledUp) {
-    return [];
+    return null;
   }
 
   const growth = presentLevelBonus(
     buildLevelGrowthBonus(levelChange.oldLevel, levelChange.newLevel, classId)
   );
-  const lines = [`Рівень підріс: ${levelChange.oldLevel} → ${levelChange.newLevel}`];
+  const lines = [
+    "🎉 Рівень підріс!",
+    "",
+    `✨ <b>${levelChange.oldLevel} → ${levelChange.newLevel}</b>`
+  ];
 
   if (growth) {
-    lines.push(`Стало краще: ${growth}`);
+    lines.push(`📈 Стало краще: <b>${growth}</b>`);
   }
 
-  return lines;
+  lines.push("", "Корчма робить вигляд, що так і планувала.");
+
+  return lines.join("\n");
 }
