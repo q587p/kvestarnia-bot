@@ -16,7 +16,7 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
   {
     commands: ["hero", "profile", "me"],
     icon: "👤",
-    description: "герой і прогрес"
+    description: "персонаж і прогрес"
   },
   {
     commands: ["tavern", "raid"],
@@ -86,7 +86,7 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
   {
     commands: ["dev_reset_me"],
     icon: "🧪",
-    description: "скинути героя локально",
+    description: "скинути персонажа локально",
     devOnly: true
   }
 ];

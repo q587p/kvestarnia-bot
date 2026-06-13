@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   botCommandCatalog,
   getHelpCommandEntries,
@@ -24,7 +24,7 @@ describe("bot command catalog", () => {
       "help"
     ]);
     expect(commands.find((entry) => entry.command === "hero")?.description).toBe(
-      "👤 герой і прогрес"
+      "👤 персонаж і прогрес"
     );
     expect(commands.find((entry) => entry.command === "help")?.description).toBe("📖 допомога");
     expect(commands).toHaveLength(6);

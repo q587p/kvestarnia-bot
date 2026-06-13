@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   presentItemDetail,
   presentOwnedItemDetail
@@ -13,7 +13,7 @@ describe("item detail presenter", () => {
         quantity: 2,
         content: {
           id: "item.wet-hero-ticket",
-          name: "Квиток мокрого героя",
+          name: "Квиток мокрого пригодника",
           description: "Трофей корчемної логістики.",
           rarity: "common",
           slot: "junk",
@@ -22,7 +22,7 @@ describe("item detail presenter", () => {
       })
     });
 
-    expect(text).toContain("🔎 <b>Квиток мокрого героя</b>");
+    expect(text).toContain("🔎 <b>Квиток мокрого пригодника</b>");
     expect(text).toContain("Рідкість: <b>звичайна</b>");
     expect(text).toContain("Категорія: <b>трофей / смішний доказ</b>");
     expect(text).toContain("Вартість: <i>безцінна</i>");
@@ -49,6 +49,38 @@ describe("item detail presenter", () => {
     expect(text).toContain("Вартість: <b>25 золота</b>");
     expect(text).toContain("можна екіпірувати");
     expect(text).toContain("бонуси поки лежать у бухгалтерії");
+  });
+
+  it("shows slot-specific wording for armor and accessories", () => {
+    const armor = presentOwnedItemDetail(
+      itemSummary({
+        content: {
+          id: "item.apron-of-foam-resistance",
+          name: "Фартух піностійкого пригодника",
+          description: "Пережив бочку.",
+          rarity: "common",
+          slot: "armor",
+          goldValue: 14
+        }
+      })
+    );
+    const accessory = presentOwnedItemDetail(
+      itemSummary({
+        content: {
+          id: "item.cork-ring-of-serious-business",
+          name: "Корковий перстень серйозних справ",
+          description: "Миша сказала, що це печатка.",
+          rarity: "common",
+          slot: "accessory",
+          goldValue: 6
+        }
+      })
+    );
+
+    expect(armor).toContain("Категорія: <b>обладунок</b>");
+    expect(armor).toContain("Манекен випростав плечі");
+    expect(accessory).toContain("Категорія: <b>аксесуар</b>");
+    expect(accessory).toContain("Малий гачок обережно блищить");
   });
 
   it("shows when an item is already equipped", () => {
@@ -104,7 +136,7 @@ function itemSummary(overrides: Partial<InventoryItemSummary> = {}): InventoryIt
     quantity: 1,
     content: {
       id: "item.wet-hero-ticket",
-      name: "Квиток мокрого героя",
+      name: "Квиток мокрого пригодника",
       description: "Трофей корчемної логістики.",
       rarity: "common",
       slot: "junk",

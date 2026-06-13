@@ -18,8 +18,56 @@ export const items = [
     goldValue: 18
   },
   {
+    id: "item.stamp-of-minor-authority",
+    name: "Печатка дрібної переваги",
+    description: "Б'є не сильно, зате залишає слід «розглянуто» там, де монстр просив «не треба».",
+    rarity: "uncommon",
+    slot: "weapon",
+    goldValue: 16
+  },
+  {
+    id: "item.apron-of-foam-resistance",
+    name: "Фартух піностійкого пригодника",
+    description: "Пережив бочку, підлогу й погляд корчмаря. Тепер вимагає окремого гачка.",
+    rarity: "common",
+    slot: "armor",
+    goldValue: 14
+  },
+  {
+    id: "item.barrel-splinter-of-optimism",
+    name: "Скіпка бочкового оптимізму",
+    description: "Маленька, гостра й переконана, що це вона перемогла рейд.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 1
+  },
+  {
+    id: "item.foam-cork-of-accounting",
+    name: "Корок пінного переобліку",
+    description: "Його дістали з бочки під час ревізії. Корок наполягає, що був аудитором.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 2
+  },
+  {
+    id: "item.mirage-foam-sample",
+    name: "Зразок піни з характером",
+    description: "Піна тримає форму, позицію й образу на всіх, хто називає її «просто піною».",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 3
+  },
+  {
+    id: "item.cork-ring-of-serious-business",
+    name: "Корковий перстень серйозних справ",
+    description: "Миша сказала, що це печатка. Корок не заперечив, бо зайнятий кар'єрою.",
+    rarity: "common",
+    slot: "accessory",
+    goldValue: 6
+  },
+  {
     id: "item.wet-hero-ticket",
-    name: "Квиток мокрого героя",
+    name: "Квиток мокрого пригодника",
     description: "Трофей тавернової логістики. Трохи пахне перемогою і підлогою.",
     rarity: "common",
     slot: "junk",

@@ -22,17 +22,18 @@ const equipmentSlots: readonly SlotView[] = [
 
 export function presentEquipment(result: EquipmentResult): string {
   if (result.state === "no-character") {
-    return "Спершу створіть героя через /start. Гачки не мають на кого дивитися.";
+    return "Спершу створіть пригодника через /start. Гачки не мають на кого дивитися.";
   }
 
   return [
     "🧥 <b>Спорядження</b>",
     "",
-    "Корчма вже запамʼятовує, що висить на герої.",
+    "Корчма вже запамʼятовує, що висить на пригоднику.",
+    "",
     "<i>Бонуси спорядження ще не рахуються.</i>",
     "<i>HP, мана, бій і нагороди не змінюються.</i>",
     "",
-    ...equipmentSlots.map((slot) => presentEquipmentSlot(slot, result.slots)),
+    ...intersperseBlankLines(equipmentSlots.map((slot) => presentEquipmentSlot(slot, result.slots))),
     "",
     "<i>Зараз це чесна примірка без циферок. Бухгалтерія ще точить олівець.</i>"
   ].join("\n");
@@ -40,7 +41,7 @@ export function presentEquipment(result: EquipmentResult): string {
 
 export function presentEquipItemResult(result: EquipItemResult): string {
   if (result.state === "no-character") {
-    return "Спершу створіть героя через /start. Манекен не працює з порожнечею.";
+    return "Спершу створіть пригодника через /start. Манекен не працює з порожнечею.";
   }
 
   if (result.state === "not-owned") {
@@ -60,7 +61,7 @@ export function presentEquipItemResult(result: EquipItemResult): string {
 
 export function presentUnequipSlotResult(result: UnequipSlotResult): string {
   if (result.state === "no-character") {
-    return "Спершу створіть героя через /start. Знімати поки ні з кого.";
+    return "Спершу створіть пригодника через /start. Знімати поки ні з кого.";
   }
 
   const label = presentEquipmentSlotLabel(result.slot);
@@ -84,4 +85,8 @@ function presentEquipmentSlot(slot: SlotView, slots: EquipmentSlotSummary[]): st
   }
 
   return `${slot.icon} <b>${slot.label}</b>: <i>${slot.emptyText}</i>`;
+}
+
+function intersperseBlankLines(lines: string[]): string[] {
+  return lines.flatMap((line, index) => (index === 0 ? [line] : ["", line]));
 }

@@ -11,29 +11,54 @@ import type {
   KorchmaRoundLeaderboard,
   KorchmaRoundLeaderboardEntry
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
-import type { PresenceGroup } from "../../services/presenceService";
-import { selectCharacterFlavorLine } from "../../content/characterFlavor";
+import type { KorchmaArrivalBoard, PresenceGroup } from "../../services/presenceService";
+import { selectCharacterFlavorLine, selectCharacterFlavorLines } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
 export function presentKorchmaFront(character: CharacterSummary): string {
   return [
     "🚪 Перед корчмою",
-    `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
+    presentCharacterHeader(character),
     "",
-    "За дверима гуде Корчма Квестарні. Там видають квести, сперечаються з бочками й іноді не питають зайвого.",
+    "За дверима гуде <i>Корчма Квестарні</i>. Там видають квести, сперечаються з бочками й іноді не питають зайвого.",
     "",
-    "Квести видають усередині."
+    "Усередині вже чекають:",
+    "• Стіл зі справами: квести, сутички й документи, які самі себе не підозрюють.",
+    "• Бочка Пінного Міражу: рейд, піна й бухгалтерія з характером.",
+    "• Підвал: миша, дрібний бізнес і дуже серйозні серветки.",
+    "• Дошка вістей: новини, які корчмар прибив, поки вони не втекли.",
+    "",
+    "Зліва від дверей висить табличка прибулих. Вона стверджує, що це памʼять, а не список боржників.",
+    "",
+    "Натисніть «🚪 Зайти в корчму» або відкрийте двері через /tavern."
+  ].join("\n");
+}
+
+export function presentKorchmaArrivalBoard(
+  character: CharacterSummary,
+  board: KorchmaArrivalBoard
+): string {
+  return [
+    "📜 Табличка прибулих",
+    presentCharacterHeader(character),
+    "",
+    "Біля дверей висить дошка з іменами тих, кого корчма вже бачила й поки не заперечує.",
+    "",
+    ...presentKorchmaArrivalEntries(board),
+    "",
+    "Корчмар каже, що це не список боржників. Табличка тактовно мовчить."
   ].join("\n");
 }
 
 export function presentKorchmaHall(
   character: CharacterSummary,
-  presence?: PresenceGroup | null
+  presence?: PresenceGroup | null,
+  viewerTelegramUserId?: bigint
 ): string {
   return [
     "🍺 Зала корчми",
-    `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
+    presentCharacterHeader(character),
     "",
     "Корчма Квестарні тримає тепло, шум і кілька справ, які краще не залишати без нагляду.",
     "",
@@ -41,7 +66,7 @@ export function presentKorchmaHall(
     "",
     ...presentKorchmaGreeting(character),
     "",
-    ...presentTavernPresence(presence),
+    ...presentTavernPresence(presence, viewerTelegramUserId),
     "",
     "Куди йдемо?"
   ].join("\n");
@@ -50,13 +75,13 @@ export function presentKorchmaHall(
 export function presentTavern(character: CharacterSummary): string {
   return [
     "🛢️ Біля Бочки Пінного Міражу",
-    `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
+    presentCharacterHeader(character),
     "",
     "У кутку героїчно піниться Бочка Пінного Міражу.",
+    "",
     "Поруч із нею сидить людисько-єгер у капюшоні, курить трубку й дивиться на всіх так, ніби вже бачив їхні сліди.",
     "",
     npcQuote("Корчмар", "Це не проблема. Дві-три хвилини. Максимум."),
-    ...presentRaidPrepHint(character),
     "",
     "Що робимо?"
   ].join("\n");
@@ -65,14 +90,27 @@ export function presentTavern(character: CharacterSummary): string {
 export function presentTavernAlreadyRaided(character: CharacterSummary): string {
   return [
     "🛢️ Біля Бочки Пінного Міражу",
-    `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
+    presentCharacterHeader(character),
     "",
-    "Бочка Пінного Міражу сьогодні вже пережила ваш героїзм.",
+    "Бочка Пінного Міражу в цьому відтинку вже пережила ваше втручання.",
     "Єгер у капюшоні все ще сидить у кутку. Схоже, він підозрював, що цим усе й скінчиться.",
     "",
-    npcQuote("Корчмар", "Вона просила передати: завтра знову буде хоробра. Можливо."),
+    npcQuote("Корчмар", "Лічильник клацне на 23-й хвилині. Бочка зробить вигляд, що це інша бочка."),
     "",
-    "Поки що можна пригостити всіх пивом або перевірити героя: /hero"
+    "Поки що можна пригостити всіх пивом або перевірити персонажа: /hero"
+  ].join("\n");
+}
+
+export function presentTavernRaidAuditBreak(
+  result: Extract<TavernLookupResult | TavernRaidResult, { state: "audit-break" }>
+): string {
+  return [
+    "🛢️ Бочка на переобліку.",
+    "З 04:00 до 08:00 корчмар рахує піну, єгер рахує підозри, а Бочка рахує, скільки разів її сьогодні назвали меблями.",
+    "",
+    npcQuote("Корчмар", "Після переобліку знову можна буде пригодницьки втручатись у бухгалтерію."),
+    "",
+    `Наступний рейдовий відтинок відкриється через <b>${formatRaidWait(result.nextAvailableAt, result.now)}</b>`
   ].join("\n");
 }
 
@@ -83,13 +121,18 @@ export function presentTavernRaidPending(
     result.state === "pending-started"
       ? "🍺 Рейд почався."
       : "🍺 Рейд ще триває.";
+  const flavorSeed = buildPendingRaidFlavorSeed(result);
 
   return [
     intro,
+    "",
     "Ви пішли розбиратися з Бочкою Пінного Міражу. Бочка робить вигляд, що це довга стратегія, а не паніка.",
-    "Єгер у капюшоні не втручається. Тільки курить трубку й дивиться так, ніби вже знає, кому дістанеться піна.",
+    "",
+    presentRangerRaidAction(result.character, flavorSeed),
     "",
     npcQuote("Корчмар", "Поки ви там, я не видаю нових пригод. У корчмі теж є техніка безпеки."),
+    "",
+    ...presentRaidPrepHint(result.character, flavorSeed, result.state === "pending"),
     "",
     `Поверніться через <b>${formatRaidWait(result.availableAt, result.now)}</b>`
   ].join("\n");
@@ -109,7 +152,7 @@ export function presentTavernRaidReadyToComplete(
 }
 
 export function presentTavernNoCharacter(): string {
-  return "Спершу створіть героя через /start. Бочка не воює з анонімами.";
+  return "Спершу створіть пригодника через /start. Бочка не воює з анонімами.";
 }
 
 export function presentTavernRanger(character: CharacterSummary): string {
@@ -130,15 +173,19 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
   if (result.state === "already-completed") {
     return [
       "🍺 Бочка вас пам’ятає.",
-      "Сьогоднішній рейд уже зараховано. Вона все ще трохи нервує.",
+      "Цей рейдовий відтинок уже зараховано. Вона все ще трохи нервує.",
       "",
       presentRewardAmount({
         xp: result.reward.xp,
         gold: result.reward.gold,
         label: "Вже отримано"
       }),
-      "Повертайтесь завтра або перевірте героя: /hero"
+      "Новий відтинок відкриється на 23-й хвилині наступної години. Або перевірте персонажа: /hero"
     ].join("\n");
+  }
+
+  if (result.state === "audit-break") {
+    return presentTavernRaidAuditBreak(result);
   }
 
   const lines = [
@@ -205,7 +252,9 @@ export function presentTavernRoundResult(
 
   return [
     result.state === "fine-round" ? "🍻 Всім якісного пива!" : "🍻 Всім простого пива!",
+    "",
     quality,
+    "",
     rangerReaction,
     "",
     `Списано: <b>${result.spentGold} золота</b>`,
@@ -247,6 +296,10 @@ export function presentTavernRoundOffer(
   ].join("\n");
 }
 
+function presentCharacterHeader(character: CharacterSummary): string {
+  return `<b>${escapeHtml(character.name)}</b> · <i>${escapeHtml(character.title)}</i>`;
+}
+
 function presentKorchmaGreeting(character: CharacterSummary): string[] {
   const flavor = selectCharacterFlavorLine(character, {
     placement: "korchma.greeting"
@@ -255,13 +308,59 @@ function presentKorchmaGreeting(character: CharacterSummary): string[] {
   return flavor ? [npcQuote("Корчмар", flavor.text)] : [];
 }
 
-function presentRaidPrepHint(character: CharacterSummary): string[] {
-  const flavor = selectCharacterFlavorLine(character, {
+function presentRaidPrepHint(character: CharacterSummary, seed: string, rotate: boolean): string[] {
+  const flavors = selectCharacterFlavorLines(character, {
     placement: "raid.prep-hint",
-    scene: "barrel"
+    scene: "barrel",
+    seed
+  }, {
+    includeFallback: true,
+    limit: 2
+  });
+  const flavor = rotate ? selectRotatingFlavor(flavors, seed) : flavors[0] ?? null;
+
+  return flavor ? [`<i>Порада дня: ${escapeHtml(flavor.text)}</i>`] : [];
+}
+
+function selectRotatingFlavor<T>(flavors: readonly T[], seed: string): T | null {
+  if (flavors.length === 0) {
+    return null;
+  }
+
+  return flavors[hashString(seed) % flavors.length] ?? flavors[0] ?? null;
+}
+
+function hashString(value: string): number {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function presentRangerRaidAction(character: CharacterSummary, seed: string): string {
+  const flavor = selectCharacterFlavorLine(character, {
+    placement: "raid.ranger-action",
+    scene: "barrel",
+    seed
   });
 
-  return flavor ? ["", `<i>Порада дня: ${escapeHtml(flavor.text)}</i>`] : [];
+  return flavor
+    ? escapeHtml(flavor.text)
+    : "Єгер у капюшоні не втручається. Він мовчить так, ніби це теж професія.";
+}
+
+function buildPendingRaidFlavorSeed(
+  result: Extract<TavernRaidResult, { state: "pending" | "pending-started" }>
+): string {
+  if (result.state === "pending-started") {
+    return `${result.periodId}|started`;
+  }
+
+  return `${result.periodId}|check:${result.now.toISOString()}`;
 }
 
 function presentNewLeaderLines(periods: KorchmaRoundLeaderboardPeriod[]): string[] {
@@ -360,20 +459,108 @@ function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: numbe
   );
 }
 
-function presentTavernPresence(presence: PresenceGroup | null | undefined): string[] {
-  if (!presence || presence.total <= 1) {
-    return ["За столами: поки тільки ви й підозрілий єгер у кутку."];
+function presentKorchmaArrivalEntries(board: KorchmaArrivalBoard): string[] {
+  if (board.entries.length === 0) {
+    return [
+      "Зарубок ще немає. Навіть пил намагається не брати на себе відповідальність."
+    ];
   }
 
+  return [
+    "Останні зарубки:",
+    ...board.entries.map((entry) => {
+      const level = entry.level === undefined ? "" : ` · рівень ${entry.level}`;
+
+      return `• ${escapeHtml(entry.name)}${level} · ${escapeHtml(entry.locationName)}`;
+    })
+  ];
+}
+
+function presentTavernPresence(
+  presence: PresenceGroup | null | undefined,
+  viewerTelegramUserId?: bigint
+): string[] {
+  if (isOnlyActiveViewer(presence, viewerTelegramUserId)) {
+    return ["За столами: поки тільки ви й підозрілий єгер у кутку біля бочки."];
+  }
+
+  if (!presence || presence.total === 0) {
+    return [
+      "За столами: живих пригодників не видно. Підозрілий єгер у кутку біля бочки стверджує, що це теж статистика."
+    ];
+  }
+
+  const activeCount = presence.active.length;
+  const idleCount = presence.idle.length;
+  const summary = [`${activeCount} ${pluralizeActive(activeCount)}`];
+
+  if (idleCount > 0) {
+    summary.push(`${idleCount} ${pluralizeIdle(idleCount)}`);
+  }
+
+  const lines = [
+    `За столами й закутками корчми: ${summary.join(", ")}. Підозрілий єгер у кутку біля бочки не рахується, бо відмовився бути числом.`
+  ];
   const people = [...presence.active, ...presence.idle].slice(0, 5);
   const hiddenCount = Math.max(0, presence.total - people.length);
-  const lines = ["За столами:", ...people.map((person) => `• ${presentPresencePerson(person)}`)];
+  lines.push(...people.map((person) => `• ${presentPresencePerson(person)}`));
 
   if (hiddenCount > 0) {
     lines.push(`• і ще ${hiddenCount}`);
   }
 
   return lines;
+}
+
+function isOnlyActiveViewer(
+  presence: PresenceGroup | null | undefined,
+  viewerTelegramUserId?: bigint
+): boolean {
+  return (
+    viewerTelegramUserId !== undefined &&
+    presence?.total === 1 &&
+    presence.active.length === 1 &&
+    presence.idle.length === 0 &&
+    presence.active[0]?.telegramUserId === viewerTelegramUserId
+  );
+}
+
+function pluralizeActive(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+
+  if (lastTwo >= 11 && lastTwo <= 14) {
+    return "активних";
+  }
+
+  if (last === 1) {
+    return "активний";
+  }
+
+  if (last >= 2 && last <= 4) {
+    return "активні";
+  }
+
+  return "активних";
+}
+
+function pluralizeIdle(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+
+  if (lastTwo >= 11 && lastTwo <= 14) {
+    return "притихлих";
+  }
+
+  if (last === 1) {
+    return "притихлий";
+  }
+
+  if (last >= 2 && last <= 4) {
+    return "притихлі";
+  }
+
+  return "притихлих";
 }
 
 function presentPresencePerson(person: PresenceGroup["active"][number]): string {

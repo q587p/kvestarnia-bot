@@ -15,15 +15,15 @@ const GENERIC_CLASS_UNAVAILABLE_REASON =
 type ComboTitle = Readonly<Record<Pronoun, string>>;
 
 const fallbackTitles = {
-  he: "Герой місцевого значення",
-  she: "Героїня місцевого значення",
-  they: "Герої місцевого значення"
+  he: "Пригодник місцевого значення",
+  she: "Пригодниця місцевого значення",
+  they: "Пригодники місцевого значення"
 } as const satisfies ComboTitle;
 
 const comboTitles = new Map<string, ComboTitle>([
   [
     comboKey("race.human-ish", "class.warrior"),
-    title("Пересічний Герой", "Пересічна Героїня", "Пересічні Герої")
+    title("Пересічний Пригодник", "Пересічна Пригодниця", "Пересічні Пригодники")
   ],
   [
     comboKey("race.human-ish", "class.bard"),

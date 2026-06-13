@@ -3,7 +3,7 @@ export type PlannedCommand = "guild";
 const plannedCommandMessages = {
   guild: [
     "🛡️ Ґільдії ще сперечаються про статут.",
-    "Поки рада ґільдій шукає кворум, можна подивитись героя: /hero"
+    "Поки рада ґільдій шукає кворум, можна подивитись персонажа: /hero"
   ]
 } satisfies Record<PlannedCommand, [string, string]>;
 

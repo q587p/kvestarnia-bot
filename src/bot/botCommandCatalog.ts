@@ -16,19 +16,19 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "hero",
     icon: "👤",
-    description: "герой і прогрес",
+    description: "персонаж і прогрес",
     includeInMenu: true
   },
   {
     command: "profile",
     icon: "🪪",
-    description: "профіль героя",
+    description: "профіль персонажа",
     includeInMenu: false
   },
   {
     command: "me",
     icon: "🧭",
-    description: "коротко про героя",
+    description: "коротко про персонажа",
     includeInMenu: false
   },
   {
@@ -88,7 +88,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "bag",
     icon: "👜",
-    description: "торба героя",
+    description: "торба пригодника",
     includeInMenu: false
   },
   {
@@ -154,7 +154,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "dev_reset_me",
     icon: "🧪",
-    description: "скинути героя локально",
+    description: "скинути персонажа локально",
     includeInMenu: false,
     devOnly: true
   }

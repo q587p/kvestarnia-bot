@@ -7,7 +7,8 @@ export type TavernResultKeyboardState =
   | "completed"
   | "already-completed"
   | "pending"
-  | "pending-started";
+  | "pending-started"
+  | "audit-break";
 
 export function buildTavernKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
@@ -20,7 +21,10 @@ export function buildTavernKeyboard(): InlineKeyboard {
 }
 
 export function buildKorchmaFrontKeyboard(): InlineKeyboard {
-  return new InlineKeyboard().text("🚪 Зайти в корчму", makePlaceCallbackData("hall"));
+  return new InlineKeyboard()
+    .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
+    .row()
+    .text("📜 Табличка прибулих", makePlaceCallbackData("arrivals"));
 }
 
 export function buildKorchmaHallKeyboard(): InlineKeyboard {
@@ -40,6 +44,13 @@ export function buildBackToKorchmaHallKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
+export function buildKorchmaArrivalBoardKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
+    .row()
+    .text("⬅️ До дверей", makePlaceCallbackData("front"));
+}
+
 export function buildTavernResultKeyboard(
   state: TavernResultKeyboardState
 ): InlineKeyboard {
@@ -50,7 +61,7 @@ export function buildTavernResultKeyboard(
       .text("👥 Учасники", makeTavernCallbackData("participants"));
   }
 
-  if (state === "completed" || state === "already-completed") {
+  if (state === "completed" || state === "already-completed" || state === "audit-break") {
     return new InlineKeyboard()
       .text("👥 Учасники", makeTavernCallbackData("participants"))
       .row()

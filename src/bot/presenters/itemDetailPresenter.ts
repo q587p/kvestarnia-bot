@@ -17,7 +17,7 @@ export function presentItemDetail(
   options: ItemDetailOptions = {}
 ): string {
   if (result.state === "no-character") {
-    return "Спершу створіть героя через /start. Манатки не довіряють порожнім торбам.";
+    return "Спершу створіть пригодника через /start. Манатки не довіряють порожнім торбам.";
   }
 
   if (result.state === "not-owned") {
@@ -98,6 +98,14 @@ export function presentItemValue(item: ItemContent): string {
 function presentItemFlavor(item: ItemContent): string {
   if (item.slot === "weapon") {
     return "<i>Гачок для зброї схвально скрипить. Він давно чекав аргумент із ручкою.</i>";
+  }
+
+  if (item.slot === "armor") {
+    return "<i>Манекен випростав плечі й удав, що це завжди був поважний салон спорядження.</i>";
+  }
+
+  if (item.slot === "accessory") {
+    return "<i>Малий гачок обережно блищить. Так роблять аксесуари, коли хочуть до інвентаря без черги.</i>";
   }
 
   if (item.slot === "junk") {

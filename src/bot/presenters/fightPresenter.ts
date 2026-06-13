@@ -8,6 +8,7 @@ import { escapeHtml } from "./telegramHtml";
 export function presentFightStart(character: CharacterSummary): string {
   return [
     "⚔️ Сутичка з підозрілим монстром",
+    "",
     "Те, що мало бути шаурмою, розкриває зуби. Це Мімік-шаурма, і вечеря щойно стала переговорами.",
     ...presentCharacterFlavor(character, "quest.start", "fight"),
     "",
@@ -18,7 +19,7 @@ export function presentFightStart(character: CharacterSummary): string {
 }
 
 export function presentFightNoCharacter(): string {
-  return "Спершу створіть героя через /start. Мімік-шаурма не бʼється з анонімами: погано для бухгалтерії.";
+  return "Спершу створіть пригодника через /start. Мімік-шаурма не бʼється з анонімами: погано для бухгалтерії.";
 }
 
 export function presentFightAlreadyCompleted(
@@ -35,7 +36,7 @@ export function presentFightAlreadyCompleted(
   if (result.questAvailable) {
     lines.push("", "Якщо шаурму ще не допитували, можна в /quest.");
   } else {
-    lines.push("", "Повертайтесь завтра або перевірте героя: /hero");
+    lines.push("", "Повертайтесь завтра або перевірте персонажа: /hero");
   }
 
   return lines.join("\n");
@@ -51,11 +52,12 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
     ...presentCharacterFlavor(result.character, "quest.outcome", "fight", result.action),
     "",
     `❤️ Ви: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}   🌯 Мімік: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
+    "",
     presentRewardAmount({ ...result.reward, label: "Нагорода" }),
-    ...presentItemGrantLines(result.reward.itemGrants)
+    ...presentItemGrantBlock(result.reward.itemGrants)
   ];
 
-  lines.push("Наступний крок: /hero");
+  lines.push("", "Наступний крок: /hero");
 
   return lines.join("\n");
 }
@@ -81,6 +83,7 @@ function presentOutcome(
   if (result.action === "attack") {
     return [
       "🗡️ Ви вдарили Міміка-шаурму.",
+      "",
       `Він отримав ${result.combat.playerDamage} шкоди й задумався про карʼєру салату.`
     ];
   }
@@ -88,26 +91,30 @@ function presentOutcome(
   if (result.action === "receipt") {
     return [
       "📋 Ви показали чек.",
+      "",
       `Мімік отримав ${result.combat.playerDamage} шкоди від формальної ввічливості.`
     ];
   }
 
   return [
     "🏃 Ви відступили красиво.",
+    "",
     `${escapeHtml(result.character.name)} зберіг обличчя, нерви й підозру до лаваша.`
   ];
 }
 
-function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: number }>): string[] {
+function presentItemGrantBlock(itemGrants: Array<{ name: string; quantity: number }>): string[] {
   if (itemGrants.length === 0) {
     return [];
   }
 
-  return itemGrants.map(
-    (grant) =>
+  return [
+    "",
+    ...itemGrants.map((grant) =>
       presentRewardItemGrant({
         name: escapeHtml(grant.name),
         quantity: grant.quantity
       })
-  );
+    )
+  ];
 }

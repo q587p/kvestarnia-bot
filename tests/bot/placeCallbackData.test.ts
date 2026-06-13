@@ -6,7 +6,15 @@ import {
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
 
 describe("place callback data", () => {
-  it.each(["hall", "quest-table", "barrel", "news-corner", "cellar", "front"] as const)(
+  it.each([
+    "hall",
+    "quest-table",
+    "barrel",
+    "news-corner",
+    "cellar",
+    "front",
+    "arrivals"
+  ] as const)(
     "parses %s place",
     (action) => {
       const data = makePlaceCallbackData(action);

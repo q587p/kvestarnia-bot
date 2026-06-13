@@ -1,7 +1,14 @@
 import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
-export type PlaceCallback = "hall" | "quest-table" | "barrel" | "news-corner" | "cellar" | "front";
+export type PlaceCallback =
+  | "hall"
+  | "quest-table"
+  | "barrel"
+  | "news-corner"
+  | "cellar"
+  | "front"
+  | "arrivals";
 export type PlaceCallbackError = "invalid-version" | "invalid-prefix" | "invalid-action" | "too-long";
 
 const PREFIX = "v1:place";
@@ -11,7 +18,8 @@ const placeCallbacks = new Set<PlaceCallback>([
   "barrel",
   "news-corner",
   "cellar",
-  "front"
+  "front",
+  "arrivals"
 ]);
 
 export function makePlaceCallbackData(action: PlaceCallback): string {

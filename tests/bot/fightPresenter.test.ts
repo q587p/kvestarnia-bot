@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   presentFightAlreadyCompleted,
   presentFightNoCharacter,
@@ -17,7 +17,7 @@ const character: CharacterSummary = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Пересічний Герой",
+  title: "Пересічний Пригодник",
   level: 2,
   xp: 15,
   nextLevelXp: 25,
@@ -50,6 +50,9 @@ describe("fight presenter", () => {
 
     expect(text).toContain("Сутичка з підозрілим монстром");
     expect(text).toContain("Це Мімік-шаурма");
+    expect(text).toContain(
+      "⚔️ Сутичка з підозрілим монстром\n\nТе, що мало бути шаурмою"
+    );
     expect(text).toContain("дуже простий і металевий");
     expect(text).toContain("❤️ Ви: 24/24");
     expect(text).toContain("🌯 Мімік: 14/14");
@@ -87,8 +90,21 @@ describe("fight presenter", () => {
     expect(text).toContain("навіть лаваш зрозумів сюжет");
     expect(text).toContain("❤️ Ви: 19/22");
     expect(text).toContain("🌯 Мімік: 5/14");
-    expect(text).toContain("Нагорода: <b>+9 XP · +3 золота</b>");
+    expect(text).toContain("Нагорода:\n<b>+9 XP\n+3 золота</b>");
     expect(text).toContain("Здобуто: <i>Підозрілий лавашний доказ</i>");
+    expect(text).toContain(
+      [
+        "❤️ Ви: 19/22   🌯 Мімік: 5/14",
+        "",
+        "Нагорода:",
+        "<b>+9 XP",
+        "+3 золота</b>",
+        "",
+        "Здобуто: <i>Підозрілий лавашний доказ</i>",
+        "",
+        "Наступний крок: /hero"
+      ].join("\n")
+    );
     expect(text).not.toContain("×1");
   });
 

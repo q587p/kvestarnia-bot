@@ -70,6 +70,29 @@ export class PrismaPresenceRepository implements PresenceRepository {
     });
   }
 
+  async listKorchmaVisitors(limit: number): Promise<PresenceRecord[]> {
+    return this.list(
+      {
+        lastActionAt: {
+          not: null
+        },
+        OR: [
+          {
+            lastSeenLocationId: {
+              startsWith: "location.korchma."
+            }
+          },
+          {
+            lastSeenLocationId: {
+              in: ["location.tavern", "location.shawarma-table", "location.tavern-cellar"]
+            }
+          }
+        ]
+      },
+      limit
+    );
+  }
+
   async listByLocationSeenSince(locationId: string, since: Date): Promise<PresenceRecord[]> {
     return this.list({
       lastActionAt: {
@@ -100,7 +123,7 @@ export class PrismaPresenceRepository implements PresenceRepository {
     });
   }
 
-  private async list(where: Prisma.UserWhereInput): Promise<PresenceRecord[]> {
+  private async list(where: Prisma.UserWhereInput, take?: number): Promise<PresenceRecord[]> {
     const users = await this.prisma.user.findMany({
       where: {
         ...where,
@@ -116,7 +139,8 @@ export class PrismaPresenceRepository implements PresenceRepository {
         {
           displayName: "asc"
         }
-      ]
+      ],
+      ...(take === undefined ? {} : { take })
     });
 
     return users.map(toPresenceRecord);

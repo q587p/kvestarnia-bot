@@ -7,6 +7,39 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.15] - 12026-06-13 - Starter Gear Sources
+
+### Added
+- Added three starter gear items with stable content ids, Ukrainian names/descriptions, rarity, slot metadata, and display-only gold values: `item.stamp-of-minor-authority`, `item.apron-of-foam-resistance`, and `item.cork-ring-of-serious-business`.
+- `/fight` receipt handling can now grant `item.stamp-of-minor-authority` alongside the formal receipt trophy.
+- The cellar negotiation route can now grant `item.cork-ring-of-serious-business` alongside the mouse diplomacy napkin.
+- The Barrel raid completion can now grant `item.apron-of-foam-resistance` alongside the wet adventurer ticket.
+- Barrel raid results can now include one deterministic rotating junk trophy: `item.barrel-splinter-of-optimism`, `item.foam-cork-of-accounting`, or `item.mirage-foam-sample`.
+- Pending Barrel raids now schedule an in-process Telegram completion notification, so the player can wait without manually polling the button.
+- Tests cover new item ids, value/priceless metadata, no stat/effect fields, deterministic item grants, equipment mapping for reachable weapon/armor/accessory gear, item detail wording, equipment slots, and inventory valuation.
+- Added a front-door `📜 Табличка прибулих` button that shows recent adventurers known to the korchma from existing presence records.
+
+### Changed
+- Item detail flavor now gives armor and accessories their own tiny equipment-preview jokes instead of sharing one generic non-weapon line.
+- The current deterministic starter loop now reaches weapon, armor, and accessory examples without seeded/dev inventory.
+- Barrel raids are now gated by hourly Kyiv-local raid periods that flip on the 23rd minute instead of by one daily claim. New starts pause from 04:00 through 08:00 Kyiv time for korchma accounting.
+- The front-of-korchma screen now lists the main interior destinations and includes a `/tavern` fallback line in case Telegram hides an old inline button.
+- The front-of-korchma screen now points to the arrivals plaque; the full first-arrival log remains future scope until there is a durable event source.
+- Character profile resource line now marks HP and mana with `❤️` and `🔮` icons for faster scanning.
+- Character profile gold now uses `👛` as a wallet marker instead of a generic coin icon.
+- Korchma hall presence now says `поки тільки ви` only when the player is truly the sole active person inside, otherwise it summarizes active and idle adventurers across interior korchma zones.
+- Korchma round results now separate the toast, beer description, and ranger reaction with blank lines for easier Telegram reading.
+- Barrel scene and active raid messages now separate paragraphs; active raids also show one rotating character-aware or universal advice line before the return timer and use a larger class/race-aware pool for the hooded ranger’s action line.
+- Rechecking an active Barrel raid can now rotate the ranger action and raid advice text instead of repeating the same period-seeded flavor until completion.
+- Starting a Barrel raid keeps the first ranger/advice flavor stable for that start; later checks use the current check time to rotate into other relevant lines.
+- Cellar, fight, shawarma, equipment, and active-raid advice messages now add blank lines between narrative beats; reward XP and gold now render as compact separate lines instead of one `XP · gold` line.
+- Adventure and cellar action prompts now bold the adventurer name before `що робимо?`.
+- Character wealth line now uses separate jokes for empty gold, empty inventory value, and truly empty pockets while still showing both numbers.
+- Korchma scene headers now render the adventurer name in bold and the title in italics.
+
+### Not Included Yet
+- Stat effects, HP/mana/combat/XP/gold math changes, random loot tables, shops, selling, trading, crafting, item-to-level exchange, or item instance logic.
+
 ## [0.0.14] - 12026-06-13 - Persistent Equipment Shell
 
 ### Added
@@ -226,7 +259,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `/quest`, `/hunt`, `/inventory`, and `/guild` now return short Ukrainian placeholder responses instead of staying silent.
 - The tavern screen shows the current hero, short event scene, and buttons for the barrel raid, hero summary, and help.
 - `DailyAction` persistence records once-per-day local rewards with a unique character/key/date constraint.
-- The tavern raid grants `+7 XP` and `+5 gold` once per stored UTC date, then returns an already-completed result on repeated taps.
+- The tavern raid grants `+7 XP` and `+5 gold` once per stored reward date, then returns an already-completed result on repeated taps.
 - Tests cover tavern callback parsing, presenter output, no-character handling, idempotent service rewards, and Prisma daily-action uniqueness.
 
 ### Changed

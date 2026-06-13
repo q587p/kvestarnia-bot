@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
@@ -7,6 +7,10 @@ import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackDa
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("scene callback HTML options", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it.each([
     {
       name: "tavern raid",
@@ -144,6 +148,114 @@ describe("scene callback HTML options", () => {
       "📈 Стало краще: <b>+4 HP · +2 мани · +1 Спритності</b>"
     );
   });
+
+  it("sends an HTML barrel raid completion notification after the pending timer ends", async () => {
+    vi.useFakeTimers();
+
+    const calls = await captureApiCalls(
+      makeTavernCallbackData("raid"),
+      servicesWith({
+        tavern: {
+          advanceFridayBarrelRaid: () =>
+            Promise.resolve({
+              state: "pending-started",
+              character,
+              availableAt: new Date("2026-06-13T10:31:00.000Z"),
+              now: new Date("2026-06-13T10:30:00.000Z"),
+              periodId: "2026-06-13T10:23"
+            }),
+          completeFridayBarrelRaid: () =>
+            Promise.resolve({
+              state: "completed",
+              character,
+              reward: {
+                xp: 7,
+                gold: 5,
+                localDate: "2026-06-13T10:23",
+                itemGrants: [
+                  {
+                    itemId: "item.wet-hero-ticket",
+                    name: "Квиток мокрого пригодника",
+                    quantity: 1
+                  }
+                ]
+              },
+              levelChange: noLevelChange
+            })
+        }
+      })
+    );
+
+    expect(calls.find((call) => call.method === "sendMessage")).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    const notification = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("Рейд завершено")
+    );
+
+    expect(notification?.payload.parse_mode).toBe("HTML");
+    expect(String(notification?.payload.text)).toContain("<b>+7 XP\n+5 золота</b>");
+  });
+
+  it("does not send a barrel raid timer notification after manual completion claims the reward", async () => {
+    vi.useFakeTimers();
+
+    let rewardClaimed = false;
+    const tavern: Partial<BotServices["tavern"]> = {
+      advanceFridayBarrelRaid: () =>
+        Promise.resolve({
+          state: "pending-started",
+          character,
+          availableAt: new Date("2026-06-13T10:31:00.000Z"),
+          now: new Date("2026-06-13T10:30:00.000Z"),
+          periodId: "2026-06-13T10:23"
+        }),
+      completeFridayBarrelRaid: () => {
+        if (rewardClaimed) {
+          return Promise.resolve({
+            state: "already-completed",
+            character,
+            reward: {
+              xp: 7,
+              gold: 5,
+              localDate: "2026-06-13T10:23",
+              itemGrants: []
+            },
+            levelChange: noLevelChange
+          });
+        }
+
+        rewardClaimed = true;
+        return Promise.resolve({
+          state: "completed",
+          character,
+          reward: {
+            xp: 7,
+            gold: 5,
+            localDate: "2026-06-13T10:23",
+            itemGrants: []
+          },
+          levelChange: noLevelChange
+        });
+      }
+    };
+
+    const calls = await captureApiCalls(
+      makeTavernCallbackData("raid"),
+      servicesWith({
+        tavern
+      })
+    );
+
+    await tavern.completeFridayBarrelRaid?.(42n, "2026-06-13T10:23");
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(rewardClaimed).toBe(true);
+    expect(
+      calls.find((call) => call.method === "sendMessage" && String(call.payload.text).includes("Рейд завершено"))
+    ).toBeUndefined();
+  });
 });
 
 interface ApiCall {
@@ -160,7 +272,7 @@ const character: CharacterSummary = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Пересічні Герої",
+  title: "Пересічні Пригодники",
   level: 1,
   xp: 0,
   nextLevelXp: 10,

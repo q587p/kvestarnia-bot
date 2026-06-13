@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
@@ -13,7 +13,8 @@ import {
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
   PRESENCE_RAID_FRIDAY_BARREL,
-  type MarkPlayerPresenceInput
+  type MarkPlayerPresenceInput,
+  type PresenceGroup
 } from "../../src/services/presenceService";
 
 describe("presence middleware", () => {
@@ -319,6 +320,14 @@ class CapturingPresenceService {
     return Promise.resolve({ state: "no-character" });
   }
 
+  getKorchmaInteriorPresence(): Promise<PresenceGroup> {
+    return Promise.resolve({
+      active: [{ telegramUserId: 42n, name: "Мандрівник", status: "active" }],
+      idle: [],
+      total: 1
+    });
+  }
+
   getCurrentPlaceForTelegramUser(): Promise<{
     state: "ready";
     locationId: string;
@@ -368,7 +377,7 @@ const character: CharacterSummary = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Пересічні Герої",
+  title: "Пересічні Пригодники",
   level: 1,
   xp: 0,
   nextLevelXp: 10,

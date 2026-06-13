@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { parseOnboardingCallbackData } from "../../src/bot/callbacks/onboardingCallbackData";
 import {
   buildClassKeyboard,
@@ -136,10 +136,10 @@ describe("onboarding presenters and keyboards", () => {
       "Межові Заблуканці"
     );
     expect(getComboTitle("race.kharakternyk", "class.mage")).toBe(
-      "Герой місцевого значення"
+      "Пригодник місцевого значення"
     );
     expect(getComboTitle("race.kharakternyk", "class.mage", "she")).toBe(
-      "Героїня місцевого значення"
+      "Пригодниця місцевого значення"
     );
   });
 
@@ -153,7 +153,7 @@ describe("onboarding presenters and keyboards", () => {
       raceName: "Людисько",
       classId: "class.warrior",
       className: "Воїн",
-      title: "Пересічний Герой",
+      title: "Пересічний Пригодник",
       level: 1,
       xp: 0,
       nextLevelXp: 10,
@@ -182,7 +182,7 @@ describe("onboarding presenters and keyboards", () => {
 
     expect(text).toContain("<b>Мандрівник</b>");
     expect(text).toContain("<i>Людисько · Воїн</i>");
-    expect(text).toContain("Титул: <i>Пересічний Герой</i>");
+    expect(text).toContain("Титул: <i>Пересічний Пригодник</i>");
     expect(text).not.toContain("Звертання:");
     expect(text).toContain("\n\nТитул:");
     expect(text).not.toContain("Рівень");
@@ -235,7 +235,7 @@ describe("onboarding presenters and keyboards", () => {
     );
 
     expect(text).toBe(
-      "🎒 Героя створено.\n\nВи отримали титул: <i>Завідувач Чужої Полиці</i>"
+      "🎒 Пригодника створено.\n\nВи отримали титул: <i>Завідувач Чужої Полиці</i>"
     );
     expect(text).not.toContain("Shannar de Kassal");
     expect(text).not.toContain("Домовик");

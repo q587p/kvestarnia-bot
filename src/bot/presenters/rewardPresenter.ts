@@ -7,13 +7,13 @@ export interface RewardAmountInput {
 }
 
 export function presentRewardAmount(input: RewardAmountInput): string {
-  const amount = input.gold <= 0 ? `+${input.xp} XP` : `+${input.xp} XP · +${input.gold} золота`;
+  const amount = input.gold <= 0 ? `+${input.xp} XP` : `+${input.xp} XP\n+${input.gold} золота`;
 
   if (!input.label) {
     return `<b>${amount}</b>`;
   }
 
-  return `${input.label}: <b>${amount}</b>`;
+  return `${input.label}:\n<b>${amount}</b>`;
 }
 
 export function presentRewardItemGrant(input: { name: string; quantity: number }): string {

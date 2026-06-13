@@ -9,7 +9,9 @@ import {
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_UNKNOWN,
   PRESENCE_RAID_FRIDAY_BARREL,
@@ -110,6 +112,66 @@ describe("PresenceService", () => {
       "Нестор Межовий"
     ]);
     expect(adventure.activity.people.total).toBe(1);
+  });
+
+  it("aggregates active and idle people across korchma interior locations only", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL),
+      player(2n, "Дара", minutesAgo(7), PRESENCE_LOCATION_KORCHMA_QUEST_TABLE),
+      player(3n, "Нестор Межовий", minutesAgo(2), PRESENCE_LOCATION_KORCHMA_BARREL),
+      player(4n, "Архіварка", minutesAgo(4), PRESENCE_LOCATION_KORCHMA_NEWS_CORNER),
+      player(5n, "Переддверний Свідок", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_FRONT),
+      player(6n, "Забутий плащ", minutesAgo(20), PRESENCE_LOCATION_KORCHMA_CELLAR)
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    const presence = await service.getKorchmaInteriorPresence();
+
+    expect(presence.active.map((person) => person.name)).toEqual([
+      "587",
+      "Архіварка",
+      "Нестор Межовий"
+    ]);
+    expect(presence.idle.map((person) => person.name)).toEqual(["Дара"]);
+    expect(presence.total).toBe(4);
+    expect([...presence.active, ...presence.idle].map((person) => person.name)).not.toContain(
+      "Переддверний Свідок"
+    );
+    expect([...presence.active, ...presence.idle].map((person) => person.name)).not.toContain(
+      "Забутий плащ"
+    );
+  });
+
+  it("builds the front-door arrival board from known korchma visitors", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_FRONT, {
+        characterLevel: 3
+      }),
+      player(2n, "Дара", minutesAgo(80), PRESENCE_LOCATION_KORCHMA_HALL, {
+        characterLevel: 2
+      }),
+      player(3n, "Сторонній свідок", minutesAgo(2), "location.elsewhere", {
+        characterLevel: 1
+      })
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    const board = await service.getKorchmaArrivalBoard();
+
+    expect(board.entries).toEqual([
+      {
+        telegramUserId: 1n,
+        name: "587",
+        level: 3,
+        locationName: "Перед корчмою"
+      },
+      {
+        telegramUserId: 2n,
+        name: "Дара",
+        level: 2,
+        locationName: "Зала корчми"
+      }
+    ]);
   });
 
   it("groups public web presence by visible locations without player names by default", async () => {
@@ -272,6 +334,19 @@ class FakePresenceRepository implements PresenceRepository {
     return Promise.resolve(this.filter((record) => isRecent(record, since)));
   }
 
+  listKorchmaVisitors(limit: number): Promise<PresenceRecord[]> {
+    return Promise.resolve(
+      this.filter((record) => isKorchmaLocation(record.lastSeenLocationId))
+        .sort((left, right) => {
+          const rightTime = right.lastActionAt?.getTime() ?? 0;
+          const leftTime = left.lastActionAt?.getTime() ?? 0;
+
+          return rightTime - leftTime;
+        })
+        .slice(0, limit)
+    );
+  }
+
   listByLocationSeenSince(locationId: string, since: Date): Promise<PresenceRecord[]> {
     return Promise.resolve(
       this.filter((record) => isRecent(record, since) && record.lastSeenLocationId === locationId)
@@ -304,4 +379,13 @@ class FakePresenceRepository implements PresenceRepository {
 
 function isRecent(record: PresenceRecord, since: Date): boolean {
   return Boolean(record.lastActionAt && record.lastActionAt >= since);
+}
+
+function isKorchmaLocation(locationId: string | null | undefined): boolean {
+  return (
+    locationId?.startsWith("location.korchma.") === true ||
+    locationId === "location.tavern" ||
+    locationId === "location.shawarma-table" ||
+    locationId === "location.tavern-cellar"
+  );
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   presentRestartCancelled,
   presentRestartDeleted,
@@ -10,7 +10,7 @@ describe("restart presenter", () => {
   it("asks for confirmation before deleting a character", () => {
     const text = presentRestartPrompt();
 
-    expect(text).toContain("Почати героя з початку");
+    expect(text).toContain("Почати персонажа з початку");
     expect(text).toContain("видалить");
     expect(text).toContain("/start");
   });

@@ -21,12 +21,12 @@ export function presentCellarStart(
     npcQuote("Миша", selectCellarStartMouseQuote(result.character)),
     ...presentCharacterFlavor(result.character, "quest.start", "cellar"),
     "",
-    `${escapeHtml(result.character.name)}, що робимо?`
+    `<b>${escapeHtml(result.character.name)}</b>, що робимо?`
   ].join("\n");
 }
 
 export function presentCellarNoCharacter(): string {
-  return "Спершу створіть героя через /start. Підвал не видає доручень тіням без анкети.";
+  return "Спершу створіть пригодника через /start. Підвал не видає доручень тіням без анкети.";
 }
 
 export function presentCellarCooldown(
@@ -80,10 +80,10 @@ function presentCharacterFlavor(
 
 function presentCellarOutcome(action: CellarErrandAction, character: CharacterSummary): string[] {
   const variant = selectCellarOutcomeVariant(action, character);
-  const lines = [variant.title, variant.description];
+  const lines = [variant.title, "", variant.description];
 
   if (variant.quote) {
-    lines.push(npcQuote("Миша", variant.quote));
+    lines.push("", npcQuote("Миша", variant.quote));
   }
 
   return lines;
@@ -164,7 +164,7 @@ const cellarContextualMouseQuoteGroups: readonly CellarMouseQuoteGroup[] = [
     raceIds: ["race.drantohor"],
     classIds: ["class.kharakternyk"],
     quotes: [
-      "Остромаг і характерництво? Підвал просив героя, а отримав міжвідомчу легенду."
+      "Остромаг і характерництво? Підвал просив пригодника, а отримав міжвідомчу легенду."
     ]
   },
   {
@@ -268,19 +268,19 @@ const cellarContextualMouseQuoteGroups: readonly CellarMouseQuoteGroup[] = [
   {
     pronouns: ["he"],
     quotes: [
-      "Він прийшов? Добре. У протоколі буде «герой упевнено дивився на люк, люк не злякався»."
+      "Він прийшов? Добре. У протоколі буде «пригодник упевнено дивився на люк, люк не злякався»."
     ]
   },
   {
     pronouns: ["she"],
     quotes: [
-      "Вона прийшла? Чудово. Підвал любить героїнь із поглядом «я зараз наведу лад, але смішно»."
+      "Вона прийшла? Чудово. Підвал любить пригодниць із поглядом «я зараз наведу лад, але смішно»."
     ]
   },
   {
     pronouns: ["they"],
     quotes: [
-      "Вони прийшли? Прекрасно. Одним героєм більше, однією анкетою менше, сир нервує."
+      "Вони прийшли? Прекрасно. Одним пригодником більше, однією анкетою менше, сир нервує."
     ]
   }
 ] as const;
@@ -324,7 +324,7 @@ const cellarOutcomeVariants: Record<CellarErrandAction, readonly CellarOutcomeVa
     {
       title: "🤝 Переговори завершено.",
       description: "Миша погодилась не гризти квестові дошки до наступного інциденту.",
-      quote: "Пишіть: автономія за шафою, сир за графіком, герой без різких жестів."
+      quote: "Пишіть: автономія за шафою, сир за графіком, пригодник без різких жестів."
     },
     {
       title: "🤝 Дипломатія пролізла під бочку.",
@@ -399,7 +399,7 @@ const contextualCellarOutcomeGroups: readonly CellarContextualOutcomeGroup[] = [
       },
       {
         title: "🧀 Сир зник до того, як пастка зрозуміла свою роль.",
-        description: "Миша підозрює всіх, включно з героєм, автором квесту й самим сиром.",
+        description: "Миша підозрює всіх, включно з пригодником, автором квесту й самим сиром.",
         quote: "Якщо доказ смачний, він перестає бути доказом."
       }
     ]
@@ -469,7 +469,7 @@ const contextualCellarOutcomeGroups: readonly CellarContextualOutcomeGroup[] = [
     pronouns: ["she"],
     variants: [
       {
-        title: "🧹 Героїня навела лад без зайвої церемонії.",
+        title: "🧹 Пригодниця навела лад без зайвої церемонії.",
         description: "Миша зробила вигляд, що саме так і планувала, але швидко прибрала хвіст із проходу.",
         quote: "Я не поступилась. Я стратегічно перемістилась у чистіше місце."
       }
@@ -480,7 +480,7 @@ const contextualCellarOutcomeGroups: readonly CellarContextualOutcomeGroup[] = [
     pronouns: ["he"],
     variants: [
       {
-        title: "🤝 Герой спробував говорити офіційно.",
+        title: "🤝 Пригодник спробував говорити офіційно.",
         description: "Миша вислухала, виправила інтонацію й дозволила називати це перемовинами.",
         quote: "Він старається. Запишемо це як помʼякшувальну обставину."
       }
@@ -491,7 +491,7 @@ const contextualCellarOutcomeGroups: readonly CellarContextualOutcomeGroup[] = [
     pronouns: ["they"],
     variants: [
       {
-        title: "🧀 Герої розставили пастку з колективною відповідальністю.",
+        title: "🧀 Пригодники розставили пастку з колективною відповідальністю.",
         description: "Миша оцінила командний підхід і звинуватила всіх одразу, щоб не дробити протокол.",
         quote: "Вони принесли сир. Вони ж і відповідатимуть за його зникнення."
       }

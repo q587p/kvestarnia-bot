@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   buildAdventureParticipantsKeyboard,
   buildAdventureKeyboard,
@@ -23,6 +23,7 @@ import {
 } from "../../src/bot/keyboards/mainMenuKeyboard";
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
 import {
+  buildKorchmaArrivalBoardKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
   buildKorchmaRoundOfferKeyboard,
@@ -47,7 +48,18 @@ describe("main menu and scene keyboards", () => {
   });
 
   it("builds korchma place navigation", () => {
-    expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard())).toEqual(["🚪 Зайти в корчму"]);
+    expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard())).toEqual([
+      "🚪 Зайти в корчму",
+      "📜 Табличка прибулих"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaFrontKeyboard())).toEqual([
+      "v1:place:hall",
+      "v1:place:arrivals"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaArrivalBoardKeyboard())).toEqual([
+      "🚪 Зайти в корчму",
+      "⬅️ До дверей"
+    ]);
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard())).toEqual([
       "📋 Стіл зі справами",
       "🛢️ Бочка",
@@ -91,7 +103,7 @@ describe("main menu and scene keyboards", () => {
   it("uses icons for destructive confirmation keyboards", () => {
     expect(flatInlineButtonTexts(buildRestartKeyboard())).toEqual([
       "🔄 Так, почати з початку",
-      "⬅️ Ні, лишити героя"
+      "⬅️ Ні, лишити персонажа"
     ]);
     expect(flatInlineButtonTexts(buildDevResetKeyboard())).toEqual([
       "✅ Так, скинути",
@@ -202,7 +214,7 @@ describe("main menu and scene keyboards", () => {
               quantity: 1,
               content: {
                 id: "item.wet-hero-ticket",
-                name: "Квиток мокрого героя",
+                name: "Квиток мокрого пригодника",
                 description: "Трофей.",
                 rarity: "common",
                 slot: "junk",
@@ -212,7 +224,7 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["🧥 Спорядження", "🔎 Квиток мокрого героя"]);
+    ).toEqual(["🛡️ Спорядження", "🔎 Квиток мокрого пригодника"]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard({
@@ -225,7 +237,7 @@ describe("main menu and scene keyboards", () => {
               quantity: 1,
               content: {
                 id: "item.wet-hero-ticket",
-                name: "Квиток мокрого героя",
+                name: "Квиток мокрого пригодника",
                 description: "Трофей.",
                 rarity: "common",
                 slot: "junk",
@@ -238,7 +250,7 @@ describe("main menu and scene keyboards", () => {
     ).toEqual(["v1:equip:view", "v1:item:detail:item.wet-hero-ticket"]);
     expect(flatInlineButtonTexts(buildItemDetailKeyboard({ state: "not-owned" }))).toEqual([
       "⬅️ До манаток",
-      "🧥 Спорядження"
+      "🛡️ Спорядження"
     ]);
     expect(flatInlineButtonTexts(buildItemDetailKeyboard({ state: "no-character" }))).toEqual([]);
     expect(
@@ -260,7 +272,7 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["🧥 Екіпірувати", "⬅️ До манаток", "🧥 Спорядження"]);
+    ).toEqual(["🧥 Екіпірувати", "⬅️ До манаток", "🛡️ Спорядження"]);
     expect(
       flatInlineButtonTexts(
         buildItemDetailKeyboard(
@@ -283,7 +295,7 @@ describe("main menu and scene keyboards", () => {
           "weapon"
         )
       )
-    ).toEqual(["Зняти", "⬅️ До манаток", "🧥 Спорядження"]);
+    ).toEqual(["Зняти", "⬅️ До манаток", "🛡️ Спорядження"]);
     expect(flatInlineButtonTexts(buildEquipmentKeyboard({ state: "no-character" }))).toEqual([]);
     expect(
       flatInlineButtonTexts(
@@ -307,11 +319,24 @@ describe("main menu and scene keyboards", () => {
             { slot: "head", item: null },
             { slot: "chest", item: null },
             { slot: "legs", item: null },
-            { slot: "accessory", item: null }
+            {
+              slot: "accessory",
+              item: {
+                itemId: "item.cork-ring-of-serious-business",
+                content: {
+                  id: "item.cork-ring-of-serious-business",
+                  name: "Корковий перстень серйозних справ",
+                  description: "Малий гачок обережно блищить.",
+                  rarity: "common",
+                  slot: "accessory",
+                  goldValue: 6
+                }
+              }
+            }
           ]
         })
       )
-    ).toEqual(["Зняти: зброя", "⬅️ До манаток"]);
+    ).toEqual(["Зняти зброю", "Зняти аксесуар", "⬅️ До манаток"]);
   });
 
   it("builds quest hub buttons from available actions", () => {
@@ -354,7 +379,7 @@ const character = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Пересічні Герої",
+  title: "Пересічні Пригодники",
   level: 1,
   xp: 0,
   nextLevelXp: 10,

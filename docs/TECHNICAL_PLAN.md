@@ -209,7 +209,7 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 
 Повторний callback має повертати «вже зараховано», а не дублювати винагороду.
 
-У `0.0.4` таблиця `daily_actions` використовується для двох once-per-date keys:
+У `0.0.4` таблиця `daily_actions` використовується для двох idempotent reward keys:
 - `tavern.friday-barrel-raid`
 - `adventure.mimic-shawarma`
 
@@ -220,6 +220,11 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - `tavern.friday-barrel-raid` → `item.wet-hero-ticket`
 - `adventure.mimic-shawarma` → `item.suspicious-shawarma-wrapper` або `item.receipt-of-formal-suspicion`
 - `combat.mimic-shawarma.probe` → `item.suspicious-shawarma-wrapper` або `item.receipt-of-formal-suspicion`
+
+У `0.0.15` starter gear джерела лишаються тим самим idempotent claim mechanism:
+- `combat.mimic-shawarma.probe` attack → `item.pan-of-persuasion`, receipt → `item.stamp-of-minor-authority`
+- `cellar.mouse-errand` negotiate → `item.cork-ring-of-serious-business`
+- `tavern.friday-barrel-raid` → `item.apron-of-foam-resistance` plus one deterministic rotating barrel junk trophy
 
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 
@@ -233,14 +238,17 @@ Cooldown reward claim має бути transactional:
 
 Redis лишається майбутнім cache/job інструментом, не dependency для `0.0.10`.
 
-Tavern raid timing in `0.0.11`:
-- `v1:tavern:raid` створює lightweight pending action через денний `CharacterCooldown` key з prefix `tavern.friday-barrel-raid.pending` з випадковим завершенням через 5–8 хвилин, а не одразу видає reward.
+Tavern raid timing in `0.0.11`/`0.0.15`:
+- `v1:tavern:raid` створює lightweight pending action через годинний `CharacterCooldown` key з prefix `tavern.friday-barrel-raid.pending` і period id `YYYY-MM-DDTHH:23`, з випадковим завершенням через 5–8 хвилин, а не одразу видає reward. Period id є київським wall-time bucket-ом у `Europe/Kyiv`, а не UTC timestamp-ом.
+- Новий raid period відкривається на 23-й хвилині кожної години за київським часом. З 04:00 до 08:00 за київським часом нові старти повертають audit-break copy про переоблік; уже pending рейди все ще можуть завершитись. Після 08:00 рейд знову доступний у поточному period bucket, а далі лічильник перемикається за звичайним правилом 23-ї хвилини.
 - Поки pending raid активний, handlers для `/quest`, `/adventure`, `/fight`, `/hunt`, `/cellar` і схожих action callback-ів відповідають блокувальним станом без видачі інших нагород.
-- Завершення idempotent: після `available_at <= now` той самий callback завершує daily reward claim; повторний callback показує completed/already-completed без дублювання XP/gold/items.
-- Для MVP це лишається cooldown/action state без background scheduler; для group raids треба перейти на `raids` і `raid_participants`.
+- Завершення idempotent: після `available_at <= now` той самий callback завершує reward claim для period id старту; повторний callback показує completed/already-completed без дублювання XP/gold/items.
+- Bot layer ставить in-process `setTimeout` notification після `pending-started`, а `completeFridayBarrelRaid(telegramUserId, periodId)` лишається джерелом правди для reward claim. Ця нотифікація best-effort: після restart/deploy таймери губляться, а за кількох bot worker-ів локальні timer map-и можуть дублювати повідомлення, якщо deployment не гарантує один worker.
+- Manual fallback шукає pending raid у поточному й останніх 23 годинних period id, щоб завершення не губилося після restart або довгої паузи гравця. Старіші pending рейди потребують cleanup/migration або durable replay, бо поточний fallback не сканує безмежну історію.
+- Для MVP це лишається cooldown/action state без persistent job scheduler; перед горизонтальним scaling або group raids треба перейти на outbox/persistent jobs, `raids` і `raid_participants`.
 
 Рішення й борги для raid timing:
-- Pending-рейд на Бочку має переживати rollover локальної дати й видавати винагороду за локальний день старту. Майбутній hardening pass має явно зберігати або виводити started local date, а не припускати «сьогодні» в момент завершення.
+- Pending-рейд на Бочку має переживати rollover годинного відтинку й видавати винагороду за period id старту. Поточний MVP зберігає period id у полі `daily_actions.local_date`; перед повним activity model це імʼя поля варто переглянути або задокументувати як generic idempotency bucket.
 - Runtime callers мають віддавати перевагу `advanceFridayBarrelRaid`, бо він володіє flow start/pending/complete/already-completed. `completeFridayBarrelRaid` лишати public тільки для compatibility/tests, доки service API не буде прибраний.
 - Поки рейд pending, stale scene callbacks на кшталт `v1:adv:mimic:*`, `v1:fight:mimic:*` і `v1:cellar:*` не мають перезаписувати `last_seen_location_id`, `current_raid_id` або `current_adventure_id` до того, як pending guard їх заблокує. Безпечне гортання може оновлювати last action, але не має замінювати рейдову присутність біля Бочки без явного location transition rule.
 
@@ -296,6 +304,7 @@ Callback data коротка, версіонована.
 - `v1:menu:tavern`
 - `v1:place:hall`
 - `v1:place:front`
+- `v1:place:arrivals`
 - `v1:place:quest-table`
 - `v1:place:barrel`
 - `v1:place:cellar`
@@ -338,6 +347,8 @@ Callback data коротка, версіонована.
 - `v1:equip:wear:{itemId}` або коротший equivalent — future richer equipment mutation after the `0.0.14` shell, if slots, restrictions, or item instances need more data than content ids.
 
 Валідація обов’язкова. Не довіряти даним з callback: `v1:item:detail:{itemId}` має перевірити, що item id валідний, content існує або має fallback, і герой реально володіє цією манаткою перед показом деталей. `v1:equip:item:{itemId}` має додатково перевірити ownership і equippable content metadata; `v1:equip:clear:{slot}` має відхилити невідомий slot.
+
+Regression guard: item/equipment callback parsers мають і надалі явно відхиляти payload-и довші за `TELEGRAM_CALLBACK_DATA_LIMIT`, навіть якщо generated callback-и зараз короткі.
 
 Майбутній UX-борг для `safeEditMessageText`:
 - Перед редагуванням callback-повідомлення перевіряти, що це останнє актуальне повідомлення бота в цьому chat/user flow, або що конкретний екран явно дозволено редагувати старим `message_id`.

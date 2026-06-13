@@ -15,6 +15,7 @@ import {
   enrichRewardItemGrants,
   PAN_OF_PERSUASION_ITEM_ID,
   RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
+  STAMP_OF_MINOR_AUTHORITY_ITEM_ID,
   SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
   type RewardItemGrant
 } from "./itemGrant";
@@ -180,6 +181,10 @@ function buildFightItemGrants(action: FightAction): Array<{ itemId: string; quan
 
   if (action === "receipt") {
     return [
+      {
+        itemId: STAMP_OF_MINOR_AUTHORITY_ITEM_ID,
+        quantity: 1
+      },
       {
         itemId: RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
         quantity: 1

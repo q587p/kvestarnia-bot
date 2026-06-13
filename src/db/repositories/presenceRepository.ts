@@ -24,6 +24,7 @@ export interface PresenceRepository {
   markAction(input: MarkPresenceInput): Promise<void>;
   findByTelegramUserId(telegramUserId: bigint): Promise<PresenceRecord | null>;
   listSeenSince(since: Date): Promise<PresenceRecord[]>;
+  listKorchmaVisitors(limit: number): Promise<PresenceRecord[]>;
   listByLocationSeenSince(locationId: string, since: Date): Promise<PresenceRecord[]>;
   listByRaidSeenSince(currentRaidId: string, since: Date): Promise<PresenceRecord[]>;
   listByAdventureSeenSince(currentAdventureId: string, since: Date): Promise<PresenceRecord[]>;

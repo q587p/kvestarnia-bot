@@ -138,12 +138,31 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const service = new FightService(characters, dailyActions, fixedClock);
 
-    await service.completeMimicShawarma(telegramUserId, "receipt");
+    const first = await service.completeMimicShawarma(telegramUserId, "receipt");
     const repeated = await service.completeMimicShawarma(telegramUserId, "receipt");
 
+    expect(first.state).toBe("completed");
+    if (first.state === "completed") {
+      expect(first.reward.itemGrants).toEqual([
+        {
+          itemId: "item.stamp-of-minor-authority",
+          name: "Печатка дрібної переваги",
+          quantity: 1
+        },
+        {
+          itemId: "item.receipt-of-formal-suspicion",
+          name: "Чек формальної підозри",
+          quantity: 1
+        }
+      ]);
+    }
     expect(repeated.state).toBe("already-completed");
     expect(dailyActions.createCount).toBe(1);
     expect(dailyActions.grantedItems).toEqual([
+      {
+        itemId: "item.stamp-of-minor-authority",
+        quantity: 1
+      },
       {
         itemId: "item.receipt-of-formal-suspicion",
         quantity: 1

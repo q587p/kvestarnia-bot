@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   presentCellarCooldown,
   presentCellarResult,
@@ -48,8 +48,8 @@ describe("cellar presenter", () => {
       }
     });
 
-    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;, що робимо?");
-    expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
+    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
+    expect(text).not.toContain("<b><b>Мандрівник</b></b>, що робимо?");
   });
 
   it("renders completed result with reward and no exact timestamp", () => {
@@ -58,7 +58,17 @@ describe("cellar presenter", () => {
     expect(text).toContain("🧀");
     expect(text).toContain("Миша:");
     expect(text).toContain("<blockquote>");
-    expect(text).toContain("<b>+2 XP · +1 золота</b>");
+    expect(text).toContain(
+      [
+        "Миша оцінила командний підхід і звинуватила всіх одразу, щоб не дробити протокол.",
+        "",
+        "Миша:",
+        "<blockquote>Вони принесли сир. Вони ж і відповідатимуть за його зникнення.</blockquote>",
+        "",
+        "<b>+2 XP",
+        "+1 золота</b>"
+      ].join("\n")
+    );
     expect(text).toContain("Здобуто: <i>Сир процедурного сумніву</i>");
     expect(text).toContain("Підвал знову чекатиме за 3 хвилини.");
     expect(text).not.toContain("за:");
@@ -98,7 +108,7 @@ describe("cellar presenter", () => {
 
     expect(bisynyTrap).toContain("термінологію");
     expect(mageSweep).toContain("прогноз");
-    expect(heroineSweep).toContain("Героїня");
+    expect(heroineSweep).toContain("Пригодниця");
   });
 
   it("renders cooldown without exact timestamp", () => {
@@ -120,7 +130,7 @@ const character = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Пересічні Герої",
+  title: "Пересічні Пригодники",
   level: 1,
   xp: 0,
   nextLevelXp: 10,

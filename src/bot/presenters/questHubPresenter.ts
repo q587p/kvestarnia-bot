@@ -33,7 +33,7 @@ export function presentKorchmaQuestGate(): string {
 }
 
 export function presentQuestHubNoCharacter(): string {
-  return "Спершу створіть героя через /start. Стіл зі справами не видає папери без анкети.";
+  return "Спершу створіть пригодника через /start. Стіл зі справами не видає папери без анкети.";
 }
 
 function presentAdventureRow(

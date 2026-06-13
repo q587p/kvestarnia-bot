@@ -21,6 +21,14 @@ export const PRESENCE_LOCATION_TAVERN = "location.tavern";
 export const PRESENCE_LOCATION_SHAWARMA = "location.shawarma-table";
 export const PRESENCE_LOCATION_TAVERN_CELLAR = "location.tavern-cellar";
 
+const KORCHMA_INTERIOR_LOCATION_IDS = [
+  PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_NEWS_CORNER
+];
+
 export const PRESENCE_RAID_FRIDAY_BARREL = "raid.friday-barrel";
 export const PRESENCE_ADVENTURE_MIMIC_SHAWARMA = "adventure.mimic-shawarma";
 export const PRESENCE_ADVENTURE_MIMIC_FIGHT = "adventure.mimic-shawarma-fight";
@@ -47,6 +55,17 @@ export interface PresenceGroup {
   active: PresencePerson[];
   idle: PresencePerson[];
   total: number;
+}
+
+export interface KorchmaArrivalBoardEntry {
+  telegramUserId: bigint;
+  name: string;
+  level?: number;
+  locationName: string;
+}
+
+export interface KorchmaArrivalBoard {
+  entries: KorchmaArrivalBoardEntry[];
 }
 
 export interface PublicPresenceLocationSnapshot {
@@ -193,6 +212,32 @@ export class PresenceService {
           this.clock()
         )
       }
+    };
+  }
+
+  async getKorchmaInteriorPresence(): Promise<PresenceGroup> {
+    const since = this.getRecentCutoff();
+    const records = await Promise.all(
+      KORCHMA_INTERIOR_LOCATION_IDS.map((locationId) =>
+        this.listByLocationGroupSeenSince(locationId, since)
+      )
+    );
+
+    return groupPeople(records.flat(), this.clock());
+  }
+
+  async getKorchmaArrivalBoard(limit = 10): Promise<KorchmaArrivalBoard> {
+    const records = await this.presence.listKorchmaVisitors(limit);
+
+    return {
+      entries: uniquePresenceRecords(records).map((record) => ({
+        telegramUserId: record.telegramUserId,
+        name: getPresenceName(record),
+        ...(record.characterLevel === null || record.characterLevel === undefined
+          ? {}
+          : { level: record.characterLevel }),
+        locationName: getLocationName(normalizePresenceLocationId(record.lastSeenLocationId))
+      }))
     };
   }
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   presentAdventureAlreadyCompleted,
   presentAdventureNoCharacter,
@@ -17,7 +17,7 @@ const character: CharacterSummary = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Пересічний Герой",
+  title: "Пересічний Пригодник",
   level: 2,
   xp: 15,
   nextLevelXp: 25,
@@ -72,8 +72,8 @@ describe("adventure presenter", () => {
       name: "<b>Мандрівник</b>"
     });
 
-    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;, що робимо?");
-    expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
+    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
+    expect(text).not.toContain("<b><b>Мандрівник</b></b>, що робимо?");
   });
 
   it("prompts /start when no character exists", () => {
@@ -101,15 +101,22 @@ describe("adventure presenter", () => {
 
 
   it("shows rewards for each action", () => {
-    expect(presentAdventureResult(completed("poke", 8, 4))).toContain(
-      "<b>+8 XP · +4 золота</b>"
+    const poke = presentAdventureResult(completed("poke", 8, 4));
+
+    expect(poke).toContain(
+      [
+        "🏆 Шаурму викрито!",
+        "",
+        "Мімік визнав, що був не вечерею, а життєвим уроком.",
+        "",
+        "<b>+8 XP",
+        "+4 золота</b>",
+        "Здобуто: <i>Підозрілий лавашний доказ</i>"
+      ].join("\n")
     );
-    expect(presentAdventureResult(completed("poke", 8, 4))).toContain(
-      "Здобуто: <i>Підозрілий лавашний доказ</i>"
-    );
-    expect(presentAdventureResult(completed("poke", 8, 4))).not.toContain("×1");
+    expect(poke).not.toContain("×1");
     expect(presentAdventureResult(completed("receipt", 6, 6))).toContain(
-      "<b>+6 XP · +6 золота</b>"
+      "<b>+6 XP\n+6 золота</b>"
     );
     expect(presentAdventureResult(completed("flee", 2, 0))).toContain("<b>+2 XP</b>");
     expect(presentAdventureResult(completed("flee", 2, 0))).not.toContain("золота");

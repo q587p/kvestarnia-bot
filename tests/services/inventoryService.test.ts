@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import type {
   CharacterItemRecord,
   InventoryRepository
@@ -44,7 +44,7 @@ describe("InventoryService", () => {
         itemId: "item.wet-hero-ticket",
         quantity: 2,
         content: {
-          name: "Квиток мокрого героя"
+          name: "Квиток мокрого пригодника"
         }
       });
       expect(result.totalGoldValue).toBe(0);
@@ -65,6 +65,11 @@ describe("InventoryService", () => {
         }),
         buildItem({
           id: "character-item-3",
+          itemId: "item.cork-ring-of-serious-business",
+          quantity: 2
+        }),
+        buildItem({
+          id: "character-item-4",
           itemId: "item.wet-hero-ticket",
           quantity: 4
         })
@@ -75,7 +80,7 @@ describe("InventoryService", () => {
 
     expect(result).toMatchObject({
       state: "found",
-      totalGoldValue: 53
+      totalGoldValue: 65
     });
   });
 
@@ -96,7 +101,7 @@ describe("InventoryService", () => {
       item: {
         itemId: "item.wet-hero-ticket",
         content: {
-          name: "Квиток мокрого героя"
+          name: "Квиток мокрого пригодника"
         }
       }
     });

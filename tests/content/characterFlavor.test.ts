@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   characterFlavorLines,
   selectCharacterFlavorLine,
@@ -15,7 +15,7 @@ const baseCharacter: CharacterSummary = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Пересічний Герой",
+  title: "Пересічний Пригодник",
   level: 1,
   xp: 0,
   nextLevelXp: 10,
@@ -74,7 +74,8 @@ describe("character flavor content", () => {
       "korchma.greeting",
       "quest.start",
       "quest.outcome",
-      "raid.prep-hint"
+      "raid.prep-hint",
+      "raid.ranger-action"
     ]);
     const allowedScenes = new Set(["shawarma", "fight", "cellar", "barrel"]);
     const allowedActionsByScene = {
@@ -92,6 +93,10 @@ describe("character flavor content", () => {
       }
 
       if (line.placement === "raid.prep-hint") {
+        expect(line.scene).toBe("barrel");
+      }
+
+      if (line.placement === "raid.ranger-action") {
         expect(line.scene).toBe("barrel");
       }
 
@@ -145,7 +150,7 @@ describe("character flavor content", () => {
       fixed("raid.prep-hint", "barrel")
     );
 
-    expect(line?.id).toBe("barrel.raid-hint.class.warrior");
+    expect(line?.id).toMatch(/^barrel\.raid-hint\.(?:class\.warrior|combo\.)/);
     expect(line?.id).not.toMatch(/fallback/);
   });
 
@@ -169,6 +174,83 @@ describe("character flavor content", () => {
     const second = selectCharacterFlavorLine(baseCharacter, query);
 
     expect(first?.id).toBe(second?.id);
+  });
+
+  it("has broad barrel raid advice for classes, races, combos, and universal fallback", () => {
+    const lines = characterFlavorLines.filter(
+      (line) => line.placement === "raid.prep-hint" && line.scene === "barrel"
+    );
+    const classIds = [
+      "class.warrior",
+      "class.mage",
+      "class.bard",
+      "class.rogue",
+      "class.priest",
+      "class.varenyk-mancer",
+      "class.bureaucramancer",
+      "class.ranger",
+      "class.kharakternyk"
+    ];
+    const raceIds = [
+      "race.human-ish",
+      "race.dwarf",
+      "race.elf",
+      "race.bisyny",
+      "race.drantohor",
+      "race.domovyk",
+      "race.dryland-rusalka",
+      "race.intellectual-orc",
+      "race.molfar-soul"
+    ];
+
+    for (const classId of classIds) {
+      expect(lines.filter((line) => line.selector?.classIds?.includes(classId)).length).toBeGreaterThanOrEqual(5);
+    }
+
+    for (const raceId of raceIds) {
+      expect(lines.filter((line) => line.selector?.raceIds?.includes(raceId)).length).toBeGreaterThanOrEqual(5);
+    }
+
+    expect(lines.filter((line) => !line.selector).length).toBeGreaterThanOrEqual(10);
+    expect(lines.filter((line) => line.selector?.combos?.length).length).toBeGreaterThanOrEqual(42);
+  });
+
+  it("has varied ranger actions for active raids", () => {
+    const lines = characterFlavorLines.filter(
+      (line) => line.placement === "raid.ranger-action" && line.scene === "barrel"
+    );
+    const classIds = [
+      "class.warrior",
+      "class.mage",
+      "class.bard",
+      "class.rogue",
+      "class.priest",
+      "class.varenyk-mancer",
+      "class.bureaucramancer",
+      "class.ranger",
+      "class.kharakternyk"
+    ];
+    const raceIds = [
+      "race.human-ish",
+      "race.dwarf",
+      "race.elf",
+      "race.bisyny",
+      "race.drantohor",
+      "race.domovyk",
+      "race.dryland-rusalka",
+      "race.intellectual-orc",
+      "race.molfar-soul"
+    ];
+
+    expect(lines.filter((line) => !line.selector).length).toBeGreaterThanOrEqual(10);
+
+    for (const classId of classIds) {
+      expect(lines.filter((line) => line.selector?.classIds?.includes(classId)).length).toBeGreaterThanOrEqual(3);
+    }
+
+    for (const raceId of raceIds) {
+      expect(lines.filter((line) => line.selector?.raceIds?.includes(raceId)).length).toBeGreaterThanOrEqual(2);
+    }
   });
 
   it("filters outcome flavor by action", () => {
