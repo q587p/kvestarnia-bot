@@ -69,8 +69,9 @@ export function presentClassSelected(pronoun: Pronoun, raceId: string, classId: 
 
 export function presentCharacterCreated(summary: CharacterSummary, created: boolean): string {
   const title = created ? "🎒 Героя створено." : "🎒 Герой уже чекає.";
+  const titleLine = created ? "Ви отримали титул:" : "Ваш титул:";
 
-  return [title, "", presentCharacterSummary(summary)].join("\n");
+  return [title, "", `${titleLine} <i>${escapeHtml(summary.title)}</i>`].join("\n");
 }
 
 export function presentCharacterSummary(summary: CharacterSummary): string {
