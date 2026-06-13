@@ -40,14 +40,59 @@ describe("health server", () => {
     expect(resolveHealthPort("not-a-port")).toBe(DEFAULT_HEALTH_PORT);
   });
 
-  it.each(["/", "/health"])("responds 200 OK on GET %s", async (path) => {
+  it("keeps /health as the text healthcheck", async () => {
     const baseUrl = await listen();
 
-    const response = await fetch(`${baseUrl}${path}`);
+    const response = await fetch(`${baseUrl}/health`);
 
     await expect(response.text()).resolves.toContain("kvestarnia ok");
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/plain");
+  });
+
+  it("serves the public Kvestarnia home page with latest news and presence links", async () => {
+    const baseUrl = await listen(presenceServiceWith(publicPresenceSnapshot));
+
+    const response = await fetch(`${baseUrl}/`);
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(text).toContain("Квестарня");
+    expect(text).toContain("https://t.me/kvestarnia_bot");
+    expect(text).toContain("/presence");
+    expect(text).toContain("/news");
+    expect(text).toContain("/health");
+    expect(text).toContain("Бочка дивиться на годинник, сайт відчиняє двері");
+    expect(text).toContain("Корчмар урочисто поставив біля Бочки годинник");
+    expect(text).toContain("У грі зараз: 4");
+    expect(text).not.toContain("— Дара");
+    expect(text).not.toContain("— Нестор Межовий");
+  });
+
+  it("serves the public news archive from news.md", async () => {
+    const baseUrl = await listen();
+
+    const response = await fetch(`${baseUrl}/news`);
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(text).toContain("Бочка дивиться на годинник, сайт відчиняє двері");
+    expect(text).toContain("Архів");
+    expect(text).toContain("Манатки знайшли дорогу до пригод");
+    expect(text).toContain("/news?entry=1");
+  });
+
+  it("serves an older selected news entry", async () => {
+    const baseUrl = await listen();
+
+    const response = await fetch(`${baseUrl}/news?entry=1`);
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(text).toContain("Манатки знайшли дорогу до пригод");
+    expect(text).toContain("Новіша");
   });
 
   it("returns 404 for other paths", async () => {

@@ -3,6 +3,14 @@ import type {
   PresenceService,
   PublicPresenceLocationsSnapshot
 } from "../services/presenceService";
+import { readNewsEntries } from "./news";
+import {
+  renderHomePage,
+  renderNewsArchivePage,
+  renderPresencePage
+} from "./publicSite";
+
+export { renderPresencePage } from "./publicSite";
 
 export const DEFAULT_HEALTH_PORT = 10000;
 export const HEALTH_HOST = "0.0.0.0";
@@ -39,113 +47,6 @@ export function handleHealthRequest(
   });
 }
 
-export function renderPresencePage(snapshot: PublicPresenceLocationsSnapshot): string {
-  const locationSections =
-    snapshot.locations.length === 0
-      ? "<p class=\"empty\">Зараз у Квестарні тихо. Навіть журнал обережно перегортає себе сам.</p>"
-      : snapshot.locations.map(renderLocationCard).join("\n");
-
-  return `<!doctype html>
-<html lang="uk">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="60">
-  <title>Жива Квестарня</title>
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: #f6f8f7;
-      --text: #202320;
-      --muted: #66736d;
-      --line: #d8dedb;
-      --active: #15824a;
-      --idle: #9a6a08;
-    }
-
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    main {
-      width: min(760px, calc(100% - 32px));
-      margin: 0 auto;
-      padding: 32px 0 48px;
-    }
-
-    h1 {
-      margin: 0 0 8px;
-      font-size: 2rem;
-      letter-spacing: 0;
-    }
-
-    .subtitle {
-      margin: 0 0 24px;
-      color: var(--muted);
-    }
-
-    .total {
-      margin: 0 0 24px;
-      font-size: 1.15rem;
-      font-weight: 700;
-    }
-
-    .location {
-      border-top: 1px solid var(--line);
-      padding: 20px 0;
-    }
-
-    .location h2 {
-      margin: 0 0 4px;
-      font-size: 1.25rem;
-      letter-spacing: 0;
-    }
-
-    .region,
-    .counts,
-    .empty {
-      color: var(--muted);
-    }
-
-    .counts {
-      margin: 8px 0 12px;
-    }
-
-    .active {
-      color: var(--active);
-      font-weight: 700;
-    }
-
-    .idle {
-      color: var(--idle);
-      font-weight: 700;
-    }
-
-    ul {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    li {
-      padding: 2px 0;
-    }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Жива Квестарня</h1>
-    <p class="subtitle">Хто зараз у грі, без Telegram-стеження й секундоміра над головою.</p>
-    <p class="total">👥 У грі зараз: ${snapshot.total}</p>
-    ${locationSections}
-  </main>
-</body>
-</html>`;
-}
-
 async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -158,8 +59,23 @@ async function handleRequest(
     return;
   }
 
-  if (pathname === "/" || pathname === "/health") {
+  if (pathname === "/health") {
     sendText(response, 200, "kvestarnia ok\n");
+    return;
+  }
+
+  if (pathname === "/") {
+    sendHtml(
+      response,
+      200,
+      renderHomePage(await getPublicPresenceSnapshot(options), readNewsEntries())
+    );
+    return;
+  }
+
+  if (pathname === "/news") {
+    const entries = readNewsEntries();
+    sendHtml(response, 200, renderNewsArchivePage(entries, getSelectedNewsIndex(request.url, entries.length)));
     return;
   }
 
@@ -235,28 +151,28 @@ function sendNotFound(response: ServerResponse): void {
   sendText(response, 404, "not found\n");
 }
 
-function renderLocationCard(
-  location: PublicPresenceLocationsSnapshot["locations"][number]
-): string {
-  const region = location.regionName
-    ? `<div class="region">${escapeHtml(location.regionName)}</div>`
-    : "";
-  const players =
-    location.players.length === 0
-      ? ""
-      : `<ul>${location.players.map((player) => `<li>— ${escapeHtml(player)}</li>`).join("")}</ul>`;
+async function getPublicPresenceSnapshot(
+  options: HealthServerOptions
+): Promise<PublicPresenceLocationsSnapshot> {
+  if (!options.presence) {
+    return {
+      totalActive: 0,
+      totalIdle: 0,
+      total: 0,
+      locations: []
+    };
+  }
 
-  return `<section class="location">
-  <h2>${escapeHtml(location.title)}</h2>
-  ${region}
-  <div class="counts"><span class="active">🟢 ${location.activeCount}</span> активні · <span class="idle">🟡 ${location.idleCount}</span> притихли</div>
-  ${players}
-</section>`;
+  return options.presence.getPublicPresenceLocations();
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+function getSelectedNewsIndex(url: string | undefined, entryCount: number): number {
+  const raw = new URL(url ?? "/", "http://localhost").searchParams.get("entry");
+  const parsed = Number(raw);
+
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed >= entryCount) {
+    return 0;
+  }
+
+  return parsed;
 }
