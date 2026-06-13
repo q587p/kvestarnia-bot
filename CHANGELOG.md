@@ -7,6 +7,22 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.16] - 12026-06-14 - Barrel Raid Reliability Pass
+
+### Changed
+- Barrel raid period ids are now explicitly server-clock korchma buckets in `UTC` that flip exactly on the 23rd minute. The audit break blocks new starts from 04:00 through 08:22:59 by that same clock and opens at 08:23.
+- Player-facing audit-break wording now avoids implying Kyiv-local wall-clock time and leans on relative wait copy.
+- Barrel raid completion notifications now go through a small scheduler helper with one timer per `chatId + telegramUserId + periodId`, while the service reward claim remains the source of truth.
+
+### Fixed
+- Pending raids that started in an older recent period can still complete after a period rollover without claiming the current period.
+- Already completed, still pending, audit-break, and no-character completion attempts no longer send misleading scheduled completion messages.
+- Stale pending rows outside the recent lookup window no longer block starting the current period.
+- Beer round gating is covered as current-period-only: finishing one period does not unlock drinks in the next period until that period's Barrel raid is completed.
+
+### Not Included Yet
+- Durable job replay after bot restart/deploy, Redis/BullMQ, horizontal-worker coordination, group raids, PvP, random loot tables, shops, selling, trading, crafting, item instance logic, equipment stat effects, or reward math changes.
+
 ## [0.0.15] - 12026-06-13 - Starter Gear Sources
 
 ### Added

@@ -194,7 +194,7 @@ describe("scene callback HTML options", () => {
       (call) => call.method === "sendMessage" && String(call.payload.text).includes("Рейд завершено")
     );
 
-    expect(notification?.payload.parse_mode).toBe("HTML");
+    expect(getParseMode(notification?.payload)).toBe("HTML");
     expect(String(notification?.payload.text)).toContain("<b>+7 XP\n+5 золота</b>");
   });
 
@@ -261,6 +261,12 @@ describe("scene callback HTML options", () => {
 interface ApiCall {
   method: string;
   payload: Record<string, unknown>;
+}
+
+function getParseMode(payload: Record<string, unknown> | undefined): unknown {
+  const maybeNested = payload?.other as { parse_mode?: unknown } | undefined;
+
+  return payload?.parse_mode ?? maybeNested?.parse_mode;
 }
 
 const character: CharacterSummary = {

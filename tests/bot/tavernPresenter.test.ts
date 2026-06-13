@@ -197,7 +197,7 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Бочка Пінного Міражу в цьому відтинку вже пережила ваше втручання");
     expect(text).toContain("Єгер у капюшоні все ще сидить у кутку");
-    expect(text).toContain("Лічильник клацне на 23-й хвилині");
+    expect(text).toContain("лічильник клацне на 23-й хвилині");
     expect(text).not.toContain("За столами:");
     expect(text).toContain("/hero");
     expect(text).not.toContain("Дві-три хвилини. Максимум");
@@ -372,14 +372,14 @@ describe("tavern presenter", () => {
     const text = presentTavernRaidAuditBreak({
       state: "audit-break",
       character,
-      now: new Date("2026-06-13T01:30:00.000Z"),
-      nextAvailableAt: new Date("2026-06-13T05:00:00.000Z")
+      now: new Date("2026-06-13T04:30:00.000Z"),
+      nextAvailableAt: new Date("2026-06-13T08:23:00.000Z")
     });
 
     expect(text).toContain("Бочка на переобліку");
-    expect(text).toContain("04:00 до 08:00");
+    expect(text).toContain("серверним корчемним часом");
     expect(text).toContain("корчмар рахує піну");
-    expect(text).toContain("через <b>210 хв.</b>");
+    expect(text).toContain("через <b>233 хв.</b>");
   });
 
   it("keeps level-up out of the raid result message", () => {
