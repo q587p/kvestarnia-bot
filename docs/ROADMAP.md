@@ -38,6 +38,7 @@ Done when:
 
 Current tiny inventory slice:
 - `/inventory`, `/items`, `/bag` show persistent манатки.
+- `0.0.13` adds item detail callbacks, visible item value/priceless metadata, and preview-only `/equipment`, `/gear`, `/equip` without equipped state or stat effects.
 - Tavern/adventure/fight first completions can grant fixed items.
 - Full itemization, equipment effects, random loot tables, crafting, market, and trading remain later Phase 1+ work.
 - Future equipment rules should support level-gated items that can drop before they are wearable, plus rarer race/class/path-specific манатки with future bypass/attunement/respec tricks.

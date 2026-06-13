@@ -49,6 +49,44 @@ describe("InventoryService", () => {
       });
     }
   });
+
+  it("returns owned item details only for rows in the character inventory", async () => {
+    const service = new InventoryService(
+      new FakeInventoryRepository([
+        buildItem({
+          itemId: "item.wet-hero-ticket",
+          quantity: 1
+        })
+      ])
+    );
+
+    await expect(
+      service.getItemForTelegramUser(telegramUserId, "item.wet-hero-ticket")
+    ).resolves.toMatchObject({
+      state: "found",
+      item: {
+        itemId: "item.wet-hero-ticket",
+        content: {
+          name: "Квиток мокрого героя"
+        }
+      }
+    });
+    await expect(
+      service.getItemForTelegramUser(telegramUserId, "item.pan-of-persuasion")
+    ).resolves.toEqual({
+      state: "not-owned"
+    });
+  });
+
+  it("returns no-character for item details without a character", async () => {
+    const service = new InventoryService(new FakeInventoryRepository(null));
+
+    await expect(
+      service.getItemForTelegramUser(telegramUserId, "item.wet-hero-ticket")
+    ).resolves.toEqual({
+      state: "no-character"
+    });
+  });
 });
 
 function buildItem(overrides: Partial<CharacterItemRecord>): CharacterItemRecord {

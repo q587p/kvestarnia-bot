@@ -92,6 +92,24 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     includeInMenu: false
   },
   {
+    command: "equipment",
+    icon: "🧥",
+    description: "спорядження",
+    includeInMenu: false
+  },
+  {
+    command: "gear",
+    icon: "⚙️",
+    description: "гачки спорядження",
+    includeInMenu: false
+  },
+  {
+    command: "equip",
+    icon: "🪝",
+    description: "приміряти манатки",
+    includeInMenu: false
+  },
+  {
     command: "online",
     icon: "👥",
     description: "хто поруч",

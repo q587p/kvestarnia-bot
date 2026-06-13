@@ -11,6 +11,11 @@ import {
 } from "../../src/bot/keyboards/cellarKeyboard";
 import { buildFightKeyboard, buildFightResultKeyboard } from "../../src/bot/keyboards/fightKeyboard";
 import {
+  buildEquipmentKeyboard,
+  buildInventoryKeyboard,
+  buildItemDetailKeyboard
+} from "../../src/bot/keyboards/inventoryKeyboard";
+import {
   buildDevResetKeyboard,
   buildMainMenuKeyboard,
   buildRestartKeyboard,
@@ -181,6 +186,56 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildFightResultKeyboard("already-completed"))).toEqual([
       "⬅️ До столу"
     ]);
+  });
+
+  it("builds inventory and equipment preview navigation", () => {
+    expect(
+      flatInlineButtonTexts(
+        buildInventoryKeyboard({
+          state: "found",
+          items: [
+            {
+              id: "character-item-1",
+              itemId: "item.wet-hero-ticket",
+              quantity: 1,
+              content: {
+                id: "item.wet-hero-ticket",
+                name: "Квиток мокрого героя",
+                description: "Трофей.",
+                rarity: "common",
+                slot: "junk"
+              }
+            }
+          ]
+        })
+      )
+    ).toEqual(["🧥 Спорядження", "🔎 Квиток мокрого героя"]);
+    expect(
+      flatInlineButtonCallbacks(
+        buildInventoryKeyboard({
+          state: "found",
+          items: [
+            {
+              id: "character-item-1",
+              itemId: "item.wet-hero-ticket",
+              quantity: 1,
+              content: {
+                id: "item.wet-hero-ticket",
+                name: "Квиток мокрого героя",
+                description: "Трофей.",
+                rarity: "common",
+                slot: "junk"
+              }
+            }
+          ]
+        })
+      )
+    ).toEqual(["v1:equip:view", "v1:item:detail:item.wet-hero-ticket"]);
+    expect(flatInlineButtonTexts(buildItemDetailKeyboard())).toEqual([
+      "⬅️ До манаток",
+      "🧥 Спорядження"
+    ]);
+    expect(flatInlineButtonTexts(buildEquipmentKeyboard())).toEqual(["⬅️ До манаток"]);
   });
 
   it("builds quest hub buttons from available actions", () => {

@@ -50,7 +50,26 @@ export const itemSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   rarity: itemRaritySchema,
-  slot: z.enum(["weapon", "armor", "accessory", "consumable", "cosmetic", "junk"])
+  slot: z.enum(["weapon", "armor", "accessory", "consumable", "cosmetic", "junk"]),
+  goldValue: z.number().int().min(0).optional(),
+  priceless: z.boolean().optional()
+}).superRefine((item, ctx) => {
+  const hasGoldValue = item.goldValue !== undefined;
+  const isPriceless = item.priceless === true;
+
+  if (hasGoldValue && isPriceless) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Item cannot have both goldValue and priceless."
+    });
+  }
+
+  if (!hasGoldValue && !isPriceless) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Item must have goldValue or priceless."
+    });
+  }
 });
 
 export type RaceContent = z.infer<typeof raceSchema>;

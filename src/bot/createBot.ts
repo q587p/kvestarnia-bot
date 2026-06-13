@@ -26,6 +26,11 @@ import { parseAdventureCallbackData, type AdventureCallback } from "./callbacks/
 import { parseCellarCallbackData, type CellarCallback } from "./callbacks/cellarCallbackData";
 import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
 import { parseFightCallbackData } from "./callbacks/fightCallbackData";
+import {
+  parseEquipmentCallbackData,
+  parseItemCallbackData,
+  type ItemCallback
+} from "./callbacks/itemCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
 import { parsePlaceCallbackData, type PlaceCallback } from "./callbacks/placeCallbackData";
@@ -42,6 +47,7 @@ import {
   sendCellarErrandRouted
 } from "./commands/cellarCommand";
 import { registerDevResetCommand } from "./commands/devResetCommand";
+import { registerEquipmentCommand, sendEquipment } from "./commands/equipmentCommand";
 import { registerFightCommand, sendFight } from "./commands/fightCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
 import { registerHeroCommand, sendHero } from "./commands/heroCommand";
@@ -70,6 +76,7 @@ import {
   buildCellarResultKeyboard
 } from "./keyboards/cellarKeyboard";
 import { buildFightResultKeyboard } from "./keyboards/fightKeyboard";
+import { buildItemDetailKeyboard } from "./keyboards/inventoryKeyboard";
 import {
   buildClassKeyboard,
   buildConfirmationKeyboard,
@@ -94,6 +101,7 @@ import {
 } from "./presenters/devResetPresenter";
 import { presentFightNoCharacter, presentFightResult } from "./presenters/fightPresenter";
 import { presentHelp } from "./presenters/helpPresenter";
+import { presentItemDetail } from "./presenters/itemDetailPresenter";
 import { presentLevelUpCelebration } from "./presenters/levelGrowthPresenter";
 import {
   presentCharacterCreated,
@@ -168,6 +176,7 @@ export function createBot(token: string, services: BotServices): Bot {
   registerStartCommand(bot, services.onboarding);
   registerHeroCommand(bot, services.hero);
   registerInventoryCommand(bot, services.inventory);
+  registerEquipmentCommand(bot, services.inventory);
   registerOnlineCommand(bot, services.presence);
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset);
@@ -199,6 +208,29 @@ export function createBot(token: string, services: BotServices): Bot {
     }
 
     await handleMenuCallback(ctx, parsed.value, services);
+  });
+
+  bot.callbackQuery(/^v1:equip:/, async (ctx) => {
+    const parsed = parseEquipmentCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await sendEquipment(ctx, services.inventory, "edit");
+  });
+
+  bot.callbackQuery(/^v1:item:/, async (ctx) => {
+    const parsed = parseItemCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleItemCallback(ctx, parsed.value, services.inventory);
   });
 
   bot.callbackQuery(/^v1:news:/, async (ctx) => {
@@ -387,6 +419,10 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
     return {};
   }
 
+  if (data.startsWith("v1:item:") || data.startsWith("v1:equip:")) {
+    return {};
+  }
+
   if (data.startsWith("v1:onb:")) {
     return {
       locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
@@ -509,6 +545,9 @@ function getCommandPresenceContext(command: string): PresenceContext | null {
     command === "inventory" ||
     command === "items" ||
     command === "bag" ||
+    command === "equipment" ||
+    command === "gear" ||
+    command === "equip" ||
     command === "guild" ||
     command === "online" ||
     command === "look" ||
@@ -696,6 +735,33 @@ async function handleMenuCallback(
   }
 
   await sendTavern(ctx, services.tavern, services.presence, "edit");
+}
+
+async function handleItemCallback(
+  ctx: Context,
+  action: ItemCallback,
+  inventoryService: InventoryService
+): Promise<void> {
+  if (action.type === "inventory") {
+    await safeAnswerCallbackQuery(ctx);
+    await sendInventory(ctx, inventoryService, "edit");
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  const result = await inventoryService.getItemForTelegramUser(telegramUserId, action.itemId);
+
+  await safeAnswerCallbackQuery(ctx);
+  await safeEditMessageText(ctx, presentItemDetail(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildItemDetailKeyboard()
+  });
 }
 
 async function handlePlaceCallback(
