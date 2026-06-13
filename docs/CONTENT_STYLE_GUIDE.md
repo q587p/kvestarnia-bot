@@ -76,6 +76,8 @@
 ### Новини без спойлерів
 `news.md` має бути player-facing і скріншотний: продавати настрій, а не розкривати точні таймери, приховані діапазони, punchline-и сцен або точні репліки, які краще побачити в грі.
 
+Не виносити в `news.md` службовий технічний backlog або platform roadmap: persistent scheduler після restart/deploy, Redis/BullMQ, horizontal scaling, Mini App UI, internal deploy/healthcheck edge cases, job replay, migrations, schema debt і подібні пункти. Якщо треба зафіксувати борг, писати його в `CHANGELOG.md`, `docs/TECHNICAL_PLAN.md`, `docs/ROADMAP.md` або PR body. У новинах можна коротко назвати лише гравецьки видиму межу: що вже можна зробити в грі, а що ще не відчинено як пригода.
+
 Це саме правило діє для hub-ів, help-текстів, меню й preview-рядків: не називати прихованого монстра, розвʼязку сцени або жарт до того, як гравець зайшов у саму дію.
 
 Добре:
@@ -86,6 +88,7 @@
 - «Рейд триває точний прихований діапазон часу, а корчмар каже конкретний жарт.»
 - «У сцені NPC дослівно скаже фінальну репліку.»
 - «У hub-рядку написано, що підозрілий монстр насправді мімік-шаурма.»
+- «Ще немає persistent scheduler після restart/deploy, Redis/BullMQ і Mini App UI.»
 
 Точні механічні деталі, таймери й edge cases тримати в `CHANGELOG.md`, `docs/GAME_DESIGN.md` або `docs/TECHNICAL_PLAN.md`; у новинах лишати відчуття й причину повернутися в гру.
 

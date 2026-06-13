@@ -157,6 +157,8 @@ PR має містити:
 - Balance notes, якщо змінені формули.
 - Release notes тільки для release-oriented змін.
 
+Для release notes розділяти аудиторії: `CHANGELOG.md` може містити технічні борги й edge cases, а `news.md` має лишатися гравецькою новиною. Не виносити в `news.md` persistent scheduler/restart/deploy debt, Redis/BullMQ, Mini App UI, migrations, scaling або подібний platform backlog.
+
 ## Поточна послідовність маленьких PR
 
 Після routing/presence зрізів найменший корисний gameplay-крок: дуже малий equipment preview без stat effects або перший вузький крок до групового рейду без persistent combat, Redis чи повного activity-service refactor.
