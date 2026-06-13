@@ -348,6 +348,29 @@ describe("tavern presenter", () => {
     expect(fineRound).toContain("Мандрівник — 2 частування · 110 золота");
   });
 
+  it("separates korchma round toast, action, and ranger reaction with blank lines", () => {
+    const text = presentTavernRoundResult({
+      state: "simple-round",
+      character,
+      spentGold: 10,
+      remainingGold: 2,
+      leaderboard: emptyRoundLeaderboard,
+      becameLeader: []
+    });
+
+    expect(text).toContain(
+      [
+        "🍻 Всім простого пива!",
+        "",
+        "Корчмар виставив просте пиво. Воно просте тільки за ціною; характер у нього складний.",
+        "",
+        "Єгер у кутку мовчки піднімає кухоль. Підозріло, але ввічливо.",
+        "",
+        "Списано: <b>10 золота</b>"
+      ].join("\n")
+    );
+  });
+
   it("escapes leaderboard names in tavern round results", () => {
     const text = presentTavernRoundResult({
       state: "simple-round",

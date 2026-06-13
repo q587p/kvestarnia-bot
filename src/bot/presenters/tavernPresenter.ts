@@ -229,7 +229,9 @@ export function presentTavernRoundResult(
 
   return [
     result.state === "fine-round" ? "🍻 Всім якісного пива!" : "🍻 Всім простого пива!",
+    "",
     quality,
+    "",
     rangerReaction,
     "",
     `Списано: <b>${result.spentGold} золота</b>`,

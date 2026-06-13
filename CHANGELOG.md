@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The front-of-korchma screen now lists the main interior destinations and includes a `/tavern` fallback line in case Telegram hides an old inline button.
 - Hero profile resource line now marks HP and mana with `❤️` and `🔮` icons for faster scanning.
 - Korchma hall presence now says `поки тільки ви` only when the player is truly the sole active person inside, otherwise it summarizes active and idle heroes across interior korchma zones.
+- Korchma round results now separate the toast, beer description, and ranger reaction with blank lines for easier Telegram reading.
 
 ### Not Included Yet
 - Stat effects, HP/mana/combat/XP/gold math changes, random loot tables, shops, selling, trading, crafting, item-to-level exchange, or item instance logic.
