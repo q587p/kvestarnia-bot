@@ -104,6 +104,12 @@ docs/
 - `updated_at`
 - unique (`character_id`, `item_id`)
 
+Future equipment/trading notes:
+- Item content metadata should eventually support `requiredLevel`, allowed `raceId`/`classId` lists, and optional hidden `path`/pronoun selectors for rare restricted манатки.
+- `character_items` stays the ownership/count table. Actual equipment slots, temporary permission effects, cursed exceptions, attunement, respec/form-change state, and trade offers should be separate rows or state machines.
+- Equipping must validate ownership, level, restrictions, and any active bypass in one domain/service path; callbacks should never trust button text or stale presenter state.
+- Player-to-player exchange/gifting needs an idempotent transaction: remove/decrement from sender, create/increment for receiver, write an audit/transfer row, and fail cleanly if the sender no longer owns the item.
+
 ### cooldowns
 - `id` UUID
 - `character_id` FK

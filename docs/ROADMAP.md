@@ -40,6 +40,8 @@ Current tiny inventory slice:
 - `/inventory`, `/items`, `/bag` show persistent манатки.
 - Tavern/adventure/fight first completions can grant fixed items.
 - Full itemization, equipment effects, random loot tables, crafting, market, and trading remain later Phase 1+ work.
+- Future equipment rules should support level-gated items that can drop before they are wearable, plus rarer race/class/path-specific манатки with future bypass/attunement/respec tricks.
+- Future player-to-player exchange should let heroes give unsuitable манатки to others without duplicating items or bypassing anti-abuse checks.
 
 Current repeatable slice:
 - `0.0.10` adds «Підвальна справа» as the first low-stakes repeatable fallback after the daily shawarma quest and fight probe are spent.
@@ -126,6 +128,7 @@ Done when:
 ## Backlog фіч
 - Achievements.
 - Collections: «Бестіарій», «Музей Манаток».
+- Level-gated equipment, race/class/path-specific rare items, and safe player-to-player item exchange.
 - Daily tavern rumor.
 - Korchma social treat: пригостити їжею/питвом присутніх у корчмі після появи location presence list.
 - Player titles.
