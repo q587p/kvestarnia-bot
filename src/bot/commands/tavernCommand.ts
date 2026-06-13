@@ -31,7 +31,7 @@ export function registerTavernCommand(
   });
 
   bot.command("raid", async (ctx) => {
-    await sendTavernBarrel(ctx, tavernRaidService, presenceService, "reply");
+    await sendTavernBarrel(ctx, tavernRaidService, "reply");
   });
 }
 
@@ -86,7 +86,6 @@ export async function sendKorchmaFront(
 export async function sendTavernBarrel(
   ctx: Context,
   tavernRaidService: TavernRaidService,
-  presenceService: PresenceService,
   mode: "reply" | "edit"
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
@@ -103,10 +102,8 @@ export async function sendTavernBarrel(
     return;
   }
 
-  const presence = await getPlacePresence(telegramUserId, presenceService);
-
   if (result.state === "already-completed") {
-    await sendText(ctx, mode, presentTavernAlreadyRaided(result.character, presence), "barrel-result");
+    await sendText(ctx, mode, presentTavernAlreadyRaided(result.character), "barrel-result");
     return;
   }
 
@@ -120,7 +117,7 @@ export async function sendTavernBarrel(
     return;
   }
 
-  await sendText(ctx, mode, presentTavern(result.character, presence), true);
+  await sendText(ctx, mode, presentTavern(result.character), true);
 }
 
 async function getPlacePresence(

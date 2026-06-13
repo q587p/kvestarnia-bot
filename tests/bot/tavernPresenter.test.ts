@@ -14,7 +14,6 @@ import {
 } from "../../src/bot/presenters/tavernPresenter";
 import type { TavernRaidResult } from "../../src/services/tavernRaidService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
-import type { PresenceGroup } from "../../src/services/presenceService";
 
 const character: CharacterSummary = {
   name: "Мандрівник",
@@ -75,18 +74,19 @@ describe("tavern presenter", () => {
       "Корчмар:\n<blockquote>Це не проблема. Дві-три хвилини. Максимум.</blockquote>"
     );
     expect(text).toContain("людисько-єгер у капюшоні");
+    expect(text).toContain("<i>Порада дня:");
     expect(text).toContain("стояти між бочкою");
-    expect(text).toContain("За столами: поки тільки ви й підозрілий єгер у кутку.");
+    expect(text).not.toContain("За столами:");
     expect(text).toContain("Що робимо?");
     expect(text.length).toBeLessThan(720);
   });
 
-  it("shows active tavern presence at the tables", () => {
-    const text = presentTavern(character, tavernPresence);
+  it("keeps barrel screen focused on the barrel instead of table presence", () => {
+    const text = presentTavern(character);
 
-    expect(text).toContain("За столами:");
-    expect(text).toContain("• Дара · рівень 2");
-    expect(text).toContain("• Нестор &lt;Межовий&gt; · рівень 3");
+    expect(text).not.toContain("За столами:");
+    expect(text).not.toContain("Дара");
+    expect(text).not.toContain("Нестор");
     expect(text).toContain("Що робимо?");
   });
 
@@ -100,7 +100,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("Бочка Пінного Міражу сьогодні вже пережила ваш героїзм");
     expect(text).toContain("Єгер у капюшоні все ще сидить у кутку");
     expect(text).toContain("завтра знову");
-    expect(text).toContain("За столами: поки тільки ви й підозрілий єгер у кутку.");
+    expect(text).not.toContain("За столами:");
     expect(text).toContain("/hero");
     expect(text).not.toContain("Дві-три хвилини. Максимум");
     expect(text).not.toContain("Що робимо?");
@@ -336,21 +336,3 @@ const roundLeaderboard = {
   ]
 };
 
-const tavernPresence: PresenceGroup = {
-  active: [
-    {
-      telegramUserId: 1n,
-      name: "Дара",
-      level: 2,
-      status: "active"
-    },
-    {
-      telegramUserId: 2n,
-      name: "Нестор <Межовий>",
-      level: 3,
-      status: "active"
-    }
-  ],
-  idle: [],
-  total: 2
-};

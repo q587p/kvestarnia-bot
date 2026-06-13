@@ -47,7 +47,7 @@ export function presentKorchmaHall(
   ].join("\n");
 }
 
-export function presentTavern(character: CharacterSummary, presence?: PresenceGroup | null): string {
+export function presentTavern(character: CharacterSummary): string {
   return [
     "🛢️ Біля Бочки Пінного Міражу",
     `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
@@ -58,16 +58,11 @@ export function presentTavern(character: CharacterSummary, presence?: PresenceGr
     npcQuote("Корчмар", "Це не проблема. Дві-три хвилини. Максимум."),
     ...presentRaidPrepHint(character),
     "",
-    ...presentTavernPresence(presence),
-    "",
     "Що робимо?"
   ].join("\n");
 }
 
-export function presentTavernAlreadyRaided(
-  character: CharacterSummary,
-  presence?: PresenceGroup | null
-): string {
+export function presentTavernAlreadyRaided(character: CharacterSummary): string {
   return [
     "🛢️ Біля Бочки Пінного Міражу",
     `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
@@ -76,8 +71,6 @@ export function presentTavernAlreadyRaided(
     "Єгер у капюшоні все ще сидить у кутку. Схоже, він підозрював, що цим усе й скінчиться.",
     "",
     npcQuote("Корчмар", "Вона просила передати: завтра знову буде хоробра. Можливо."),
-    "",
-    ...presentTavernPresence(presence),
     "",
     "Поки що можна пригостити всіх пивом або перевірити героя: /hero"
   ].join("\n");
@@ -269,7 +262,7 @@ function presentRaidPrepHint(character: CharacterSummary): string[] {
     scene: "barrel"
   });
 
-  return flavor ? ["", escapeHtml(flavor.text)] : [];
+  return flavor ? ["", `<i>Порада дня: ${escapeHtml(flavor.text)}</i>`] : [];
 }
 
 function presentNewLeaderLines(periods: KorchmaRoundLeaderboardPeriod[]): string[] {

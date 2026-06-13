@@ -755,7 +755,7 @@ async function handlePlaceCallback(
   }
 
   if (action === "barrel") {
-    await sendTavernBarrel(ctx, services.tavern, services.presence, "edit");
+    await sendTavernBarrel(ctx, services.tavern, "edit");
     return;
   }
 
