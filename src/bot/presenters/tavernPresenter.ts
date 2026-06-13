@@ -423,7 +423,7 @@ function presentTavernPresence(
 
   if (!presence || presence.total === 0) {
     return [
-      "За столами: живих героїв не видно. Єгер у кутку біля бочки стверджує, що це теж статистика."
+      "За столами: живих героїв не видно. Підозрілий єгер у кутку біля бочки стверджує, що це теж статистика."
     ];
   }
 
@@ -436,7 +436,7 @@ function presentTavernPresence(
   }
 
   const lines = [
-    `За столами й закутками корчми: ${summary.join(", ")}. Єгер у кутку біля бочки не рахується, бо відмовився бути числом.`
+    `За столами й закутками корчми: ${summary.join(", ")}. Підозрілий єгер у кутку біля бочки не рахується, бо відмовився бути числом.`
   ];
   const people = [...presence.active, ...presence.idle].slice(0, 5);
   const hiddenCount = Math.max(0, presence.total - people.length);

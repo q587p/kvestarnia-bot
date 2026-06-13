@@ -107,7 +107,7 @@ describe("tavern presenter", () => {
     );
 
     expect(text).toContain("За столами й закутками корчми: 2 активні, 1 притихлий.");
-    expect(text).toContain("Єгер у кутку біля бочки не рахується");
+    expect(text).toContain("Підозрілий єгер у кутку біля бочки не рахується");
     expect(text).toContain("Дара · рівень 2");
     expect(text).toContain("Нестор Межовий");
     expect(text).not.toContain("поки тільки ви");
