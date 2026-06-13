@@ -39,3 +39,7 @@ export function buildTavernResultKeyboard(
 
   return buildTavernKeyboard();
 }
+
+export function buildTavernParticipantsKeyboard(): InlineKeyboard {
+  return new InlineKeyboard().text("⬅️ Назад", makePlaceCallbackData("barrel"));
+}

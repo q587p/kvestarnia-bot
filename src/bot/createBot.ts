@@ -61,8 +61,14 @@ import {
 } from "./commands/tavernCommand";
 import { registerVersionCommand } from "./commands/versionCommand";
 import { playerFromContext } from "./context";
-import { buildAdventureResultKeyboard } from "./keyboards/adventureKeyboard";
-import { buildCellarResultKeyboard } from "./keyboards/cellarKeyboard";
+import {
+  buildAdventureParticipantsKeyboard,
+  buildAdventureResultKeyboard
+} from "./keyboards/adventureKeyboard";
+import {
+  buildCellarParticipantsKeyboard,
+  buildCellarResultKeyboard
+} from "./keyboards/cellarKeyboard";
 import { buildFightResultKeyboard } from "./keyboards/fightKeyboard";
 import {
   buildClassKeyboard,
@@ -71,7 +77,10 @@ import {
   buildRaceKeyboard
 } from "./keyboards/onboardingKeyboard";
 import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
-import { buildTavernResultKeyboard } from "./keyboards/tavernKeyboard";
+import {
+  buildTavernParticipantsKeyboard,
+  buildTavernResultKeyboard
+} from "./keyboards/tavernKeyboard";
 import { presentAdventureNoCharacter, presentAdventureResult } from "./presenters/adventurePresenter";
 import { presentCellarNoCharacter, presentCellarResult } from "./presenters/cellarPresenter";
 import {
@@ -838,7 +847,10 @@ async function handleTavernCallback(
     );
 
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentParticipants(snapshot), HTML_MESSAGE_OPTIONS);
+    await safeEditMessageText(ctx, presentParticipants(snapshot), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildTavernParticipantsKeyboard()
+    });
     return;
   }
 
@@ -877,7 +889,10 @@ async function handleAdventureCallback(
     );
 
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentParticipants(snapshot), HTML_MESSAGE_OPTIONS);
+    await safeEditMessageText(ctx, presentParticipants(snapshot), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildAdventureParticipantsKeyboard()
+    });
     return;
   }
 
@@ -916,7 +931,10 @@ async function handleCellarCallback(
     );
 
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentParticipants(snapshot), HTML_MESSAGE_OPTIONS);
+    await safeEditMessageText(ctx, presentParticipants(snapshot), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildCellarParticipantsKeyboard()
+    });
     return;
   }
 

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildAdventureParticipantsKeyboard,
   buildAdventureKeyboard,
   buildAdventureResultKeyboard
 } from "../../src/bot/keyboards/adventureKeyboard";
 import {
   buildCellarKeyboard,
+  buildCellarParticipantsKeyboard,
   buildCellarResultKeyboard
 } from "../../src/bot/keyboards/cellarKeyboard";
 import { buildFightKeyboard, buildFightResultKeyboard } from "../../src/bot/keyboards/fightKeyboard";
@@ -16,6 +18,7 @@ import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard"
 import {
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
+  buildTavernParticipantsKeyboard,
   buildTavernKeyboard,
   buildTavernResultKeyboard
 } from "../../src/bot/keyboards/tavernKeyboard";
@@ -54,6 +57,8 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([
       "👥 Учасники"
     ]);
+    expect(flatInlineButtonTexts(buildTavernParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
+    expect(flatInlineButtonCallbacks(buildTavernParticipantsKeyboard())).toEqual(["v1:place:barrel"]);
   });
 
   it("keeps adventure inline buttons scoped to quest actions and participants", () => {
@@ -70,6 +75,10 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonTexts(buildAdventureResultKeyboard("already-completed"))).toEqual([
       "👥 Учасники"
+    ]);
+    expect(flatInlineButtonTexts(buildAdventureParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
+    expect(flatInlineButtonCallbacks(buildAdventureParticipantsKeyboard())).toEqual([
+      "v1:quest:adventure"
     ]);
   });
 
@@ -89,6 +98,8 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("on-cooldown"))).toEqual([
       "👥 Учасники"
     ]);
+    expect(flatInlineButtonTexts(buildCellarParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
+    expect(flatInlineButtonCallbacks(buildCellarParticipantsKeyboard())).toEqual(["v1:quest:cellar"]);
   });
 
   it("keeps fight inline buttons scoped to fight actions", () => {
@@ -172,6 +183,12 @@ const character = {
 
 function flatInlineButtonTexts(keyboard: { inline_keyboard: { text: string }[][] }): string[] {
   return keyboard.inline_keyboard.flat().map((button) => button.text);
+}
+
+function flatInlineButtonCallbacks(
+  keyboard: { inline_keyboard: { callback_data?: string }[][] }
+): string[] {
+  return keyboard.inline_keyboard.flat().map((button) => button.callback_data ?? "");
 }
 
 function replyKeyboardTexts(keyboard: unknown): string[][] {
