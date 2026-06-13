@@ -60,6 +60,7 @@ export function presentTavern(character: CharacterSummary): string {
     presentCharacterHeader(character),
     "",
     "У кутку героїчно піниться Бочка Пінного Міражу.",
+    "",
     "Поруч із нею сидить людисько-єгер у капюшоні, курить трубку й дивиться на всіх так, ніби вже бачив їхні сліди.",
     "",
     npcQuote("Корчмар", "Це не проблема. Дві-три хвилини. Максимум."),
