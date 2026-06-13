@@ -62,7 +62,7 @@ describe("hero presenter", () => {
     expect(text).toContain("Вдача 6");
     expect(text).not.toContain("Ріст рівня:");
     expect(text).toContain(
-      "\n\n🪙 Золото: <b>12</b> <i>(а в манатках ще 0; торба чесна, аж нудно)</i>\n\nЗараз пригодник тут:"
+      "\n\n👛 Золото: <b>12</b> <i>(а в манатках ще 0; торба чесна, аж нудно)</i>\n\nЗараз пригодник тут:"
     );
     expect(text).toContain("\n\nЗараз пригодник тут: <b>Підвал корчми</b>.");
     expect(text).toContain("<i>Далі: /tavern, /quest або /fight.</i>");
@@ -75,7 +75,7 @@ describe("hero presenter", () => {
   it("shows inventory value next to carried gold", () => {
     const text = presentHero(summary, { inventoryGoldValue: 28 });
 
-    expect(text).toContain("🪙 Золото: <b>12</b>");
+    expect(text).toContain("👛 Золото: <b>12</b>");
     expect(text).toContain("а в манатках ще 28");
     expect(text).toContain("корчмар уже примружився");
   });
@@ -85,11 +85,11 @@ describe("hero presenter", () => {
     const itemRichHero = presentHero({ ...summary, gold: 0 }, { inventoryGoldValue: 28 });
 
     expect(emptyHero).toContain(
-      "🪙 Золото: <b>0</b> <i>(і в манатках ще 0; корчмар поставив риску в графі «надії»)</i>"
+      "👛 Золото: <b>0</b> <i>(і в манатках ще 0; корчмар поставив риску в графі «надії»)</i>"
     );
     expect(emptyHero).not.toContain("корчмар уже примружився");
     expect(itemRichHero).toContain(
-      "🪙 Золото: <b>0</b> <i>(золота 0, зате в манатках ще 28; корчмар примружився на майбутню бухгалтерію)</i>"
+      "👛 Золото: <b>0</b> <i>(золота 0, зате в манатках ще 28; корчмар примружився на майбутню бухгалтерію)</i>"
     );
   });
 

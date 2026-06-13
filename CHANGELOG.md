@@ -26,6 +26,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The front-of-korchma screen now lists the main interior destinations and includes a `/tavern` fallback line in case Telegram hides an old inline button.
 - The front-of-korchma screen now points to the arrivals plaque; the full first-arrival log remains future scope until there is a durable event source.
 - Character profile resource line now marks HP and mana with `❤️` and `🔮` icons for faster scanning.
+- Character profile gold now uses `👛` as a wallet marker instead of a generic coin icon.
 - Korchma hall presence now says `поки тільки ви` only when the player is truly the sole active person inside, otherwise it summarizes active and idle adventurers across interior korchma zones.
 - Korchma round results now separate the toast, beer description, and ranger reaction with blank lines for easier Telegram reading.
 - Barrel scene and active raid messages now separate paragraphs; active raids also show character-aware and universal advice before the return timer and vary the hooded ranger’s action line.
