@@ -31,7 +31,7 @@ describe("help presenter", () => {
     expect(text).toContain("🍺 /tavern, /raid — корчма й рейд на бочку");
     expect(text).toContain("🗺️ /quest — стіл зі справами");
     expect(text).toContain("🌯 /adventure — пригода з шаурмою");
-    expect(text).toContain("⚔️ /fight, /hunt — сутичка з міміком");
+    expect(text).toContain("⚔️ /fight, /hunt — сутичка з монстром");
     expect(text).toContain("🧹 /cellar — підвальна справа");
     expect(text).toContain("🎒 /inventory, /items, /bag — манатки й торба");
     expect(text).toContain("👥 /online — хто поруч");

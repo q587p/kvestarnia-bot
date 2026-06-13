@@ -68,7 +68,8 @@ describe("fight command", () => {
       requireKorchmaInterior: true
     });
 
-    expect(replies[0]?.text).toContain("⚔️ Сутичка з Міміком-шаурмою");
+    expect(replies[0]?.text).toContain("⚔️ Сутичка з підозрілим монстром");
+    expect(replies[0]?.text).toContain("Це Мімік-шаурма");
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,

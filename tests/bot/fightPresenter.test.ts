@@ -48,7 +48,8 @@ describe("fight presenter", () => {
   it("shows a short Ukrainian start scene", () => {
     const text = presentFightStart(character);
 
-    expect(text).toContain("Сутичка з Міміком-шаурмою");
+    expect(text).toContain("Сутичка з підозрілим монстром");
+    expect(text).toContain("Це Мімік-шаурма");
     expect(text).toContain("дуже простий і металевий");
     expect(text).toContain("❤️ Ви: 24/24");
     expect(text).toContain("🌯 Мімік: 14/14");

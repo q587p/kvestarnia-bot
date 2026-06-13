@@ -53,7 +53,8 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).toContain("📋 Стіл зі справами");
     expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — готова до допиту.");
-    expect(replies[0]?.text).toContain("⚔️ Сутичка з Міміком-шаурмою — можна починати.");
+    expect(replies[0]?.text).toContain("⚔️ Сутичка з підозрілим монстром — можна починати.");
+    expect(replies[0]?.text).not.toContain("Мімік-шаурма");
     expect(replies[0]?.text).toContain("🧹 Підвальна справа — миша знову приймає аргументи.");
     expect(replies[0]?.options).toMatchObject({
       reply_markup: {
@@ -101,7 +102,9 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — сьогодні вже дала свідчення.");
-    expect(replies[0]?.text).toContain("⚔️ Сутичка з Міміком-шаурмою — сьогодні вже зараховано.");
+    expect(replies[0]?.text).toContain(
+      "⚔️ Сутичка з підозрілим монстром — сьогодні вже зараховано."
+    );
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };

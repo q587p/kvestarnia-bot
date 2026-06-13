@@ -197,7 +197,7 @@ Alpha scaling рахується як derived effective values від збере
 
 - `/quest`, кнопка `🗺️ Квест` і place callback `📋 Стіл зі справами` відкривають hub, якщо герой уже всередині корчми.
 - Надворі `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не телепортують героя до справ. Вони показують коротке `Квести видають усередині.` і кнопку `🚪 Зайти в корчму`.
-- Hub показує три starter actions: `🌯 Підозріла шаурма`, `⚔️ Сутичка з Міміком-шаурмою`, `🧹 Підвальна справа`.
+- Hub показує три starter actions: `🌯 Підозріла шаурма`, `⚔️ Сутичка з підозрілим монстром`, `🧹 Підвальна справа`.
 - Денна шаурма й fight probe показують ready/spent status. Якщо вони spent, їхні spent action buttons не повторюються.
 - Підвальна справа лишається repeatable fallback і показується навіть на cooldown, щоб гравець бачив, куди повернутися.
 - Відкриття hub позначає героя у `location.korchma.quest_table`; вхід до підвалу позначає `location.korchma.cellar`; вихід до зали очищає stale adventure/raid ids.

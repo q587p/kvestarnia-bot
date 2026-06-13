@@ -8,8 +8,8 @@ import { escapeHtml } from "./telegramHtml";
 
 export function presentFightStart(character: CharacterSummary): string {
   return [
-    "⚔️ Сутичка з Міміком-шаурмою",
-    "Шаурма розкрила зуби. Це вже не вечеря, це переговори.",
+    "⚔️ Сутичка з підозрілим монстром",
+    "Те, що мало бути шаурмою, розкриває зуби. Це Мімік-шаурма, і вечеря щойно стала переговорами.",
     ...presentCharacterFlavor(character, "quest.start", "fight"),
     "",
     `❤️ Ви: ${character.hpCurrent}/${character.hpMax}   🌯 Мімік: ${MIMIC_SHAWARMA_HP}/${MIMIC_SHAWARMA_HP}`,
