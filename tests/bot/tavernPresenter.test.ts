@@ -67,7 +67,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("Біля Бочки Пінного Міражу");
     expect(text).toContain("Бочка Пінного Міражу");
     expect(text).toContain(
-      "Корчмар:\n<blockquote>Це не проблема. Це рейд на 1-3 хвилини.</blockquote>"
+      "Корчмар:\n<blockquote>Це не проблема. Дві-три хвилини. Максимум.</blockquote>"
     );
     expect(text).toContain("За столами: поки тільки ви й підозрілий стілець.");
     expect(text).toContain("Що робимо?");
@@ -94,7 +94,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("завтра знову");
     expect(text).toContain("За столами: поки тільки ви й підозрілий стілець.");
     expect(text).toContain("/hero");
-    expect(text).not.toContain("Це рейд на 1-3 хвилини");
+    expect(text).not.toContain("Дві-три хвилини. Максимум");
     expect(text).not.toContain("Що робимо?");
   });
 
@@ -143,13 +143,13 @@ describe("tavern presenter", () => {
     const pending: Exclude<TavernRaidResult, { state: "no-character" }> = {
       state: "pending-started",
       character,
-      availableAt: new Date("2026-06-13T10:33:00.000Z"),
+      availableAt: new Date("2026-06-13T10:38:00.000Z"),
       now: new Date("2026-06-13T10:30:00.000Z")
     };
     const text = presentTavernRaidPending(pending);
 
     expect(text).toContain("Рейд почався");
-    expect(text).toContain("Поверніться за: <b>3 хв.</b>");
+    expect(text).toContain("Поверніться за: <b>8 хв.</b>");
     expect(text).toContain("не видаю нових пригод");
     expect(text).not.toContain("+7 XP");
   });

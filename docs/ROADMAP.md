@@ -46,7 +46,7 @@ Current repeatable slice:
 - Cooldown lives in SQLite `character_cooldowns`, not Redis.
 - `0.0.11` adds a compact `Стіл зі справами` quest hub for `/quest`, `🗺️ Квест`, daily shawarma, fight probe, and cellar fallback.
 - `/cellar` exists only as a secondary fallback command; more repeatable activities and a full activity refactor remain later work.
-- Корчемний рейд у `0.0.11` отримав pending state на випадкові 1–3 хвилини: герой «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
+- Корчемний рейд у `0.0.11` отримав pending state на випадкові 5–8 хвилин: герой «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
 
 ## Phase 2 — Group hook
 Мета: перша фіча, заради якої бот додають у групу.

@@ -50,7 +50,7 @@ export function presentTavern(character: CharacterSummary, presence?: PresenceGr
     "",
     "У кутку героїчно піниться Бочка Пінного Міражу.",
     "",
-    npcQuote("Корчмар", "Це не проблема. Це рейд на 1-3 хвилини."),
+    npcQuote("Корчмар", "Це не проблема. Дві-три хвилини. Максимум."),
     "",
     ...presentTavernPresence(presence),
     "",

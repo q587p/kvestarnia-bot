@@ -14,7 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added quest-hub buttons for the daily shawarma adventure, daily mimic fight probe, repeatable cellar errand, and return to the korchma hall.
 - Added `v1:quest:*` callback parsing for hub action routing.
 - Added secondary `/cellar` command as a fallback surface without adding it to the Telegram side command menu or persistent reply keyboard.
-- Added pending barrel raid timing: `🍺 У рейд на бочку` now starts a 1-3 minute wait before rewards are claimed.
+- Added pending barrel raid timing: `🍺 У рейд на бочку` now starts a 5-8 minute wait before rewards are claimed, while the korchmar still promises «Дві-три хвилини. Максимум».
 - Added `🍻 Всім пива` as the first tiny korchma hall gold sink gated by today’s barrel raid: it shows explicit 100-gold and 10-gold choices, then spends only after the player confirms a quality.
 - Added a persistent korchma round purchase log and generosity leaderboard for day, week, and month rankings.
 - Tests cover quest hub rendering, outside gates, `/fight` and `/cellar` routing, quest callback parsing, and presence middleware behavior.
@@ -68,7 +68,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `/look` remains command-only so the persistent reply keyboard does not promise an extra visible `Озирнутися` button.
 - Documented the scene-based presence debt: a last known scene can remain attached until the 15-minute cutoff or the next location-changing action.
 - Documented the Kvestarnia spelling rule for `міт`, `мітичний`, `мітологія`, and `мітологічний`, and updated the matching news text.
-- Documented future tavern raid timing: a pending 1–3 minute raid state should block other adventure-like actions until completion.
+- Documented future tavern raid timing: a pending raid state should block other adventure-like actions until completion.
 - Telegram deploy notifications and `/news` now render news titles in bold with HTML escaping.
 
 ### Not Included Yet

@@ -171,12 +171,12 @@ describe("TavernRaidService", () => {
 
     expect(result).toMatchObject({
       state: "pending-started",
-      availableAt: new Date("2026-06-12T10:31:00.000Z"),
+      availableAt: new Date("2026-06-12T10:35:00.000Z"),
       now: fixedClock()
     });
     expect(pendingRaids.records[0]).toMatchObject({
       key: `${FRIDAY_BARREL_RAID_PENDING_KEY}:2026-06-12`,
-      availableAt: new Date("2026-06-12T10:31:00.000Z")
+      availableAt: new Date("2026-06-12T10:35:00.000Z")
     });
     expect(dailyActions.records).toHaveLength(0);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
@@ -203,7 +203,7 @@ describe("TavernRaidService", () => {
 
     expect(repeated).toMatchObject({
       state: "pending",
-      availableAt: new Date("2026-06-12T10:33:00.000Z")
+      availableAt: new Date("2026-06-12T10:38:00.000Z")
     });
     expect(dailyActions.records).toHaveLength(0);
   });
@@ -225,7 +225,7 @@ describe("TavernRaidService", () => {
     );
 
     await service.advanceFridayBarrelRaid(telegramUserId);
-    now = new Date("2026-06-12T10:31:01.000Z");
+    now = new Date("2026-06-12T10:35:01.000Z");
     const completed = await service.advanceFridayBarrelRaid(telegramUserId);
     const repeated = await service.advanceFridayBarrelRaid(telegramUserId);
 
@@ -263,7 +263,7 @@ describe("TavernRaidService", () => {
     );
 
     await service.advanceFridayBarrelRaid(telegramUserId);
-    now = new Date("2026-06-12T10:31:01.000Z");
+    now = new Date("2026-06-12T10:35:01.000Z");
     await service.advanceFridayBarrelRaid(telegramUserId);
 
     now = new Date("2026-06-13T10:30:00.000Z");
@@ -271,7 +271,7 @@ describe("TavernRaidService", () => {
 
     expect(nextDay).toMatchObject({
       state: "pending-started",
-      availableAt: new Date("2026-06-13T10:31:00.000Z")
+      availableAt: new Date("2026-06-13T10:35:00.000Z")
     });
     expect(dailyActions.createCount).toBe(1);
     expect(pendingRaids.records.map((record) => record.key)).toEqual([
@@ -292,7 +292,7 @@ describe("TavernRaidService", () => {
       service.getActivePendingFridayBarrelRaidForTelegramUser(telegramUserId)
     ).resolves.toMatchObject({
       state: "pending",
-      availableAt: new Date("2026-06-12T10:31:00.000Z")
+      availableAt: new Date("2026-06-12T10:35:00.000Z")
     });
   });
 

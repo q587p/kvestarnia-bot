@@ -24,8 +24,8 @@ export const FRIDAY_BARREL_RAID_KEY = "tavern.friday-barrel-raid";
 export const FRIDAY_BARREL_RAID_PENDING_KEY = "tavern.friday-barrel-raid.pending";
 export const FRIDAY_BARREL_RAID_REWARD_XP = 7;
 export const FRIDAY_BARREL_RAID_REWARD_GOLD = 5;
-export const FRIDAY_BARREL_RAID_MIN_WAIT_MINUTES = 1;
-export const FRIDAY_BARREL_RAID_MAX_WAIT_MINUTES = 3;
+export const FRIDAY_BARREL_RAID_MIN_WAIT_MINUTES = 5;
+export const FRIDAY_BARREL_RAID_MAX_WAIT_MINUTES = 8;
 export const KORCHMA_SIMPLE_ROUND_COST = 10;
 export const KORCHMA_FINE_ROUND_COST = 100;
 
