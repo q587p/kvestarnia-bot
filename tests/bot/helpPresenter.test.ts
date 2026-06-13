@@ -15,6 +15,7 @@ describe("help presenter", () => {
     expect(text).toContain("/quest");
     expect(text).toContain("/fight");
     expect(text).toContain("/hunt");
+    expect(text).toContain("/cellar");
     expect(text).toContain("/inventory");
     expect(text).toContain("/items");
     expect(text).toContain("/bag");
@@ -28,8 +29,10 @@ describe("help presenter", () => {
     expect(text).not.toContain("/dev_reset_me");
     expect(text).toContain("👤 /hero, /profile, /me — герой і прогрес");
     expect(text).toContain("🍺 /tavern, /raid — корчма й рейд на бочку");
-    expect(text).toContain("🌯 /adventure, /quest — пригода з шаурмою");
+    expect(text).toContain("🗺️ /quest — стіл зі справами");
+    expect(text).toContain("🌯 /adventure — пригода з шаурмою");
     expect(text).toContain("⚔️ /fight, /hunt — сутичка з міміком");
+    expect(text).toContain("🧹 /cellar — підвальна справа");
     expect(text).toContain("🎒 /inventory, /items, /bag — манатки й торба");
     expect(text).toContain("👥 /online — хто поруч");
     expect(text).toContain("👀 /look — озирнутися");
@@ -42,7 +45,7 @@ describe("help presenter", () => {
     expect(text).not.toContain("те саме, що");
     expect(text).not.toContain("/hunt — ще");
     expect(text).toContain("Повний бій");
-    expect(text.split("\n").length).toBeLessThanOrEqual(28);
+    expect(text.split("\n").length).toBeLessThanOrEqual(32);
   });
 
   it("includes dev reset only when enabled", () => {

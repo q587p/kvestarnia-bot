@@ -89,7 +89,7 @@ Future path restrictions should sound like in-world folklore or institutions, no
 ## Перша пригода 0.0.4
 Перший маленький `/adventure` slice до повного combat engine: сцена «Перевірка підозрілої шаурми».
 
-- Вхід через `/adventure` або alias `/quest`.
+- Вхід через `/adventure` або кнопку `🌯 До шаурми` зі Столу зі справами.
 - Герой бачить `Міміка-шаурму` й обирає одну з трьох дій: тицьнути, попросити чек або обережно відступити.
 - Один shared daily key `adventure.mimic-shawarma` видає винагороду лише раз на збережену дату, незалежно від обраної кнопки.
 - Нагороди: `+8 XP/+4 золота`, `+6 XP/+6 золота` або `+2 XP/+0 золота`.
@@ -99,7 +99,7 @@ Future path restrictions should sound like in-world folklore or institutions, no
 ## Перша бойова перевірка 0.0.5
 Перший combat probe до повного combat engine: сцена «Сутичка з Міміком-шаурмою».
 
-- Вхід через `/fight` або alias `/hunt`.
+- Вхід через `/fight`, alias `/hunt` або кнопку `⚔️ До сутички` зі Столу зі справами.
 - Герой бачить HP-превʼю себе й Міміка-шаурми та обирає одну з трьох дій: вдарити, збити з пантелику чеком або відступити красиво.
 - Розрахунок deterministic і чистий: сила/рівень впливають на удар, розум/харизма — на чек, випадковості немає.
 - Один shared daily key `combat.mimic-shawarma.probe` видає винагороду лише раз на збережену дату, незалежно від обраної кнопки.
@@ -167,8 +167,8 @@ Alpha scaling рахується як derived effective values від збере
 ## Підвальна справа 0.0.10
 Перший repeatable fallback після денних one-shot активностей.
 
-- Вхід через `/quest` або кнопку `🗺️ Квест`, коли `adventure.mimic-shawarma` уже зараховано і `combat.mimic-shawarma.probe` сьогодні теж недоступний.
-- Окрему команду `/cellar` у `0.0.10` не додаємо, щоб не роздувати command surface до появи повного quest hub.
+- Вхід через Стіл зі справами, коли `adventure.mimic-shawarma` уже зараховано і `combat.mimic-shawarma.probe` сьогодні теж недоступний.
+- `/cellar` у `0.0.11` існує як secondary fallback-команда, але не додається до side command menu чи persistent reply keyboard.
 - Сцена: підвал Квестарні, миша, сирна політика й дуже маленька адміністративна криза.
 - Дії: `cheese-trap`, `sweep-bravely`, `negotiate`.
 - Нагороди маленькі: `+1–2 XP`, `+0–1 золота`, без нового loot table.
@@ -177,6 +177,18 @@ Alpha scaling рахується як derived effective values від збере
 - Presence: герой переходить у `location.korchma.cellar`; це відкрита aggregate-місцина для public `/presence`, але public web усе одно показує counts-only без імен.
 
 Це не persistent combat, не equipment effects, не груповий рейд і не full activity refactor. Мета — дати гравцю маленьке «ще щось» після щоденних slices.
+
+## Стіл зі справами 0.0.11
+Перший компактний quest hub усередині корчми.
+
+- `/quest`, кнопка `🗺️ Квест` і place callback `📋 Стіл зі справами` відкривають hub, якщо герой уже всередині корчми.
+- Надворі `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не телепортують героя до справ. Вони показують коротке `Квести видають усередині.` і кнопку `🚪 Зайти в корчму`.
+- Hub показує три starter actions: `🌯 Підозріла шаурма`, `⚔️ Сутичка з Міміком-шаурмою`, `🧹 Підвальна справа`.
+- Денна шаурма й fight probe показують ready/spent status. Якщо вони spent, їхні spent action buttons не повторюються.
+- Підвальна справа лишається repeatable fallback і показується навіть на cooldown, щоб гравець бачив, куди повернутися.
+- Відкриття hub позначає героя у `location.korchma.quest_table`; вхід до підвалу позначає `location.korchma.cellar`; вихід до зали очищає stale adventure/raid ids.
+
+Це routing/UX slice, не повна activity-service модель і не бойова система.
 
 ### Результати
 Перемога:
@@ -274,12 +286,13 @@ Post-MVP:
 7. Пояснення 3 кнопок: Пригода, Герой, Манатки.
 
 ## Команди MVP
-Поточна command surface у `0.0.10`:
+Поточна command surface у `0.0.11`:
 - `/start`
 - `/hero`, `/profile`, `/me`
 - `/tavern`, `/raid`
 - `/adventure`, `/quest`
 - `/fight`, `/hunt`
+- `/cellar` як secondary fallback, без side menu
 - `/inventory`, `/items`, `/bag`
 - `/guild` як коротка заглушка
 - `/online`, `/look`
@@ -288,7 +301,7 @@ Post-MVP:
 - `/help`
 - `/dev_reset_me` тільки локально, коли dev reset увімкнений
 
-`/quest` у `0.0.10` лишається основним входом, але квести видають тільки всередині корчми. Надворі герой бачить коротку відповідь «Квести видають усередині.»; у залі або біля столу `/quest` веде до денної шаурми, а після витрачених шаурми й fight probe — до повторюваної «Підвальної справи».
+`/quest` у `0.0.11` лишається основним входом, але квести видають тільки всередині корчми. Надворі герой бачить коротку відповідь «Квести видають усередині.»; у залі або біля столу `/quest` показує `Стіл зі справами` з денною шаурмою, fight probe і повторюваною «Підвальною справою».
 
 Цільова command surface для MVP:
 - `/start`

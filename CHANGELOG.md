@@ -7,6 +7,25 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.11] - 12026-06-13 - Korchma Quest Hub & Routing Cleanup
+
+### Added
+- Added a compact `Стіл зі справами` quest hub for `/quest`, the `🗺️ Квест` reply button, and the korchma quest-table place callback.
+- Added quest-hub buttons for the daily shawarma adventure, daily mimic fight probe, repeatable cellar errand, and return to the korchma hall.
+- Added `v1:quest:*` callback parsing for hub action routing.
+- Added secondary `/cellar` command as a fallback surface without adding it to the Telegram side command menu or persistent reply keyboard.
+- Tests cover quest hub rendering, outside gates, `/fight` and `/cellar` routing, quest callback parsing, and presence middleware behavior.
+
+### Changed
+- `/quest` now opens the quest hub inside the korchma instead of immediately jumping into shawarma or cellar scenes.
+- `/adventure`, `/fight`, `/hunt`, and `/cellar` no longer teleport outside players to the quest table; outside players get `Квести видають усередині.` with an enter-korchma button.
+- `/fight` and `/hunt` update quest-table presence only after the player is inside the korchma.
+- The hub keeps the repeatable cellar errand visible after daily shawarma and fight actions are spent.
+- Place and quest callbacks continue clearing stale raid/adventure ids when moving between korchma places.
+
+### Not Included Yet
+- Persistent combat state, equipment effects, random loot tables, group raids, pending raid timers, Redis, market/economy/crafting, Mini App UI, or a full activity-service refactor.
+
 ## [0.0.10] - 12026-06-13 - Repeatable Cellar Errands
 
 ### Added

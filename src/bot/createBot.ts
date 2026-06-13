@@ -29,6 +29,7 @@ import { parseFightCallbackData } from "./callbacks/fightCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
 import { parsePlaceCallbackData, type PlaceCallback } from "./callbacks/placeCallbackData";
+import { parseQuestCallbackData, type QuestCallback } from "./callbacks/questCallbackData";
 import {
   parseOnboardingCallbackData,
   type OnboardingCallback
@@ -36,9 +37,12 @@ import {
 import { parseRestartCallbackData } from "./callbacks/restartCallbackData";
 import { parseTavernCallbackData } from "./callbacks/tavernCallbackData";
 import { registerAdventureCommand, sendAdventure } from "./commands/adventureCommand";
-import { sendCellarErrand } from "./commands/cellarCommand";
+import {
+  registerCellarCommand,
+  sendCellarErrandRouted
+} from "./commands/cellarCommand";
 import { registerDevResetCommand } from "./commands/devResetCommand";
-import { registerFightCommand } from "./commands/fightCommand";
+import { registerFightCommand, sendFight } from "./commands/fightCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
 import { registerHeroCommand, sendHero } from "./commands/heroCommand";
 import { registerInventoryCommand, sendInventory } from "./commands/inventoryCommand";
@@ -46,6 +50,7 @@ import { registerLookCommand } from "./commands/lookCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
 import { registerOnlineCommand } from "./commands/onlineCommand";
 import { registerPlannedCommands, sendPlannedCommand } from "./commands/plannedCommand";
+import { registerQuestHubCommand, sendQuestHub } from "./commands/questHubCommand";
 import { registerRestartCommand } from "./commands/restartCommand";
 import { registerStartCommand } from "./commands/startCommand";
 import {
@@ -127,7 +132,14 @@ export function createBot(token: string, services: BotServices): Bot {
     cellarErrand: services.cellarErrand,
     presence: services.presence
   });
-  registerFightCommand(bot, services.fight);
+  registerFightCommand(bot, services.fight, { presence: services.presence });
+  registerCellarCommand(bot, services.cellarErrand, services.presence);
+  registerQuestHubCommand(bot, {
+    adventure: services.adventure,
+    cellarErrand: services.cellarErrand,
+    fight: services.fight,
+    presence: services.presence
+  });
   registerStartCommand(bot, services.onboarding);
   registerHeroCommand(bot, services.hero);
   registerInventoryCommand(bot, services.inventory);
@@ -213,6 +225,17 @@ export function createBot(token: string, services: BotServices): Bot {
     }
 
     await handlePlaceCallback(ctx, parsed.value, services);
+  });
+
+  bot.callbackQuery(/^v1:quest:/, async (ctx) => {
+    const parsed = parseQuestCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleQuestCallback(ctx, parsed.value, services);
   });
 
   bot.callbackQuery(/^v1:cellar:/, async (ctx) => {
@@ -329,6 +352,10 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
     };
+  }
+
+  if (data.startsWith("v1:quest:")) {
+    return {};
   }
 
   if (data.startsWith("v1:onb:")) {
@@ -470,16 +497,12 @@ function getCommandPresenceContext(command: string): PresenceContext | null {
     };
   }
 
-  if (command === "adventure" || command === "quest") {
+  if (command === "adventure" || command === "quest" || command === "cellar") {
     return {};
   }
 
   if (command === "fight" || command === "hunt") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
-    };
+    return {};
   }
 
   if (command === "news") {
@@ -709,20 +732,53 @@ async function handlePlaceCallback(
   }
 
   if (action === "quest-table") {
-    await sendAdventure(ctx, services.adventure, "edit", {
-      cellarErrand: services.cellarErrand,
-      presence: services.presence,
-      fallbackToCellar: false
-    });
+    await sendQuestHub(
+      ctx,
+      {
+        adventure: services.adventure,
+        cellarErrand: services.cellarErrand,
+        fight: services.fight,
+        presence: services.presence
+      },
+      "edit"
+    );
     return;
   }
 
   if (action === "cellar") {
-    await sendCellarErrand(ctx, services.cellarErrand, services.presence, "edit");
+    await sendCellarErrandRouted(ctx, services.cellarErrand, services.presence, "edit");
     return;
   }
 
   await sendNewsList(ctx, 0);
+}
+
+async function handleQuestCallback(
+  ctx: Context,
+  action: QuestCallback,
+  services: BotServices
+): Promise<void> {
+  await safeAnswerCallbackQuery(ctx);
+
+  if (action === "adventure") {
+    await sendAdventure(ctx, services.adventure, "edit", {
+      cellarErrand: services.cellarErrand,
+      presence: services.presence,
+      fallbackToCellar: false,
+      requireKorchmaInterior: true
+    });
+    return;
+  }
+
+  if (action === "fight") {
+    await sendFight(ctx, services.fight, "edit", {
+      presence: services.presence,
+      requireKorchmaInterior: true
+    });
+    return;
+  }
+
+  await sendCellarErrandRouted(ctx, services.cellarErrand, services.presence, "edit");
 }
 
 function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
@@ -735,12 +791,16 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
   });
 
   bot.hears(mainMenuButtons.quest, async (ctx) => {
-    await sendAdventure(ctx, services.adventure, "reply", {
-      cellarErrand: services.cellarErrand,
-      presence: services.presence,
-      fallbackToCellar: true,
-      requireKorchmaInterior: true
-    });
+    await sendQuestHub(
+      ctx,
+      {
+        adventure: services.adventure,
+        cellarErrand: services.cellarErrand,
+        fight: services.fight,
+        presence: services.presence
+      },
+      "reply"
+    );
   });
 
   bot.hears(mainMenuButtons.inventory, async (ctx) => {

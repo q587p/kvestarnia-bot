@@ -110,3 +110,12 @@ PR має містити:
 - Tests run.
 - Screenshots або sample bot messages, якщо змінено UI.
 - Balance notes, якщо змінені формули.
+
+## Поточна послідовність маленьких PR
+
+Після `0.0.10 — Repeatable Cellar Errands` наступний малий routing slice — `0.0.11 — Korchma Quest Hub & Routing Cleanup`:
+- `/quest` відкриває `Стіл зі справами` всередині корчми.
+- `/adventure`, `/fight`, `/hunt` і `/cellar` не телепортують героя з надвору.
+- `location.korchma.*` лишаються lightweight place ids для presence, не full session engine.
+
+Після merge найменший корисний крок: pending-стан рейду на бочку на 1-3 хвилини або дуже малий equipment preview без stat effects. Не змішувати це з persistent combat, груповими рейдами чи activity-service refactor в одному PR.

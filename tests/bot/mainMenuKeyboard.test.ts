@@ -12,6 +12,7 @@ import {
   buildMainMenuKeyboard,
   mainMenuButtons
 } from "../../src/bot/keyboards/mainMenuKeyboard";
+import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
 import {
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
@@ -101,7 +102,73 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildFightResultKeyboard("completed"))).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildFightResultKeyboard("already-completed"))).toEqual([]);
   });
+
+  it("builds quest hub buttons from available actions", () => {
+    expect(
+      flatInlineButtonTexts(
+        buildQuestHubKeyboard({
+          adventure: { state: "ready", character },
+          fight: { state: "ready", character },
+          cellar: { state: "ready", character }
+        })
+      )
+    ).toEqual(["🌯 До шаурми", "⚔️ До сутички", "🧹 У підвал", "🍺 До зали"]);
+
+    expect(
+      flatInlineButtonTexts(
+        buildQuestHubKeyboard({
+          adventure: {
+            state: "already-completed",
+            character,
+            fightAvailable: false
+          },
+          fight: {
+            state: "already-completed",
+            character,
+            questAvailable: false
+          },
+          cellar: { state: "ready", character }
+        })
+      )
+    ).toEqual(["🧹 У підвал", "🍺 До зали"]);
+  });
 });
+
+const character = {
+  name: "Мандрівник",
+  pronoun: "they",
+  pronounLabel: "Вони",
+  path: "boundary",
+  raceId: "race.human-ish",
+  raceName: "Людисько",
+  classId: "class.warrior",
+  className: "Воїн",
+  title: "Пересічні Герої",
+  level: 1,
+  xp: 0,
+  nextLevelXp: 10,
+  xpToNextLevel: 10,
+  gold: 0,
+  hpCurrent: 20,
+  hpMax: 20,
+  manaCurrent: 10,
+  manaMax: 10,
+  stats: {
+    strength: 8,
+    dexterity: 6,
+    intelligence: 6,
+    charisma: 6,
+    luck: 6
+  },
+  levelBonus: {
+    hpMax: 0,
+    manaMax: 0,
+    primaryStat: {
+      stat: "strength",
+      bonus: 0
+    }
+  }
+} as const;
 
 function flatInlineButtonTexts(keyboard: { inline_keyboard: { text: string }[][] }): string[] {
   return keyboard.inline_keyboard.flat().map((button) => button.text);

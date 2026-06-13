@@ -44,7 +44,8 @@ Current tiny inventory slice:
 Current repeatable slice:
 - `0.0.10` adds «Підвальна справа» as the first low-stakes repeatable fallback after the daily shawarma quest and fight probe are spent.
 - Cooldown lives in SQLite `character_cooldowns`, not Redis.
-- `/quest` is the entry point; full quest hub, `/cellar`, more repeatable activities, and activity refactor remain later work.
+- `0.0.11` adds a compact `Стіл зі справами` quest hub for `/quest`, `🗺️ Квест`, daily shawarma, fight probe, and cellar fallback.
+- `/cellar` exists only as a secondary fallback command; more repeatable activities and a full activity refactor remain later work.
 
 ## Phase 2 — Group hook
 Мета: перша фіча, заради якої бот додають у групу.

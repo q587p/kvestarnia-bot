@@ -255,14 +255,14 @@ Web presence у `0.0.9`:
 - `location.korchma.barrel` — Біля Бочки Пінного Міражу;
 - `location.korchma.news_corner` — Дошка вістей.
 
-Legacy ids `location.tavern`, `location.shawarma-table` і `location.tavern-cellar` лишаються read aliases для старих rows, але нові writes мають використовувати `location.korchma.*`. `/quest` не позначає гравця біля столу зі справами на рівні глобальної кнопки; command handler спершу перевіряє поточну місцину, блокує квест надворі й лише тоді переводить героя до столу або підвалу. Підвал є відкритою aggregate-місциною для public `/presence`, але public web усе одно лишає `players` порожнім за замовчуванням.
+Legacy ids `location.tavern`, `location.shawarma-table` і `location.tavern-cellar` лишаються read aliases для старих rows, але нові writes мають використовувати `location.korchma.*`. `/quest` не позначає гравця біля столу зі справами на рівні глобальної кнопки; command handler спершу перевіряє поточну місцину, блокує квест надворі й лише тоді переводить героя до столу. Підвал є відкритою aggregate-місциною для public `/presence`, але public web усе одно лишає `players` порожнім за замовчуванням.
 
-Тимчасовий shortcut: `/fight` і `/hunt` у `0.0.10` все ще напряму позначають `location.korchma.quest_table`, бо combat probe лишається глобальною legacy-командою. Коли з’явиться повніший quest/combat routing, ці команди теж мають пройти через місцину або явний перехід до столу зі справами.
+Routing rule у `0.0.11`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу.
 
 ## Telegram callback data
 Callback data коротка, версіонована.
 
-Поточні callback prefixes у `0.0.9`:
+Поточні callback prefixes у `0.0.11`:
 - `v1:onb:*`
 - `v1:menu:hero`
 - `v1:menu:help`
@@ -273,6 +273,9 @@ Callback data коротка, версіонована.
 - `v1:place:barrel`
 - `v1:place:cellar`
 - `v1:place:news-corner`
+- `v1:quest:adventure`
+- `v1:quest:fight`
+- `v1:quest:cellar`
 - `v1:news:list:{page}`
 - `v1:news:entry:{entryIndex}:{listPage}`
 - `v1:tavern:raid`

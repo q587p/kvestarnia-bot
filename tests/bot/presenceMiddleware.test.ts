@@ -31,6 +31,22 @@ describe("presence middleware", () => {
     });
   });
 
+  it("marks /fight as an action without forcing a quest-table teleport", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence);
+    await bot.init();
+
+    await bot.handleUpdate(messageUpdate("/fight"));
+
+    expect(presence.marks).toHaveLength(1);
+    expect(presence.marks[0]).toEqual({
+      user: {
+        telegramUserId: 42n,
+        displayName: "Тест"
+      }
+    });
+  });
+
   it("marks handled callbacks with raid context", async () => {
     const presence = new CapturingPresenceService();
     const bot = createTestBot(presence);

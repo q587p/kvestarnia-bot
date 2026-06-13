@@ -39,14 +39,6 @@ export function registerAdventureCommand(
       requireKorchmaInterior: true
     });
   });
-
-  bot.command("quest", async (ctx) => {
-    await sendAdventure(ctx, adventureService, "reply", {
-      ...options,
-      fallbackToCellar: true,
-      requireKorchmaInterior: true
-    });
-  });
 }
 
 export async function sendAdventure(
