@@ -28,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Korchma round results now separate the toast, beer description, and ranger reaction with blank lines for easier Telegram reading.
 - Adventure and cellar action prompts now bold the hero name before `що робимо?`.
 - Hero wealth line now uses separate jokes for empty gold, empty inventory value, and truly empty pockets while still showing both numbers.
+- Korchma scene headers now render the hero name in bold and the title in italics.
 
 ### Not Included Yet
 - Stat effects, HP/mana/combat/XP/gold math changes, random loot tables, shops, selling, trading, crafting, item-to-level exchange, or item instance logic.

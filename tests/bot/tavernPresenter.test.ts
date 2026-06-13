@@ -58,6 +58,7 @@ describe("tavern presenter", () => {
     const text = presentKorchmaHall(character);
 
     expect(text).toContain("Зала корчми");
+    expect(text).toContain("<b>Мандрівник</b> · <i>Пересічний Герой</i>");
     expect(text).toContain("Корчма Квестарні");
     expect(text).toContain(
       "без нагляду.\n\nПраворуч стоїть <i>Стіл зі справами</i>"
@@ -152,7 +153,7 @@ describe("tavern presenter", () => {
     });
 
     expect(text).toContain(
-      "&lt;b&gt;Мандрівник&lt;/b&gt; · &lt;i&gt;Пересічний Герой&lt;/i&gt;"
+      "<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b> · <i>&lt;i&gt;Пересічний Герой&lt;/i&gt;</i>"
     );
     expect(text).not.toContain("<b>Мандрівник</b>");
     expect(text).not.toContain("<i>Пересічний Герой</i>");

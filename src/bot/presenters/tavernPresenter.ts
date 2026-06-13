@@ -19,7 +19,7 @@ import { escapeHtml, npcQuote } from "./telegramHtml";
 export function presentKorchmaFront(character: CharacterSummary): string {
   return [
     "🚪 Перед корчмою",
-    `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
+    presentCharacterHeader(character),
     "",
     "За дверима гуде Корчма Квестарні. Там видають квести, сперечаються з бочками й іноді не питають зайвого.",
     "",
@@ -40,7 +40,7 @@ export function presentKorchmaHall(
 ): string {
   return [
     "🍺 Зала корчми",
-    `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
+    presentCharacterHeader(character),
     "",
     "Корчма Квестарні тримає тепло, шум і кілька справ, які краще не залишати без нагляду.",
     "",
@@ -57,7 +57,7 @@ export function presentKorchmaHall(
 export function presentTavern(character: CharacterSummary): string {
   return [
     "🛢️ Біля Бочки Пінного Міражу",
-    `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
+    presentCharacterHeader(character),
     "",
     "У кутку героїчно піниться Бочка Пінного Міражу.",
     "Поруч із нею сидить людисько-єгер у капюшоні, курить трубку й дивиться на всіх так, ніби вже бачив їхні сліди.",
@@ -72,7 +72,7 @@ export function presentTavern(character: CharacterSummary): string {
 export function presentTavernAlreadyRaided(character: CharacterSummary): string {
   return [
     "🛢️ Біля Бочки Пінного Міражу",
-    `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
+    presentCharacterHeader(character),
     "",
     "Бочка Пінного Міражу в цьому відтинку вже пережила ваш героїзм.",
     "Єгер у капюшоні все ще сидить у кутку. Схоже, він підозрював, що цим усе й скінчиться.",
@@ -271,6 +271,10 @@ export function presentTavernRoundOffer(
     "",
     ...presentKorchmaRoundLeaderboard(result.leaderboard)
   ].join("\n");
+}
+
+function presentCharacterHeader(character: CharacterSummary): string {
+  return `<b>${escapeHtml(character.name)}</b> · <i>${escapeHtml(character.title)}</i>`;
 }
 
 function presentKorchmaGreeting(character: CharacterSummary): string[] {
