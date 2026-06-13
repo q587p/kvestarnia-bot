@@ -57,9 +57,12 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Зала корчми");
     expect(text).toContain("Корчма Квестарні");
-    expect(text).toContain("Стіл зі справами");
-    expect(text).toContain("Підвал");
-    expect(text).toContain("Дошка вістей");
+    expect(text).toContain(
+      "без нагляду.\n\nПраворуч стоїть <i>Стіл зі справами</i>"
+    );
+    expect(text).toContain("<i>Бочка Пінного Міражу</i>");
+    expect(text).toContain("<i>Підвал</i>");
+    expect(text).toContain("<i>Дошка вістей</i>");
     expect(text).toContain("Залізо тримайте спокійно");
     expect(text).toContain("Куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
