@@ -365,6 +365,7 @@ Future progression pass:
 - Revisit the alpha formulas so level has a stronger, visible impact on HP, mana, combat coefficients, event checks, and activity/content gates.
 - Keep the source of truth centralized in progression/effective-stat helpers; presenters, services, and combat/event logic should not each invent their own level math.
 - Add tests around level breakpoints so raising level changes real outcomes, not only displayed summary numbers.
+- Model levels `11-20` as an epic bracket with milestone unlocks for race/class abilities, inspired by Munchkin-style extra class/race tricks. Keep unlock definitions data-driven enough for tests and presenters to answer «what changed at this level?» without hard-coded string checks.
 
 Future social progression boards:
 - Add a durable event/log source for first arrival and level-up milestones instead of deriving them from mutable current character state.
