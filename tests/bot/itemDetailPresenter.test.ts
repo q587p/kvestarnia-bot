@@ -51,6 +51,38 @@ describe("item detail presenter", () => {
     expect(text).toContain("бонуси поки лежать у бухгалтерії");
   });
 
+  it("shows slot-specific wording for armor and accessories", () => {
+    const armor = presentOwnedItemDetail(
+      itemSummary({
+        content: {
+          id: "item.apron-of-foam-resistance",
+          name: "Фартух піностійкого героя",
+          description: "Пережив бочку.",
+          rarity: "common",
+          slot: "armor",
+          goldValue: 14
+        }
+      })
+    );
+    const accessory = presentOwnedItemDetail(
+      itemSummary({
+        content: {
+          id: "item.cork-ring-of-serious-business",
+          name: "Корковий перстень серйозних справ",
+          description: "Миша сказала, що це печатка.",
+          rarity: "common",
+          slot: "accessory",
+          goldValue: 6
+        }
+      })
+    );
+
+    expect(armor).toContain("Категорія: <b>обладунок</b>");
+    expect(armor).toContain("Манекен випростав плечі");
+    expect(accessory).toContain("Категорія: <b>аксесуар</b>");
+    expect(accessory).toContain("Малий гачок обережно блищить");
+  });
+
   it("shows when an item is already equipped", () => {
     const text = presentOwnedItemDetail(
       itemSummary({

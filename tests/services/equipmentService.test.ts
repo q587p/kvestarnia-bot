@@ -32,21 +32,21 @@ describe("EquipmentService", () => {
 
   it("equips an owned weapon into the weapon slot", async () => {
     const service = createService({
-      inventoryRows: [buildItem({ itemId: "item.pan-of-persuasion" })]
+      inventoryRows: [buildItem({ itemId: "item.stamp-of-minor-authority" })]
     });
 
     const result = await service.equipItemForTelegramUser(
       telegramUserId,
-      "item.pan-of-persuasion"
+      "item.stamp-of-minor-authority"
     );
 
     expect(result).toMatchObject({
       state: "equipped",
       slot: "weapon",
       item: {
-        itemId: "item.pan-of-persuasion",
+        itemId: "item.stamp-of-minor-authority",
         content: {
-          name: "Пательня переконання"
+          name: "Печатка дрібної переваги"
         }
       }
     });
@@ -54,14 +54,27 @@ describe("EquipmentService", () => {
 
   it("maps owned armor into the chest slot", async () => {
     const service = createService({
-      inventoryRows: [buildItem({ itemId: "item.pot-helmet-of-early-access" })]
+      inventoryRows: [buildItem({ itemId: "item.apron-of-foam-resistance" })]
     });
 
     await expect(
-      service.equipItemForTelegramUser(telegramUserId, "item.pot-helmet-of-early-access")
+      service.equipItemForTelegramUser(telegramUserId, "item.apron-of-foam-resistance")
     ).resolves.toMatchObject({
       state: "equipped",
       slot: "chest"
+    });
+  });
+
+  it("maps owned accessories into the accessory slot", async () => {
+    const service = createService({
+      inventoryRows: [buildItem({ itemId: "item.cork-ring-of-serious-business" })]
+    });
+
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, "item.cork-ring-of-serious-business")
+    ).resolves.toMatchObject({
+      state: "equipped",
+      slot: "accessory"
     });
   });
 

@@ -7,6 +7,22 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.15] - 12026-06-13 - Starter Gear Sources
+
+### Added
+- Added three starter gear items with stable content ids, Ukrainian names/descriptions, rarity, slot metadata, and display-only gold values: `item.stamp-of-minor-authority`, `item.apron-of-foam-resistance`, and `item.cork-ring-of-serious-business`.
+- `/fight` receipt handling can now grant `item.stamp-of-minor-authority` alongside the formal receipt trophy.
+- The cellar negotiation route can now grant `item.cork-ring-of-serious-business` alongside the mouse diplomacy napkin.
+- The Barrel raid completion can now grant `item.apron-of-foam-resistance` alongside the wet hero ticket.
+- Tests cover new item ids, value/priceless metadata, no stat/effect fields, deterministic item grants, equipment mapping for reachable weapon/armor/accessory gear, item detail wording, equipment slots, and inventory valuation.
+
+### Changed
+- Item detail flavor now gives armor and accessories their own tiny equipment-preview jokes instead of sharing one generic non-weapon line.
+- The current deterministic starter loop now reaches weapon, armor, and accessory examples without seeded/dev inventory.
+
+### Not Included Yet
+- Stat effects, HP/mana/combat/XP/gold math changes, random loot tables, shops, selling, trading, crafting, item-to-level exchange, or item instance logic.
+
 ## [0.0.14] - 12026-06-13 - Persistent Equipment Shell
 
 ### Added

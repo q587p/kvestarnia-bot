@@ -26,6 +26,8 @@ describe("equipment presenter", () => {
     const text = presentEquipment(foundEquipment());
 
     expect(text).toContain("🗡️ <b>Зброя</b>: Пательня переконання");
+    expect(text).toContain("🧥 <b>Тулуб</b>: Фартух піностійкого героя");
+    expect(text).toContain("💍 <b>Аксесуар</b>: Корковий перстень серйозних справ");
     expect(text).not.toContain("Пательня переконання — приклад");
   });
 
@@ -65,9 +67,35 @@ function emptyEquipment(): EquipmentResult {
     slots: [
       { slot: "weapon", item: null },
       { slot: "head", item: null },
-      { slot: "chest", item: null },
+      {
+        slot: "chest",
+        item: {
+          itemId: "item.apron-of-foam-resistance",
+          content: {
+            id: "item.apron-of-foam-resistance",
+            name: "Фартух піностійкого героя",
+            description: "Пережив бочку.",
+            rarity: "common",
+            slot: "armor",
+            goldValue: 14
+          }
+        }
+      },
       { slot: "legs", item: null },
-      { slot: "accessory", item: null }
+      {
+        slot: "accessory",
+        item: {
+          itemId: "item.cork-ring-of-serious-business",
+          content: {
+            id: "item.cork-ring-of-serious-business",
+            name: "Корковий перстень серйозних справ",
+            description: "Миша сказала, що це печатка.",
+            rarity: "common",
+            slot: "accessory",
+            goldValue: 6
+          }
+        }
+      }
     ]
   };
 }
@@ -91,9 +119,35 @@ function foundEquipment(): EquipmentResult {
         }
       },
       { slot: "head", item: null },
-      { slot: "chest", item: null },
+      {
+        slot: "chest",
+        item: {
+          itemId: "item.apron-of-foam-resistance",
+          content: {
+            id: "item.apron-of-foam-resistance",
+            name: "Фартух піностійкого героя",
+            description: "Пережив бочку.",
+            rarity: "common",
+            slot: "armor",
+            goldValue: 14
+          }
+        }
+      },
       { slot: "legs", item: null },
-      { slot: "accessory", item: null }
+      {
+        slot: "accessory",
+        item: {
+          itemId: "item.cork-ring-of-serious-business",
+          content: {
+            id: "item.cork-ring-of-serious-business",
+            name: "Корковий перстень серйозних справ",
+            description: "Миша сказала, що це печатка.",
+            rarity: "common",
+            slot: "accessory",
+            goldValue: 6
+          }
+        }
+      }
     ]
   };
 }

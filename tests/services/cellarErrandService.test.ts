@@ -81,6 +81,10 @@ describe("CellarErrandService", () => {
     expect(cooldowns.claimCount).toBe(1);
     expect(cooldowns.grantedItems).toEqual([
       {
+        itemId: "item.cork-ring-of-serious-business",
+        quantity: 1
+      },
+      {
         itemId: "item.napkin-of-mouse-diplomacy",
         quantity: 1
       }

@@ -75,6 +75,11 @@ describe("TavernRaidService", () => {
       expect(first.character.gold).toBe(5);
       expect(first.reward.itemGrants).toEqual([
         {
+          itemId: "item.apron-of-foam-resistance",
+          name: "Фартух піностійкого героя",
+          quantity: 1
+        },
+        {
           itemId: "item.wet-hero-ticket",
           name: "Квиток мокрого героя",
           quantity: 1

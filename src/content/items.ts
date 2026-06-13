@@ -18,6 +18,30 @@ export const items = [
     goldValue: 18
   },
   {
+    id: "item.stamp-of-minor-authority",
+    name: "Печатка дрібної переваги",
+    description: "Б'є не сильно, зате залишає слід «розглянуто» там, де монстр просив «не треба».",
+    rarity: "uncommon",
+    slot: "weapon",
+    goldValue: 16
+  },
+  {
+    id: "item.apron-of-foam-resistance",
+    name: "Фартух піностійкого героя",
+    description: "Пережив бочку, підлогу й погляд корчмаря. Тепер вимагає окремого гачка.",
+    rarity: "common",
+    slot: "armor",
+    goldValue: 14
+  },
+  {
+    id: "item.cork-ring-of-serious-business",
+    name: "Корковий перстень серйозних справ",
+    description: "Миша сказала, що це печатка. Корок не заперечив, бо зайнятий кар'єрою.",
+    rarity: "common",
+    slot: "accessory",
+    goldValue: 6
+  },
+  {
     id: "item.wet-hero-ticket",
     name: "Квиток мокрого героя",
     description: "Трофей тавернової логістики. Трохи пахне перемогою і підлогою.",

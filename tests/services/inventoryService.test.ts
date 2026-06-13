@@ -65,6 +65,11 @@ describe("InventoryService", () => {
         }),
         buildItem({
           id: "character-item-3",
+          itemId: "item.cork-ring-of-serious-business",
+          quantity: 2
+        }),
+        buildItem({
+          id: "character-item-4",
           itemId: "item.wet-hero-ticket",
           quantity: 4
         })
@@ -75,7 +80,7 @@ describe("InventoryService", () => {
 
     expect(result).toMatchObject({
       state: "found",
-      totalGoldValue: 53
+      totalGoldValue: 65
     });
   });
 

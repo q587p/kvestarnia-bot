@@ -5,6 +5,7 @@ import { systemClock, type Clock } from "../shared/time";
 import {
   BRISTLE_OF_BASEMENT_ORDER_ITEM_ID,
   CHEESE_OF_PROCEDURAL_DOUBT_ITEM_ID,
+  CORK_RING_OF_SERIOUS_BUSINESS_ITEM_ID,
   enrichRewardItemGrants,
   NAPKIN_OF_MOUSE_DIPLOMACY_ITEM_ID,
   type RewardItemGrant
@@ -155,6 +156,10 @@ function buildCellarItemGrants(action: CellarErrandAction): Array<{ itemId: stri
   }
 
   return [
+    {
+      itemId: CORK_RING_OF_SERIOUS_BUSINESS_ITEM_ID,
+      quantity: 1
+    },
     {
       itemId: NAPKIN_OF_MOUSE_DIPLOMACY_ITEM_ID,
       quantity: 1

@@ -35,6 +35,9 @@ describe("content tables", () => {
       expect.arrayContaining([
         "item.pan-of-persuasion",
         "item.pot-helmet-of-early-access",
+        "item.stamp-of-minor-authority",
+        "item.apron-of-foam-resistance",
+        "item.cork-ring-of-serious-business",
         "item.wet-hero-ticket",
         "item.cheese-of-procedural-doubt",
         "item.bristle-of-basement-order",
@@ -51,6 +54,13 @@ describe("content tables", () => {
     );
 
     expect(equippablePreviewItems.map((item) => item.id)).toContain("item.pan-of-persuasion");
+    expect(equippablePreviewItems.map((item) => item.id)).toEqual(
+      expect.arrayContaining([
+        "item.stamp-of-minor-authority",
+        "item.apron-of-foam-resistance",
+        "item.cork-ring-of-serious-business"
+      ])
+    );
     for (const item of items) {
       expect(item).not.toHaveProperty("stats");
       expect(item).not.toHaveProperty("effects");

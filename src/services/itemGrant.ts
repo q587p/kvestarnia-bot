@@ -2,6 +2,9 @@ import { items } from "../content";
 
 export const WET_HERO_TICKET_ITEM_ID = "item.wet-hero-ticket";
 export const PAN_OF_PERSUASION_ITEM_ID = "item.pan-of-persuasion";
+export const STAMP_OF_MINOR_AUTHORITY_ITEM_ID = "item.stamp-of-minor-authority";
+export const APRON_OF_FOAM_RESISTANCE_ITEM_ID = "item.apron-of-foam-resistance";
+export const CORK_RING_OF_SERIOUS_BUSINESS_ITEM_ID = "item.cork-ring-of-serious-business";
 export const CHEESE_OF_PROCEDURAL_DOUBT_ITEM_ID = "item.cheese-of-procedural-doubt";
 export const BRISTLE_OF_BASEMENT_ORDER_ITEM_ID = "item.bristle-of-basement-order";
 export const NAPKIN_OF_MOUSE_DIPLOMACY_ITEM_ID = "item.napkin-of-mouse-diplomacy";

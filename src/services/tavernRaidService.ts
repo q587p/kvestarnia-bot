@@ -15,6 +15,7 @@ import { summarizeCharacter, type CharacterSummary } from "../domain/characters/
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
+  APRON_OF_FOAM_RESISTANCE_ITEM_ID,
   enrichRewardItemGrants,
   WET_HERO_TICKET_ITEM_ID,
   type RewardItemGrant
@@ -224,6 +225,10 @@ export class TavernRaidService {
       rewardXp: FRIDAY_BARREL_RAID_REWARD_XP,
       rewardGold: FRIDAY_BARREL_RAID_REWARD_GOLD,
       itemGrants: [
+        {
+          itemId: APRON_OF_FOAM_RESISTANCE_ITEM_ID,
+          quantity: 1
+        },
         {
           itemId: WET_HERO_TICKET_ITEM_ID,
           quantity: 1

@@ -221,6 +221,11 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - `adventure.mimic-shawarma` → `item.suspicious-shawarma-wrapper` або `item.receipt-of-formal-suspicion`
 - `combat.mimic-shawarma.probe` → `item.suspicious-shawarma-wrapper` або `item.receipt-of-formal-suspicion`
 
+У `0.0.15` starter gear джерела лишаються тим самим idempotent claim mechanism:
+- `combat.mimic-shawarma.probe` attack → `item.pan-of-persuasion`, receipt → `item.stamp-of-minor-authority`
+- `cellar.mouse-errand` negotiate → `item.cork-ring-of-serious-business`
+- `tavern.friday-barrel-raid` → `item.apron-of-foam-resistance`
+
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 
 У `0.0.10` таблиця `character_cooldowns` використовується для першої repeatable активності:
@@ -338,6 +343,8 @@ Callback data коротка, версіонована.
 - `v1:equip:wear:{itemId}` або коротший equivalent — future richer equipment mutation after the `0.0.14` shell, if slots, restrictions, or item instances need more data than content ids.
 
 Валідація обов’язкова. Не довіряти даним з callback: `v1:item:detail:{itemId}` має перевірити, що item id валідний, content існує або має fallback, і герой реально володіє цією манаткою перед показом деталей. `v1:equip:item:{itemId}` має додатково перевірити ownership і equippable content metadata; `v1:equip:clear:{slot}` має відхилити невідомий slot.
+
+Regression guard: item/equipment callback parsers мають і надалі явно відхиляти payload-и довші за `TELEGRAM_CALLBACK_DATA_LIMIT`, навіть якщо generated callback-и зараз короткі.
 
 Майбутній UX-борг для `safeEditMessageText`:
 - Перед редагуванням callback-повідомлення перевіряти, що це останнє актуальне повідомлення бота в цьому chat/user flow, або що конкретний екран явно дозволено редагувати старим `message_id`.
