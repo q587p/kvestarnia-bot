@@ -367,6 +367,13 @@ Future progression pass:
 - Add tests around level breakpoints so raising level changes real outcomes, not only displayed summary numbers.
 - Model levels `11-20` as an epic bracket with milestone unlocks for race/class abilities, inspired by Munchkin-style extra class/race tricks. Keep unlock definitions data-driven enough for tests and presenters to answer «what changed at this level?» without hard-coded string checks.
 
+Future time-of-day combat modifiers:
+- Derive a coarse local phase from the shared time helper: `morning`, `day`, `evening`, `night`.
+- Store monster affinity as content tags or explicit modifiers, not presenter text: e.g. `night`, `dark`, `underground`, `sunlit`, `dawn`.
+- Apply phase modifiers in the deterministic combat/effective-enemy helper before presenters render HP/attack previews.
+- Test each phase with fixed clocks; never depend on wall-clock time directly in domain tests.
+- Keep UI wording coarse and flavorful. Do not show exact server timestamps; say the night makes a tagged enemy bolder, not «+17% о 23:04».
+
 Future social progression boards:
 - Add a durable event/log source for first arrival and level-up milestones instead of deriving them from mutable current character state.
 - Level-up records should be idempotent per `character_id` + reached `level`; repeated reward callbacks must not duplicate the same milestone.
