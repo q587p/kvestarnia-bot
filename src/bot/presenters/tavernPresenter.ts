@@ -103,7 +103,7 @@ export function presentTavernRaidReadyToComplete(
     "",
     `Очікування: <b>${result.availableAt <= result.now ? "час уже вийшов" : formatRaidWait(result.availableAt, result.now)}</b>.`,
     "",
-    "Натисніть `🍺 Перевірити бочку`."
+    "Натисніть <b>🍺 Перевірити бочку</b>."
   ].join("\n");
 }
 

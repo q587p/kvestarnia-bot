@@ -177,6 +177,8 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Бочка підозріло притихла");
     expect(text).toContain("час уже вийшов");
+    expect(text).toContain("Натисніть <b>🍺 Перевірити бочку</b>.");
+    expect(text).not.toContain("`🍺 Перевірити бочку`");
     expect(text).not.toContain("10:31");
   });
 

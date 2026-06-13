@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
+import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
+import { makeFightCallbackData } from "../../src/bot/callbacks/fightCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
+import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
   PRESENCE_LOCATION_KORCHMA_BARREL,
@@ -119,18 +122,91 @@ describe("presence middleware", () => {
     });
   });
 
-  it("marks cellar callbacks with cellar presence", async () => {
+  it("marks successful cellar action callbacks with cellar presence after handler gates", async () => {
     const presence = new CapturingPresenceService();
-    const bot = createTestBot(presence);
+    const bot = createTestBot(presence, {
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        complete: () =>
+          Promise.resolve({
+            state: "completed",
+            action: "negotiate",
+            character,
+            reward: {
+              xp: 2,
+              gold: 1,
+              itemGrants: []
+            },
+            availableAt: new Date("2026-06-13T10:03:00.000Z"),
+            now: new Date("2026-06-13T10:00:00.000Z"),
+            levelChange: {
+              oldLevel: 1,
+              newLevel: 1,
+              leveledUp: false
+            }
+          })
+      }
+    });
     await bot.init();
 
     await bot.handleUpdate(callbackUpdate(makeCellarCallbackData("negotiate")));
 
-    expect(presence.marks[0]).toMatchObject({
+    expect(presence.marks[0]).toEqual({
+      user: {
+        telegramUserId: 42n,
+        displayName: "Тест"
+      }
+    });
+    expect(presence.marks[1]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
     });
+  });
+
+  it.each([
+    {
+      name: "adventure",
+      callbackData: makeAdventureCallbackData("poke")
+    },
+    {
+      name: "fight",
+      callbackData: makeFightCallbackData("attack")
+    },
+    {
+      name: "cellar",
+      callbackData: makeCellarCallbackData("negotiate")
+    }
+  ])("does not move presence from stale $name callbacks during a pending barrel raid", async ({ callbackData }) => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence, {
+      tavern: {
+        getTavernForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+        completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+        getActivePendingFridayBarrelRaidForTelegramUser: () =>
+          Promise.resolve({
+            state: "pending",
+            character,
+            availableAt: new Date("2026-06-13T10:33:00.000Z"),
+            now: new Date("2026-06-13T10:30:00.000Z")
+          }),
+        getRoundOfferForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        buyRoundForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      }
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(callbackData));
+
+    expect(presence.marks).toEqual([
+      {
+        user: {
+          telegramUserId: 42n,
+          displayName: "Тест"
+        }
+      }
+    ]);
   });
 
   it("does not mark random unhandled text as presence", async () => {
@@ -193,8 +269,8 @@ class CapturingPresenceService {
   }
 }
 
-function createTestBot(presence: CapturingPresenceService) {
-  const bot = createBot("123456:test-token", servicesWith({ presence }));
+function createTestBot(presence: CapturingPresenceService, overrides: Partial<BotServices> = {}) {
+  const bot = createBot("123456:test-token", servicesWith({ presence, ...overrides }));
 
   bot.api.config.use((_prev, method) => {
     if (method === "getMe") {
@@ -217,6 +293,42 @@ function createTestBot(presence: CapturingPresenceService) {
 
   return bot;
 }
+
+const character: CharacterSummary = {
+  name: "Мандрівник",
+  pronoun: "they",
+  pronounLabel: "Вони",
+  path: "boundary",
+  raceId: "race.human-ish",
+  raceName: "Людисько",
+  classId: "class.warrior",
+  className: "Воїн",
+  title: "Пересічні Герої",
+  level: 1,
+  xp: 0,
+  nextLevelXp: 10,
+  xpToNextLevel: 10,
+  gold: 0,
+  hpCurrent: 20,
+  hpMax: 20,
+  manaCurrent: 10,
+  manaMax: 10,
+  stats: {
+    strength: 8,
+    dexterity: 6,
+    intelligence: 6,
+    charisma: 6,
+    luck: 6
+  },
+  levelBonus: {
+    hpMax: 0,
+    manaMax: 0,
+    primaryStat: {
+      stat: "strength",
+      bonus: 0
+    }
+  }
+};
 
 function servicesWith(overrides: Partial<BotServices>): BotServices {
   return {

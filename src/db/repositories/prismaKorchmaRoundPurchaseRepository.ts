@@ -33,21 +33,43 @@ export class PrismaKorchmaRoundPurchaseRepository implements KorchmaRoundPurchas
         return null;
       }
 
-      if (character.gold < input.spentGold) {
-        return {
-          state: "insufficient" as const,
-          character: toCharacterRecord(character)
-        };
-      }
-
-      const updated = await tx.character.update({
+      const spent = await tx.character.updateMany({
         where: {
-          id: character.id
+          id: character.id,
+          gold: {
+            gte: input.spentGold
+          }
         },
         data: {
           gold: {
             decrement: input.spentGold
           }
+        }
+      });
+
+      if (spent.count === 0) {
+        const current = await tx.character.findUnique({
+          where: {
+            id: character.id
+          },
+          include: {
+            user: {
+              select: {
+                lastSeenLocationId: true
+              }
+            }
+          }
+        });
+
+        return {
+          state: "insufficient" as const,
+          character: toCharacterRecord(current ?? character)
+        };
+      }
+
+      const updated = await tx.character.findUniqueOrThrow({
+        where: {
+          id: character.id
         },
         include: {
           user: {

@@ -361,27 +361,15 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
   }
 
   if (data.startsWith("v1:adv:mimic:")) {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
-    };
+    return {};
   }
 
   if (data.startsWith("v1:cellar:")) {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
-    };
+    return {};
   }
 
   if (data.startsWith("v1:fight:mimic:")) {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
-    };
+    return {};
   }
 
   if (data.startsWith("v1:quest:")) {
@@ -983,6 +971,14 @@ async function handleAdventureCallback(
       PRESENCE_ADVENTURE_MIMIC_SHAWARMA
     );
 
+    if (snapshot.state !== "no-character") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+      });
+    }
+
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentParticipants(snapshot), {
       ...HTML_MESSAGE_OPTIONS,
@@ -998,6 +994,12 @@ async function handleAdventureCallback(
     await safeEditMessageText(ctx, presentAdventureNoCharacter());
     return;
   }
+
+  await markScenePresence(ctx, services.presence, {
+    locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+    currentRaidId: null,
+    currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+  });
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentAdventureResult(result), {
@@ -1028,6 +1030,14 @@ async function handleCellarCallback(
       PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
     );
 
+    if (snapshot.state !== "no-character") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+      });
+    }
+
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentParticipants(snapshot), {
       ...HTML_MESSAGE_OPTIONS,
@@ -1043,6 +1053,12 @@ async function handleCellarCallback(
     await safeEditMessageText(ctx, presentCellarNoCharacter());
     return;
   }
+
+  await markScenePresence(ctx, services.presence, {
+    locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+    currentRaidId: null,
+    currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+  });
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentCellarResult(result), {
@@ -1075,10 +1091,33 @@ async function handleFightCallback(
     return;
   }
 
+  await markScenePresence(ctx, services.presence, {
+    locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+    currentRaidId: null,
+    currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
+  });
+
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentFightResult(result), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildFightResultKeyboard(result.state)
+  });
+}
+
+async function markScenePresence(
+  ctx: Context,
+  presenceService: PresenceService,
+  context: PresenceContext
+): Promise<void> {
+  const player = playerFromContext(ctx.from);
+
+  if (!player) {
+    return;
+  }
+
+  await presenceService.markAction({
+    user: player,
+    ...context
   });
 }
 
