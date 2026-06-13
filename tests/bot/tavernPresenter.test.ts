@@ -262,7 +262,8 @@ describe("tavern presenter", () => {
       );
       expect(text).toContain("\n\nКорчмар:\n<blockquote>");
       expect(text).toContain("<i>Порада дня:");
-      expect(text).toMatch(/<\/i>\n\n<i>Ще одна порада, бо перша теж нервує:/);
+      expect(text).not.toContain("Ще одна порада");
+      expect(text.match(/Порада дня:/g)).toHaveLength(1);
       expect(text.indexOf("<i>Порада дня:")).toBeLessThan(text.indexOf("Поверніться через"));
       expect(text).toMatch(/Єгер|Підлога|Бочка|Стріла|Табурет/);
       expect(text).toContain("Поверніться через <b>8 хв.</b>");
@@ -290,6 +291,7 @@ describe("tavern presenter", () => {
     expect(second).not.toBe(first);
     expect(second).toContain("Рейд ще триває");
     expect(second).toContain("Поверніться через <b>8 хв.</b>");
+    expect(extractRaidAdvice(second)).not.toBe(extractRaidAdvice(first));
   });
 
   it("presents pending raid block for other activities", () => {
@@ -526,4 +528,8 @@ const roundLeaderboard = {
     }
   ]
 };
+
+function extractRaidAdvice(text: string): string {
+  return text.match(/<i>Порада дня: (?<advice>.+)<\/i>/)?.groups?.advice ?? "";
+}
 

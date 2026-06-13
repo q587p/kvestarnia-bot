@@ -316,15 +316,28 @@ function presentRaidPrepHint(character: CharacterSummary, seed: string): string[
     includeFallback: true,
     limit: 2
   });
+  const flavor = selectRotatingFlavor(flavors, seed);
 
-  return flavors.flatMap((flavor, index) => {
-    const line =
-      index === 0
-        ? `<i>Порада дня: ${escapeHtml(flavor.text)}</i>`
-        : `<i>Ще одна порада, бо перша теж нервує: ${escapeHtml(flavor.text)}</i>`;
+  return flavor ? [`<i>Порада дня: ${escapeHtml(flavor.text)}</i>`] : [];
+}
 
-    return index === 0 ? [line] : ["", line];
-  });
+function selectRotatingFlavor<T>(flavors: readonly T[], seed: string): T | null {
+  if (flavors.length === 0) {
+    return null;
+  }
+
+  return flavors[hashString(seed) % flavors.length] ?? flavors[0] ?? null;
+}
+
+function hashString(value: string): number {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
 }
 
 function presentRangerRaidAction(character: CharacterSummary, seed: string): string {
