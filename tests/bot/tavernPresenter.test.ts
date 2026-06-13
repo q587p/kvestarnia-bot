@@ -6,6 +6,7 @@ import {
   presentPendingRaidActionBlock,
   presentTavernRanger,
   presentTavernNoCharacter,
+  presentTavernRaidAuditBreak,
   presentTavernRaidPending,
   presentTavernRaidReadyToComplete,
   presentTavernRaidResult,
@@ -111,12 +112,12 @@ describe("tavern presenter", () => {
     expect(presentTavernNoCharacter()).toContain("/start");
   });
 
-  it("shows a different tavern screen after today's raid is already done", () => {
+  it("shows a different tavern screen after the current raid period is already done", () => {
     const text = presentTavernAlreadyRaided(character);
 
-    expect(text).toContain("Бочка Пінного Міражу сьогодні вже пережила ваш героїзм");
+    expect(text).toContain("Бочка Пінного Міражу в цьому відтинку вже пережила ваш героїзм");
     expect(text).toContain("Єгер у капюшоні все ще сидить у кутку");
-    expect(text).toContain("завтра знову");
+    expect(text).toContain("Лічильник клацне на 23-й хвилині");
     expect(text).not.toContain("За столами:");
     expect(text).toContain("/hero");
     expect(text).not.toContain("Дві-три хвилини. Максимум");
@@ -157,6 +158,7 @@ describe("tavern presenter", () => {
     );
     expect(presentTavernRaidResult(completed)).not.toContain("×1");
     expect(presentTavernRaidResult(repeated)).toContain("уже зараховано");
+    expect(presentTavernRaidResult(repeated)).toContain("23-й хвилині");
     expect(presentTavernRaidResult(repeated)).toContain(
       "Вже отримано: <b>+7 XP · +5 золота</b>"
     );
@@ -169,7 +171,8 @@ describe("tavern presenter", () => {
       state: "pending-started",
       character,
       availableAt: new Date("2026-06-13T10:38:00.000Z"),
-      now: new Date("2026-06-13T10:30:00.000Z")
+      now: new Date("2026-06-13T10:30:00.000Z"),
+      periodId: "2026-06-13T10:23"
     };
     const text = presentTavernRaidPending(pending);
 
@@ -186,7 +189,8 @@ describe("tavern presenter", () => {
       state: "pending",
       character,
       availableAt: new Date("2026-06-13T10:31:00.000Z"),
-      now: new Date("2026-06-13T10:30:01.000Z")
+      now: new Date("2026-06-13T10:30:01.000Z"),
+      periodId: "2026-06-13T10:23"
     });
 
     expect(text).toContain("Ви зараз у рейді");
@@ -201,7 +205,8 @@ describe("tavern presenter", () => {
       state: "pending-complete",
       character,
       availableAt: new Date("2026-06-13T10:31:00.000Z"),
-      now: new Date("2026-06-13T10:32:00.000Z")
+      now: new Date("2026-06-13T10:32:00.000Z"),
+      periodId: "2026-06-13T10:23"
     });
 
     expect(text).toContain("Бочка підозріло притихла");
@@ -209,6 +214,20 @@ describe("tavern presenter", () => {
     expect(text).toContain("Натисніть <b>🍺 Перевірити бочку</b>.");
     expect(text).not.toContain("`🍺 Перевірити бочку`");
     expect(text).not.toContain("10:31");
+  });
+
+  it("presents early-morning barrel accounting break", () => {
+    const text = presentTavernRaidAuditBreak({
+      state: "audit-break",
+      character,
+      now: new Date("2026-06-13T04:30:00.000Z"),
+      nextAvailableAt: new Date("2026-06-13T08:23:00.000Z")
+    });
+
+    expect(text).toContain("Бочка на переобліку");
+    expect(text).toContain("04:00 до 08:23");
+    expect(text).toContain("корчмар рахує піну");
+    expect(text).toContain("через <b>233 хв.</b>");
   });
 
   it("keeps level-up out of the raid result message", () => {

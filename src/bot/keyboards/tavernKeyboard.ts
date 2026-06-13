@@ -7,7 +7,8 @@ export type TavernResultKeyboardState =
   | "completed"
   | "already-completed"
   | "pending"
-  | "pending-started";
+  | "pending-started"
+  | "audit-break";
 
 export function buildTavernKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
@@ -50,7 +51,7 @@ export function buildTavernResultKeyboard(
       .text("👥 Учасники", makeTavernCallbackData("participants"));
   }
 
-  if (state === "completed" || state === "already-completed") {
+  if (state === "completed" || state === "already-completed" || state === "audit-break") {
     return new InlineKeyboard()
       .text("👥 Учасники", makeTavernCallbackData("participants"))
       .row()

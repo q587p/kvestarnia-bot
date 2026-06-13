@@ -67,12 +67,25 @@ export function presentTavernAlreadyRaided(character: CharacterSummary): string 
     "🛢️ Біля Бочки Пінного Міражу",
     `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
     "",
-    "Бочка Пінного Міражу сьогодні вже пережила ваш героїзм.",
+    "Бочка Пінного Міражу в цьому відтинку вже пережила ваш героїзм.",
     "Єгер у капюшоні все ще сидить у кутку. Схоже, він підозрював, що цим усе й скінчиться.",
     "",
-    npcQuote("Корчмар", "Вона просила передати: завтра знову буде хоробра. Можливо."),
+    npcQuote("Корчмар", "Лічильник клацне на 23-й хвилині. Бочка зробить вигляд, що це інша бочка."),
     "",
     "Поки що можна пригостити всіх пивом або перевірити героя: /hero"
+  ].join("\n");
+}
+
+export function presentTavernRaidAuditBreak(
+  result: Extract<TavernLookupResult | TavernRaidResult, { state: "audit-break" }>
+): string {
+  return [
+    "🛢️ Бочка на переобліку.",
+    "З 04:00 до 08:23 корчмар рахує піну, єгер рахує підозри, а Бочка рахує, скільки разів її сьогодні назвали меблями.",
+    "",
+    npcQuote("Корчмар", "Після переобліку знову можна буде героїчно втручатись у бухгалтерію."),
+    "",
+    `Наступний рейдовий відтинок відкриється через <b>${formatRaidWait(result.nextAvailableAt, result.now)}</b>`
   ].join("\n");
 }
 
@@ -130,15 +143,19 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
   if (result.state === "already-completed") {
     return [
       "🍺 Бочка вас пам’ятає.",
-      "Сьогоднішній рейд уже зараховано. Вона все ще трохи нервує.",
+      "Цей рейдовий відтинок уже зараховано. Вона все ще трохи нервує.",
       "",
       presentRewardAmount({
         xp: result.reward.xp,
         gold: result.reward.gold,
         label: "Вже отримано"
       }),
-      "Повертайтесь завтра або перевірте героя: /hero"
+      "Новий відтинок відкриється на 23-й хвилині наступної години. Або перевірте героя: /hero"
     ].join("\n");
+  }
+
+  if (result.state === "audit-break") {
+    return presentTavernRaidAuditBreak(result);
   }
 
   const lines = [

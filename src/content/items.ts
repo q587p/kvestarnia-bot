@@ -34,6 +34,30 @@ export const items = [
     goldValue: 14
   },
   {
+    id: "item.barrel-splinter-of-optimism",
+    name: "Скіпка бочкового оптимізму",
+    description: "Маленька, гостра й переконана, що це вона перемогла рейд.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 1
+  },
+  {
+    id: "item.foam-cork-of-accounting",
+    name: "Корок пінного переобліку",
+    description: "Його дістали з бочки під час ревізії. Корок наполягає, що був аудитором.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 2
+  },
+  {
+    id: "item.mirage-foam-sample",
+    name: "Зразок піни з характером",
+    description: "Піна тримає форму, позицію й образу на всіх, хто називає її «просто піною».",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 3
+  },
+  {
     id: "item.cork-ring-of-serious-business",
     name: "Корковий перстень серйозних справ",
     description: "Миша сказала, що це печатка. Корок не заперечив, бо зайнятий кар'єрою.",

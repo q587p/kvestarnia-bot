@@ -20,6 +20,7 @@ import {
   presentTavern,
   presentTavernAlreadyRaided,
   presentTavernNoCharacter,
+  presentTavernRaidAuditBreak,
   presentTavernRaidPending,
   presentTavernRaidReadyToComplete
 } from "../presenters/tavernPresenter";
@@ -138,6 +139,12 @@ export async function sendTavernBarrel(
   if (result.state === "already-completed") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
     await sendText(ctx, mode, presentTavernAlreadyRaided(result.character), "barrel-result");
+    return;
+  }
+
+  if (result.state === "audit-break") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
+    await sendText(ctx, mode, presentTavernRaidAuditBreak(result), "barrel-result");
     return;
   }
 

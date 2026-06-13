@@ -14,11 +14,14 @@ This project follows a simple pre-1.0 versioning policy:
 - `/fight` receipt handling can now grant `item.stamp-of-minor-authority` alongside the formal receipt trophy.
 - The cellar negotiation route can now grant `item.cork-ring-of-serious-business` alongside the mouse diplomacy napkin.
 - The Barrel raid completion can now grant `item.apron-of-foam-resistance` alongside the wet hero ticket.
+- Barrel raid results can now include one deterministic rotating junk trophy: `item.barrel-splinter-of-optimism`, `item.foam-cork-of-accounting`, or `item.mirage-foam-sample`.
+- Pending Barrel raids now schedule an in-process Telegram completion notification, so the player can wait without manually polling the button.
 - Tests cover new item ids, value/priceless metadata, no stat/effect fields, deterministic item grants, equipment mapping for reachable weapon/armor/accessory gear, item detail wording, equipment slots, and inventory valuation.
 
 ### Changed
 - Item detail flavor now gives armor and accessories their own tiny equipment-preview jokes instead of sharing one generic non-weapon line.
 - The current deterministic starter loop now reaches weapon, armor, and accessory examples without seeded/dev inventory.
+- Barrel raids are now gated by hourly raid periods that flip on the 23rd minute instead of by one daily claim. New starts pause from 04:00 through 08:23 for korchma accounting.
 
 ### Not Included Yet
 - Stat effects, HP/mana/combat/XP/gold math changes, random loot tables, shops, selling, trading, crafting, item-to-level exchange, or item instance logic.

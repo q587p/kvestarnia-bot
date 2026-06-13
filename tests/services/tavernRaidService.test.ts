@@ -62,7 +62,7 @@ describe("TavernRaidService", () => {
     expect(dailyActions.records).toHaveLength(1);
     expect(dailyActions.records[0]).toMatchObject({
       key: FRIDAY_BARREL_RAID_KEY,
-      localDate: "2026-06-12",
+      localDate: "2026-06-12T10:23",
       rewardXp: 7,
       rewardGold: 5
     });
@@ -82,6 +82,11 @@ describe("TavernRaidService", () => {
         {
           itemId: "item.wet-hero-ticket",
           name: "Квиток мокрого героя",
+          quantity: 1
+        },
+        {
+          itemId: "item.barrel-splinter-of-optimism",
+          name: "Скіпка бочкового оптимізму",
           quantity: 1
         }
       ]);
@@ -130,7 +135,7 @@ describe("TavernRaidService", () => {
       expect(repeated.reward).toMatchObject({
         xp: 7,
         gold: 5,
-        localDate: "2026-06-12",
+        localDate: "2026-06-12T10:23",
         itemGrants: []
       });
       expect(repeated.character.xp).toBe(7);
@@ -180,7 +185,7 @@ describe("TavernRaidService", () => {
       now: fixedClock()
     });
     expect(pendingRaids.records[0]).toMatchObject({
-      key: `${FRIDAY_BARREL_RAID_PENDING_KEY}:2026-06-12`,
+      key: `${FRIDAY_BARREL_RAID_PENDING_KEY}:2026-06-12T10:23`,
       availableAt: new Date("2026-06-12T10:35:00.000Z")
     });
     expect(dailyActions.records).toHaveLength(0);
@@ -251,7 +256,36 @@ describe("TavernRaidService", () => {
     });
   });
 
-  it("starts a fresh pending raid on the next local day instead of reusing yesterday's wait", async () => {
+  it("can complete an older pending raid when the player returns after later periods opened", async () => {
+    let now = new Date("2026-06-12T10:30:00.000Z");
+    const clock = () => now;
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const service = new TavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      clock,
+      new FakeRandomSource([0])
+    );
+
+    await service.advanceFridayBarrelRaid(telegramUserId);
+    now = new Date("2026-06-12T13:00:00.000Z");
+    const completed = await service.advanceFridayBarrelRaid(telegramUserId);
+
+    expect(completed).toMatchObject({
+      state: "completed",
+      reward: {
+        localDate: "2026-06-12T10:23"
+      }
+    });
+    expect(dailyActions.records[0]?.localDate).toBe("2026-06-12T10:23");
+  });
+
+  it("starts a fresh pending raid after the next hourly period opens at minute 23", async () => {
     let now = new Date("2026-06-12T10:30:00.000Z");
     const clock = () => now;
     const characters = new FakeCharacterRepository();
@@ -271,18 +305,82 @@ describe("TavernRaidService", () => {
     now = new Date("2026-06-12T10:35:01.000Z");
     await service.advanceFridayBarrelRaid(telegramUserId);
 
-    now = new Date("2026-06-13T10:30:00.000Z");
-    const nextDay = await service.advanceFridayBarrelRaid(telegramUserId);
+    now = new Date("2026-06-12T11:22:59.000Z");
+    const stillSamePeriod = await service.advanceFridayBarrelRaid(telegramUserId);
 
-    expect(nextDay).toMatchObject({
+    expect(stillSamePeriod).toMatchObject({
+      state: "already-completed"
+    });
+
+    now = new Date("2026-06-12T11:23:00.000Z");
+    const nextPeriod = await service.advanceFridayBarrelRaid(telegramUserId);
+
+    expect(nextPeriod).toMatchObject({
       state: "pending-started",
-      availableAt: new Date("2026-06-13T10:35:00.000Z")
+      availableAt: new Date("2026-06-12T11:28:00.000Z")
     });
     expect(dailyActions.createCount).toBe(1);
     expect(pendingRaids.records.map((record) => record.key)).toEqual([
-      `${FRIDAY_BARREL_RAID_PENDING_KEY}:2026-06-12`,
-      `${FRIDAY_BARREL_RAID_PENDING_KEY}:2026-06-13`
+      `${FRIDAY_BARREL_RAID_PENDING_KEY}:2026-06-12T10:23`,
+      `${FRIDAY_BARREL_RAID_PENDING_KEY}:2026-06-12T11:23`
     ]);
+  });
+
+  it("pauses new barrel raids during the early-morning accounting break", async () => {
+    const clock = () => new Date("2026-06-12T04:30:00.000Z");
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const service = new TavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      clock,
+      new FakeRandomSource([0])
+    );
+
+    await expect(service.getTavernForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "audit-break",
+      nextAvailableAt: new Date("2026-06-12T08:23:00.000Z")
+    });
+    await expect(service.advanceFridayBarrelRaid(telegramUserId)).resolves.toMatchObject({
+      state: "audit-break",
+      nextAvailableAt: new Date("2026-06-12T08:23:00.000Z")
+    });
+    expect(pendingRaids.records).toHaveLength(0);
+    expect(dailyActions.records).toHaveLength(0);
+  });
+
+  it("keeps the accounting break closed until the 08:23 raid period opens", async () => {
+    let now = new Date("2026-06-12T08:22:59.000Z");
+    const clock = () => now;
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const service = new TavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      clock,
+      new FakeRandomSource([0])
+    );
+
+    await expect(service.advanceFridayBarrelRaid(telegramUserId)).resolves.toMatchObject({
+      state: "audit-break",
+      nextAvailableAt: new Date("2026-06-12T08:23:00.000Z")
+    });
+
+    now = new Date("2026-06-12T08:23:00.000Z");
+
+    await expect(service.advanceFridayBarrelRaid(telegramUserId)).resolves.toMatchObject({
+      state: "pending-started",
+      availableAt: new Date("2026-06-12T08:28:00.000Z"),
+      periodId: "2026-06-12T08:23"
+    });
   });
 
   it("reports active pending raid for blocking other actions", async () => {

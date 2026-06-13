@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
@@ -7,6 +7,10 @@ import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackDa
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("scene callback HTML options", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it.each([
     {
       name: "tavern raid",
@@ -143,6 +147,55 @@ describe("scene callback HTML options", () => {
     expect(String(celebration?.payload.text)).toContain(
       "📈 Стало краще: <b>+4 HP · +2 мани · +1 Спритності</b>"
     );
+  });
+
+  it("sends an HTML barrel raid completion notification after the pending timer ends", async () => {
+    vi.useFakeTimers();
+
+    const calls = await captureApiCalls(
+      makeTavernCallbackData("raid"),
+      servicesWith({
+        tavern: {
+          advanceFridayBarrelRaid: () =>
+            Promise.resolve({
+              state: "pending-started",
+              character,
+              availableAt: new Date("2026-06-13T10:31:00.000Z"),
+              now: new Date("2026-06-13T10:30:00.000Z"),
+              periodId: "2026-06-13T10:23"
+            }),
+          completeFridayBarrelRaid: () =>
+            Promise.resolve({
+              state: "completed",
+              character,
+              reward: {
+                xp: 7,
+                gold: 5,
+                localDate: "2026-06-13T10:23",
+                itemGrants: [
+                  {
+                    itemId: "item.wet-hero-ticket",
+                    name: "Квиток мокрого героя",
+                    quantity: 1
+                  }
+                ]
+              },
+              levelChange: noLevelChange
+            })
+        }
+      })
+    );
+
+    expect(calls.find((call) => call.method === "sendMessage")).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    const notification = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("Рейд завершено")
+    );
+
+    expect(notification?.payload.parse_mode).toBe("HTML");
+    expect(String(notification?.payload.text)).toContain("<b>+7 XP · +5 золота</b>");
   });
 });
 
