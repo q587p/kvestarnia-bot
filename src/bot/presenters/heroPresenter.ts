@@ -1,4 +1,5 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import { getLocationName } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 import { presentLevelBonus } from "./levelGrowthPresenter";
 
@@ -13,12 +14,15 @@ export function presentHero(summary: CharacterSummary): string {
     `<i>${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}</i>`,
     "",
     `Титул: <i>${escapeHtml(summary.title)}</i>`,
+    "",
     progressLine,
     "",
     `HP ${summary.hpCurrent}/${summary.hpMax} · мана ${summary.manaCurrent}/${summary.manaMax}`,
     `Сили ${summary.stats.strength} · Спритн. ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
     ...(growthLine ? ["", `Ріст рівня: ${growthLine}`] : []),
+    "",
+    `Зараз герой тут: <b>${escapeHtml(getLocationName(summary.currentLocationId ?? ""))}</b>.`,
     "",
     "<i>Далі: /tavern, /quest або /fight.</i>"
   ].join("\n");

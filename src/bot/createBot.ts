@@ -1,15 +1,21 @@
 import { Bot, type Context } from "grammy";
 import type { AdventureService } from "../services/adventureService";
+import type { CellarErrandService } from "../services/cellarErrandService";
 import type { DevResetService } from "../services/devResetService";
 import type { FightService } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
 import type { InventoryService } from "../services/inventoryService";
 import type { OnboardingService } from "../services/onboardingService";
 import {
+  PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
-  PRESENCE_LOCATION_SHAWARMA,
-  PRESENCE_LOCATION_TAVERN,
+  PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_FRONT,
+  PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
   type MarkPlayerPresenceInput,
   type PresenceService
@@ -17,10 +23,12 @@ import {
 import type { RestartService } from "../services/restartService";
 import type { TavernRaidService } from "../services/tavernRaidService";
 import { parseAdventureCallbackData, type AdventureCallback } from "./callbacks/adventureCallbackData";
+import { parseCellarCallbackData, type CellarCallback } from "./callbacks/cellarCallbackData";
 import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
 import { parseFightCallbackData } from "./callbacks/fightCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
+import { parsePlaceCallbackData, type PlaceCallback } from "./callbacks/placeCallbackData";
 import {
   parseOnboardingCallbackData,
   type OnboardingCallback
@@ -28,6 +36,7 @@ import {
 import { parseRestartCallbackData } from "./callbacks/restartCallbackData";
 import { parseTavernCallbackData } from "./callbacks/tavernCallbackData";
 import { registerAdventureCommand, sendAdventure } from "./commands/adventureCommand";
+import { sendCellarErrand } from "./commands/cellarCommand";
 import { registerDevResetCommand } from "./commands/devResetCommand";
 import { registerFightCommand } from "./commands/fightCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
@@ -39,10 +48,16 @@ import { registerOnlineCommand } from "./commands/onlineCommand";
 import { registerPlannedCommands, sendPlannedCommand } from "./commands/plannedCommand";
 import { registerRestartCommand } from "./commands/restartCommand";
 import { registerStartCommand } from "./commands/startCommand";
-import { registerTavernCommand, sendTavern } from "./commands/tavernCommand";
+import {
+  registerTavernCommand,
+  sendKorchmaFront,
+  sendTavern,
+  sendTavernBarrel
+} from "./commands/tavernCommand";
 import { registerVersionCommand } from "./commands/versionCommand";
 import { playerFromContext } from "./context";
 import { buildAdventureResultKeyboard } from "./keyboards/adventureKeyboard";
+import { buildCellarResultKeyboard } from "./keyboards/cellarKeyboard";
 import { buildFightResultKeyboard } from "./keyboards/fightKeyboard";
 import {
   buildClassKeyboard,
@@ -53,6 +68,7 @@ import {
 import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
 import { buildTavernResultKeyboard } from "./keyboards/tavernKeyboard";
 import { presentAdventureNoCharacter, presentAdventureResult } from "./presenters/adventurePresenter";
+import { presentCellarNoCharacter, presentCellarResult } from "./presenters/cellarPresenter";
 import {
   presentDevResetCancelled,
   presentDevResetDeleted,
@@ -82,6 +98,7 @@ import { safeEditMessageText } from "./safeEditMessageText";
 
 export interface BotServices {
   adventure: AdventureService;
+  cellarErrand: CellarErrandService;
   fight: FightService;
   onboarding: OnboardingService;
   hero: HeroService;
@@ -106,7 +123,10 @@ export function createBot(token: string, services: BotServices): Bot {
   });
 
   registerPresenceMiddleware(bot, services.presence);
-  registerAdventureCommand(bot, services.adventure);
+  registerAdventureCommand(bot, services.adventure, {
+    cellarErrand: services.cellarErrand,
+    presence: services.presence
+  });
   registerFightCommand(bot, services.fight);
   registerStartCommand(bot, services.onboarding);
   registerHeroCommand(bot, services.hero);
@@ -184,6 +204,28 @@ export function createBot(token: string, services: BotServices): Bot {
     await handleAdventureCallback(ctx, parsed.value, services.adventure, services.presence);
   });
 
+  bot.callbackQuery(/^v1:place:/, async (ctx) => {
+    const parsed = parsePlaceCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handlePlaceCallback(ctx, parsed.value, services);
+  });
+
+  bot.callbackQuery(/^v1:cellar:/, async (ctx) => {
+    const parsed = parseCellarCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleCellarCallback(ctx, parsed.value, services.cellarErrand, services.presence);
+  });
+
   bot.callbackQuery(/^v1:fight:/, async (ctx) => {
     const parsed = parseFightCallbackData(ctx.callbackQuery.data);
 
@@ -259,7 +301,7 @@ function getPresenceContext(ctx: Context): PresenceContext | null {
 function getCallbackPresenceContext(data: string): PresenceContext | null {
   if (data === "v1:tavern:raid" || data === "v1:tavern:participants") {
     return {
-      locationId: PRESENCE_LOCATION_TAVERN,
+      locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
       currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
       currentAdventureId: null
     };
@@ -267,15 +309,23 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
 
   if (data.startsWith("v1:adv:mimic:")) {
     return {
-      locationId: PRESENCE_LOCATION_SHAWARMA,
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
     };
   }
 
+  if (data.startsWith("v1:cellar:")) {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+    };
+  }
+
   if (data.startsWith("v1:fight:mimic:")) {
     return {
-      locationId: PRESENCE_LOCATION_SHAWARMA,
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
     };
@@ -283,7 +333,7 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
 
   if (data.startsWith("v1:onb:")) {
     return {
-      locationId: PRESENCE_LOCATION_TAVERN,
+      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
       currentRaidId: null,
       currentAdventureId: null
     };
@@ -291,7 +341,63 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
 
   if (data === "v1:menu:tavern") {
     return {
-      locationId: PRESENCE_LOCATION_TAVERN,
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (data === "v1:place:hall") {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (data === "v1:place:front") {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (data === "v1:place:quest-table") {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (data === "v1:place:barrel") {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (data === "v1:place:cellar") {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (data === "v1:place:news-corner") {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (data.startsWith("v1:news:")) {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
       currentRaidId: null,
       currentAdventureId: null
     };
@@ -299,7 +405,6 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
 
   if (
     data.startsWith("v1:menu:") ||
-    data.startsWith("v1:news:") ||
     data.startsWith("v1:devreset:") ||
     data.startsWith("v1:restart:")
   ) {
@@ -318,18 +423,14 @@ function getTextPresenceContext(text: string): PresenceContext | null {
 
   if (text === mainMenuButtons.tavern) {
     return {
-      locationId: PRESENCE_LOCATION_TAVERN,
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
       currentRaidId: null,
       currentAdventureId: null
     };
   }
 
   if (text === mainMenuButtons.quest) {
-    return {
-      locationId: PRESENCE_LOCATION_SHAWARMA,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
-    };
+    return {};
   }
 
   if (
@@ -347,33 +448,45 @@ function getTextPresenceContext(text: string): PresenceContext | null {
 function getCommandPresenceContext(command: string): PresenceContext | null {
   if (command === "start") {
     return {
-      locationId: PRESENCE_LOCATION_TAVERN,
+      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
       currentRaidId: null,
       currentAdventureId: null
     };
   }
 
-  if (command === "tavern" || command === "raid") {
+  if (command === "tavern") {
     return {
-      locationId: PRESENCE_LOCATION_TAVERN,
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (command === "raid") {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
       currentRaidId: null,
       currentAdventureId: null
     };
   }
 
   if (command === "adventure" || command === "quest") {
-    return {
-      locationId: PRESENCE_LOCATION_SHAWARMA,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
-    };
+    return {};
   }
 
   if (command === "fight" || command === "hunt") {
     return {
-      locationId: PRESENCE_LOCATION_SHAWARMA,
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
+    };
+  }
+
+  if (command === "news") {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+      currentRaidId: null,
+      currentAdventureId: null
     };
   }
 
@@ -388,7 +501,6 @@ function getCommandPresenceContext(command: string): PresenceContext | null {
     command === "online" ||
     command === "look" ||
     command === "help" ||
-    command === "news" ||
     command === "version" ||
     command === "restart" ||
     command === "dev_reset_me"
@@ -574,6 +686,45 @@ async function handleMenuCallback(
   await sendTavern(ctx, services.tavern, services.presence, "edit");
 }
 
+async function handlePlaceCallback(
+  ctx: Context,
+  action: PlaceCallback,
+  services: BotServices
+): Promise<void> {
+  await safeAnswerCallbackQuery(ctx);
+
+  if (action === "hall") {
+    await sendTavern(ctx, services.tavern, services.presence, "edit");
+    return;
+  }
+
+  if (action === "front") {
+    await sendKorchmaFront(ctx, services.tavern, services.presence, "edit");
+    return;
+  }
+
+  if (action === "barrel") {
+    await sendTavernBarrel(ctx, services.tavern, services.presence, "edit");
+    return;
+  }
+
+  if (action === "quest-table") {
+    await sendAdventure(ctx, services.adventure, "edit", {
+      cellarErrand: services.cellarErrand,
+      presence: services.presence,
+      fallbackToCellar: false
+    });
+    return;
+  }
+
+  if (action === "cellar") {
+    await sendCellarErrand(ctx, services.cellarErrand, services.presence, "edit");
+    return;
+  }
+
+  await sendNewsList(ctx, 0);
+}
+
 function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
   bot.hears(mainMenuButtons.hero, async (ctx) => {
     await sendHero(ctx, services.hero, "reply");
@@ -584,7 +735,12 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
   });
 
   bot.hears(mainMenuButtons.quest, async (ctx) => {
-    await sendAdventure(ctx, services.adventure, "reply");
+    await sendAdventure(ctx, services.adventure, "reply", {
+      cellarErrand: services.cellarErrand,
+      presence: services.presence,
+      fallbackToCellar: true,
+      requireKorchmaInterior: true
+    });
   });
 
   bot.hears(mainMenuButtons.inventory, async (ctx) => {
@@ -677,6 +833,45 @@ async function handleAdventureCallback(
   await safeEditMessageText(ctx, presentAdventureResult(result), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildAdventureResultKeyboard(result.state)
+  });
+}
+
+async function handleCellarCallback(
+  ctx: Context,
+  action: CellarCallback,
+  cellarErrandService: CellarErrandService,
+  presenceService: PresenceService
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (action === "participants") {
+    const snapshot = await presenceService.getAdventureParticipantsForTelegramUser(
+      telegramUserId,
+      PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+    );
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentParticipants(snapshot), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
+  const result = await cellarErrandService.complete(telegramUserId, action);
+
+  if (result.state === "no-character") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentCellarNoCharacter());
+    return;
+  }
+
+  await safeAnswerCallbackQuery(ctx);
+  await safeEditMessageText(ctx, presentCellarResult(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildCellarResultKeyboard(result.state)
   });
 }
 

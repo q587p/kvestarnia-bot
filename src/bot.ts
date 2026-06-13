@@ -6,6 +6,7 @@ import { createBot } from "./bot/createBot";
 import { loadConfig } from "./config/env";
 import { prisma } from "./db/prisma";
 import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepository";
+import { PrismaCooldownRepository } from "./db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "./db/repositories/prismaDailyActionRepository";
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
 import { PrismaPresenceRepository } from "./db/repositories/prismaPresenceRepository";
@@ -13,6 +14,7 @@ import { PrismaUserRepository } from "./db/repositories/prismaUserRepository";
 import { startHealthServer } from "./health/server";
 import { readAppVersion } from "./shared/appVersion";
 import { AdventureService } from "./services/adventureService";
+import { CellarErrandService } from "./services/cellarErrandService";
 import { DevResetService } from "./services/devResetService";
 import { DeployNotificationService } from "./services/deployNotificationService";
 import { FightService } from "./services/fightService";
@@ -26,11 +28,13 @@ import { TavernRaidService } from "./services/tavernRaidService";
 const config = loadConfig();
 const users = new PrismaUserRepository(prisma);
 const characters = new PrismaCharacterRepository(prisma);
+const cooldowns = new PrismaCooldownRepository(prisma);
 const dailyActions = new PrismaDailyActionRepository(prisma);
 const inventory = new PrismaInventoryRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
 const services = {
   adventure: new AdventureService(characters, dailyActions),
+  cellarErrand: new CellarErrandService(cooldowns),
   fight: new FightService(characters, dailyActions),
   onboarding: new OnboardingService(users, characters),
   hero: new HeroService(characters),

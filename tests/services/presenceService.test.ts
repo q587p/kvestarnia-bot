@@ -7,8 +7,10 @@ import type {
 import {
   getPresenceStatus,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
-  PRESENCE_LOCATION_SHAWARMA,
-  PRESENCE_LOCATION_TAVERN,
+  PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_UNKNOWN,
   PRESENCE_RAID_FRIDAY_BARREL,
   PresenceService
@@ -33,14 +35,14 @@ describe("PresenceService", () => {
         telegramUserId: 1n,
         displayName: "587"
       },
-      locationId: PRESENCE_LOCATION_SHAWARMA,
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
     });
 
     expect(repository.records.get(1n)).toMatchObject({
       lastActionAt: now,
-      lastSeenLocationId: PRESENCE_LOCATION_SHAWARMA,
+      lastSeenLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
     });
@@ -48,10 +50,10 @@ describe("PresenceService", () => {
 
   it("excludes inactive players from online and filters local presence by location", async () => {
     const repository = new FakePresenceRepository([
-      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_TAVERN),
-      player(2n, "Дара", minutesAgo(7), PRESENCE_LOCATION_TAVERN),
-      player(3n, "Нестор Межовий", minutesAgo(3), PRESENCE_LOCATION_SHAWARMA),
-      player(4n, "Давно не озивалися", minutesAgo(20), PRESENCE_LOCATION_TAVERN)
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL),
+      player(2n, "Дара", minutesAgo(7), PRESENCE_LOCATION_KORCHMA_HALL),
+      player(3n, "Нестор Межовий", minutesAgo(3), PRESENCE_LOCATION_KORCHMA_QUEST_TABLE),
+      player(4n, "Давно не озивалися", minutesAgo(20), PRESENCE_LOCATION_KORCHMA_HALL)
     ]);
     const service = new PresenceService(repository, () => now);
 
@@ -76,16 +78,16 @@ describe("PresenceService", () => {
 
   it("filters raid and adventure participants by the current scene only", async () => {
     const repository = new FakePresenceRepository([
-      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_TAVERN, {
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_BARREL, {
         currentRaidId: PRESENCE_RAID_FRIDAY_BARREL
       }),
-      player(2n, "Дара", minutesAgo(9), PRESENCE_LOCATION_TAVERN, {
+      player(2n, "Дара", minutesAgo(9), PRESENCE_LOCATION_KORCHMA_BARREL, {
         currentRaidId: PRESENCE_RAID_FRIDAY_BARREL
       }),
-      player(3n, "Нестор Межовий", minutesAgo(2), PRESENCE_LOCATION_SHAWARMA, {
+      player(3n, "Нестор Межовий", minutesAgo(2), PRESENCE_LOCATION_KORCHMA_QUEST_TABLE, {
         currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
       }),
-      player(4n, "Стара тінь", minutesAgo(20), PRESENCE_LOCATION_TAVERN, {
+      player(4n, "Стара тінь", minutesAgo(20), PRESENCE_LOCATION_KORCHMA_BARREL, {
         currentRaidId: PRESENCE_RAID_FRIDAY_BARREL
       })
     ]);
@@ -112,31 +114,36 @@ describe("PresenceService", () => {
 
   it("groups public web presence by visible locations without player names by default", async () => {
     const repository = new FakePresenceRepository([
-      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_TAVERN),
-      player(2n, "Дара", minutesAgo(7), PRESENCE_LOCATION_TAVERN),
-      player(3n, "Нестор Межовий", minutesAgo(2), PRESENCE_LOCATION_SHAWARMA),
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL),
+      player(2n, "Дара", minutesAgo(7), PRESENCE_LOCATION_KORCHMA_HALL),
+      player(3n, "Нестор Межовий", minutesAgo(2), PRESENCE_LOCATION_KORCHMA_QUEST_TABLE),
+      player(7n, "Підвальний Свідок", minutesAgo(2), PRESENCE_LOCATION_KORCHMA_CELLAR),
       player(4n, "Тихий плащ", minutesAgo(3), "location.secret-cellar"),
-      player(5n, "Не показувати", minutesAgo(4), PRESENCE_LOCATION_SHAWARMA, {
+      player(5n, "Не показувати", minutesAgo(4), PRESENCE_LOCATION_KORCHMA_QUEST_TABLE, {
         showInPublicPresence: false
       }),
-      player(6n, "Давно не озивалися", minutesAgo(20), PRESENCE_LOCATION_TAVERN)
+      player(6n, "Давно не озивалися", minutesAgo(20), PRESENCE_LOCATION_KORCHMA_HALL)
     ]);
     const service = new PresenceService(repository, () => now);
 
     const snapshot = await service.getPublicPresenceLocations();
-    const tavern = snapshot.locations.find(
-      (location) => location.locationId === PRESENCE_LOCATION_TAVERN
+    const hall = snapshot.locations.find(
+      (location) => location.locationId === PRESENCE_LOCATION_KORCHMA_HALL
     );
     const shawarma = snapshot.locations.find(
-      (location) => location.locationId === PRESENCE_LOCATION_SHAWARMA
+      (location) => location.locationId === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
     );
     const unknown = snapshot.locations.find(
       (location) => location.locationId === PRESENCE_LOCATION_UNKNOWN
     );
+    const cellar = snapshot.locations.find(
+      (location) => location.locationId === PRESENCE_LOCATION_KORCHMA_CELLAR
+    );
 
-    expect(snapshot.total).toBe(5);
-    expect(tavern).toMatchObject({
-      title: "Таверна Квестарні",
+    expect(snapshot.total).toBe(6);
+    expect(hall).toMatchObject({
+      title: "Зала корчми",
+      regionName: "Корчма Квестарні",
       activeCount: 1,
       idleCount: 1,
       players: []
@@ -152,12 +159,20 @@ describe("PresenceService", () => {
       idleCount: 0,
       players: []
     });
+    expect(cellar).toMatchObject({
+      title: "Підвал корчми",
+      regionName: "Корчма Квестарні",
+      activeCount: 1,
+      idleCount: 0,
+      players: []
+    });
     expect(snapshot.locations.some((location) => location.locationId.includes("secret"))).toBe(
       false
     );
     expect(JSON.stringify(snapshot)).not.toContain("587");
     expect(JSON.stringify(snapshot)).not.toContain("Дара");
     expect(JSON.stringify(snapshot)).not.toContain("Нестор Межовий");
+    expect(JSON.stringify(snapshot)).not.toContain("Підвальний Свідок");
     expect(JSON.stringify(snapshot)).not.toContain("Давно не озивалися");
     expect(JSON.stringify(snapshot)).not.toContain("Тихий плащ");
     expect(JSON.stringify(snapshot)).not.toContain("Не показувати");
@@ -165,8 +180,8 @@ describe("PresenceService", () => {
 
   it("can expose public names only when explicitly enabled and allowed", async () => {
     const repository = new FakePresenceRepository([
-      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_TAVERN),
-      player(2n, "Не показувати", minutesAgo(2), PRESENCE_LOCATION_TAVERN, {
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL),
+      player(2n, "Не показувати", minutesAgo(2), PRESENCE_LOCATION_KORCHMA_HALL, {
         showInPublicPresence: false
       }),
       player(3n, "Тихий плащ", minutesAgo(3), "hidden.deep-room")
@@ -176,14 +191,14 @@ describe("PresenceService", () => {
     });
 
     const snapshot = await service.getPublicPresenceLocations();
-    const tavern = snapshot.locations.find(
-      (location) => location.locationId === PRESENCE_LOCATION_TAVERN
+    const hall = snapshot.locations.find(
+      (location) => location.locationId === PRESENCE_LOCATION_KORCHMA_HALL
     );
     const unknown = snapshot.locations.find(
       (location) => location.locationId === PRESENCE_LOCATION_UNKNOWN
     );
 
-    expect(tavern).toMatchObject({
+    expect(hall).toMatchObject({
       players: ["587"]
     });
     expect(unknown).toMatchObject({

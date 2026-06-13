@@ -41,6 +41,11 @@ Current tiny inventory slice:
 - Tavern/adventure/fight first completions can grant fixed items.
 - Full itemization, equipment effects, random loot tables, crafting, market, and trading remain later Phase 1+ work.
 
+Current repeatable slice:
+- `0.0.10` adds «Підвальна справа» as the first low-stakes repeatable fallback after the daily shawarma quest and fight probe are spent.
+- Cooldown lives in SQLite `character_cooldowns`, not Redis.
+- `/quest` is the entry point; full quest hub, `/cellar`, more repeatable activities, and activity refactor remain later work.
+
 ## Phase 2 — Group hook
 Мета: перша фіча, заради якої бот додають у групу.
 
@@ -49,8 +54,8 @@ Deliverables:
 - `/raid` або «бос дня».
 - Join кнопка.
 - Майбутній справжній рейд має вимагати мінімум 3 учасників перед стартом або підсумком; поточна Бочка Пінного Міражу лишається solo-compatible placeholder до цього зрізу.
-- Таверновий рейд має отримати pending state на випадкові 1–3 хвилини: герой «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
-- Коли з’явиться список присутніх у локаціях, таверна має отримати social action: пригостити їжею або питвом тих, хто зараз у таверні.
+- Корчемний рейд має отримати pending state на випадкові 1–3 хвилини: герой «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
+- Коли з’явиться список присутніх у локаціях, корчма має отримати social action: пригостити їжею або питвом тих, хто зараз у корчмі.
 - Легка presence-система вже є з `0.0.9`: `/online`, `/look`, локальні counts і participants для перших сцен; майбутні групові рейди мають перейти з scene-based ids на справжні raid/session rows.
 - 1–3 дії учасника.
 - Підсумок рейду з топ-учасниками.
@@ -120,7 +125,7 @@ Done when:
 - Achievements.
 - Collections: «Бестіарій», «Музей Манаток».
 - Daily tavern rumor.
-- Tavern social treat: пригостити їжею/питвом присутніх у таверні після появи location presence list.
+- Korchma social treat: пригостити їжею/питвом присутніх у корчмі після появи location presence list.
 - Player titles.
 - Seasonal boss.
 - Вісник ґільдії.

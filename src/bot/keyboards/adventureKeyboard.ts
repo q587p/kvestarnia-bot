@@ -17,8 +17,8 @@ export function buildAdventureKeyboard(): InlineKeyboard {
 export function buildAdventureResultKeyboard(
   state: AdventureResultKeyboardState
 ): InlineKeyboard {
-  if (state === "already-completed") {
-    return new InlineKeyboard();
+  if (state === "completed" || state === "already-completed") {
+    return new InlineKeyboard().text("👥 Учасники", makeAdventureCallbackData("participants"));
   }
 
   return buildAdventureKeyboard();

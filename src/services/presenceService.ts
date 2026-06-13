@@ -9,13 +9,22 @@ import { systemClock, type Clock } from "../shared/time";
 export const PRESENCE_ACTIVE_MS = 5 * 60 * 1000;
 export const PRESENCE_IDLE_MS = 15 * 60 * 1000;
 
+export const PRESENCE_LOCATION_KORCHMA_FRONT = "location.korchma.front";
+export const PRESENCE_LOCATION_KORCHMA_HALL = "location.korchma.hall";
+export const PRESENCE_LOCATION_KORCHMA_QUEST_TABLE = "location.korchma.quest_table";
+export const PRESENCE_LOCATION_KORCHMA_CELLAR = "location.korchma.cellar";
+export const PRESENCE_LOCATION_KORCHMA_BARREL = "location.korchma.barrel";
+export const PRESENCE_LOCATION_KORCHMA_NEWS_CORNER = "location.korchma.news_corner";
+export const PRESENCE_LOCATION_UNKNOWN = "location.unknown";
+
 export const PRESENCE_LOCATION_TAVERN = "location.tavern";
 export const PRESENCE_LOCATION_SHAWARMA = "location.shawarma-table";
-export const PRESENCE_LOCATION_UNKNOWN = "location.unknown";
+export const PRESENCE_LOCATION_TAVERN_CELLAR = "location.tavern-cellar";
 
 export const PRESENCE_RAID_FRIDAY_BARREL = "raid.friday-barrel";
 export const PRESENCE_ADVENTURE_MIMIC_SHAWARMA = "adventure.mimic-shawarma";
 export const PRESENCE_ADVENTURE_MIMIC_FIGHT = "adventure.mimic-shawarma-fight";
+export const PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND = "adventure.cellar.mouse-errand";
 
 export type PresenceStatus = "active" | "idle" | "inactive";
 export type PresenceActivityKind = "raid" | "adventure";
@@ -84,6 +93,15 @@ export type LookSnapshot =
       };
     };
 
+export type CurrentPlaceSnapshot =
+  | { state: "no-character" }
+  | {
+      state: "ready";
+      locationId: string;
+      locationName: string;
+      insideKorchma: boolean;
+    };
+
 export type PresenceActivitySnapshot =
   | {
       kind: "raid";
@@ -137,9 +155,9 @@ export class PresenceService {
 
     const since = this.getRecentCutoff();
     const globalPeople = groupPeople(await this.presence.listSeenSince(since), this.clock());
-    const locationId = current.lastSeenLocationId ?? PRESENCE_LOCATION_TAVERN;
+    const locationId = normalizePresenceLocationId(current.lastSeenLocationId);
     const locationPeople = groupPeople(
-      await this.presence.listByLocationSeenSince(locationId, since),
+      await this.listByLocationGroupSeenSince(locationId, since),
       this.clock()
     );
 
@@ -163,7 +181,7 @@ export class PresenceService {
     }
 
     const since = this.getRecentCutoff();
-    const locationId = current.lastSeenLocationId ?? PRESENCE_LOCATION_TAVERN;
+    const locationId = normalizePresenceLocationId(current.lastSeenLocationId);
 
     return {
       state: "ready",
@@ -171,10 +189,27 @@ export class PresenceService {
         id: locationId,
         name: getLocationName(locationId),
         people: groupPeople(
-          await this.presence.listByLocationSeenSince(locationId, since),
+          await this.listByLocationGroupSeenSince(locationId, since),
           this.clock()
         )
       }
+    };
+  }
+
+  async getCurrentPlaceForTelegramUser(telegramUserId: bigint): Promise<CurrentPlaceSnapshot> {
+    const current = await this.presence.findByTelegramUserId(telegramUserId);
+
+    if (!current?.characterName) {
+      return { state: "no-character" };
+    }
+
+    const locationId = normalizePresenceLocationId(current.lastSeenLocationId);
+
+    return {
+      state: "ready",
+      locationId,
+      locationName: getLocationName(locationId),
+      insideKorchma: isKorchmaInteriorLocation(locationId)
     };
   }
 
@@ -311,6 +346,17 @@ export class PresenceService {
       people: groupPeople(await this.presence.listByAdventureSeenSince(id, since), this.clock())
     };
   }
+
+  private async listByLocationGroupSeenSince(
+    locationId: string,
+    since: Date
+  ): Promise<PresenceRecord[]> {
+    const records = await Promise.all(
+      getLocationQueryIds(locationId).map((id) => this.presence.listByLocationSeenSince(id, since))
+    );
+
+    return uniquePresenceRecords(records.flat());
+  }
 }
 
 export function getPresenceStatus(lastActionAt: Date | null | undefined, now: Date): PresenceStatus {
@@ -332,7 +378,7 @@ export function getPresenceStatus(lastActionAt: Date | null | undefined, now: Da
 }
 
 function groupPeople(records: PresenceRecord[], now: Date): PresenceGroup {
-  const people = records
+  const people = uniquePresenceRecords(records)
     .map((record): PresencePerson | null => {
       const status = getPresenceStatus(record.lastActionAt, now);
 
@@ -367,17 +413,7 @@ function getPresenceName(record: PresenceRecord): string {
 }
 
 export function getLocationName(id: string): string {
-  const publicLocation = getPublicPresenceLocation(id);
-
-  if (!publicLocation.isSpecific) {
-    return publicLocation.title;
-  }
-
-  if (id === PRESENCE_LOCATION_SHAWARMA) {
-    return "Стіл із підозрілою шаурмою";
-  }
-
-  return "Таверна Квестарні";
+  return getPublicPresenceLocation(id).title;
 }
 
 interface PublicPresenceLocation {
@@ -395,9 +431,9 @@ interface MutablePublicPresenceLocation extends PublicPresenceLocationSnapshot {
 export function getPublicPresenceLocation(
   locationId: string | null | undefined
 ): PublicPresenceLocation {
-  const id = locationId ?? PRESENCE_LOCATION_TAVERN;
+  const rawId = locationId ?? PRESENCE_LOCATION_KORCHMA_FRONT;
 
-  if (isSecretPresenceLocation(id)) {
+  if (isSecretPresenceLocation(rawId)) {
     return {
       locationId: PRESENCE_LOCATION_UNKNOWN,
       title: "Невідома місцина",
@@ -407,21 +443,63 @@ export function getPublicPresenceLocation(
     };
   }
 
-  if (id === PRESENCE_LOCATION_SHAWARMA) {
+  const id = normalizePresenceLocationId(rawId);
+
+  if (id === PRESENCE_LOCATION_KORCHMA_FRONT) {
     return {
       locationId: id,
-      title: "Стіл із підозрілою шаурмою",
-      regionName: "Таверна Квестарні",
+      title: "Перед корчмою",
+      regionName: "Корчма Квестарні",
       showNames: true,
       isSpecific: true
     };
   }
 
-  if (id === PRESENCE_LOCATION_TAVERN) {
+  if (id === PRESENCE_LOCATION_KORCHMA_HALL) {
     return {
       locationId: id,
-      title: "Таверна Квестарні",
-      regionName: "Перед шинком",
+      title: "Зала корчми",
+      regionName: "Корчма Квестарні",
+      showNames: true,
+      isSpecific: true
+    };
+  }
+
+  if (id === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE) {
+    return {
+      locationId: id,
+      title: "Стіл зі справами",
+      regionName: "Корчма Квестарні",
+      showNames: true,
+      isSpecific: true
+    };
+  }
+
+  if (id === PRESENCE_LOCATION_KORCHMA_CELLAR) {
+    return {
+      locationId: id,
+      title: "Підвал корчми",
+      regionName: "Корчма Квестарні",
+      showNames: true,
+      isSpecific: true
+    };
+  }
+
+  if (id === PRESENCE_LOCATION_KORCHMA_BARREL) {
+    return {
+      locationId: id,
+      title: "Біля Бочки Пінного Міражу",
+      regionName: "Корчма Квестарні",
+      showNames: true,
+      isSpecific: true
+    };
+  }
+
+  if (id === PRESENCE_LOCATION_KORCHMA_NEWS_CORNER) {
+    return {
+      locationId: id,
+      title: "Дошка вістей",
+      regionName: "Корчма Квестарні",
       showNames: true,
       isSpecific: true
     };
@@ -434,6 +512,66 @@ export function getPublicPresenceLocation(
     showNames: false,
     isSpecific: false
   };
+}
+
+export function normalizePresenceLocationId(locationId: string | null | undefined): string {
+  if (!locationId) {
+    return PRESENCE_LOCATION_KORCHMA_FRONT;
+  }
+
+  if (locationId === PRESENCE_LOCATION_TAVERN) {
+    return PRESENCE_LOCATION_KORCHMA_HALL;
+  }
+
+  if (locationId === PRESENCE_LOCATION_SHAWARMA) {
+    return PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
+  }
+
+  if (locationId === PRESENCE_LOCATION_TAVERN_CELLAR) {
+    return PRESENCE_LOCATION_KORCHMA_CELLAR;
+  }
+
+  return locationId;
+}
+
+export function isKorchmaInteriorLocation(locationId: string | null | undefined): boolean {
+  const id = normalizePresenceLocationId(locationId);
+
+  return (
+    id === PRESENCE_LOCATION_KORCHMA_HALL ||
+    id === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE ||
+    id === PRESENCE_LOCATION_KORCHMA_CELLAR ||
+    id === PRESENCE_LOCATION_KORCHMA_BARREL ||
+    id === PRESENCE_LOCATION_KORCHMA_NEWS_CORNER
+  );
+}
+
+function getLocationQueryIds(locationId: string): string[] {
+  const id = normalizePresenceLocationId(locationId);
+
+  if (id === PRESENCE_LOCATION_KORCHMA_HALL) {
+    return [id, PRESENCE_LOCATION_TAVERN];
+  }
+
+  if (id === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE) {
+    return [id, PRESENCE_LOCATION_SHAWARMA];
+  }
+
+  if (id === PRESENCE_LOCATION_KORCHMA_CELLAR) {
+    return [id, PRESENCE_LOCATION_TAVERN_CELLAR];
+  }
+
+  return [id];
+}
+
+function uniquePresenceRecords(records: PresenceRecord[]): PresenceRecord[] {
+  const byUser = new Map<bigint, PresenceRecord>();
+
+  for (const record of records) {
+    byUser.set(record.telegramUserId, record);
+  }
+
+  return [...byUser.values()];
 }
 
 function getOrCreatePublicLocation(
@@ -479,6 +617,10 @@ function getRaidName(id: string): string {
 }
 
 function getAdventureName(id: string): string {
+  if (id === PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND) {
+    return "Підвальна справа";
+  }
+
   if (id === PRESENCE_ADVENTURE_MIMIC_FIGHT) {
     return "Сутичка з Міміком-шаурмою";
   }
@@ -488,8 +630,12 @@ function getAdventureName(id: string): string {
 
 function getActivityLocationName(id: string): string {
   if (id === PRESENCE_RAID_FRIDAY_BARREL) {
-    return getLocationName(PRESENCE_LOCATION_TAVERN);
+    return getLocationName(PRESENCE_LOCATION_KORCHMA_BARREL);
   }
 
-  return getLocationName(PRESENCE_LOCATION_SHAWARMA);
+  if (id === PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND) {
+    return getLocationName(PRESENCE_LOCATION_KORCHMA_CELLAR);
+  }
+
+  return getLocationName(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
 }

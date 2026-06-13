@@ -10,7 +10,7 @@ export function presentAdventureStart(character: CharacterSummary): string {
     "",
     "На столі лежить шаурма. Вона дихає.",
     "",
-    npcQuote("Шинкар", "То не моя."),
+    npcQuote("Корчмар", "То не моя."),
     "",
     `${escapeHtml(character.name)}, що робимо?`
   ].join("\n");

@@ -1,16 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
+import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
+import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import {
-  PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
-  PRESENCE_LOCATION_SHAWARMA,
-  PRESENCE_LOCATION_TAVERN,
+  PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
+  PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_FRONT,
+  PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
   type MarkPlayerPresenceInput
 } from "../../src/services/presenceService";
 
 describe("presence middleware", () => {
-  it("marks handled commands with scene context", async () => {
+  it("marks /quest as an action without forcing a location before routing", async () => {
     const presence = new CapturingPresenceService();
     const bot = createTestBot(presence);
     await bot.init();
@@ -18,10 +23,11 @@ describe("presence middleware", () => {
     await bot.handleUpdate(messageUpdate("/quest"));
 
     expect(presence.marks).toHaveLength(1);
-    expect(presence.marks[0]).toMatchObject({
-      locationId: PRESENCE_LOCATION_SHAWARMA,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+    expect(presence.marks[0]).toEqual({
+      user: {
+        telegramUserId: 42n,
+        displayName: "Тест"
+      }
     });
   });
 
@@ -34,9 +40,65 @@ describe("presence middleware", () => {
 
     expect(presence.marks).toHaveLength(1);
     expect(presence.marks[0]).toMatchObject({
-      locationId: PRESENCE_LOCATION_TAVERN,
+      locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
       currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
       currentAdventureId: null
+    });
+  });
+
+  it("marks korchma place callbacks with actual place context", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence);
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makePlaceCallbackData("quest-table")));
+
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: null
+    });
+  });
+
+  it("marks /start at the front of the korchma", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence);
+    await bot.init();
+
+    await bot.handleUpdate(messageUpdate("/start"));
+
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
+      currentRaidId: null,
+      currentAdventureId: null
+    });
+  });
+
+  it("marks the korchma menu button as the hall", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence);
+    await bot.init();
+
+    await bot.handleUpdate(messageUpdate("🍺 Корчма"));
+
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      currentRaidId: null,
+      currentAdventureId: null
+    });
+  });
+
+  it("marks cellar callbacks with cellar presence", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence);
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makeCellarCallbackData("negotiate")));
+
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
     });
   });
 
@@ -84,6 +146,20 @@ class CapturingPresenceService {
   getLookForTelegramUser(): Promise<{ state: "no-character" }> {
     return Promise.resolve({ state: "no-character" });
   }
+
+  getCurrentPlaceForTelegramUser(): Promise<{
+    state: "ready";
+    locationId: string;
+    locationName: string;
+    insideKorchma: boolean;
+  }> {
+    return Promise.resolve({
+      state: "ready",
+      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
+      locationName: "Перед корчмою",
+      insideKorchma: false
+    });
+  }
 }
 
 function createTestBot(presence: CapturingPresenceService) {
@@ -116,6 +192,10 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
     adventure: {
       getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
       completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+    },
+    cellarErrand: {
+      getForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      complete: () => Promise.resolve({ state: "no-character" })
     },
     fight: {
       getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),

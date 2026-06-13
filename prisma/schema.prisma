@@ -34,6 +34,7 @@ model Character {
   userId    String   @unique @map("user_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   dailyActions DailyAction[]
+  cooldowns CharacterCooldown[]
   items     CharacterItem[]
   name      String
   pronoun   String   @default("they")
@@ -83,4 +84,17 @@ model DailyAction {
   @@unique([characterId, key, localDate])
   @@index([key])
   @@map("daily_actions")
+}
+
+model CharacterCooldown {
+  id          String    @id @default(uuid())
+  characterId String    @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  key         String
+  availableAt DateTime  @map("available_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([characterId, key])
+  @@index([availableAt])
+  @@map("character_cooldowns")
 }

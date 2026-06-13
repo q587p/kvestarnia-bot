@@ -3,12 +3,18 @@ import {
   buildAdventureKeyboard,
   buildAdventureResultKeyboard
 } from "../../src/bot/keyboards/adventureKeyboard";
+import {
+  buildCellarKeyboard,
+  buildCellarResultKeyboard
+} from "../../src/bot/keyboards/cellarKeyboard";
 import { buildFightKeyboard, buildFightResultKeyboard } from "../../src/bot/keyboards/fightKeyboard";
 import {
   buildMainMenuKeyboard,
   mainMenuButtons
 } from "../../src/bot/keyboards/mainMenuKeyboard";
 import {
+  buildKorchmaFrontKeyboard,
+  buildKorchmaHallKeyboard,
   buildTavernKeyboard,
   buildTavernResultKeyboard
 } from "../../src/bot/keyboards/tavernKeyboard";
@@ -27,16 +33,26 @@ describe("main menu and scene keyboards", () => {
     expect(keyboard.is_persistent).toBe(true);
   });
 
+  it("builds korchma place navigation", () => {
+    expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard())).toEqual(["🚪 Зайти в корчму"]);
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard())).toEqual([
+      "📋 Стіл зі справами",
+      "🛢️ Бочка",
+      "📰 Дошка вістей",
+      "🐭 Підвал",
+      "🚪 Надвір"
+    ]);
+  });
+
   it("keeps tavern inline buttons scoped to tavern actions", () => {
     expect(flatInlineButtonTexts(buildTavernKeyboard())).toEqual([
       "🍺 У рейд на бочку",
       "👥 Учасники"
     ]);
-    expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual([
-      "🍺 У рейд на бочку",
+    expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual(["👥 Учасники"]);
+    expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([
       "👥 Учасники"
     ]);
-    expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([]);
   });
 
   it("keeps adventure inline buttons scoped to quest actions and participants", () => {
@@ -48,10 +64,30 @@ describe("main menu and scene keyboards", () => {
     ];
 
     expect(flatInlineButtonTexts(buildAdventureKeyboard())).toEqual(actionButtons);
-    expect(flatInlineButtonTexts(buildAdventureResultKeyboard("completed"))).toEqual(
-      actionButtons
-    );
-    expect(flatInlineButtonTexts(buildAdventureResultKeyboard("already-completed"))).toEqual([]);
+    expect(flatInlineButtonTexts(buildAdventureResultKeyboard("completed"))).toEqual([
+      "👥 Учасники"
+    ]);
+    expect(flatInlineButtonTexts(buildAdventureResultKeyboard("already-completed"))).toEqual([
+      "👥 Учасники"
+    ]);
+  });
+
+  it("keeps cellar inline buttons scoped to repeatable errand actions", () => {
+    const actionButtons = [
+      "🧀 Поставити сирну пастку",
+      "🧹 Підмести хоробро",
+      "🤝 Домовитись із мишею",
+      "👥 Учасники"
+    ];
+
+    expect(flatInlineButtonTexts(buildCellarKeyboard())).toEqual(actionButtons);
+    expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready"))).toEqual(actionButtons);
+    expect(flatInlineButtonTexts(buildCellarResultKeyboard("completed"))).toEqual([
+      "👥 Учасники"
+    ]);
+    expect(flatInlineButtonTexts(buildCellarResultKeyboard("on-cooldown"))).toEqual([
+      "👥 Учасники"
+    ]);
   });
 
   it("keeps fight inline buttons scoped to fight actions", () => {

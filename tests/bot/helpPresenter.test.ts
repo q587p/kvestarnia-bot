@@ -27,7 +27,7 @@ describe("help presenter", () => {
     expect(text).toContain("/help");
     expect(text).not.toContain("/dev_reset_me");
     expect(text).toContain("👤 /hero, /profile, /me — герой і прогрес");
-    expect(text).toContain("🍺 /tavern, /raid — таверна й рейд на бочку");
+    expect(text).toContain("🍺 /tavern, /raid — корчма й рейд на бочку");
     expect(text).toContain("🌯 /adventure, /quest — пригода з шаурмою");
     expect(text).toContain("⚔️ /fight, /hunt — сутичка з міміком");
     expect(text).toContain("🎒 /inventory, /items, /bag — манатки й торба");

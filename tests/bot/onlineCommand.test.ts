@@ -23,8 +23,8 @@ describe("online command", () => {
           state: "ready",
           globalTotal: 1,
           location: {
-            id: "location.tavern",
-            name: "Таверна Квестарні",
+            id: "location.korchma.hall",
+            name: "Зала корчми",
             people: {
               active: [{ telegramUserId: 42n, name: "Тестовий Герой", status: "active" }],
               idle: [],

@@ -34,7 +34,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "tavern",
     icon: "🍺",
-    description: "до таверни",
+    description: "до корчми",
     includeInMenu: false
   },
   {

@@ -15,6 +15,7 @@ export interface CharacterSummary {
   pronoun: Pronoun;
   pronounLabel: string;
   path: CharacterPath;
+  currentLocationId?: string | null;
   raceId: string;
   raceName: string;
   classId: string;
@@ -37,6 +38,7 @@ export interface CharacterSummaryInput {
   name: string;
   pronoun?: string;
   path?: string;
+  currentLocationId?: string | null;
   raceId: string;
   classId: string;
   level: number;
@@ -71,6 +73,7 @@ export function summarizeCharacter(input: CharacterSummaryInput): CharacterSumma
     pronoun,
     pronounLabel: getPronounLabel(pronoun),
     path: getCharacterPath({ path: input.path, pronoun }),
+    currentLocationId: input.currentLocationId ?? null,
     raceId: input.raceId,
     raceName: race?.name ?? input.raceId,
     classId: input.classId,

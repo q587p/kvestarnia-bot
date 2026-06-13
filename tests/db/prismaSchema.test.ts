@@ -66,4 +66,26 @@ describe("Prisma schema", () => {
     expect(migration).toContain("ADD COLUMN \"current_raid_id\"");
     expect(migration).toContain("ADD COLUMN \"current_adventure_id\"");
   });
+
+  it("stores character cooldowns for repeatable activities", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260613052000_add_character_cooldowns",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model CharacterCooldown");
+    expect(schema).toContain("cooldowns CharacterCooldown[]");
+    expect(schema).toContain("@map(\"available_at\")");
+    expect(schema).toContain("@@unique([characterId, key])");
+    expect(schema).toContain("@@map(\"character_cooldowns\")");
+    expect(migration).toContain("CREATE TABLE \"character_cooldowns\"");
+    expect(migration).toContain("CREATE UNIQUE INDEX \"character_cooldowns_character_id_key_key\"");
+  });
 });

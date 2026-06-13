@@ -51,7 +51,7 @@ describe("adventure presenter", () => {
     expect(text).toContain("Підозріла шаурма");
     expect(text).toContain("Вона дихає");
     expect(text).toContain("🌯 Підозріла шаурма\n\nНа столі лежить шаурма. Вона дихає.");
-    expect(text).toContain("Вона дихає.\n\nШинкар:\n<blockquote>То не моя.</blockquote>");
+    expect(text).toContain("Вона дихає.\n\nКорчмар:\n<blockquote>То не моя.</blockquote>");
     expect(text.length).toBeLessThan(260);
   });
 

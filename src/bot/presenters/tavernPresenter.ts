@@ -5,14 +5,41 @@ import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
+export function presentKorchmaFront(character: CharacterSummary): string {
+  return [
+    "🚪 Перед корчмою",
+    `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
+    "",
+    "За дверима гуде Корчма Квестарні. Там видають квести, сперечаються з бочками й іноді не питають зайвого.",
+    "",
+    "Квести видають усередині."
+  ].join("\n");
+}
+
+export function presentKorchmaHall(
+  character: CharacterSummary,
+  presence?: PresenceGroup | null
+): string {
+  return [
+    "🍺 Зала корчми",
+    `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
+    "",
+    "Корчма Квестарні тримає тепло, шум і кілька справ, які краще не залишати без нагляду.",
+    "",
+    ...presentTavernPresence(presence),
+    "",
+    "Куди йдемо?"
+  ].join("\n");
+}
+
 export function presentTavern(character: CharacterSummary, presence?: PresenceGroup | null): string {
   return [
-    "🍺 Таверна Квестарні",
+    "🛢️ Біля Бочки Пінного Міражу",
     `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
     "",
     "У кутку героїчно піниться Бочка Пінного Міражу.",
     "",
-    npcQuote("Шинкар", "Це не проблема. Це рейд на 1-3 хвилини."),
+    npcQuote("Корчмар", "Це не проблема. Це рейд на 1-3 хвилини."),
     "",
     ...presentTavernPresence(presence),
     "",
@@ -25,12 +52,12 @@ export function presentTavernAlreadyRaided(
   presence?: PresenceGroup | null
 ): string {
   return [
-    "🍺 Таверна Квестарні",
+    "🛢️ Біля Бочки Пінного Міражу",
     `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
     "",
     "Бочка Пінного Міражу сьогодні вже пережила ваш героїзм.",
     "",
-    npcQuote("Шинкар", "Вона просила передати: завтра знову буде хоробра. Можливо."),
+    npcQuote("Корчмар", "Вона просила передати: завтра знову буде хоробра. Можливо."),
     "",
     ...presentTavernPresence(presence),
     "",
