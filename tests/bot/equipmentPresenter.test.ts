@@ -17,6 +17,9 @@ describe("equipment presenter", () => {
     expect(text).not.toContain("🎩 <b>Голова</b>");
     expect(text).not.toContain("🥾 <b>Ноги</b>");
     expect(text).toContain("Бонуси спорядження ще не рахуються");
+    expect(text).toContain(
+      "Корчма вже запамʼятовує, що висить на герої.\n\n<i>Бонуси спорядження ще не рахуються.</i>"
+    );
     expect(text).toContain("HP, мана, бій і нагороди не змінюються");
     expect(text).not.toContain("+2");
     expect(text).not.toContain("додає");
