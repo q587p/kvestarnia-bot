@@ -225,6 +225,11 @@ Tavern raid timing in `0.0.11`:
 - Завершення idempotent: після `available_at <= now` той самий callback завершує daily reward claim; повторний callback показує completed/already-completed без дублювання XP/gold/items.
 - Для MVP це лишається cooldown/action state без background scheduler; для group raids треба перейти на `raids` і `raid_participants`.
 
+Рішення й борги для raid timing:
+- Pending-рейд на Бочку має переживати rollover локальної дати й видавати винагороду за локальний день старту. Майбутній hardening pass має явно зберігати або виводити started local date, а не припускати «сьогодні» в момент завершення.
+- Runtime callers мають віддавати перевагу `advanceFridayBarrelRaid`, бо він володіє flow start/pending/complete/already-completed. `completeFridayBarrelRaid` лишати public тільки для compatibility/tests, доки service API не буде прибраний.
+- Поки рейд pending, stale scene callbacks на кшталт `v1:adv:mimic:*`, `v1:fight:mimic:*` і `v1:cellar:*` не мають перезаписувати `last_seen_location_id`, `current_raid_id` або `current_adventure_id` до того, як pending guard їх заблокує. Безпечне гортання може оновлювати last action, але не має замінювати рейдову присутність біля Бочки без явного location transition rule.
+
 ## Presence MVP
 `0.0.9` додає легку in-game присутність на рівні `users`, бо окремої session table ще немає:
 - `last_action_at` оновлюється тільки від оброблених команд, reply-кнопок і callback-ів;
@@ -263,7 +268,9 @@ Routing rule у `0.0.11`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar`
 - `v1:tavern:round` тільки показує offer/statistics screen і не списує золото;
 - `v1:tavern:round-simple` і `v1:tavern:round-fine` виконують repeatable spending після raid gate;
 - рейтинги за добу, тиждень і місяць агрегуються з purchase log за `local_date`;
-- leaderboard сортується за сумою витраченого золота, потім за кількістю частувань.
+- leaderboard сортується за сумою витраченого золота, потім за кількістю частувань;
+- майбутній tie-breaker має бути детермінованим: earliest purchase in period, потім stable `character_id`, якщо потрібно, щоб привітання за перше місце не стрибали між рівними rows;
+- unlimited repeatable spending прийнятний для першого sink, бо кожна покупка вимагає явного підтвердження, але майбутній UX/anti-spam може додати soft cooldown або rate limit.
 
 ## Telegram callback data
 Callback data коротка, версіонована.
