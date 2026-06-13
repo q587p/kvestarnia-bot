@@ -1,5 +1,5 @@
 import type { Bot, Context } from "grammy";
-import type { PresenceGroup, PresenceService } from "../../services/presenceService";
+import type { PresenceService } from "../../services/presenceService";
 import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_FRONT,
@@ -75,9 +75,9 @@ export async function sendTavern(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_HALL);
-  const presence = await getPlacePresence(telegramUserId, presenceService);
+  const presence = await presenceService.getKorchmaInteriorPresence();
 
-  await sendText(ctx, mode, presentKorchmaHall(result.character, presence), "hall");
+  await sendText(ctx, mode, presentKorchmaHall(result.character, presence, telegramUserId), "hall");
 }
 
 export async function sendKorchmaFront(
@@ -182,15 +182,6 @@ async function markTavernPlace(
     currentRaidId: inPendingRaid ? PRESENCE_RAID_FRIDAY_BARREL : null,
     currentAdventureId: null
   });
-}
-
-async function getPlacePresence(
-  telegramUserId: bigint,
-  presenceService: PresenceService
-): Promise<PresenceGroup | null> {
-  const snapshot = await presenceService.getLookForTelegramUser(telegramUserId);
-
-  return snapshot.state === "ready" ? snapshot.location.people : null;
 }
 
 async function sendText(

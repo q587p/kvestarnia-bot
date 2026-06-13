@@ -1,7 +1,7 @@
 import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
-import { sendKorchmaFront } from "../../src/bot/commands/tavernCommand";
+import { sendKorchmaFront, sendTavern } from "../../src/bot/commands/tavernCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { PresenceService } from "../../src/services/presenceService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
@@ -32,6 +32,18 @@ describe("tavern command screens", () => {
         ]
       }
     });
+  });
+
+  it("shows interior korchma presence counts on the hall screen", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendTavern(makeContext(replies), readyTavernService(), korchmaPresenceService(), "reply");
+
+    expect(replies[0]?.text).toContain(
+      "За столами й закутками корчми: 2 активні, 1 притихлий."
+    );
+    expect(replies[0]?.text).toContain("Дара · рівень 2");
+    expect(replies[0]?.text).not.toContain("поки тільки ви");
   });
 });
 
@@ -84,6 +96,21 @@ function readyTavernService(): TavernRaidService {
 function capturingPresenceService(): PresenceService {
   return {
     markAction: () => Promise.resolve()
+  } as unknown as PresenceService;
+}
+
+function korchmaPresenceService(): PresenceService {
+  return {
+    markAction: () => Promise.resolve(),
+    getKorchmaInteriorPresence: () =>
+      Promise.resolve({
+        active: [
+          { telegramUserId: 42n, name: "Мандрівник", status: "active" },
+          { telegramUserId: 77n, name: "Дара", status: "active", level: 2 }
+        ],
+        idle: [{ telegramUserId: 88n, name: "Нестор Межовий", status: "idle" }],
+        total: 3
+      })
   } as unknown as PresenceService;
 }
 

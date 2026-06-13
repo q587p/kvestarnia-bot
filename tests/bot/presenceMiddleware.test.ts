@@ -13,7 +13,8 @@ import {
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
   PRESENCE_RAID_FRIDAY_BARREL,
-  type MarkPlayerPresenceInput
+  type MarkPlayerPresenceInput,
+  type PresenceGroup
 } from "../../src/services/presenceService";
 
 describe("presence middleware", () => {
@@ -317,6 +318,14 @@ class CapturingPresenceService {
 
   getLookForTelegramUser(): Promise<{ state: "no-character" }> {
     return Promise.resolve({ state: "no-character" });
+  }
+
+  getKorchmaInteriorPresence(): Promise<PresenceGroup> {
+    return Promise.resolve({
+      active: [{ telegramUserId: 42n, name: "Мандрівник", status: "active" }],
+      idle: [],
+      total: 1
+    });
   }
 
   getCurrentPlaceForTelegramUser(): Promise<{

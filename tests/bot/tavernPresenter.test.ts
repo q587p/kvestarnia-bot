@@ -15,6 +15,7 @@ import {
 } from "../../src/bot/presenters/tavernPresenter";
 import type { TavernRaidResult } from "../../src/services/tavernRaidService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import type { PresenceGroup } from "../../src/services/presenceService";
 
 const character: CharacterSummary = {
   name: "Мандрівник",
@@ -67,6 +68,55 @@ describe("tavern presenter", () => {
     expect(text).toContain("Залізо тримайте спокійно");
     expect(text).toContain("Куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
+  });
+
+  it("says only-you only when the current player is the sole active person inside", () => {
+    const text = presentKorchmaHall(
+      character,
+      {
+        active: [{ telegramUserId: 42n, name: "Мандрівник", status: "active" }],
+        idle: [],
+        total: 1
+      },
+      42n
+    );
+
+    expect(text).toContain("За столами: поки тільки ви й підозрілий єгер у кутку біля бочки.");
+  });
+
+  it("summarizes all active and idle people inside the korchma", () => {
+    const text = presentKorchmaHall(
+      character,
+      {
+        active: [
+          { telegramUserId: 42n, name: "Мандрівник", status: "active" },
+          { telegramUserId: 77n, name: "Дара", status: "active", level: 2 }
+        ],
+        idle: [{ telegramUserId: 88n, name: "Нестор Межовий", status: "idle" }],
+        total: 3
+      },
+      42n
+    );
+
+    expect(text).toContain("За столами й закутками корчми: 2 активні, 1 притихлий.");
+    expect(text).toContain("Єгер у кутку біля бочки не рахується");
+    expect(text).toContain("Дара · рівень 2");
+    expect(text).toContain("Нестор Межовий");
+    expect(text).not.toContain("поки тільки ви");
+  });
+
+  it("does not say only-you when the sole interior person is not the current player", () => {
+    const presence: PresenceGroup = {
+      active: [{ telegramUserId: 77n, name: "Дара", status: "active" }],
+      idle: [],
+      total: 1
+    };
+
+    const text = presentKorchmaHall(character, presence, 42n);
+
+    expect(text).toContain("За столами й закутками корчми: 1 активний.");
+    expect(text).toContain("Дара");
+    expect(text).not.toContain("поки тільки ви");
   });
 
   it("shows a short Ukrainian tavern screen", () => {

@@ -35,7 +35,8 @@ export function presentKorchmaFront(character: CharacterSummary): string {
 
 export function presentKorchmaHall(
   character: CharacterSummary,
-  presence?: PresenceGroup | null
+  presence?: PresenceGroup | null,
+  viewerTelegramUserId?: bigint
 ): string {
   return [
     "🍺 Зала корчми",
@@ -47,7 +48,7 @@ export function presentKorchmaHall(
     "",
     ...presentKorchmaGreeting(character),
     "",
-    ...presentTavernPresence(presence),
+    ...presentTavernPresence(presence, viewerTelegramUserId),
     "",
     "Куди йдемо?"
   ].join("\n");
@@ -383,20 +384,91 @@ function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: numbe
   );
 }
 
-function presentTavernPresence(presence: PresenceGroup | null | undefined): string[] {
-  if (!presence || presence.total <= 1) {
+function presentTavernPresence(
+  presence: PresenceGroup | null | undefined,
+  viewerTelegramUserId?: bigint
+): string[] {
+  if (isOnlyActiveViewer(presence, viewerTelegramUserId)) {
     return ["За столами: поки тільки ви й підозрілий єгер у кутку біля бочки."];
   }
 
+  if (!presence || presence.total === 0) {
+    return [
+      "За столами: живих героїв не видно. Єгер у кутку біля бочки стверджує, що це теж статистика."
+    ];
+  }
+
+  const activeCount = presence.active.length;
+  const idleCount = presence.idle.length;
+  const summary = [`${activeCount} ${pluralizeActive(activeCount)}`];
+
+  if (idleCount > 0) {
+    summary.push(`${idleCount} ${pluralizeIdle(idleCount)}`);
+  }
+
+  const lines = [
+    `За столами й закутками корчми: ${summary.join(", ")}. Єгер у кутку біля бочки не рахується, бо відмовився бути числом.`
+  ];
   const people = [...presence.active, ...presence.idle].slice(0, 5);
   const hiddenCount = Math.max(0, presence.total - people.length);
-  const lines = ["За столами:", ...people.map((person) => `• ${presentPresencePerson(person)}`)];
+  lines.push(...people.map((person) => `• ${presentPresencePerson(person)}`));
 
   if (hiddenCount > 0) {
     lines.push(`• і ще ${hiddenCount}`);
   }
 
   return lines;
+}
+
+function isOnlyActiveViewer(
+  presence: PresenceGroup | null | undefined,
+  viewerTelegramUserId?: bigint
+): boolean {
+  return (
+    viewerTelegramUserId !== undefined &&
+    presence?.total === 1 &&
+    presence.active.length === 1 &&
+    presence.idle.length === 0 &&
+    presence.active[0]?.telegramUserId === viewerTelegramUserId
+  );
+}
+
+function pluralizeActive(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+
+  if (lastTwo >= 11 && lastTwo <= 14) {
+    return "активних";
+  }
+
+  if (last === 1) {
+    return "активний";
+  }
+
+  if (last >= 2 && last <= 4) {
+    return "активні";
+  }
+
+  return "активних";
+}
+
+function pluralizeIdle(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+
+  if (lastTwo >= 11 && lastTwo <= 14) {
+    return "притихлих";
+  }
+
+  if (last === 1) {
+    return "притихлий";
+  }
+
+  if (last >= 2 && last <= 4) {
+    return "притихлі";
+  }
+
+  return "притихлих";
 }
 
 function presentPresencePerson(person: PresenceGroup["active"][number]): string {
