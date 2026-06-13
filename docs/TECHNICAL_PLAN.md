@@ -374,7 +374,7 @@ Future time-of-day combat modifiers:
 - Test each phase with fixed clocks; never depend on wall-clock time directly in domain tests.
 - Keep UI wording coarse and flavorful. Do not show exact server timestamps; say the night makes a tagged enemy bolder, not «+17% о 23:04».
 
-Future social progression boards:
+Future korchma progression boards:
 - Add a durable event/log source for first arrival and level-up milestones instead of deriving them from mutable current character state.
 - Level-up records should be idempotent per `character_id` + reached `level`; repeated reward callbacks must not duplicate the same milestone.
 - The front-of-korchma level board can show recent level-ups plus a ranking by highest reached level. Use deterministic tie-breakers: reached level desc, achieved time asc, then stable `character_id`.

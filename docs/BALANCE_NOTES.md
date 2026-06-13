@@ -14,7 +14,7 @@ MVP має бути веселим, не ідеально збалансован
 - STR — фізична шкода.
 - DEX — ухилення/крит.
 - INT — магія/mana.
-- CHA — bard/social effects, rewards у квестах.
+- CHA — bard/соціяльні ефекти, rewards у квестах.
 - LUCK — loot/crit/escape small modifiers.
 
 ## Базові формули

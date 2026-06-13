@@ -13,7 +13,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added the first character impact loop: race, class, hidden path, pronoun, title, and authored combo flavor can now affect korchma greetings, starter quest text, action outcomes, and barrel raid prep hints without changing rewards.
 - Added a hooded human-ish ranger NPC near the barrel with biography-aware reactions and korchma round flavor.
 - Added character flavor authoring docs for korchma greetings, quest routing, raid role hints, and future content review.
-- Added future backlog notes for character-facing progression: stronger level impact, level-gated and race/class-specific items, front-of-korchma social boards, epic levels `11-20`, time-of-day encounter modifiers, fair-play lootbox wording, Donjons and Dragons flavor, party-gathering flavor, and item-to-level sinks.
+- Added future backlog notes for character-facing progression: stronger level impact, level-gated and race/class-specific items, front-of-korchma community boards, epic levels `11-20`, time-of-day encounter modifiers, fair-play lootbox wording, Donjons and Dragons flavor, party-gathering flavor, and item-to-level sinks.
 
 ### Changed
 - Updated scene and menu buttons with clearer icons and back navigation where the player naturally expects a return path.

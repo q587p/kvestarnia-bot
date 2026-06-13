@@ -6,13 +6,13 @@
 
 ### 1. Telegram text MMORPG
 Приклади:
-- Chat Wars — відомий Telegram MMORPG з ботом, API, ґільдійною/соціальною метою.
+- Chat Wars — відомий Telegram MMORPG з ботом, API, ґільдійною/соціяльною метою.
 - Ligmar — позиціонується як MMORPG у Telegram без встановлення окремого застосунку.
 - IdleRift / RiftWars / Noctis Imperivm / SynthLoom та інші новіші боти з PvE, PvP, crafting, leaderboard, ґільдійними або squad-механіками.
 
 Сильні сторони:
 - Довга прогресія.
-- Соціальність і війни/рейди.
+- Соціяльність і війни/рейди.
 - Уже доведена життєздатність формату.
 
 Слабкі місця для нашої ніші:
