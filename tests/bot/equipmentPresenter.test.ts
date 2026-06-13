@@ -14,6 +14,15 @@ describe("equipment presenter", () => {
     expect(text).toContain("🗡️ <b>Зброя</b>: <i>гачок чекає важкий аргумент.</i>");
     expect(text).toContain("🧥 <b>Тулуб</b>");
     expect(text).toContain("💍 <b>Аксесуар</b>");
+    expect(text).toContain(
+      [
+        "🗡️ <b>Зброя</b>: <i>гачок чекає важкий аргумент.</i>",
+        "",
+        "🧥 <b>Тулуб</b>: Фартух піностійкого пригодника",
+        "",
+        "💍 <b>Аксесуар</b>: Корковий перстень серйозних справ"
+      ].join("\n")
+    );
     expect(text).not.toContain("🎩 <b>Голова</b>");
     expect(text).not.toContain("🥾 <b>Ноги</b>");
     expect(text).toContain("Бонуси спорядження ще не рахуються");

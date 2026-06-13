@@ -33,7 +33,7 @@ export function presentEquipment(result: EquipmentResult): string {
     "<i>Бонуси спорядження ще не рахуються.</i>",
     "<i>HP, мана, бій і нагороди не змінюються.</i>",
     "",
-    ...equipmentSlots.map((slot) => presentEquipmentSlot(slot, result.slots)),
+    ...intersperseBlankLines(equipmentSlots.map((slot) => presentEquipmentSlot(slot, result.slots))),
     "",
     "<i>Зараз це чесна примірка без циферок. Бухгалтерія ще точить олівець.</i>"
   ].join("\n");
@@ -85,4 +85,8 @@ function presentEquipmentSlot(slot: SlotView, slots: EquipmentSlotSummary[]): st
   }
 
   return `${slot.icon} <b>${slot.label}</b>: <i>${slot.emptyText}</i>`;
+}
+
+function intersperseBlankLines(lines: string[]): string[] {
+  return lines.flatMap((line, index) => (index === 0 ? [line] : ["", line]));
 }

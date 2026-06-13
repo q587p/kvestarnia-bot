@@ -232,7 +232,7 @@ describe("tavern presenter", () => {
       levelChange: null
     };
 
-    expect(presentTavernRaidResult(completed)).toContain("<b>+7 XP · +5 золота</b>");
+    expect(presentTavernRaidResult(completed)).toContain("<b>+7 XP\n+5 золота</b>");
     expect(presentTavernRaidResult(completed)).toContain(
       "Здобуто: <i>Квиток мокрого пригодника</i>"
     );
@@ -240,7 +240,7 @@ describe("tavern presenter", () => {
     expect(presentTavernRaidResult(repeated)).toContain("уже зараховано");
     expect(presentTavernRaidResult(repeated)).toContain("23-й хвилині");
     expect(presentTavernRaidResult(repeated)).toContain(
-      "Вже отримано: <b>+7 XP · +5 золота</b>"
+      "Вже отримано:\n<b>+7 XP\n+5 золота</b>"
     );
     expect(presentTavernRaidResult(repeated)).not.toContain("Здобуто:");
     expect(presentTavernRaidResult(completed).toLowerCase()).not.toContain("пий");
@@ -262,6 +262,7 @@ describe("tavern presenter", () => {
       );
       expect(text).toContain("\n\nКорчмар:\n<blockquote>");
       expect(text).toContain("<i>Порада дня:");
+      expect(text).toMatch(/<\/i>\n\n<i>Ще одна порада, бо перша теж нервує:/);
       expect(text.indexOf("<i>Порада дня:")).toBeLessThan(text.indexOf("Поверніться через"));
       expect(text).toMatch(/Єгер|Підлога|Бочка|Стріла|Табурет/);
       expect(text).toContain("Поверніться через <b>8 хв.</b>");

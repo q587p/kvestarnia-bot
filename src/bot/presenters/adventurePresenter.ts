@@ -45,6 +45,7 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
   if (result.state === "already-completed") {
     return [
       "🌯 Сьогоднішню шаурму вже допитано.",
+      "",
       "Вона мовчить, але юридично все зрозуміло.",
       "",
       "Повертайтесь завтра або перевірте персонажа: /hero"
@@ -81,6 +82,7 @@ function presentActionOutcome(action: "poke" | "receipt" | "flee"): string[] {
   if (action === "poke") {
     return [
       "🏆 Шаурму викрито!",
+      "",
       "Мімік визнав, що був не вечерею, а життєвим уроком."
     ];
   }
@@ -88,12 +90,14 @@ function presentActionOutcome(action: "poke" | "receipt" | "flee"): string[] {
   if (action === "receipt") {
     return [
       "📋 Чек знайдено!",
+      "",
       "Мімік-шаурма не очікував бухгалтерського підходу."
     ];
   }
 
   return [
     "🏃 Тактичний відступ",
+    "",
     "Ви обережно відійшли. Шаурма образилась, але юридично нічого не доведе."
   ];
 }

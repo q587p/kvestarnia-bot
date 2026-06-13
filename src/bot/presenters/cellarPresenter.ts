@@ -80,10 +80,10 @@ function presentCharacterFlavor(
 
 function presentCellarOutcome(action: CellarErrandAction, character: CharacterSummary): string[] {
   const variant = selectCellarOutcomeVariant(action, character);
-  const lines = [variant.title, variant.description];
+  const lines = [variant.title, "", variant.description];
 
   if (variant.quote) {
-    lines.push(npcQuote("Миша", variant.quote));
+    lines.push("", npcQuote("Миша", variant.quote));
   }
 
   return lines;

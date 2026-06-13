@@ -8,6 +8,7 @@ import { escapeHtml } from "./telegramHtml";
 export function presentFightStart(character: CharacterSummary): string {
   return [
     "⚔️ Сутичка з підозрілим монстром",
+    "",
     "Те, що мало бути шаурмою, розкриває зуби. Це Мімік-шаурма, і вечеря щойно стала переговорами.",
     ...presentCharacterFlavor(character, "quest.start", "fight"),
     "",
@@ -82,6 +83,7 @@ function presentOutcome(
   if (result.action === "attack") {
     return [
       "🗡️ Ви вдарили Міміка-шаурму.",
+      "",
       `Він отримав ${result.combat.playerDamage} шкоди й задумався про карʼєру салату.`
     ];
   }
@@ -89,12 +91,14 @@ function presentOutcome(
   if (result.action === "receipt") {
     return [
       "📋 Ви показали чек.",
+      "",
       `Мімік отримав ${result.combat.playerDamage} шкоди від формальної ввічливості.`
     ];
   }
 
   return [
     "🏃 Ви відступили красиво.",
+    "",
     `${escapeHtml(result.character.name)} зберіг обличчя, нерви й підозру до лаваша.`
   ];
 }

@@ -317,11 +317,14 @@ function presentRaidPrepHint(character: CharacterSummary, seed: string): string[
     limit: 2
   });
 
-  return flavors.map((flavor, index) =>
-    index === 0
-      ? `<i>Порада дня: ${escapeHtml(flavor.text)}</i>`
-      : `<i>Ще одна порада, бо перша теж нервує: ${escapeHtml(flavor.text)}</i>`
-  );
+  return flavors.flatMap((flavor, index) => {
+    const line =
+      index === 0
+        ? `<i>Порада дня: ${escapeHtml(flavor.text)}</i>`
+        : `<i>Ще одна порада, бо перша теж нервує: ${escapeHtml(flavor.text)}</i>`;
+
+    return index === 0 ? [line] : ["", line];
+  });
 }
 
 function presentRangerRaidAction(character: CharacterSummary, seed: string): string {

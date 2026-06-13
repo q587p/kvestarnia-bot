@@ -30,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Korchma round results now separate the toast, beer description, and ranger reaction with blank lines for easier Telegram reading.
 - Barrel scene and active raid messages now separate paragraphs; active raids also show character-aware and universal advice before the return timer and vary the hooded ranger’s action line.
 - Rechecking an active Barrel raid can now rotate the ranger action and raid advice text instead of repeating the same period-seeded flavor until completion.
+- Cellar, fight, shawarma, equipment, and active-raid advice messages now add blank lines between narrative beats; reward XP and gold now render as compact separate lines instead of one `XP · gold` line.
 - Adventure and cellar action prompts now bold the adventurer name before `що робимо?`.
 - Character wealth line now uses separate jokes for empty gold, empty inventory value, and truly empty pockets while still showing both numbers.
 - Korchma scene headers now render the adventurer name in bold and the title in italics.

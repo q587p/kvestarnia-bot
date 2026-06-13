@@ -195,7 +195,7 @@ describe("scene callback HTML options", () => {
     );
 
     expect(notification?.payload.parse_mode).toBe("HTML");
-    expect(String(notification?.payload.text)).toContain("<b>+7 XP · +5 золота</b>");
+    expect(String(notification?.payload.text)).toContain("<b>+7 XP\n+5 золота</b>");
   });
 
   it("does not send a barrel raid timer notification after manual completion claims the reward", async () => {
