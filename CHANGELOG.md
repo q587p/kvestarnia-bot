@@ -23,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The current deterministic starter loop now reaches weapon, armor, and accessory examples without seeded/dev inventory.
 - Barrel raids are now gated by hourly raid periods that flip on the 23rd minute instead of by one daily claim. New starts pause from 04:00 through 08:23 for korchma accounting.
 - The front-of-korchma screen now lists the main interior destinations and includes a `/tavern` fallback line in case Telegram hides an old inline button.
+- Hero profile resource line now marks HP and mana with `❤️` and `🔮` icons for faster scanning.
 
 ### Not Included Yet
 - Stat effects, HP/mana/combat/XP/gold math changes, random loot tables, shops, selling, trading, crafting, item-to-level exchange, or item instance logic.

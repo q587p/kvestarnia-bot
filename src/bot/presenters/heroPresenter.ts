@@ -20,7 +20,7 @@ export function presentHero(
     "",
     progressLine,
     "",
-    `HP ${summary.hpCurrent}/${summary.hpMax} · мана ${summary.manaCurrent}/${summary.manaMax}`,
+    `❤️ HP ${summary.hpCurrent}/${summary.hpMax} · 🔮 мана ${summary.manaCurrent}/${summary.manaMax}`,
     `Сили ${summary.stats.strength} · Спритн. ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
     ...(growthLine ? ["", `Ріст: ${growthLine}`] : []),

@@ -54,7 +54,7 @@ describe("hero presenter", () => {
     expect(text).toContain("Рівень <b>2</b> · XP 15 · до наступного: 10 XP");
     expect(text).not.toContain("до рівня 3");
     expect(text).not.toContain("XP 15 · до наступного: 10 XP · золото");
-    expect(text).toContain("HP 24/24 · мана 12/12");
+    expect(text).toContain("❤️ HP 24/24 · 🔮 мана 12/12");
     expect(text).toContain("Сили 9");
     expect(text).toContain("Вдача 6");
     expect(text).toContain("Ріст: +4 HP · +2 мани · +1 Сили");
@@ -64,7 +64,7 @@ describe("hero presenter", () => {
     expect(text).toContain("<i>Далі: /tavern, /quest або /fight.</i>");
     expect(text).not.toContain("/adventure або /fight");
     expect(text).toContain("\n\nТитул:");
-    expect(text).toContain("\n\nHP");
+    expect(text).toContain("\n\n❤️ HP");
     expect(text.split("\n").length).toBeLessThanOrEqual(18);
   });
 
