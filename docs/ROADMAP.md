@@ -145,7 +145,7 @@ Done when:
 - Seasonal boss.
 - Вісник ґільдії.
 - Meme item generator with moderation.
-- Referral без нав’язливості: нагорода косметична.
+- Рефералка без ігрових бонусів: запрошення для корчемного обліку, внутрішньої статистики й жартів у записах корчмаря про те, хто кого привів.
 - Moderation tools for group admins.
 - Web dashboard for balancing.
 
