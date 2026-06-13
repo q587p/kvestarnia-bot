@@ -19,6 +19,25 @@ describe("cellar presenter", () => {
     expect(text.split("\n").length).toBeLessThanOrEqual(8);
   });
 
+  it("adds character-aware flavor to cellar start and outcome scenes", () => {
+    const domovyk = {
+      ...character,
+      raceId: "race.domovyk",
+      raceName: "Домовик"
+    };
+
+    expect(presentCellarStart({ state: "ready", character: domovyk })).toContain(
+      "законного, хоч і неоформленого"
+    );
+    expect(
+      presentCellarResult({
+        ...completed,
+        action: "negotiate",
+        character: domovyk
+      })
+    ).toContain("автономію за шафою");
+  });
+
   it("renders completed result with reward and no exact timestamp", () => {
     const text = presentCellarResult(completed);
 

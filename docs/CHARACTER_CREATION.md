@@ -51,6 +51,21 @@ Characters also persist the hidden `Character.path`. New characters derive it fr
 
 Combo titles are content-derived from race/class/pronoun and can be expanded without changing the database. The confirmation step does not reveal the title; it appears after character creation and in hero summaries. `race.kharakternyk` remains only as a deprecated compatibility fallback for older local characters; new characters choose `class.kharakternyk`.
 
+## Character Impact Loop
+
+Starting in `0.0.11`, created-character metadata also feeds a small flavor selector in `src/content/characterFlavor.ts`.
+
+The first supported placements are:
+
+- korchma greeting;
+- quest start;
+- quest outcome;
+- raid prep hint.
+
+Race, class, authored combo, pronoun, and hidden path can all be selectors, but player-facing output must stay diegetic and must not expose internal path ids or path names. Combo titles remain visible; hidden path names remain internal.
+
+This does not change starter stats, rewards, cooldowns, or combat math. It only makes different biographies produce different short reactions in the korchma, shawarma scene, fight probe, cellar errand, and barrel prep hints.
+
 ## Not In Scope Yet
 
 - full Ukrainian grammar inflection beyond authored combo titles;

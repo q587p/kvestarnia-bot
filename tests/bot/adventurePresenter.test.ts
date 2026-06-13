@@ -55,6 +55,17 @@ describe("adventure presenter", () => {
     expect(text.length).toBeLessThan(260);
   });
 
+  it("adds character-aware flavor when race or class content exists", () => {
+    const mage = {
+      ...character,
+      classId: "class.mage",
+      className: "Маг"
+    };
+    const text = presentAdventureStart(mage);
+
+    expect(text).toContain("дуже амбітний часник");
+  });
+
   it("prompts /start when no character exists", () => {
     expect(presentAdventureNoCharacter()).toContain("/start");
   });
@@ -93,6 +104,19 @@ describe("adventure presenter", () => {
     expect(presentAdventureResult(completed("flee", 2, 0))).toContain("<b>+2 XP</b>");
     expect(presentAdventureResult(completed("flee", 2, 0))).not.toContain("золота");
     expect(presentAdventureResult(completed("flee", 2, 0))).not.toContain("Здобуто:");
+  });
+
+  it("adds action-aware flavor to completed adventure outcomes", () => {
+    const text = presentAdventureResult({
+      ...completed("receipt", 6, 6),
+      character: {
+        ...character,
+        classId: "class.bureaucramancer",
+        className: "Бюрокромант"
+      }
+    });
+
+    expect(text).toContain("Форма на лаваш");
   });
 
   it("shows level-up line only when level increases", () => {

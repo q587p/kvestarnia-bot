@@ -1,6 +1,7 @@
 import { MIMIC_SHAWARMA_HP } from "../../domain/combat/combatProbe";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { FightLookupResult, FightResult } from "../../services/fightService";
+import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
@@ -9,6 +10,7 @@ export function presentFightStart(character: CharacterSummary): string {
   return [
     "⚔️ Сутичка з Міміком-шаурмою",
     "Шаурма розкрила зуби. Це вже не вечеря, це переговори.",
+    ...presentCharacterFlavor(character, "quest.start", "fight"),
     "",
     `❤️ Ви: ${character.hpCurrent}/${character.hpMax}   🌯 Мімік: ${MIMIC_SHAWARMA_HP}/${MIMIC_SHAWARMA_HP}`,
     "",
@@ -47,6 +49,7 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
 
   const lines = [
     ...presentOutcome(result),
+    ...presentCharacterFlavor(result.character, "quest.outcome", "fight", result.action),
     "",
     `❤️ Ви: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}   🌯 Мімік: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
     presentRewardAmount({ ...result.reward, label: "Нагорода" }),
@@ -58,6 +61,21 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
   lines.push("Наступний крок: /hero");
 
   return lines.join("\n");
+}
+
+function presentCharacterFlavor(
+  character: CharacterSummary,
+  placement: "quest.start" | "quest.outcome",
+  scene: "fight",
+  action?: "attack" | "receipt" | "flee"
+): string[] {
+  const flavor = selectCharacterFlavorLine(character, {
+    placement,
+    scene,
+    ...(action ? { action } : {})
+  });
+
+  return flavor ? ["", escapeHtml(flavor.text)] : [];
 }
 
 function presentOutcome(

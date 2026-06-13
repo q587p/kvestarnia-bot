@@ -38,6 +38,13 @@ Players do not see these path names during character creation. Paths do not gran
 
 Future path restrictions should sound like in-world folklore or institutions, not biology. Good examples: «Межа підписала пропуск заднім числом» or «ця канцелярська шухляда персонажа сьогодні не відкривається».
 
+### Character impact loop
+`0.0.11` додає перший шар видимого впливу біографії на світ: раса, клас і комбінація героя можуть змінювати короткі репліки корчмаря, стартові рядки квестів, outcome-флейвор і майбутні raid role hints без зміни reward math.
+
+Правило для нових сцен: спершу авторський flavor, потім механіка. Новий квест або NPC-line має подумати, як на нього смішно реагує хоча б одна раса, один клас і одна дивна комбінація. Детальний контракт живе в `docs/CHARACTER_IMPACT_LOOP.md`, `docs/QUEST_FLAVOR_ROUTING.md`, `docs/KORCHMA_GREETING_CONTENT.md`, `docs/RAID_ROLE_FLAVOR_NOTES.md` і `docs/CONTENT_AUTHORING_CHECKLIST.md`.
+
+Hidden `path` може бути внутрішнім selector-ом, але назви `sun`, `moon`, `boundary` і великі «шляхи» не виходять у player-facing текст.
+
 ## Раси MVP
 Не треба одразу 40 рас. Почати з компактного набору, де кожна має механіку й гумор.
 
