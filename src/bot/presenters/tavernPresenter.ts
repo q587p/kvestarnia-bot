@@ -132,7 +132,7 @@ export function presentTavernRaidPending(
     "",
     npcQuote("Корчмар", "Поки ви там, я не видаю нових пригод. У корчмі теж є техніка безпеки."),
     "",
-    ...presentRaidPrepHint(result.character, flavorSeed),
+    ...presentRaidPrepHint(result.character, flavorSeed, result.state === "pending"),
     "",
     `Поверніться через <b>${formatRaidWait(result.availableAt, result.now)}</b>`
   ].join("\n");
@@ -308,7 +308,7 @@ function presentKorchmaGreeting(character: CharacterSummary): string[] {
   return flavor ? [npcQuote("Корчмар", flavor.text)] : [];
 }
 
-function presentRaidPrepHint(character: CharacterSummary, seed: string): string[] {
+function presentRaidPrepHint(character: CharacterSummary, seed: string, rotate: boolean): string[] {
   const flavors = selectCharacterFlavorLines(character, {
     placement: "raid.prep-hint",
     scene: "barrel",
@@ -317,7 +317,7 @@ function presentRaidPrepHint(character: CharacterSummary, seed: string): string[
     includeFallback: true,
     limit: 2
   });
-  const flavor = selectRotatingFlavor(flavors, seed);
+  const flavor = rotate ? selectRotatingFlavor(flavors, seed) : flavors[0] ?? null;
 
   return flavor ? [`<i>Порада дня: ${escapeHtml(flavor.text)}</i>`] : [];
 }
@@ -356,6 +356,10 @@ function presentRangerRaidAction(character: CharacterSummary, seed: string): str
 function buildPendingRaidFlavorSeed(
   result: Extract<TavernRaidResult, { state: "pending" | "pending-started" }>
 ): string {
+  if (result.state === "pending-started") {
+    return `${result.periodId}|started`;
+  }
+
   return `${result.periodId}|check:${result.now.toISOString()}`;
 }
 

@@ -219,10 +219,38 @@ describe("character flavor content", () => {
     const lines = characterFlavorLines.filter(
       (line) => line.placement === "raid.ranger-action" && line.scene === "barrel"
     );
+    const classIds = [
+      "class.warrior",
+      "class.mage",
+      "class.bard",
+      "class.rogue",
+      "class.priest",
+      "class.varenyk-mancer",
+      "class.bureaucramancer",
+      "class.ranger",
+      "class.kharakternyk"
+    ];
+    const raceIds = [
+      "race.human-ish",
+      "race.dwarf",
+      "race.elf",
+      "race.bisyny",
+      "race.drantohor",
+      "race.domovyk",
+      "race.dryland-rusalka",
+      "race.intellectual-orc",
+      "race.molfar-soul"
+    ];
 
     expect(lines.filter((line) => !line.selector).length).toBeGreaterThanOrEqual(10);
-    expect(lines.some((line) => line.selector?.classIds?.includes("class.bard"))).toBe(true);
-    expect(lines.some((line) => line.selector?.raceIds?.includes("race.domovyk"))).toBe(true);
+
+    for (const classId of classIds) {
+      expect(lines.filter((line) => line.selector?.classIds?.includes(classId)).length).toBeGreaterThanOrEqual(3);
+    }
+
+    for (const raceId of raceIds) {
+      expect(lines.filter((line) => line.selector?.raceIds?.includes(raceId)).length).toBeGreaterThanOrEqual(2);
+    }
   });
 
   it("filters outcome flavor by action", () => {

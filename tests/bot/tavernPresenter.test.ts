@@ -296,6 +296,46 @@ describe("tavern presenter", () => {
     expect(extractRaidAdvice(second)).not.toBe(extractRaidAdvice(first));
   });
 
+  it("keeps start flavor stable and rotates ranger actions on later checks", () => {
+    const rogue = {
+      ...character,
+      classId: "class.rogue",
+      className: "Злодій"
+    };
+    const firstStart = presentTavernRaidPending({
+      state: "pending-started",
+      character: rogue,
+      availableAt: new Date("2026-06-13T10:38:00.000Z"),
+      now: new Date("2026-06-13T10:30:00.000Z"),
+      periodId: "2026-06-13T10:23"
+    });
+    const secondStart = presentTavernRaidPending({
+      state: "pending-started",
+      character: rogue,
+      availableAt: new Date("2026-06-13T10:38:00.000Z"),
+      now: new Date("2026-06-13T10:30:10.000Z"),
+      periodId: "2026-06-13T10:23"
+    });
+    const firstCheck = presentTavernRaidPending({
+      state: "pending",
+      character: rogue,
+      availableAt: new Date("2026-06-13T10:38:00.000Z"),
+      now: new Date("2026-06-13T10:30:00.000Z"),
+      periodId: "2026-06-13T10:23"
+    });
+    const secondCheck = presentTavernRaidPending({
+      state: "pending",
+      character: rogue,
+      availableAt: new Date("2026-06-13T10:38:00.000Z"),
+      now: new Date("2026-06-13T10:30:10.000Z"),
+      periodId: "2026-06-13T10:23"
+    });
+
+    expect(extractRangerAction(secondStart)).toBe(extractRangerAction(firstStart));
+    expect(extractRaidAdvice(secondStart)).toBe(extractRaidAdvice(firstStart));
+    expect(extractRangerAction(secondCheck)).not.toBe(extractRangerAction(firstCheck));
+  });
+
   it("presents pending raid block for other activities", () => {
     const text = presentPendingRaidActionBlock({
       state: "pending",
@@ -533,5 +573,9 @@ const roundLeaderboard = {
 
 function extractRaidAdvice(text: string): string {
   return text.match(/<i>Порада дня: (?<advice>.+)<\/i>/)?.groups?.advice ?? "";
+}
+
+function extractRangerAction(text: string): string {
+  return text.match(/паніка\.\n\n(?<action>.+)\n\nКорчмар:/)?.groups?.action ?? "";
 }
 
