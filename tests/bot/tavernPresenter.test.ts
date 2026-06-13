@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   presentTavern,
   presentTavernAlreadyRaided,
+  presentKorchmaFront,
   presentKorchmaHall,
   presentPendingRaidActionBlock,
   presentTavernRanger,
@@ -54,6 +55,12 @@ const character: CharacterSummary = {
 };
 
 describe("tavern presenter", () => {
+  it("formats the korchma name at the front door", () => {
+    const text = presentKorchmaFront(character);
+
+    expect(text).toContain("За дверима гуде <i>Корчма Квестарні</i>.");
+  });
+
   it("shows the korchma hall as the hub", () => {
     const text = presentKorchmaHall(character);
 
