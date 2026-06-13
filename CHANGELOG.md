@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.0.11] - 12026-06-13 - Korchma Quest Hub, Routing Cleanup & First Gold Sink
+## [0.0.11] - 12026-06-13 - Korchma Quest Hub, Barrel Timing & First Gold Sink
 
 ### Added
 - Added a compact `Стіл зі справами` quest hub for `/quest`, the `🗺️ Квест` reply button, and the korchma quest-table place callback.
