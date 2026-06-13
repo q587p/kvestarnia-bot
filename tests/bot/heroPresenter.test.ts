@@ -54,10 +54,12 @@ describe("hero presenter", () => {
     expect(text).toContain("Рівень <b>2</b> · XP 15 · до наступного: 10 XP");
     expect(text).not.toContain("до рівня 3");
     expect(text).not.toContain("XP 15 · до наступного: 10 XP · золото");
+    expect(text).toContain(
+      "Рівень <b>2</b> · XP 15 · до наступного: 10 XP\nРіст: +4 HP · +2 мани · +1 Сили\n\n❤️ HP 24/24"
+    );
     expect(text).toContain("❤️ HP 24/24 · 🔮 мана 12/12");
     expect(text).toContain("Сили 9");
     expect(text).toContain("Вдача 6");
-    expect(text).toContain("Ріст: +4 HP · +2 мани · +1 Сили");
     expect(text).not.toContain("Ріст рівня:");
     expect(text).toContain("\n\nЗолото: <b>12</b> <i>(а в манатках ще 0; торба чесна, аж нудно)</i>\n\nЗараз герой тут:");
     expect(text).toContain("\n\nЗараз герой тут: <b>Підвал корчми</b>.");
