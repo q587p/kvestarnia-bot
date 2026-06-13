@@ -358,6 +358,11 @@ Future combat-state note: this is an alpha shortcut, not the final resource mode
 
 Future equipment effects should layer on top of this effective-stats helper instead of rewriting stored starter values.
 
+Future progression pass:
+- Revisit the alpha formulas so level has a stronger, visible impact on HP, mana, combat coefficients, event checks, and activity/content gates.
+- Keep the source of truth centralized in progression/effective-stat helpers; presenters, services, and combat/event logic should not each invent their own level math.
+- Add tests around level breakpoints so raising level changes real outcomes, not only displayed summary numbers.
+
 ## Observability
 Лоґи:
 - `user_id`, `character_id`, `chat_id` — де доречно.

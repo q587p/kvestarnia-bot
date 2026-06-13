@@ -49,6 +49,7 @@ Current repeatable slice:
 - `0.0.11` adds a compact `Стіл зі справами` quest hub for `/quest`, `🗺️ Квест`, daily shawarma, fight probe, and cellar fallback.
 - `/cellar` exists only as a secondary fallback command; more repeatable activities and a full activity refactor remain later work.
 - Корчемний рейд у `0.0.11` отримав pending state на випадкові 5–8 хвилин: герой «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
+- A future progression/balance pass should make level matter more strongly in HP, mana, combat math, event checks, content gates, and reward-facing decisions.
 
 ## Phase 2 — Group hook
 Мета: перша фіча, заради якої бот додають у групу.
@@ -129,6 +130,7 @@ Done when:
 - Achievements.
 - Collections: «Бестіарій», «Музей Манаток».
 - Level-gated equipment, race/class/path-specific rare items, and safe player-to-player item exchange.
+- Stronger level impact pass for resources, combat, event checks, and activity gates.
 - Daily tavern rumor.
 - Korchma social treat: пригостити їжею/питвом присутніх у корчмі після появи location presence list.
 - Player titles.
