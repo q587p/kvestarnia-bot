@@ -42,6 +42,7 @@ Current tiny inventory slice:
 - Full itemization, equipment effects, random loot tables, crafting, market, and trading remain later Phase 1+ work.
 - Future equipment rules should support level-gated items that can drop before they are wearable, plus rarer race/class/path-specific манатки with future bypass/attunement/respec tricks.
 - Future player-to-player exchange should let heroes give unsuitable манатки to others without duplicating items or bypassing anti-abuse checks.
+- Future item economy should give most манатки a gold value or explicit priceless marker, then use that value for selling, trading, and a later item-to-level exchange.
 
 Current repeatable slice:
 - `0.0.10` adds «Підвальна справа» as the first low-stakes repeatable fallback after the daily shawarma quest and fight probe are spent.
@@ -131,6 +132,7 @@ Done when:
 - Achievements.
 - Collections: «Бестіарій», «Музей Манаток».
 - Level-gated equipment, race/class/path-specific rare items, and safe player-to-player item exchange.
+- Item values, priceless trophies, and a suspicious outside-korchma item-to-level exchange inspired by Munchkin.
 - Stronger level impact pass for resources, combat, event checks, and activity gates.
 - Надвірний журнал прибулих перед корчмою: пагінований список героїв, які вперше приєдналися або дісталися корчми, щоб зала не перевантажувалась.
 - Надвірна дошка рівневих досягнень: останні level-up записи, рейтинг за досягнутим рівнем і особливе оформлення 10 рівня.
