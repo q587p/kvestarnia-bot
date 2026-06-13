@@ -2,6 +2,7 @@
 import {
   presentTavern,
   presentTavernAlreadyRaided,
+  presentKorchmaArrivalBoard,
   presentKorchmaFront,
   presentKorchmaHall,
   presentPendingRaidActionBlock,
@@ -59,6 +60,25 @@ describe("tavern presenter", () => {
     const text = presentKorchmaFront(character);
 
     expect(text).toContain("За дверима гуде <i>Корчма Квестарні</i>.");
+    expect(text).toContain("табличка прибулих");
+  });
+
+  it("shows a front-door arrivals plaque with escaped visitor names", () => {
+    const text = presentKorchmaArrivalBoard(character, {
+      entries: [
+        {
+          telegramUserId: 77n,
+          name: "<b>Дара</b>",
+          level: 2,
+          locationName: "Зала корчми"
+        }
+      ]
+    });
+
+    expect(text).toContain("Табличка прибулих");
+    expect(text).toContain("Останні зарубки:");
+    expect(text).toContain("&lt;b&gt;Дара&lt;/b&gt; · рівень 2 · Зала корчми");
+    expect(text).not.toContain("<b>Дара</b>");
   });
 
   it("shows the korchma hall as the hub", () => {

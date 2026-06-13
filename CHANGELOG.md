@@ -17,12 +17,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Barrel raid results can now include one deterministic rotating junk trophy: `item.barrel-splinter-of-optimism`, `item.foam-cork-of-accounting`, or `item.mirage-foam-sample`.
 - Pending Barrel raids now schedule an in-process Telegram completion notification, so the player can wait without manually polling the button.
 - Tests cover new item ids, value/priceless metadata, no stat/effect fields, deterministic item grants, equipment mapping for reachable weapon/armor/accessory gear, item detail wording, equipment slots, and inventory valuation.
+- Added a front-door `📜 Табличка прибулих` button that shows recent adventurers known to the korchma from existing presence records.
 
 ### Changed
 - Item detail flavor now gives armor and accessories their own tiny equipment-preview jokes instead of sharing one generic non-weapon line.
 - The current deterministic starter loop now reaches weapon, armor, and accessory examples without seeded/dev inventory.
 - Barrel raids are now gated by hourly Kyiv-local raid periods that flip on the 23rd minute instead of by one daily claim. New starts pause from 04:00 through 08:00 Kyiv time for korchma accounting.
 - The front-of-korchma screen now lists the main interior destinations and includes a `/tavern` fallback line in case Telegram hides an old inline button.
+- The front-of-korchma screen now points to the arrivals plaque; the full first-arrival log remains future scope until there is a durable event source.
 - Character profile resource line now marks HP and mana with `❤️` and `🔮` icons for faster scanning.
 - Korchma hall presence now says `поки тільки ви` only when the player is truly the sole active person inside, otherwise it summarizes active and idle adventurers across interior korchma zones.
 - Korchma round results now separate the toast, beer description, and ranger reaction with blank lines for easier Telegram reading.

@@ -23,6 +23,7 @@ import {
 } from "../../src/bot/keyboards/mainMenuKeyboard";
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
 import {
+  buildKorchmaArrivalBoardKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
   buildKorchmaRoundOfferKeyboard,
@@ -47,7 +48,18 @@ describe("main menu and scene keyboards", () => {
   });
 
   it("builds korchma place navigation", () => {
-    expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard())).toEqual(["🚪 Зайти в корчму"]);
+    expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard())).toEqual([
+      "🚪 Зайти в корчму",
+      "📜 Табличка прибулих"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaFrontKeyboard())).toEqual([
+      "v1:place:hall",
+      "v1:place:arrivals"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaArrivalBoardKeyboard())).toEqual([
+      "🚪 Зайти в корчму",
+      "⬅️ До дверей"
+    ]);
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard())).toEqual([
       "📋 Стіл зі справами",
       "🛢️ Бочка",

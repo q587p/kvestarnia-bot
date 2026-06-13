@@ -61,6 +61,12 @@ describe("adventure command", () => {
               text: "🚪 Зайти в корчму",
               callback_data: makePlaceCallbackData("hall")
             }
+          ],
+          [
+            {
+              text: "📜 Табличка прибулих",
+              callback_data: makePlaceCallbackData("arrivals")
+            }
           ]
         ]
       }

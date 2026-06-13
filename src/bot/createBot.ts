@@ -63,6 +63,7 @@ import { registerRestartCommand } from "./commands/restartCommand";
 import { registerStartCommand } from "./commands/startCommand";
 import {
   registerTavernCommand,
+  sendKorchmaArrivalBoard,
   sendKorchmaFront,
   sendTavern,
   sendTavernBarrel
@@ -862,6 +863,11 @@ async function handlePlaceCallback(
 
   if (action === "front") {
     await sendKorchmaFront(ctx, services.tavern, services.presence, "edit");
+    return;
+  }
+
+  if (action === "arrivals") {
+    await sendKorchmaArrivalBoard(ctx, services.tavern, services.presence, "edit");
     return;
   }
 

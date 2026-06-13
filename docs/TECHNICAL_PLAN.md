@@ -304,6 +304,7 @@ Callback data коротка, версіонована.
 - `v1:menu:tavern`
 - `v1:place:hall`
 - `v1:place:front`
+- `v1:place:arrivals`
 - `v1:place:quest-table`
 - `v1:place:barrel`
 - `v1:place:cellar`

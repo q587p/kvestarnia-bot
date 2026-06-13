@@ -142,6 +142,38 @@ describe("PresenceService", () => {
     );
   });
 
+  it("builds the front-door arrival board from known korchma visitors", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_FRONT, {
+        characterLevel: 3
+      }),
+      player(2n, "Дара", minutesAgo(80), PRESENCE_LOCATION_KORCHMA_HALL, {
+        characterLevel: 2
+      }),
+      player(3n, "Сторонній свідок", minutesAgo(2), "location.elsewhere", {
+        characterLevel: 1
+      })
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    const board = await service.getKorchmaArrivalBoard();
+
+    expect(board.entries).toEqual([
+      {
+        telegramUserId: 1n,
+        name: "587",
+        level: 3,
+        locationName: "Перед корчмою"
+      },
+      {
+        telegramUserId: 2n,
+        name: "Дара",
+        level: 2,
+        locationName: "Зала корчми"
+      }
+    ]);
+  });
+
   it("groups public web presence by visible locations without player names by default", async () => {
     const repository = new FakePresenceRepository([
       player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL),
@@ -302,6 +334,19 @@ class FakePresenceRepository implements PresenceRepository {
     return Promise.resolve(this.filter((record) => isRecent(record, since)));
   }
 
+  listKorchmaVisitors(limit: number): Promise<PresenceRecord[]> {
+    return Promise.resolve(
+      this.filter((record) => isKorchmaLocation(record.lastSeenLocationId))
+        .sort((left, right) => {
+          const rightTime = right.lastActionAt?.getTime() ?? 0;
+          const leftTime = left.lastActionAt?.getTime() ?? 0;
+
+          return rightTime - leftTime;
+        })
+        .slice(0, limit)
+    );
+  }
+
   listByLocationSeenSince(locationId: string, since: Date): Promise<PresenceRecord[]> {
     return Promise.resolve(
       this.filter((record) => isRecent(record, since) && record.lastSeenLocationId === locationId)
@@ -334,4 +379,13 @@ class FakePresenceRepository implements PresenceRepository {
 
 function isRecent(record: PresenceRecord, since: Date): boolean {
   return Boolean(record.lastActionAt && record.lastActionAt >= since);
+}
+
+function isKorchmaLocation(locationId: string | null | undefined): boolean {
+  return (
+    locationId?.startsWith("location.korchma.") === true ||
+    locationId === "location.tavern" ||
+    locationId === "location.shawarma-table" ||
+    locationId === "location.tavern-cellar"
+  );
 }

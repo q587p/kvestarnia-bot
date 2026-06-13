@@ -145,7 +145,7 @@ Done when:
 - Class/race/combo-aware combat actions: multiple attack variants, visible mana costs for spells, fallback actions when mana is low, and equipment/effective-stats integration so манатки eventually shape the numbers.
 - Epic levels `11-20`: milestone abilities for races/classes in the spirit of Munchkin-style extra tricks, with visible text flavor and tested balance guardrails.
 - Real time-of-day modifiers for tagged enemies and scenes: night strengthens night/dark enemies, while morning/day/evening can affect other encounter types without exposing exact timestamps.
-- Надвірний журнал прибулих перед корчмою: пагінований список пригодників, які вперше приєдналися або дісталися корчми, щоб зала не перевантажувалась.
+- Повний надвірний журнал прибулих перед корчмою: durable first-arrival events і пагінований список пригодників, які вперше приєдналися або дісталися корчми. Поточна `📜 Табличка прибулих` є presence-based MVP без повної історії.
 - Надвірна дошка рівневих досягнень: останні level-up записи, рейтинг за досягнутим рівнем і особливе оформлення 10 рівня.
 - Стікерпак для level-up: коли персонаж бере новий рівень, бот зможе надсилати коротке привітання стікером перед або після текстового святкування.
 - Daily tavern rumor.

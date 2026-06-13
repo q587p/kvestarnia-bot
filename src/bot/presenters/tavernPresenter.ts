@@ -11,7 +11,7 @@ import type {
   KorchmaRoundLeaderboard,
   KorchmaRoundLeaderboardEntry
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
-import type { PresenceGroup } from "../../services/presenceService";
+import type { KorchmaArrivalBoard, PresenceGroup } from "../../services/presenceService";
 import { selectCharacterFlavorLine, selectCharacterFlavorLines } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
@@ -29,7 +29,25 @@ export function presentKorchmaFront(character: CharacterSummary): string {
     "• Підвал: миша, дрібний бізнес і дуже серйозні серветки.",
     "• Дошка вістей: новини, які корчмар прибив, поки вони не втекли.",
     "",
+    "Зліва від дверей висить табличка прибулих. Вона стверджує, що це памʼять, а не список боржників.",
+    "",
     "Натисніть «🚪 Зайти в корчму» або відкрийте двері через /tavern."
+  ].join("\n");
+}
+
+export function presentKorchmaArrivalBoard(
+  character: CharacterSummary,
+  board: KorchmaArrivalBoard
+): string {
+  return [
+    "📜 Табличка прибулих",
+    presentCharacterHeader(character),
+    "",
+    "Біля дверей висить дошка з іменами тих, кого корчма вже бачила й поки не заперечує.",
+    "",
+    ...presentKorchmaArrivalEntries(board),
+    "",
+    "Корчмар каже, що це не список боржників. Табличка тактовно мовчить."
   ].join("\n");
 }
 
@@ -411,6 +429,23 @@ function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: numbe
         quantity: grant.quantity
       })
   );
+}
+
+function presentKorchmaArrivalEntries(board: KorchmaArrivalBoard): string[] {
+  if (board.entries.length === 0) {
+    return [
+      "Зарубок ще немає. Навіть пил намагається не брати на себе відповідальність."
+    ];
+  }
+
+  return [
+    "Останні зарубки:",
+    ...board.entries.map((entry) => {
+      const level = entry.level === undefined ? "" : ` · рівень ${entry.level}`;
+
+      return `• ${escapeHtml(entry.name)}${level} · ${escapeHtml(entry.locationName)}`;
+    })
+  ];
 }
 
 function presentTavernPresence(

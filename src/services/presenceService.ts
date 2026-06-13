@@ -57,6 +57,17 @@ export interface PresenceGroup {
   total: number;
 }
 
+export interface KorchmaArrivalBoardEntry {
+  telegramUserId: bigint;
+  name: string;
+  level?: number;
+  locationName: string;
+}
+
+export interface KorchmaArrivalBoard {
+  entries: KorchmaArrivalBoardEntry[];
+}
+
 export interface PublicPresenceLocationSnapshot {
   locationId: string;
   title: string;
@@ -213,6 +224,21 @@ export class PresenceService {
     );
 
     return groupPeople(records.flat(), this.clock());
+  }
+
+  async getKorchmaArrivalBoard(limit = 10): Promise<KorchmaArrivalBoard> {
+    const records = await this.presence.listKorchmaVisitors(limit);
+
+    return {
+      entries: uniquePresenceRecords(records).map((record) => ({
+        telegramUserId: record.telegramUserId,
+        name: getPresenceName(record),
+        ...(record.characterLevel === null || record.characterLevel === undefined
+          ? {}
+          : { level: record.characterLevel }),
+        locationName: getLocationName(normalizePresenceLocationId(record.lastSeenLocationId))
+      }))
+    };
   }
 
   async getCurrentPlaceForTelegramUser(telegramUserId: bigint): Promise<CurrentPlaceSnapshot> {

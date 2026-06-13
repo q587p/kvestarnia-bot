@@ -1,7 +1,11 @@
 ﻿import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
-import { sendKorchmaFront, sendTavern } from "../../src/bot/commands/tavernCommand";
+import {
+  sendKorchmaArrivalBoard,
+  sendKorchmaFront,
+  sendTavern
+} from "../../src/bot/commands/tavernCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { PresenceService } from "../../src/services/presenceService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
@@ -27,6 +31,45 @@ describe("tavern command screens", () => {
             {
               text: "🚪 Зайти в корчму",
               callback_data: makePlaceCallbackData("hall")
+            }
+          ],
+          [
+            {
+              text: "📜 Табличка прибулих",
+              callback_data: makePlaceCallbackData("arrivals")
+            }
+          ]
+        ]
+      }
+    });
+  });
+
+  it("shows a front-door arrivals plaque from known korchma visitors", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaArrivalBoard(
+      makeContext(replies),
+      readyTavernService(),
+      korchmaArrivalService(),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("📜 Табличка прибулих");
+    expect(replies[0]?.text).toContain("Дара · рівень 2 · Зала корчми");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🚪 Зайти в корчму",
+              callback_data: makePlaceCallbackData("hall")
+            }
+          ],
+          [
+            {
+              text: "⬅️ До дверей",
+              callback_data: makePlaceCallbackData("front")
             }
           ]
         ]
@@ -110,6 +153,23 @@ function korchmaPresenceService(): PresenceService {
         ],
         idle: [{ telegramUserId: 88n, name: "Нестор Межовий", status: "idle" }],
         total: 3
+      })
+  } as unknown as PresenceService;
+}
+
+function korchmaArrivalService(): PresenceService {
+  return {
+    markAction: () => Promise.resolve(),
+    getKorchmaArrivalBoard: () =>
+      Promise.resolve({
+        entries: [
+          {
+            telegramUserId: 77n,
+            name: "Дара",
+            level: 2,
+            locationName: "Зала корчми"
+          }
+        ]
       })
   } as unknown as PresenceService;
 }
