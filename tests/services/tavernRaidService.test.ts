@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import type {
   CharacterRecord,
   CharacterRepository,
@@ -11,6 +11,11 @@ import type {
   DailyActionRecord,
   DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
+import type {
+  KorchmaRoundLeaderboard,
+  KorchmaRoundPurchaseInput,
+  KorchmaRoundPurchaseRepository
+} from "../../src/db/repositories/korchmaRoundPurchaseRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
 import {
@@ -26,7 +31,7 @@ describe("TavernRaidService", () => {
   it("prompts /start path when no character exists", async () => {
     const characters = new FakeCharacterRepository();
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+    const service = createTavernRaidService(characters, dailyActions);
 
     await expect(service.getTavernForTelegramUser(telegramUserId)).resolves.toEqual({
       state: "no-character"
@@ -40,7 +45,7 @@ describe("TavernRaidService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+    const service = createTavernRaidService(characters, dailyActions);
 
     const first = await service.completeFridayBarrelRaid(telegramUserId);
 
@@ -75,7 +80,7 @@ describe("TavernRaidService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 7 });
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+    const service = createTavernRaidService(characters, dailyActions);
 
     const result = await service.completeFridayBarrelRaid(telegramUserId);
 
@@ -97,7 +102,7 @@ describe("TavernRaidService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+    const service = createTavernRaidService(characters, dailyActions);
 
     await service.completeFridayBarrelRaid(telegramUserId);
     const repeated = await service.completeFridayBarrelRaid(telegramUserId);
@@ -124,7 +129,7 @@ describe("TavernRaidService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+    const service = createTavernRaidService(characters, dailyActions);
 
     await expect(service.getTavernForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "ready"
@@ -145,7 +150,7 @@ describe("TavernRaidService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { gold: 100 });
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+    const service = createTavernRaidService(characters, dailyActions);
 
     const result = await service.getRoundOfferForTelegramUser(telegramUserId);
 
@@ -159,7 +164,8 @@ describe("TavernRaidService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { gold: 125 });
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+    const roundPurchases = new FakeKorchmaRoundPurchaseRepository(characters);
+    const service = createTavernRaidService(characters, dailyActions, roundPurchases);
 
     await service.completeFridayBarrelRaid(telegramUserId);
     const result = await service.getRoundOfferForTelegramUser(telegramUserId);
@@ -170,6 +176,7 @@ describe("TavernRaidService", () => {
       canBuySimple: true,
       canBuyFine: true
     });
+    expect(roundPurchases.purchases).toHaveLength(0);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       gold: 130
     });
@@ -179,7 +186,8 @@ describe("TavernRaidService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { gold: 125 });
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+    const roundPurchases = new FakeKorchmaRoundPurchaseRepository(characters);
+    const service = createTavernRaidService(characters, dailyActions, roundPurchases);
 
     await service.completeFridayBarrelRaid(telegramUserId);
     const result = await service.buyRoundForTelegramUser(telegramUserId, "fine");
@@ -189,8 +197,57 @@ describe("TavernRaidService", () => {
       spentGold: KORCHMA_FINE_ROUND_COST,
       remainingGold: 30
     });
+    expect(roundPurchases.purchases).toMatchObject([
+      {
+        characterId: "character-42",
+        tier: "fine",
+        spentGold: KORCHMA_FINE_ROUND_COST,
+        localDate: "2026-06-12"
+      }
+    ]);
+    if (result.state === "fine-round") {
+      expect(result.leaderboard.day[0]).toMatchObject({
+        name: "Мандрівник",
+        roundCount: 1,
+        spentGold: KORCHMA_FINE_ROUND_COST
+      });
+      expect(result.becameLeader).toEqual(["day", "week", "month"]);
+    }
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       gold: 30
+    });
+  });
+
+  it("marks a hero as new leader only when they overtake the previous top patron", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { gold: 125 });
+    characters.add(99n, { gold: 0, name: "Дара" });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const roundPurchases = new FakeKorchmaRoundPurchaseRepository(characters);
+    roundPurchases.seed({
+      characterId: "character-99",
+      tier: "simple",
+      spentGold: KORCHMA_SIMPLE_ROUND_COST,
+      localDate: "2026-06-12"
+    });
+    const service = createTavernRaidService(characters, dailyActions, roundPurchases);
+
+    await service.completeFridayBarrelRaid(telegramUserId);
+    const result = await service.buyRoundForTelegramUser(telegramUserId, "fine");
+
+    expect(result).toMatchObject({
+      state: "fine-round",
+      becameLeader: ["day", "week", "month"]
+    });
+    if (result.state === "fine-round") {
+      expect(result.leaderboard.day.map((entry) => entry.name)).toEqual(["Мандрівник", "Дара"]);
+    }
+
+    const repeatedLeader = await service.buyRoundForTelegramUser(telegramUserId, "simple");
+
+    expect(repeatedLeader).toMatchObject({
+      state: "simple-round",
+      becameLeader: []
     });
   });
 
@@ -198,7 +255,7 @@ describe("TavernRaidService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { gold: 12 });
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+    const service = createTavernRaidService(characters, dailyActions);
 
     await service.completeFridayBarrelRaid(telegramUserId);
     const result = await service.buyRoundForTelegramUser(telegramUserId, "simple");
@@ -214,7 +271,7 @@ describe("TavernRaidService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { gold: 4 });
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+    const service = createTavernRaidService(characters, dailyActions);
 
     await service.completeFridayBarrelRaid(telegramUserId);
     const result = await service.getRoundOfferForTelegramUser(telegramUserId);
@@ -228,6 +285,14 @@ describe("TavernRaidService", () => {
     });
   });
 });
+
+function createTavernRaidService(
+  characters: FakeCharacterRepository,
+  dailyActions: FakeDailyActionRepository,
+  roundPurchases = new FakeKorchmaRoundPurchaseRepository(characters)
+): TavernRaidService {
+  return new TavernRaidService(characters, dailyActions, roundPurchases, fixedClock);
+}
 
 function fixedClock(): Date {
   return new Date("2026-06-12T10:30:00.000Z");
@@ -349,6 +414,79 @@ class FakeCharacterRepository implements CharacterRepository {
 
     return Promise.resolve({ character, created: true });
   }
+
+  findByCharacterId(characterId: string): CharacterRecord | null {
+    return (
+      [...this.charactersByTelegramUserId.values()].find(
+        (character) => character.id === characterId
+      ) ?? null
+    );
+  }
+}
+
+class FakeKorchmaRoundPurchaseRepository implements KorchmaRoundPurchaseRepository {
+  readonly purchases: FakeKorchmaRoundPurchase[] = [];
+
+  constructor(private readonly characters: FakeCharacterRepository) {}
+
+  async spendGoldAndCreate(input: KorchmaRoundPurchaseInput) {
+    const spend = await this.characters.spendGoldForTelegramUser(
+      input.telegramUserId,
+      input.spentGold
+    );
+
+    if (!spend || spend.state === "insufficient") {
+      return spend;
+    }
+
+    this.seed({
+      ...input,
+      characterId: spend.character.id
+    });
+
+    return spend;
+  }
+
+  seed(input: FakeKorchmaRoundPurchase): void {
+    this.purchases.push(input);
+  }
+
+  getLeaderboard(): Promise<KorchmaRoundLeaderboard> {
+    const entries = new Map<string, { roundCount: number; spentGold: number }>();
+
+    for (const purchase of this.purchases) {
+      const current = entries.get(purchase.characterId) ?? {
+        roundCount: 0,
+        spentGold: 0
+      };
+      entries.set(purchase.characterId, {
+        roundCount: current.roundCount + 1,
+        spentGold: current.spentGold + purchase.spentGold
+      });
+    }
+
+    const rows = [...entries.entries()]
+      .map(([characterId, stats]) => ({
+        characterId,
+        name: this.characters.findByCharacterId(characterId)?.name ?? "Хтось щедрий",
+        ...stats
+      }))
+      .sort((left, right) => right.spentGold - left.spentGold || right.roundCount - left.roundCount)
+      .slice(0, 5);
+
+    return Promise.resolve({
+      day: rows,
+      week: rows,
+      month: rows
+    });
+  }
+}
+
+interface FakeKorchmaRoundPurchase {
+  characterId: string;
+  tier: "simple" | "fine";
+  spentGold: number;
+  localDate: string;
 }
 
 class FakeDailyActionRepository implements DailyActionRepository {

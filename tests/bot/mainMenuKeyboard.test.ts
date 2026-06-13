@@ -71,7 +71,8 @@ describe("main menu and scene keyboards", () => {
           character,
           gold: 125,
           canBuySimple: true,
-          canBuyFine: true
+          canBuyFine: true,
+          leaderboard: emptyRoundLeaderboard
         })
       )
     ).toEqual(["🍻 Якісне — 100", "🍺 Просте — 10", "⬅️ До зали"]);
@@ -82,7 +83,8 @@ describe("main menu and scene keyboards", () => {
           character,
           gold: 25,
           canBuySimple: true,
-          canBuyFine: false
+          canBuyFine: false,
+          leaderboard: emptyRoundLeaderboard
         })
       )
     ).toEqual(["v1:tavern:round-simple", "v1:place:hall"]);
@@ -207,6 +209,12 @@ const character = {
     }
   }
 } as const;
+
+const emptyRoundLeaderboard = {
+  day: [],
+  week: [],
+  month: []
+};
 
 function flatInlineButtonTexts(keyboard: { inline_keyboard: { text: string }[][] }): string[] {
   return keyboard.inline_keyboard.flat().map((button) => button.text);

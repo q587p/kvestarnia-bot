@@ -1,9 +1,14 @@
 import type {
+  KorchmaRoundLeaderboardPeriod,
   TavernRaidResult,
   TavernRoundOfferResult,
   TavernRoundResult
 } from "../../services/tavernRaidService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import type {
+  KorchmaRoundLeaderboard,
+  KorchmaRoundLeaderboardEntry
+} from "../../db/repositories/korchmaRoundPurchaseRepository";
 import type { PresenceGroup } from "../../services/presenceService";
 import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
@@ -111,7 +116,9 @@ export function presentTavernRoundResult(
       npcQuote(
         "Корчмар",
         "Не можу підійти. Спочатку розберіться з Бочкою, вона знову робить вигляд, що це її заклад."
-      )
+      ),
+      "",
+      ...presentKorchmaRoundLeaderboard(result.leaderboard)
     ].join("\n");
   }
 
@@ -124,7 +131,9 @@ export function presentTavernRoundResult(
         "На всіх не вистачить. Заробіть ще трохи. Кажуть, у підвалі миші ведуть дрібний бізнес."
       ),
       "",
-      `Маєте: <b>${result.gold} золота</b>`
+      `Маєте: <b>${result.gold} золота</b>`,
+      "",
+      ...presentKorchmaRoundLeaderboard(result.leaderboard)
     ].join("\n");
   }
 
@@ -138,7 +147,10 @@ export function presentTavernRoundResult(
     quality,
     "",
     `Списано: <b>${result.spentGold} золота</b>`,
-    `Залишилось: <b>${result.remainingGold} золота</b>`
+    `Залишилось: <b>${result.remainingGold} золота</b>`,
+    ...presentNewLeaderLines(result.becameLeader),
+    "",
+    ...presentKorchmaRoundLeaderboard(result.leaderboard)
   ].join("\n");
 }
 
@@ -167,8 +179,85 @@ export function presentTavernRoundOffer(
     "",
     options,
     "",
-    `У кишені: <b>${result.gold} золота</b>`
+    `У кишені: <b>${result.gold} золота</b>`,
+    "",
+    ...presentKorchmaRoundLeaderboard(result.leaderboard)
   ].join("\n");
+}
+
+function presentNewLeaderLines(periods: KorchmaRoundLeaderboardPeriod[]): string[] {
+  if (periods.length === 0) {
+    return [];
+  }
+
+  const label = periods.map(presentLeaderboardPeriodName).join(", ");
+
+  return [
+    "",
+    `🏆 Ви вирвались на перше місце: <b>${label}</b>. Відвідувачі це не забудуть, бо корчмар записав на видному місці.`
+  ];
+}
+
+function presentKorchmaRoundLeaderboard(leaderboard: KorchmaRoundLeaderboard): string[] {
+  return [
+    "🏅 Рейтинг щедрості",
+    "",
+    ...presentLeaderboardSection("За добу", leaderboard.day),
+    "",
+    ...presentLeaderboardSection("За тиждень", leaderboard.week),
+    "",
+    ...presentLeaderboardSection("За місяць", leaderboard.month)
+  ];
+}
+
+function presentLeaderboardSection(
+  title: string,
+  entries: KorchmaRoundLeaderboardEntry[]
+): string[] {
+  if (entries.length === 0) {
+    return [`<b>${title}</b>: ще ніхто не пригощав. Корчмар тримає крейду напоготові.`];
+  }
+
+  return [
+    `<b>${title}</b>:`,
+    ...entries.map((entry, index) => presentLeaderboardEntry(entry, index + 1))
+  ];
+}
+
+function presentLeaderboardEntry(entry: KorchmaRoundLeaderboardEntry, rank: number): string {
+  const count = `${entry.roundCount} ${presentRoundCount(entry.roundCount)}`;
+
+  return `${rank}. ${escapeHtml(entry.name)} — ${count} · ${entry.spentGold} золота`;
+}
+
+function presentRoundCount(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+
+  if (lastTwo >= 11 && lastTwo <= 14) {
+    return "частувань";
+  }
+
+  if (last === 1) {
+    return "частування";
+  }
+
+  if (last >= 2 && last <= 4) {
+    return "частування";
+  }
+
+  return "частувань";
+}
+
+function presentLeaderboardPeriodName(period: KorchmaRoundLeaderboardPeriod): string {
+  switch (period) {
+    case "day":
+      return "доба";
+    case "week":
+      return "тиждень";
+    case "month":
+      return "місяць";
+  }
 }
 
 function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: number }>): string[] {

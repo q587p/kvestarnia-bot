@@ -259,6 +259,12 @@ Legacy ids `location.tavern`, `location.shawarma-table` і `location.tavern-cell
 
 Routing rule у `0.0.11`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу.
 
+`0.0.11` також додає `korchma_round_purchases` як малий журнал підтверджених частувань:
+- `v1:tavern:round` тільки показує offer/statistics screen і не списує золото;
+- `v1:tavern:round-simple` і `v1:tavern:round-fine` виконують repeatable spending після raid gate;
+- рейтинги за добу, тиждень і місяць агрегуються з purchase log за `local_date`;
+- leaderboard сортується за сумою витраченого золота, потім за кількістю частувань.
+
 ## Telegram callback data
 Callback data коротка, версіонована.
 
@@ -280,6 +286,9 @@ Callback data коротка, версіонована.
 - `v1:news:entry:{entryIndex}:{listPage}`
 - `v1:tavern:raid`
 - `v1:tavern:participants`
+- `v1:tavern:round`
+- `v1:tavern:round-simple`
+- `v1:tavern:round-fine`
 - `v1:adv:mimic:poke`
 - `v1:adv:mimic:receipt`
 - `v1:adv:mimic:flee`

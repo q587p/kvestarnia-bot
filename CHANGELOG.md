@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `v1:quest:*` callback parsing for hub action routing.
 - Added secondary `/cellar` command as a fallback surface without adding it to the Telegram side command menu or persistent reply keyboard.
 - Added `🍻 Всім пива` as the first tiny korchma hall gold sink gated by today’s barrel raid: it shows explicit 100-gold and 10-gold choices, then spends only after the player confirms a quality.
+- Added a persistent korchma round purchase log and generosity leaderboard for day, week, and month rankings.
 - Tests cover quest hub rendering, outside gates, `/fight` and `/cellar` routing, quest callback parsing, and presence middleware behavior.
 
 ### Changed

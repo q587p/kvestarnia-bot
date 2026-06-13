@@ -1,12 +1,15 @@
-import type {
-  CharacterRecord,
-  CharacterRepository
-} from "../db/repositories/characterRepository";
+import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type {
   DailyActionRecord,
   DailyActionRepository,
   RewardLevelChange
 } from "../db/repositories/dailyActionRepository";
+import type {
+  KorchmaRoundLeaderboard,
+  KorchmaRoundLeaderboardEntry,
+  KorchmaRoundPurchaseRepository,
+  KorchmaRoundTier
+} from "../db/repositories/korchmaRoundPurchaseRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
@@ -20,7 +23,6 @@ export const FRIDAY_BARREL_RAID_REWARD_XP = 7;
 export const FRIDAY_BARREL_RAID_REWARD_GOLD = 5;
 export const KORCHMA_SIMPLE_ROUND_COST = 10;
 export const KORCHMA_FINE_ROUND_COST = 100;
-export type KorchmaRoundTier = "simple" | "fine";
 
 export type TavernLookupResult =
   | { state: "no-character" }
@@ -44,37 +46,31 @@ export type TavernRaidResult =
 
 export type TavernRoundResult =
   | { state: "no-character" }
-  | { state: "raid-required"; character: CharacterSummary }
-  | { state: "not-enough-gold"; character: CharacterSummary; gold: number }
+  | { state: "raid-required"; character: CharacterSummary; leaderboard: KorchmaRoundLeaderboard }
+  | { state: "not-enough-gold"; character: CharacterSummary; gold: number; leaderboard: KorchmaRoundLeaderboard }
   | {
       state: "simple-round" | "fine-round";
       character: CharacterSummary;
       spentGold: number;
       remainingGold: number;
+      leaderboard: KorchmaRoundLeaderboard;
+      becameLeader: KorchmaRoundLeaderboardPeriod[];
     };
 
 export type TavernRoundOfferResult =
   | { state: "no-character" }
-  | { state: "raid-required"; character: CharacterSummary }
-  | { state: "not-enough-gold"; character: CharacterSummary; gold: number }
+  | { state: "raid-required"; character: CharacterSummary; leaderboard: KorchmaRoundLeaderboard }
+  | { state: "not-enough-gold"; character: CharacterSummary; gold: number; leaderboard: KorchmaRoundLeaderboard }
   | {
       state: "ready";
       character: CharacterSummary;
       gold: number;
       canBuySimple: boolean;
       canBuyFine: boolean;
+      leaderboard: KorchmaRoundLeaderboard;
     };
 
-export interface GoldSpendingCharacterRepository extends CharacterRepository {
-  spendGoldForTelegramUser(
-    telegramUserId: bigint,
-    amount: number
-  ): Promise<
-    | { state: "spent"; character: CharacterRecord }
-    | { state: "insufficient"; character: CharacterRecord }
-    | null
-  >;
-}
+export type KorchmaRoundLeaderboardPeriod = "day" | "week" | "month";
 
 export interface TavernRaidReward {
   xp: number;
@@ -85,8 +81,9 @@ export interface TavernRaidReward {
 
 export class TavernRaidService {
   constructor(
-    private readonly characters: GoldSpendingCharacterRepository,
+    private readonly characters: CharacterRepository,
     private readonly dailyActions: DailyActionRepository,
+    private readonly roundPurchases: KorchmaRoundPurchaseRepository,
     private readonly clock: Clock = systemClock
   ) {}
 
@@ -155,6 +152,7 @@ export class TavernRaidService {
   async getRoundOfferForTelegramUser(telegramUserId: bigint): Promise<TavernRoundOfferResult> {
     const localDate = toIsoDate(this.clock());
     const character = await this.characters.findByTelegramUserId(telegramUserId);
+    const leaderboard = await this.roundPurchases.getLeaderboard(localDate);
 
     if (!character) {
       return { state: "no-character" };
@@ -168,7 +166,8 @@ export class TavernRaidService {
     if (!existingRaid) {
       return {
         state: "raid-required",
-        character: summarizeCharacter(character)
+        character: summarizeCharacter(character),
+        leaderboard
       };
     }
 
@@ -176,7 +175,8 @@ export class TavernRaidService {
       return {
         state: "not-enough-gold",
         character: summarizeCharacter(character),
-        gold: character.gold
+        gold: character.gold,
+        leaderboard
       };
     }
 
@@ -185,7 +185,8 @@ export class TavernRaidService {
       character: summarizeCharacter(character),
       gold: character.gold,
       canBuySimple: character.gold >= KORCHMA_SIMPLE_ROUND_COST,
-      canBuyFine: character.gold >= KORCHMA_FINE_ROUND_COST
+      canBuyFine: character.gold >= KORCHMA_FINE_ROUND_COST,
+      leaderboard
     };
   }
 
@@ -195,6 +196,7 @@ export class TavernRaidService {
   ): Promise<TavernRoundResult> {
     const localDate = toIsoDate(this.clock());
     const character = await this.characters.findByTelegramUserId(telegramUserId);
+    const beforeLeaderboard = await this.roundPurchases.getLeaderboard(localDate);
 
     if (!character) {
       return { state: "no-character" };
@@ -208,32 +210,61 @@ export class TavernRaidService {
     if (!existingRaid) {
       return {
         state: "raid-required",
-        character: summarizeCharacter(character)
+        character: summarizeCharacter(character),
+        leaderboard: beforeLeaderboard
       };
     }
 
     const cost = tier === "fine" ? KORCHMA_FINE_ROUND_COST : KORCHMA_SIMPLE_ROUND_COST;
-    const spend = await this.characters.spendGoldForTelegramUser(telegramUserId, cost);
+    const spend = await this.roundPurchases.spendGoldAndCreate({
+      telegramUserId,
+      tier,
+      spentGold: cost,
+      localDate
+    });
 
     if (!spend) {
       return { state: "no-character" };
     }
 
     if (spend.state === "insufficient") {
+      const leaderboard = await this.roundPurchases.getLeaderboard(localDate);
+
       return {
         state: "not-enough-gold",
         character: summarizeCharacter(spend.character),
-        gold: spend.character.gold
+        gold: spend.character.gold,
+        leaderboard
       };
     }
+
+    const leaderboard = await this.roundPurchases.getLeaderboard(localDate);
 
     return {
       state: tier === "fine" ? "fine-round" : "simple-round",
       character: summarizeCharacter(spend.character),
       spentGold: cost,
-      remainingGold: spend.character.gold
+      remainingGold: spend.character.gold,
+      leaderboard,
+      becameLeader: getNewLeaderPeriods(spend.character.id, beforeLeaderboard, leaderboard)
     };
   }
+}
+
+function getNewLeaderPeriods(
+  characterId: string,
+  before: KorchmaRoundLeaderboard,
+  after: KorchmaRoundLeaderboard
+): KorchmaRoundLeaderboardPeriod[] {
+  return (["day", "week", "month"] as const).filter(
+    (period) =>
+      getLeader(before[period])?.characterId !== characterId &&
+      getLeader(after[period])?.characterId === characterId
+  );
+}
+
+function getLeader(entries: KorchmaRoundLeaderboardEntry[]): KorchmaRoundLeaderboardEntry | null {
+  return entries[0] ?? null;
 }
 
 function buildReward(

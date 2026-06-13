@@ -163,14 +163,16 @@ describe("tavern presenter", () => {
     expect(
       presentTavernRoundResult({
         state: "raid-required",
-        character
+        character,
+        leaderboard: emptyRoundLeaderboard
       })
     ).toContain("Спочатку розберіться з Бочкою");
     expect(
       presentTavernRoundResult({
         state: "not-enough-gold",
         character,
-        gold: 5
+        gold: 5,
+        leaderboard: emptyRoundLeaderboard
       })
     ).toContain("у підвалі миші ведуть дрібний бізнес");
     expect(
@@ -181,20 +183,26 @@ describe("tavern presenter", () => {
           gold: 2
         },
         spentGold: 10,
-        remainingGold: 2
+        remainingGold: 2,
+        leaderboard: roundLeaderboard,
+        becameLeader: []
       })
     ).toContain("Списано: <b>10 золота</b>");
-    expect(
-      presentTavernRoundResult({
+    const fineRound = presentTavernRoundResult({
         state: "fine-round",
         character: {
           ...character,
           gold: 25
         },
         spentGold: 100,
-        remainingGold: 25
-      })
-    ).toContain("Всім якісного пива");
+        remainingGold: 25,
+        leaderboard: roundLeaderboard,
+        becameLeader: ["day", "week"]
+      });
+    expect(fineRound).toContain("Всім якісного пива");
+    expect(fineRound).toContain("Ви вирвались на перше місце");
+    expect(fineRound).toContain("За добу");
+    expect(fineRound).toContain("Мандрівник — 2 частування · 110 золота");
   });
 
   it("presents a round offer before any gold is spent", () => {
@@ -203,15 +211,50 @@ describe("tavern presenter", () => {
       character,
       gold: 125,
       canBuySimple: true,
-      canBuyFine: true
+      canBuyFine: true,
+      leaderboard: roundLeaderboard
     });
 
     expect(text).toContain("покажіть, що саме наливаємо");
     expect(text).toContain("якісне за 100 золота");
     expect(text).toContain("просте за 10");
+    expect(text).toContain("Рейтинг щедрості");
     expect(text).not.toContain("Списано");
   });
 });
+
+const emptyRoundLeaderboard = {
+  day: [],
+  week: [],
+  month: []
+};
+
+const roundLeaderboard = {
+  day: [
+    {
+      characterId: "character-42",
+      name: "Мандрівник",
+      roundCount: 2,
+      spentGold: 110
+    }
+  ],
+  week: [
+    {
+      characterId: "character-42",
+      name: "Мандрівник",
+      roundCount: 2,
+      spentGold: 110
+    }
+  ],
+  month: [
+    {
+      characterId: "character-42",
+      name: "Мандрівник",
+      roundCount: 2,
+      spentGold: 110
+    }
+  ]
+};
 
 const tavernPresence: PresenceGroup = {
   active: [

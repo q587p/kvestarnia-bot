@@ -36,6 +36,7 @@ model Character {
   dailyActions DailyAction[]
   cooldowns CharacterCooldown[]
   items     CharacterItem[]
+  korchmaRoundPurchases KorchmaRoundPurchase[]
   name      String
   pronoun   String   @default("they")
   path      String   @default("boundary")
@@ -55,6 +56,20 @@ model Character {
   @@index([raceId])
   @@index([classId])
   @@map("characters")
+}
+
+model KorchmaRoundPurchase {
+  id          String    @id @default(uuid())
+  characterId String    @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  tier        String
+  spentGold   Int       @map("spent_gold")
+  localDate   String    @map("local_date")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([characterId])
+  @@index([localDate])
+  @@map("korchma_round_purchases")
 }
 
 model CharacterItem {
