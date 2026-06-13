@@ -121,16 +121,17 @@ export function presentTavernRaidPending(
     result.state === "pending-started"
       ? "🍺 Рейд почався."
       : "🍺 Рейд ще триває.";
+  const flavorSeed = buildPendingRaidFlavorSeed(result);
 
   return [
     intro,
     "Ви пішли розбиратися з Бочкою Пінного Міражу. Бочка робить вигляд, що це довга стратегія, а не паніка.",
     "",
-    presentRangerRaidAction(result.character, result.periodId),
+    presentRangerRaidAction(result.character, flavorSeed),
     "",
     npcQuote("Корчмар", "Поки ви там, я не видаю нових пригод. У корчмі теж є техніка безпеки."),
     "",
-    ...presentRaidPrepHint(result.character, result.periodId),
+    ...presentRaidPrepHint(result.character, flavorSeed),
     "",
     `Поверніться через <b>${formatRaidWait(result.availableAt, result.now)}</b>`
   ].join("\n");
@@ -333,6 +334,12 @@ function presentRangerRaidAction(character: CharacterSummary, seed: string): str
   return flavor
     ? escapeHtml(flavor.text)
     : "Єгер у капюшоні не втручається. Він мовчить так, ніби це теж професія.";
+}
+
+function buildPendingRaidFlavorSeed(
+  result: Extract<TavernRaidResult, { state: "pending" | "pending-started" }>
+): string {
+  return `${result.periodId}|check:${result.now.toISOString()}`;
 }
 
 function presentNewLeaderLines(periods: KorchmaRoundLeaderboardPeriod[]): string[] {

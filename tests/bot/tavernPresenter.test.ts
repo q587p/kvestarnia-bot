@@ -266,8 +266,29 @@ describe("tavern presenter", () => {
       expect(text).toMatch(/Єгер|Підлога|Бочка|Стріла|Табурет/);
       expect(text).toContain("Поверніться через <b>8 хв.</b>");
       expect(text).not.toContain("хв..");
-      expect(text).toContain("не видаю нових пригод");
+    expect(text).toContain("не видаю нових пригод");
     expect(text).not.toContain("+7 XP");
+  });
+
+  it("varies pending barrel flavor when the player checks again", () => {
+    const first = presentTavernRaidPending({
+      state: "pending",
+      character,
+      availableAt: new Date("2026-06-13T10:38:00.000Z"),
+      now: new Date("2026-06-13T10:30:00.000Z"),
+      periodId: "2026-06-13T10:23"
+    });
+    const second = presentTavernRaidPending({
+      state: "pending",
+      character,
+      availableAt: new Date("2026-06-13T10:38:00.000Z"),
+      now: new Date("2026-06-13T10:30:10.000Z"),
+      periodId: "2026-06-13T10:23"
+    });
+
+    expect(second).not.toBe(first);
+    expect(second).toContain("Рейд ще триває");
+    expect(second).toContain("Поверніться через <b>8 хв.</b>");
   });
 
   it("presents pending raid block for other activities", () => {
