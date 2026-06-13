@@ -140,7 +140,7 @@ item_power_budget = base_by_level + rarity_bonus
 
 `0.0.15` додає reachable starter gear для всіх видимих слотів: weapon через `/fight`, armor через Бочку Пінного Міражу, accessory через підвальну мишу. Це розширює контент і оцінну вартість манаток, але не додає бойових ефектів, sell/trade логіки або нових reward formulas.
 
-`0.0.16` не змінює raid reward math: Бочка все ще дає `+7 XP`, `+5 золота`, фартух і детермінований дрібний trophy item. Зміна стосується reliability: period bucket, audit break, pending completion, notification dedupe і beer gate мають лишатися ідемпотентними, без нових шансів на дубль нагороди або безкоштовне частування.
+`0.0.16` піднімає raid reward math: Бочка дає deterministic roll `18-26 XP` і `8-14 золота`, плюс фартух і детермінований дрібний trophy item. Roll прив’язаний до `periodId + telegramUserId`, а claim усе ще зберігає фактичні `rewardXp`/`rewardGold`, тому repeated callback не перекидає нагороду й не дублює прогрес. Reliability-частина лишається важливою: period bucket, audit break, pending completion, notification dedupe і beer gate мають лишатися ідемпотентними, без нових шансів на дубль нагороди або безкоштовне частування.
 
 Сумарна вартість манаток у `/inventory` і `/hero` — це valuation, не spendable gold. Вона не додається до `character.gold`, не дозволяє купити пиво й не має впливати на gates, доки не з’явиться окрема підтверджена sell/trade/sink дія.
 

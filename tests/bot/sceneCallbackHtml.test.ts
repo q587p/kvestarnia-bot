@@ -169,8 +169,8 @@ describe("scene callback HTML options", () => {
               state: "completed",
               character,
               reward: {
-                xp: 7,
-                gold: 5,
+                xp: 25,
+                gold: 10,
                 localDate: "2026-06-13T10:23",
                 itemGrants: [
                   {
@@ -195,7 +195,7 @@ describe("scene callback HTML options", () => {
     );
 
     expect(getParseMode(notification?.payload)).toBe("HTML");
-    expect(String(notification?.payload.text)).toContain("<b>+7 XP\n+5 золота</b>");
+    expect(String(notification?.payload.text)).toContain("<b>+25 XP\n+10 золота</b>");
   });
 
   it("does not send a barrel raid timer notification after manual completion claims the reward", async () => {
@@ -217,8 +217,8 @@ describe("scene callback HTML options", () => {
             state: "already-completed",
             character,
             reward: {
-              xp: 7,
-              gold: 5,
+              xp: 25,
+              gold: 10,
               localDate: "2026-06-13T10:23",
               itemGrants: []
             },
@@ -231,8 +231,8 @@ describe("scene callback HTML options", () => {
           state: "completed",
           character,
           reward: {
-            xp: 7,
-            gold: 5,
+            xp: 25,
+            gold: 10,
             localDate: "2026-06-13T10:23",
             itemGrants: []
           },

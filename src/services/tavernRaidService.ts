@@ -28,8 +28,10 @@ export const BARREL_RAID_KEY = "tavern.friday-barrel-raid";
 export const BARREL_RAID_PENDING_KEY = "tavern.friday-barrel-raid.pending";
 export const FRIDAY_BARREL_RAID_KEY = BARREL_RAID_KEY;
 export const FRIDAY_BARREL_RAID_PENDING_KEY = BARREL_RAID_PENDING_KEY;
-export const FRIDAY_BARREL_RAID_REWARD_XP = 7;
-export const FRIDAY_BARREL_RAID_REWARD_GOLD = 5;
+export const FRIDAY_BARREL_RAID_REWARD_XP_MIN = 18;
+export const FRIDAY_BARREL_RAID_REWARD_XP_MAX = 26;
+export const FRIDAY_BARREL_RAID_REWARD_GOLD_MIN = 8;
+export const FRIDAY_BARREL_RAID_REWARD_GOLD_MAX = 14;
 export const FRIDAY_BARREL_RAID_MIN_WAIT_MINUTES = 5;
 export const FRIDAY_BARREL_RAID_MAX_WAIT_MINUTES = 8;
 export const BARREL_RAID_PERIOD_START_MINUTE = 23;
@@ -273,11 +275,12 @@ export class TavernRaidService {
     telegramUserId: bigint,
     periodId = getBarrelRaidPeriod(this.clock()).id
   ): Promise<TavernRaidResult> {
+    const rewardAmounts = buildBarrelRaidRewardAmounts(periodId, telegramUserId);
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: FRIDAY_BARREL_RAID_KEY,
       localDate: periodId,
-      rewardXp: FRIDAY_BARREL_RAID_REWARD_XP,
-      rewardGold: FRIDAY_BARREL_RAID_REWARD_GOLD,
+      rewardXp: rewardAmounts.xp,
+      rewardGold: rewardAmounts.gold,
       itemGrants: buildBarrelRaidItemGrants(periodId)
     });
 
@@ -592,6 +595,26 @@ export function buildBarrelRaidItemGrants(
   ];
 }
 
+export function buildBarrelRaidRewardAmounts(
+  periodId: string,
+  telegramUserId: bigint
+): { xp: number; gold: number } {
+  const seed = `${periodId}:${telegramUserId.toString()}`;
+
+  return {
+    xp: pickDeterministicRange(
+      `${seed}:xp`,
+      FRIDAY_BARREL_RAID_REWARD_XP_MIN,
+      FRIDAY_BARREL_RAID_REWARD_XP_MAX
+    ),
+    gold: pickDeterministicRange(
+      `${seed}:gold`,
+      FRIDAY_BARREL_RAID_REWARD_GOLD_MIN,
+      FRIDAY_BARREL_RAID_REWARD_GOLD_MAX
+    )
+  };
+}
+
 interface KorchmaLocalParts {
   year: number;
   month: number;
@@ -667,6 +690,10 @@ function stableHash(value: string): number {
   }
 
   return hash;
+}
+
+function pickDeterministicRange(seed: string, min: number, max: number): number {
+  return min + (stableHash(seed) % (max - min + 1));
 }
 
 function getNewLeaderPeriods(

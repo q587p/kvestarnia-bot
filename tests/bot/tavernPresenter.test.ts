@@ -209,8 +209,8 @@ describe("tavern presenter", () => {
       state: "completed",
       character,
       reward: {
-        xp: 7,
-        gold: 5,
+        xp: 25,
+        gold: 10,
         localDate: "2026-06-12",
         itemGrants: [
           {
@@ -232,7 +232,7 @@ describe("tavern presenter", () => {
       levelChange: null
     };
 
-    expect(presentTavernRaidResult(completed)).toContain("<b>+7 XP\n+5 золота</b>");
+    expect(presentTavernRaidResult(completed)).toContain("<b>+25 XP\n+10 золота</b>");
     expect(presentTavernRaidResult(completed)).toContain(
       "Здобуто: <i>Квиток мокрого пригодника</i>"
     );
@@ -240,7 +240,7 @@ describe("tavern presenter", () => {
     expect(presentTavernRaidResult(repeated)).toContain("уже зараховано");
     expect(presentTavernRaidResult(repeated)).toContain("23-й хвилині");
     expect(presentTavernRaidResult(repeated)).toContain(
-      "Вже отримано:\n<b>+7 XP\n+5 золота</b>"
+      "Вже отримано:\n<b>+25 XP\n+10 золота</b>"
     );
     expect(presentTavernRaidResult(repeated)).not.toContain("Здобуто:");
     expect(presentTavernRaidResult(completed).toLowerCase()).not.toContain("пий");
@@ -270,7 +270,7 @@ describe("tavern presenter", () => {
       expect(text).toContain("Поверніться через <b>8 хв.</b>");
       expect(text).not.toContain("хв..");
     expect(text).toContain("не видаю нових пригод");
-    expect(text).not.toContain("+7 XP");
+    expect(text).not.toContain("+25 XP");
   });
 
   it("varies pending barrel flavor when the player checks again", () => {

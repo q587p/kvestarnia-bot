@@ -27,6 +27,7 @@ import { getLevelForXp } from "../../src/domain/progression/level";
 import { FakeRandomSource } from "../../src/shared/random";
 import {
   buildBarrelRaidItemGrants,
+  buildBarrelRaidRewardAmounts,
   FRIDAY_BARREL_RAID_KEY,
   FRIDAY_BARREL_RAID_PENDING_KEY,
   getBarrelRaidPeriod,
@@ -38,6 +39,8 @@ import {
 } from "../../src/services/tavernRaidService";
 
 const telegramUserId = 42n;
+const fixedRaidPeriodId = "2026-06-12T13:23";
+const fixedRaidReward = buildBarrelRaidRewardAmounts(fixedRaidPeriodId, telegramUserId);
 
 describe("TavernRaidService", () => {
   it("builds hourly barrel raid periods from Kyiv korchma time", () => {
@@ -99,6 +102,23 @@ describe("TavernRaidService", () => {
     );
   });
 
+  it("builds deterministic randomized barrel raid XP and gold per period and player", () => {
+    expect(fixedRaidReward).toEqual({
+      xp: 25,
+      gold: 10
+    });
+    expect(buildBarrelRaidRewardAmounts(fixedRaidPeriodId, telegramUserId)).toEqual(
+      fixedRaidReward
+    );
+    expect(buildBarrelRaidRewardAmounts(fixedRaidPeriodId, 43n)).toEqual({
+      xp: 26,
+      gold: 8
+    });
+    expect(buildBarrelRaidRewardAmounts("2026-06-12T14:23", telegramUserId)).not.toEqual(
+      fixedRaidReward
+    );
+  });
+
   it("prompts /start path when no character exists", async () => {
     const characters = new FakeCharacterRepository();
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -126,16 +146,16 @@ describe("TavernRaidService", () => {
     expect(dailyActions.records[0]).toMatchObject({
       key: FRIDAY_BARREL_RAID_KEY,
       localDate: "2026-06-12T13:23",
-      rewardXp: 7,
-      rewardGold: 5
+      rewardXp: fixedRaidReward.xp,
+      rewardGold: fixedRaidReward.gold
     });
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 7,
-      gold: 5
+      xp: fixedRaidReward.xp,
+      gold: fixedRaidReward.gold
     });
     if (first.state === "completed") {
-      expect(first.character.xp).toBe(7);
-      expect(first.character.gold).toBe(5);
+      expect(first.character.xp).toBe(fixedRaidReward.xp);
+      expect(first.character.gold).toBe(fixedRaidReward.gold);
       expect(first.reward.itemGrants).toEqual([
         {
           itemId: "item.apron-of-foam-resistance",
@@ -153,7 +173,11 @@ describe("TavernRaidService", () => {
           quantity: 1
         }
       ]);
-      expect(first.levelChange.leveledUp).toBe(false);
+      expect(first.levelChange).toMatchObject({
+        oldLevel: 1,
+        newLevel: 3,
+        leveledUp: true
+      });
     }
   });
 
@@ -167,13 +191,13 @@ describe("TavernRaidService", () => {
 
     expect(result.state).toBe("completed");
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 14,
-      level: 2
+      xp: 32,
+      level: 3
     });
     if (result.state === "completed") {
       expect(result.levelChange).toMatchObject({
         oldLevel: 1,
-        newLevel: 2,
+        newLevel: 3,
         leveledUp: true
       });
     }
@@ -191,18 +215,18 @@ describe("TavernRaidService", () => {
     expect(repeated.state).toBe("already-completed");
     expect(dailyActions.createCount).toBe(1);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 7,
-      gold: 5
+      xp: fixedRaidReward.xp,
+      gold: fixedRaidReward.gold
     });
     if (repeated.state === "already-completed") {
       expect(repeated.reward).toMatchObject({
-        xp: 7,
-        gold: 5,
+        xp: fixedRaidReward.xp,
+        gold: fixedRaidReward.gold,
         localDate: "2026-06-12T13:23",
         itemGrants: []
       });
-      expect(repeated.character.xp).toBe(7);
-      expect(repeated.character.gold).toBe(5);
+      expect(repeated.character.xp).toBe(fixedRaidReward.xp);
+      expect(repeated.character.gold).toBe(fixedRaidReward.gold);
     }
   });
 
@@ -221,8 +245,8 @@ describe("TavernRaidService", () => {
     await expect(service.getTavernForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "already-completed",
       character: {
-        xp: 7,
-        gold: 5
+        xp: fixedRaidReward.xp,
+        gold: fixedRaidReward.gold
       }
     });
   });
@@ -305,8 +329,8 @@ describe("TavernRaidService", () => {
     expect(completed).toMatchObject({
       state: "completed",
       reward: {
-        xp: 7,
-        gold: 5
+        xp: fixedRaidReward.xp,
+        gold: fixedRaidReward.gold
       }
     });
     expect(repeated).toMatchObject({
@@ -314,8 +338,8 @@ describe("TavernRaidService", () => {
     });
     expect(dailyActions.createCount).toBe(1);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 7,
-      gold: 5
+      xp: fixedRaidReward.xp,
+      gold: fixedRaidReward.gold
     });
   });
 
@@ -558,13 +582,13 @@ describe("TavernRaidService", () => {
 
     expect(result).toMatchObject({
       state: "ready",
-      gold: 130,
+      gold: 135,
       canBuySimple: true,
       canBuyFine: true
     });
     expect(roundPurchases.purchases).toHaveLength(0);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      gold: 130
+      gold: 135
     });
   });
 
@@ -586,7 +610,7 @@ describe("TavernRaidService", () => {
     await service.completeFridayBarrelRaid(telegramUserId);
     await expect(service.getRoundOfferForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "ready",
-      gold: 130
+      gold: 135
     });
 
     now = new Date("2026-06-12T11:23:00.000Z");
@@ -609,7 +633,7 @@ describe("TavernRaidService", () => {
     expect(result).toMatchObject({
       state: "fine-round",
       spentGold: KORCHMA_FINE_ROUND_COST,
-      remainingGold: 30
+      remainingGold: 35
     });
     expect(roundPurchases.purchases).toMatchObject([
       {
@@ -628,7 +652,7 @@ describe("TavernRaidService", () => {
       expect(result.becameLeader).toEqual(["day", "week", "month"]);
     }
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      gold: 30
+      gold: 35
     });
   });
 
@@ -677,25 +701,26 @@ describe("TavernRaidService", () => {
     expect(result).toMatchObject({
       state: "simple-round",
       spentGold: KORCHMA_SIMPLE_ROUND_COST,
-      remainingGold: 7
+      remainingGold: 12
     });
   });
 
   it("does not spend gold when the hero cannot afford even a simple round", async () => {
+    const poorTelegramUserId = 43n;
     const characters = new FakeCharacterRepository();
-    characters.add(telegramUserId, { gold: 4 });
+    characters.add(poorTelegramUserId, { gold: 0 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const service = createTavernRaidService(characters, dailyActions);
 
-    await service.completeFridayBarrelRaid(telegramUserId);
-    const result = await service.getRoundOfferForTelegramUser(telegramUserId);
+    await service.completeFridayBarrelRaid(poorTelegramUserId);
+    const result = await service.getRoundOfferForTelegramUser(poorTelegramUserId);
 
     expect(result).toMatchObject({
       state: "not-enough-gold",
-      gold: 9
+      gold: 8
     });
-    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      gold: 9
+    await expect(characters.findByTelegramUserId(poorTelegramUserId)).resolves.toMatchObject({
+      gold: 8
     });
   });
 });

@@ -17,6 +17,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Barrel raid period ids are now explicitly Kyiv-local korchma buckets that flip on the 23rd minute. The audit break blocks new starts from 03:00 to 07:00 Kyiv time.
 - Player-facing audit-break wording now names the Kyiv korchma time basis and avoids tiny second-level boundary copy.
+- Barrel raid rewards now roll deterministic per-period/per-player amounts: `18-26 XP` and `8-14 gold`, so the hourly wait pays better than one basement mouse errand without letting repeated callbacks reroll the result.
 - Barrel raid completion notifications now go through a small scheduler helper with one timer per `chatId + telegramUserId + periodId`, while the service reward claim remains the source of truth.
 - Kept `/health` as the text/plain Render healthcheck while moving the public project surface to `/`.
 
@@ -27,7 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Beer round gating is covered as current-period-only: finishing one period does not unlock drinks in the next period until that period's Barrel raid is completed.
 
 ### Not Included Yet
-- Durable job replay after bot restart/deploy, Redis/BullMQ, horizontal-worker coordination, Mini App UI, public player names, exact presence timestamps, hidden location names, group raids, PvP, random loot tables, shops, selling, trading, crafting, item instance logic, equipment stat effects, or reward math changes.
+- Durable job replay after bot restart/deploy, Redis/BullMQ, horizontal-worker coordination, Mini App UI, public player names, exact presence timestamps, hidden location names, group raids, PvP, random loot tables, shops, selling, trading, crafting, item instance logic, or equipment stat effects.
 
 ## [0.0.15] - 12026-06-14 - Starter Gear Sources
 
