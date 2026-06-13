@@ -7,6 +7,31 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.9] - 12026-06-13 - Presence & Online MVP
+
+### Added
+- Added lightweight in-game presence fields on users: last action, last seen location, current raid, and current adventure.
+- Added `/online` with total in-game presence, current-location presence, and current raid/adventure presence without exposing global location lists.
+- Added `/look` with a compact local presence line.
+- Added a compact tavern «За столами» presence block to show who was recently seen there.
+- Added `👥 Учасники` callbacks for the tavern barrel raid and suspicious shawarma adventure.
+- Added public web presence: `GET /api/presence/locations` plus the `/presence` page for «Жива Квестарня».
+- Added active/idle threshold logic: active within 5 minutes, idle within 15 minutes, inactive hidden.
+- Tests cover presence updates, thresholds, local filtering, raid/adventure filtering, web location grouping, secret-location masking, `/online`, `/look`, participants, and absence of exact timestamps.
+
+### Changed
+- `/help` now lists `/online` and `/look`.
+- Tavern and adventure inline keyboards now include a participants view separate from reward actions.
+- Public web presence hides player names by default, hides secret/unknown location details behind «Невідома місцина», and prepares for a future public-presence privacy flag.
+- `/look` remains command-only so the persistent reply keyboard does not promise an extra visible `Озирнутися` button.
+- Documented the scene-based presence debt: a last known scene can remain attached until the 15-minute cutoff or the next location-changing action.
+- Documented the Kvestarnia spelling rule for `міт`, `мітичний`, `мітологія`, and `мітологічний`, and updated the matching news text.
+- Documented future tavern raid timing: a pending 1–3 minute raid state should block other adventure-like actions until completion.
+- Telegram deploy notifications and `/news` now render news titles in bold with HTML escaping.
+
+### Not Included Yet
+- Exact location history, Telegram online tracking, global player location lists, privacy settings, real raid session tables, background presence ticks, or full group raid mechanics.
+
 ## [0.0.8] - 12026-06-12 - Hidden Paths & Character Content
 
 ### Added

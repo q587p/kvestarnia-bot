@@ -29,8 +29,18 @@ describe("deploy notification service", () => {
 
     expect(text).toContain("Квестарня оновилась");
     expect(text).toContain("0.0.4");
-    expect(text).toContain("0.0.4 — 12026-06-12 — Перша пригода");
+    expect(text).toContain("<b>0.0.4 — 12026-06-12 — Перша пригода</b>");
     expect(text).toContain("https://t.me/kvestarnia");
+  });
+
+  it("escapes the latest news title for Telegram HTML", () => {
+    const text = renderDeployNotification(
+      "0.0.4",
+      makeNewsEntry("0.0.4 — 12026-06-12 — A < B")
+    );
+
+    expect(text).toContain("<b>0.0.4 — 12026-06-12 — A &lt; B</b>");
+    expect(text).not.toContain("A < B");
   });
 
   it("does nothing when deploy notifications are disabled", async () => {
@@ -77,8 +87,14 @@ describe("deploy notification service", () => {
     expect(sender.messages).toHaveLength(2);
     expect(sender.messages[0]?.chatId).toBe("42");
     expect(sender.messages[0]?.text).toContain("Версія: 0.0.4");
+    expect(sender.messages[0]?.options).toMatchObject({
+      parse_mode: "HTML"
+    });
     expect(sender.messages[1]?.chatId).toBe("43");
     expect(sender.messages[1]?.text).toContain("Версія: 0.0.4");
+    expect(sender.messages[1]?.options).toMatchObject({
+      parse_mode: "HTML"
+    });
     await expect(readFile(markerPath, "utf8")).resolves.toBe("0.0.4\n");
   });
 });
@@ -95,15 +111,15 @@ function makeUsers(ids: bigint[]): UserRepository {
 }
 
 function makeSender(): TelegramMessageSender & {
-  messages: Array<{ chatId: string; text: string }>;
+  messages: Array<{ chatId: string; text: string; options: unknown }>;
 } {
-  const messages: Array<{ chatId: string; text: string }> = [];
+  const messages: Array<{ chatId: string; text: string; options: unknown }> = [];
 
   return {
     messages,
     api: {
-      sendMessage(chatId: string, text: string): Promise<void> {
-        messages.push({ chatId, text });
+      sendMessage(chatId: string, text: string, options?: unknown): Promise<void> {
+        messages.push({ chatId, text, options });
         return Promise.resolve();
       }
     }
@@ -116,12 +132,12 @@ async function makeSqliteUrl(): Promise<string> {
   return `file:${join(dir, "dev.db")}`;
 }
 
-function makeNewsEntry(): NewsEntry {
+function makeNewsEntry(title = "0.0.4 — 12026-06-12 — Перша пригода"): NewsEntry {
   return {
     index: 0,
-    title: "0.0.4 — 12026-06-12 — Перша пригода",
+    title,
     body: "Шаурма знову підозріла.",
-    raw: "## 0.0.4 — 12026-06-12 — Перша пригода\n\nШаурма знову підозріла.",
+    raw: `## ${title}\n\nШаурма знову підозріла.`,
     version: "0.0.4",
     contentHash: "hash"
   };

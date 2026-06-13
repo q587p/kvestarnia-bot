@@ -5,9 +5,18 @@ import type { FightService } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
 import type { InventoryService } from "../services/inventoryService";
 import type { OnboardingService } from "../services/onboardingService";
+import {
+  PRESENCE_ADVENTURE_MIMIC_FIGHT,
+  PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
+  PRESENCE_LOCATION_SHAWARMA,
+  PRESENCE_LOCATION_TAVERN,
+  PRESENCE_RAID_FRIDAY_BARREL,
+  type MarkPlayerPresenceInput,
+  type PresenceService
+} from "../services/presenceService";
 import type { RestartService } from "../services/restartService";
 import type { TavernRaidService } from "../services/tavernRaidService";
-import { parseAdventureCallbackData } from "./callbacks/adventureCallbackData";
+import { parseAdventureCallbackData, type AdventureCallback } from "./callbacks/adventureCallbackData";
 import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
 import { parseFightCallbackData } from "./callbacks/fightCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
@@ -24,7 +33,9 @@ import { registerFightCommand } from "./commands/fightCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
 import { registerHeroCommand, sendHero } from "./commands/heroCommand";
 import { registerInventoryCommand, sendInventory } from "./commands/inventoryCommand";
+import { registerLookCommand } from "./commands/lookCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
+import { registerOnlineCommand } from "./commands/onlineCommand";
 import { registerPlannedCommands, sendPlannedCommand } from "./commands/plannedCommand";
 import { registerRestartCommand } from "./commands/restartCommand";
 import { registerStartCommand } from "./commands/startCommand";
@@ -64,6 +75,7 @@ import {
   presentRestartDeleted,
   presentRestartNoCharacter
 } from "./presenters/restartPresenter";
+import { presentParticipants } from "./presenters/presencePresenter";
 import { presentTavernNoCharacter, presentTavernRaidResult } from "./presenters/tavernPresenter";
 import { safeAnswerCallbackQuery } from "./safeAnswerCallbackQuery";
 import { safeEditMessageText } from "./safeEditMessageText";
@@ -74,6 +86,7 @@ export interface BotServices {
   onboarding: OnboardingService;
   hero: HeroService;
   inventory: InventoryService;
+  presence: PresenceService;
   devReset: DevResetService;
   restart: RestartService;
   tavern: TavernRaidService;
@@ -83,6 +96,8 @@ const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
 };
 
+type PresenceContext = Omit<MarkPlayerPresenceInput, "user">;
+
 export function createBot(token: string, services: BotServices): Bot {
   const bot = new Bot(token);
 
@@ -90,17 +105,20 @@ export function createBot(token: string, services: BotServices): Bot {
     console.error("Квестарня: помилка в Telegram middleware.", error.error);
   });
 
+  registerPresenceMiddleware(bot, services.presence);
   registerAdventureCommand(bot, services.adventure);
   registerFightCommand(bot, services.fight);
   registerStartCommand(bot, services.onboarding);
   registerHeroCommand(bot, services.hero);
   registerInventoryCommand(bot, services.inventory);
+  registerOnlineCommand(bot, services.presence);
+  registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset);
   registerNewsCommand(bot);
   registerVersionCommand(bot);
   registerDevResetCommand(bot, services.devReset);
   registerRestartCommand(bot);
-  registerTavernCommand(bot, services.tavern);
+  registerTavernCommand(bot, services.tavern, services.presence);
   registerPlannedCommands(bot);
   registerMainMenuKeyboard(bot, services);
 
@@ -152,7 +170,7 @@ export function createBot(token: string, services: BotServices): Bot {
       return;
     }
 
-    await handleTavernCallback(ctx, services.tavern);
+    await handleTavernCallback(ctx, parsed.value, services.tavern, services.presence);
   });
 
   bot.callbackQuery(/^v1:adv:/, async (ctx) => {
@@ -163,7 +181,7 @@ export function createBot(token: string, services: BotServices): Bot {
       return;
     }
 
-    await handleAdventureCallback(ctx, parsed.value, services.adventure);
+    await handleAdventureCallback(ctx, parsed.value, services.adventure, services.presence);
   });
 
   bot.callbackQuery(/^v1:fight:/, async (ctx) => {
@@ -200,6 +218,185 @@ export function createBot(token: string, services: BotServices): Bot {
   });
 
   return bot;
+}
+
+function registerPresenceMiddleware(bot: Bot, presenceService: PresenceService): void {
+  bot.use(async (ctx, next) => {
+    const player = playerFromContext(ctx.from);
+    const presenceContext = getPresenceContext(ctx);
+
+    if (player && presenceContext) {
+      try {
+        await presenceService.markAction({
+          user: player,
+          ...presenceContext
+        });
+      } catch (error) {
+        console.error("Квестарня: присутність гравця не оновилась.", error);
+      }
+    }
+
+    await next();
+  });
+}
+
+function getPresenceContext(ctx: Context): PresenceContext | null {
+  const callbackData = ctx.callbackQuery?.data;
+
+  if (callbackData) {
+    return getCallbackPresenceContext(callbackData);
+  }
+
+  const text = ctx.message?.text?.trim();
+
+  if (!text) {
+    return null;
+  }
+
+  return getTextPresenceContext(text);
+}
+
+function getCallbackPresenceContext(data: string): PresenceContext | null {
+  if (data === "v1:tavern:raid" || data === "v1:tavern:participants") {
+    return {
+      locationId: PRESENCE_LOCATION_TAVERN,
+      currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
+      currentAdventureId: null
+    };
+  }
+
+  if (data.startsWith("v1:adv:mimic:")) {
+    return {
+      locationId: PRESENCE_LOCATION_SHAWARMA,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+    };
+  }
+
+  if (data.startsWith("v1:fight:mimic:")) {
+    return {
+      locationId: PRESENCE_LOCATION_SHAWARMA,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
+    };
+  }
+
+  if (data.startsWith("v1:onb:")) {
+    return {
+      locationId: PRESENCE_LOCATION_TAVERN,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (data === "v1:menu:tavern") {
+    return {
+      locationId: PRESENCE_LOCATION_TAVERN,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (
+    data.startsWith("v1:menu:") ||
+    data.startsWith("v1:news:") ||
+    data.startsWith("v1:devreset:") ||
+    data.startsWith("v1:restart:")
+  ) {
+    return {};
+  }
+
+  return null;
+}
+
+function getTextPresenceContext(text: string): PresenceContext | null {
+  const command = text.match(/^\/([a-z_]+)(?:@\w+)?(?:\s|$)/i)?.[1]?.toLowerCase();
+
+  if (command) {
+    return getCommandPresenceContext(command);
+  }
+
+  if (text === mainMenuButtons.tavern) {
+    return {
+      locationId: PRESENCE_LOCATION_TAVERN,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (text === mainMenuButtons.quest) {
+    return {
+      locationId: PRESENCE_LOCATION_SHAWARMA,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+    };
+  }
+
+  if (
+    text === mainMenuButtons.hero ||
+    text === mainMenuButtons.inventory ||
+    text === mainMenuButtons.guild ||
+    text === mainMenuButtons.help
+  ) {
+    return {};
+  }
+
+  return null;
+}
+
+function getCommandPresenceContext(command: string): PresenceContext | null {
+  if (command === "start") {
+    return {
+      locationId: PRESENCE_LOCATION_TAVERN,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (command === "tavern" || command === "raid") {
+    return {
+      locationId: PRESENCE_LOCATION_TAVERN,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (command === "adventure" || command === "quest") {
+    return {
+      locationId: PRESENCE_LOCATION_SHAWARMA,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+    };
+  }
+
+  if (command === "fight" || command === "hunt") {
+    return {
+      locationId: PRESENCE_LOCATION_SHAWARMA,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
+    };
+  }
+
+  if (
+    command === "hero" ||
+    command === "profile" ||
+    command === "me" ||
+    command === "inventory" ||
+    command === "items" ||
+    command === "bag" ||
+    command === "guild" ||
+    command === "online" ||
+    command === "look" ||
+    command === "help" ||
+    command === "news" ||
+    command === "version" ||
+    command === "restart" ||
+    command === "dev_reset_me"
+  ) {
+    return {};
+  }
+
+  return null;
 }
 
 async function handleOnboardingCallback(
@@ -374,7 +571,7 @@ async function handleMenuCallback(
     return;
   }
 
-  await sendTavern(ctx, services.tavern, "edit");
+  await sendTavern(ctx, services.tavern, services.presence, "edit");
 }
 
 function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
@@ -383,7 +580,7 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
   });
 
   bot.hears(mainMenuButtons.tavern, async (ctx) => {
-    await sendTavern(ctx, services.tavern, "reply");
+    await sendTavern(ctx, services.tavern, services.presence, "reply");
   });
 
   bot.hears(mainMenuButtons.quest, async (ctx) => {
@@ -407,12 +604,25 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
 
 async function handleTavernCallback(
   ctx: Context,
-  tavernRaidService: TavernRaidService
+  action: "raid" | "participants",
+  tavernRaidService: TavernRaidService,
+  presenceService: PresenceService
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (action === "participants") {
+    const snapshot = await presenceService.getRaidParticipantsForTelegramUser(
+      telegramUserId,
+      PRESENCE_RAID_FRIDAY_BARREL
+    );
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentParticipants(snapshot), HTML_MESSAGE_OPTIONS);
     return;
   }
 
@@ -433,13 +643,25 @@ async function handleTavernCallback(
 
 async function handleAdventureCallback(
   ctx: Context,
-  action: "poke" | "receipt" | "flee",
-  adventureService: AdventureService
+  action: AdventureCallback,
+  adventureService: AdventureService,
+  presenceService: PresenceService
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (action === "participants") {
+    const snapshot = await presenceService.getAdventureParticipantsForTelegramUser(
+      telegramUserId,
+      PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+    );
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentParticipants(snapshot), HTML_MESSAGE_OPTIONS);
     return;
   }
 

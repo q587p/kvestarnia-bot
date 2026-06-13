@@ -1,10 +1,11 @@
 import type { TavernRaidResult } from "../../services/tavernRaidService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import type { PresenceGroup } from "../../services/presenceService";
 import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
-export function presentTavern(character: CharacterSummary): string {
+export function presentTavern(character: CharacterSummary, presence?: PresenceGroup | null): string {
   return [
     "🍺 Таверна Квестарні",
     `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
@@ -13,11 +14,16 @@ export function presentTavern(character: CharacterSummary): string {
     "",
     npcQuote("Шинкар", "Це не проблема. Це рейд на 1-3 хвилини."),
     "",
+    ...presentTavernPresence(presence),
+    "",
     "Що робимо?"
   ].join("\n");
 }
 
-export function presentTavernAlreadyRaided(character: CharacterSummary): string {
+export function presentTavernAlreadyRaided(
+  character: CharacterSummary,
+  presence?: PresenceGroup | null
+): string {
   return [
     "🍺 Таверна Квестарні",
     `${escapeHtml(character.name)} · ${escapeHtml(character.title)}`,
@@ -25,6 +31,8 @@ export function presentTavernAlreadyRaided(character: CharacterSummary): string 
     "Бочка Пінного Міражу сьогодні вже пережила ваш героїзм.",
     "",
     npcQuote("Шинкар", "Вона просила передати: завтра знову буде хоробра. Можливо."),
+    "",
+    ...presentTavernPresence(presence),
     "",
     "Поки що можна перевірити героя: /hero"
   ].join("\n");
@@ -74,4 +82,26 @@ function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: numbe
         quantity: grant.quantity
       })
   );
+}
+
+function presentTavernPresence(presence: PresenceGroup | null | undefined): string[] {
+  if (!presence || presence.total <= 1) {
+    return ["За столами: поки тільки ви й підозрілий стілець."];
+  }
+
+  const people = [...presence.active, ...presence.idle].slice(0, 5);
+  const hiddenCount = Math.max(0, presence.total - people.length);
+  const lines = ["За столами:", ...people.map((person) => `• ${presentPresencePerson(person)}`)];
+
+  if (hiddenCount > 0) {
+    lines.push(`• і ще ${hiddenCount}`);
+  }
+
+  return lines;
+}
+
+function presentPresencePerson(person: PresenceGroup["active"][number]): string {
+  const level = person.level === undefined ? "" : ` · рівень ${person.level}`;
+
+  return `${escapeHtml(person.name)}${level}`;
 }

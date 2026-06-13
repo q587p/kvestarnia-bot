@@ -39,6 +39,16 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     description: "манатки й торба"
   },
   {
+    commands: ["online"],
+    icon: "👥",
+    description: "хто поруч"
+  },
+  {
+    commands: ["look"],
+    icon: "👀",
+    description: "озирнутися"
+  },
+  {
     commands: ["guild"],
     icon: "🛡️",
     description: "ґільдії"

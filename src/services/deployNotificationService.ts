@@ -12,11 +12,18 @@ export interface DeployNotificationOptions {
 
 export interface TelegramMessageSender {
   api: {
-    sendMessage(chatId: string, text: string): Promise<unknown>;
+    sendMessage(
+      chatId: string,
+      text: string,
+      options?: { parse_mode: "HTML" }
+    ): Promise<unknown>;
   };
 }
 
 const NEWS_CHANNEL_URL = "https://t.me/kvestarnia";
+const DEPLOY_NOTIFICATION_OPTIONS = {
+  parse_mode: "HTML" as const
+};
 
 export class DeployNotificationService {
   constructor(
@@ -41,7 +48,7 @@ export class DeployNotificationService {
 
     for (const telegramUserId of telegramUserIds) {
       try {
-        await bot.api.sendMessage(telegramUserId.toString(), text);
+        await bot.api.sendMessage(telegramUserId.toString(), text, DEPLOY_NOTIFICATION_OPTIONS);
       } catch (error) {
         console.error("Квестарня: не вдалося надіслати нотифікацію про версію.", error);
       }
@@ -54,8 +61,8 @@ export class DeployNotificationService {
 export function renderDeployNotification(version: string, latestNews: NewsEntry | null): string {
   return [
     "🛠️ Квестарня оновилась.",
-    `Версія: ${version}`,
-    ...(latestNews ? ["", `Остання новина: ${latestNews.title}`] : []),
+    `Версія: ${escapeHtml(version)}`,
+    ...(latestNews ? ["", `Остання новина: <b>${escapeHtml(latestNews.title)}</b>`] : []),
     "",
     "Деталі й архів: /news",
     `Канал: ${NEWS_CHANNEL_URL}`
@@ -100,4 +107,11 @@ function readMarker(markerPath: string): string | null {
 function writeMarker(markerPath: string, version: string): void {
   mkdirSync(dirname(markerPath), { recursive: true });
   writeFileSync(markerPath, `${version}\n`, "utf8");
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }

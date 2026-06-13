@@ -22,23 +22,29 @@ describe("main menu and scene keyboards", () => {
       [mainMenuButtons.quest, mainMenuButtons.inventory],
       [mainMenuButtons.guild, mainMenuButtons.help]
     ]);
+    expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
     expect(keyboard.is_persistent).toBe(true);
   });
 
   it("keeps tavern inline buttons scoped to tavern actions", () => {
-    expect(flatInlineButtonTexts(buildTavernKeyboard())).toEqual(["🍺 У рейд на бочку"]);
+    expect(flatInlineButtonTexts(buildTavernKeyboard())).toEqual([
+      "🍺 У рейд на бочку",
+      "👥 Учасники"
+    ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual([
-      "🍺 У рейд на бочку"
+      "🍺 У рейд на бочку",
+      "👥 Учасники"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([]);
   });
 
-  it("keeps adventure inline buttons scoped to quest actions", () => {
+  it("keeps adventure inline buttons scoped to quest actions and participants", () => {
     const actionButtons = [
       "🌯 Тицьнути шаурму",
       "📋 Попросити чек",
-      "🏃 Обережно відступити"
+      "🏃 Обережно відступити",
+      "👥 Учасники"
     ];
 
     expect(flatInlineButtonTexts(buildAdventureKeyboard())).toEqual(actionButtons);

@@ -13,6 +13,13 @@ describe("adventure callback data", () => {
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
+  it("parses participants callback", () => {
+    const data = makeAdventureCallbackData("participants");
+
+    expect(parseAdventureCallbackData(data)).toEqual({ ok: true, value: "participants" });
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
+
   it("rejects invalid versions and actions", () => {
     expect(parseAdventureCallbackData("v2:adv:mimic:poke")).toEqual({
       ok: false,
