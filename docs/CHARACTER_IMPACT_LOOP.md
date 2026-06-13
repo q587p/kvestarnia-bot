@@ -170,6 +170,7 @@ export type FlavorPlacement =
   | "quest.outcome"
   | "quest.reward-note"
   | "raid.prep-hint"
+  | "raid.ranger-action"
   | "item.inspect";
 
 export interface CharacterFlavorSelector {
@@ -204,7 +205,7 @@ selectFlavorLines(lines, context, seedParts, limit)
 ### Корчма
 
 - `presentKorchmaHall()` — додати корчмарське greeting-line після заголовка/героя або перед «Куди йдемо?».
-- `presentTavern()` біля бочки — додати `raid.prep-hint`.
+- `presentTavernRaidPending()` активного рейду біля бочки — додати `raid.prep-hint` перед таймером і `raid.ranger-action` для дій єгеря.
 - `presentKorchmaFront()` можна лишити статичним; це ще не вхід у корчму.
 
 ### Шаурма-квест

@@ -132,8 +132,7 @@ describe("tavern presenter", () => {
       "Корчмар:\n<blockquote>Це не проблема. Дві-три хвилини. Максимум.</blockquote>"
     );
     expect(text).toContain("людисько-єгер у капюшоні");
-    expect(text).toContain("<i>Порада дня:");
-    expect(text).toContain("стояти між бочкою");
+    expect(text).not.toContain("<i>Порада дня:");
     expect(text).not.toContain("За столами:");
     expect(text).toContain("Що робимо?");
     expect(text.length).toBeLessThan(720);
@@ -230,11 +229,17 @@ describe("tavern presenter", () => {
     };
     const text = presentTavernRaidPending(pending);
 
-    expect(text).toContain("Рейд почався");
-    expect(text).toContain("Єгер у капюшоні");
-    expect(text).toContain("Поверніться через <b>8 хв.</b>");
-    expect(text).not.toContain("хв..");
-    expect(text).toContain("не видаю нових пригод");
+      expect(text).toContain("Рейд почався");
+      expect(text).toContain(
+        "Ви пішли розбиратися з Бочкою Пінного Міражу. Бочка робить вигляд, що це довга стратегія, а не паніка.\n\n"
+      );
+      expect(text).toContain("\n\nКорчмар:\n<blockquote>");
+      expect(text).toContain("<i>Порада дня:");
+      expect(text.indexOf("<i>Порада дня:")).toBeLessThan(text.indexOf("Поверніться через"));
+      expect(text).toMatch(/Єгер|Підлога|Бочка|Стріла|Табурет/);
+      expect(text).toContain("Поверніться через <b>8 хв.</b>");
+      expect(text).not.toContain("хв..");
+      expect(text).toContain("не видаю нових пригод");
     expect(text).not.toContain("+7 XP");
   });
 

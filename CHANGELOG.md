@@ -26,6 +26,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Hero profile resource line now marks HP and mana with `❤️` and `🔮` icons for faster scanning.
 - Korchma hall presence now says `поки тільки ви` only when the player is truly the sole active person inside, otherwise it summarizes active and idle heroes across interior korchma zones.
 - Korchma round results now separate the toast, beer description, and ranger reaction with blank lines for easier Telegram reading.
+- Barrel scene and active raid messages now separate paragraphs; active raids also show character-aware and universal advice before the return timer and vary the hooded ranger’s action line.
 - Adventure and cellar action prompts now bold the hero name before `що робимо?`.
 - Hero wealth line now uses separate jokes for empty gold, empty inventory value, and truly empty pockets while still showing both numbers.
 - Korchma scene headers now render the hero name in bold and the title in italics.

@@ -12,7 +12,7 @@ import type {
   KorchmaRoundLeaderboardEntry
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
 import type { PresenceGroup } from "../../services/presenceService";
-import { selectCharacterFlavorLine } from "../../content/characterFlavor";
+import { selectCharacterFlavorLine, selectCharacterFlavorLines } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
@@ -64,7 +64,6 @@ export function presentTavern(character: CharacterSummary): string {
     "Поруч із нею сидить людисько-єгер у капюшоні, курить трубку й дивиться на всіх так, ніби вже бачив їхні сліди.",
     "",
     npcQuote("Корчмар", "Це не проблема. Дві-три хвилини. Максимум."),
-    ...presentRaidPrepHint(character),
     "",
     "Що робимо?"
   ].join("\n");
@@ -108,9 +107,12 @@ export function presentTavernRaidPending(
   return [
     intro,
     "Ви пішли розбиратися з Бочкою Пінного Міражу. Бочка робить вигляд, що це довга стратегія, а не паніка.",
-    "Єгер у капюшоні не втручається. Тільки курить трубку й дивиться так, ніби вже знає, кому дістанеться піна.",
+    "",
+    presentRangerRaidAction(result.character, result.periodId),
     "",
     npcQuote("Корчмар", "Поки ви там, я не видаю нових пригод. У корчмі теж є техніка безпеки."),
+    "",
+    ...presentRaidPrepHint(result.character, result.periodId),
     "",
     `Поверніться через <b>${formatRaidWait(result.availableAt, result.now)}</b>`
   ].join("\n");
@@ -286,13 +288,33 @@ function presentKorchmaGreeting(character: CharacterSummary): string[] {
   return flavor ? [npcQuote("Корчмар", flavor.text)] : [];
 }
 
-function presentRaidPrepHint(character: CharacterSummary): string[] {
-  const flavor = selectCharacterFlavorLine(character, {
+function presentRaidPrepHint(character: CharacterSummary, seed: string): string[] {
+  const flavors = selectCharacterFlavorLines(character, {
     placement: "raid.prep-hint",
-    scene: "barrel"
+    scene: "barrel",
+    seed
+  }, {
+    includeFallback: true,
+    limit: 2
   });
 
-  return flavor ? ["", `<i>Порада дня: ${escapeHtml(flavor.text)}</i>`] : [];
+  return flavors.map((flavor, index) =>
+    index === 0
+      ? `<i>Порада дня: ${escapeHtml(flavor.text)}</i>`
+      : `<i>Ще одна порада, бо перша теж нервує: ${escapeHtml(flavor.text)}</i>`
+  );
+}
+
+function presentRangerRaidAction(character: CharacterSummary, seed: string): string {
+  const flavor = selectCharacterFlavorLine(character, {
+    placement: "raid.ranger-action",
+    scene: "barrel",
+    seed
+  });
+
+  return flavor
+    ? escapeHtml(flavor.text)
+    : "Єгер у капюшоні не втручається. Він мовчить так, ніби це теж професія.";
 }
 
 function presentNewLeaderLines(periods: KorchmaRoundLeaderboardPeriod[]): string[] {
