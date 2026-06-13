@@ -3,6 +3,7 @@ import type { TelegramUserProfile } from "./userRepository";
 export interface CharacterRecord {
   id: string;
   userId: string;
+  currentLocationId?: string | null;
   name: string;
   pronoun: string;
   path: string;

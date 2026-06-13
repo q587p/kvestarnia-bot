@@ -7,6 +7,7 @@ const summary: CharacterSummary = {
   pronoun: "they",
   pronounLabel: "Вони",
   path: "boundary",
+  currentLocationId: "location.korchma.cellar",
   raceId: "race.human-ish",
   raceName: "Людисько",
   classId: "class.warrior",
@@ -49,16 +50,18 @@ describe("hero presenter", () => {
     expect(text).not.toContain("Звертання:");
     expect(text).not.toContain("Стать:");
     expect(text).toContain("Титул: <i>Пересічний Герой</i>");
+    expect(text).toContain("Титул: <i>Пересічний Герой</i>\n\nРівень");
     expect(text).toContain("до рівня 3: 10 XP");
     expect(text).toContain("HP 24/24 · мана 12/12");
     expect(text).toContain("Сили 9");
     expect(text).toContain("Вдача 6");
     expect(text).toContain("Ріст рівня: +4 HP · +2 мани · +1 Сили");
+    expect(text).toContain("\n\nЗараз герой тут: <b>Підвал корчми</b>.");
     expect(text).toContain("<i>Далі: /tavern, /quest або /fight.</i>");
     expect(text).not.toContain("/adventure або /fight");
     expect(text).toContain("\n\nТитул:");
     expect(text).toContain("\n\nHP");
-    expect(text.split("\n").length).toBeLessThanOrEqual(13);
+    expect(text.split("\n").length).toBeLessThanOrEqual(16);
   });
 
   it("shows alpha cap wording at the current level cap", () => {

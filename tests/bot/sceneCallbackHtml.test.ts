@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
+import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
 import { makeFightCallbackData } from "../../src/bot/callbacks/fightCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -43,6 +44,28 @@ describe("scene callback HTML options", () => {
             },
             levelChange: noLevelChange
           })
+        }
+      })
+    },
+    {
+      name: "cellar errand",
+      callbackData: makeCellarCallbackData("cheese-trap"),
+      services: servicesWith({
+        cellarErrand: {
+          complete: () =>
+            Promise.resolve({
+              state: "completed",
+              action: "cheese-trap",
+              character,
+              reward: {
+                xp: 2,
+                gold: 1,
+                itemGrants: []
+              },
+              availableAt: new Date("2026-06-13T10:03:00.000Z"),
+              now: new Date("2026-06-13T10:00:00.000Z"),
+              levelChange: noLevelChange
+            })
         }
       })
     },
@@ -138,6 +161,10 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
     adventure: {
       getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
       completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+    },
+    cellarErrand: {
+      getForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      complete: () => Promise.resolve({ state: "no-character" })
     },
     fight: {
       getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),

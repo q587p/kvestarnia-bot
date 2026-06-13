@@ -32,7 +32,7 @@ export function presentOnline(snapshot: OnlineSnapshot): string {
 
 export function presentLook(snapshot: LookSnapshot): string {
   if (snapshot.state === "no-character") {
-    return "Спершу створіть героя через /start. Озиратися без анкети можна, але шинкар не поставить печатку.";
+    return "Спершу створіть героя через /start. Озиратися без анкети можна, але корчмар не поставить печатку.";
   }
 
   return [

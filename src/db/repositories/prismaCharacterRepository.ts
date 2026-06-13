@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Character, Prisma, PrismaClient } from "@prisma/client";
 import type {
   CharacterRecord,
   CharacterRepository,
@@ -11,21 +11,39 @@ export class PrismaCharacterRepository implements CharacterRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   async findByUserId(userId: string): Promise<CharacterRecord | null> {
-    return this.prisma.character.findUnique({
+    const character = await this.prisma.character.findUnique({
       where: {
         userId
+      },
+      include: {
+        user: {
+          select: {
+            lastSeenLocationId: true
+          }
+        }
       }
     });
+
+    return character ? toCharacterRecord(character) : null;
   }
 
   async findByTelegramUserId(telegramUserId: bigint): Promise<CharacterRecord | null> {
-    return this.prisma.character.findFirst({
+    const character = await this.prisma.character.findFirst({
       where: {
         user: {
           telegramUserId
         }
+      },
+      include: {
+        user: {
+          select: {
+            lastSeenLocationId: true
+          }
+        }
       }
     });
+
+    return character ? toCharacterRecord(character) : null;
   }
 
   async deleteByTelegramUserId(telegramUserId: bigint): Promise<boolean> {
@@ -85,7 +103,7 @@ export class PrismaCharacterRepository implements CharacterRepository {
 
       if (existing) {
         return {
-          character: existing,
+          character: { ...existing, currentLocationId: user.lastSeenLocationId },
           created: false
         };
       }
@@ -110,9 +128,20 @@ export class PrismaCharacterRepository implements CharacterRepository {
       });
 
       return {
-        character,
+        character: { ...character, currentLocationId: user.lastSeenLocationId },
         created: true
       };
     });
   }
+}
+
+function toCharacterRecord(
+  character: Character & { user: { lastSeenLocationId: string | null } }
+): CharacterRecord {
+  const { user, ...record } = character;
+
+  return {
+    ...record,
+    currentLocationId: user.lastSeenLocationId
+  };
 }

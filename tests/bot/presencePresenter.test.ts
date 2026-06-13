@@ -20,7 +20,7 @@ describe("presence presenter", () => {
     expect(text).toContain("— Дара");
     expect(text).toContain("🍺 У рейді «Бочка Пінного Міражу»: 2");
     expect(text).not.toContain("Нестор Межовий");
-    expect(text).not.toContain("Стіл із підозрілою шаурмою");
+    expect(text).not.toContain("Стіл зі справами");
     expect(text).not.toMatch(/\d+\s*(?:секунд|хвилин)\s+тому/i);
     expect(text).not.toMatch(/\d{1,2}:\d{2}/);
   });
@@ -30,8 +30,8 @@ describe("presence presenter", () => {
       state: "ready",
       globalTotal: 1,
       location: {
-        id: "location.tavern",
-        name: "Таверна Квестарні",
+        id: "location.korchma.hall",
+        name: "Зала корчми",
         people: {
           active: [{ telegramUserId: 1n, name: "587", status: "active" }],
           idle: [],
@@ -61,7 +61,7 @@ describe("presence presenter", () => {
     expect(text).toContain("— 587");
     expect(text).toContain("🟡 Притихли:");
     expect(text).toContain("— Дара");
-    expect(text).toContain("📍 Поточна місцина: Таверна Квестарні");
+    expect(text).toContain("📍 Поточна місцина: Біля Бочки Пінного Міражу");
   });
 });
 
@@ -69,8 +69,8 @@ const onlineSnapshot: OnlineSnapshot = {
   state: "ready",
   globalTotal: 3,
   location: {
-    id: "location.tavern",
-    name: "Таверна Квестарні",
+    id: "location.korchma.hall",
+    name: "Зала корчми",
     people: {
       active: [{ telegramUserId: 1n, name: "587", status: "active" }],
       idle: [{ telegramUserId: 2n, name: "Дара", status: "idle" }],
@@ -81,7 +81,7 @@ const onlineSnapshot: OnlineSnapshot = {
     kind: "raid",
     id: "raid.friday-barrel",
     name: "Бочка Пінного Міражу",
-    locationName: "Таверна Квестарні",
+    locationName: "Біля Бочки Пінного Міражу",
     people: {
       active: [{ telegramUserId: 1n, name: "587", status: "active" }],
       idle: [{ telegramUserId: 2n, name: "Дара", status: "idle" }],
@@ -93,8 +93,8 @@ const onlineSnapshot: OnlineSnapshot = {
 const lookSnapshot: LookSnapshot = {
   state: "ready",
   location: {
-    id: "location.tavern",
-    name: "Таверна Квестарні",
+    id: "location.korchma.hall",
+    name: "Зала корчми",
     people: {
       active: [
         { telegramUserId: 1n, name: "587", status: "active" },
@@ -112,7 +112,7 @@ const participantsSnapshot: ParticipantsSnapshot = {
     kind: "raid",
     id: "raid.friday-barrel",
     name: "Бочка Пінного Міражу",
-    locationName: "Таверна Квестарні",
+    locationName: "Біля Бочки Пінного Міражу",
     people: {
       active: [{ telegramUserId: 1n, name: "587", status: "active" }],
       idle: [{ telegramUserId: 2n, name: "Дара", status: "idle" }],

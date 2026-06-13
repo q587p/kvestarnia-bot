@@ -71,9 +71,9 @@ describe("health server", () => {
       total: 4,
       locations: [
         {
-          locationId: "location.tavern",
-          title: "Таверна Квестарні",
-          regionName: "Перед шинком",
+          locationId: "location.korchma.hall",
+          title: "Зала корчми",
+          regionName: "Корчма Квестарні",
           activeCount: 3,
           idleCount: 1,
           players: []
@@ -97,7 +97,7 @@ describe("health server", () => {
     expect(response.headers.get("content-type")).toContain("text/html");
     expect(text).toContain("Жива Квестарня");
     expect(text).toContain("👥 У грі зараз: 4");
-    expect(text).toContain("Таверна Квестарні");
+    expect(text).toContain("Зала корчми");
     expect(text).not.toContain("— 587");
     expect(text).not.toContain("— Дара");
     expect(text).not.toContain("— Нестор Межовий");
@@ -143,9 +143,9 @@ const publicPresenceSnapshot: PublicPresenceLocationsSnapshot = {
   total: 4,
   locations: [
     {
-      locationId: "location.tavern",
-      title: "Таверна Квестарні",
-      regionName: "Перед шинком",
+      locationId: "location.korchma.hall",
+      title: "Зала корчми",
+      regionName: "Корчма Квестарні",
       activeCount: 3,
       idleCount: 1,
       players: []

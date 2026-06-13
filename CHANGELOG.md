@@ -7,6 +7,24 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.10] - 12026-06-13 - Repeatable Cellar Errands
+
+### Added
+- Added the first repeatable low-stakes activity: `Підвальна справа`, a korchma-cellar mouse errand reached from `/quest` after the daily shawarma quest and fight probe are spent.
+- Added three cellar errand callbacks: cheese trap, brave sweeping, and mouse negotiation.
+- Added persistent `character_cooldowns` storage for repeatable activity cooldowns without Redis.
+- Added canonical korchma place ids for new presence writes: `location.korchma.front`, `location.korchma.hall`, `location.korchma.quest_table`, `location.korchma.cellar`, `location.korchma.barrel`, and `location.korchma.news_corner`.
+- Added cellar presence via `location.korchma.cellar` and `adventure.cellar.mouse-errand`, including public web presence counts without public player names.
+- Tests cover cellar callback parsing, presenter output, cooldown reward idempotency, `/quest` fallback, presence integration, and Prisma schema shape.
+
+### Changed
+- Main player-facing hub wording is now `Корчма`: the hero starts `Перед корчмою`, the main menu says `🍺 Корчма`, and `/tavern` opens `Зала корчми`.
+- `/quest` is not available outside the korchma; inside, it routes through `Стіл зі справами`, then falls through to the repeatable cellar errand once the daily shawarma quest is complete and `/fight` is no longer available for today.
+- Public web presence treats the cellar as a normal public aggregate location card while keeping `players` empty by default.
+
+### Not Included Yet
+- Persistent combat state, equipment effects, group raids, Redis cooldowns, full activity refactor, `/cellar` command, or a broad quest hub.
+
 ## [0.0.9] - 12026-06-13 - Presence & Online MVP
 
 ### Added
@@ -134,7 +152,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Tests cover tavern callback parsing, presenter output, no-character handling, idempotent service rewards, and Prisma daily-action uniqueness.
 
 ### Changed
-- The existing `🍺 До таверни` menu button now opens the real tavern screen instead of a placeholder.
+- The existing `🍺 До корчми` menu button now opens the real korchma screen instead of a placeholder.
 - Help text now lists `/tavern` and `/raid` as available local commands.
 
 ### Not Included Yet

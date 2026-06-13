@@ -109,6 +109,8 @@ docs/
 - `character_id` FK
 - `key`
 - `available_at`
+- `updated_at`
+- unique (`character_id`, `key`)
 
 ### daily_actions
 - `id` UUID
@@ -207,6 +209,16 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 
+У `0.0.10` таблиця `character_cooldowns` використовується для першої repeatable активності:
+- `cellar.mouse-errand` → 3-хвилинний cooldown для «Підвальної справи».
+
+Cooldown reward claim має бути transactional:
+- якщо `available_at > now`, повернути cooldown без XP/золота/items;
+- якщо cooldown відсутній або минув, conditionally створити/оновити row, видати маленьку винагороду й перерахувати level;
+- concurrent callback-и не мають проходити як дві винагороди.
+
+Redis лишається майбутнім cache/job інструментом, не dependency для `0.0.10`.
+
 Future tavern raid timing:
 - `v1:tavern:raid` має створювати pending raid/action state з випадковим завершенням через 1–3 хвилини, а не одразу видавати reward.
 - Поки pending raid активний, handlers для `/quest`, `/adventure`, `/fight`, `/hunt` і схожих action callback-ів мають відповідати блокувальним станом без видачі інших нагород.
@@ -216,7 +228,7 @@ Future tavern raid timing:
 ## Presence MVP
 `0.0.9` додає легку in-game присутність на рівні `users`, бо окремої session table ще немає:
 - `last_action_at` оновлюється тільки від оброблених команд, reply-кнопок і callback-ів;
-- `last_seen_location_id` тримає coarse місцину на кшталт таверни або столу з шаурмою;
+- `last_seen_location_id` тримає coarse місцину на кшталт `location.korchma.hall`, `location.korchma.quest_table`, `location.korchma.cellar`, `location.korchma.barrel` або `location.korchma.news_corner`;
 - `current_raid_id` і `current_adventure_id` тримають поточну сценову участь, доки немає справжніх raid/adventure session tables.
 
 Пороги:
@@ -226,7 +238,7 @@ Future tavern raid timing:
 
 Це не Telegram online tracking. Не показувати точні timestamp-и, не показувати глобальний список локацій і не робити background ticks джерелом присутності.
 
-Важливий борг `0.0.9`: присутність scene-based, не session-based. Якщо гравець зайшов у таверну, шаурму або іншу маленьку сцену, цей coarse scene id може лишатися останньою відомою місциною до 15-хвилинного idle cutoff або до наступної location-changing команди/callback-а. Це прийнятно для MVP-присутності, але майбутні групові рейди, pending actions і справжні локації мають перейти на окремі session/raid rows.
+Важливий борг `0.0.9`/`0.0.10`: присутність place-based, але ще не session-based. Якщо гравець зайшов у залу корчми, до столу зі справами, підвалу або іншої малої місцини, цей coarse place id може лишатися останньою відомою місциною до 15-хвилинного idle cutoff або до наступної location-changing команди/callback-а. Це прийнятно для MVP-присутності, але майбутні групові рейди, pending actions і справжні локації мають перейти на окремі session/raid rows.
 
 Web presence у `0.0.9`:
 - `GET /api/presence/locations` повертає тільки активні/притихлі місцини з лічильниками; публічні `players` за замовчуванням порожні, доки немає реального privacy UI або явно увімкненого future flag-а;
@@ -234,6 +246,18 @@ Web presence у `0.0.9`:
 - приховані, secret або невідомі місцини не мають витікати у public endpoint як реальні назви чи ids; використовуй «Невідома місцина» або ховай їх повністю;
 - майбутній `showInPublicPresence` має керувати публічністю імен, навіть якщо presence count лишається агрегованим;
 - Telegram `/online`, `/look` і `👥 Учасники` можуть показувати імена в межах спільної місцини/сцени, бо це in-game visibility, не публічний веб-список.
+
+`0.0.10` додає легку модель Корчми як набору місцин:
+- `location.korchma.front` — Перед корчмою;
+- `location.korchma.hall` — Зала корчми;
+- `location.korchma.quest_table` — Стіл зі справами;
+- `location.korchma.cellar` — Підвал корчми;
+- `location.korchma.barrel` — Біля Бочки Пінного Міражу;
+- `location.korchma.news_corner` — Дошка вістей.
+
+Legacy ids `location.tavern`, `location.shawarma-table` і `location.tavern-cellar` лишаються read aliases для старих rows, але нові writes мають використовувати `location.korchma.*`. `/quest` не позначає гравця біля столу зі справами на рівні глобальної кнопки; command handler спершу перевіряє поточну місцину, блокує квест надворі й лише тоді переводить героя до столу або підвалу. Підвал є відкритою aggregate-місциною для public `/presence`, але public web усе одно лишає `players` порожнім за замовчуванням.
+
+Тимчасовий shortcut: `/fight` і `/hunt` у `0.0.10` все ще напряму позначають `location.korchma.quest_table`, бо combat probe лишається глобальною legacy-командою. Коли з’явиться повніший quest/combat routing, ці команди теж мають пройти через місцину або явний перехід до столу зі справами.
 
 ## Telegram callback data
 Callback data коротка, версіонована.
@@ -243,6 +267,12 @@ Callback data коротка, версіонована.
 - `v1:menu:hero`
 - `v1:menu:help`
 - `v1:menu:tavern`
+- `v1:place:hall`
+- `v1:place:front`
+- `v1:place:quest-table`
+- `v1:place:barrel`
+- `v1:place:cellar`
+- `v1:place:news-corner`
 - `v1:news:list:{page}`
 - `v1:news:entry:{entryIndex}:{listPage}`
 - `v1:tavern:raid`
@@ -251,6 +281,10 @@ Callback data коротка, версіонована.
 - `v1:adv:mimic:receipt`
 - `v1:adv:mimic:flee`
 - `v1:adv:mimic:participants`
+- `v1:cellar:cheese-trap`
+- `v1:cellar:sweep-bravely`
+- `v1:cellar:negotiate`
+- `v1:cellar:participants`
 - `v1:fight:mimic:attack`
 - `v1:fight:mimic:receipt`
 - `v1:fight:mimic:flee`

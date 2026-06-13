@@ -21,7 +21,7 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
   {
     commands: ["tavern", "raid"],
     icon: "🍺",
-    description: "таверна й рейд на бочку"
+    description: "корчма й рейд на бочку"
   },
   {
     commands: ["adventure", "quest"],

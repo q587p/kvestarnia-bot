@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   presentTavern,
   presentTavernAlreadyRaided,
+  presentKorchmaHall,
   presentTavernNoCharacter,
   presentTavernRaidResult
 } from "../../src/bot/presenters/tavernPresenter";
@@ -46,13 +47,22 @@ const character: CharacterSummary = {
 };
 
 describe("tavern presenter", () => {
+  it("shows the korchma hall as the hub", () => {
+    const text = presentKorchmaHall(character);
+
+    expect(text).toContain("Зала корчми");
+    expect(text).toContain("Корчма Квестарні");
+    expect(text).toContain("Куди йдемо?");
+    expect(text).not.toContain("Таверна Квестарні");
+  });
+
   it("shows a short Ukrainian tavern screen", () => {
     const text = presentTavern(character);
 
-    expect(text).toContain("Таверна Квестарні");
+    expect(text).toContain("Біля Бочки Пінного Міражу");
     expect(text).toContain("Бочка Пінного Міражу");
     expect(text).toContain(
-      "Шинкар:\n<blockquote>Це не проблема. Це рейд на 1-3 хвилини.</blockquote>"
+      "Корчмар:\n<blockquote>Це не проблема. Це рейд на 1-3 хвилини.</blockquote>"
     );
     expect(text).toContain("За столами: поки тільки ви й підозрілий стілець.");
     expect(text).toContain("Що робимо?");

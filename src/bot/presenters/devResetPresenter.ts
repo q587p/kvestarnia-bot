@@ -7,7 +7,7 @@ export function presentDevResetPrompt(): string {
 }
 
 export function presentDevResetDeleted(): string {
-  return "Героя скинуто. Напишіть /start, і шинкар удасть, що бачить вас уперше.";
+  return "Героя скинуто. Напишіть /start, і корчмар удасть, що бачить вас уперше.";
 }
 
 export function presentDevResetNoCharacter(): string {
