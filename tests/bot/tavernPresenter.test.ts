@@ -257,6 +257,7 @@ describe("tavern presenter", () => {
     const text = presentTavernRaidPending(pending);
 
       expect(text).toContain("Рейд почався");
+      expect(text).toContain("Рейд почався.\n\nВи пішли розбиратися");
       expect(text).toContain(
         "Ви пішли розбиратися з Бочкою Пінного Міражу. Бочка робить вигляд, що це довга стратегія, а не паніка.\n\n"
       );
@@ -290,6 +291,7 @@ describe("tavern presenter", () => {
 
     expect(second).not.toBe(first);
     expect(second).toContain("Рейд ще триває");
+    expect(second).toContain("Рейд ще триває.\n\nВи пішли розбиратися");
     expect(second).toContain("Поверніться через <b>8 хв.</b>");
     expect(extractRaidAdvice(second)).not.toBe(extractRaidAdvice(first));
   });

@@ -125,6 +125,7 @@ export function presentTavernRaidPending(
 
   return [
     intro,
+    "",
     "Ви пішли розбиратися з Бочкою Пінного Міражу. Бочка робить вигляд, що це довга стратегія, а не паніка.",
     "",
     presentRangerRaidAction(result.character, flavorSeed),
