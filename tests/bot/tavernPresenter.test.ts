@@ -3,8 +3,13 @@ import {
   presentTavern,
   presentTavernAlreadyRaided,
   presentKorchmaHall,
+  presentPendingRaidActionBlock,
   presentTavernNoCharacter,
-  presentTavernRaidResult
+  presentTavernRaidPending,
+  presentTavernRaidReadyToComplete,
+  presentTavernRaidResult,
+  presentTavernRoundOffer,
+  presentTavernRoundResult
 } from "../../src/bot/presenters/tavernPresenter";
 import type { TavernRaidResult } from "../../src/services/tavernRaidService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -62,7 +67,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("Біля Бочки Пінного Міражу");
     expect(text).toContain("Бочка Пінного Міражу");
     expect(text).toContain(
-      "Корчмар:\n<blockquote>Це не проблема. Це рейд на 1-3 хвилини.</blockquote>"
+      "Корчмар:\n<blockquote>Це не проблема. Дві-три хвилини. Максимум.</blockquote>"
     );
     expect(text).toContain("За столами: поки тільки ви й підозрілий стілець.");
     expect(text).toContain("Що робимо?");
@@ -89,7 +94,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("завтра знову");
     expect(text).toContain("За столами: поки тільки ви й підозрілий стілець.");
     expect(text).toContain("/hero");
-    expect(text).not.toContain("Це рейд на 1-3 хвилини");
+    expect(text).not.toContain("Дві-три хвилини. Максимум");
     expect(text).not.toContain("Що робимо?");
   });
 
@@ -134,6 +139,49 @@ describe("tavern presenter", () => {
     expect(presentTavernRaidResult(completed).toLowerCase()).not.toContain("пий");
   });
 
+  it("presents pending barrel raid without awarding rewards yet", () => {
+    const pending: Exclude<TavernRaidResult, { state: "no-character" }> = {
+      state: "pending-started",
+      character,
+      availableAt: new Date("2026-06-13T10:38:00.000Z"),
+      now: new Date("2026-06-13T10:30:00.000Z")
+    };
+    const text = presentTavernRaidPending(pending);
+
+    expect(text).toContain("Рейд почався");
+    expect(text).toContain("Поверніться за: <b>8 хв.</b>");
+    expect(text).toContain("не видаю нових пригод");
+    expect(text).not.toContain("+7 XP");
+  });
+
+  it("presents pending raid block for other activities", () => {
+    const text = presentPendingRaidActionBlock({
+      state: "pending",
+      character,
+      availableAt: new Date("2026-06-13T10:31:00.000Z"),
+      now: new Date("2026-06-13T10:30:01.000Z")
+    });
+
+    expect(text).toContain("Ви зараз у рейді");
+    expect(text).toContain("Інші пригоди тимчасово недоступні");
+    expect(text).toContain("Перевірте бочку за:");
+  });
+
+  it("presents ready-to-complete barrel raid without exact timestamps", () => {
+    const text = presentTavernRaidReadyToComplete({
+      state: "pending-complete",
+      character,
+      availableAt: new Date("2026-06-13T10:31:00.000Z"),
+      now: new Date("2026-06-13T10:32:00.000Z")
+    });
+
+    expect(text).toContain("Бочка підозріло притихла");
+    expect(text).toContain("час уже вийшов");
+    expect(text).toContain("Натисніть <b>🍺 Перевірити бочку</b>.");
+    expect(text).not.toContain("`🍺 Перевірити бочку`");
+    expect(text).not.toContain("10:31");
+  });
+
   it("shows level-up only when tavern reward increases level", () => {
     const completed: Exclude<TavernRaidResult, { state: "no-character" }> = {
       state: "completed",
@@ -156,7 +204,103 @@ describe("tavern presenter", () => {
       "Стало краще: +4 HP · +2 мани · +1 Сили"
     );
   });
+
+  it("presents round states with gold spending humor", () => {
+    expect(
+      presentTavernRoundResult({
+        state: "raid-required",
+        character,
+        leaderboard: emptyRoundLeaderboard
+      })
+    ).toContain("Спочатку розберіться з Бочкою");
+    expect(
+      presentTavernRoundResult({
+        state: "not-enough-gold",
+        character,
+        gold: 5,
+        leaderboard: emptyRoundLeaderboard
+      })
+    ).toContain("у підвалі миші ведуть дрібний бізнес");
+    expect(
+      presentTavernRoundResult({
+        state: "simple-round",
+        character: {
+          ...character,
+          gold: 2
+        },
+        spentGold: 10,
+        remainingGold: 2,
+        leaderboard: roundLeaderboard,
+        becameLeader: []
+      })
+    ).toContain("Списано: <b>10 золота</b>");
+    const fineRound = presentTavernRoundResult({
+        state: "fine-round",
+        character: {
+          ...character,
+          gold: 25
+        },
+        spentGold: 100,
+        remainingGold: 25,
+        leaderboard: roundLeaderboard,
+        becameLeader: ["day", "week"]
+      });
+    expect(fineRound).toContain("Всім якісного пива");
+    expect(fineRound).toContain("Ви вирвались на перше місце");
+    expect(fineRound).toContain("За добу");
+    expect(fineRound).toContain("Мандрівник — 2 частування · 110 золота");
+  });
+
+  it("presents a round offer before any gold is spent", () => {
+    const text = presentTavernRoundOffer({
+      state: "ready",
+      character,
+      gold: 125,
+      canBuySimple: true,
+      canBuyFine: true,
+      leaderboard: roundLeaderboard
+    });
+
+    expect(text).toContain("покажіть, що саме наливаємо");
+    expect(text).toContain("якісне за 100 золота");
+    expect(text).toContain("просте за 10");
+    expect(text).toContain("Рейтинг щедрості");
+    expect(text).not.toContain("Списано");
+  });
 });
+
+const emptyRoundLeaderboard = {
+  day: [],
+  week: [],
+  month: []
+};
+
+const roundLeaderboard = {
+  day: [
+    {
+      characterId: "character-42",
+      name: "Мандрівник",
+      roundCount: 2,
+      spentGold: 110
+    }
+  ],
+  week: [
+    {
+      characterId: "character-42",
+      name: "Мандрівник",
+      roundCount: 2,
+      spentGold: 110
+    }
+  ],
+  month: [
+    {
+      characterId: "character-42",
+      name: "Мандрівник",
+      roundCount: 2,
+      spentGold: 110
+    }
+  ]
+};
 
 const tavernPresence: PresenceGroup = {
   active: [

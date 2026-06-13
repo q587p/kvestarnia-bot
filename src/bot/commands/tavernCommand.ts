@@ -13,7 +13,9 @@ import {
   presentKorchmaHall,
   presentTavern,
   presentTavernAlreadyRaided,
-  presentTavernNoCharacter
+  presentTavernNoCharacter,
+  presentTavernRaidPending,
+  presentTavernRaidReadyToComplete
 } from "../presenters/tavernPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -108,6 +110,16 @@ export async function sendTavernBarrel(
     return;
   }
 
+  if (result.state === "pending") {
+    await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
+    return;
+  }
+
+  if (result.state === "pending-complete") {
+    await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
+    return;
+  }
+
   await sendText(ctx, mode, presentTavern(result.character, presence), true);
 }
 
@@ -124,7 +136,7 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  keyboard: boolean | "hall" | "front" | "barrel-result" = false
+  keyboard: boolean | "hall" | "front" | "barrel-result" | "barrel-pending" = false
 ): Promise<void> {
   const options = keyboard
     ? {
@@ -136,6 +148,8 @@ async function sendText(
               ? buildKorchmaFrontKeyboard()
               : keyboard === "barrel-result"
                 ? buildTavernResultKeyboard("already-completed")
+                : keyboard === "barrel-pending"
+                  ? buildTavernResultKeyboard("pending")
                 : buildTavernKeyboard()
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);

@@ -26,6 +26,27 @@ describe("tavern callback data", () => {
     });
   });
 
+  it("parses a valid round callback", () => {
+    const data = makeTavernCallbackData("round");
+
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(parseTavernCallbackData(data)).toEqual({
+      ok: true,
+      value: "round"
+    });
+  });
+
+  it("parses explicit round purchase callbacks", () => {
+    expect(parseTavernCallbackData(makeTavernCallbackData("round-simple"))).toEqual({
+      ok: true,
+      value: "round-simple"
+    });
+    expect(parseTavernCallbackData(makeTavernCallbackData("round-fine"))).toEqual({
+      ok: true,
+      value: "round-fine"
+    });
+  });
+
   it("rejects invalid versions and actions", () => {
     expect(parseTavernCallbackData("v2:tavern:raid")).toEqual({
       ok: false,

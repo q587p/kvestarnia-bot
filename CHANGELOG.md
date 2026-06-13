@@ -7,6 +7,30 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.11] - 12026-06-13 - Korchma Quest Hub, Barrel Timing & First Gold Sink
+
+### Added
+- Added a compact `Стіл зі справами` quest hub for `/quest`, the `🗺️ Квест` reply button, and the korchma quest-table place callback.
+- Added quest-hub buttons for the daily shawarma adventure, daily mimic fight probe, repeatable cellar errand, and return to the korchma hall.
+- Added `v1:quest:*` callback parsing for hub action routing.
+- Added secondary `/cellar` command as a fallback surface without adding it to the Telegram side command menu or persistent reply keyboard.
+- Added pending barrel raid timing: `🍺 У рейд на бочку` now starts a 5-8 minute wait before rewards are claimed, while the korchmar still promises «Дві-три хвилини. Максимум».
+- Added `🍻 Всім пива` as the first tiny korchma hall gold sink gated by today’s barrel raid: it shows explicit 100-gold and 10-gold choices, then spends only after the player confirms a quality.
+- Added a persistent korchma round purchase log and generosity leaderboard for day, week, and month rankings.
+- Tests cover quest hub rendering, outside gates, `/fight` and `/cellar` routing, quest callback parsing, and presence middleware behavior.
+
+### Changed
+- `/quest` now opens the quest hub inside the korchma instead of immediately jumping into shawarma or cellar scenes.
+- `/adventure`, `/fight`, `/hunt`, and `/cellar` no longer teleport outside players to the quest table; outside players get `Квести видають усередині.` with an enter-korchma button.
+- `/fight` and `/hunt` update quest-table presence only after the player is inside the korchma.
+- The hub keeps the repeatable cellar errand visible after daily shawarma and fight actions are spent.
+- While the barrel raid is pending, `/quest`, `/adventure`, `/fight`, `/hunt`, `/cellar`, and related action callbacks are blocked with a short in-world message.
+- Place and quest callbacks continue clearing stale raid/adventure ids when moving between korchma places.
+- Tavern participant views now include a back button to return to the previous scene.
+
+### Not Included Yet
+- Persistent combat state, equipment effects, random loot tables, group raids, Redis, market/economy/crafting, Mini App UI, or a full activity-service refactor.
+
 ## [0.0.10] - 12026-06-13 - Repeatable Cellar Errands
 
 ### Added
@@ -44,7 +68,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `/look` remains command-only so the persistent reply keyboard does not promise an extra visible `Озирнутися` button.
 - Documented the scene-based presence debt: a last known scene can remain attached until the 15-minute cutoff or the next location-changing action.
 - Documented the Kvestarnia spelling rule for `міт`, `мітичний`, `мітологія`, and `мітологічний`, and updated the matching news text.
-- Documented future tavern raid timing: a pending 1–3 minute raid state should block other adventure-like actions until completion.
+- Documented future tavern raid timing: a pending raid state should block other adventure-like actions until completion.
 - Telegram deploy notifications and `/news` now render news titles in bold with HTML escaping.
 
 ### Not Included Yet

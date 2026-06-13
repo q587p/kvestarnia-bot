@@ -219,11 +219,16 @@ Cooldown reward claim має бути transactional:
 
 Redis лишається майбутнім cache/job інструментом, не dependency для `0.0.10`.
 
-Future tavern raid timing:
-- `v1:tavern:raid` має створювати pending raid/action state з випадковим завершенням через 1–3 хвилини, а не одразу видавати reward.
-- Поки pending raid активний, handlers для `/quest`, `/adventure`, `/fight`, `/hunt` і схожих action callback-ів мають відповідати блокувальним станом без видачі інших нагород.
-- Завершення має бути idempotent: delayed completion не дублює XP/gold/items, а повторний callback тільки показує поточний або завершений стан.
-- Для MVP це може жити у lightweight action/session таблиці; для group raids треба перейти на `raids` і `raid_participants`.
+Tavern raid timing in `0.0.11`:
+- `v1:tavern:raid` створює lightweight pending action через денний `CharacterCooldown` key з prefix `tavern.friday-barrel-raid.pending` з випадковим завершенням через 5–8 хвилин, а не одразу видає reward.
+- Поки pending raid активний, handlers для `/quest`, `/adventure`, `/fight`, `/hunt`, `/cellar` і схожих action callback-ів відповідають блокувальним станом без видачі інших нагород.
+- Завершення idempotent: після `available_at <= now` той самий callback завершує daily reward claim; повторний callback показує completed/already-completed без дублювання XP/gold/items.
+- Для MVP це лишається cooldown/action state без background scheduler; для group raids треба перейти на `raids` і `raid_participants`.
+
+Рішення й борги для raid timing:
+- Pending-рейд на Бочку має переживати rollover локальної дати й видавати винагороду за локальний день старту. Майбутній hardening pass має явно зберігати або виводити started local date, а не припускати «сьогодні» в момент завершення.
+- Runtime callers мають віддавати перевагу `advanceFridayBarrelRaid`, бо він володіє flow start/pending/complete/already-completed. `completeFridayBarrelRaid` лишати public тільки для compatibility/tests, доки service API не буде прибраний.
+- Поки рейд pending, stale scene callbacks на кшталт `v1:adv:mimic:*`, `v1:fight:mimic:*` і `v1:cellar:*` не мають перезаписувати `last_seen_location_id`, `current_raid_id` або `current_adventure_id` до того, як pending guard їх заблокує. Безпечне гортання може оновлювати last action, але не має замінювати рейдову присутність біля Бочки без явного location transition rule.
 
 ## Presence MVP
 `0.0.9` додає легку in-game присутність на рівні `users`, бо окремої session table ще немає:
@@ -255,14 +260,22 @@ Web presence у `0.0.9`:
 - `location.korchma.barrel` — Біля Бочки Пінного Міражу;
 - `location.korchma.news_corner` — Дошка вістей.
 
-Legacy ids `location.tavern`, `location.shawarma-table` і `location.tavern-cellar` лишаються read aliases для старих rows, але нові writes мають використовувати `location.korchma.*`. `/quest` не позначає гравця біля столу зі справами на рівні глобальної кнопки; command handler спершу перевіряє поточну місцину, блокує квест надворі й лише тоді переводить героя до столу або підвалу. Підвал є відкритою aggregate-місциною для public `/presence`, але public web усе одно лишає `players` порожнім за замовчуванням.
+Legacy ids `location.tavern`, `location.shawarma-table` і `location.tavern-cellar` лишаються read aliases для старих rows, але нові writes мають використовувати `location.korchma.*`. `/quest` не позначає гравця біля столу зі справами на рівні глобальної кнопки; command handler спершу перевіряє поточну місцину, блокує квест надворі й лише тоді переводить героя до столу. Підвал є відкритою aggregate-місциною для public `/presence`, але public web усе одно лишає `players` порожнім за замовчуванням.
 
-Тимчасовий shortcut: `/fight` і `/hunt` у `0.0.10` все ще напряму позначають `location.korchma.quest_table`, бо combat probe лишається глобальною legacy-командою. Коли з’явиться повніший quest/combat routing, ці команди теж мають пройти через місцину або явний перехід до столу зі справами.
+Routing rule у `0.0.11`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу.
+
+`0.0.11` також додає `korchma_round_purchases` як малий журнал підтверджених частувань:
+- `v1:tavern:round` тільки показує offer/statistics screen і не списує золото;
+- `v1:tavern:round-simple` і `v1:tavern:round-fine` виконують repeatable spending після raid gate;
+- рейтинги за добу, тиждень і місяць агрегуються з purchase log за `local_date`;
+- leaderboard сортується за сумою витраченого золота, потім за кількістю частувань;
+- майбутній tie-breaker має бути детермінованим: earliest purchase in period, потім stable `character_id`, якщо потрібно, щоб привітання за перше місце не стрибали між рівними rows;
+- unlimited repeatable spending прийнятний для першого sink, бо кожна покупка вимагає явного підтвердження, але майбутній UX/anti-spam може додати soft cooldown або rate limit.
 
 ## Telegram callback data
 Callback data коротка, версіонована.
 
-Поточні callback prefixes у `0.0.9`:
+Поточні callback prefixes у `0.0.11`:
 - `v1:onb:*`
 - `v1:menu:hero`
 - `v1:menu:help`
@@ -273,10 +286,16 @@ Callback data коротка, версіонована.
 - `v1:place:barrel`
 - `v1:place:cellar`
 - `v1:place:news-corner`
+- `v1:quest:adventure`
+- `v1:quest:fight`
+- `v1:quest:cellar`
 - `v1:news:list:{page}`
 - `v1:news:entry:{entryIndex}:{listPage}`
 - `v1:tavern:raid`
 - `v1:tavern:participants`
+- `v1:tavern:round`
+- `v1:tavern:round-simple`
+- `v1:tavern:round-fine`
 - `v1:adv:mimic:poke`
 - `v1:adv:mimic:receipt`
 - `v1:adv:mimic:flee`

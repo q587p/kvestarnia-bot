@@ -1,6 +1,7 @@
 import type { Bot, Context } from "grammy";
 import type { AdventureService } from "../../services/adventureService";
 import type { CellarErrandService } from "../../services/cellarErrandService";
+import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
@@ -19,12 +20,14 @@ import {
 } from "../presenters/adventurePresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { sendCellarErrand } from "./cellarCommand";
+import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 
 export interface AdventureCommandOptions {
   cellarErrand: CellarErrandService;
   presence: PresenceService;
+  tavernRaid?: TavernRaidService;
 }
 
 export function registerAdventureCommand(
@@ -36,14 +39,6 @@ export function registerAdventureCommand(
     await sendAdventure(ctx, adventureService, "reply", {
       ...options,
       fallbackToCellar: false,
-      requireKorchmaInterior: true
-    });
-  });
-
-  bot.command("quest", async (ctx) => {
-    await sendAdventure(ctx, adventureService, "reply", {
-      ...options,
-      fallbackToCellar: true,
       requireKorchmaInterior: true
     });
   });
@@ -62,6 +57,12 @@ export async function sendAdventure(
 
   if (!telegramUserId) {
     await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  if (
+    await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options?.tavernRaid, mode)
+  ) {
     return;
   }
 

@@ -44,7 +44,9 @@ Current tiny inventory slice:
 Current repeatable slice:
 - `0.0.10` adds «Підвальна справа» as the first low-stakes repeatable fallback after the daily shawarma quest and fight probe are spent.
 - Cooldown lives in SQLite `character_cooldowns`, not Redis.
-- `/quest` is the entry point; full quest hub, `/cellar`, more repeatable activities, and activity refactor remain later work.
+- `0.0.11` adds a compact `Стіл зі справами` quest hub for `/quest`, `🗺️ Квест`, daily shawarma, fight probe, and cellar fallback.
+- `/cellar` exists only as a secondary fallback command; more repeatable activities and a full activity refactor remain later work.
+- Корчемний рейд у `0.0.11` отримав pending state на випадкові 5–8 хвилин: герой «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
 
 ## Phase 2 — Group hook
 Мета: перша фіча, заради якої бот додають у групу.
@@ -54,9 +56,9 @@ Deliverables:
 - `/raid` або «бос дня».
 - Join кнопка.
 - Майбутній справжній рейд має вимагати мінімум 3 учасників перед стартом або підсумком; поточна Бочка Пінного Міражу лишається solo-compatible placeholder до цього зрізу.
-- Корчемний рейд має отримати pending state на випадкові 1–3 хвилини: герой «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
 - Коли з’явиться список присутніх у локаціях, корчма має отримати social action: пригостити їжею або питвом тих, хто зараз у корчмі.
 - Легка presence-система вже є з `0.0.9`: `/online`, `/look`, локальні counts і participants для перших сцен; майбутні групові рейди мають перейти з scene-based ids на справжні raid/session rows.
+- Перед розширенням рейдів зберегти малі рішення з `0.0.11`: pending-рейд на Бочку має завершуватися за день старту після date rollover, stale adventure/fight/cellar callback-и не мають переносити presence з Бочки під час pending-рейду, а пивні рейтинги потребують детермінованих tie-breaker-ів.
 - 1–3 дії учасника.
 - Підсумок рейду з топ-учасниками.
 - Group leaderboard.

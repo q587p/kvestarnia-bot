@@ -52,7 +52,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "quest",
     icon: "🗺️",
-    description: "вирушити в квест",
+    description: "стіл зі справами",
     includeInMenu: true
   },
   {
@@ -65,6 +65,12 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "hunt",
     icon: "🏹",
     description: "полювання на проблему",
+    includeInMenu: false
+  },
+  {
+    command: "cellar",
+    icon: "🧹",
+    description: "підвальна справа",
     includeInMenu: false
   },
   {

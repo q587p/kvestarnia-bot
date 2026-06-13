@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
-export type TavernCallback = "raid" | "participants";
+export type TavernCallback = "raid" | "participants" | "round" | "round-simple" | "round-fine";
 export type TavernCallbackError =
   | "invalid-version"
   | "invalid-prefix"
@@ -9,7 +9,13 @@ export type TavernCallbackError =
   | "too-long";
 
 const PREFIX = "v1:tavern";
-const tavernActions = new Set<TavernCallback>(["raid", "participants"]);
+const tavernActions = new Set<TavernCallback>([
+  "raid",
+  "participants",
+  "round",
+  "round-simple",
+  "round-fine"
+]);
 
 export function makeTavernCallbackData(action: TavernCallback): string {
   return `${PREFIX}:${action}`;

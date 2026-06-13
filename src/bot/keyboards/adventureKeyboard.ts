@@ -1,5 +1,6 @@
 import { InlineKeyboard } from "grammy";
 import { makeAdventureCallbackData } from "../callbacks/adventureCallbackData";
+import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 
 export type AdventureResultKeyboardState = "completed" | "already-completed";
 
@@ -22,4 +23,8 @@ export function buildAdventureResultKeyboard(
   }
 
   return buildAdventureKeyboard();
+}
+
+export function buildAdventureParticipantsKeyboard(): InlineKeyboard {
+  return new InlineKeyboard().text("⬅️ Назад", makeQuestCallbackData("adventure"));
 }

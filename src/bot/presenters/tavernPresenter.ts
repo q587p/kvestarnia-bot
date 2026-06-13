@@ -1,5 +1,16 @@
-import type { TavernRaidResult } from "../../services/tavernRaidService";
+import type {
+  KorchmaRoundLeaderboardPeriod,
+  TavernLookupResult,
+  TavernPendingRaidResult,
+  TavernRaidResult,
+  TavernRoundOfferResult,
+  TavernRoundResult
+} from "../../services/tavernRaidService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import type {
+  KorchmaRoundLeaderboard,
+  KorchmaRoundLeaderboardEntry
+} from "../../db/repositories/korchmaRoundPurchaseRepository";
 import type { PresenceGroup } from "../../services/presenceService";
 import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
@@ -39,7 +50,7 @@ export function presentTavern(character: CharacterSummary, presence?: PresenceGr
     "",
     "У кутку героїчно піниться Бочка Пінного Міражу.",
     "",
-    npcQuote("Корчмар", "Це не проблема. Це рейд на 1-3 хвилини."),
+    npcQuote("Корчмар", "Це не проблема. Дві-три хвилини. Максимум."),
     "",
     ...presentTavernPresence(presence),
     "",
@@ -61,7 +72,38 @@ export function presentTavernAlreadyRaided(
     "",
     ...presentTavernPresence(presence),
     "",
-    "Поки що можна перевірити героя: /hero"
+    "Поки що можна пригостити всіх пивом або перевірити героя: /hero"
+  ].join("\n");
+}
+
+export function presentTavernRaidPending(
+  result: Extract<TavernRaidResult, { state: "pending" | "pending-started" }>
+): string {
+  const intro =
+    result.state === "pending-started"
+      ? "🍺 Рейд почався."
+      : "🍺 Рейд ще триває.";
+
+  return [
+    intro,
+    "Ви пішли розбиратися з Бочкою Пінного Міражу. Бочка робить вигляд, що це довга стратегія, а не паніка.",
+    "",
+    npcQuote("Корчмар", "Поки ви там, я не видаю нових пригод. У корчмі теж є техніка безпеки."),
+    "",
+    `Поверніться за: <b>${formatRaidWait(result.availableAt, result.now)}</b>.`
+  ].join("\n");
+}
+
+export function presentTavernRaidReadyToComplete(
+  result: Extract<TavernLookupResult, { state: "pending-complete" }>
+): string {
+  return [
+    "🍺 Бочка підозріло притихла.",
+    "Рейд мав уже завершитись. Лишилось урочисто перевірити, хто кого переміг і чому це знову піна.",
+    "",
+    `Очікування: <b>${result.availableAt <= result.now ? "час уже вийшов" : formatRaidWait(result.availableAt, result.now)}</b>.`,
+    "",
+    "Натисніть <b>🍺 Перевірити бочку</b>."
   ].join("\n");
 }
 
@@ -70,6 +112,10 @@ export function presentTavernNoCharacter(): string {
 }
 
 export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { state: "no-character" }>): string {
+  if (result.state === "pending" || result.state === "pending-started") {
+    return presentTavernRaidPending(result);
+  }
+
   if (result.state === "already-completed") {
     return [
       "🍺 Бочка вас пам’ятає.",
@@ -95,6 +141,178 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
   lines.push(...presentRewardLevelGrowth(result.levelChange, result.character.classId));
 
   return lines.join("\n");
+}
+
+export function presentPendingRaidActionBlock(
+  result: Extract<TavernPendingRaidResult, { state: "pending" }>
+): string {
+  return [
+    "🍺 Ви зараз у рейді.",
+    "Інші пригоди тимчасово недоступні: Бочка Пінного Міражу не любить, коли її ігнорують посеред драматичної піни.",
+    "",
+    `Перевірте бочку за: <b>${formatRaidWait(result.availableAt, result.now)}</b>.`
+  ].join("\n");
+}
+
+export function presentTavernRoundResult(
+  result: Exclude<TavernRoundResult, { state: "no-character" }>
+): string {
+  if (result.state === "raid-required") {
+    return [
+      "🍻 Корчмар ховає кухоль.",
+      "",
+      npcQuote(
+        "Корчмар",
+        "Не можу підійти. Спочатку розберіться з Бочкою, вона знову робить вигляд, що це її заклад."
+      ),
+      "",
+      ...presentKorchmaRoundLeaderboard(result.leaderboard)
+    ].join("\n");
+  }
+
+  if (result.state === "not-enough-gold") {
+    return [
+      "🍻 Корчмар рахує монети.",
+      "",
+      npcQuote(
+        "Корчмар",
+        "На всіх не вистачить. Заробіть ще трохи. Кажуть, у підвалі миші ведуть дрібний бізнес."
+      ),
+      "",
+      `Маєте: <b>${result.gold} золота</b>`,
+      "",
+      ...presentKorchmaRoundLeaderboard(result.leaderboard)
+    ].join("\n");
+  }
+
+  const quality =
+    result.state === "fine-round"
+      ? "Корчмар виставив якісне пиво. Таке, після якого навіть табурети тримають поставу."
+      : "Корчмар виставив просте пиво. Воно просте тільки за ціною; характер у нього складний.";
+
+  return [
+    result.state === "fine-round" ? "🍻 Всім якісного пива!" : "🍻 Всім простого пива!",
+    quality,
+    "",
+    `Списано: <b>${result.spentGold} золота</b>`,
+    `Залишилось: <b>${result.remainingGold} золота</b>`,
+    ...presentNewLeaderLines(result.becameLeader),
+    "",
+    ...presentKorchmaRoundLeaderboard(result.leaderboard)
+  ].join("\n");
+}
+
+export function presentTavernRoundOffer(
+  result: Exclude<TavernRoundOfferResult, { state: "no-character" }>
+): string {
+  if (result.state === "raid-required") {
+    return presentTavernRoundResult(result);
+  }
+
+  if (result.state === "not-enough-gold") {
+    return presentTavernRoundResult(result);
+  }
+
+  const options = result.canBuyFine
+    ? "Можна замовити якісне за 100 золота або просте за 10."
+    : "На якісне ще не тягне, але просте за 10 золота вже дивиться у ваш бік.";
+
+  return [
+    "🍻 Пригостити всіх пивом",
+    "",
+    npcQuote(
+      "Корчмар",
+      "Після Бочки я вже можу підійти. Тільки пальцем покажіть, що саме наливаємо."
+    ),
+    "",
+    options,
+    "",
+    `У кишені: <b>${result.gold} золота</b>`,
+    "",
+    ...presentKorchmaRoundLeaderboard(result.leaderboard)
+  ].join("\n");
+}
+
+function presentNewLeaderLines(periods: KorchmaRoundLeaderboardPeriod[]): string[] {
+  if (periods.length === 0) {
+    return [];
+  }
+
+  const label = periods.map(presentLeaderboardPeriodName).join(", ");
+
+  return [
+    "",
+    `🏆 Ви вирвались на перше місце: <b>${label}</b>. Відвідувачі це не забудуть, бо корчмар записав на видному місці.`
+  ];
+}
+
+function formatRaidWait(availableAt: Date, now: Date): string {
+  const remainingMs = Math.max(0, availableAt.getTime() - now.getTime());
+  const minutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+
+  return `${minutes} хв.`;
+}
+
+function presentKorchmaRoundLeaderboard(leaderboard: KorchmaRoundLeaderboard): string[] {
+  return [
+    "🏅 Рейтинг щедрості",
+    "",
+    ...presentLeaderboardSection("За добу", leaderboard.day),
+    "",
+    ...presentLeaderboardSection("За тиждень", leaderboard.week),
+    "",
+    ...presentLeaderboardSection("За місяць", leaderboard.month)
+  ];
+}
+
+function presentLeaderboardSection(
+  title: string,
+  entries: KorchmaRoundLeaderboardEntry[]
+): string[] {
+  if (entries.length === 0) {
+    return [`<b>${title}</b>: ще ніхто не пригощав. Корчмар тримає крейду напоготові.`];
+  }
+
+  return [
+    `<b>${title}</b>:`,
+    ...entries.map((entry, index) => presentLeaderboardEntry(entry, index + 1))
+  ];
+}
+
+function presentLeaderboardEntry(entry: KorchmaRoundLeaderboardEntry, rank: number): string {
+  const count = `${entry.roundCount} ${presentRoundCount(entry.roundCount)}`;
+
+  return `${rank}. ${escapeHtml(entry.name)} — ${count} · ${entry.spentGold} золота`;
+}
+
+function presentRoundCount(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+
+  if (lastTwo >= 11 && lastTwo <= 14) {
+    return "частувань";
+  }
+
+  if (last === 1) {
+    return "частування";
+  }
+
+  if (last >= 2 && last <= 4) {
+    return "частування";
+  }
+
+  return "частувань";
+}
+
+function presentLeaderboardPeriodName(period: KorchmaRoundLeaderboardPeriod): string {
+  switch (period) {
+    case "day":
+      return "доба";
+    case "week":
+      return "тиждень";
+    case "month":
+      return "місяць";
+  }
 }
 
 function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: number }>): string[] {

@@ -29,16 +29,20 @@ import { parseFightCallbackData } from "./callbacks/fightCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
 import { parsePlaceCallbackData, type PlaceCallback } from "./callbacks/placeCallbackData";
+import { parseQuestCallbackData, type QuestCallback } from "./callbacks/questCallbackData";
 import {
   parseOnboardingCallbackData,
   type OnboardingCallback
 } from "./callbacks/onboardingCallbackData";
 import { parseRestartCallbackData } from "./callbacks/restartCallbackData";
-import { parseTavernCallbackData } from "./callbacks/tavernCallbackData";
+import { parseTavernCallbackData, type TavernCallback } from "./callbacks/tavernCallbackData";
 import { registerAdventureCommand, sendAdventure } from "./commands/adventureCommand";
-import { sendCellarErrand } from "./commands/cellarCommand";
+import {
+  registerCellarCommand,
+  sendCellarErrandRouted
+} from "./commands/cellarCommand";
 import { registerDevResetCommand } from "./commands/devResetCommand";
-import { registerFightCommand } from "./commands/fightCommand";
+import { registerFightCommand, sendFight } from "./commands/fightCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
 import { registerHeroCommand, sendHero } from "./commands/heroCommand";
 import { registerInventoryCommand, sendInventory } from "./commands/inventoryCommand";
@@ -46,6 +50,7 @@ import { registerLookCommand } from "./commands/lookCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
 import { registerOnlineCommand } from "./commands/onlineCommand";
 import { registerPlannedCommands, sendPlannedCommand } from "./commands/plannedCommand";
+import { registerQuestHubCommand, sendQuestHub } from "./commands/questHubCommand";
 import { registerRestartCommand } from "./commands/restartCommand";
 import { registerStartCommand } from "./commands/startCommand";
 import {
@@ -56,8 +61,14 @@ import {
 } from "./commands/tavernCommand";
 import { registerVersionCommand } from "./commands/versionCommand";
 import { playerFromContext } from "./context";
-import { buildAdventureResultKeyboard } from "./keyboards/adventureKeyboard";
-import { buildCellarResultKeyboard } from "./keyboards/cellarKeyboard";
+import {
+  buildAdventureParticipantsKeyboard,
+  buildAdventureResultKeyboard
+} from "./keyboards/adventureKeyboard";
+import {
+  buildCellarParticipantsKeyboard,
+  buildCellarResultKeyboard
+} from "./keyboards/cellarKeyboard";
 import { buildFightResultKeyboard } from "./keyboards/fightKeyboard";
 import {
   buildClassKeyboard,
@@ -66,7 +77,12 @@ import {
   buildRaceKeyboard
 } from "./keyboards/onboardingKeyboard";
 import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
-import { buildTavernResultKeyboard } from "./keyboards/tavernKeyboard";
+import {
+  buildKorchmaHallKeyboard,
+  buildKorchmaRoundOfferKeyboard,
+  buildTavernParticipantsKeyboard,
+  buildTavernResultKeyboard
+} from "./keyboards/tavernKeyboard";
 import { presentAdventureNoCharacter, presentAdventureResult } from "./presenters/adventurePresenter";
 import { presentCellarNoCharacter, presentCellarResult } from "./presenters/cellarPresenter";
 import {
@@ -92,7 +108,13 @@ import {
   presentRestartNoCharacter
 } from "./presenters/restartPresenter";
 import { presentParticipants } from "./presenters/presencePresenter";
-import { presentTavernNoCharacter, presentTavernRaidResult } from "./presenters/tavernPresenter";
+import {
+  presentTavernNoCharacter,
+  presentPendingRaidActionBlock,
+  presentTavernRaidResult,
+  presentTavernRoundOffer,
+  presentTavernRoundResult
+} from "./presenters/tavernPresenter";
 import { safeAnswerCallbackQuery } from "./safeAnswerCallbackQuery";
 import { safeEditMessageText } from "./safeEditMessageText";
 
@@ -125,9 +147,21 @@ export function createBot(token: string, services: BotServices): Bot {
   registerPresenceMiddleware(bot, services.presence);
   registerAdventureCommand(bot, services.adventure, {
     cellarErrand: services.cellarErrand,
-    presence: services.presence
+    presence: services.presence,
+    tavernRaid: services.tavern
   });
-  registerFightCommand(bot, services.fight);
+  registerFightCommand(bot, services.fight, {
+    presence: services.presence,
+    tavernRaid: services.tavern
+  });
+  registerCellarCommand(bot, services.cellarErrand, services.presence, services.tavern);
+  registerQuestHubCommand(bot, {
+    adventure: services.adventure,
+    cellarErrand: services.cellarErrand,
+    fight: services.fight,
+    presence: services.presence,
+    tavernRaid: services.tavern
+  });
   registerStartCommand(bot, services.onboarding);
   registerHeroCommand(bot, services.hero);
   registerInventoryCommand(bot, services.inventory);
@@ -201,7 +235,7 @@ export function createBot(token: string, services: BotServices): Bot {
       return;
     }
 
-    await handleAdventureCallback(ctx, parsed.value, services.adventure, services.presence);
+    await handleAdventureCallback(ctx, parsed.value, services);
   });
 
   bot.callbackQuery(/^v1:place:/, async (ctx) => {
@@ -215,6 +249,17 @@ export function createBot(token: string, services: BotServices): Bot {
     await handlePlaceCallback(ctx, parsed.value, services);
   });
 
+  bot.callbackQuery(/^v1:quest:/, async (ctx) => {
+    const parsed = parseQuestCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleQuestCallback(ctx, parsed.value, services);
+  });
+
   bot.callbackQuery(/^v1:cellar:/, async (ctx) => {
     const parsed = parseCellarCallbackData(ctx.callbackQuery.data);
 
@@ -223,7 +268,7 @@ export function createBot(token: string, services: BotServices): Bot {
       return;
     }
 
-    await handleCellarCallback(ctx, parsed.value, services.cellarErrand, services.presence);
+    await handleCellarCallback(ctx, parsed.value, services);
   });
 
   bot.callbackQuery(/^v1:fight:/, async (ctx) => {
@@ -234,7 +279,7 @@ export function createBot(token: string, services: BotServices): Bot {
       return;
     }
 
-    await handleFightCallback(ctx, parsed.value, services.fight);
+    await handleFightCallback(ctx, parsed.value, services);
   });
 
   bot.callbackQuery(/^v1:devreset:/, async (ctx) => {
@@ -299,6 +344,14 @@ function getPresenceContext(ctx: Context): PresenceContext | null {
 }
 
 function getCallbackPresenceContext(data: string): PresenceContext | null {
+  if (data.startsWith("v1:tavern:round")) {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
   if (data === "v1:tavern:raid" || data === "v1:tavern:participants") {
     return {
       locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
@@ -308,27 +361,19 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
   }
 
   if (data.startsWith("v1:adv:mimic:")) {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
-    };
+    return {};
   }
 
   if (data.startsWith("v1:cellar:")) {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
-    };
+    return {};
   }
 
   if (data.startsWith("v1:fight:mimic:")) {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
-    };
+    return {};
+  }
+
+  if (data.startsWith("v1:quest:")) {
+    return {};
   }
 
   if (data.startsWith("v1:onb:")) {
@@ -470,16 +515,12 @@ function getCommandPresenceContext(command: string): PresenceContext | null {
     };
   }
 
-  if (command === "adventure" || command === "quest") {
+  if (command === "adventure" || command === "quest" || command === "cellar") {
     return {};
   }
 
   if (command === "fight" || command === "hunt") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
-    };
+    return {};
   }
 
   if (command === "news") {
@@ -709,20 +750,65 @@ async function handlePlaceCallback(
   }
 
   if (action === "quest-table") {
-    await sendAdventure(ctx, services.adventure, "edit", {
-      cellarErrand: services.cellarErrand,
-      presence: services.presence,
-      fallbackToCellar: false
-    });
+    await sendQuestHub(
+      ctx,
+      {
+        adventure: services.adventure,
+        cellarErrand: services.cellarErrand,
+        fight: services.fight,
+        presence: services.presence,
+        tavernRaid: services.tavern
+      },
+      "edit"
+    );
     return;
   }
 
   if (action === "cellar") {
-    await sendCellarErrand(ctx, services.cellarErrand, services.presence, "edit");
+    await sendCellarErrandRouted(ctx, services.cellarErrand, services.presence, "edit", {
+      tavernRaid: services.tavern
+    });
     return;
   }
 
   await sendNewsList(ctx, 0);
+}
+
+async function handleQuestCallback(
+  ctx: Context,
+  action: QuestCallback,
+  services: BotServices
+): Promise<void> {
+  await safeAnswerCallbackQuery(ctx);
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (telegramUserId && (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))) {
+    return;
+  }
+
+  if (action === "adventure") {
+    await sendAdventure(ctx, services.adventure, "edit", {
+      cellarErrand: services.cellarErrand,
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      fallbackToCellar: false,
+      requireKorchmaInterior: true
+    });
+    return;
+  }
+
+  if (action === "fight") {
+    await sendFight(ctx, services.fight, "edit", {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      requireKorchmaInterior: true
+    });
+    return;
+  }
+
+  await sendCellarErrandRouted(ctx, services.cellarErrand, services.presence, "edit", {
+    tavernRaid: services.tavern
+  });
 }
 
 function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
@@ -735,12 +821,17 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
   });
 
   bot.hears(mainMenuButtons.quest, async (ctx) => {
-    await sendAdventure(ctx, services.adventure, "reply", {
-      cellarErrand: services.cellarErrand,
-      presence: services.presence,
-      fallbackToCellar: true,
-      requireKorchmaInterior: true
-    });
+    await sendQuestHub(
+      ctx,
+      {
+        adventure: services.adventure,
+        cellarErrand: services.cellarErrand,
+        fight: services.fight,
+        presence: services.presence,
+        tavernRaid: services.tavern
+      },
+      "reply"
+    );
   });
 
   bot.hears(mainMenuButtons.inventory, async (ctx) => {
@@ -760,7 +851,7 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
 
 async function handleTavernCallback(
   ctx: Context,
-  action: "raid" | "participants",
+  action: TavernCallback,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService
 ): Promise<void> {
@@ -778,11 +869,51 @@ async function handleTavernCallback(
     );
 
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentParticipants(snapshot), HTML_MESSAGE_OPTIONS);
+    await safeEditMessageText(ctx, presentParticipants(snapshot), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildTavernParticipantsKeyboard()
+    });
     return;
   }
 
-  const result = await tavernRaidService.completeFridayBarrelRaid(telegramUserId);
+  if (action === "round") {
+    const result = await tavernRaidService.getRoundOfferForTelegramUser(telegramUserId);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentTavernNoCharacter());
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentTavernRoundOffer(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildKorchmaRoundOfferKeyboard(result)
+    });
+    return;
+  }
+
+  if (action === "round-simple" || action === "round-fine") {
+    const result = await tavernRaidService.buyRoundForTelegramUser(
+      telegramUserId,
+      action === "round-fine" ? "fine" : "simple"
+    );
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentTavernNoCharacter());
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentTavernRoundResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildKorchmaHallKeyboard()
+    });
+    return;
+  }
+
+  const result = await tavernRaidService.advanceFridayBarrelRaid(telegramUserId);
 
   if (result.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
@@ -797,11 +928,31 @@ async function handleTavernCallback(
   });
 }
 
+async function editPendingRaidBlockIfNeeded(
+  ctx: Context,
+  telegramUserId: bigint,
+  tavernRaidService: TavernRaidService
+): Promise<boolean> {
+  const pending = await tavernRaidService.getActivePendingFridayBarrelRaidForTelegramUser(
+    telegramUserId
+  );
+
+  if (pending.state !== "pending") {
+    return false;
+  }
+
+  await safeAnswerCallbackQuery(ctx);
+  await safeEditMessageText(ctx, presentPendingRaidActionBlock(pending), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildTavernResultKeyboard("pending")
+  });
+  return true;
+}
+
 async function handleAdventureCallback(
   ctx: Context,
   action: AdventureCallback,
-  adventureService: AdventureService,
-  presenceService: PresenceService
+  services: BotServices
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -810,24 +961,45 @@ async function handleAdventureCallback(
     return;
   }
 
+  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
+  }
+
   if (action === "participants") {
-    const snapshot = await presenceService.getAdventureParticipantsForTelegramUser(
+    const snapshot = await services.presence.getAdventureParticipantsForTelegramUser(
       telegramUserId,
       PRESENCE_ADVENTURE_MIMIC_SHAWARMA
     );
 
+    if (snapshot.state !== "no-character") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+      });
+    }
+
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentParticipants(snapshot), HTML_MESSAGE_OPTIONS);
+    await safeEditMessageText(ctx, presentParticipants(snapshot), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildAdventureParticipantsKeyboard()
+    });
     return;
   }
 
-  const result = await adventureService.completeMimicShawarma(telegramUserId, action);
+  const result = await services.adventure.completeMimicShawarma(telegramUserId, action);
 
   if (result.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentAdventureNoCharacter());
     return;
   }
+
+  await markScenePresence(ctx, services.presence, {
+    locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+    currentRaidId: null,
+    currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+  });
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentAdventureResult(result), {
@@ -839,8 +1011,7 @@ async function handleAdventureCallback(
 async function handleCellarCallback(
   ctx: Context,
   action: CellarCallback,
-  cellarErrandService: CellarErrandService,
-  presenceService: PresenceService
+  services: BotServices
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -849,24 +1020,45 @@ async function handleCellarCallback(
     return;
   }
 
+  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
+  }
+
   if (action === "participants") {
-    const snapshot = await presenceService.getAdventureParticipantsForTelegramUser(
+    const snapshot = await services.presence.getAdventureParticipantsForTelegramUser(
       telegramUserId,
       PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
     );
 
+    if (snapshot.state !== "no-character") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+      });
+    }
+
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentParticipants(snapshot), HTML_MESSAGE_OPTIONS);
+    await safeEditMessageText(ctx, presentParticipants(snapshot), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildCellarParticipantsKeyboard()
+    });
     return;
   }
 
-  const result = await cellarErrandService.complete(telegramUserId, action);
+  const result = await services.cellarErrand.complete(telegramUserId, action);
 
   if (result.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentCellarNoCharacter());
     return;
   }
+
+  await markScenePresence(ctx, services.presence, {
+    locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+    currentRaidId: null,
+    currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+  });
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentCellarResult(result), {
@@ -878,7 +1070,7 @@ async function handleCellarCallback(
 async function handleFightCallback(
   ctx: Context,
   action: "attack" | "receipt" | "flee",
-  fightService: FightService
+  services: BotServices
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -887,7 +1079,11 @@ async function handleFightCallback(
     return;
   }
 
-  const result = await fightService.completeMimicShawarma(telegramUserId, action);
+  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
+  }
+
+  const result = await services.fight.completeMimicShawarma(telegramUserId, action);
 
   if (result.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
@@ -895,10 +1091,33 @@ async function handleFightCallback(
     return;
   }
 
+  await markScenePresence(ctx, services.presence, {
+    locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+    currentRaidId: null,
+    currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
+  });
+
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentFightResult(result), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildFightResultKeyboard(result.state)
+  });
+}
+
+async function markScenePresence(
+  ctx: Context,
+  presenceService: PresenceService,
+  context: PresenceContext
+): Promise<void> {
+  const player = playerFromContext(ctx.from);
+
+  if (!player) {
+    return;
+  }
+
+  await presenceService.markAction({
+    user: player,
+    ...context
   });
 }
 

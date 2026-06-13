@@ -1,5 +1,6 @@
-import type { Context } from "grammy";
+import type { Bot, Context } from "grammy";
 import type { PresenceService } from "../../services/presenceService";
+import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
   PRESENCE_LOCATION_KORCHMA_CELLAR
@@ -12,9 +13,64 @@ import {
   presentCellarNoCharacter,
   presentCellarStart
 } from "../presenters/cellarPresenter";
+import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
+import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
+
+export function registerCellarCommand(
+  bot: Bot,
+  cellarErrandService: CellarErrandService,
+  presenceService: PresenceService,
+  tavernRaidService?: TavernRaidService
+): void {
+  bot.command("cellar", async (ctx) => {
+    await sendCellarErrandRouted(
+      ctx,
+      cellarErrandService,
+      presenceService,
+      "reply",
+      tavernRaidService ? { tavernRaid: tavernRaidService } : undefined
+    );
+  });
+}
+
+export async function sendCellarErrandRouted(
+  ctx: Context,
+  cellarErrandService: CellarErrandService,
+  presenceService: PresenceService,
+  mode: "reply" | "edit",
+  options?: { tavernRaid?: TavernRaidService }
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await sendText(ctx, mode, presentCellarNoCharacter());
+    return;
+  }
+
+  if (
+    await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options?.tavernRaid, mode)
+  ) {
+    return;
+  }
+
+  const place = await presenceService.getCurrentPlaceForTelegramUser(telegramUserId);
+
+  if (place.state === "no-character") {
+    await sendText(ctx, mode, presentCellarNoCharacter());
+    return;
+  }
+
+  if (!place.insideKorchma) {
+    await sendText(ctx, mode, presentKorchmaQuestGate(), "enter-korchma");
+    return;
+  }
+
+  await sendCellarErrand(ctx, cellarErrandService, presenceService, mode);
+}
 
 export async function sendCellarErrand(
   ctx: Context,
@@ -68,12 +124,13 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  keyboard: "ready" | "on-cooldown" | false = false
+  keyboard: "ready" | "on-cooldown" | "enter-korchma" | false = false
 ): Promise<void> {
   const options = keyboard
     ? {
         parse_mode: "HTML" as const,
-        reply_markup: buildCellarResultKeyboard(keyboard)
+        reply_markup:
+          keyboard === "enter-korchma" ? buildKorchmaFrontKeyboard() : buildCellarResultKeyboard(keyboard)
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
 

@@ -88,4 +88,26 @@ describe("Prisma schema", () => {
     expect(migration).toContain("CREATE TABLE \"character_cooldowns\"");
     expect(migration).toContain("CREATE UNIQUE INDEX \"character_cooldowns_character_id_key_key\"");
   });
+
+  it("stores korchma round purchases for generosity leaderboards", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260613124000_add_korchma_round_purchases",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model KorchmaRoundPurchase");
+    expect(schema).toContain("korchmaRoundPurchases KorchmaRoundPurchase[]");
+    expect(schema).toContain("@map(\"spent_gold\")");
+    expect(schema).toContain("@map(\"local_date\")");
+    expect(schema).toContain("@@map(\"korchma_round_purchases\")");
+    expect(migration).toContain("CREATE TABLE \"korchma_round_purchases\"");
+    expect(migration).toContain("CREATE INDEX \"korchma_round_purchases_local_date_idx\"");
+  });
 });

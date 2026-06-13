@@ -9,6 +9,7 @@ import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepo
 import { PrismaCooldownRepository } from "./db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "./db/repositories/prismaDailyActionRepository";
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
+import { PrismaKorchmaRoundPurchaseRepository } from "./db/repositories/prismaKorchmaRoundPurchaseRepository";
 import { PrismaPresenceRepository } from "./db/repositories/prismaPresenceRepository";
 import { PrismaUserRepository } from "./db/repositories/prismaUserRepository";
 import { startHealthServer } from "./health/server";
@@ -31,6 +32,7 @@ const characters = new PrismaCharacterRepository(prisma);
 const cooldowns = new PrismaCooldownRepository(prisma);
 const dailyActions = new PrismaDailyActionRepository(prisma);
 const inventory = new PrismaInventoryRepository(prisma);
+const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
 const services = {
   adventure: new AdventureService(characters, dailyActions),
@@ -42,7 +44,7 @@ const services = {
   presence: new PresenceService(presence),
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),
-  tavern: new TavernRaidService(characters, dailyActions)
+  tavern: new TavernRaidService(characters, dailyActions, roundPurchases, cooldowns)
 };
 const healthServer = startHealthServer({ presence: services.presence });
 let bot: Bot | null = null;

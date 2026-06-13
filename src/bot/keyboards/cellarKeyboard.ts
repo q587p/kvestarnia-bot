@@ -1,5 +1,6 @@
 import { InlineKeyboard } from "grammy";
 import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
+import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 
 export type CellarKeyboardState = "ready" | "completed" | "on-cooldown";
 
@@ -20,4 +21,8 @@ export function buildCellarResultKeyboard(state: CellarKeyboardState): InlineKey
   }
 
   return new InlineKeyboard().text("👥 Учасники", makeCellarCallbackData("participants"));
+}
+
+export function buildCellarParticipantsKeyboard(): InlineKeyboard {
+  return new InlineKeyboard().text("⬅️ Назад", makeQuestCallbackData("cellar"));
 }

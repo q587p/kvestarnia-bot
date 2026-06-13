@@ -24,7 +24,12 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     description: "корчма й рейд на бочку"
   },
   {
-    commands: ["adventure", "quest"],
+    commands: ["quest"],
+    icon: "🗺️",
+    description: "стіл зі справами"
+  },
+  {
+    commands: ["adventure"],
     icon: "🌯",
     description: "пригода з шаурмою"
   },
@@ -32,6 +37,11 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     commands: ["fight", "hunt"],
     icon: "⚔️",
     description: "сутичка з міміком"
+  },
+  {
+    commands: ["cellar"],
+    icon: "🧹",
+    description: "підвальна справа"
   },
   {
     commands: ["inventory", "items", "bag"],
