@@ -5,6 +5,7 @@ import {
   presentKorchmaHall,
   presentTavernNoCharacter,
   presentTavernRaidResult,
+  presentTavernRoundOffer,
   presentTavernRoundResult
 } from "../../src/bot/presenters/tavernPresenter";
 import type { TavernRaidResult } from "../../src/services/tavernRaidService";
@@ -194,6 +195,21 @@ describe("tavern presenter", () => {
         remainingGold: 25
       })
     ).toContain("Всім якісного пива");
+  });
+
+  it("presents a round offer before any gold is spent", () => {
+    const text = presentTavernRoundOffer({
+      state: "ready",
+      character,
+      gold: 125,
+      canBuySimple: true,
+      canBuyFine: true
+    });
+
+    expect(text).toContain("покажіть, що саме наливаємо");
+    expect(text).toContain("якісне за 100 золота");
+    expect(text).toContain("просте за 10");
+    expect(text).not.toContain("Списано");
   });
 });
 

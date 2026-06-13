@@ -147,11 +147,31 @@ describe("TavernRaidService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const service = new TavernRaidService(characters, dailyActions, fixedClock);
 
-    const result = await service.buyRoundForTelegramUser(telegramUserId);
+    const result = await service.getRoundOfferForTelegramUser(telegramUserId);
 
     expect(result.state).toBe("raid-required");
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       gold: 100
+    });
+  });
+
+  it("shows round options after the barrel raid without spending gold", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { gold: 125 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new TavernRaidService(characters, dailyActions, fixedClock);
+
+    await service.completeFridayBarrelRaid(telegramUserId);
+    const result = await service.getRoundOfferForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "ready",
+      gold: 130,
+      canBuySimple: true,
+      canBuyFine: true
+    });
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      gold: 130
     });
   });
 
@@ -162,7 +182,7 @@ describe("TavernRaidService", () => {
     const service = new TavernRaidService(characters, dailyActions, fixedClock);
 
     await service.completeFridayBarrelRaid(telegramUserId);
-    const result = await service.buyRoundForTelegramUser(telegramUserId);
+    const result = await service.buyRoundForTelegramUser(telegramUserId, "fine");
 
     expect(result).toMatchObject({
       state: "fine-round",
@@ -181,7 +201,7 @@ describe("TavernRaidService", () => {
     const service = new TavernRaidService(characters, dailyActions, fixedClock);
 
     await service.completeFridayBarrelRaid(telegramUserId);
-    const result = await service.buyRoundForTelegramUser(telegramUserId);
+    const result = await service.buyRoundForTelegramUser(telegramUserId, "simple");
 
     expect(result).toMatchObject({
       state: "simple-round",
@@ -197,7 +217,7 @@ describe("TavernRaidService", () => {
     const service = new TavernRaidService(characters, dailyActions, fixedClock);
 
     await service.completeFridayBarrelRaid(telegramUserId);
-    const result = await service.buyRoundForTelegramUser(telegramUserId);
+    const result = await service.getRoundOfferForTelegramUser(telegramUserId);
 
     expect(result).toMatchObject({
       state: "not-enough-gold",

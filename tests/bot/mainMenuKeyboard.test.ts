@@ -18,6 +18,7 @@ import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard"
 import {
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
+  buildKorchmaRoundOfferKeyboard,
   buildTavernParticipantsKeyboard,
   buildTavernKeyboard,
   buildTavernResultKeyboard
@@ -42,6 +43,7 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard())).toEqual([
       "📋 Стіл зі справами",
       "🛢️ Бочка",
+      "🍻 Всім пива",
       "📰 Дошка вістей",
       "🐭 Підвал",
       "🚪 Надвір"
@@ -51,19 +53,39 @@ describe("main menu and scene keyboards", () => {
   it("keeps tavern inline buttons scoped to tavern actions", () => {
     expect(flatInlineButtonTexts(buildTavernKeyboard())).toEqual([
       "🍺 У рейд на бочку",
-      "🍻 Всім пива",
       "👥 Учасники"
     ]);
-    expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual([
-      "🍻 Всім пива",
-      "👥 Учасники"
-    ]);
+    expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual(["👥 Учасники"]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([
-      "🍻 Всім пива",
       "👥 Учасники"
     ]);
     expect(flatInlineButtonTexts(buildTavernParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
     expect(flatInlineButtonCallbacks(buildTavernParticipantsKeyboard())).toEqual(["v1:place:barrel"]);
+  });
+
+  it("asks for explicit confirmation before spending korchma round gold", () => {
+    expect(
+      flatInlineButtonTexts(
+        buildKorchmaRoundOfferKeyboard({
+          state: "ready",
+          character,
+          gold: 125,
+          canBuySimple: true,
+          canBuyFine: true
+        })
+      )
+    ).toEqual(["🍻 Якісне — 100", "🍺 Просте — 10", "⬅️ До зали"]);
+    expect(
+      flatInlineButtonCallbacks(
+        buildKorchmaRoundOfferKeyboard({
+          state: "ready",
+          character,
+          gold: 25,
+          canBuySimple: true,
+          canBuyFine: false
+        })
+      )
+    ).toEqual(["v1:tavern:round-simple", "v1:place:hall"]);
   });
 
   it("keeps adventure inline buttons scoped to quest actions and participants", () => {

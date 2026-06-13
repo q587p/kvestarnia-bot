@@ -14,7 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added quest-hub buttons for the daily shawarma adventure, daily mimic fight probe, repeatable cellar errand, and return to the korchma hall.
 - Added `v1:quest:*` callback parsing for hub action routing.
 - Added secondary `/cellar` command as a fallback surface without adding it to the Telegram side command menu or persistent reply keyboard.
-- Added `🍻 Всім пива` as the first tiny korchma gold sink after the barrel raid: 100 gold for a fine round, 10 gold for a simple round, and a joke when the hero cannot afford even that.
+- Added `🍻 Всім пива` as the first tiny korchma hall gold sink gated by today’s barrel raid: it shows explicit 100-gold and 10-gold choices, then spends only after the player confirms a quality.
 - Tests cover quest hub rendering, outside gates, `/fight` and `/cellar` routing, quest callback parsing, and presence middleware behavior.
 
 ### Changed

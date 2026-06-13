@@ -1,4 +1,8 @@
-import type { TavernRaidResult, TavernRoundResult } from "../../services/tavernRaidService";
+import type {
+  TavernRaidResult,
+  TavernRoundOfferResult,
+  TavernRoundResult
+} from "../../services/tavernRaidService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { PresenceGroup } from "../../services/presenceService";
 import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
@@ -135,6 +139,35 @@ export function presentTavernRoundResult(
     "",
     `Списано: <b>${result.spentGold} золота</b>`,
     `Залишилось: <b>${result.remainingGold} золота</b>`
+  ].join("\n");
+}
+
+export function presentTavernRoundOffer(
+  result: Exclude<TavernRoundOfferResult, { state: "no-character" }>
+): string {
+  if (result.state === "raid-required") {
+    return presentTavernRoundResult(result);
+  }
+
+  if (result.state === "not-enough-gold") {
+    return presentTavernRoundResult(result);
+  }
+
+  const options = result.canBuyFine
+    ? "Можна замовити якісне за 100 золота або просте за 10."
+    : "На якісне ще не тягне, але просте за 10 золота вже дивиться у ваш бік.";
+
+  return [
+    "🍻 Пригостити всіх пивом",
+    "",
+    npcQuote(
+      "Корчмар",
+      "Після Бочки я вже можу підійти. Тільки пальцем покажіть, що саме наливаємо."
+    ),
+    "",
+    options,
+    "",
+    `У кишені: <b>${result.gold} золота</b>`
   ].join("\n");
 }
 

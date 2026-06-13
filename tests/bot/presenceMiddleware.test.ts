@@ -62,6 +62,21 @@ describe("presence middleware", () => {
     });
   });
 
+  it("marks korchma round callbacks as hall actions, not barrel raid presence", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence);
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makeTavernCallbackData("round")));
+
+    expect(presence.marks).toHaveLength(1);
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      currentRaidId: null,
+      currentAdventureId: null
+    });
+  });
+
   it("marks korchma place callbacks with actual place context", async () => {
     const presence = new CapturingPresenceService();
     const bot = createTestBot(presence);
@@ -227,7 +242,9 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
     restart: {},
     tavern: {
       getTavernForTelegramUser: () => Promise.resolve({ state: "no-character" }),
-      completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" })
+      completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+      getRoundOfferForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      buyRoundForTelegramUser: () => Promise.resolve({ state: "no-character" })
     },
     ...overrides
   } as unknown as BotServices;

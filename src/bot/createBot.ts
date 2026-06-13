@@ -35,7 +35,7 @@ import {
   type OnboardingCallback
 } from "./callbacks/onboardingCallbackData";
 import { parseRestartCallbackData } from "./callbacks/restartCallbackData";
-import { parseTavernCallbackData } from "./callbacks/tavernCallbackData";
+import { parseTavernCallbackData, type TavernCallback } from "./callbacks/tavernCallbackData";
 import { registerAdventureCommand, sendAdventure } from "./commands/adventureCommand";
 import {
   registerCellarCommand,
@@ -78,8 +78,9 @@ import {
 } from "./keyboards/onboardingKeyboard";
 import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
 import {
+  buildKorchmaHallKeyboard,
+  buildKorchmaRoundOfferKeyboard,
   buildTavernParticipantsKeyboard,
-  buildTavernKeyboard,
   buildTavernResultKeyboard
 } from "./keyboards/tavernKeyboard";
 import { presentAdventureNoCharacter, presentAdventureResult } from "./presenters/adventurePresenter";
@@ -110,6 +111,7 @@ import { presentParticipants } from "./presenters/presencePresenter";
 import {
   presentTavernNoCharacter,
   presentTavernRaidResult,
+  presentTavernRoundOffer,
   presentTavernRoundResult
 } from "./presenters/tavernPresenter";
 import { safeAnswerCallbackQuery } from "./safeAnswerCallbackQuery";
@@ -336,11 +338,15 @@ function getPresenceContext(ctx: Context): PresenceContext | null {
 }
 
 function getCallbackPresenceContext(data: string): PresenceContext | null {
-  if (
-    data === "v1:tavern:raid" ||
-    data === "v1:tavern:participants" ||
-    data === "v1:tavern:round"
-  ) {
+  if (data.startsWith("v1:tavern:round")) {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
+  if (data === "v1:tavern:raid" || data === "v1:tavern:participants") {
     return {
       locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
       currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
@@ -838,7 +844,7 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
 
 async function handleTavernCallback(
   ctx: Context,
-  action: "raid" | "participants" | "round",
+  action: TavernCallback,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService
 ): Promise<void> {
@@ -864,7 +870,27 @@ async function handleTavernCallback(
   }
 
   if (action === "round") {
-    const result = await tavernRaidService.buyRoundForTelegramUser(telegramUserId);
+    const result = await tavernRaidService.getRoundOfferForTelegramUser(telegramUserId);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentTavernNoCharacter());
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentTavernRoundOffer(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildKorchmaRoundOfferKeyboard(result)
+    });
+    return;
+  }
+
+  if (action === "round-simple" || action === "round-fine") {
+    const result = await tavernRaidService.buyRoundForTelegramUser(
+      telegramUserId,
+      action === "round-fine" ? "fine" : "simple"
+    );
 
     if (result.state === "no-character") {
       await safeAnswerCallbackQuery(ctx);
@@ -875,10 +901,7 @@ async function handleTavernCallback(
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentTavernRoundResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup:
-        result.state === "raid-required"
-          ? buildTavernKeyboard()
-          : buildTavernResultKeyboard("already-completed")
+      reply_markup: buildKorchmaHallKeyboard()
     });
     return;
   }

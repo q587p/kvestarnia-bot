@@ -20,6 +20,7 @@ export const FRIDAY_BARREL_RAID_REWARD_XP = 7;
 export const FRIDAY_BARREL_RAID_REWARD_GOLD = 5;
 export const KORCHMA_SIMPLE_ROUND_COST = 10;
 export const KORCHMA_FINE_ROUND_COST = 100;
+export type KorchmaRoundTier = "simple" | "fine";
 
 export type TavernLookupResult =
   | { state: "no-character" }
@@ -50,6 +51,18 @@ export type TavernRoundResult =
       character: CharacterSummary;
       spentGold: number;
       remainingGold: number;
+    };
+
+export type TavernRoundOfferResult =
+  | { state: "no-character" }
+  | { state: "raid-required"; character: CharacterSummary }
+  | { state: "not-enough-gold"; character: CharacterSummary; gold: number }
+  | {
+      state: "ready";
+      character: CharacterSummary;
+      gold: number;
+      canBuySimple: boolean;
+      canBuyFine: boolean;
     };
 
 export interface GoldSpendingCharacterRepository extends CharacterRepository {
@@ -139,7 +152,7 @@ export class TavernRaidService {
     };
   }
 
-  async buyRoundForTelegramUser(telegramUserId: bigint): Promise<TavernRoundResult> {
+  async getRoundOfferForTelegramUser(telegramUserId: bigint): Promise<TavernRoundOfferResult> {
     const localDate = toIsoDate(this.clock());
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -159,14 +172,7 @@ export class TavernRaidService {
       };
     }
 
-    const cost =
-      character.gold >= KORCHMA_FINE_ROUND_COST
-        ? KORCHMA_FINE_ROUND_COST
-        : character.gold >= KORCHMA_SIMPLE_ROUND_COST
-          ? KORCHMA_SIMPLE_ROUND_COST
-          : 0;
-
-    if (cost === 0) {
+    if (character.gold < KORCHMA_SIMPLE_ROUND_COST) {
       return {
         state: "not-enough-gold",
         character: summarizeCharacter(character),
@@ -174,6 +180,39 @@ export class TavernRaidService {
       };
     }
 
+    return {
+      state: "ready",
+      character: summarizeCharacter(character),
+      gold: character.gold,
+      canBuySimple: character.gold >= KORCHMA_SIMPLE_ROUND_COST,
+      canBuyFine: character.gold >= KORCHMA_FINE_ROUND_COST
+    };
+  }
+
+  async buyRoundForTelegramUser(
+    telegramUserId: bigint,
+    tier: KorchmaRoundTier
+  ): Promise<TavernRoundResult> {
+    const localDate = toIsoDate(this.clock());
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const existingRaid = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: FRIDAY_BARREL_RAID_KEY,
+      localDate
+    });
+
+    if (!existingRaid) {
+      return {
+        state: "raid-required",
+        character: summarizeCharacter(character)
+      };
+    }
+
+    const cost = tier === "fine" ? KORCHMA_FINE_ROUND_COST : KORCHMA_SIMPLE_ROUND_COST;
     const spend = await this.characters.spendGoldForTelegramUser(telegramUserId, cost);
 
     if (!spend) {
@@ -189,7 +228,7 @@ export class TavernRaidService {
     }
 
     return {
-      state: cost === KORCHMA_FINE_ROUND_COST ? "fine-round" : "simple-round",
+      state: tier === "fine" ? "fine-round" : "simple-round",
       character: summarizeCharacter(spend.character),
       spentGold: cost,
       remainingGold: spend.character.gold

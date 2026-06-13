@@ -1,14 +1,13 @@
 import { InlineKeyboard } from "grammy";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
+import type { TavernRoundOfferResult } from "../../services/tavernRaidService";
 
 export type TavernResultKeyboardState = "completed" | "already-completed";
 
 export function buildTavernKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("🍺 У рейд на бочку", makeTavernCallbackData("raid"))
-    .row()
-    .text("🍻 Всім пива", makeTavernCallbackData("round"))
     .row()
     .text("👥 Учасники", makeTavernCallbackData("participants"));
 }
@@ -22,9 +21,11 @@ export function buildKorchmaHallKeyboard(): InlineKeyboard {
     .text("📋 Стіл зі справами", makePlaceCallbackData("quest-table"))
     .row()
     .text("🛢️ Бочка", makePlaceCallbackData("barrel"))
-    .text("📰 Дошка вістей", makePlaceCallbackData("news-corner"))
+    .text("🍻 Всім пива", makeTavernCallbackData("round"))
     .row()
+    .text("📰 Дошка вістей", makePlaceCallbackData("news-corner"))
     .text("🐭 Підвал", makePlaceCallbackData("cellar"))
+    .row()
     .text("🚪 Надвір", makePlaceCallbackData("front"));
 }
 
@@ -36,10 +37,7 @@ export function buildTavernResultKeyboard(
   state: TavernResultKeyboardState
 ): InlineKeyboard {
   if (state === "completed" || state === "already-completed") {
-    return new InlineKeyboard()
-      .text("🍻 Всім пива", makeTavernCallbackData("round"))
-      .row()
-      .text("👥 Учасники", makeTavernCallbackData("participants"));
+    return new InlineKeyboard().text("👥 Учасники", makeTavernCallbackData("participants"));
   }
 
   return buildTavernKeyboard();
@@ -47,4 +45,22 @@ export function buildTavernResultKeyboard(
 
 export function buildTavernParticipantsKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text("⬅️ Назад", makePlaceCallbackData("barrel"));
+}
+
+export function buildKorchmaRoundOfferKeyboard(
+  result: Exclude<TavernRoundOfferResult, { state: "no-character" }>
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (result.state === "ready") {
+    if (result.canBuyFine) {
+      keyboard.text("🍻 Якісне — 100", makeTavernCallbackData("round-fine")).row();
+    }
+
+    if (result.canBuySimple) {
+      keyboard.text("🍺 Просте — 10", makeTavernCallbackData("round-simple")).row();
+    }
+  }
+
+  return keyboard.text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
