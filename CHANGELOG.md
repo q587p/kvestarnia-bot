@@ -21,7 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Item detail flavor now gives armor and accessories their own tiny equipment-preview jokes instead of sharing one generic non-weapon line.
 - The current deterministic starter loop now reaches weapon, armor, and accessory examples without seeded/dev inventory.
-- Barrel raids are now gated by hourly raid periods that flip on the 23rd minute instead of by one daily claim. New starts pause from 04:00 through 08:23 for korchma accounting.
+- Barrel raids are now gated by hourly raid periods that flip on the 23rd minute instead of by one daily claim. New starts pause from 04:00 through 08:00 for korchma accounting.
 - The front-of-korchma screen now lists the main interior destinations and includes a `/tavern` fallback line in case Telegram hides an old inline button.
 - Hero profile resource line now marks HP and mana with `❤️` and `🔮` icons for faster scanning.
 - Korchma hall presence now says `поки тільки ви` only when the player is truly the sole active person inside, otherwise it summarizes active and idle heroes across interior korchma zones.

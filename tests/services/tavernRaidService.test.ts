@@ -343,18 +343,18 @@ describe("TavernRaidService", () => {
 
     await expect(service.getTavernForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "audit-break",
-      nextAvailableAt: new Date("2026-06-12T08:23:00.000Z")
+      nextAvailableAt: new Date("2026-06-12T08:00:00.000Z")
     });
     await expect(service.advanceFridayBarrelRaid(telegramUserId)).resolves.toMatchObject({
       state: "audit-break",
-      nextAvailableAt: new Date("2026-06-12T08:23:00.000Z")
+      nextAvailableAt: new Date("2026-06-12T08:00:00.000Z")
     });
     expect(pendingRaids.records).toHaveLength(0);
     expect(dailyActions.records).toHaveLength(0);
   });
 
-  it("keeps the accounting break closed until the 08:23 raid period opens", async () => {
-    let now = new Date("2026-06-12T08:22:59.000Z");
+  it("opens new barrel raids at 08:00 after the accounting break", async () => {
+    let now = new Date("2026-06-12T07:59:59.000Z");
     const clock = () => now;
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
@@ -371,15 +371,15 @@ describe("TavernRaidService", () => {
 
     await expect(service.advanceFridayBarrelRaid(telegramUserId)).resolves.toMatchObject({
       state: "audit-break",
-      nextAvailableAt: new Date("2026-06-12T08:23:00.000Z")
+      nextAvailableAt: new Date("2026-06-12T08:00:00.000Z")
     });
 
-    now = new Date("2026-06-12T08:23:00.000Z");
+    now = new Date("2026-06-12T08:00:00.000Z");
 
     await expect(service.advanceFridayBarrelRaid(telegramUserId)).resolves.toMatchObject({
       state: "pending-started",
-      availableAt: new Date("2026-06-12T08:28:00.000Z"),
-      periodId: "2026-06-12T08:23"
+      availableAt: new Date("2026-06-12T08:05:00.000Z"),
+      periodId: "2026-06-12T07:23"
     });
   });
 

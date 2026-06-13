@@ -287,13 +287,13 @@ describe("tavern presenter", () => {
       state: "audit-break",
       character,
       now: new Date("2026-06-13T04:30:00.000Z"),
-      nextAvailableAt: new Date("2026-06-13T08:23:00.000Z")
+      nextAvailableAt: new Date("2026-06-13T08:00:00.000Z")
     });
 
     expect(text).toContain("Бочка на переобліку");
-    expect(text).toContain("04:00 до 08:23");
+    expect(text).toContain("04:00 до 08:00");
     expect(text).toContain("корчмар рахує піну");
-    expect(text).toContain("через <b>233 хв.</b>");
+    expect(text).toContain("через <b>210 хв.</b>");
   });
 
   it("keeps level-up out of the raid result message", () => {

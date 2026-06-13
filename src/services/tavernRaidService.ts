@@ -543,12 +543,8 @@ function getRecentBarrelRaidPeriods(period: BarrelRaidPeriod, count: number): Ba
 
 export function isBarrelRaidAuditBreak(now: Date): boolean {
   const hour = now.getUTCHours();
-  const minute = now.getUTCMinutes();
 
-  return (
-    (hour >= BARREL_RAID_AUDIT_BREAK_START_HOUR && hour < BARREL_RAID_AUDIT_BREAK_END_HOUR) ||
-    (hour === BARREL_RAID_AUDIT_BREAK_END_HOUR && minute < BARREL_RAID_PERIOD_START_MINUTE)
-  );
+  return hour >= BARREL_RAID_AUDIT_BREAK_START_HOUR && hour < BARREL_RAID_AUDIT_BREAK_END_HOUR;
 }
 
 export function getNextBarrelRaidAvailableAt(now: Date): Date {
@@ -556,7 +552,7 @@ export function getNextBarrelRaidAvailableAt(now: Date): Date {
   next.setUTCSeconds(0, 0);
 
   if (isBarrelRaidAuditBreak(now)) {
-    next.setUTCHours(BARREL_RAID_AUDIT_BREAK_END_HOUR, BARREL_RAID_PERIOD_START_MINUTE, 0, 0);
+    next.setUTCHours(BARREL_RAID_AUDIT_BREAK_END_HOUR, 0, 0, 0);
     return next;
   }
 

@@ -240,7 +240,7 @@ Redis лишається майбутнім cache/job інструментом, 
 
 Tavern raid timing in `0.0.11`/`0.0.15`:
 - `v1:tavern:raid` створює lightweight pending action через годинний `CharacterCooldown` key з prefix `tavern.friday-barrel-raid.pending` і period id `YYYY-MM-DDTHH:23`, з випадковим завершенням через 5–8 хвилин, а не одразу видає reward.
-- Новий raid period відкривається на 23-й хвилині кожної години. З 04:00 до 08:23 нові старти повертають audit-break copy про переоблік; уже pending рейди все ще можуть завершитись.
+- Новий raid period відкривається на 23-й хвилині кожної години. З 04:00 до 08:00 нові старти повертають audit-break copy про переоблік; уже pending рейди все ще можуть завершитись. Після 08:00 рейд знову доступний у поточному period bucket, а далі лічильник перемикається за звичайним правилом 23-ї хвилини.
 - Поки pending raid активний, handlers для `/quest`, `/adventure`, `/fight`, `/hunt`, `/cellar` і схожих action callback-ів відповідають блокувальним станом без видачі інших нагород.
 - Завершення idempotent: після `available_at <= now` той самий callback завершує reward claim для period id старту; повторний callback показує completed/already-completed без дублювання XP/gold/items.
 - Bot layer ставить in-process `setTimeout` notification після `pending-started`, а `completeFridayBarrelRaid(telegramUserId, periodId)` лишається джерелом правди для reward claim. Після restart процесу таймери губляться, тому ручна кнопка перевірки лишається fallback.
