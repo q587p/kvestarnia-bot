@@ -212,7 +212,7 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["🧥 Спорядження", "🔎 Квиток мокрого героя"]);
+    ).toEqual(["🛡️ Спорядження", "🔎 Квиток мокрого героя"]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard({
@@ -238,7 +238,7 @@ describe("main menu and scene keyboards", () => {
     ).toEqual(["v1:equip:view", "v1:item:detail:item.wet-hero-ticket"]);
     expect(flatInlineButtonTexts(buildItemDetailKeyboard({ state: "not-owned" }))).toEqual([
       "⬅️ До манаток",
-      "🧥 Спорядження"
+      "🛡️ Спорядження"
     ]);
     expect(flatInlineButtonTexts(buildItemDetailKeyboard({ state: "no-character" }))).toEqual([]);
     expect(
@@ -260,7 +260,7 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["🧥 Екіпірувати", "⬅️ До манаток", "🧥 Спорядження"]);
+    ).toEqual(["🧥 Екіпірувати", "⬅️ До манаток", "🛡️ Спорядження"]);
     expect(
       flatInlineButtonTexts(
         buildItemDetailKeyboard(
@@ -283,7 +283,7 @@ describe("main menu and scene keyboards", () => {
           "weapon"
         )
       )
-    ).toEqual(["Зняти", "⬅️ До манаток", "🧥 Спорядження"]);
+    ).toEqual(["Зняти", "⬅️ До манаток", "🛡️ Спорядження"]);
     expect(flatInlineButtonTexts(buildEquipmentKeyboard({ state: "no-character" }))).toEqual([]);
     expect(
       flatInlineButtonTexts(

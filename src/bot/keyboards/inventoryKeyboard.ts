@@ -17,7 +17,7 @@ export function buildInventoryKeyboard(result: InventoryResult): InlineKeyboard 
     return keyboard;
   }
 
-  keyboard.text("🧥 Спорядження", makeEquipmentCallbackData());
+  keyboard.text("🛡️ Спорядження", makeEquipmentCallbackData());
 
   if (result.state !== "found") {
     return keyboard;
@@ -51,7 +51,7 @@ export function buildItemDetailKeyboard(
   return keyboard
     .text("⬅️ До манаток", makeInventoryCallbackData())
     .row()
-    .text("🧥 Спорядження", makeEquipmentCallbackData());
+    .text("🛡️ Спорядження", makeEquipmentCallbackData());
 }
 
 export function buildEquipmentKeyboard(result: EquipmentResult): InlineKeyboard {
