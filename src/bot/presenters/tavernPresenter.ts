@@ -12,6 +12,7 @@ import type {
   KorchmaRoundLeaderboardEntry
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
 import type { PresenceGroup } from "../../services/presenceService";
+import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardLevelGrowth } from "./levelGrowthPresenter";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
@@ -37,6 +38,8 @@ export function presentKorchmaHall(
     "",
     "Корчма Квестарні тримає тепло, шум і кілька справ, які краще не залишати без нагляду.",
     "",
+    ...presentKorchmaGreeting(character),
+    "",
     ...presentTavernPresence(presence),
     "",
     "Куди йдемо?"
@@ -51,6 +54,7 @@ export function presentTavern(character: CharacterSummary, presence?: PresenceGr
     "У кутку героїчно піниться Бочка Пінного Міражу.",
     "",
     npcQuote("Корчмар", "Це не проблема. Дві-три хвилини. Максимум."),
+    ...presentRaidPrepHint(character),
     "",
     ...presentTavernPresence(presence),
     "",
@@ -231,6 +235,23 @@ export function presentTavernRoundOffer(
     "",
     ...presentKorchmaRoundLeaderboard(result.leaderboard)
   ].join("\n");
+}
+
+function presentKorchmaGreeting(character: CharacterSummary): string[] {
+  const flavor = selectCharacterFlavorLine(character, {
+    placement: "korchma.greeting"
+  });
+
+  return flavor ? [npcQuote("Корчмар", flavor.text)] : [];
+}
+
+function presentRaidPrepHint(character: CharacterSummary): string[] {
+  const flavor = selectCharacterFlavorLine(character, {
+    placement: "raid.prep-hint",
+    scene: "barrel"
+  });
+
+  return flavor ? ["", escapeHtml(flavor.text)] : [];
 }
 
 function presentNewLeaderLines(periods: KorchmaRoundLeaderboardPeriod[]): string[] {

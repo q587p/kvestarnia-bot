@@ -17,6 +17,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added pending barrel raid timing: `🍺 У рейд на бочку` now starts a 5-8 minute wait before rewards are claimed, while the korchmar still promises «Дві-три хвилини. Максимум».
 - Added `🍻 Всім пива` as the first tiny korchma hall gold sink gated by today’s barrel raid: it shows explicit 100-gold and 10-gold choices, then spends only after the player confirms a quality.
 - Added a persistent korchma round purchase log and generosity leaderboard for day, week, and month rankings.
+- Added the first character impact loop: race, class, and authored combo flavor can now affect korchma greetings, starter quest text, action outcomes, and barrel raid prep hints without changing rewards.
+- Added character flavor authoring docs for korchma greetings, quest routing, raid role hints, and future content review.
 - Tests cover quest hub rendering, outside gates, `/fight` and `/cellar` routing, quest callback parsing, and presence middleware behavior.
 
 ### Changed

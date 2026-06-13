@@ -49,10 +49,11 @@ describe("fight presenter", () => {
     const text = presentFightStart(character);
 
     expect(text).toContain("Сутичка з Міміком-шаурмою");
+    expect(text).toContain("дуже простий і металевий");
     expect(text).toContain("❤️ Ви: 24/24");
     expect(text).toContain("🌯 Мімік: 14/14");
     expect(text).toContain("Що робимо?");
-    expect(text.length).toBeLessThan(240);
+    expect(text.length).toBeLessThan(320);
   });
 
   it("prompts /start when no character exists", () => {
@@ -82,6 +83,7 @@ describe("fight presenter", () => {
     const text = presentFightResult(completed("attack", 9, 3));
 
     expect(text).toContain("Ви вдарили");
+    expect(text).toContain("навіть лаваш зрозумів сюжет");
     expect(text).toContain("❤️ Ви: 19/22");
     expect(text).toContain("🌯 Мімік: 5/14");
     expect(text).toContain("Нагорода: <b>+9 XP · +3 золота</b>");

@@ -5,9 +5,10 @@ import {
   presentClassSelected
 } from "../../src/bot/presenters/onboardingPresenter";
 import { presentAdventureStart } from "../../src/bot/presenters/adventurePresenter";
+import { presentCellarResult, presentCellarStart } from "../../src/bot/presenters/cellarPresenter";
 import { presentFightStart } from "../../src/bot/presenters/fightPresenter";
 import { presentHero } from "../../src/bot/presenters/heroPresenter";
-import { presentTavern } from "../../src/bot/presenters/tavernPresenter";
+import { presentKorchmaHall, presentTavern } from "../../src/bot/presenters/tavernPresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 const summary: CharacterSummary = {
@@ -50,9 +51,28 @@ describe("hidden character path visibility", () => {
       presentCharacterSummary(summary),
       presentCharacterCreated(summary, true),
       presentHero(summary),
+      presentKorchmaHall(summary),
       presentTavern(summary),
       presentAdventureStart(summary),
-      presentFightStart(summary)
+      presentFightStart(summary),
+      presentCellarStart({ state: "ready", character: summary }),
+      presentCellarResult({
+        state: "completed",
+        action: "sweep-bravely",
+        character: summary,
+        reward: {
+          xp: 1,
+          gold: 0,
+          itemGrants: []
+        },
+        availableAt: new Date("2026-06-13T10:03:00.000Z"),
+        now: new Date("2026-06-13T10:00:00.000Z"),
+        levelChange: {
+          oldLevel: 1,
+          newLevel: 1,
+          leveledUp: false
+        }
+      })
     ];
 
     for (const text of texts) {

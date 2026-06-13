@@ -57,6 +57,7 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Зала корчми");
     expect(text).toContain("Корчма Квестарні");
+    expect(text).toContain("Залізо тримайте спокійно");
     expect(text).toContain("Куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
   });
@@ -69,9 +70,10 @@ describe("tavern presenter", () => {
     expect(text).toContain(
       "Корчмар:\n<blockquote>Це не проблема. Дві-три хвилини. Максимум.</blockquote>"
     );
+    expect(text).toContain("стояти між бочкою");
     expect(text).toContain("За столами: поки тільки ви й підозрілий стілець.");
     expect(text).toContain("Що робимо?");
-    expect(text.length).toBeLessThan(380);
+    expect(text.length).toBeLessThan(520);
   });
 
   it("shows active tavern presence at the tables", () => {
