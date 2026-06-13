@@ -59,7 +59,7 @@ describe("hero presenter", () => {
     expect(text).toContain("Вдача 6");
     expect(text).toContain("Ріст: +4 HP · +2 мани · +1 Сили");
     expect(text).not.toContain("Ріст рівня:");
-    expect(text).toContain("\n\nЗолото: <b>12</b> <i>(а в манатках ще 0; корчмар уже примружився)</i>\n\nЗараз герой тут:");
+    expect(text).toContain("\n\nЗолото: <b>12</b> <i>(а в манатках ще 0; торба чесна, аж нудно)</i>\n\nЗараз герой тут:");
     expect(text).toContain("\n\nЗараз герой тут: <b>Підвал корчми</b>.");
     expect(text).toContain("<i>Далі: /tavern, /quest або /fight.</i>");
     expect(text).not.toContain("/adventure або /fight");
@@ -73,6 +73,20 @@ describe("hero presenter", () => {
 
     expect(text).toContain("Золото: <b>12</b>");
     expect(text).toContain("а в манатках ще 28");
+    expect(text).toContain("корчмар уже примружився");
+  });
+
+  it("uses distinct wealth jokes when gold or inventory value is zero", () => {
+    const emptyHero = presentHero({ ...summary, gold: 0 }, { inventoryGoldValue: 0 });
+    const itemRichHero = presentHero({ ...summary, gold: 0 }, { inventoryGoldValue: 28 });
+
+    expect(emptyHero).toContain(
+      "Золото: <b>0</b> <i>(і в манатках ще 0; корчмар поставив риску в графі «надії»)</i>"
+    );
+    expect(emptyHero).not.toContain("корчмар уже примружився");
+    expect(itemRichHero).toContain(
+      "Золото: <b>0</b> <i>(золота 0, зате в манатках ще 28; корчмар примружився на майбутню бухгалтерію)</i>"
+    );
   });
 
   it("shows alpha cap wording at the current level cap", () => {

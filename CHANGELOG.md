@@ -27,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Korchma hall presence now says `поки тільки ви` only when the player is truly the sole active person inside, otherwise it summarizes active and idle heroes across interior korchma zones.
 - Korchma round results now separate the toast, beer description, and ranger reaction with blank lines for easier Telegram reading.
 - Adventure and cellar action prompts now bold the hero name before `що робимо?`.
+- Hero wealth line now uses separate jokes for empty gold, empty inventory value, and truly empty pockets while still showing both numbers.
 
 ### Not Included Yet
 - Stat effects, HP/mana/combat/XP/gold math changes, random loot tables, shops, selling, trading, crafting, item-to-level exchange, or item instance logic.
