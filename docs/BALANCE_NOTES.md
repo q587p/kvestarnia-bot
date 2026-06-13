@@ -37,6 +37,23 @@ minimum_damage = 1
 spell_damage = spell_base + floor(INT * 0.9) + level_bonus - target_resist
 ```
 
+### Бойові варіянти й мана
+Наступний combat pass має рахувати не одну кнопку `Вдарити`, а typed бойові варіянти:
+- `physical`: сила/спритність/зброя, без витрати мани.
+- `spell`: розум/рівень/магічний focus, мала витрата мани.
+- `social` або `trick`: харизма, спритність чи вдача, менша пряма шкода, але debuff/control/reward flavor.
+- `class-special`: класова дія з власним cooldown або resource cost, якщо вона сильніша за базову атаку.
+
+Магічні й містичні дії мають показувати витрату в UI, наприклад `🔮 -2 мани`, і не зʼїдати ману, якщо reward callback уже зарахований або дія стала stale.
+
+Race/class/combo modifiers мають бути малими й симульованими. Вони можуть змінювати odds, damage band, crit flavor або доступну назву дії, але не мають робити мага без мани безпорадним чи воїна без spell-кнопки нудним.
+
+Equipment effects для атак мають заходити через один effective-stats/equipment helper:
+- weapon впливає на physical base або spell focus, якщо це явно магічна зброя;
+- armor впливає на виживання, але не має безкоштовно піднімати шкоду;
+- accessory може давати малий situational modifier, resource discount або extra flavor hook;
+- priceless/trophy items не дають бойових бонусів, доки контент явно не переведений у equippable/effect item.
+
 ### Hit chance
 MVP можна почати без промахів у звичайній атаці або з дуже простим шансом:
 

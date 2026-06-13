@@ -44,6 +44,7 @@ Current tiny inventory slice:
 - Tavern/adventure/fight first completions can grant fixed items.
 - Full itemization, equipment effects, random loot tables, crafting, market, and trading remain later Phase 1+ work.
 - Future equipment effects should layer through one equipment/effective-stats helper before combat uses them; the current shell must not change `/hero`, fight preview, rewards, cooldowns, HP, mana, or level-up math.
+- Future `/fight` should replace the single generic `Вдарити` action with class/race/combo-aware attack options: physical strikes, mana-spending spells, tricks, seals, songs, traps, and equipment-shaped variants with visible resource costs.
 - Future equipment rules should support level-gated items that can drop before they are wearable, plus rarer race/class/path-specific манатки with future bypass/attunement/respec tricks.
 - Future player-to-player exchange should let heroes give unsuitable манатки to others without duplicating items or bypassing anti-abuse checks.
 - Future item economy should give most манатки a gold value or explicit priceless marker, then use that value for selling, trading, and a later item-to-level exchange.
@@ -141,6 +142,7 @@ Done when:
 - Level-gated equipment, race/class/path-specific rare items, and safe player-to-player item exchange.
 - Item values, priceless trophies, and a suspicious outside-korchma item-to-level exchange inspired by Munchkin.
 - Stronger level impact pass for resources, combat, event checks, and activity gates.
+- Class/race/combo-aware combat actions: multiple attack variants, visible mana costs for spells, fallback actions when mana is low, and equipment/effective-stats integration so манатки eventually shape the numbers.
 - Epic levels `11-20`: milestone abilities for races/classes in the spirit of Munchkin-style extra tricks, with visible text flavor and tested balance guardrails.
 - Real time-of-day modifiers for tagged enemies and scenes: night strengthens night/dark enemies, while morning/day/evening can affect other encounter types without exposing exact timestamps.
 - Надвірний журнал прибулих перед корчмою: пагінований список героїв, які вперше приєдналися або дісталися корчми, щоб зала не перевантажувалась.
