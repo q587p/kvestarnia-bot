@@ -53,19 +53,26 @@ describe("main menu and scene keyboards", () => {
   it("keeps tavern inline buttons scoped to tavern actions", () => {
     expect(flatInlineButtonTexts(buildTavernKeyboard())).toEqual([
       "🍺 У рейд на бочку",
-      "👥 Учасники"
+      "👥 Учасники",
+      "⬅️ До зали"
     ]);
-    expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual(["👥 Учасники"]);
+    expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual([
+      "👥 Учасники",
+      "⬅️ До зали"
+    ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([
-      "👥 Учасники"
+      "👥 Учасники",
+      "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("pending"))).toEqual([
       "🍺 Перевірити бочку",
-      "👥 Учасники"
+      "👥 Учасники",
+      "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildTavernResultKeyboard("pending"))).toEqual([
       "v1:tavern:raid",
-      "v1:tavern:participants"
+      "v1:tavern:participants",
+      "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildTavernParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
     expect(flatInlineButtonCallbacks(buildTavernParticipantsKeyboard())).toEqual(["v1:place:barrel"]);
@@ -103,15 +110,18 @@ describe("main menu and scene keyboards", () => {
       "🌯 Тицьнути шаурму",
       "📋 Попросити чек",
       "🏃 Обережно відступити",
-      "👥 Учасники"
+      "👥 Учасники",
+      "⬅️ До столу"
     ];
 
     expect(flatInlineButtonTexts(buildAdventureKeyboard())).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildAdventureResultKeyboard("completed"))).toEqual([
-      "👥 Учасники"
+      "👥 Учасники",
+      "⬅️ До столу"
     ]);
     expect(flatInlineButtonTexts(buildAdventureResultKeyboard("already-completed"))).toEqual([
-      "👥 Учасники"
+      "👥 Учасники",
+      "⬅️ До столу"
     ]);
     expect(flatInlineButtonTexts(buildAdventureParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
     expect(flatInlineButtonCallbacks(buildAdventureParticipantsKeyboard())).toEqual([
@@ -124,16 +134,19 @@ describe("main menu and scene keyboards", () => {
       "🧀 Поставити сирну пастку",
       "🧹 Підмести хоробро",
       "🤝 Домовитись із мишею",
-      "👥 Учасники"
+      "👥 Учасники",
+      "⬅️ До зали"
     ];
 
     expect(flatInlineButtonTexts(buildCellarKeyboard())).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready"))).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("completed"))).toEqual([
-      "👥 Учасники"
+      "👥 Учасники",
+      "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("on-cooldown"))).toEqual([
-      "👥 Учасники"
+      "👥 Учасники",
+      "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildCellarParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
     expect(flatInlineButtonCallbacks(buildCellarParticipantsKeyboard())).toEqual(["v1:quest:cellar"]);
@@ -143,12 +156,15 @@ describe("main menu and scene keyboards", () => {
     const actionButtons = [
       "🗡️ Вдарити",
       "📋 Збити з пантелику чеком",
-      "🏃 Відступити красиво"
+      "🏃 Відступити красиво",
+      "⬅️ До столу"
     ];
 
     expect(flatInlineButtonTexts(buildFightKeyboard())).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildFightResultKeyboard("completed"))).toEqual(actionButtons);
-    expect(flatInlineButtonTexts(buildFightResultKeyboard("already-completed"))).toEqual([]);
+    expect(flatInlineButtonTexts(buildFightResultKeyboard("already-completed"))).toEqual([
+      "⬅️ До столу"
+    ]);
   });
 
   it("builds quest hub buttons from available actions", () => {
