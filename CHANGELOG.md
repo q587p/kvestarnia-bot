@@ -23,7 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Not Included Yet
 - Durable job replay after bot restart/deploy, Redis/BullMQ, horizontal-worker coordination, group raids, PvP, random loot tables, shops, selling, trading, crafting, item instance logic, equipment stat effects, or reward math changes.
 
-## [0.0.15] - 12026-06-13 - Starter Gear Sources
+## [0.0.15] - 12026-06-14 - Starter Gear Sources
 
 ### Added
 - Added three starter gear items with stable content ids, Ukrainian names/descriptions, rarity, slot metadata, and display-only gold values: `item.stamp-of-minor-authority`, `item.apron-of-foam-resistance`, and `item.cork-ring-of-serious-business`.
