@@ -151,7 +151,8 @@ describe("tavern presenter", () => {
     const text = presentTavernRaidPending(pending);
 
     expect(text).toContain("Рейд почався");
-    expect(text).toContain("Поверніться за: <b>8 хв.</b>");
+    expect(text).toContain("Поверніться через <b>8 хв.</b>");
+    expect(text).not.toContain("хв..");
     expect(text).toContain("не видаю нових пригод");
     expect(text).not.toContain("+7 XP");
   });
@@ -166,7 +167,9 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Ви зараз у рейді");
     expect(text).toContain("Інші пригоди тимчасово недоступні");
-    expect(text).toContain("Перевірте бочку за:");
+    expect(text).toContain("Перевірте бочку через <b>1 хв.</b>");
+    expect(text).not.toContain("за:");
+    expect(text).not.toContain("хв..");
   });
 
   it("presents ready-to-complete barrel raid without exact timestamps", () => {
@@ -178,7 +181,7 @@ describe("tavern presenter", () => {
     });
 
     expect(text).toContain("Бочка підозріло притихла");
-    expect(text).toContain("час уже вийшов");
+    expect(text).toContain("Очікування <b>вже скінчилось</b>");
     expect(text).toContain("Натисніть <b>🍺 Перевірити бочку</b>.");
     expect(text).not.toContain("`🍺 Перевірити бочку`");
     expect(text).not.toContain("10:31");

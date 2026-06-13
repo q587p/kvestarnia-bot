@@ -94,7 +94,7 @@ export function presentTavernRaidPending(
     "",
     npcQuote("Корчмар", "Поки ви там, я не видаю нових пригод. У корчмі теж є техніка безпеки."),
     "",
-    `Поверніться за: <b>${formatRaidWait(result.availableAt, result.now)}</b>.`
+    `Поверніться через <b>${formatRaidWait(result.availableAt, result.now)}</b>`
   ].join("\n");
 }
 
@@ -105,7 +105,7 @@ export function presentTavernRaidReadyToComplete(
     "🍺 Бочка підозріло притихла.",
     "Рейд мав уже завершитись. Лишилось урочисто перевірити, хто кого переміг і чому це знову піна.",
     "",
-    `Очікування: <b>${result.availableAt <= result.now ? "час уже вийшов" : formatRaidWait(result.availableAt, result.now)}</b>.`,
+    `Очікування <b>${result.availableAt <= result.now ? "вже скінчилось" : formatRaidWait(result.availableAt, result.now)}</b>`,
     "",
     "Натисніть <b>🍺 Перевірити бочку</b>."
   ].join("\n");
@@ -154,7 +154,7 @@ export function presentPendingRaidActionBlock(
     "🍺 Ви зараз у рейді.",
     "Інші пригоди тимчасово недоступні: Бочка Пінного Міражу не любить, коли її ігнорують посеред драматичної піни.",
     "",
-    `Перевірте бочку за: <b>${formatRaidWait(result.availableAt, result.now)}</b>.`
+    `Перевірте бочку через <b>${formatRaidWait(result.availableAt, result.now)}</b>`
   ].join("\n");
 }
 
