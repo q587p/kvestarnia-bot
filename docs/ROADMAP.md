@@ -101,7 +101,7 @@ Deliverables:
 - Створення, вступ і вихід із ґільдії.
 - XP ґільдії.
 - Бос ґільдії.
-- Дуелі без втрати цінного луту.
+- Бойовий куток: consent-based дуелі з присутніми героями, race/class/stat-залежним random resolve, anti-grind caps і daily/weekly recognition.
 - Season 1 content.
 - Cosmetic titles.
 
@@ -153,6 +153,7 @@ Done when:
 - Вісник ґільдії.
 - Meme item generator with moderation.
 - Рефералка без ігрових бонусів: запрошення для корчемного обліку, внутрішньої статистики й жартів у записах корчмаря про те, хто кого привів.
+- Inline-bot виклики на драку для майбутнього соціяльного PvP: challenge card з інших чатів, але з opt-in, cooldowns і privacy guardrails.
 - Moderation tools for group admins.
 - Web dashboard for balancing.
 

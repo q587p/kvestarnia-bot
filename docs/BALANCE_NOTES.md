@@ -143,6 +143,11 @@ item_power_budget = base_by_level + rarity_bonus
 - Match by level bracket.
 - Soft cap на win streak rewards.
 - Newbie protection до level 5 або перших 48 годин.
+- Для `Бойового кутка` рахувати reward-bearing повтори за ordered або normalized character pair: не більше `3` XP-bearing бійок з тим самим персонажем за день.
+- Per-character daily cap має обмежувати сумарний PvP XP, щоб duel loop не став кращим ґріндом за PvE.
+- Weekly ranking не має бути raw win count: враховувати різних опонентів, win rate, capped score і abuse flags.
+- Race/class edge дозволений і бажаний у тематичних бійках, але симуляції мають ловити крайнощі: воїн-орк може бути фаворитом у кулачній драці, проте бард такого самого рівня не має падати до майже нульового win rate.
+- Daily/weekly нагороди для переможців мають бути переважно cosmetic/social: титул, запис на дошці, маленький bonus payout. Не давати чемпіону предмет або buff, який збільшує наступний PvP snowball.
 
 ## Anti-snowball
 - Рейдові нагороди: участь + performance, але не winner-takes-all.
