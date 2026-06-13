@@ -363,6 +363,13 @@ Future progression pass:
 - Keep the source of truth centralized in progression/effective-stat helpers; presenters, services, and combat/event logic should not each invent their own level math.
 - Add tests around level breakpoints so raising level changes real outcomes, not only displayed summary numbers.
 
+Future social progression boards:
+- Add a durable event/log source for first arrival and level-up milestones instead of deriving them from mutable current character state.
+- Level-up records should be idempotent per `character_id` + reached `level`; repeated reward callbacks must not duplicate the same milestone.
+- The front-of-korchma level board can show recent level-ups plus a ranking by highest reached level. Use deterministic tie-breakers: reached level desc, achieved time asc, then stable `character_id`.
+- Level 10 needs a distinct milestone type or presenter branch so it can be highlighted without hard-coding string searches.
+- Keep these boards as in-game Telegram surfaces near `location.korchma.front`; public web presence must still avoid exposing player names by default.
+
 ## Observability
 Лоґи:
 - `user_id`, `character_id`, `chat_id` — де доречно.

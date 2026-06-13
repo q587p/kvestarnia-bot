@@ -131,6 +131,8 @@ Done when:
 - Collections: «Бестіарій», «Музей Манаток».
 - Level-gated equipment, race/class/path-specific rare items, and safe player-to-player item exchange.
 - Stronger level impact pass for resources, combat, event checks, and activity gates.
+- Надвірний журнал прибулих перед корчмою: пагінований список героїв, які вперше приєдналися або дісталися корчми, щоб зала не перевантажувалась.
+- Надвірна дошка рівневих досягнень: останні level-up записи, рейтинг за досягнутим рівнем і особливе оформлення 10 рівня.
 - Daily tavern rumor.
 - Korchma social treat: пригостити їжею/питвом присутніх у корчмі після появи location presence list.
 - Player titles.
