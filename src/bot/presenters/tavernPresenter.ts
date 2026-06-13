@@ -362,7 +362,7 @@ function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: numbe
 
 function presentTavernPresence(presence: PresenceGroup | null | undefined): string[] {
   if (!presence || presence.total <= 1) {
-    return ["За столами: поки тільки ви й підозрілий єгер у кутку."];
+    return ["За столами: поки тільки ви й підозрілий єгер у кутку біля бочки."];
   }
 
   const people = [...presence.active, ...presence.idle].slice(0, 5);
