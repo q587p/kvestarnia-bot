@@ -20,7 +20,7 @@ export function presentAdventureStart(character: CharacterSummary): string {
 }
 
 export function presentAdventureNoCharacter(): string {
-  return "Спершу створіть героя через /start. Шаурма не розмовляє з анонімами.";
+  return "Спершу створіть пригодника через /start. Шаурма не розмовляє з анонімами.";
 }
 
 export function presentAdventureAlreadyCompleted(
@@ -35,7 +35,7 @@ export function presentAdventureAlreadyCompleted(
   if (result.fightAvailable) {
     lines.push("", "Якщо хочеться ще трохи формальної сутички, можна в /fight.");
   } else {
-    lines.push("", "Повертайтесь завтра або перевірте героя: /hero");
+    lines.push("", "Повертайтесь завтра або перевірте персонажа: /hero");
   }
 
   return lines.join("\n");
@@ -47,7 +47,7 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
       "🌯 Сьогоднішню шаурму вже допитано.",
       "Вона мовчить, але юридично все зрозуміло.",
       "",
-      "Повертайтесь завтра або перевірте героя: /hero"
+      "Повертайтесь завтра або перевірте персонажа: /hero"
     ].join("\n");
   }
 

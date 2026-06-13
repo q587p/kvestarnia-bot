@@ -1,4 +1,4 @@
-import type { Context } from "grammy";
+﻿import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
 import { sendAdventure } from "../../src/bot/commands/adventureCommand";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
@@ -252,7 +252,7 @@ const character: CharacterSummary = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Пересічні Герої",
+  title: "Пересічні Пригодники",
   level: 1,
   xp: 0,
   nextLevelXp: 10,

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { presentInventory } from "../../src/bot/presenters/inventoryPresenter";
 import type { InventoryResult } from "../../src/services/inventoryService";
 
@@ -29,7 +29,7 @@ describe("inventory presenter", () => {
           quantity: 2,
           content: {
             id: "item.wet-hero-ticket",
-            name: "Квиток мокрого героя",
+            name: "Квиток мокрого пригодника",
             description: "Трофей тавернової логістики.",
             rarity: "common",
             slot: "junk",
@@ -42,7 +42,7 @@ describe("inventory presenter", () => {
 
     expect(text).toContain("<b>Манатки</b>");
     expect(text).toContain("Оціночна вартість столу: <b>6 золота</b>");
-    expect(text).toContain("<b>Квиток мокрого героя</b> ×2");
+    expect(text).toContain("<b>Квиток мокрого пригодника</b> ×2");
     expect(text).toContain("<i>Трофей тавернової логістики.</i>");
     expect(text.split("\n").length).toBeLessThanOrEqual(7);
   });
@@ -58,7 +58,7 @@ describe("inventory presenter", () => {
           quantity: 1,
           content: {
             id: "item.wet-hero-ticket",
-            name: "Квиток мокрого героя",
+            name: "Квиток мокрого пригодника",
             description: "Трофей тавернової логістики.",
             rarity: "common",
             slot: "junk",
@@ -68,7 +68,7 @@ describe("inventory presenter", () => {
       ]
     });
 
-    expect(text).toContain("• <b>Квиток мокрого героя</b>");
+    expect(text).toContain("• <b>Квиток мокрого пригодника</b>");
     expect(text).not.toContain("×1");
   });
 });

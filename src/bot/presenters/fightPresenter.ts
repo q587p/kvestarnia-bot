@@ -18,7 +18,7 @@ export function presentFightStart(character: CharacterSummary): string {
 }
 
 export function presentFightNoCharacter(): string {
-  return "Спершу створіть героя через /start. Мімік-шаурма не бʼється з анонімами: погано для бухгалтерії.";
+  return "Спершу створіть пригодника через /start. Мімік-шаурма не бʼється з анонімами: погано для бухгалтерії.";
 }
 
 export function presentFightAlreadyCompleted(
@@ -35,7 +35,7 @@ export function presentFightAlreadyCompleted(
   if (result.questAvailable) {
     lines.push("", "Якщо шаурму ще не допитували, можна в /quest.");
   } else {
-    lines.push("", "Повертайтесь завтра або перевірте героя: /hero");
+    lines.push("", "Повертайтесь завтра або перевірте персонажа: /hero");
   }
 
   return lines.join("\n");

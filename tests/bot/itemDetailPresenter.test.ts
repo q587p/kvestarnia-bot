@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   presentItemDetail,
   presentOwnedItemDetail
@@ -13,7 +13,7 @@ describe("item detail presenter", () => {
         quantity: 2,
         content: {
           id: "item.wet-hero-ticket",
-          name: "Квиток мокрого героя",
+          name: "Квиток мокрого пригодника",
           description: "Трофей корчемної логістики.",
           rarity: "common",
           slot: "junk",
@@ -22,7 +22,7 @@ describe("item detail presenter", () => {
       })
     });
 
-    expect(text).toContain("🔎 <b>Квиток мокрого героя</b>");
+    expect(text).toContain("🔎 <b>Квиток мокрого пригодника</b>");
     expect(text).toContain("Рідкість: <b>звичайна</b>");
     expect(text).toContain("Категорія: <b>трофей / смішний доказ</b>");
     expect(text).toContain("Вартість: <i>безцінна</i>");
@@ -56,7 +56,7 @@ describe("item detail presenter", () => {
       itemSummary({
         content: {
           id: "item.apron-of-foam-resistance",
-          name: "Фартух піностійкого героя",
+          name: "Фартух піностійкого пригодника",
           description: "Пережив бочку.",
           rarity: "common",
           slot: "armor",
@@ -136,7 +136,7 @@ function itemSummary(overrides: Partial<InventoryItemSummary> = {}): InventoryIt
     quantity: 1,
     content: {
       id: "item.wet-hero-ticket",
-      name: "Квиток мокрого героя",
+      name: "Квиток мокрого пригодника",
       description: "Трофей корчемної логістики.",
       rarity: "common",
       slot: "junk",

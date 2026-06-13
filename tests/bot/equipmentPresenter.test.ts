@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { presentEquipment } from "../../src/bot/presenters/equipmentPresenter";
 import type { EquipmentResult } from "../../src/services/equipmentService";
 
@@ -18,7 +18,7 @@ describe("equipment presenter", () => {
     expect(text).not.toContain("🥾 <b>Ноги</b>");
     expect(text).toContain("Бонуси спорядження ще не рахуються");
     expect(text).toContain(
-      "Корчма вже запамʼятовує, що висить на герої.\n\n<i>Бонуси спорядження ще не рахуються.</i>"
+      "Корчма вже запамʼятовує, що висить на пригоднику.\n\n<i>Бонуси спорядження ще не рахуються.</i>"
     );
     expect(text).toContain("HP, мана, бій і нагороди не змінюються");
     expect(text).not.toContain("+2");
@@ -29,7 +29,7 @@ describe("equipment presenter", () => {
     const text = presentEquipment(foundEquipment());
 
     expect(text).toContain("🗡️ <b>Зброя</b>: Пательня переконання");
-    expect(text).toContain("🧥 <b>Тулуб</b>: Фартух піностійкого героя");
+    expect(text).toContain("🧥 <b>Тулуб</b>: Фартух піностійкого пригодника");
     expect(text).toContain("💍 <b>Аксесуар</b>: Корковий перстень серйозних справ");
     expect(text).not.toContain("Пательня переконання — приклад");
   });
@@ -76,7 +76,7 @@ function emptyEquipment(): EquipmentResult {
           itemId: "item.apron-of-foam-resistance",
           content: {
             id: "item.apron-of-foam-resistance",
-            name: "Фартух піностійкого героя",
+            name: "Фартух піностійкого пригодника",
             description: "Пережив бочку.",
             rarity: "common",
             slot: "armor",
@@ -128,7 +128,7 @@ function foundEquipment(): EquipmentResult {
           itemId: "item.apron-of-foam-resistance",
           content: {
             id: "item.apron-of-foam-resistance",
-            name: "Фартух піностійкого героя",
+            name: "Фартух піностійкого пригодника",
             description: "Пережив бочку.",
             rarity: "common",
             slot: "armor",

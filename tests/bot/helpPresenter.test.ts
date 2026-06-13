@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { presentHelp } from "../../src/bot/presenters/helpPresenter";
 
 describe("help presenter", () => {
@@ -30,7 +30,7 @@ describe("help presenter", () => {
     expect(text).toContain("/news");
     expect(text).toContain("/help");
     expect(text).not.toContain("/dev_reset_me");
-    expect(text).toContain("👤 /hero, /profile, /me — герой і прогрес");
+    expect(text).toContain("👤 /hero, /profile, /me — персонаж і прогрес");
     expect(text).toContain("🍺 /tavern, /raid — корчма й рейд на бочку");
     expect(text).toContain("🗺️ /quest — стіл зі справами");
     expect(text).toContain("🌯 /adventure — пригода з шаурмою");

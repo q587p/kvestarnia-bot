@@ -28,14 +28,14 @@ export function presentHero(
     "",
     `🪙 Золото: <b>${summary.gold}</b> <i>${presentWealthAside(summary.gold, inventoryGoldValue)}</i>`,
     "",
-    `Зараз герой тут: <b>${escapeHtml(getLocationName(summary.currentLocationId ?? ""))}</b>.`,
+    `Зараз пригодник тут: <b>${escapeHtml(getLocationName(summary.currentLocationId ?? ""))}</b>.`,
     "",
     "<i>Далі: /tavern, /quest або /fight.</i>"
   ].join("\n");
 }
 
 export function presentHeroMissing(): string {
-  return "Героя ще немає. Напишіть /start, і Квестарня знайде вам куток біля каміна.";
+  return "Пригодника ще немає. Напишіть /start, і Квестарня знайде вам куток біля каміна.";
 }
 
 function presentWealthAside(gold: number, inventoryGoldValue: number): string {

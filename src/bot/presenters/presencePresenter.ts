@@ -10,7 +10,7 @@ import { escapeHtml } from "./telegramHtml";
 
 export function presentOnline(snapshot: OnlineSnapshot): string {
   if (snapshot.state === "no-character") {
-    return "Спершу створіть героя через /start. Квестарня не рахує тіні без анкети.";
+    return "Спершу створіть пригодника через /start. Квестарня не рахує тіні без анкети.";
   }
 
   const lines = [
@@ -32,7 +32,7 @@ export function presentOnline(snapshot: OnlineSnapshot): string {
 
 export function presentLook(snapshot: LookSnapshot): string {
   if (snapshot.state === "no-character") {
-    return "Спершу створіть героя через /start. Озиратися без анкети можна, але корчмар не поставить печатку.";
+    return "Спершу створіть пригодника через /start. Озиратися без анкети можна, але корчмар не поставить печатку.";
   }
 
   return [
@@ -46,7 +46,7 @@ export function presentLook(snapshot: LookSnapshot): string {
 
 export function presentParticipants(snapshot: ParticipantsSnapshot): string {
   if (snapshot.state === "no-character") {
-    return "Спершу створіть героя через /start. У списки учасників без героя не вписують.";
+    return "Спершу створіть пригодника через /start. У списки учасників без пригодника не вписують.";
   }
 
   const title =

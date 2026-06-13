@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   presentTavern,
   presentTavernAlreadyRaided,
@@ -27,7 +27,7 @@ const character: CharacterSummary = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Пересічний Герой",
+  title: "Пересічний Пригодник",
   level: 1,
   xp: 7,
   nextLevelXp: 10,
@@ -65,7 +65,7 @@ describe("tavern presenter", () => {
     const text = presentKorchmaHall(character);
 
     expect(text).toContain("Зала корчми");
-    expect(text).toContain("<b>Мандрівник</b> · <i>Пересічний Герой</i>");
+    expect(text).toContain("<b>Мандрівник</b> · <i>Пересічний Пригодник</i>");
     expect(text).toContain("Корчма Квестарні");
     expect(text).toContain(
       "без нагляду.\n\nПраворуч стоїть <i>Стіл зі справами</i>"
@@ -158,14 +158,14 @@ describe("tavern presenter", () => {
     const text = presentTavern({
       ...character,
       name: "<b>Мандрівник</b>",
-      title: "<i>Пересічний Герой</i>"
+      title: "<i>Пересічний Пригодник</i>"
     });
 
     expect(text).toContain(
-      "<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b> · <i>&lt;i&gt;Пересічний Герой&lt;/i&gt;</i>"
+      "<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b> · <i>&lt;i&gt;Пересічний Пригодник&lt;/i&gt;</i>"
     );
     expect(text).not.toContain("<b>Мандрівник</b>");
-    expect(text).not.toContain("<i>Пересічний Герой</i>");
+    expect(text).not.toContain("<i>Пересічний Пригодник</i>");
   });
 
   it("prompts /start when no character exists", () => {
@@ -175,7 +175,7 @@ describe("tavern presenter", () => {
   it("shows a different tavern screen after the current raid period is already done", () => {
     const text = presentTavernAlreadyRaided(character);
 
-    expect(text).toContain("Бочка Пінного Міражу в цьому відтинку вже пережила ваш героїзм");
+    expect(text).toContain("Бочка Пінного Міражу в цьому відтинку вже пережила ваше втручання");
     expect(text).toContain("Єгер у капюшоні все ще сидить у кутку");
     expect(text).toContain("Лічильник клацне на 23-й хвилині");
     expect(text).not.toContain("За столами:");
@@ -195,7 +195,7 @@ describe("tavern presenter", () => {
         itemGrants: [
           {
             itemId: "item.wet-hero-ticket",
-            name: "Квиток мокрого героя",
+            name: "Квиток мокрого пригодника",
             quantity: 1
           }
         ]
@@ -214,7 +214,7 @@ describe("tavern presenter", () => {
 
     expect(presentTavernRaidResult(completed)).toContain("<b>+7 XP · +5 золота</b>");
     expect(presentTavernRaidResult(completed)).toContain(
-      "Здобуто: <i>Квиток мокрого героя</i>"
+      "Здобуто: <i>Квиток мокрого пригодника</i>"
     );
     expect(presentTavernRaidResult(completed)).not.toContain("×1");
     expect(presentTavernRaidResult(repeated)).toContain("уже зараховано");

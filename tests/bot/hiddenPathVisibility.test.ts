@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   presentCharacterCreated,
   presentCharacterSummary,
@@ -20,7 +20,7 @@ const summary: CharacterSummary = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Пересічний Герой",
+  title: "Пересічний Пригодник",
   level: 1,
   xp: 0,
   nextLevelXp: 10,

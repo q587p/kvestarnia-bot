@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import type {
   CharacterItemRecord,
   InventoryRepository
@@ -44,7 +44,7 @@ describe("InventoryService", () => {
         itemId: "item.wet-hero-ticket",
         quantity: 2,
         content: {
-          name: "Квиток мокрого героя"
+          name: "Квиток мокрого пригодника"
         }
       });
       expect(result.totalGoldValue).toBe(0);
@@ -101,7 +101,7 @@ describe("InventoryService", () => {
       item: {
         itemId: "item.wet-hero-ticket",
         content: {
-          name: "Квиток мокрого героя"
+          name: "Квиток мокрого пригодника"
         }
       }
     });

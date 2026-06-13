@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   presentCellarCooldown,
   presentCellarResult,
@@ -98,7 +98,7 @@ describe("cellar presenter", () => {
 
     expect(bisynyTrap).toContain("термінологію");
     expect(mageSweep).toContain("прогноз");
-    expect(heroineSweep).toContain("Героїня");
+    expect(heroineSweep).toContain("Пригодниця");
   });
 
   it("renders cooldown without exact timestamp", () => {
@@ -120,7 +120,7 @@ const character = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Пересічні Герої",
+  title: "Пересічні Пригодники",
   level: 1,
   xp: 0,
   nextLevelXp: 10,

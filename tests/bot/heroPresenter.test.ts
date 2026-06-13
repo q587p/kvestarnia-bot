@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { presentHero, presentHeroMissing } from "../../src/bot/presenters/heroPresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
@@ -12,7 +12,7 @@ const summary: CharacterSummary = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Пересічний Герой",
+  title: "Пересічний Пригодник",
   level: 2,
   xp: 15,
   nextLevelXp: 25,
@@ -49,8 +49,8 @@ describe("hero presenter", () => {
     expect(text).toContain("Воїн");
     expect(text).not.toContain("Звертання:");
     expect(text).not.toContain("Стать:");
-    expect(text).toContain("Титул: <i>Пересічний Герой</i>");
-    expect(text).toContain("Титул: <i>Пересічний Герой</i>\n\nРівень");
+    expect(text).toContain("Титул: <i>Пересічний Пригодник</i>");
+    expect(text).toContain("Титул: <i>Пересічний Пригодник</i>\n\nРівень");
     expect(text).toContain("Рівень <b>2</b> · XP 15 · до наступного: 10 XP");
     expect(text).not.toContain("до рівня 3");
     expect(text).not.toContain("XP 15 · до наступного: 10 XP · золото");
@@ -62,9 +62,9 @@ describe("hero presenter", () => {
     expect(text).toContain("Вдача 6");
     expect(text).not.toContain("Ріст рівня:");
     expect(text).toContain(
-      "\n\n🪙 Золото: <b>12</b> <i>(а в манатках ще 0; торба чесна, аж нудно)</i>\n\nЗараз герой тут:"
+      "\n\n🪙 Золото: <b>12</b> <i>(а в манатках ще 0; торба чесна, аж нудно)</i>\n\nЗараз пригодник тут:"
     );
-    expect(text).toContain("\n\nЗараз герой тут: <b>Підвал корчми</b>.");
+    expect(text).toContain("\n\nЗараз пригодник тут: <b>Підвал корчми</b>.");
     expect(text).toContain("<i>Далі: /tavern, /quest або /fight.</i>");
     expect(text).not.toContain("/adventure або /fight");
     expect(text).toContain("\n\nТитул:");

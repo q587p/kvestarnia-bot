@@ -131,12 +131,12 @@ describe("TavernRaidService", () => {
       expect(first.reward.itemGrants).toEqual([
         {
           itemId: "item.apron-of-foam-resistance",
-          name: "Фартух піностійкого героя",
+          name: "Фартух піностійкого пригодника",
           quantity: 1
         },
         {
           itemId: "item.wet-hero-ticket",
-          name: "Квиток мокрого героя",
+          name: "Квиток мокрого пригодника",
           quantity: 1
         },
         {

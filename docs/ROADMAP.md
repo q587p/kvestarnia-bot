@@ -54,7 +54,7 @@ Current repeatable slice:
 - Cooldown lives in SQLite `character_cooldowns`, not Redis.
 - `0.0.11` adds a compact `Стіл зі справами` quest hub for `/quest`, `🗺️ Квест`, daily shawarma, fight probe, and cellar fallback.
 - `/cellar` exists only as a secondary fallback command; more repeatable activities and a full activity refactor remain later work.
-- Корчемний рейд у `0.0.11` отримав pending state на випадкові 5–8 хвилин: герой «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
+- Корчемний рейд у `0.0.11` отримав pending state на випадкові 5–8 хвилин: пригодник «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
 - A future progression/balance pass should make level matter more strongly in HP, mana, combat math, event checks, content gates, and reward-facing decisions.
 
 ## Phase 2 — Group hook
@@ -102,7 +102,7 @@ Deliverables:
 - Створення, вступ і вихід із ґільдії.
 - XP ґільдії.
 - Бос ґільдії.
-- Бойовий куток: consent-based дуелі з присутніми героями, race/class/stat-залежним random resolve, anti-grind caps і daily/weekly recognition.
+- Бойовий куток: consent-based дуелі з присутніми пригодниками, race/class/stat-залежним random resolve, anti-grind caps і daily/weekly recognition.
 - Season 1 content.
 - Cosmetic titles.
 
@@ -145,9 +145,9 @@ Done when:
 - Class/race/combo-aware combat actions: multiple attack variants, visible mana costs for spells, fallback actions when mana is low, and equipment/effective-stats integration so манатки eventually shape the numbers.
 - Epic levels `11-20`: milestone abilities for races/classes in the spirit of Munchkin-style extra tricks, with visible text flavor and tested balance guardrails.
 - Real time-of-day modifiers for tagged enemies and scenes: night strengthens night/dark enemies, while morning/day/evening can affect other encounter types without exposing exact timestamps.
-- Надвірний журнал прибулих перед корчмою: пагінований список героїв, які вперше приєдналися або дісталися корчми, щоб зала не перевантажувалась.
+- Надвірний журнал прибулих перед корчмою: пагінований список пригодників, які вперше приєдналися або дісталися корчми, щоб зала не перевантажувалась.
 - Надвірна дошка рівневих досягнень: останні level-up записи, рейтинг за досягнутим рівнем і особливе оформлення 10 рівня.
-- Стікерпак для level-up: коли герой бере новий рівень, бот зможе надсилати коротке привітання стікером перед або після текстового святкування.
+- Стікерпак для level-up: коли персонаж бере новий рівень, бот зможе надсилати коротке привітання стікером перед або після текстового святкування.
 - Daily tavern rumor.
 - Корчемне соціяльне частування: пригостити їжею/питвом присутніх у корчмі після появи location presence list.
 - Player titles.

@@ -27,7 +27,7 @@ export const items = [
   },
   {
     id: "item.apron-of-foam-resistance",
-    name: "Фартух піностійкого героя",
+    name: "Фартух піностійкого пригодника",
     description: "Пережив бочку, підлогу й погляд корчмаря. Тепер вимагає окремого гачка.",
     rarity: "common",
     slot: "armor",
@@ -67,7 +67,7 @@ export const items = [
   },
   {
     id: "item.wet-hero-ticket",
-    name: "Квиток мокрого героя",
+    name: "Квиток мокрого пригодника",
     description: "Трофей тавернової логістики. Трохи пахне перемогою і підлогою.",
     rarity: "common",
     slot: "junk",

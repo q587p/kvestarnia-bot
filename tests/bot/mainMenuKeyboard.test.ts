@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   buildAdventureParticipantsKeyboard,
   buildAdventureKeyboard,
@@ -91,7 +91,7 @@ describe("main menu and scene keyboards", () => {
   it("uses icons for destructive confirmation keyboards", () => {
     expect(flatInlineButtonTexts(buildRestartKeyboard())).toEqual([
       "🔄 Так, почати з початку",
-      "⬅️ Ні, лишити героя"
+      "⬅️ Ні, лишити персонажа"
     ]);
     expect(flatInlineButtonTexts(buildDevResetKeyboard())).toEqual([
       "✅ Так, скинути",
@@ -202,7 +202,7 @@ describe("main menu and scene keyboards", () => {
               quantity: 1,
               content: {
                 id: "item.wet-hero-ticket",
-                name: "Квиток мокрого героя",
+                name: "Квиток мокрого пригодника",
                 description: "Трофей.",
                 rarity: "common",
                 slot: "junk",
@@ -212,7 +212,7 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["🛡️ Спорядження", "🔎 Квиток мокрого героя"]);
+    ).toEqual(["🛡️ Спорядження", "🔎 Квиток мокрого пригодника"]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard({
@@ -225,7 +225,7 @@ describe("main menu and scene keyboards", () => {
               quantity: 1,
               content: {
                 id: "item.wet-hero-ticket",
-                name: "Квиток мокрого героя",
+                name: "Квиток мокрого пригодника",
                 description: "Трофей.",
                 rarity: "common",
                 slot: "junk",
@@ -354,7 +354,7 @@ const character = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Пересічні Герої",
+  title: "Пересічні Пригодники",
   level: 1,
   xp: 0,
   nextLevelXp: 10,

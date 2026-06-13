@@ -17,7 +17,7 @@ export function presentItemDetail(
   options: ItemDetailOptions = {}
 ): string {
   if (result.state === "no-character") {
-    return "Спершу створіть героя через /start. Манатки не довіряють порожнім торбам.";
+    return "Спершу створіть пригодника через /start. Манатки не довіряють порожнім торбам.";
   }
 
   if (result.state === "not-owned") {

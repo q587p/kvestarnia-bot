@@ -3,7 +3,7 @@ import { makeDevResetCallbackData } from "../callbacks/devResetCallbackData";
 import { makeRestartCallbackData } from "../callbacks/restartCallbackData";
 
 export const mainMenuButtons = {
-  hero: "👤 Герой",
+  hero: "👤 Персонаж",
   tavern: "🍺 Корчма",
   quest: "🗺️ Квест",
   inventory: "🎒 Манатки",
@@ -36,5 +36,5 @@ export function buildRestartKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("🔄 Так, почати з початку", makeRestartCallbackData("confirm"))
     .row()
-    .text("⬅️ Ні, лишити героя", makeRestartCallbackData("cancel"));
+    .text("⬅️ Ні, лишити персонажа", makeRestartCallbackData("cancel"));
 }

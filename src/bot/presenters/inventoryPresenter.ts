@@ -4,7 +4,7 @@ import { escapeHtml } from "./telegramHtml";
 
 export function presentInventory(result: InventoryResult): string {
   if (result.state === "no-character") {
-    return "Спершу створіть героя через /start. Манатки не люблять порожніх біографій.";
+    return "Спершу створіть пригодника через /start. Манатки не люблять порожніх біографій.";
   }
 
   if (result.state === "empty") {
@@ -18,7 +18,7 @@ export function presentInventory(result: InventoryResult): string {
 
   return [
     "🎒 <b>Манатки</b>",
-    "Герой розклав здобич на столі. Стіл попросив надбавку.",
+    "Пригодник розклав здобич на столі. Стіл попросив надбавку.",
     `Оціночна вартість столу: <b>${result.totalGoldValue} золота</b>. Стіл уже поводиться як фінансовий радник.`,
     "",
     ...result.items.flatMap((item) => [

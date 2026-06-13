@@ -13,7 +13,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added three starter gear items with stable content ids, Ukrainian names/descriptions, rarity, slot metadata, and display-only gold values: `item.stamp-of-minor-authority`, `item.apron-of-foam-resistance`, and `item.cork-ring-of-serious-business`.
 - `/fight` receipt handling can now grant `item.stamp-of-minor-authority` alongside the formal receipt trophy.
 - The cellar negotiation route can now grant `item.cork-ring-of-serious-business` alongside the mouse diplomacy napkin.
-- The Barrel raid completion can now grant `item.apron-of-foam-resistance` alongside the wet hero ticket.
+- The Barrel raid completion can now grant `item.apron-of-foam-resistance` alongside the wet adventurer ticket.
 - Barrel raid results can now include one deterministic rotating junk trophy: `item.barrel-splinter-of-optimism`, `item.foam-cork-of-accounting`, or `item.mirage-foam-sample`.
 - Pending Barrel raids now schedule an in-process Telegram completion notification, so the player can wait without manually polling the button.
 - Tests cover new item ids, value/priceless metadata, no stat/effect fields, deterministic item grants, equipment mapping for reachable weapon/armor/accessory gear, item detail wording, equipment slots, and inventory valuation.
@@ -23,13 +23,13 @@ This project follows a simple pre-1.0 versioning policy:
 - The current deterministic starter loop now reaches weapon, armor, and accessory examples without seeded/dev inventory.
 - Barrel raids are now gated by hourly Kyiv-local raid periods that flip on the 23rd minute instead of by one daily claim. New starts pause from 04:00 through 08:00 Kyiv time for korchma accounting.
 - The front-of-korchma screen now lists the main interior destinations and includes a `/tavern` fallback line in case Telegram hides an old inline button.
-- Hero profile resource line now marks HP and mana with `❤️` and `🔮` icons for faster scanning.
-- Korchma hall presence now says `поки тільки ви` only when the player is truly the sole active person inside, otherwise it summarizes active and idle heroes across interior korchma zones.
+- Character profile resource line now marks HP and mana with `❤️` and `🔮` icons for faster scanning.
+- Korchma hall presence now says `поки тільки ви` only when the player is truly the sole active person inside, otherwise it summarizes active and idle adventurers across interior korchma zones.
 - Korchma round results now separate the toast, beer description, and ranger reaction with blank lines for easier Telegram reading.
 - Barrel scene and active raid messages now separate paragraphs; active raids also show character-aware and universal advice before the return timer and vary the hooded ranger’s action line.
-- Adventure and cellar action prompts now bold the hero name before `що робимо?`.
-- Hero wealth line now uses separate jokes for empty gold, empty inventory value, and truly empty pockets while still showing both numbers.
-- Korchma scene headers now render the hero name in bold and the title in italics.
+- Adventure and cellar action prompts now bold the adventurer name before `що робимо?`.
+- Character wealth line now uses separate jokes for empty gold, empty inventory value, and truly empty pockets while still showing both numbers.
+- Korchma scene headers now render the adventurer name in bold and the title in italics.
 
 ### Not Included Yet
 - Stat effects, HP/mana/combat/XP/gold math changes, random loot tables, shops, selling, trading, crafting, item-to-level exchange, or item instance logic.

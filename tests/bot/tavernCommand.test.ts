@@ -1,4 +1,4 @@
-import type { Context } from "grammy";
+﻿import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { sendKorchmaFront, sendTavern } from "../../src/bot/commands/tavernCommand";
@@ -56,7 +56,7 @@ const character: CharacterSummary = {
   raceName: "Людисько",
   classId: "class.warrior",
   className: "Воїн",
-  title: "Герої місцевого значення",
+  title: "Пригодники місцевого значення",
   level: 1,
   xp: 0,
   nextLevelXp: 10,
