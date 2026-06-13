@@ -33,9 +33,9 @@ export const FRIDAY_BARREL_RAID_REWARD_GOLD = 5;
 export const FRIDAY_BARREL_RAID_MIN_WAIT_MINUTES = 5;
 export const FRIDAY_BARREL_RAID_MAX_WAIT_MINUTES = 8;
 export const BARREL_RAID_PERIOD_START_MINUTE = 23;
-export const BARREL_RAID_AUDIT_BREAK_START_HOUR = 4;
-export const BARREL_RAID_AUDIT_BREAK_END_HOUR = 8;
-export const BARREL_RAID_TIME_ZONE = "UTC";
+export const BARREL_RAID_AUDIT_BREAK_START_HOUR = 3;
+export const BARREL_RAID_AUDIT_BREAK_END_HOUR = 7;
+export const BARREL_RAID_TIME_ZONE = "Europe/Kyiv";
 export const KORCHMA_SIMPLE_ROUND_COST = 10;
 export const KORCHMA_FINE_ROUND_COST = 100;
 
@@ -510,25 +510,21 @@ function buildFridayBarrelRaidPendingKey(localDate: string): string {
 }
 
 export function getBarrelRaidPeriod(now: Date): BarrelRaidPeriod {
-  let startsAtMs = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-    now.getUTCHours(),
-    BARREL_RAID_PERIOD_START_MINUTE,
-    0,
-    0
-  );
+  const wall = getKorchmaWallParts(now);
+  let startsAt = getDateFromKorchmaWallParts({
+    ...wall,
+    minute: BARREL_RAID_PERIOD_START_MINUTE,
+    second: 0
+  });
 
-  if (now.getUTCMinutes() < BARREL_RAID_PERIOD_START_MINUTE) {
-    startsAtMs -= HOUR_MS;
+  if (wall.minute < BARREL_RAID_PERIOD_START_MINUTE) {
+    startsAt = new Date(startsAt.getTime() - HOUR_MS);
   }
 
-  const startsAt = new Date(startsAtMs);
-  const endsAt = new Date(startsAtMs + HOUR_MS);
+  const endsAt = new Date(startsAt.getTime() + HOUR_MS);
 
   return {
-    id: formatKorchmaPeriodId(getUtcWallParts(startsAt)),
+    id: formatKorchmaPeriodId(getKorchmaWallParts(startsAt)),
     startsAt,
     endsAt
   };
@@ -551,32 +547,18 @@ function getRecentBarrelRaidPeriods(period: BarrelRaidPeriod, count: number): Ba
 }
 
 export function isBarrelRaidAuditBreak(now: Date): boolean {
-  const hour = now.getUTCHours();
-
-  if (hour < BARREL_RAID_AUDIT_BREAK_START_HOUR || hour > BARREL_RAID_AUDIT_BREAK_END_HOUR) {
-    return false;
-  }
-
-  if (hour < BARREL_RAID_AUDIT_BREAK_END_HOUR) {
-    return true;
-  }
-
-  return now.getUTCMinutes() < BARREL_RAID_PERIOD_START_MINUTE;
+  const { hour } = getKorchmaWallParts(now);
+  return hour >= BARREL_RAID_AUDIT_BREAK_START_HOUR && hour < BARREL_RAID_AUDIT_BREAK_END_HOUR;
 }
 
 export function getNextBarrelRaidAvailableAt(now: Date): Date {
   if (isBarrelRaidAuditBreak(now)) {
-    return new Date(
-      Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate(),
-        BARREL_RAID_AUDIT_BREAK_END_HOUR,
-        BARREL_RAID_PERIOD_START_MINUTE,
-        0,
-        0
-      )
-    );
+    return getDateFromKorchmaWallParts({
+      ...getKorchmaWallParts(now),
+      hour: BARREL_RAID_AUDIT_BREAK_END_HOUR,
+      minute: 0,
+      second: 0
+    });
   }
 
   const current = getBarrelRaidPeriod(now);
@@ -619,15 +601,54 @@ interface KorchmaLocalParts {
   second: number;
 }
 
-function getUtcWallParts(date: Date): KorchmaLocalParts {
+function getKorchmaWallParts(date: Date): KorchmaLocalParts {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BARREL_RAID_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date);
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number(part.value)])
+  );
+
   return {
-    year: date.getUTCFullYear(),
-    month: date.getUTCMonth() + 1,
-    day: date.getUTCDate(),
-    hour: date.getUTCHours(),
-    minute: date.getUTCMinutes(),
-    second: date.getUTCSeconds()
+    year: values.year ?? 0,
+    month: values.month ?? 0,
+    day: values.day ?? 0,
+    hour: values.hour ?? 0,
+    minute: values.minute ?? 0,
+    second: values.second ?? 0
   };
+}
+
+function getDateFromKorchmaWallParts(parts: KorchmaLocalParts): Date {
+  const targetWallMs = wallPartsToUtcMs(parts);
+  let instant = new Date(targetWallMs);
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const actualWallMs = wallPartsToUtcMs(getKorchmaWallParts(instant));
+    const offset = targetWallMs - actualWallMs;
+
+    if (offset === 0) {
+      return instant;
+    }
+
+    instant = new Date(instant.getTime() + offset);
+  }
+
+  return instant;
+}
+
+function wallPartsToUtcMs(parts: KorchmaLocalParts): number {
+  return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second, 0);
 }
 
 function formatKorchmaPeriodId(parts: KorchmaLocalParts): string {

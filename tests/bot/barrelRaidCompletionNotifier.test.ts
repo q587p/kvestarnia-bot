@@ -81,8 +81,8 @@ describe("barrel raid completion notifier", () => {
       result: {
         state: "audit-break",
         character,
-        now: new Date("2026-06-13T04:30:00.000Z"),
-        nextAvailableAt: new Date("2026-06-13T08:23:00.000Z")
+        now: new Date("2026-06-13T00:30:00.000Z"),
+        nextAvailableAt: new Date("2026-06-13T04:00:00.000Z")
       } satisfies TavernRaidResult
     },
     {

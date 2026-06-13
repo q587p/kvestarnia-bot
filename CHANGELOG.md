@@ -15,8 +15,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added tests for `/`, `/news`, `/health`, news parsing/rendering and the existing public presence privacy behavior.
 
 ### Changed
-- Barrel raid period ids are now explicitly server-clock korchma buckets in `UTC` that flip exactly on the 23rd minute. The audit break blocks new starts from 04:00 through 08:22:59 by that same clock and opens at 08:23.
-- Player-facing audit-break wording now avoids implying Kyiv-local wall-clock time and leans on relative wait copy.
+- Barrel raid period ids are now explicitly Kyiv-local korchma buckets that flip on the 23rd minute. The audit break blocks new starts from 03:00 to 07:00 Kyiv time.
+- Player-facing audit-break wording now names the Kyiv korchma time basis and avoids tiny second-level boundary copy.
 - Barrel raid completion notifications now go through a small scheduler helper with one timer per `chatId + telegramUserId + periodId`, while the service reward claim remains the source of truth.
 - Kept `/health` as the text/plain Render healthcheck while moving the public project surface to `/`.
 
@@ -44,7 +44,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Item detail flavor now gives armor and accessories their own tiny equipment-preview jokes instead of sharing one generic non-weapon line.
 - The current deterministic starter loop now reaches weapon, armor, and accessory examples without seeded/dev inventory.
-- Barrel raids are now gated by hourly Kyiv-local raid periods that flip on the 23rd minute instead of by one daily claim. New starts pause from 04:00 through 08:00 Kyiv time for korchma accounting.
+- Barrel raids are now gated by hourly Kyiv-local raid periods that flip on the 23rd minute instead of by one daily claim. New starts pause from 03:00 to 07:00 Kyiv time for korchma accounting.
 - The front-of-korchma screen now lists the main interior destinations and includes a `/tavern` fallback line in case Telegram hides an old inline button.
 - The front-of-korchma screen now points to the arrivals plaque; the full first-arrival log remains future scope until there is a durable event source.
 - Character profile resource line now marks HP and mana with `❤️` and `🔮` icons for faster scanning.
