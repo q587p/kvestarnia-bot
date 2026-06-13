@@ -15,7 +15,7 @@ export function presentAdventureStart(character: CharacterSummary): string {
     npcQuote("Корчмар", "То не моя."),
     ...flavor,
     "",
-    `${escapeHtml(character.name)}, що робимо?`
+    `<b>${escapeHtml(character.name)}</b>, що робимо?`
   ].join("\n");
 }
 

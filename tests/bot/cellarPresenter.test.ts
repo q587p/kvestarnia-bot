@@ -48,8 +48,8 @@ describe("cellar presenter", () => {
       }
     });
 
-    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;, що робимо?");
-    expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
+    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
+    expect(text).not.toContain("<b><b>Мандрівник</b></b>, що робимо?");
   });
 
   it("renders completed result with reward and no exact timestamp", () => {

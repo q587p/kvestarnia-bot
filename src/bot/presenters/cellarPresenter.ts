@@ -21,7 +21,7 @@ export function presentCellarStart(
     npcQuote("Миша", selectCellarStartMouseQuote(result.character)),
     ...presentCharacterFlavor(result.character, "quest.start", "cellar"),
     "",
-    `${escapeHtml(result.character.name)}, що робимо?`
+    `<b>${escapeHtml(result.character.name)}</b>, що робимо?`
   ].join("\n");
 }
 

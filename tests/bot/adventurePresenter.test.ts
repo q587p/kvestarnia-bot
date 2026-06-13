@@ -72,8 +72,8 @@ describe("adventure presenter", () => {
       name: "<b>Мандрівник</b>"
     });
 
-    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;, що робимо?");
-    expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
+    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
+    expect(text).not.toContain("<b><b>Мандрівник</b></b>, що робимо?");
   });
 
   it("prompts /start when no character exists", () => {
