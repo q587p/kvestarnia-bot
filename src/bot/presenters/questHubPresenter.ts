@@ -53,12 +53,12 @@ function presentAdventureRow(
 
 function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string {
   if (fight.state === "level-retired") {
-    return `⚔️ <i>Сутичка з підозрілим монстром</i> — тренувальний бій для 1-${fight.maxLevel} рівнів.`;
+    return `⚔️ <i>Сутичка з невідомим монстром</i> — тренувальний бій для 1-${fight.maxLevel} рівнів.`;
   }
 
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
 
-  return `⚔️ <i>Сутичка з підозрілим монстром</i> — ${status}.`;
+  return `⚔️ <i>Сутичка з невідомим монстром</i> — ${status}.`;
 }
 
 function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" }>): string {
@@ -90,7 +90,7 @@ function presentCellarRow(
   }
 
   if (cellar.state === "ready") {
-    return "🧹 <i>Підвальна справа</i> — миша знову приймає аргументи.";
+    return "🧹 <i>Підвальна справа</i> — миша приймає аргументи.";
   }
 
   return `🧹 <i>Підвальна справа</i> — пауза ще ${formatCooldown(cellar.availableAt, cellar.now)}.`;
