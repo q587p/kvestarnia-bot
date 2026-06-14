@@ -15,7 +15,7 @@ describe("presence presenter", () => {
     const text = presentOnline(onlineSnapshot);
 
     expect(text).toContain("👥 У грі зараз: 3");
-    expect(text).toContain("📍 У цій місцині: 2");
+    expect(text).toContain("📍 Зала корчми: 2");
     expect(text).toContain("— 587");
     expect(text).toContain("— Дара");
     expect(text).toContain("🍺 У рейді «Бочка Пінного Міражу»: 2");
@@ -41,7 +41,7 @@ describe("presence presenter", () => {
       activity: null
     });
 
-    expect(text).toContain("📍 У цій місцині: тільки ти.");
+    expect(text).toContain("📍 Зала корчми: тільки ти.");
     expect(text).toContain("🍺 Активного рейду зараз немає.");
   });
 

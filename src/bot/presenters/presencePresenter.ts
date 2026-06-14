@@ -19,7 +19,7 @@ export function presentOnline(snapshot: OnlineSnapshot): string {
   const lines = [
     `👥 У грі зараз: ${snapshot.globalTotal}`,
     "",
-    ...presentLocationBlock(snapshot.location.people)
+    ...presentLocationBlock(snapshot.location.name, snapshot.location.people)
   ];
 
   lines.push("");
@@ -89,12 +89,15 @@ export function presentCompactPresenceLine(group: PresenceGroup): string {
   return `👥 Тут: ${parts.join(", ")}.`;
 }
 
-function presentLocationBlock(group: PresenceGroup): string[] {
+function presentLocationBlock(locationName: string, group: PresenceGroup): string[] {
   if (group.total <= 1) {
-    return ["📍 У цій місцині: тільки ти."];
+    return [`📍 ${escapeHtml(locationName)}: тільки ти.`];
   }
 
-  return [`📍 У цій місцині: ${group.total}`, ...presentPeople([...group.active, ...group.idle])];
+  return [
+    `📍 ${escapeHtml(locationName)}: ${group.total}`,
+    ...presentPeople([...group.active, ...group.idle])
+  ];
 }
 
 function presentActivitySummary(activity: PresenceActivitySnapshot): string[] {

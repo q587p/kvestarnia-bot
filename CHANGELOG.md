@@ -20,7 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Exported the new combat domain modules from `src/domain/combat` and `src/domain`.
 - Documented that `0.0.20` is the under-the-hood combat engine slice; Telegram `/fight` still uses the existing probe until the next persistent-session PR.
-- Moved visible `👥 Учасники` access from scattered scene inline keyboards into the persistent reply keyboard, backed by the existing `/online` presence snapshot with capped Telegram name lists.
+- Moved visible presence access from scattered scene inline keyboards into the persistent `👀 Хто поруч` reply-keyboard button, backed by the existing `/online` snapshot with capped Telegram name lists.
 
 ### Not Included Yet
 - Telegram command/callback changes, Prisma combat sessions, persistent HP/mana loss, loot grants, equipment stat effects, item-use actions, shops, trading, crafting, PvP, group combat, Redis/jobs, Mini App UI, or bestiary collection UI.

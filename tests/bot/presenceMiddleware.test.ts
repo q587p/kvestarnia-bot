@@ -141,12 +141,12 @@ describe("presence middleware", () => {
     });
   });
 
-  it("marks the participants menu button as a neutral online action", async () => {
+  it("marks the nearby menu button as a neutral online action", async () => {
     const presence = new CapturingPresenceService();
     const bot = createTestBot(presence);
     await bot.init();
 
-    await bot.handleUpdate(messageUpdate("👥 Учасники"));
+    await bot.handleUpdate(messageUpdate("👀 Хто поруч"));
 
     expect(presence.marks).toEqual([
       {

@@ -7,7 +7,7 @@ export const mainMenuButtons = {
   tavern: "🍺 Корчма",
   quest: "🗺️ Квест",
   inventory: "🎒 Манатки",
-  participants: "👥 Учасники",
+  participants: "👀 Хто поруч",
   help: "📖 Допомога"
 } as const;
 

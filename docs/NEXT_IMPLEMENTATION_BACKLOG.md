@@ -186,6 +186,7 @@ Implemented in `0.0.20` as pure domain code. Runtime `/fight` still uses the old
 - group hunts/raids;
 - social player interactions: виклик на дуель у корчемний бійцівський куток, пропозиція всліпу помінятися манатками, маленька інтерактивна міні-гра між гравцями;
 - player influence on hunts: допомогти іншому гравцю закрити полювання або, якщо дуже хочеться бути проблемою, допомогти монстру в межах безпечних anti-abuse rules;
+- activity presence: зберігати й показувати coarse тип поточної дії персонажа, наприклад «чекає бочку», «спілкується з єгерем», «бʼється з монстром», «отримує нагороду»;
 - trading/gifting;
 - shops/selling;
 - crafting/enchant/reroll;
