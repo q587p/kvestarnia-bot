@@ -130,7 +130,12 @@ async function sendText(
     ? {
         parse_mode: "HTML" as const,
         reply_markup:
-          keyboard === "enter-korchma" ? buildKorchmaFrontKeyboard() : buildQuestHubKeyboard(keyboard)
+          keyboard === "enter-korchma"
+            ? buildKorchmaFrontKeyboard()
+            : buildQuestHubKeyboard({
+                ...keyboard,
+                characterLevel: keyboard.character.level
+              })
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
 

@@ -51,8 +51,8 @@ import { parseTavernCallbackData, type TavernCallback } from "./callbacks/tavern
 import { registerAdventureCommand, sendAdventure } from "./commands/adventureCommand";
 import {
   registerBestiaryCommand,
-  sendBestiaryList,
-  sendBestiaryMonster
+  sendBestiaryListGated,
+  sendBestiaryMonsterGated
 } from "./commands/bestiaryCommand";
 import {
   registerCellarCommand,
@@ -213,7 +213,7 @@ export function createBot(token: string, services: BotServices): Bot {
     presence: services.presence,
     tavernRaid: services.tavern
   });
-  registerBestiaryCommand(bot);
+  registerBestiaryCommand(bot, services.hero);
   registerCellarCommand(bot, services.cellarErrand, services.presence, services.tavern);
   registerQuestHubCommand(bot, {
     adventure: services.adventure,
@@ -385,7 +385,7 @@ export function createBot(token: string, services: BotServices): Bot {
       return;
     }
 
-    await handleBestiaryCallback(ctx, parsed.value);
+    await handleBestiaryCallback(ctx, parsed.value, services.hero);
   });
 
   bot.callbackQuery(/^v1:devreset:/, async (ctx) => {
@@ -1534,16 +1534,17 @@ async function handleHuntCallback(
 
 async function handleBestiaryCallback(
   ctx: Context,
-  callback: BestiaryCallback
+  callback: BestiaryCallback,
+  heroService: HeroService
 ): Promise<void> {
   await safeAnswerCallbackQuery(ctx);
 
   if (callback.type === "list") {
-    await sendBestiaryList(ctx, "edit", callback.page);
+    await sendBestiaryListGated(ctx, heroService, "edit", callback.page);
     return;
   }
 
-  await sendBestiaryMonster(ctx, "edit", callback.monsterId, callback.page);
+  await sendBestiaryMonsterGated(ctx, heroService, "edit", callback.monsterId, callback.page);
 }
 
 async function sendLevelUpCelebration(

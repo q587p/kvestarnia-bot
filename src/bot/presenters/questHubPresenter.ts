@@ -3,6 +3,7 @@ import type { AdventureLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { FightLookupResult } from "../../services/fightService";
 import type { HuntLookupResult } from "../../services/huntService";
+import { BESTIARY_MIN_LEVEL, meetsActivityLevel } from "../../domain/progression/activityGates";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export interface QuestHubSnapshot {
@@ -119,6 +120,10 @@ function presentCellarRow(
 function presentQuestHubFooter(snapshot: QuestHubSnapshot): string {
   if (hasReadyQuestAction(snapshot)) {
     return "Оберіть справу, поки вона не обрала вас.";
+  }
+
+  if (!meetsActivityLevel(snapshot.character.level, BESTIARY_MIN_LEVEL)) {
+    return "Справи зараз удають меблі. Можна перевірити манатки або повернутися до зали.";
   }
 
   return "Справи зараз удають меблі. Можна почитати бестіарій, перевірити манатки або повернутися до зали.";

@@ -603,7 +603,14 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
       completeHuntContract: () => Promise.resolve({ state: "no-character" })
     },
     onboarding: {},
-    hero: {},
+    hero: {
+      findByTelegramUserId: () =>
+        Promise.resolve({
+          state: "existing-character",
+          character,
+          inventoryGoldValue: 0
+        })
+    },
     inventory: {},
     presence: new CapturingPresenceService(),
     devReset: {

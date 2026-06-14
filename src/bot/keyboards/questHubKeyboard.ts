@@ -3,12 +3,14 @@ import type { AdventureLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { FightLookupResult } from "../../services/fightService";
 import type { HuntLookupResult } from "../../services/huntService";
+import { BESTIARY_MIN_LEVEL, meetsActivityLevel } from "../../domain/progression/activityGates";
 import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData";
 import { makeMenuCallbackData } from "../callbacks/menuCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 
 export interface QuestHubKeyboardInput {
+  characterLevel?: number;
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
   hunt: Exclude<HuntLookupResult, { state: "no-character" }>;
@@ -52,8 +54,10 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.row();
   }
 
-  keyboard.text("📖 Бестіарій", makeBestiaryListCallbackData(0));
-  keyboard.row();
+  if (canOpenBestiary(input)) {
+    keyboard.text("📖 Бестіарій", makeBestiaryListCallbackData(0));
+    keyboard.row();
+  }
 
   if (!hasReadyQuestAction(input)) {
     keyboard.text("🎒 Манатки", makeMenuCallbackData("inventory"));
@@ -63,6 +67,10 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   keyboard.text("🍺 До зали", makePlaceCallbackData("hall"));
 
   return keyboard;
+}
+
+function canOpenBestiary(input: QuestHubKeyboardInput): boolean {
+  return input.characterLevel === undefined || meetsActivityLevel(input.characterLevel, BESTIARY_MIN_LEVEL);
 }
 
 function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {

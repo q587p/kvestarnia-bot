@@ -38,7 +38,7 @@ describe("help presenter", () => {
     expect(text).toContain("🌯 /adventure — пригода з шаурмою");
     expect(text).toContain("⚔️ /fight — сутичка з монстром");
     expect(text).toContain("🏹 /hunt — дошка полювання");
-    expect(text).toContain("📚 /bestiary, /monsters — бестіарій і польові нотатки");
+    expect(text).toContain("📚 /bestiary, /monsters — бестіарій із 3 рівня");
     expect(text).toContain("🧹 /cellar — підвальна справа");
     expect(text).toContain("🎒 /inventory, /items, /bag — манатки й торба");
     expect(text).toContain("🧥 /equipment, /gear, /equip — спорядження без бонусів");

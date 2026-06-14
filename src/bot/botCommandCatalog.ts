@@ -70,13 +70,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "bestiary",
     icon: "📚",
-    description: "бестіарій",
+    description: "бестіарій із 3 рівня",
     includeInMenu: false
   },
   {
     command: "monsters",
     icon: "👹",
-    description: "польові нотатки про монстрів",
+    description: "польові нотатки з 3 рівня",
     includeInMenu: false
   },
   {

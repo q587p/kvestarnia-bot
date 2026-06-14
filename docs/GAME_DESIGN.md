@@ -143,7 +143,7 @@ Achievements Phase 1 лишається rewardless later slice після осн
 - `daily_actions` лишається єдиним авторитетом idempotent reward claim; `hunt_contracts` — це журнал/audit/replay, не друге джерело XP або луту.
 - Якщо збережений `monsterId` зник із content, дошка fail-safe просить оновити запис пізніше й не видає винагороду.
 - Щоб onboarding не вивалював усе одразу, Дошка полювання відкривається з 3 рівня. До цього hub показує locked-рядок без кнопки `🏹 До дошки`, а direct `/hunt` або старий hunt callback не створює contract ledger і не видає reward. Стартові шаурма й fight probe лишаються новачковими справами для рівнів 1-2; з 3 рівня hub показує retired-рядок без action-кнопок і веде героя до старших справ.
-- `/bestiary` і `/monsters` лишаються read-only і доступні одразу: читати нотатки можна раніше, ніж лізти за контрактом.
+- `/bestiary` і `/monsters` лишаються read-only, але відкриваються з 3 рівня: нотатки корисні як довідник, та не мають спойлерити стартову шаурму й перші чудовиська до знайомства з ними.
 
 Залишковий борг перед великим `/hunt`: ledger ще не є повною encounter/session system. Немає persistent HP/mana, групових учасників, wilderness location, bestiary collection progression або random loot table engine.
 

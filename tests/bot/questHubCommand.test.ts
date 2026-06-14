@@ -111,7 +111,6 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🌯 До шаурми",
       "⚔️ До сутички",
-      "📖 Бестіарій",
       "🍺 До зали"
     ]);
   });
@@ -142,7 +141,6 @@ describe("quest hub command", () => {
       "🌯 До шаурми",
       "⚔️ До сутички",
       "🧹 У підвал",
-      "📖 Бестіарій",
       "🍺 До зали"
     ]);
   });
