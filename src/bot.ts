@@ -22,6 +22,7 @@ import { DeployNotificationService } from "./services/deployNotificationService"
 import { EquipmentService } from "./services/equipmentService";
 import { FightService } from "./services/fightService";
 import { HeroService } from "./services/heroService";
+import { HuntService } from "./services/huntService";
 import { InventoryService } from "./services/inventoryService";
 import { OnboardingService } from "./services/onboardingService";
 import { PresenceService } from "./services/presenceService";
@@ -41,6 +42,7 @@ const services = {
   adventure: new AdventureService(characters, dailyActions),
   cellarErrand: new CellarErrandService(cooldowns),
   fight: new FightService(characters, dailyActions),
+  hunt: new HuntService(characters, dailyActions),
   onboarding: new OnboardingService(users, characters),
   hero: new HeroService(characters, inventory),
   equipment: new EquipmentService(equipment, inventory),

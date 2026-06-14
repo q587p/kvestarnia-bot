@@ -2,6 +2,7 @@ import type { Bot, Context } from "grammy";
 import type { AdventureService } from "../../services/adventureService";
 import type { CellarErrandService } from "../../services/cellarErrandService";
 import type { FightService } from "../../services/fightService";
+import type { HuntService } from "../../services/huntService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
@@ -25,6 +26,7 @@ export interface QuestHubCommandOptions {
   adventure: AdventureService;
   cellarErrand: CellarErrandService;
   fight: FightService;
+  hunt: HuntService;
   presence: PresenceService;
   tavernRaid?: TavernRaidService;
 }
@@ -87,9 +89,10 @@ async function buildQuestHubSnapshot(
   }
 
   const fight = await options.fight.getMimicShawarmaForTelegramUser(telegramUserId);
+  const hunt = await options.hunt.getHuntBoardForTelegramUser(telegramUserId);
   const cellar = await options.cellarErrand.getForTelegramUser(telegramUserId);
 
-  if (fight.state === "no-character" || cellar.state === "no-character") {
+  if (fight.state === "no-character" || hunt.state === "no-character" || cellar.state === "no-character") {
     return null;
   }
 
@@ -97,6 +100,7 @@ async function buildQuestHubSnapshot(
     character: adventure.character,
     adventure,
     fight,
+    hunt,
     cellar
   };
 }

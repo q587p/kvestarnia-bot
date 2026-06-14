@@ -33,6 +33,7 @@ export const PRESENCE_RAID_FRIDAY_BARREL = "raid.friday-barrel";
 export const PRESENCE_ADVENTURE_MIMIC_SHAWARMA = "adventure.mimic-shawarma";
 export const PRESENCE_ADVENTURE_MIMIC_FIGHT = "adventure.mimic-shawarma-fight";
 export const PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND = "adventure.cellar.mouse-errand";
+export const PRESENCE_ADVENTURE_HUNT_BOARD = "adventure.hunt-board.contract";
 
 export type PresenceStatus = "active" | "idle" | "inactive";
 export type PresenceActivityKind = "raid" | "adventure";
@@ -664,6 +665,10 @@ function getRaidName(id: string): string {
 function getAdventureName(id: string): string {
   if (id === PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND) {
     return "Підвальна справа";
+  }
+
+  if (id === PRESENCE_ADVENTURE_HUNT_BOARD) {
+    return "Дошка полювання";
   }
 
   if (id === PRESENCE_ADVENTURE_MIMIC_FIGHT) {

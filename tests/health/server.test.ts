@@ -63,8 +63,8 @@ describe("health server", () => {
     expect(text).toContain("/presence");
     expect(text).toContain("/news");
     expect(text).toContain("/health");
-    expect(text).toContain("Бочка дивиться на годинник, сайт відчиняє двері");
-    expect(text).toContain("Корчмар урочисто поставив біля Бочки годинник");
+    expect(text).toContain("Дошка полювання навчилась вибирати проблеми");
+    expect(text).toContain("Корчмар подивився на бестіарій");
     expect(text).toContain("У грі зараз: 4");
     expect(text).not.toContain("— Дара");
     expect(text).not.toContain("— Нестор Межовий");

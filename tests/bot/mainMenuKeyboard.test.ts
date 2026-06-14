@@ -345,10 +345,11 @@ describe("main menu and scene keyboards", () => {
         buildQuestHubKeyboard({
           adventure: { state: "ready", character },
           fight: { state: "ready", character },
+          hunt: { state: "ready", character, contract: huntContract },
           cellar: { state: "ready", character }
         })
       )
-    ).toEqual(["🌯 До шаурми", "⚔️ До сутички", "🧹 У підвал", "🍺 До зали"]);
+    ).toEqual(["🌯 До шаурми", "⚔️ До сутички", "🏹 До дошки", "🧹 У підвал", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -362,6 +363,11 @@ describe("main menu and scene keyboards", () => {
             state: "already-completed",
             character,
             questAvailable: false
+          },
+          hunt: {
+            state: "already-completed",
+            character,
+            contract: huntContract
           },
           cellar: { state: "ready", character }
         })
@@ -404,6 +410,18 @@ const character = {
       bonus: 0
     }
   }
+} as const;
+
+const huntContract = {
+  localDate: "2026-06-14",
+  monster: {
+    id: "monster.stamp-doorkeeper-skeleton",
+    name: "Скелет-вахтер печаток",
+    description: "Не пускає навіть смерть без пропуску.",
+    level: 2,
+    tags: ["undead"]
+  },
+  startFlavor: null
 } as const;
 
 const emptyRoundLeaderboard = {

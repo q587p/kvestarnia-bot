@@ -3,6 +3,7 @@ import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
 import { makeFightCallbackData } from "../../src/bot/callbacks/fightCallbackData";
+import { makeHuntActionCallbackData } from "../../src/bot/callbacks/huntCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -222,6 +223,10 @@ describe("presence middleware", () => {
     {
       name: "fight",
       callbackData: makeFightCallbackData("attack")
+    },
+    {
+      name: "hunt",
+      callbackData: makeHuntActionCallbackData("2026-06-14", "strike")
     },
     {
       name: "cellar",
@@ -455,6 +460,10 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
     fight: {
       getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
       completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+    },
+    hunt: {
+      getHuntBoardForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      completeHuntContract: () => Promise.resolve({ state: "no-character" })
     },
     onboarding: {},
     hero: {},

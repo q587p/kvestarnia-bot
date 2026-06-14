@@ -64,7 +64,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "hunt",
     icon: "🏹",
-    description: "полювання на проблему",
+    description: "дошка полювання",
     includeInMenu: false
   },
   {
