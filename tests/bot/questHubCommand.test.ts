@@ -191,6 +191,45 @@ describe("quest hub command", () => {
     ]);
   });
 
+  it("suggests quiet fallback actions when no quest is currently available", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(grownCharacter),
+        fight: readyFightService(grownCharacter),
+        hunt: {
+          getHuntBoardForTelegramUser: () =>
+            Promise.resolve({
+              state: "already-completed",
+              character: grownCharacter,
+              contract: huntContract
+            }),
+          completeHuntContract: () => Promise.resolve({ state: "no-character" })
+        } as unknown as HuntService,
+        cellarErrand: readyCellarService(grownCharacter)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain(
+      "Справи зараз удають меблі. Можна почитати бестіарій, перевірити манатки або повернутися до зали."
+    );
+    expect(replies[0]?.text).not.toContain("Оберіть справу, поки вона не обрала вас.");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.text)).toEqual([
+      "📖 Бестіарій",
+      "🎒 Манатки",
+      "🍺 До зали"
+    ]);
+  });
+
   it("hides starter shawarma and starter fight at level three", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const grownCharacter = characterAtLevel(3);

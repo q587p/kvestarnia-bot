@@ -25,7 +25,7 @@ export function presentQuestHub(snapshot: QuestHubSnapshot): string {
     presentHuntRow(snapshot.hunt),
     presentCellarRow(snapshot.cellar),
     "",
-    "Оберіть справу, поки вона не обрала вас."
+    presentQuestHubFooter(snapshot)
   ];
 
   return lines.join("\n");
@@ -94,6 +94,23 @@ function presentCellarRow(
   }
 
   return `🧹 Підвальна справа — пауза ще ${formatCooldown(cellar.availableAt, cellar.now)}.`;
+}
+
+function presentQuestHubFooter(snapshot: QuestHubSnapshot): string {
+  if (hasReadyQuestAction(snapshot)) {
+    return "Оберіть справу, поки вона не обрала вас.";
+  }
+
+  return "Справи зараз удають меблі. Можна почитати бестіарій, перевірити манатки або повернутися до зали.";
+}
+
+function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
+  return (
+    snapshot.adventure.state === "ready" ||
+    snapshot.fight.state === "ready" ||
+    snapshot.hunt.state === "ready" ||
+    snapshot.cellar.state === "ready"
+  );
 }
 
 function formatCooldown(availableAt: Date, now: Date): string {

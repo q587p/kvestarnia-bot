@@ -538,6 +538,33 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual(["🏹 До дошки", "📖 Бестіарій", "🍺 До зали"]);
+
+    expect(
+      flatInlineButtonTexts(
+        buildQuestHubKeyboard({
+          adventure: {
+            state: "level-retired",
+            character,
+            maxLevel: 2
+          },
+          fight: {
+            state: "level-retired",
+            character,
+            maxLevel: 2
+          },
+          hunt: {
+            state: "already-completed",
+            character,
+            contract: huntContract
+          },
+          cellar: {
+            state: "level-retired",
+            character,
+            maxLevel: 3
+          }
+        })
+      )
+    ).toEqual(["📖 Бестіарій", "🎒 Манатки", "🍺 До зали"]);
   });
 });
 
