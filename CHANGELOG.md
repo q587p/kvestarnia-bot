@@ -16,6 +16,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a safe missing-monster state for persisted contracts whose content id no longer exists after a future deploy.
 - Added light onboarding gates: cellar errands unlock from level 2, and Hunt Board contracts unlock from level 3.
 - Added broader character-aware starter flavor for the first shawarma quest and its fight probe, including race/class pools and combo coverage for available onboarding combinations.
+- Added broader character-aware cellar mouse flavor, including race/class pools, combo coverage, and action-specific outcome lines for basement interactions.
 - Added tests for schema/migration shape, ledger JSON serialization, posted-row creation, persisted contract reuse, token mismatch safety, legacy callback safety, missing-monster fallback, and replay presenter escaping.
 
 ### Changed
@@ -23,6 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Hunt action callbacks validate against the persisted period/token/monster record before attempting the existing `daily_actions` reward claim.
 - The quest hub now shows locked cellar/hunt rows before the required level without showing their action buttons; `/bestiary` and `/monsters` remain read-only and available immediately.
 - Starter shawarma and fight action buttons can now use character-aware labels while keeping the same validated callback payloads and reward math.
+- Cellar mouse action buttons can now use character-aware labels while keeping the same validated callback payloads, cooldown, and reward math.
 - The first fight screen now avoids naming the monster before the player acts; the reveal stays in the resolved outcome.
 - `daily_actions` remains the authoritative idempotency boundary for XP/gold/items; `hunt_contracts` is an audit/replay ledger, not a second reward source.
 

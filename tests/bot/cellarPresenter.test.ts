@@ -17,7 +17,7 @@ describe("cellar presenter", () => {
     expect(text).toContain("<blockquote>");
     expect(text).toContain("Миша:");
     expect(text).toContain("що робимо?");
-    expect(text.split("\n").length).toBeLessThanOrEqual(11);
+    expect(text.split("\n").length).toBeLessThanOrEqual(13);
   });
 
   it("adds character-aware flavor to cellar start and outcome scenes", () => {
@@ -27,9 +27,7 @@ describe("cellar presenter", () => {
       raceName: "Домовик"
     };
 
-    expect(presentCellarStart({ state: "ready", character: domovyk })).toContain(
-      "законного, хоч і неоформленого"
-    );
+    expect(presentCellarStart({ state: "ready", character: domovyk })).toContain("під плінтусом");
     expect(
       presentCellarResult({
         ...completed,
@@ -64,6 +62,8 @@ describe("cellar presenter", () => {
         "",
         "Миша:",
         "<blockquote>Вони принесли сир. Вони ж і відповідатимуть за його зникнення.</blockquote>",
+        "",
+        "Людисько-Воїн робить із мишачої справи персональний маленький міт під плінтусом. Миша вимагає право на редактуру.",
         "",
         "<b>+2 XP",
         "+1 золота</b>"

@@ -1,4 +1,5 @@
 import type { Bot, Context } from "grammy";
+import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { PresenceService } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
@@ -101,11 +102,17 @@ export async function sendCellarErrand(
   await markCellarPresence(ctx, presenceService);
 
   if (result.state === "on-cooldown") {
-    await sendText(ctx, mode, presentCellarCooldown(result), "on-cooldown");
+    await sendText(ctx, mode, presentCellarCooldown(result), {
+      state: "on-cooldown",
+      character: result.character
+    });
     return;
   }
 
-  await sendText(ctx, mode, presentCellarStart(result), "ready");
+  await sendText(ctx, mode, presentCellarStart(result), {
+    state: "ready",
+    character: result.character
+  });
 }
 
 export async function markCellarPresence(
@@ -130,13 +137,18 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  keyboard: "ready" | "on-cooldown" | "enter-korchma" | false = false
+  keyboard:
+    | false
+    | "enter-korchma"
+    | { state: "ready" | "on-cooldown"; character: CharacterSummary } = false
 ): Promise<void> {
   const options = keyboard
     ? {
         parse_mode: "HTML" as const,
         reply_markup:
-          keyboard === "enter-korchma" ? buildKorchmaFrontKeyboard() : buildCellarResultKeyboard(keyboard)
+          keyboard === "enter-korchma"
+            ? buildKorchmaFrontKeyboard()
+            : buildCellarResultKeyboard(keyboard.state, keyboard.character)
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
 

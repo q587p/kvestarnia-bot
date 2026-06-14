@@ -1317,7 +1317,7 @@ async function handleCellarCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentCellarResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildCellarResultKeyboard(result.state)
+    reply_markup: buildCellarResultKeyboard(result.state, result.character)
   });
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);

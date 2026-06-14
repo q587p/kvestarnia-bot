@@ -203,6 +203,32 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonCallbacks(buildCellarParticipantsKeyboard())).toEqual(["v1:quest:cellar"]);
   });
 
+  it("keeps character-aware cellar labels on the same callback actions", () => {
+    const domovyk = { ...character, raceId: "race.domovyk", classId: "class.rogue" };
+
+    expect(flatInlineButtonTexts(buildCellarKeyboard(domovyk))).toEqual([
+      "🧀 Виставити оренду сиром",
+      "🧹 Навести хатній лад",
+      "🤝 Поділити шафу",
+      "👥 Учасники",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildCellarKeyboard(domovyk))).toEqual([
+      "v1:cellar:cheese-trap",
+      "v1:cellar:sweep-bravely",
+      "v1:cellar:negotiate",
+      "v1:cellar:participants",
+      "v1:place:hall"
+    ]);
+    expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual([
+      "🧀 Виставити оренду сиром",
+      "🧹 Навести хатній лад",
+      "🤝 Поділити шафу",
+      "👥 Учасники",
+      "⬅️ До зали"
+    ]);
+  });
+
   it("keeps fight inline buttons scoped to fight actions", () => {
     const actionButtons = [
       "🗡️ Вдарити",

@@ -328,6 +328,76 @@ function buildFightOutcomeClassLines(): CharacterFlavorLine[] {
   );
 }
 
+function buildCellarStartRaceLines(): CharacterFlavorLine[] {
+  return activeRaces.map((race) => ({
+    id: `cellar.start.race-pool.${contentSlug(race.id)}`,
+    placement: "quest.start",
+    scene: "cellar",
+    selector: { raceIds: [race.id] },
+    priority: -1,
+    text: `${race.name} заходить у підвал так, ніби миша вже має пояснити не лише сир, а й свою життєву позицію.`
+  }));
+}
+
+function buildCellarStartClassLines(): CharacterFlavorLine[] {
+  return classes.map((heroClass) => ({
+    id: `cellar.start.class-pool.${contentSlug(heroClass.id)}`,
+    placement: "quest.start",
+    scene: "cellar",
+    selector: { classIds: [heroClass.id] },
+    priority: -1,
+    text: `${heroClass.name} бачить у підвалі не просто пил і сир, а малу справу з великою підозрою під плінтусом.`
+  }));
+}
+
+function buildCellarStartComboLines(): CharacterFlavorLine[] {
+  return availableRaceClassCombos().map(({ raceId, classId, raceName, className }) => ({
+    id: `cellar.start.combo.${contentSlug(raceId)}-${contentSlug(classId)}`,
+    placement: "quest.start",
+    scene: "cellar",
+    selector: { combos: [{ raceId, classId }] },
+    text: `${raceName}-${className} спускається до миші так, ніби це не підвал, а маленька сцена для великої побутової легенди.`
+  }));
+}
+
+function buildCellarOutcomeRaceLines(): CharacterFlavorLine[] {
+  return activeRaces.flatMap((race) =>
+    cellarActions().map((action) => ({
+      id: `cellar.outcome.race-pool.${contentSlug(race.id)}.${action}`,
+      placement: "quest.outcome",
+      scene: "cellar",
+      selector: { raceIds: [race.id], actions: [action] },
+      priority: -1,
+      text: `${race.name} лишає підвал трохи впорядкованішим, трохи сирнішим і значно обережнішим у висловах про крихти.`
+    }))
+  );
+}
+
+function buildCellarOutcomeClassLines(): CharacterFlavorLine[] {
+  return classes.flatMap((heroClass) =>
+    cellarActions().map((action) => ({
+      id: `cellar.outcome.class-pool.${contentSlug(heroClass.id)}.${action}`,
+      placement: "quest.outcome",
+      scene: "cellar",
+      selector: { classIds: [heroClass.id], actions: [action] },
+      priority: -1,
+      text: `${heroClass.name} завершує підвальну справу професійно: миша не згодна, але визнає, що квест набув форми.`
+    }))
+  );
+}
+
+function buildCellarOutcomeComboLines(): CharacterFlavorLine[] {
+  return availableRaceClassCombos().flatMap(({ raceId, classId, raceName, className }) =>
+    cellarActions().map((action) => ({
+      id: `cellar.outcome.combo.${contentSlug(raceId)}-${contentSlug(classId)}.${action}`,
+      placement: "quest.outcome",
+      scene: "cellar",
+      selector: { combos: [{ raceId, classId }], actions: [action] },
+      text: `${raceName}-${className} робить із мишачої справи персональний маленький міт під плінтусом. Миша вимагає право на редактуру.`
+    }))
+  );
+}
+
 function availableRaceClassCombos(): Array<{
   raceId: string;
   raceName: string;
@@ -352,6 +422,10 @@ function shawarmaActions(): Array<"poke" | "receipt" | "flee"> {
 
 function fightActions(): Array<"attack" | "receipt" | "flee"> {
   return ["attack", "receipt", "flee"];
+}
+
+function cellarActions(): Array<"cheese-trap" | "sweep-bravely" | "negotiate"> {
+  return ["cheese-trap", "sweep-bravely", "negotiate"];
 }
 
 function contentSlug(id: string): string {
@@ -754,6 +828,12 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
     selector: { classIds: ["class.kharakternyk"], actions: ["sweep-bravely"] },
     text: "Ви глянули на пил. Пил прикинувся чистою підлогою. Віник образився, але результат є."
   },
+  ...buildCellarStartRaceLines(),
+  ...buildCellarStartClassLines(),
+  ...buildCellarStartComboLines(),
+  ...buildCellarOutcomeRaceLines(),
+  ...buildCellarOutcomeClassLines(),
+  ...buildCellarOutcomeComboLines(),
   // Future raid role flavor only. No mechanical roles or raid balance effects yet.
   {
     id: "barrel.raid-hint.class.warrior",

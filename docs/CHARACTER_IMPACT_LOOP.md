@@ -231,6 +231,9 @@ selectFlavorLines(lines, context, seedParts, limit)
 - `presentCellarStart()` — додати персоналізований старт.
 - `presentCellarOutcome()` — додати character-aware outcome для `negotiate`, `cheese-trap`, `sweep-bravely`.
 - Домовик + negotiate має бути першим obvious win у флейворі.
+- Підвал — друге знайомство з варіятивністю після шаурми, тому потрібні race/class pools і combo-lines для всіх доступних onboarding комбінацій.
+- Character-aware labels на кнопках підвалу можуть міняти текст дії, але не callback payload, cooldown, reward math або item grants.
+- Дії мають звучати різно: сирна пастка, хоробре підмітання й переговори з мишею не повинні відчуватись як одна кнопка з різними емоджі.
 
 ### Манатки
 

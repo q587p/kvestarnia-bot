@@ -222,11 +222,13 @@ describe("character flavor content", () => {
     for (const race of activeRaces) {
       expect(hasLine("quest.start", "shawarma", "raceIds", race.id)).toBe(true);
       expect(hasLine("quest.start", "fight", "raceIds", race.id)).toBe(true);
+      expect(hasLine("quest.start", "cellar", "raceIds", race.id)).toBe(true);
     }
 
     for (const heroClass of classes) {
       expect(hasLine("quest.start", "shawarma", "classIds", heroClass.id)).toBe(true);
       expect(hasLine("quest.start", "fight", "classIds", heroClass.id)).toBe(true);
+      expect(hasLine("quest.start", "cellar", "classIds", heroClass.id)).toBe(true);
     }
   });
 
@@ -236,9 +238,29 @@ describe("character flavor content", () => {
     for (const combo of combos) {
       expect(hasComboLine("quest.start", "shawarma", combo)).toBe(true);
       expect(hasComboLine("quest.start", "fight", combo)).toBe(true);
+      expect(hasComboLine("quest.start", "cellar", combo)).toBe(true);
     }
 
     expect(combos.length).toBeGreaterThanOrEqual(40);
+  });
+
+  it("has cellar outcome flavor for every active race, class, combo, and cellar action", () => {
+    const combos = availableRaceClassCombos();
+    const actions = ["cheese-trap", "sweep-bravely", "negotiate"];
+
+    for (const action of actions) {
+      for (const race of activeRaces) {
+        expect(hasActionLine("quest.outcome", "cellar", "raceIds", race.id, action)).toBe(true);
+      }
+
+      for (const heroClass of classes) {
+        expect(hasActionLine("quest.outcome", "cellar", "classIds", heroClass.id, action)).toBe(true);
+      }
+
+      for (const combo of combos) {
+        expect(hasComboActionLine("quest.outcome", "cellar", combo, action)).toBe(true);
+      }
+    }
   });
 
   it("keeps the first fight start unrevealed until an action resolves", () => {
@@ -372,6 +394,39 @@ function hasComboLine(
       line.selector?.combos?.some(
         (candidate) => candidate.raceId === combo.raceId && candidate.classId === combo.classId
       )
+  );
+}
+
+function hasActionLine(
+  placement: CharacterFlavorQuery["placement"],
+  scene: CharacterFlavorQuery["scene"],
+  selectorKey: "raceIds" | "classIds",
+  id: string,
+  action: string
+): boolean {
+  return characterFlavorLines.some(
+    (line) =>
+      line.placement === placement &&
+      line.scene === scene &&
+      line.selector?.[selectorKey]?.includes(id) &&
+      line.selector.actions?.includes(action)
+  );
+}
+
+function hasComboActionLine(
+  placement: CharacterFlavorQuery["placement"],
+  scene: CharacterFlavorQuery["scene"],
+  combo: { raceId: string; classId: string },
+  action: string
+): boolean {
+  return characterFlavorLines.some(
+    (line) =>
+      line.placement === placement &&
+      line.scene === scene &&
+      line.selector?.combos?.some(
+        (candidate) => candidate.raceId === combo.raceId && candidate.classId === combo.classId
+      ) &&
+      line.selector.actions?.includes(action)
   );
 }
 
