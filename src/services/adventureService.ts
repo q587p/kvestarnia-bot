@@ -1,6 +1,10 @@
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type { DailyActionRepository, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
+import {
+  isWithinActivityMaxLevel,
+  STARTER_ACTIVITY_MAX_LEVEL
+} from "../domain/progression/activityGates";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
   MIMIC_SHAWARMA_ADVENTURE_KEY,
@@ -33,11 +37,13 @@ export const MIMIC_SHAWARMA_REWARDS = {
 
 export type AdventureLookupResult =
   | { state: "no-character" }
+  | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
   | { state: "ready"; character: CharacterSummary }
   | { state: "already-completed"; character: CharacterSummary; fightAvailable: boolean };
 
 export type AdventureResult =
   | { state: "no-character" }
+  | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
   | {
       state: "completed";
       action: AdventureAction;
@@ -74,6 +80,16 @@ export class AdventureService {
       return { state: "no-character" };
     }
 
+    const characterSummary = summarizeCharacter(character);
+
+    if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
+      return {
+        state: "level-retired",
+        character: characterSummary,
+        maxLevel: STARTER_ACTIVITY_MAX_LEVEL
+      };
+    }
+
     const existingAdventure = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,
       localDate
@@ -87,14 +103,14 @@ export class AdventureService {
 
       return {
         state: "already-completed",
-        character: summarizeCharacter(character),
+        character: characterSummary,
         fightAvailable: !existingFight
       };
     }
 
     return {
       state: "ready",
-      character: summarizeCharacter(character)
+      character: characterSummary
     };
   }
 
@@ -103,6 +119,22 @@ export class AdventureService {
     action: AdventureAction
   ): Promise<AdventureResult> {
     const localDate = toIsoDate(this.clock());
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const characterSummary = summarizeCharacter(character);
+
+    if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
+      return {
+        state: "level-retired",
+        character: characterSummary,
+        maxLevel: STARTER_ACTIVITY_MAX_LEVEL
+      };
+    }
+
     const reward = MIMIC_SHAWARMA_REWARDS[action];
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,

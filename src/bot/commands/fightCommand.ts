@@ -12,6 +12,7 @@ import { buildFightKeyboard } from "../keyboards/fightKeyboard";
 import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentFightAlreadyCompleted,
+  presentFightLevelRetired,
   presentFightNoCharacter,
   presentFightStart
 } from "../presenters/fightPresenter";
@@ -78,6 +79,11 @@ export async function sendFight(
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentFightNoCharacter());
+    return;
+  }
+
+  if (result.state === "level-retired") {
+    await sendText(ctx, mode, presentFightLevelRetired(result));
     return;
   }
 

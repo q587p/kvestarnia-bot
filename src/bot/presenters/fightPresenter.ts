@@ -42,7 +42,25 @@ export function presentFightAlreadyCompleted(
   return lines.join("\n");
 }
 
+export function presentFightLevelRetired(
+  result:
+    | Extract<FightLookupResult, { state: "level-retired" }>
+    | Extract<FightResult, { state: "level-retired" }>
+): string {
+  return [
+    "⚔️ Навчальна сутичка закрита.",
+    "",
+    `Після ${result.maxLevel} рівня підозрілий монстр більше не погоджується бути тренажером.`,
+    "",
+    "Корчмар киває на дошку полювання: /hunt"
+  ].join("\n");
+}
+
 export function presentFightResult(result: Exclude<FightResult, { state: "no-character" }>): string {
+  if (result.state === "level-retired") {
+    return presentFightLevelRetired(result);
+  }
+
   if (result.state === "already-completed") {
     return presentFightAlreadyCompleted(result);
   }
@@ -78,7 +96,7 @@ function presentCharacterFlavor(
 }
 
 function presentOutcome(
-  result: Exclude<FightResult, { state: "no-character" | "already-completed" }>
+  result: Exclude<FightResult, { state: "no-character" | "already-completed" | "level-retired" }>
 ): string[] {
   if (result.action === "attack") {
     return [

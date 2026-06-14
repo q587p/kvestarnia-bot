@@ -43,6 +43,20 @@ export function presentCellarLevelLocked(
   ].join("\n");
 }
 
+export function presentCellarLevelRetired(
+  result:
+    | Extract<CellarErrandLookupResult, { state: "level-retired" }>
+    | Extract<CellarErrandResult, { state: "level-retired" }>
+): string {
+  return [
+    "🐭 Підвал визнав вас занадто дорослим.",
+    "",
+    `Після ${result.maxLevel} рівня миша називає пригодника «надмірним аргументом» і ховає сир у профспілку.`,
+    "",
+    "Для старших справ є дошка полювання: /hunt"
+  ].join("\n");
+}
+
 export function presentCellarCooldown(
   result:
     | Extract<CellarErrandLookupResult, { state: "on-cooldown" }>
@@ -62,6 +76,10 @@ export function presentCellarResult(
 ): string {
   if (result.state === "level-locked") {
     return presentCellarLevelLocked(result);
+  }
+
+  if (result.state === "level-retired") {
+    return presentCellarLevelRetired(result);
   }
 
   if (result.state === "on-cooldown") {

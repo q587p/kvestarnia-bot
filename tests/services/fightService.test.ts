@@ -174,6 +174,29 @@ describe("FightService", () => {
     });
   });
 
+  it("retires the starter fight after level three without claiming rewards", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 45 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new FightService(characters, dailyActions, fixedClock);
+
+    await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "level-retired",
+      maxLevel: 3
+    });
+    await expect(service.completeMimicShawarma(telegramUserId, "attack")).resolves.toMatchObject({
+      state: "level-retired",
+      maxLevel: 3
+    });
+    expect(dailyActions.createCount).toBe(0);
+    expect(dailyActions.grantedItems).toEqual([]);
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: 45,
+      gold: 0,
+      level: 4
+    });
+  });
+
   it("returns an already-completed lookup and only suggests quest when it is still available", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);

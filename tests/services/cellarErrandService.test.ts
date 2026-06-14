@@ -90,6 +90,28 @@ describe("CellarErrandService", () => {
     });
   });
 
+  it("retires cellar errands from level four without claiming rewards", async () => {
+    const cooldowns = new FakeCooldownRepository();
+    cooldowns.addCharacter(telegramUserId, { xp: 45 });
+    const service = new CellarErrandService(cooldowns, () => startedAt);
+
+    await expect(service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "level-retired",
+      maxLevel: 3
+    });
+    await expect(service.complete(telegramUserId, "negotiate")).resolves.toMatchObject({
+      state: "level-retired",
+      maxLevel: 3
+    });
+    expect(cooldowns.claimCount).toBe(0);
+    expect(cooldowns.grantedItems).toEqual([]);
+    await expect(cooldowns.findCharacter(telegramUserId)).resolves.toMatchObject({
+      xp: 45,
+      gold: 0,
+      level: 4
+    });
+  });
+
   it("does not duplicate rewards during cooldown", async () => {
     const cooldowns = new FakeCooldownRepository();
     cooldowns.addCharacter(telegramUserId, { xp: 10 });

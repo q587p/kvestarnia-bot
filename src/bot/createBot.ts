@@ -106,9 +106,14 @@ import {
   buildTavernRangerKeyboard,
   buildTavernResultKeyboard
 } from "./keyboards/tavernKeyboard";
-import { presentAdventureNoCharacter, presentAdventureResult } from "./presenters/adventurePresenter";
+import {
+  presentAdventureLevelRetired,
+  presentAdventureNoCharacter,
+  presentAdventureResult
+} from "./presenters/adventurePresenter";
 import {
   presentCellarLevelLocked,
+  presentCellarLevelRetired,
   presentCellarNoCharacter,
   presentCellarResult
 } from "./presenters/cellarPresenter";
@@ -118,7 +123,11 @@ import {
   presentDevResetDisabled,
   presentDevResetNoCharacter
 } from "./presenters/devResetPresenter";
-import { presentFightNoCharacter, presentFightResult } from "./presenters/fightPresenter";
+import {
+  presentFightLevelRetired,
+  presentFightNoCharacter,
+  presentFightResult
+} from "./presenters/fightPresenter";
 import {
   presentHuntLevelLocked,
   presentHuntNoCharacter,
@@ -1226,6 +1235,12 @@ async function handleAdventureCallback(
     return;
   }
 
+  if (result.state === "level-retired") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentAdventureLevelRetired(result), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
   await markScenePresence(ctx, services.presence, {
     locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
     currentRaidId: null,
@@ -1272,6 +1287,12 @@ async function handleCellarCallback(
     return;
   }
 
+  if (lookup.state === "level-retired") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentCellarLevelRetired(lookup), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
   if (action === "participants") {
     const snapshot = await services.presence.getAdventureParticipantsForTelegramUser(
       telegramUserId,
@@ -1305,6 +1326,12 @@ async function handleCellarCallback(
   if (result.state === "level-locked") {
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentCellarLevelLocked(result), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
+  if (result.state === "level-retired") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentCellarLevelRetired(result), HTML_MESSAGE_OPTIONS);
     return;
   }
 
@@ -1345,6 +1372,12 @@ async function handleFightCallback(
   if (result.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentFightNoCharacter());
+    return;
+  }
+
+  if (result.state === "level-retired") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentFightLevelRetired(result), HTML_MESSAGE_OPTIONS);
     return;
   }
 

@@ -42,12 +42,20 @@ export function presentQuestHubNoCharacter(): string {
 function presentAdventureRow(
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>
 ): string {
+  if (adventure.state === "level-retired") {
+    return `🌯 Підозріла шаурма — навчальна справа до ${adventure.maxLevel} рівня.`;
+  }
+
   const status = adventure.state === "ready" ? "готова до допиту" : "сьогодні вже дала свідчення";
 
   return `🌯 Підозріла шаурма — ${status}.`;
 }
 
 function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string {
+  if (fight.state === "level-retired") {
+    return `⚔️ Сутичка з підозрілим монстром — навчальна справа до ${fight.maxLevel} рівня.`;
+  }
+
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
 
   return `⚔️ Сутичка з підозрілим монстром — ${status}.`;
@@ -75,6 +83,10 @@ function presentCellarRow(
 ): string {
   if (cellar.state === "level-locked") {
     return `🧹 Підвальна справа — відкриється з ${cellar.requiredLevel} рівня.`;
+  }
+
+  if (cellar.state === "level-retired") {
+    return `🧹 Підвальна справа — новачкова справа до ${cellar.maxLevel} рівня.`;
   }
 
   if (cellar.state === "ready") {

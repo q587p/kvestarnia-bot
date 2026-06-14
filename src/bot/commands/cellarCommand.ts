@@ -12,6 +12,7 @@ import { buildCellarResultKeyboard } from "../keyboards/cellarKeyboard";
 import {
   presentCellarCooldown,
   presentCellarLevelLocked,
+  presentCellarLevelRetired,
   presentCellarNoCharacter,
   presentCellarStart
 } from "../presenters/cellarPresenter";
@@ -96,6 +97,11 @@ export async function sendCellarErrand(
 
   if (result.state === "level-locked") {
     await sendText(ctx, mode, presentCellarLevelLocked(result));
+    return;
+  }
+
+  if (result.state === "level-retired") {
+    await sendText(ctx, mode, presentCellarLevelRetired(result));
     return;
   }
 

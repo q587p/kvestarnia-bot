@@ -1,7 +1,12 @@
 import type { CooldownRepository } from "../db/repositories/cooldownRepository";
 import type { RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
-import { CELLAR_MIN_LEVEL, meetsActivityLevel } from "../domain/progression/activityGates";
+import {
+  CELLAR_MAX_LEVEL,
+  CELLAR_MIN_LEVEL,
+  isWithinActivityMaxLevel,
+  meetsActivityLevel
+} from "../domain/progression/activityGates";
 import { systemClock, type Clock } from "../shared/time";
 import {
   BRISTLE_OF_BASEMENT_ORDER_ITEM_ID,
@@ -35,12 +40,14 @@ export const CELLAR_MOUSE_ERRAND_REWARDS = {
 export type CellarErrandLookupResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
+  | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
   | { state: "ready"; character: CharacterSummary }
   | { state: "on-cooldown"; character: CharacterSummary; availableAt: Date; now: Date };
 
 export type CellarErrandResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
+  | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
   | {
       state: "completed";
       action: CellarErrandAction;
@@ -90,6 +97,14 @@ export class CellarErrandService {
       };
     }
 
+    if (!isWithinActivityMaxLevel(character.level, CELLAR_MAX_LEVEL)) {
+      return {
+        state: "level-retired",
+        character,
+        maxLevel: CELLAR_MAX_LEVEL
+      };
+    }
+
     if (current.cooldown && current.cooldown.availableAt > now) {
       return {
         state: "on-cooldown",
@@ -126,6 +141,14 @@ export class CellarErrandService {
         state: "level-locked",
         character,
         requiredLevel: CELLAR_MIN_LEVEL
+      };
+    }
+
+    if (!isWithinActivityMaxLevel(character.level, CELLAR_MAX_LEVEL)) {
+      return {
+        state: "level-retired",
+        character,
+        maxLevel: CELLAR_MAX_LEVEL
       };
     }
 

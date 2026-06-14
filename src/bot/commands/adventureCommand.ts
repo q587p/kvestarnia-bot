@@ -16,6 +16,7 @@ import {
 import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentAdventureAlreadyCompleted,
+  presentAdventureLevelRetired,
   presentAdventureNoCharacter,
   presentAdventureStart
 } from "../presenters/adventurePresenter";
@@ -80,6 +81,11 @@ export async function sendAdventure(
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentAdventureNoCharacter());
+    return;
+  }
+
+  if (result.state === "level-retired") {
+    await sendText(ctx, mode, presentAdventureLevelRetired(result));
     return;
   }
 

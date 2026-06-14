@@ -41,7 +41,25 @@ export function presentAdventureAlreadyCompleted(
   return lines.join("\n");
 }
 
+export function presentAdventureLevelRetired(
+  result:
+    | Extract<AdventureLookupResult, { state: "level-retired" }>
+    | Extract<AdventureResult, { state: "level-retired" }>
+): string {
+  return [
+    "🌯 Шаурма лишилась для новачків.",
+    "",
+    `Після ${result.maxLevel} рівня корчмар більше не видає цю навчальну підозру.`,
+    "",
+    "Стіл зі справами вже шукає вам серйозніші проблеми: /hunt"
+  ].join("\n");
+}
+
 export function presentAdventureResult(result: Exclude<AdventureResult, { state: "no-character" }>): string {
+  if (result.state === "level-retired") {
+    return presentAdventureLevelRetired(result);
+  }
+
   if (result.state === "already-completed") {
     return [
       "🌯 Сьогоднішню шаурму вже допитано.",

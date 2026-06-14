@@ -186,6 +186,34 @@ describe("quest hub command", () => {
     ]);
   });
 
+  it("hides starter shawarma, starter fight, and cellar after level three", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(grownCharacter),
+        fight: readyFightService(grownCharacter),
+        hunt: readyHuntService(grownCharacter),
+        cellarErrand: readyCellarService(grownCharacter)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — навчальна справа до 3 рівня.");
+    expect(replies[0]?.text).toContain(
+      "⚔️ Сутичка з підозрілим монстром — навчальна справа до 3 рівня."
+    );
+    expect(replies[0]?.text).toContain("🧹 Підвальна справа — новачкова справа до 3 рівня.");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.text)).toEqual(["🏹 До дошки", "🍺 До зали"]);
+  });
+
   it("blocks the quest hub while a barrel raid is pending", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
@@ -216,17 +244,19 @@ describe("quest hub command", () => {
   });
 });
 
-function characterAtLevel(level: 1 | 2 | 3): CharacterSummary {
+function characterAtLevel(level: 1 | 2 | 3 | 4): CharacterSummary {
   const xpByLevel = {
     1: 0,
     2: 10,
-    3: 25
-  } satisfies Record<1 | 2 | 3, number>;
+    3: 25,
+    4: 45
+  } satisfies Record<1 | 2 | 3 | 4, number>;
   const nextByLevel = {
     1: 10,
     2: 25,
-    3: 45
-  } satisfies Record<1 | 2 | 3, number>;
+    3: 45,
+    4: 70
+  } satisfies Record<1 | 2 | 3 | 4, number>;
 
   return {
     ...character,
@@ -348,10 +378,18 @@ function servicesWith(overrides: {
 function readyAdventureService(summary: CharacterSummary): AdventureService {
   return {
     getMimicShawarmaForTelegramUser: () =>
-      Promise.resolve({
-        state: "ready",
-        character: summary
-      }),
+      Promise.resolve(
+        summary.level > 3
+          ? {
+              state: "level-retired",
+              character: summary,
+              maxLevel: 3
+            }
+          : {
+              state: "ready",
+              character: summary
+            }
+      ),
     completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
   } as unknown as AdventureService;
 }
@@ -359,10 +397,18 @@ function readyAdventureService(summary: CharacterSummary): AdventureService {
 function readyFightService(summary: CharacterSummary): FightService {
   return {
     getMimicShawarmaForTelegramUser: () =>
-      Promise.resolve({
-        state: "ready",
-        character: summary
-      }),
+      Promise.resolve(
+        summary.level > 3
+          ? {
+              state: "level-retired",
+              character: summary,
+              maxLevel: 3
+            }
+          : {
+              state: "ready",
+              character: summary
+            }
+      ),
     completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
   } as unknown as FightService;
 }
@@ -377,6 +423,12 @@ function readyCellarService(summary: CharacterSummary): CellarErrandService {
               character: summary,
               requiredLevel: 2
             }
+          : summary.level > 3
+            ? {
+                state: "level-retired",
+                character: summary,
+                maxLevel: 3
+              }
           : {
               state: "ready",
               character: summary

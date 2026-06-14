@@ -40,7 +40,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.row();
   }
 
-  if (input.cellar.state !== "level-locked") {
+  if (input.cellar.state === "ready" || input.cellar.state === "on-cooldown") {
     keyboard.text("🧹 У підвал", makeQuestCallbackData("cellar"));
     keyboard.row();
   }

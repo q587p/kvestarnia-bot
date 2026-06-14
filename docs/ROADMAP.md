@@ -43,7 +43,7 @@ Current tiny inventory slice:
 - `0.0.15` adds deterministic starter sources for reachable weapon, armor, and accessory examples across `/fight`, the cellar errand, and the Barrel raid, still without equipment stat effects.
 - `0.0.17` adds `/hunt` as the first runtime rotation over the bestiary: one deterministic Kyiv-local Hunt Board contract per hour, small rewards, and at most one deterministic monster trophy.
 - `0.0.18` hardens Hunt Board callbacks with contract tokens and exposes `/bestiary`/`/monsters` as read-only monster notes without combat sessions, collection tracking, or random loot tables.
-- `0.0.19` adds a persisted Hunt Board ledger so posted contracts are auditable and completed hunt callbacks can replay original XP/gold/item summaries without duplicate rewards; the same slice adds light onboarding gates: cellar errands from level 2, Hunt Board from level 3, and read-only bestiary still available immediately.
+- `0.0.19` adds a persisted Hunt Board ledger so posted contracts are auditable and completed hunt callbacks can replay original XP/gold/item summaries without duplicate rewards; the same slice adds light onboarding gates: starter shawarma/fight retire after level 3, cellar errands run on levels 2-3, Hunt Board starts from level 3, and read-only bestiary stays available immediately.
 - Tavern/adventure/fight first completions can grant fixed items.
 - Full itemization, equipment effects, random loot tables, crafting, market, and trading remain later Phase 1+ work.
 - Future equipment effects should layer through one equipment/effective-stats helper before combat uses them; the current shell must not change `/hero`, fight preview, rewards, cooldowns, HP, mana, or level-up math.
