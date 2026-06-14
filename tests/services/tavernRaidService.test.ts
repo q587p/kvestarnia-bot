@@ -93,7 +93,7 @@ describe("TavernRaidService", () => {
 
   it("builds deterministic barrel raid starter and rotating loot for each period", () => {
     expect(buildBarrelRaidItemGrants("2026-06-12T13:23")).toEqual([
-      { itemId: "item.apron-of-foam-resistance", quantity: 1 },
+      { itemId: "item.apron-of-foam-resistance", quantity: 1, maxOwnedQuantity: 1 },
       { itemId: "item.wet-hero-ticket", quantity: 1 },
       { itemId: "item.barrel-splinter-of-optimism", quantity: 1 }
     ]);

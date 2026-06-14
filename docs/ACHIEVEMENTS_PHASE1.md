@@ -4,10 +4,10 @@
 
 ## Рішення
 
-Наступний gameplay/meta slice після `0.0.20`:
+Future rewardless gameplay/meta slice після persistent fight / equipment / loot ланцюжка:
 
 ```text
-0.0.21 — Achievements Phase 1
+Later — Achievements Phase 1
 ```
 
 Phase 1 ачівки в Квестарні — це колекція жартівливих титулів і записів про подвиги, а не механічні бонуси. Вони мають підсилювати відчуття прогресу, давати гравцю ще одну причину відкрити персонажа й сміятися з власних рішень, але не давати XP, золота, бойової сили або pay-to-win переваг.
@@ -121,6 +121,13 @@ src/content/achievements.ts
 - приховані ачівки мають `locked_hint`;
 - залежні від ще неготових систем definition-и можна seed-ити як `enabled=false`.
 
+Додаткові candidate definitions для бочкової поведінки:
+
+- `barrel.checks.count`: скільки разів гравець натискав `🍺 Перевірити бочку` під час або після pending-рейду. Пороги: 10 / 100 / 1000. Тон: «Бочка вже знає ваші кроки», «Корчмар видав вам окремий журнал перевірок», «Ви перевірили бочку частіше, ніж вона перевіряла свою совість».
+- `barrel.tips.seen.count`: скільки різних або загальних `Порад дня` гравець побачив під час очікування рейду. Пороги: 10 / 100 / 1000. Тон: «Порада дня стала порадою життя», «Ви бачили стільки порад, що єгер почав радитися з вами», «1000 порад потому бочка все ще не визнає провини».
+
+Якщо runtime не має надійного source-of-truth для цих лічильників, додати `achievement_progress` або окремий lightweight counter у майбутньому achievements PR. Не намагатися вираховувати це з текстів повідомлень або старих Telegram callback-ів.
+
 ## Events
 
 Мінімальний контракт:
@@ -221,15 +228,15 @@ await achievements.track(event);
 
 ## Next PR Notes
 
-Запропонована назва PR:
+Запропонована назва майбутнього PR:
 
 ```text
-0.0.21 — Achievements Phase 1
+Achievements Phase 1
 ```
 
 Scope guard:
 
-- не реалізовувати persistent `/fight` у цьому PR;
+- не змішувати з equipment stats, loot engine або reward-bearing combat changes;
 - не додавати бойові бонуси;
 - не додавати economy rewards;
 - не робити active-title selection, якщо це тягне нову складну модель;

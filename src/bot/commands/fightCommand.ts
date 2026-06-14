@@ -4,17 +4,23 @@ import type { FightService } from "../../services/fightService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
+  PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type PresenceService
 } from "../../services/presenceService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
-import { buildFightKeyboard } from "../keyboards/fightKeyboard";
+import {
+  buildFightKeyboard,
+  buildPersistentFightReadyKeyboard,
+  buildPersistentFightResultKeyboard
+} from "../keyboards/fightKeyboard";
 import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentFightAlreadyCompleted,
   presentFightLevelRetired,
   presentFightNoCharacter,
-  presentFightStart
+  presentFightStart,
+  presentPersistentFight
 } from "../presenters/fightPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
@@ -75,7 +81,7 @@ export async function sendFight(
     }
   }
 
-  const result = await fightService.getMimicShawarmaForTelegramUser(telegramUserId);
+  const result = await fightService.getFightForTelegramUser(telegramUserId);
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentFightNoCharacter());
@@ -88,11 +94,36 @@ export async function sendFight(
   }
 
   if (options?.presence) {
-    await markFightPresence(ctx, options.presence);
+    await markFightPresence(ctx, options.presence, {
+      persistent: result.state === "persistent-active" || result.state === "persistent-terminal"
+    });
   }
 
   if (result.state === "already-completed") {
     await sendText(ctx, mode, presentFightAlreadyCompleted(result));
+    return;
+  }
+
+  if (result.state === "persistent-active" || result.state === "persistent-terminal") {
+    await sendText(ctx, mode, presentPersistentFight(result), {
+      type: "persistent-fight",
+      character: result.character,
+      session: result.session
+    });
+    return;
+  }
+
+  if (result.state === "persistent-ready") {
+    await sendText(
+      ctx,
+      mode,
+      [
+        "⚔️ Бій не стартував.",
+        "",
+        "Корчмар загубив монстра між рядками, але лишив вам дорогу назад до справ."
+      ].join("\n"),
+      "persistent-ready"
+    );
     return;
   }
 
@@ -102,7 +133,11 @@ export async function sendFight(
   });
 }
 
-async function markFightPresence(ctx: Context, presence: PresenceService): Promise<void> {
+async function markFightPresence(
+  ctx: Context,
+  presence: PresenceService,
+  options?: { persistent?: boolean }
+): Promise<void> {
   const player = playerFromContext(ctx.from);
 
   if (!player) {
@@ -113,7 +148,9 @@ async function markFightPresence(ctx: Context, presence: PresenceService): Promi
     user: player,
     locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
     currentRaidId: null,
-    currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
+    currentAdventureId: options?.persistent
+      ? PRESENCE_ADVENTURE_SOLO_FIGHT
+      : PRESENCE_ADVENTURE_MIMIC_FIGHT
   });
 }
 
@@ -121,7 +158,16 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  keyboard: false | "enter-korchma" | { type: "fight"; character: CharacterSummary } = false
+  keyboard:
+    | false
+    | "enter-korchma"
+    | "persistent-ready"
+    | { type: "fight"; character: CharacterSummary }
+    | {
+        type: "persistent-fight";
+        character: CharacterSummary;
+        session: Parameters<typeof buildPersistentFightResultKeyboard>[0];
+      } = false
 ): Promise<void> {
   const options = keyboard
     ? {
@@ -129,7 +175,11 @@ async function sendText(
         reply_markup:
           keyboard === "enter-korchma"
             ? buildKorchmaFrontKeyboard()
-            : buildFightKeyboard(keyboard.character)
+            : keyboard === "persistent-ready"
+              ? buildPersistentFightReadyKeyboard()
+              : keyboard.type === "persistent-fight"
+              ? buildPersistentFightResultKeyboard(keyboard.session, keyboard.character)
+              : buildFightKeyboard(keyboard.character)
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
 

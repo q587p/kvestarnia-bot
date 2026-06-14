@@ -3,7 +3,10 @@ import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeBestiaryMonsterCallbackData } from "../../src/bot/callbacks/bestiaryCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
-import { makeFightCallbackData } from "../../src/bot/callbacks/fightCallbackData";
+import {
+  makeFightCallbackData,
+  makeFightTurnCallbackData
+} from "../../src/bot/callbacks/fightCallbackData";
 import { makeHuntActionCallbackData } from "../../src/bot/callbacks/huntCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
@@ -242,6 +245,14 @@ describe("presence middleware", () => {
     {
       name: "fight",
       callbackData: makeFightCallbackData("attack")
+    },
+    {
+      name: "persistent fight",
+      callbackData: makeFightTurnCallbackData({
+        sessionId: "123e4567-e89b-12d3-a456-426614174000",
+        turn: 1,
+        action: "attack"
+      })
     },
     {
       name: "hunt",
@@ -592,7 +603,14 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
       completeHuntContract: () => Promise.resolve({ state: "no-character" })
     },
     onboarding: {},
-    hero: {},
+    hero: {
+      findByTelegramUserId: () =>
+        Promise.resolve({
+          state: "existing-character",
+          character,
+          inventoryGoldValue: 0
+        })
+    },
     inventory: {},
     presence: new CapturingPresenceService(),
     devReset: {

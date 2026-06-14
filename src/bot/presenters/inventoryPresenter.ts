@@ -25,6 +25,7 @@ export function presentInventory(result: InventoryResult, page = 0): string {
   return [
     "🎒 <b>Манатки</b>",
     "Пригодник розклав здобич на столі. Стіл попросив надбавку.",
+    "",
     `Оціночна вартість столу: <b>${result.totalGoldValue} золота</b>. Стіл уже поводиться як фінансовий радник.`,
     ...(totalPages > 1 ? [`Сторінка <b>${safePage + 1}/${totalPages}</b>. Усе інше стіл поки тримає під ліктем.`] : []),
     "",

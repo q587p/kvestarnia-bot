@@ -1,6 +1,6 @@
 # Phase 1 Finish Plan
 
-Цей документ фіксує scope lock після `0.0.20`: добиваємо основний solo RPG loop, а нові поверхні додаємо тільки коли вони rewardless і не відволікають від бойової петлі.
+Цей документ фіксує scope lock після `0.0.21`: добиваємо основний solo RPG loop, а нові поверхні додаємо тільки коли вони rewardless і не відволікають від бойової петлі.
 
 ## Головна ціль
 
@@ -10,7 +10,7 @@
 /start → герой → справжній бій → XP/золото/лут → inventory/equipment → рівень і цифри реально впливають на наступний бій
 ```
 
-Бестіарій, Hunt Board, presence, корчма й flavor уже дали корисну інфраструктуру. Achievements Phase 1 дозволений як наступний rewardless meta-slice для титулів і прогресу, але Phase 1 не закрита, доки немає справжнього combat → equipment stats → loot → level 1-10 loop.
+Бестіарій, Hunt Board, presence, корчма й flavor уже дали корисну інфраструктуру. Persistent `/fight` уже зʼявився як session slice з одним маленьким quest wrapper-ом на 13 перемог, але без per-fight rewards. Phase 1 не закрита, доки немає справжнього combat → equipment stats → loot → level 1-10 loop. Achievements Phase 1 дозволений як later rewardless meta-slice для титулів і прогресу, але не має перебивати цей ланцюжок.
 
 ## Scope Lock
 
@@ -32,20 +32,20 @@
 2. **Combat Domain Engine**
    Чистий TypeScript domain combat без Telegram: state/action/result, HP/mana, monster HP, turn, status, deterministic resolver, win/loss/flee/mana tests.
 
-3. **Achievements Phase 1**
-   Rewardless ачівки як колекція титулів: seed definitions, idempotent unlock service, кнопка `🏅 Ачівки`, пагінація, hidden states і grouped notifications. Без XP, золота, предметів, stat effects або active-title selection. Деталі: `docs/ACHIEVEMENTS_PHASE1.md`.
+3. **Persistent `/fight` Sessions**
+   Підʼєднати combat engine до runtime: combat row/session, start/resume, short validated callbacks, stale-safe turns, pending Barrel raid guard, плюс один вузький корчемний контракт на 13 won сесій без broad quest engine.
 
-4. **Persistent `/fight` Sessions**
-   Підʼєднати combat engine до runtime: combat row/session, start/resume, short validated callbacks, stale-safe turns, pending Barrel raid guard.
-
-5. **Effective Stats + Equipment Effects**
+4. **Effective Stats + Equipment Effects**
    Один helper для base stats + level + equipment. Манатки дають маленькі прозорі bonuses, `/hero` і combat читають ту саму математику.
 
-6. **Loot Engine + Reward Replay**
+5. **Loot Engine + Reward Replay**
    Контрольовані loot tables із rarity, bounded LUCK modifier, deterministic/injected RNG, idempotent reward claim і replay деталей.
 
-7. **Integrated Fight Rewards + Level 1-10**
+6. **Integrated Fight Rewards + Level 1-10**
    Fight victory видає XP/gold/item через новий path. Level thresholds 1-10 живуть в одному модулі, multi-level grant і cap behavior протестовані.
+
+7. **Achievements Phase 1**
+   Rewardless ачівки як колекція титулів: seed definitions, idempotent unlock service, кнопка `🏅 Ачівки`, пагінація, hidden states і grouped notifications. Без XP, золота, предметів, stat effects або active-title selection. Деталі: `docs/ACHIEVEMENTS_PHASE1.md`.
 
 8. **Phase 1 Balance / Playtest / Polish**
    Не додавати фічі. Пройти smoke checklist, симуляції або balance matrix, оновити docs/release surfaces.

@@ -30,7 +30,7 @@ Done when: є unit tests для перемоги, поразки, криту, п
 
 - онови `package.json` version тільки коли це прямо входить у задачу;
 - онови `CHANGELOG.md` і `news.md`, якщо зміна має йти як реліз;
-- заголовки release notes мають містити номер, дату за Holocene calendar і короткий опис;
+- заголовки release notes мають містити номер, дату за Holocene calendar і короткий опис; дату брати за київським часом (`Europe/Kyiv`) на момент підготовки/публікації запису;
 - PR title для release-oriented зміни починається з номера версії й короткого опису, наприклад `0.0.4 — First Mimic Shawarma Adventure`.
 
 ### Docs-only / presentation зміни

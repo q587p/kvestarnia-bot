@@ -46,7 +46,7 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
   {
     commands: ["bestiary", "monsters"],
     icon: "📚",
-    description: "бестіарій і польові нотатки"
+    description: "бестіарій із 3 рівня"
   },
   {
     commands: ["cellar"],

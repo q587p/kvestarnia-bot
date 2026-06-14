@@ -6,6 +6,7 @@ import type {
   PresenceGroup,
   PresencePerson
 } from "../../services/presenceService";
+import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 
 const MAX_VISIBLE_PRESENCE_PEOPLE = 12;
@@ -22,11 +23,11 @@ export function presentOnline(snapshot: OnlineSnapshot): string {
     ...presentLocationBlock(snapshot.location.name, snapshot.location.people)
   ];
 
-  lines.push("");
-
   if (snapshot.activity) {
+    lines.push("");
     lines.push(...presentActivitySummary(snapshot.activity));
-  } else {
+  } else if (snapshot.location.id === PRESENCE_LOCATION_KORCHMA_BARREL) {
+    lines.push("");
     lines.push("🍺 Активного рейду зараз немає.");
   }
 
@@ -102,7 +103,9 @@ function presentLocationBlock(locationName: string, group: PresenceGroup): strin
 
 function presentActivitySummary(activity: PresenceActivitySnapshot): string[] {
   const prefix =
-    activity.kind === "raid" ? "🍺 У рейді" : `${presentAdventureIcon(activity)} У пригоді`;
+    activity.kind === "raid"
+      ? presentSoloRaidPrefix(activity.people.total)
+      : `${presentAdventureIcon(activity)} У пригоді`;
 
   if (activity.people.total === 0) {
     return [`${prefix} «${escapeHtml(activity.name)}»: поки тихо.`];
@@ -144,6 +147,10 @@ function presentPeople(people: PresencePerson[]): string[] {
   }
 
   return lines;
+}
+
+function presentSoloRaidPrefix(total: number): string {
+  return total === 1 ? "🍺 У соло-рейді" : "🍺 У соло-рейдах";
 }
 
 function truncatePresenceName(name: string): string {

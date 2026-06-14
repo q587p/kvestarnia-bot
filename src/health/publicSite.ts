@@ -170,8 +170,8 @@ export function renderPresencePage(snapshot: PublicPresenceLocationsSnapshot): s
       <p class="lead-small">Хто зараз у грі, без Telegram-стеження й секундоміра над головою.</p>
       <p class="total">👥 У грі зараз: ${snapshot.total}</p>
       <div class="presence-totals">
-        <span class="active">🟢 ${snapshot.totalActive} активні</span>
-        <span class="idle">🟡 ${snapshot.totalIdle} притихли</span>
+        <span class="active">🟢 Активних: ${snapshot.totalActive}</span>
+        <span class="idle">🟡 Притихлих: ${snapshot.totalIdle}</span>
       </div>
       ${locationSections}
       <p class="privacy-note">Без точних timestamp-ів, без публічних імен за замовчуванням і без назв прихованих місцин.</p>
@@ -224,7 +224,7 @@ function renderPresenceSummary(snapshot: PublicPresenceLocationsSnapshot): strin
       : `<ul class="presence-list">${locations
           .map(
             (location) =>
-              `<li><strong>${escapeHtml(location.title)}</strong><span>${location.activeCount} активні · ${location.idleCount} притихли</span></li>`
+              `<li><strong>${escapeHtml(location.title)}</strong><span>${formatPresenceCounts(location.activeCount, location.idleCount)}</span></li>`
           )
           .join("")}</ul>`;
 
@@ -239,8 +239,8 @@ function renderPresenceSummary(snapshot: PublicPresenceLocationsSnapshot): strin
       <strong>усього зараз</strong>
     </div>
     <div class="presence-stats">
-      <span class="active">🟢 ${snapshot.totalActive} активні</span>
-      <span class="idle">🟡 ${snapshot.totalIdle} притихли</span>
+      <span class="active">🟢 Активних: ${snapshot.totalActive}</span>
+      <span class="idle">🟡 Притихлих: ${snapshot.totalIdle}</span>
     </div>
   </div>
   ${locationList}
@@ -260,9 +260,13 @@ function renderLocationCard(location: PublicPresenceLocationsSnapshot["locations
   return `<section class="location">
   <h2>${escapeHtml(location.title)}</h2>
   ${region}
-  <div class="counts"><span class="active">🟢 ${location.activeCount}</span> активні · <span class="idle">🟡 ${location.idleCount}</span> притихли</div>
+  <div class="counts">${formatPresenceCounts(location.activeCount, location.idleCount)}</div>
   ${players}
 </section>`;
+}
+
+function formatPresenceCounts(activeCount: number, idleCount: number): string {
+  return `<span class="active">🟢 Активних: ${activeCount}</span> · <span class="idle">🟡 Притихлих: ${idleCount}</span>`;
 }
 
 function renderNewsPagination(entries: NewsEntry[], selectedIndex: number): string {

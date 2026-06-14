@@ -46,7 +46,7 @@ Future path restrictions should sound like in-world folklore or institutions, no
 Hidden `path` може бути внутрішнім selector-ом, але назви `sun`, `moon`, `boundary` і великі «шляхи» не виходять у player-facing текст.
 
 ## Ачівки й титули
-`0.0.21` запланований як перший rewardless achievements slice. Ачівки в Phase 1 — це жартівливі записи й майбутні титули, а не бойові бонуси.
+Achievements Phase 1 лишається rewardless later slice після основного combat/equipment/loot loop. Ачівки в Phase 1 — це жартівливі записи й майбутні титули, а не бойові бонуси.
 
 - Вхід: кнопка `🏅 Ачівки` з екрану персонажа.
 - Перший seed: 54 definition records із категоріями старту/рівнів, бою, квестів, босів, манаток/золота, присутності й дивацтв.
@@ -89,7 +89,16 @@ Hidden `path` може бути внутрішнім selector-ом, але на�
 - Хід монстра: атака або trait.
 - Бій має тривати 2–5 ходів у середньому.
 
-`0.0.20` додає перший чистий domain combat engine без Telegram runtime wiring. Він уже має serializable state, attack/skill/flee, HP/ману, win/loss/flee/status guards, injected RNG і derivation бойових статів монстра з content. `/fight` у боті ще не замінений: наступний зріз має зробити persistent fight sessions і тільки тоді вивести цей рушій у Telegram.
+`0.0.20` додає перший чистий domain combat engine. Він уже має serializable state, attack/skill/flee, HP/ману, win/loss/flee/status guards, injected RNG і derivation бойових статів монстра з content.
+
+`0.0.21` підключає цей рушій до Telegram як persistent solo `/fight` для героїв із 3 рівня:
+- рівні 1-2 лишаються на навчальній сутичці з підозрілим монстром і старим одноразовим reward probe;
+- з 3 рівня `/fight` створює або відновлює одну active solo session;
+- кнопки ходу несуть session id, turn number і action, тому stale callback не проводить damage вдруге;
+- стан бою показує HP/ману героя, HP монстра, номер ходу й останній результат;
+- terminal states `won/lost/fled/expired` стабільні й не дають повторних ходів.
+
+У 0.0.21 persistent fight не видає XP, золото або манатки за кожну окрему перемогу. Щоб loop не виглядав голою кнопкою, цей зріз має перший вузький quest wrapper: `Тринадцять дрібних проблем`. Прогрес рахується з won `solo_combat_sessions`, ціль нагороди — `13`, але лічильник далі показує фактичні перемоги на кшталт `14/13`; completion reward видається один раз через `daily_actions` bucket `once`: `+35 XP`, `+10` золота й `item.badge-of-thirteen-small-problems`. Це не broad quest engine і не loot path; це маленький корчемний контракт поверх сесій.
 
 Важливе правило для runtime-підключення: герой може не мати starter weapon, бо starter fight закривається після 2 рівня. Combat engine має підтримувати unarmed/basic fallback, а equipment effects мають додаватися пізніше через один helper.
 
@@ -134,7 +143,7 @@ Hidden `path` може бути внутрішнім selector-ом, але на�
 - `daily_actions` лишається єдиним авторитетом idempotent reward claim; `hunt_contracts` — це журнал/audit/replay, не друге джерело XP або луту.
 - Якщо збережений `monsterId` зник із content, дошка fail-safe просить оновити запис пізніше й не видає винагороду.
 - Щоб onboarding не вивалював усе одразу, Дошка полювання відкривається з 3 рівня. До цього hub показує locked-рядок без кнопки `🏹 До дошки`, а direct `/hunt` або старий hunt callback не створює contract ledger і не видає reward. Стартові шаурма й fight probe лишаються новачковими справами для рівнів 1-2; з 3 рівня hub показує retired-рядок без action-кнопок і веде героя до старших справ.
-- `/bestiary` і `/monsters` лишаються read-only і доступні одразу: читати нотатки можна раніше, ніж лізти за контрактом.
+- `/bestiary` і `/monsters` лишаються read-only, але відкриваються з 3 рівня: нотатки корисні як довідник, та не мають спойлерити стартову шаурму й перші чудовиська до знайомства з ними.
 
 Залишковий борг перед великим `/hunt`: ledger ще не є повною encounter/session system. Немає persistent HP/mana, групових учасників, wilderness location, bestiary collection progression або random loot table engine.
 

@@ -43,7 +43,8 @@ describe("content tables", () => {
         "item.bristle-of-basement-order",
         "item.napkin-of-mouse-diplomacy",
         "item.suspicious-shawarma-wrapper",
-        "item.receipt-of-formal-suspicion"
+        "item.receipt-of-formal-suspicion",
+        "item.badge-of-thirteen-small-problems"
       ])
     );
   });

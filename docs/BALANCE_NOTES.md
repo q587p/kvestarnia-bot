@@ -54,6 +54,8 @@ Equipment effects для атак мають заходити через оди�
 - accessory може давати малий situational modifier, resource discount або extra flavor hook;
 - priceless/trophy items не дають бойових бонусів, доки контент явно не переведений у equippable/effect item.
 
+`0.0.21` persistent solo `/fight` використовує бойовий рушій у runtime, але навмисно не видає XP, золото або лут. Це дає перевірити session correctness, stale callbacks, mana failure і terminal states без нового economy source. Наступний балансний крок — equipment stat effects через один helper, а вже потім reward/loot path для перемог.
+
 ### Hit chance
 MVP можна почати без промахів у звичайній атаці або з дуже простим шансом:
 
@@ -187,15 +189,23 @@ item_power_budget = base_by_level + rarity_bonus
 - Race/class edge дозволений і бажаний у тематичних бійках, але симуляції мають ловити крайнощі: воїн-орк може бути фаворитом у кулачній драці, проте бард такого самого рівня не має падати до майже нульового win rate.
 - Daily/weekly нагороди для переможців мають бути переважно cosmetic/social: титул, запис на дошці, маленький bonus payout. Не давати чемпіону предмет або buff, який збільшує наступний PvP snowball.
 
+## Combat simulation harness
+Для локальної балансної перевірки запускай:
+```bash
+npm run simulate:combat -- -- --levels 1-10 --runs 1000
+```
+
+Це допоміжний інструмент для playtest-циклу, а не production-фіча і не доказ фінального балансу. Звіт варто читати разом із реальними `/fight` сесіями, equipment effects і loot progression, коли вони вже будуть підключені.
+
 ## Anti-snowball
 - Рейдові нагороди: участь + performance, але не winner-takes-all.
 - Бонуси ґільдії: convenience/cosmetic/малий бонус, не x2 damage.
 - Daily catch-up для гравців, що пропустили день.
 
 ## Симуляції
-Після реалізації combat engine зробити script:
+Для довших локальних прогонів:
 ```bash
-npm run simulate:combat -- --levels 1-10 --runs 10000
+npm run simulate:combat -- -- --levels 1-10 --runs 10000
 ```
 
 Вивід:

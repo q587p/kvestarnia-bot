@@ -12,6 +12,7 @@ import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
+  PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_FRONT,
@@ -29,7 +30,7 @@ import { parseAdventureCallbackData, type AdventureCallback } from "./callbacks/
 import { parseBestiaryCallbackData, type BestiaryCallback } from "./callbacks/bestiaryCallbackData";
 import { parseCellarCallbackData, type CellarCallback } from "./callbacks/cellarCallbackData";
 import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
-import { parseFightCallbackData } from "./callbacks/fightCallbackData";
+import { parseFightCallbackData, type FightCallback } from "./callbacks/fightCallbackData";
 import { parseHuntCallbackData, type HuntCallback } from "./callbacks/huntCallbackData";
 import {
   parseEquipmentCallbackData,
@@ -50,8 +51,8 @@ import { parseTavernCallbackData, type TavernCallback } from "./callbacks/tavern
 import { registerAdventureCommand, sendAdventure } from "./commands/adventureCommand";
 import {
   registerBestiaryCommand,
-  sendBestiaryList,
-  sendBestiaryMonster
+  sendBestiaryListGated,
+  sendBestiaryMonsterGated
 } from "./commands/bestiaryCommand";
 import {
   registerCellarCommand,
@@ -88,7 +89,7 @@ import {
   buildCellarParticipantsKeyboard,
   buildCellarResultKeyboard
 } from "./keyboards/cellarKeyboard";
-import { buildFightResultKeyboard } from "./keyboards/fightKeyboard";
+import { buildFightResultKeyboard, buildPersistentFightResultKeyboard } from "./keyboards/fightKeyboard";
 import { buildHuntResultKeyboard } from "./keyboards/huntKeyboard";
 import { buildEquipmentKeyboard, buildItemDetailKeyboard } from "./keyboards/inventoryKeyboard";
 import {
@@ -126,7 +127,8 @@ import {
 import {
   presentFightLevelRetired,
   presentFightNoCharacter,
-  presentFightResult
+  presentFightResult,
+  presentPersistentFightTurn
 } from "./presenters/fightPresenter";
 import {
   presentHuntLevelLocked,
@@ -211,7 +213,7 @@ export function createBot(token: string, services: BotServices): Bot {
     presence: services.presence,
     tavernRaid: services.tavern
   });
-  registerBestiaryCommand(bot);
+  registerBestiaryCommand(bot, services.hero);
   registerCellarCommand(bot, services.cellarErrand, services.presence, services.tavern);
   registerQuestHubCommand(bot, {
     adventure: services.adventure,
@@ -383,7 +385,7 @@ export function createBot(token: string, services: BotServices): Bot {
       return;
     }
 
-    await handleBestiaryCallback(ctx, parsed.value);
+    await handleBestiaryCallback(ctx, parsed.value, services.hero);
   });
 
   bot.callbackQuery(/^v1:devreset:/, async (ctx) => {
@@ -481,6 +483,10 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
   }
 
   if (data.startsWith("v1:fight:mimic:")) {
+    return {};
+  }
+
+  if (data.startsWith("v1:fight:turn:")) {
     return {};
   }
 
@@ -1353,7 +1359,7 @@ async function handleCellarCallback(
 
 async function handleFightCallback(
   ctx: Context,
-  action: "attack" | "receipt" | "flee",
+  callback: FightCallback,
   services: BotServices
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
@@ -1367,7 +1373,40 @@ async function handleFightCallback(
     return;
   }
 
-  const result = await services.fight.completeMimicShawarma(telegramUserId, action);
+  if (callback.type === "turn") {
+    const result = await services.fight.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: callback.sessionId,
+      turn: callback.turn,
+      action: callback.action
+    });
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentFightNoCharacter());
+      return;
+    }
+
+    if (result.state !== "not-found") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentPersistentFightTurn(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      ...(result.state === "not-found"
+        ? {}
+        : {
+            reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
+          })
+    });
+    return;
+  }
+
+  const result = await services.fight.completeMimicShawarma(telegramUserId, callback.action);
 
   if (result.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
@@ -1495,16 +1534,17 @@ async function handleHuntCallback(
 
 async function handleBestiaryCallback(
   ctx: Context,
-  callback: BestiaryCallback
+  callback: BestiaryCallback,
+  heroService: HeroService
 ): Promise<void> {
   await safeAnswerCallbackQuery(ctx);
 
   if (callback.type === "list") {
-    await sendBestiaryList(ctx, "edit", callback.page);
+    await sendBestiaryListGated(ctx, heroService, "edit", callback.page);
     return;
   }
 
-  await sendBestiaryMonster(ctx, "edit", callback.monsterId, callback.page);
+  await sendBestiaryMonsterGated(ctx, heroService, "edit", callback.monsterId, callback.page);
 }
 
 async function sendLevelUpCelebration(

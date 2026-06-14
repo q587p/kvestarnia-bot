@@ -19,6 +19,7 @@ export interface DailyActionRecord {
 export interface ItemGrant {
   itemId: string;
   quantity: number;
+  maxOwnedQuantity?: number;
 }
 
 export interface ClaimDailyActionInput {

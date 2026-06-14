@@ -4,7 +4,8 @@ import type {
   ClaimDailyActionInput,
   ClaimDailyActionResult,
   DailyActionRecord,
-  DailyActionRepository
+  DailyActionRepository,
+  ItemGrant
 } from "./dailyActionRepository";
 
 export class PrismaDailyActionRepository implements DailyActionRepository {
@@ -117,9 +118,16 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
                 }
               });
         const itemGrants = input.itemGrants ?? [];
+        const appliedItemGrants: ItemGrant[] = [];
 
         for (const grant of itemGrants) {
           if (grant.quantity <= 0) {
+            continue;
+          }
+
+          const grantQuantity = await getGrantQuantity(tx, character.id, grant);
+
+          if (grantQuantity <= 0) {
             continue;
           }
 
@@ -133,13 +141,17 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             create: {
               characterId: character.id,
               itemId: grant.itemId,
-              quantity: grant.quantity
+              quantity: grantQuantity
             },
             update: {
               quantity: {
-                increment: grant.quantity
+                increment: grantQuantity
               }
             }
+          });
+          appliedItemGrants.push({
+            itemId: grant.itemId,
+            quantity: grantQuantity
           });
         }
 
@@ -152,7 +164,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             newLevel,
             leveledUp: newLevel > rewardProgress.oldLevel
           },
-          itemGrants: itemGrants.filter((grant) => grant.quantity > 0)
+          itemGrants: appliedItemGrants
         };
       });
     } catch (error) {
@@ -202,6 +214,33 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
       itemGrants: []
     };
   }
+}
+
+async function getGrantQuantity(
+  tx: Prisma.TransactionClient,
+  characterId: string,
+  grant: { itemId: string; quantity: number; maxOwnedQuantity?: number }
+): Promise<number> {
+  const quantity = Math.floor(grant.quantity);
+
+  if (!grant.maxOwnedQuantity) {
+    return quantity;
+  }
+
+  const existing = await tx.characterItem.findUnique({
+    where: {
+      characterId_itemId: {
+        characterId,
+        itemId: grant.itemId
+      }
+    },
+    select: {
+      quantity: true
+    }
+  });
+  const remaining = grant.maxOwnedQuantity - (existing?.quantity ?? 0);
+
+  return Math.min(quantity, Math.max(0, remaining));
 }
 
 function isUniqueConstraintError(error: unknown): boolean {

@@ -10,13 +10,31 @@ import { sendBestiaryMonster } from "../../src/bot/commands/bestiaryCommand";
 
 describe("bestiary command", () => {
   it.each(["/bestiary", "/monsters"])("renders %s as read-only monster notes", async (command) => {
-    const calls = await captureCommandCalls(command);
+    const calls = await captureCommandCalls(command, { level: 3 });
     const message = calls.find((call) => call.method === "sendMessage");
 
     expect(String(message?.payload.text)).toContain("📖 Бестіарій Квестарні");
     expect(String(message?.payload.text)).toContain("Польові нотатки");
     expect(message?.payload.parse_mode).toBe("HTML");
     expect(JSON.stringify(message?.payload.reply_markup)).toContain(makeQuestCallbackData("hunt"));
+  });
+
+  it("keeps bestiary hidden before level three", async () => {
+    const calls = await captureCommandCalls("/bestiary", { level: 2 });
+    const message = calls.find((call) => call.method === "sendMessage");
+
+    expect(String(message?.payload.text)).toContain("📖 Бестіарій поки під серветкою.");
+    expect(String(message?.payload.text)).toContain("до 3 рівня");
+    expect(String(message?.payload.text)).not.toContain("Мімік-шаурма");
+    expect(message?.payload.reply_markup).toBeUndefined();
+  });
+
+  it("asks players to create a character before reading the bestiary", async () => {
+    const calls = await captureCommandCalls("/bestiary", { noCharacter: true });
+    const message = calls.find((call) => call.method === "sendMessage");
+
+    expect(String(message?.payload.text)).toContain("Спершу створіть пригодника через /start");
+    expect(String(message?.payload.text)).not.toContain("Мімік-шаурма");
   });
 
   it("renders monster detail with back and hunt-board buttons", async () => {
@@ -40,7 +58,7 @@ describe("bestiary command", () => {
     const calls = await captureCallbackCalls([
       makeBestiaryListCallbackData(2),
       makeBestiaryMonsterCallbackData("monster.report-jellyfish", 2)
-    ]);
+    ], { level: 3 });
     const edits = calls.filter((call) => call.method === "editMessageText");
 
     expect(String(edits[0]?.payload.text)).toContain("Сторінка 3/");
@@ -59,6 +77,19 @@ describe("bestiary command", () => {
       ]
     });
   });
+
+  it("gates old bestiary callbacks before level three", async () => {
+    const calls = await captureCallbackCalls([
+      makeBestiaryListCallbackData(0),
+      makeBestiaryMonsterCallbackData("monster.mimic-shawarma", 0)
+    ], { level: 1 });
+    const edits = calls.filter((call) => call.method === "editMessageText");
+
+    expect(String(edits[0]?.payload.text)).toContain("📖 Бестіарій поки під серветкою.");
+    expect(String(edits[1]?.payload.text)).toContain("📖 Бестіарій поки під серветкою.");
+    expect(String(edits[0]?.payload.text)).not.toContain("Мімік-шаурма");
+    expect(String(edits[1]?.payload.text)).not.toContain("Мімік-шаурма");
+  });
 });
 
 interface ApiCall {
@@ -66,8 +97,11 @@ interface ApiCall {
   payload: Record<string, unknown>;
 }
 
-async function captureCommandCalls(command: string): Promise<ApiCall[]> {
-  const bot = createBot("123456:test-token", servicesWith());
+async function captureCommandCalls(
+  command: string,
+  options: BestiaryTestOptions = {}
+): Promise<ApiCall[]> {
+  const bot = createBot("123456:test-token", servicesWith(options));
   const calls: ApiCall[] = [];
 
   bot.api.config.use((_prev, method, payload) => {
@@ -100,8 +134,11 @@ async function captureCommandCalls(command: string): Promise<ApiCall[]> {
   return calls;
 }
 
-async function captureCallbackCalls(callbacks: string[]): Promise<ApiCall[]> {
-  const bot = createBot("123456:test-token", servicesWith());
+async function captureCallbackCalls(
+  callbacks: string[],
+  options: BestiaryTestOptions = {}
+): Promise<ApiCall[]> {
+  const bot = createBot("123456:test-token", servicesWith(options));
   const calls: ApiCall[] = [];
 
   bot.api.config.use((_prev, method, payload) => {
@@ -146,7 +183,12 @@ function makeContext(replies: Array<{ text: string; options: unknown }>): Contex
   } as unknown as Context;
 }
 
-function servicesWith(): BotServices {
+interface BestiaryTestOptions {
+  level?: number;
+  noCharacter?: boolean;
+}
+
+function servicesWith(options: BestiaryTestOptions = {}): BotServices {
   return {
     adventure: {
       getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
@@ -165,7 +207,18 @@ function servicesWith(): BotServices {
       completeHuntContract: () => Promise.resolve({ state: "no-character" })
     },
     onboarding: {},
-    hero: {},
+    hero: {
+      findByTelegramUserId: () =>
+        Promise.resolve(
+          options.noCharacter
+            ? { state: "no-character" }
+            : {
+                state: "existing-character",
+                character: characterAtLevel(options.level ?? 3),
+                inventoryGoldValue: 0
+              }
+        )
+    },
     equipment: {},
     inventory: {},
     presence: {
@@ -186,6 +239,44 @@ function servicesWith(): BotServices {
       getActivePendingFridayBarrelRaidForTelegramUser: () => Promise.resolve({ state: "none" })
     }
   } as unknown as BotServices;
+}
+
+function characterAtLevel(level: number) {
+  return {
+    name: "Мандрівник",
+    pronoun: "they",
+    pronounLabel: "Вони",
+    path: "boundary",
+    raceId: "race.human-ish",
+    raceName: "Людисько",
+    classId: "class.warrior",
+    className: "Воїн",
+    title: "Пересічні Пригодники",
+    level,
+    xp: 0,
+    nextLevelXp: 10,
+    xpToNextLevel: 10,
+    gold: 0,
+    hpCurrent: 20,
+    hpMax: 20,
+    manaCurrent: 10,
+    manaMax: 10,
+    stats: {
+      strength: 8,
+      dexterity: 6,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6
+    },
+    levelBonus: {
+      hpMax: 0,
+      manaMax: 0,
+      primaryStat: {
+        stat: "strength",
+        bonus: 0
+      }
+    }
+  };
 }
 
 function messageUpdate(text: string) {

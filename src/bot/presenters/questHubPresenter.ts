@@ -3,6 +3,7 @@ import type { AdventureLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { FightLookupResult } from "../../services/fightService";
 import type { HuntLookupResult } from "../../services/huntService";
+import { BESTIARY_MIN_LEVEL, meetsActivityLevel } from "../../domain/progression/activityGates";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export interface QuestHubSnapshot {
@@ -56,9 +57,29 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
     return `⚔️ <i>Сутичка з невідомим монстром</i> — тренувальний бій для 1-${fight.maxLevel} рівнів.`;
   }
 
+  if (fight.state === "persistent-active") {
+    return `📋 <i>Тринадцять дрібних проблем</i> — ${presentThirteenProblemsStatus(fight.questProgress)}, бій уже триває.`;
+  }
+
+  if (fight.state === "persistent-ready" || fight.state === "persistent-terminal") {
+    return `📋 <i>Тринадцять дрібних проблем</i> — ${presentThirteenProblemsStatus(fight.questProgress)}.`;
+  }
+
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
 
   return `⚔️ <i>Сутичка з невідомим монстром</i> — ${status}.`;
+}
+
+function presentThirteenProblemsStatus(progress: {
+  wins: number;
+  target: number;
+  completed: boolean;
+}): string {
+  if (progress.completed) {
+    return `${progress.wins}/${progress.target} проблем у журналі, перший список закрито; далі практика`;
+  }
+
+  return `${progress.wins}/${progress.target} проблем у журналі`;
 }
 
 function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" }>): string {
@@ -101,6 +122,10 @@ function presentQuestHubFooter(snapshot: QuestHubSnapshot): string {
     return "Оберіть справу, поки вона не обрала вас.";
   }
 
+  if (!meetsActivityLevel(snapshot.character.level, BESTIARY_MIN_LEVEL)) {
+    return "Справи зараз удають меблі. Можна перевірити манатки або повернутися до зали.";
+  }
+
   return "Справи зараз удають меблі. Можна почитати бестіарій, перевірити манатки або повернутися до зали.";
 }
 
@@ -108,6 +133,9 @@ function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
   return (
     snapshot.adventure.state === "ready" ||
     snapshot.fight.state === "ready" ||
+    snapshot.fight.state === "persistent-ready" ||
+    snapshot.fight.state === "persistent-active" ||
+    snapshot.fight.state === "persistent-terminal" ||
     snapshot.hunt.state === "ready" ||
     snapshot.cellar.state === "ready"
   );

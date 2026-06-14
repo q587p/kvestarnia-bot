@@ -1,5 +1,6 @@
 import { items, monsterFlavorLines, monsterLoot, monsters } from "../../content";
 import type { MonsterContent } from "../../content/schema";
+import { BESTIARY_MIN_LEVEL } from "../../domain/progression/activityGates";
 import { escapeHtml } from "./telegramHtml";
 
 export const BESTIARY_PAGE_SIZE = 5;
@@ -135,6 +136,20 @@ function presentMonsterRow(monster: MonsterContent): string {
   const tags = monster.tags.slice(0, 3).map(formatBestiaryTagLabel).join(", ");
 
   return `• <b>${escapeHtml(monster.name)}</b> · рівень ${monster.level}${tags ? ` · ${escapeHtml(tags)}` : ""}`;
+}
+
+export function presentBestiaryNoCharacter(): string {
+  return "Спершу створіть пригодника через /start. Бестіарій не показує зуби порожнім анкетам.";
+}
+
+export function presentBestiaryLevelLocked(requiredLevel: number = BESTIARY_MIN_LEVEL): string {
+  return [
+    "📖 Бестіарій поки під серветкою.",
+    "",
+    `Корчмар притримує нотатки до ${requiredLevel} рівня: там є спойлери, зуби й одна дуже підозріла вечеря.`,
+    "",
+    "Почніть зі Столу зі справами: /quest"
+  ].join("\n");
 }
 
 function formatBestiaryTagLabel(tag: string): string {

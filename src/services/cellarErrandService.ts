@@ -14,6 +14,7 @@ import {
   CORK_RING_OF_SERIOUS_BUSINESS_ITEM_ID,
   enrichRewardItemGrants,
   NAPKIN_OF_MOUSE_DIPLOMACY_ITEM_ID,
+  starterEquipmentGrant,
   type RewardItemGrant
 } from "./itemGrant";
 
@@ -211,10 +212,7 @@ function buildCellarItemGrants(action: CellarErrandAction): Array<{ itemId: stri
   }
 
   return [
-    {
-      itemId: CORK_RING_OF_SERIOUS_BUSINESS_ITEM_ID,
-      quantity: 1
-    },
+    starterEquipmentGrant(CORK_RING_OF_SERIOUS_BUSINESS_ITEM_ID),
     {
       itemId: NAPKIN_OF_MOUSE_DIPLOMACY_ITEM_ID,
       quantity: 1

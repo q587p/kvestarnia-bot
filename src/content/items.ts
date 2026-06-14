@@ -114,5 +114,13 @@ export const items = [
     slot: "junk",
     goldValue: 3
   },
+  {
+    id: "item.badge-of-thirteen-small-problems",
+    name: "Жетон тринадцяти дрібних проблем",
+    description: "На вигляд серйозний. На дотик — доказ, що корчмар вміє рахувати до тринадцяти й далі не хоче.",
+    rarity: "common",
+    slot: "cosmetic",
+    goldValue: 13
+  },
   ...monsterLootItemAdditions
 ] satisfies ItemContent[];
