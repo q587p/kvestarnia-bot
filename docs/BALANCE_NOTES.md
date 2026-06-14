@@ -73,15 +73,22 @@ escape_chance = clamp(0.45 + (DEX + LUCK - monster_level * 2) * 0.01, 0.25, 0.80
 ```
 
 ## XP curve
-Для MVP:
+Поточний alpha helper має єдину progression-логіку 1-10, яку використовують rewards, combat-facing summary, hero profile і тести. Робоча alpha-крива:
+
 ```text
-xp_to_next(level) = 50 + level^2 * 25
+level 1: 0 total XP
+level 2: 10
+level 3: 25
+level 4: 45
+level 5: 70
+level 6: 110
+level 7: 160
+level 8: 225
+level 9: 305
+level 10: 400
 ```
 
-Мета:
-- lvl 2 після 3–5 боїв.
-- lvl 5 після кількох днів казуальної гри.
-- lvl 10 як межа альфи.
+Це не фінальний баланс. Якщо combat simulations покажуть надто швидкий або повільний темп, коригувати в окремому balance PR, а не ховати нові thresholds у feature PR.
 
 ## Вага рівня
 Рівень має бути одним із головних важелів, бо Квестарня також про приємний ріст циферок. Якщо персонаж отримав новий рівень, це має відчуватися не тільки в `/hero`, а й у формулах.
@@ -140,7 +147,9 @@ item_power_budget = base_by_level + rarity_bonus
 
 `0.0.15` додає reachable starter gear для всіх видимих слотів: weapon через `/fight`, armor через Бочку Пінного Міражу, accessory через підвальну мишу. Це розширює контент і оцінну вартість манаток, але не додає бойових ефектів, sell/trade логіки або нових reward formulas.
 
-`0.0.16` піднімає raid reward math: Бочка дає deterministic roll `18-26 XP` і `8-14 золота`, плюс фартух і детермінований дрібний trophy item. Roll прив’язаний до `periodId + telegramUserId`, а claim усе ще зберігає фактичні `rewardXp`/`rewardGold`, тому repeated callback не перекидає нагороду й не дублює прогрес. Reliability-частина лишається важливою: period bucket, audit break, pending completion, notification dedupe і beer gate мають лишатися ідемпотентними, без нових шансів на дубль нагороди або безкоштовне частування.
+Після `0.0.19` starter weapon не є гарантованою baseline для балансування: starter `/fight` закритий після 2 рівня, cellar errands існують на 2-3 рівнях, Hunt Board відкривається з 3 рівня, а gates живуть у `src/domain/progression/activityGates.ts`. Combat math має мати unarmed/basic fallback і не вимагати `item.pan-of-persuasion` або `item.stamp-of-minor-authority` для нормального першого бою.
+
+`0.0.16` піднімає raid reward math: Бочка дає deterministic roll `18-26 XP` і `8-14 золота`, плюс фартух і детермінований дрібний trophy item. У `0.0.19` це замінено на duration-based reward: рівень 1 лишається в діапазоні `5-8` хвилин, кожен рівень після першого додає `30` секунд до можливого максимуму, а XP/золото лінійно рахуються від фактичної тривалості pending-рейду. На 1 рівні максимум лишається `26 XP` і `14 золота`; на 10 рівні поточний максимум стає `38 XP` і `23 золота`. Фактичні `rewardXp`/`rewardGold` записуються в claim, тому repeated callback не перекидає нагороду й не дублює прогрес. Reliability-частина лишається важливою: period bucket, audit break, pending completion, notification dedupe і beer gate мають лишатися ідемпотентними, без нових шансів на дубль нагороди або безкоштовне частування.
 
 `0.0.16` також додає content bestiary і monster loot definitions як data contract, не як нову економічну петлю. Нові monster loot items мають display value або `priceless`, але не падають випадково в runtime, доки не зʼявиться окремий loot table engine із тестами шансів, pity/anti-abuse guardrails і прозорими reward claims.
 

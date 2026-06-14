@@ -134,4 +134,30 @@ describe("Prisma schema", () => {
     expect(migration).toContain("CREATE UNIQUE INDEX \"character_equipment_character_id_slot_key\"");
     expect(migration).toContain("CREATE INDEX \"character_equipment_item_id_idx\"");
   });
+
+  it("stores Hunt Board contract ledger rows per character period", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260614130000_add_hunt_contracts",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model HuntContract");
+    expect(schema).toContain("huntContracts HuntContract[]");
+    expect(schema).toContain("@map(\"local_period_id\")");
+    expect(schema).toContain("@map(\"contract_token\")");
+    expect(schema).toContain("@map(\"reward_items_json\")");
+    expect(schema).toContain("@@unique([characterId, localPeriodId])");
+    expect(schema).toContain("@@map(\"hunt_contracts\")");
+    expect(migration).toContain("CREATE TABLE \"hunt_contracts\"");
+    expect(migration).toContain("CREATE UNIQUE INDEX \"hunt_contracts_character_id_local_period_id_key\"");
+    expect(migration).toContain("CREATE INDEX \"hunt_contracts_monster_id_idx\"");
+    expect(migration).toContain("CREATE INDEX \"hunt_contracts_local_period_id_idx\"");
+  });
 });

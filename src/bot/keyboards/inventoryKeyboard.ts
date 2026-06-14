@@ -9,8 +9,13 @@ import {
 import type { InventoryItemDetailResult, InventoryResult } from "../../services/inventoryService";
 import type { EquipmentResult, EquipmentSlot } from "../../services/equipmentService";
 import { isEquippableItem } from "../../services/equipmentService";
+import {
+  clampInventoryPage,
+  getInventoryPageItems,
+  getInventoryTotalPages
+} from "../presenters/inventoryPresenter";
 
-export function buildInventoryKeyboard(result: InventoryResult): InlineKeyboard {
+export function buildInventoryKeyboard(result: InventoryResult, page = 0): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   if (result.state === "no-character") {
@@ -23,8 +28,25 @@ export function buildInventoryKeyboard(result: InventoryResult): InlineKeyboard 
     return keyboard;
   }
 
-  for (const item of result.items) {
-    keyboard.row().text(`🔎 ${item.content.name}`, makeItemDetailCallbackData(item.itemId));
+  const safePage = clampInventoryPage(result, page);
+  const totalPages = getInventoryTotalPages(result);
+
+  for (const item of getInventoryPageItems(result, safePage)) {
+    keyboard.row().text(`🔎 ${item.content.name}`, makeItemDetailCallbackData(item.itemId, safePage));
+  }
+
+  if (totalPages > 1) {
+    keyboard.row();
+
+    if (safePage > 0) {
+      keyboard.text("◀️ Назад", makeInventoryCallbackData(safePage - 1));
+    }
+
+    keyboard.text(`${safePage + 1}/${totalPages}`, makeInventoryCallbackData(safePage));
+
+    if (safePage < totalPages - 1) {
+      keyboard.text("Далі ▶️", makeInventoryCallbackData(safePage + 1));
+    }
   }
 
   return keyboard;
@@ -32,7 +54,8 @@ export function buildInventoryKeyboard(result: InventoryResult): InlineKeyboard 
 
 export function buildItemDetailKeyboard(
   result: InventoryItemDetailResult,
-  equippedSlot: EquipmentSlot | null = null
+  equippedSlot: EquipmentSlot | null = null,
+  page = 0
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
@@ -49,7 +72,7 @@ export function buildItemDetailKeyboard(
   }
 
   return keyboard
-    .text("⬅️ До манаток", makeInventoryCallbackData())
+    .text("⬅️ До манаток", makeInventoryCallbackData(page))
     .row()
     .text("🛡️ Спорядження", makeEquipmentCallbackData());
 }

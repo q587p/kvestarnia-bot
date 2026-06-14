@@ -14,7 +14,7 @@ import type {
 import type { KorchmaArrivalBoard, PresenceGroup } from "../../services/presenceService";
 import { selectCharacterFlavorLine, selectCharacterFlavorLines } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
-import { escapeHtml, npcQuote } from "./telegramHtml";
+import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
 
 export function presentKorchmaFront(character: CharacterSummary): string {
   return [
@@ -203,10 +203,14 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
 export function presentPendingRaidActionBlock(
   result: Extract<TavernPendingRaidResult, { state: "pending" }>
 ): string {
+  const flavorSeed = `${result.periodId}|block:${result.now.toISOString()}`;
+
   return [
     "🍺 Ви зараз у рейді.",
     "",
     "Інші пригоди тимчасово недоступні: Бочка Пінного Міражу не любить, коли її ігнорують посеред драматичної піни.",
+    "",
+    ...presentRaidPrepHint(result.character, flavorSeed, true),
     "",
     `Перевірте бочку через <b>${formatRaidWait(result.availableAt, result.now)}</b>`
   ].join("\n");
@@ -296,10 +300,6 @@ export function presentTavernRoundOffer(
     "",
     ...presentKorchmaRoundLeaderboard(result.leaderboard)
   ].join("\n");
-}
-
-function presentCharacterHeader(character: CharacterSummary): string {
-  return `<b>${escapeHtml(character.name)}</b> · <i>${escapeHtml(character.title)}</i>`;
 }
 
 function presentKorchmaGreeting(character: CharacterSummary): string[] {

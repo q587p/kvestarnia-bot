@@ -11,6 +11,12 @@ import type {
   DailyActionRecord,
   DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
+import type {
+  CompleteHuntContractInput,
+  HuntContractRecord,
+  HuntContractRepository,
+  PostedHuntContractInput
+} from "../../src/db/repositories/huntContractRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { items, monsterLoot, monsters } from "../../src/content";
 import { getLevelForXp } from "../../src/domain/progression/level";
@@ -30,7 +36,8 @@ describe("HuntService", () => {
   it("returns no-character when user has no character", async () => {
     const characters = new FakeCharacterRepository();
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new HuntService(characters, dailyActions, fixedClock);
+    const huntContracts = new FakeHuntContractRepository(characters);
+    const service = new HuntService(characters, dailyActions, huntContracts, fixedClock);
 
     await expect(service.getHuntBoardForTelegramUser(telegramUserId)).resolves.toEqual({
       state: "no-character"
@@ -50,6 +57,27 @@ describe("HuntService", () => {
     expect(first.id).not.toBe("monster.mimic-shawarma");
     expect(first.tags).not.toContain("boss");
     expect(first.level).toBeLessThanOrEqual(3);
+  });
+
+  it("locks hunt contracts until level three without creating a ledger row", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 10 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const huntContracts = new FakeHuntContractRepository(characters);
+    const service = new HuntService(characters, dailyActions, huntContracts, fixedClock);
+
+    await expect(service.getHuntBoardForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "level-locked",
+      requiredLevel: 3
+    });
+    await expect(
+      service.completeHuntContract(telegramUserId, "2026-06-14T00", "missing0", "strike")
+    ).resolves.toMatchObject({
+      state: "level-locked",
+      requiredLevel: 3
+    });
+    expect(huntContracts.createCount).toBe(0);
+    expect(dailyActions.createCount).toBe(0);
   });
 
   it("keeps at least one eligible hunt monster in content", () => {
@@ -88,7 +116,8 @@ describe("HuntService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new HuntService(characters, dailyActions, fixedClock);
+    const huntContracts = new FakeHuntContractRepository(characters);
+    const service = new HuntService(characters, dailyActions, huntContracts, fixedClock);
     const board = await service.getHuntBoardForTelegramUser(telegramUserId);
 
     if (board.state !== "ready") {
@@ -123,16 +152,104 @@ describe("HuntService", () => {
       expect(result.reward.itemGrants.length).toBeLessThanOrEqual(1);
     }
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: result.state === "completed" ? result.reward.xp : 0,
+      xp: 25 + (result.state === "completed" ? result.reward.xp : 0),
       gold: result.state === "completed" ? result.reward.gold : 0
     });
+  });
+
+  it("creates one posted contract row when the hunt board opens", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const huntContracts = new FakeHuntContractRepository(characters);
+    const service = new HuntService(characters, dailyActions, huntContracts, fixedClock);
+
+    const first = await service.getHuntBoardForTelegramUser(telegramUserId);
+    const second = await service.getHuntBoardForTelegramUser(telegramUserId);
+
+    expect(first.state).toBe("ready");
+    expect(second.state).toBe("ready");
+    expect(huntContracts.createCount).toBe(1);
+    expect(huntContracts.allRecords[0]).toMatchObject({
+      localPeriodId: "2026-06-14T00",
+      status: "posted"
+    });
+  });
+
+  it("reuses a persisted contract row even when deterministic selection would pick another monster", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const huntContracts = new FakeHuntContractRepository(characters);
+    const persistedMonster = pickDifferentHuntMonster("2026-06-14T00", "character-42");
+    await huntContracts.putRecord(telegramUserId, {
+      localPeriodId: "2026-06-14T00",
+      monsterId: persistedMonster.id,
+      contractToken: buildHuntContractToken("2026-06-14T00", "character-42", persistedMonster)
+    });
+    const service = new HuntService(characters, dailyActions, huntContracts, fixedClock);
+
+    const board = await service.getHuntBoardForTelegramUser(telegramUserId);
+
+    expect(board.state).toBe("ready");
+    if (board.state === "ready") {
+      expect(board.contract.monster.id).toBe(persistedMonster.id);
+      expect(board.contract.contractToken).toBe(
+        buildHuntContractToken("2026-06-14T00", "character-42", persistedMonster)
+      );
+    }
+    expect(huntContracts.createCount).toBe(0);
+  });
+
+  it("marks the contract ledger completed and replays the original reward on repeated callbacks", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const huntContracts = new FakeHuntContractRepository(characters);
+    const service = new HuntService(characters, dailyActions, huntContracts, fixedClock);
+    const board = await service.getHuntBoardForTelegramUser(telegramUserId);
+
+    if (board.state !== "ready") {
+      throw new Error("Expected ready hunt board.");
+    }
+
+    const completed = await service.completeHuntContract(
+      telegramUserId,
+      "2026-06-14T00",
+      board.contract.contractToken,
+      "strike"
+    );
+    const repeated = await service.completeHuntContract(
+      telegramUserId,
+      "2026-06-14T00",
+      board.contract.contractToken,
+      "trick"
+    );
+
+    expect(completed.state).toBe("completed");
+    expect(repeated.state).toBe("already-completed");
+    expect(dailyActions.createCount).toBe(1);
+    expect(huntContracts.allRecords[0]).toMatchObject({
+      status: "completed",
+      completedAction: "strike"
+    });
+    if (completed.state === "completed" && repeated.state === "already-completed") {
+      expect(repeated.reward).toMatchObject({
+        xp: completed.reward.xp,
+        gold: completed.reward.gold,
+        localPeriodId: completed.reward.localPeriodId,
+        action: "strike"
+      });
+      expect(repeated.reward?.itemGrants).toEqual(completed.reward.itemGrants);
+    }
   });
 
   it("does not complete the current hunt from a stale hour callback", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new HuntService(characters, dailyActions, fixedClock);
+    const huntContracts = new FakeHuntContractRepository(characters);
+    const service = new HuntService(characters, dailyActions, huntContracts, fixedClock);
 
     const result = await service.completeHuntContract(
       telegramUserId,
@@ -148,7 +265,7 @@ describe("HuntService", () => {
     });
     expect(dailyActions.createCount).toBe(0);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 0,
+      xp: 25,
       gold: 0
     });
   });
@@ -157,7 +274,11 @@ describe("HuntService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new HuntService(characters, dailyActions, fixedClock);
+    const huntContracts = new FakeHuntContractRepository(characters);
+    const service = new HuntService(characters, dailyActions, huntContracts, fixedClock);
+    const board = await service.getHuntBoardForTelegramUser(telegramUserId);
+    expect(board.state).toBe("ready");
+    const token = board.state === "ready" ? board.contract.contractToken : "";
 
     const mismatch = await service.completeHuntContract(
       telegramUserId,
@@ -175,10 +296,39 @@ describe("HuntService", () => {
     expect(mismatch.state).toBe("stale-contract");
     expect(legacyTokenless.state).toBe("stale-contract");
     expect(dailyActions.createCount).toBe(0);
+    expect(huntContracts.allRecords[0]).toMatchObject({
+      status: "posted",
+      contractToken: token
+    });
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 0,
+      xp: 25,
       gold: 0
     });
+  });
+
+  it("fails safe when a persisted contract references a missing monster id", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const huntContracts = new FakeHuntContractRepository(characters);
+    await huntContracts.putRecord(telegramUserId, {
+      localPeriodId: "2026-06-14T00",
+      monsterId: "monster.missing-from-bestiary",
+      contractToken: "missing0"
+    });
+    const service = new HuntService(characters, dailyActions, huntContracts, fixedClock);
+
+    await expect(service.getHuntBoardForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "missing-contract-monster",
+      monsterId: "monster.missing-from-bestiary"
+    });
+    await expect(
+      service.completeHuntContract(telegramUserId, "2026-06-14T00", "missing0", "strike")
+    ).resolves.toMatchObject({
+      state: "missing-contract-monster",
+      monsterId: "monster.missing-from-bestiary"
+    });
+    expect(dailyActions.createCount).toBe(0);
   });
 
   it("builds stable short contract tokens from period, character, and reward-relevant monster content", () => {
@@ -256,11 +406,28 @@ function fixedClock(): Date {
   return new Date("2026-06-13T21:30:00.000Z");
 }
 
+function pickDifferentHuntMonster(localPeriodId: string, characterId: string): MonsterContent {
+  const deterministic = selectHuntMonster(localPeriodId, characterId);
+  const alternative = monsters.find(
+    (monster) =>
+      monster.id !== deterministic.id &&
+      monster.id !== "monster.mimic-shawarma" &&
+      !monster.tags.includes("boss") &&
+      monster.level <= 3
+  );
+
+  if (!alternative) {
+    throw new Error("Expected at least two eligible hunt monsters.");
+  }
+
+  return alternative;
+}
+
 class FakeCharacterRepository implements CharacterRepository {
   private readonly charactersByTelegramUserId = new Map<bigint, CharacterRecord>();
 
   add(userTelegramId: bigint, overrides: Partial<CharacterRecord> = {}): void {
-    const xp = overrides.xp ?? 0;
+    const xp = overrides.xp ?? 25;
     this.charactersByTelegramUserId.set(userTelegramId, {
       id: `character-${userTelegramId.toString()}`,
       userId: `user-${userTelegramId.toString()}`,
@@ -415,5 +582,130 @@ class FakeDailyActionRepository implements DailyActionRepository {
         leveledUp: updatedCharacter.level > getLevelForXp(character.xp)
       }
     };
+  }
+}
+
+class FakeHuntContractRepository implements HuntContractRepository {
+  private readonly records = new Map<string, HuntContractRecord>();
+  createCount = 0;
+
+  constructor(private readonly characters: FakeCharacterRepository) {}
+
+  get allRecords(): HuntContractRecord[] {
+    return [...this.records.values()];
+  }
+
+  async findByTelegramUserIdAndPeriod(
+    telegramUserIdInput: bigint,
+    localPeriodId: string
+  ): Promise<HuntContractRecord | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserIdInput);
+
+    if (!character) {
+      return null;
+    }
+
+    return this.records.get(`${character.id}:${localPeriodId}`) ?? null;
+  }
+
+  async upsertPostedContractForTelegramUser(
+    telegramUserIdInput: bigint,
+    input: PostedHuntContractInput
+  ): Promise<HuntContractRecord | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserIdInput);
+
+    if (!character) {
+      return null;
+    }
+
+    const key = `${character.id}:${input.localPeriodId}`;
+    const existing = this.records.get(key);
+
+    if (existing) {
+      return existing;
+    }
+
+    this.createCount += 1;
+    const record: HuntContractRecord = {
+      id: `hunt-contract-${this.createCount}`,
+      characterId: character.id,
+      localPeriodId: input.localPeriodId,
+      monsterId: input.monsterId,
+      contractToken: input.contractToken,
+      status: "posted",
+      completedAction: null,
+      rewardXp: null,
+      rewardGold: null,
+      rewardItems: null,
+      createdAt: fixedClock(),
+      completedAt: null,
+      updatedAt: fixedClock()
+    };
+    this.records.set(key, record);
+
+    return record;
+  }
+
+  async putRecord(
+    telegramUserIdInput: bigint,
+    input: PostedHuntContractInput
+  ): Promise<HuntContractRecord> {
+    const character = await this.characters.findByTelegramUserId(telegramUserIdInput);
+
+    if (!character) {
+      throw new Error("Character not found.");
+    }
+
+    const key = `${character.id}:${input.localPeriodId}`;
+    const record: HuntContractRecord = {
+      id: `hunt-contract-seeded-${input.localPeriodId}`,
+      characterId: character.id,
+      localPeriodId: input.localPeriodId,
+      monsterId: input.monsterId,
+      contractToken: input.contractToken,
+      status: "posted",
+      completedAction: null,
+      rewardXp: null,
+      rewardGold: null,
+      rewardItems: null,
+      createdAt: fixedClock(),
+      completedAt: null,
+      updatedAt: fixedClock()
+    };
+    this.records.set(key, record);
+
+    return record;
+  }
+
+  async markCompletedForTelegramUser(
+    telegramUserIdInput: bigint,
+    input: CompleteHuntContractInput
+  ): Promise<HuntContractRecord | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserIdInput);
+
+    if (!character) {
+      return null;
+    }
+
+    const key = `${character.id}:${input.localPeriodId}`;
+    const existing = this.records.get(key);
+
+    if (!existing) {
+      return null;
+    }
+
+    const completed: HuntContractRecord = {
+      ...existing,
+      status: "completed",
+      completedAction: input.action,
+      rewardXp: input.rewardXp,
+      rewardGold: input.rewardGold,
+      rewardItems: input.itemGrants,
+      completedAt: fixedClock(),
+      updatedAt: fixedClock()
+    };
+    this.records.set(key, completed);
+
+    return completed;
   }
 }

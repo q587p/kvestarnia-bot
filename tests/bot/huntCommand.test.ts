@@ -69,6 +69,37 @@ describe("hunt command", () => {
     });
   });
 
+  it("blocks /hunt before level three without marking the quest table", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+    const huntService = {
+      getHuntBoardForTelegramUser: () =>
+        Promise.resolve({
+          state: "level-locked",
+          character: {
+            ...character,
+            level: 2,
+            xp: 10,
+            nextLevelXp: 25,
+            xpToNextLevel: 15
+          },
+          requiredLevel: 3
+        })
+    } as unknown as HuntService;
+
+    await sendHuntBoard(makeContext(replies), huntService, "reply", {
+      presence,
+      requireKorchmaInterior: true
+    });
+
+    expect(replies[0]?.text).toContain("Дошка полювання поки зависоко");
+    expect(replies[0]?.text).toContain("3 рівня");
+    expect(presence.marks).toEqual([]);
+  });
+
   it("does not show hunt action buttons after today's hunt is already completed", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
@@ -163,10 +194,10 @@ const character: CharacterSummary = {
   classId: "class.warrior",
   className: "Воїн",
   title: "Пересічні Пригодники",
-  level: 1,
-  xp: 0,
-  nextLevelXp: 10,
-  xpToNextLevel: 10,
+  level: 3,
+  xp: 25,
+  nextLevelXp: 45,
+  xpToNextLevel: 20,
   gold: 0,
   hpCurrent: 20,
   hpMax: 20,

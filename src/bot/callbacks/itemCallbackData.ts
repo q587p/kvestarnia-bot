@@ -6,18 +6,27 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 const ITEM_PREFIX = "v1:item";
 const EQUIPMENT_PREFIX = "v1:equip";
 
-export type ItemCallback = { type: "detail"; itemId: string } | { type: "inventory" };
+export type ItemCallback =
+  | { type: "detail"; itemId: string; page: number }
+  | { type: "inventory"; page: number };
 export type EquipmentCallback =
   | { type: "view" }
   | { type: "equip-item"; itemId: string }
   | { type: "clear-slot"; slot: EquipmentSlot };
 
-export function makeItemDetailCallbackData(itemId: string): string {
-  return assertCallbackData(`${ITEM_PREFIX}:detail:${itemId}`);
+export function makeItemDetailCallbackData(itemId: string, page = 0): string {
+  const safePage = normalizePage(page);
+  const suffix = safePage === 0 ? "" : `:${safePage}`;
+
+  return assertCallbackData(`${ITEM_PREFIX}:detail:${itemId}${suffix}`);
 }
 
-export function makeInventoryCallbackData(): string {
-  return assertCallbackData(`${ITEM_PREFIX}:inventory`);
+export function makeInventoryCallbackData(page = 0): string {
+  const safePage = normalizePage(page);
+
+  return assertCallbackData(
+    safePage === 0 ? `${ITEM_PREFIX}:inventory` : `${ITEM_PREFIX}:inventory:${safePage}`
+  );
 }
 
 export function parseItemCallbackData(data: string | undefined): ParseItemCallbackResult {
@@ -33,20 +42,46 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
     return {
       ok: true,
       value: {
-        type: "inventory"
+        type: "inventory",
+        page: 0
       }
     };
   }
 
   const [version, scope, action, ...rest] = data.split(":");
 
-  if (version !== "v1" || scope !== "item" || action !== "detail" || rest.length !== 1) {
+  if (version !== "v1" || scope !== "item") {
     return { ok: false };
   }
 
-  const itemId = rest[0];
+  if (action === "inventory") {
+    if (rest.length !== 1) {
+      return { ok: false };
+    }
 
-  if (!itemId) {
+    const page = parsePage(rest[0]);
+
+    if (page === null) {
+      return { ok: false };
+    }
+
+    return {
+      ok: true,
+      value: {
+        type: "inventory",
+        page
+      }
+    };
+  }
+
+  if (action !== "detail" || (rest.length !== 1 && rest.length !== 2)) {
+    return { ok: false };
+  }
+
+  const [itemId, pageValue] = rest;
+  const page = pageValue === undefined ? 0 : parsePage(pageValue);
+
+  if (!itemId || page === null) {
     return { ok: false };
   }
 
@@ -58,7 +93,8 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
     ok: true,
     value: {
       type: "detail",
-      itemId
+      itemId,
+      page
     }
   };
 }
@@ -151,4 +187,16 @@ function assertCallbackData(data: string): string {
 
 function isTooLong(data: string): boolean {
   return Buffer.byteLength(data, "utf8") > TELEGRAM_CALLBACK_DATA_LIMIT;
+}
+
+function normalizePage(page: number): number {
+  return Math.max(0, Math.floor(Number.isFinite(page) ? page : 0));
+}
+
+function parsePage(value: string | undefined): number | null {
+  if (!value || !/^\d{1,3}$/.test(value)) {
+    return null;
+  }
+
+  return Number(value);
 }

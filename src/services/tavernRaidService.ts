@@ -34,6 +34,7 @@ export const FRIDAY_BARREL_RAID_REWARD_GOLD_MIN = 8;
 export const FRIDAY_BARREL_RAID_REWARD_GOLD_MAX = 14;
 export const FRIDAY_BARREL_RAID_MIN_WAIT_MINUTES = 5;
 export const FRIDAY_BARREL_RAID_MAX_WAIT_MINUTES = 8;
+export const FRIDAY_BARREL_RAID_LEVEL_WAIT_BONUS_SECONDS = 30;
 export const BARREL_RAID_PERIOD_START_MINUTE = 23;
 export const BARREL_RAID_AUDIT_BREAK_START_HOUR = 3;
 export const BARREL_RAID_AUDIT_BREAK_END_HOUR = 7;
@@ -122,6 +123,7 @@ export type TavernPendingRaidResult =
 
 interface PendingFridayBarrelRaid {
   availableAt: Date | null;
+  startedAt: Date | null;
   character: CharacterRecord;
   periodId: string;
 }
@@ -268,14 +270,23 @@ export class TavernRaidService {
       };
     }
 
-    return this.startFridayBarrelRaid(telegramUserId, period);
+    return this.startFridayBarrelRaid(telegramUserId, period, pending.character);
   }
 
   async completeFridayBarrelRaid(
     telegramUserId: bigint,
     periodId = getBarrelRaidPeriod(this.clock()).id
   ): Promise<TavernRaidResult> {
-    const rewardAmounts = buildBarrelRaidRewardAmounts(periodId, telegramUserId);
+    const pending = await this.findPendingFridayBarrelRaidByPeriod(telegramUserId, periodId);
+
+    if (!pending) {
+      return { state: "no-character" };
+    }
+
+    const rewardAmounts = buildBarrelRaidRewardAmounts({
+      characterLevel: summarizeCharacter(pending.character).level,
+      waitDurationMs: getBarrelRaidWaitDurationMs(pending)
+    });
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: FRIDAY_BARREL_RAID_KEY,
       localDate: periodId,
@@ -307,21 +318,17 @@ export class TavernRaidService {
 
   private async startFridayBarrelRaid(
     telegramUserId: bigint,
-    period: BarrelRaidPeriod
+    period: BarrelRaidPeriod,
+    character: CharacterRecord
   ): Promise<TavernRaidResult> {
     if (!this.pendingRaids) {
       return this.completeFridayBarrelRaid(telegramUserId, period.id);
     }
 
     const now = this.clock();
-    const availableAt = new Date(
-      now.getTime() +
-        this.random.nextInt(
-          FRIDAY_BARREL_RAID_MIN_WAIT_MINUTES,
-          FRIDAY_BARREL_RAID_MAX_WAIT_MINUTES
-        ) *
-          60_000
-    );
+    const waitBounds = getBarrelRaidWaitBounds(summarizeCharacter(character).level);
+    const waitSeconds = this.random.nextInt(waitBounds.minSeconds, waitBounds.maxSeconds);
+    const availableAt = new Date(now.getTime() + waitSeconds * 1000);
     const claim = await this.pendingRaids.claimRewardForTelegramUser(telegramUserId, {
       key: buildFridayBarrelRaidPendingKey(period.id),
       now,
@@ -366,6 +373,7 @@ export class TavernRaidService {
     if (!this.pendingRaids) {
       return {
         availableAt: null,
+        startedAt: null,
         character,
         periodId: period.id
       };
@@ -392,6 +400,7 @@ export class TavernRaidService {
 
       return {
         availableAt: current.cooldown.availableAt,
+        startedAt: current.cooldown.updatedAt,
         character: current.character,
         periodId: candidate.id
       };
@@ -399,8 +408,41 @@ export class TavernRaidService {
 
     return {
       availableAt: null,
+      startedAt: null,
       character,
       periodId: period.id
+    };
+  }
+
+  private async findPendingFridayBarrelRaidByPeriod(
+    telegramUserId: bigint,
+    periodId: string
+  ): Promise<PendingFridayBarrelRaid | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return null;
+    }
+
+    if (!this.pendingRaids) {
+      return {
+        availableAt: null,
+        startedAt: null,
+        character,
+        periodId
+      };
+    }
+
+    const current = await this.pendingRaids.findForTelegramUser(
+      telegramUserId,
+      buildFridayBarrelRaidPendingKey(periodId)
+    );
+
+    return {
+      availableAt: current?.cooldown?.availableAt ?? null,
+      startedAt: current?.cooldown?.updatedAt ?? null,
+      character,
+      periodId
     };
   }
 
@@ -595,23 +637,47 @@ export function buildBarrelRaidItemGrants(
   ];
 }
 
-export function buildBarrelRaidRewardAmounts(
-  periodId: string,
-  telegramUserId: bigint
-): { xp: number; gold: number } {
-  const seed = `${periodId}:${telegramUserId.toString()}`;
+export function getBarrelRaidWaitBounds(characterLevel: number): {
+  minSeconds: number;
+  maxSeconds: number;
+} {
+  const level = Math.max(1, Math.floor(characterLevel));
+  const levelBonusSeconds = (level - 1) * FRIDAY_BARREL_RAID_LEVEL_WAIT_BONUS_SECONDS;
 
   return {
-    xp: pickDeterministicRange(
-      `${seed}:xp`,
-      FRIDAY_BARREL_RAID_REWARD_XP_MIN,
-      FRIDAY_BARREL_RAID_REWARD_XP_MAX
-    ),
-    gold: pickDeterministicRange(
-      `${seed}:gold`,
-      FRIDAY_BARREL_RAID_REWARD_GOLD_MIN,
-      FRIDAY_BARREL_RAID_REWARD_GOLD_MAX
-    )
+    minSeconds: FRIDAY_BARREL_RAID_MIN_WAIT_MINUTES * 60,
+    maxSeconds: FRIDAY_BARREL_RAID_MAX_WAIT_MINUTES * 60 + levelBonusSeconds
+  };
+}
+
+export function buildBarrelRaidRewardAmounts(input: {
+  characterLevel: number;
+  waitDurationMs: number;
+}): { xp: number; gold: number } {
+  const waitBounds = getBarrelRaidWaitBounds(input.characterLevel);
+  const waitSeconds = clamp(
+    Math.round(input.waitDurationMs / 1000),
+    waitBounds.minSeconds,
+    waitBounds.maxSeconds
+  );
+  const progress =
+    waitBounds.maxSeconds === waitBounds.minSeconds
+      ? 0
+      : (waitSeconds - waitBounds.minSeconds) / (waitBounds.maxSeconds - waitBounds.minSeconds);
+  const xpMax = scaleBarrelRaidRewardMax(
+    FRIDAY_BARREL_RAID_REWARD_XP_MIN,
+    FRIDAY_BARREL_RAID_REWARD_XP_MAX,
+    waitBounds
+  );
+  const goldMax = scaleBarrelRaidRewardMax(
+    FRIDAY_BARREL_RAID_REWARD_GOLD_MIN,
+    FRIDAY_BARREL_RAID_REWARD_GOLD_MAX,
+    waitBounds
+  );
+
+  return {
+    xp: interpolateReward(FRIDAY_BARREL_RAID_REWARD_XP_MIN, xpMax, progress),
+    gold: interpolateReward(FRIDAY_BARREL_RAID_REWARD_GOLD_MIN, goldMax, progress)
   };
 }
 
@@ -692,8 +758,36 @@ function stableHash(value: string): number {
   return hash;
 }
 
-function pickDeterministicRange(seed: string, min: number, max: number): number {
-  return min + (stableHash(seed) % (max - min + 1));
+function getBarrelRaidWaitDurationMs(pending: PendingFridayBarrelRaid): number {
+  if (!pending.availableAt || !pending.startedAt) {
+    return getBarrelRaidWaitBounds(summarizeCharacter(pending.character).level).minSeconds * 1000;
+  }
+
+  return Math.max(0, pending.availableAt.getTime() - pending.startedAt.getTime());
+}
+
+function scaleBarrelRaidRewardMax(
+  minReward: number,
+  baseMaxReward: number,
+  waitBounds: { minSeconds: number; maxSeconds: number }
+): number {
+  const baseBounds = getBarrelRaidWaitBounds(1);
+  const baseSpan = baseBounds.maxSeconds - baseBounds.minSeconds;
+  const currentSpan = waitBounds.maxSeconds - waitBounds.minSeconds;
+
+  if (baseSpan <= 0) {
+    return baseMaxReward;
+  }
+
+  return minReward + Math.round((baseMaxReward - minReward) * (currentSpan / baseSpan));
+}
+
+function interpolateReward(minReward: number, maxReward: number, progress: number): number {
+  return minReward + Math.round((maxReward - minReward) * progress);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function getNewLeaderPeriods(

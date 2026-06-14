@@ -348,7 +348,9 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Ви зараз у рейді");
     expect(text).toContain("🍺 Ви зараз у рейді.\n\nІнші пригоди тимчасово недоступні");
+    expect(text).toContain("драматичної піни.\n\n<i>Порада дня:");
     expect(text).toContain("Інші пригоди тимчасово недоступні");
+    expect(text.match(/Порада дня:/g)).toHaveLength(1);
     expect(text).toContain("Перевірте бочку через <b>1 хв.</b>");
     expect(text).not.toContain("за:");
     expect(text).not.toContain("хв..");

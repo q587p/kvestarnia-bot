@@ -1,6 +1,9 @@
 ﻿import { describe, expect, it } from "vitest";
-import { presentInventory } from "../../src/bot/presenters/inventoryPresenter";
-import type { InventoryResult } from "../../src/services/inventoryService";
+import {
+  INVENTORY_PAGE_SIZE,
+  presentInventory
+} from "../../src/bot/presenters/inventoryPresenter";
+import type { InventoryItemSummary, InventoryResult } from "../../src/services/inventoryService";
 
 describe("inventory presenter", () => {
   it("prompts /start when character does not exist", () => {
@@ -71,4 +74,40 @@ describe("inventory presenter", () => {
     expect(text).toContain("• <b>Квиток мокрого пригодника</b>");
     expect(text).not.toContain("×1");
   });
+
+  it("paginates long inventory lists", () => {
+    const result: InventoryResult = {
+      state: "found",
+      totalGoldValue: 0,
+      items: Array.from({ length: INVENTORY_PAGE_SIZE + 1 }, (_, index) =>
+        item(`item.test-${index + 1}`, `Манатка ${index + 1}`)
+      )
+    };
+    const firstPage = presentInventory(result, 0);
+    const secondPage = presentInventory(result, 1);
+
+    expect(firstPage).toContain("Сторінка <b>1/2</b>");
+    expect(firstPage).toContain("<b>Манатка 1</b>");
+    expect(firstPage).toContain(`<b>Манатка ${INVENTORY_PAGE_SIZE}</b>`);
+    expect(firstPage).not.toContain(`<b>Манатка ${INVENTORY_PAGE_SIZE + 1}</b>`);
+    expect(secondPage).toContain("Сторінка <b>2/2</b>");
+    expect(secondPage).toContain(`<b>Манатка ${INVENTORY_PAGE_SIZE + 1}</b>`);
+    expect(secondPage).not.toContain("<b>Манатка 1</b>");
+  });
 });
+
+function item(itemId: string, name: string): InventoryItemSummary {
+  return {
+    id: `character-${itemId}`,
+    itemId,
+    quantity: 1,
+    content: {
+      id: itemId,
+      name,
+      description: "Лежить і чекає, коли її перегорнуть.",
+      rarity: "common",
+      slot: "junk",
+      priceless: true
+    }
+  };
+}

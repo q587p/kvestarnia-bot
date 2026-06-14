@@ -19,7 +19,17 @@ describe("item and equipment callback data", () => {
       ok: true,
       value: {
         type: "detail",
-        itemId: "item.wet-hero-ticket"
+        itemId: "item.wet-hero-ticket",
+        page: 0
+      }
+    });
+
+    expect(parseItemCallbackData(makeItemDetailCallbackData("item.wet-hero-ticket", 2))).toEqual({
+      ok: true,
+      value: {
+        type: "detail",
+        itemId: "item.wet-hero-ticket",
+        page: 2
       }
     });
   });
@@ -28,7 +38,15 @@ describe("item and equipment callback data", () => {
     expect(parseItemCallbackData(makeInventoryCallbackData())).toEqual({
       ok: true,
       value: {
-        type: "inventory"
+        type: "inventory",
+        page: 0
+      }
+    });
+    expect(parseItemCallbackData(makeInventoryCallbackData(3))).toEqual({
+      ok: true,
+      value: {
+        type: "inventory",
+        page: 3
       }
     });
     expect(parseEquipmentCallbackData(makeEquipmentCallbackData())).toEqual({
@@ -64,6 +82,9 @@ describe("item and equipment callback data", () => {
   it("rejects invalid item and equipment callbacks", () => {
     expect(parseItemCallbackData("v1:item:detail:<b>oops</b>").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:detail:item.wet-hero-ticket:extra").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:detail:item.wet-hero-ticket:nope").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:inventory:nope").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:inventory:1:extra").ok).toBe(false);
     expect(parseItemCallbackData("v1:equip:view").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:equip:wear:item.pan-of-persuasion").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:equip:item:<b>oops</b>").ok).toBe(false);

@@ -106,16 +106,33 @@ import {
   buildTavernRangerKeyboard,
   buildTavernResultKeyboard
 } from "./keyboards/tavernKeyboard";
-import { presentAdventureNoCharacter, presentAdventureResult } from "./presenters/adventurePresenter";
-import { presentCellarNoCharacter, presentCellarResult } from "./presenters/cellarPresenter";
+import {
+  presentAdventureLevelRetired,
+  presentAdventureNoCharacter,
+  presentAdventureResult
+} from "./presenters/adventurePresenter";
+import {
+  presentCellarLevelLocked,
+  presentCellarLevelRetired,
+  presentCellarNoCharacter,
+  presentCellarResult
+} from "./presenters/cellarPresenter";
 import {
   presentDevResetCancelled,
   presentDevResetDeleted,
   presentDevResetDisabled,
   presentDevResetNoCharacter
 } from "./presenters/devResetPresenter";
-import { presentFightNoCharacter, presentFightResult } from "./presenters/fightPresenter";
-import { presentHuntNoCharacter, presentHuntResult } from "./presenters/huntPresenter";
+import {
+  presentFightLevelRetired,
+  presentFightNoCharacter,
+  presentFightResult
+} from "./presenters/fightPresenter";
+import {
+  presentHuntLevelLocked,
+  presentHuntNoCharacter,
+  presentHuntResult
+} from "./presenters/huntPresenter";
 import { presentHelp } from "./presenters/helpPresenter";
 import {
   presentEquipment,
@@ -804,7 +821,7 @@ async function handleItemCallback(
 ): Promise<void> {
   if (action.type === "inventory") {
     await safeAnswerCallbackQuery(ctx);
-    await sendInventory(ctx, services.inventory, "edit");
+    await sendInventory(ctx, services.inventory, "edit", action.page);
     return;
   }
 
@@ -825,7 +842,7 @@ async function handleItemCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot }), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemDetailKeyboard(result, equippedSlot)
+    reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page)
   });
 }
 
@@ -1218,6 +1235,12 @@ async function handleAdventureCallback(
     return;
   }
 
+  if (result.state === "level-retired") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentAdventureLevelRetired(result), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
   await markScenePresence(ctx, services.presence, {
     locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
     currentRaidId: null,
@@ -1227,7 +1250,7 @@ async function handleAdventureCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentAdventureResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildAdventureResultKeyboard(result.state)
+    reply_markup: buildAdventureResultKeyboard(result.state, result.character)
   });
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
@@ -1247,6 +1270,26 @@ async function handleCellarCallback(
   }
 
   if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
+  }
+
+  const lookup = await services.cellarErrand.getForTelegramUser(telegramUserId);
+
+  if (lookup.state === "no-character") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentCellarNoCharacter());
+    return;
+  }
+
+  if (lookup.state === "level-locked") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentCellarLevelLocked(lookup), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
+  if (lookup.state === "level-retired") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentCellarLevelRetired(lookup), HTML_MESSAGE_OPTIONS);
     return;
   }
 
@@ -1280,6 +1323,18 @@ async function handleCellarCallback(
     return;
   }
 
+  if (result.state === "level-locked") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentCellarLevelLocked(result), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
+  if (result.state === "level-retired") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentCellarLevelRetired(result), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
   await markScenePresence(ctx, services.presence, {
     locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
     currentRaidId: null,
@@ -1289,7 +1344,7 @@ async function handleCellarCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentCellarResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildCellarResultKeyboard(result.state)
+    reply_markup: buildCellarResultKeyboard(result.state, result.character)
   });
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
@@ -1320,6 +1375,12 @@ async function handleFightCallback(
     return;
   }
 
+  if (result.state === "level-retired") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentFightLevelRetired(result), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
   await markScenePresence(ctx, services.presence, {
     locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
     currentRaidId: null,
@@ -1329,7 +1390,7 @@ async function handleFightCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentFightResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildFightResultKeyboard(result.state)
+    reply_markup: buildFightResultKeyboard(result.state, result.character)
   });
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
@@ -1409,6 +1470,12 @@ async function handleHuntCallback(
   if (result.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentHuntNoCharacter());
+    return;
+  }
+
+  if (result.state === "level-locked") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentHuntLevelLocked(result), HTML_MESSAGE_OPTIONS);
     return;
   }
 

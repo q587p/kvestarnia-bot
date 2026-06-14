@@ -212,12 +212,18 @@ selectFlavorLines(lines, context, seedParts, limit)
 
 - `presentAdventureStart()` — додати `quest.start` line.
 - `presentActionOutcome()` — додати character-aware outcome або додатковий рядок після базового outcome.
+- 0.0.19 тримає перший playable loop щільнішим: підвал і Дошка полювання відкриваються рівнями, тому шаурма має давати більше варіятивності одразу.
+- Для `shawarma` потрібні окремі race/class pools і combo-lines для всіх доступних onboarding комбінацій.
+- Character-aware labels на кнопках можуть міняти текст дії, але не callback payload, reward math або idempotency key.
 - Не міняти reward keys у першому PR.
 
 ### Сутичка з шаурмою
 
 - `presentFightStart()` — додати 1 рядок class/race hint.
 - `presentOutcome()` — додати 1 рядок для класу/комбо.
+- Стартовий текст має уникати раннього reveal, що підозрілий монстр є Міміком-шаурмою; розкриття краще давати в результатах дій.
+- Для `fight` теж потрібні race/class pools і combo-lines для всіх доступних onboarding комбінацій.
+- Квест має звучати як дослідити/допитати/оформити підозрілу їжу, а fight — як удар/трюк/контроль/відступ проти монстра.
 - Бойова математика лишається deterministic і без нових бонусів.
 
 ### Підвальна справа
@@ -225,6 +231,9 @@ selectFlavorLines(lines, context, seedParts, limit)
 - `presentCellarStart()` — додати персоналізований старт.
 - `presentCellarOutcome()` — додати character-aware outcome для `negotiate`, `cheese-trap`, `sweep-bravely`.
 - Домовик + negotiate має бути першим obvious win у флейворі.
+- Підвал — друге знайомство з варіятивністю після шаурми, тому потрібні race/class pools і combo-lines для всіх доступних onboarding комбінацій.
+- Character-aware labels на кнопках підвалу можуть міняти текст дії, але не callback payload, cooldown, reward math або item grants.
+- Дії мають звучати різно: сирна пастка, хоробре підмітання й переговори з мишею не повинні відчуватись як одна кнопка з різними емоджі.
 
 ### Манатки
 

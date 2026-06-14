@@ -163,6 +163,23 @@ describe("main menu and scene keyboards", () => {
     ]);
   });
 
+  it("keeps character-aware adventure labels on the same callback actions", () => {
+    expect(flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
+      "🗝️ Перевірити кишені",
+      "📋 Виманити чек",
+      "🏃 Зникнути за серветкою",
+      "👥 Учасники",
+      "⬅️ До столу"
+    ]);
+    expect(flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
+      "v1:adv:mimic:poke",
+      "v1:adv:mimic:receipt",
+      "v1:adv:mimic:flee",
+      "v1:adv:mimic:participants",
+      "v1:place:quest-table"
+    ]);
+  });
+
   it("keeps cellar inline buttons scoped to repeatable errand actions", () => {
     const actionButtons = [
       "🧀 Поставити сирну пастку",
@@ -186,6 +203,32 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonCallbacks(buildCellarParticipantsKeyboard())).toEqual(["v1:quest:cellar"]);
   });
 
+  it("keeps character-aware cellar labels on the same callback actions", () => {
+    const domovyk = { ...character, raceId: "race.domovyk", classId: "class.rogue" };
+
+    expect(flatInlineButtonTexts(buildCellarKeyboard(domovyk))).toEqual([
+      "🧀 Виставити оренду сиром",
+      "🧹 Навести хатній лад",
+      "🤝 Поділити шафу",
+      "👥 Учасники",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildCellarKeyboard(domovyk))).toEqual([
+      "v1:cellar:cheese-trap",
+      "v1:cellar:sweep-bravely",
+      "v1:cellar:negotiate",
+      "v1:cellar:participants",
+      "v1:place:hall"
+    ]);
+    expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual([
+      "🧀 Виставити оренду сиром",
+      "🧹 Навести хатній лад",
+      "🤝 Поділити шафу",
+      "👥 Учасники",
+      "⬅️ До зали"
+    ]);
+  });
+
   it("keeps fight inline buttons scoped to fight actions", () => {
     const actionButtons = [
       "🗡️ Вдарити",
@@ -197,6 +240,27 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildFightKeyboard())).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildFightResultKeyboard("completed"))).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildFightResultKeyboard("already-completed"))).toEqual([
+      "⬅️ До столу"
+    ]);
+  });
+
+  it("keeps character-aware fight labels on the same callback actions", () => {
+    expect(flatInlineButtonTexts(buildFightKeyboard({ ...character, classId: "class.bard" }))).toEqual([
+      "🎵 Вдарити приспівом",
+      "📋 Заспівати про чек",
+      "🏃 Піти на біс",
+      "⬅️ До столу"
+    ]);
+    expect(flatInlineButtonCallbacks(buildFightKeyboard({ ...character, classId: "class.bard" }))).toEqual([
+      "v1:fight:mimic:attack",
+      "v1:fight:mimic:receipt",
+      "v1:fight:mimic:flee",
+      "v1:place:quest-table"
+    ]);
+    expect(flatInlineButtonTexts(buildFightResultKeyboard("completed", { ...character, classId: "class.bard" }))).toEqual([
+      "🎵 Вдарити приспівом",
+      "📋 Заспівати про чек",
+      "🏃 Піти на біс",
       "⬅️ До столу"
     ]);
   });
@@ -266,6 +330,59 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual(["v1:equip:view", "v1:item:detail:item.wet-hero-ticket"]);
+    expect(
+      flatInlineButtonTexts(
+        buildInventoryKeyboard(
+          {
+            state: "found",
+            totalGoldValue: 0,
+            items: Array.from({ length: 9 }, (_, index) => ({
+              id: `character-item-${index + 1}`,
+              itemId: `item.test-${index + 1}`,
+              quantity: 1,
+              content: {
+                id: `item.test-${index + 1}`,
+                name: `Манатка ${index + 1}`,
+                description: "Трофей.",
+                rarity: "common",
+                slot: "junk",
+                priceless: true
+              }
+            }))
+          },
+          1
+        )
+      )
+    ).toEqual(["🛡️ Спорядження", "🔎 Манатка 9", "◀️ Назад", "2/2"]);
+    expect(
+      flatInlineButtonCallbacks(
+        buildInventoryKeyboard(
+          {
+            state: "found",
+            totalGoldValue: 0,
+            items: Array.from({ length: 9 }, (_, index) => ({
+              id: `character-item-${index + 1}`,
+              itemId: `item.test-${index + 1}`,
+              quantity: 1,
+              content: {
+                id: `item.test-${index + 1}`,
+                name: `Манатка ${index + 1}`,
+                description: "Трофей.",
+                rarity: "common",
+                slot: "junk",
+                priceless: true
+              }
+            }))
+          },
+          1
+        )
+      )
+    ).toEqual([
+      "v1:equip:view",
+      "v1:item:detail:item.test-9:1",
+      "v1:item:inventory",
+      "v1:item:inventory:1"
+    ]);
     expect(flatInlineButtonTexts(buildItemDetailKeyboard({ state: "not-owned" }))).toEqual([
       "⬅️ До манаток",
       "🛡️ Спорядження"
@@ -391,6 +508,29 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual(["🧹 У підвал", "🍺 До зали"]);
+
+    expect(
+      flatInlineButtonTexts(
+        buildQuestHubKeyboard({
+          adventure: {
+            state: "level-retired",
+            character,
+            maxLevel: 2
+          },
+          fight: {
+            state: "level-retired",
+            character,
+            maxLevel: 2
+          },
+          hunt: { state: "ready", character, contract: huntContract },
+          cellar: {
+            state: "level-retired",
+            character,
+            maxLevel: 3
+          }
+        })
+      )
+    ).toEqual(["🏹 До дошки", "🍺 До зали"]);
   });
 });
 

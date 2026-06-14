@@ -1,4 +1,5 @@
 import type { Bot, Context } from "grammy";
+import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { FightService } from "../../services/fightService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
@@ -11,6 +12,7 @@ import { buildFightKeyboard } from "../keyboards/fightKeyboard";
 import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentFightAlreadyCompleted,
+  presentFightLevelRetired,
   presentFightNoCharacter,
   presentFightStart
 } from "../presenters/fightPresenter";
@@ -80,6 +82,11 @@ export async function sendFight(
     return;
   }
 
+  if (result.state === "level-retired") {
+    await sendText(ctx, mode, presentFightLevelRetired(result));
+    return;
+  }
+
   if (options?.presence) {
     await markFightPresence(ctx, options.presence);
   }
@@ -89,7 +96,10 @@ export async function sendFight(
     return;
   }
 
-  await sendText(ctx, mode, presentFightStart(result.character), true);
+  await sendText(ctx, mode, presentFightStart(result.character), {
+    type: "fight",
+    character: result.character
+  });
 }
 
 async function markFightPresence(ctx: Context, presence: PresenceService): Promise<void> {
@@ -111,12 +121,15 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  keyboard: boolean | "enter-korchma" = false
+  keyboard: false | "enter-korchma" | { type: "fight"; character: CharacterSummary } = false
 ): Promise<void> {
   const options = keyboard
     ? {
         parse_mode: "HTML" as const,
-        reply_markup: keyboard === "enter-korchma" ? buildKorchmaFrontKeyboard() : buildFightKeyboard()
+        reply_markup:
+          keyboard === "enter-korchma"
+            ? buildKorchmaFrontKeyboard()
+            : buildFightKeyboard(keyboard.character)
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
 

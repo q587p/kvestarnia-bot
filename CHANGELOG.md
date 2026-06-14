@@ -7,6 +7,35 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.19] - 12026-06-14 - Hunt Contract Ledger & Reward Replay
+
+### Added
+- Added persistent `hunt_contracts` ledger rows keyed by character and Kyiv-local hour period, storing the posted monster id, contract token, status, completed action, stored XP/gold, and item-grant replay data.
+- Added a Hunt Contract repository plus Prisma implementation for posting, loading, and completing Hunt Board ledger rows.
+- Repeated completed Hunt Board callbacks can now replay the original XP/gold and item summary from the ledger without issuing duplicate rewards.
+- Added a safe missing-monster state for persisted contracts whose content id no longer exists after a future deploy.
+- Added light onboarding gates: starter shawarma and fight run only on levels 1-2, cellar errands run only on levels 2-3, and Hunt Board contracts unlock from level 3.
+- Added broader character-aware starter flavor for the first shawarma quest and its fight probe, including race/class pools and combo coverage for available onboarding combinations.
+- Added broader character-aware cellar mouse flavor, including race/class pools, combo coverage, and action-specific outcome lines for basement interactions.
+- Raised the current level progression cap to level 10 using the Phase 1 XP curve, with a special level-cap celebration message.
+- Added `/inventory` pagination after 8 item stacks, including page-aware item-detail/back callbacks.
+- Added tests for schema/migration shape, ledger JSON serialization, posted-row creation, persisted contract reuse, token mismatch safety, legacy callback safety, missing-monster fallback, and replay presenter escaping.
+
+### Changed
+- `/hunt` now uses the persisted ledger row as the contract identity source after the first view/claim in a period, instead of recomputing the active monster from content every time.
+- Hunt action callbacks validate against the persisted period/token/monster record before attempting the existing `daily_actions` reward claim.
+- The quest hub now shows locked/retired starter rows without showing their action buttons; `/bestiary` and `/monsters` remain read-only and available immediately.
+- Starter shawarma and fight action buttons can now use character-aware labels while keeping the same validated callback payloads and reward math.
+- Cellar mouse action buttons can now use character-aware labels while keeping the same validated callback payloads, cooldown, and reward math.
+- The first fight screen now avoids naming the monster before the player acts; the reveal stays in the resolved outcome.
+- Character summaries now lift old capped characters upward from stored XP if they already earned enough for the expanded progression curve.
+- Barrel raid wait now scales by hero level: level 1 keeps the old 5-8 minute range, each later level adds 30 seconds to the possible maximum, and XP/gold are deterministic from the stored wait duration instead of a period/user roll.
+- Documented future usable-item metadata and item-driven quest/combat dialogue buttons as itemization debt, not part of the current reward math.
+- `daily_actions` remains the authoritative idempotency boundary for XP/gold/items; `hunt_contracts` is an audit/replay ledger, not a second reward source.
+
+### Not Included Yet
+- Full combat engine, persistent encounter sessions, HP/mana loss, equipment stat effects, random loot table engine, shops, selling, trading, crafting, bestiary collection rewards, group hunts/raids, PvP, Redis/jobs, public web bestiary, or wilderness location sessions.
+
 ## [0.0.18] - 12026-06-14 - Hunt Contract Hardening & Bestiary Notes
 
 ### Added
@@ -60,7 +89,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Barrel raid period ids are now explicitly Kyiv-local korchma buckets that flip on the 23rd minute. The audit break blocks new starts from 03:00 to 07:00 Kyiv time.
 - Player-facing audit-break wording now names the Kyiv korchma time basis and avoids tiny second-level boundary copy.
-- Barrel raid rewards now roll deterministic per-period/per-player amounts: `18-26 XP` and `8-14 gold`, so the hourly wait pays better than one basement mouse errand without letting repeated callbacks reroll the result.
+- Barrel raid rewards now roll deterministic per-period/per-player amounts: `18-26 XP` and `8-14 gold`, so the hourly wait pays better than one basement mouse errand without letting repeated callbacks reroll the result. Superseded in `0.0.19` by deterministic duration-based rewards.
 - Barrel raid completion notifications now go through a small scheduler helper with one timer per `chatId + telegramUserId + periodId`, while the service reward claim remains the source of truth.
 - Kept `/health` as the text/plain Render healthcheck while moving the public project surface to `/`.
 

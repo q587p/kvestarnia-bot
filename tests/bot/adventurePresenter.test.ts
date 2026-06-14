@@ -52,12 +52,13 @@ describe("adventure presenter", () => {
     expect(text).toContain("Вона дихає");
     expect(text).toContain("🌯 Підозріла шаурма\n\nНа столі лежить шаурма. Вона дихає.");
     expect(text).toContain("Вона дихає.\n\nКорчмар:\n<blockquote>То не моя.</blockquote>");
-    expect(text.length).toBeLessThan(260);
+    expect(text.length).toBeLessThan(420);
   });
 
   it("adds character-aware flavor when race or class content exists", () => {
     const mage = {
       ...character,
+      raceId: "race.unknown",
       classId: "class.mage",
       className: "Маг"
     };
@@ -108,6 +109,8 @@ describe("adventure presenter", () => {
         "🏆 Шаурму викрито!",
         "",
         "Мімік визнав, що був не вечерею, а життєвим уроком.",
+        "",
+        "Воїн завершує епізод професійно: шаурма ще дихає, але вже розуміє, що протокол пригоди не на її боці.",
         "",
         "<b>+8 XP",
         "+4 золота</b>",

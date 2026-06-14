@@ -17,7 +17,8 @@ export function registerInventoryCommand(bot: Bot, inventoryService: InventorySe
 export async function sendInventory(
   ctx: Context,
   inventoryService: InventoryService,
-  mode: SendMode
+  mode: SendMode,
+  page = 0
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -27,18 +28,18 @@ export async function sendInventory(
   }
 
   const result = await inventoryService.listForTelegramUser(telegramUserId);
-  const text = presentInventory(result);
+  const text = presentInventory(result, page);
 
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, {
       parse_mode: "HTML" as const,
-      reply_markup: buildInventoryKeyboard(result)
+      reply_markup: buildInventoryKeyboard(result, page)
     });
     return;
   }
 
   await ctx.reply(text, {
     parse_mode: "HTML" as const,
-    reply_markup: buildInventoryKeyboard(result)
+    reply_markup: buildInventoryKeyboard(result, page)
   });
 }

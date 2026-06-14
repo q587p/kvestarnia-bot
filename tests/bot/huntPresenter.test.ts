@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   presentHuntAlreadyCompleted,
   presentHuntBoard,
+  presentHuntMissingContractMonster,
   presentHuntResult,
   presentHuntStaleContract,
   presentHuntStalePeriod
@@ -32,8 +33,9 @@ describe("hunt presenter", () => {
       }
     });
 
-    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
-    expect(text).toContain("Титул &lt;i&gt;підступу&lt;/i&gt;");
+    expect(text).toContain(
+      "<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b> · <i>Титул &lt;i&gt;підступу&lt;/i&gt;</i>"
+    );
     expect(text).toContain("&lt;script&gt;Проблема&lt;/script&gt;");
     expect(text).toContain("Опис із &lt;b&gt;зубами&lt;/b&gt;.");
     expect(text).toContain("Флейвор із &lt;b&gt;теґом&lt;/b&gt;.");
@@ -86,13 +88,46 @@ describe("hunt presenter", () => {
     expect(text).not.toContain("<i>Манатка</i>");
   });
 
-  it("summarizes already-completed hunt without reward duplication", () => {
-    const text = presentHuntAlreadyCompleted(alreadyCompleted());
+  it("replays an already-completed hunt reward summary without action prompts", () => {
+    const text = presentHuntAlreadyCompleted({
+      ...alreadyCompleted(),
+      reward: {
+        action: "trick",
+        xp: 5,
+        gold: 1,
+        localPeriodId: "2026-06-14T08",
+        itemGrants: [
+          {
+            itemId: "item.unsafe",
+            name: "<i>Записка</i>",
+            quantity: 1
+          }
+        ]
+      }
+    });
 
     expect(text).toContain("вже зараховано");
     expect(text).toContain("цієї години");
     expect(text).toContain("Скелет-вахтер печаток");
-    expect(text).not.toContain("+5 XP");
+    expect(text).toContain("Вже отримано:");
+    expect(text).toContain("<b>+5 XP\n+1 золота</b>");
+    expect(text).toContain("&lt;i&gt;Записка&lt;/i&gt;");
+    expect(text).not.toContain("<i>Записка</i>");
+    expect(text).not.toContain("Що робимо?");
+  });
+
+  it("keeps missing persisted hunt monsters safe and escaped", () => {
+    const text = presentHuntMissingContractMonster({
+      state: "missing-contract-monster",
+      character,
+      localPeriodId: "2026-06-14T08",
+      monsterId: "<b>monster.gone</b>"
+    });
+
+    expect(text).toContain("Запис дошки потребує корчмаря");
+    expect(text).toContain("&lt;b&gt;monster.gone&lt;/b&gt;");
+    expect(text).not.toContain("<b>monster.gone</b>");
+    expect(text).toContain("Нагороду за цим записом не видаємо");
   });
 });
 

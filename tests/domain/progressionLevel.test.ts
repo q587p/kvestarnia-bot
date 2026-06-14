@@ -16,7 +16,17 @@ describe("level progression", () => {
     [45, 4],
     [69, 4],
     [70, 5],
-    [999, 5]
+    [109, 5],
+    [110, 6],
+    [159, 6],
+    [160, 7],
+    [224, 7],
+    [225, 8],
+    [304, 8],
+    [305, 9],
+    [399, 9],
+    [400, 10],
+    [999, 10]
   ])("maps %i XP to level %i", (xp, level) => {
     expect(getLevelForXp(xp)).toBe(level);
   });
@@ -24,7 +34,9 @@ describe("level progression", () => {
   it("returns the next threshold until the current cap", () => {
     expect(getNextLevelThreshold(1)).toBe(10);
     expect(getNextLevelThreshold(2)).toBe(25);
-    expect(getNextLevelThreshold(5)).toBeNull();
+    expect(getNextLevelThreshold(5)).toBe(110);
+    expect(getNextLevelThreshold(9)).toBe(400);
+    expect(getNextLevelThreshold(10)).toBeNull();
   });
 
   it("detects threshold crossing", () => {

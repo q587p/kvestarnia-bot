@@ -3,7 +3,7 @@ import type { AdventureLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { FightLookupResult } from "../../services/fightService";
 import type { HuntLookupResult } from "../../services/huntService";
-import { escapeHtml } from "./telegramHtml";
+import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export interface QuestHubSnapshot {
   character: CharacterSummary;
@@ -16,7 +16,7 @@ export interface QuestHubSnapshot {
 export function presentQuestHub(snapshot: QuestHubSnapshot): string {
   const lines = [
     "📋 Стіл зі справами",
-    `${escapeHtml(snapshot.character.name)} · ${escapeHtml(snapshot.character.title)}`,
+    presentCharacterHeader(snapshot.character),
     "",
     "На столі лежать справи. Деякі лежать тихо. Деякі дихають.",
     "",
@@ -42,18 +42,34 @@ export function presentQuestHubNoCharacter(): string {
 function presentAdventureRow(
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>
 ): string {
+  if (adventure.state === "level-retired") {
+    return `🌯 Підозріла шаурма — навчальна справа для 1-${adventure.maxLevel} рівнів.`;
+  }
+
   const status = adventure.state === "ready" ? "готова до допиту" : "сьогодні вже дала свідчення";
 
   return `🌯 Підозріла шаурма — ${status}.`;
 }
 
 function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string {
+  if (fight.state === "level-retired") {
+    return `⚔️ Сутичка з підозрілим монстром — навчальна справа для 1-${fight.maxLevel} рівнів.`;
+  }
+
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
 
   return `⚔️ Сутичка з підозрілим монстром — ${status}.`;
 }
 
 function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" }>): string {
+  if (hunt.state === "level-locked") {
+    return `🏹 Дошка полювання — відкриється з ${hunt.requiredLevel} рівня.`;
+  }
+
+  if (hunt.state === "missing-contract-monster") {
+    return "🏹 Дошка полювання — корчмар шукає старий запис у журналі.";
+  }
+
   const status =
     hunt.state === "ready"
       ? `контракт на ${escapeHtml(hunt.contract.monster.name)}`
@@ -65,6 +81,14 @@ function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" 
 function presentCellarRow(
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>
 ): string {
+  if (cellar.state === "level-locked") {
+    return `🧹 Підвальна справа — відкриється з ${cellar.requiredLevel} рівня.`;
+  }
+
+  if (cellar.state === "level-retired") {
+    return `🧹 Підвальна справа — новачкова справа до ${cellar.maxLevel} рівня.`;
+  }
+
   if (cellar.state === "ready") {
     return "🧹 Підвальна справа — миша знову приймає аргументи.";
   }

@@ -30,7 +30,7 @@ describe("CellarErrandService", () => {
 
   it("grants a tiny reward and starts cooldown on first completion", async () => {
     const cooldowns = new FakeCooldownRepository();
-    cooldowns.addCharacter(telegramUserId, { xp: 8 });
+    cooldowns.addCharacter(telegramUserId, { xp: 10 });
     const service = new CellarErrandService(cooldowns, () => startedAt);
 
     await expect(service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
@@ -42,7 +42,7 @@ describe("CellarErrandService", () => {
     expect(result.state).toBe("completed");
     expect(cooldowns.claimCount).toBe(1);
     await expect(cooldowns.findCharacter(telegramUserId)).resolves.toMatchObject({
-      xp: 10,
+      xp: 12,
       gold: 1,
       level: 2
     });
@@ -62,16 +62,59 @@ describe("CellarErrandService", () => {
         new Date(startedAt.getTime() + CELLAR_MOUSE_ERRAND_COOLDOWN_MS)
       );
       expect(result.levelChange).toMatchObject({
-        oldLevel: 1,
+        oldLevel: 2,
         newLevel: 2,
-        leveledUp: true
+        leveledUp: false
       });
     }
   });
 
+  it("locks cellar errands until level two without claiming rewards", async () => {
+    const cooldowns = new FakeCooldownRepository();
+    cooldowns.addCharacter(telegramUserId, { xp: 0 });
+    const service = new CellarErrandService(cooldowns, () => startedAt);
+
+    await expect(service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "level-locked",
+      requiredLevel: 2
+    });
+    await expect(service.complete(telegramUserId, "cheese-trap")).resolves.toMatchObject({
+      state: "level-locked",
+      requiredLevel: 2
+    });
+    expect(cooldowns.claimCount).toBe(0);
+    await expect(cooldowns.findCharacter(telegramUserId)).resolves.toMatchObject({
+      xp: 0,
+      gold: 0,
+      level: 1
+    });
+  });
+
+  it("retires cellar errands from level four without claiming rewards", async () => {
+    const cooldowns = new FakeCooldownRepository();
+    cooldowns.addCharacter(telegramUserId, { xp: 45 });
+    const service = new CellarErrandService(cooldowns, () => startedAt);
+
+    await expect(service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "level-retired",
+      maxLevel: 3
+    });
+    await expect(service.complete(telegramUserId, "negotiate")).resolves.toMatchObject({
+      state: "level-retired",
+      maxLevel: 3
+    });
+    expect(cooldowns.claimCount).toBe(0);
+    expect(cooldowns.grantedItems).toEqual([]);
+    await expect(cooldowns.findCharacter(telegramUserId)).resolves.toMatchObject({
+      xp: 45,
+      gold: 0,
+      level: 4
+    });
+  });
+
   it("does not duplicate rewards during cooldown", async () => {
     const cooldowns = new FakeCooldownRepository();
-    cooldowns.addCharacter(telegramUserId);
+    cooldowns.addCharacter(telegramUserId, { xp: 10 });
     const service = new CellarErrandService(cooldowns, () => startedAt);
 
     await service.complete(telegramUserId, "negotiate");
@@ -90,14 +133,14 @@ describe("CellarErrandService", () => {
       }
     ]);
     await expect(cooldowns.findCharacter(telegramUserId)).resolves.toMatchObject({
-      xp: 2,
+      xp: 12,
       gold: 0
     });
   });
 
   it("allows another completion after cooldown expires", async () => {
     const cooldowns = new FakeCooldownRepository();
-    cooldowns.addCharacter(telegramUserId);
+    cooldowns.addCharacter(telegramUserId, { xp: 10 });
     let now = startedAt;
     const service = new CellarErrandService(cooldowns, () => now);
 
@@ -118,7 +161,7 @@ describe("CellarErrandService", () => {
       }
     ]);
     await expect(cooldowns.findCharacter(telegramUserId)).resolves.toMatchObject({
-      xp: 3,
+      xp: 13,
       gold: 1
     });
   });

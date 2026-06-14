@@ -38,6 +38,7 @@ model Character {
   items     CharacterItem[]
   equipment CharacterEquipment[]
   korchmaRoundPurchases KorchmaRoundPurchase[]
+  huntContracts HuntContract[]
   name      String
   pronoun   String   @default("they")
   path      String   @default("boundary")
@@ -114,6 +115,28 @@ model DailyAction {
   @@unique([characterId, key, localDate])
   @@index([key])
   @@map("daily_actions")
+}
+
+model HuntContract {
+  id              String    @id @default(uuid())
+  characterId     String    @map("character_id")
+  character       Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  localPeriodId   String    @map("local_period_id")
+  monsterId       String    @map("monster_id")
+  contractToken   String    @map("contract_token")
+  status          String    @default("posted")
+  completedAction String?   @map("completed_action")
+  rewardXp        Int?      @map("reward_xp")
+  rewardGold      Int?      @map("reward_gold")
+  rewardItemsJson Json?     @map("reward_items_json")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  completedAt     DateTime? @map("completed_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([characterId, localPeriodId])
+  @@index([monsterId])
+  @@index([localPeriodId])
+  @@map("hunt_contracts")
 }
 
 model CharacterCooldown {

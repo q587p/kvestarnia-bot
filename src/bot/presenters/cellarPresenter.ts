@@ -29,6 +29,34 @@ export function presentCellarNoCharacter(): string {
   return "Спершу створіть пригодника через /start. Підвал не видає доручень тіням без анкети.";
 }
 
+export function presentCellarLevelLocked(
+  result:
+    | Extract<CellarErrandLookupResult, { state: "level-locked" }>
+    | Extract<CellarErrandResult, { state: "level-locked" }>
+): string {
+  return [
+    "🧹 Підвал поки зачинено.",
+    "",
+    `Миша виглядає з люка й каже, що пригодникам до ${result.requiredLevel} рівня видають тільки моральну підтримку.`,
+    "",
+    "Спершу трохи підрости: /quest"
+  ].join("\n");
+}
+
+export function presentCellarLevelRetired(
+  result:
+    | Extract<CellarErrandLookupResult, { state: "level-retired" }>
+    | Extract<CellarErrandResult, { state: "level-retired" }>
+): string {
+  return [
+    "🐭 Підвал визнав вас занадто дорослим.",
+    "",
+    `Після ${result.maxLevel} рівня миша називає пригодника «надмірним аргументом» і ховає сир у профспілку.`,
+    "",
+    "Для старших справ є дошка полювання: /hunt"
+  ].join("\n");
+}
+
 export function presentCellarCooldown(
   result:
     | Extract<CellarErrandLookupResult, { state: "on-cooldown" }>
@@ -46,6 +74,14 @@ export function presentCellarCooldown(
 export function presentCellarResult(
   result: Exclude<CellarErrandResult, { state: "no-character" }>
 ): string {
+  if (result.state === "level-locked") {
+    return presentCellarLevelLocked(result);
+  }
+
+  if (result.state === "level-retired") {
+    return presentCellarLevelRetired(result);
+  }
+
   if (result.state === "on-cooldown") {
     return presentCellarCooldown(result);
   }

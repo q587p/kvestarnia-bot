@@ -12,6 +12,8 @@ import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentHuntAlreadyCompleted,
   presentHuntBoard,
+  presentHuntLevelLocked,
+  presentHuntMissingContractMonster,
   presentHuntNoCharacter
 } from "../presenters/huntPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
@@ -80,7 +82,17 @@ export async function sendHuntBoard(
     return;
   }
 
+  if (result.state === "level-locked") {
+    await sendText(ctx, mode, presentHuntLevelLocked(result));
+    return;
+  }
+
   await markHuntPresence(ctx, options?.presence);
+
+  if (result.state === "missing-contract-monster") {
+    await sendText(ctx, mode, presentHuntMissingContractMonster(result));
+    return;
+  }
 
   if (result.state === "already-completed") {
     await sendText(ctx, mode, presentHuntAlreadyCompleted(result));

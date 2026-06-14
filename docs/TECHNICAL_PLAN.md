@@ -226,6 +226,8 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - `cellar.mouse-errand` negotiate → `item.cork-ring-of-serious-business`
 - `tavern.friday-barrel-raid` → `item.apron-of-foam-resistance` plus one deterministic rotating barrel junk trophy
 
+Після `0.0.19` level gates starter weapon є reachable, але не гарантована: starter `/fight` працює тільки на рівнях 1-2, cellar errands — на 2-3, а Hunt Board відкривається з 3 рівня. Gates винесені в `src/domain/progression/activityGates.ts`, тому гравець може перескочити starter fight і не отримати `item.pan-of-persuasion` або `item.stamp-of-minor-authority`. Наступний combat engine має мати unarmed/basic fallback і не припускати зброю в руках у кожного героя.
+
 У `0.0.17` той самий `daily_actions` path використовується для першої ротації монстрів із бестіарію:
 - `combat.hunt-board.contract` → один `/hunt` контракт на київський годинний відтинок, `3-7 XP`, `0-3` золота й максимум один детермінований `monsterLoot` item.
 - Вибір монстра детермінований від Kyiv-local `YYYY-MM-DDTHH` і character id; `monster.mimic-shawarma` і boss-tagged монстри не входять у перший Hunt Board MVP.
@@ -238,9 +240,19 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - якщо period поточний, але token не збігається з поточно перерахованим контрактом, handler повертає stale-contract/refresh copy і не створює `daily_actions` claim;
 - legacy tokenless callback-и з `0.0.17` лишаються safe, включно з date-only форматом `YYYY-MM-DD`: view може оновити дошку, action без token не може зарахувати поточну винагороду.
 
-Залишковий борг Hunt Board contract identity: token захищає від більшости stale-button/content-drift випадків, але контракт усе ще переобчислюється із content list і не має persisted `hunt_contracts` row. Перед reward replay, груповими полюваннями, encounter sessions або складнішим loot tracking варто persist-ити contract identity (`period`, `character_id`, `monster_id`, `token`/version) і валідувати callback проти збереженого row.
+У `0.0.19` Hunt Board отримує persisted ledger:
+- `hunt_contracts` має один row на `character_id + local_period_id` і зберігає `monster_id`, `contract_token`, status, completed action, stored XP/gold і serialized item grants;
+- перший view або action за period створює posted row, а наступні виклики використовують persisted monster/token як source of truth для identity;
+- action callback валідується проти persisted row до `daily_actions.claimForTelegramUser`, тому content order/deploy drift не може перекинути стару кнопку на іншого монстра в тому самому period;
+- після успішного `daily_actions` claim ledger позначається completed і зберігає reward summary для replay;
+- repeated callback або existing `daily_actions` claim показує stored XP/gold/items із ledger, якщо вони доступні; якщо ledger completion колись не записався, fallback показує stored XP/gold із `daily_actions` і чесно не вигадує item details.
+- Onboarding gates: starter shawarma/adventure and starter fight run only on levels 1-2 and retire from level 3; cellar errands run only on levels 2-3; Hunt Board opens from level 3. Перевірка Hunt Board стоїть у service path до `hunt_contracts` upsert і до `daily_actions.claimForTelegramUser`, щоб низькорівневий `/hunt` або stale action callback не створював ledger row і не рухав reward state.
 
-Другий MVP-борг: repeated/retry callback після успішного claim поки показує `already-completed`, але не відтворює оригінальні XP/золото/item details. `daily_actions` уже зберігає reward amounts, але повний reward replay потребує сервісного контракту, який зможе підняти item grants/details для existing claim без повторної видачі нагороди.
+`daily_actions` лишається reward-idempotency authority. `hunt_contracts` не має сам видавати XP/gold/items і не замінює encounter session. Це audit/replay layer для current one-shot Hunt Board.
+
+Залишковий борг перед великим Hunt Board: ledger ще не є persistent combat/encounter state. Для групових полювань, wilderness sessions, collection progression, складного loot tracking або combat HP/mana потрібна окрема session model і ширший transaction boundary.
+
+Phase 1 scope lock: Hunt Board ledger і `/bestiary` лишаються bridge/data foundation. Не будувати окремий bestiary collection/journal progression track, доки не закриті combat engine, equipment stat effects, loot engine і level 1-10 loop. Наступні bestiary-зміни мають або виправляти поточну safety/read-only поведінку, або прямо обслуговувати combat/loot.
 
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 
@@ -251,14 +263,16 @@ Cooldown reward claim має бути transactional:
 - якщо `available_at > now`, повернути cooldown без XP/золота/items;
 - якщо cooldown відсутній або минув, conditionally створити/оновити row, видати маленьку винагороду й перерахувати level;
 - concurrent callback-и не мають проходити як дві винагороди.
+- Onboarding gate: Підвальна справа відкривається з 2 рівня і закривається після 3 рівня. Перевірка стоїть до cooldown reward claim, а command/callback handlers не мають переносити presence в `location.korchma.cellar`, якщо герой ще locked або вже виріс із цієї новачкової справи.
 
 Redis лишається майбутнім cache/job інструментом, не dependency для `0.0.10`.
 
 Tavern raid timing in `0.0.11`/`0.0.15`/`0.0.16`:
-- `v1:tavern:raid` створює lightweight pending action через годинний `CharacterCooldown` key з prefix `tavern.friday-barrel-raid.pending` і period id `YYYY-MM-DDTHH:23`, з випадковим завершенням через 5–8 хвилин, а не одразу видає reward. У `0.0.16` period id явно є Kyiv-local korchma bucket-ом, не серверним UTC bucket-ом і не user-facing timestamp-ом.
+- `v1:tavern:raid` створює lightweight pending action через годинний `CharacterCooldown` key з prefix `tavern.friday-barrel-raid.pending` і period id `YYYY-MM-DDTHH:23`, а не одразу видає reward. У `0.0.16` period id явно є Kyiv-local korchma bucket-ом, не серверним UTC bucket-ом і не user-facing timestamp-ом.
+- У `0.0.19` wait range залежить від рівня героя: рівень 1 має `5-8` хвилин, кожен наступний рівень додає `30` секунд до можливого максимуму, мінімум лишається `5` хвилин.
 - Новий raid period відкривається на 23-й хвилині кожної години за київським корчемним часом. З 03:00 до 07:00 за Києвом нові старти повертають audit-break copy про переоблік; уже pending рейди все ще можуть завершитись. О 07:00 рейд знову доступний у поточному period bucket, а далі лічильник перемикається за звичайним правилом 23-ї хвилини.
 - Поки pending raid активний, handlers для `/quest`, `/adventure`, `/fight`, `/hunt`, `/cellar` і схожих action callback-ів відповідають блокувальним станом без видачі інших нагород.
-- Reward amount для завершення рейду — deterministic roll від `periodId + telegramUserId`: `18-26 XP` і `8-14 золота`. Фактичні значення записуються в `DailyAction.rewardXp/rewardGold`; existing claim повертає stored amount, а не перекидає roll.
+- Reward amount для завершення рейду у `0.0.19` рахується детерміновано від фактичної тривалості pending cooldown (`availableAt - updatedAt`): довший рейд дає більше XP/золота, а максимуми масштабуються разом із level-based wait ceiling. Фактичні значення записуються в `DailyAction.rewardXp/rewardGold`; existing claim повертає stored amount, а не перекидає reward.
 - Завершення idempotent: після `available_at <= now` той самий callback завершує reward claim для period id старту; повторний callback показує completed/already-completed без дублювання XP/gold/items.
 - Bot layer ставить in-process `setTimeout` notification після `pending-started`, а `completeFridayBarrelRaid(telegramUserId, periodId)` лишається джерелом правди для reward claim. У `0.0.16` scheduler має один timer на `chatId + telegramUserId + periodId`, чистить map після firing і не надсилає completed-message для `already-completed`, `pending`, `audit-break` або `no-character`. Ця нотифікація best-effort: після restart/deploy таймери губляться, а за кількох bot worker-ів локальні timer map-и можуть дублювати повідомлення, якщо deployment не гарантує один worker.
 - Manual fallback шукає pending raid у поточному й останніх 23 годинних period id, щоб завершення не губилося після restart або довгої паузи гравця. Старіші pending рейди потребують cleanup/migration або durable replay, бо поточний fallback не сканує безмежну історію.
@@ -267,6 +281,7 @@ Tavern raid timing in `0.0.11`/`0.0.15`/`0.0.16`:
 Рішення й борги для raid timing:
 - Pending-рейд на Бочку має переживати rollover годинного відтинку й видавати винагороду за period id старту. Поточний MVP зберігає period id у полі `daily_actions.local_date`; перед повним activity model це імʼя поля варто переглянути або задокументувати як generic idempotency bucket.
 - Runtime callers мають віддавати перевагу `advanceFridayBarrelRaid`, бо він володіє flow start/pending/complete/already-completed. `completeFridayBarrelRaid` лишати public тільки для compatibility/tests, доки service API не буде прибраний.
+- `completeFridayBarrelRaid` також має fallback на мінімальну тривалість, якщо pending data відсутня. У поточному runtime це не виглядає відкритою кнопкою для абʼюзу, бо bot flow іде через `advanceFridayBarrelRaid`, але наступні PR не мають будувати нову логіку навколо цього методу як навколо справжньої raid session model. Barrel solo placeholder лишається placeholder-ом до окремих `raids`/`raid_participants`.
 - Поки рейд pending, stale scene callbacks на кшталт `v1:adv:mimic:*`, `v1:fight:mimic:*`, `v1:hunt:*` і `v1:cellar:*` не мають перезаписувати `last_seen_location_id`, `current_raid_id` або `current_adventure_id` до того, як pending guard їх заблокує. Безпечне гортання може оновлювати last action, але не має замінювати рейдову присутність біля Бочки без явного location transition rule.
 
 ## Presence MVP
@@ -346,8 +361,8 @@ Callback data коротка, версіонована.
 - `v1:cellar:sweep-bravely`
 - `v1:cellar:negotiate`
 - `v1:cellar:participants`
-- `v1:item:inventory`
-- `v1:item:detail:{itemId}`
+- `v1:item:inventory` або `v1:item:inventory:{page}`
+- `v1:item:detail:{itemId}` або `v1:item:detail:{itemId}:{page}`
 - `v1:equip:view`
 - `v1:equip:item:{itemId}`
 - `v1:equip:clear:{slot}`
@@ -395,7 +410,7 @@ Domain result → presenter → Telegram text/buttons.
 - `getNextLevelThreshold(level)`
 - `applyXpReward(currentXp, xpReward)`
 
-Пороги першого slice: `0`, `10`, `25`, `45`, `70` XP для рівнів 1–5. Tavern, adventure і fight rewards мають використовувати цей helper, щоб `/hero` відразу показував оновлений рівень.
+Поточні Phase 1 alpha-пороги: `0`, `10`, `25`, `45`, `70`, `110`, `160`, `225`, `305`, `400` XP для рівнів 1–10. Tavern, adventure, fight, cellar, Hunt Board і raid rewards мають використовувати цей helper, щоб `/hero` відразу показував оновлений рівень. `summarizeCharacter(...)` також піднімає summary-рівень за stored XP, щоб персонажі, які вперлися у стару стелю, не лишалися під старим cap після розширення лінійки.
 
 `0.0.7` додає derived effective stats без міграції схеми:
 - stored `hpMax`, `manaMax` і `statsJson` залишаються level-1 базою;
@@ -429,7 +444,7 @@ Future korchma progression boards:
 - Add a durable event/log source for first arrival and level-up milestones instead of deriving them from mutable current character state.
 - Level-up records should be idempotent per `character_id` + reached `level`; repeated reward callbacks must not duplicate the same milestone.
 - The front-of-korchma level board can show recent level-ups plus a ranking by highest reached level. Use deterministic tie-breakers: reached level desc, achieved time asc, then stable `character_id`.
-- Level 10 needs a distinct milestone type or presenter branch so it can be highlighted without hard-coding string searches.
+- Level 10 already has a distinct level-up presenter branch; the future board needs a durable milestone type/event so it can highlight the same achievement without hard-coding string searches.
 - Keep these boards as in-game Telegram surfaces near `location.korchma.front`; public web presence must still avoid exposing player names by default.
 
 ## Observability
