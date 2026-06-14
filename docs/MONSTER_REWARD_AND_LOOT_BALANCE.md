@@ -19,12 +19,12 @@
 - Один reward-key на персонажа, монстра й локальну дату.
 - Stale callback не має видати другу нагороду.
 - Повторний callback має повертати вже зарахований результат, а не reroll.
-- Якщо користувач натиснув кнопку після закриття hunt в тому ж дні, результат має бути stable і explainable.
+- Якщо користувач натиснув кнопку після закриття hunt в тому ж годинному відтинку, результат має бути stable і explainable.
 
 Рекомендований концепт ключа:
 
 ```text
-hunt:{characterId}:{monsterId}:{localDate}
+hunt:{characterId}:{monsterId}:{localPeriodId}
 ```
 
 ## Reward bands by monster level
@@ -40,7 +40,7 @@ hunt:{characterId}:{monsterId}:{localDate}
 
 ### Балансне правило
 
-Якщо hunt — це один deterministic reward per day, його середня цінність має бути:
+Якщо hunt — це один deterministic reward per hour, його середня цінність має бути:
 
 - помітною;
 - але не настільки високою, щоб `/hunt` почав повністю замінювати cellar, barrel або combat probe;
@@ -93,7 +93,7 @@ Guardrails:
 - не робити hunt кращим за fight, якщо fight вимагає більше ризику;
 - не робити hunt джерелом великого gold sink bypass;
 - не давати hunt надто часті upgrade items;
-- не перетворювати hunt на «щоденний обов’язок», від якого нудить.
+- не перетворювати hunt на «щогодинне чергування», від якого нудить.
 
 ## Anti-grind guidance
 
@@ -140,4 +140,4 @@ Guardrails:
 - item grants не дублюються на stale callback;
 - trophies не стають прихованими stat sticks;
 - `goldValue` не підміняє реальну economy;
-- boss reward не робить hunt обов’язковим щоденним ритуалом для виживання.
+- boss reward не робить hunt обов’язковим ритуалом за розкладом для виживання.

@@ -20,7 +20,7 @@ import {
   HUNT_BOARD_CONTRACT_KEY,
   HuntService,
   selectHuntMonster,
-  toKyivIsoDate
+  toKyivHourPeriodId
 } from "../../src/services/huntService";
 
 const telegramUserId = 42n;
@@ -34,14 +34,14 @@ describe("HuntService", () => {
     await expect(service.getHuntBoardForTelegramUser(telegramUserId)).resolves.toEqual({
       state: "no-character"
     });
-    await expect(service.completeHuntContract(telegramUserId, "2026-06-14", "strike")).resolves.toEqual({
+    await expect(service.completeHuntContract(telegramUserId, "2026-06-14T00", "strike")).resolves.toEqual({
       state: "no-character"
     });
   });
 
-  it("selects the same non-boss monster for the same Kyiv day and character", () => {
-    const first = selectHuntMonster("2026-06-14", "character-42");
-    const second = selectHuntMonster("2026-06-14", "character-42");
+  it("selects the same non-boss monster for the same Kyiv hour and character", () => {
+    const first = selectHuntMonster("2026-06-14T00", "character-42");
+    const second = selectHuntMonster("2026-06-14T00", "character-42");
 
     expect(first).toEqual(second);
     expect(first.id).not.toBe("monster.mimic-shawarma");
@@ -75,25 +75,27 @@ describe("HuntService", () => {
     expect(buildHuntRewardAmounts(levelThree, "retreat")).toEqual({ xp: 5, gold: 1 });
   });
 
-  it("uses Kyiv-local dates for daily contracts", () => {
-    expect(toKyivIsoDate(new Date("2026-06-13T21:30:00.000Z"))).toBe("2026-06-14");
+  it("uses Kyiv-local hour periods for hunt contracts", () => {
+    expect(toKyivHourPeriodId(new Date("2026-06-13T21:30:00.000Z"))).toBe("2026-06-14T00");
+    expect(toKyivHourPeriodId(new Date("2026-06-14T04:59:00.000Z"))).toBe("2026-06-14T07");
+    expect(toKyivHourPeriodId(new Date("2026-06-14T05:00:00.000Z"))).toBe("2026-06-14T08");
   });
 
-  it("grants one deterministic hunt reward per day", async () => {
+  it("grants one deterministic hunt reward per hour", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
     const dailyActions = new FakeDailyActionRepository(characters);
     const service = new HuntService(characters, dailyActions, fixedClock);
 
-    const result = await service.completeHuntContract(telegramUserId, "2026-06-14", "strike");
-    const repeated = await service.completeHuntContract(telegramUserId, "2026-06-14", "trick");
+    const result = await service.completeHuntContract(telegramUserId, "2026-06-14T00", "strike");
+    const repeated = await service.completeHuntContract(telegramUserId, "2026-06-14T00", "trick");
 
     expect(result.state).toBe("completed");
     expect(repeated.state).toBe("already-completed");
     expect(dailyActions.createCount).toBe(1);
     expect(dailyActions.records[0]).toMatchObject({
       key: HUNT_BOARD_CONTRACT_KEY,
-      localDate: "2026-06-14"
+      localDate: "2026-06-14T00"
     });
     if (result.state === "completed") {
       expect(result.reward.xp).toBeGreaterThanOrEqual(3);
@@ -108,18 +110,18 @@ describe("HuntService", () => {
     });
   });
 
-  it("does not complete today's hunt from a stale date callback", async () => {
+  it("does not complete the current hunt from a stale hour callback", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
     const dailyActions = new FakeDailyActionRepository(characters);
     const service = new HuntService(characters, dailyActions, fixedClock);
 
-    const result = await service.completeHuntContract(telegramUserId, "2026-06-13", "strike");
+    const result = await service.completeHuntContract(telegramUserId, "2026-06-13T23", "strike");
 
     expect(result).toEqual({
       state: "stale-period",
-      currentLocalDate: "2026-06-14",
-      requestedLocalDate: "2026-06-13"
+      currentLocalPeriodId: "2026-06-14T00",
+      requestedLocalPeriodId: "2026-06-13T23"
     });
     expect(dailyActions.createCount).toBe(0);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({

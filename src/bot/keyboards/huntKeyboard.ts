@@ -7,11 +7,11 @@ export function buildHuntBoardKeyboard(
   result: Extract<HuntLookupResult, { state: "ready" }>
 ): InlineKeyboard {
   return new InlineKeyboard()
-    .text("🗡️ Вдарити по проблемі", makeHuntActionCallbackData(result.contract.localDate, "strike"))
+    .text("🗡️ Вдарити по проблемі", makeHuntActionCallbackData(result.contract.localPeriodId, "strike"))
     .row()
-    .text("🎭 Обдурити проблему", makeHuntActionCallbackData(result.contract.localDate, "trick"))
+    .text("🎭 Обдурити проблему", makeHuntActionCallbackData(result.contract.localPeriodId, "trick"))
     .row()
-    .text("📋 Закрити актом", makeHuntActionCallbackData(result.contract.localDate, "retreat"))
+    .text("📋 Закрити актом", makeHuntActionCallbackData(result.contract.localPeriodId, "retreat"))
     .row()
     .text("⬅️ До столу", makePlaceCallbackData("quest-table"));
 }
@@ -19,7 +19,7 @@ export function buildHuntBoardKeyboard(
 export function buildHuntResultKeyboard(result: Exclude<HuntResult, { state: "no-character" }>): InlineKeyboard {
   if (result.state === "stale-period") {
     return new InlineKeyboard()
-      .text("🏹 Оновити дошку", makeHuntViewCallbackData(result.currentLocalDate))
+      .text("🏹 Оновити дошку", makeHuntViewCallbackData(result.currentLocalPeriodId))
       .row()
       .text("⬅️ До столу", makePlaceCallbackData("quest-table"));
   }

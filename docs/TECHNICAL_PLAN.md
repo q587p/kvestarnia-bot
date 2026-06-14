@@ -227,11 +227,11 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - `tavern.friday-barrel-raid` → `item.apron-of-foam-resistance` plus one deterministic rotating barrel junk trophy
 
 У `0.0.17` той самий `daily_actions` path використовується для першої ротації монстрів із бестіарію:
-- `combat.hunt-board.contract` → один `/hunt` контракт на київську дату, `3-7 XP`, `0-3` золота й максимум один детермінований `monsterLoot` item.
-- Вибір монстра детермінований від Kyiv-local `YYYY-MM-DD` і character id; `monster.mimic-shawarma` і boss-tagged монстри не входять у перший Hunt Board MVP.
-- Стара дата в `v1:hunt:act:{date}:*` повертає stale-period copy і не створює claim для поточного дня.
+- `combat.hunt-board.contract` → один `/hunt` контракт на київський годинний відтинок, `3-7 XP`, `0-3` золота й максимум один детермінований `monsterLoot` item.
+- Вибір монстра детермінований від Kyiv-local `YYYY-MM-DDTHH` і character id; `monster.mimic-shawarma` і boss-tagged монстри не входять у перший Hunt Board MVP.
+- Старий period id у `v1:hunt:act:{period}:*` повертає stale-period copy і не створює claim для поточної години.
 
-Важливий борг Hunt Board callback-ів: поточний `v1:hunt:act:{date}:{action}` не містить `monsterId`, persisted contract id або короткий contract token. Оскільки контракт зараз переобчислюється з актуального content list за датою й character id, майбутній deploy із доданими або переставленими монстрами може теоретично змінити монстра під старою кнопкою тієї самої київської дати. Перед розширенням `/hunt` потрібно зафіксувати contract identity: або додати короткий stable token/monster id у callback, або persist-ити daily contract row і валідувати callback проти нього.
+Важливий борг Hunt Board callback-ів: поточний `v1:hunt:act:{period}:{action}` не містить `monsterId`, persisted contract id або короткий contract token. Оскільки контракт зараз переобчислюється з актуального content list за годинним period id і character id, майбутній deploy із доданими або переставленими монстрами може теоретично змінити монстра під старою кнопкою того самого київського годинного відтинку. Перед розширенням `/hunt` потрібно зафіксувати contract identity: або додати короткий stable token/monster id у callback, або persist-ити hourly contract row і валідувати callback проти нього.
 
 Другий MVP-борг: repeated/retry callback після успішного claim поки показує `already-completed`, але не відтворює оригінальні XP/золото/item details. `daily_actions` уже зберігає reward amounts, але повний reward replay потребує сервісного контракту, який зможе підняти item grants/details для existing claim без повторної видачі нагороди.
 
@@ -347,10 +347,10 @@ Callback data коротка, версіонована.
 - `v1:fight:mimic:attack`
 - `v1:fight:mimic:receipt`
 - `v1:fight:mimic:flee`
-- `v1:hunt:view:{localDate}`
-- `v1:hunt:act:{localDate}:strike`
-- `v1:hunt:act:{localDate}:trick`
-- `v1:hunt:act:{localDate}:retreat`
+- `v1:hunt:view:{localPeriodId}`
+- `v1:hunt:act:{localPeriodId}:strike`
+- `v1:hunt:act:{localPeriodId}:trick`
+- `v1:hunt:act:{localPeriodId}:retreat`
 - `v1:devreset:confirm`
 - `v1:devreset:cancel`
 - `v1:restart:confirm`

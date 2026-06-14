@@ -35,7 +35,7 @@ selectMonsterFlavorLine(character, {
   monsterId,
   placement: "monster.start",
   action,
-  seed: `${character.id}:${monsterId}:${localDate}`
+  seed: `${character.id}:${monsterId}:${localPeriodId}`
 });
 ```
 

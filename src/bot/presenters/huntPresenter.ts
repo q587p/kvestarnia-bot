@@ -8,7 +8,7 @@ export function presentHuntBoard(result: Extract<HuntLookupResult, { state: "rea
     "🏹 Дошка полювання",
     `${escapeHtml(result.character.name)} · ${escapeHtml(result.character.title)}`,
     "",
-    "Корчмар пришпилив сьогоднішню проблему. Вона ще не знає, що стала паперовою.",
+    "Корчмар пришпилив проблему цієї години. Вона ще не знає, що стала паперовою.",
     "",
     `Ціль: <b>${escapeHtml(monster.name)}</b> · рівень ${monster.level}`,
     `<i>${escapeHtml(monster.description)}</i>`
@@ -33,11 +33,11 @@ export function presentHuntAlreadyCompleted(
     | Extract<HuntResult, { state: "already-completed" }>
 ): string {
   return [
-    "🏹 Сьогоднішнє полювання вже зараховано.",
+    "🏹 Полювання цієї години вже зараховано.",
     "",
     `<b>${escapeHtml(result.contract.monster.name)}</b> внесено в журнал як «проблема, що мала плани».`,
     "",
-    "Повертайтесь завтра або перевірте персонажа: /hero"
+    "Повертайтесь за наступною годиною або перевірте персонажа: /hero"
   ].join("\n");
 }
 
@@ -47,7 +47,7 @@ export function presentHuntStalePeriod(
   void _result;
 
   return [
-    "🏹 Цей листок дошки вже вчорашній.",
+    "🏹 Цей листок дошки вже з минулої години.",
     "",
     "Корчмар прибрав старі проблеми й вивісив нові. Оновіть дошку: /hunt"
   ].join("\n");

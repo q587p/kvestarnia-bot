@@ -96,13 +96,13 @@ Hidden `path` може бути внутрішнім selector-ом, але на�
 - Повний ростер і лутові нотатки живуть у `docs/BESTIARY.md` і `docs/MONSTER_LOOT_DROPS.md`.
 
 `0.0.17` вмикає перший runtime use цього контенту через `/hunt` і кнопку `🏹 До дошки` зі Столу зі справами:
-- Дошка полювання щодня детерміновано вибирає одного монстра з бестіарію за київською датою й character id.
+- Дошка полювання щогодини детерміновано вибирає одного монстра з бестіарію за київським годинним відтинком і character id.
 - Перший MVP виключає `monster.mimic-shawarma` і boss-tagged монстрів, щоб `/hunt` не плутався з першою шаурмою і не обіцяв великий boss loop раніше часу.
-- Один shared daily key `combat.hunt-board.contract` видає винагороду лише раз на київську дату, незалежно від обраної кнопки.
-- Дії: вдарити по проблемі, обдурити проблему або відступити з актом. Це flavor/result loop, а не повний бій з HP/mana.
+- Один shared idempotency key `combat.hunt-board.contract` видає винагороду лише раз на київську годину, незалежно від обраної кнопки.
+- Дії: вдарити по проблемі, обдурити проблему або закрити справу актом. Це flavor/result loop, а не повний бій з HP/mana.
 - Нагорода маленька: `3-7 XP`, `0-3 золота` і максимум один детермінований трофей із `monsterLoot` для цього монстра. Повторні й старі callback-и не дублюють винагороду.
 - Presence для `/hunt` поки пишеться в `location.korchma.quest_table` і `adventure.hunt-board.contract`; майбутній wilderness/location system має винести полювання з корчемного столу в окремі місцини.
-- Борг перед розширенням `/hunt`: callback-и мають отримати stable contract identity (`monsterId`, короткий token або persisted contract row), бо поточна дата+action форма може після content deploy-а переобчислити інший контракт для старої кнопки тієї самої київської дати.
+- Борг перед розширенням `/hunt`: callback-и мають отримати stable contract identity (`monsterId`, короткий token або persisted contract row), бо поточна period+action форма може після content deploy-а переобчислити інший контракт для старої кнопки того самого київського годинного відтинку.
 
 Ширший backlog заготовок для monsters/items/quests живе в `docs/INSPIRATION_CONTENT_BACKLOG.md`. Runtime PR має переносити його малими pack-ами й не обіцяти гравецькі drops раніше, ніж є encounter routing, loot table або deterministic grant.
 

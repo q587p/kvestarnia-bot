@@ -3,8 +3,8 @@ import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type HuntCallback =
-  | { type: "view"; localDate: string }
-  | { type: "action"; localDate: string; action: HuntAction };
+  | { type: "view"; localPeriodId: string }
+  | { type: "action"; localPeriodId: string; action: HuntAction };
 
 export type HuntCallbackError =
   | "invalid-version"
@@ -16,12 +16,12 @@ export type HuntCallbackError =
 const PREFIX = "v1:hunt";
 const huntActions = new Set<HuntAction>(["strike", "trick", "retreat"]);
 
-export function makeHuntViewCallbackData(localDate: string): string {
-  return `${PREFIX}:view:${localDate}`;
+export function makeHuntViewCallbackData(localPeriodId: string): string {
+  return `${PREFIX}:view:${localPeriodId}`;
 }
 
-export function makeHuntActionCallbackData(localDate: string, action: HuntAction): string {
-  return `${PREFIX}:act:${localDate}:${action}`;
+export function makeHuntActionCallbackData(localPeriodId: string, action: HuntAction): string {
+  return `${PREFIX}:act:${localPeriodId}:${action}`;
 }
 
 export function parseHuntCallbackData(
@@ -39,43 +39,50 @@ export function parseHuntCallbackData(
     return err("too-long");
   }
 
-  const [, section, kind, localDate, action, ...rest] = data.split(":");
+  const [, section, kind, localPeriodId, action, ...rest] = data.split(":");
 
   if (section !== "hunt" || rest.length > 0) {
     return err("invalid-prefix");
   }
 
-  if (!localDate || !isValidLocalDate(localDate)) {
+  if (!localPeriodId || !isValidLocalHourPeriodId(localPeriodId)) {
     return err("invalid-date");
   }
 
   if (kind === "view" && action === undefined) {
-    return ok({ type: "view", localDate });
+    return ok({ type: "view", localPeriodId });
   }
 
   if (kind === "act" && huntActions.has(action as HuntAction)) {
-    return ok({ type: "action", localDate, action: action as HuntAction });
+    return ok({ type: "action", localPeriodId, action: action as HuntAction });
   }
 
   return err("invalid-action");
 }
 
-function isValidLocalDate(localDate: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(localDate);
+function isValidLocalHourPeriodId(localPeriodId: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2})$/.exec(localPeriodId);
 
   if (!match) {
     return false;
   }
 
-  const [, yearText, monthText, dayText] = match;
+  const [, yearText, monthText, dayText, hourText] = match;
   const year = Number(yearText);
   const month = Number(monthText);
   const day = Number(dayText);
-  const parsed = new Date(Date.UTC(year, month - 1, day));
+  const hour = Number(hourText);
+
+  if (hour < 0 || hour > 23) {
+    return false;
+  }
+
+  const parsed = new Date(Date.UTC(year, month - 1, day, hour));
 
   return (
     parsed.getUTCFullYear() === year &&
     parsed.getUTCMonth() === month - 1 &&
-    parsed.getUTCDate() === day
+    parsed.getUTCDate() === day &&
+    parsed.getUTCHours() === hour
   );
 }

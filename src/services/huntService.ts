@@ -13,7 +13,7 @@ export const HUNT_BOARD_TIME_ZONE = "Europe/Kyiv";
 export type HuntAction = "strike" | "trick" | "retreat";
 
 export interface HuntContract {
-  localDate: string;
+  localPeriodId: string;
   monster: MonsterContent;
   startFlavor: string | null;
 }
@@ -25,7 +25,7 @@ export type HuntLookupResult =
 
 export type HuntResult =
   | { state: "no-character" }
-  | { state: "stale-period"; currentLocalDate: string; requestedLocalDate: string }
+  | { state: "stale-period"; currentLocalPeriodId: string; requestedLocalPeriodId: string }
   | {
       state: "completed";
       action: HuntAction;
@@ -44,7 +44,7 @@ export type HuntResult =
 export interface HuntReward {
   xp: number;
   gold: number;
-  localDate: string;
+  localPeriodId: string;
   itemGrants: RewardItemGrant[];
 }
 
@@ -56,7 +56,7 @@ export class HuntService {
   ) {}
 
   async getHuntBoardForTelegramUser(telegramUserId: bigint): Promise<HuntLookupResult> {
-    const localDate = toKyivIsoDate(this.clock());
+    const localPeriodId = toKyivHourPeriodId(this.clock());
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
@@ -64,10 +64,10 @@ export class HuntService {
     }
 
     const summary = summarizeCharacter(character);
-    const contract = buildHuntContract(summary, localDate, character.id);
+    const contract = buildHuntContract(summary, localPeriodId, character.id);
     const existing = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: HUNT_BOARD_CONTRACT_KEY,
-      localDate
+      localDate: localPeriodId
     });
 
     if (existing) {
@@ -87,16 +87,16 @@ export class HuntService {
 
   async completeHuntContract(
     telegramUserId: bigint,
-    requestedLocalDate: string,
+    requestedLocalPeriodId: string,
     action: HuntAction
   ): Promise<HuntResult> {
-    const currentLocalDate = toKyivIsoDate(this.clock());
+    const currentLocalPeriodId = toKyivHourPeriodId(this.clock());
 
-    if (requestedLocalDate !== currentLocalDate) {
+    if (requestedLocalPeriodId !== currentLocalPeriodId) {
       return {
         state: "stale-period",
-        currentLocalDate,
-        requestedLocalDate
+        currentLocalPeriodId,
+        requestedLocalPeriodId
       };
     }
 
@@ -107,11 +107,11 @@ export class HuntService {
     }
 
     const summary = summarizeCharacter(character);
-    const contract = buildHuntContract(summary, currentLocalDate, character.id);
+    const contract = buildHuntContract(summary, currentLocalPeriodId, character.id);
     const reward = buildHuntRewardAmounts(contract.monster, action);
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: HUNT_BOARD_CONTRACT_KEY,
-      localDate: currentLocalDate,
+      localDate: currentLocalPeriodId,
       rewardXp: reward.xp,
       rewardGold: reward.gold,
       itemGrants: buildHuntItemGrants(contract, action, character.id)
@@ -136,7 +136,7 @@ export class HuntService {
       contract,
       reward: {
         ...reward,
-        localDate: currentLocalDate,
+        localPeriodId: currentLocalPeriodId,
         itemGrants: enrichRewardItemGrants(claim.itemGrants)
       },
       levelChange: claim.levelChange,
@@ -144,20 +144,20 @@ export class HuntService {
         monsterId: contract.monster.id,
         placement: "monster.outcome",
         action,
-        seed: `${currentLocalDate}:${character.id}:${action}:outcome`
+        seed: `${currentLocalPeriodId}:${character.id}:${action}:outcome`
       })?.text ?? null
     };
   }
 }
 
-export function selectHuntMonster(localDate: string, characterId: string): MonsterContent {
+export function selectHuntMonster(localPeriodId: string, characterId: string): MonsterContent {
   const candidates = monsters
     .filter((monster) => monster.id !== "monster.mimic-shawarma")
     .filter((monster) => !monster.tags.includes("boss"))
     .filter((monster) => monster.level <= 3)
     .sort((left, right) => left.id.localeCompare(right.id));
 
-  const monster = candidates[stableHash(`${localDate}:${characterId}:hunt-board`) % candidates.length];
+  const monster = candidates[stableHash(`${localPeriodId}:${characterId}:hunt-board`) % candidates.length];
 
   if (!monster) {
     throw new Error("Hunt board has no available monsters.");
@@ -166,35 +166,37 @@ export function selectHuntMonster(localDate: string, characterId: string): Monst
   return monster;
 }
 
-export function toKyivIsoDate(date: Date): string {
+export function toKyivHourPeriodId(date: Date): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: HUNT_BOARD_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
-    day: "2-digit"
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23"
   }).formatToParts(date);
   const values = Object.fromEntries(
     parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value])
   );
 
-  return `${values.year}-${values.month}-${values.day}`;
+  return `${values.year}-${values.month}-${values.day}T${values.hour}`;
 }
 
 function buildHuntContract(
   character: CharacterSummary,
-  localDate: string,
+  localPeriodId: string,
   characterId: string
 ): HuntContract {
-  const monster = selectHuntMonster(localDate, characterId);
+  const monster = selectHuntMonster(localPeriodId, characterId);
 
   return {
-    localDate,
+    localPeriodId,
     monster,
     startFlavor:
       selectMonsterFlavorLine(character, {
         monsterId: monster.id,
         placement: "monster.start",
-        seed: `${localDate}:${characterId}:start`
+        seed: `${localPeriodId}:${characterId}:start`
       })?.text ?? null
   };
 }
@@ -228,7 +230,7 @@ function buildHuntItemGrants(
     return [];
   }
 
-  const seed = `${contract.localDate}:${characterId}:${contract.monster.id}:${action}:loot`;
+  const seed = `${contract.localPeriodId}:${characterId}:${contract.monster.id}:${action}:loot`;
   const itemId = lootIds[stableHash(seed) % lootIds.length];
 
   if (!itemId || !items.some((item) => item.id === itemId)) {

@@ -18,7 +18,7 @@ describe("hunt presenter", () => {
         title: "Титул <i>підступу</i>"
       },
       contract: {
-        localDate: "2026-06-14",
+        localPeriodId: "2026-06-14T08",
         monster: {
           id: "monster.test",
           name: "<script>Проблема</script>",
@@ -66,7 +66,7 @@ describe("hunt presenter", () => {
       reward: {
         xp: 3,
         gold: 0,
-        localDate: "2026-06-14",
+        localPeriodId: "2026-06-14T08",
         itemGrants: [
           {
             itemId: "item.unsafe",
@@ -87,6 +87,7 @@ describe("hunt presenter", () => {
     const text = presentHuntAlreadyCompleted(alreadyCompleted());
 
     expect(text).toContain("вже зараховано");
+    expect(text).toContain("цієї години");
     expect(text).toContain("Скелет-вахтер печаток");
     expect(text).not.toContain("+5 XP");
   });
@@ -129,7 +130,7 @@ const character: CharacterSummary = {
 };
 
 const contract = {
-  localDate: "2026-06-14",
+  localPeriodId: "2026-06-14T08",
   monster: {
     id: "monster.stamp-doorkeeper-skeleton",
     name: "Скелет-вахтер печаток",
@@ -149,7 +150,7 @@ function completed(action: "strike" | "trick" | "retreat"): Extract<HuntResult, 
     reward: {
       xp: 5,
       gold: 1,
-      localDate: "2026-06-14",
+      localPeriodId: "2026-06-14T08",
       itemGrants:
         action === "retreat"
           ? []
@@ -181,7 +182,7 @@ function alreadyCompleted(): Extract<HuntLookupResult, { state: "already-complet
 function stale(): Extract<HuntResult, { state: "stale-period" }> {
   return {
     state: "stale-period",
-    currentLocalDate: "2026-06-14",
-    requestedLocalDate: "2026-06-13"
+    currentLocalPeriodId: "2026-06-14T08",
+    requestedLocalPeriodId: "2026-06-14T07"
   };
 }

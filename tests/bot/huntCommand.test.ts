@@ -89,7 +89,7 @@ describe("hunt command", () => {
       requireKorchmaInterior: true
     });
 
-    expect(replies[0]?.text).toContain("Сьогоднішнє полювання вже зараховано");
+    expect(replies[0]?.text).toContain("Полювання цієї години вже зараховано");
     expect(replies[0]?.text).not.toContain("Що робимо?");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML"
@@ -190,7 +190,7 @@ const character: CharacterSummary = {
 };
 
 const contract = {
-  localDate: "2026-06-14",
+  localPeriodId: "2026-06-14T08",
   monster: {
     id: "monster.stamp-doorkeeper-skeleton",
     name: "Скелет-вахтер печаток",

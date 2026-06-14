@@ -57,7 +57,7 @@ function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" 
   const status =
     hunt.state === "ready"
       ? `контракт на ${escapeHtml(hunt.contract.monster.name)}`
-      : "сьогодні вже закрито";
+      : "у цю годину вже закрито";
 
   return `🏹 Дошка полювання — ${status}.`;
 }

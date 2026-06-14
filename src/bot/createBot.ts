@@ -1359,7 +1359,7 @@ async function handleHuntCallback(
 
   const result = await services.hunt.completeHuntContract(
     telegramUserId,
-    callback.localDate,
+    callback.localPeriodId,
     callback.action
   );
 

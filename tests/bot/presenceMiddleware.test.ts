@@ -226,7 +226,7 @@ describe("presence middleware", () => {
     },
     {
       name: "hunt",
-      callbackData: makeHuntActionCallbackData("2026-06-14", "strike")
+      callbackData: makeHuntActionCallbackData("2026-06-14T08", "strike")
     },
     {
       name: "cellar",
@@ -280,7 +280,7 @@ describe("presence middleware", () => {
     ]);
   });
 
-  it("blocks hunt action callbacks outside the korchma before claiming the daily hunt", async () => {
+  it("blocks hunt action callbacks outside the korchma before claiming the hourly hunt", async () => {
     const presence = new CapturingPresenceService();
     let claimCount = 0;
     const bot = createTestBot(presence, {
@@ -294,7 +294,7 @@ describe("presence middleware", () => {
     });
     await bot.init();
 
-    await bot.handleUpdate(callbackUpdate(makeHuntActionCallbackData("2026-06-14", "strike")));
+    await bot.handleUpdate(callbackUpdate(makeHuntActionCallbackData("2026-06-14T08", "strike")));
 
     expect(claimCount).toBe(0);
     expect(presence.marks).toEqual([

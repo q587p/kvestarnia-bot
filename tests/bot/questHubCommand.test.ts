@@ -193,7 +193,7 @@ const character: CharacterSummary = {
 };
 
 const huntContract = {
-  localDate: "2026-06-14",
+  localPeriodId: "2026-06-14T08",
   monster: {
     id: "monster.stamp-doorkeeper-skeleton",
     name: "Скелет-вахтер печаток",

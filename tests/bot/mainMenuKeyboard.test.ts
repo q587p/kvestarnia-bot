@@ -209,9 +209,9 @@ describe("main menu and scene keyboards", () => {
       "⬅️ До столу"
     ]);
     expect(flatInlineButtonCallbacks(buildHuntBoardKeyboard(readyHunt()))).toEqual([
-      "v1:hunt:act:2026-06-14:strike",
-      "v1:hunt:act:2026-06-14:trick",
-      "v1:hunt:act:2026-06-14:retreat",
+      "v1:hunt:act:2026-06-14T08:strike",
+      "v1:hunt:act:2026-06-14T08:trick",
+      "v1:hunt:act:2026-06-14T08:retreat",
       "v1:place:quest-table"
     ]);
   });
@@ -429,7 +429,7 @@ const character = {
 } as const;
 
 const huntContract = {
-  localDate: "2026-06-14",
+  localPeriodId: "2026-06-14T08",
   monster: {
     id: "monster.stamp-doorkeeper-skeleton",
     name: "Скелет-вахтер печаток",
