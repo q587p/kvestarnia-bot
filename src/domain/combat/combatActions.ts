@@ -66,7 +66,7 @@ export function getCombatSkillProfile(classId: string | undefined): CombatSkillP
       };
     case "class.bard":
       return {
-        id: "skill-dangerous-couplet",
+        id: "skill.dangerous-couplet",
         damageKind: "social",
         stat: "charisma",
         manaCost: 2,
@@ -79,7 +79,7 @@ export function getCombatSkillProfile(classId: string | undefined): CombatSkillP
     case "class.rogue":
     case "class.ranger":
       return {
-        id: "skill-trick-shot",
+        id: "skill.trick-shot",
         damageKind: "trick",
         stat: "dexterity",
         manaCost: 0,
@@ -91,7 +91,7 @@ export function getCombatSkillProfile(classId: string | undefined): CombatSkillP
       };
     case "class.priest":
       return {
-        id: "skill-strict-blessing",
+        id: "skill.strict-blessing",
         damageKind: "spell",
         stat: "charisma",
         manaCost: 2,
@@ -103,7 +103,7 @@ export function getCombatSkillProfile(classId: string | undefined): CombatSkillP
       };
     case "class.kharakternyk":
       return {
-        id: "skill-steppe-side-eye",
+        id: "skill.steppe-side-eye",
         damageKind: "trick",
         stat: "luck",
         manaCost: 1,

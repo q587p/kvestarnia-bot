@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
+import { classes } from "../../src/content/classes";
 import { monsters } from "../../src/content/monsters";
 import {
   deriveMonsterCombatStats,
   expireCombat,
+  getCombatSkillProfile,
+  rollBasicAttack,
+  rollFleeSuccess,
+  rollMonsterDamage,
+  rollSkillAttack,
   resolveCombatTurn,
   startCombat,
   type CombatActorStats,
+  type CombatStatus,
   type CombatState,
   type MonsterCombatStats
 } from "../../src/domain/combat";
@@ -48,6 +55,80 @@ const monster: MonsterCombatStats = {
 };
 
 describe("combat domain engine", () => {
+  it("maps every supported class to the intended MVP skill profile", () => {
+    const expectedProfiles = {
+      "class.warrior": {
+        id: "skill.forceful-strike",
+        damageKind: "physical",
+        manaCost: 0,
+        stat: "strength"
+      },
+      "class.mage": {
+        id: "skill.hot-spell",
+        damageKind: "spell",
+        manaCost: 3,
+        stat: "intelligence"
+      },
+      "class.bard": {
+        id: "skill.dangerous-couplet",
+        damageKind: "social",
+        manaCost: 2,
+        stat: "charisma"
+      },
+      "class.rogue": {
+        id: "skill.trick-shot",
+        damageKind: "trick",
+        manaCost: 0,
+        stat: "dexterity"
+      },
+      "class.priest": {
+        id: "skill.strict-blessing",
+        damageKind: "spell",
+        manaCost: 2,
+        stat: "charisma"
+      },
+      "class.varenyk-mancer": {
+        id: "skill.hot-spell",
+        damageKind: "spell",
+        manaCost: 3,
+        stat: "intelligence"
+      },
+      "class.bureaucramancer": {
+        id: "skill.form-thirteen-b",
+        damageKind: "spell",
+        manaCost: 2,
+        stat: "intelligence"
+      },
+      "class.ranger": {
+        id: "skill.trick-shot",
+        damageKind: "trick",
+        manaCost: 0,
+        stat: "dexterity"
+      },
+      "class.kharakternyk": {
+        id: "skill.steppe-side-eye",
+        damageKind: "trick",
+        manaCost: 1,
+        stat: "luck"
+      }
+    } as const;
+
+    expect(classes.map((characterClass) => characterClass.id).sort()).toEqual(
+      Object.keys(expectedProfiles).sort()
+    );
+
+    for (const [classId, expectedProfile] of Object.entries(expectedProfiles)) {
+      expect(getCombatSkillProfile(classId)).toMatchObject(expectedProfile);
+    }
+
+    expect(getCombatSkillProfile(undefined)).toMatchObject({
+      id: "skill.careful-strike",
+      damageKind: "physical",
+      manaCost: 0,
+      stat: "strength"
+    });
+  });
+
   it("starts a serializable active combat state from hero and monster inputs", () => {
     expect(
       startCombat({
@@ -102,6 +183,23 @@ describe("combat domain engine", () => {
       heroDamage: 4,
       manaSpent: 0
     });
+  });
+
+  it("does not mutate the input state when resolving an active turn", () => {
+    const state = startCombat({ hero: warrior, monster });
+    const before = structuredClone(state);
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(state).toEqual(before);
+    expect(result.state).not.toBe(state);
   });
 
   it("lets the monster response make the hero lose", () => {
@@ -216,6 +314,31 @@ describe("combat domain engine", () => {
     expect(result.summary.heroOutcome).toBe("inactive");
   });
 
+  it.each(["won", "lost", "fled", "expired"] satisfies CombatStatus[])(
+    "rejects %s combat without mutating the input state",
+    (status) => {
+      const state: CombatState = {
+        ...startCombat({ hero: warrior, monster }),
+        status
+      };
+      const before = structuredClone(state);
+
+      const result = resolveCombatTurn({
+        state,
+        action: "skill",
+        hero: warrior,
+        monster,
+        rng: new FakeRandomSource([0])
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.reason).toBe("inactive");
+      expect(state).toEqual(before);
+      expect(result.state).toEqual(before);
+      expect(result.state).not.toBe(state);
+    }
+  );
+
   it("can expire active combat for future stale session handling", () => {
     const activeState = startCombat({ hero: warrior, monster });
     const expired = expireCombat(activeState);
@@ -277,6 +400,23 @@ describe("combat domain engine", () => {
     );
   });
 
+  it("keeps combat roll helpers deterministic with fixed RNG", () => {
+    const skill = getCombatSkillProfile("class.rogue");
+
+    expect(rollBasicAttack(warrior, monster, new FakeRandomSource([0.1, 0.02]))).toEqual(
+      rollBasicAttack(warrior, monster, new FakeRandomSource([0.1, 0.02]))
+    );
+    expect(rollSkillAttack(warrior, monster, skill, new FakeRandomSource([0.1, 0.02]))).toEqual(
+      rollSkillAttack(warrior, monster, skill, new FakeRandomSource([0.1, 0.02]))
+    );
+    expect(rollMonsterDamage(warrior, monster, new FakeRandomSource([0.1, 0.66]))).toBe(
+      rollMonsterDamage(warrior, monster, new FakeRandomSource([0.1, 0.66]))
+    );
+    expect(rollFleeSuccess(warrior, monster, new FakeRandomSource([0.1]))).toBe(
+      rollFleeSuccess(warrior, monster, new FakeRandomSource([0.1]))
+    );
+  });
+
   it("resolves a same-level sanity fight in roughly 2-5 turns", () => {
     const sameLevelMonster = deriveMonsterCombatStats({
       id: "monster.sanity-check",
@@ -315,5 +455,71 @@ describe("combat domain engine", () => {
       expect(deriveMonsterCombatStats(candidate).hpMax).toBeGreaterThan(0);
       expect(deriveMonsterCombatStats(candidate).attack).toBeGreaterThan(0);
     }
+  });
+
+  it("derives expected combat stat bonuses from important monster tags", () => {
+    expect(
+      deriveMonsterCombatStats({
+        id: "monster.boss-test",
+        name: "Бос тесту",
+        description: "Великий з причин.",
+        level: 5,
+        tags: ["boss"]
+      })
+    ).toMatchObject({
+      hpMax: 52,
+      attack: 13,
+      armor: 2,
+      resist: 1,
+      dexterity: 10
+    });
+
+    expect(
+      deriveMonsterCombatStats({
+        id: "monster.undead-test",
+        name: "Неживий тест",
+        description: "Вже бачив assert.",
+        level: 2,
+        tags: ["undead"]
+      })
+    ).toMatchObject({
+      hpMax: 22,
+      attack: 6,
+      armor: 1,
+      resist: 1,
+      dexterity: 7
+    });
+
+    expect(
+      deriveMonsterCombatStats({
+        id: "monster.beast-test",
+        name: "Звірячий тест",
+        description: "Швидко біжить до coverage.",
+        level: 2,
+        tags: ["beast"]
+      })
+    ).toMatchObject({
+      hpMax: 22,
+      attack: 6,
+      armor: 1,
+      resist: 0,
+      dexterity: 8
+    });
+
+    expect(
+      deriveMonsterCombatStats({
+        id: "monster.construct-test",
+        name: "Складений тест",
+        description: "Стоїть, бо його склали.",
+        level: 3,
+        tags: ["construct"]
+      })
+    ).toMatchObject({
+      hpMax: 28,
+      attack: 8,
+      armor: 2,
+      resist: 1,
+      dexterity: 8
+    });
   });
 });
