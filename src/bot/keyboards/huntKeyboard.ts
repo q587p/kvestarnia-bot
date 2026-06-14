@@ -11,7 +11,7 @@ export function buildHuntBoardKeyboard(
     .row()
     .text("🎭 Обдурити проблему", makeHuntActionCallbackData(result.contract.localDate, "trick"))
     .row()
-    .text("🏃 Відступити з актом", makeHuntActionCallbackData(result.contract.localDate, "retreat"))
+    .text("📋 Закрити актом", makeHuntActionCallbackData(result.contract.localDate, "retreat"))
     .row()
     .text("⬅️ До столу", makePlaceCallbackData("quest-table"));
 }

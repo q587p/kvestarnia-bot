@@ -93,6 +93,7 @@ import {
 } from "./keyboards/onboardingKeyboard";
 import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
 import {
+  buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
   buildKorchmaRoundOfferKeyboard,
   buildTavernParticipantsKeyboard,
@@ -126,6 +127,7 @@ import {
   presentUnavailableChoice,
   presentWelcome
 } from "./presenters/onboardingPresenter";
+import { presentKorchmaQuestGate } from "./presenters/questHubPresenter";
 import {
   presentRestartCancelled,
   presentRestartDeleted,
@@ -1334,6 +1336,23 @@ async function handleHuntCallback(
       presence: services.presence,
       tavernRaid: services.tavern,
       requireKorchmaInterior: true
+    });
+    return;
+  }
+
+  const place = await services.presence.getCurrentPlaceForTelegramUser(telegramUserId);
+
+  if (place.state === "no-character") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentHuntNoCharacter());
+    return;
+  }
+
+  if (!place.insideKorchma) {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentKorchmaQuestGate(), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildKorchmaFrontKeyboard()
     });
     return;
   }

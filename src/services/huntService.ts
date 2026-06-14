@@ -199,7 +199,7 @@ function buildHuntContract(
   };
 }
 
-function buildHuntRewardAmounts(
+export function buildHuntRewardAmounts(
   monster: MonsterContent,
   action: HuntAction
 ): { xp: number; gold: number } {

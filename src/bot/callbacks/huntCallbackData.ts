@@ -15,7 +15,6 @@ export type HuntCallbackError =
 
 const PREFIX = "v1:hunt";
 const huntActions = new Set<HuntAction>(["strike", "trick", "retreat"]);
-const localDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 export function makeHuntViewCallbackData(localDate: string): string {
   return `${PREFIX}:view:${localDate}`;
@@ -46,7 +45,7 @@ export function parseHuntCallbackData(
     return err("invalid-prefix");
   }
 
-  if (!localDate || !localDatePattern.test(localDate)) {
+  if (!localDate || !isValidLocalDate(localDate)) {
     return err("invalid-date");
   }
 
@@ -59,4 +58,24 @@ export function parseHuntCallbackData(
   }
 
   return err("invalid-action");
+}
+
+function isValidLocalDate(localDate: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(localDate);
+
+  if (!match) {
+    return false;
+  }
+
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
 }

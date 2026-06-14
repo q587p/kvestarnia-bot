@@ -40,6 +40,14 @@ describe("hunt callback data", () => {
       ok: false,
       error: "invalid-date"
     });
+    expect(parseHuntCallbackData("v1:hunt:act:2026-99-99:strike")).toEqual({
+      ok: false,
+      error: "invalid-date"
+    });
+    expect(parseHuntCallbackData("v1:hunt:act:2026-02-29:strike")).toEqual({
+      ok: false,
+      error: "invalid-date"
+    });
     expect(parseHuntCallbackData("v1:hunt:act:2026-06-14:dance")).toEqual({
       ok: false,
       error: "invalid-action"

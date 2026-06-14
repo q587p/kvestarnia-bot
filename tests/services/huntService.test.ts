@@ -14,7 +14,9 @@ import type {
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { items, monsterLoot, monsters } from "../../src/content";
 import { getLevelForXp } from "../../src/domain/progression/level";
+import type { MonsterContent } from "../../src/content/schema";
 import {
+  buildHuntRewardAmounts,
   HUNT_BOARD_CONTRACT_KEY,
   HuntService,
   selectHuntMonster,
@@ -45,6 +47,32 @@ describe("HuntService", () => {
     expect(first.id).not.toBe("monster.mimic-shawarma");
     expect(first.tags).not.toContain("boss");
     expect(first.level).toBeLessThanOrEqual(3);
+  });
+
+  it("keeps at least one eligible hunt monster in content", () => {
+    const eligible = monsters.filter(
+      (monster) =>
+        monster.id !== "monster.mimic-shawarma" &&
+        !monster.tags.includes("boss") &&
+        monster.level <= 3
+    );
+
+    expect(eligible.length).toBeGreaterThan(0);
+    expect(eligible.every((monster) => monster.id !== "monster.mimic-shawarma")).toBe(true);
+    expect(eligible.every((monster) => !monster.tags.includes("boss"))).toBe(true);
+    expect(eligible.every((monster) => monster.level <= 3)).toBe(true);
+  });
+
+  it("keeps hunt reward amounts bounded by action and monster level", () => {
+    const levelOne = { level: 1 } as MonsterContent;
+    const levelThree = { level: 3 } as MonsterContent;
+
+    expect(buildHuntRewardAmounts(levelOne, "strike")).toEqual({ xp: 5, gold: 0 });
+    expect(buildHuntRewardAmounts(levelOne, "trick")).toEqual({ xp: 4, gold: 1 });
+    expect(buildHuntRewardAmounts(levelOne, "retreat")).toEqual({ xp: 3, gold: 0 });
+    expect(buildHuntRewardAmounts(levelThree, "strike")).toEqual({ xp: 7, gold: 1 });
+    expect(buildHuntRewardAmounts(levelThree, "trick")).toEqual({ xp: 6, gold: 2 });
+    expect(buildHuntRewardAmounts(levelThree, "retreat")).toEqual({ xp: 5, gold: 1 });
   });
 
   it("uses Kyiv-local dates for daily contracts", () => {

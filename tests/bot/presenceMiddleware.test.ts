@@ -280,6 +280,33 @@ describe("presence middleware", () => {
     ]);
   });
 
+  it("blocks hunt action callbacks outside the korchma before claiming the daily hunt", async () => {
+    const presence = new CapturingPresenceService();
+    let claimCount = 0;
+    const bot = createTestBot(presence, {
+      hunt: {
+        getHuntBoardForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        completeHuntContract: () => {
+          claimCount += 1;
+          return Promise.resolve({ state: "no-character" });
+        }
+      }
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makeHuntActionCallbackData("2026-06-14", "strike")));
+
+    expect(claimCount).toBe(0);
+    expect(presence.marks).toEqual([
+      {
+        user: {
+          telegramUserId: 42n,
+          displayName: "Тест"
+        }
+      }
+    ]);
+  });
+
   it("does not mark random unhandled text as presence", async () => {
     const presence = new CapturingPresenceService();
     const bot = createTestBot(presence);

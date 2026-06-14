@@ -233,6 +233,8 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 
 Важливий борг Hunt Board callback-ів: поточний `v1:hunt:act:{date}:{action}` не містить `monsterId`, persisted contract id або короткий contract token. Оскільки контракт зараз переобчислюється з актуального content list за датою й character id, майбутній deploy із доданими або переставленими монстрами може теоретично змінити монстра під старою кнопкою тієї самої київської дати. Перед розширенням `/hunt` потрібно зафіксувати contract identity: або додати короткий stable token/monster id у callback, або persist-ити daily contract row і валідувати callback проти нього.
 
+Другий MVP-борг: repeated/retry callback після успішного claim поки показує `already-completed`, але не відтворює оригінальні XP/золото/item details. `daily_actions` уже зберігає reward amounts, але повний reward replay потребує сервісного контракту, який зможе підняти item grants/details для existing claim без повторної видачі нагороди.
+
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 
 У `0.0.10` таблиця `character_cooldowns` використовується для першої repeatable активності:

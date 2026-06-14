@@ -12,7 +12,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Added
 - Added `/hunt` as a separate `Дошка полювання` surface instead of the old `/fight` alias.
 - Added deterministic daily hunt contracts selected from the existing bestiary by Kyiv-local date and character id, excluding the starter Mimic Shawarma and boss-tagged monsters for this MVP.
-- Added hunt action callbacks for striking, tricking, and retreating from the posted problem, with stale-date validation so old buttons cannot claim today's hunt.
+- Added hunt action callbacks for striking, tricking, and closing the posted problem with paperwork, with stale-date validation so old buttons cannot claim today's hunt.
 - Added small once-per-day hunt rewards through the existing `daily_actions` idempotency path: `3-7 XP`, `0-3` gold, and at most one deterministic monster loot item.
 - Added hunt presence under the quest table/current adventure context after routing and pending-raid guards pass.
 - Added focused tests for selection, Kyiv-local dates, stale callbacks, idempotent rewards, callback validation, Telegram HTML escaping, quest hub reachability, and pending raid presence protection.
@@ -21,6 +21,9 @@ This project follows a simple pre-1.0 versioning policy:
 - `/fight` now remains the Mimic Shawarma combat probe, while `/hunt` opens the rotating Hunt Board.
 - The quest hub can point to the Hunt Board as a separate starter action when today's hunt is still open.
 - Help text now lists `/fight` and `/hunt` separately.
+- Hunt action callbacks now re-check korchma interior presence before claiming the daily reward, so stale in-korchma buttons cannot complete after the player leaves.
+- Hunt callback date validation now rejects impossible calendar dates, not only malformed strings.
+- The third Hunt Board action is framed as closing the matter with paperwork, not a full-reward flee button.
 
 ### Not Included Yet
 - Full combat for the whole bestiary, persistent HP/mana loss, equipment stat effects, random loot table engine, wilderness locations, group hunts, shops, selling, trading, Redis/jobs, or schema migrations.

@@ -10,6 +10,7 @@ import {
   buildCellarResultKeyboard
 } from "../../src/bot/keyboards/cellarKeyboard";
 import { buildFightKeyboard, buildFightResultKeyboard } from "../../src/bot/keyboards/fightKeyboard";
+import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
   buildEquipmentKeyboard,
   buildInventoryKeyboard,
@@ -197,6 +198,21 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildFightResultKeyboard("completed"))).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildFightResultKeyboard("already-completed"))).toEqual([
       "⬅️ До столу"
+    ]);
+  });
+
+  it("keeps hunt board inline buttons scoped to hunt actions", () => {
+    expect(flatInlineButtonTexts(buildHuntBoardKeyboard(readyHunt()))).toEqual([
+      "🗡️ Вдарити по проблемі",
+      "🎭 Обдурити проблему",
+      "📋 Закрити актом",
+      "⬅️ До столу"
+    ]);
+    expect(flatInlineButtonCallbacks(buildHuntBoardKeyboard(readyHunt()))).toEqual([
+      "v1:hunt:act:2026-06-14:strike",
+      "v1:hunt:act:2026-06-14:trick",
+      "v1:hunt:act:2026-06-14:retreat",
+      "v1:place:quest-table"
     ]);
   });
 
@@ -429,6 +445,14 @@ const emptyRoundLeaderboard = {
   week: [],
   month: []
 };
+
+function readyHunt() {
+  return {
+    state: "ready",
+    character,
+    contract: huntContract
+  } as const;
+}
 
 function flatInlineButtonTexts(keyboard: { inline_keyboard: { text: string }[][] }): string[] {
   return keyboard.inline_keyboard.flat().map((button) => button.text);
