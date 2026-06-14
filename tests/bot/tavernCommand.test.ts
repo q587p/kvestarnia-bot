@@ -85,7 +85,9 @@ describe("tavern command screens", () => {
     expect(replies[0]?.text).toContain(
       "За столами й закутками корчми: 2 активні, 1 притихлий."
     );
-    expect(replies[0]?.text).toContain("Дара · рівень 2");
+    expect(replies[0]?.text).not.toContain("Дара");
+    expect(replies[0]?.text).not.toContain("Нестор Межовий");
+    expect(replies[0]?.text).not.toContain("рівень 2");
     expect(replies[0]?.text).not.toContain("поки тільки ви");
   });
 });

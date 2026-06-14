@@ -26,6 +26,7 @@ import type { RestartService } from "../services/restartService";
 import type { TavernRaidService } from "../services/tavernRaidService";
 import { createBarrelRaidCompletionScheduler } from "./barrelRaidCompletionNotifier";
 import { parseAdventureCallbackData, type AdventureCallback } from "./callbacks/adventureCallbackData";
+import { parseBestiaryCallbackData, type BestiaryCallback } from "./callbacks/bestiaryCallbackData";
 import { parseCellarCallbackData, type CellarCallback } from "./callbacks/cellarCallbackData";
 import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
 import { parseFightCallbackData } from "./callbacks/fightCallbackData";
@@ -47,6 +48,11 @@ import {
 import { parseRestartCallbackData } from "./callbacks/restartCallbackData";
 import { parseTavernCallbackData, type TavernCallback } from "./callbacks/tavernCallbackData";
 import { registerAdventureCommand, sendAdventure } from "./commands/adventureCommand";
+import {
+  registerBestiaryCommand,
+  sendBestiaryList,
+  sendBestiaryMonster
+} from "./commands/bestiaryCommand";
 import {
   registerCellarCommand,
   sendCellarErrandRouted
@@ -188,6 +194,7 @@ export function createBot(token: string, services: BotServices): Bot {
     presence: services.presence,
     tavernRaid: services.tavern
   });
+  registerBestiaryCommand(bot);
   registerCellarCommand(bot, services.cellarErrand, services.presence, services.tavern);
   registerQuestHubCommand(bot, {
     adventure: services.adventure,
@@ -351,6 +358,17 @@ export function createBot(token: string, services: BotServices): Bot {
     await handleHuntCallback(ctx, parsed.value, services);
   });
 
+  bot.callbackQuery(/^v1:bst:/, async (ctx) => {
+    const parsed = parseBestiaryCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleBestiaryCallback(ctx, parsed.value);
+  });
+
   bot.callbackQuery(/^v1:devreset:/, async (ctx) => {
     const parsed = parseDevResetCallbackData(ctx.callbackQuery.data);
 
@@ -450,6 +468,10 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
   }
 
   if (data.startsWith("v1:hunt:")) {
+    return {};
+  }
+
+  if (data.startsWith("v1:bst:")) {
     return {};
   }
 
@@ -564,7 +586,7 @@ function getCommandPresenceContext(command: string): PresenceContext | null {
     return {};
   }
 
-  if (command === "fight" || command === "hunt") {
+  if (command === "fight" || command === "hunt" || command === "bestiary" || command === "monsters") {
     return {};
   }
 
@@ -901,7 +923,7 @@ async function handlePlaceCallback(
   }
 
   if (action === "barrel") {
-    await sendTavernBarrel(ctx, services.tavern, services.presence, "edit");
+    await sendTavernBarrel(ctx, services.tavern, services.presence, "reply");
     return;
   }
 
@@ -922,7 +944,7 @@ async function handlePlaceCallback(
   }
 
   if (action === "cellar") {
-    await sendCellarErrandRouted(ctx, services.cellarErrand, services.presence, "edit", {
+    await sendCellarErrandRouted(ctx, services.cellarErrand, services.presence, "reply", {
       tavernRaid: services.tavern
     });
     return;
@@ -944,7 +966,7 @@ async function handleQuestCallback(
   }
 
   if (action === "adventure") {
-    await sendAdventure(ctx, services.adventure, "edit", {
+    await sendAdventure(ctx, services.adventure, "reply", {
       cellarErrand: services.cellarErrand,
       presence: services.presence,
       tavernRaid: services.tavern,
@@ -955,7 +977,7 @@ async function handleQuestCallback(
   }
 
   if (action === "fight") {
-    await sendFight(ctx, services.fight, "edit", {
+    await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
       requireKorchmaInterior: true
@@ -964,7 +986,7 @@ async function handleQuestCallback(
   }
 
   if (action === "hunt") {
-    await sendHuntBoard(ctx, services.hunt, "edit", {
+    await sendHuntBoard(ctx, services.hunt, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
       requireKorchmaInterior: true
@@ -972,7 +994,7 @@ async function handleQuestCallback(
     return;
   }
 
-  await sendCellarErrandRouted(ctx, services.cellarErrand, services.presence, "edit", {
+  await sendCellarErrandRouted(ctx, services.cellarErrand, services.presence, "reply", {
     tavernRaid: services.tavern
   });
 }
@@ -1340,6 +1362,26 @@ async function handleHuntCallback(
     return;
   }
 
+  if (callback.type === "legacy-view") {
+    await safeAnswerCallbackQuery(ctx);
+    await sendHuntBoard(ctx, services.hunt, "edit", {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      requireKorchmaInterior: true
+    });
+    return;
+  }
+
+  if (callback.type === "legacy-action") {
+    await safeAnswerCallbackQuery(ctx);
+    await sendHuntBoard(ctx, services.hunt, "edit", {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      requireKorchmaInterior: true
+    });
+    return;
+  }
+
   const place = await services.presence.getCurrentPlaceForTelegramUser(telegramUserId);
 
   if (place.state === "no-character") {
@@ -1360,6 +1402,7 @@ async function handleHuntCallback(
   const result = await services.hunt.completeHuntContract(
     telegramUserId,
     callback.localPeriodId,
+    callback.type === "action" ? callback.contractToken : null,
     callback.action
   );
 
@@ -1381,6 +1424,20 @@ async function handleHuntCallback(
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
   }
+}
+
+async function handleBestiaryCallback(
+  ctx: Context,
+  callback: BestiaryCallback
+): Promise<void> {
+  await safeAnswerCallbackQuery(ctx);
+
+  if (callback.type === "list") {
+    await sendBestiaryList(ctx, "edit", callback.page);
+    return;
+  }
+
+  await sendBestiaryMonster(ctx, "edit", callback.monsterId, callback.page);
 }
 
 async function sendLevelUpCelebration(

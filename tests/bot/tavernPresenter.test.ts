@@ -112,7 +112,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("За столами: поки тільки ви й підозрілий єгер у кутку біля бочки.");
   });
 
-  it("summarizes all active and idle people inside the korchma", () => {
+  it("summarizes active and idle counts inside the korchma without listing people", () => {
     const text = presentKorchmaHall(
       character,
       {
@@ -128,8 +128,9 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("За столами й закутками корчми: 2 активні, 1 притихлий.");
     expect(text).toContain("Підозрілий єгер у кутку біля бочки не рахується");
-    expect(text).toContain("Дара · рівень 2");
-    expect(text).toContain("Нестор Межовий");
+    expect(text).not.toContain("Дара");
+    expect(text).not.toContain("Нестор Межовий");
+    expect(text).not.toContain("рівень 2");
     expect(text).not.toContain("поки тільки ви");
   });
 
@@ -143,7 +144,7 @@ describe("tavern presenter", () => {
     const text = presentKorchmaHall(character, presence, 42n);
 
     expect(text).toContain("За столами й закутками корчми: 1 активний.");
-    expect(text).toContain("Дара");
+    expect(text).not.toContain("Дара");
     expect(text).not.toContain("поки тільки ви");
   });
 

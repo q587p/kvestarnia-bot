@@ -3,6 +3,7 @@ import {
   presentHuntAlreadyCompleted,
   presentHuntBoard,
   presentHuntResult,
+  presentHuntStaleContract,
   presentHuntStalePeriod
 } from "../../src/bot/presenters/huntPresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -19,6 +20,7 @@ describe("hunt presenter", () => {
       },
       contract: {
         localPeriodId: "2026-06-14T08",
+        contractToken: "abc1234",
         monster: {
           id: "monster.test",
           name: "<script>Проблема</script>",
@@ -51,6 +53,7 @@ describe("hunt presenter", () => {
     expect(presentHuntResult(completed("trick"))).not.toContain("Що робимо?");
     expect(presentHuntResult(alreadyCompleted())).not.toContain("Що робимо?");
     expect(presentHuntStalePeriod(stale())).not.toContain("Що робимо?");
+    expect(presentHuntStaleContract(staleContract())).not.toContain("Що робимо?");
   });
 
   it("escapes dynamic monster and item names in result states", () => {
@@ -131,6 +134,7 @@ const character: CharacterSummary = {
 
 const contract = {
   localPeriodId: "2026-06-14T08",
+  contractToken: "abc1234",
   monster: {
     id: "monster.stamp-doorkeeper-skeleton",
     name: "Скелет-вахтер печаток",
@@ -184,5 +188,14 @@ function stale(): Extract<HuntResult, { state: "stale-period" }> {
     state: "stale-period",
     currentLocalPeriodId: "2026-06-14T08",
     requestedLocalPeriodId: "2026-06-14T07"
+  };
+}
+
+function staleContract(): Extract<HuntResult, { state: "stale-contract" }> {
+  return {
+    state: "stale-contract",
+    currentLocalPeriodId: "2026-06-14T08",
+    requestedLocalPeriodId: "2026-06-14T08",
+    currentContract: contract
   };
 }

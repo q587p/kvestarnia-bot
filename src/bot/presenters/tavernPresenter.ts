@@ -503,13 +503,6 @@ function presentTavernPresence(
   const lines = [
     `За столами й закутками корчми: ${summary.join(", ")}. Підозрілий єгер у кутку біля бочки не рахується, бо відмовився бути числом.`
   ];
-  const people = [...presence.active, ...presence.idle].slice(0, 5);
-  const hiddenCount = Math.max(0, presence.total - people.length);
-  lines.push(...people.map((person) => `• ${presentPresencePerson(person)}`));
-
-  if (hiddenCount > 0) {
-    lines.push(`• і ще ${hiddenCount}`);
-  }
 
   return lines;
 }
@@ -563,12 +556,6 @@ function pluralizeIdle(count: number): string {
   }
 
   return "притихлих";
-}
-
-function presentPresencePerson(person: PresenceGroup["active"][number]): string {
-  const level = person.level === undefined ? "" : ` · рівень ${person.level}`;
-
-  return `${escapeHtml(person.name)}${level}`;
 }
 
 function presentRangerReaction(character: CharacterSummary): string {

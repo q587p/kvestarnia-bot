@@ -194,6 +194,7 @@ const character: CharacterSummary = {
 
 const huntContract = {
   localPeriodId: "2026-06-14T08",
+  contractToken: "abc1234",
   monster: {
     id: "monster.stamp-doorkeeper-skeleton",
     name: "Скелет-вахтер печаток",

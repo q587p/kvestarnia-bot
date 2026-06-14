@@ -15,6 +15,7 @@ export type HuntAction = "strike" | "trick" | "retreat";
 export interface HuntContract {
   localPeriodId: string;
   monster: MonsterContent;
+  contractToken: string;
   startFlavor: string | null;
 }
 
@@ -26,6 +27,12 @@ export type HuntLookupResult =
 export type HuntResult =
   | { state: "no-character" }
   | { state: "stale-period"; currentLocalPeriodId: string; requestedLocalPeriodId: string }
+  | {
+      state: "stale-contract";
+      currentLocalPeriodId: string;
+      requestedLocalPeriodId: string;
+      currentContract: HuntContract;
+    }
   | {
       state: "completed";
       action: HuntAction;
@@ -88,6 +95,7 @@ export class HuntService {
   async completeHuntContract(
     telegramUserId: bigint,
     requestedLocalPeriodId: string,
+    requestedContractToken: string | null,
     action: HuntAction
   ): Promise<HuntResult> {
     const currentLocalPeriodId = toKyivHourPeriodId(this.clock());
@@ -108,6 +116,16 @@ export class HuntService {
 
     const summary = summarizeCharacter(character);
     const contract = buildHuntContract(summary, currentLocalPeriodId, character.id);
+
+    if (requestedContractToken !== contract.contractToken) {
+      return {
+        state: "stale-contract",
+        currentLocalPeriodId,
+        requestedLocalPeriodId,
+        currentContract: contract
+      };
+    }
+
     const reward = buildHuntRewardAmounts(contract.monster, action);
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: HUNT_BOARD_CONTRACT_KEY,
@@ -192,6 +210,7 @@ function buildHuntContract(
   return {
     localPeriodId,
     monster,
+    contractToken: buildHuntContractToken(localPeriodId, characterId, monster),
     startFlavor:
       selectMonsterFlavorLine(character, {
         monsterId: monster.id,
@@ -199,6 +218,25 @@ function buildHuntContract(
         seed: `${localPeriodId}:${characterId}:start`
       })?.text ?? null
   };
+}
+
+export function buildHuntContractToken(
+  localPeriodId: string,
+  characterId: string,
+  monster: Pick<MonsterContent, "id" | "level" | "tags">
+): string {
+  const lootIds = [...(monsterLoot[monster.id as keyof typeof monsterLoot] ?? [])].sort();
+  const tags = [...monster.tags].sort();
+  const contentFingerprint = [
+    monster.id,
+    `level=${monster.level}`,
+    `tags=${tags.join(",")}`,
+    `loot=${lootIds.join(",")}`
+  ].join("|");
+
+  return stableHash(`hunt:${localPeriodId}:${characterId}:${contentFingerprint}`)
+    .toString(36)
+    .padStart(7, "0");
 }
 
 export function buildHuntRewardAmounts(

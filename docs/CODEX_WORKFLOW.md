@@ -162,6 +162,8 @@ PR має містити:
 
 ## Поточна послідовність маленьких PR
 
-Після routing/presence зрізів найменший корисний gameplay-крок: дуже малий equipment preview без stat effects або перший вузький крок до групового рейду без persistent combat, Redis чи повного activity-service refactor.
+Після `0.0.18` найменший корисний gameplay-крок: вузький follow-up до Hunt Board або бестіарію без повного combat engine. Наприклад: reward replay для already-completed hunt callbacks, persisted hunt contract row без зміни reward math, або маленьке покращення бестіарійних нотаток/пагінації.
+
+Не стрибати одразу в persistent combat, random loot table engine, shops, trading, групові hunts/raids або Redis/jobs, якщо користувач прямо не розширив scope.
 
 Docs-only polish README/brand/setup можна публікувати окремим PR без номера версії, без changelog/news і без GitHub Release.

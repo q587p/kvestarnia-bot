@@ -8,27 +8,61 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboarding
 
 describe("hunt callback data", () => {
   it("parses view and action callbacks", () => {
-    expect(parseHuntCallbackData(makeHuntViewCallbackData("2026-06-14T08"))).toEqual({
+    expect(parseHuntCallbackData(makeHuntViewCallbackData("2026-06-14T08", "abc1234"))).toEqual({
       ok: true,
       value: {
         type: "view",
-        localPeriodId: "2026-06-14T08"
+        localPeriodId: "2026-06-14T08",
+        contractToken: "abc1234"
       }
     });
-    expect(parseHuntCallbackData(makeHuntActionCallbackData("2026-06-14T08", "strike"))).toEqual({
+    expect(parseHuntCallbackData(makeHuntActionCallbackData("2026-06-14T08", "abc1234", "strike"))).toEqual({
       ok: true,
       value: {
         type: "action",
         localPeriodId: "2026-06-14T08",
+        contractToken: "abc1234",
+        action: "strike"
+      }
+    });
+  });
+
+  it("parses legacy tokenless callbacks as refresh-only callbacks", () => {
+    expect(parseHuntCallbackData("v1:hunt:view:2026-06-14T08")).toEqual({
+      ok: true,
+      value: {
+        type: "legacy-view",
+        localPeriodId: "2026-06-14T08"
+      }
+    });
+    expect(parseHuntCallbackData("v1:hunt:act:2026-06-14T08:strike")).toEqual({
+      ok: true,
+      value: {
+        type: "legacy-action",
+        localPeriodId: "2026-06-14T08",
+        action: "strike"
+      }
+    });
+    expect(parseHuntCallbackData("v1:hunt:view:2026-06-14")).toEqual({
+      ok: true,
+      value: {
+        type: "legacy-view",
+        localPeriodId: "2026-06-14"
+      }
+    });
+    expect(parseHuntCallbackData("v1:hunt:act:2026-06-14:strike")).toEqual({
+      ok: true,
+      value: {
+        type: "legacy-action",
+        localPeriodId: "2026-06-14",
         action: "strike"
       }
     });
   });
 
   it.each(["strike", "trick", "retreat"] as const)("keeps %s callback within Telegram limit", (action) => {
-    expect(Buffer.byteLength(makeHuntActionCallbackData("2026-06-14T08", action), "utf8")).toBeLessThanOrEqual(
-      TELEGRAM_CALLBACK_DATA_LIMIT
-    );
+    expect(Buffer.byteLength(makeHuntActionCallbackData("2026-06-14T08", "abc1234", action), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
   it("rejects invalid versions, periods, actions, prefixes, and overlong data", () => {
@@ -40,7 +74,7 @@ describe("hunt callback data", () => {
       ok: false,
       error: "invalid-date"
     });
-    expect(parseHuntCallbackData("v1:hunt:act:2026-06-14:strike")).toEqual({
+    expect(parseHuntCallbackData("v1:hunt:act:2026-02-29:strike")).toEqual({
       ok: false,
       error: "invalid-date"
     });
@@ -55,6 +89,10 @@ describe("hunt callback data", () => {
     expect(parseHuntCallbackData("v1:hunt:act:2026-06-14T99:strike")).toEqual({
       ok: false,
       error: "invalid-date"
+    });
+    expect(parseHuntCallbackData("v1:hunt:act:2026-06-14T08:bad!:strike")).toEqual({
+      ok: false,
+      error: "invalid-token"
     });
     expect(parseHuntCallbackData("v1:hunt:act:2026-06-14T08:dance")).toEqual({
       ok: false,

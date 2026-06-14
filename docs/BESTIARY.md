@@ -1,5 +1,7 @@
 # Bestiary Roster V1 — 20 монстрів
 
+Runtime note: since `0.0.18`, `/bestiary` and `/monsters` expose this roster as read-only Telegram field notes. Detail screens may show level, description, a short note, and possible trophy hints, but this is not a full combat runtime, monster collection, or guaranteed loot table.
+
 ## 1. Мімік-шаурма — `monster.mimic-shawarma`
 
 Level: `1`

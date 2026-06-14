@@ -44,6 +44,11 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     description: "дошка полювання"
   },
   {
+    commands: ["bestiary", "monsters"],
+    icon: "📚",
+    description: "бестіарій і польові нотатки"
+  },
+  {
     commands: ["cellar"],
     icon: "🧹",
     description: "підвальна справа"

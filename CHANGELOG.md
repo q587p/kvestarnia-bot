@@ -7,6 +7,24 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.18] - 12026-06-14 - Hunt Contract Hardening & Bestiary Notes
+
+### Added
+- Added short deterministic Hunt Board contract tokens to current `/hunt` view/action callbacks, derived from the Kyiv-local hour period, character id, monster id, level, tags, and known loot ids.
+- Added safe handling for legacy tokenless Hunt Board callbacks, including the real `0.0.17` date-only payloads: they can refresh the board, but cannot claim the current hourly reward.
+- Added a read-only Telegram bestiary through `/bestiary` and `/monsters`, listed as secondary help commands without adding them to the Telegram side command menu.
+- Added paginated monster notes, monster detail screens, safe field notes, and “known trophy” hints phrased as notes rather than guaranteed drops.
+- Added a `📖 Запис у бестіарії` button from the Hunt Board to the current target’s monster detail.
+- Added tests for contract tokens, reward-relevant token drift, token mismatch safety, legacy callbacks, bestiary callback limits, pagination, HTML escaping, command aliases, and presence-neutral bestiary callbacks.
+
+### Changed
+- Hunt action callbacks now validate the period, action, token shape, Telegram callback size, current Kyiv hour, and current contract token before attempting the idempotent reward claim.
+- Current-hour token mismatch returns a refresh/stale-contract state and never creates a `daily_actions` claim.
+- Hunt stale-period refresh now routes through the Hunt Board instead of accepting old action payloads.
+
+### Not Included Yet
+- Full combat engine, persistent combat sessions, HP/mana loss, equipment stat effects, random loot table engine, shops, selling, trading, crafting, monster collection tracking, group hunts/raids, Redis/jobs, public web bestiary, schema migrations, or reward replay for already-completed hunt callbacks.
+
 ## [0.0.17] - 12026-06-14 - Hunt Board Monster Rotation MVP
 
 ### Added

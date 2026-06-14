@@ -17,6 +17,7 @@ import { getLevelForXp } from "../../src/domain/progression/level";
 import type { MonsterContent } from "../../src/content/schema";
 import {
   buildHuntRewardAmounts,
+  buildHuntContractToken,
   HUNT_BOARD_CONTRACT_KEY,
   HuntService,
   selectHuntMonster,
@@ -34,7 +35,9 @@ describe("HuntService", () => {
     await expect(service.getHuntBoardForTelegramUser(telegramUserId)).resolves.toEqual({
       state: "no-character"
     });
-    await expect(service.completeHuntContract(telegramUserId, "2026-06-14T00", "strike")).resolves.toEqual({
+    await expect(
+      service.completeHuntContract(telegramUserId, "2026-06-14T00", "missing0", "strike")
+    ).resolves.toEqual({
       state: "no-character"
     });
   });
@@ -86,9 +89,24 @@ describe("HuntService", () => {
     characters.add(telegramUserId);
     const dailyActions = new FakeDailyActionRepository(characters);
     const service = new HuntService(characters, dailyActions, fixedClock);
+    const board = await service.getHuntBoardForTelegramUser(telegramUserId);
 
-    const result = await service.completeHuntContract(telegramUserId, "2026-06-14T00", "strike");
-    const repeated = await service.completeHuntContract(telegramUserId, "2026-06-14T00", "trick");
+    if (board.state !== "ready") {
+      throw new Error("Expected ready hunt board.");
+    }
+
+    const result = await service.completeHuntContract(
+      telegramUserId,
+      "2026-06-14T00",
+      board.contract.contractToken,
+      "strike"
+    );
+    const repeated = await service.completeHuntContract(
+      telegramUserId,
+      "2026-06-14T00",
+      board.contract.contractToken,
+      "trick"
+    );
 
     expect(result.state).toBe("completed");
     expect(repeated.state).toBe("already-completed");
@@ -116,7 +134,12 @@ describe("HuntService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const service = new HuntService(characters, dailyActions, fixedClock);
 
-    const result = await service.completeHuntContract(telegramUserId, "2026-06-13T23", "strike");
+    const result = await service.completeHuntContract(
+      telegramUserId,
+      "2026-06-13T23",
+      "missing0",
+      "strike"
+    );
 
     expect(result).toEqual({
       state: "stale-period",
@@ -128,6 +151,86 @@ describe("HuntService", () => {
       xp: 0,
       gold: 0
     });
+  });
+
+  it("does not claim the current hunt when the contract token changed or is missing", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new HuntService(characters, dailyActions, fixedClock);
+
+    const mismatch = await service.completeHuntContract(
+      telegramUserId,
+      "2026-06-14T00",
+      "wrong00",
+      "strike"
+    );
+    const legacyTokenless = await service.completeHuntContract(
+      telegramUserId,
+      "2026-06-14T00",
+      null,
+      "strike"
+    );
+
+    expect(mismatch.state).toBe("stale-contract");
+    expect(legacyTokenless.state).toBe("stale-contract");
+    expect(dailyActions.createCount).toBe(0);
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: 0,
+      gold: 0
+    });
+  });
+
+  it("builds stable short contract tokens from period, character, and reward-relevant monster content", () => {
+    const skeleton = {
+      id: "monster.stamp-doorkeeper-skeleton",
+      level: 2,
+      tags: ["undead", "bureaucracy", "gatekeeper"]
+    };
+    const first = buildHuntContractToken(
+      "2026-06-14T00",
+      "character-42",
+      skeleton
+    );
+    const second = buildHuntContractToken(
+      "2026-06-14T00",
+      "character-42",
+      { ...skeleton, tags: [...skeleton.tags].reverse() }
+    );
+    const changedMonster = buildHuntContractToken(
+      "2026-06-14T00",
+      "character-42",
+      {
+        id: "monster.deadline-spider",
+        level: 2,
+        tags: ["beast", "time", "web"]
+      }
+    );
+    const changedLevel = buildHuntContractToken(
+      "2026-06-14T00",
+      "character-42",
+      { ...skeleton, level: 3 }
+    );
+    const skeletonLoot = monsterLoot["monster.stamp-doorkeeper-skeleton"] as string[];
+    const originalLoot = [...skeletonLoot];
+    let changedLootList = "";
+
+    try {
+      skeletonLoot.push("item.test-only-paperclip");
+      changedLootList = buildHuntContractToken(
+        "2026-06-14T00",
+        "character-42",
+        skeleton
+      );
+    } finally {
+      skeletonLoot.splice(0, skeletonLoot.length, ...originalLoot);
+    }
+
+    expect(first).toBe(second);
+    expect(first).toMatch(/^[a-z0-9]{6,10}$/);
+    expect(changedMonster).not.toBe(first);
+    expect(changedLevel).not.toBe(first);
+    expect(changedLootList).not.toBe(first);
   });
 
   it("keeps monster loot references valid and value-bearing", () => {
