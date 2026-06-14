@@ -377,6 +377,7 @@ describe("tavern presenter", () => {
     });
 
     expect(text).toContain("Бочка на переобліку");
+    expect(text).toContain("🛢️ Бочка на переобліку.\n\nЗа київським корчемним часом");
     expect(text).toContain("київським корчемним часом");
     expect(text).toContain("з 03:00 до 07:00");
     expect(text).toContain("корчмар рахує піну");
