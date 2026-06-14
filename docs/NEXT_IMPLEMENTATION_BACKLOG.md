@@ -184,6 +184,8 @@ Implemented in `0.0.20` as pure domain code. Runtime `/fight` still uses the old
 ## Later / Не Phase 1 Finish
 
 - group hunts/raids;
+- social player interactions: виклик на дуель у корчемний бійцівський куток, пропозиція всліпу помінятися манатками, маленька інтерактивна міні-гра між гравцями;
+- player influence on hunts: допомогти іншому гравцю закрити полювання або, якщо дуже хочеться бути проблемою, допомогти монстру в межах безпечних anti-abuse rules;
 - trading/gifting;
 - shops/selling;
 - crafting/enchant/reroll;

@@ -7,7 +7,7 @@ export const mainMenuButtons = {
   tavern: "🍺 Корчма",
   quest: "🗺️ Квест",
   inventory: "🎒 Манатки",
-  guild: "🛡️ Ґільдія",
+  participants: "👥 Учасники",
   help: "📖 Допомога"
 } as const;
 
@@ -19,7 +19,7 @@ export function buildMainMenuKeyboard(): Keyboard {
     .text(mainMenuButtons.quest)
     .text(mainMenuButtons.inventory)
     .row()
-    .text(mainMenuButtons.guild)
+    .text(mainMenuButtons.participants)
     .text(mainMenuButtons.help)
     .resized()
     .persistent()

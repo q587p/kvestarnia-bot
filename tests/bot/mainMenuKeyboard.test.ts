@@ -41,7 +41,7 @@ describe("main menu and scene keyboards", () => {
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, mainMenuButtons.tavern],
       [mainMenuButtons.quest, mainMenuButtons.inventory],
-      [mainMenuButtons.guild, mainMenuButtons.help]
+      [mainMenuButtons.participants, mainMenuButtons.help]
     ]);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
@@ -74,27 +74,22 @@ describe("main menu and scene keyboards", () => {
   it("keeps tavern inline buttons scoped to tavern actions", () => {
     expect(flatInlineButtonTexts(buildTavernKeyboard())).toEqual([
       "🍺 У рейд на бочку",
-      "👥 Учасники",
       "🧥 Єгер",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual([
-      "👥 Учасники",
       "🧥 Єгер",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([
-      "👥 Учасники",
       "🧥 Єгер",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("pending"))).toEqual([
-      "🍺 Перевірити бочку",
-      "👥 Учасники"
+      "🍺 Перевірити бочку"
     ]);
     expect(flatInlineButtonCallbacks(buildTavernResultKeyboard("pending"))).toEqual([
-      "v1:tavern:raid",
-      "v1:tavern:participants"
+      "v1:tavern:raid"
     ]);
     expect(flatInlineButtonTexts(buildTavernParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
     expect(flatInlineButtonCallbacks(buildTavernParticipantsKeyboard())).toEqual(["v1:place:barrel"]);
@@ -139,22 +134,19 @@ describe("main menu and scene keyboards", () => {
     ).toEqual(["v1:tavern:round-simple", "v1:place:hall"]);
   });
 
-  it("keeps adventure inline buttons scoped to quest actions and participants", () => {
+  it("keeps adventure inline buttons scoped to quest actions", () => {
     const actionButtons = [
       "🌯 Тицьнути шаурму",
       "📋 Попросити чек",
       "🏃 Обережно відступити",
-      "👥 Учасники",
       "⬅️ До столу"
     ];
 
     expect(flatInlineButtonTexts(buildAdventureKeyboard())).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildAdventureResultKeyboard("completed"))).toEqual([
-      "👥 Учасники",
       "⬅️ До столу"
     ]);
     expect(flatInlineButtonTexts(buildAdventureResultKeyboard("already-completed"))).toEqual([
-      "👥 Учасники",
       "⬅️ До столу"
     ]);
     expect(flatInlineButtonTexts(buildAdventureParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
@@ -168,14 +160,12 @@ describe("main menu and scene keyboards", () => {
       "🗝️ Перевірити кишені",
       "📋 Виманити чек",
       "🏃 Зникнути за серветкою",
-      "👥 Учасники",
       "⬅️ До столу"
     ]);
     expect(flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
       "v1:adv:mimic:poke",
       "v1:adv:mimic:receipt",
       "v1:adv:mimic:flee",
-      "v1:adv:mimic:participants",
       "v1:place:quest-table"
     ]);
   });
@@ -185,18 +175,15 @@ describe("main menu and scene keyboards", () => {
       "🧀 Поставити сирну пастку",
       "🧹 Підмести хоробро",
       "🤝 Домовитись із мишею",
-      "👥 Учасники",
       "⬅️ До зали"
     ];
 
     expect(flatInlineButtonTexts(buildCellarKeyboard())).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready"))).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("completed"))).toEqual([
-      "👥 Учасники",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("on-cooldown"))).toEqual([
-      "👥 Учасники",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildCellarParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
@@ -210,21 +197,18 @@ describe("main menu and scene keyboards", () => {
       "🧀 Виставити оренду сиром",
       "🧹 Навести хатній лад",
       "🤝 Поділити шафу",
-      "👥 Учасники",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildCellarKeyboard(domovyk))).toEqual([
       "v1:cellar:cheese-trap",
       "v1:cellar:sweep-bravely",
       "v1:cellar:negotiate",
-      "v1:cellar:participants",
       "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual([
       "🧀 Виставити оренду сиром",
       "🧹 Навести хатній лад",
       "🤝 Поділити шафу",
-      "👥 Учасники",
       "⬅️ До зали"
     ]);
   });

@@ -73,6 +73,39 @@ describe("presence presenter", () => {
     expect(online).toContain("🐭 У пригоді «Підвальна справа»: 1");
     expect(online).not.toContain("🌯 У пригоді «Підвальна справа»");
   });
+
+  it("limits long Telegram people lists and truncates oversized names", () => {
+    const crowdedSnapshot: ParticipantsSnapshot = {
+      state: "ready",
+      activity: {
+        kind: "raid",
+        id: "raid.friday-barrel",
+        name: "Бочка Пінного Міражу",
+        locationName: "Біля Бочки Пінного Міражу",
+        people: {
+          active: [
+            {
+              telegramUserId: 1n,
+              name: "Пригодник із дуже довгим іменем, яке не має розтягувати Telegram",
+              status: "active"
+            },
+            ...Array.from({ length: 13 }, (_, index) => ({
+              telegramUserId: BigInt(index + 2),
+              name: `Пригодник ${index + 2}`,
+              status: "active" as const
+            }))
+          ],
+          idle: [],
+          total: 14
+        }
+      }
+    };
+    const text = presentParticipants(crowdedSnapshot);
+
+    expect(text).toContain("Пригодник із дуже довгим іменем, яке не має роз…");
+    expect(text).toContain("— і ще 2 пригодники");
+    expect(text).not.toContain("Пригодник 14");
+  });
 });
 
 const onlineSnapshot: OnlineSnapshot = {

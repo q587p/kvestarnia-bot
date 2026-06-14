@@ -141,6 +141,23 @@ describe("presence middleware", () => {
     });
   });
 
+  it("marks the participants menu button as a neutral online action", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence);
+    await bot.init();
+
+    await bot.handleUpdate(messageUpdate("👥 Учасники"));
+
+    expect(presence.marks).toEqual([
+      {
+        user: {
+          telegramUserId: 42n,
+          displayName: "Тест"
+        }
+      }
+    ]);
+  });
+
   it("marks successful cellar action callbacks with cellar presence after handler gates", async () => {
     const presence = new CapturingPresenceService();
     const bot = createTestBot(presence, {

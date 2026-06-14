@@ -373,6 +373,8 @@ Callback data коротка, версіонована.
 - `v1:hunt:act:{localPeriodId}:{contractToken}:strike`
 - `v1:hunt:act:{localPeriodId}:{contractToken}:trick`
 - `v1:hunt:act:{localPeriodId}:{contractToken}:retreat`
+
+`participants` callback-и для бочки, шаурми й підвалу лишаються валідними для старих Telegram-повідомлень, але нові scene keyboards не мають їх показувати. Поточна видима поверхня учасників — reply-кнопка `👥 Учасники`, яка викликає `/online`-еквівалент. Будь-який список імен у Telegram має мати cap на видимі рядки, truncation довгих імен і coarse status-и без timestamp-ів; якщо потрібні повні списки, додавати окрему пагінацію callback-ами.
 - `v1:bst:list:{page}`
 - `v1:bst:mon:{monsterId}:{page}`
 - `v1:devreset:confirm`

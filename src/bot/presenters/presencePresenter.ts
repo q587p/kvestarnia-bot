@@ -8,6 +8,9 @@ import type {
 } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 
+const MAX_VISIBLE_PRESENCE_PEOPLE = 12;
+const MAX_PRESENCE_NAME_LENGTH = 48;
+
 export function presentOnline(snapshot: OnlineSnapshot): string {
   if (snapshot.state === "no-character") {
     return "Спершу створіть пригодника через /start. Квестарня не рахує тіні без анкети.";
@@ -129,7 +132,23 @@ function presentStatusSection(title: string, people: PresencePerson[]): string[]
 }
 
 function presentPeople(people: PresencePerson[]): string[] {
-  return people.map((person) => `— ${escapeHtml(person.name)}`);
+  const visible = people.slice(0, MAX_VISIBLE_PRESENCE_PEOPLE);
+  const hidden = people.length - visible.length;
+  const lines = visible.map((person) => `— ${escapeHtml(truncatePresenceName(person.name))}`);
+
+  if (hidden > 0) {
+    lines.push(`— і ще ${hidden} ${pluralize(hidden, "пригодник", "пригодники", "пригодників")}`);
+  }
+
+  return lines;
+}
+
+function truncatePresenceName(name: string): string {
+  if (name.length <= MAX_PRESENCE_NAME_LENGTH) {
+    return name;
+  }
+
+  return `${name.slice(0, MAX_PRESENCE_NAME_LENGTH - 1)}…`;
 }
 
 function pluralize(count: number, one: string, few: string, many: string): string {

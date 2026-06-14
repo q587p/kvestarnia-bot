@@ -66,8 +66,8 @@ import { registerHuntCommand, markHuntPresence, sendHuntBoard } from "./commands
 import { registerInventoryCommand, sendInventory } from "./commands/inventoryCommand";
 import { registerLookCommand } from "./commands/lookCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
-import { registerOnlineCommand } from "./commands/onlineCommand";
-import { registerPlannedCommands, sendPlannedCommand } from "./commands/plannedCommand";
+import { registerOnlineCommand, sendOnline } from "./commands/onlineCommand";
+import { registerPlannedCommands } from "./commands/plannedCommand";
 import { registerQuestHubCommand, sendQuestHub } from "./commands/questHubCommand";
 import { registerRestartCommand } from "./commands/restartCommand";
 import { registerStartCommand } from "./commands/startCommand";
@@ -573,7 +573,7 @@ function getTextPresenceContext(text: string): PresenceContext | null {
   if (
     text === mainMenuButtons.hero ||
     text === mainMenuButtons.inventory ||
-    text === mainMenuButtons.guild ||
+    text === mainMenuButtons.participants ||
     text === mainMenuButtons.help
   ) {
     return {};
@@ -1044,8 +1044,8 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
     await sendInventory(ctx, services.inventory, "reply");
   });
 
-  bot.hears(mainMenuButtons.guild, async (ctx) => {
-    await sendPlannedCommand(ctx, "guild");
+  bot.hears(mainMenuButtons.participants, async (ctx) => {
+    await sendOnline(ctx, services.presence);
   });
 
   bot.hears(mainMenuButtons.help, async (ctx) => {

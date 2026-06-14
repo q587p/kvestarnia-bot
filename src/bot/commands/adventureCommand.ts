@@ -99,7 +99,7 @@ export async function sendAdventure(
       return;
     }
 
-    await sendText(ctx, mode, presentAdventureAlreadyCompleted(result), "participants");
+    await sendText(ctx, mode, presentAdventureAlreadyCompleted(result), "adventure-result");
     return;
   }
 
@@ -130,7 +130,7 @@ async function sendText(
   text: string,
   keyboard:
     | false
-    | "participants"
+    | "adventure-result"
     | "enter-korchma"
     | { type: "adventure"; character: CharacterSummary } = false
 ): Promise<void> {
@@ -138,7 +138,7 @@ async function sendText(
     ? {
         parse_mode: "HTML" as const,
         reply_markup:
-          keyboard === "participants"
+          keyboard === "adventure-result"
             ? buildAdventureResultKeyboard("already-completed")
             : keyboard === "enter-korchma"
               ? buildKorchmaFrontKeyboard()
