@@ -23,6 +23,7 @@ import {
 } from "../services/presenceService";
 import type { RestartService } from "../services/restartService";
 import type { TavernRaidService } from "../services/tavernRaidService";
+import { createBarrelRaidCompletionScheduler } from "./barrelRaidCompletionNotifier";
 import { parseAdventureCallbackData, type AdventureCallback } from "./callbacks/adventureCallbackData";
 import { parseCellarCallbackData, type CellarCallback } from "./callbacks/cellarCallbackData";
 import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
@@ -156,7 +157,7 @@ const HTML_MESSAGE_OPTIONS = {
 };
 
 type PresenceContext = Omit<MarkPlayerPresenceInput, "user">;
-const barrelRaidCompletionTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const barrelRaidCompletionScheduler = createBarrelRaidCompletionScheduler();
 
 export function createBot(token: string, services: BotServices): Bot {
   const bot = new Bot(token);
@@ -1073,7 +1074,7 @@ async function handleTavernCallback(
   });
 
   if (result.state === "pending-started") {
-    scheduleBarrelRaidCompletionNotification({
+    barrelRaidCompletionScheduler.schedule({
       bot,
       chatId: ctx.callbackQuery?.message?.chat.id ?? ctx.chat?.id,
       telegramUserId,
@@ -1087,84 +1088,6 @@ async function handleTavernCallback(
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
   }
-}
-
-function scheduleBarrelRaidCompletionNotification(input: {
-  bot: Bot;
-  chatId: number | undefined;
-  telegramUserId: bigint;
-  periodId: string;
-  availableAt: Date;
-  now: Date;
-  tavernRaidService: TavernRaidService;
-}): void {
-  if (input.chatId === undefined) {
-    return;
-  }
-
-  const chatId = input.chatId;
-  const key = `${chatId}:${input.telegramUserId.toString()}:${input.periodId}`;
-
-  if (barrelRaidCompletionTimers.has(key)) {
-    return;
-  }
-
-  const delayMs = Math.max(0, input.availableAt.getTime() - input.now.getTime());
-  const timer = setTimeout(() => {
-    void sendBarrelRaidCompletionNotification(input, key, chatId);
-  }, delayMs);
-
-  timer.unref?.();
-  barrelRaidCompletionTimers.set(key, timer);
-}
-
-async function sendBarrelRaidCompletionNotification(
-  input: {
-    bot: Bot;
-    telegramUserId: bigint;
-    periodId: string;
-    tavernRaidService: TavernRaidService;
-  },
-  key: string,
-  chatId: number
-): Promise<void> {
-  barrelRaidCompletionTimers.delete(key);
-
-  try {
-    const completed = await input.tavernRaidService.completeFridayBarrelRaid(
-      input.telegramUserId,
-      input.periodId
-    );
-
-    if (completed.state !== "completed") {
-      return;
-    }
-
-    await input.bot.api.sendMessage(chatId, presentTavernRaidResult(completed), {
-      ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildTavernResultKeyboard(completed.state)
-    });
-    await sendLevelUpCelebrationToChat(input.bot, chatId, completed);
-  } catch (error) {
-    console.error("Квестарня: не вдалося надіслати завершення рейду.", error);
-  }
-}
-
-async function sendLevelUpCelebrationToChat(
-  bot: Bot,
-  chatId: number,
-  result: {
-    levelChange: Parameters<typeof presentLevelUpCelebration>[0];
-    character: { classId: string };
-  }
-): Promise<void> {
-  const text = presentLevelUpCelebration(result.levelChange, result.character.classId);
-
-  if (!text) {
-    return;
-  }
-
-  await bot.api.sendMessage(chatId, text, HTML_MESSAGE_OPTIONS);
 }
 
 async function editPendingRaidBlockIfNeeded(

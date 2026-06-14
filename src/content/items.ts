@@ -1,4 +1,5 @@
 import type { ItemContent } from "./schema";
+import { monsterLootItemAdditions } from "./monsterLootItems";
 
 export const items = [
   {
@@ -112,5 +113,6 @@ export const items = [
     rarity: "common",
     slot: "junk",
     goldValue: 3
-  }
+  },
+  ...monsterLootItemAdditions
 ] satisfies ItemContent[];

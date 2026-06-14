@@ -139,6 +139,7 @@ Done when:
 ## Backlog фіч
 - Achievements.
 - Collections: «Бестіарій», «Музей Манаток».
+- Inspiration-backed content packs із `docs/INSPIRATION_CONTENT_BACKLOG.md`: перші 10–15 монстрів, 20–30 манаток і 5–8 quest/adventure seeds у малих PR з тестами.
 - Level-gated equipment, race/class/path-specific rare items, and safe player-to-player item exchange.
 - Item values, priceless trophies, and a suspicious outside-korchma item-to-level exchange inspired by Munchkin.
 - Stronger level impact pass for resources, combat, event checks, and activity gates.

@@ -7,7 +7,34 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.0.15] - 12026-06-13 - Starter Gear Sources
+## [0.0.16] - 12026-06-14 - Barrel Raid Reliability, Public Site & Bestiary
+
+### Added
+- Added a public Ukrainian landing page on `/` with Kvestarnia identity, pitch, vision, tone, current playable slice, latest public news and a privacy-preserving public presence summary.
+- Added `/news` as a public news archive rendered from `news.md`, with selected entries, archive navigation and small safe markdown rendering for headings, paragraphs, bullets, slash commands and inline code.
+- Added tests for `/`, `/news`, `/health`, news parsing/rendering and the existing public presence privacy behavior.
+- Expanded the content bestiary to exactly 20 monsters, keeping the current simple monster schema and stable `monster.mimic-shawarma` id.
+- Added monster loot item definitions and a data-only `monsterLoot` map for future loot integration without enabling random drop rolls.
+- Added `monsterFlavor` content hooks and deterministic selection for combo, class, race, path/pronoun and fallback monster reactions.
+- Added bestiary, monster loot and monster flavor routing docs plus tests for monster coverage, loot references, hidden path safety and selector priority.
+
+### Changed
+- Barrel raid period ids are now explicitly Kyiv-local korchma buckets that flip on the 23rd minute. The audit break blocks new starts from 03:00 to 07:00 Kyiv time.
+- Player-facing audit-break wording now names the Kyiv korchma time basis and avoids tiny second-level boundary copy.
+- Barrel raid rewards now roll deterministic per-period/per-player amounts: `18-26 XP` and `8-14 gold`, so the hourly wait pays better than one basement mouse errand without letting repeated callbacks reroll the result.
+- Barrel raid completion notifications now go through a small scheduler helper with one timer per `chatId + telegramUserId + periodId`, while the service reward claim remains the source of truth.
+- Kept `/health` as the text/plain Render healthcheck while moving the public project surface to `/`.
+
+### Fixed
+- Pending raids that started in an older recent period can still complete after a period rollover without claiming the current period.
+- Already completed, still pending, audit-break, and no-character completion attempts no longer send misleading scheduled completion messages.
+- Stale pending rows outside the recent lookup window no longer block starting the current period.
+- Beer round gating is covered as current-period-only: finishing one period does not unlock drinks in the next period until that period's Barrel raid is completed.
+
+### Not Included Yet
+- Durable job replay after bot restart/deploy, Redis/BullMQ, horizontal-worker coordination, Mini App UI, public player names, exact presence timestamps, hidden location names, group raids, PvP, random loot table engine, shops, selling, trading, crafting, item instance logic, or equipment stat effects.
+
+## [0.0.15] - 12026-06-14 - Starter Gear Sources
 
 ### Added
 - Added three starter gear items with stable content ids, Ukrainian names/descriptions, rarity, slot metadata, and display-only gold values: `item.stamp-of-minor-authority`, `item.apron-of-foam-resistance`, and `item.cork-ring-of-serious-business`.
@@ -22,7 +49,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Item detail flavor now gives armor and accessories their own tiny equipment-preview jokes instead of sharing one generic non-weapon line.
 - The current deterministic starter loop now reaches weapon, armor, and accessory examples without seeded/dev inventory.
-- Barrel raids are now gated by hourly Kyiv-local raid periods that flip on the 23rd minute instead of by one daily claim. New starts pause from 04:00 through 08:00 Kyiv time for korchma accounting.
+- Barrel raids are now gated by hourly Kyiv-local raid periods that flip on the 23rd minute instead of by one daily claim. New starts pause from 03:00 to 07:00 Kyiv time for korchma accounting.
 - The front-of-korchma screen now lists the main interior destinations and includes a `/tavern` fallback line in case Telegram hides an old inline button.
 - The front-of-korchma screen now points to the arrivals plaque; the full first-arrival log remains future scope until there is a durable event source.
 - Character profile resource line now marks HP and mana with `❤️` and `🔮` icons for faster scanning.
