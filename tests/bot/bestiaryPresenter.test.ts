@@ -30,8 +30,20 @@ describe("bestiary presenter", () => {
     expect(text).toContain("<b>Скелет-вахтер печаток</b>");
     expect(text).toContain("Рівень: 2");
     expect(text).toContain("Польова нотатка");
+    expect(text).toContain("Кістки не забираємо. Забираємо те, чим вони заважали.");
     expect(text).toContain("Можливі трофеї за нотатками, не обіцянка");
     expect(text).toContain("<i>Штемпельна подушка останнього попередження</i>");
+  });
+
+  it("uses monster-specific field notes instead of repeated tag-generic notes", () => {
+    const text = presentBestiaryMonster("monster.spreadsheet-goblin");
+
+    expect(text).toContain(
+      "Польова нотатка: Трофей дрібний, зате порахований із зайвою точністю."
+    );
+    expect(text).not.toContain(
+      "перемагати можна аргументом, але печатка все одно спитає додаток"
+    );
   });
 
   it("escapes dynamic monster and trophy content in detail", () => {

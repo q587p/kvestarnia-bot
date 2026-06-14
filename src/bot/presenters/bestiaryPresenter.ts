@@ -1,4 +1,4 @@
-import { items, monsterLoot, monsters } from "../../content";
+import { items, monsterFlavorLines, monsterLoot, monsters } from "../../content";
 import type { MonsterContent } from "../../content/schema";
 import { escapeHtml } from "./telegramHtml";
 
@@ -104,19 +104,15 @@ function presentMonsterRow(monster: MonsterContent): string {
 }
 
 function presentFieldNote(monster: MonsterContent): string {
-  if (monster.tags.includes("bureaucracy")) {
-    return "Польова нотатка: перемагати можна аргументом, але печатка все одно спитає додаток.";
+  const note = monsterFlavorLines.find(
+    (line) => line.monsterId === monster.id && line.placement === "monster.loot-note"
+  );
+
+  if (note) {
+    return `Польова нотатка: ${escapeHtml(note.text)}`;
   }
 
-  if (monster.tags.includes("food")) {
-    return "Польова нотатка: якщо воно пахне вечерею і має плани, спершу беріть виделку довшу.";
-  }
-
-  if (monster.tags.includes("undead")) {
-    return "Польова нотатка: нежить не любить дедлайни, бо вже один великий пропустила.";
-  }
-
-  return "Польова нотатка: спостерігати з безпечної відстані. Безпечну відстань визначає найповільніший.";
+  return "Польова нотатка: запис загубився між полем і нотаткою. Обидва заперечують провину.";
 }
 
 function getKnownTrophyNames(monster: MonsterContent): string[] {
