@@ -136,6 +136,44 @@ Future equipment/trading notes:
 - `created_at`
 - unique (`character_id`, `key`, `local_date`)
 
+### achievement_definitions
+Planned for `0.0.21 — Achievements Phase 1`.
+
+- `id` stable content id
+- `title`
+- `criterion`
+- `locked_hint`
+- `category`
+- `trigger_event`
+- `metric`
+- `target`
+- `hidden`
+- `grant_title`
+- `enabled`
+- `sort_order`
+- timestamps
+
+### player_achievements
+Planned for `0.0.21 — Achievements Phase 1`.
+
+- owner id (`player_id`/`user_id` or `character_id`, choose the smallest fit with current schema)
+- `achievement_id`
+- `unlocked_at`
+- `notified_at` nullable
+- `progress_current_snapshot` nullable
+- unique owner + achievement
+
+### achievement_progress
+Planned for `0.0.21 — Achievements Phase 1`.
+
+- owner id
+- `achievement_id`
+- `current`
+- `target`
+- `updated_at`
+
+Achievement storage is rewardless in Phase 1: it tracks title-like unlocks and progress, not XP/gold/items or combat power. Existing canonical stats should be reused where possible instead of duplicated.
+
 ### combats
 - `id` UUID
 - `character_id` FK
@@ -304,7 +342,7 @@ Web presence у `0.0.9`:
 - `GET /presence` рендерить сторінку «Жива Квестарня» на тому самому HTTP server;
 - приховані, secret або невідомі місцини не мають витікати у public endpoint як реальні назви чи ids; використовуй «Невідома місцина» або ховай їх повністю;
 - майбутній `showInPublicPresence` має керувати публічністю імен, навіть якщо presence count лишається агрегованим;
-- Telegram `/online`, `/look` і `👥 Учасники` можуть показувати імена в межах спільної місцини/сцени, бо це in-game visibility, не публічний веб-список.
+- Telegram `/online`, `/look` і `👀 Хто поруч` можуть показувати імена в межах спільної місцини/сцени, бо це in-game visibility, не публічний веб-список.
 
 `0.0.10` додає легку модель Корчми як набору місцин:
 - `location.korchma.front` — Перед корчмою;
@@ -345,6 +383,7 @@ Callback data коротка, версіонована.
 - `v1:quest:fight`
 - `v1:quest:hunt`
 - `v1:quest:cellar`
+- planned `v1:ach:list:{category}:{page}` or shorter equivalent for `0.0.21`; generated achievement callbacks must stay <=64 bytes.
 - `v1:news:list:{page}`
 - `v1:news:entry:{entryIndex}:{listPage}`
 - `v1:tavern:raid`
@@ -373,6 +412,14 @@ Callback data коротка, версіонована.
 - `v1:hunt:act:{localPeriodId}:{contractToken}:strike`
 - `v1:hunt:act:{localPeriodId}:{contractToken}:trick`
 - `v1:hunt:act:{localPeriodId}:{contractToken}:retreat`
+
+`participants` callback-и для бочки, шаурми й підвалу лишаються валідними для старих Telegram-повідомлень, але нові scene keyboards не мають їх показувати. Поточна видима поверхня присутності — reply-кнопка `👀 Хто поруч`, яка викликає `/online`-еквівалент. Будь-який список імен у Telegram має мати cap на видимі рядки, truncation довгих імен і coarse status-и без timestamp-ів; якщо потрібні повні списки, додавати окрему пагінацію callback-ами.
+
+Майбутній `activityType` / activity presence:
+- зберігати короткий coarse тип поточної дії поруч із presence, не виводячи точний час;
+- приклади: `waiting_barrel`, `talking_ranger`, `fighting_monster`, `claiming_reward`, `reading_bestiary`;
+- presenter має перекладати це в українські короткі рядки на кшталт «чекає бочку» або «спілкується з єгерем»;
+- не використовувати це як authoritative combat/session state, доки не зʼявиться persistent fight/session model.
 - `v1:bst:list:{page}`
 - `v1:bst:mon:{monsterId}:{page}`
 - `v1:devreset:confirm`
@@ -403,6 +450,13 @@ Domain result → presenter → Telegram text/buttons.
 - `presentCombatTurn(result)` повертає `{ text, keyboard }`.
 
 Це дозволяє тестувати domain окремо і міняти формат Telegram без переписування бою.
+
+`0.0.20` додає pure domain combat engine у `src/domain/combat`:
+- `combatState.ts` тримає serializable `CombatState`, actor stats, monster stats і summary останнього ходу.
+- `combatEngine.ts` приймає action + state + stats + injected `RandomSource` і повертає новий state без Telegram payloads.
+- `combatActions.ts` дає broad class-shaped skill profiles, не повні class kits.
+- `monsterCombatStats.ts` derivation бере existing monster content без schema migration.
+- Runtime `/fight` поки не підключений; `0.0.21` має додати persistent sessions, ownership/turn validation і presenter layer.
 
 ## Progression helper
 `0.0.4` вводить маленький deterministic helper для рівнів:

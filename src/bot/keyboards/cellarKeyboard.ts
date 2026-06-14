@@ -16,8 +16,6 @@ export function buildCellarKeyboard(character?: CharacterSummary): InlineKeyboar
     .row()
     .text(labels.negotiate, makeCellarCallbackData("negotiate"))
     .row()
-    .text("👥 Учасники", makeCellarCallbackData("participants"))
-    .row()
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
@@ -29,10 +27,7 @@ export function buildCellarResultKeyboard(
     return buildCellarKeyboard(character);
   }
 
-  return new InlineKeyboard()
-    .text("👥 Учасники", makeCellarCallbackData("participants"))
-    .row()
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+  return new InlineKeyboard().text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
 export function buildCellarParticipantsKeyboard(): InlineKeyboard {

@@ -1,4 +1,4 @@
-# Next Implementation Backlog після `0.0.19`
+# Next Implementation Backlog після `0.0.20`
 
 Нижче — канонічний порядок маленьких PR для добивання Phase 1. Кожен slice має бути перевірюваним окремо; якщо PR роздувається, різати.
 
@@ -9,10 +9,13 @@
 Не розширювати бестіарій як окрему фічу, collection loop, share card або journal progression, доки не закритий основний RPG-ланцюжок:
 
 ```text
-combat domain → persistent fight → equipment stats → loot engine → level 1-10 → balance/playtest polish
+combat domain → achievements phase 1 → persistent fight → equipment stats → loot engine → level 1-10 → balance/playtest polish
 ```
 
 ## 0.0.20 — Combat Domain Engine
+
+**Status**
+Implemented in `0.0.20` as pure domain code. Runtime `/fight` still uses the old probe until `0.0.21`.
 
 **Objective**
 Реалізувати чистий domain combat engine без Telegram/grammY.
@@ -42,7 +45,45 @@ combat domain → persistent fight → equipment stats → loot engine → level
 - tests cover weaponless/basic attack path;
 - звичайний бій має sanity band для 2-5 ходів.
 
-## 0.0.21 — Persistent Fight Sessions
+## 0.0.21 — Achievements Phase 1
+
+**Objective**
+Додати першу систему ачівок як колекцію жартівливих титулів без gameplay-бонусів.
+
+**Source**
+
+- `docs/ACHIEVEMENTS_PHASE1.md`;
+- локальний planning archive `kvestarnia-achievements-phase1.zip` має seed на 54 definition records і issue-ready tasks.
+
+**Scope**
+
+- definitions seed із 54 ачівками;
+- storage для earned achievements і progress snapshots;
+- idempotent `AchievementService.track(event)`;
+- кнопка `🏅 Ачівки` з екрану персонажа;
+- категорії, пагінація по 10 рядків, earned/locked/hidden states;
+- grouped unlock notifications;
+- silent або summarized backfill для старих гравців;
+- callback data <=64 bytes.
+
+**Non-goals**
+
+- no combat runtime wiring beyond safe event hooks;
+- no XP, gold, item, stat, or power rewards;
+- no active-title selection unless it is clearly tiny and safe;
+- no bestiary collection expansion;
+- no shop/economy implementation just to satisfy future achievement definitions;
+- no production dependencies.
+
+**Acceptance criteria**
+
+- seed validation/idempotency tests pass;
+- hidden achievements do not reveal criteria before unlock;
+- duplicate events do not duplicate earned rows or notifications;
+- UI shows `Отримано: X/54`, categories, pages, and dates;
+- backfill does not spam old players.
+
+## 0.0.22 — Persistent Fight Sessions
 
 **Objective**
 Підʼєднати combat engine до `/fight` як справжню persistent session.
@@ -68,7 +109,7 @@ combat domain → persistent fight → equipment stats → loot engine → level
 - repeated callback того самого ходу не проводить ще один хід;
 - stale callback не дублює damage/rewards.
 
-## 0.0.22 — Equipment Stat Effects
+## 0.0.23 — Equipment Stat Effects
 
 **Objective**
 Екіпіровані манатки починають давати маленькі прозорі bonuses, а combat і `/hero` читають ту саму effective stats математику.
@@ -96,7 +137,7 @@ combat domain → persistent fight → equipment stats → loot engine → level
 - junk/cosmetic/priceless items не дають power випадково;
 - presenter не рахує приховану математику.
 
-## 0.0.23 — Loot Engine + Reward Replay
+## 0.0.24 — Loot Engine + Reward Replay
 
 **Objective**
 Перетворити monster loot mapping на контрольований, тестований loot engine.
@@ -124,7 +165,7 @@ combat domain → persistent fight → equipment stats → loot engine → level
 - повторний callback не reroll-ить loot;
 - reward UI безпечно показує exact items.
 
-## 0.0.24 — Fight Rewards and Level 1-10
+## 0.0.25 — Fight Rewards and Level 1-10
 
 **Objective**
 Закрити solo loop: real fight → reward → loot → level-up → hero/equipment impact.
@@ -158,7 +199,7 @@ combat domain → persistent fight → equipment stats → loot engine → level
 - tests cover threshold crossing, multiple levels, cap at 10, duplicate reward no duplicate level;
 - `/hero` and combat agree on level/effective values.
 
-## 0.0.25 — Phase 1 Balance and Playtest Polish
+## 0.0.26 — Phase 1 Balance and Playtest Polish
 
 **Objective**
 Не додавати фічі, а довести Phase 1 до done.
@@ -181,6 +222,9 @@ combat domain → persistent fight → equipment stats → loot engine → level
 ## Later / Не Phase 1 Finish
 
 - group hunts/raids;
+- social player interactions: виклик на дуель у корчемний бійцівський куток, пропозиція всліпу помінятися манатками, маленька інтерактивна міні-гра між гравцями;
+- player influence on hunts: допомогти іншому гравцю закрити полювання або, якщо дуже хочеться бути проблемою, допомогти монстру в межах безпечних anti-abuse rules;
+- activity presence: зберігати й показувати coarse тип поточної дії персонажа, наприклад «чекає бочку», «спілкується з єгерем», «бʼється з монстром», «отримує нагороду»;
 - trading/gifting;
 - shops/selling;
 - crafting/enchant/reroll;

@@ -13,6 +13,9 @@ export function presentHero(
       : `Рівень <b>${summary.level}</b> · XP ${summary.xp} · до наступного: ${summary.xpToNextLevel} XP`;
   const growthLine = presentLevelBonus(summary.levelBonus);
   const inventoryGoldValue = options.inventoryGoldValue ?? 0;
+  const starterHint =
+    summary.level < 3 ? ["", "<i>Далі: /tavern, /quest або /fight.</i>"] : [];
+
   return [
     `👤 <b>${escapeHtml(summary.name)}</b>`,
     `<i>${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}</i>`,
@@ -29,8 +32,7 @@ export function presentHero(
     `👛 Золото: <b>${summary.gold}</b> <i>${presentWealthAside(summary.gold, inventoryGoldValue)}</i>`,
     "",
     `Зараз пригодник тут: <b>${escapeHtml(getLocationName(summary.currentLocationId ?? ""))}</b>.`,
-    "",
-    "<i>Далі: /tavern, /quest або /fight.</i>"
+    ...starterHint
   ].join("\n");
 }
 

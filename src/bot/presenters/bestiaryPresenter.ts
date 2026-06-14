@@ -1,11 +1,12 @@
-import { items, monsterLoot, monsters } from "../../content";
+import { items, monsterFlavorLines, monsterLoot, monsters } from "../../content";
 import type { MonsterContent } from "../../content/schema";
 import { escapeHtml } from "./telegramHtml";
 
 export const BESTIARY_PAGE_SIZE = 5;
 
-const tagLabels: Record<string, string> = {
+export const BESTIARY_TAG_LABELS: Record<string, string> = {
   annoying: "надокучливе",
+  argument: "суперечкове",
   archive: "архівне",
   armor: "обладункове",
   audit: "ревізійне",
@@ -13,6 +14,7 @@ const tagLabels: Record<string, string> = {
   beast: "звірина",
   boss: "велика проблема",
   bread: "хлібне",
+  bridge: "мостове",
   bureaucracy: "бюрократичне",
   cellar: "підвальне",
   comic: "комічне",
@@ -21,19 +23,51 @@ const tagLabels: Record<string, string> = {
   diplomacy: "перемовне",
   dragon: "драконяче",
   fire: "димне",
+  floating: "плавуче без води",
   food: "їстівне лише теоретично",
+  garden: "городнє",
+  gatekeeper: "вахтерське",
   ghost: "примарне",
   goblin: "гоблінське",
   gold: "монетне",
   household: "хатнє",
   insect: "дрібно-настирне",
+  jellyfish: "медузяче",
   kitchen: "кухонне",
   knight: "лицарське",
+  knife: "ножове",
+  korchma: "корчмарське",
+  merchant: "крамарське",
+  mind: "самокритичне",
   mimic: "мімічне",
   "mini-boss": "мале, але з гонором",
+  mirror: "дзеркальне",
+  mobility: "мобільне",
+  naming: "іменувальне",
+  numbers: "циферкове",
+  paper: "паперове",
+  paperwork: "звітне",
+  plant: "рослинне",
+  queue: "чергове",
+  rules: "правилове",
+  shop: "торговельне",
+  slime: "слизове",
+  soft: "мʼяко-загрозливе",
+  sound: "свистяче",
+  starter: "навчальне",
+  stone: "камʼяне",
+  swarm: "зграєве",
+  tax: "податкове",
+  teapot: "чайникове",
+  temperature: "температурне",
+  time: "дедлайнове",
+  trickster: "хитрувате",
   "tiny-boss": "дрібне начальство",
   troll: "останньословне",
-  undead: "не зовсім живе"
+  tutorial: "пояснювальне",
+  undead: "не зовсім живе",
+  water: "водно-сухе",
+  web: "павутинне"
 };
 
 export function clampBestiaryPage(page: number): number {
@@ -98,25 +132,25 @@ export function presentBestiaryMonsterRecord(
 }
 
 function presentMonsterRow(monster: MonsterContent): string {
-  const tags = monster.tags.slice(0, 3).map((tag) => tagLabels[tag] ?? tag).join(", ");
+  const tags = monster.tags.slice(0, 3).map(formatBestiaryTagLabel).join(", ");
 
   return `• <b>${escapeHtml(monster.name)}</b> · рівень ${monster.level}${tags ? ` · ${escapeHtml(tags)}` : ""}`;
 }
 
+function formatBestiaryTagLabel(tag: string): string {
+  return BESTIARY_TAG_LABELS[tag] ?? "дивно-класифіковане";
+}
+
 function presentFieldNote(monster: MonsterContent): string {
-  if (monster.tags.includes("bureaucracy")) {
-    return "Польова нотатка: перемагати можна аргументом, але печатка все одно спитає додаток.";
+  const note = monsterFlavorLines.find(
+    (line) => line.monsterId === monster.id && line.placement === "monster.loot-note"
+  );
+
+  if (note) {
+    return `Польова нотатка: ${escapeHtml(note.text)}`;
   }
 
-  if (monster.tags.includes("food")) {
-    return "Польова нотатка: якщо воно пахне вечерею і має плани, спершу беріть виделку довшу.";
-  }
-
-  if (monster.tags.includes("undead")) {
-    return "Польова нотатка: нежить не любить дедлайни, бо вже один великий пропустила.";
-  }
-
-  return "Польова нотатка: спостерігати з безпечної відстані. Безпечну відстань визначає найповільніший.";
+  return "Польова нотатка: запис загубився між полем і нотаткою. Обидва заперечують провину.";
 }
 
 function getKnownTrophyNames(monster: MonsterContent): string[] {

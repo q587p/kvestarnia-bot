@@ -25,7 +25,7 @@ export function presentQuestHub(snapshot: QuestHubSnapshot): string {
     presentHuntRow(snapshot.hunt),
     presentCellarRow(snapshot.cellar),
     "",
-    "Оберіть справу, поки вона не обрала вас."
+    presentQuestHubFooter(snapshot)
   ];
 
   return lines.join("\n");
@@ -43,31 +43,31 @@ function presentAdventureRow(
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>
 ): string {
   if (adventure.state === "level-retired") {
-    return `🌯 Підозріла шаурма — навчальна справа для 1-${adventure.maxLevel} рівнів.`;
+    return `🌯 <i>Підозріла шаурма</i> — перша підозра для 1-${adventure.maxLevel} рівнів.`;
   }
 
   const status = adventure.state === "ready" ? "готова до допиту" : "сьогодні вже дала свідчення";
 
-  return `🌯 Підозріла шаурма — ${status}.`;
+  return `🌯 <i>Підозріла шаурма</i> — ${status}.`;
 }
 
 function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string {
   if (fight.state === "level-retired") {
-    return `⚔️ Сутичка з підозрілим монстром — навчальна справа для 1-${fight.maxLevel} рівнів.`;
+    return `⚔️ <i>Сутичка з невідомим монстром</i> — тренувальний бій для 1-${fight.maxLevel} рівнів.`;
   }
 
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
 
-  return `⚔️ Сутичка з підозрілим монстром — ${status}.`;
+  return `⚔️ <i>Сутичка з невідомим монстром</i> — ${status}.`;
 }
 
 function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" }>): string {
   if (hunt.state === "level-locked") {
-    return `🏹 Дошка полювання — відкриється з ${hunt.requiredLevel} рівня.`;
+    return `🏹 <i>Дошка полювання</i> — відкриється з ${hunt.requiredLevel} рівня.`;
   }
 
   if (hunt.state === "missing-contract-monster") {
-    return "🏹 Дошка полювання — корчмар шукає старий запис у журналі.";
+    return "🏹 <i>Дошка полювання</i> — корчмар шукає старий запис у журналі.";
   }
 
   const status =
@@ -75,25 +75,42 @@ function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" 
       ? `контракт на ${escapeHtml(hunt.contract.monster.name)}`
       : "у цю годину вже закрито";
 
-  return `🏹 Дошка полювання — ${status}.`;
+  return `🏹 <i>Дошка полювання</i> — ${status}.`;
 }
 
 function presentCellarRow(
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>
 ): string {
   if (cellar.state === "level-locked") {
-    return `🧹 Підвальна справа — відкриється з ${cellar.requiredLevel} рівня.`;
+    return `🧹 <i>Підвальна справа</i> — відкриється з ${cellar.requiredLevel} рівня.`;
   }
 
   if (cellar.state === "level-retired") {
-    return `🧹 Підвальна справа — новачкова справа до ${cellar.maxLevel} рівня.`;
+    return `🧹 <i>Підвальна справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`;
   }
 
   if (cellar.state === "ready") {
-    return "🧹 Підвальна справа — миша знову приймає аргументи.";
+    return "🧹 <i>Підвальна справа</i> — миша приймає аргументи.";
   }
 
-  return `🧹 Підвальна справа — пауза ще ${formatCooldown(cellar.availableAt, cellar.now)}.`;
+  return `🧹 <i>Підвальна справа</i> — пауза ще ${formatCooldown(cellar.availableAt, cellar.now)}.`;
+}
+
+function presentQuestHubFooter(snapshot: QuestHubSnapshot): string {
+  if (hasReadyQuestAction(snapshot)) {
+    return "Оберіть справу, поки вона не обрала вас.";
+  }
+
+  return "Справи зараз удають меблі. Можна почитати бестіарій, перевірити манатки або повернутися до зали.";
+}
+
+function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
+  return (
+    snapshot.adventure.state === "ready" ||
+    snapshot.fight.state === "ready" ||
+    snapshot.hunt.state === "ready" ||
+    snapshot.cellar.state === "ready"
+  );
 }
 
 function formatCooldown(availableAt: Date, now: Date): string {

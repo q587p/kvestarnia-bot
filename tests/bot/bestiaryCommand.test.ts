@@ -1,5 +1,9 @@
 import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
+import {
+  makeBestiaryListCallbackData,
+  makeBestiaryMonsterCallbackData
+} from "../../src/bot/callbacks/bestiaryCallbackData";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { sendBestiaryMonster } from "../../src/bot/commands/bestiaryCommand";
@@ -29,6 +33,30 @@ describe("bestiary command", () => {
           [{ text: "🏹 До дошки", callback_data: "v1:quest:hunt" }]
         ]
       }
+    });
+  });
+
+  it("routes bestiary pagination and monster detail callbacks through the bot path", async () => {
+    const calls = await captureCallbackCalls([
+      makeBestiaryListCallbackData(2),
+      makeBestiaryMonsterCallbackData("monster.report-jellyfish", 2)
+    ]);
+    const edits = calls.filter((call) => call.method === "editMessageText");
+
+    expect(String(edits[0]?.payload.text)).toContain("Сторінка 3/");
+    expect(String(edits[0]?.payload.text)).toContain("Медузка звітности");
+    expect(String(edits[0]?.payload.text)).not.toContain("paperwork");
+    expect(String(edits[0]?.payload.text)).not.toContain("jellyfish");
+
+    expect(String(edits[1]?.payload.text)).toContain("<b>Медузка звітности</b>");
+    expect(String(edits[1]?.payload.text)).toContain("Польова нотатка");
+    expect(String(edits[1]?.payload.text)).not.toContain("paperwork");
+    expect(edits[1]?.payload.parse_mode).toBe("HTML");
+    expect(edits[1]?.payload.reply_markup).toMatchObject({
+      inline_keyboard: [
+        [{ text: "⬅️ До списку", callback_data: makeBestiaryListCallbackData(2) }],
+        [{ text: "🏹 До дошки", callback_data: makeQuestCallbackData("hunt") }]
+      ]
     });
   });
 });
@@ -68,6 +96,43 @@ async function captureCommandCalls(command: string): Promise<ApiCall[]> {
 
   await bot.init();
   await bot.handleUpdate(messageUpdate(command));
+
+  return calls;
+}
+
+async function captureCallbackCalls(callbacks: string[]): Promise<ApiCall[]> {
+  const bot = createBot("123456:test-token", servicesWith());
+  const calls: ApiCall[] = [];
+
+  bot.api.config.use((_prev, method, payload) => {
+    calls.push({
+      method,
+      payload
+    });
+
+    if (method === "getMe") {
+      return Promise.resolve({
+        ok: true,
+        result: {
+          id: 123456,
+          is_bot: true,
+          first_name: "Квестарня",
+          username: "kvestarnia_bot"
+        }
+      });
+    }
+
+    return Promise.resolve({
+      ok: true,
+      result: true
+    });
+  });
+
+  await bot.init();
+
+  for (const [index, callbackData] of callbacks.entries()) {
+    await bot.handleUpdate(callbackUpdate(callbackData, index + 1));
+  }
 
   return calls;
 }
@@ -147,6 +212,32 @@ function messageUpdate(text: string) {
           length: text.length
         }
       ]
+    }
+  };
+}
+
+function callbackUpdate(data: string, updateId: number) {
+  return {
+    update_id: updateId,
+    callback_query: {
+      id: `callback-${updateId}`,
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      chat_instance: "test-chat-instance",
+      data,
+      message: {
+        message_id: 10 + updateId,
+        date: 0,
+        chat: {
+          id: 42,
+          type: "private" as const,
+          first_name: "Тест"
+        },
+        text: "старий бестіарій"
+      }
     }
   };
 }

@@ -7,6 +7,24 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.20] - 12026-06-14 - Combat Domain Engine
+
+### Added
+- Added a pure TypeScript combat domain engine with serializable combat state, hero/monster HP, mana, turn count, and statuses for active, won, lost, fled, and expired fights.
+- Added deterministic action resolution for basic attack, class-shaped skill, and flee actions using injected `RandomSource` instead of `Math.random()`.
+- Added broad MVP skill profiles for warrior, mage, bard, rogue/ranger, priest, bureaucramancer, varenyk-mancer, kharakternyk, and fallback classes.
+- Added monster combat stat derivation from existing monster content ids, levels, and tags without changing the content schema.
+- Added unarmed/basic attack fallback so the future combat runtime does not assume every hero owns a starter weapon.
+- Added domain tests for valid state creation, win, loss, flee, mana spending, not-enough-mana non-mutation, inactive combat guard, deterministic RNG, 2-5 turn sanity, and current bestiary stat derivation.
+
+### Changed
+- Exported the new combat domain modules from `src/domain/combat` and `src/domain`.
+- Documented that `0.0.20` is the under-the-hood combat engine slice; Telegram `/fight` still uses the existing probe until the next persistent-session PR.
+- Moved visible presence access from scattered scene inline keyboards into the persistent `👀 Хто поруч` reply-keyboard button, backed by the existing `/online` snapshot with capped Telegram name lists.
+
+### Not Included Yet
+- Telegram command/callback changes, Prisma combat sessions, persistent HP/mana loss, loot grants, equipment stat effects, item-use actions, shops, trading, crafting, PvP, group combat, Redis/jobs, Mini App UI, or bestiary collection UI.
+
 ## [0.0.19] - 12026-06-14 - Hunt Contract Ledger & Reward Replay
 
 ### Added

@@ -39,7 +39,7 @@ describe("online command", () => {
 
     expect(replies).toHaveLength(1);
     expect(replies[0]?.text).toContain("👥 У грі зараз: 1");
-    expect(replies[0]?.text).toContain("📍 У цій місцині: тільки ти.");
+    expect(replies[0]?.text).toContain("📍 Зала корчми: тільки ти.");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML"
     });

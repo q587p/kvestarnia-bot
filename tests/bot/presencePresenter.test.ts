@@ -15,7 +15,7 @@ describe("presence presenter", () => {
     const text = presentOnline(onlineSnapshot);
 
     expect(text).toContain("👥 У грі зараз: 3");
-    expect(text).toContain("📍 У цій місцині: 2");
+    expect(text).toContain("📍 Зала корчми: 2");
     expect(text).toContain("— 587");
     expect(text).toContain("— Дара");
     expect(text).toContain("🍺 У рейді «Бочка Пінного Міражу»: 2");
@@ -41,7 +41,7 @@ describe("presence presenter", () => {
       activity: null
     });
 
-    expect(text).toContain("📍 У цій місцині: тільки ти.");
+    expect(text).toContain("📍 Зала корчми: тільки ти.");
     expect(text).toContain("🍺 Активного рейду зараз немає.");
   });
 
@@ -72,6 +72,39 @@ describe("presence presenter", () => {
     expect(participants).not.toContain("🌯 Підвальна справа");
     expect(online).toContain("🐭 У пригоді «Підвальна справа»: 1");
     expect(online).not.toContain("🌯 У пригоді «Підвальна справа»");
+  });
+
+  it("limits long Telegram people lists and truncates oversized names", () => {
+    const crowdedSnapshot: ParticipantsSnapshot = {
+      state: "ready",
+      activity: {
+        kind: "raid",
+        id: "raid.friday-barrel",
+        name: "Бочка Пінного Міражу",
+        locationName: "Біля Бочки Пінного Міражу",
+        people: {
+          active: [
+            {
+              telegramUserId: 1n,
+              name: "Пригодник із дуже довгим іменем, яке не має розтягувати Telegram",
+              status: "active"
+            },
+            ...Array.from({ length: 13 }, (_, index) => ({
+              telegramUserId: BigInt(index + 2),
+              name: `Пригодник ${index + 2}`,
+              status: "active" as const
+            }))
+          ],
+          idle: [],
+          total: 14
+        }
+      }
+    };
+    const text = presentParticipants(crowdedSnapshot);
+
+    expect(text).toContain("Пригодник із дуже довгим іменем, яке не має роз…");
+    expect(text).toContain("— і ще 2 пригодники");
+    expect(text).not.toContain("Пригодник 14");
   });
 });
 

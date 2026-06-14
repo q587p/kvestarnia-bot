@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
+import { makeBestiaryListCallbackData } from "../../src/bot/callbacks/bestiaryCallbackData";
 import { sendQuestHub } from "../../src/bot/commands/questHubCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { AdventureService } from "../../src/services/adventureService";
@@ -60,18 +61,19 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).toContain("📋 Стіл зі справами");
     expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
-    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — навчальна справа для 1-2 рівнів.");
+    expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
-      "⚔️ Сутичка з підозрілим монстром — навчальна справа для 1-2 рівнів."
+      "⚔️ <i>Сутичка з невідомим монстром</i> — тренувальний бій для 1-2 рівнів."
     );
-    expect(replies[0]?.text).toContain("🏹 Дошка полювання — контракт на Скелет-вахтер печаток.");
+    expect(replies[0]?.text).toContain("🏹 <i>Дошка полювання</i> — контракт на Скелет-вахтер печаток.");
     expect(replies[0]?.text).not.toContain("Мімік-шаурма");
-    expect(replies[0]?.text).toContain("🧹 Підвальна справа — миша знову приймає аргументи.");
+    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша приймає аргументи.");
     expect(replies[0]?.options).toMatchObject({
       reply_markup: {
         inline_keyboard: [
           [{ text: "🏹 До дошки", callback_data: makeQuestCallbackData("hunt") }],
           [{ text: "🧹 У підвал", callback_data: makeQuestCallbackData("cellar") }],
+          [{ text: "📖 Бестіарій", callback_data: makeBestiaryListCallbackData(0) }],
           [{ text: "🍺 До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
       }
@@ -98,8 +100,8 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🏹 Дошка полювання — відкриється з 3 рівня.");
-    expect(replies[0]?.text).toContain("🧹 Підвальна справа — відкриється з 2 рівня.");
+    expect(replies[0]?.text).toContain("🏹 <i>Дошка полювання</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — відкриється з 2 рівня.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
@@ -108,6 +110,7 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🌯 До шаурми",
       "⚔️ До сутички",
+      "📖 Бестіарій",
       "🍺 До зали"
     ]);
   });
@@ -127,8 +130,8 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🏹 Дошка полювання — відкриється з 3 рівня.");
-    expect(replies[0]?.text).toContain("🧹 Підвальна справа — миша знову приймає аргументи.");
+    expect(replies[0]?.text).toContain("🏹 <i>Дошка полювання</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша приймає аргументи.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
@@ -138,6 +141,7 @@ describe("quest hub command", () => {
       "🌯 До шаурми",
       "⚔️ До сутички",
       "🧹 У підвал",
+      "📖 Бестіарій",
       "🍺 До зали"
     ]);
   });
@@ -170,9 +174,9 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — сьогодні вже дала свідчення.");
+    expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — сьогодні вже дала свідчення.");
     expect(replies[0]?.text).toContain(
-      "⚔️ Сутичка з підозрілим монстром — сьогодні вже зараховано."
+      "⚔️ <i>Сутичка з невідомим монстром</i> — сьогодні вже зараховано."
     );
     const buttons = (
       replies[0]?.options as {
@@ -182,6 +186,46 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🏹 До дошки",
       "🧹 У підвал",
+      "📖 Бестіарій",
+      "🍺 До зали"
+    ]);
+  });
+
+  it("suggests quiet fallback actions when no quest is currently available", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(grownCharacter),
+        fight: readyFightService(grownCharacter),
+        hunt: {
+          getHuntBoardForTelegramUser: () =>
+            Promise.resolve({
+              state: "already-completed",
+              character: grownCharacter,
+              contract: huntContract
+            }),
+          completeHuntContract: () => Promise.resolve({ state: "no-character" })
+        } as unknown as HuntService,
+        cellarErrand: readyCellarService(grownCharacter)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain(
+      "Справи зараз удають меблі. Можна почитати бестіарій, перевірити манатки або повернутися до зали."
+    );
+    expect(replies[0]?.text).not.toContain("Оберіть справу, поки вона не обрала вас.");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.text)).toEqual([
+      "📖 Бестіарій",
+      "🎒 Манатки",
       "🍺 До зали"
     ]);
   });
@@ -201,11 +245,11 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — навчальна справа для 1-2 рівнів.");
+    expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
-      "⚔️ Сутичка з підозрілим монстром — навчальна справа для 1-2 рівнів."
+      "⚔️ <i>Сутичка з невідомим монстром</i> — тренувальний бій для 1-2 рівнів."
     );
-    expect(replies[0]?.text).toContain("🧹 Підвальна справа — миша знову приймає аргументи.");
+    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша приймає аргументи.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
@@ -214,6 +258,7 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🏹 До дошки",
       "🧹 У підвал",
+      "📖 Бестіарій",
       "🍺 До зали"
     ]);
   });

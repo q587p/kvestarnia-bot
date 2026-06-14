@@ -44,7 +44,9 @@ Current tiny inventory slice:
 - `0.0.17` adds `/hunt` as the first runtime rotation over the bestiary: one deterministic Kyiv-local Hunt Board contract per hour, small rewards, and at most one deterministic monster trophy.
 - `0.0.18` hardens Hunt Board callbacks with contract tokens and exposes `/bestiary`/`/monsters` as read-only monster notes without combat sessions, collection tracking, or random loot tables.
 - `0.0.19` adds a persisted Hunt Board ledger so posted contracts are auditable and completed hunt callbacks can replay original XP/gold/item summaries without duplicate rewards; the same slice adds light onboarding gates: starter shawarma/fight run only on levels 1-2, cellar errands run on levels 2-3, Hunt Board starts from level 3, and read-only bestiary stays available immediately.
-- Phase 1 finish rule after `0.0.19`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки не закритий основний RPG-ланцюжок: combat engine → equipment stat effects → loot engine → рівні 1-10.
+- `0.0.20` adds the pure domain Combat Engine: serializable fight state, attack/skill/flee resolution, HP/mana, status guards, monster stat derivation, deterministic RNG injection, and unarmed/basic fallback. Telegram `/fight` is not replaced yet.
+- Next slice after `0.0.20`: `0.0.21 — Achievements Phase 1`, rewardless ачівки як колекція титулів із кнопкою `🏅 Ачівки` на екрані персонажа. Деталі: `docs/ACHIEVEMENTS_PHASE1.md`.
+- Phase 1 finish rule after `0.0.20`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки не закритий основний RPG-ланцюжок: achievements phase 1 → persistent fight sessions → equipment stat effects → loot engine → рівні 1-10.
 - Detailed finish sequence lives in `docs/PHASE1_FINISH_PLAN.md`; `docs/NEXT_IMPLEMENTATION_BACKLOG.md` tracks the next small PR order.
 - Tavern/adventure/fight first completions can grant fixed items.
 - Full itemization, equipment effects, random loot tables, crafting, market, and trading remain later Phase 1+ work.
@@ -142,7 +144,7 @@ Done when:
 - Mini App покращує UX, але основна гра залишається playable через bot buttons.
 
 ## Backlog фіч
-- Achievements.
+- Achievements Phase 1: 54 seed definitions, earned/locked/hidden states, paginated `🏅 Ачівки` surface, grouped unlock notifications, no gameplay bonuses. Canonical doc: `docs/ACHIEVEMENTS_PHASE1.md`.
 - Collections: «Бестіарій», «Музей Манаток».
 - Inspiration-backed content packs із `docs/INSPIRATION_CONTENT_BACKLOG.md`: перші 10–15 монстрів, 20–30 манаток і 5–8 quest/adventure seeds у малих PR з тестами.
 - Level-gated equipment, race/class/path-specific rare items, and safe player-to-player item exchange.

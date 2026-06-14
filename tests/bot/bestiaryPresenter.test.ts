@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BESTIARY_PAGE_SIZE,
+  BESTIARY_TAG_LABELS,
   presentBestiaryList,
   presentBestiaryMonster,
   presentBestiaryMonsterRecord
@@ -17,6 +18,25 @@ describe("bestiary presenter", () => {
     expect(text.match(/^• /gm)).toHaveLength(BESTIARY_PAGE_SIZE);
   });
 
+  it("does not leak raw technical tag ids into the monster list", () => {
+    const totalPages = Math.ceil(monsters.length / BESTIARY_PAGE_SIZE);
+    const allListText = Array.from({ length: totalPages }, (_, page) => presentBestiaryList(page))
+      .join("\n");
+    const tags = new Set(monsters.flatMap((monster) => monster.tags));
+
+    for (const tag of tags) {
+      expect(allListText).not.toMatch(new RegExp(`(^|[ ·,])${escapeRegExp(tag)}($|[ ·,])`));
+    }
+  });
+
+  it("has Ukrainian labels for every current monster tag", () => {
+    const tags = new Set(monsters.flatMap((monster) => monster.tags));
+
+    for (const tag of tags) {
+      expect(BESTIARY_TAG_LABELS[tag], `missing bestiary label for ${tag}`).toBeDefined();
+    }
+  });
+
   it("clamps out-of-range pages to the last available page", () => {
     const text = presentBestiaryList(999);
     const totalPages = Math.ceil(monsters.length / BESTIARY_PAGE_SIZE);
@@ -30,8 +50,20 @@ describe("bestiary presenter", () => {
     expect(text).toContain("<b>Скелет-вахтер печаток</b>");
     expect(text).toContain("Рівень: 2");
     expect(text).toContain("Польова нотатка");
+    expect(text).toContain("Кістки не забираємо. Забираємо те, чим вони заважали.");
     expect(text).toContain("Можливі трофеї за нотатками, не обіцянка");
     expect(text).toContain("<i>Штемпельна подушка останнього попередження</i>");
+  });
+
+  it("uses monster-specific field notes instead of repeated tag-generic notes", () => {
+    const text = presentBestiaryMonster("monster.spreadsheet-goblin");
+
+    expect(text).toContain(
+      "Польова нотатка: Трофей дрібний, зате порахований із зайвою точністю."
+    );
+    expect(text).not.toContain(
+      "перемагати можна аргументом, але печатка все одно спитає додаток"
+    );
   });
 
   it("escapes dynamic monster and trophy content in detail", () => {
@@ -61,3 +93,7 @@ describe("bestiary presenter", () => {
     expect(text).not.toContain("undefined");
   });
 });
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}

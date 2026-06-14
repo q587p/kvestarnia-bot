@@ -14,8 +14,6 @@ export function buildTavernKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("🍺 У рейд на бочку", makeTavernCallbackData("raid"))
     .row()
-    .text("👥 Учасники", makeTavernCallbackData("participants"))
-    .row()
     .text("🧥 Єгер", makeTavernCallbackData("ranger"))
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
@@ -55,16 +53,11 @@ export function buildTavernResultKeyboard(
   state: TavernResultKeyboardState
 ): InlineKeyboard {
   if (state === "pending" || state === "pending-started") {
-    return new InlineKeyboard()
-      .text("🍺 Перевірити бочку", makeTavernCallbackData("raid"))
-      .row()
-      .text("👥 Учасники", makeTavernCallbackData("participants"));
+    return new InlineKeyboard().text("🍺 Перевірити бочку", makeTavernCallbackData("raid"));
   }
 
   if (state === "completed" || state === "already-completed" || state === "audit-break") {
     return new InlineKeyboard()
-      .text("👥 Учасники", makeTavernCallbackData("participants"))
-      .row()
       .text("🧥 Єгер", makeTavernCallbackData("ranger"))
       .text("⬅️ До зали", makePlaceCallbackData("hall"));
   }
