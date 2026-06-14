@@ -231,6 +231,8 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - Вибір монстра детермінований від Kyiv-local `YYYY-MM-DD` і character id; `monster.mimic-shawarma` і boss-tagged монстри не входять у перший Hunt Board MVP.
 - Стара дата в `v1:hunt:act:{date}:*` повертає stale-period copy і не створює claim для поточного дня.
 
+Важливий борг Hunt Board callback-ів: поточний `v1:hunt:act:{date}:{action}` не містить `monsterId`, persisted contract id або короткий contract token. Оскільки контракт зараз переобчислюється з актуального content list за датою й character id, майбутній deploy із доданими або переставленими монстрами може теоретично змінити монстра під старою кнопкою тієї самої київської дати. Перед розширенням `/hunt` потрібно зафіксувати contract identity: або додати короткий stable token/monster id у callback, або persist-ити daily contract row і валідувати callback проти нього.
+
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 
 У `0.0.10` таблиця `character_cooldowns` використовується для першої repeatable активності:
