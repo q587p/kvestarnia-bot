@@ -9,10 +9,10 @@ export function presentFightStart(character: CharacterSummary): string {
   return [
     "⚔️ Сутичка з підозрілим монстром",
     "",
-    "Те, що мало бути шаурмою, розкриває зуби. Це Мімік-шаурма, і вечеря щойно стала переговорами.",
+    "Те, що мало бути простою шаурмою, розкриває зуби. Вечеря щойно стала переговорами.",
     ...presentCharacterFlavor(character, "quest.start", "fight"),
     "",
-    `❤️ Ви: ${character.hpCurrent}/${character.hpMax}   🌯 Мімік: ${MIMIC_SHAWARMA_HP}/${MIMIC_SHAWARMA_HP}`,
+    `❤️ Ви: ${character.hpCurrent}/${character.hpMax}   🌯 Монстр: ${MIMIC_SHAWARMA_HP}/${MIMIC_SHAWARMA_HP}`,
     "",
     "Що робимо?"
   ].join("\n");
@@ -51,7 +51,7 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
     ...presentOutcome(result),
     ...presentCharacterFlavor(result.character, "quest.outcome", "fight", result.action),
     "",
-    `❤️ Ви: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}   🌯 Мімік: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
+    `❤️ Ви: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}   🌯 Мімік-шаурма: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
     "",
     presentRewardAmount({ ...result.reward, label: "Нагорода" }),
     ...presentItemGrantBlock(result.reward.itemGrants)

@@ -49,15 +49,16 @@ describe("fight presenter", () => {
     const text = presentFightStart(character);
 
     expect(text).toContain("Сутичка з підозрілим монстром");
-    expect(text).toContain("Це Мімік-шаурма");
+    expect(text).not.toContain("Це Мімік-шаурма");
+    expect(text).not.toContain("Мімік-шаурма");
     expect(text).toContain(
-      "⚔️ Сутичка з підозрілим монстром\n\nТе, що мало бути шаурмою"
+      "⚔️ Сутичка з підозрілим монстром\n\nТе, що мало бути простою шаурмою"
     );
-    expect(text).toContain("дуже простий і металевий");
+    expect(text).toContain("підозрілого монстра");
     expect(text).toContain("❤️ Ви: 24/24");
-    expect(text).toContain("🌯 Мімік: 14/14");
+    expect(text).toContain("🌯 Монстр: 14/14");
     expect(text).toContain("Що робимо?");
-    expect(text.length).toBeLessThan(320);
+    expect(text.length).toBeLessThan(420);
   });
 
   it("prompts /start when no character exists", () => {
@@ -89,12 +90,12 @@ describe("fight presenter", () => {
     expect(text).toContain("Ви вдарили");
     expect(text).toContain("навіть лаваш зрозумів сюжет");
     expect(text).toContain("❤️ Ви: 19/22");
-    expect(text).toContain("🌯 Мімік: 5/14");
+    expect(text).toContain("🌯 Мімік-шаурма: 5/14");
     expect(text).toContain("Нагорода:\n<b>+9 XP\n+3 золота</b>");
     expect(text).toContain("Здобуто: <i>Підозрілий лавашний доказ</i>");
     expect(text).toContain(
       [
-        "❤️ Ви: 19/22   🌯 Мімік: 5/14",
+        "❤️ Ви: 19/22   🌯 Мімік-шаурма: 5/14",
         "",
         "Нагорода:",
         "<b>+9 XP",

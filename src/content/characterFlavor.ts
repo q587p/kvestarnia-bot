@@ -1,5 +1,7 @@
 import type { CharacterSummary } from "../domain/characters/characterSummary";
 import type { CharacterPath } from "../domain/characters/path";
+import { classes } from "./classes";
+import { activeRaces } from "./races";
 import type { Pronoun } from "./schema";
 
 export type FlavorPlacement =
@@ -208,6 +210,152 @@ function hashString(value: string): number {
   }
 
   return hash >>> 0;
+}
+
+function buildShawarmaStartRaceLines(): CharacterFlavorLine[] {
+  return activeRaces.map((race) => ({
+    id: `shawarma.start.race-pool.${contentSlug(race.id)}`,
+    placement: "quest.start",
+    scene: "shawarma",
+    selector: { raceIds: [race.id] },
+    priority: -1,
+    text: `${race.name} відчуває, що ця шаурма не просто лежить. Вона вивчає правила дому й шукає слабке місце в серветці.`
+  }));
+}
+
+function buildShawarmaStartClassLines(): CharacterFlavorLine[] {
+  return classes.map((heroClass) => ({
+    id: `shawarma.start.class-pool.${contentSlug(heroClass.id)}`,
+    placement: "quest.start",
+    scene: "shawarma",
+    selector: { classIds: [heroClass.id] },
+    priority: -1,
+    text: `${heroClass.name} бачить у цій шаурмі не вечерю, а задачу з соусом, підозрою і погано прихованою самовпевненістю.`
+  }));
+}
+
+function buildShawarmaStartComboLines(): CharacterFlavorLine[] {
+  return availableRaceClassCombos().map(({ raceId, classId, raceName, className }) => ({
+    id: `shawarma.start.combo.${contentSlug(raceId)}-${contentSlug(classId)}`,
+    placement: "quest.start",
+    scene: "shawarma",
+    selector: { combos: [{ raceId, classId }] },
+    text: `${raceName}-${className} підходить до шаурми так, ніби це перша сторінка дуже дурної, але перспективної справи. Шаурма нервово шурхотить лавашем.`
+  }));
+}
+
+function buildShawarmaOutcomeRaceLines(): CharacterFlavorLine[] {
+  return activeRaces.flatMap((race) =>
+    shawarmaActions().map((action) => ({
+      id: `shawarma.outcome.race-pool.${contentSlug(race.id)}.${action}`,
+      placement: "quest.outcome",
+      scene: "shawarma",
+      selector: { raceIds: [race.id], actions: [action] },
+      priority: -1,
+      text: `${race.name} лишає на справі власний підпис: шаурма тепер поводиться тихіше й підозрює, що її щойно перемогли стилем.`
+    }))
+  );
+}
+
+function buildShawarmaOutcomeClassLines(): CharacterFlavorLine[] {
+  return classes.flatMap((heroClass) =>
+    shawarmaActions().map((action) => ({
+      id: `shawarma.outcome.class-pool.${contentSlug(heroClass.id)}.${action}`,
+      placement: "quest.outcome",
+      scene: "shawarma",
+      selector: { classIds: [heroClass.id], actions: [action] },
+      priority: -1,
+      text: `${heroClass.name} завершує епізод професійно: шаурма ще дихає, але вже розуміє, що протокол пригоди не на її боці.`
+    }))
+  );
+}
+
+function buildFightStartRaceLines(): CharacterFlavorLine[] {
+  return activeRaces.map((race) => ({
+    id: `fight.start.race-pool.${contentSlug(race.id)}`,
+    placement: "quest.start",
+    scene: "fight",
+    selector: { raceIds: [race.id] },
+    priority: -1,
+    text: `${race.name} помічає, що підозрілий монстр рухається не як їжа. Їжа зазвичай не вибирає, кого вкусити першим.`
+  }));
+}
+
+function buildFightStartClassLines(): CharacterFlavorLine[] {
+  return classes.map((heroClass) => ({
+    id: `fight.start.class-pool.${contentSlug(heroClass.id)}`,
+    placement: "quest.start",
+    scene: "fight",
+    selector: { classIds: [heroClass.id] },
+    priority: -1,
+    text: `${heroClass.name} оцінює сутичку: зуби є, пафос є, план майже є. Залишилось зробити вигляд, що так і задумано.`
+  }));
+}
+
+function buildFightStartComboLines(): CharacterFlavorLine[] {
+  return availableRaceClassCombos().map(({ raceId, classId, raceName, className }) => ({
+    id: `fight.start.combo.${contentSlug(raceId)}-${contentSlug(classId)}`,
+    placement: "quest.start",
+    scene: "fight",
+    selector: { combos: [{ raceId, classId }] },
+    text: `${raceName}-${className} стає навпроти підозрілого монстра. У корчмі на мить тихо: всі хочуть побачити, чи це стиль, план або страховий випадок.`
+  }));
+}
+
+function buildFightOutcomeRaceLines(): CharacterFlavorLine[] {
+  return activeRaces.flatMap((race) =>
+    fightActions().map((action) => ({
+      id: `fight.outcome.race-pool.${contentSlug(race.id)}.${action}`,
+      placement: "quest.outcome",
+      scene: "fight",
+      selector: { raceIds: [race.id], actions: [action] },
+      priority: -1,
+      text: `${race.name} виходить із сутички з виглядом, ніби все було під контролем. Монстр не погоджується, але вже тихіше.`
+    }))
+  );
+}
+
+function buildFightOutcomeClassLines(): CharacterFlavorLine[] {
+  return classes.flatMap((heroClass) =>
+    fightActions().map((action) => ({
+      id: `fight.outcome.class-pool.${contentSlug(heroClass.id)}.${action}`,
+      placement: "quest.outcome",
+      scene: "fight",
+      selector: { classIds: [heroClass.id], actions: [action] },
+      priority: -1,
+      text: `${heroClass.name} робить те, що вміє найкраще: перетворює проблему на досвід, шум і трохи крихт на підлозі.`
+    }))
+  );
+}
+
+function availableRaceClassCombos(): Array<{
+  raceId: string;
+  raceName: string;
+  classId: string;
+  className: string;
+}> {
+  return activeRaces.flatMap((race) =>
+    classes
+      .filter((heroClass) => !heroClass.allowedRaces || heroClass.allowedRaces.includes(race.id))
+      .map((heroClass) => ({
+        raceId: race.id,
+        raceName: race.name,
+        classId: heroClass.id,
+        className: heroClass.name
+      }))
+  );
+}
+
+function shawarmaActions(): Array<"poke" | "receipt" | "flee"> {
+  return ["poke", "receipt", "flee"];
+}
+
+function fightActions(): Array<"attack" | "receipt" | "flee"> {
+  return ["attack", "receipt", "flee"];
+}
+
+function contentSlug(id: string): string {
+  return id.split(".").at(-1) ?? id;
 }
 
 export const characterFlavorLines: CharacterFlavorLine[] = [
@@ -440,14 +588,14 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
     placement: "quest.start",
     scene: "fight",
     selector: { classIds: ["class.warrior"] },
-    text: "Мімік показав зуби. Ви показали план: дуже простий і металевий."
+    text: "Монстр показав зуби. Ви показали план: дуже простий і металевий."
   },
   {
     id: "fight.start.class.rogue",
     placement: "quest.start",
     scene: "fight",
     selector: { classIds: ["class.rogue"] },
-    text: "У міміка є спина. Десь. Треба лише творчо її знайти."
+    text: "У монстра є спина. Десь. Треба лише творчо її знайти."
   },
   {
     id: "fight.start.class.priest",
@@ -461,7 +609,7 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
     placement: "quest.start",
     scene: "fight",
     selector: { classIds: ["class.kharakternyk"] },
-    text: "Мімік зубиться. Ви дивитесь. Туман робить вигляд, що просто проходив."
+    text: "Монстр зубиться. Ви дивитесь. Туман робить вигляд, що просто проходив."
   },
   {
     id: "fight.outcome.warrior.attack",
@@ -498,6 +646,16 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
     selector: { raceIds: ["race.drantohor"], actions: ["flee"] },
     text: "Ви відійшли до точки, де, за вашими словами, «точно був вхід в Остромаг»."
   },
+  ...buildShawarmaStartRaceLines(),
+  ...buildShawarmaStartClassLines(),
+  ...buildShawarmaStartComboLines(),
+  ...buildShawarmaOutcomeRaceLines(),
+  ...buildShawarmaOutcomeClassLines(),
+  ...buildFightStartRaceLines(),
+  ...buildFightStartClassLines(),
+  ...buildFightStartComboLines(),
+  ...buildFightOutcomeRaceLines(),
+  ...buildFightOutcomeClassLines(),
   {
     id: "cellar.start.race.domovyk",
     placement: "quest.start",

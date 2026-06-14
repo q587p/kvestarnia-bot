@@ -1,4 +1,5 @@
 import type { Bot, Context } from "grammy";
+import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { AdventureService } from "../../services/adventureService";
 import type { CellarErrandService } from "../../services/cellarErrandService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
@@ -96,7 +97,10 @@ export async function sendAdventure(
     return;
   }
 
-  await sendText(ctx, mode, presentAdventureStart(result.character), true);
+  await sendText(ctx, mode, presentAdventureStart(result.character), {
+    type: "adventure",
+    character: result.character
+  });
 }
 
 async function markQuestTablePresence(ctx: Context, presence: PresenceService): Promise<void> {
@@ -118,7 +122,11 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  keyboard: boolean | "participants" | "enter-korchma" = false
+  keyboard:
+    | false
+    | "participants"
+    | "enter-korchma"
+    | { type: "adventure"; character: CharacterSummary } = false
 ): Promise<void> {
   const options = keyboard
     ? {
@@ -128,7 +136,7 @@ async function sendText(
             ? buildAdventureResultKeyboard("already-completed")
             : keyboard === "enter-korchma"
               ? buildKorchmaFrontKeyboard()
-            : buildAdventureKeyboard()
+            : buildAdventureKeyboard(keyboard.character)
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
 

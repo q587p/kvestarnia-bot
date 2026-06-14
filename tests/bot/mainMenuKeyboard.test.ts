@@ -163,6 +163,23 @@ describe("main menu and scene keyboards", () => {
     ]);
   });
 
+  it("keeps character-aware adventure labels on the same callback actions", () => {
+    expect(flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
+      "🗝️ Перевірити кишені",
+      "📋 Виманити чек",
+      "🏃 Зникнути за серветкою",
+      "👥 Учасники",
+      "⬅️ До столу"
+    ]);
+    expect(flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
+      "v1:adv:mimic:poke",
+      "v1:adv:mimic:receipt",
+      "v1:adv:mimic:flee",
+      "v1:adv:mimic:participants",
+      "v1:place:quest-table"
+    ]);
+  });
+
   it("keeps cellar inline buttons scoped to repeatable errand actions", () => {
     const actionButtons = [
       "🧀 Поставити сирну пастку",
@@ -197,6 +214,27 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildFightKeyboard())).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildFightResultKeyboard("completed"))).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildFightResultKeyboard("already-completed"))).toEqual([
+      "⬅️ До столу"
+    ]);
+  });
+
+  it("keeps character-aware fight labels on the same callback actions", () => {
+    expect(flatInlineButtonTexts(buildFightKeyboard({ ...character, classId: "class.bard" }))).toEqual([
+      "🎵 Вдарити приспівом",
+      "📋 Заспівати про чек",
+      "🏃 Піти на біс",
+      "⬅️ До столу"
+    ]);
+    expect(flatInlineButtonCallbacks(buildFightKeyboard({ ...character, classId: "class.bard" }))).toEqual([
+      "v1:fight:mimic:attack",
+      "v1:fight:mimic:receipt",
+      "v1:fight:mimic:flee",
+      "v1:place:quest-table"
+    ]);
+    expect(flatInlineButtonTexts(buildFightResultKeyboard("completed", { ...character, classId: "class.bard" }))).toEqual([
+      "🎵 Вдарити приспівом",
+      "📋 Заспівати про чек",
+      "🏃 Піти на біс",
       "⬅️ До столу"
     ]);
   });

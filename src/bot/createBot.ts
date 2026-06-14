@@ -1235,7 +1235,7 @@ async function handleAdventureCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentAdventureResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildAdventureResultKeyboard(result.state)
+    reply_markup: buildAdventureResultKeyboard(result.state, result.character)
   });
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
@@ -1357,7 +1357,7 @@ async function handleFightCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentFightResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildFightResultKeyboard(result.state)
+    reply_markup: buildFightResultKeyboard(result.state, result.character)
   });
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
