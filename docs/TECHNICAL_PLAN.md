@@ -226,6 +226,15 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - `cellar.mouse-errand` negotiate → `item.cork-ring-of-serious-business`
 - `tavern.friday-barrel-raid` → `item.apron-of-foam-resistance` plus one deterministic rotating barrel junk trophy
 
+У `0.0.17` той самий `daily_actions` path використовується для першої ротації монстрів із бестіарію:
+- `combat.hunt-board.contract` → один `/hunt` контракт на київський годинний відтинок, `3-7 XP`, `0-3` золота й максимум один детермінований `monsterLoot` item.
+- Вибір монстра детермінований від Kyiv-local `YYYY-MM-DDTHH` і character id; `monster.mimic-shawarma` і boss-tagged монстри не входять у перший Hunt Board MVP.
+- Старий period id у `v1:hunt:act:{period}:*` повертає stale-period copy і не створює claim для поточної години.
+
+Важливий борг Hunt Board callback-ів: поточний `v1:hunt:act:{period}:{action}` не містить `monsterId`, persisted contract id або короткий contract token. Оскільки контракт зараз переобчислюється з актуального content list за годинним period id і character id, майбутній deploy із доданими або переставленими монстрами може теоретично змінити монстра під старою кнопкою того самого київського годинного відтинку. Перед розширенням `/hunt` потрібно зафіксувати contract identity: або додати короткий stable token/monster id у callback, або persist-ити hourly contract row і валідувати callback проти нього.
+
+Другий MVP-борг: repeated/retry callback після успішного claim поки показує `already-completed`, але не відтворює оригінальні XP/золото/item details. `daily_actions` уже зберігає reward amounts, але повний reward replay потребує сервісного контракту, який зможе підняти item grants/details для existing claim без повторної видачі нагороди.
+
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 
 У `0.0.10` таблиця `character_cooldowns` використовується для першої repeatable активності:
@@ -251,7 +260,7 @@ Tavern raid timing in `0.0.11`/`0.0.15`/`0.0.16`:
 Рішення й борги для raid timing:
 - Pending-рейд на Бочку має переживати rollover годинного відтинку й видавати винагороду за period id старту. Поточний MVP зберігає period id у полі `daily_actions.local_date`; перед повним activity model це імʼя поля варто переглянути або задокументувати як generic idempotency bucket.
 - Runtime callers мають віддавати перевагу `advanceFridayBarrelRaid`, бо він володіє flow start/pending/complete/already-completed. `completeFridayBarrelRaid` лишати public тільки для compatibility/tests, доки service API не буде прибраний.
-- Поки рейд pending, stale scene callbacks на кшталт `v1:adv:mimic:*`, `v1:fight:mimic:*` і `v1:cellar:*` не мають перезаписувати `last_seen_location_id`, `current_raid_id` або `current_adventure_id` до того, як pending guard їх заблокує. Безпечне гортання може оновлювати last action, але не має замінювати рейдову присутність біля Бочки без явного location transition rule.
+- Поки рейд pending, stale scene callbacks на кшталт `v1:adv:mimic:*`, `v1:fight:mimic:*`, `v1:hunt:*` і `v1:cellar:*` не мають перезаписувати `last_seen_location_id`, `current_raid_id` або `current_adventure_id` до того, як pending guard їх заблокує. Безпечне гортання може оновлювати last action, але не має замінювати рейдову присутність біля Бочки без явного location transition rule.
 
 ## Presence MVP
 `0.0.9` додає легку in-game присутність на рівні `users`, бо окремої session table ще немає:
@@ -285,7 +294,7 @@ Web presence у `0.0.9`:
 
 Legacy ids `location.tavern`, `location.shawarma-table` і `location.tavern-cellar` лишаються read aliases для старих rows, але нові writes мають використовувати `location.korchma.*`. `/quest` не позначає гравця біля столу зі справами на рівні глобальної кнопки; command handler спершу перевіряє поточну місцину, блокує квест надворі й лише тоді переводить героя до столу. Підвал є відкритою aggregate-місциною для public `/presence`, але public web усе одно лишає `players` порожнім за замовчуванням.
 
-Routing rule у `0.0.11`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу.
+Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/hunt` у цьому MVP пише `location.korchma.quest_table` і `adventure.hunt-board.contract`, доки немає окремої wilderness/session model. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу.
 
 `0.0.11` також додає `korchma_round_purchases` як малий журнал підтверджених частувань:
 - `v1:tavern:round` тільки показує offer/statistics screen і не списує золото;
@@ -298,7 +307,7 @@ Routing rule у `0.0.11`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar`
 ## Telegram callback data
 Callback data коротка, версіонована.
 
-Поточні callback prefixes у `0.0.14`:
+Поточні callback prefixes у `0.0.17`:
 - `v1:onb:*`
 - `v1:menu:hero`
 - `v1:menu:help`
@@ -312,6 +321,7 @@ Callback data коротка, версіонована.
 - `v1:place:news-corner`
 - `v1:quest:adventure`
 - `v1:quest:fight`
+- `v1:quest:hunt`
 - `v1:quest:cellar`
 - `v1:news:list:{page}`
 - `v1:news:entry:{entryIndex}:{listPage}`
@@ -337,6 +347,10 @@ Callback data коротка, версіонована.
 - `v1:fight:mimic:attack`
 - `v1:fight:mimic:receipt`
 - `v1:fight:mimic:flee`
+- `v1:hunt:view:{localPeriodId}`
+- `v1:hunt:act:{localPeriodId}:strike`
+- `v1:hunt:act:{localPeriodId}:trick`
+- `v1:hunt:act:{localPeriodId}:retreat`
 - `v1:devreset:confirm`
 - `v1:devreset:cancel`
 - `v1:restart:confirm`

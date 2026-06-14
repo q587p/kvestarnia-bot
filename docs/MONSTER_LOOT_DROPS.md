@@ -2,6 +2,8 @@
 
 Поточна гра має просту item schema. Цей документ описує monster → item mapping без вимоги негайно робити random loot engine.
 
+У `0.0.17` `/hunt` використовує цей mapping дуже вузько: один детермінований щогодинний контракт може видати максимум один трофей із відповідного списку, тільки через `daily_actions` і без повної випадкової таблиці здобичі.
+
 ## Мімік-шаурма — `monster.mimic-shawarma`
 
 - Loot ids: `item.suspicious-shawarma-wrapper`, `item.receipt-of-formal-suspicion`, `item.stamp-of-minor-authority`

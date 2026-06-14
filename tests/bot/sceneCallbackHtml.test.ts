@@ -331,6 +331,10 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
       getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
       completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
     },
+    hunt: {
+      getHuntBoardForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      completeHuntContract: () => Promise.resolve({ state: "no-character" })
+    },
     onboarding: {},
     hero: {},
     inventory: {},

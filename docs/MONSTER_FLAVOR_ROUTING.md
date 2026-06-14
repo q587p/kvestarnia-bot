@@ -35,7 +35,7 @@ selectMonsterFlavorLine(character, {
   monsterId,
   placement: "monster.start",
   action,
-  seed: `${character.id}:${monsterId}:${localDate}`
+  seed: `${character.id}:${monsterId}:${localPeriodId}`
 });
 ```
 
@@ -64,4 +64,4 @@ selectMonsterFlavorLine(character, {
 - `flee`;
 - monster-specific alias у майбутньому.
 
-У першому PR достатньо `monster.start`, `monster.outcome` і `monster.loot-note` як content hooks, навіть якщо вони ще не всі підключені до Telegram flow.
+У `0.0.17` `/hunt` підключає `monster.start` для дошки й `monster.outcome` для результату, якщо такий рядок існує. `monster.loot-note` поки лишається content hook для майбутнього багатшого loot/result presenter-а.

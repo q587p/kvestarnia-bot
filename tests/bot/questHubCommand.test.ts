@@ -7,6 +7,7 @@ import type { CharacterSummary } from "../../src/domain/characters/characterSumm
 import type { AdventureService } from "../../src/services/adventureService";
 import type { CellarErrandService } from "../../src/services/cellarErrandService";
 import type { FightService } from "../../src/services/fightService";
+import type { HuntService } from "../../src/services/huntService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 import {
   PRESENCE_LOCATION_KORCHMA_FRONT,
@@ -60,6 +61,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).toContain("📋 Стіл зі справами");
     expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — готова до допиту.");
     expect(replies[0]?.text).toContain("⚔️ Сутичка з підозрілим монстром — можна починати.");
+    expect(replies[0]?.text).toContain("🏹 Дошка полювання — контракт на Скелет-вахтер печаток.");
     expect(replies[0]?.text).not.toContain("Мімік-шаурма");
     expect(replies[0]?.text).toContain("🧹 Підвальна справа — миша знову приймає аргументи.");
     expect(replies[0]?.options).toMatchObject({
@@ -67,6 +69,7 @@ describe("quest hub command", () => {
         inline_keyboard: [
           [{ text: "🌯 До шаурми", callback_data: makeQuestCallbackData("adventure") }],
           [{ text: "⚔️ До сутички", callback_data: makeQuestCallbackData("fight") }],
+          [{ text: "🏹 До дошки", callback_data: makeQuestCallbackData("hunt") }],
           [{ text: "🧹 У підвал", callback_data: makeQuestCallbackData("cellar") }],
           [{ text: "🍺 До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
@@ -116,7 +119,11 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    expect(buttons.map((button) => button.text)).toEqual(["🧹 У підвал", "🍺 До зали"]);
+    expect(buttons.map((button) => button.text)).toEqual([
+      "🏹 До дошки",
+      "🧹 У підвал",
+      "🍺 До зали"
+    ]);
   });
 
   it("blocks the quest hub while a barrel raid is pending", async () => {
@@ -185,6 +192,18 @@ const character: CharacterSummary = {
   }
 };
 
+const huntContract = {
+  localPeriodId: "2026-06-14T08",
+  monster: {
+    id: "monster.stamp-doorkeeper-skeleton",
+    name: "Скелет-вахтер печаток",
+    description: "Не пускає навіть смерть без пропуску.",
+    level: 2,
+    tags: ["undead"]
+  },
+  startFlavor: null
+};
+
 class CapturingPresenceService {
   readonly marks: MarkPlayerPresenceInput[] = [];
 
@@ -222,6 +241,7 @@ function servicesWith(overrides: {
   adventure?: AdventureService;
   cellarErrand?: CellarErrandService;
   fight?: FightService;
+  hunt?: HuntService;
   presence?: CapturingPresenceService;
   tavernRaid?: TavernRaidService;
 } = {}) {
@@ -256,6 +276,17 @@ function servicesWith(overrides: {
           }),
         completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
       } as unknown as FightService),
+    hunt:
+      overrides.hunt ??
+      ({
+        getHuntBoardForTelegramUser: () =>
+          Promise.resolve({
+            state: "ready",
+            character,
+            contract: huntContract
+          }),
+        completeHuntContract: () => Promise.resolve({ state: "no-character" })
+      } as unknown as HuntService),
     presence: overrides.presence ?? new CapturingPresenceService(),
     tavernRaid: overrides.tavernRaid
   };

@@ -10,6 +10,7 @@ import {
   buildCellarResultKeyboard
 } from "../../src/bot/keyboards/cellarKeyboard";
 import { buildFightKeyboard, buildFightResultKeyboard } from "../../src/bot/keyboards/fightKeyboard";
+import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
   buildEquipmentKeyboard,
   buildInventoryKeyboard,
@@ -200,6 +201,21 @@ describe("main menu and scene keyboards", () => {
     ]);
   });
 
+  it("keeps hunt board inline buttons scoped to hunt actions", () => {
+    expect(flatInlineButtonTexts(buildHuntBoardKeyboard(readyHunt()))).toEqual([
+      "🗡️ Вдарити по проблемі",
+      "🎭 Обдурити проблему",
+      "📋 Закрити актом",
+      "⬅️ До столу"
+    ]);
+    expect(flatInlineButtonCallbacks(buildHuntBoardKeyboard(readyHunt()))).toEqual([
+      "v1:hunt:act:2026-06-14T08:strike",
+      "v1:hunt:act:2026-06-14T08:trick",
+      "v1:hunt:act:2026-06-14T08:retreat",
+      "v1:place:quest-table"
+    ]);
+  });
+
   it("builds inventory and equipment preview navigation", () => {
     expect(flatInlineButtonTexts(buildInventoryKeyboard({ state: "no-character" }))).toEqual([]);
     expect(
@@ -345,10 +361,11 @@ describe("main menu and scene keyboards", () => {
         buildQuestHubKeyboard({
           adventure: { state: "ready", character },
           fight: { state: "ready", character },
+          hunt: { state: "ready", character, contract: huntContract },
           cellar: { state: "ready", character }
         })
       )
-    ).toEqual(["🌯 До шаурми", "⚔️ До сутички", "🧹 У підвал", "🍺 До зали"]);
+    ).toEqual(["🌯 До шаурми", "⚔️ До сутички", "🏹 До дошки", "🧹 У підвал", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -362,6 +379,11 @@ describe("main menu and scene keyboards", () => {
             state: "already-completed",
             character,
             questAvailable: false
+          },
+          hunt: {
+            state: "already-completed",
+            character,
+            contract: huntContract
           },
           cellar: { state: "ready", character }
         })
@@ -406,11 +428,31 @@ const character = {
   }
 } as const;
 
+const huntContract = {
+  localPeriodId: "2026-06-14T08",
+  monster: {
+    id: "monster.stamp-doorkeeper-skeleton",
+    name: "Скелет-вахтер печаток",
+    description: "Не пускає навіть смерть без пропуску.",
+    level: 2,
+    tags: ["undead"]
+  },
+  startFlavor: null
+} as const;
+
 const emptyRoundLeaderboard = {
   day: [],
   week: [],
   month: []
 };
+
+function readyHunt() {
+  return {
+    state: "ready",
+    character,
+    contract: huntContract
+  } as const;
+}
 
 function flatInlineButtonTexts(keyboard: { inline_keyboard: { text: string }[][] }): string[] {
   return keyboard.inline_keyboard.flat().map((button) => button.text);

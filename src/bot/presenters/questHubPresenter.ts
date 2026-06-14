@@ -2,12 +2,14 @@ import type { CharacterSummary } from "../../domain/characters/characterSummary"
 import type { AdventureLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { FightLookupResult } from "../../services/fightService";
+import type { HuntLookupResult } from "../../services/huntService";
 import { escapeHtml } from "./telegramHtml";
 
 export interface QuestHubSnapshot {
   character: CharacterSummary;
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
+  hunt: Exclude<HuntLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
 }
 
@@ -20,6 +22,7 @@ export function presentQuestHub(snapshot: QuestHubSnapshot): string {
     "",
     presentAdventureRow(snapshot.adventure),
     presentFightRow(snapshot.fight),
+    presentHuntRow(snapshot.hunt),
     presentCellarRow(snapshot.cellar),
     "",
     "Оберіть справу, поки вона не обрала вас."
@@ -48,6 +51,15 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
 
   return `⚔️ Сутичка з підозрілим монстром — ${status}.`;
+}
+
+function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" }>): string {
+  const status =
+    hunt.state === "ready"
+      ? `контракт на ${escapeHtml(hunt.contract.monster.name)}`
+      : "у цю годину вже закрито";
+
+  return `🏹 Дошка полювання — ${status}.`;
 }
 
 function presentCellarRow(

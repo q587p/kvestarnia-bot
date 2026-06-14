@@ -3,6 +3,7 @@ import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
 import { makeFightCallbackData } from "../../src/bot/callbacks/fightCallbackData";
+import { makeHuntActionCallbackData } from "../../src/bot/callbacks/huntCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -224,6 +225,10 @@ describe("presence middleware", () => {
       callbackData: makeFightCallbackData("attack")
     },
     {
+      name: "hunt",
+      callbackData: makeHuntActionCallbackData("2026-06-14T08", "strike")
+    },
+    {
       name: "cellar",
       callbackData: makeCellarCallbackData("negotiate")
     },
@@ -265,6 +270,33 @@ describe("presence middleware", () => {
 
     await bot.handleUpdate(callbackUpdate(callbackData));
 
+    expect(presence.marks).toEqual([
+      {
+        user: {
+          telegramUserId: 42n,
+          displayName: "Тест"
+        }
+      }
+    ]);
+  });
+
+  it("blocks hunt action callbacks outside the korchma before claiming the hourly hunt", async () => {
+    const presence = new CapturingPresenceService();
+    let claimCount = 0;
+    const bot = createTestBot(presence, {
+      hunt: {
+        getHuntBoardForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        completeHuntContract: () => {
+          claimCount += 1;
+          return Promise.resolve({ state: "no-character" });
+        }
+      }
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makeHuntActionCallbackData("2026-06-14T08", "strike")));
+
+    expect(claimCount).toBe(0);
     expect(presence.marks).toEqual([
       {
         user: {
@@ -455,6 +487,10 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
     fight: {
       getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
       completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+    },
+    hunt: {
+      getHuntBoardForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      completeHuntContract: () => Promise.resolve({ state: "no-character" })
     },
     onboarding: {},
     hero: {},

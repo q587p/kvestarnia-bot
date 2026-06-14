@@ -1,48 +1,48 @@
 import type { Bot, Context } from "grammy";
-import type { FightService } from "../../services/fightService";
+import type { HuntService } from "../../services/huntService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
-  PRESENCE_ADVENTURE_MIMIC_FIGHT,
+  PRESENCE_ADVENTURE_HUNT_BOARD,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type PresenceService
 } from "../../services/presenceService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
-import { buildFightKeyboard } from "../keyboards/fightKeyboard";
+import { buildHuntBoardKeyboard } from "../keyboards/huntKeyboard";
 import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import {
-  presentFightAlreadyCompleted,
-  presentFightNoCharacter,
-  presentFightStart
-} from "../presenters/fightPresenter";
+  presentHuntAlreadyCompleted,
+  presentHuntBoard,
+  presentHuntNoCharacter
+} from "../presenters/huntPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 
-export interface FightCommandOptions {
+export interface HuntCommandOptions {
   presence: PresenceService;
   tavernRaid?: TavernRaidService;
 }
 
-export function registerFightCommand(
+export function registerHuntCommand(
   bot: Bot,
-  fightService: FightService,
-  options: FightCommandOptions
+  huntService: HuntService,
+  options: HuntCommandOptions
 ): void {
-  bot.command("fight", async (ctx) => {
-    await sendFight(ctx, fightService, "reply", {
+  bot.command("hunt", async (ctx) => {
+    await sendHuntBoard(ctx, huntService, "reply", {
       ...options,
       requireKorchmaInterior: true
     });
   });
 }
 
-export async function sendFight(
+export async function sendHuntBoard(
   ctx: Context,
-  fightService: FightService,
+  huntService: HuntService,
   mode: "reply" | "edit",
-  options?: FightCommandOptions & {
+  options?: HuntCommandOptions & {
     requireKorchmaInterior?: boolean;
   }
 ): Promise<void> {
@@ -63,7 +63,7 @@ export async function sendFight(
     const place = await options.presence.getCurrentPlaceForTelegramUser(telegramUserId);
 
     if (place.state === "no-character") {
-      await sendText(ctx, mode, presentFightNoCharacter());
+      await sendText(ctx, mode, presentHuntNoCharacter());
       return;
     }
 
@@ -73,29 +73,30 @@ export async function sendFight(
     }
   }
 
-  const result = await fightService.getMimicShawarmaForTelegramUser(telegramUserId);
+  const result = await huntService.getHuntBoardForTelegramUser(telegramUserId);
 
   if (result.state === "no-character") {
-    await sendText(ctx, mode, presentFightNoCharacter());
+    await sendText(ctx, mode, presentHuntNoCharacter());
     return;
   }
 
-  if (options?.presence) {
-    await markFightPresence(ctx, options.presence);
-  }
+  await markHuntPresence(ctx, options?.presence);
 
   if (result.state === "already-completed") {
-    await sendText(ctx, mode, presentFightAlreadyCompleted(result));
+    await sendText(ctx, mode, presentHuntAlreadyCompleted(result));
     return;
   }
 
-  await sendText(ctx, mode, presentFightStart(result.character), true);
+  await sendText(ctx, mode, presentHuntBoard(result), result);
 }
 
-async function markFightPresence(ctx: Context, presence: PresenceService): Promise<void> {
+export async function markHuntPresence(
+  ctx: Context,
+  presence: PresenceService | undefined
+): Promise<void> {
   const player = playerFromContext(ctx.from);
 
-  if (!player) {
+  if (!player || !presence) {
     return;
   }
 
@@ -103,7 +104,7 @@ async function markFightPresence(ctx: Context, presence: PresenceService): Promi
     user: player,
     locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
     currentRaidId: null,
-    currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
+    currentAdventureId: PRESENCE_ADVENTURE_HUNT_BOARD
   });
 }
 
@@ -111,12 +112,13 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  keyboard: boolean | "enter-korchma" = false
+  keyboard: Parameters<typeof buildHuntBoardKeyboard>[0] | "enter-korchma" | false = false
 ): Promise<void> {
   const options = keyboard
     ? {
         parse_mode: "HTML" as const,
-        reply_markup: keyboard === "enter-korchma" ? buildKorchmaFrontKeyboard() : buildFightKeyboard()
+        reply_markup:
+          keyboard === "enter-korchma" ? buildKorchmaFrontKeyboard() : buildHuntBoardKeyboard(keyboard)
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
 
