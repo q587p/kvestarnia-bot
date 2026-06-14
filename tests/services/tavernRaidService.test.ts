@@ -31,6 +31,7 @@ import {
   FRIDAY_BARREL_RAID_KEY,
   FRIDAY_BARREL_RAID_PENDING_KEY,
   getBarrelRaidPeriod,
+  getBarrelRaidWaitBounds,
   getNextBarrelRaidAvailableAt,
   isBarrelRaidAuditBreak,
   KORCHMA_FINE_ROUND_COST,
@@ -39,8 +40,10 @@ import {
 } from "../../src/services/tavernRaidService";
 
 const telegramUserId = 42n;
-const fixedRaidPeriodId = "2026-06-12T13:23";
-const fixedRaidReward = buildBarrelRaidRewardAmounts(fixedRaidPeriodId, telegramUserId);
+const fixedRaidReward = buildBarrelRaidRewardAmounts({
+  characterLevel: 1,
+  waitDurationMs: 5 * 60_000
+});
 
 describe("TavernRaidService", () => {
   it("builds hourly barrel raid periods from Kyiv korchma time", () => {
@@ -102,21 +105,53 @@ describe("TavernRaidService", () => {
     );
   });
 
-  it("builds deterministic randomized barrel raid XP and gold per period and player", () => {
-    expect(fixedRaidReward).toEqual({
-      xp: 25,
-      gold: 10
+  it("scales barrel raid wait bounds by level", () => {
+    expect(getBarrelRaidWaitBounds(1)).toEqual({
+      minSeconds: 300,
+      maxSeconds: 480
     });
-    expect(buildBarrelRaidRewardAmounts(fixedRaidPeriodId, telegramUserId)).toEqual(
-      fixedRaidReward
-    );
-    expect(buildBarrelRaidRewardAmounts(fixedRaidPeriodId, 43n)).toEqual({
-      xp: 26,
+    expect(getBarrelRaidWaitBounds(3)).toEqual({
+      minSeconds: 300,
+      maxSeconds: 540
+    });
+    expect(getBarrelRaidWaitBounds(10)).toEqual({
+      minSeconds: 300,
+      maxSeconds: 750
+    });
+  });
+
+  it("builds deterministic barrel raid XP and gold from wait duration", () => {
+    expect(fixedRaidReward).toEqual({
+      xp: 18,
       gold: 8
     });
-    expect(buildBarrelRaidRewardAmounts("2026-06-12T14:23", telegramUserId)).not.toEqual(
-      fixedRaidReward
-    );
+    expect(
+      buildBarrelRaidRewardAmounts({
+        characterLevel: 1,
+        waitDurationMs: 8 * 60_000
+      })
+    ).toEqual({
+      xp: 26,
+      gold: 14
+    });
+    expect(
+      buildBarrelRaidRewardAmounts({
+        characterLevel: 10,
+        waitDurationMs: 12.5 * 60_000
+      })
+    ).toEqual({
+      xp: 38,
+      gold: 23
+    });
+    expect(
+      buildBarrelRaidRewardAmounts({
+        characterLevel: 10,
+        waitDurationMs: 8 * 60_000
+      })
+    ).toEqual({
+      xp: 26,
+      gold: 14
+    });
   });
 
   it("prompts /start path when no character exists", async () => {
@@ -175,7 +210,7 @@ describe("TavernRaidService", () => {
       ]);
       expect(first.levelChange).toMatchObject({
         oldLevel: 1,
-        newLevel: 3,
+        newLevel: 2,
         leveledUp: true
       });
     }
@@ -191,7 +226,7 @@ describe("TavernRaidService", () => {
 
     expect(result.state).toBe("completed");
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 32,
+      xp: 25,
       level: 3
     });
     if (result.state === "completed") {
@@ -305,6 +340,28 @@ describe("TavernRaidService", () => {
     expect(dailyActions.records).toHaveLength(0);
   });
 
+  it("raises the possible barrel raid wait ceiling for higher-level heroes", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const service = createTavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      new FakeRandomSource([0.999])
+    );
+
+    const result = await service.advanceFridayBarrelRaid(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "pending-started",
+      availableAt: new Date("2026-06-12T10:39:00.000Z")
+    });
+    expect(dailyActions.records).toHaveLength(0);
+  });
+
   it("completes the barrel raid after the pending wait and keeps rewards idempotent", async () => {
     let now = new Date("2026-06-12T10:30:00.000Z");
     const clock = () => now;
@@ -340,6 +397,43 @@ describe("TavernRaidService", () => {
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       xp: fixedRaidReward.xp,
       gold: fixedRaidReward.gold
+    });
+  });
+
+  it("awards more XP and gold when a higher-level barrel raid takes longer", async () => {
+    let now = new Date("2026-06-12T10:30:00.000Z");
+    const clock = () => now;
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const service = new TavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      clock,
+      new FakeRandomSource([0.999])
+    );
+
+    await service.advanceFridayBarrelRaid(telegramUserId);
+    now = new Date("2026-06-12T10:39:01.000Z");
+    const completed = await service.advanceFridayBarrelRaid(telegramUserId);
+
+    expect(completed).toMatchObject({
+      state: "completed",
+      reward: {
+        xp: 29,
+        gold: 16
+      }
+    });
+    expect(dailyActions.records[0]).toMatchObject({
+      rewardXp: 29,
+      rewardGold: 16
+    });
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: 54,
+      gold: 16
     });
   });
 
@@ -582,13 +676,13 @@ describe("TavernRaidService", () => {
 
     expect(result).toMatchObject({
       state: "ready",
-      gold: 135,
+      gold: 133,
       canBuySimple: true,
       canBuyFine: true
     });
     expect(roundPurchases.purchases).toHaveLength(0);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      gold: 135
+      gold: 133
     });
   });
 
@@ -610,7 +704,7 @@ describe("TavernRaidService", () => {
     await service.completeFridayBarrelRaid(telegramUserId);
     await expect(service.getRoundOfferForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "ready",
-      gold: 135
+      gold: 133
     });
 
     now = new Date("2026-06-12T11:23:00.000Z");
@@ -633,7 +727,7 @@ describe("TavernRaidService", () => {
     expect(result).toMatchObject({
       state: "fine-round",
       spentGold: KORCHMA_FINE_ROUND_COST,
-      remainingGold: 35
+      remainingGold: 33
     });
     expect(roundPurchases.purchases).toMatchObject([
       {
@@ -652,7 +746,7 @@ describe("TavernRaidService", () => {
       expect(result.becameLeader).toEqual(["day", "week", "month"]);
     }
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      gold: 35
+      gold: 33
     });
   });
 
@@ -701,7 +795,7 @@ describe("TavernRaidService", () => {
     expect(result).toMatchObject({
       state: "simple-round",
       spentGold: KORCHMA_SIMPLE_ROUND_COST,
-      remainingGold: 12
+      remainingGold: 10
     });
   });
 

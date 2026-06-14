@@ -29,6 +29,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Cellar mouse action buttons can now use character-aware labels while keeping the same validated callback payloads, cooldown, and reward math.
 - The first fight screen now avoids naming the monster before the player acts; the reveal stays in the resolved outcome.
 - Character summaries now lift old capped characters upward from stored XP if they already earned enough for the expanded progression curve.
+- Barrel raid wait now scales by hero level: level 1 keeps the old 5-8 minute range, each later level adds 30 seconds to the possible maximum, and XP/gold are deterministic from the stored wait duration instead of a period/user roll.
 - Documented future usable-item metadata and item-driven quest/combat dialogue buttons as itemization debt, not part of the current reward math.
 - `daily_actions` remains the authoritative idempotency boundary for XP/gold/items; `hunt_contracts` is an audit/replay ledger, not a second reward source.
 
@@ -88,7 +89,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Barrel raid period ids are now explicitly Kyiv-local korchma buckets that flip on the 23rd minute. The audit break blocks new starts from 03:00 to 07:00 Kyiv time.
 - Player-facing audit-break wording now names the Kyiv korchma time basis and avoids tiny second-level boundary copy.
-- Barrel raid rewards now roll deterministic per-period/per-player amounts: `18-26 XP` and `8-14 gold`, so the hourly wait pays better than one basement mouse errand without letting repeated callbacks reroll the result.
+- Barrel raid rewards now roll deterministic per-period/per-player amounts: `18-26 XP` and `8-14 gold`, so the hourly wait pays better than one basement mouse errand without letting repeated callbacks reroll the result. Superseded in `0.0.19` by deterministic duration-based rewards.
 - Barrel raid completion notifications now go through a small scheduler helper with one timer per `chatId + telegramUserId + periodId`, while the service reward claim remains the source of truth.
 - Kept `/health` as the text/plain Render healthcheck while moving the public project surface to `/`.
 
