@@ -205,6 +205,7 @@ export function presentPendingRaidActionBlock(
 ): string {
   return [
     "🍺 Ви зараз у рейді.",
+    "",
     "Інші пригоди тимчасово недоступні: Бочка Пінного Міражу не любить, коли її ігнорують посеред драматичної піни.",
     "",
     `Перевірте бочку через <b>${formatRaidWait(result.availableAt, result.now)}</b>`
