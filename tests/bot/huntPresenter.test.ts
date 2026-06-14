@@ -33,8 +33,9 @@ describe("hunt presenter", () => {
       }
     });
 
-    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
-    expect(text).toContain("Титул &lt;i&gt;підступу&lt;/i&gt;");
+    expect(text).toContain(
+      "<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b> · <i>Титул &lt;i&gt;підступу&lt;/i&gt;</i>"
+    );
     expect(text).toContain("&lt;script&gt;Проблема&lt;/script&gt;");
     expect(text).toContain("Опис із &lt;b&gt;зубами&lt;/b&gt;.");
     expect(text).toContain("Флейвор із &lt;b&gt;теґом&lt;/b&gt;.");

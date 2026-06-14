@@ -3,7 +3,7 @@ import type { AdventureLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { FightLookupResult } from "../../services/fightService";
 import type { HuntLookupResult } from "../../services/huntService";
-import { escapeHtml } from "./telegramHtml";
+import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export interface QuestHubSnapshot {
   character: CharacterSummary;
@@ -16,7 +16,7 @@ export interface QuestHubSnapshot {
 export function presentQuestHub(snapshot: QuestHubSnapshot): string {
   const lines = [
     "📋 Стіл зі справами",
-    `${escapeHtml(snapshot.character.name)} · ${escapeHtml(snapshot.character.title)}`,
+    presentCharacterHeader(snapshot.character),
     "",
     "На столі лежать справи. Деякі лежать тихо. Деякі дихають.",
     "",

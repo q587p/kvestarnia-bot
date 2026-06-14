@@ -1,12 +1,12 @@
 import type { HuntLookupResult, HuntResult } from "../../services/huntService";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
-import { escapeHtml } from "./telegramHtml";
+import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export function presentHuntBoard(result: Extract<HuntLookupResult, { state: "ready" }>): string {
   const monster = result.contract.monster;
   const lines = [
     "🏹 Дошка полювання",
-    `${escapeHtml(result.character.name)} · ${escapeHtml(result.character.title)}`,
+    presentCharacterHeader(result.character),
     "",
     "Корчмар пришпилив проблему цієї години. Вона ще не знає, що стала паперовою.",
     "",

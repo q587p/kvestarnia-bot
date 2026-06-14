@@ -59,6 +59,7 @@ describe("quest hub command", () => {
     await sendQuestHub(makeContext(replies), servicesWith({ presence }), "reply");
 
     expect(replies[0]?.text).toContain("📋 Стіл зі справами");
+    expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
     expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — готова до допиту.");
     expect(replies[0]?.text).toContain("⚔️ Сутичка з підозрілим монстром — можна починати.");
     expect(replies[0]?.text).toContain("🏹 Дошка полювання — контракт на Скелет-вахтер печаток.");
