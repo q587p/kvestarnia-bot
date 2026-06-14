@@ -136,6 +136,44 @@ Future equipment/trading notes:
 - `created_at`
 - unique (`character_id`, `key`, `local_date`)
 
+### achievement_definitions
+Planned for `0.0.21 — Achievements Phase 1`.
+
+- `id` stable content id
+- `title`
+- `criterion`
+- `locked_hint`
+- `category`
+- `trigger_event`
+- `metric`
+- `target`
+- `hidden`
+- `grant_title`
+- `enabled`
+- `sort_order`
+- timestamps
+
+### player_achievements
+Planned for `0.0.21 — Achievements Phase 1`.
+
+- owner id (`player_id`/`user_id` or `character_id`, choose the smallest fit with current schema)
+- `achievement_id`
+- `unlocked_at`
+- `notified_at` nullable
+- `progress_current_snapshot` nullable
+- unique owner + achievement
+
+### achievement_progress
+Planned for `0.0.21 — Achievements Phase 1`.
+
+- owner id
+- `achievement_id`
+- `current`
+- `target`
+- `updated_at`
+
+Achievement storage is rewardless in Phase 1: it tracks title-like unlocks and progress, not XP/gold/items or combat power. Existing canonical stats should be reused where possible instead of duplicated.
+
 ### combats
 - `id` UUID
 - `character_id` FK
@@ -345,6 +383,7 @@ Callback data коротка, версіонована.
 - `v1:quest:fight`
 - `v1:quest:hunt`
 - `v1:quest:cellar`
+- planned `v1:ach:list:{category}:{page}` or shorter equivalent for `0.0.21`; generated achievement callbacks must stay <=64 bytes.
 - `v1:news:list:{page}`
 - `v1:news:entry:{entryIndex}:{listPage}`
 - `v1:tavern:raid`
