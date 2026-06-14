@@ -122,7 +122,7 @@
 - [`docs/MONSTER_LOOT_DROPS.md`](docs/MONSTER_LOOT_DROPS.md) — monster → item mapping без увімкненого random loot engine.
 - [`docs/MONSTER_FLAVOR_ROUTING.md`](docs/MONSTER_FLAVOR_ROUTING.md) — selector-пріоритети для race/class/path/combo monster flavor.
 - [`docs/CONTENT_STYLE_GUIDE.md`](docs/CONTENT_STYLE_GUIDE.md) — український тон, гумор, лапки, формат Telegram-повідомлень.
-- [`docs/INSPIRATION_CONTENT_BACKLOG.md`](docs/INSPIRATION_CONTENT_BACKLOG.md) — джерела смаку, контентні заготовки й правило «смак, не копія».
+- [`docs/INSPIRATION_CONTENT_BACKLOG.md`](docs/INSPIRATION_CONTENT_BACKLOG.md) — очищені джерела смаку, безпечні правила запозичення й backlog монстрів, манаток, пригод та алюзій.
 - [`docs/TERMINOLOGY.md`](docs/TERMINOLOGY.md) — правило `пригодник` / `персонаж` / `герой` і репутаційні шляхи.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — фази розвитку й Definition of Done для продукту.
 - [`docs/PHASE1_FINISH_PLAN.md`](docs/PHASE1_FINISH_PLAN.md) — scope lock для добивання combat → equipment stats → loot → рівнів 1-10.
@@ -141,7 +141,7 @@
 
 Це не список речей для копіювання. Це джерела смаку: швидкий жарт, впізнаваний архетип, абсурдна системність, радість від луту, групове «ну давай ще один раз» і відчуття, що пригодник може стати героєм, антигероєм або проблемою, яку внесли в журнал.
 
-Детальний backlog перетворення цих джерел на монстрів, манатки й пригоди живе в [`docs/INSPIRATION_CONTENT_BACKLOG.md`](docs/INSPIRATION_CONTENT_BACKLOG.md).
+Детальний backlog перетворення цих джерел на монстрів, манатки, пригоди, топоніми, короткі репліки, пародії та безпечні алюзії живе в [`docs/INSPIRATION_CONTENT_BACKLOG.md`](docs/INSPIRATION_CONTENT_BACKLOG.md). Правило просте: брати смак і механіку жарту, не копіювати чужі сцени, персонажів, унікальні топоніми або довгі цитати.
 
 ---
 
