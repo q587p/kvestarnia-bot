@@ -37,8 +37,17 @@ describe("summarizeCharacter", () => {
     });
   });
 
+  it("uses XP to lift characters past the former level cap", () => {
+    expect(summarizeCharacter(character({ level: 5, xp: 225 }))).toMatchObject({
+      level: 8,
+      nextLevelXp: 305,
+      xpToNextLevel: 80
+    });
+  });
+
   it("handles capped level", () => {
-    expect(summarizeCharacter(character({ level: 5, xp: 75 }))).toMatchObject({
+    expect(summarizeCharacter(character({ level: 10, xp: 425 }))).toMatchObject({
+      level: 10,
       nextLevelXp: null,
       xpToNextLevel: null
     });

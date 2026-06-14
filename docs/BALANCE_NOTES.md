@@ -73,17 +73,7 @@ escape_chance = clamp(0.45 + (DEX + LUCK - monster_level * 2) * 0.01, 0.25, 0.80
 ```
 
 ## XP curve
-Поточний alpha helper у runtime поки має видимі пороги 1-5:
-
-```text
-level 1: 0 total XP
-level 2: 10
-level 3: 25
-level 4: 45
-level 5: 70
-```
-
-Для Phase 1 finish запланована єдина progression-логіка 1-10, яку використовують rewards, combat, hero profile і тести. Робоча alpha-крива:
+Поточний alpha helper має єдину progression-логіку 1-10, яку використовують rewards, combat-facing summary, hero profile і тести. Робоча alpha-крива:
 
 ```text
 level 1: 0 total XP

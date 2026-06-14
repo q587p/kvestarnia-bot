@@ -406,7 +406,7 @@ Domain result → presenter → Telegram text/buttons.
 - `getNextLevelThreshold(level)`
 - `applyXpReward(currentXp, xpReward)`
 
-Пороги першого slice: `0`, `10`, `25`, `45`, `70` XP для рівнів 1–5. Tavern, adventure і fight rewards мають використовувати цей helper, щоб `/hero` відразу показував оновлений рівень.
+Поточні Phase 1 alpha-пороги: `0`, `10`, `25`, `45`, `70`, `110`, `160`, `225`, `305`, `400` XP для рівнів 1–10. Tavern, adventure, fight, cellar, Hunt Board і raid rewards мають використовувати цей helper, щоб `/hero` відразу показував оновлений рівень. `summarizeCharacter(...)` також піднімає summary-рівень за stored XP, щоб персонажі, які вперлися у стару стелю, не лишалися під старим cap після розширення лінійки.
 
 `0.0.7` додає derived effective stats без міграції схеми:
 - stored `hpMax`, `manaMax` і `statsJson` залишаються level-1 базою;
@@ -440,7 +440,7 @@ Future korchma progression boards:
 - Add a durable event/log source for first arrival and level-up milestones instead of deriving them from mutable current character state.
 - Level-up records should be idempotent per `character_id` + reached `level`; repeated reward callbacks must not duplicate the same milestone.
 - The front-of-korchma level board can show recent level-ups plus a ranking by highest reached level. Use deterministic tie-breakers: reached level desc, achieved time asc, then stable `character_id`.
-- Level 10 needs a distinct milestone type or presenter branch so it can be highlighted without hard-coding string searches.
+- Level 10 already has a distinct level-up presenter branch; the future board needs a durable milestone type/event so it can highlight the same achievement without hard-coding string searches.
 - Keep these boards as in-game Telegram surfaces near `location.korchma.front`; public web presence must still avoid exposing player names by default.
 
 ## Observability

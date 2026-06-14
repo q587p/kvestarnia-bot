@@ -9,7 +9,7 @@ export function presentHero(
 ): string {
   const progressLine =
     summary.nextLevelXp === null
-      ? `Рівень <b>${summary.level}</b> · XP ${summary.xp} · поточна стеля альфи`
+      ? `Рівень <b>${summary.level}</b> · XP ${summary.xp} · ви дійшли до краю поточної гри`
       : `Рівень <b>${summary.level}</b> · XP ${summary.xp} · до наступного: ${summary.xpToNextLevel} XP`;
   const growthLine = presentLevelBonus(summary.levelBonus);
   const inventoryGoldValue = options.inventoryGoldValue ?? 0;

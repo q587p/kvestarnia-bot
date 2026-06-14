@@ -17,6 +17,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added light onboarding gates: starter shawarma and fight retire after level 3, cellar errands run only on levels 2-3, and Hunt Board contracts unlock from level 3.
 - Added broader character-aware starter flavor for the first shawarma quest and its fight probe, including race/class pools and combo coverage for available onboarding combinations.
 - Added broader character-aware cellar mouse flavor, including race/class pools, combo coverage, and action-specific outcome lines for basement interactions.
+- Raised the current level progression cap to level 10 using the Phase 1 XP curve, with a special level-cap celebration message.
 - Added tests for schema/migration shape, ledger JSON serialization, posted-row creation, persisted contract reuse, token mismatch safety, legacy callback safety, missing-monster fallback, and replay presenter escaping.
 
 ### Changed
@@ -26,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Starter shawarma and fight action buttons can now use character-aware labels while keeping the same validated callback payloads and reward math.
 - Cellar mouse action buttons can now use character-aware labels while keeping the same validated callback payloads, cooldown, and reward math.
 - The first fight screen now avoids naming the monster before the player acts; the reveal stays in the resolved outcome.
+- Character summaries now lift old capped characters upward from stored XP if they already earned enough for the expanded progression curve.
 - `daily_actions` remains the authoritative idempotency boundary for XP/gold/items; `hunt_contracts` is an audit/replay ledger, not a second reward source.
 
 ### Not Included Yet

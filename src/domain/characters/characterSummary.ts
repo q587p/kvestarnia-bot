@@ -6,7 +6,7 @@ import {
   buildEffectiveCharacterStats,
   type LevelBonus
 } from "../progression/effectiveStats";
-import { getNextLevelThreshold } from "../progression/level";
+import { getLevelForXp, getNextLevelThreshold } from "../progression/level";
 import { getCharacterPath, type CharacterPath } from "./path";
 import type { CharacterStats } from "./starterStats";
 
@@ -55,8 +55,8 @@ export function summarizeCharacter(input: CharacterSummaryInput): CharacterSumma
   const race = races.find((candidate) => candidate.id === input.raceId);
   const characterClass = classes.find((candidate) => candidate.id === input.classId);
   const pronoun = parsePronoun(input.pronoun);
-  const level = Math.max(1, Math.floor(input.level));
   const xp = Math.max(0, Math.floor(input.xp));
+  const level = Math.max(1, Math.floor(input.level), getLevelForXp(xp));
   const nextLevelXp = getNextLevelThreshold(level);
   const effectiveStats = buildEffectiveCharacterStats({
     level,

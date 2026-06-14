@@ -96,14 +96,14 @@ describe("hero presenter", () => {
   it("shows alpha cap wording at the current level cap", () => {
     const text = presentHero({
       ...summary,
-      level: 5,
-      xp: 75,
+      level: 10,
+      xp: 425,
       nextLevelXp: null,
       xpToNextLevel: null
     });
 
-    expect(text).toContain("поточна стеля альфи");
-    expect(text).not.toContain("до рівня 6");
+    expect(text).toContain("ви дійшли до краю поточної гри");
+    expect(text).not.toContain("до рівня 11");
   });
 
   it("prompts /start when the character does not exist", () => {

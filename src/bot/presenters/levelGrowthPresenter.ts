@@ -1,5 +1,6 @@
 import type { LevelBonus } from "../../domain/progression/effectiveStats";
 import { buildLevelGrowthBonus } from "../../domain/progression/effectiveStats";
+import { LEVEL_XP_THRESHOLDS } from "../../domain/progression/level";
 import type { RewardLevelChange } from "../../db/repositories/dailyActionRepository";
 import type { StatKey } from "../../domain/characters/starterStats";
 
@@ -33,6 +34,10 @@ export function presentLevelUpCelebration(
     return null;
   }
 
+  if (levelChange.newLevel >= LEVEL_XP_THRESHOLDS.length) {
+    return presentLevelCapCelebration(levelChange, classId);
+  }
+
   const growth = presentLevelBonus(
     buildLevelGrowthBonus(levelChange.oldLevel, levelChange.newLevel, classId)
   );
@@ -47,6 +52,34 @@ export function presentLevelUpCelebration(
   }
 
   lines.push("", "Корчма робить вигляд, що так і планувала.");
+
+  return lines.join("\n");
+}
+
+function presentLevelCapCelebration(
+  levelChange: RewardLevelChange,
+  classId: string
+): string {
+  const growth = presentLevelBonus(
+    buildLevelGrowthBonus(levelChange.oldLevel, levelChange.newLevel, classId)
+  );
+  const lines = [
+    "🏆 Ви дісталися вершини поточної Квестарні!",
+    "",
+    `✨ <b>${levelChange.oldLevel} → ${levelChange.newLevel}</b>`,
+    "Вітаємо: ви виграли гру. Принаймні ту її частину, яку корчмар уже встиг пришити до реальності."
+  ];
+
+  if (growth) {
+    lines.push("", `📈 Останній ріст: <b>${growth}</b>`);
+  }
+
+  lines.push(
+    "",
+    "Корчма аплодує, Бочка робить вигляд, що не плаче піною.",
+    "",
+    "Хочете перевірити, як воно грається за когось іншого? /restart відкриє новий журнал. Старий герой не образиться. Голосно."
+  );
 
   return lines.join("\n");
 }
