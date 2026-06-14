@@ -429,6 +429,35 @@ describe("character flavor content", () => {
     expect(poke?.id).not.toBe("shawarma.outcome.bureaucramancer.receipt");
   });
 
+  it("keeps class outcome flavor distinct instead of swapping only the class name", () => {
+    const mage = selectCharacterFlavorLine(
+      {
+        ...baseCharacter,
+        raceId: "race.unknown",
+        classId: "class.mage",
+        className: "Маг"
+      },
+      fixed("quest.outcome", "fight", "attack")
+    );
+    const bureaucramancer = selectCharacterFlavorLine(
+      {
+        ...baseCharacter,
+        raceId: "race.unknown",
+        classId: "class.bureaucramancer",
+        className: "Бюрокромант"
+      },
+      fixed("quest.outcome", "fight", "attack")
+    );
+
+    expect(mage?.text).toContain("Маг");
+    expect(mage?.text).toContain("іскри");
+    expect(bureaucramancer?.text).toContain("Бюрокромант");
+    expect(bureaucramancer?.text).toContain("формою");
+    expect(mage?.text).not.toBe(bureaucramancer?.text);
+    expect(mage?.text).not.toContain("перетворює проблему на досвід");
+    expect(bureaucramancer?.text).not.toContain("перетворює проблему на досвід");
+  });
+
   it("does not expose hidden path names in selected player-facing text", () => {
     const line = selectCharacterFlavorLine(
       {

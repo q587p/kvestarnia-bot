@@ -258,7 +258,7 @@ function buildShawarmaStartComboLines(): CharacterFlavorLine[] {
     placement: "quest.start",
     scene: "shawarma",
     selector: { combos: [{ raceId, classId }] },
-    text: `{title} біля шаурми. Це перша сторінка дуже дурної, але перспективної справи. Шаурма нервово шурхотить лавашем.`
+    text: `{title} біля шаурми. ${shawarmaComboRaceBeat(raceId)} ${shawarmaComboClassBeat(classId)}`
   }));
 }
 
@@ -316,7 +316,7 @@ function buildFightStartComboLines(): CharacterFlavorLine[] {
     placement: "quest.start",
     scene: "fight",
     selector: { combos: [{ raceId, classId }] },
-    text: `{title} навпроти підозрілого монстра. У корчмі на мить тихо: всі хочуть побачити, чи це стиль, план або страховий випадок.`
+    text: `{title} навпроти підозрілого монстра. ${fightComboRaceBeat(raceId)} ${fightComboClassBeat(classId)}`
   }));
 }
 
@@ -341,7 +341,7 @@ function buildFightOutcomeClassLines(): CharacterFlavorLine[] {
       scene: "fight",
       selector: { classIds: [heroClass.id], actions: [action] },
       priority: -1,
-      text: `${heroClass.name} робить те, що вміє найкраще: перетворює проблему на досвід, шум і трохи крихт на підлозі.`
+      text: fightOutcomeClassText(heroClass.id, heroClass.name, action)
     }))
   );
 }
@@ -374,7 +374,7 @@ function buildCellarStartComboLines(): CharacterFlavorLine[] {
     placement: "quest.start",
     scene: "cellar",
     selector: { combos: [{ raceId, classId }] },
-    text: `{title} у підвалі. Це вже не просто підвал, а маленька сцена для великої побутової легенди.`
+    text: `{title} у підвалі. ${cellarComboRaceBeat(raceId)} ${cellarComboClassBeat(classId)}`
   }));
 }
 
@@ -411,9 +411,174 @@ function buildCellarOutcomeComboLines(): CharacterFlavorLine[] {
       placement: "quest.outcome",
       scene: "cellar",
       selector: { combos: [{ raceId, classId }], actions: [action] },
-      text: `{title}: мишача справа стає персональним маленьким мітом під плінтусом. Миша вимагає право на редактуру.`
+      text: `{title}: ${cellarOutcomeActionBeat(action)} ${cellarOutcomeRaceBeat(raceId)} ${cellarOutcomeClassBeat(classId)}`
     }))
   );
+}
+
+function shawarmaComboRaceBeat(raceId: string): string {
+  return (
+    {
+      "race.human-ish": "Серветка отримує людиськовий погляд: співчутливий, але вже з підозрою.",
+      "race.dwarf": "Стіл тихенько просідає від гномської готовности розв’язувати харчові питання ґрунтовно.",
+      "race.elf": "Лаваш раптом згадує, що міг би бути естетичнішим, і це його нервує.",
+      "race.bisyny": "Назва страви відчуває, що зараз її почнуть правити без попередження.",
+      "race.drantohor": "Пів шаурми дивиться на схід, пів — на захід, і обидві половини винні.",
+      "race.domovyk": "Крихти під столом шикуються так, ніби зараз буде домовий аудит.",
+      "race.dryland-rusalka": "Соус робить вигляд, що він море. Ніхто йому не вірить, але всі поважають амбіцію.",
+      "race.intellectual-orc": "Запах часнику отримує тезу, антитезу і шанс здатися до висновків.",
+      "race.molfar-soul": "Над лавашем згущується туман, який дуже просить не називати його соусом."
+    } satisfies Record<string, string>
+  )[raceId] ?? "Шаурма розуміє, що біографія пригодника може бути гіршою за ніж.";
+}
+
+function shawarmaComboClassBeat(classId: string): string {
+  return (
+    {
+      "class.warrior": "План простий: знайти слабке місце й переконати його силою.",
+      "class.mage": "Магічна частина плану вже світиться; побутова частина плану поки в серветці.",
+      "class.bard": "Перший куплет ще не прозвучав, а шаурма вже просить не римувати її з травмою.",
+      "class.rogue": "Кут атаки знайдено там, де порядна вечеря не мала б мати кутів.",
+      "class.priest": "Моральна перевага підготовлена, освячена й трохи пахне часником.",
+      "class.varenyk-mancer": "Начинка підозрює, що її зараз порівняють із варениками, і це справедливо.",
+      "class.bureaucramancer": "Справа відкривається без печатки, але з дуже тривожним додатком із соусу.",
+      "class.ranger": "Слід веде від тарілки до проблеми; проблема прикидається гарніром.",
+      "class.kharakternyk": "Погляд такий степовий, що шаурма на мить хоче стати куренем."
+    } satisfies Record<string, string>
+  )[classId] ?? "План є. Він поганий, але достатньо героїчний.";
+}
+
+function fightComboRaceBeat(raceId: string): string {
+  return (
+    {
+      "race.human-ish": "Зала бачить звичайного пригодника, а монстр — уже не зовсім звичайну проблему.",
+      "race.dwarf": "Підлога готується тримати удар, бо гномські аргументи рідко бувають невагомими.",
+      "race.elf": "Навіть небезпека намагається стояти красивіше, коли на неї так дивляться.",
+      "race.bisyny": "Монстр ще не знає, що його назву можуть відредагувати болючіше за щелепу.",
+      "race.drantohor": "Простір навколо сутички трохи плутається, де саме має бути центр подій.",
+      "race.domovyk": "Усі раптом згадують, що битися в чужій хаті треба акуратно.",
+      "race.dryland-rusalka": "Повітря стає вологішим від самої думки про драму.",
+      "race.intellectual-orc": "Монстр отримує погляд, який уже поставив йому незадовільну оцінку.",
+      "race.molfar-soul": "Туман стоїть поруч і робить вигляд, що це технічна підтримка."
+    } satisfies Record<string, string>
+  )[raceId] ?? "Монстр нервує так, ніби прочитав наступний абзац.";
+}
+
+function fightComboClassBeat(classId: string): string {
+  return (
+    {
+      "class.warrior": "Зараз буде просте пояснення, яке зазвичай залишає вм’ятину.",
+      "class.mage": "Іскри вже записались у свідки й відмовляються мовчати.",
+      "class.bard": "Сцена готова, публіка не дуже, монстр узагалі не голосував.",
+      "class.rogue": "Нечесний кут сутички знайдено, підписано й приховано в рукаві.",
+      "class.priest": "Благословення напоготові; осуд теж, але він дешевший.",
+      "class.varenyk-mancer": "Начинка бойового плану тримається на чесному тісті й сумнівній сметані.",
+      "class.bureaucramancer": "Якщо монстр виживе, йому доведеться пояснити це в трьох примірниках.",
+      "class.ranger": "Слід є, дистанція є, підозра має форму зубів.",
+      "class.kharakternyk": "Степовий спокій робить паузу страшнішою за перший удар."
+    } satisfies Record<string, string>
+  )[classId] ?? "У плану є початок, середина й дуже гучне «ой».";
+}
+
+function fightOutcomeClassText(
+  classId: string,
+  className: string,
+  action: "attack" | "receipt" | "flee"
+): string {
+  const actionBeat =
+    {
+      attack: "після прямого аргументу",
+      receipt: "після небезпечної бюрократії",
+      flee: "після стратегічного збереження репутації"
+    } satisfies Record<typeof action, string>;
+
+  return (
+    {
+      "class.warrior": `Воїн ${actionBeat[action]} лишає монстра з новим розумінням слова «ближче».`,
+      "class.mage": `Маг ${actionBeat[action]} збирає іскри докупи. Монстр теж хотів би зібратися, але частинами думки.`,
+      "class.bard": `Бард ${actionBeat[action]} завершує номер так, що монстр просить тиші й окремий рахунок.`,
+      "class.rogue": `Злодій ${actionBeat[action]} виходить із сутички з виглядом людини, яка не була тут офіційно.`,
+      "class.priest": `Жрець ${actionBeat[action]} демонструє милосердя дозовано. Монстру дісталась навчальна порція.`,
+      "class.varenyk-mancer": `Вареник-мант ${actionBeat[action]} доводить: правильна начинка плану теж може бути бойовою.`,
+      "class.bureaucramancer": `Бюрокромант ${actionBeat[action]} закриває інцидент формою, шумом і підписом монстра не там, де треба.`,
+      "class.ranger": `Єгер ${actionBeat[action]} читає сліди сутички й знаходить у них короткий висновок: не стояти зубами вперед.`,
+      "class.kharakternyk": `Козак-характерник ${actionBeat[action]} лишає в повітрі степовий спокій і дуже неспокійного монстра.`
+    } satisfies Record<string, string>
+  )[classId] ?? `${className} ${actionBeat[action]} завершує сутичку так, що проблема просить менший шрифт.`;
+}
+
+function cellarComboRaceBeat(raceId: string): string {
+  return (
+    {
+      "race.human-ish": "Пил поводиться майже пристойно, бо людиськовий погляд уже шукає винного.",
+      "race.dwarf": "Сходи скриплять із повагою: гном у підвалі завжди звучить як інвентаризація каменю.",
+      "race.elf": "Навіть павутиння намагається висіти елегантніше.",
+      "race.bisyny": "Миша ховає табличку з назвою нори, бо відчуває редакційну небезпеку.",
+      "race.drantohor": "Підвал раптом здається прикордонною територією з сирним питанням.",
+      "race.domovyk": "Кожна полиця згадує, хто тут насправді має право грюкати.",
+      "race.dryland-rusalka": "Вологість у кутку робить невдалу спробу стати легендою.",
+      "race.intellectual-orc": "Мишача позиція отримує шанс бути розібраною етично й дуже переконливо.",
+      "race.molfar-soul": "Тінь під шафою шепоче, що сир — це теж оберіг, якщо достатньо голодний."
+    } satisfies Record<string, string>
+  )[raceId] ?? "Підвал робить вигляд, що це не він.";
+}
+
+function cellarComboClassBeat(classId: string): string {
+  return (
+    {
+      "class.warrior": "План пахне хоробрістю й легким ризиком для меблів.",
+      "class.mage": "Пил світиться настільки, наскільки дозволяє бюджет підвалу.",
+      "class.bard": "Миша вже боїться не пастки, а другого куплету.",
+      "class.rogue": "Сир охороняють так, ніби він сам просив конспірації.",
+      "class.priest": "Благословення лягає на підлогу обережно, щоб не налякати крихти.",
+      "class.varenyk-mancer": "Кухня підозрює, що підвал зараз втягнуть у начинкову політику.",
+      "class.bureaucramancer": "Протокол нори відкрито; миша вимагає адвоката й зернятко.",
+      "class.ranger": "Слід від крихти до нори стає майже офіційною картою.",
+      "class.kharakternyk": "Плінтус відчуває степову дисципліну й намагається не скрипіти."
+    } satisfies Record<string, string>
+  )[classId] ?? "Миша бачить героя і вже жаліє, що не лишила записку коротшою.";
+}
+
+function cellarOutcomeActionBeat(action: "cheese-trap" | "sweep-bravely" | "negotiate"): string {
+  return (
+    {
+      "cheese-trap": "сирна пастка стає доказом, що дипломатія інколи пахне краще за меч.",
+      "sweep-bravely": "підмітання проходить із таким пафосом, ніби пил сам підписав капітуляцію.",
+      negotiate: "переговори доходять до пункту, де навіть миша визнає: це вже майже угода."
+    } satisfies Record<typeof action, string>
+  )[action];
+}
+
+function cellarOutcomeRaceBeat(raceId: string): string {
+  return (
+    {
+      "race.human-ish": "Корчма отримує ще одну людиськову історію, яку ніхто не просив, але всі слухають.",
+      "race.dwarf": "Підвал стає міцнішим морально, хоча технічно це не гарантія.",
+      "race.elf": "Павутиння виглядає так, ніби його щойно критикували за композицію.",
+      "race.bisyny": "Термінологія мишачої автономії тремтить, але тримається.",
+      "race.drantohor": "Кордон між порядком і хаосом пересунуто на одну крихту.",
+      "race.domovyk": "Полиці схвально мовчать, а це в домових справах майже овація.",
+      "race.dryland-rusalka": "Сухість підвалу переживає маленьку драму й просить не розголошувати.",
+      "race.intellectual-orc": "Аргументи стають настільки чіткими, що миша ховає контраргументи за шафу.",
+      "race.molfar-soul": "Туман під плінтусом поводиться як свідок, який усе бачив, але не підписувався."
+    } satisfies Record<string, string>
+  )[raceId] ?? "Підвал лишається підвалом, але вже з досвідом.";
+}
+
+function cellarOutcomeClassBeat(classId: string): string {
+  return (
+    {
+      "class.warrior": "Сила тут не головна, але дуже переконлива в примітках.",
+      "class.mage": "Магічні залишки підмітають окремо, бо вони ще сперечаються.",
+      "class.bard": "Фінальний акорд миша просить не повторювати після десятої.",
+      "class.rogue": "Ніхто не бачив, як зник зайвий сир, і це найкращий доказ професіоналізму.",
+      "class.priest": "Крихти отримують благословення коротше, ніж попередній договір.",
+      "class.varenyk-mancer": "Начинкова логіка перемагає там, де звичайна логіка просила перерву.",
+      "class.bureaucramancer": "Печатка не потрібна, але всі поводяться так, ніби вона вже десь є.",
+      "class.ranger": "Слід до нори закрито, але залишено для майбутніх легенд.",
+      "class.kharakternyk": "Підвал ще довго стоїть рівніше, ніж до цього хотів."
+    } satisfies Record<string, string>
+  )[classId] ?? "Справа закрита, а підвал робить вигляд, що завжди так умів.";
 }
 
 function availableRaceClassCombos(): Array<{
