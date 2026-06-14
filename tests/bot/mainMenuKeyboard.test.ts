@@ -520,6 +520,35 @@ describe("main menu and scene keyboards", () => {
       flatInlineButtonTexts(
         buildQuestHubKeyboard({
           adventure: {
+            state: "level-retired",
+            character,
+            maxLevel: 2
+          },
+          fight: {
+            state: "persistent-ready",
+            character,
+            questProgress: {
+              title: "Тринадцять дрібних проблем",
+              wins: 0,
+              target: 13,
+              completed: false,
+              rewardClaimed: false
+            }
+          },
+          hunt: {
+            state: "already-completed",
+            character,
+            contract: huntContract
+          },
+          cellar: { state: "level-retired", character, maxLevel: 3 }
+        })
+      )
+    ).toEqual(["📋 До проблем", "📖 Бестіарій", "🍺 До зали"]);
+
+    expect(
+      flatInlineButtonTexts(
+        buildQuestHubKeyboard({
+          adventure: {
             state: "already-completed",
             character,
             fightAvailable: false

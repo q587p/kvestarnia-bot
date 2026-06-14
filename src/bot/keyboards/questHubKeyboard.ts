@@ -36,7 +36,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
       keyboard.row();
     }
 
-    keyboard.text("⚔️ До сутички", makeQuestCallbackData("fight"));
+    keyboard.text(getFightButtonLabel(input.fight), makeQuestCallbackData("fight"));
     hasAction = true;
   }
 
@@ -71,6 +71,18 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
 
 function canOpenBestiary(input: QuestHubKeyboardInput): boolean {
   return input.characterLevel === undefined || meetsActivityLevel(input.characterLevel, BESTIARY_MIN_LEVEL);
+}
+
+function getFightButtonLabel(fight: QuestHubKeyboardInput["fight"]): string {
+  return isPersistentFightState(fight.state) ? "📋 До проблем" : "⚔️ До сутички";
+}
+
+function isPersistentFightState(state: QuestHubKeyboardInput["fight"]["state"]): boolean {
+  return (
+    state === "persistent-ready" ||
+    state === "persistent-active" ||
+    state === "persistent-terminal"
+  );
 }
 
 function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
