@@ -123,26 +123,26 @@ describe("AdventureService", () => {
     });
   });
 
-  it("retires the starter shawarma after level three without claiming rewards", async () => {
+  it("retires the starter shawarma at level three without claiming rewards", async () => {
     const characters = new FakeCharacterRepository();
-    characters.add(telegramUserId, { xp: 45 });
+    characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const service = new AdventureService(characters, dailyActions, fixedClock);
 
     await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "level-retired",
-      maxLevel: 3
+      maxLevel: 2
     });
     await expect(service.completeMimicShawarma(telegramUserId, "poke")).resolves.toMatchObject({
       state: "level-retired",
-      maxLevel: 3
+      maxLevel: 2
     });
     expect(dailyActions.createCount).toBe(0);
     expect(dailyActions.grantedItems).toEqual([]);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 45,
+      xp: 25,
       gold: 0,
-      level: 4
+      level: 3
     });
   });
 

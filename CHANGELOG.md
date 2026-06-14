@@ -14,7 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a Hunt Contract repository plus Prisma implementation for posting, loading, and completing Hunt Board ledger rows.
 - Repeated completed Hunt Board callbacks can now replay the original XP/gold and item summary from the ledger without issuing duplicate rewards.
 - Added a safe missing-monster state for persisted contracts whose content id no longer exists after a future deploy.
-- Added light onboarding gates: starter shawarma and fight retire after level 3, cellar errands run only on levels 2-3, and Hunt Board contracts unlock from level 3.
+- Added light onboarding gates: starter shawarma and fight run only on levels 1-2, cellar errands run only on levels 2-3, and Hunt Board contracts unlock from level 3.
 - Added broader character-aware starter flavor for the first shawarma quest and its fight probe, including race/class pools and combo coverage for available onboarding combinations.
 - Added broader character-aware cellar mouse flavor, including race/class pools, combo coverage, and action-specific outcome lines for basement interactions.
 - Raised the current level progression cap to level 10 using the Phase 1 XP curve, with a special level-cap celebration message.

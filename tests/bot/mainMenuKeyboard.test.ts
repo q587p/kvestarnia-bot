@@ -515,12 +515,12 @@ describe("main menu and scene keyboards", () => {
           adventure: {
             state: "level-retired",
             character,
-            maxLevel: 3
+            maxLevel: 2
           },
           fight: {
             state: "level-retired",
             character,
-            maxLevel: 3
+            maxLevel: 2
           },
           hunt: { state: "ready", character, contract: huntContract },
           cellar: {

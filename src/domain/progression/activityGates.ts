@@ -1,5 +1,5 @@
 export const CELLAR_MIN_LEVEL = 2;
-export const STARTER_ACTIVITY_MAX_LEVEL = 3;
+export const STARTER_ACTIVITY_MAX_LEVEL = 2;
 export const CELLAR_MAX_LEVEL = 3;
 export const HUNT_MIN_LEVEL = 3;
 

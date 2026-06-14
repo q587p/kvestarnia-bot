@@ -244,7 +244,7 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - action callback валідується проти persisted row до `daily_actions.claimForTelegramUser`, тому content order/deploy drift не може перекинути стару кнопку на іншого монстра в тому самому period;
 - після успішного `daily_actions` claim ledger позначається completed і зберігає reward summary для replay;
 - repeated callback або existing `daily_actions` claim показує stored XP/gold/items із ledger, якщо вони доступні; якщо ledger completion колись не записався, fallback показує stored XP/gold із `daily_actions` і чесно не вигадує item details.
-- Onboarding gates: starter shawarma/adventure and starter fight retire after level 3; cellar errands run only on levels 2-3; Hunt Board opens from level 3. Перевірка Hunt Board стоїть у service path до `hunt_contracts` upsert і до `daily_actions.claimForTelegramUser`, щоб низькорівневий `/hunt` або stale action callback не створював ledger row і не рухав reward state.
+- Onboarding gates: starter shawarma/adventure and starter fight run only on levels 1-2 and retire from level 3; cellar errands run only on levels 2-3; Hunt Board opens from level 3. Перевірка Hunt Board стоїть у service path до `hunt_contracts` upsert і до `daily_actions.claimForTelegramUser`, щоб низькорівневий `/hunt` або stale action callback не створював ledger row і не рухав reward state.
 
 `daily_actions` лишається reward-idempotency authority. `hunt_contracts` не має сам видавати XP/gold/items і не замінює encounter session. Це audit/replay layer для current one-shot Hunt Board.
 

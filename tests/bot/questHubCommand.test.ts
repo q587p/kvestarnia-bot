@@ -60,16 +60,16 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).toContain("📋 Стіл зі справами");
     expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
-    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — готова до допиту.");
-    expect(replies[0]?.text).toContain("⚔️ Сутичка з підозрілим монстром — можна починати.");
+    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — навчальна справа для 1-2 рівнів.");
+    expect(replies[0]?.text).toContain(
+      "⚔️ Сутичка з підозрілим монстром — навчальна справа для 1-2 рівнів."
+    );
     expect(replies[0]?.text).toContain("🏹 Дошка полювання — контракт на Скелет-вахтер печаток.");
     expect(replies[0]?.text).not.toContain("Мімік-шаурма");
     expect(replies[0]?.text).toContain("🧹 Підвальна справа — миша знову приймає аргументи.");
     expect(replies[0]?.options).toMatchObject({
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🌯 До шаурми", callback_data: makeQuestCallbackData("adventure") }],
-          [{ text: "⚔️ До сутички", callback_data: makeQuestCallbackData("fight") }],
           [{ text: "🏹 До дошки", callback_data: makeQuestCallbackData("hunt") }],
           [{ text: "🧹 У підвал", callback_data: makeQuestCallbackData("cellar") }],
           [{ text: "🍺 До зали", callback_data: makePlaceCallbackData("hall") }]
@@ -186,9 +186,9 @@ describe("quest hub command", () => {
     ]);
   });
 
-  it("hides starter shawarma, starter fight, and cellar after level three", async () => {
+  it("hides starter shawarma and starter fight at level three", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
-    const grownCharacter = characterAtLevel(4);
+    const grownCharacter = characterAtLevel(3);
 
     await sendQuestHub(
       makeContext(replies),
@@ -201,17 +201,21 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — навчальна справа до 3 рівня.");
+    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — навчальна справа для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
-      "⚔️ Сутичка з підозрілим монстром — навчальна справа до 3 рівня."
+      "⚔️ Сутичка з підозрілим монстром — навчальна справа для 1-2 рівнів."
     );
-    expect(replies[0]?.text).toContain("🧹 Підвальна справа — новачкова справа до 3 рівня.");
+    expect(replies[0]?.text).toContain("🧹 Підвальна справа — миша знову приймає аргументи.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    expect(buttons.map((button) => button.text)).toEqual(["🏹 До дошки", "🍺 До зали"]);
+    expect(buttons.map((button) => button.text)).toEqual([
+      "🏹 До дошки",
+      "🧹 У підвал",
+      "🍺 До зали"
+    ]);
   });
 
   it("blocks the quest hub while a barrel raid is pending", async () => {
@@ -379,11 +383,11 @@ function readyAdventureService(summary: CharacterSummary): AdventureService {
   return {
     getMimicShawarmaForTelegramUser: () =>
       Promise.resolve(
-        summary.level > 3
+        summary.level >= 3
           ? {
               state: "level-retired",
               character: summary,
-              maxLevel: 3
+              maxLevel: 2
             }
           : {
               state: "ready",
@@ -398,11 +402,11 @@ function readyFightService(summary: CharacterSummary): FightService {
   return {
     getMimicShawarmaForTelegramUser: () =>
       Promise.resolve(
-        summary.level > 3
+        summary.level >= 3
           ? {
               state: "level-retired",
               character: summary,
-              maxLevel: 3
+              maxLevel: 2
             }
           : {
               state: "ready",

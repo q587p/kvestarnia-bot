@@ -174,26 +174,26 @@ describe("FightService", () => {
     });
   });
 
-  it("retires the starter fight after level three without claiming rewards", async () => {
+  it("retires the starter fight at level three without claiming rewards", async () => {
     const characters = new FakeCharacterRepository();
-    characters.add(telegramUserId, { xp: 45 });
+    characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const service = new FightService(characters, dailyActions, fixedClock);
 
     await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "level-retired",
-      maxLevel: 3
+      maxLevel: 2
     });
     await expect(service.completeMimicShawarma(telegramUserId, "attack")).resolves.toMatchObject({
       state: "level-retired",
-      maxLevel: 3
+      maxLevel: 2
     });
     expect(dailyActions.createCount).toBe(0);
     expect(dailyActions.grantedItems).toEqual([]);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 45,
+      xp: 25,
       gold: 0,
-      level: 4
+      level: 3
     });
   });
 
