@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BESTIARY_PAGE_SIZE,
+  BESTIARY_TAG_LABELS,
   presentBestiaryList,
   presentBestiaryMonster,
   presentBestiaryMonsterRecord
@@ -25,6 +26,14 @@ describe("bestiary presenter", () => {
 
     for (const tag of tags) {
       expect(allListText).not.toMatch(new RegExp(`(^|[ ·,])${escapeRegExp(tag)}($|[ ·,])`));
+    }
+  });
+
+  it("has Ukrainian labels for every current monster tag", () => {
+    const tags = new Set(monsters.flatMap((monster) => monster.tags));
+
+    for (const tag of tags) {
+      expect(BESTIARY_TAG_LABELS[tag], `missing bestiary label for ${tag}`).toBeDefined();
     }
   });
 

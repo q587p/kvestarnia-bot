@@ -4,8 +4,9 @@ import { escapeHtml } from "./telegramHtml";
 
 export const BESTIARY_PAGE_SIZE = 5;
 
-const tagLabels: Record<string, string> = {
+export const BESTIARY_TAG_LABELS: Record<string, string> = {
   annoying: "надокучливе",
+  argument: "суперечкове",
   archive: "архівне",
   armor: "обладункове",
   audit: "ревізійне",
@@ -13,6 +14,7 @@ const tagLabels: Record<string, string> = {
   beast: "звірина",
   boss: "велика проблема",
   bread: "хлібне",
+  bridge: "мостове",
   bureaucracy: "бюрократичне",
   cellar: "підвальне",
   comic: "комічне",
@@ -130,9 +132,13 @@ export function presentBestiaryMonsterRecord(
 }
 
 function presentMonsterRow(monster: MonsterContent): string {
-  const tags = monster.tags.slice(0, 3).map((tag) => tagLabels[tag] ?? tag).join(", ");
+  const tags = monster.tags.slice(0, 3).map(formatBestiaryTagLabel).join(", ");
 
   return `• <b>${escapeHtml(monster.name)}</b> · рівень ${monster.level}${tags ? ` · ${escapeHtml(tags)}` : ""}`;
+}
+
+function formatBestiaryTagLabel(tag: string): string {
+  return BESTIARY_TAG_LABELS[tag] ?? "дивно-класифіковане";
 }
 
 function presentFieldNote(monster: MonsterContent): string {
