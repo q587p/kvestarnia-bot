@@ -1,5 +1,6 @@
 import type { CharacterSummary } from "../domain/characters/characterSummary";
 import type { CharacterPath } from "../domain/characters/path";
+import { getComboTitle } from "./characterOptions";
 import { classes } from "./classes";
 import { activeRaces } from "./races";
 import type { Pronoun } from "./schema";
@@ -59,7 +60,10 @@ export function selectCharacterFlavorLine(
     .map((entry) => entry.line)
     .sort((left, right) => left.id.localeCompare(right.id));
 
-  return pickDeterministic(candidates, buildFlavorSeed(character, query));
+  return renderCharacterFlavorLine(
+    pickDeterministic(candidates, buildFlavorSeed(character, query)),
+    character
+  );
 }
 
 export function selectCharacterFlavorLines(
@@ -83,13 +87,13 @@ export function selectCharacterFlavorLines(
   const specific = selectBestFromTier(scored, (tier) => tier > 1, character, query, "specific");
 
   if (specific) {
-    selected.push(specific);
+    selected.push(renderCharacterFlavorLine(specific, character));
   }
 
   const fallback = selectBestFromTier(scored, (tier) => tier === 1, character, query, "fallback");
 
   if (fallback && !selected.some((line) => line.id === fallback.id)) {
-    selected.push(fallback);
+    selected.push(renderCharacterFlavorLine(fallback, character));
   }
 
   return selected.slice(0, limit);
@@ -132,6 +136,20 @@ function selectBestFromTier(
     .sort((left, right) => left.id.localeCompare(right.id));
 
   return pickDeterministic(candidates, `${buildFlavorSeed(character, query)}|${seedSuffix}`);
+}
+
+function renderCharacterFlavorLine(
+  line: CharacterFlavorLine,
+  character: CharacterSummary
+): CharacterFlavorLine {
+  if (!line.text.includes("{title}")) {
+    return line;
+  }
+
+  return {
+    ...line,
+    text: line.text.split("{title}").join(character.title)
+  };
 }
 
 function scoreFlavorLine(
@@ -235,12 +253,12 @@ function buildShawarmaStartClassLines(): CharacterFlavorLine[] {
 }
 
 function buildShawarmaStartComboLines(): CharacterFlavorLine[] {
-  return availableRaceClassCombos().map(({ raceId, classId, raceName, className }) => ({
+  return availableRaceClassCombos().map(({ raceId, classId }) => ({
     id: `shawarma.start.combo.${contentSlug(raceId)}-${contentSlug(classId)}`,
     placement: "quest.start",
     scene: "shawarma",
     selector: { combos: [{ raceId, classId }] },
-    text: `${raceName}-${className} підходить до шаурми так, ніби це перша сторінка дуже дурної, але перспективної справи. Шаурма нервово шурхотить лавашем.`
+    text: `{title} біля шаурми. Це перша сторінка дуже дурної, але перспективної справи. Шаурма нервово шурхотить лавашем.`
   }));
 }
 
@@ -293,12 +311,12 @@ function buildFightStartClassLines(): CharacterFlavorLine[] {
 }
 
 function buildFightStartComboLines(): CharacterFlavorLine[] {
-  return availableRaceClassCombos().map(({ raceId, classId, raceName, className }) => ({
+  return availableRaceClassCombos().map(({ raceId, classId }) => ({
     id: `fight.start.combo.${contentSlug(raceId)}-${contentSlug(classId)}`,
     placement: "quest.start",
     scene: "fight",
     selector: { combos: [{ raceId, classId }] },
-    text: `${raceName}-${className} стає навпроти підозрілого монстра. У корчмі на мить тихо: всі хочуть побачити, чи це стиль, план або страховий випадок.`
+    text: `{title} навпроти підозрілого монстра. У корчмі на мить тихо: всі хочуть побачити, чи це стиль, план або страховий випадок.`
   }));
 }
 
@@ -351,12 +369,12 @@ function buildCellarStartClassLines(): CharacterFlavorLine[] {
 }
 
 function buildCellarStartComboLines(): CharacterFlavorLine[] {
-  return availableRaceClassCombos().map(({ raceId, classId, raceName, className }) => ({
+  return availableRaceClassCombos().map(({ raceId, classId }) => ({
     id: `cellar.start.combo.${contentSlug(raceId)}-${contentSlug(classId)}`,
     placement: "quest.start",
     scene: "cellar",
     selector: { combos: [{ raceId, classId }] },
-    text: `${raceName}-${className} спускається до миші так, ніби це не підвал, а маленька сцена для великої побутової легенди.`
+    text: `{title} у підвалі. Це вже не просто підвал, а маленька сцена для великої побутової легенди.`
   }));
 }
 
@@ -387,13 +405,13 @@ function buildCellarOutcomeClassLines(): CharacterFlavorLine[] {
 }
 
 function buildCellarOutcomeComboLines(): CharacterFlavorLine[] {
-  return availableRaceClassCombos().flatMap(({ raceId, classId, raceName, className }) =>
+  return availableRaceClassCombos().flatMap(({ raceId, classId }) =>
     cellarActions().map((action) => ({
       id: `cellar.outcome.combo.${contentSlug(raceId)}-${contentSlug(classId)}.${action}`,
       placement: "quest.outcome",
       scene: "cellar",
       selector: { combos: [{ raceId, classId }], actions: [action] },
-      text: `${raceName}-${className} робить із мишачої справи персональний маленький міт під плінтусом. Миша вимагає право на редактуру.`
+      text: `{title}: мишача справа стає персональним маленьким мітом під плінтусом. Миша вимагає право на редактуру.`
     }))
   );
 }
@@ -555,37 +573,37 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
     id: "korchma.greeting.combo.bisyny-bard",
     placement: "korchma.greeting",
     selector: { combos: [{ raceId: "race.bisyny", classId: "class.bard" }] },
-    text: "Суперечки про переклад під музику? Нарешті в нас буде культурний скандал."
+    text: "{title} під музику. Нарешті в нас буде культурний скандал."
   },
   {
     id: "korchma.greeting.combo.drantohor-kharakternyk",
     placement: "korchma.greeting",
     selector: { combos: [{ raceId: "race.drantohor", classId: "class.kharakternyk" }] },
-    text: "Остромаг прислав характерника чи характерник загубив Остромаг? Не відповідайте, так цікавіше."
+    text: "{title} на порозі. Остромаг і корчма щойно посперечались за карту."
   },
   {
     id: "korchma.greeting.combo.domovyk-bureaucramancer",
     placement: "korchma.greeting",
     selector: { combos: [{ raceId: "race.domovyk", classId: "class.bureaucramancer" }] },
-    text: "Архівний дух? Шафа за баром уже подала заяву на родинні звʼязки."
+    text: "{title}? Шафа за баром уже подала заяву на родинні звʼязки."
   },
   {
     id: "korchma.greeting.combo.dryland-rusalka-varenyk-mancer",
     placement: "korchma.greeting",
     selector: { combos: [{ raceId: "race.dryland-rusalka", classId: "class.varenyk-mancer" }] },
-    text: "Сирена сметани. Море не прийшло, зате кухня нервує."
+    text: "{title}. Море не прийшло, зате кухня нервує."
   },
   {
     id: "korchma.greeting.combo.intellectual-orc-warrior",
     placement: "korchma.greeting",
     selector: { combos: [{ raceId: "race.intellectual-orc", classId: "class.warrior" }] },
-    text: "Критик прикладного биття? Тільки не рецензуйте двері обома руками."
+    text: "{title}? Тільки не рецензуйте двері обома руками."
   },
   {
     id: "korchma.greeting.combo.molfar-soul-mage",
     placement: "korchma.greeting",
     selector: { combos: [{ raceId: "race.molfar-soul", classId: "class.mage" }] },
-    text: "Збирач туману? Не складайте його біля вікна, він знову втече в кредит."
+    text: "{title}? Не складайте туман біля вікна, він знову втече в кредит."
   },
   {
     id: "shawarma.start.class.mage",
@@ -924,7 +942,7 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
     placement: "raid.prep-hint",
     scene: "barrel",
     selector: { combos: [{ raceId: "race.drantohor", classId: "class.kharakternyk" }] },
-    text: "Межовий заблуканець у рейді — це коли розташування боса сперечається з географією."
+    text: "{title} у рейді — це коли розташування боса сперечається з географією."
   },
   ...buildBarrelRaidHintLines(),
   ...buildBarrelRangerActionLines()
@@ -942,7 +960,7 @@ function buildBarrelRaidHintLines(): CharacterFlavorLine[] {
       scene: "barrel",
       selector: { raceIds: [raceId] }
     })),
-    ...recordLines("barrel.raid-hint.combo", comboRaidTips(), (combo) => {
+    ...recordLines("barrel.raid-hint.combo", titleTemplateComboTips(comboRaidTips()), (combo) => {
       const [raceId, classId] = combo.split(":");
 
       return {
@@ -985,6 +1003,100 @@ function buildBarrelRangerActionLines(): CharacterFlavorLine[] {
       scene: "barrel"
     }))
   ];
+}
+
+function titleTemplateComboTips(record: Record<string, string[]>): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.entries(record).map(([key, texts]) => [
+      key,
+      texts.map((text) => replaceComboLabelWithTitleTemplate(key, text))
+    ])
+  );
+}
+
+function replaceComboLabelWithTitleTemplate(comboKeyValue: string, text: string): string {
+  const [raceId, classId] = comboKeyValue.split(":");
+
+  if (!raceId || !classId) {
+    return text;
+  }
+
+  const race = activeRaces.find((candidate) => candidate.id === raceId);
+  const heroClass = classes.find((candidate) => candidate.id === classId);
+
+  if (!race || !heroClass) {
+    return text;
+  }
+
+  for (const label of comboLabelVariants(race.name, heroClass.name, raceId, classId)) {
+    const replaced = text.replace(new RegExp(`^${escapeRegex(label)}`, "iu"), "{title}");
+
+    if (replaced !== text) {
+      return replaced;
+    }
+  }
+
+  return text;
+}
+
+function comboLabelVariants(
+  raceName: string,
+  className: string,
+  raceId: string,
+  classId: string
+): string[] {
+  const classLabels = classLabelVariants(className);
+  const raceLabels =
+    raceName === "Русалка сухопутна" ? [raceName, "Сухопутна русалка"] : [raceName];
+  const pronouns: Pronoun[] = ["he", "she", "they"];
+  const titleLabels = pronouns.flatMap((pronoun) => {
+    const title = getComboTitle(raceId, classId, pronoun);
+
+    return [title, lowerFirst(title), upperFirst(title.toLocaleLowerCase("uk-UA"))];
+  });
+
+  return [
+    ...raceLabels.flatMap((raceLabel) =>
+      classLabels.map((classLabel) => `${raceLabel}-${classLabel}`)
+    ),
+    ...titleLabels
+  ];
+}
+
+function classLabelVariants(className: string): string[] {
+  const classLabel = lowerFirst(className);
+  const [, ...tailParts] = classLabel.split("-");
+  const labels = [classLabel, ...classAlternativeLabels(classLabel)];
+
+  if (tailParts.length === 0) {
+    return labels;
+  }
+
+  return [...labels, tailParts.join("-")];
+}
+
+function classAlternativeLabels(classLabel: string): string[] {
+  if (classLabel === "жрець") {
+    return ["жриця"];
+  }
+
+  return [];
+}
+
+function lowerFirst(value: string): string {
+  const [first = "", ...rest] = [...value];
+
+  return `${first.toLocaleLowerCase("uk-UA")}${rest.join("")}`;
+}
+
+function upperFirst(value: string): string {
+  const [first = "", ...rest] = [...value];
+
+  return `${first.toLocaleUpperCase("uk-UA")}${rest.join("")}`;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function recordLines(

@@ -4,8 +4,10 @@ import {
   selectCharacterFlavorLine,
   type CharacterFlavorQuery
 } from "../../src/content/characterFlavor";
+import { getComboTitle } from "../../src/content/characterOptions";
 import { classes } from "../../src/content/classes";
 import { activeRaces } from "../../src/content/races";
+import type { Pronoun } from "../../src/content/schema";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 const baseCharacter: CharacterSummary = {
@@ -140,6 +142,94 @@ describe("character flavor content", () => {
 
     expect(line?.id).toBe("korchma.greeting.combo.bisyny-bard");
     expect(line?.text).toContain("культурний скандал");
+  });
+
+  it("renders combo flavor with the authored title instead of long race-class labels", () => {
+    const line = selectCharacterFlavorLine(
+      {
+        ...baseCharacter,
+        raceId: "race.intellectual-orc",
+        raceName: "Орк-інтелігент",
+        classId: "class.mage",
+        className: "Маг",
+        title: "Кандидат Бойових Наук"
+      },
+      fixed("quest.start", "shawarma")
+    );
+
+    expect(line?.text).toContain("Кандидат Бойових Наук");
+    expect(line?.text).not.toContain("Орк-інтелігент-Маг");
+    expect(line?.text).not.toContain("{title}");
+  });
+
+  it("renders combo raid tips with the authored title instead of long race-class labels", () => {
+    const line = selectCharacterFlavorLine(
+      {
+        ...baseCharacter,
+        raceId: "race.molfar-soul",
+        raceName: "Мольфарська душа",
+        classId: "class.rogue",
+        className: "Злодій",
+        title: "Обереговий Зникальник"
+      },
+      fixed("raid.prep-hint", "barrel")
+    );
+
+    expect(line?.text).toContain("Обереговий Зникальник");
+    expect(line?.text).not.toContain("Мольфарська душа-злодій");
+    expect(line?.text).not.toContain("{title}");
+  });
+
+  it("renders selected combo scene flavor with titles instead of visible race-class labels", () => {
+    const comboQueries: CharacterFlavorQuery[] = [
+      fixed("quest.start", "shawarma"),
+      fixed("quest.start", "fight"),
+      fixed("quest.start", "cellar"),
+      fixed("quest.outcome", "cellar", "negotiate"),
+      fixed("quest.outcome", "cellar", "cheese-trap"),
+      fixed("quest.outcome", "cellar", "sweep-bravely"),
+      fixed("raid.prep-hint", "barrel")
+    ];
+
+    for (const combo of availableRaceClassCombos()) {
+      const race = activeRaces.find((candidate) => candidate.id === combo.raceId);
+      const heroClass = classes.find((candidate) => candidate.id === combo.classId);
+
+      if (!race || !heroClass) {
+        throw new Error(`Missing combo content for ${combo.raceId}:${combo.classId}`);
+      }
+
+      const character = {
+        ...baseCharacter,
+        raceId: race.id,
+        raceName: race.name,
+        classId: heroClass.id,
+        className: heroClass.name,
+        title: `Тестовий титул ${race.id} ${heroClass.id}`
+      };
+      const visibleComboLabels = comboLabelVariants(
+        race.name,
+        heroClass.name,
+        combo.raceId,
+        combo.classId
+      );
+
+      for (const query of comboQueries) {
+        const line = selectCharacterFlavorLine(character, query);
+        const isSelectedComboLine = line?.selector?.combos?.some(
+          (candidate) => candidate.raceId === combo.raceId && candidate.classId === combo.classId
+        );
+
+        if (query.placement !== "raid.prep-hint" || isSelectedComboLine) {
+          expect(line?.text).toContain(character.title);
+        }
+        expect(line?.text).not.toContain("{title}");
+
+        for (const label of visibleComboLabels) {
+          expect(line?.text).not.toContain(label);
+        }
+      }
+    }
   });
 
   it("keeps scene-specific flavor ahead of generic fallback flavor", () => {
@@ -439,4 +529,60 @@ function availableRaceClassCombos(): Array<{ raceId: string; classId: string }> 
         classId: heroClass.id
       }))
   );
+}
+
+function comboLabelVariants(
+  raceName: string,
+  className: string,
+  raceId: string,
+  classId: string
+): string[] {
+  const classLabels = classLabelVariants(className);
+  const raceLabels =
+    raceName === "Русалка сухопутна" ? [raceName, "Сухопутна русалка"] : [raceName];
+  const pronouns: Pronoun[] = ["he", "she", "they"];
+  const titleLabels = pronouns.flatMap((pronoun) => {
+    const title = getComboTitle(raceId, classId, pronoun);
+
+    return [title, lowerFirst(title), upperFirst(title.toLocaleLowerCase("uk-UA"))];
+  });
+
+  return [
+    ...raceLabels.flatMap((raceLabel) =>
+      classLabels.map((classLabel) => `${raceLabel}-${classLabel}`)
+    ),
+    ...titleLabels
+  ];
+}
+
+function classLabelVariants(className: string): string[] {
+  const classLabel = lowerFirst(className);
+  const [, ...tailParts] = classLabel.split("-");
+  const labels = [classLabel, ...classAlternativeLabels(classLabel)];
+
+  if (tailParts.length === 0) {
+    return labels;
+  }
+
+  return [...labels, tailParts.join("-")];
+}
+
+function classAlternativeLabels(classLabel: string): string[] {
+  if (classLabel === "жрець") {
+    return ["жриця"];
+  }
+
+  return [];
+}
+
+function lowerFirst(value: string): string {
+  const [first = "", ...rest] = [...value];
+
+  return `${first.toLocaleLowerCase("uk-UA")}${rest.join("")}`;
+}
+
+function upperFirst(value: string): string {
+  const [first = "", ...rest] = [...value];
+
+  return `${first.toLocaleUpperCase("uk-UA")}${rest.join("")}`;
 }
