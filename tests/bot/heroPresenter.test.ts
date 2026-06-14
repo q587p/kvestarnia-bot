@@ -106,6 +106,18 @@ describe("hero presenter", () => {
     expect(text).not.toContain("до рівня 11");
   });
 
+  it("hides starter command hint after reaching level three", () => {
+    const text = presentHero({
+      ...summary,
+      level: 3,
+      xp: 25,
+      nextLevelXp: 45,
+      xpToNextLevel: 20
+    });
+
+    expect(text).not.toContain("Далі: /tavern, /quest або /fight.");
+  });
+
   it("prompts /start when the character does not exist", () => {
     expect(presentHeroMissing()).toContain("/start");
   });

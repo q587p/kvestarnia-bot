@@ -61,13 +61,13 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).toContain("📋 Стіл зі справами");
     expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
-    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — перша підозра для 1-2 рівнів.");
+    expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
-      "⚔️ Сутичка з підозрілим монстром — тренувальний бій для 1-2 рівнів."
+      "⚔️ <i>Сутичка з підозрілим монстром</i> — тренувальний бій для 1-2 рівнів."
     );
-    expect(replies[0]?.text).toContain("🏹 Дошка полювання — контракт на Скелет-вахтер печаток.");
+    expect(replies[0]?.text).toContain("🏹 <i>Дошка полювання</i> — контракт на Скелет-вахтер печаток.");
     expect(replies[0]?.text).not.toContain("Мімік-шаурма");
-    expect(replies[0]?.text).toContain("🧹 Підвальна справа — миша знову приймає аргументи.");
+    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша знову приймає аргументи.");
     expect(replies[0]?.options).toMatchObject({
       reply_markup: {
         inline_keyboard: [
@@ -100,8 +100,8 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🏹 Дошка полювання — відкриється з 3 рівня.");
-    expect(replies[0]?.text).toContain("🧹 Підвальна справа — відкриється з 2 рівня.");
+    expect(replies[0]?.text).toContain("🏹 <i>Дошка полювання</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — відкриється з 2 рівня.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
@@ -130,8 +130,8 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🏹 Дошка полювання — відкриється з 3 рівня.");
-    expect(replies[0]?.text).toContain("🧹 Підвальна справа — миша знову приймає аргументи.");
+    expect(replies[0]?.text).toContain("🏹 <i>Дошка полювання</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша знову приймає аргументи.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
@@ -174,9 +174,9 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — сьогодні вже дала свідчення.");
+    expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — сьогодні вже дала свідчення.");
     expect(replies[0]?.text).toContain(
-      "⚔️ Сутичка з підозрілим монстром — сьогодні вже зараховано."
+      "⚔️ <i>Сутичка з підозрілим монстром</i> — сьогодні вже зараховано."
     );
     const buttons = (
       replies[0]?.options as {
@@ -245,11 +245,11 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — перша підозра для 1-2 рівнів.");
+    expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
-      "⚔️ Сутичка з підозрілим монстром — тренувальний бій для 1-2 рівнів."
+      "⚔️ <i>Сутичка з підозрілим монстром</i> — тренувальний бій для 1-2 рівнів."
     );
-    expect(replies[0]?.text).toContain("🧹 Підвальна справа — миша знову приймає аргументи.");
+    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша знову приймає аргументи.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
