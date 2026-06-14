@@ -189,15 +189,23 @@ item_power_budget = base_by_level + rarity_bonus
 - Race/class edge дозволений і бажаний у тематичних бійках, але симуляції мають ловити крайнощі: воїн-орк може бути фаворитом у кулачній драці, проте бард такого самого рівня не має падати до майже нульового win rate.
 - Daily/weekly нагороди для переможців мають бути переважно cosmetic/social: титул, запис на дошці, маленький bonus payout. Не давати чемпіону предмет або buff, який збільшує наступний PvP snowball.
 
+## Combat simulation harness
+Для локальної балансної перевірки запускай:
+```bash
+npm run simulate:combat -- -- --levels 1-10 --runs 1000
+```
+
+Це допоміжний інструмент для playtest-циклу, а не production-фіча і не доказ фінального балансу. Звіт варто читати разом із реальними `/fight` сесіями, equipment effects і loot progression, коли вони вже будуть підключені.
+
 ## Anti-snowball
 - Рейдові нагороди: участь + performance, але не winner-takes-all.
 - Бонуси ґільдії: convenience/cosmetic/малий бонус, не x2 damage.
 - Daily catch-up для гравців, що пропустили день.
 
 ## Симуляції
-Після реалізації combat engine зробити script:
+Для довших локальних прогонів:
 ```bash
-npm run simulate:combat -- --levels 1-10 --runs 10000
+npm run simulate:combat -- -- --levels 1-10 --runs 10000
 ```
 
 Вивід:
