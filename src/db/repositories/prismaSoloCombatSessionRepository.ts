@@ -122,6 +122,12 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       data: {
         status
       }
+    }).catch((error: unknown) => {
+      if (isPrismaNotFound(error)) {
+        return null;
+      }
+
+      throw error;
     });
 
     return mapRecord(record);
@@ -141,6 +147,12 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         turn: input.state.turn,
         ...(input.expiresAt ? { expiresAt: input.expiresAt } : {})
       }
+    }).catch((error: unknown) => {
+      if (isPrismaNotFound(error)) {
+        return null;
+      }
+
+      throw error;
     });
 
     return mapRecord(record);
@@ -279,4 +291,8 @@ function intOrNull(value: unknown): number | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isPrismaNotFound(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025";
 }
