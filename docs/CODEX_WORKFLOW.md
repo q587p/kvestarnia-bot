@@ -141,6 +141,7 @@ Spawn 3 agents and consolidate:
 Рекомендації для гілок:
 
 - `main` завжди зелений;
+- якщо задача прямо не просить stacked PR або іншу base-гілку, дивитися на актуальний `main`, рахувати diff проти `main` і відкривати/retarget PR саме на `main`;
 - `docs/public-readme-polish`;
 - `feat/combat-engine`;
 - `feat/start-flow`;
@@ -156,6 +157,8 @@ PR має містити:
 - Screenshots або sample bot messages, якщо змінено UI.
 - Balance notes, якщо змінені формули.
 - Release notes тільки для release-oriented змін.
+
+Для release notes розділяти аудиторії: `CHANGELOG.md` може містити технічні борги й edge cases, а `news.md` має лишатися гравецькою новиною. Не виносити в `news.md` persistent scheduler/restart/deploy debt, Redis/BullMQ, Mini App UI, migrations, scaling або подібний platform backlog.
 
 ## Поточна послідовність маленьких PR
 

@@ -16,6 +16,7 @@ export {
   raceKeyToId
 } from "./characterOptions";
 export { items } from "./items";
+export { monsterFlavorLines, monsterLoot, selectMonsterFlavorLine } from "./monsterFlavor";
 export { monsters } from "./monsters";
 export { activeRaces, races } from "./races";
 export {

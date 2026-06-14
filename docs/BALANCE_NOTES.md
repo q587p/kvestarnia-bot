@@ -140,6 +140,10 @@ item_power_budget = base_by_level + rarity_bonus
 
 `0.0.15` додає reachable starter gear для всіх видимих слотів: weapon через `/fight`, armor через Бочку Пінного Міражу, accessory через підвальну мишу. Це розширює контент і оцінну вартість манаток, але не додає бойових ефектів, sell/trade логіки або нових reward formulas.
 
+`0.0.16` піднімає raid reward math: Бочка дає deterministic roll `18-26 XP` і `8-14 золота`, плюс фартух і детермінований дрібний trophy item. Roll прив’язаний до `periodId + telegramUserId`, а claim усе ще зберігає фактичні `rewardXp`/`rewardGold`, тому repeated callback не перекидає нагороду й не дублює прогрес. Reliability-частина лишається важливою: period bucket, audit break, pending completion, notification dedupe і beer gate мають лишатися ідемпотентними, без нових шансів на дубль нагороди або безкоштовне частування.
+
+`0.0.16` також додає content bestiary і monster loot definitions як data contract, не як нову економічну петлю. Нові monster loot items мають display value або `priceless`, але не падають випадково в runtime, доки не зʼявиться окремий loot table engine із тестами шансів, pity/anti-abuse guardrails і прозорими reward claims.
+
 Сумарна вартість манаток у `/inventory` і `/hero` — це valuation, не spendable gold. Вона не додається до `character.gold`, не дозволяє купити пиво й не має впливати на gates, доки не з’явиться окрема підтверджена sell/trade/sink дія.
 
 Рівневі, расові, класові або path-залежні обмеження не є безкоштовним дозволом робити предмети надто сильними. Вони можуть додати flavor, рідкість і причину для обміну між гравцями, але не мають створювати ситуацію, де один restricted rare item стає обов’язковим для нормального прогресу.

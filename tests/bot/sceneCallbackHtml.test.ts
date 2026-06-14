@@ -169,8 +169,8 @@ describe("scene callback HTML options", () => {
               state: "completed",
               character,
               reward: {
-                xp: 7,
-                gold: 5,
+                xp: 25,
+                gold: 10,
                 localDate: "2026-06-13T10:23",
                 itemGrants: [
                   {
@@ -194,8 +194,8 @@ describe("scene callback HTML options", () => {
       (call) => call.method === "sendMessage" && String(call.payload.text).includes("Рейд завершено")
     );
 
-    expect(notification?.payload.parse_mode).toBe("HTML");
-    expect(String(notification?.payload.text)).toContain("<b>+7 XP\n+5 золота</b>");
+    expect(getParseMode(notification?.payload)).toBe("HTML");
+    expect(String(notification?.payload.text)).toContain("<b>+25 XP\n+10 золота</b>");
   });
 
   it("does not send a barrel raid timer notification after manual completion claims the reward", async () => {
@@ -217,8 +217,8 @@ describe("scene callback HTML options", () => {
             state: "already-completed",
             character,
             reward: {
-              xp: 7,
-              gold: 5,
+              xp: 25,
+              gold: 10,
               localDate: "2026-06-13T10:23",
               itemGrants: []
             },
@@ -231,8 +231,8 @@ describe("scene callback HTML options", () => {
           state: "completed",
           character,
           reward: {
-            xp: 7,
-            gold: 5,
+            xp: 25,
+            gold: 10,
             localDate: "2026-06-13T10:23",
             itemGrants: []
           },
@@ -261,6 +261,12 @@ describe("scene callback HTML options", () => {
 interface ApiCall {
   method: string;
   payload: Record<string, unknown>;
+}
+
+function getParseMode(payload: Record<string, unknown> | undefined): unknown {
+  const maybeNested = payload?.other as { parse_mode?: unknown } | undefined;
+
+  return payload?.parse_mode ?? maybeNested?.parse_mode;
 }
 
 const character: CharacterSummary = {

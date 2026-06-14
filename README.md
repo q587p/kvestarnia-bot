@@ -52,6 +52,7 @@
 - `/equipment`, `/gear`, `/equip` — persistent shell спорядження: можна вдягнути owned preview-equippable манатку й зняти її без зміни статів.
 - `/online`, `/look`, корчемне «За столами» і `/presence` — легка присутність без точного стеження за гравцями.
 - раса, клас і дивна біографія персонажа вже можуть змінювати короткі репліки в корчмі, пригодах і outcome-флейворі.
+- у контенті вже є перший бестіарій на 20 чудовиськ і трофеїв для майбутніх пригод, без увімкненого повного бойового рушія.
 - `/version`, `/news`, `/restart` — сервісні команди для версії, новин і перезапуску персонажа.
 
 Ще попереду: повний покроковий бій, справжні equipment effects, random loot tables, групові рейди, ґільдії, сезони, PvP без токсичної втрати цінного луту та економічні sinks.
@@ -115,7 +116,11 @@
 - [`docs/PRODUCT_BRIEF.md`](docs/PRODUCT_BRIEF.md) — позиціонування, аудиторія, обіцянка гри й MVP scope.
 - [`docs/BRAND.md`](docs/BRAND.md) — назва, voice, tone, public wording і заборонені варіанти неймінґу.
 - [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) — core loop, персонаж, раси, класи, бойові й пригодові зрізи.
+- [`docs/BESTIARY.md`](docs/BESTIARY.md) — перший ростер із 20 монстрів і їхніми reaction hooks.
+- [`docs/MONSTER_LOOT_DROPS.md`](docs/MONSTER_LOOT_DROPS.md) — monster → item mapping без увімкненого random loot engine.
+- [`docs/MONSTER_FLAVOR_ROUTING.md`](docs/MONSTER_FLAVOR_ROUTING.md) — selector-пріоритети для race/class/path/combo monster flavor.
 - [`docs/CONTENT_STYLE_GUIDE.md`](docs/CONTENT_STYLE_GUIDE.md) — український тон, гумор, лапки, формат Telegram-повідомлень.
+- [`docs/INSPIRATION_CONTENT_BACKLOG.md`](docs/INSPIRATION_CONTENT_BACKLOG.md) — джерела смаку, контентні заготовки й правило «смак, не копія».
 - [`docs/TERMINOLOGY.md`](docs/TERMINOLOGY.md) — правило `пригодник` / `персонаж` / `герой` і репутаційні шляхи.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — фази розвитку й Definition of Done для продукту.
 - [`docs/BALANCE_NOTES.md`](docs/BALANCE_NOTES.md) — формули, економіка, RNG і балансні guardrails.
@@ -132,6 +137,8 @@
 Квестарня дивиться в бік настільних RPG, Munchkin, MythAdventures Роберта Аспріна, «Монті Пайтон і Священний Ґрааль», Epic NPC Man від VLDL, класичних MMORPG, гумору Террі Пратчетта, метамодернізму, українських мемів і фольклору.
 
 Це не список речей для копіювання. Це джерела смаку: швидкий жарт, впізнаваний архетип, абсурдна системність, радість від луту, групове «ну давай ще один раз» і відчуття, що пригодник може стати героєм, антигероєм або проблемою, яку внесли в журнал.
+
+Детальний backlog перетворення цих джерел на монстрів, манатки й пригоди живе в [`docs/INSPIRATION_CONTENT_BACKLOG.md`](docs/INSPIRATION_CONTENT_BACKLOG.md).
 
 ---
 

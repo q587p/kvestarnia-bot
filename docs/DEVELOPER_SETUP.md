@@ -154,18 +154,17 @@ npm run db:deploy && npm run start
 ## Healthcheck і public endpoints
 
 ```text
-GET /
-GET /health
+GET /      public Ukrainian Kvestarnia site
+GET /health Render healthcheck, text/plain `kvestarnia ok`
 ```
-
-Presence endpoints:
 
 ```text
-GET /presence
-GET /api/presence/locations
+GET /presence Жива Квестарня public presence page
+GET /api/presence/locations public presence JSON
+GET /news public news archive rendered from news.md
 ```
 
-`/presence` показує «Живу Квестарню»: активні або притихлі місцини, без точних timestamp-ів, без публічних імен гравців за замовчуванням і без публічних назв прихованих локацій.
+`/presence` і блок присутності на `/` показують «Живу Квестарню»: активні або притихлі місцини, без точних timestamp-ів, без публічних імен гравців за замовчуванням і без публічних назв прихованих локацій.
 
 ## Структура коду
 
