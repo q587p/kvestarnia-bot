@@ -9,6 +9,7 @@ import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepo
 import { PrismaCooldownRepository } from "./db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "./db/repositories/prismaDailyActionRepository";
 import { PrismaEquipmentRepository } from "./db/repositories/prismaEquipmentRepository";
+import { PrismaHuntContractRepository } from "./db/repositories/prismaHuntContractRepository";
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "./db/repositories/prismaKorchmaRoundPurchaseRepository";
 import { PrismaPresenceRepository } from "./db/repositories/prismaPresenceRepository";
@@ -35,6 +36,7 @@ const characters = new PrismaCharacterRepository(prisma);
 const cooldowns = new PrismaCooldownRepository(prisma);
 const dailyActions = new PrismaDailyActionRepository(prisma);
 const equipment = new PrismaEquipmentRepository(prisma);
+const huntContracts = new PrismaHuntContractRepository(prisma);
 const inventory = new PrismaInventoryRepository(prisma);
 const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
@@ -42,7 +44,7 @@ const services = {
   adventure: new AdventureService(characters, dailyActions),
   cellarErrand: new CellarErrandService(cooldowns),
   fight: new FightService(characters, dailyActions),
-  hunt: new HuntService(characters, dailyActions),
+  hunt: new HuntService(characters, dailyActions, huntContracts),
   onboarding: new OnboardingService(users, characters),
   hero: new HeroService(characters, inventory),
   equipment: new EquipmentService(equipment, inventory),

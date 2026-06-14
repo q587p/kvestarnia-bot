@@ -12,6 +12,7 @@ import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentHuntAlreadyCompleted,
   presentHuntBoard,
+  presentHuntMissingContractMonster,
   presentHuntNoCharacter
 } from "../presenters/huntPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
@@ -81,6 +82,11 @@ export async function sendHuntBoard(
   }
 
   await markHuntPresence(ctx, options?.presence);
+
+  if (result.state === "missing-contract-monster") {
+    await sendText(ctx, mode, presentHuntMissingContractMonster(result));
+    return;
+  }
 
   if (result.state === "already-completed") {
     await sendText(ctx, mode, presentHuntAlreadyCompleted(result));

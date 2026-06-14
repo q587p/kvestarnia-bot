@@ -2,6 +2,10 @@ import { items, monsterLoot, monsters, selectMonsterFlavorLine } from "../conten
 import type { MonsterContent } from "../content/schema";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type { DailyActionRepository, RewardLevelChange } from "../db/repositories/dailyActionRepository";
+import type {
+  HuntContractRecord,
+  HuntContractRepository
+} from "../db/repositories/huntContractRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { systemClock, type Clock } from "../shared/time";
 import { HUNT_BOARD_CONTRACT_KEY } from "./dailyActionKeys";
@@ -21,12 +25,14 @@ export interface HuntContract {
 
 export type HuntLookupResult =
   | { state: "no-character" }
+  | { state: "missing-contract-monster"; character: CharacterSummary; localPeriodId: string; monsterId: string }
   | { state: "ready"; character: CharacterSummary; contract: HuntContract }
-  | { state: "already-completed"; character: CharacterSummary; contract: HuntContract };
+  | { state: "already-completed"; character: CharacterSummary; contract: HuntContract; reward?: HuntRewardReplay };
 
 export type HuntResult =
   | { state: "no-character" }
   | { state: "stale-period"; currentLocalPeriodId: string; requestedLocalPeriodId: string }
+  | { state: "missing-contract-monster"; character: CharacterSummary; localPeriodId: string; monsterId: string }
   | {
       state: "stale-contract";
       currentLocalPeriodId: string;
@@ -46,6 +52,7 @@ export type HuntResult =
       state: "already-completed";
       character: CharacterSummary;
       contract: HuntContract;
+      reward?: HuntRewardReplay;
     };
 
 export interface HuntReward {
@@ -55,10 +62,16 @@ export interface HuntReward {
   itemGrants: RewardItemGrant[];
 }
 
+export interface HuntRewardReplay extends HuntReward {
+  action?: HuntAction;
+  itemReplayUnavailable?: boolean;
+}
+
 export class HuntService {
   constructor(
     private readonly characters: CharacterRepository,
     private readonly dailyActions: DailyActionRepository,
+    private readonly huntContracts: HuntContractRepository,
     private readonly clock: Clock = systemClock
   ) {}
 
@@ -71,7 +84,18 @@ export class HuntService {
     }
 
     const summary = summarizeCharacter(character);
-    const contract = buildHuntContract(summary, localPeriodId, character.id);
+    const resolved = await this.getOrCreateContract(telegramUserId, localPeriodId, character, summary);
+
+    if (resolved.state === "missing-contract-monster") {
+      return {
+        state: "missing-contract-monster",
+        character: summary,
+        localPeriodId,
+        monsterId: resolved.monsterId
+      };
+    }
+
+    const { contract, record } = resolved;
     const existing = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: HUNT_BOARD_CONTRACT_KEY,
       localDate: localPeriodId
@@ -81,7 +105,8 @@ export class HuntService {
       return {
         state: "already-completed",
         character: summary,
-        contract
+        contract,
+        reward: buildRewardReplay(record) ?? buildRewardReplayFromDailyAction(existing)
       };
     }
 
@@ -115,7 +140,18 @@ export class HuntService {
     }
 
     const summary = summarizeCharacter(character);
-    const contract = buildHuntContract(summary, currentLocalPeriodId, character.id);
+    const resolved = await this.getOrCreateContract(telegramUserId, currentLocalPeriodId, character, summary);
+
+    if (resolved.state === "missing-contract-monster") {
+      return {
+        state: "missing-contract-monster",
+        character: summary,
+        localPeriodId: currentLocalPeriodId,
+        monsterId: resolved.monsterId
+      };
+    }
+
+    const { contract, record } = resolved;
 
     if (requestedContractToken !== contract.contractToken) {
       return {
@@ -143,9 +179,18 @@ export class HuntService {
       return {
         state: "already-completed",
         character: summarizeCharacter(claim.character),
-        contract
+        contract,
+        reward: buildRewardReplay(record) ?? buildRewardReplayFromDailyAction(claim.action)
       };
     }
+
+    await this.markLedgerCompletedAfterClaim(telegramUserId, {
+      localPeriodId: currentLocalPeriodId,
+      action,
+      rewardXp: claim.action.rewardXp,
+      rewardGold: claim.action.rewardGold,
+      itemGrants: claim.itemGrants
+    });
 
     return {
       state: "completed",
@@ -165,6 +210,56 @@ export class HuntService {
         seed: `${currentLocalPeriodId}:${character.id}:${action}:outcome`
       })?.text ?? null
     };
+  }
+
+  private async markLedgerCompletedAfterClaim(
+    telegramUserId: bigint,
+    input: {
+      localPeriodId: string;
+      action: HuntAction;
+      rewardXp: number;
+      rewardGold: number;
+      itemGrants: Array<{ itemId: string; quantity: number }>;
+    }
+  ): Promise<void> {
+    try {
+      await this.huntContracts.markCompletedForTelegramUser(telegramUserId, input);
+    } catch {
+      // daily_actions is the reward authority; ledger replay can fall back to stored XP/gold.
+    }
+  }
+
+  private async getOrCreateContract(
+    telegramUserId: bigint,
+    localPeriodId: string,
+    character: { id: string },
+    summary: CharacterSummary
+  ): Promise<
+    | { state: "ready"; record: HuntContractRecord; contract: HuntContract }
+    | { state: "missing-contract-monster"; monsterId: string }
+  > {
+    const existing = await this.huntContracts.findByTelegramUserIdAndPeriod(
+      telegramUserId,
+      localPeriodId
+    );
+    const record =
+      existing ??
+      (await this.huntContracts.upsertPostedContractForTelegramUser(telegramUserId, {
+        localPeriodId,
+        ...buildPostedContractIdentity(localPeriodId, character.id)
+      }));
+
+    if (!record) {
+      return { state: "missing-contract-monster", monsterId: "" };
+    }
+
+    const contract = buildHuntContractFromRecord(summary, character.id, record);
+
+    if (!contract) {
+      return { state: "missing-contract-monster", monsterId: record.monsterId };
+    }
+
+    return { state: "ready", record, contract };
   }
 }
 
@@ -200,22 +295,38 @@ export function toKyivHourPeriodId(date: Date): string {
   return `${values.year}-${values.month}-${values.day}T${values.hour}`;
 }
 
-function buildHuntContract(
-  character: CharacterSummary,
+function buildPostedContractIdentity(
   localPeriodId: string,
   characterId: string
-): HuntContract {
+): { monsterId: string; contractToken: string } {
   const monster = selectHuntMonster(localPeriodId, characterId);
 
   return {
-    localPeriodId,
+    monsterId: monster.id,
+    contractToken: buildHuntContractToken(localPeriodId, characterId, monster)
+  };
+}
+
+function buildHuntContractFromRecord(
+  character: CharacterSummary,
+  characterId: string,
+  record: HuntContractRecord
+): HuntContract | null {
+  const monster = monsters.find((candidate) => candidate.id === record.monsterId);
+
+  if (!monster) {
+    return null;
+  }
+
+  return {
+    localPeriodId: record.localPeriodId,
     monster,
-    contractToken: buildHuntContractToken(localPeriodId, characterId, monster),
+    contractToken: record.contractToken,
     startFlavor:
       selectMonsterFlavorLine(character, {
         monsterId: monster.id,
         placement: "monster.start",
-        seed: `${localPeriodId}:${characterId}:start`
+        seed: `${record.localPeriodId}:${characterId}:start`
       })?.text ?? null
   };
 }
@@ -276,6 +387,43 @@ function buildHuntItemGrants(
   }
 
   return [{ itemId, quantity: 1 }];
+}
+
+function buildRewardReplay(record: HuntContractRecord): HuntRewardReplay | undefined {
+  if (
+    record.status !== "completed" ||
+    record.rewardXp === null ||
+    record.rewardGold === null
+  ) {
+    return undefined;
+  }
+
+  return {
+    xp: record.rewardXp,
+    gold: record.rewardGold,
+    localPeriodId: record.localPeriodId,
+    itemGrants: enrichRewardItemGrants(record.rewardItems ?? []),
+    ...(isHuntAction(record.completedAction) ? { action: record.completedAction } : {}),
+    ...(record.rewardItems === null ? { itemReplayUnavailable: true } : {})
+  };
+}
+
+function buildRewardReplayFromDailyAction(action: {
+  localDate: string;
+  rewardXp: number;
+  rewardGold: number;
+}): HuntRewardReplay {
+  return {
+    xp: action.rewardXp,
+    gold: action.rewardGold,
+    localPeriodId: action.localDate,
+    itemGrants: [],
+    itemReplayUnavailable: true
+  };
+}
+
+function isHuntAction(value: string | null): value is HuntAction {
+  return value === "strike" || value === "trick" || value === "retreat";
 }
 
 function stableHash(value: string): number {

@@ -238,9 +238,16 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - якщо period поточний, але token не збігається з поточно перерахованим контрактом, handler повертає stale-contract/refresh copy і не створює `daily_actions` claim;
 - legacy tokenless callback-и з `0.0.17` лишаються safe, включно з date-only форматом `YYYY-MM-DD`: view може оновити дошку, action без token не може зарахувати поточну винагороду.
 
-Залишковий борг Hunt Board contract identity: token захищає від більшости stale-button/content-drift випадків, але контракт усе ще переобчислюється із content list і не має persisted `hunt_contracts` row. Перед reward replay, груповими полюваннями, encounter sessions або складнішим loot tracking варто persist-ити contract identity (`period`, `character_id`, `monster_id`, `token`/version) і валідувати callback проти збереженого row.
+У `0.0.19` Hunt Board отримує persisted ledger:
+- `hunt_contracts` має один row на `character_id + local_period_id` і зберігає `monster_id`, `contract_token`, status, completed action, stored XP/gold і serialized item grants;
+- перший view або action за period створює posted row, а наступні виклики використовують persisted monster/token як source of truth для identity;
+- action callback валідується проти persisted row до `daily_actions.claimForTelegramUser`, тому content order/deploy drift не може перекинути стару кнопку на іншого монстра в тому самому period;
+- після успішного `daily_actions` claim ledger позначається completed і зберігає reward summary для replay;
+- repeated callback або existing `daily_actions` claim показує stored XP/gold/items із ledger, якщо вони доступні; якщо ledger completion колись не записався, fallback показує stored XP/gold із `daily_actions` і чесно не вигадує item details.
 
-Другий MVP-борг: repeated/retry callback після успішного claim поки показує `already-completed`, але не відтворює оригінальні XP/золото/item details. `daily_actions` уже зберігає reward amounts, але повний reward replay потребує сервісного контракту, який зможе підняти item grants/details для existing claim без повторної видачі нагороди.
+`daily_actions` лишається reward-idempotency authority. `hunt_contracts` не має сам видавати XP/gold/items і не замінює encounter session. Це audit/replay layer для current one-shot Hunt Board.
+
+Залишковий борг перед великим Hunt Board: ledger ще не є persistent combat/encounter state. Для групових полювань, wilderness sessions, collection progression, складного loot tracking або combat HP/mana потрібна окрема session model і ширший transaction boundary.
 
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 

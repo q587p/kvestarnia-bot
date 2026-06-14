@@ -54,6 +54,10 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
 }
 
 function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" }>): string {
+  if (hunt.state === "missing-contract-monster") {
+    return "🏹 Дошка полювання — корчмар шукає старий запис у журналі.";
+  }
+
   const status =
     hunt.state === "ready"
       ? `контракт на ${escapeHtml(hunt.contract.monster.name)}`

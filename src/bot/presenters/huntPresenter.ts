@@ -32,12 +32,46 @@ export function presentHuntAlreadyCompleted(
     | Extract<HuntLookupResult, { state: "already-completed" }>
     | Extract<HuntResult, { state: "already-completed" }>
 ): string {
-  return [
+  const lines = [
     "🏹 Полювання цієї години вже зараховано.",
     "",
     `<b>${escapeHtml(result.contract.monster.name)}</b> внесено в журнал як «проблема, що мала плани».`,
+    ""
+  ];
+
+  if (result.reward) {
+    lines.push(
+      "Вже отримано:",
+      presentRewardAmount({
+        xp: result.reward.xp,
+        gold: result.reward.gold
+      }),
+      ...presentItemGrantBlock(result.reward.itemGrants)
+    );
+
+    if (result.reward.itemReplayUnavailable) {
+      lines.push("", "Деталі здобичі вже в торбі або старому журналі. Корчмар не вигадує їх вдруге.");
+    }
+
+    lines.push("", "Повертайтесь за наступною годиною або перевірте персонажа: /hero");
+    return lines.join("\n");
+  }
+
+  lines.push("Повертайтесь за наступною годиною або перевірте персонажа: /hero");
+  return lines.join("\n");
+}
+
+export function presentHuntMissingContractMonster(
+  result:
+    | Extract<HuntLookupResult, { state: "missing-contract-monster" }>
+    | Extract<HuntResult, { state: "missing-contract-monster" }>
+): string {
+  return [
+    "🏹 Запис дошки потребує корчмаря.",
     "",
-    "Повертайтесь за наступною годиною або перевірте персонажа: /hero"
+    `У журналі лишився контракт на <code>${escapeHtml(result.monsterId)}</code>, але такого монстра зараз немає в бестіарії.`,
+    "",
+    "Нагороду за цим записом не видаємо. Оновіть дошку пізніше: /hunt"
   ].join("\n");
 }
 
@@ -72,6 +106,10 @@ export function presentHuntResult(result: Exclude<HuntResult, { state: "no-chara
 
   if (result.state === "stale-contract") {
     return presentHuntStaleContract(result);
+  }
+
+  if (result.state === "missing-contract-monster") {
+    return presentHuntMissingContractMonster(result);
   }
 
   if (result.state === "already-completed") {

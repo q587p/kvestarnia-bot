@@ -111,7 +111,14 @@ Hidden `path` може бути внутрішнім selector-ом, але на�
 - Кнопка `📖 Запис у бестіарії` з Hunt Board відкриває запис поточної цілі й не створює/не завершує полювання.
 - Це не collection tracking і не повний combat runtime: бестіарій поки читається як нотатник корчмаря.
 
-Залишковий борг перед великим `/hunt`: contract token захищає старі кнопки від content drift у межах поточної години, але контракт ще не persist-иться як окремий row. Перед груповими полюваннями, reward replay або складними encounter-сесіями потрібен persisted contract/session model.
+`0.0.19` додає малий persisted ledger для Hunt Board:
+- Перший перегляд або claim за київський годинний відтинок створює `hunt_contracts` row для character + period.
+- Після цього дошка використовує збережені `monsterId` і `contractToken` як ідентичність контракту, навіть якщо content order у майбутньому зміниться.
+- Повторний completed callback може відтворити stored XP/золото/item summary без дублювання винагороди.
+- `daily_actions` лишається єдиним авторитетом idempotent reward claim; `hunt_contracts` — це журнал/audit/replay, не друге джерело XP або луту.
+- Якщо збережений `monsterId` зник із content, дошка fail-safe просить оновити запис пізніше й не видає винагороду.
+
+Залишковий борг перед великим `/hunt`: ledger ще не є повною encounter/session system. Немає persistent HP/mana, групових учасників, wilderness location, bestiary collection progression або random loot table engine.
 
 Ширший backlog заготовок для monsters/items/quests живе в `docs/INSPIRATION_CONTENT_BACKLOG.md`. Runtime PR має переносити його малими pack-ами й не обіцяти гравецькі drops раніше, ніж є encounter routing, loot table або deterministic grant.
 
