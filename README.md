@@ -46,7 +46,7 @@
 - `🍻 Всім пива` — перший жартівливий gold sink і рейтинг щедрості.
 - `/quest`, `🗺️ Квест` — компактний «Стіл зі справами».
 - `/adventure` — перша коротка пригода з підозрілою шаурмою, новачкова справа до 3 рівня.
-- `/fight` — безпечна бойова перевірка з підозрілим монстром до 3 рівня, без повної persistent combat state machine.
+- `/fight` — навчальна сутичка з підозрілим монстром на рівнях 1-2, а з 3 рівня — persistent solo-бій із HP, маною, ходами й втечею; нові бої поки без XP/золота/луту.
 - `/hunt` — Дошка полювання з щогодинним контрактом на монстра з бестіарію, persisted ledger і replay already-completed винагород; відкривається з 3 рівня.
 - `/bestiary`, `/monsters` — read-only польові нотатки про монстрів, рівні й можливі трофеї без увімкненого повного combat engine.
 - `/cellar` — repeatable підвальна справа для рівнів 2-3, коли денні активності вже витрачені.
@@ -54,10 +54,10 @@
 - `/equipment`, `/gear`, `/equip` — persistent shell спорядження: можна вдягнути owned preview-equippable манатку й зняти її без зміни статів.
 - `/online`, `/look`, корчемне «За столами» і `/presence` — легка присутність без точного стеження за гравцями.
 - раса, клас і дивна біографія персонажа вже можуть змінювати короткі репліки в корчмі, пригодах і outcome-флейворі.
-- у контенті вже є перший бестіарій на 20 чудовиськ і трофеїв; частина цього списку виходить у runtime через Дошку полювання, read-only бестіарій і журнал hunt-контрактів, але повний бойовий рушій ще не ввімкнений.
+- у контенті вже є перший бестіарій на 20 чудовиськ і трофеїв; частина цього списку виходить у runtime через Дошку полювання, read-only бестіарій, журнал hunt-контрактів і persistent solo `/fight`, але reward/loot path для нового бою ще не ввімкнений.
 - `/version`, `/news`, `/restart` — сервісні команди для версії, новин і перезапуску персонажа.
 
-Ще попереду: повний покроковий бій, справжні equipment effects, random loot tables, групові рейди, ґільдії, сезони, PvP без токсичної втрати цінного луту та економічні sinks.
+Ще попереду: нагороди й лут за persistent бої, справжні equipment effects, random loot tables, групові рейди, ґільдії, сезони, PvP без токсичної втрати цінного луту та економічні sinks.
 
 ## 🌫 Тон
 
@@ -121,12 +121,12 @@
 - [`docs/BESTIARY.md`](docs/BESTIARY.md) — перший ростер із 20 монстрів і їхніми reaction hooks.
 - [`docs/MONSTER_LOOT_DROPS.md`](docs/MONSTER_LOOT_DROPS.md) — monster → item mapping без увімкненого random loot engine.
 - [`docs/MONSTER_FLAVOR_ROUTING.md`](docs/MONSTER_FLAVOR_ROUTING.md) — selector-пріоритети для race/class/path/combo monster flavor.
-- [`docs/ACHIEVEMENTS_PHASE1.md`](docs/ACHIEVEMENTS_PHASE1.md) — план rewardless ачівок/титулів для наступного PR.
+- [`docs/ACHIEVEMENTS_PHASE1.md`](docs/ACHIEVEMENTS_PHASE1.md) — план rewardless ачівок/титулів для later PR після основної бойової петлі.
 - [`docs/CONTENT_STYLE_GUIDE.md`](docs/CONTENT_STYLE_GUIDE.md) — український тон, гумор, лапки, формат Telegram-повідомлень.
 - [`docs/INSPIRATION_CONTENT_BACKLOG.md`](docs/INSPIRATION_CONTENT_BACKLOG.md) — очищені джерела смаку, безпечні правила запозичення й backlog монстрів, манаток, пригод та алюзій.
 - [`docs/TERMINOLOGY.md`](docs/TERMINOLOGY.md) — правило `пригодник` / `персонаж` / `герой` і репутаційні шляхи.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — фази розвитку й Definition of Done для продукту.
-- [`docs/PHASE1_FINISH_PLAN.md`](docs/PHASE1_FINISH_PLAN.md) — scope lock для ачівок без бонусів і добивання combat → equipment stats → loot → рівнів 1-10.
+- [`docs/PHASE1_FINISH_PLAN.md`](docs/PHASE1_FINISH_PLAN.md) — scope lock для добивання combat → equipment stats → loot → рівнів 1-10, із ачівками як rewardless later slice.
 - [`docs/BALANCE_NOTES.md`](docs/BALANCE_NOTES.md) — формули, економіка, RNG і балансні guardrails.
 - [`docs/SECURITY_AND_FAIR_PLAY.md`](docs/SECURITY_AND_FAIR_PLAY.md) — антиаб’юз, приватність, idempotency і чесна гра.
 - [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md) — архітектура, домени, дані й майбутні технічні рішення.

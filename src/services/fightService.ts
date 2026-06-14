@@ -1,5 +1,12 @@
+import { randomUUID } from "node:crypto";
+import { monsters } from "../content/monsters";
+import type { MonsterContent } from "../content/schema";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type { DailyActionRepository, RewardLevelChange } from "../db/repositories/dailyActionRepository";
+import type {
+  SoloCombatSessionRecord,
+  SoloCombatSessionRepository
+} from "../db/repositories/soloCombatSessionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   runCombatProbe,
@@ -7,9 +14,19 @@ import {
   type CombatProbeResult
 } from "../domain/combat/combatProbe";
 import {
+  deriveMonsterCombatStats,
+  expireCombat,
+  getCombatSkillProfile,
+  resolveCombatTurn,
+  startCombat,
+  type CombatActionType,
+  type CombatActorStats
+} from "../domain/combat";
+import {
   isWithinActivityMaxLevel,
   STARTER_ACTIVITY_MAX_LEVEL
 } from "../domain/progression/activityGates";
+import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
   MIMIC_SHAWARMA_ADVENTURE_KEY,
@@ -19,6 +36,7 @@ import {
   enrichRewardItemGrants,
   PAN_OF_PERSUASION_ITEM_ID,
   RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
+  starterEquipmentGrant,
   STAMP_OF_MINOR_AUTHORITY_ITEM_ID,
   SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
   type RewardItemGrant
@@ -45,6 +63,19 @@ export const MIMIC_SHAWARMA_COMBAT_REWARDS = {
 export type FightLookupResult =
   | { state: "no-character" }
   | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
+  | { state: "persistent-ready"; character: CharacterSummary }
+  | {
+      state: "persistent-active";
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      monster: MonsterContent;
+    }
+  | {
+      state: "persistent-terminal";
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      monster: MonsterContent | null;
+    }
   | { state: "ready"; character: CharacterSummary }
   | { state: "already-completed"; character: CharacterSummary; questAvailable: boolean };
 
@@ -65,6 +96,34 @@ export type FightResult =
       questAvailable: boolean;
     };
 
+export type PersistentFightTurnResult =
+  | { state: "no-character" }
+  | { state: "not-found"; character: CharacterSummary }
+  | {
+      state: "stale-turn";
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      monster: MonsterContent | null;
+    }
+  | {
+      state: "not-enough-mana";
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      monster: MonsterContent;
+    }
+  | {
+      state: "updated";
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      monster: MonsterContent;
+    }
+  | {
+      state: "terminal";
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      monster: MonsterContent | null;
+    };
+
 export interface FightReward {
   xp: number;
   gold: number;
@@ -76,8 +135,184 @@ export class FightService {
   constructor(
     private readonly characters: CharacterRepository,
     private readonly dailyActions: DailyActionRepository,
-    private readonly clock: Clock = systemClock
+    private readonly clock: Clock = systemClock,
+    private readonly combatSessions?: SoloCombatSessionRepository,
+    private readonly rng: RandomSource = new CryptoRandomSource()
   ) {}
+
+  async getFightOverviewForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const characterSummary = summarizeCharacter(character);
+
+    if (isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
+      return this.getMimicShawarmaForTelegramUser(telegramUserId);
+    }
+
+    if (!this.combatSessions) {
+      return {
+        state: "level-retired",
+        character: characterSummary,
+        maxLevel: STARTER_ACTIVITY_MAX_LEVEL
+      };
+    }
+
+    const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+
+    if (!activeSession) {
+      return {
+        state: "persistent-ready",
+        character: characterSummary
+      };
+    }
+
+    if (!activeSession.state) {
+      const expiredSession = await this.combatSessions.markStatusById(activeSession.id, "expired");
+
+      return {
+        state: "persistent-terminal",
+        character: characterSummary,
+        session: expiredSession ?? { ...activeSession, status: "expired" },
+        monster: findMonster(activeSession.monsterId)
+      };
+    }
+
+    if (isExpired(activeSession, this.clock())) {
+      const expiredState = expireCombat(activeSession.state);
+      const expiredSession = await this.combatSessions.updateById(activeSession.id, {
+        state: expiredState,
+        status: expiredState.status
+      });
+
+      return {
+        state: "persistent-terminal",
+        character: characterSummary,
+        session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
+        monster: findMonster(activeSession.monsterId)
+      };
+    }
+
+    const monster = findMonster(activeSession.monsterId);
+
+    if (!monster || activeSession.state.status !== "active") {
+      const expiredState =
+        activeSession.state.status === "active" ? expireCombat(activeSession.state) : activeSession.state;
+      const expiredSession = await this.combatSessions.updateById(activeSession.id, {
+        state: expiredState,
+        status: expiredState.status
+      });
+
+      return {
+        state: "persistent-terminal",
+        character: characterSummary,
+        session: expiredSession ?? { ...activeSession, state: expiredState, status: expiredState.status },
+        monster
+      };
+    }
+
+    return {
+      state: "persistent-active",
+      character: characterSummary,
+      session: activeSession,
+      monster
+    };
+  }
+
+  async getFightForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const characterSummary = summarizeCharacter(character);
+
+    if (isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
+      return this.getMimicShawarmaForTelegramUser(telegramUserId);
+    }
+
+    if (!this.combatSessions) {
+      return {
+        state: "level-retired",
+        character: characterSummary,
+        maxLevel: STARTER_ACTIVITY_MAX_LEVEL
+      };
+    }
+
+    const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+
+    if (activeSession) {
+      if (!activeSession.state) {
+        await this.combatSessions.markStatusById(activeSession.id, "expired");
+      } else if (isExpired(activeSession, this.clock())) {
+        const expiredState = expireCombat(activeSession.state);
+        const expiredSession = await this.combatSessions.updateById(activeSession.id, {
+          state: expiredState,
+          status: expiredState.status
+        });
+
+        return {
+          state: "persistent-terminal",
+          character: characterSummary,
+          session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
+          monster: findMonster(activeSession.monsterId)
+        };
+      } else {
+        const monster = findMonster(activeSession.monsterId);
+
+        if (!monster) {
+          const expiredState = expireCombat(activeSession.state);
+          const expiredSession = await this.combatSessions.updateById(activeSession.id, {
+            state: expiredState,
+            status: expiredState.status
+          });
+
+          return {
+            state: "persistent-terminal",
+            character: characterSummary,
+            session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
+            monster: null
+          };
+        }
+
+        return {
+          state: activeSession.state.status === "active" ? "persistent-active" : "persistent-terminal",
+          character: characterSummary,
+          session: activeSession,
+          monster
+        };
+      }
+    }
+
+    const monster = selectSoloFightMonster(characterSummary, this.rng);
+    const sessionId = randomUUID();
+    const state = startCombat({
+      id: sessionId,
+      hero: buildHeroCombatStats(characterSummary),
+      monster: deriveMonsterCombatStats(monster)
+    });
+    const session = await this.combatSessions.createForTelegramUser(telegramUserId, {
+      id: sessionId,
+      monsterId: monster.id,
+      state,
+      expiresAt: getSessionExpiry(this.clock())
+    });
+
+    if (!session) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "persistent-active",
+      character: characterSummary,
+      session,
+      monster
+    };
+  }
 
   async getMimicShawarmaForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
     const localDate = toIsoDate(this.clock());
@@ -188,15 +423,167 @@ export class FightService {
       levelChange: claim.levelChange
     };
   }
+
+  async resolvePersistentFightTurn(
+    telegramUserId: bigint,
+    input: { sessionId: string; turn: number; action: CombatActionType }
+  ): Promise<PersistentFightTurnResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const characterSummary = summarizeCharacter(character);
+
+    if (!this.combatSessions) {
+      return {
+        state: "not-found",
+        character: characterSummary
+      };
+    }
+
+    const session = await this.combatSessions.findByIdForTelegramUserId(
+      telegramUserId,
+      input.sessionId
+    );
+
+    if (!session) {
+      return {
+        state: "not-found",
+        character: characterSummary
+      };
+    }
+
+    if (session.status === "active") {
+      const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+
+      if (activeSession && activeSession.id !== session.id) {
+        return {
+          state: "stale-turn",
+          character: characterSummary,
+          session: activeSession,
+          monster: findMonster(activeSession.monsterId)
+        };
+      }
+    }
+
+    if (session.status !== "active") {
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session,
+        monster: findMonster(session.monsterId)
+      };
+    }
+
+    if (!session.state) {
+      await this.combatSessions.markStatusById(session.id, "expired");
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: { ...session, status: "expired" },
+        monster: findMonster(session.monsterId)
+      };
+    }
+
+    const monster = findMonster(session.monsterId);
+
+    if (isExpired(session, this.clock())) {
+      const expiredState = expireCombat(session.state);
+      const updated = await this.combatSessions.updateById(session.id, {
+        state: expiredState,
+        status: expiredState.status
+      });
+
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: updated ?? { ...session, state: expiredState, status: "expired" },
+        monster
+      };
+    }
+
+    if (!monster || session.state.status !== "active") {
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session,
+        monster
+      };
+    }
+
+    if (session.state.turn !== input.turn) {
+      return {
+        state: "stale-turn",
+        character: characterSummary,
+        session,
+        monster
+      };
+    }
+
+    const resolved = resolveCombatTurn({
+      state: session.state,
+      action: input.action,
+      hero: buildHeroCombatStats(characterSummary),
+      monster: deriveMonsterCombatStats(monster),
+      rng: this.rng
+    });
+
+    if (!resolved.ok && resolved.reason === "not-enough-mana") {
+      return {
+        state: "not-enough-mana",
+        character: characterSummary,
+        session,
+        monster
+      };
+    }
+
+    if (!resolved.ok) {
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session,
+        monster
+      };
+    }
+
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, input.turn, {
+      state: resolved.state,
+      status: resolved.state.status,
+      expiresAt: getSessionExpiry(this.clock())
+    });
+
+    if (!updated) {
+      const currentSession = await this.combatSessions.findByIdForTelegramUserId(
+        telegramUserId,
+        input.sessionId
+      );
+      const fallbackSession = currentSession ?? session;
+
+      return {
+        state: fallbackSession.status === "active" && fallbackSession.state?.status === "active"
+          ? "stale-turn"
+          : "terminal",
+        character: characterSummary,
+        session: fallbackSession,
+        monster: findMonster(fallbackSession.monsterId)
+      };
+    }
+
+    return {
+      state: "updated",
+      character: characterSummary,
+      session: updated,
+      monster
+    };
+  }
 }
 
 function buildFightItemGrants(action: FightAction): Array<{ itemId: string; quantity: number }> {
   if (action === "attack") {
     return [
-      {
-        itemId: PAN_OF_PERSUASION_ITEM_ID,
-        quantity: 1
-      },
+      starterEquipmentGrant(PAN_OF_PERSUASION_ITEM_ID),
       {
         itemId: SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
         quantity: 1
@@ -206,10 +593,7 @@ function buildFightItemGrants(action: FightAction): Array<{ itemId: string; quan
 
   if (action === "receipt") {
     return [
-      {
-        itemId: STAMP_OF_MINOR_AUTHORITY_ITEM_ID,
-        quantity: 1
-      },
+      starterEquipmentGrant(STAMP_OF_MINOR_AUTHORITY_ITEM_ID),
       {
         itemId: RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
         quantity: 1
@@ -218,4 +602,98 @@ function buildFightItemGrants(action: FightAction): Array<{ itemId: string; quan
   }
 
   return [];
+}
+
+function buildHeroCombatStats(character: CharacterSummary): CombatActorStats {
+  return {
+    level: character.level,
+    hpMax: character.hpMax,
+    manaMax: character.manaMax,
+    classId: character.classId,
+    ...character.stats
+  };
+}
+
+function getSessionExpiry(now: Date): Date {
+  return new Date(now.getTime() + 30 * 60 * 1000);
+}
+
+function isExpired(session: SoloCombatSessionRecord, now: Date): boolean {
+  return session.expiresAt.getTime() <= now.getTime();
+}
+
+function findMonster(monsterId: string): MonsterContent | null {
+  return monsters.find((monster) => monster.id === monsterId) ?? null;
+}
+
+function selectSoloFightMonster(
+  character: CharacterSummary,
+  rng: RandomSource
+): MonsterContent {
+  const candidates = monsters.filter((monster) => {
+    const tags = new Set(monster.tags);
+
+    return (
+      monster.id !== "monster.mimic-shawarma" &&
+      !tags.has("starter") &&
+      !tags.has("boss") &&
+      monster.level <= Math.max(3, character.level)
+    );
+  });
+  const fallback = monsters.find((monster) => monster.id === "monster.deadline-spider");
+
+  if (!fallback) {
+    throw new Error("Квестарня: немає монстра для solo fight fallback.");
+  }
+
+  if (candidates.length === 0) {
+    return fallback;
+  }
+
+  return candidates[rng.nextInt(0, candidates.length - 1)] ?? candidates[0] ?? fallback;
+}
+
+export function getPersistentFightSkillLabel(character: CharacterSummary): string {
+  const skill = getCombatSkillProfile(character.classId);
+  const label = (() => {
+    switch (skill.id) {
+      case "skill.forceful-strike":
+        return "🗡️ Силовий удар";
+      case "skill.hot-spell":
+        return "🔥 Гаряче закляття";
+      case "skill.form-thirteen-b":
+        return "📎 Форма 13-Б";
+      case "skill.dangerous-couplet":
+        return "🎵 Небезпечний куплет";
+      case "skill.trick-shot":
+        return "🎯 Хитрий постріл";
+      case "skill.strict-blessing":
+        return "🕯️ Суворе благословення";
+      case "skill.steppe-side-eye":
+        return "🌾 Степовий погляд";
+      default:
+        return "🗡️ Обережний удар";
+    }
+  })();
+
+  if (skill.manaCost === 0) {
+    return label;
+  }
+
+  return `${label} · ${skill.manaCost} ${pluralize(skill.manaCost, "мана", "мани", "мани")}`;
+}
+
+function pluralize(count: number, one: string, few: string, many: string): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return one;
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return few;
+  }
+
+  return many;
 }

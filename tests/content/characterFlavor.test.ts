@@ -322,6 +322,42 @@ describe("character flavor content", () => {
     }
   });
 
+  it("keeps generated race and class pool flavor authored instead of templated name swaps", () => {
+    const forbiddenTemplateFragments = [
+      "не просто лежить. Вона вивчає правила дому",
+      "не вечерю, а задачу з соусом",
+      "лишає на справі власний підпис",
+      "завершує епізод професійно",
+      "помічає, що підозрілий монстр рухається",
+      "оцінює сутичку: зуби є",
+      "виходить із сутички з виглядом, ніби все було під контролем",
+      "заходить у підвал так, ніби миша вже має пояснити",
+      "бачить у підвалі не просто",
+      "лишає підвал трохи",
+      "завершує підвальну справу професійно"
+    ];
+    const generatedPoolLines = characterFlavorLines.filter(
+      (line) => line.id.includes(".race-pool.") || line.id.includes(".class-pool.")
+    );
+    const linesByContext = new Map<string, string[]>();
+
+    for (const line of generatedPoolLines) {
+      for (const fragment of forbiddenTemplateFragments) {
+        expect(line.text).not.toContain(fragment);
+      }
+
+      const selectorKind = line.id.includes(".race-pool.") ? "race" : "class";
+      const action = line.selector?.actions?.join(",") ?? "start";
+      const key = `${line.placement}|${line.scene}|${action}|${selectorKind}`;
+      const normalized = normalizeVisibleRaceAndClassNames(line.text);
+      linesByContext.set(key, [...(linesByContext.get(key) ?? []), normalized]);
+    }
+
+    for (const [key, lines] of linesByContext.entries()) {
+      expect(new Set(lines).size, key).toBe(lines.length);
+    }
+  });
+
   it("has first quest combo flavor for every available active race and class combination", () => {
     const combos = availableRaceClassCombos();
 
@@ -582,6 +618,20 @@ function comboLabelVariants(
     ),
     ...titleLabels
   ];
+}
+
+function normalizeVisibleRaceAndClassNames(text: string): string {
+  const visibleNames = [...activeRaces.map((race) => race.name), ...classes.map((heroClass) => heroClass.name)];
+
+  return visibleNames.reduce(
+    (normalized, visibleName) =>
+      normalized.replace(new RegExp(escapeRegExp(visibleName), "gu"), "{character-label}"),
+    text
+  );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function classLabelVariants(className: string): string[] {

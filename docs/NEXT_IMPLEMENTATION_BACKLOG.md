@@ -1,4 +1,4 @@
-# Next Implementation Backlog після `0.0.20`
+# Next Implementation Backlog після `0.0.21`
 
 Нижче — канонічний порядок маленьких PR для добивання Phase 1. Кожен slice має бути перевірюваним окремо; якщо PR роздувається, різати.
 
@@ -9,13 +9,13 @@
 Не розширювати бестіарій як окрему фічу, collection loop, share card або journal progression, доки не закритий основний RPG-ланцюжок:
 
 ```text
-combat domain → achievements phase 1 → persistent fight → equipment stats → loot engine → level 1-10 → balance/playtest polish
+combat domain → persistent fight → equipment stats → loot engine → level 1-10 → achievements phase 1 → balance/playtest polish
 ```
 
 ## 0.0.20 — Combat Domain Engine
 
 **Status**
-Implemented in `0.0.20` as pure domain code. Runtime `/fight` still uses the old probe until `0.0.21`.
+Implemented in `0.0.20` as pure domain code. Runtime `/fight` wiring landed in `0.0.21`.
 
 **Objective**
 Реалізувати чистий domain combat engine без Telegram/grammY.
@@ -45,7 +45,39 @@ Implemented in `0.0.20` as pure domain code. Runtime `/fight` still uses the old
 - tests cover weaponless/basic attack path;
 - звичайний бій має sanity band для 2-5 ходів.
 
-## 0.0.21 — Achievements Phase 1
+## 0.0.21 — Persistent Fight Sessions
+
+**Status**
+Implemented in `0.0.21` as the first Telegram runtime wiring for the combat domain engine. Persistent fights are rewardless in this slice.
+
+**Objective**
+Підʼєднати combat engine до `/fight` як справжню persistent solo session.
+
+**Scope**
+
+- `solo_combat_sessions` stores serializable `CombatState`, monster id, status, and lazy expiry;
+- service створює або відновлює one active combat for level 3+ characters;
+- callback-и короткі, v1, ownership/turn validated, stale-safe;
+- fight screen показує HP/mana героя, HP ворога, доступні дії, результат останнього ходу;
+- pending Barrel raid guard лишається сильнішим за fight callbacks;
+- starter fight probe for levels 1-2 stays intact.
+
+**Non-goals**
+
+- no rewards, XP, gold, or item grants for persistent fights yet;
+- no random loot tables;
+- no equipment effects;
+- no group/PvP combat;
+- no background workers.
+
+**Acceptance criteria**
+
+- `/fight` starts/resumes one active solo combat;
+- repeated callback того самого ходу не проводить ще один хід;
+- stale callback не дублює damage/rewards;
+- terminal states are stable and do not reopen automatically.
+
+## Later — Achievements Phase 1
 
 **Objective**
 Додати першу систему ачівок як колекцію жартівливих титулів без gameplay-бонусів.
@@ -83,33 +115,7 @@ Implemented in `0.0.20` as pure domain code. Runtime `/fight` still uses the old
 - UI shows `Отримано: X/54`, categories, pages, and dates;
 - backfill does not spam old players.
 
-## 0.0.22 — Persistent Fight Sessions
-
-**Objective**
-Підʼєднати combat engine до `/fight` як справжню persistent session.
-
-**Scope**
-
-- combat persistence model або узгоджений equivalent;
-- service створює або відновлює active combat;
-- callback-и короткі, v1, ownership/turn validated, stale-safe;
-- fight screen показує HP/mana героя, HP ворога, доступні дії, результат останнього ходу;
-- pending Barrel raid guard лишається сильнішим за fight callbacks.
-
-**Non-goals**
-
-- no random loot tables;
-- no equipment effects;
-- no full bestiary target selection;
-- no group/PvP combat.
-
-**Acceptance criteria**
-
-- `/fight` starts/resumes one active solo combat;
-- repeated callback того самого ходу не проводить ще один хід;
-- stale callback не дублює damage/rewards.
-
-## 0.0.23 — Equipment Stat Effects
+## 0.0.22 — Equipment Stat Effects
 
 **Objective**
 Екіпіровані манатки починають давати маленькі прозорі bonuses, а combat і `/hero` читають ту саму effective stats математику.
@@ -137,7 +143,7 @@ Implemented in `0.0.20` as pure domain code. Runtime `/fight` still uses the old
 - junk/cosmetic/priceless items не дають power випадково;
 - presenter не рахує приховану математику.
 
-## 0.0.24 — Loot Engine + Reward Replay
+## 0.0.23 — Loot Engine + Reward Replay
 
 **Objective**
 Перетворити monster loot mapping на контрольований, тестований loot engine.
@@ -165,7 +171,7 @@ Implemented in `0.0.20` as pure domain code. Runtime `/fight` still uses the old
 - повторний callback не reroll-ить loot;
 - reward UI безпечно показує exact items.
 
-## 0.0.25 — Fight Rewards and Level 1-10
+## 0.0.24 — Fight Rewards and Level 1-10
 
 **Objective**
 Закрити solo loop: real fight → reward → loot → level-up → hero/equipment impact.
@@ -177,6 +183,7 @@ Implemented in `0.0.20` as pure domain code. Runtime `/fight` still uses the old
 - multi-level grant;
 - level cap / alpha max behavior;
 - level affects combat math through effective stats;
+- future-safe monster level modifiers: манатки або дії інших гравців можуть тимчасово знижувати чи піднімати effective рівень монстра; нижчий рівень має давати менші/гірші rewards, вищий — кращі rewards, але різко складніший бій і більшу потребу в разових манатках;
 - short Ukrainian level-up copy with concrete changes.
 
 **Proposed total XP thresholds**

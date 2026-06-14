@@ -13,6 +13,7 @@ import { PrismaHuntContractRepository } from "./db/repositories/prismaHuntContra
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "./db/repositories/prismaKorchmaRoundPurchaseRepository";
 import { PrismaPresenceRepository } from "./db/repositories/prismaPresenceRepository";
+import { PrismaSoloCombatSessionRepository } from "./db/repositories/prismaSoloCombatSessionRepository";
 import { PrismaUserRepository } from "./db/repositories/prismaUserRepository";
 import { startHealthServer } from "./health/server";
 import { readAppVersion } from "./shared/appVersion";
@@ -40,10 +41,11 @@ const huntContracts = new PrismaHuntContractRepository(prisma);
 const inventory = new PrismaInventoryRepository(prisma);
 const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
+const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
 const services = {
   adventure: new AdventureService(characters, dailyActions),
   cellarErrand: new CellarErrandService(cooldowns),
-  fight: new FightService(characters, dailyActions),
+  fight: new FightService(characters, dailyActions, undefined, soloCombatSessions),
   hunt: new HuntService(characters, dailyActions, huntContracts),
   onboarding: new OnboardingService(users, characters),
   hero: new HeroService(characters, inventory),

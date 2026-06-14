@@ -237,7 +237,7 @@ function buildShawarmaStartRaceLines(): CharacterFlavorLine[] {
     scene: "shawarma",
     selector: { raceIds: [race.id] },
     priority: -1,
-    text: `${race.name} відчуває, що ця шаурма не просто лежить. Вона вивчає правила дому й шукає слабке місце в серветці.`
+    text: shawarmaStartRaceText(race.id)
   }));
 }
 
@@ -248,7 +248,7 @@ function buildShawarmaStartClassLines(): CharacterFlavorLine[] {
     scene: "shawarma",
     selector: { classIds: [heroClass.id] },
     priority: -1,
-    text: `${heroClass.name} бачить у цій шаурмі не вечерю, а задачу з соусом, підозрою і погано прихованою самовпевненістю.`
+    text: shawarmaStartClassText(heroClass.id)
   }));
 }
 
@@ -270,7 +270,7 @@ function buildShawarmaOutcomeRaceLines(): CharacterFlavorLine[] {
       scene: "shawarma",
       selector: { raceIds: [race.id], actions: [action] },
       priority: -1,
-      text: `${race.name} лишає на справі власний підпис: шаурма тепер поводиться тихіше й підозрює, що її щойно перемогли стилем.`
+      text: shawarmaOutcomeRaceText(race.id, action)
     }))
   );
 }
@@ -283,7 +283,7 @@ function buildShawarmaOutcomeClassLines(): CharacterFlavorLine[] {
       scene: "shawarma",
       selector: { classIds: [heroClass.id], actions: [action] },
       priority: -1,
-      text: `${heroClass.name} завершує епізод професійно: шаурма ще дихає, але вже розуміє, що протокол пригоди не на її боці.`
+      text: shawarmaOutcomeClassText(heroClass.id, action)
     }))
   );
 }
@@ -295,7 +295,7 @@ function buildFightStartRaceLines(): CharacterFlavorLine[] {
     scene: "fight",
     selector: { raceIds: [race.id] },
     priority: -1,
-    text: `${race.name} помічає, що підозрілий монстр рухається не як їжа. Їжа зазвичай не вибирає, кого вкусити першим.`
+    text: fightStartRaceText(race.id)
   }));
 }
 
@@ -306,7 +306,7 @@ function buildFightStartClassLines(): CharacterFlavorLine[] {
     scene: "fight",
     selector: { classIds: [heroClass.id] },
     priority: -1,
-    text: `${heroClass.name} оцінює сутичку: зуби є, пафос є, план майже є. Залишилось зробити вигляд, що так і задумано.`
+    text: fightStartClassText(heroClass.id)
   }));
 }
 
@@ -328,7 +328,7 @@ function buildFightOutcomeRaceLines(): CharacterFlavorLine[] {
       scene: "fight",
       selector: { raceIds: [race.id], actions: [action] },
       priority: -1,
-      text: `${race.name} виходить із сутички з виглядом, ніби все було під контролем. Монстр не погоджується, але вже тихіше.`
+      text: fightOutcomeRaceText(race.id, action)
     }))
   );
 }
@@ -353,7 +353,7 @@ function buildCellarStartRaceLines(): CharacterFlavorLine[] {
     scene: "cellar",
     selector: { raceIds: [race.id] },
     priority: -1,
-    text: `${race.name} заходить у підвал так, ніби миша вже має пояснити не лише сир, а й свою життєву позицію.`
+    text: cellarStartRaceText(race.id)
   }));
 }
 
@@ -364,7 +364,7 @@ function buildCellarStartClassLines(): CharacterFlavorLine[] {
     scene: "cellar",
     selector: { classIds: [heroClass.id] },
     priority: -1,
-    text: `${heroClass.name} бачить у підвалі не просто пил і сир, а малу справу з великою підозрою під плінтусом.`
+    text: cellarStartClassText(heroClass.id)
   }));
 }
 
@@ -386,7 +386,7 @@ function buildCellarOutcomeRaceLines(): CharacterFlavorLine[] {
       scene: "cellar",
       selector: { raceIds: [race.id], actions: [action] },
       priority: -1,
-      text: `${race.name} лишає підвал трохи впорядкованішим, трохи сирнішим і значно обережнішим у висловах про крихти.`
+      text: cellarOutcomeRaceText(race.id, action)
     }))
   );
 }
@@ -399,7 +399,7 @@ function buildCellarOutcomeClassLines(): CharacterFlavorLine[] {
       scene: "cellar",
       selector: { classIds: [heroClass.id], actions: [action] },
       priority: -1,
-      text: `${heroClass.name} завершує підвальну справу професійно: миша не згодна, але визнає, що квест набув форми.`
+      text: cellarOutcomeClassText(heroClass.id, action)
     }))
   );
 }
@@ -414,6 +414,234 @@ function buildCellarOutcomeComboLines(): CharacterFlavorLine[] {
       text: `{title}: ${cellarOutcomeActionBeat(action)} ${cellarOutcomeRaceBeat(raceId)} ${cellarOutcomeClassBeat(classId)}`
     }))
   );
+}
+
+function shawarmaStartRaceText(raceId: string): string {
+  return (
+    {
+      "race.human-ish": "Людисько дивиться на шаурму з тим самим виразом, з яким дивляться на підозрілу знижку: хочеться, але є питання.",
+      "race.dwarf": "Гном оцінює шаурму по вазі, шву лаваша й готовності пережити прямий аргумент об стіл.",
+      "race.elf": "Ельф помічає, що соус ліг негармонійно. Гірше того, соус це помітив теж.",
+      "race.bisyny": "Бісини вже хочуть виправити назву страви, але шаурма ворушиться першою. Це граматична ескалація.",
+      "race.drantohor": "Дрантогор бачить у шаурмі короткий шлях до проблеми. Короткі шляхи, як завжди, мають зуби.",
+      "race.domovyk": "Домовик дивиться на крихти під шаурмою як на порушення хатнього статуту.",
+      "race.dryland-rusalka": "Сухопутна русалка чує, як соус удає море. Дуже мале, дуже часникове, але нахабне.",
+      "race.intellectual-orc": "Орк-інтелігент формулює до шаурми перше питання. Шаурма відповідає парою, що вважається слабким аргументом.",
+      "race.molfar-soul": "Мольфарська душа відчуває над лавашем дрібний туман наміру. Туман пахне куркою й поганими рішеннями."
+    } satisfies Record<string, string>
+  )[raceId] ?? "Шаурма поводиться як проблема, яка ще не обрала жанр.";
+}
+
+function shawarmaStartClassText(classId: string): string {
+  return (
+    {
+      "class.warrior": "Воїн бачить лаваш, який занадто впевнено тримає форму. Так починаються прості плани.",
+      "class.mage": "Маг помічає, що пара над шаурмою складається в знак, якого точно не було в меню.",
+      "class.bard": "Бард чує з шаурми ритм. На жаль, це не вступ до пісні, а підготовка до укусу.",
+      "class.rogue": "Злодій бачить, що шаурма лежить так, ніби ховає гаманець. Або зуби. Можливо, і те, і те.",
+      "class.priest": "Жрець відчуває спокусу назвати це вечерею, але суворий погляд уже дістав кадило.",
+      "class.varenyk-mancer": "Вареник-мант не довіряє цій начинці. Вона не має честі, форми й нормального краю тіста.",
+      "class.bureaucramancer": "Бюрокромант шукає на шаурмі походження, дату, печатку й відповідального за дихання.",
+      "class.ranger": "Єгер читає слід соусу від тарілки до краю стола. Слід явно збирався втекти.",
+      "class.kharakternyk": "Козак-характерник мовчки дивиться на шаурму. Лаваш робить вигляд, що йому не страшно, і провалює перевірку."
+    } satisfies Record<string, string>
+  )[classId] ?? "Шаурма не схожа на вечерю. Вечері рідко оцінюють дистанцію до пальців.";
+}
+
+function shawarmaOutcomeRaceText(
+  raceId: string,
+  action: "poke" | "receipt" | "flee"
+): string {
+  const actionBeat = shawarmaActionBeat(action);
+
+  return (
+    {
+      "race.human-ish": `Людисько ${actionBeat} лишає шаурмі найстрашніше: майже нормальне пояснення, чому так не можна.`,
+      "race.dwarf": `Гном ${actionBeat} доводить, що навіть мʼякий лаваш може зустріти тверду позицію.`,
+      "race.elf": `Ельф ${actionBeat} завершує сцену так акуратно, що соус соромиться власної композиції.`,
+      "race.bisyny": `Бісини ${actionBeat} редагують поведінку шаурми до стану «не кусається без примітки».`,
+      "race.drantohor": `Дрантогор ${actionBeat} показує шаурмі обхідний маршрут до поразки. Вона знаходить його одразу.`,
+      "race.domovyk": `Домовик ${actionBeat} нагадує лавашу, що на чужому столі треба поводитися як гість, а не як сюжет.`,
+      "race.dryland-rusalka": `Сухопутна русалка ${actionBeat} залишає соус без морських претензій і з побутовою тривогою.`,
+      "race.intellectual-orc": `Орк-інтелігент ${actionBeat} розкладає інцидент на тези, крихти й один дуже переконливий висновок.`,
+      "race.molfar-soul": `Мольфарська душа ${actionBeat} загортає підозру в туман. Шаурма вже не певна, чи була головною.`
+    } satisfies Record<string, string>
+  )[raceId] ?? `Пригодник ${actionBeat} лишає шаурму з короткою біографією поразки.`;
+}
+
+function shawarmaOutcomeClassText(
+  classId: string,
+  action: "poke" | "receipt" | "flee"
+): string {
+  const actionBeat = shawarmaActionBeat(action);
+
+  return (
+    {
+      "class.warrior": `Воїн ${actionBeat} пояснює лавашу головне правило пригод: якщо дихаєш на стіл, тримай удар.`,
+      "class.mage": `Маг ${actionBeat} знімає з шаурми зайву містичність. Лишається часник, пара й дуже винний вигляд.`,
+      "class.bard": `Бард ${actionBeat} ставить фінальну ноту. Шаурма хотіла вкусити, але потрапила в приспів.`,
+      "class.rogue": `Злодій ${actionBeat} виходить зі справи так тихо, що шаурма підозрює власну кишеню.`,
+      "class.priest": `Жрець ${actionBeat} дає шаурмі урок покаяння. Лаваш слухає, бо іншого виходу вже немає.`,
+      "class.varenyk-mancer": `Вареник-мант ${actionBeat} виносить начинковий вирок: ця конструкція не пройшла родинну перевірку тіста.`,
+      "class.bureaucramancer": `Бюрокромант ${actionBeat} закриває шаурму актом про самовільне дихання в громадському місці.`,
+      "class.ranger": `Єгер ${actionBeat} читає сліди соусу й знаходить там відповідь: не треба було повзти до пальців.`,
+      "class.kharakternyk": `Козак-характерник ${actionBeat} лишає на столі тишу. Шаурма в цій тиші виглядає менш хоробро.`
+    } satisfies Record<string, string>
+  )[classId] ?? `Справу ${actionBeat} закрито так, що шаурма просить менший шрифт у легенді.`;
+}
+
+function fightStartRaceText(raceId: string): string {
+  return (
+    {
+      "race.human-ish": "Людисько дивиться на підозрілого монстра й бачить проблему, яка ще не знає, що стала навчальною.",
+      "race.dwarf": "Гном чує, як підлога просить не робити різких рухів. Підлога, як завжди, спізнилась.",
+      "race.elf": "Ельф бачить у монстрі поганий силует, гіршу поставу й абсолютно неприйнятні наміри.",
+      "race.bisyny": "Бісини помічають, що монстр названий неточно. Монстр помічає, що це небезпечніше за зброю.",
+      "race.drantohor": "Дрантогор стає так, ніби знає два виходи й один із них веде прямо через монстра.",
+      "race.domovyk": "Домовик зиркає на монстра як на істоту, що зайшла в хату без стуку й з зубами.",
+      "race.dryland-rusalka": "Сухопутна русалка відчуває драму в повітрі. Повітря просить не робити його мокрим.",
+      "race.intellectual-orc": "Орк-інтелігент оцінює монстра як слабко структуровану загрозу з надлишком щелепи.",
+      "race.molfar-soul": "Мольфарська душа бачить, як тінь монстра нервово шукає іншу роботу."
+    } satisfies Record<string, string>
+  )[raceId] ?? "Підозрілий монстр робить перший висновок: сьогодні буде не меню.";
+}
+
+function fightStartClassText(classId: string): string {
+  return (
+    {
+      "class.warrior": "Воїн не питає, чому монстр шкіриться. Воїн питає, куди краще поставити відповідь.",
+      "class.mage": "Маг бачить, що монстр погано заземлений. Це звучить як запрошення до експерименту.",
+      "class.bard": "Бард оцінює акустику сутички. Монстр, на жаль, уже вибрав жанр гарчання.",
+      "class.rogue": "Злодій шукає спину, тінь або хоча б морально слабкий кут. У монстра є всі три.",
+      "class.priest": "Жрець розрізняє в монстрі гріх, апетит і погану поставу. Лікується все, але не однаково.",
+      "class.varenyk-mancer": "Вареник-мант бачить, що перед ним не начинка. Отже, можна не шкодувати.",
+      "class.bureaucramancer": "Бюрокромант відкриває справу про самовільну загрозу. Монстр не має права мовчати, але гарчить.",
+      "class.ranger": "Єгер відмічає дистанцію, сліди й дурне місце для засідки. Монстр стоїть у всіх трьох пунктах.",
+      "class.kharakternyk": "Козак-характерник дає монстру довгу паузу. Монстр не витримує і моргає першим."
+    } satisfies Record<string, string>
+  )[classId] ?? "Сутичка вже має зуби. Тепер їй бракує лише поганого рішення.";
+}
+
+function fightOutcomeRaceText(raceId: string, action: "attack" | "receipt" | "flee"): string {
+  const actionBeat = fightActionBeat(action);
+
+  return (
+    {
+      "race.human-ish": `Людисько ${actionBeat} виходить із сутички майже буденно. Саме це найбільше ображає монстра.`,
+      "race.dwarf": `Гном ${actionBeat} залишає по собі тверду думку й мʼяке здивування супротивника.`,
+      "race.elf": `Ельф ${actionBeat} поправляє фінал сцени так, щоб навіть поразка монстра виглядала охайно.`,
+      "race.bisyny": `Бісини ${actionBeat} доводять, що правильно назвати проблему інколи болючіше, ніж її вдарити.`,
+      "race.drantohor": `Дрантогор ${actionBeat} завершує бій трохи не там, де починав, але саме там, де треба.`,
+      "race.domovyk": `Домовик ${actionBeat} нагадує монстру: у хаті можна шуміти тільки тим, хто потім прибирає.`,
+      "race.dryland-rusalka": `Сухопутна русалка ${actionBeat} лишає після себе сухий підсумок і вологу драму.`,
+      "race.intellectual-orc": `Орк-інтелігент ${actionBeat} формулює перемогу так чітко, що монстру бракує аргументів і зубів.`,
+      "race.molfar-soul": `Мольфарська душа ${actionBeat} відпускає тінь сутички першою. Монстр відстає від власної тіні.`
+    } satisfies Record<string, string>
+  )[raceId] ?? `Сутичку ${actionBeat} завершено з виглядом, що так і мало бути.`;
+}
+
+function cellarStartRaceText(raceId: string): string {
+  return (
+    {
+      "race.human-ish": "Людисько спускається в підвал із виразом «я зараз швидко». Підвал тихо сміється пилом.",
+      "race.dwarf": "Гном у підвалі почувається майже вдома, доки миша не починає сперечатися про право на сир.",
+      "race.elf": "Ельф бачить павутиння, пил і дизайнерську катастрофу. Миша бачить проблему вдвічі вищу за себе.",
+      "race.bisyny": "Бісини ще не спустилися, а миша вже ховає всі таблички з назвами запасів.",
+      "race.drantohor": "Дрантогор бачить у підвалі короткий маршрут до крихт, плінтуса й потенційної державної межі.",
+      "race.domovyk": "Домовик заходить у підвал так, ніби це він дозволив сходам існувати.",
+      "race.dryland-rusalka": "Сухопутна русалка чує, як вологий куток удає стародавню затоку. Дуже маленьку.",
+      "race.intellectual-orc": "Орк-інтелігент бачить підвальну проблему й одразу шукає, де в миші слабка теза.",
+      "race.molfar-soul": "Мольфарська душа помічає тінь під шафою. Тінь помічає сир і вдає, що не з мишею."
+    } satisfies Record<string, string>
+  )[raceId] ?? "Підвал зустрічає пригодника запахом пилу й малою політичною кризою.";
+}
+
+function cellarStartClassText(classId: string): string {
+  return (
+    {
+      "class.warrior": "Воїн дивиться на віник як на зброю з поганим маркетингом.",
+      "class.mage": "Маг бачить, що пил лежить не хаотично, а майже ритуально. Це гірше, бо доведеться думати.",
+      "class.bard": "Бард чує писк, риму й дуже поганий вступ до підвальної балади.",
+      "class.rogue": "Злодій одразу помічає сир, нору й те місце, де всі роблять вигляд, що нічого не зникло.",
+      "class.priest": "Жрець благословляє сходи, бо вони бачили надто багато героїв із впевненістю в колінах.",
+      "class.varenyk-mancer": "Вареник-мант відчуває сирну політику. Це не кухня, але вже близько до конфлікту начинок.",
+      "class.bureaucramancer": "Бюрокромант дивиться на підвал і розуміє: тут давно не було форми, а дарма.",
+      "class.ranger": "Єгер читає сліди миші, сиру й того, хто впустив крихту, але вдає невинність.",
+      "class.kharakternyk": "Козак-характерник спускається мовчки. Пил сам шукає, куди б йому лягти рівніше."
+    } satisfies Record<string, string>
+  )[classId] ?? "Підвал відкриває справу. Миша не просила адвоката, але вже думає.";
+}
+
+function cellarOutcomeRaceText(
+  raceId: string,
+  action: "cheese-trap" | "sweep-bravely" | "negotiate"
+): string {
+  const actionBeat = cellarActionBeat(action);
+
+  return (
+    {
+      "race.human-ish": `Людисько ${actionBeat} робить підвал трохи менш дивним. Це ненадовго, але журналу вистачить.`,
+      "race.dwarf": `Гном ${actionBeat} лишає підвал міцнішим у моральному сенсі й підозрілим у сирному.`,
+      "race.elf": `Ельф ${actionBeat} доводить павутинню, що навіть хаос може мати кращу композицію.`,
+      "race.bisyny": `Бісини ${actionBeat} виправляють мишачу політику до стану, де сир уже боїться термінів.`,
+      "race.drantohor": `Дрантогор ${actionBeat} переносить межу безладу на одну крихту далі від сходів.`,
+      "race.domovyk": `Домовик ${actionBeat} ставить підвал на місце. Підвал не сперечається, бо знає орендаря.`,
+      "race.dryland-rusalka": `Сухопутна русалка ${actionBeat} лишає в кутку драму, яка майже навчилась бути сухою.`,
+      "race.intellectual-orc": `Орк-інтелігент ${actionBeat} переконує мишу так ґрунтовно, що крихти просять конспект.`,
+      "race.molfar-soul": `Мольфарська душа ${actionBeat} прибирає тінь конфлікту під шафу. Там їй і місце.`
+    } satisfies Record<string, string>
+  )[raceId] ?? `Підвал ${actionBeat} погоджується бути трохи спокійнішим.`;
+}
+
+function cellarOutcomeClassText(
+  classId: string,
+  action: "cheese-trap" | "sweep-bravely" | "negotiate"
+): string {
+  const actionBeat = cellarActionBeat(action);
+
+  return (
+    {
+      "class.warrior": `Воїн ${actionBeat} доводить, що навіть підвальна справа іноді потребує плечей і впертого віника.`,
+      "class.mage": `Маг ${actionBeat} змушує пил світитися достатньо, щоб миша зрозуміла натяк без лекції.`,
+      "class.bard": `Бард ${actionBeat} завершує сцену так, що миша просить не робити з цього куплет.`,
+      "class.rogue": `Злодій ${actionBeat} лишає підвал без зайвого шуму, зате з новими підозрами щодо сиру.`,
+      "class.priest": `Жрець ${actionBeat} благословляє порядок. Пил приймає це як особисту образу.`,
+      "class.varenyk-mancer": `Вареник-мант ${actionBeat} пояснює сирній кризі, що начинка без дисципліни довго не живе.`,
+      "class.bureaucramancer": `Бюрокромант ${actionBeat} закриває підвальне питання так, що миша сама шукає додаток до угоди.`,
+      "class.ranger": `Єгер ${actionBeat} читає фінальний слід і бачить: миша пішла, сир нервує, підвал дихає.`,
+      "class.kharakternyk": `Козак-характерник ${actionBeat} залишає плінтус у стані дисциплінованого мовчання.`
+    } satisfies Record<string, string>
+  )[classId] ?? `Підвальну справу ${actionBeat} закрито з виглядом, що все було під контролем.`;
+}
+
+function shawarmaActionBeat(action: "poke" | "receipt" | "flee"): string {
+  return (
+    {
+      poke: "після сміливого тицяння",
+      receipt: "після чекової атаки",
+      flee: "після стратегічного відходу від соусу"
+    } satisfies Record<typeof action, string>
+  )[action];
+}
+
+function fightActionBeat(action: "attack" | "receipt" | "flee"): string {
+  return (
+    {
+      attack: "після прямого зіткнення",
+      receipt: "після удару адміністративним доказом",
+      flee: "після відступу з легендою для свідків"
+    } satisfies Record<typeof action, string>
+  )[action];
+}
+
+function cellarActionBeat(action: "cheese-trap" | "sweep-bravely" | "negotiate"): string {
+  return (
+    {
+      "cheese-trap": "через сирну пастку",
+      "sweep-bravely": "після хороброго підмітання",
+      negotiate: "після переговорів із малою сирною владою"
+    } satisfies Record<typeof action, string>
+  )[action];
 }
 
 function shawarmaComboRaceBeat(raceId: string): string {

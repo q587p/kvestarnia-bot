@@ -11,8 +11,17 @@ import type {
   DailyActionRecord,
   DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
+import type {
+  CreateSoloCombatSessionInput,
+  SoloCombatSessionRecord,
+  SoloCombatSessionRepository,
+  SoloCombatSessionStatus,
+  UpdateSoloCombatSessionInput
+} from "../../src/db/repositories/soloCombatSessionRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
+import type { CombatState } from "../../src/domain/combat";
 import { getLevelForXp } from "../../src/domain/progression/level";
+import { FakeRandomSource } from "../../src/shared/random";
 import { MIMIC_SHAWARMA_ADVENTURE_KEY } from "../../src/services/adventureService";
 import {
   FightService,
@@ -243,6 +252,303 @@ describe("FightService", () => {
       gold: 3
     });
   });
+
+  it("shows persistent fight availability without starting a session", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "persistent-ready",
+      character: {
+        level: 3
+      }
+    });
+    expect(sessions.createCount).toBe(0);
+  });
+
+  it("starts and resumes one persistent fight session for level three characters", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const first = await service.getFightForTelegramUser(telegramUserId);
+    const second = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(first).toMatchObject({
+      state: "persistent-active",
+      character: {
+        level: 3
+      }
+    });
+    expect(second).toMatchObject({
+      state: "persistent-active"
+    });
+    if (first.state === "persistent-active" && second.state === "persistent-active") {
+      expect(second.session.id).toBe(first.session.id);
+      expect(first.session.state).toMatchObject({
+        turn: 1,
+        status: "active"
+      });
+      expect(first.monster.id).not.toBe("monster.mimic-shawarma");
+    }
+    expect(sessions.createCount).toBe(1);
+    expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("expires an active persistent fight with a missing monster instead of returning a dead-end", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.addSession({
+      ...started.session,
+      monsterId: "monster.deleted-by-the-archive"
+    });
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview.state).toBe("persistent-terminal");
+    if (overview.state === "persistent-terminal") {
+      expect(overview.monster).toBeNull();
+      expect(overview.session.state?.status).toBe("expired");
+    }
+    expect(sessions.updateCount).toBe(1);
+    expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("resolves a persistent fight turn without granting rewards", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0.6])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.state?.turn).toBe(2);
+      expect(result.session.state?.lastTurn?.action).toBe("attack");
+    }
+    expect(sessions.updateCount).toBe(1);
+    expect(dailyActions.createCount).toBe(0);
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: 25,
+      gold: 0
+    });
+  });
+
+  it("does not mutate a stale persistent fight turn", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setHeroMana(started.session.id, 0);
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 99,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("stale-turn");
+    expect(sessions.updateCount).toBe(0);
+  });
+
+  it("does not apply the same persistent fight turn twice", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0.6, 0.1, 0.1, 0.6])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+
+    const first = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+    const repeated = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(first.state).toBe("updated");
+    expect(repeated.state).toBe("stale-turn");
+    expect(sessions.updateCount).toBe(1);
+    if (first.state === "updated" && repeated.state === "stale-turn") {
+      expect(repeated.session.state).toEqual(first.session.state);
+      expect(repeated.session.state?.turn).toBe(2);
+    }
+    expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("does not let an older duplicate active session keep fighting", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0.6])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    const newerSession = sessions.addSession({
+      ...started.session,
+      id: "123e4567-e89b-42d3-a456-426614174111",
+      updatedAt: new Date("2026-06-12T10:31:00.000Z")
+    });
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("stale-turn");
+    if (result.state === "stale-turn") {
+      expect(result.session.id).toBe(newerSession.id);
+    }
+    expect(sessions.updateCount).toBe(0);
+    expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("does not mutate when a persistent skill lacks mana", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25, classId: "class.mage", manaCurrent: 0, manaMax: 0 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setHeroMana(started.session.id, 0);
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "skill"
+    });
+
+    expect(result.state).toBe("not-enough-mana");
+    expect(sessions.updateCount).toBe(0);
+  });
+
+  it("expires a stale persistent fight lazily without rewards", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setExpiresAt(started.session.id, new Date("2026-06-12T10:00:00.000Z"));
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("terminal");
+    if (result.state === "terminal") {
+      expect(result.session.state?.status).toBe("expired");
+    }
+    expect(dailyActions.createCount).toBe(0);
+  });
 });
 
 function fixedClock(): Date {
@@ -412,7 +718,10 @@ class FakeDailyActionRepository implements DailyActionRepository {
       input.rewardXp,
       input.rewardGold
     );
-    const itemGrants = input.itemGrants ?? [];
+    const itemGrants = (input.itemGrants ?? []).map(({ itemId, quantity }) => ({
+      itemId,
+      quantity
+    }));
     this.grantedItems.push(...itemGrants);
 
     return {
@@ -427,4 +736,175 @@ class FakeDailyActionRepository implements DailyActionRepository {
       }
     };
   }
+}
+
+class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
+  private readonly sessions = new Map<string, SoloCombatSessionRecord>();
+  createCount = 0;
+  updateCount = 0;
+
+  constructor(private readonly characters: FakeCharacterRepository) {}
+
+  async findActiveByTelegramUserId(
+    telegramUserId: bigint
+  ): Promise<SoloCombatSessionRecord | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return null;
+    }
+
+    const session =
+      [...this.sessions.values()]
+        .filter((candidate) => candidate.characterId === character.id && candidate.status === "active")
+        .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())[0] ?? null;
+
+    return session ? cloneSession(session) : null;
+  }
+
+  async findByIdForTelegramUserId(
+    telegramUserId: bigint,
+    sessionId: string
+  ): Promise<SoloCombatSessionRecord | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    const session = this.sessions.get(sessionId);
+
+    if (!character || !session || session.characterId !== character.id) {
+      return null;
+    }
+
+    return cloneSession(session);
+  }
+
+  async createForTelegramUser(
+    telegramUserId: bigint,
+    input: CreateSoloCombatSessionInput
+  ): Promise<SoloCombatSessionRecord | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return null;
+    }
+
+    this.createCount += 1;
+    const now = fixedClock();
+    const session: SoloCombatSessionRecord = {
+      id: input.id ?? `session-${this.createCount}`,
+      characterId: character.id,
+      monsterId: input.monsterId,
+      status: input.state.status,
+      turn: input.state.turn,
+      state: cloneState(input.state),
+      createdAt: now,
+      updatedAt: now,
+      expiresAt: input.expiresAt
+    };
+    this.sessions.set(session.id, session);
+    return cloneSession(session);
+  }
+
+  updateById(
+    sessionId: string,
+    input: UpdateSoloCombatSessionInput
+  ): Promise<SoloCombatSessionRecord | null> {
+    const session = this.sessions.get(sessionId);
+
+    if (!session) {
+      return Promise.resolve(null);
+    }
+
+    this.updateCount += 1;
+    const updated: SoloCombatSessionRecord = {
+      ...session,
+      status: input.status,
+      turn: input.state.turn,
+      state: cloneState(input.state),
+      updatedAt: fixedClock(),
+      expiresAt: input.expiresAt ?? session.expiresAt
+    };
+    this.sessions.set(sessionId, updated);
+    return Promise.resolve(cloneSession(updated));
+  }
+
+  updateByIdIfActiveTurn(
+    sessionId: string,
+    expectedTurn: number,
+    input: UpdateSoloCombatSessionInput
+  ): Promise<SoloCombatSessionRecord | null> {
+    const session = this.sessions.get(sessionId);
+
+    if (!session || session.status !== "active" || session.turn !== expectedTurn) {
+      return Promise.resolve(null);
+    }
+
+    return this.updateById(sessionId, input);
+  }
+
+  markStatusById(
+    sessionId: string,
+    status: SoloCombatSessionStatus
+  ): Promise<SoloCombatSessionRecord | null> {
+    const session = this.sessions.get(sessionId);
+
+    if (!session) {
+      return Promise.resolve(null);
+    }
+
+    const updated = {
+      ...session,
+      status,
+      updatedAt: fixedClock()
+    };
+    this.sessions.set(sessionId, updated);
+    return Promise.resolve(cloneSession(updated));
+  }
+
+  setExpiresAt(sessionId: string, expiresAt: Date): void {
+    const session = this.sessions.get(sessionId);
+
+    if (!session) {
+      return;
+    }
+
+    this.sessions.set(sessionId, {
+      ...session,
+      expiresAt
+    });
+  }
+
+  setHeroMana(sessionId: string, mana: number): void {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return;
+    }
+
+    this.sessions.set(sessionId, {
+      ...session,
+      state: {
+        ...session.state,
+        hero: {
+          ...session.state.hero,
+          mana
+        }
+      }
+    });
+  }
+
+  addSession(session: SoloCombatSessionRecord): SoloCombatSessionRecord {
+    const cloned = cloneSession(session);
+    this.sessions.set(cloned.id, cloned);
+    return cloneSession(cloned);
+  }
+}
+
+function cloneSession(session: SoloCombatSessionRecord): SoloCombatSessionRecord {
+  return {
+    ...session,
+    state: session.state ? cloneState(session.state) : null
+  };
+}
+
+function cloneState(state: CombatState): CombatState {
+  return JSON.parse(JSON.stringify(state)) as CombatState;
 }

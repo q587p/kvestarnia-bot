@@ -18,14 +18,14 @@ describe("presence presenter", () => {
     expect(text).toContain("📍 Зала корчми: 2");
     expect(text).toContain("— 587");
     expect(text).toContain("— Дара");
-    expect(text).toContain("🍺 У рейді «Бочка Пінного Міражу»: 2");
+    expect(text).toContain("🍺 У соло-рейдах «Бочка Пінного Міражу»: 2");
     expect(text).not.toContain("Нестор Межовий");
     expect(text).not.toContain("Стіл зі справами");
     expect(text).not.toMatch(/\d+\s*(?:секунд|хвилин)\s+тому/i);
     expect(text).not.toMatch(/\d{1,2}:\d{2}/);
   });
 
-  it("renders only-you and no active raid states", () => {
+  it("does not mention inactive raids away from the barrel", () => {
     const text = presentOnline({
       state: "ready",
       globalTotal: 1,
@@ -42,6 +42,26 @@ describe("presence presenter", () => {
     });
 
     expect(text).toContain("📍 Зала корчми: тільки ти.");
+    expect(text).not.toContain("🍺 Активного рейду зараз немає.");
+  });
+
+  it("mentions inactive raids only near the barrel", () => {
+    const text = presentOnline({
+      state: "ready",
+      globalTotal: 1,
+      location: {
+        id: "location.korchma.barrel",
+        name: "Біля Бочки Пінного Міражу",
+        people: {
+          active: [{ telegramUserId: 1n, name: "587", status: "active" }],
+          idle: [],
+          total: 1
+        }
+      },
+      activity: null
+    });
+
+    expect(text).toContain("📍 Біля Бочки Пінного Міражу: тільки ти.");
     expect(text).toContain("🍺 Активного рейду зараз немає.");
   });
 

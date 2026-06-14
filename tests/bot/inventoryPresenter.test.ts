@@ -44,10 +44,11 @@ describe("inventory presenter", () => {
     const text = presentInventory(result);
 
     expect(text).toContain("<b>Манатки</b>");
+    expect(text).toContain("Стіл попросив надбавку.\n\nОціночна вартість столу");
     expect(text).toContain("Оціночна вартість столу: <b>6 золота</b>");
     expect(text).toContain("<b>Квиток мокрого пригодника</b> ×2");
     expect(text).toContain("<i>Трофей тавернової логістики.</i>");
-    expect(text.split("\n").length).toBeLessThanOrEqual(7);
+    expect(text.split("\n").length).toBeLessThanOrEqual(8);
   });
 
   it("omits quantity for a single item", () => {

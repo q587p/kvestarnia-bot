@@ -27,7 +27,9 @@ describe("cellar presenter", () => {
       raceName: "Домовик"
     };
 
-    expect(presentCellarStart({ state: "ready", character: domovyk })).toContain("під плінтусом");
+    expect(presentCellarStart({ state: "ready", character: domovyk })).toContain(
+      "не плутати мою автономію з вашим житловим фондом"
+    );
     expect(
       presentCellarResult({
         ...completed,

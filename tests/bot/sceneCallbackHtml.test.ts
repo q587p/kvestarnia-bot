@@ -132,7 +132,7 @@ describe("scene callback HTML options", () => {
       callbackData: makeQuestCallbackData("fight"),
       services: servicesWith({
         fight: {
-          getMimicShawarmaForTelegramUser: () =>
+          getFightForTelegramUser: () =>
             Promise.resolve({
               state: "ready",
               character

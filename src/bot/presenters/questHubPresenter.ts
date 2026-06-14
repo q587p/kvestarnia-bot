@@ -56,6 +56,14 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
     return `⚔️ <i>Сутичка з невідомим монстром</i> — тренувальний бій для 1-${fight.maxLevel} рівнів.`;
   }
 
+  if (fight.state === "persistent-active") {
+    return "⚔️ <i>Бій у кутку</i> — уже триває, корчма тримає хід.";
+  }
+
+  if (fight.state === "persistent-ready" || fight.state === "persistent-terminal") {
+    return "⚔️ <i>Бій у кутку</i> — можна починати без навчальних коліщат.";
+  }
+
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
 
   return `⚔️ <i>Сутичка з невідомим монстром</i> — ${status}.`;
@@ -108,6 +116,9 @@ function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
   return (
     snapshot.adventure.state === "ready" ||
     snapshot.fight.state === "ready" ||
+    snapshot.fight.state === "persistent-ready" ||
+    snapshot.fight.state === "persistent-active" ||
+    snapshot.fight.state === "persistent-terminal" ||
     snapshot.hunt.state === "ready" ||
     snapshot.cellar.state === "ready"
   );

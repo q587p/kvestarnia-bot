@@ -3,8 +3,11 @@ import {
   presentFightAlreadyCompleted,
   presentFightNoCharacter,
   presentFightResult,
-  presentFightStart
+  presentFightStart,
+  presentPersistentFight,
+  presentPersistentFightTurn
 } from "../../src/bot/presenters/fightPresenter";
+import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { FightResult } from "../../src/services/fightService";
 
@@ -140,6 +143,109 @@ describe("fight presenter", () => {
     expect(text).toContain("/quest");
     expect(text).not.toContain("+9 XP");
   });
+
+  it("renders a persistent fight state without reward promises", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character: {
+        ...character,
+        name: "<b>Мандрівник</b>"
+      },
+      session: persistentSession(),
+      monster: {
+        id: "monster.test",
+        name: "<i>Монстр</i>",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      }
+    });
+
+    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
+    expect(text).toContain("&lt;i&gt;Монстр&lt;/i&gt;");
+    expect(text).toContain("Проти вас: <b>&lt;i&gt;Монстр&lt;/i&gt;</b> · рівень 3");
+    expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
+    expect(text).toContain("👹 Монстр: 18/18");
+    expect(text).toContain("Що робимо?");
+    expect(text).not.toContain("Нагорода");
+    expect(text).not.toContain("XP");
+    expect(text).not.toContain("золота</b>");
+  });
+
+  it("shows stale and mana failure persistent turns without mutating reward copy", () => {
+    const stale = presentPersistentFightTurn({
+      state: "stale-turn",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 4,
+          monsterDamage: 1,
+          manaSpent: 0,
+          critical: false
+        }
+      }),
+      monster: null
+    });
+    const noMana = presentPersistentFightTurn({
+      state: "not-enough-mana",
+      character,
+      session: persistentSession({
+        hero: {
+          hp: 24,
+          hpMax: 24,
+          mana: 1,
+          manaMax: 12
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      }
+    });
+
+    expect(stale).toContain("поточний стан");
+    expect(stale).toContain("Невідомий монстр");
+    expect(stale).not.toContain("Невідомий монстр</b> · рівень");
+    expect(noMana).toContain("Мани не вистачило");
+    expect(noMana).not.toContain("Нагорода");
+  });
+
+  it("uses neutral grammar for skill turn summaries", () => {
+    const text = presentPersistentFightTurn({
+      state: "updated",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "skill",
+          heroOutcome: "hit",
+          heroDamage: 17,
+          monsterDamage: 8,
+          manaSpent: 3,
+          critical: true
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      }
+    });
+
+    expect(text).toContain(
+      "Останній хід: вміння влучає критично: 17 шкоди. Монстр відповів на 8 шкоди."
+    );
+    expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
+    expect(text).not.toContain("критично дала");
+  });
 });
 
 function completed(
@@ -188,5 +294,35 @@ function completed(
       newLevel: leveledUp ? 2 : 1,
       leveledUp
     }
+  };
+}
+
+function persistentSession(overrides: Partial<NonNullable<SoloCombatSessionRecord["state"]>> = {}): SoloCombatSessionRecord {
+  return {
+    id: "123e4567-e89b-12d3-a456-426614174000",
+    characterId: "character-42",
+    monsterId: "monster.test",
+    status: overrides.status ?? "active",
+    turn: overrides.turn ?? 1,
+    state: {
+      id: "123e4567-e89b-12d3-a456-426614174000",
+      turn: 1,
+      status: "active",
+      hero: {
+        hp: 24,
+        hpMax: 24,
+        mana: 12,
+        manaMax: 12
+      },
+      monster: {
+        id: "monster.test",
+        hp: 18,
+        hpMax: 18
+      },
+      ...overrides
+    },
+    createdAt: new Date("2026-06-12T10:30:00.000Z"),
+    updatedAt: new Date("2026-06-12T10:30:00.000Z"),
+    expiresAt: new Date("2026-06-12T11:00:00.000Z")
   };
 }

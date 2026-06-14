@@ -9,7 +9,13 @@ import {
   buildCellarParticipantsKeyboard,
   buildCellarResultKeyboard
 } from "../../src/bot/keyboards/cellarKeyboard";
-import { buildFightKeyboard, buildFightResultKeyboard } from "../../src/bot/keyboards/fightKeyboard";
+import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
+import {
+  buildFightKeyboard,
+  buildFightResultKeyboard,
+  buildPersistentFightKeyboard,
+  buildPersistentFightResultKeyboard
+} from "../../src/bot/keyboards/fightKeyboard";
 import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
   buildEquipmentKeyboard,
@@ -247,6 +253,39 @@ describe("main menu and scene keyboards", () => {
       "🏃 Піти на біс",
       "⬅️ До столу"
     ]);
+  });
+
+  it("keeps persistent fight buttons scoped to turn callbacks", () => {
+    const session = persistentFightSession();
+
+    expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, character))).toEqual([
+      "🗡️ Вдарити",
+      "🗡️ Силовий удар",
+      "🏃 Відступити",
+      "⬅️ До столу"
+    ]);
+    expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toEqual([
+      "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
+      "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:skill",
+      "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:flee",
+      "v1:place:quest-table"
+    ]);
+    expect(flatInlineButtonTexts(buildPersistentFightResultKeyboard({
+      ...session,
+      status: "won",
+      state: {
+        ...session.state!,
+        status: "won"
+      }
+    }, character))).toEqual(["⚔️ Новий бій", "📋 До справ", "🍺 До зали"]);
+    expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
+      ...session,
+      status: "won",
+      state: {
+        ...session.state!,
+        status: "won"
+      }
+    }, character))).toEqual(["v1:quest:fight", "v1:place:quest-table", "v1:place:hall"]);
   });
 
   it("keeps hunt board inline buttons scoped to hunt actions", () => {
@@ -613,6 +652,35 @@ function readyHunt() {
     character,
     contract: huntContract
   } as const;
+}
+
+function persistentFightSession(): SoloCombatSessionRecord {
+  return {
+    id: "123e4567-e89b-12d3-a456-426614174000",
+    characterId: "character-42",
+    monsterId: "monster.test",
+    status: "active",
+    turn: 4,
+    state: {
+      id: "123e4567-e89b-12d3-a456-426614174000",
+      turn: 4,
+      status: "active",
+      hero: {
+        hp: 20,
+        hpMax: 20,
+        mana: 10,
+        manaMax: 10
+      },
+      monster: {
+        id: "monster.test",
+        hp: 8,
+        hpMax: 18
+      }
+    },
+    createdAt: new Date("2026-06-12T10:30:00.000Z"),
+    updatedAt: new Date("2026-06-12T10:30:00.000Z"),
+    expiresAt: new Date("2026-06-12T11:00:00.000Z")
+  };
 }
 
 function flatInlineButtonTexts(keyboard: { inline_keyboard: { text: string }[][] }): string[] {

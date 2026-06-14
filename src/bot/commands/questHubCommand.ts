@@ -88,7 +88,7 @@ async function buildQuestHubSnapshot(
     return null;
   }
 
-  const fight = await options.fight.getMimicShawarmaForTelegramUser(telegramUserId);
+  const fight = await options.fight.getFightOverviewForTelegramUser(telegramUserId);
   const hunt = await options.hunt.getHuntBoardForTelegramUser(telegramUserId);
   const cellar = await options.cellarErrand.getForTelegramUser(telegramUserId);
 

@@ -39,6 +39,7 @@ model Character {
   equipment CharacterEquipment[]
   korchmaRoundPurchases KorchmaRoundPurchase[]
   huntContracts HuntContract[]
+  soloCombatSessions SoloCombatSession[]
   name      String
   pronoun   String   @default("they")
   path      String   @default("boundary")
@@ -58,6 +59,24 @@ model Character {
   @@index([raceId])
   @@index([classId])
   @@map("characters")
+}
+
+model SoloCombatSession {
+  id          String    @id @default(uuid())
+  characterId String    @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  monsterId   String    @map("monster_id")
+  stateJson   Json      @map("state_json")
+  status      String    @default("active")
+  turn        Int       @default(1)
+  expiresAt   DateTime  @map("expires_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([characterId, status])
+  @@index([monsterId])
+  @@index([expiresAt])
+  @@map("solo_combat_sessions")
 }
 
 model CharacterEquipment {

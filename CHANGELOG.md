@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.21] - 12026-06-14 - Persistent Fight Sessions
+
+### Added
+- Added persistent solo combat sessions for level 3+ `/fight`, backed by a new `solo_combat_sessions` table that stores serializable combat state JSON, monster id, status, and lazy expiry.
+- Added FightService session flow that starts or resumes exactly one active solo fight per character and resolves attack, class skill, and flee turns through the pure combat domain engine.
+- Added versioned persistent fight callbacks shaped as `v1:fight:turn:{sessionId}:{turn}:{action}`, with turn validation so stale buttons show current state instead of applying damage twice.
+- Added Telegram fight screens for persistent combat with hero HP/mana, monster HP, current turn, last-turn summary, terminal states, and class-shaped skill labels.
+- Added tests for schema/migration shape, callback parsing, service start/resume/expiry, stale-turn safety, no-mana non-mutation, presenter escaping, command output, keyboard callbacks, and pending-raid presence protection.
+
+### Changed
+- `/fight` keeps the starter Mimic Shawarma probe for levels 1-2, then switches to persistent solo combat from level 3 onward.
+- The quest hub now reads fight overview without starting a session, and shows whether a real solo fight is ready or already in progress.
+- Persistent fight presence uses `adventure.solo-fight` while still staying at the Korchma quest table; pending Barrel raid still blocks fight callbacks before any scene movement.
+
+### Not Included Yet
+- XP/gold/items for persistent fight victories, loot rolls, equipment stat effects, persistent HP/mana outside the session, group combat, PvP, shops, trading, crafting, Redis/jobs, or bestiary collection progression.
+
 ## [0.0.20] - 12026-06-14 - Combat Domain Engine
 
 ### Added

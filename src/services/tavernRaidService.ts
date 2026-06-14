@@ -20,6 +20,7 @@ import {
   enrichRewardItemGrants,
   FOAM_CORK_OF_ACCOUNTING_ITEM_ID,
   MIRAGE_FOAM_SAMPLE_ITEM_ID,
+  starterEquipmentGrant,
   WET_HERO_TICKET_ITEM_ID,
   type RewardItemGrant
 } from "./itemGrant";
@@ -622,10 +623,7 @@ export function buildBarrelRaidItemGrants(
     rotatingLoot[stableHash(periodId) % rotatingLoot.length] ?? BARREL_SPLINTER_OF_OPTIMISM_ITEM_ID;
 
   return [
-    {
-      itemId: APRON_OF_FOAM_RESISTANCE_ITEM_ID,
-      quantity: 1
-    },
+    starterEquipmentGrant(APRON_OF_FOAM_RESISTANCE_ITEM_ID),
     {
       itemId: WET_HERO_TICKET_ITEM_ID,
       quantity: 1

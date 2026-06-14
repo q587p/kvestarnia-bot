@@ -32,6 +32,7 @@ const KORCHMA_INTERIOR_LOCATION_IDS = [
 export const PRESENCE_RAID_FRIDAY_BARREL = "raid.friday-barrel";
 export const PRESENCE_ADVENTURE_MIMIC_SHAWARMA = "adventure.mimic-shawarma";
 export const PRESENCE_ADVENTURE_MIMIC_FIGHT = "adventure.mimic-shawarma-fight";
+export const PRESENCE_ADVENTURE_SOLO_FIGHT = "adventure.solo-fight";
 export const PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND = "adventure.cellar.mouse-errand";
 export const PRESENCE_ADVENTURE_HUNT_BOARD = "adventure.hunt-board.contract";
 
@@ -673,6 +674,10 @@ function getAdventureName(id: string): string {
 
   if (id === PRESENCE_ADVENTURE_MIMIC_FIGHT) {
     return "Сутичка з Міміком-шаурмою";
+  }
+
+  if (id === PRESENCE_ADVENTURE_SOLO_FIGHT) {
+    return "Бій у кутку";
   }
 
   return "Підозріла шаурма";

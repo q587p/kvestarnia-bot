@@ -243,7 +243,10 @@ class FakeCooldownRepository implements CooldownRepository {
     }
 
     this.claimCount += 1;
-    const itemGrants = input.itemGrants ?? [];
+    const itemGrants = (input.itemGrants ?? []).map(({ itemId, quantity }) => ({
+      itemId,
+      quantity
+    }));
     const cooldown = {
       id: `cooldown-${this.claimCount}`,
       characterId: character.id,

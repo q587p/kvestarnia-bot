@@ -63,8 +63,8 @@ describe("health server", () => {
     expect(text).toContain("/presence");
     expect(text).toContain("/news");
     expect(text).toContain("/health");
-    expect(text).toContain("Бій навчився рахувати під столом");
-    expect(text).toContain("Новий бій ще не підʼєднаний до Telegram");
+    expect(text).toContain("Бій вийшов з-під столу");
+    expect(text).toContain("За ці нові бої поки не сипляться XP");
     expect(text).toContain("У грі зараз: 4");
     expect(text).not.toContain("— Дара");
     expect(text).not.toContain("— Нестор Межовий");
@@ -143,6 +143,8 @@ describe("health server", () => {
     expect(text).toContain("Жива Квестарня");
     expect(text).toContain("👥 У грі зараз: 4");
     expect(text).toContain("Зала корчми");
+    expect(text).toContain("Активних: 3");
+    expect(text).toContain("Притихлих: 1");
     expect(text).not.toContain("— 587");
     expect(text).not.toContain("— Дара");
     expect(text).not.toContain("— Нестор Межовий");
@@ -160,6 +162,29 @@ describe("health server", () => {
 
     expect(html).toContain("У грі зараз: 0");
     expect(html).toContain("Зараз у Квестарні тихо");
+  });
+
+  it("uses neutral Ukrainian presence count labels for singular counts", () => {
+    const html = renderPresencePage({
+      totalActive: 1,
+      totalIdle: 0,
+      total: 1,
+      locations: [
+        {
+          locationId: "location.korchma.barrel",
+          title: "Біля Бочки Пінного Міражу",
+          regionName: "Корчма Квестарні",
+          activeCount: 1,
+          idleCount: 0,
+          players: []
+        }
+      ]
+    });
+
+    expect(html).toContain("Активних: 1");
+    expect(html).toContain("Притихлих: 0");
+    expect(html).not.toContain("1 активні");
+    expect(html).not.toContain("0 притихли");
   });
 });
 

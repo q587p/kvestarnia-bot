@@ -137,7 +137,7 @@ Future equipment/trading notes:
 - unique (`character_id`, `key`, `local_date`)
 
 ### achievement_definitions
-Planned for `0.0.21 — Achievements Phase 1`.
+Planned after `0.0.21 — Persistent Fight Sessions`.
 
 - `id` stable content id
 - `title`
@@ -154,7 +154,7 @@ Planned for `0.0.21 — Achievements Phase 1`.
 - timestamps
 
 ### player_achievements
-Planned for `0.0.21 — Achievements Phase 1`.
+Planned after `0.0.21 — Persistent Fight Sessions`.
 
 - owner id (`player_id`/`user_id` or `character_id`, choose the smallest fit with current schema)
 - `achievement_id`
@@ -164,7 +164,7 @@ Planned for `0.0.21 — Achievements Phase 1`.
 - unique owner + achievement
 
 ### achievement_progress
-Planned for `0.0.21 — Achievements Phase 1`.
+Planned after `0.0.21 — Persistent Fight Sessions`.
 
 - owner id
 - `achievement_id`
@@ -174,15 +174,25 @@ Planned for `0.0.21 — Achievements Phase 1`.
 
 Achievement storage is rewardless in Phase 1: it tracks title-like unlocks and progress, not XP/gold/items or combat power. Existing canonical stats should be reused where possible instead of duplicated.
 
-### combats
+### solo_combat_sessions
+Added in `0.0.21 — Persistent Fight Sessions` for the first solo `/fight` runtime.
+
 - `id` UUID
 - `character_id` FK
 - `monster_id`
 - `state_json`
 - `status`: active/won/lost/fled/expired
-- `idempotency_key`
+- `expires_at`
 - `created_at`
 - `updated_at`
+
+Rules:
+- `state_json` stores the pure domain `CombatState`; Telegram callback payloads never become the source of truth.
+- `turn` duplicates the current `CombatState.turn` as a normal integer column so callbacks can use a conditional DB update instead of JSON filtering.
+- One active playable row per character is protected by an unmanaged SQLite partial unique index on `character_id WHERE status = 'active'`; the migration expires older duplicate active rows before installing the index.
+- Callback data contains `sessionId`, `turn`, and `action`. The service rejects stale turns without mutating state, and turn resolution writes through a repository-level conditional update: only the still-active row with the expected turn may advance.
+- `daily_actions` and reward paths are not used by persistent solo fights in 0.0.21. Future fight rewards must add a separate idempotent reward claim boundary.
+- Lazy expiry happens when `/fight` or a fight callback touches an old active session; no Redis/job worker is required for this slice.
 
 ### groups
 - `id` UUID
@@ -367,7 +377,7 @@ Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і 
 ## Telegram callback data
 Callback data коротка, версіонована.
 
-Поточні callback prefixes у `0.0.18`:
+Поточні callback prefixes у `0.0.21`:
 - `v1:onb:*`
 - `v1:menu:hero`
 - `v1:menu:help`
@@ -383,7 +393,7 @@ Callback data коротка, версіонована.
 - `v1:quest:fight`
 - `v1:quest:hunt`
 - `v1:quest:cellar`
-- planned `v1:ach:list:{category}:{page}` or shorter equivalent for `0.0.21`; generated achievement callbacks must stay <=64 bytes.
+- planned `v1:ach:list:{category}:{page}` or shorter equivalent for a later rewardless achievements slice; generated achievement callbacks must stay <=64 bytes.
 - `v1:news:list:{page}`
 - `v1:news:entry:{entryIndex}:{listPage}`
 - `v1:tavern:raid`
@@ -408,6 +418,7 @@ Callback data коротка, версіонована.
 - `v1:fight:mimic:attack`
 - `v1:fight:mimic:receipt`
 - `v1:fight:mimic:flee`
+- `v1:fight:turn:{sessionId}:{turn}:{action}`
 - `v1:hunt:view:{localPeriodId}:{contractToken}`
 - `v1:hunt:act:{localPeriodId}:{contractToken}:strike`
 - `v1:hunt:act:{localPeriodId}:{contractToken}:trick`
@@ -419,7 +430,7 @@ Callback data коротка, версіонована.
 - зберігати короткий coarse тип поточної дії поруч із presence, не виводячи точний час;
 - приклади: `waiting_barrel`, `talking_ranger`, `fighting_monster`, `claiming_reward`, `reading_bestiary`;
 - presenter має перекладати це в українські короткі рядки на кшталт «чекає бочку» або «спілкується з єгерем»;
-- не використовувати це як authoritative combat/session state, доки не зʼявиться persistent fight/session model.
+- не використовувати це як authoritative combat/session state; навіть після `0.0.21` authoritative fight state живе в `solo_combat_sessions`.
 - `v1:bst:list:{page}`
 - `v1:bst:mon:{monsterId}:{page}`
 - `v1:devreset:confirm`
@@ -428,8 +439,7 @@ Callback data коротка, версіонована.
 - `v1:restart:cancel`
 
 Заплановані приклади для майбутніх persistent systems:
-- `v1:combat:atk:{combatId}`
-- `v1:combat:skill:{combatId}:{skillId}`
+- `v1:combat:*` або коротший equivalent для майбутніх group/PvP combats, якщо solo `v1:fight:turn:*` стане затісним;
 - `v1:equip:wear:{itemId}` або коротший equivalent — future richer equipment mutation after the `0.0.14` shell, if slots, restrictions, or item instances need more data than content ids.
 
 Валідація обов’язкова. Не довіряти даним з callback: `v1:item:detail:{itemId}` має перевірити, що item id валідний, content існує або має fallback, і герой реально володіє цією манаткою перед показом деталей. `v1:equip:item:{itemId}` має додатково перевірити ownership і equippable content metadata; `v1:equip:clear:{slot}` має відхилити невідомий slot.
@@ -456,7 +466,7 @@ Domain result → presenter → Telegram text/buttons.
 - `combatEngine.ts` приймає action + state + stats + injected `RandomSource` і повертає новий state без Telegram payloads.
 - `combatActions.ts` дає broad class-shaped skill profiles, не повні class kits.
 - `monsterCombatStats.ts` derivation бере existing monster content без schema migration.
-- Runtime `/fight` поки не підключений; `0.0.21` має додати persistent sessions, ownership/turn validation і presenter layer.
+- `0.0.21` підключає runtime `/fight` для level 3+ через `solo_combat_sessions`, `v1:fight:turn:{sessionId}:{turn}:{action}`, ownership/turn validation і presenter layer. Persistent fight у цьому slice не видає XP/gold/items.
 
 ## Progression helper
 `0.0.4` вводить маленький deterministic helper для рівнів:

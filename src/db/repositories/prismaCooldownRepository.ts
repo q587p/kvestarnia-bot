@@ -171,7 +171,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
           });
     const itemGrants = input.itemGrants ?? [];
 
-    await grantItems(tx, character.id, itemGrants);
+    const appliedItemGrants = await grantItems(tx, character.id, itemGrants);
 
     return {
       state: "completed",
@@ -182,7 +182,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
         newLevel,
         leveledUp: newLevel > rewardProgress.oldLevel
       },
-      itemGrants: itemGrants.filter((grant) => grant.quantity > 0)
+      itemGrants: appliedItemGrants
     };
   }
 
@@ -223,9 +223,21 @@ export class PrismaCooldownRepository implements CooldownRepository {
   }
 }
 
-async function grantItems(tx: TxClient, characterId: string, itemGrants: ItemGrant[]): Promise<void> {
+async function grantItems(
+  tx: TxClient,
+  characterId: string,
+  itemGrants: ItemGrant[]
+): Promise<ItemGrant[]> {
+  const appliedItemGrants: ItemGrant[] = [];
+
   for (const grant of itemGrants) {
     if (grant.quantity <= 0) {
+      continue;
+    }
+
+    const grantQuantity = await getGrantQuantity(tx, characterId, grant);
+
+    if (grantQuantity <= 0) {
       continue;
     }
 
@@ -239,15 +251,48 @@ async function grantItems(tx: TxClient, characterId: string, itemGrants: ItemGra
       create: {
         characterId,
         itemId: grant.itemId,
-        quantity: grant.quantity
+        quantity: grantQuantity
       },
       update: {
         quantity: {
-          increment: grant.quantity
+          increment: grantQuantity
         }
       }
     });
+    appliedItemGrants.push({
+      itemId: grant.itemId,
+      quantity: grantQuantity
+    });
   }
+
+  return appliedItemGrants;
+}
+
+async function getGrantQuantity(
+  tx: TxClient,
+  characterId: string,
+  grant: ItemGrant
+): Promise<number> {
+  const quantity = Math.floor(grant.quantity);
+
+  if (!grant.maxOwnedQuantity) {
+    return quantity;
+  }
+
+  const existing = await tx.characterItem.findUnique({
+    where: {
+      characterId_itemId: {
+        characterId,
+        itemId: grant.itemId
+      }
+    },
+    select: {
+      quantity: true
+    }
+  });
+  const remaining = grant.maxOwnedQuantity - (existing?.quantity ?? 0);
+
+  return Math.min(quantity, Math.max(0, remaining));
 }
 
 function isUniqueConstraintError(error: unknown): boolean {

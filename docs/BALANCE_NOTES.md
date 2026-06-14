@@ -54,6 +54,8 @@ Equipment effects для атак мають заходити через оди�
 - accessory може давати малий situational modifier, resource discount або extra flavor hook;
 - priceless/trophy items не дають бойових бонусів, доки контент явно не переведений у equippable/effect item.
 
+`0.0.21` persistent solo `/fight` використовує бойовий рушій у runtime, але навмисно не видає XP, золото або лут. Це дає перевірити session correctness, stale callbacks, mana failure і terminal states без нового economy source. Наступний балансний крок — equipment stat effects через один helper, а вже потім reward/loot path для перемог.
+
 ### Hit chance
 MVP можна почати без промахів у звичайній атаці або з дуже простим шансом:
 

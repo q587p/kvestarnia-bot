@@ -160,4 +160,48 @@ describe("Prisma schema", () => {
     expect(migration).toContain("CREATE INDEX \"hunt_contracts_monster_id_idx\"");
     expect(migration).toContain("CREATE INDEX \"hunt_contracts_local_period_id_idx\"");
   });
+
+  it("stores solo combat sessions as serializable combat state", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260614220000_add_solo_combat_sessions",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model SoloCombatSession");
+    expect(schema).toContain("soloCombatSessions SoloCombatSession[]");
+    expect(schema).toContain("@map(\"monster_id\")");
+    expect(schema).toContain("@map(\"state_json\")");
+    expect(schema).toContain("turn        Int       @default(1)");
+    expect(schema).toContain("@map(\"expires_at\")");
+    expect(schema).toContain("@@index([characterId, status])");
+    expect(schema).toContain("@@map(\"solo_combat_sessions\")");
+    expect(migration).toContain("CREATE TABLE \"solo_combat_sessions\"");
+    expect(migration).toContain("CREATE INDEX \"solo_combat_sessions_character_id_status_idx\"");
+    expect(migration).toContain("CREATE INDEX \"solo_combat_sessions_expires_at_idx\"");
+
+    const hardeningMigration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260615013000_harden_solo_combat_sessions",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(hardeningMigration).toContain("ADD COLUMN \"turn\" INTEGER NOT NULL DEFAULT 1");
+    expect(hardeningMigration).toContain("json_extract(\"state_json\", '$.turn')");
+    expect(hardeningMigration).toContain(
+      "CREATE UNIQUE INDEX \"solo_combat_sessions_one_active_per_character_idx\""
+    );
+    expect(hardeningMigration).toContain("WHERE \"status\" = 'active'");
+  });
 });

@@ -2,6 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { sendFight } from "../../src/bot/commands/fightCommand";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
+import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
+import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { FightService } from "../../src/services/fightService";
 import {
@@ -20,7 +22,7 @@ describe("fight command", () => {
       insideKorchma: false
     });
     const fightService = {
-      getMimicShawarmaForTelegramUser: () =>
+      getFightForTelegramUser: () =>
         Promise.resolve({
           state: "ready",
           character
@@ -62,7 +64,7 @@ describe("fight command", () => {
       insideKorchma: true
     });
     const fightService = {
-      getMimicShawarmaForTelegramUser: () =>
+      getFightForTelegramUser: () =>
         Promise.resolve({
           state: "ready",
           character
@@ -87,7 +89,7 @@ describe("fight command", () => {
   it("does not show fight action buttons after today's fight is already completed", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const fightService = {
-      getMimicShawarmaForTelegramUser: () =>
+      getFightForTelegramUser: () =>
         Promise.resolve({
           state: "already-completed",
           character,
@@ -105,6 +107,88 @@ describe("fight command", () => {
       parse_mode: "HTML"
     });
     expect(replies[0]?.options).not.toHaveProperty("reply_markup");
+  });
+
+  it("shows a persistent fight screen for higher-level combat sessions", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+    const fightService = {
+      getFightForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-active",
+          character: {
+            ...character,
+            level: 3
+          },
+          session: persistentSession(),
+          monster: {
+            id: "monster.deadline-spider",
+            name: "Павук дедлайнів",
+            description: "Плете павутину з «сьогодні швиденько».",
+            level: 2,
+            tags: ["beast", "time", "web"]
+          }
+        })
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply", {
+      presence,
+      requireKorchmaInterior: true
+    });
+
+    expect(replies[0]?.text).toContain("⚔️ Бій");
+    expect(replies[0]?.text).toContain("Павук дедлайнів");
+    expect(replies[0]?.text).toContain("поки не видає нагород");
+    const options = replies[0]?.options as {
+      parse_mode: string;
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+
+    expect(options.parse_mode).toBe("HTML");
+    expect(options.reply_markup.inline_keyboard[0]?.[0]).toEqual({
+      text: "🗡️ Вдарити",
+      callback_data: "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:1:attack"
+    });
+  });
+
+  it("offers recovery buttons when a persistent fight cannot start", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const fightService = {
+      getFightForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-ready",
+          character: {
+            ...character,
+            level: 3
+          }
+        })
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply");
+
+    expect(replies[0]?.text).toContain("Бій не стартував");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "⚔️ Новий бій",
+              callback_data: makeQuestCallbackData("fight")
+            }
+          ],
+          [
+            {
+              text: "📋 До справ",
+              callback_data: makePlaceCallbackData("quest-table")
+            }
+          ]
+        ]
+      }
+    });
   });
 });
 
@@ -187,3 +271,32 @@ const character: CharacterSummary = {
     }
   }
 };
+
+function persistentSession(): SoloCombatSessionRecord {
+  return {
+    id: "123e4567-e89b-12d3-a456-426614174000",
+    characterId: "character-42",
+    monsterId: "monster.deadline-spider",
+    status: "active",
+    turn: 1,
+    state: {
+      id: "123e4567-e89b-12d3-a456-426614174000",
+      turn: 1,
+      status: "active",
+      hero: {
+        hp: 24,
+        hpMax: 24,
+        mana: 12,
+        manaMax: 12
+      },
+      monster: {
+        id: "monster.deadline-spider",
+        hp: 18,
+        hpMax: 18
+      }
+    },
+    createdAt: new Date("2026-06-12T10:30:00.000Z"),
+    updatedAt: new Date("2026-06-12T10:30:00.000Z"),
+    expiresAt: new Date("2026-06-12T11:00:00.000Z")
+  };
+}

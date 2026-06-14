@@ -1,7 +1,10 @@
 import { InlineKeyboard } from "grammy";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import { makeFightCallbackData } from "../callbacks/fightCallbackData";
+import type { SoloCombatSessionRecord } from "../../db/repositories/soloCombatSessionRepository";
+import { getPersistentFightSkillLabel } from "../../services/fightService";
+import { makeFightCallbackData, makeFightTurnCallbackData } from "../callbacks/fightCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 
 export type FightResultKeyboardState = "completed" | "already-completed";
 
@@ -27,6 +30,48 @@ export function buildFightResultKeyboard(
   }
 
   return buildFightKeyboard(character);
+}
+
+export function buildPersistentFightKeyboard(
+  session: SoloCombatSessionRecord,
+  character: CharacterSummary
+): InlineKeyboard {
+  const turn = session.state?.turn ?? 1;
+
+  return new InlineKeyboard()
+    .text("🗡️ Вдарити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "attack" }))
+    .row()
+    .text(
+      getPersistentFightSkillLabel(character),
+      makeFightTurnCallbackData({ sessionId: session.id, turn, action: "skill" })
+    )
+    .row()
+    .text("🏃 Відступити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" }))
+    .row()
+    .text("⬅️ До столу", makePlaceCallbackData("quest-table"));
+}
+
+export function buildPersistentFightResultKeyboard(
+  session: SoloCombatSessionRecord,
+  character: CharacterSummary
+): InlineKeyboard {
+  if (session.state?.status !== "active") {
+    return new InlineKeyboard()
+      .text("⚔️ Новий бій", makeQuestCallbackData("fight"))
+      .row()
+      .text("📋 До справ", makePlaceCallbackData("quest-table"))
+      .row()
+      .text("🍺 До зали", makePlaceCallbackData("hall"));
+  }
+
+  return buildPersistentFightKeyboard(session, character);
+}
+
+export function buildPersistentFightReadyKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("⚔️ Новий бій", makeQuestCallbackData("fight"))
+    .row()
+    .text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
 
 function getFightActionLabels(character?: CharacterSummary): {

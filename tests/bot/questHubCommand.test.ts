@@ -63,7 +63,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
     expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
-      "⚔️ <i>Сутичка з невідомим монстром</i> — тренувальний бій для 1-2 рівнів."
+      "⚔️ <i>Бій у кутку</i> — можна починати без навчальних коліщат."
     );
     expect(replies[0]?.text).toContain("🏹 <i>Дошка полювання</i> — контракт на Скелет-вахтер печаток.");
     expect(replies[0]?.text).not.toContain("Мімік-шаурма");
@@ -71,6 +71,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.options).toMatchObject({
       reply_markup: {
         inline_keyboard: [
+          [{ text: "⚔️ До сутички", callback_data: makeQuestCallbackData("fight") }],
           [{ text: "🏹 До дошки", callback_data: makeQuestCallbackData("hunt") }],
           [{ text: "🧹 У підвал", callback_data: makeQuestCallbackData("cellar") }],
           [{ text: "📖 Бестіарій", callback_data: makeBestiaryListCallbackData(0) }],
@@ -162,7 +163,7 @@ describe("quest hub command", () => {
           completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
         } as unknown as AdventureService,
         fight: {
-          getMimicShawarmaForTelegramUser: () =>
+          getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "already-completed",
               character,
@@ -191,7 +192,7 @@ describe("quest hub command", () => {
     ]);
   });
 
-  it("suggests quiet fallback actions when no quest is currently available", async () => {
+  it("keeps persistent fight available when starter quests are spent", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const grownCharacter = characterAtLevel(4);
 
@@ -214,23 +215,66 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain(
-      "Справи зараз удають меблі. Можна почитати бестіарій, перевірити манатки або повернутися до зали."
-    );
-    expect(replies[0]?.text).not.toContain("Оберіть справу, поки вона не обрала вас.");
+    expect(replies[0]?.text).toContain("⚔️ <i>Бій у кутку</i> — можна починати без навчальних коліщат.");
+    expect(replies[0]?.text).toContain("Оберіть справу, поки вона не обрала вас.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
+      "⚔️ До сутички",
       "📖 Бестіарій",
-      "🎒 Манатки",
       "🍺 До зали"
     ]);
   });
 
-  it("hides starter shawarma and starter fight at level three", async () => {
+  it("keeps terminal persistent fights recoverable from the quest hub", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(grownCharacter),
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-terminal",
+              character: grownCharacter,
+              session: {
+                id: "123e4567-e89b-12d3-a456-426614174000",
+                characterId: "character-42",
+                monsterId: "monster.deleted",
+                status: "expired",
+                turn: 2,
+                state: null,
+                createdAt: new Date("2026-06-12T10:30:00.000Z"),
+                updatedAt: new Date("2026-06-12T10:31:00.000Z"),
+                expiresAt: new Date("2026-06-12T11:00:00.000Z")
+              },
+              monster: null
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        } as unknown as FightService,
+        hunt: readyHuntService(grownCharacter),
+        cellarErrand: readyCellarService(grownCharacter)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain(
+      "⚔️ <i>Бій у кутку</i> — можна починати без навчальних коліщат."
+    );
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.text)).toContain("⚔️ До сутички");
+  });
+
+  it("hides starter shawarma and offers persistent fight at level three", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const grownCharacter = characterAtLevel(3);
 
@@ -247,7 +291,7 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
-      "⚔️ <i>Сутичка з невідомим монстром</i> — тренувальний бій для 1-2 рівнів."
+      "⚔️ <i>Бій у кутку</i> — можна починати без навчальних коліщат."
     );
     expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша приймає аргументи.");
     const buttons = (
@@ -256,6 +300,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
+      "⚔️ До сутички",
       "🏹 До дошки",
       "🧹 У підвал",
       "📖 Бестіарій",
@@ -445,6 +490,18 @@ function readyAdventureService(summary: CharacterSummary): AdventureService {
 
 function readyFightService(summary: CharacterSummary): FightService {
   return {
+    getFightOverviewForTelegramUser: () =>
+      Promise.resolve(
+        summary.level >= 3
+          ? {
+              state: "persistent-ready",
+              character: summary
+            }
+          : {
+              state: "ready",
+              character: summary
+            }
+      ),
     getMimicShawarmaForTelegramUser: () =>
       Promise.resolve(
         summary.level >= 3

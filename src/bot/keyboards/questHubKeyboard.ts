@@ -24,7 +24,12 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     hasAction = true;
   }
 
-  if (input.fight.state === "ready") {
+  if (
+    input.fight.state === "ready" ||
+    input.fight.state === "persistent-ready" ||
+    input.fight.state === "persistent-active" ||
+    input.fight.state === "persistent-terminal"
+  ) {
     if (hasAction) {
       keyboard.row();
     }
@@ -64,6 +69,9 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
   return (
     input.adventure.state === "ready" ||
     input.fight.state === "ready" ||
+    input.fight.state === "persistent-ready" ||
+    input.fight.state === "persistent-active" ||
+    input.fight.state === "persistent-terminal" ||
     input.hunt.state === "ready" ||
     input.cellar.state === "ready"
   );
