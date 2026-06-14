@@ -107,7 +107,11 @@ import {
   buildTavernResultKeyboard
 } from "./keyboards/tavernKeyboard";
 import { presentAdventureNoCharacter, presentAdventureResult } from "./presenters/adventurePresenter";
-import { presentCellarNoCharacter, presentCellarResult } from "./presenters/cellarPresenter";
+import {
+  presentCellarLevelLocked,
+  presentCellarNoCharacter,
+  presentCellarResult
+} from "./presenters/cellarPresenter";
 import {
   presentDevResetCancelled,
   presentDevResetDeleted,
@@ -115,7 +119,11 @@ import {
   presentDevResetNoCharacter
 } from "./presenters/devResetPresenter";
 import { presentFightNoCharacter, presentFightResult } from "./presenters/fightPresenter";
-import { presentHuntNoCharacter, presentHuntResult } from "./presenters/huntPresenter";
+import {
+  presentHuntLevelLocked,
+  presentHuntNoCharacter,
+  presentHuntResult
+} from "./presenters/huntPresenter";
 import { presentHelp } from "./presenters/helpPresenter";
 import {
   presentEquipment,
@@ -1250,6 +1258,20 @@ async function handleCellarCallback(
     return;
   }
 
+  const lookup = await services.cellarErrand.getForTelegramUser(telegramUserId);
+
+  if (lookup.state === "no-character") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentCellarNoCharacter());
+    return;
+  }
+
+  if (lookup.state === "level-locked") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentCellarLevelLocked(lookup), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
   if (action === "participants") {
     const snapshot = await services.presence.getAdventureParticipantsForTelegramUser(
       telegramUserId,
@@ -1277,6 +1299,12 @@ async function handleCellarCallback(
   if (result.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentCellarNoCharacter());
+    return;
+  }
+
+  if (result.state === "level-locked") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentCellarLevelLocked(result), HTML_MESSAGE_OPTIONS);
     return;
   }
 
@@ -1409,6 +1437,12 @@ async function handleHuntCallback(
   if (result.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentHuntNoCharacter());
+    return;
+  }
+
+  if (result.state === "level-locked") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentHuntLevelLocked(result), HTML_MESSAGE_OPTIONS);
     return;
   }
 

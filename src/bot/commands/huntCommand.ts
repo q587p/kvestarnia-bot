@@ -12,6 +12,7 @@ import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentHuntAlreadyCompleted,
   presentHuntBoard,
+  presentHuntLevelLocked,
   presentHuntMissingContractMonster,
   presentHuntNoCharacter
 } from "../presenters/huntPresenter";
@@ -78,6 +79,11 @@ export async function sendHuntBoard(
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentHuntNoCharacter());
+    return;
+  }
+
+  if (result.state === "level-locked") {
+    await sendText(ctx, mode, presentHuntLevelLocked(result));
     return;
   }
 

@@ -27,6 +27,20 @@ export function presentHuntNoCharacter(): string {
   return "Спершу створіть пригодника через /start. Дошка полювання не видає проблеми порожнім графам.";
 }
 
+export function presentHuntLevelLocked(
+  result:
+    | Extract<HuntLookupResult, { state: "level-locked" }>
+    | Extract<HuntResult, { state: "level-locked" }>
+): string {
+  return [
+    "🏹 Дошка полювання поки зависоко.",
+    "",
+    `Корчмар прикриває список рукою: «З ${result.requiredLevel} рівня покажу. Поки що дошка вчиться вас не лякати».`,
+    "",
+    "Почніть зі Столу зі справами: /quest"
+  ].join("\n");
+}
+
 export function presentHuntAlreadyCompleted(
   result:
     | Extract<HuntLookupResult, { state: "already-completed" }>
@@ -100,6 +114,10 @@ export function presentHuntStaleContract(
 }
 
 export function presentHuntResult(result: Exclude<HuntResult, { state: "no-character" }>): string {
+  if (result.state === "level-locked") {
+    return presentHuntLevelLocked(result);
+  }
+
   if (result.state === "stale-period") {
     return presentHuntStalePeriod(result);
   }

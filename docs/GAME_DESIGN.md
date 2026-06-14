@@ -117,6 +117,8 @@ Hidden `path` може бути внутрішнім selector-ом, але на�
 - Повторний completed callback може відтворити stored XP/золото/item summary без дублювання винагороди.
 - `daily_actions` лишається єдиним авторитетом idempotent reward claim; `hunt_contracts` — це журнал/audit/replay, не друге джерело XP або луту.
 - Якщо збережений `monsterId` зник із content, дошка fail-safe просить оновити запис пізніше й не видає винагороду.
+- Щоб onboarding не вивалював усе одразу, Дошка полювання відкривається з 3 рівня. До цього hub показує locked-рядок без кнопки `🏹 До дошки`, а direct `/hunt` або старий hunt callback не створює contract ledger і не видає reward.
+- `/bestiary` і `/monsters` лишаються read-only і доступні одразу: читати нотатки можна раніше, ніж лізти за контрактом.
 
 Залишковий борг перед великим `/hunt`: ledger ще не є повною encounter/session system. Немає persistent HP/mana, групових учасників, wilderness location, bestiary collection progression або random loot table engine.
 
@@ -297,7 +299,8 @@ Alpha scaling рахується як derived effective values від збере
 - Надворі `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не телепортують героя до справ. Вони показують коротке `Квести видають усередині.` і кнопку `🚪 Зайти в корчму`.
 - Hub показує три starter actions: `🌯 Підозріла шаурма`, `⚔️ Сутичка з підозрілим монстром`, `🧹 Підвальна справа`.
 - Денна шаурма й fight probe показують ready/spent status. Якщо вони spent, їхні spent action buttons не повторюються.
-- Підвальна справа лишається repeatable fallback і показується навіть на cooldown, щоб гравець бачив, куди повернутися.
+- Підвальна справа відкривається з 2 рівня. До цього hub показує locked-рядок без кнопки `🧹 У підвал`, а `/cellar` і старі cellar callback-и не видають reward і не переносять presence у підвал.
+- Після 2 рівня підвальна справа лишається repeatable fallback і показується навіть на cooldown, щоб гравець бачив, куди повернутися.
 - Відкриття hub позначає героя у `location.korchma.quest_table`; вхід до підвалу позначає `location.korchma.cellar`; вихід до зали очищає stale adventure/raid ids.
 
 Це routing/UX slice, не повна activity-service модель і не бойова система.

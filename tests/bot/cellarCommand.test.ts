@@ -61,6 +61,35 @@ describe("cellar command", () => {
       currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
     });
   });
+
+  it("blocks /cellar before level two without marking the cellar", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+    const levelOne = {
+      getForTelegramUser: () =>
+        Promise.resolve({
+          state: "level-locked",
+          character: {
+            ...character,
+            level: 1,
+            xp: 0,
+            nextLevelXp: 10,
+            xpToNextLevel: 10
+          },
+          requiredLevel: 2
+        }),
+      complete: () => Promise.resolve({ state: "no-character" })
+    } as unknown as CellarErrandService;
+
+    await sendCellarErrandRouted(makeContext(replies), levelOne, presence, "reply");
+
+    expect(replies[0]?.text).toContain("Підвал поки зачинено");
+    expect(replies[0]?.text).toContain("2 рівня");
+    expect(presence.marks).toEqual([]);
+  });
 });
 
 const cellarErrandService = {
@@ -82,10 +111,10 @@ const character: CharacterSummary = {
   classId: "class.warrior",
   className: "Воїн",
   title: "Пересічні Пригодники",
-  level: 1,
-  xp: 0,
-  nextLevelXp: 10,
-  xpToNextLevel: 10,
+  level: 2,
+  xp: 10,
+  nextLevelXp: 25,
+  xpToNextLevel: 15,
   gold: 0,
   hpCurrent: 20,
   hpMax: 20,

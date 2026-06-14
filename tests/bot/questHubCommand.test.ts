@@ -83,6 +83,65 @@ describe("quest hub command", () => {
     });
   });
 
+  it("keeps cellar and hunt unavailable on level one", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const levelOneCharacter = characterAtLevel(1);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(levelOneCharacter),
+        fight: readyFightService(levelOneCharacter),
+        hunt: readyHuntService(levelOneCharacter),
+        cellarErrand: readyCellarService(levelOneCharacter)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🏹 Дошка полювання — відкриється з 3 рівня.");
+    expect(replies[0]?.text).toContain("🧹 Підвальна справа — відкриється з 2 рівня.");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.text)).toEqual([
+      "🌯 До шаурми",
+      "⚔️ До сутички",
+      "🍺 До зали"
+    ]);
+  });
+
+  it("opens cellar from level two but keeps hunt unavailable until level three", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const levelTwoCharacter = characterAtLevel(2);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(levelTwoCharacter),
+        fight: readyFightService(levelTwoCharacter),
+        hunt: readyHuntService(levelTwoCharacter),
+        cellarErrand: readyCellarService(levelTwoCharacter)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🏹 Дошка полювання — відкриється з 3 рівня.");
+    expect(replies[0]?.text).toContain("🧹 Підвальна справа — миша знову приймає аргументи.");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.text)).toEqual([
+      "🌯 До шаурми",
+      "⚔️ До сутички",
+      "🧹 У підвал",
+      "🍺 До зали"
+    ]);
+  });
+
   it("points to cellar fallback when daily shawarma and fight are already spent", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
@@ -157,6 +216,27 @@ describe("quest hub command", () => {
   });
 });
 
+function characterAtLevel(level: 1 | 2 | 3): CharacterSummary {
+  const xpByLevel = {
+    1: 0,
+    2: 10,
+    3: 25
+  } satisfies Record<1 | 2 | 3, number>;
+  const nextByLevel = {
+    1: 10,
+    2: 25,
+    3: 45
+  } satisfies Record<1 | 2 | 3, number>;
+
+  return {
+    ...character,
+    level,
+    xp: xpByLevel[level],
+    nextLevelXp: nextByLevel[level],
+    xpToNextLevel: nextByLevel[level] - xpByLevel[level]
+  };
+}
+
 const character: CharacterSummary = {
   name: "Мандрівник",
   pronoun: "they",
@@ -167,10 +247,10 @@ const character: CharacterSummary = {
   classId: "class.warrior",
   className: "Воїн",
   title: "Пересічні Пригодники",
-  level: 1,
-  xp: 0,
-  nextLevelXp: 10,
-  xpToNextLevel: 10,
+  level: 3,
+  xp: 25,
+  nextLevelXp: 45,
+  xpToNextLevel: 20,
   gold: 0,
   hpCurrent: 20,
   hpMax: 20,
@@ -250,48 +330,80 @@ function servicesWith(overrides: {
   return {
     adventure:
       overrides.adventure ??
-      ({
-        getMimicShawarmaForTelegramUser: () =>
-          Promise.resolve({
-            state: "ready",
-            character
-          }),
-        completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
-      } as unknown as AdventureService),
+      readyAdventureService(character),
     cellarErrand:
       overrides.cellarErrand ??
-      ({
-        getForTelegramUser: () =>
-          Promise.resolve({
-            state: "ready",
-            character
-          }),
-        complete: () => Promise.resolve({ state: "no-character" })
-      } as unknown as CellarErrandService),
+      readyCellarService(character),
     fight:
       overrides.fight ??
-      ({
-        getMimicShawarmaForTelegramUser: () =>
-          Promise.resolve({
-            state: "ready",
-            character
-          }),
-        completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
-      } as unknown as FightService),
+      readyFightService(character),
     hunt:
       overrides.hunt ??
-      ({
-        getHuntBoardForTelegramUser: () =>
-          Promise.resolve({
-            state: "ready",
-            character,
-            contract: huntContract
-          }),
-        completeHuntContract: () => Promise.resolve({ state: "no-character" })
-      } as unknown as HuntService),
+      readyHuntService(character),
     presence: overrides.presence ?? new CapturingPresenceService(),
     tavernRaid: overrides.tavernRaid
   };
+}
+
+function readyAdventureService(summary: CharacterSummary): AdventureService {
+  return {
+    getMimicShawarmaForTelegramUser: () =>
+      Promise.resolve({
+        state: "ready",
+        character: summary
+      }),
+    completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+  } as unknown as AdventureService;
+}
+
+function readyFightService(summary: CharacterSummary): FightService {
+  return {
+    getMimicShawarmaForTelegramUser: () =>
+      Promise.resolve({
+        state: "ready",
+        character: summary
+      }),
+    completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+  } as unknown as FightService;
+}
+
+function readyCellarService(summary: CharacterSummary): CellarErrandService {
+  return {
+    getForTelegramUser: () =>
+      Promise.resolve(
+        summary.level < 2
+          ? {
+              state: "level-locked",
+              character: summary,
+              requiredLevel: 2
+            }
+          : {
+              state: "ready",
+              character: summary
+            }
+      ),
+    complete: () => Promise.resolve({ state: "no-character" })
+  } as unknown as CellarErrandService;
+}
+
+function readyHuntService(summary: CharacterSummary): HuntService {
+  return {
+    getHuntBoardForTelegramUser: () =>
+      Promise.resolve(
+        summary.level < 3
+          ? {
+              state: "level-locked",
+              character: summary,
+              requiredLevel: 3
+            }
+          : {
+              state: "ready",
+              character: summary,
+              contract: huntContract
+            }
+      ),
+    completeHuntContract: () => Promise.resolve({ state: "no-character" })
+  } as unknown as HuntService;
 }
 
 function makeContext(replies: Array<{ text: string; options: unknown }>): Context {

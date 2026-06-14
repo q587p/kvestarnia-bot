@@ -1,6 +1,7 @@
 import type { CooldownRepository } from "../db/repositories/cooldownRepository";
 import type { RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
+import { CELLAR_MIN_LEVEL, meetsActivityLevel } from "../domain/progression/activityGates";
 import { systemClock, type Clock } from "../shared/time";
 import {
   BRISTLE_OF_BASEMENT_ORDER_ITEM_ID,
@@ -33,11 +34,13 @@ export const CELLAR_MOUSE_ERRAND_REWARDS = {
 
 export type CellarErrandLookupResult =
   | { state: "no-character" }
+  | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
   | { state: "ready"; character: CharacterSummary }
   | { state: "on-cooldown"; character: CharacterSummary; availableAt: Date; now: Date };
 
 export type CellarErrandResult =
   | { state: "no-character" }
+  | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
   | {
       state: "completed";
       action: CellarErrandAction;
@@ -77,10 +80,20 @@ export class CellarErrandService {
       return { state: "no-character" };
     }
 
+    const character = summarizeCharacter(current.character);
+
+    if (!meetsActivityLevel(character.level, CELLAR_MIN_LEVEL)) {
+      return {
+        state: "level-locked",
+        character,
+        requiredLevel: CELLAR_MIN_LEVEL
+      };
+    }
+
     if (current.cooldown && current.cooldown.availableAt > now) {
       return {
         state: "on-cooldown",
-        character: summarizeCharacter(current.character),
+        character,
         availableAt: current.cooldown.availableAt,
         now
       };
@@ -88,7 +101,7 @@ export class CellarErrandService {
 
     return {
       state: "ready",
-      character: summarizeCharacter(current.character)
+      character
     };
   }
 
@@ -97,6 +110,25 @@ export class CellarErrandService {
     action: CellarErrandAction
   ): Promise<CellarErrandResult> {
     const now = this.clock();
+    const current = await this.cooldowns.findForTelegramUser(
+      telegramUserId,
+      CELLAR_MOUSE_ERRAND_KEY
+    );
+
+    if (!current) {
+      return { state: "no-character" };
+    }
+
+    const character = summarizeCharacter(current.character);
+
+    if (!meetsActivityLevel(character.level, CELLAR_MIN_LEVEL)) {
+      return {
+        state: "level-locked",
+        character,
+        requiredLevel: CELLAR_MIN_LEVEL
+      };
+    }
+
     const reward = CELLAR_MOUSE_ERRAND_REWARDS[action];
     const availableAt = new Date(now.getTime() + CELLAR_MOUSE_ERRAND_COOLDOWN_MS);
     const claim = await this.cooldowns.claimRewardForTelegramUser(telegramUserId, {

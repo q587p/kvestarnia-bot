@@ -10,6 +10,7 @@ import { playerFromContext, telegramUserIdFromContext } from "../context";
 import { buildCellarResultKeyboard } from "../keyboards/cellarKeyboard";
 import {
   presentCellarCooldown,
+  presentCellarLevelLocked,
   presentCellarNoCharacter,
   presentCellarStart
 } from "../presenters/cellarPresenter";
@@ -85,14 +86,19 @@ export async function sendCellarErrand(
     return;
   }
 
-  await markCellarPresence(ctx, presenceService);
-
   const result = await cellarErrandService.getForTelegramUser(telegramUserId);
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentCellarNoCharacter());
     return;
   }
+
+  if (result.state === "level-locked") {
+    await sendText(ctx, mode, presentCellarLevelLocked(result));
+    return;
+  }
+
+  await markCellarPresence(ctx, presenceService);
 
   if (result.state === "on-cooldown") {
     await sendText(ctx, mode, presentCellarCooldown(result), "on-cooldown");

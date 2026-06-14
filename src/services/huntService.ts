@@ -7,6 +7,7 @@ import type {
   HuntContractRepository
 } from "../db/repositories/huntContractRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
+import { HUNT_MIN_LEVEL, meetsActivityLevel } from "../domain/progression/activityGates";
 import { systemClock, type Clock } from "../shared/time";
 import { HUNT_BOARD_CONTRACT_KEY } from "./dailyActionKeys";
 import { enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
@@ -25,12 +26,14 @@ export interface HuntContract {
 
 export type HuntLookupResult =
   | { state: "no-character" }
+  | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
   | { state: "missing-contract-monster"; character: CharacterSummary; localPeriodId: string; monsterId: string }
   | { state: "ready"; character: CharacterSummary; contract: HuntContract }
   | { state: "already-completed"; character: CharacterSummary; contract: HuntContract; reward?: HuntRewardReplay };
 
 export type HuntResult =
   | { state: "no-character" }
+  | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
   | { state: "stale-period"; currentLocalPeriodId: string; requestedLocalPeriodId: string }
   | { state: "missing-contract-monster"; character: CharacterSummary; localPeriodId: string; monsterId: string }
   | {
@@ -84,6 +87,15 @@ export class HuntService {
     }
 
     const summary = summarizeCharacter(character);
+
+    if (!meetsActivityLevel(summary.level, HUNT_MIN_LEVEL)) {
+      return {
+        state: "level-locked",
+        character: summary,
+        requiredLevel: HUNT_MIN_LEVEL
+      };
+    }
+
     const resolved = await this.getOrCreateContract(telegramUserId, localPeriodId, character, summary);
 
     if (resolved.state === "missing-contract-monster") {
@@ -140,6 +152,15 @@ export class HuntService {
     }
 
     const summary = summarizeCharacter(character);
+
+    if (!meetsActivityLevel(summary.level, HUNT_MIN_LEVEL)) {
+      return {
+        state: "level-locked",
+        character: summary,
+        requiredLevel: HUNT_MIN_LEVEL
+      };
+    }
+
     const resolved = await this.getOrCreateContract(telegramUserId, currentLocalPeriodId, character, summary);
 
     if (resolved.state === "missing-contract-monster") {

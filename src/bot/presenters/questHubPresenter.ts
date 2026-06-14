@@ -54,6 +54,10 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
 }
 
 function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" }>): string {
+  if (hunt.state === "level-locked") {
+    return `🏹 Дошка полювання — відкриється з ${hunt.requiredLevel} рівня.`;
+  }
+
   if (hunt.state === "missing-contract-monster") {
     return "🏹 Дошка полювання — корчмар шукає старий запис у журналі.";
   }
@@ -69,6 +73,10 @@ function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" 
 function presentCellarRow(
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>
 ): string {
+  if (cellar.state === "level-locked") {
+    return `🧹 Підвальна справа — відкриється з ${cellar.requiredLevel} рівня.`;
+  }
+
   if (cellar.state === "ready") {
     return "🧹 Підвальна справа — миша знову приймає аргументи.";
   }

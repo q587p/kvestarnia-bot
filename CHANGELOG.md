@@ -14,11 +14,13 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a Hunt Contract repository plus Prisma implementation for posting, loading, and completing Hunt Board ledger rows.
 - Repeated completed Hunt Board callbacks can now replay the original XP/gold and item summary from the ledger without issuing duplicate rewards.
 - Added a safe missing-monster state for persisted contracts whose content id no longer exists after a future deploy.
+- Added light onboarding gates: cellar errands unlock from level 2, and Hunt Board contracts unlock from level 3.
 - Added tests for schema/migration shape, ledger JSON serialization, posted-row creation, persisted contract reuse, token mismatch safety, legacy callback safety, missing-monster fallback, and replay presenter escaping.
 
 ### Changed
 - `/hunt` now uses the persisted ledger row as the contract identity source after the first view/claim in a period, instead of recomputing the active monster from content every time.
 - Hunt action callbacks validate against the persisted period/token/monster record before attempting the existing `daily_actions` reward claim.
+- The quest hub now shows locked cellar/hunt rows before the required level without showing their action buttons; `/bestiary` and `/monsters` remain read-only and available immediately.
 - `daily_actions` remains the authoritative idempotency boundary for XP/gold/items; `hunt_contracts` is an audit/replay ledger, not a second reward source.
 
 ### Not Included Yet

@@ -59,6 +59,27 @@ describe("HuntService", () => {
     expect(first.level).toBeLessThanOrEqual(3);
   });
 
+  it("locks hunt contracts until level three without creating a ledger row", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 10 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const huntContracts = new FakeHuntContractRepository(characters);
+    const service = new HuntService(characters, dailyActions, huntContracts, fixedClock);
+
+    await expect(service.getHuntBoardForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "level-locked",
+      requiredLevel: 3
+    });
+    await expect(
+      service.completeHuntContract(telegramUserId, "2026-06-14T00", "missing0", "strike")
+    ).resolves.toMatchObject({
+      state: "level-locked",
+      requiredLevel: 3
+    });
+    expect(huntContracts.createCount).toBe(0);
+    expect(dailyActions.createCount).toBe(0);
+  });
+
   it("keeps at least one eligible hunt monster in content", () => {
     const eligible = monsters.filter(
       (monster) =>
@@ -131,7 +152,7 @@ describe("HuntService", () => {
       expect(result.reward.itemGrants.length).toBeLessThanOrEqual(1);
     }
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: result.state === "completed" ? result.reward.xp : 0,
+      xp: 25 + (result.state === "completed" ? result.reward.xp : 0),
       gold: result.state === "completed" ? result.reward.gold : 0
     });
   });
@@ -244,7 +265,7 @@ describe("HuntService", () => {
     });
     expect(dailyActions.createCount).toBe(0);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 0,
+      xp: 25,
       gold: 0
     });
   });
@@ -280,7 +301,7 @@ describe("HuntService", () => {
       contractToken: token
     });
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 0,
+      xp: 25,
       gold: 0
     });
   });
@@ -406,7 +427,7 @@ class FakeCharacterRepository implements CharacterRepository {
   private readonly charactersByTelegramUserId = new Map<bigint, CharacterRecord>();
 
   add(userTelegramId: bigint, overrides: Partial<CharacterRecord> = {}): void {
-    const xp = overrides.xp ?? 0;
+    const xp = overrides.xp ?? 25;
     this.charactersByTelegramUserId.set(userTelegramId, {
       id: `character-${userTelegramId.toString()}`,
       userId: `user-${userTelegramId.toString()}`,

@@ -145,7 +145,7 @@ describe("presence middleware", () => {
     const presence = new CapturingPresenceService();
     const bot = createTestBot(presence, {
       cellarErrand: {
-        getForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
         complete: () =>
           Promise.resolve({
             state: "completed",
@@ -159,8 +159,8 @@ describe("presence middleware", () => {
             availableAt: new Date("2026-06-13T10:03:00.000Z"),
             now: new Date("2026-06-13T10:00:00.000Z"),
             levelChange: {
-              oldLevel: 1,
-              newLevel: 1,
+              oldLevel: 2,
+              newLevel: 2,
               leveledUp: false
             }
           })

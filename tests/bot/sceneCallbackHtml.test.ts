@@ -58,6 +58,7 @@ describe("scene callback HTML options", () => {
       callbackData: makeCellarCallbackData("cheese-trap"),
       services: servicesWith({
         cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
           complete: () =>
             Promise.resolve({
               state: "completed",
