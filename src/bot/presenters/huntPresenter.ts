@@ -53,9 +53,25 @@ export function presentHuntStalePeriod(
   ].join("\n");
 }
 
+export function presentHuntStaleContract(
+  _result: Extract<HuntResult, { state: "stale-contract" }>
+): string {
+  void _result;
+
+  return [
+    "🏹 Цей запис дошки вже не збігається з журналом.",
+    "",
+    "Корчмар перерахував ціль, печатку й підозри. Оновіть дошку: /hunt"
+  ].join("\n");
+}
+
 export function presentHuntResult(result: Exclude<HuntResult, { state: "no-character" }>): string {
   if (result.state === "stale-period") {
     return presentHuntStalePeriod(result);
+  }
+
+  if (result.state === "stale-contract") {
+    return presentHuntStaleContract(result);
   }
 
   if (result.state === "already-completed") {

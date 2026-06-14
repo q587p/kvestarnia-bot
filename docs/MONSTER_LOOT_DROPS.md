@@ -4,6 +4,8 @@
 
 У `0.0.17` `/hunt` використовує цей mapping дуже вузько: один детермінований щогодинний контракт може видати максимум один трофей із відповідного списку, тільки через `daily_actions` і без повної випадкової таблиці здобичі.
 
+У `0.0.18` `/bestiary` і `/monsters` можуть показувати ці mappings як «можливі трофеї за нотатками». Це read-only hint, не гарантія drop-а і не повний random loot engine.
+
 ## Мімік-шаурма — `monster.mimic-shawarma`
 
 - Loot ids: `item.suspicious-shawarma-wrapper`, `item.receipt-of-formal-suspicion`, `item.stamp-of-minor-authority`

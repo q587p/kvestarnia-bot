@@ -1,6 +1,7 @@
 ﻿import { describe, expect, it } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
+import { makeBestiaryMonsterCallbackData } from "../../src/bot/callbacks/bestiaryCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
 import { makeFightCallbackData } from "../../src/bot/callbacks/fightCallbackData";
 import { makeHuntActionCallbackData } from "../../src/bot/callbacks/huntCallbackData";
@@ -13,6 +14,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
   type MarkPlayerPresenceInput,
   type PresenceGroup
@@ -226,7 +228,11 @@ describe("presence middleware", () => {
     },
     {
       name: "hunt",
-      callbackData: makeHuntActionCallbackData("2026-06-14T08", "strike")
+      callbackData: makeHuntActionCallbackData("2026-06-14T08", "abc1234", "strike")
+    },
+    {
+      name: "bestiary",
+      callbackData: makeBestiaryMonsterCallbackData("monster.deadline-spider", 0)
     },
     {
       name: "cellar",
@@ -294,8 +300,78 @@ describe("presence middleware", () => {
     });
     await bot.init();
 
-    await bot.handleUpdate(callbackUpdate(makeHuntActionCallbackData("2026-06-14T08", "strike")));
+    await bot.handleUpdate(callbackUpdate(makeHuntActionCallbackData("2026-06-14T08", "abc1234", "strike")));
 
+    expect(claimCount).toBe(0);
+    expect(presence.marks).toEqual([
+      {
+        user: {
+          telegramUserId: 42n,
+          displayName: "Тест"
+        }
+      }
+    ]);
+  });
+
+  it("gates actual 0.0.17 date-only hunt action callbacks outside without claiming rewards", async () => {
+    const presence = new CapturingPresenceService();
+    let boardCount = 0;
+    let claimCount = 0;
+    const bot = createTestBot(presence, {
+      hunt: {
+        getHuntBoardForTelegramUser: () => {
+          boardCount += 1;
+          return Promise.resolve({ state: "no-character" });
+        },
+        completeHuntContract: () => {
+          claimCount += 1;
+          return Promise.resolve({ state: "no-character" });
+        }
+      }
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate("v1:hunt:act:2026-06-14:strike"));
+
+    expect(boardCount).toBe(0);
+    expect(claimCount).toBe(0);
+    expect(presence.marks).toEqual([
+      {
+        user: {
+          telegramUserId: 42n,
+          displayName: "Тест"
+        }
+      }
+    ]);
+  });
+
+  it("refreshes actual 0.0.17 date-only hunt action callbacks inside without claiming rewards", async () => {
+    const presence = new CapturingPresenceService();
+    presence.currentPlace = {
+      state: "ready",
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      locationName: "Стіл зі справами",
+      insideKorchma: true
+    };
+    let boardCount = 0;
+    let claimCount = 0;
+    const bot = createTestBot(presence, {
+      hunt: {
+        getHuntBoardForTelegramUser: () => {
+          boardCount += 1;
+          return Promise.resolve({ state: "no-character" });
+        },
+        completeHuntContract: () => {
+          claimCount += 1;
+          return Promise.resolve({ state: "no-character" });
+        }
+      }
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate("v1:hunt:act:2026-06-14:strike"));
+
+    expect(boardCount).toBe(1);
     expect(claimCount).toBe(0);
     expect(presence.marks).toEqual([
       {
@@ -330,6 +406,17 @@ describe("presence middleware", () => {
 
 class CapturingPresenceService {
   readonly marks: MarkPlayerPresenceInput[] = [];
+  currentPlace: {
+    state: "ready";
+    locationId: string;
+    locationName: string;
+    insideKorchma: boolean;
+  } = {
+    state: "ready",
+    locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
+    locationName: "Перед корчмою",
+    insideKorchma: false
+  };
 
   markAction(input: MarkPlayerPresenceInput): Promise<void> {
     this.marks.push(input);
@@ -366,12 +453,7 @@ class CapturingPresenceService {
     locationName: string;
     insideKorchma: boolean;
   }> {
-    return Promise.resolve({
-      state: "ready",
-      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
-      locationName: "Перед корчмою",
-      insideKorchma: false
-    });
+    return Promise.resolve(this.currentPlace);
   }
 }
 

@@ -231,7 +231,14 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - Вибір монстра детермінований від Kyiv-local `YYYY-MM-DDTHH` і character id; `monster.mimic-shawarma` і boss-tagged монстри не входять у перший Hunt Board MVP.
 - Старий period id у `v1:hunt:act:{period}:*` повертає stale-period copy і не створює claim для поточної години.
 
-Важливий борг Hunt Board callback-ів: поточний `v1:hunt:act:{period}:{action}` не містить `monsterId`, persisted contract id або короткий contract token. Оскільки контракт зараз переобчислюється з актуального content list за годинним period id і character id, майбутній deploy із доданими або переставленими монстрами може теоретично змінити монстра під старою кнопкою того самого київського годинного відтинку. Перед розширенням `/hunt` потрібно зафіксувати contract identity: або додати короткий stable token/monster id у callback, або persist-ити hourly contract row і валідувати callback проти нього.
+У `0.0.18` Hunt Board callback-и отримують короткий deterministic contract token:
+- token будується з Kyiv-local `YYYY-MM-DDTHH`, `character.id` і компактного reward/selection fingerprint-а монстра: `monster.id`, `level`, `tags`, `monsterLoot` ids;
+- новий action callback має форму `v1:hunt:act:{period}:{token}:{action}`;
+- якщо period stale, handler повертає stale-period copy до reward claim;
+- якщо period поточний, але token не збігається з поточно перерахованим контрактом, handler повертає stale-contract/refresh copy і не створює `daily_actions` claim;
+- legacy tokenless callback-и з `0.0.17` лишаються safe, включно з date-only форматом `YYYY-MM-DD`: view може оновити дошку, action без token не може зарахувати поточну винагороду.
+
+Залишковий борг Hunt Board contract identity: token захищає від більшости stale-button/content-drift випадків, але контракт усе ще переобчислюється із content list і не має persisted `hunt_contracts` row. Перед reward replay, груповими полюваннями, encounter sessions або складнішим loot tracking варто persist-ити contract identity (`period`, `character_id`, `monster_id`, `token`/version) і валідувати callback проти збереженого row.
 
 Другий MVP-борг: repeated/retry callback після успішного claim поки показує `already-completed`, але не відтворює оригінальні XP/золото/item details. `daily_actions` уже зберігає reward amounts, але повний reward replay потребує сервісного контракту, який зможе підняти item grants/details для existing claim без повторної видачі нагороди.
 
@@ -307,7 +314,7 @@ Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і 
 ## Telegram callback data
 Callback data коротка, версіонована.
 
-Поточні callback prefixes у `0.0.17`:
+Поточні callback prefixes у `0.0.18`:
 - `v1:onb:*`
 - `v1:menu:hero`
 - `v1:menu:help`
@@ -347,10 +354,12 @@ Callback data коротка, версіонована.
 - `v1:fight:mimic:attack`
 - `v1:fight:mimic:receipt`
 - `v1:fight:mimic:flee`
-- `v1:hunt:view:{localPeriodId}`
-- `v1:hunt:act:{localPeriodId}:strike`
-- `v1:hunt:act:{localPeriodId}:trick`
-- `v1:hunt:act:{localPeriodId}:retreat`
+- `v1:hunt:view:{localPeriodId}:{contractToken}`
+- `v1:hunt:act:{localPeriodId}:{contractToken}:strike`
+- `v1:hunt:act:{localPeriodId}:{contractToken}:trick`
+- `v1:hunt:act:{localPeriodId}:{contractToken}:retreat`
+- `v1:bst:list:{page}`
+- `v1:bst:mon:{monsterId}:{page}`
 - `v1:devreset:confirm`
 - `v1:devreset:cancel`
 - `v1:restart:confirm`

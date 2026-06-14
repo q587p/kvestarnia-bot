@@ -15,6 +15,8 @@ describe("help presenter", () => {
     expect(text).toContain("/quest");
     expect(text).toContain("/fight");
     expect(text).toContain("/hunt");
+    expect(text).toContain("/bestiary");
+    expect(text).toContain("/monsters");
     expect(text).toContain("/cellar");
     expect(text).toContain("/inventory");
     expect(text).toContain("/items");
@@ -36,6 +38,7 @@ describe("help presenter", () => {
     expect(text).toContain("🌯 /adventure — пригода з шаурмою");
     expect(text).toContain("⚔️ /fight — сутичка з монстром");
     expect(text).toContain("🏹 /hunt — дошка полювання");
+    expect(text).toContain("📚 /bestiary, /monsters — бестіарій і польові нотатки");
     expect(text).toContain("🧹 /cellar — підвальна справа");
     expect(text).toContain("🎒 /inventory, /items, /bag — манатки й торба");
     expect(text).toContain("🧥 /equipment, /gear, /equip — спорядження без бонусів");
@@ -50,7 +53,7 @@ describe("help presenter", () => {
     expect(text).not.toContain("те саме, що");
     expect(text).not.toContain("/hunt — ще");
     expect(text).toContain("Повний бій, бонуси спорядження");
-    expect(text.split("\n").length).toBeLessThanOrEqual(36);
+    expect(text.split("\n").length).toBeLessThanOrEqual(38);
   });
 
   it("includes dev reset only when enabled", () => {

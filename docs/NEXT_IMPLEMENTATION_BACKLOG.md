@@ -188,6 +188,8 @@
 - cosmetic or convenience spending only;
 - clear preview of cost and outcome;
 - anti-spam guardrails.
+- inventory view toggle for `усі манатки` / `лише спорядження`, if the sink starts from the bag UI;
+- optional beer-round payment with selected манатки at the korchma rate: `50+` item value for simple beer, `500+` for quality beer.
 
 **Non-goals**
 - no market;
@@ -197,6 +199,8 @@
 
 **Acceptance criteria**
 - sink costs are explicit;
+- item spending requires explicit selected items and confirmation;
+- priceless/equipped/locked items cannot be spent by accident;
 - no pay-to-win edge;
 - repeated callbacks stay idempotent;
 - economy tests show no runaway reward loop.

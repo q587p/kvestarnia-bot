@@ -3,6 +3,8 @@ import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
 import { makeFightCallbackData } from "../../src/bot/callbacks/fightCallbackData";
+import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
+import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
@@ -110,6 +112,66 @@ describe("scene callback HTML options", () => {
       parse_mode: "HTML"
     });
     expect(String(edit?.payload.text)).toMatch(/<b>|<i>/);
+  });
+
+  it.each([
+    {
+      name: "quest adventure route",
+      callbackData: makeQuestCallbackData("adventure"),
+      services: servicesWith({
+        adventure: {
+          getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        }
+      }),
+      expectedText: "Підозріла шаурма"
+    },
+    {
+      name: "quest fight route",
+      callbackData: makeQuestCallbackData("fight"),
+      services: servicesWith({
+        fight: {
+          getMimicShawarmaForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        }
+      }),
+      expectedText: "Сутичка з підозрілим монстром"
+    },
+    {
+      name: "quest cellar route",
+      callbackData: makeQuestCallbackData("cellar"),
+      services: servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          complete: () => Promise.resolve({ state: "no-character" })
+        }
+      }),
+      expectedText: "Підвальна справа"
+    },
+    {
+      name: "place cellar route",
+      callbackData: makePlaceCallbackData("cellar"),
+      services: servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          complete: () => Promise.resolve({ state: "no-character" })
+        }
+      }),
+      expectedText: "Підвальна справа"
+    }
+  ])("opens $name as a fresh message so old action taps do not hit new choices", async ({ callbackData, services, expectedText }) => {
+    const calls = await captureApiCalls(callbackData, services);
+    const message = calls.find((call) => call.method === "sendMessage");
+
+    expect(calls.some((call) => call.method === "editMessageText")).toBe(false);
+    expect(message?.payload).toMatchObject({
+      parse_mode: "HTML"
+    });
+    expect(String(message?.payload.text)).toContain(expectedText);
   });
 
   it("sends level-up celebration as a separate HTML message after the result edit", async () => {
@@ -344,6 +406,13 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
         Promise.resolve({ state: "no-character" }),
       getAdventureParticipantsForTelegramUser: () =>
         Promise.resolve({ state: "no-character" }),
+      getCurrentPlaceForTelegramUser: () =>
+        Promise.resolve({
+          state: "ready",
+          locationId: "location.korchma.hall",
+          locationName: "Зала корчми",
+          insideKorchma: true
+        }),
       getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
       getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
     },

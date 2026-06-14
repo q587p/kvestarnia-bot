@@ -64,4 +64,6 @@ selectMonsterFlavorLine(character, {
 - `flee`;
 - monster-specific alias у майбутньому.
 
-У `0.0.17` `/hunt` підключає `monster.start` для дошки й `monster.outcome` для результату, якщо такий рядок існує. `monster.loot-note` поки лишається content hook для майбутнього багатшого loot/result presenter-а.
+У `0.0.17` `/hunt` підключає `monster.start` для дошки й `monster.outcome` для результату, якщо такий рядок існує. У `0.0.18` Hunt Board contract token захищає action callback від content drift за monster id, level, tags і known loot ids, але flavor seed усе ще лишається deterministic від `localPeriodId`, character id, monster id/action і placement.
+
+`/bestiary` у `0.0.18` показує read-only monster descriptions, field notes і trophy hints. Він не обирає character-specific flavor, не створює encounter state і не має впливати на reward math.
