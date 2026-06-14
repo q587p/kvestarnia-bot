@@ -14,7 +14,7 @@ import type {
 import type { KorchmaArrivalBoard, PresenceGroup } from "../../services/presenceService";
 import { selectCharacterFlavorLine, selectCharacterFlavorLines } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
-import { escapeHtml, npcQuote } from "./telegramHtml";
+import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
 
 export function presentKorchmaFront(character: CharacterSummary): string {
   return [
@@ -296,10 +296,6 @@ export function presentTavernRoundOffer(
     "",
     ...presentKorchmaRoundLeaderboard(result.leaderboard)
   ].join("\n");
-}
-
-function presentCharacterHeader(character: CharacterSummary): string {
-  return `<b>${escapeHtml(character.name)}</b> · <i>${escapeHtml(character.title)}</i>`;
 }
 
 function presentKorchmaGreeting(character: CharacterSummary): string[] {
