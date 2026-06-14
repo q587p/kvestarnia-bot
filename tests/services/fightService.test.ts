@@ -285,12 +285,12 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(0);
   });
 
-  it("shows completed thirteen-problems progress without claiming from overview", async () => {
+  it("shows thirteen-problems progress beyond the reward target without claiming from overview", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    sessions.addWonSessions("character-42", 13);
+    sessions.addWonSessions("character-42", 14);
     const service = new FightService(
       characters,
       dailyActions,
@@ -304,7 +304,7 @@ describe("FightService", () => {
     expect(overview).toMatchObject({
       state: "persistent-ready",
       questProgress: {
-        wins: 13,
+        wins: 14,
         target: 13,
         completed: true,
         rewardClaimed: false

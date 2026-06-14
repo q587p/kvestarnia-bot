@@ -654,7 +654,7 @@ export class FightService {
 
     return {
       title: "Тринадцять дрібних проблем",
-      wins: Math.min(wins, THIRTEEN_SMALL_PROBLEMS_TARGET_WINS),
+      wins,
       target: THIRTEEN_SMALL_PROBLEMS_TARGET_WINS,
       completed: wins >= THIRTEEN_SMALL_PROBLEMS_TARGET_WINS,
       rewardClaimed: rewardClaim !== null

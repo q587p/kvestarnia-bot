@@ -254,7 +254,7 @@ describe("quest hub command", () => {
                 expiresAt: new Date("2026-06-12T11:00:00.000Z")
               },
               monster: null,
-              questProgress: questProgress(3)
+              questProgress: questProgress(14, true)
             }),
           completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
         } as unknown as FightService,
@@ -265,7 +265,7 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain(
-      "📋 <i>Тринадцять дрібних проблем</i> — 3/13 проблем у журналі."
+      "📋 <i>Тринадцять дрібних проблем</i> — 14/13 проблем у журналі, перший список закрито; далі практика."
     );
     const buttons = (
       replies[0]?.options as {

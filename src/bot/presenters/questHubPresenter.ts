@@ -76,7 +76,7 @@ function presentThirteenProblemsStatus(progress: {
   completed: boolean;
 }): string {
   if (progress.completed) {
-    return "перший список закрито, далі практика";
+    return `${progress.wins}/${progress.target} проблем у журналі, перший список закрито; далі практика`;
   }
 
   return `${progress.wins}/${progress.target} проблем у журналі`;

@@ -282,7 +282,7 @@ describe("fight presenter", () => {
         level: 3,
         tags: ["test"]
       },
-      questProgress: questProgress(13, true),
+      questProgress: questProgress(14, true),
       questReward: {
         state: "claimed",
         reward: {
@@ -301,7 +301,7 @@ describe("fight presenter", () => {
       }
     });
 
-    expect(text).toContain("Прогрес справи: <b>13/13</b> · закрито.");
+    expect(text).toContain("Прогрес справи: <b>14/13</b> · закрито.");
     expect(text).toContain("Тринадцята проблема впала");
     expect(text).toContain("Нагорода за справу:\n<b>+35 XP\n+10 золота</b>");
     expect(text).toContain("Здобуто: <i>Жетон тринадцяти дрібних проблем</i>");

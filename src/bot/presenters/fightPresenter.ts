@@ -277,7 +277,7 @@ function presentThirteenSmallProblemsBlock(
     return [
       "📋 <b>Тринадцять дрібних проблем</b>",
       "Перший список корчмаря закрито. Подальші бійки поки для практики, шуму й майбутньої бухгалтерії.",
-      `Прогрес справи: <b>${progress.target}/${progress.target}</b> · закрито.`
+      `Прогрес справи: <b>${progress.wins}/${progress.target}</b> · закрито.`
     ];
   }
 
