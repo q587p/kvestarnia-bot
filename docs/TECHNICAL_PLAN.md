@@ -357,8 +357,8 @@ Callback data коротка, версіонована.
 - `v1:cellar:sweep-bravely`
 - `v1:cellar:negotiate`
 - `v1:cellar:participants`
-- `v1:item:inventory`
-- `v1:item:detail:{itemId}`
+- `v1:item:inventory` або `v1:item:inventory:{page}`
+- `v1:item:detail:{itemId}` або `v1:item:detail:{itemId}:{page}`
 - `v1:equip:view`
 - `v1:equip:item:{itemId}`
 - `v1:equip:clear:{slot}`

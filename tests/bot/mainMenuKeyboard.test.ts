@@ -330,6 +330,59 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual(["v1:equip:view", "v1:item:detail:item.wet-hero-ticket"]);
+    expect(
+      flatInlineButtonTexts(
+        buildInventoryKeyboard(
+          {
+            state: "found",
+            totalGoldValue: 0,
+            items: Array.from({ length: 9 }, (_, index) => ({
+              id: `character-item-${index + 1}`,
+              itemId: `item.test-${index + 1}`,
+              quantity: 1,
+              content: {
+                id: `item.test-${index + 1}`,
+                name: `Манатка ${index + 1}`,
+                description: "Трофей.",
+                rarity: "common",
+                slot: "junk",
+                priceless: true
+              }
+            }))
+          },
+          1
+        )
+      )
+    ).toEqual(["🛡️ Спорядження", "🔎 Манатка 9", "◀️ Назад", "2/2"]);
+    expect(
+      flatInlineButtonCallbacks(
+        buildInventoryKeyboard(
+          {
+            state: "found",
+            totalGoldValue: 0,
+            items: Array.from({ length: 9 }, (_, index) => ({
+              id: `character-item-${index + 1}`,
+              itemId: `item.test-${index + 1}`,
+              quantity: 1,
+              content: {
+                id: `item.test-${index + 1}`,
+                name: `Манатка ${index + 1}`,
+                description: "Трофей.",
+                rarity: "common",
+                slot: "junk",
+                priceless: true
+              }
+            }))
+          },
+          1
+        )
+      )
+    ).toEqual([
+      "v1:equip:view",
+      "v1:item:detail:item.test-9:1",
+      "v1:item:inventory",
+      "v1:item:inventory:1"
+    ]);
     expect(flatInlineButtonTexts(buildItemDetailKeyboard({ state: "not-owned" }))).toEqual([
       "⬅️ До манаток",
       "🛡️ Спорядження"

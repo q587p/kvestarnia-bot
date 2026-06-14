@@ -73,6 +73,7 @@ combat domain → persistent fight → equipment stats → loot engine → level
 **Scope**
 
 - optional item effects, наприклад stat bonus, HP/mana max, armor, weapon damage, spell power;
+- optional usable item metadata for later explicit use actions: healing, mana restore, temporary buff, combat option unlock, or dialogue option unlock;
 - one effective-stats helper for base + level + equipment;
 - `/hero`, `/equipment`, item detail показують внесок предметів;
 - combat session reads effective values.
@@ -82,11 +83,13 @@ combat domain → persistent fight → equipment stats → loot engine → level
 - no selling/trading/item instance refactor;
 - no crafting;
 - no requiredLevel bypass/respec tricks;
+- no broad consumable economy or automatic item spending;
 - no big offensive scaling.
 
 **Acceptance criteria**
 
 - equip/unequip змінює numbers у hero/equipment і combat tests;
+- usable-item candidates are documented and safe, but any actual spend/use action requires explicit confirmation and idempotent callback design;
 - junk/cosmetic/priceless items не дають power випадково;
 - presenter не рахує приховану математику.
 
