@@ -16,6 +16,7 @@
     "db:migrate": "node scripts/prisma-migrate-dev.cjs",
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
+    "simulate:combat": "ts-node scripts/simulate-combat.ts",
     "check": "npm run lint && npm run typecheck && npm run build && npm test"
   },
   "dependencies": {
