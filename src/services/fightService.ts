@@ -33,6 +33,7 @@ import {
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY
 } from "./dailyActionKeys";
 import {
+  BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID,
   enrichRewardItemGrants,
   PAN_OF_PERSUASION_ITEM_ID,
   RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
@@ -60,21 +61,49 @@ export const MIMIC_SHAWARMA_COMBAT_REWARDS = {
   }
 } satisfies Record<FightAction, { xp: number; gold: number }>;
 
+export const THIRTEEN_SMALL_PROBLEMS_QUEST_KEY = "quest.thirteen-small-problems";
+export const THIRTEEN_SMALL_PROBLEMS_QUEST_BUCKET = "once";
+export const THIRTEEN_SMALL_PROBLEMS_TARGET_WINS = 13;
+export const THIRTEEN_SMALL_PROBLEMS_REWARD = {
+  xp: 35,
+  gold: 10
+};
+
+export interface ThirteenSmallProblemsProgress {
+  title: "Тринадцять дрібних проблем";
+  wins: number;
+  target: number;
+  completed: boolean;
+  rewardClaimed: boolean;
+}
+
+export interface ThirteenSmallProblemsReward {
+  state: "claimed" | "already-claimed";
+  reward: FightReward;
+  levelChange: RewardLevelChange | null;
+}
+
 export type FightLookupResult =
   | { state: "no-character" }
   | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
-  | { state: "persistent-ready"; character: CharacterSummary }
+  | {
+      state: "persistent-ready";
+      character: CharacterSummary;
+      questProgress: ThirteenSmallProblemsProgress;
+    }
   | {
       state: "persistent-active";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
+      questProgress: ThirteenSmallProblemsProgress;
     }
   | {
       state: "persistent-terminal";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent | null;
+      questProgress: ThirteenSmallProblemsProgress;
     }
   | { state: "ready"; character: CharacterSummary }
   | { state: "already-completed"; character: CharacterSummary; questAvailable: boolean };
@@ -104,24 +133,29 @@ export type PersistentFightTurnResult =
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent | null;
+      questProgress: ThirteenSmallProblemsProgress;
     }
   | {
       state: "not-enough-mana";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
+      questProgress: ThirteenSmallProblemsProgress;
     }
   | {
       state: "updated";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
+      questProgress: ThirteenSmallProblemsProgress;
+      questReward: ThirteenSmallProblemsReward | null;
     }
   | {
       state: "terminal";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent | null;
+      questProgress: ThirteenSmallProblemsProgress;
     };
 
 export interface FightReward {
@@ -161,12 +195,14 @@ export class FightService {
       };
     }
 
+    const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
     const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
 
     if (!activeSession) {
       return {
         state: "persistent-ready",
-        character: characterSummary
+        character: characterSummary,
+        questProgress
       };
     }
 
@@ -177,7 +213,8 @@ export class FightService {
         state: "persistent-terminal",
         character: characterSummary,
         session: expiredSession ?? { ...activeSession, status: "expired" },
-        monster: findMonster(activeSession.monsterId)
+        monster: findMonster(activeSession.monsterId),
+        questProgress
       };
     }
 
@@ -192,7 +229,8 @@ export class FightService {
         state: "persistent-terminal",
         character: characterSummary,
         session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
-        monster: findMonster(activeSession.monsterId)
+        monster: findMonster(activeSession.monsterId),
+        questProgress
       };
     }
 
@@ -210,7 +248,8 @@ export class FightService {
         state: "persistent-terminal",
         character: characterSummary,
         session: expiredSession ?? { ...activeSession, state: expiredState, status: expiredState.status },
-        monster
+        monster,
+        questProgress
       };
     }
 
@@ -218,7 +257,8 @@ export class FightService {
       state: "persistent-active",
       character: characterSummary,
       session: activeSession,
-      monster
+      monster,
+      questProgress
     };
   }
 
@@ -243,6 +283,7 @@ export class FightService {
       };
     }
 
+    const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
     const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
 
     if (activeSession) {
@@ -259,7 +300,8 @@ export class FightService {
           state: "persistent-terminal",
           character: characterSummary,
           session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
-          monster: findMonster(activeSession.monsterId)
+          monster: findMonster(activeSession.monsterId),
+          questProgress
         };
       } else {
         const monster = findMonster(activeSession.monsterId);
@@ -275,7 +317,8 @@ export class FightService {
             state: "persistent-terminal",
             character: characterSummary,
             session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
-            monster: null
+            monster: null,
+            questProgress
           };
         }
 
@@ -283,7 +326,8 @@ export class FightService {
           state: activeSession.state.status === "active" ? "persistent-active" : "persistent-terminal",
           character: characterSummary,
           session: activeSession,
-          monster
+          monster,
+          questProgress
         };
       }
     }
@@ -310,7 +354,8 @@ export class FightService {
       state: "persistent-active",
       character: characterSummary,
       session,
-      monster
+      monster,
+      questProgress
     };
   }
 
@@ -443,6 +488,7 @@ export class FightService {
       };
     }
 
+    const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
     const session = await this.combatSessions.findByIdForTelegramUserId(
       telegramUserId,
       input.sessionId
@@ -463,7 +509,8 @@ export class FightService {
           state: "stale-turn",
           character: characterSummary,
           session: activeSession,
-          monster: findMonster(activeSession.monsterId)
+          monster: findMonster(activeSession.monsterId),
+          questProgress
         };
       }
     }
@@ -473,7 +520,8 @@ export class FightService {
         state: "terminal",
         character: characterSummary,
         session,
-        monster: findMonster(session.monsterId)
+        monster: findMonster(session.monsterId),
+        questProgress
       };
     }
 
@@ -483,7 +531,8 @@ export class FightService {
         state: "terminal",
         character: characterSummary,
         session: { ...session, status: "expired" },
-        monster: findMonster(session.monsterId)
+        monster: findMonster(session.monsterId),
+        questProgress
       };
     }
 
@@ -500,7 +549,8 @@ export class FightService {
         state: "terminal",
         character: characterSummary,
         session: updated ?? { ...session, state: expiredState, status: "expired" },
-        monster
+        monster,
+        questProgress
       };
     }
 
@@ -509,7 +559,8 @@ export class FightService {
         state: "terminal",
         character: characterSummary,
         session,
-        monster
+        monster,
+        questProgress
       };
     }
 
@@ -518,7 +569,8 @@ export class FightService {
         state: "stale-turn",
         character: characterSummary,
         session,
-        monster
+        monster,
+        questProgress
       };
     }
 
@@ -535,7 +587,8 @@ export class FightService {
         state: "not-enough-mana",
         character: characterSummary,
         session,
-        monster
+        monster,
+        questProgress
       };
     }
 
@@ -544,7 +597,8 @@ export class FightService {
         state: "terminal",
         character: characterSummary,
         session,
-        monster
+        monster,
+        questProgress
       };
     }
 
@@ -567,15 +621,84 @@ export class FightService {
           : "terminal",
         character: characterSummary,
         session: fallbackSession,
-        monster: findMonster(fallbackSession.monsterId)
+        monster: findMonster(fallbackSession.monsterId),
+        questProgress
       };
     }
+
+    const questReward =
+      updated.status === "won"
+        ? await this.claimThirteenSmallProblemsRewardIfComplete(telegramUserId)
+        : null;
 
     return {
       state: "updated",
       character: characterSummary,
       session: updated,
-      monster
+      monster,
+      questProgress: await this.getThirteenSmallProblemsProgress(telegramUserId),
+      questReward
+    };
+  }
+
+  private async getThirteenSmallProblemsProgress(
+    telegramUserId: bigint
+  ): Promise<ThirteenSmallProblemsProgress> {
+    const wins = this.combatSessions
+      ? await this.combatSessions.countWonByTelegramUserId(telegramUserId)
+      : 0;
+    const rewardClaim = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: THIRTEEN_SMALL_PROBLEMS_QUEST_KEY,
+      localDate: THIRTEEN_SMALL_PROBLEMS_QUEST_BUCKET
+    });
+
+    return {
+      title: "Тринадцять дрібних проблем",
+      wins: Math.min(wins, THIRTEEN_SMALL_PROBLEMS_TARGET_WINS),
+      target: THIRTEEN_SMALL_PROBLEMS_TARGET_WINS,
+      completed: wins >= THIRTEEN_SMALL_PROBLEMS_TARGET_WINS,
+      rewardClaimed: rewardClaim !== null
+    };
+  }
+
+  private async claimThirteenSmallProblemsRewardIfComplete(
+    telegramUserId: bigint
+  ): Promise<ThirteenSmallProblemsReward | null> {
+    const wins = this.combatSessions
+      ? await this.combatSessions.countWonByTelegramUserId(telegramUserId)
+      : 0;
+
+    if (wins < THIRTEEN_SMALL_PROBLEMS_TARGET_WINS) {
+      return null;
+    }
+
+    const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+      key: THIRTEEN_SMALL_PROBLEMS_QUEST_KEY,
+      localDate: THIRTEEN_SMALL_PROBLEMS_QUEST_BUCKET,
+      rewardXp: THIRTEEN_SMALL_PROBLEMS_REWARD.xp,
+      rewardGold: THIRTEEN_SMALL_PROBLEMS_REWARD.gold,
+      itemGrants: [
+        {
+          itemId: BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID,
+          quantity: 1,
+          maxOwnedQuantity: 1
+        }
+      ]
+    });
+
+    if (!claim) {
+      return null;
+    }
+
+    return {
+      state: claim.state === "created" ? "claimed" : "already-claimed",
+      reward: {
+        xp: claim.action.rewardXp,
+        gold: claim.action.rewardGold,
+        localDate: claim.action.localDate,
+        itemGrants: claim.state === "created" ? enrichRewardItemGrants(claim.itemGrants) : []
+      },
+      levelChange: claim.levelChange
     };
   }
 }

@@ -98,7 +98,7 @@ Achievements Phase 1 лишається rewardless later slice після осн
 - стан бою показує HP/ману героя, HP монстра, номер ходу й останній результат;
 - terminal states `won/lost/fled/expired` стабільні й не дають повторних ходів.
 
-У 0.0.21 persistent fight не видає XP, золото або манатки. Це навмисний проміжний зріз: спершу session correctness, потім equipment stats і reward/loot path.
+У 0.0.21 persistent fight не видає XP, золото або манатки за кожну окрему перемогу. Щоб loop не виглядав голою кнопкою, цей зріз має перший вузький quest wrapper: `Тринадцять дрібних проблем`. Прогрес рахується з won `solo_combat_sessions`, максимум `13/13`, а completion reward видається один раз через `daily_actions` bucket `once`: `+35 XP`, `+10` золота й `item.badge-of-thirteen-small-problems`. Це не broad quest engine і не loot path; це маленький корчемний контракт поверх сесій.
 
 Важливе правило для runtime-підключення: герой може не мати starter weapon, бо starter fight закривається після 2 рівня. Combat engine має підтримувати unarmed/basic fallback, а equipment effects мають додаватися пізніше через один helper.
 

@@ -63,7 +63,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
     expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
-      "⚔️ <i>Бій у кутку</i> — можна починати без навчальних коліщат."
+      "📋 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
     );
     expect(replies[0]?.text).toContain("🏹 <i>Дошка полювання</i> — контракт на Скелет-вахтер печаток.");
     expect(replies[0]?.text).not.toContain("Мімік-шаурма");
@@ -215,7 +215,9 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("⚔️ <i>Бій у кутку</i> — можна починати без навчальних коліщат.");
+    expect(replies[0]?.text).toContain(
+      "📋 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
+    );
     expect(replies[0]?.text).toContain("Оберіть справу, поки вона не обрала вас.");
     const buttons = (
       replies[0]?.options as {
@@ -253,7 +255,8 @@ describe("quest hub command", () => {
                 updatedAt: new Date("2026-06-12T10:31:00.000Z"),
                 expiresAt: new Date("2026-06-12T11:00:00.000Z")
               },
-              monster: null
+              monster: null,
+              questProgress: questProgress(3)
             }),
           completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
         } as unknown as FightService,
@@ -264,7 +267,7 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain(
-      "⚔️ <i>Бій у кутку</i> — можна починати без навчальних коліщат."
+      "📋 <i>Тринадцять дрібних проблем</i> — 3/13 проблем у журналі."
     );
     const buttons = (
       replies[0]?.options as {
@@ -291,7 +294,7 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
-      "⚔️ <i>Бій у кутку</i> — можна починати без навчальних коліщат."
+      "📋 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
     );
     expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша приймає аргументи.");
     const buttons = (
@@ -495,7 +498,8 @@ function readyFightService(summary: CharacterSummary): FightService {
         summary.level >= 3
           ? {
               state: "persistent-ready",
-              character: summary
+              character: summary,
+              questProgress: questProgress(0)
             }
           : {
               state: "ready",
@@ -517,6 +521,16 @@ function readyFightService(summary: CharacterSummary): FightService {
       ),
     completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
   } as unknown as FightService;
+}
+
+function questProgress(wins: number, completed = false) {
+  return {
+    title: "Тринадцять дрібних проблем" as const,
+    wins,
+    target: 13,
+    completed,
+    rewardClaimed: completed
+  };
 }
 
 function readyCellarService(summary: CharacterSummary): CellarErrandService {

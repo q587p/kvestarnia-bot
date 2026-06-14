@@ -25,7 +25,9 @@ import { FakeRandomSource } from "../../src/shared/random";
 import { MIMIC_SHAWARMA_ADVENTURE_KEY } from "../../src/services/adventureService";
 import {
   FightService,
-  MIMIC_SHAWARMA_COMBAT_PROBE_KEY
+  MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
+  THIRTEEN_SMALL_PROBLEMS_QUEST_BUCKET,
+  THIRTEEN_SMALL_PROBLEMS_QUEST_KEY
 } from "../../src/services/fightService";
 
 const telegramUserId = 42n;
@@ -272,9 +274,43 @@ describe("FightService", () => {
       state: "persistent-ready",
       character: {
         level: 3
+      },
+      questProgress: {
+        wins: 0,
+        target: 13,
+        completed: false,
+        rewardClaimed: false
       }
     });
     expect(sessions.createCount).toBe(0);
+  });
+
+  it("shows completed thirteen-problems progress without claiming from overview", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.addWonSessions("character-42", 13);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "persistent-ready",
+      questProgress: {
+        wins: 13,
+        target: 13,
+        completed: true,
+        rewardClaimed: false
+      }
+    });
+    expect(dailyActions.createCount).toBe(0);
   });
 
   it("starts and resumes one persistent fight session for level three characters", async () => {
@@ -375,12 +411,156 @@ describe("FightService", () => {
     if (result.state === "updated") {
       expect(result.session.state?.turn).toBe(2);
       expect(result.session.state?.lastTurn?.action).toBe("attack");
+      expect(result.questProgress).toMatchObject({
+        wins: 0,
+        target: 13,
+        completed: false
+      });
+      expect(result.questReward).toBeNull();
     }
     expect(sessions.updateCount).toBe(1);
     expect(dailyActions.createCount).toBe(0);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       xp: 25,
       gold: 0
+    });
+  });
+
+  it("counts a won persistent fight toward thirteen small problems", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0.1])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 1);
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.status).toBe("won");
+      expect(result.questProgress).toMatchObject({
+        wins: 1,
+        target: 13,
+        completed: false
+      });
+      expect(result.questReward).toBeNull();
+    }
+    expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("does not count lost, fled, or expired persistent fights toward the quest", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.addSession(makeTerminalSession("lost"));
+    sessions.addSession(makeTerminalSession("fled", "session-fled"));
+    sessions.addSession(makeTerminalSession("expired", "session-expired"));
+    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "persistent-ready",
+      questProgress: {
+        wins: 0,
+        completed: false
+      }
+    });
+  });
+
+  it("claims the thirteen small problems reward once on the thirteenth win", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.addWonSessions("character-42", 12);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0.1])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 1);
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+    const repeated = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.questProgress).toMatchObject({
+        wins: 13,
+        completed: true,
+        rewardClaimed: true
+      });
+      expect(result.questReward).toMatchObject({
+        state: "claimed",
+        reward: {
+          xp: 35,
+          gold: 10,
+          localDate: THIRTEEN_SMALL_PROBLEMS_QUEST_BUCKET,
+          itemGrants: [
+            {
+              itemId: "item.badge-of-thirteen-small-problems",
+              name: "Жетон тринадцяти дрібних проблем",
+              quantity: 1
+            }
+          ]
+        }
+      });
+    }
+    expect(repeated.state).toBe("terminal");
+    if (repeated.state === "terminal") {
+      expect(repeated.questProgress).toMatchObject({
+        wins: 13,
+        completed: true,
+        rewardClaimed: true
+      });
+    }
+    expect(
+      dailyActions.records.filter((record) => record.key === THIRTEEN_SMALL_PROBLEMS_QUEST_KEY)
+    ).toHaveLength(1);
+    expect(dailyActions.createCount).toBe(1);
+    expect(dailyActions.grantedItems).toEqual([
+      {
+        itemId: "item.badge-of-thirteen-small-problems",
+        quantity: 1
+      }
+    ]);
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: 60,
+      gold: 10,
+      level: 4
     });
   });
 
@@ -745,6 +925,18 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
 
   constructor(private readonly characters: FakeCharacterRepository) {}
 
+  async countWonByTelegramUserId(telegramUserId: bigint): Promise<number> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return 0;
+    }
+
+    return [...this.sessions.values()].filter(
+      (candidate) => candidate.characterId === character.id && candidate.status === "won"
+    ).length;
+  }
+
   async findActiveByTelegramUserId(
     telegramUserId: bigint
   ): Promise<SoloCombatSessionRecord | null> {
@@ -891,11 +1083,69 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     });
   }
 
+  setMonsterHp(sessionId: string, hp: number): void {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return;
+    }
+
+    this.sessions.set(sessionId, {
+      ...session,
+      state: {
+        ...session.state,
+        monster: {
+          ...session.state.monster,
+          hp
+        }
+      }
+    });
+  }
+
   addSession(session: SoloCombatSessionRecord): SoloCombatSessionRecord {
     const cloned = cloneSession(session);
     this.sessions.set(cloned.id, cloned);
     return cloneSession(cloned);
   }
+
+  addWonSessions(characterId: string, count: number): void {
+    for (let index = 0; index < count; index += 1) {
+      this.addSession(makeTerminalSession("won", `session-won-${index + 1}`, characterId));
+    }
+  }
+}
+
+function makeTerminalSession(
+  status: Exclude<SoloCombatSessionStatus, "active">,
+  id = `session-${status}`,
+  characterId = "character-42"
+): SoloCombatSessionRecord {
+  return {
+    id,
+    characterId,
+    monsterId: "monster.deadline-spider",
+    status,
+    turn: 2,
+    state: {
+      id,
+      turn: 2,
+      status,
+      hero: {
+        hp: status === "lost" ? 0 : 20,
+        hpMax: 24,
+        mana: 10,
+        manaMax: 12
+      },
+      monster: {
+        id: "monster.deadline-spider",
+        hp: status === "won" ? 0 : 5,
+        hpMax: 18
+      }
+    },
+    createdAt: fixedClock(),
+    updatedAt: fixedClock(),
+    expiresAt: new Date("2026-06-12T11:00:00.000Z")
+  };
 }
 
 function cloneSession(session: SoloCombatSessionRecord): SoloCombatSessionRecord {

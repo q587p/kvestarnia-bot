@@ -191,7 +191,7 @@ Rules:
 - `turn` duplicates the current `CombatState.turn` as a normal integer column so callbacks can use a conditional DB update instead of JSON filtering.
 - One active playable row per character is protected by an unmanaged SQLite partial unique index on `character_id WHERE status = 'active'`; the migration expires older duplicate active rows before installing the index.
 - Callback data contains `sessionId`, `turn`, and `action`. The service rejects stale turns without mutating state, and turn resolution writes through a repository-level conditional update: only the still-active row with the expected turn may advance.
-- `daily_actions` and reward paths are not used by persistent solo fights in 0.0.21. Future fight rewards must add a separate idempotent reward claim boundary.
+- Per-fight rewards are not used by persistent solo fights in 0.0.21. The only reward path in this slice is the narrow one-time wrapper `quest.thirteen-small-problems` with `local_date = once`: progress is derived from won `solo_combat_sessions`, while `daily_actions` remains the idempotent XP/gold/item authority for the fixed completion reward.
 - Lazy expiry happens when `/fight` or a fight callback touches an old active session; no Redis/job worker is required for this slice.
 
 ### groups
@@ -466,7 +466,7 @@ Domain result → presenter → Telegram text/buttons.
 - `combatEngine.ts` приймає action + state + stats + injected `RandomSource` і повертає новий state без Telegram payloads.
 - `combatActions.ts` дає broad class-shaped skill profiles, не повні class kits.
 - `monsterCombatStats.ts` derivation бере existing monster content без schema migration.
-- `0.0.21` підключає runtime `/fight` для level 3+ через `solo_combat_sessions`, `v1:fight:turn:{sessionId}:{turn}:{action}`, ownership/turn validation і presenter layer. Persistent fight у цьому slice не видає XP/gold/items.
+- `0.0.21` підключає runtime `/fight` для level 3+ через `solo_combat_sessions`, `v1:fight:turn:{sessionId}:{turn}:{action}`, ownership/turn validation і presenter layer. Persistent fight у цьому slice не видає per-fight XP/gold/items, але має one-time wrapper `Тринадцять дрібних проблем` на 13 won сесій.
 
 ## Progression helper
 `0.0.4` вводить маленький deterministic helper для рівнів:

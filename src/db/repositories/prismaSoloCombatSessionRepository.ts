@@ -37,6 +37,19 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     return mapRecord(record);
   }
 
+  async countWonByTelegramUserId(telegramUserId: bigint): Promise<number> {
+    return this.prisma.soloCombatSession.count({
+      where: {
+        status: "won",
+        character: {
+          user: {
+            telegramUserId
+          }
+        }
+      }
+    });
+  }
+
   async findByIdForTelegramUserId(
     telegramUserId: bigint,
     sessionId: string

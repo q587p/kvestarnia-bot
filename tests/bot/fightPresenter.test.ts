@@ -158,12 +158,15 @@ describe("fight presenter", () => {
         description: "Тестовий монстр.",
         level: 3,
         tags: ["test"]
-      }
+      },
+      questProgress: questProgress(4)
     });
 
     expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
     expect(text).toContain("&lt;i&gt;Монстр&lt;/i&gt;");
     expect(text).toContain("Проти вас: <b>&lt;i&gt;Монстр&lt;/i&gt;</b> · рівень 3");
+    expect(text).toContain("📋 <b>Тринадцять дрібних проблем</b>");
+    expect(text).toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
     expect(text).toContain("👹 Монстр: 18/18");
     expect(text).toContain("Що робимо?");
@@ -187,7 +190,8 @@ describe("fight presenter", () => {
           critical: false
         }
       }),
-      monster: null
+      monster: null,
+      questProgress: questProgress(4)
     });
     const noMana = presentPersistentFightTurn({
       state: "not-enough-mana",
@@ -206,7 +210,8 @@ describe("fight presenter", () => {
         description: "Тестовий монстр.",
         level: 3,
         tags: ["test"]
-      }
+      },
+      questProgress: questProgress(4)
     });
 
     expect(stale).toContain("поточний стан");
@@ -237,7 +242,9 @@ describe("fight presenter", () => {
         description: "Тестовий монстр.",
         level: 3,
         tags: ["test"]
-      }
+      },
+      questProgress: questProgress(4),
+      questReward: null
     });
 
     expect(text).toContain(
@@ -245,6 +252,60 @@ describe("fight presenter", () => {
     );
     expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
     expect(text).not.toContain("критично дала");
+  });
+
+  it("shows the thirteen small problems completion reward once", () => {
+    const text = presentPersistentFightTurn({
+      state: "updated",
+      character,
+      session: persistentSession({
+        status: "won",
+        turn: 4,
+        monster: {
+          id: "monster.test",
+          hp: 0,
+          hpMax: 18
+        },
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 18,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(13, true),
+      questReward: {
+        state: "claimed",
+        reward: {
+          xp: 35,
+          gold: 10,
+          localDate: "once",
+          itemGrants: [
+            {
+              itemId: "item.badge-of-thirteen-small-problems",
+              name: "Жетон тринадцяти дрібних проблем",
+              quantity: 1
+            }
+          ]
+        },
+        levelChange: null
+      }
+    });
+
+    expect(text).toContain("Прогрес справи: <b>13/13</b> · закрито.");
+    expect(text).toContain("Тринадцята проблема впала");
+    expect(text).toContain("Нагорода за справу:\n<b>+35 XP\n+10 золота</b>");
+    expect(text).toContain("Здобуто: <i>Жетон тринадцяти дрібних проблем</i>");
+    expect(text).toContain("список корчмаря нарешті розщедрився");
   });
 });
 
@@ -324,5 +385,15 @@ function persistentSession(overrides: Partial<NonNullable<SoloCombatSessionRecor
     createdAt: new Date("2026-06-12T10:30:00.000Z"),
     updatedAt: new Date("2026-06-12T10:30:00.000Z"),
     expiresAt: new Date("2026-06-12T11:00:00.000Z")
+  };
+}
+
+function questProgress(wins: number, completed = false) {
+  return {
+    title: "Тринадцять дрібних проблем" as const,
+    wins,
+    target: 13,
+    completed,
+    rewardClaimed: completed
   };
 }

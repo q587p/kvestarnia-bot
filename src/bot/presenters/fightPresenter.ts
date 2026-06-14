@@ -4,7 +4,9 @@ import type { CombatTurnSummary } from "../../domain/combat";
 import type {
   FightLookupResult,
   FightResult,
-  PersistentFightTurnResult
+  PersistentFightTurnResult,
+  ThirteenSmallProblemsProgress,
+  ThirteenSmallProblemsReward
 } from "../../services/fightService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
@@ -98,6 +100,7 @@ export function presentPersistentFight(
     session: result.session,
     monsterName: result.monster?.name ?? "Невідомий монстр",
     monsterLevel: result.monster?.level ?? null,
+    questProgress: result.questProgress,
     intro
   });
 }
@@ -134,6 +137,8 @@ export function presentPersistentFightTurn(
     session: result.session,
     monsterName: result.monster?.name ?? "Невідомий монстр",
     monsterLevel: result.monster?.level ?? null,
+    questProgress: result.questProgress,
+    questReward: result.state === "updated" ? result.questReward : null,
     intro
   });
 }
@@ -200,6 +205,8 @@ function presentPersistentFightState(input: {
   session: { state: Extract<PersistentFightTurnResult, { state: "updated" }>["session"]["state"] };
   monsterName: string;
   monsterLevel: number | null;
+  questProgress: ThirteenSmallProblemsProgress | null;
+  questReward?: ThirteenSmallProblemsReward | null;
   intro: string;
 }): string {
   const state = input.session.state;
@@ -209,6 +216,8 @@ function presentPersistentFightState(input: {
     presentCharacterHeader(input.character),
     "",
     input.intro,
+    "",
+    ...presentThirteenSmallProblemsBlock(input.questProgress),
     "",
     `Проти вас: <b>${escapeHtml(input.monsterName)}</b>${monsterLevel}`,
     "",
@@ -221,19 +230,78 @@ function presentPersistentFightState(input: {
     lines.push("", presentTurnSummary(state.lastTurn));
   }
 
+  if (input.questReward) {
+    lines.push("", ...presentThirteenSmallProblemsReward(input.questReward));
+  }
+
   if (state?.status === "won") {
-    lines.push("", "🎉 Ви перемогли. Поки що це слава без монет, але слава теж дивиться зверхньо.");
+    lines.push(
+      "",
+      input.questReward
+        ? "🎉 Ви перемогли. Сам бій лишається без окремої оплати, зате список корчмаря нарешті розщедрився."
+        : "🎉 Ви перемогли. За сам бій поки не платять, але корчмар уважно рахує проблеми у списку."
+    );
   } else if (state?.status === "lost") {
-    lines.push("", "💤 Ви програли. Корчмар каже, що це «цінні дані для балансу».");
+    lines.push(
+      "",
+      "💤 Ви програли. Корчмар каже, що це «цінні дані для балансу».",
+      "Список дрібних проблем не зрушив, але зробив вигляд, що співчуває."
+    );
   } else if (state?.status === "fled") {
-    lines.push("", "🏃 Ви відступили. Тактичний вітер підтримав ваше рішення.");
+    lines.push(
+      "",
+      "🏃 Ви відступили. Тактичний вітер підтримав ваше рішення.",
+      "Справу не зараховано: проблема лишилась дрібною, нахабною і живою."
+    );
   } else if (state?.status === "expired") {
-    lines.push("", "⌛ Бій видихнувся. Монстр теж мав справи.");
+    lines.push(
+      "",
+      "⌛ Бій видихнувся. Монстр теж мав справи.",
+      "Корчмар не ставить галочку за бій, який розійшовся на перерву."
+    );
   } else {
     lines.push("", "Що робимо?");
   }
 
   return lines.join("\n");
+}
+
+function presentThirteenSmallProblemsBlock(
+  progress: ThirteenSmallProblemsProgress | null
+): string[] {
+  if (!progress) {
+    return [];
+  }
+
+  if (progress.completed) {
+    return [
+      "📋 <b>Тринадцять дрібних проблем</b>",
+      "Перший список корчмаря закрито. Подальші бійки поки для практики, шуму й майбутньої бухгалтерії.",
+      `Прогрес справи: <b>${progress.target}/${progress.target}</b> · закрито.`
+    ];
+  }
+
+  return [
+    "📋 <b>Тринадцять дрібних проблем</b>",
+    "Корчмар видав список. Список дивиться так, ніби сам себе не схвалює.",
+    `Прогрес справи: <b>${progress.wins}/${progress.target}</b> проблем записано в журнал.`
+  ];
+}
+
+function presentThirteenSmallProblemsReward(reward: ThirteenSmallProblemsReward): string[] {
+  if (reward.state === "already-claimed") {
+    return [
+      "📋 Тринадцята проблема вже в журналі.",
+      "Винагороду теж уже занесено: корчмар не дає списку двічі відкусити бюджет."
+    ];
+  }
+
+  return [
+    "📋 Тринадцята проблема впала. Корчмар урочисто ставить галочку, потім ще одну — для драматургії.",
+    "",
+    presentRewardAmount({ ...reward.reward, label: "Нагорода за справу" }),
+    ...presentItemGrantBlock(reward.reward.itemGrants)
+  ];
 }
 
 function presentTurnSummary(summary: CombatTurnSummary): string {

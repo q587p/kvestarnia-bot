@@ -13,6 +13,8 @@ export const BRISTLE_OF_BASEMENT_ORDER_ITEM_ID = "item.bristle-of-basement-order
 export const NAPKIN_OF_MOUSE_DIPLOMACY_ITEM_ID = "item.napkin-of-mouse-diplomacy";
 export const SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID = "item.suspicious-shawarma-wrapper";
 export const RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID = "item.receipt-of-formal-suspicion";
+export const BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID =
+  "item.badge-of-thirteen-small-problems";
 export const STARTER_EQUIPMENT_MAX_OWNED_QUANTITY = 1;
 
 export interface RewardItemGrant {

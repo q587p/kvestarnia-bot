@@ -48,7 +48,7 @@ Implemented in `0.0.20` as pure domain code. Runtime `/fight` wiring landed in `
 ## 0.0.21 — Persistent Fight Sessions
 
 **Status**
-Implemented in `0.0.21` as the first Telegram runtime wiring for the combat domain engine. Persistent fights are rewardless in this slice.
+Implemented in `0.0.21` as the first Telegram runtime wiring for the combat domain engine. Persistent fights have no per-fight rewards in this slice, but include one tiny wrapper quest, `Тринадцять дрібних проблем`, with a fixed one-time completion reward after 13 won sessions.
 
 **Objective**
 Підʼєднати combat engine до `/fight` як справжню persistent solo session.
@@ -60,11 +60,13 @@ Implemented in `0.0.21` as the first Telegram runtime wiring for the combat doma
 - callback-и короткі, v1, ownership/turn validated, stale-safe;
 - fight screen показує HP/mana героя, HP ворога, доступні дії, результат останнього ходу;
 - pending Barrel raid guard лишається сильнішим за fight callbacks;
+- quest hub and fight screens show `Тринадцять дрібних проблем` progress from won solo sessions;
+- completion reward is claimed once through `daily_actions` bucket `once`;
 - starter fight probe for levels 1-2 stays intact.
 
 **Non-goals**
 
-- no rewards, XP, gold, or item grants for persistent fights yet;
+- no per-fight rewards, XP, gold, or item grants for persistent fights yet;
 - no random loot tables;
 - no equipment effects;
 - no group/PvP combat;

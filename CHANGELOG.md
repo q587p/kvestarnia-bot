@@ -14,15 +14,18 @@ This project follows a simple pre-1.0 versioning policy:
 - Added FightService session flow that starts or resumes exactly one active solo fight per character and resolves attack, class skill, and flee turns through the pure combat domain engine.
 - Added versioned persistent fight callbacks shaped as `v1:fight:turn:{sessionId}:{turn}:{action}`, with turn validation so stale buttons show current state instead of applying damage twice.
 - Added Telegram fight screens for persistent combat with hero HP/mana, monster HP, current turn, last-turn summary, terminal states, and class-shaped skill labels.
+- Added the first tiny persistent fight quest wrapper, `Тринадцять дрібних проблем`, tracking 13 won level 3+ solo fights and granting one fixed completion reward once.
+- Added `item.badge-of-thirteen-small-problems` as a non-power cosmetic/junk-style proof that the корчмар can count to thirteen under pressure.
 - Added tests for schema/migration shape, callback parsing, service start/resume/expiry, stale-turn safety, no-mana non-mutation, presenter escaping, command output, keyboard callbacks, and pending-raid presence protection.
 
 ### Changed
 - `/fight` keeps the starter Mimic Shawarma probe for levels 1-2, then switches to persistent solo combat from level 3 onward.
 - The quest hub now reads fight overview without starting a session, and shows whether a real solo fight is ready or already in progress.
+- Persistent fight screens now frame the loop as the first korchma contract: progress is derived from won solo combat sessions, while the one-time reward claim uses `daily_actions` with a stable `once` bucket.
 - Persistent fight presence uses `adventure.solo-fight` while still staying at the Korchma quest table; pending Barrel raid still blocks fight callbacks before any scene movement.
 
 ### Not Included Yet
-- XP/gold/items for persistent fight victories, loot rolls, equipment stat effects, persistent HP/mana outside the session, group combat, PvP, shops, trading, crafting, Redis/jobs, or bestiary collection progression.
+- Per-fight XP/gold/items for persistent fight victories, loot rolls, equipment stat effects, persistent HP/mana outside the session, group combat, PvP, shops, trading, crafting, Redis/jobs, or bestiary collection progression.
 
 ## [0.0.20] - 12026-06-14 - Combat Domain Engine
 

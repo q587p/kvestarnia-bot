@@ -130,7 +130,8 @@ describe("fight command", () => {
             description: "Плете павутину з «сьогодні швиденько».",
             level: 2,
             tags: ["beast", "time", "web"]
-          }
+          },
+          questProgress: questProgress(2)
         })
     } as unknown as FightService;
 
@@ -163,7 +164,8 @@ describe("fight command", () => {
           character: {
             ...character,
             level: 3
-          }
+          },
+          questProgress: questProgress(0)
         })
     } as unknown as FightService;
 
@@ -220,6 +222,16 @@ class CapturingPresenceService {
       insideKorchma: this.place.insideKorchma
     });
   }
+}
+
+function questProgress(wins: number, completed = false) {
+  return {
+    title: "Тринадцять дрібних проблем" as const,
+    wins,
+    target: 13,
+    completed,
+    rewardClaimed: completed
+  };
 }
 
 function makeContext(replies: Array<{ text: string; options: unknown }>): Context {

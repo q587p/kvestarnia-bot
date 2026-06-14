@@ -64,7 +64,7 @@ describe("health server", () => {
     expect(text).toContain("/news");
     expect(text).toContain("/health");
     expect(text).toContain("Бій вийшов з-під столу");
-    expect(text).toContain("За ці нові бої поки не сипляться XP");
+    expect(text).toContain("За кожен окремий новий бій поки не сипляться XP");
     expect(text).toContain("У грі зараз: 4");
     expect(text).not.toContain("— Дара");
     expect(text).not.toContain("— Нестор Межовий");

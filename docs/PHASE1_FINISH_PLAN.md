@@ -10,7 +10,7 @@
 /start → герой → справжній бій → XP/золото/лут → inventory/equipment → рівень і цифри реально впливають на наступний бій
 ```
 
-Бестіарій, Hunt Board, presence, корчма й flavor уже дали корисну інфраструктуру. Persistent `/fight` уже зʼявився як rewardless session slice, але Phase 1 не закрита, доки немає справжнього combat → equipment stats → loot → level 1-10 loop. Achievements Phase 1 дозволений як later rewardless meta-slice для титулів і прогресу, але не має перебивати цей ланцюжок.
+Бестіарій, Hunt Board, presence, корчма й flavor уже дали корисну інфраструктуру. Persistent `/fight` уже зʼявився як session slice з одним маленьким quest wrapper-ом на 13 перемог, але без per-fight rewards. Phase 1 не закрита, доки немає справжнього combat → equipment stats → loot → level 1-10 loop. Achievements Phase 1 дозволений як later rewardless meta-slice для титулів і прогресу, але не має перебивати цей ланцюжок.
 
 ## Scope Lock
 
@@ -33,7 +33,7 @@
    Чистий TypeScript domain combat без Telegram: state/action/result, HP/mana, monster HP, turn, status, deterministic resolver, win/loss/flee/mana tests.
 
 3. **Persistent `/fight` Sessions**
-   Підʼєднати combat engine до runtime: combat row/session, start/resume, short validated callbacks, stale-safe turns, pending Barrel raid guard.
+   Підʼєднати combat engine до runtime: combat row/session, start/resume, short validated callbacks, stale-safe turns, pending Barrel raid guard, плюс один вузький корчемний контракт на 13 won сесій без broad quest engine.
 
 4. **Effective Stats + Equipment Effects**
    Один helper для base stats + level + equipment. Манатки дають маленькі прозорі bonuses, `/hero` і combat читають ту саму математику.

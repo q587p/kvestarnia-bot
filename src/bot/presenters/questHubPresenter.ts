@@ -57,16 +57,28 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
   }
 
   if (fight.state === "persistent-active") {
-    return "⚔️ <i>Бій у кутку</i> — уже триває, корчма тримає хід.";
+    return `📋 <i>Тринадцять дрібних проблем</i> — ${presentThirteenProblemsStatus(fight.questProgress)}, бій уже триває.`;
   }
 
   if (fight.state === "persistent-ready" || fight.state === "persistent-terminal") {
-    return "⚔️ <i>Бій у кутку</i> — можна починати без навчальних коліщат.";
+    return `📋 <i>Тринадцять дрібних проблем</i> — ${presentThirteenProblemsStatus(fight.questProgress)}.`;
   }
 
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
 
   return `⚔️ <i>Сутичка з невідомим монстром</i> — ${status}.`;
+}
+
+function presentThirteenProblemsStatus(progress: {
+  wins: number;
+  target: number;
+  completed: boolean;
+}): string {
+  if (progress.completed) {
+    return "перший список закрито, далі практика";
+  }
+
+  return `${progress.wins}/${progress.target} проблем у журналі`;
 }
 
 function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" }>): string {
