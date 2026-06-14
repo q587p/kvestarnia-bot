@@ -226,6 +226,8 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - `cellar.mouse-errand` negotiate → `item.cork-ring-of-serious-business`
 - `tavern.friday-barrel-raid` → `item.apron-of-foam-resistance` plus one deterministic rotating barrel junk trophy
 
+Після `0.0.19` level gates starter weapon є reachable, але не гарантована: starter `/fight` працює тільки на рівнях 1-2, cellar errands — на 2-3, а Hunt Board відкривається з 3 рівня. Gates винесені в `src/domain/progression/activityGates.ts`, тому гравець може перескочити starter fight і не отримати `item.pan-of-persuasion` або `item.stamp-of-minor-authority`. Наступний combat engine має мати unarmed/basic fallback і не припускати зброю в руках у кожного героя.
+
 У `0.0.17` той самий `daily_actions` path використовується для першої ротації монстрів із бестіарію:
 - `combat.hunt-board.contract` → один `/hunt` контракт на київський годинний відтинок, `3-7 XP`, `0-3` золота й максимум один детермінований `monsterLoot` item.
 - Вибір монстра детермінований від Kyiv-local `YYYY-MM-DDTHH` і character id; `monster.mimic-shawarma` і boss-tagged монстри не входять у перший Hunt Board MVP.
@@ -279,6 +281,7 @@ Tavern raid timing in `0.0.11`/`0.0.15`/`0.0.16`:
 Рішення й борги для raid timing:
 - Pending-рейд на Бочку має переживати rollover годинного відтинку й видавати винагороду за period id старту. Поточний MVP зберігає period id у полі `daily_actions.local_date`; перед повним activity model це імʼя поля варто переглянути або задокументувати як generic idempotency bucket.
 - Runtime callers мають віддавати перевагу `advanceFridayBarrelRaid`, бо він володіє flow start/pending/complete/already-completed. `completeFridayBarrelRaid` лишати public тільки для compatibility/tests, доки service API не буде прибраний.
+- `completeFridayBarrelRaid` також має fallback на мінімальну тривалість, якщо pending data відсутня. У поточному runtime це не виглядає відкритою кнопкою для абʼюзу, бо bot flow іде через `advanceFridayBarrelRaid`, але наступні PR не мають будувати нову логіку навколо цього методу як навколо справжньої raid session model. Barrel solo placeholder лишається placeholder-ом до окремих `raids`/`raid_participants`.
 - Поки рейд pending, stale scene callbacks на кшталт `v1:adv:mimic:*`, `v1:fight:mimic:*`, `v1:hunt:*` і `v1:cellar:*` не мають перезаписувати `last_seen_location_id`, `current_raid_id` або `current_adventure_id` до того, як pending guard їх заблокує. Безпечне гортання може оновлювати last action, але не має замінювати рейдову присутність біля Бочки без явного location transition rule.
 
 ## Presence MVP

@@ -23,6 +23,7 @@ combat domain → persistent fight → equipment stats → loot engine → level
 - actions: `attack`, `skill`, `flee`;
 - deterministic resolver: один player action + monster response змінює state;
 - formulas MVP: physical/spell/trick damage, armor/resist, mana cost, flee result;
+- unarmed/basic fallback: engine не має припускати, що герой уже має starter weapon;
 - injected або deterministic RNG у тестах.
 
 **Non-goals**
@@ -30,6 +31,7 @@ combat domain → persistent fight → equipment stats → loot engine → level
 - no Telegram handlers;
 - no Prisma migration;
 - no loot grants;
+- no mandatory starter weapon ownership;
 - no equipment stat effects;
 - no group combat.
 
@@ -37,6 +39,7 @@ combat domain → persistent fight → equipment stats → loot engine → level
 
 - domain не імпортує Telegram/grammY;
 - tests cover win, loss, flee, mana too low, deterministic turn resolution;
+- tests cover weaponless/basic attack path;
 - звичайний бій має sanity band для 2-5 ходів.
 
 ## 0.0.21 — Persistent Fight Sessions
