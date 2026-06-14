@@ -60,9 +60,9 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).toContain("📋 Стіл зі справами");
     expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
-    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — навчальна справа для 1-2 рівнів.");
+    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
-      "⚔️ Сутичка з підозрілим монстром — навчальна справа для 1-2 рівнів."
+      "⚔️ Сутичка з підозрілим монстром — тренувальний бій для 1-2 рівнів."
     );
     expect(replies[0]?.text).toContain("🏹 Дошка полювання — контракт на Скелет-вахтер печаток.");
     expect(replies[0]?.text).not.toContain("Мімік-шаурма");
@@ -201,9 +201,9 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — навчальна справа для 1-2 рівнів.");
+    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
-      "⚔️ Сутичка з підозрілим монстром — навчальна справа для 1-2 рівнів."
+      "⚔️ Сутичка з підозрілим монстром — тренувальний бій для 1-2 рівнів."
     );
     expect(replies[0]?.text).toContain("🧹 Підвальна справа — миша знову приймає аргументи.");
     const buttons = (

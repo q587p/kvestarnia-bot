@@ -43,7 +43,7 @@ function presentAdventureRow(
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>
 ): string {
   if (adventure.state === "level-retired") {
-    return `🌯 Підозріла шаурма — навчальна справа для 1-${adventure.maxLevel} рівнів.`;
+    return `🌯 Підозріла шаурма — перша підозра для 1-${adventure.maxLevel} рівнів.`;
   }
 
   const status = adventure.state === "ready" ? "готова до допиту" : "сьогодні вже дала свідчення";
@@ -53,7 +53,7 @@ function presentAdventureRow(
 
 function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string {
   if (fight.state === "level-retired") {
-    return `⚔️ Сутичка з підозрілим монстром — навчальна справа для 1-${fight.maxLevel} рівнів.`;
+    return `⚔️ Сутичка з підозрілим монстром — тренувальний бій для 1-${fight.maxLevel} рівнів.`;
   }
 
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
