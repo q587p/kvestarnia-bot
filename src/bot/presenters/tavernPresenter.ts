@@ -203,10 +203,14 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
 export function presentPendingRaidActionBlock(
   result: Extract<TavernPendingRaidResult, { state: "pending" }>
 ): string {
+  const flavorSeed = `${result.periodId}|block:${result.now.toISOString()}`;
+
   return [
     "🍺 Ви зараз у рейді.",
     "",
     "Інші пригоди тимчасово недоступні: Бочка Пінного Міражу не любить, коли її ігнорують посеред драматичної піни.",
+    "",
+    ...presentRaidPrepHint(result.character, flavorSeed, true),
     "",
     `Перевірте бочку через <b>${formatRaidWait(result.availableAt, result.now)}</b>`
   ].join("\n");
