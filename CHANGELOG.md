@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.0.21] - 12026-06-14 - Persistent Fight Sessions
+## [0.0.21] - 12026-06-15 - Persistent Fight Sessions
 
 ### Added
 - Added persistent solo combat sessions for level 3+ `/fight`, backed by a new `solo_combat_sessions` table that stores serializable combat state JSON, monster id, status, and lazy expiry.
