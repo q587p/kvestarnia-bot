@@ -141,6 +141,7 @@ Spawn 3 agents and consolidate:
 Рекомендації для гілок:
 
 - `main` завжди зелений;
+- якщо задача прямо не просить stacked PR або іншу base-гілку, дивитися на актуальний `main`, рахувати diff проти `main` і відкривати/retarget PR саме на `main`;
 - `docs/public-readme-polish`;
 - `feat/combat-engine`;
 - `feat/start-flow`;
