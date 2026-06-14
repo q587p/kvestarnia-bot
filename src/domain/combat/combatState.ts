@@ -109,6 +109,25 @@ export function cloneCombatState(state: CombatState): CombatState {
   };
 }
 
+export function expireCombat(state: CombatState): CombatState {
+  if (state.status !== "active") {
+    return cloneCombatState(state);
+  }
+
+  return {
+    ...cloneCombatState(state),
+    status: "expired",
+    lastTurn: {
+      action: "flee",
+      heroOutcome: "inactive",
+      heroDamage: 0,
+      monsterDamage: 0,
+      manaSpent: 0,
+      critical: false
+    }
+  };
+}
+
 export function safePositiveInt(value: number): number {
   return Math.max(1, Math.floor(value));
 }

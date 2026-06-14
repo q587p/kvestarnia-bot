@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { monsters } from "../../src/content/monsters";
 import {
   deriveMonsterCombatStats,
+  expireCombat,
   resolveCombatTurn,
   startCombat,
   type CombatActorStats,
@@ -213,6 +214,53 @@ describe("combat domain engine", () => {
     expect(result.reason).toBe("inactive");
     expect(result.state).toEqual(state);
     expect(result.summary.heroOutcome).toBe("inactive");
+  });
+
+  it("can expire active combat for future stale session handling", () => {
+    const activeState = startCombat({ hero: warrior, monster });
+    const expired = expireCombat(activeState);
+
+    expect(expired).toMatchObject({
+      status: "expired",
+      hero: activeState.hero,
+      monster: activeState.monster,
+      lastTurn: {
+        action: "flee",
+        heroOutcome: "inactive",
+        heroDamage: 0,
+        monsterDamage: 0,
+        manaSpent: 0,
+        critical: false
+      }
+    });
+
+    const result = resolveCombatTurn({
+      state: expired,
+      action: "attack",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("inactive");
+  });
+
+  it("does not rewrite already completed combat when expiring", () => {
+    const wonState: CombatState = {
+      ...startCombat({ hero: warrior, monster }),
+      status: "won",
+      lastTurn: {
+        action: "attack",
+        heroOutcome: "won",
+        heroDamage: 18,
+        monsterDamage: 0,
+        manaSpent: 0,
+        critical: false
+      }
+    };
+
+    expect(expireCombat(wonState)).toEqual(wonState);
   });
 
   it("is deterministic with injected RNG", () => {
