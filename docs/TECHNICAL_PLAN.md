@@ -404,6 +404,13 @@ Domain result → presenter → Telegram text/buttons.
 
 Це дозволяє тестувати domain окремо і міняти формат Telegram без переписування бою.
 
+`0.0.20` додає pure domain combat engine у `src/domain/combat`:
+- `combatState.ts` тримає serializable `CombatState`, actor stats, monster stats і summary останнього ходу.
+- `combatEngine.ts` приймає action + state + stats + injected `RandomSource` і повертає новий state без Telegram payloads.
+- `combatActions.ts` дає broad class-shaped skill profiles, не повні class kits.
+- `monsterCombatStats.ts` derivation бере existing monster content без schema migration.
+- Runtime `/fight` поки не підключений; `0.0.21` має додати persistent sessions, ownership/turn validation і presenter layer.
+
 ## Progression helper
 `0.0.4` вводить маленький deterministic helper для рівнів:
 - `getLevelForXp(xp)`

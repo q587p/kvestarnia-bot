@@ -14,6 +14,9 @@ combat domain → persistent fight → equipment stats → loot engine → level
 
 ## 0.0.20 — Combat Domain Engine
 
+**Status**
+Implemented in `0.0.20` as pure domain code. Runtime `/fight` still uses the old probe until `0.0.21`.
+
 **Objective**
 Реалізувати чистий domain combat engine без Telegram/grammY.
 
