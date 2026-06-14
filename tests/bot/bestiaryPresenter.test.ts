@@ -17,6 +17,17 @@ describe("bestiary presenter", () => {
     expect(text.match(/^• /gm)).toHaveLength(BESTIARY_PAGE_SIZE);
   });
 
+  it("does not leak raw technical tag ids into the monster list", () => {
+    const totalPages = Math.ceil(monsters.length / BESTIARY_PAGE_SIZE);
+    const allListText = Array.from({ length: totalPages }, (_, page) => presentBestiaryList(page))
+      .join("\n");
+    const tags = new Set(monsters.flatMap((monster) => monster.tags));
+
+    for (const tag of tags) {
+      expect(allListText).not.toMatch(new RegExp(`(^|[ ·,])${escapeRegExp(tag)}($|[ ·,])`));
+    }
+  });
+
   it("clamps out-of-range pages to the last available page", () => {
     const text = presentBestiaryList(999);
     const totalPages = Math.ceil(monsters.length / BESTIARY_PAGE_SIZE);
@@ -73,3 +84,7 @@ describe("bestiary presenter", () => {
     expect(text).not.toContain("undefined");
   });
 });
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
