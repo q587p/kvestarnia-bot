@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
+import { makeBestiaryListCallbackData } from "../../src/bot/callbacks/bestiaryCallbackData";
 import { sendQuestHub } from "../../src/bot/commands/questHubCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { AdventureService } from "../../src/services/adventureService";
@@ -72,6 +73,7 @@ describe("quest hub command", () => {
         inline_keyboard: [
           [{ text: "🏹 До дошки", callback_data: makeQuestCallbackData("hunt") }],
           [{ text: "🧹 У підвал", callback_data: makeQuestCallbackData("cellar") }],
+          [{ text: "📖 Бестіарій", callback_data: makeBestiaryListCallbackData(0) }],
           [{ text: "🍺 До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
       }
@@ -108,6 +110,7 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🌯 До шаурми",
       "⚔️ До сутички",
+      "📖 Бестіарій",
       "🍺 До зали"
     ]);
   });
@@ -138,6 +141,7 @@ describe("quest hub command", () => {
       "🌯 До шаурми",
       "⚔️ До сутички",
       "🧹 У підвал",
+      "📖 Бестіарій",
       "🍺 До зали"
     ]);
   });
@@ -182,6 +186,7 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🏹 До дошки",
       "🧹 У підвал",
+      "📖 Бестіарій",
       "🍺 До зали"
     ]);
   });
@@ -214,6 +219,7 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🏹 До дошки",
       "🧹 У підвал",
+      "📖 Бестіарій",
       "🍺 До зали"
     ]);
   });

@@ -3,6 +3,7 @@ import type { AdventureLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { FightLookupResult } from "../../services/fightService";
 import type { HuntLookupResult } from "../../services/huntService";
+import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 
@@ -44,6 +45,9 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.text("🧹 У підвал", makeQuestCallbackData("cellar"));
     keyboard.row();
   }
+
+  keyboard.text("📖 Бестіарій", makeBestiaryListCallbackData(0));
+  keyboard.row();
 
   keyboard.text("🍺 До зали", makePlaceCallbackData("hall"));
 

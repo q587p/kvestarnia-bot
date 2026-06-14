@@ -484,7 +484,14 @@ describe("main menu and scene keyboards", () => {
           cellar: { state: "ready", character }
         })
       )
-    ).toEqual(["🌯 До шаурми", "⚔️ До сутички", "🏹 До дошки", "🧹 У підвал", "🍺 До зали"]);
+    ).toEqual([
+      "🌯 До шаурми",
+      "⚔️ До сутички",
+      "🏹 До дошки",
+      "🧹 У підвал",
+      "📖 Бестіарій",
+      "🍺 До зали"
+    ]);
 
     expect(
       flatInlineButtonTexts(
@@ -507,7 +514,7 @@ describe("main menu and scene keyboards", () => {
           cellar: { state: "ready", character }
         })
       )
-    ).toEqual(["🧹 У підвал", "🍺 До зали"]);
+    ).toEqual(["🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -530,7 +537,7 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["🏹 До дошки", "🍺 До зали"]);
+    ).toEqual(["🏹 До дошки", "📖 Бестіарій", "🍺 До зали"]);
   });
 });
 
