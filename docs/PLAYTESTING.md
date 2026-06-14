@@ -148,6 +148,27 @@
 - `/restart` — видаляє персонажа поточного Telegram-користувача після підтвердження.
 - `/dev_reset_me` — у локальному режимі видаляє тільки персонажа поточного користувача після підтвердження.
 
+## Future Phase 1 Smoke
+
+Це не поточний повний smoke, а Definition of Done для завершення Phase 1 після combat/equipment/loot/level PR:
+
+1. `/start` створює персонажа без дублювання.
+2. `/hero` показує level, XP, gold, HP, mana, stats і equipment summary.
+3. `/fight` стартує active combat, а не старий one-click probe.
+4. Fight screen має HP/mana героя й HP ворога.
+5. Attack змінює monster HP.
+6. Class/special action має зрозумілий cost/effect.
+7. Flee завершує fight без повної винагороди.
+8. Mana too low має зрозумілий fallback.
+9. Повторний callback того самого ходу не проводить ще один хід.
+10. Victory видає XP/gold/item.
+11. `/inventory` показує item, а item detail показує rarity, value/priceless і effect, якщо є.
+12. `/equipment` дозволяє екіпірувати owned equippable item.
+13. `/hero` змінює effective stats після equip.
+14. Наступний fight показує або використовує змінені values.
+15. Level-up text показується при перетині threshold.
+16. Level 10 cap / alpha behavior зрозумілий.
+
 ## Що це ще не перевіряє
 
 - Повний покроковий combat engine.

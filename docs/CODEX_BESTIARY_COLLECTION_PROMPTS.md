@@ -1,8 +1,10 @@
 # Codex Bestiary Collection Prompts
 
-Нижче — copy-paste prompts для майбутніх implementation PRs після `0.0.19`.
+> Status after `0.0.19`: parked. Бестіарій лишається data/content foundation і read-only довідником. Не використовувати ці prompts як наступний implementation track, доки не закриті combat engine → equipment stat effects → loot engine → level 1-10. Повертатися сюди тільки після Phase 1 finish або якщо конкретний bestiary patch прямо потрібен для combat/loot safety.
 
-## Prompt 1 — `0.0.20 — Bestiary Collection Schema Shell`
+Нижче — parked copy-paste prompts для майбутніх implementation PRs після Phase 1 finish.
+
+## Future Prompt 1 — Bestiary Collection Schema Shell
 
 ```text
 Read AGENTS.md first.

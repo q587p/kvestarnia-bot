@@ -73,15 +73,32 @@ escape_chance = clamp(0.45 + (DEX + LUCK - monster_level * 2) * 0.01, 0.25, 0.80
 ```
 
 ## XP curve
-Для MVP:
+Поточний alpha helper у runtime поки має видимі пороги 1-5:
+
 ```text
-xp_to_next(level) = 50 + level^2 * 25
+level 1: 0 total XP
+level 2: 10
+level 3: 25
+level 4: 45
+level 5: 70
 ```
 
-Мета:
-- lvl 2 після 3–5 боїв.
-- lvl 5 після кількох днів казуальної гри.
-- lvl 10 як межа альфи.
+Для Phase 1 finish запланована єдина progression-логіка 1-10, яку використовують rewards, combat, hero profile і тести. Робоча alpha-крива:
+
+```text
+level 1: 0 total XP
+level 2: 10
+level 3: 25
+level 4: 45
+level 5: 70
+level 6: 110
+level 7: 160
+level 8: 225
+level 9: 305
+level 10: 400
+```
+
+Це не фінальний баланс. Якщо combat simulations покажуть надто швидкий або повільний темп, коригувати в окремому balance PR, а не ховати нові thresholds у feature PR.
 
 ## Вага рівня
 Рівень має бути одним із головних важелів, бо Квестарня також про приємний ріст циферок. Якщо персонаж отримав новий рівень, це має відчуватися не тільки в `/hero`, а й у формулах.

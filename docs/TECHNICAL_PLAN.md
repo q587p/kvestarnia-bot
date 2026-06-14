@@ -250,6 +250,8 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 
 Залишковий борг перед великим Hunt Board: ledger ще не є persistent combat/encounter state. Для групових полювань, wilderness sessions, collection progression, складного loot tracking або combat HP/mana потрібна окрема session model і ширший transaction boundary.
 
+Phase 1 scope lock: Hunt Board ledger і `/bestiary` лишаються bridge/data foundation. Не будувати окремий bestiary collection/journal progression track, доки не закриті combat engine, equipment stat effects, loot engine і level 1-10 loop. Наступні bestiary-зміни мають або виправляти поточну safety/read-only поведінку, або прямо обслуговувати combat/loot.
+
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 
 У `0.0.10` таблиця `character_cooldowns` використовується для першої repeatable активності:

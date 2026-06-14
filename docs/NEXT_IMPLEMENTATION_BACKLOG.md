@@ -1,217 +1,183 @@
-# Next Implementation Backlog після `0.0.16`
+# Next Implementation Backlog після `0.0.19`
 
-Нижче — маленькі, послідовні PR-и. Кожен slice має бути досить малим, щоб його можна було перевірити за один прохід, без побудови повного MMO.
+Нижче — канонічний порядок маленьких PR для добивання Phase 1. Кожен slice має бути перевірюваним окремо; якщо PR роздувається, різати.
 
-## 0.0.17 — Combat Action Variants Shell
+## Phase 1 Scope Guard
 
-**Objective**
-Замість одного generic fight action показати typed action variants для combat probe.
+Бестіарій лишається content/data foundation: read-only `/bestiary`, monster content, loot notes, flavor routing і Hunt Board contract source.
 
-**Scope**
-- typed action taxonomy: `physical`, `spell`, `social` / `trick`, optional `class-special`;
-- короткі mana/resource labels у UI;
-- callback parsing для нових action ids;
-- fight presenter updates;
-- idempotent callback handling.
+Не розширювати бестіарій як окрему фічу, collection loop, share card або journal progression, доки не закритий основний RPG-ланцюжок:
 
-**Non-goals**
-- no persistent combat state;
-- no healing/rest loop;
-- no equipment effects yet;
-- no boss or group raid logic.
+```text
+combat domain → persistent fight → equipment stats → loot engine → level 1-10 → balance/playtest polish
+```
 
-**Acceptance criteria**
-- `/fight` показує кілька типів дій;
-- resource cost видно в UI;
-- повторний callback не списує mana двічі;
-- combat probe лишається deterministic;
-- tests cover stale/repeated callbacks.
-
-**Likely files**
-- `src/domain/combat/combatProbe.ts`
-- `src/services/fightService.ts`
-- `src/bot/presenters/fightPresenter.ts`
-- `src/bot/createBot.ts`
-- `src/bot/callbacks/*`
-- `tests/services/fightService.test.ts`
-- `tests/bot/fightPresenter.test.ts`
-
-**Likely commands**
-- `npm run check`
-- `npm test`
-
-## 0.0.18 — Effective Stats Helper, No Gear Effects Yet
+## 0.0.20 — Combat Domain Engine
 
 **Objective**
-Винести в один helper всю математику effective stats, але без equipment effects.
+Реалізувати чистий domain combat engine без Telegram/grammY.
 
 **Scope**
-- one shared helper for effective HP/mana/stats;
-- transparent contribution lines;
-- hero summary and fight preview read the same source of truth;
-- clamp current values to effective max.
+
+- combat state: player HP/mana, monster HP, turn, status `active/won/lost/fled/expired`;
+- actions: `attack`, `skill`, `flee`;
+- deterministic resolver: один player action + monster response змінює state;
+- formulas MVP: physical/spell/trick damage, armor/resist, mana cost, flee result;
+- injected або deterministic RNG у тестах.
 
 **Non-goals**
-- no item stat bonuses;
-- no combat rebalancing;
-- no schema changes;
-- no hidden presenter-side math.
+
+- no Telegram handlers;
+- no Prisma migration;
+- no loot grants;
+- no equipment stat effects;
+- no group combat.
 
 **Acceptance criteria**
-- `/hero` shows the same effective numbers as combat preview;
-- contribution lines are readable and stable;
-- current HP/mana are clamped, not magically refilled;
-- unit tests cover level bonuses and clamping.
 
-**Likely files**
-- `src/domain/characters/characterSummary.ts`
-- `src/domain/progression/effectiveStats.ts`
-- `src/bot/presenters/heroPresenter.ts`
-- `src/bot/presenters/fightPresenter.ts`
-- `tests/...` around summary/presenters/helper
+- domain не імпортує Telegram/grammY;
+- tests cover win, loss, flee, mana too low, deterministic turn resolution;
+- звичайний бій має sanity band для 2-5 ходів.
 
-**Likely commands**
-- `npm run check`
-- `npm test`
-
-## 0.0.19 — Equipment Effects V0, Tiny Numbers Only
+## 0.0.21 — Persistent Fight Sessions
 
 **Objective**
-Додати найменший можливий equipment effect layer поверх helper-а.
+Підʼєднати combat engine до `/fight` як справжню persistent session.
 
 **Scope**
-- item metadata-driven effects for a small subset of equippable items;
-- tiny HP/mana/primary stat adjustments;
-- no big offensive scaling;
-- preview of where effects come from.
+
+- combat persistence model або узгоджений equivalent;
+- service створює або відновлює active combat;
+- callback-и короткі, v1, ownership/turn validated, stale-safe;
+- fight screen показує HP/mana героя, HP ворога, доступні дії, результат останнього ходу;
+- pending Barrel raid guard лишається сильнішим за fight callbacks.
 
 **Non-goals**
-- no shop, crafting, selling, or item sink economy;
-- no multi-slot synergy system;
-- no raid/group implications;
-- no legendary or set bonuses.
+
+- no random loot tables;
+- no equipment effects;
+- no full bestiary target selection;
+- no group/PvP combat.
 
 **Acceptance criteria**
-- тільки обрані items дають малі, пояснені бонуси;
-- junk/cosmetic/priceless items лишаються без бойового ефекту;
-- presenter can show contributions clearly;
-- tests prove bonuses are tiny and deterministic.
 
-**Likely files**
-- `src/content/items.ts`
-- `src/domain/progression/effectiveStats.ts`
-- `src/bot/presenters/equipmentPresenter.ts`
-- `src/bot/presenters/heroPresenter.ts`
-- `src/services/inventoryService.ts`
-- related tests
+- `/fight` starts/resumes one active solo combat;
+- repeated callback того самого ходу не проводить ще один хід;
+- stale callback не дублює damage/rewards.
 
-**Likely commands**
-- `npm run check`
-- `npm test`
-
-## 0.0.20 — Bestiary Encounter Wiring
+## 0.0.22 — Equipment Stat Effects
 
 **Objective**
-Підключити вже доданий у `0.0.16` бестіарій до encounter/runtime selection без повного combat engine.
+Екіпіровані манатки починають давати маленькі прозорі bonuses, а combat і `/hero` читають ту саму effective stats математику.
 
 **Scope**
-- choose from existing `monsters` content by level/tag/context;
-- use `monsterFlavor` selector output in one small encounter surface;
-- keep current deterministic reward claims;
-- tiny behavior labels or preview traits, якщо вони не вимагають повного stateful combat.
+
+- optional item effects, наприклад stat bonus, HP/mana max, armor, weapon damage, spell power;
+- one effective-stats helper for base + level + equipment;
+- `/hero`, `/equipment`, item detail показують внесок предметів;
+- combat session reads effective values.
 
 **Non-goals**
-- no new monster content pack;
-- no boss system;
-- no loot tables explosion;
-- no encounter editor UI.
+
+- no selling/trading/item instance refactor;
+- no crafting;
+- no requiredLevel bypass/respec tricks;
+- no big offensive scaling.
 
 **Acceptance criteria**
-- runtime can pick from existing stable monster ids;
-- selected monster flavor respects combo > class > race > path/pronoun > fallback priority;
-- no handler becomes longer than needed;
-- tests cover selection, fallback, stale callbacks, and no reward math drift.
 
-**Likely files**
-- `src/content/monsters.ts`
-- `src/content/monsterFlavor.ts`
-- `src/domain/combat/*` or related fight/adventure domain
-- `src/bot/presenters/*`
-- tests for selector wiring + behavior
+- equip/unequip змінює numbers у hero/equipment і combat tests;
+- junk/cosmetic/priceless items не дають power випадково;
+- presenter не рахує приховану математику.
 
-**Likely commands**
-- `npm run check`
-- `npm test`
-
-## 0.0.21 — First Group Hook / Barrel Watch Design-to-Runtime Slice
+## 0.0.23 — Loot Engine + Reward Replay
 
 **Objective**
-Перевести груповий hook із документації в мінімально playable runtime slice.
+Перетворити monster loot mapping на контрольований, тестований loot engine.
 
 **Scope**
-- join window;
-- participant list;
-- one tiny action loop;
-- reward summary;
-- stale callback protection.
+
+- `src/domain/loot/*` із rarity table;
+- LUCK дає малий bounded modifier;
+- loot candidates беруться з monsterLoot/item content;
+- deterministic або injected RNG;
+- reward claim transactional/idempotent;
+- repeat/retry callback може показати stored reward details.
 
 **Non-goals**
-- no full raid MMO;
-- no complex leaderboards;
-- no heavy Redis dependence unless truly required;
-- no guild system.
+
+- no shops;
+- no selling/trading;
+- no crafting;
+- no item-to-level sink;
+- no bestiary collection expansion.
 
 **Acceptance criteria**
-- група може зібратись у простий hook;
-- є зрозумілий pending state;
-- completion не дублює rewards;
-- private-chat fallback поводиться чемно.
 
-**Likely files**
-- `src/services/*raid*`
-- `src/bot/commands/*`
-- `src/bot/presenters/*raid*`
-- `src/db/*` if persistence is needed
-- tests for session flow and idempotency
+- tests cover rarity distribution sanity, bounded LUCK, duplicate claim, no eligible item fallback;
+- повторний callback не reroll-ить loot;
+- reward UI безпечно показує exact items.
 
-**Likely commands**
-- `npm run check`
-- `npm test`
-
-## 0.0.22 — Item Economy Sink Preview
+## 0.0.24 — Fight Rewards and Level 1-10
 
 **Objective**
-Показати перші безпечні sinks для золота й манаток, не ламаючи економіку.
+Закрити solo loop: real fight → reward → loot → level-up → hero/equipment impact.
 
 **Scope**
-- one small sink action;
-- cosmetic or convenience spending only;
-- clear preview of cost and outcome;
-- anti-spam guardrails.
-- inventory view toggle for `усі манатки` / `лише спорядження`, if the sink starts from the bag UI;
-- optional beer-round payment with selected манатки at the korchma rate: `50+` item value for simple beer, `500+` for quality beer.
 
-**Non-goals**
-- no market;
-- no trading;
-- no crafting tree;
-- no power advantage for money.
+- fight victory calls reward/loot/progression path;
+- level thresholds 1-10 in one module;
+- multi-level grant;
+- level cap / alpha max behavior;
+- level affects combat math through effective stats;
+- short Ukrainian level-up copy with concrete changes.
+
+**Proposed total XP thresholds**
+
+```text
+1: 0
+2: 10
+3: 25
+4: 45
+5: 70
+6: 110
+7: 160
+8: 225
+9: 305
+10: 400
+```
 
 **Acceptance criteria**
-- sink costs are explicit;
-- item spending requires explicit selected items and confirmation;
-- priceless/equipped/locked items cannot be spent by accident;
-- no pay-to-win edge;
-- repeated callbacks stay idempotent;
-- economy tests show no runaway reward loop.
 
-**Likely files**
-- `src/services/*`
-- `src/bot/commands/*`
-- `src/bot/presenters/*`
-- `src/content/*` if new items or sinks are needed
-- tests for wallet and reward flow
+- tests cover threshold crossing, multiple levels, cap at 10, duplicate reward no duplicate level;
+- `/hero` and combat agree on level/effective values.
 
-**Likely commands**
-- `npm run check`
-- `npm test`
+## 0.0.25 — Phase 1 Balance and Playtest Polish
+
+**Objective**
+Не додавати фічі, а довести Phase 1 до done.
+
+**Scope**
+
+- `npm run check` green;
+- combat simulations або lightweight balance matrix;
+- `docs/PLAYTESTING.md` real smoke test;
+- roadmap/GDD/balance docs match code;
+- changelog/news for runtime release.
+
+**Acceptance criteria**
+
+- новий гравець проходить Phase 1 loop за кілька хвилин;
+- звичайний бій триває приблизно 2-5 ходів;
+- win rate не виглядає каральним;
+- loss/flee не забирають цінний лут.
+
+## Later / Не Phase 1 Finish
+
+- group hunts/raids;
+- trading/gifting;
+- shops/selling;
+- crafting/enchant/reroll;
+- Redis/BullMQ/jobs, якщо SQLite transactions достатні;
+- Mini App inventory/profile;
+- more bestiary content or collection UI.
