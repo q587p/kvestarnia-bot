@@ -7,6 +7,24 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.26] - 12026-06-15 - Phase 1 Recovery & Balance Polish
+
+### Added
+- Added a small Phase 1 smoke/balance pass around persistent HP/mana recovery and the ordinary monster ladder after `0.0.25`.
+- Added clearer zero-HP rest guidance in `/hero`, quest hub fight rows, and persistent-fight terminal copy so the player sees that recovery is the next step.
+- Added docs updates for the 3, 4, 8, and 13 level smoke band, along with the current balance/playtest follow-up order.
+- Added a one-time technical-apology gift campaign foundation, three non-power apology keepsakes, and `npm run grant:gift` for dry-run/apply grants through existing `daily_actions` and `character_items`.
+- Added supported combat effects to the handcrafted monster trophies and generated utility loot that can be equipped, so most visible gear now has a real battle hook instead of a blank effect line.
+
+### Changed
+- Tuned the ordinary monster derivation curve downward at the top end so level 8 and 13 monsters stop looking like impossible math mistakes while keeping the ladder meaningfully stronger than the hero baseline.
+- Persistent-fight and quest-hub wording now points exhausted heroes back to `/hero` before `/fight`.
+- Item detail screens now omit the no-effect warning for true junk/cosmetic keepsakes, while equippable items are covered by content tests that require an explicit effect.
+- Persistent-fight losses now grant a one-time `1 XP` attempt reward, while victories over much weaker monsters now pay `2-3 XP` instead of dropping to `1 XP`.
+
+### Not Included Yet
+- Potions, temple healing, paid healing, combat-time regeneration, daily free samples, Telegram gift broadcasts, manual Mantok Chest selection, item-instance inventory, shops, trading, crafting, or broader combat rewrites.
+
 ## [0.0.25] - 12026-06-15 - Persistent HP/Mana & Loot Expansion
 
 ### Added

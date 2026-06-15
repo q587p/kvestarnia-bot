@@ -7,26 +7,31 @@ const ITEM_PREFIX = "v1:item";
 const EQUIPMENT_PREFIX = "v1:equip";
 
 export type ItemCallback =
-  | { type: "detail"; itemId: string; page: number }
-  | { type: "inventory"; page: number };
+  | { type: "detail"; itemId: string; page: number; slot: EquipmentSlot | null }
+  | { type: "inventory"; page: number; slot: EquipmentSlot | null };
 export type EquipmentCallback =
   | { type: "view" }
   | { type: "equip-item"; itemId: string }
   | { type: "clear-slot"; slot: EquipmentSlot };
 
-export function makeItemDetailCallbackData(itemId: string, page = 0): string {
+export function makeItemDetailCallbackData(
+  itemId: string,
+  page = 0,
+  slot: EquipmentSlot | null = null
+): string {
   const safePage = normalizePage(page);
-  const suffix = safePage === 0 ? "" : `:${safePage}`;
+  const slotSuffix = slot ? `:s:${slotToCode(slot)}` : "";
+  const pageSuffix = safePage === 0 ? "" : `:${safePage}`;
 
-  return assertCallbackData(`${ITEM_PREFIX}:detail:${itemId}${suffix}`);
+  return assertCallbackData(`${ITEM_PREFIX}:detail:${itemId}${slotSuffix}${pageSuffix}`);
 }
 
-export function makeInventoryCallbackData(page = 0): string {
+export function makeInventoryCallbackData(page = 0, slot: EquipmentSlot | null = null): string {
   const safePage = normalizePage(page);
+  const slotSuffix = slot ? `:s:${slotToCode(slot)}` : "";
+  const pageSuffix = safePage === 0 ? "" : `:${safePage}`;
 
-  return assertCallbackData(
-    safePage === 0 ? `${ITEM_PREFIX}:inventory` : `${ITEM_PREFIX}:inventory:${safePage}`
-  );
+  return assertCallbackData(`${ITEM_PREFIX}:inventory${slotSuffix}${pageSuffix}`);
 }
 
 export function parseItemCallbackData(data: string | undefined): ParseItemCallbackResult {
@@ -43,7 +48,8 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
       ok: true,
       value: {
         type: "inventory",
-        page: 0
+        page: 0,
+        slot: null
       }
     };
   }
@@ -55,13 +61,9 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
   }
 
   if (action === "inventory") {
-    if (rest.length !== 1) {
-      return { ok: false };
-    }
+    const parsed = parseInventoryRest(rest);
 
-    const page = parsePage(rest[0]);
-
-    if (page === null) {
+    if (!parsed) {
       return { ok: false };
     }
 
@@ -69,19 +71,20 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
       ok: true,
       value: {
         type: "inventory",
-        page
+        page: parsed.page,
+        slot: parsed.slot
       }
     };
   }
 
-  if (action !== "detail" || (rest.length !== 1 && rest.length !== 2)) {
+  if (action !== "detail" || rest.length < 1 || rest.length > 4) {
     return { ok: false };
   }
 
-  const [itemId, pageValue] = rest;
-  const page = pageValue === undefined ? 0 : parsePage(pageValue);
+  const [itemId, ...tail] = rest;
+  const parsed = parseInventoryRest(tail);
 
-  if (!itemId || page === null) {
+  if (!itemId || !parsed) {
     return { ok: false };
   }
 
@@ -94,7 +97,8 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
     value: {
       type: "detail",
       itemId,
-      page
+      page: parsed.page,
+      slot: parsed.slot
     }
   };
 }
@@ -175,6 +179,64 @@ type ParseEquipmentCallbackResult = { ok: true; value: EquipmentCallback } | { o
 
 function isEquipmentSlot(value: string | undefined): value is EquipmentSlot {
   return equipmentSlots.includes(value as EquipmentSlot);
+}
+
+function parseInventoryRest(rest: string[]): { page: number; slot: EquipmentSlot | null } | null {
+  if (rest.length === 0) {
+    return { page: 0, slot: null };
+  }
+
+  if (rest.length === 1) {
+    const page = parsePage(rest[0]);
+
+    return page === null ? null : { page, slot: null };
+  }
+
+  if (rest.length === 2 || rest.length === 3) {
+    if (rest[0] !== "s") {
+      return null;
+    }
+
+    const slot = codeToSlot(rest[1]);
+
+    if (!slot) {
+      return null;
+    }
+
+    if (rest.length === 2) {
+      return { page: 0, slot };
+    }
+
+    const page = parsePage(rest[2]);
+
+    return page === null ? null : { page, slot };
+  }
+
+  return null;
+}
+
+function slotToCode(slot: EquipmentSlot): string {
+  const codes: Record<EquipmentSlot, string> = {
+    weapon: "w",
+    head: "h",
+    chest: "c",
+    legs: "l",
+    accessory: "a"
+  };
+
+  return codes[slot];
+}
+
+function codeToSlot(code: string | undefined): EquipmentSlot | null {
+  const slotsByCode: Record<string, EquipmentSlot> = {
+    w: "weapon",
+    h: "head",
+    c: "chest",
+    l: "legs",
+    a: "accessory"
+  };
+
+  return code ? (slotsByCode[code] ?? null) : null;
 }
 
 function assertCallbackData(data: string): string {

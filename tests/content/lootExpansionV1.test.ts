@@ -29,6 +29,29 @@ describe("loot expansion v1 content adapter", () => {
     }
   });
 
+  it("turns generated utility gear into equippable accessories with effects", () => {
+    const utilityVariants = lootExpansionV1ItemContents.filter((item) =>
+      item.id.startsWith("item.loot-v1-t")
+    );
+    const accessoryUtilityVariants = utilityVariants.filter((item) => item.slot === "accessory");
+
+    expect(accessoryUtilityVariants.length).toBe(utilityVariants.length);
+
+    for (const item of accessoryUtilityVariants) {
+      expect(item.effect, `missing utility effect for ${item.id}`).toBeDefined();
+    }
+  });
+
+  it("keeps every equippable generated loot variant effect-bearing", () => {
+    const equippableItems = lootExpansionV1ItemContents.filter((item) =>
+      ["weapon", "armor", "accessory"].includes(item.slot)
+    );
+
+    for (const item of equippableItems) {
+      expect(item.effect, `missing generated effect for ${item.id}`).toBeDefined();
+    }
+  });
+
   it("keeps enhancement gates locked by player level", () => {
     expect(maxAllowedEnhancement(1, 5)).toBe(0);
     expect(maxAllowedEnhancement(2, 5)).toBe(0);

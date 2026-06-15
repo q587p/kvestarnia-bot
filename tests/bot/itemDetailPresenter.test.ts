@@ -29,6 +29,8 @@ describe("item detail presenter", () => {
     expect(text).toContain("Кількість: <b>2</b>");
     expect(text).toContain("<i>Трофей корчемної логістики.</i>");
     expect(text).toContain("не вдягається");
+    expect(text).not.toContain("Бойовий ефект");
+    expect(text).not.toContain("Ефект:");
   });
 
   it("shows equippable wording and effects for weapon items", () => {
@@ -94,6 +96,24 @@ describe("item detail presenter", () => {
     expect(accessory).toContain("Категорія: <b>аксесуар</b>");
     expect(accessory).toContain("Ефект: <b>+1 Вдачі</b>");
     expect(accessory).toContain("Малий гачок обережно блищить");
+  });
+
+  it("uses clear fallback flavor for consumables instead of future-system wording", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        content: {
+          id: "item.test-soup",
+          name: "Суп службової паузи",
+          description: "Ще не натискається, але пахне планом.",
+          rarity: "common",
+          slot: "consumable",
+          goldValue: 3
+        }
+      })
+    );
+
+    expect(text).toContain("Корчмар крутить манатку в руках");
+    expect(text).not.toContain("правила майбутнього спорядження");
   });
 
   it("shows when an item is already equipped", () => {

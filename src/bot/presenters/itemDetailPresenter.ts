@@ -34,6 +34,8 @@ export function presentOwnedItemDetail(
 ): string {
   const content = item.content;
   const quantity = Math.max(1, Math.floor(item.quantity));
+  const effectLine = presentItemEffectLine(content);
+
   return [
     `🔎 <b>${escapeHtml(content.name)}</b>`,
     "",
@@ -41,7 +43,7 @@ export function presentOwnedItemDetail(
     `Категорія: <b>${presentItemSlot(content.slot)}</b>`,
     `Вартість: ${presentItemValue(content)}`,
     `Кількість: <b>${quantity}</b>`,
-    presentItemEffectLine(content),
+    ...(effectLine ? [effectLine] : []),
     "",
     `<i>${escapeHtml(content.description)}</i>`,
     "",
@@ -74,11 +76,15 @@ function presentEquipmentLine(item: ItemContent, equippedSlot: EquipmentSlot | n
   return "Екіпірування: <i>можна екіпірувати. Гачок уже розминається.</i>";
 }
 
-function presentItemEffectLine(item: ItemContent): string {
+function presentItemEffectLine(item: ItemContent): string | null {
   const effect = presentItemEffect(item.effect);
 
   if (effect) {
     return `Ефект: <b>${effect}</b>`;
+  }
+
+  if (!isEquippableItem(item)) {
+    return null;
   }
 
   return "Бойовий ефект: <i>не виявлено, але вигляд має переконаний.</i>";
@@ -124,5 +130,5 @@ function presentItemFlavor(item: ItemContent): string {
     return "<i>Корчмар записав це в журнал як «важливо, але не чіпати голими руками».</i>";
   }
 
-  return "<i>Манатка поводиться так, ніби вже прочитала правила майбутнього спорядження.</i>";
+  return "<i>Корчмар крутить манатку в руках і ще думає, на який гачок її повісити.</i>";
 }

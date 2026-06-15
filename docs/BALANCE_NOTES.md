@@ -149,11 +149,11 @@ item: максимум 1 controlled monsterLoot item
 
 `0.0.25` додає Loot Expansion v1 як широкий content-backed pool для persistent fight loot: `120` базових сімей манаток і `500` generated variants. Runtime зберігає тільки звичайні `item.*` ids, без нової міграції: базові pack ids перетворюються на `item.loot-v1-*`, а `+1...+5` мають level gates `3/6/10/14/18`. Affinity за класом, расою і титулом є м’якою вагою дропу, не hard-ban для випадіння. Hard requirements застосовуються тільки при екіпіруванні. `legendary` з pack поки мапиться у чинну `epic` rarity, бо поточна публічна item schema ще не має окремої легендарної категорії.
 
-Hand-authored `monsterLoot` trophies still matter alongside the broad pool. The ordinary level `4-13` ladder now has at least one stable small trophy per monster, so specific higher-level problems can leave recognizable evidence without creating a full random loot table or new item effects.
+Hand-authored `monsterLoot` trophies still matter alongside the broad pool. The ordinary level `4-13` ladder now has at least one stable small trophy per monster, so specific higher-level problems can leave recognizable evidence without creating a full random loot table. In `0.0.26`, most of those handcrafted trophies also become modest supported equipment when they occupy weapon, armor, or accessory slots; only intentional keepsakes stay pure `junk`/`cosmetic`.
 
-У `0.0.24` вибір монстра для persistent solo fight став ближчим до рівня героя: сервіс спершу шукає звичайних небосів у вікні `рівень героя - 2 ... рівень героя`, а якщо такого контенту ще бракує, бере найвищий доступний нижчий рівень замість випадкової дрібноти. Якщо монстр нижчий за героя більше ніж на 2 рівні, XP за перемогу стискається до `1`; золото й контрольований item roll поки лишаються за чинною малою reward formula.
+У `0.0.24` вибір монстра для persistent solo fight став ближчим до рівня героя: сервіс спершу шукає звичайних небосів у вікні `рівень героя - 2 ... рівень героя`, а якщо такого контенту ще бракує, бере найвищий доступний нижчий рівень замість випадкової дрібноти. Якщо монстр нижчий за героя більше ніж на 2 рівні, XP за перемогу стискається до `3` при різниці рівно 3 рівні й до `2` при більшій різниці; золото й контрольований item roll поки лишаються за чинною малою reward formula.
 
-Loss, flee і expired fights не отримують full victory reward. Repeated callback replay-ить persisted reward summary з `solo_combat_sessions` і не reroll-ить item.
+Loss отримує тільки малий consolation reward `1 XP` за спробу, без золота, луту або прогресу в `Тринадцять дрібних проблем`. Flee і expired fights не отримують reward. Repeated callback replay-ить persisted reward summary з `solo_combat_sessions` і не reroll-ить item.
 
 Модифікатори LUCK не мають ламати таблицю. Наприклад, LUCK додає не «+10% epic», а маленький бонус до upgrade roll.
 
@@ -174,6 +174,16 @@ mana: base 9 хв, clamp 4-13 хв
 Class/race/title/stat modifiers змінюють саме час повного відновлення, а не максимуми й не бойові формули. STR прискорює HP recovery, INT прискорює mana recovery; класові й расові поправки лишаються малими та затиснутими clamp-ами. Це локальна attrition-система, не повний healing economy.
 
 Не включено в цей slice: зілля, храмове лікування, платне лікування, resource-манатки, combat-time regeneration або штрафи смерті. Будь-який миттєвий heal/refill має бути окремою явною дією з idempotency boundary, а не прихованим побічним ефектом summary або equipment max changes.
+
+## 0.0.26 Phase 1 recovery & balance polish
+Після `0.0.25` smoke-прохід дивиться на ті самі 3, 4, 8 і 13 рівні, але вже з меншими монстрами-гігантами та яснішим повідомленням про відпочинок:
+- same-level ordinary fights мають лишатися в районі `75-90%` win rate та `2-5` ходів;
+- рівні 8 і 13 більше не повинні виглядати як помилка в математиці, де герой просто спостерігає за своєю поразкою;
+- `/hero`, `needs-rest`, quest hub і terminal fight copy мають чітко пояснювати, що `HP 0` — це пауза, а не soft-lock;
+- `npm run simulate:combat` і `npm run sample:loot` лишаються локальними smoke-інструментами, а не доказом фінального балансу.
+- handcrafted monster trophies and generated utility loot should usually carry small supported effects when they are equippable, so item detail does not drown players in «бойового ефекту не виявлено» while fights require real gear.
+
+Цей slice не додає potion economy, temple healing, combat-time regeneration або ручний chest selection. Він лише вирівнює відчуття після attrition/loot expansion, щоб наступні PR-и не працювали проти вже зламаного темпу.
 
 ## Pity / захист від невдачі
 Навіть у MVP варто вести lightweight pity counter:
@@ -196,7 +206,7 @@ item_power_budget = base_by_level + rarity_bonus
 - `item.cork-ring-of-serious-business`: `luck +1`;
 - `item.badge-of-thirteen-small-problems`: no power effect.
 
-Junk, cosmetics, priceless trophies і quest badges не мають випадкових power effects. Якщо майбутній предмет має впливати на combat, його треба явно перевести в supported equippable content і покрити тестом.
+Junk, cosmetics, priceless trophies і quest badges не мають випадкових power effects. Якщо предмет має впливати на combat, його треба явно перевести в supported equippable content і покрити тестом. Поточний content test вимагає `effect` для кожної `weapon`/`armor`/`accessory` манатки, щоб спорядження не виглядало як порожня обіцянка.
 
 `0.0.15` додає reachable starter gear для всіх видимих слотів: weapon через `/fight`, armor через Бочку Пінного Міражу, accessory через підвальну мишу. Це розширює контент і оцінну вартість манаток, але не додає бойових ефектів, sell/trade логіки або нових reward formulas.
 

@@ -71,7 +71,7 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Рани памʼятають, манатки множаться");
+    expect(text).toContain("Герой трохи відпочиває, монстри трохи менші");
     expect(text).toContain("У грі зараз: 4");
     expect(text).not.toContain("— Дара");
     expect(text).not.toContain("— Нестор Межовий");
@@ -100,6 +100,16 @@ describe("health server", () => {
     expect(response.status).toBe(200);
     expect(text).toContain("Манатки знайшли дорогу до пригод");
     expect(text).toContain("Новіша");
+  });
+
+  it("keeps invalid selected news entries on the latest archive item", async () => {
+    const baseUrl = await listen();
+
+    const response = await fetch(`${baseUrl}/news?entry=not-a-number`);
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(text).toContain("Бочка дивиться на годинник, сайт відчиняє двері");
   });
 
   it("returns 404 for other paths", async () => {

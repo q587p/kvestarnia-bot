@@ -1,6 +1,12 @@
 ﻿import { describe, expect, it } from "vitest";
-import { presentEquipment } from "../../src/bot/presenters/equipmentPresenter";
-import type { EquipmentResult } from "../../src/services/equipmentService";
+import {
+  presentEquipItemResult,
+  presentEquipment
+} from "../../src/bot/presenters/equipmentPresenter";
+import type {
+  EquipmentResult,
+  EquipItemResult
+} from "../../src/services/equipmentService";
 
 describe("equipment presenter", () => {
   it("prompts /start when there is no character", () => {
@@ -71,6 +77,32 @@ describe("equipment presenter", () => {
 
     expect(text).toContain("&lt;b&gt;Пательня&lt;/b&gt;");
     expect(text).not.toContain("<b>Пательня</b>");
+  });
+
+  it("keeps requirement denial callback text plain and specific", () => {
+    const text = presentEquipItemResult({
+      state: "requirements-not-met",
+      reasons: ["min-level", "class", "race"],
+      item: {
+        itemId: "item.loot-v1-cloak-here-by-accident-plus-3",
+        content: {
+          id: "item.loot-v1-cloak-here-by-accident-plus-3",
+          name: '<b>Плащ «Я Тут Випадково» +3</b>',
+          description: "Плащ чесно прикидається випадком.",
+          rarity: "common",
+          slot: "armor",
+          goldValue: 10
+        }
+      }
+    } satisfies EquipItemResult);
+
+    expect(text).toContain("Ще не екіпірується: Плащ «Я Тут Випадково» +3.");
+    expect(text).toContain("Потрібно: вищий рівень, сумісний клас, сумісне походження.");
+    expect(text).toContain("Це правило манатки, не помилка героя.");
+    expect(text).not.toContain("<b>");
+    expect(text).not.toContain("</b>");
+    expect(text).not.toContain("&lt;");
+    expect(text).not.toContain("іншу анкету");
   });
 });
 

@@ -66,6 +66,34 @@ describe("summarizeAndSyncCharacterResources", () => {
     expect(result.character.hpCurrent).toBe(3);
     expect(result.character.manaCurrent).toBe(1);
   });
+
+  it("persists missing regen markers for partial resources", async () => {
+    const now = new Date("2026-06-15T12:00:00.000Z");
+    const character = createCharacter({
+      hpCurrent: 10,
+      hpMax: 20,
+      manaCurrent: 5,
+      manaMax: 10,
+      hpRegenAt: null,
+      manaRegenAt: null
+    });
+    const repository = new FakeCharacterRepository(character);
+
+    await summarizeAndSyncCharacterResources({
+      characters: repository,
+      telegramUserId: 42n,
+      character,
+      now
+    });
+
+    expect(repository.resourceUpdates).toHaveLength(1);
+    expect(repository.resourceUpdates[0]).toMatchObject({
+      hpCurrent: 10,
+      manaCurrent: 5,
+      hpRegenAt: now,
+      manaRegenAt: now
+    });
+  });
 });
 
 class FakeCharacterRepository implements CharacterRepository {

@@ -251,6 +251,7 @@ export function createBot(token: string, services: BotServices): Bot {
   registerQuestHubCommand(bot, {
     adventure: services.adventure,
     cellarErrand: services.cellarErrand,
+    ...(services.cellarGrownup ? { cellarGrownup: services.cellarGrownup } : {}),
     fight: services.fight,
     hunt: services.hunt,
     presence: services.presence,
@@ -871,7 +872,7 @@ async function handleItemCallback(
 ): Promise<void> {
   if (action.type === "inventory") {
     await safeAnswerCallbackQuery(ctx);
-    await sendInventory(ctx, services.inventory, "edit", action.page);
+    await sendInventory(ctx, services.inventory, "edit", action.page, action.slot);
     return;
   }
 
@@ -892,7 +893,7 @@ async function handleItemCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot }), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page)
+    reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot)
   });
 }
 
@@ -922,7 +923,7 @@ async function handleEquipmentCallback(
 
     await safeAnswerCallbackQuery(ctx, {
       text: presentEquipItemResult(result),
-      show_alert: result.state !== "equipped"
+      show_alert: result.state !== "equipped" && result.state !== "requirements-not-met"
     });
 
     if (result.state === "equipped") {

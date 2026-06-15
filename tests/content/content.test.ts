@@ -118,6 +118,18 @@ describe("content tables", () => {
     );
   });
 
+  it("keeps equippable items from showing up without a declared effect", () => {
+    const equippableItems = items.filter((item) =>
+      ["weapon", "armor", "accessory"].includes(item.slot)
+    );
+
+    expect(equippableItems.length).toBeGreaterThan(0);
+
+    for (const item of equippableItems) {
+      expect(item.effect, `missing effect for ${item.id}`).toBeDefined();
+    }
+  });
+
   it("rejects accidental power effects on unsupported item slots", () => {
     expect(() =>
       itemSchema.parse({

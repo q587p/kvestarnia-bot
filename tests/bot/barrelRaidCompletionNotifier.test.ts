@@ -105,6 +105,67 @@ describe("barrel raid completion notifier", () => {
     expect(scheduler.pendingCount()).toBe(0);
   });
 
+  it("keeps the pending key and retries when Telegram send fails after completion", async () => {
+    vi.useFakeTimers();
+    const logger = { error: vi.fn() };
+    const sendMessage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("telegram down"))
+      .mockResolvedValueOnce(true);
+    const completeFridayBarrelRaid = vi.fn(() => Promise.resolve(completedResult()));
+    const scheduler = createBarrelRaidCompletionScheduler({
+      retryDelayMs: 100,
+      maxAttempts: 2,
+      logger
+    });
+    const input = scheduleInput(sendMessage, completeFridayBarrelRaid);
+
+    expect(scheduler.schedule(input)).toBe(true);
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(scheduler.pendingCount()).toBe(1);
+    expect(scheduler.has(input)).toBe(true);
+    expect(completeFridayBarrelRaid).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(completeFridayBarrelRaid).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(scheduler.pendingCount()).toBe(0);
+    expect(scheduler.has(input)).toBe(false);
+    expect(logger.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries the completion path when the service throws before returning a result", async () => {
+    vi.useFakeTimers();
+    const logger = { error: vi.fn() };
+    const sendMessage = vi.fn(() => Promise.resolve(true));
+    const completeFridayBarrelRaid = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("db blink"))
+      .mockResolvedValueOnce(completedResult());
+    const scheduler = createBarrelRaidCompletionScheduler({
+      retryDelayMs: 100,
+      maxAttempts: 2,
+      logger
+    });
+
+    scheduler.schedule(scheduleInput(sendMessage, completeFridayBarrelRaid));
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(scheduler.pendingCount()).toBe(1);
+    expect(completeFridayBarrelRaid).toHaveBeenCalledTimes(1);
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(completeFridayBarrelRaid).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(scheduler.pendingCount()).toBe(0);
+    expect(logger.error).toHaveBeenCalledTimes(1);
+  });
+
   it("does not schedule without a chat id", () => {
     const scheduler = createBarrelRaidCompletionScheduler();
 

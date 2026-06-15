@@ -20,7 +20,8 @@ describe("item and equipment callback data", () => {
       value: {
         type: "detail",
         itemId: "item.wet-hero-ticket",
-        page: 0
+        page: 0,
+        slot: null
       }
     });
 
@@ -29,7 +30,19 @@ describe("item and equipment callback data", () => {
       value: {
         type: "detail",
         itemId: "item.wet-hero-ticket",
-        page: 2
+        page: 2,
+        slot: null
+      }
+    });
+    expect(
+      parseItemCallbackData(makeItemDetailCallbackData("item.wet-hero-ticket", 2, "weapon"))
+    ).toEqual({
+      ok: true,
+      value: {
+        type: "detail",
+        itemId: "item.wet-hero-ticket",
+        page: 2,
+        slot: "weapon"
       }
     });
   });
@@ -39,14 +52,24 @@ describe("item and equipment callback data", () => {
       ok: true,
       value: {
         type: "inventory",
-        page: 0
+        page: 0,
+        slot: null
       }
     });
     expect(parseItemCallbackData(makeInventoryCallbackData(3))).toEqual({
       ok: true,
       value: {
         type: "inventory",
-        page: 3
+        page: 3,
+        slot: null
+      }
+    });
+    expect(parseItemCallbackData(makeInventoryCallbackData(1, "chest"))).toEqual({
+      ok: true,
+      value: {
+        type: "inventory",
+        page: 1,
+        slot: "chest"
       }
     });
     expect(parseEquipmentCallbackData(makeEquipmentCallbackData())).toEqual({
@@ -85,6 +108,8 @@ describe("item and equipment callback data", () => {
     expect(parseItemCallbackData("v1:item:detail:item.wet-hero-ticket:nope").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:inventory:nope").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:inventory:1:extra").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:inventory:s:boots").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:detail:item.wet-hero-ticket:s:boots").ok).toBe(false);
     expect(parseItemCallbackData("v1:equip:view").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:equip:wear:item.pan-of-persuasion").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:equip:item:<b>oops</b>").ok).toBe(false);

@@ -4,6 +4,23 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.0.26 — Recovery & balance smoke
+
+Для швидкої перевірки стабілізаційного slice:
+
+```bash
+npm.cmd test -- tests/domain/resourceRegeneration.test.ts tests/services/fightService.test.ts tests/domain/lootEngine.test.ts tests/tooling/combatSimulation.test.ts
+npm.cmd run simulate:combat -- --levels 3,4,8,13 --runs 200 --classes all
+npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
+npm.cmd run check
+```
+
+Що дивитись у звітах:
+- рівні 3 і 4 не повинні бути нудно-легкими;
+- рівні 8 і 13 не повинні виглядати як математична помилка;
+- `needs-rest` і `/hero` мають чітко казати, що HP 0 — це пауза, а не тупик;
+- loot sample має лишатися читабельним, а не перетворюватися на ведення війни з манатками.
+
 ## Передумови
 
 1. Локальна БД згенерована й мігрована.

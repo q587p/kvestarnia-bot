@@ -1,6 +1,7 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { AdventureLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
+import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult } from "../../services/fightService";
 import type { HuntLookupResult } from "../../services/huntService";
 import { BESTIARY_MIN_LEVEL, meetsActivityLevel } from "../../domain/progression/activityGates";
@@ -12,6 +13,7 @@ export interface QuestHubSnapshot {
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
   hunt: Exclude<HuntLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
+  cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
 }
 
 export function presentQuestHub(snapshot: QuestHubSnapshot): string {
@@ -24,7 +26,7 @@ export function presentQuestHub(snapshot: QuestHubSnapshot): string {
     presentAdventureRow(snapshot.adventure),
     presentFightRow(snapshot.fight),
     presentHuntRow(snapshot.hunt),
-    presentCellarRow(snapshot.cellar),
+    presentCellarRow(snapshot.cellar, snapshot.cellarGrownup),
     "",
     presentQuestHubFooter(snapshot)
   ];
@@ -53,6 +55,10 @@ function presentAdventureRow(
 }
 
 function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string {
+  if (fight.state === "needs-rest") {
+    return "⚔️ <i>Сутичка з невідомим монстром</i> — герой ще не тримається на ногах, спершу /hero.";
+  }
+
   if (fight.state === "level-retired") {
     return `⚔️ <i>Сутичка з невідомим монстром</i> — тренувальний бій для 1-${fight.maxLevel} рівнів.`;
   }
@@ -100,13 +106,21 @@ function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" 
 }
 
 function presentCellarRow(
-  cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>
+  cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>,
+  cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>
 ): string {
   if (cellar.state === "level-locked") {
     return `🧹 <i>Підвальна справа</i> — відкриється з ${cellar.requiredLevel} рівня.`;
   }
 
   if (cellar.state === "level-retired") {
+    if (cellarGrownup?.state === "completed") {
+      return [
+        `🧹 <i>Підвальна справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`,
+        "🐭 <i>Справа не до миші</i> — дорослу підвальну справу вже закрито; пляшка стоїть у журналі й тихо булькає."
+      ].join("\n");
+    }
+
     return [
       `🧹 <i>Підвальна справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`,
       "🐭 <i>Справа не до миші</i> — у підвалі є інша справа для старших пригодників."
@@ -121,6 +135,10 @@ function presentCellarRow(
 }
 
 function presentQuestHubFooter(snapshot: QuestHubSnapshot): string {
+  if (snapshot.character.hpCurrent <= 0) {
+    return "HP 0? Спершу /hero, тоді /fight. Справи почекають.";
+  }
+
   if (hasReadyQuestAction(snapshot)) {
     return "Оберіть справу, поки вона не обрала вас.";
   }

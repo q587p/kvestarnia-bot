@@ -20,6 +20,7 @@ export function presentHero(
   const equipmentLines = presentHeroEquipmentEffectLines(
     summary.equipmentEffects ?? createEmptyEquipmentEffectSummary()
   );
+  const resourceRecoveryLines = presentResourceRecovery(summary);
 
   return [
     `👤 <b>${escapeHtml(summary.name)}</b>`,
@@ -31,7 +32,8 @@ export function presentHero(
     ...(growthLine ? [`Ріст: ${growthLine}`] : []),
     "",
     `❤️ HP ${summary.hpCurrent}/${summary.hpMax} · 🔮 мана ${summary.manaCurrent}/${summary.manaMax}`,
-    ...presentResourceRecovery(summary),
+    ...resourceRecoveryLines,
+    ...(resourceRecoveryLines.length > 0 ? [""] : []),
     `Сили ${summary.stats.strength} · Спритн. ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
     ...(equipmentLines.length > 0 ? ["", ...equipmentLines] : []),
@@ -58,8 +60,13 @@ function presentResourceRecovery(summary: CharacterSummary): string[] {
     recovery.hpSecondsToFull > 0 ? `HP за ~${presentDuration(recovery.hpSecondsToFull)}` : null,
     recovery.manaSecondsToFull > 0 ? `мана за ~${presentDuration(recovery.manaSecondsToFull)}` : null
   ].filter((part): part is string => part !== null);
+  const lines = parts.length > 0 ? [`Відновлення: ${parts.join(" · ")}`] : [];
 
-  return parts.length > 0 ? [`Відновлення: ${parts.join(" · ")}`] : [];
+  if (summary.hpCurrent <= 0) {
+    lines.push("Стан: HP 0 — спершу відпочиньте, тоді /fight.");
+  }
+
+  return lines;
 }
 
 function presentDuration(seconds: number): string {

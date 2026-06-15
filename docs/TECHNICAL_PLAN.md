@@ -307,7 +307,7 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - `combat.solo-fight.reward` → один reward claim на `solo_combat_sessions.id`;
 - reward amount рахується з рівня монстра, а item roll іде через pure `domain/loot` engine з injected RNG, rarity weights і bounded LUCK modifier;
 - won session може видати XP/gold і максимум один controlled `monsterLoot` item;
-- loss/flee/expired sessions не створюють full victory reward claim;
+- loss sessions створюють тільки малий consolation claim `1 XP`, без золота/items і без quest-win progress; flee/expired sessions не створюють reward claim;
 - після успішного claim `solo_combat_sessions.reward_*` поля зберігають replay summary; repeated callback показує stored summary і не reroll-ить item.
 - Якщо `daily_actions` claim уже створений, але запис replay payload у session не зберігся, terminal read має fallback-нутися на authoritative `daily_actions` record: показати stored XP/gold, не вигадувати item details і лишити `daily_actions` єдиним джерелом «чи вже видано».
 - Якщо session уже `won`, але reward claim ще не встиг створитися, terminal read пробує той самий idempotent claim/recover path замість тихо лишати бій без винагороди.

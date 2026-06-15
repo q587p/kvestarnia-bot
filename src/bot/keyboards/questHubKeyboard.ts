@@ -1,6 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import type { AdventureLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
+import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult } from "../../services/fightService";
 import type { HuntLookupResult } from "../../services/huntService";
 import { BESTIARY_MIN_LEVEL, meetsActivityLevel } from "../../domain/progression/activityGates";
@@ -15,6 +16,7 @@ export interface QuestHubKeyboardInput {
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
   hunt: Exclude<HuntLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
+  cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
 }
 
 export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeyboard {
@@ -52,7 +54,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   if (
     input.cellar.state === "ready" ||
     input.cellar.state === "on-cooldown" ||
-    input.cellar.state === "level-retired"
+    (input.cellar.state === "level-retired" && input.cellarGrownup?.state !== "completed")
   ) {
     keyboard.text("🧹 У підвал", makeQuestCallbackData("cellar"));
     keyboard.row();
@@ -98,6 +100,6 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
     input.fight.state === "persistent-terminal" ||
     input.hunt.state === "ready" ||
     input.cellar.state === "ready" ||
-    input.cellar.state === "level-retired"
+    (input.cellar.state === "level-retired" && input.cellarGrownup?.state !== "completed")
   );
 }

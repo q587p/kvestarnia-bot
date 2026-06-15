@@ -12,6 +12,9 @@ export const mantokChestRarityRank: Record<MantokChestRarity, number> = {
 };
 
 export const protectedMantokChestItemIds = new Set<string>([
+  "item.apology.rollback-receipt",
+  "item.apology.redeploy-cork",
+  "item.apology.p3009-stamp",
   "item.badge-of-thirteen-small-problems",
   "item.cellar.cheese-seal",
   "item.cellar.foamy-mirage-bottle"

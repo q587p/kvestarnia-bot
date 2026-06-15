@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseNewsEntries, renderNewsMarkdown } from "../../src/health/news";
+import { readNewsEntries, parseNewsEntries, renderNewsMarkdown } from "../../src/health/news";
 
 describe("public news rendering", () => {
   it("parses news entries from level-two headings newest first", () => {
@@ -39,5 +39,9 @@ describe("public news rendering", () => {
     expect(html).toContain("&lt;script&gt;alert(&quot;ні&quot;)&lt;/script&gt;");
     expect(html).toContain("Манатка &amp; корчмар");
     expect(html).not.toContain("<script>");
+  });
+
+  it("surfaces missing news files instead of silently returning an empty archive", () => {
+    expect(() => readNewsEntries("missing-news-file.md")).toThrow();
   });
 });
