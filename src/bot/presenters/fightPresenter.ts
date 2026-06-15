@@ -275,7 +275,7 @@ function presentPersistentFightState(input: {
       `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
       "",
       "💤 Ви програли. Корчмар каже, що це «цінні дані для балансу».",
-      "Список дрібних проблем не зрушив, але зробив вигляд, що співчуває.",
+      ...presentLostFightQuestLines(input.questProgress),
       "Спершу /hero, тоді новий бій."
     );
   } else if (state?.status === "fled") {
@@ -299,6 +299,14 @@ function presentPersistentFightState(input: {
   }
 
   return lines.join("\n");
+}
+
+function presentLostFightQuestLines(progress: ThirteenSmallProblemsProgress | null): string[] {
+  if (progress?.completed) {
+    return [];
+  }
+
+  return ["Список дрібних проблем не зрушив, але зробив вигляд, що співчуває."];
 }
 
 function presentPersistentFightReward(
