@@ -54,6 +54,7 @@ Scope: solo PvE combat first. Group raids, PvP, shops, trading, crafting, item-t
 Початкові значення:
 
 ```text
+first_reaction_timeout = ~23 секунд
 normal_turn_timeout = 45 секунд
 elite_turn_timeout = 60 секунд
 hard_session_expiry = 10-15 хвилин
@@ -71,6 +72,7 @@ Timeout має бути **source-of-truth у service/domain**, а не в Telegr
 
 Auto-action ladder:
 
+- **Якщо герой мовчить після старту бою приблизно 23 секунди:** service/domain спершу намагається безпечний auto-action з доступних, а не відразу прострочує бій. У типових випадках це `attack`, а якщо герой має мало HP або стоїть на `coward`-сценарії, можна підняти `guard` або `escape` як більш обережний варіант.
 - **Перший пропущений хід:** safe default. Воїн/орк/дрантогор бʼє, маг/мольфар/русалка робить дешевий cantrip, бард/бюрокромант запускає trick/debuff, low HP герой guards.
 - **Другий пропущений хід:** guard або спроба втечі, залежно від HP і odds.
 - **Третій пропущений хід або hard expiry:** `expired` або auto-flee з мʼяким текстом. Reward не видавати.
@@ -145,6 +147,15 @@ escape_chance = clamp(0.45 + (DEX + LUCK - monster_level * 2) * 0.01 + modifiers
 ```
 
 Success: `fled`, XP немає, gold немає, короткий flavor. Fail: ворог отримує реакцію або половинний удар; fail не має бути смертним у навчальних боях.
+
+#### Coward mode
+
+Якщо ворог або сценарій позначені як `coward`, бій може раніше схилятись до втечі, а не до добивання. Це має бути окремий safety valve, а не гарантована вигідна кнопка:
+
+- якщо герой отримав сильний тиск або low HP, auto-action може пробувати `escape` раніше;
+- якщо ворог `coward` і боїться темпу героя, може здатися після першого чи другого пропущеного ходу;
+- threshold для first flee attempt має бути явним у service-логіці й тестах, а не захованим у presenter-і;
+- repeated auto-flee / timeout call не має дублювати ні шкоду, ні статус, ні reward.
 
 ## Вплив рівня
 
