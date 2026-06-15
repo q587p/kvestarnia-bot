@@ -1,4 +1,4 @@
-# Next Implementation Backlog після `0.0.24`
+﻿# Next Implementation Backlog після `0.0.24`
 
 Нижче — канонічний порядок маленьких PR для добивання Phase 1. Кожен slice має бути перевірюваним окремо; якщо PR роздувається, різати.
 
@@ -188,7 +188,7 @@ Implemented in `0.0.24`.
 **Scope**
 
 - current alpha cap raised from level 10 to level 13;
-- total XP thresholds extended with `520`, `660`, `825`;
+- total XP thresholds extended with a steeper post-level-9 climb: `450`, `650`, `900`, `1300`;
 - level-cap celebration and `/restart` suggestion moved to level 13;
 - epic-level planning bracket moved to levels `14-23`;
 - level 4+ `/cellar` route opens `Справа не до миші` instead of the retired mouse dead-end;
@@ -256,10 +256,10 @@ Planned after `0.0.24`, because new fight loot increases item volume and the 1-1
 7: 160
 8: 225
 9: 305
-10: 400
-11: 520
-12: 660
-13: 825
+10: 450
+11: 650
+12: 900
+13: 1300
 ```
 
 **Acceptance criteria**

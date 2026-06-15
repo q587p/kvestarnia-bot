@@ -1,4 +1,4 @@
-# Technical Plan
+﻿# Technical Plan
 
 ## Архітектурна ідея
 Bot-first, domain-driven, data-driven content.
@@ -498,7 +498,7 @@ Domain result → presenter → Telegram text/buttons.
 - `getNextLevelThreshold(level)`
 - `applyXpReward(currentXp, xpReward)`
 
-Поточні Phase 1 alpha-пороги: `0`, `10`, `25`, `45`, `70`, `110`, `160`, `225`, `305`, `400`, `520`, `660`, `825` XP для рівнів 1–13. Tavern, adventure, fight, cellar, Hunt Board і raid rewards мають використовувати цей helper, щоб `/hero` відразу показував оновлений рівень. `summarizeCharacter(...)` також піднімає summary-рівень за stored XP, щоб персонажі, які вперлися у стару стелю, не лишалися під старим cap після розширення лінійки.
+Поточні Phase 1 alpha-пороги: `0`, `10`, `25`, `45`, `70`, `110`, `160`, `225`, `305`, `450`, `650`, `900`, `1300` XP для рівнів 1–13. Після 9 рівня крива навмисно крутіша, щоб верхні alpha-рівні не пролітали надто швидко. Tavern, adventure, fight, cellar, Hunt Board і raid rewards мають використовувати цей helper, щоб `/hero` відразу показував оновлений рівень. `summarizeCharacter(...)` також піднімає summary-рівень за stored XP, щоб персонажі, які вперлися у стару стелю, не лишалися під старим cap після розширення лінійки.
 
 `0.0.7` додає derived effective stats без міграції схеми:
 - stored `hpMax`, `manaMax` і `statsJson` залишаються level-1 базою;

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   applyXpReward,
   getLevelForXp,
@@ -24,15 +24,15 @@ describe("level progression", () => {
     [225, 8],
     [304, 8],
     [305, 9],
-    [399, 9],
-    [400, 10],
-    [519, 10],
-    [520, 11],
-    [659, 11],
-    [660, 12],
-    [824, 12],
-    [825, 13],
-    [999, 13]
+    [449, 9],
+    [450, 10],
+    [649, 10],
+    [650, 11],
+    [899, 11],
+    [900, 12],
+    [1299, 12],
+    [1300, 13],
+    [1500, 13]
   ])("maps %i XP to level %i", (xp, level) => {
     expect(getLevelForXp(xp)).toBe(level);
   });
@@ -41,9 +41,9 @@ describe("level progression", () => {
     expect(getNextLevelThreshold(1)).toBe(10);
     expect(getNextLevelThreshold(2)).toBe(25);
     expect(getNextLevelThreshold(5)).toBe(110);
-    expect(getNextLevelThreshold(9)).toBe(400);
-    expect(getNextLevelThreshold(10)).toBe(520);
-    expect(getNextLevelThreshold(12)).toBe(825);
+    expect(getNextLevelThreshold(9)).toBe(450);
+    expect(getNextLevelThreshold(10)).toBe(650);
+    expect(getNextLevelThreshold(12)).toBe(1300);
     expect(getNextLevelThreshold(13)).toBeNull();
   });
 

@@ -1,4 +1,4 @@
-export const LEVEL_XP_THRESHOLDS = [0, 10, 25, 45, 70, 110, 160, 225, 305, 400, 520, 660, 825] as const;
+﻿export const LEVEL_XP_THRESHOLDS = [0, 10, 25, 45, 70, 110, 160, 225, 305, 450, 650, 900, 1300] as const;
 
 export interface XpRewardResult {
   oldLevel: number;

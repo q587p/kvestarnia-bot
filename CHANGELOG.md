@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable project changes are documented here.
 
@@ -16,7 +16,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added idempotent paths for buying the seal, trying a roleplay bypass, receiving the bottle once, and choosing the final ending.
 
 ### Changed
-- Raised the current alpha level cap from 10 to 13 with new XP thresholds at `520`, `660`, and `825` total XP.
+- Raised the current alpha level cap from 10 to 13 with a steeper post-level-9 XP curve: `450`, `650`, `900`, and `1300` total XP for levels 10-13.
 - Moved the level-cap celebration and `/restart` suggestion from level 10 to level 13.
 - Updated combat simulation defaults and progression docs to treat levels 1-13 as the current alpha range.
 - Moved the future epic-level planning bracket from `11-20` to `14-23`.
