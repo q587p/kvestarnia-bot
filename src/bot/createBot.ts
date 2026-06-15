@@ -79,7 +79,11 @@ import { registerLookCommand } from "./commands/lookCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
 import { registerOnlineCommand, sendOnline } from "./commands/onlineCommand";
 import { registerPlannedCommands } from "./commands/plannedCommand";
-import { registerQuestHubCommand, sendQuestHub } from "./commands/questHubCommand";
+import {
+  registerQuestHubCommand,
+  sendQuestHub,
+  type QuestHubCommandOptions
+} from "./commands/questHubCommand";
 import { registerRestartCommand } from "./commands/restartCommand";
 import { registerStartCommand } from "./commands/startCommand";
 import {
@@ -105,6 +109,7 @@ import { buildHuntResultKeyboard } from "./keyboards/huntKeyboard";
 import { buildEquipmentKeyboard, buildItemDetailKeyboard } from "./keyboards/inventoryKeyboard";
 import {
   buildMantokChestHelpKeyboard,
+  buildMantokChestManualSelectionKeyboard,
   buildMantokChestOverviewKeyboard,
   buildMantokChestPreviewKeyboard,
   buildMantokChestResultKeyboard
@@ -164,6 +169,7 @@ import { presentItemDetail } from "./presenters/itemDetailPresenter";
 import { presentLevelUpCelebration } from "./presenters/levelGrowthPresenter";
 import {
   presentMantokChestHelp,
+  presentMantokChestManualSelection,
   presentMantokChestOverview,
   presentMantokChestPreview,
   presentMantokChestRecycleResult
@@ -248,15 +254,7 @@ export function createBot(token: string, services: BotServices): Bot {
     services.tavern,
     services.cellarGrownup
   );
-  registerQuestHubCommand(bot, {
-    adventure: services.adventure,
-    cellarErrand: services.cellarErrand,
-    ...(services.cellarGrownup ? { cellarGrownup: services.cellarGrownup } : {}),
-    fight: services.fight,
-    hunt: services.hunt,
-    presence: services.presence,
-    tavernRaid: services.tavern
-  });
+  registerQuestHubCommand(bot, buildQuestHubCommandOptions(services));
   registerStartCommand(bot, services.onboarding);
   registerHeroCommand(bot, services.hero);
   registerInventoryCommand(bot, services.inventory);
@@ -456,6 +454,18 @@ export function createBot(token: string, services: BotServices): Bot {
   });
 
   return bot;
+}
+
+export function buildQuestHubCommandOptions(services: BotServices): QuestHubCommandOptions {
+  return {
+    adventure: services.adventure,
+    cellarErrand: services.cellarErrand,
+    ...(services.cellarGrownup ? { cellarGrownup: services.cellarGrownup } : {}),
+    fight: services.fight,
+    hunt: services.hunt,
+    presence: services.presence,
+    tavernRaid: services.tavern
+  };
 }
 
 function registerPresenceMiddleware(bot: Bot, presenceService: PresenceService): void {
@@ -1011,6 +1021,82 @@ async function handleMantokChestCallback(
     return;
   }
 
+  if (action.type === "manual") {
+    const selection = await services.mantokChest.startManualSelectionForTelegramUser(telegramUserId);
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentMantokChestManualSelection(selection), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        selection.state === "selection"
+          ? buildMantokChestManualSelectionKeyboard(selection)
+          : buildMantokChestOverviewKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "page") {
+    const selection = await services.mantokChest.getManualSelectionForTelegramUser(
+      telegramUserId,
+      action.token,
+      action.page
+    );
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentMantokChestManualSelection(selection), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        selection.state === "selection"
+          ? buildMantokChestManualSelectionKeyboard(selection)
+          : buildMantokChestOverviewKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "add" || action.type === "remove") {
+    const selection =
+      action.type === "add"
+        ? await services.mantokChest.addManualSelectionUnitForTelegramUser(telegramUserId, action)
+        : await services.mantokChest.removeManualSelectionUnitForTelegramUser(telegramUserId, action);
+
+    await safeAnswerCallbackQuery(
+      ctx,
+      selection.state === "selection" && selection.selectedCount === selection.requiredCount
+        ? { text: "На виделці рівно 5 манаток." }
+        : undefined
+    );
+    await safeEditMessageText(ctx, presentMantokChestManualSelection(selection), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        selection.state === "selection"
+          ? buildMantokChestManualSelectionKeyboard(selection)
+          : buildMantokChestOverviewKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "preview") {
+    const preview = await services.mantokChest.getManualPreviewForTelegramUser(
+      telegramUserId,
+      action.token
+    );
+
+    await safeAnswerCallbackQuery(
+      ctx,
+      preview.state === "selection-incomplete"
+        ? { text: "Скрині треба рівно 5 манаток.", show_alert: true }
+        : { show_alert: preview.state !== "preview-created" }
+    );
+    await safeEditMessageText(ctx, presentMantokChestPreview(preview), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        preview.state === "preview-created"
+          ? buildMantokChestPreviewKeyboard(preview.run.token)
+          : buildMantokChestOverviewKeyboard()
+    });
+    return;
+  }
+
   if (action.type === "cancel") {
     const result = await services.mantokChest.cancelRecycleForTelegramUser(
       telegramUserId,
@@ -1094,14 +1180,7 @@ async function handlePlaceCallback(
   if (action === "quest-table") {
     await sendQuestHub(
       ctx,
-      {
-        adventure: services.adventure,
-        cellarErrand: services.cellarErrand,
-        fight: services.fight,
-        hunt: services.hunt,
-        presence: services.presence,
-        tavernRaid: services.tavern
-      },
+      buildQuestHubCommandOptions(services),
       "edit"
     );
     return;
@@ -1189,14 +1268,7 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
   bot.hears([mainMenuButtons.quest, "🗺️ Квест"], async (ctx) => {
     await sendQuestHub(
       ctx,
-      {
-        adventure: services.adventure,
-        cellarErrand: services.cellarErrand,
-        fight: services.fight,
-        hunt: services.hunt,
-        presence: services.presence,
-        tavernRaid: services.tavern
-      },
+      buildQuestHubCommandOptions(services),
       "reply"
     );
   });

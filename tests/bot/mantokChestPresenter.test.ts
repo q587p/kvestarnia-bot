@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { MantokChestRunRecord } from "../../src/db/repositories/mantokChestRepository";
 import type { MantokChestPresentedItem } from "../../src/services/mantokChestService";
 import {
+  presentMantokChestManualSelection,
   presentMantokChestOverview,
   presentMantokChestPreview,
   presentMantokChestRecycleResult
@@ -14,6 +15,30 @@ describe("Mantok Chest presenter", () => {
     expect(presentMantokChestOverview({ state: "ready", eligibleCount: 7 })).toContain(
       "Доступних манаток: <b>7</b>"
     );
+  });
+
+  it("shows manual selection counter, page, and selected stack units", () => {
+    const text = presentMantokChestManualSelection({
+      state: "selection",
+      run: run(),
+      selectedCount: 3,
+      requiredCount: 5,
+      eligibleCount: 9,
+      page: 1,
+      pageCount: 2,
+      items: [
+        {
+          ...item("item.cheese", "Сир", 2),
+          index: 5,
+          selectedQuantity: 1,
+          availableQuantity: 2
+        }
+      ]
+    });
+
+    expect(text).toContain("Обрано: <b>3/5</b>");
+    expect(text).toContain("Сторінка <b>2/2</b>");
+    expect(text).toContain("<b>Сир</b> ×2 · на виделці <b>1</b>");
   });
 
   it("shows confirmation warning and selected input list", () => {
@@ -50,6 +75,9 @@ describe("Mantok Chest presenter", () => {
     );
     expect(presentMantokChestRecycleResult({ state: "stale-inputs", run: run() })).toContain(
       "манатка втекла з меню"
+    );
+    expect(presentMantokChestPreview({ state: "selection-incomplete", selectedCount: 4 })).toContain(
+      "обрано <b>4/5</b>"
     );
   });
 });

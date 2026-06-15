@@ -50,6 +50,13 @@ export class DeployNotificationService {
       try {
         await bot.api.sendMessage(telegramUserId.toString(), text, DEPLOY_NOTIFICATION_OPTIONS);
       } catch (error) {
+        if (isTelegramBlockedByUserError(error)) {
+          console.warn(
+            `Квестарня: користувач ${telegramUserId.toString()} заблокував бота, нотифікацію про версію пропущено.`
+          );
+          continue;
+        }
+
         console.error("Квестарня: не вдалося надіслати нотифікацію про версію.", error);
       }
     }
@@ -107,6 +114,21 @@ function readMarker(markerPath: string): string | null {
 function writeMarker(markerPath: string, version: string): void {
   mkdirSync(dirname(markerPath), { recursive: true });
   writeFileSync(markerPath, `${version}\n`, "utf8");
+}
+
+function isTelegramBlockedByUserError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const maybeTelegramError = error as {
+    error_code?: unknown;
+    description?: unknown;
+  };
+
+  return maybeTelegramError.error_code === 403
+    && typeof maybeTelegramError.description === "string"
+    && maybeTelegramError.description.includes("bot was blocked by the user");
 }
 
 function escapeHtml(value: string): string {

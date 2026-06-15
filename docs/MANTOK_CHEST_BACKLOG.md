@@ -19,7 +19,7 @@ Player-facing назви:
 
 ## MVP
 
-Runtime MVP входить у `0.0.24`: entry point із `/inventory`, auto-pick `Згодувати 5 найдешевших`, confirmation, transactional confirm, idempotent replay і friendly stale/error states.
+Runtime MVP увійшов у `0.0.24`: entry point із `/inventory`, auto-pick `Згодувати 5 найдешевших`, confirmation, transactional confirm, idempotent replay і friendly stale/error states. `0.0.27` додає ручний вибір 5 eligible stack-units без item-instance identity.
 
 Гравець віддає рівно `5` eligible манаток і отримує `1` нову манатку, яка краща за середнє вкладених речей за контрольованою score-функцією.
 
@@ -33,7 +33,7 @@ Runtime MVP входить у `0.0.24`: entry point із `/inventory`, auto-pick
 ## Базові правила
 
 - batch size: `5`;
-- `0.0.24` реалізує тільки `Згодувати 5 найдешевших`; manual selection лишається follow-up;
+- `0.0.24` реалізує `Згодувати 5 найдешевших`; `0.0.27` додає manual selection з пагінацією і counter `x/5`;
 - перед переробкою обовʼязковий confirmation screen;
 - preview не мутує стан;
 - recycle має бути транзакційним та idempotent-safe для повторного Telegram callback;
@@ -48,7 +48,7 @@ Eligible манатки:
 - не pending у trade/mail/auction/future state;
 - не дублюються в одному batch.
 
-Поточна важлива реалізаційна межа: inventory stack-based (`CharacterItem.itemId + quantity`), без item-instance identity. Тому `0.0.24` споживає 5 одиниць зі stack-ів, а не 5 окремих rows. Якщо `itemId` екіпірований, увесь stack цього `itemId` захищений від Скрині, навіть якщо `quantity > 1`. Locked/favorite/trade/mail/auction прапорців ще немає, тому вони не застосовуються.
+Поточна важлива реалізаційна межа: inventory stack-based (`CharacterItem.itemId + quantity`), без item-instance identity. Тому Скриня споживає 5 одиниць зі stack-ів, а не 5 окремих rows; ручний вибір додає або знімає по одній одиниці з eligible stack. Якщо `itemId` екіпірований, увесь stack цього `itemId` захищений від Скрині, навіть якщо `quantity > 1`. Locked/favorite/trade/mail/auction прапорців ще немає, тому вони не застосовуються.
 
 ## Score-модель
 
@@ -76,7 +76,7 @@ Entry point із inventory:
 - main screen з кількістю eligible манаток;
 - `Що вона робить?`;
 - auto-pick confirmation для 5 найдешевших;
-- manual selection з пагінацією і counter `x/5` — follow-up, не `0.0.24`;
+- manual selection з пагінацією і counter `x/5`;
 - final confirmation;
 - success result із output item card;
 - friendly error state, якщо предмет змінився або вже недоступний.
@@ -102,7 +102,7 @@ Entry point із inventory:
 
 - score calculation;
 - average score і minimum output score;
-- invalid batch sizes: `4`, `6`, duplicates — повністю актуально для майбутнього manual selection;
+- invalid batch sizes: `4`, `6`, stale callbacks і repeated confirm;
 - equipped/protected/foreign/missing items not eligible;
 - successful recycle consumes `5` and creates `1`;
 - output score strictly greater than average input score;
@@ -113,7 +113,6 @@ Entry point із inventory:
 
 ## Не входить у перший slice
 
-- ручний вибір input-манаток;
 - item-instance identity;
 - продаж, магазини, market, trading;
 - crafting tree;

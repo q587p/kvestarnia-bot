@@ -1,6 +1,7 @@
 ﻿import { describe, expect, it } from "vitest";
 import {
   presentCellarCooldown,
+  presentCellarGrownupQuest,
   presentCellarResult,
   presentCellarStart
 } from "../../src/bot/presenters/cellarPresenter";
@@ -8,6 +9,7 @@ import type {
   CellarErrandLookupResult,
   CellarErrandResult
 } from "../../src/services/cellarErrandService";
+import type { CellarGrownupQuestLookupResult } from "../../src/services/cellarGrownupQuestService";
 
 describe("cellar presenter", () => {
   it("renders a short cellar start scene with HTML quote", () => {
@@ -120,6 +122,26 @@ describe("cellar presenter", () => {
     expect(text).toContain("Можна повернутись за 2 хвилини.");
     expect(text).not.toContain("за:");
     expect(text).not.toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it("renders completed grownup cellar as a closed archive, not an active errand", () => {
+    const text = presentCellarGrownupQuest({
+      state: "completed",
+      character: {
+        ...character,
+        level: 4
+      },
+      ending: "keep",
+      reward: {
+        xp: 40,
+        gold: 0
+      }
+    } satisfies Extract<CellarGrownupQuestLookupResult, { state: "completed" }>);
+
+    expect(text).toContain("✅ Підвальна доросла справа вже закрита.");
+    expect(text).toContain("Підвал визнав це фіналом");
+    expect(text).toContain("Далі краще повернутися до столу справ або зали.");
+    expect(text).not.toContain("Що робимо?");
   });
 });
 

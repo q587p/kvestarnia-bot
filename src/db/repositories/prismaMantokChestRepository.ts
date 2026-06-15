@@ -60,6 +60,70 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
     return mapRun(record);
   }
 
+  async findRunForTelegramUser(
+    telegramUserId: bigint,
+    token: string
+  ): Promise<MantokChestRunRecord | null> {
+    const record = await this.prisma.mantokChestRun.findFirst({
+      where: {
+        token,
+        character: {
+          user: {
+            telegramUserId
+          }
+        }
+      }
+    });
+
+    return mapRun(record);
+  }
+
+  async updatePendingRunInputItemsForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      token: string;
+      inputItems: MantokChestRunItem[];
+      averageInputScore: number;
+      minimumOutputScore: number;
+      now: Date;
+    }
+  ): Promise<MantokChestRunRecord | null> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!character) {
+      return null;
+    }
+
+    const updated = await this.prisma.mantokChestRun.updateMany({
+      where: {
+        characterId: character.id,
+        token: input.token,
+        status: "pending"
+      },
+      data: {
+        inputItemsJson: input.inputItems as unknown as Prisma.InputJsonValue,
+        averageInputScore: Math.floor(input.averageInputScore),
+        minimumOutputScore: input.minimumOutputScore,
+        updatedAt: input.now
+      }
+    });
+
+    if (updated.count !== 1) {
+      return null;
+    }
+
+    return this.findRunForTelegramUser(telegramUserId, input.token);
+  }
+
   async cancelRunForTelegramUser(
     telegramUserId: bigint,
     token: string,

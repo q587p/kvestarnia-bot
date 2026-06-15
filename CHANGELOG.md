@@ -7,6 +7,22 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.27] - 12026-06-15 - Manual Mantok Chest Selection
+
+### Added
+- Added manual input selection for the Дружня Скриня / Манатко-скриня inventory sink.
+- Added a paginated chest selection screen with an `x/5` counter, one-unit add/remove controls for eligible stacks, and a final confirmation screen.
+- Added short callback forms based on run token + page/index so long generated item ids never enter Telegram callback data.
+- Added tests for manual selection callbacks, pagination, selection counters, below-5 preview denial, idempotent confirm replay, stale selected inputs, and protected item exclusion.
+
+### Changed
+- The Mantok Chest overview now offers both the existing auto-pick path and the new manual path.
+- Mantok Chest help copy now describes manual choice instead of saying it will arrive later.
+- Manual confirmation reuses the existing transactional run ledger and output rules, preserving the auto-pick safety model.
+
+### Not Included Yet
+- Item-instance identity, shops, selling, trading, crafting, social recycling, daily samples, consumable item actions, or new loot/equipment balance.
+
 ## [0.0.26] - 12026-06-15 - Phase 1 Recovery & Balance Polish
 
 ### Added
