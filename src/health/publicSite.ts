@@ -29,7 +29,6 @@ export function renderHomePage(
           <a class="button primary" href="${TELEGRAM_BOT_URL}">Грати в Telegram</a>
           <a class="button" href="/presence">Жива Квестарня</a>
           <a class="button" href="/news">Новини</a>
-          <a class="button subtle" href="/health">Health</a>
         </nav>
       </div>
       <div class="hero-visual" aria-hidden="true">
@@ -69,40 +68,16 @@ export function renderHomePage(
 
     <section class="band parchment">
       <div class="section-head">
-        <h2>Що вже можна спробувати</h2>
+        <h2>Що вже можна зробити</h2>
         <p>Це ранній playable foundation, але в корчмі вже є чим зайняти руки, манатки й підозри.</p>
       </div>
-      <div class="command-cloud" aria-label="Поточні команди й можливості">
-        ${[
-          "/start",
-          "/hero",
-          "/profile",
-          "/me",
-          "/tavern",
-          "/raid",
-          "🍺 Корчма",
-          "🍻 Всім пива",
-          "/quest",
-          "/adventure",
-          "/fight",
-          "/hunt",
-          "/cellar",
-          "/inventory",
-          "/items",
-          "/bag",
-          "/equipment",
-          "/gear",
-          "/equip",
-          "/online",
-          "/look",
-          "/presence",
-          "/version",
-          "/news",
-          "/restart"
-        ]
-          .map((command) => `<code>${escapeHtml(command)}</code>`)
-          .join("")}
-      </div>
+      <ul class="action-list" aria-label="Що вже можна зробити">
+        <li>Створити пригодника з расою й класом.</li>
+        <li>Зайти в корчму й узяти перші справи.</li>
+        <li>Побитися з дивними монстрами.</li>
+        <li>Зібрати манатки й вдягнути спорядження.</li>
+        <li>Побачити, що в Квестарні вже хтось ворушиться.</li>
+      </ul>
     </section>
 
     <section class="band presence-band">
@@ -198,7 +173,6 @@ function renderPage(title: string, body: string, options: { refresh?: boolean } 
       <a href="${TELEGRAM_BOT_URL}">Telegram</a>
       <a href="/presence">Жива</a>
       <a href="/news">Новини</a>
-      <a href="/health">Health</a>
     </nav>
   </header>
   <main>
@@ -505,10 +479,15 @@ p {
   background: #eef6ed;
 }
 
-.command-cloud {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.action-list {
+  max-width: 760px;
+  margin: 0;
+  padding-left: 22px;
+  font-size: 1.08rem;
+}
+
+.action-list li {
+  margin-bottom: 8px;
 }
 
 code {
