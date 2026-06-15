@@ -6,6 +6,7 @@ import {
 } from "../../src/bot/keyboards/adventureKeyboard";
 import {
   buildCellarKeyboard,
+  buildCellarGrownupKeyboard,
   buildCellarParticipantsKeyboard,
   buildCellarResultKeyboard
 } from "../../src/bot/keyboards/cellarKeyboard";
@@ -539,6 +540,23 @@ describe("main menu and scene keyboards", () => {
       "v1:item:detail:item.previous-approval-scale",
       "v1:chest:open",
       "v1:chest:inventory"
+    ]);
+  });
+
+  it("links kept grownup cellar bottle directly to item details", () => {
+    const keyboard = buildCellarGrownupKeyboard("completed", {
+      includeKeptBottle: true
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "🔎 Пляшка Пінного Міражу",
+      "📋 До справ",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:item:detail:item.cellar.foamy-mirage-bottle",
+      "v1:place:quest-table",
+      "v1:place:hall"
     ]);
   });
 

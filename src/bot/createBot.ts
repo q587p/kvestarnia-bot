@@ -1598,10 +1598,16 @@ async function handleCellarGrownupCallback(
   }
 
   await safeAnswerCallbackQuery(ctx);
+  const grownupKeyboardState = getCellarGrownupKeyboardState(result);
+
   await safeEditMessageText(ctx, presentCellarGrownupResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    ...(getCellarGrownupKeyboardState(result)
-      ? { reply_markup: buildCellarGrownupKeyboard(getCellarGrownupKeyboardState(result)!) }
+    ...(grownupKeyboardState
+      ? {
+          reply_markup: buildCellarGrownupKeyboard(grownupKeyboardState, {
+            includeKeptBottle: shouldShowCellarGrownupKeptBottleButton(result)
+          })
+        }
       : {})
   });
 
@@ -1638,6 +1644,13 @@ function getCellarGrownupKeyboardState(
   }
 
   return null;
+}
+
+function shouldShowCellarGrownupKeptBottleButton(result: CellarGrownupQuestResult): boolean {
+  return (
+    (result.state === "completed" || result.state === "already-completed") &&
+    result.ending === "keep"
+  );
 }
 
 async function handleFightCallback(

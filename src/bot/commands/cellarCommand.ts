@@ -133,7 +133,8 @@ export async function sendCellarErrand(
 
       await markCellarPresence(ctx, presenceService);
       await sendText(ctx, mode, presentCellarGrownupQuest(grownup), {
-        state: grownup.state
+        state: grownup.state,
+        includeKeptBottle: grownup.state === "completed" && grownup.ending === "keep"
       });
       return;
     }
@@ -183,7 +184,10 @@ async function sendText(
   keyboard:
     | false
     | "enter-korchma"
-    | { state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient" }
+    | {
+        state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient";
+        includeKeptBottle?: boolean;
+      }
     | { state: "ready" | "on-cooldown"; character: CharacterSummary } = false
 ): Promise<void> {
   const options = keyboard
@@ -193,7 +197,9 @@ async function sendText(
           keyboard === "enter-korchma"
             ? buildKorchmaFrontKeyboard()
             : isGrownupKeyboard(keyboard)
-              ? buildCellarGrownupKeyboard(keyboard.state)
+              ? buildCellarGrownupKeyboard(keyboard.state, {
+                  includeKeptBottle: Boolean(keyboard.includeKeptBottle)
+                })
             : buildCellarResultKeyboard(keyboard.state, keyboard.character)
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
@@ -209,10 +215,14 @@ async function sendText(
 function isGrownupKeyboard(
   keyboard:
     | "enter-korchma"
-    | { state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient" }
+    | {
+        state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient";
+        includeKeptBottle?: boolean;
+      }
     | { state: "ready" | "on-cooldown"; character: CharacterSummary }
 ): keyboard is {
   state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient";
+  includeKeptBottle?: boolean;
 } {
   return typeof keyboard !== "string" && !("character" in keyboard);
 }

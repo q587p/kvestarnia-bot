@@ -1,6 +1,9 @@
 import { InlineKeyboard } from "grammy";
+import { items } from "../../content";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import { CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID } from "../../services/itemGrant";
 import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
+import { makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 
@@ -42,7 +45,14 @@ export type CellarGrownupKeyboardState =
   | "completed"
   | "insufficient";
 
-export function buildCellarGrownupKeyboard(state: CellarGrownupKeyboardState): InlineKeyboard {
+export interface CellarGrownupKeyboardOptions {
+  includeKeptBottle?: boolean;
+}
+
+export function buildCellarGrownupKeyboard(
+  state: CellarGrownupKeyboardState,
+  options: CellarGrownupKeyboardOptions = {}
+): InlineKeyboard {
   if (state === "bottle-obtained") {
     return new InlineKeyboard()
       .text("🍾 Здати Корчмарю", makeCellarCallbackData("grownup-turn-in"))
@@ -62,7 +72,14 @@ export function buildCellarGrownupKeyboard(state: CellarGrownupKeyboardState): I
   }
 
   if (state === "completed") {
-    return new InlineKeyboard()
+    const keyboard = new InlineKeyboard();
+    const bottle = getCellarFoamyMirageBottle();
+
+    if (options.includeKeptBottle) {
+      keyboard.text(`🔎 ${bottle.name}`, makeItemDetailCallbackData(bottle.itemId)).row();
+    }
+
+    return keyboard
       .text("📋 До справ", makePlaceCallbackData("quest-table"))
       .row()
       .text("⬅️ До зали", makePlaceCallbackData("hall"));
@@ -82,6 +99,15 @@ export function buildCellarGrownupKeyboard(state: CellarGrownupKeyboardState): I
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 
   return keyboard;
+}
+
+function getCellarFoamyMirageBottle(): { itemId: string; name: string } {
+  const item = items.find((candidate) => candidate.id === CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID);
+
+  return {
+    itemId: CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID,
+    name: item?.name ?? "Пляшка Пінного Міражу"
+  };
 }
 
 function getCellarActionLabels(character?: CharacterSummary): {
