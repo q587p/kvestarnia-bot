@@ -6,6 +6,7 @@ import { createBot } from "./bot/createBot";
 import { loadConfig } from "./config/env";
 import { prisma } from "./db/prisma";
 import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepository";
+import { PrismaCellarGrownupQuestRepository } from "./db/repositories/prismaCellarGrownupQuestRepository";
 import { PrismaCooldownRepository } from "./db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "./db/repositories/prismaDailyActionRepository";
 import { PrismaEquipmentRepository } from "./db/repositories/prismaEquipmentRepository";
@@ -19,6 +20,7 @@ import { startHealthServer } from "./health/server";
 import { readAppVersion } from "./shared/appVersion";
 import { AdventureService } from "./services/adventureService";
 import { CellarErrandService } from "./services/cellarErrandService";
+import { CellarGrownupQuestService } from "./services/cellarGrownupQuestService";
 import { DevResetService } from "./services/devResetService";
 import { DeployNotificationService } from "./services/deployNotificationService";
 import { EquipmentService } from "./services/equipmentService";
@@ -34,6 +36,7 @@ import { TavernRaidService } from "./services/tavernRaidService";
 const config = loadConfig();
 const users = new PrismaUserRepository(prisma);
 const characters = new PrismaCharacterRepository(prisma);
+const cellarGrownupQuests = new PrismaCellarGrownupQuestRepository(prisma);
 const cooldowns = new PrismaCooldownRepository(prisma);
 const dailyActions = new PrismaDailyActionRepository(prisma);
 const equipment = new PrismaEquipmentRepository(prisma);
@@ -45,6 +48,7 @@ const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
 const services = {
   adventure: new AdventureService(characters, dailyActions),
   cellarErrand: new CellarErrandService(cooldowns),
+  cellarGrownup: new CellarGrownupQuestService(cellarGrownupQuests, dailyActions, cooldowns),
   fight: new FightService(characters, dailyActions, undefined, soloCombatSessions, undefined, equipment),
   hunt: new HuntService(characters, dailyActions, huntContracts),
   onboarding: new OnboardingService(users, characters),

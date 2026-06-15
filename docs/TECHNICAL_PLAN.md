@@ -328,6 +328,15 @@ Cooldown reward claim має бути transactional:
 - concurrent callback-и не мають проходити як дві винагороди.
 - Onboarding gate: Підвальна справа відкривається з 2 рівня і закривається після 3 рівня. Перевірка стоїть до cooldown reward claim, а command/callback handlers не мають переносити presence в `location.korchma.cellar`, якщо герой ще locked або вже виріс із цієї новачкової справи.
 
+У `0.0.24` рівень 4+ більше не отримує dead-end retired state у підвалі. Старий `/cellar` route відкриває вузьку once-per-player справу `cellar.grownup`:
+- `CellarGrownupQuestService` лишається vertical slice, не broad quest engine;
+- `daily_actions` із local bucket `once` є idempotency authority для seal purchase audit, bottle grant і permanent completion;
+- `character_items` тримає `item.cellar.cheese-seal` і `item.cellar.foamy-mirage-bottle`, а bottle grant має `maxOwnedQuantity: 1`;
+- failed roleplay bypass пише cooldown `cellar.grownup.roleplay` у `character_cooldowns`, але не створює completion і не блокує paid seal route;
+- фінали `turn-in` і `keep` обидва ставлять permanent completion claim, repeated callback-и не дублюють XP, золото, items або cooldown/progress state.
+
+Цей slice не додає schema migration: використано існуючі `daily_actions`, `character_items` і `character_cooldowns`. Перед майбутнім broad quest/session model варто не переузагальнювати це як універсальний контракт: це лише безпечний pattern для маленьких once-per-player справ.
+
 Redis лишається майбутнім cache/job інструментом, не dependency для `0.0.10`.
 
 Tavern raid timing in `0.0.11`/`0.0.15`/`0.0.16`:

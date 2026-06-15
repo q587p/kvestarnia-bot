@@ -1,4 +1,4 @@
-# Next Implementation Backlog після `0.0.23`
+# Next Implementation Backlog після `0.0.24`
 
 Нижче — канонічний порядок маленьких PR для добивання Phase 1. Кожен slice має бути перевірюваним окремо; якщо PR роздувається, різати.
 
@@ -180,7 +180,7 @@ Implemented in `0.0.23` for won persistent solo fights.
 - повторний callback не reroll-ить loot;
 - reward UI безпечно показує exact items.
 
-## 0.0.24 — Level Cap 13
+## 0.0.24 — Level Cap 13 & Grownup Cellar Quest
 
 **Status**
 Implemented in `0.0.24`.
@@ -190,7 +190,10 @@ Implemented in `0.0.24`.
 - current alpha cap raised from level 10 to level 13;
 - total XP thresholds extended with `520`, `660`, `825`;
 - level-cap celebration and `/restart` suggestion moved to level 13;
-- epic-level planning bracket moved to levels `14-23`.
+- epic-level planning bracket moved to levels `14-23`;
+- level 4+ `/cellar` route opens `Справа не до миші` instead of the retired mouse dead-end;
+- seal purchase, roleplay bypass, bottle grant, and final choice are idempotent through existing `daily_actions` / cooldown / item rows;
+- no broad quest engine or new schema was added.
 
 ## 0.0.25 — Friendly Chest / Манатко-скриня
 

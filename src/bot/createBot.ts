@@ -1,6 +1,11 @@
 import { Bot, type Context } from "grammy";
 import type { AdventureService } from "../services/adventureService";
 import type { CellarErrandService } from "../services/cellarErrandService";
+import type {
+  CellarGrownupQuestAction,
+  CellarGrownupQuestResult,
+  CellarGrownupQuestService
+} from "../services/cellarGrownupQuestService";
 import type { DevResetService } from "../services/devResetService";
 import type { FightService } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
@@ -87,6 +92,7 @@ import {
 } from "./keyboards/adventureKeyboard";
 import {
   buildCellarParticipantsKeyboard,
+  buildCellarGrownupKeyboard,
   buildCellarResultKeyboard
 } from "./keyboards/cellarKeyboard";
 import { buildFightResultKeyboard, buildPersistentFightResultKeyboard } from "./keyboards/fightKeyboard";
@@ -113,6 +119,8 @@ import {
   presentAdventureResult
 } from "./presenters/adventurePresenter";
 import {
+  presentCellarGrownupQuest,
+  presentCellarGrownupResult,
   presentCellarLevelLocked,
   presentCellarLevelRetired,
   presentCellarNoCharacter,
@@ -173,6 +181,7 @@ import { safeEditMessageText } from "./safeEditMessageText";
 export interface BotServices {
   adventure: AdventureService;
   cellarErrand: CellarErrandService;
+  cellarGrownup?: CellarGrownupQuestService;
   fight: FightService;
   hunt: HuntService;
   onboarding: OnboardingService;
@@ -214,7 +223,13 @@ export function createBot(token: string, services: BotServices): Bot {
     tavernRaid: services.tavern
   });
   registerBestiaryCommand(bot, services.hero);
-  registerCellarCommand(bot, services.cellarErrand, services.presence, services.tavern);
+  registerCellarCommand(
+    bot,
+    services.cellarErrand,
+    services.presence,
+    services.tavern,
+    services.cellarGrownup
+  );
   registerQuestHubCommand(bot, {
     adventure: services.adventure,
     cellarErrand: services.cellarErrand,
@@ -967,9 +982,16 @@ async function handlePlaceCallback(
   }
 
   if (action === "cellar") {
-    await sendCellarErrandRouted(ctx, services.cellarErrand, services.presence, "reply", {
-      tavernRaid: services.tavern
-    });
+    await sendCellarErrandRouted(
+      ctx,
+      services.cellarErrand,
+      services.presence,
+      "reply",
+      {
+        tavernRaid: services.tavern,
+        ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {})
+      }
+    );
     return;
   }
 
@@ -1017,9 +1039,16 @@ async function handleQuestCallback(
     return;
   }
 
-  await sendCellarErrandRouted(ctx, services.cellarErrand, services.presence, "reply", {
-    tavernRaid: services.tavern
-  });
+  await sendCellarErrandRouted(
+    ctx,
+    services.cellarErrand,
+    services.presence,
+    "reply",
+    {
+      tavernRaid: services.tavern,
+      ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {})
+    }
+  );
 }
 
 function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
@@ -1294,6 +1323,47 @@ async function handleCellarCallback(
   }
 
   if (lookup.state === "level-retired") {
+    if (services.cellarGrownup) {
+      if (isCellarGrownupAction(action)) {
+        await handleCellarGrownupCallback(ctx, action, services);
+        return;
+      }
+
+      const grownup = await services.cellarGrownup.getForTelegramUser(telegramUserId);
+
+      if (grownup.state === "no-character") {
+        await safeAnswerCallbackQuery(ctx);
+        await safeEditMessageText(ctx, presentCellarNoCharacter());
+        return;
+      }
+
+      if (grownup.state === "too-young") {
+        await safeAnswerCallbackQuery(ctx);
+        await safeEditMessageText(
+          ctx,
+          presentCellarLevelLocked({
+            state: "level-locked",
+            character: grownup.character,
+            requiredLevel: grownup.requiredLevel
+          }),
+          HTML_MESSAGE_OPTIONS
+        );
+        return;
+      }
+
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+      });
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentCellarGrownupQuest(grownup), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildCellarGrownupKeyboard(grownup.state)
+      });
+      return;
+    }
+
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentCellarLevelRetired(lookup), HTML_MESSAGE_OPTIONS);
     return;
@@ -1318,6 +1388,11 @@ async function handleCellarCallback(
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildCellarParticipantsKeyboard()
     });
+    return;
+  }
+
+  if (isCellarGrownupAction(action)) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
     return;
   }
 
@@ -1355,6 +1430,89 @@ async function handleCellarCallback(
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
   }
+}
+
+async function handleCellarGrownupCallback(
+  ctx: Context,
+  action: CellarGrownupQuestAction,
+  services: BotServices
+): Promise<void> {
+  if (!services.cellarGrownup) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  let result: CellarGrownupQuestResult;
+
+  if (action === "grownup-buy-seal") {
+    result = await services.cellarGrownup.buySeal(telegramUserId);
+  } else if (action === "grownup-roleplay") {
+    result = await services.cellarGrownup.attemptRoleplay(telegramUserId);
+  } else if (action === "grownup-show-seal") {
+    result = await services.cellarGrownup.showSeal(telegramUserId);
+  } else {
+    result = await services.cellarGrownup.complete(
+      telegramUserId,
+      action === "grownup-turn-in" ? "turn-in" : "keep"
+    );
+  }
+
+  if (result.state !== "no-character" && result.state !== "too-young") {
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+    });
+  }
+
+  await safeAnswerCallbackQuery(ctx);
+  await safeEditMessageText(ctx, presentCellarGrownupResult(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    ...(getCellarGrownupKeyboardState(result)
+      ? { reply_markup: buildCellarGrownupKeyboard(getCellarGrownupKeyboardState(result)!) }
+      : {})
+  });
+
+  if (result.state === "completed") {
+    await sendLevelUpCelebration(ctx, result);
+  }
+}
+
+function isCellarGrownupAction(action: CellarCallback): action is CellarGrownupQuestAction {
+  return action.startsWith("grownup-");
+}
+
+function getCellarGrownupKeyboardState(
+  result: CellarGrownupQuestResult
+): Parameters<typeof buildCellarGrownupKeyboard>[0] | null {
+  if (result.state === "seal-purchased" || result.state === "seal-already-owned") {
+    return "has-seal";
+  }
+
+  if (result.state === "roleplay-cooldown" || result.state === "roleplay-failed") {
+    return "roleplay-cooldown";
+  }
+
+  if (result.state === "bottle-obtained") {
+    return "bottle-obtained";
+  }
+
+  if (result.state === "completed" || result.state === "already-completed") {
+    return "completed";
+  }
+
+  if (result.state === "insufficient-gold" || result.state === "missing-seal" || result.state === "missing-bottle") {
+    return "insufficient";
+  }
+
+  return null;
 }
 
 async function handleFightCallback(

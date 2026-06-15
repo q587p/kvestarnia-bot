@@ -151,6 +151,17 @@ Achievements Phase 1 лишається rewardless later slice після осн
 
 Ширший backlog заготовок для monsters/items/quests живе в `docs/INSPIRATION_CONTENT_BACKLOG.md`. Runtime PR має переносити його малими pack-ами й не обіцяти гравецькі drops раніше, ніж є encounter routing, loot table або deterministic grant.
 
+## Підвал після новачкових рівнів
+`0.0.10` додає «Підвальну справу» як repeatable mouse errand для рівнів 2-3: короткий cooldown, малі XP/золото й дрібні мишачі манатки. Після `0.0.19` це свідомий onboarding gate, а не нескінченна основна активність.
+
+`0.0.24` додає вузький level 4+ follow-up, `Справа не до миші`, який зʼявляється, коли герой виріс із мишачої справи й заходить старим `/cellar` route. Це once-per-player вертикальний slice, не broad quest engine:
+- купити `Сирну пломбу Корчмаря` або спробувати roleplay bypass;
+- після успіху отримати `Пляшку Пінного Міражу` максимум один раз;
+- у фіналі здати пляшку Корчмарю або лишити собі;
+- будь-який фінал ставить permanent completion flag через `daily_actions`, а repeated callback-и replay-ять стан без дублювання XP/золота/items.
+
+Пломба й пляшка є content foundation для майбутніх quest/item взаємодій, але цей slice не додає магазину, crafting, продажу, обміну або повного quest-session model.
+
 ## Малий корчемний рейд 0.0.3
 Перший playable slice до повного бою: solo-подія «П’ятничний рейд на Бочку Пінного Міражу».
 

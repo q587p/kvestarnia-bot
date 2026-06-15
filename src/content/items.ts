@@ -139,5 +139,29 @@ export const items = [
     slot: "cosmetic",
     goldValue: 13
   },
+  {
+    id: "item.cellar.cheese-seal",
+    name: "Сирна пломба Корчмаря",
+    description: "Восково-сирна печатка, яка переконує мишу, що це вже не її відділ.",
+    rarity: "uncommon",
+    slot: "junk",
+    priceless: true
+  },
+  {
+    id: "item.cellar.fancy-cheese",
+    name: "Кльовий шмат сиру",
+    description: "Дипломатичний аргумент із запахом, який важко оскаржити без ложки.",
+    rarity: "uncommon",
+    slot: "consumable",
+    goldValue: 420
+  },
+  {
+    id: "item.cellar.foamy-mirage-bottle",
+    name: "Пляшка Пінного Міражу",
+    description: "Не стільки стоїть на полиці, скільки тримає полицю в тонусі.",
+    rarity: "rare",
+    slot: "consumable",
+    priceless: true
+  },
   ...monsterLootItemAdditions
 ] satisfies ItemContent[];

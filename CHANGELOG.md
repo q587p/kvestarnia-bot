@@ -7,16 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.0.24] - 12026-06-15 - Level Cap 13
+## [0.0.24] - 12026-06-15 - Level Cap 13 & Grownup Cellar Quest
+
+### Added
+- Added the first level 4+ cellar follow-up, `Справа не до миші`, which replaces the retired mouse errand when an older hero tries the old cellar route.
+- Added a narrow `CellarGrownupQuestService` and repository path that use existing `daily_actions`, `character_items`, and `character_cooldowns` instead of introducing a broad quest engine.
+- Added `Сирна пломба Корчмаря`, `Кльовий шмат сиру`, and `Пляшка Пінного Міражу` content items as the first post-mouse cellar objects.
+- Added idempotent paths for buying the seal, trying a roleplay bypass, receiving the bottle once, and choosing the final ending.
 
 ### Changed
 - Raised the current alpha level cap from 10 to 13 with new XP thresholds at `520`, `660`, and `825` total XP.
 - Moved the level-cap celebration and `/restart` suggestion from level 10 to level 13.
 - Updated combat simulation defaults and progression docs to treat levels 1-13 as the current alpha range.
 - Moved the future epic-level planning bracket from `11-20` to `14-23`.
+- The old repeatable mouse cellar errand remains for levels 2-3; level 4+ heroes now get the new once-per-player cellar quest instead of a dead retired state.
 
 ### Not Included Yet
-- Epic-level abilities, level 14+ progression, new rewards, shops, trading, crafting, achievements runtime, or combat rebalance.
+- Epic-level abilities, level 14+ progression, broad quest engine, shops, trading, crafting, achievements runtime, or combat rebalance.
 
 ## [0.0.23] - 12026-06-15 - Loot Engine & Reward Replay
 

@@ -6,7 +6,17 @@ import {
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
 
 describe("cellar callback data", () => {
-  it.each(["cheese-trap", "sweep-bravely", "negotiate", "participants"] as const)(
+  it.each([
+    "cheese-trap",
+    "sweep-bravely",
+    "negotiate",
+    "grownup-buy-seal",
+    "grownup-roleplay",
+    "grownup-show-seal",
+    "grownup-turn-in",
+    "grownup-keep-bottle",
+    "participants"
+  ] as const)(
     "parses %s action",
     (action) => {
       const data = makeCellarCallbackData(action);
