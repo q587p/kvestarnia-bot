@@ -164,10 +164,8 @@ export function presentYegerTrackingStart(input?: {
   if (questLines.length > 0) {
     lines.push(
       "",
-      "Справи, які прислухаються до цього бою:",
-      ...questLines,
-      "",
-      "Якщо переможете, відповідні журнали самі посунуть рахунок. Корчмар каже, що це майже магія, тільки з паперами."
+      "Поруч із цим боєм:",
+      ...questLines
     );
   }
 
@@ -327,7 +325,7 @@ function presentTrackingQuestLines(input?: {
 
   if (input?.yegerProgress) {
     lines.push(
-      `• <b>Неспокійні справи</b>: <b>${input.yegerProgress.wins}/${input.yegerProgress.target}</b> рисок до здачі Єгерю.`
+      `• <b>Неспокійні справи</b>: <b>${input.yegerProgress.wins}/${input.yegerProgress.target}</b> рисок.`
     );
   }
 
@@ -335,12 +333,8 @@ function presentTrackingQuestLines(input?: {
 
   if (thirteen && !thirteen.completed) {
     lines.push(
-      `• <b>Тринадцять дрібних проблем</b>: <b>${thirteen.wins}/${thirteen.target}</b> проблем у журналі.`
+      `• <b>Тринадцять дрібних проблем</b>: <b>${thirteen.wins}/${thirteen.target}</b> проблем.`
     );
-  }
-
-  if (thirteen?.completed) {
-    lines.push("• <b>Тринадцять дрібних проблем</b>: список уже закрито й поводиться як ветеран паперової війни.");
   }
 
   return lines;

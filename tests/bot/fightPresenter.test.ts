@@ -376,7 +376,8 @@ describe("fight presenter", () => {
     expect(text).toContain("Тринадцята проблема впала");
     expect(text).toContain("Нагорода за справу:\n<b>+35 XP\n+10 золота</b>");
     expect(text).toContain("Здобуто: <i>Жетон тринадцяти дрібних проблем</i>");
-    expect(text).toContain("список дрібних проблем теж не відвертівся");
+    expect(text).toContain("У корчмі стало на одну проблему тихіше");
+    expect(text).not.toContain("список дрібних проблем теж не відвертівся");
   });
 
   it("replays persistent fight rewards without implying duplicate payment", () => {

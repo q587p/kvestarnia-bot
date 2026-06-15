@@ -164,10 +164,28 @@ describe("Yeger presenter", () => {
     });
 
     expect(text).toContain("👣 Ви виходите на слід.");
-    expect(text).toContain("Справи, які прислухаються до цього бою:");
+    expect(text).toContain("Поруч із цим боєм:");
     expect(text).toContain("<b>Неспокійні справи</b>: <b>1/5</b>");
     expect(text).toContain("<b>Тринадцять дрібних проблем</b>: <b>2/13</b>");
+    expect(text).not.toContain("відповідні журнали");
     expect(text).not.toContain("⚔️ Бій");
+  });
+
+  it("does not repeat already completed side quest context before Yeger combat", () => {
+    const text = presentYegerTrackingStart({
+      yegerProgress: { wins: 0, target: 5 },
+      thirteenProgress: {
+        title: "Тринадцять дрібних проблем",
+        wins: 13,
+        target: 13,
+        completed: true,
+        rewardClaimed: true
+      }
+    });
+
+    expect(text).toContain("<b>Неспокійні справи</b>: <b>0/5</b> рисок.");
+    expect(text).not.toContain("Тринадцять дрібних проблем");
+    expect(text).not.toContain("ветеран паперової війни");
   });
 
   it("shows pending and ready tracking status without formulas", () => {
