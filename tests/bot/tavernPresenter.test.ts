@@ -59,8 +59,12 @@ describe("tavern presenter", () => {
   it("formats the korchma name at the front door", () => {
     const text = presentKorchmaFront(character);
 
-    expect(text).toContain("За дверима гуде <i>Корчма Квестарні</i>.");
-    expect(text).toContain("табличка прибулих");
+    expect(text).toContain("За дверима гуде <b>Корчма Квестарні</b>.");
+    expect(text).toContain("<i>Стіл зі справами</i>");
+    expect(text).toContain("<i>Бочка Пінного Міражу</i>");
+    expect(text).toContain("<i>Підвал</i>");
+    expect(text).toContain("<i>Дошка вістей</i>");
+    expect(text).toContain("<i>табличка прибулих</i>");
   });
 
   it("shows a front-door arrivals plaque with escaped visitor names", () => {
