@@ -107,7 +107,10 @@ function presentCellarRow(
   }
 
   if (cellar.state === "level-retired") {
-    return `🧹 <i>Підвальна справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`;
+    return [
+      `🧹 <i>Підвальна справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`,
+      "🐭 <i>Справа не до миші</i> — у підвалі є інша справа для старших пригодників."
+    ].join("\n");
   }
 
   if (cellar.state === "ready") {

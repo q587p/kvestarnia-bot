@@ -587,7 +587,7 @@ describe("main menu and scene keyboards", () => {
           cellar: { state: "level-retired", character, maxLevel: 3 }
         })
       )
-    ).toEqual(["📋 До проблем", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["📋 До проблем", "🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -633,7 +633,7 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["🏹 До дошки", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["🏹 До дошки", "🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -660,7 +660,7 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["📖 Бестіарій", "🎒 Манатки", "🍺 До зали"]);
+    ).toEqual(["🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
   });
 });
 

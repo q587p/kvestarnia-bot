@@ -28,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Korchma round prompts that are blocked by an active Barrel raid now include a direct button to the Barrel.
 - Hunt Board contracts now select ordinary non-boss monsters close to the hero level and shrink XP to `1` when the target is more than 2 levels below the hero.
 - Mantok Chest results now include a direct item-detail button for the newly produced манатка.
+- Quest Hub now hints that level 4+ heroes have `Справа не до миші` in the cellar and keeps the cellar button available after the novice errand retires.
 
 ### Not Included Yet
 - Potions, temple healing, paid healing, consumable item use, combat-time regeneration, full death penalties, resource-management манатки, full effect processors for every loot effect id, shops, trading, crafting, or item-instance inventory.

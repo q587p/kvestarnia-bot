@@ -49,7 +49,11 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.row();
   }
 
-  if (input.cellar.state === "ready" || input.cellar.state === "on-cooldown") {
+  if (
+    input.cellar.state === "ready" ||
+    input.cellar.state === "on-cooldown" ||
+    input.cellar.state === "level-retired"
+  ) {
     keyboard.text("🧹 У підвал", makeQuestCallbackData("cellar"));
     keyboard.row();
   }
@@ -93,6 +97,7 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
     input.fight.state === "persistent-active" ||
     input.fight.state === "persistent-terminal" ||
     input.hunt.state === "ready" ||
-    input.cellar.state === "ready"
+    input.cellar.state === "ready" ||
+    input.cellar.state === "level-retired"
   );
 }

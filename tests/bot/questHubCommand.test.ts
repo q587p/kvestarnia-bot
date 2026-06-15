@@ -216,6 +216,12 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).toContain(
       "📋 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
     );
+    expect(replies[0]?.text).toContain(
+      "🧹 <i>Підвальна справа</i> — новачкова справа до 3 рівня."
+    );
+    expect(replies[0]?.text).toContain(
+      "🐭 <i>Справа не до миші</i> — у підвалі є інша справа для старших пригодників."
+    );
     expect(replies[0]?.text).toContain("Оберіть справу, поки вона не обрала вас.");
     const buttons = (
       replies[0]?.options as {
@@ -224,6 +230,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "📋 До проблем",
+      "🧹 У підвал",
       "📖 Бестіарій",
       "🍺 До зали"
     ]);
