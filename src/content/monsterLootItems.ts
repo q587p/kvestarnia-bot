@@ -288,5 +288,85 @@ export const monsterLootItemAdditions = [
     rarity: "uncommon",
     slot: "cosmetic",
     goldValue: 10
+  },
+  {
+    id: "item.wick-of-complaint-light",
+    name: "Гніт скаржної лампи",
+    description: "Ще теплий від чужого невдоволення й трохи образи.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 3
+  },
+  {
+    id: "item.hoofprint-ledger-scrap",
+    name: "Копито-чернетка книги витрат",
+    description: "На ній видно, куди побігли цифри. Самі цифри теж протестують.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 2
+  },
+  {
+    id: "item.salt-knot-of-oath",
+    name: "Сольовий вузлик обіцянки",
+    description: "Скрипить сухо, але все одно наполягає, що це була клятва.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 2
+  },
+  {
+    id: "item.folded-wrong-turn",
+    name: "Складений хибний поворот",
+    description: "Нібито карта, але більше схоже на дуже вперту помилку.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 3
+  },
+  {
+    id: "item.foam-stained-checklist",
+    name: "Чеклист у пивній плямі",
+    description: "Залишок ревізії, яка пішла трохи далі, ніж мала б.",
+    rarity: "common",
+    slot: "cosmetic",
+    goldValue: 4
+  },
+  {
+    id: "item.third-signature-scale",
+    name: "Луска третього підпису",
+    description: "Блищить лише тоді, коли двох погоджень уже недостатньо для спокою.",
+    rarity: "uncommon",
+    slot: "accessory",
+    goldValue: 8
+  },
+  {
+    id: "item.cold-cheese-key",
+    name: "Холодний сирний ключ",
+    description: "Відмикає не двері, а право підійти ближче до сховку.",
+    rarity: "uncommon",
+    slot: "accessory",
+    goldValue: 7
+  },
+  {
+    id: "item.weekday-slip-of-postponement",
+    name: "Квиток відкладеного будня",
+    description: "Дрібний, мокрий і вперто просить перенести все на завтра.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 2
+  },
+  {
+    id: "item.missing-label-prophecy",
+    name: "Пророцтво про бракуючу етикетку",
+    description: "Каже, що річ уже не там, де її шукатимуть першою.",
+    rarity: "uncommon",
+    slot: "junk",
+    goldValue: 5
+  },
+  {
+    id: "item.calm-apocalypse-memo",
+    name: "Службова записка тихої катастрофи",
+    description: "Офіційно підтверджує кінець світу в максимально ввічливій формі.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 3
   }
 ] satisfies ItemContent[];
