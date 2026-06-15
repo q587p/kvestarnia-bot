@@ -636,6 +636,63 @@ describe("FightService", () => {
     expect(dailyActions.records).toHaveLength(1);
   });
 
+  it("recovers an unclaimed reward for a terminal won session", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const wonSession = sessions.addSession(
+      makeTerminalSession("won", "session-won-without-reward", `character-${telegramUserId.toString()}`)
+    );
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0])
+    );
+
+    const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: wonSession.id,
+      turn: wonSession.turn,
+      action: "attack"
+    });
+
+    expect(recovered.state).toBe("terminal");
+    if (recovered.state === "terminal") {
+      expect(recovered.fightReward).toMatchObject({
+        state: "claimed",
+        reward: {
+          localDate: wonSession.id
+        }
+      });
+      expect(typeof recovered.fightReward?.reward.xp).toBe("number");
+      expect(typeof recovered.fightReward?.reward.gold).toBe("number");
+    }
+    expect(dailyActions.records).toHaveLength(1);
+    expect(sessions.getById(wonSession.id)?.reward).not.toBeNull();
+
+    const repeated = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: wonSession.id,
+      turn: wonSession.turn,
+      action: "attack"
+    });
+
+    expect(repeated.state).toBe("terminal");
+    if (recovered.state === "terminal" && repeated.state === "terminal") {
+      expect(repeated.fightReward).toMatchObject({
+        state: "replayed",
+        reward: {
+          xp: recovered.fightReward?.reward.xp,
+          gold: recovered.fightReward?.reward.gold,
+          localDate: wonSession.id,
+          itemGrants: recovered.fightReward?.reward.itemGrants
+        }
+      });
+    }
+    expect(dailyActions.records).toHaveLength(1);
+  });
+
   it("counts a won persistent fight toward thirteen small problems", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });

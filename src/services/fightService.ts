@@ -235,9 +235,11 @@ export class FightService {
         session: expiredSession ?? { ...activeSession, status: "expired" },
         monster: findMonster(activeSession.monsterId),
         questProgress,
-        fightReward: await this.getPersistentFightRewardReplay(
+        fightReward: await this.getOrRecoverPersistentFightReward(
           telegramUserId,
-          expiredSession ?? activeSession
+          expiredSession ?? activeSession,
+          findMonster(activeSession.monsterId),
+          characterSummary
         )
       };
     }
@@ -255,9 +257,11 @@ export class FightService {
         session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
         monster: findMonster(activeSession.monsterId),
         questProgress,
-        fightReward: await this.getPersistentFightRewardReplay(
+        fightReward: await this.getOrRecoverPersistentFightReward(
           telegramUserId,
-          expiredSession ?? activeSession
+          expiredSession ?? activeSession,
+          findMonster(activeSession.monsterId),
+          characterSummary
         )
       };
     }
@@ -278,9 +282,11 @@ export class FightService {
         session: expiredSession ?? { ...activeSession, state: expiredState, status: expiredState.status },
         monster,
         questProgress,
-        fightReward: await this.getPersistentFightRewardReplay(
+        fightReward: await this.getOrRecoverPersistentFightReward(
           telegramUserId,
-          expiredSession ?? activeSession
+          expiredSession ?? activeSession,
+          monster,
+          characterSummary
         )
       };
     }
@@ -336,9 +342,11 @@ export class FightService {
           session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
           monster: findMonster(activeSession.monsterId),
           questProgress,
-          fightReward: await this.getPersistentFightRewardReplay(
+          fightReward: await this.getOrRecoverPersistentFightReward(
             telegramUserId,
-            expiredSession ?? activeSession
+            expiredSession ?? activeSession,
+            findMonster(activeSession.monsterId),
+            characterSummary
           )
         };
       } else {
@@ -357,9 +365,11 @@ export class FightService {
             session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
             monster: null,
             questProgress,
-            fightReward: await this.getPersistentFightRewardReplay(
+            fightReward: await this.getOrRecoverPersistentFightReward(
               telegramUserId,
-              expiredSession ?? activeSession
+              expiredSession ?? activeSession,
+              null,
+              characterSummary
             )
           };
         }
@@ -371,7 +381,12 @@ export class FightService {
             session: activeSession,
             monster,
             questProgress,
-            fightReward: await this.getPersistentFightRewardReplay(telegramUserId, activeSession)
+            fightReward: await this.getOrRecoverPersistentFightReward(
+              telegramUserId,
+              activeSession,
+              monster,
+              characterSummary
+            )
           };
         }
 
@@ -575,7 +590,12 @@ export class FightService {
         session,
         monster: findMonster(session.monsterId),
         questProgress,
-        fightReward: await this.getPersistentFightRewardReplay(telegramUserId, session)
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          session,
+          findMonster(session.monsterId),
+          characterSummary
+        )
       };
     }
 
@@ -606,7 +626,12 @@ export class FightService {
         session: updated ?? { ...session, state: expiredState, status: "expired" },
         monster,
         questProgress,
-        fightReward: await this.getPersistentFightRewardReplay(telegramUserId, updated ?? session)
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          updated ?? session,
+          monster,
+          characterSummary
+        )
       };
     }
 
@@ -617,7 +642,12 @@ export class FightService {
         session,
         monster,
         questProgress,
-        fightReward: await this.getPersistentFightRewardReplay(telegramUserId, session)
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          session,
+          monster,
+          characterSummary
+        )
       };
     }
 
@@ -656,7 +686,12 @@ export class FightService {
         session,
         monster,
         questProgress,
-        fightReward: await this.getPersistentFightRewardReplay(telegramUserId, session)
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          session,
+          monster,
+          characterSummary
+        )
       };
     }
 
@@ -689,7 +724,12 @@ export class FightService {
         session: fallbackSession,
         monster: findMonster(fallbackSession.monsterId),
         questProgress,
-        fightReward: await this.getPersistentFightRewardReplay(telegramUserId, fallbackSession)
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          fallbackSession,
+          findMonster(fallbackSession.monsterId),
+          characterSummary
+        )
       };
     }
 
@@ -793,9 +833,11 @@ export class FightService {
     };
   }
 
-  private async getPersistentFightRewardReplay(
+  private async getOrRecoverPersistentFightReward(
     telegramUserId: bigint,
-    session: SoloCombatSessionRecord
+    session: SoloCombatSessionRecord,
+    monster: MonsterContent | null,
+    character: CharacterSummary
   ): Promise<PersistentFightReward | null> {
     const replay = buildPersistentFightRewardReplay(session);
 
@@ -813,7 +855,9 @@ export class FightService {
     });
 
     if (!action) {
-      return null;
+      return monster
+        ? this.claimPersistentFightReward(telegramUserId, session, monster, character)
+        : null;
     }
 
     return {

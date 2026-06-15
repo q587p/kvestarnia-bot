@@ -308,6 +308,7 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - loss/flee/expired sessions не створюють full victory reward claim;
 - після успішного claim `solo_combat_sessions.reward_*` поля зберігають replay summary; repeated callback показує stored summary і не reroll-ить item.
 - Якщо `daily_actions` claim уже створений, але запис replay payload у session не зберігся, terminal read має fallback-нутися на authoritative `daily_actions` record: показати stored XP/gold, не вигадувати item details і лишити `daily_actions` єдиним джерелом «чи вже видано».
+- Якщо session уже `won`, але reward claim ще не встиг створитися, terminal read пробує той самий idempotent claim/recover path замість тихо лишати бій без винагороди.
 - `daily_actions.local_date = solo_combat_sessions.id` у цьому path є generic idempotency bucket, а не календарна дата. Перед analytics/reporting pass це поле варто або перейменувати в майбутній схемі, або явно документувати як bucket id.
 
 Залишковий борг перед великим Hunt Board: ledger ще не є persistent combat/encounter state. Для групових полювань, wilderness sessions, collection progression, складного loot tracking або combat HP/mana потрібна окрема session model і ширший transaction boundary.
