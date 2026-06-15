@@ -79,7 +79,11 @@ import { registerLookCommand } from "./commands/lookCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
 import { registerOnlineCommand, sendOnline } from "./commands/onlineCommand";
 import { registerPlannedCommands } from "./commands/plannedCommand";
-import { registerQuestHubCommand, sendQuestHub } from "./commands/questHubCommand";
+import {
+  registerQuestHubCommand,
+  sendQuestHub,
+  type QuestHubCommandOptions
+} from "./commands/questHubCommand";
 import { registerRestartCommand } from "./commands/restartCommand";
 import { registerStartCommand } from "./commands/startCommand";
 import {
@@ -250,15 +254,7 @@ export function createBot(token: string, services: BotServices): Bot {
     services.tavern,
     services.cellarGrownup
   );
-  registerQuestHubCommand(bot, {
-    adventure: services.adventure,
-    cellarErrand: services.cellarErrand,
-    ...(services.cellarGrownup ? { cellarGrownup: services.cellarGrownup } : {}),
-    fight: services.fight,
-    hunt: services.hunt,
-    presence: services.presence,
-    tavernRaid: services.tavern
-  });
+  registerQuestHubCommand(bot, buildQuestHubCommandOptions(services));
   registerStartCommand(bot, services.onboarding);
   registerHeroCommand(bot, services.hero);
   registerInventoryCommand(bot, services.inventory);
@@ -458,6 +454,18 @@ export function createBot(token: string, services: BotServices): Bot {
   });
 
   return bot;
+}
+
+export function buildQuestHubCommandOptions(services: BotServices): QuestHubCommandOptions {
+  return {
+    adventure: services.adventure,
+    cellarErrand: services.cellarErrand,
+    ...(services.cellarGrownup ? { cellarGrownup: services.cellarGrownup } : {}),
+    fight: services.fight,
+    hunt: services.hunt,
+    presence: services.presence,
+    tavernRaid: services.tavern
+  };
 }
 
 function registerPresenceMiddleware(bot: Bot, presenceService: PresenceService): void {
@@ -1172,14 +1180,7 @@ async function handlePlaceCallback(
   if (action === "quest-table") {
     await sendQuestHub(
       ctx,
-      {
-        adventure: services.adventure,
-        cellarErrand: services.cellarErrand,
-        fight: services.fight,
-        hunt: services.hunt,
-        presence: services.presence,
-        tavernRaid: services.tavern
-      },
+      buildQuestHubCommandOptions(services),
       "edit"
     );
     return;
@@ -1267,14 +1268,7 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
   bot.hears([mainMenuButtons.quest, "🗺️ Квест"], async (ctx) => {
     await sendQuestHub(
       ctx,
-      {
-        adventure: services.adventure,
-        cellarErrand: services.cellarErrand,
-        fight: services.fight,
-        hunt: services.hunt,
-        presence: services.presence,
-        tavernRaid: services.tavern
-      },
+      buildQuestHubCommandOptions(services),
       "reply"
     );
   });

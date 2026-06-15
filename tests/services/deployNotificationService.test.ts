@@ -143,7 +143,7 @@ function makeUsers(ids: bigint[]): UserRepository {
   };
 }
 
-function makeSender(failures: Record<string, unknown> = {}): TelegramMessageSender & {
+function makeSender(failures: Record<string, Error> = {}): TelegramMessageSender & {
   messages: Array<{ chatId: string; text: string; options: unknown }>;
 } {
   const messages: Array<{ chatId: string; text: string; options: unknown }> = [];
