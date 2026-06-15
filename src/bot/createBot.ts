@@ -215,6 +215,7 @@ import {
 } from "./presenters/tavernPresenter";
 import { safeAnswerCallbackQuery } from "./safeAnswerCallbackQuery";
 import { safeEditMessageText } from "./safeEditMessageText";
+import { installMessageFreshnessTracking } from "./messageFreshness";
 
 export interface BotServices {
   adventure: AdventureService;
@@ -248,6 +249,7 @@ export function createBot(token: string, services: BotServices): Bot {
     console.error("Квестарня: помилка в Telegram middleware.", error.error);
   });
 
+  installMessageFreshnessTracking(bot);
   registerPresenceMiddleware(bot, services.presence);
   registerAdventureCommand(bot, services.adventure, {
     cellarErrand: services.cellarErrand,
