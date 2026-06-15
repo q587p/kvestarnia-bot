@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import {
   sendKorchmaArrivalBoard,
+  sendKorchmaBar,
   sendKorchmaFront,
   sendTavern
 } from "../../src/bot/commands/tavernCommand";
@@ -95,6 +96,39 @@ describe("tavern command screens", () => {
     expect(replies[0]?.text).not.toContain("Нестор Межовий");
     expect(replies[0]?.text).not.toContain("рівень 2");
     expect(replies[0]?.text).not.toContain("поки тільки ви");
+  });
+
+  it("shows the Шинок screen with beer controls", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🍻 Шинок");
+    expect(replies[0]?.text).toContain("Що наливаємо?");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🍻 Всім пива",
+              callback_data: "v1:tavern:round"
+            }
+          ],
+          [
+            {
+              text: "⬅️ До зали",
+              callback_data: makePlaceCallbackData("hall")
+            }
+          ]
+        ]
+      }
+    });
   });
 });
 

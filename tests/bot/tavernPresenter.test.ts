@@ -3,6 +3,7 @@ import {
   presentTavern,
   presentTavernAlreadyRaided,
   presentKorchmaArrivalBoard,
+  presentKorchmaBar,
   presentKorchmaFront,
   presentKorchmaHall,
   presentPendingRaidActionBlock,
@@ -61,6 +62,7 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("За дверима гуде <b>Корчма Квестарні</b>.");
     expect(text).toContain("<i>Стіл зі справами</i>");
+    expect(text).toContain("<i>Шинок</i>");
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
     expect(text).toContain("<i>Підвал</i>");
     expect(text).toContain("<i>Дошка вістей</i>");
@@ -121,12 +123,23 @@ describe("tavern presenter", () => {
     expect(text).toContain(
       "без нагляду.\n\nПраворуч стоїть <i>Стіл зі справами</i>"
     );
+    expect(text).toContain("неподалік шумить <i>Шинок</i>");
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
     expect(text).toContain("<i>Підвал</i>");
     expect(text).toContain("<i>Дошка вістей</i>");
     expect(text).toContain("Корчмар:\n<blockquote>");
     expect(text).toContain("Куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
+  });
+
+  it("shows Шинок as the korchmar and beer location", () => {
+    const text = presentKorchmaBar(character);
+
+    expect(text).toContain("🍻 Шинок");
+    expect(text).toContain("<i>Шинок</i>");
+    expect(text).toContain("корчмаря");
+    expect(text).toContain("частують пивом");
+    expect(text).toContain("Що наливаємо?");
   });
 
   it("accepts a changing flavor seed for korchma hall greetings", () => {

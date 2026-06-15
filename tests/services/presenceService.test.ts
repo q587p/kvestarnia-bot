@@ -5,8 +5,10 @@ import type {
   PresenceRepository
 } from "../../src/db/repositories/presenceRepository";
 import {
+  getPublicPresenceLocation,
   getPresenceStatus,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
+  PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_FRONT,
@@ -26,6 +28,16 @@ describe("PresenceService", () => {
     expect(getPresenceStatus(minutesAgo(6), now)).toBe("idle");
     expect(getPresenceStatus(minutesAgo(15), now)).toBe("idle");
     expect(getPresenceStatus(minutesAgo(16), now)).toBe("inactive");
+  });
+
+  it("names Шинок as a visible korchma location", () => {
+    expect(getPublicPresenceLocation(PRESENCE_LOCATION_KORCHMA_BAR)).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+      title: "Шинок",
+      regionName: "Корчма Квестарні",
+      showNames: true,
+      isSpecific: true
+    });
   });
 
   it("updates player presence after handled actions", async () => {

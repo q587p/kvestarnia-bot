@@ -2,6 +2,7 @@ import type { Bot, Context } from "grammy";
 import type { PresenceService } from "../../services/presenceService";
 import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
   PRESENCE_RAID_FRIDAY_BARREL
@@ -11,6 +12,7 @@ import type { LevelMilestoneService } from "../../services/levelMilestoneService
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildKorchmaArrivalBoardKeyboard,
+  buildKorchmaBarKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
   buildTavernKeyboard,
@@ -18,6 +20,7 @@ import {
 } from "../keyboards/tavernKeyboard";
 import {
   presentKorchmaArrivalBoard,
+  presentKorchmaBar,
   presentKorchmaFront,
   presentKorchmaHall,
   presentTavern,
@@ -166,6 +169,30 @@ export async function sendKorchmaArrivalBoard(
   await sendText(ctx, mode, presentKorchmaArrivalBoard(result.character, board, milestones), "arrivals");
 }
 
+export async function sendKorchmaBar(
+  ctx: Context,
+  tavernRaidService: TavernRaidService,
+  presenceService: PresenceService,
+  mode: "reply" | "edit"
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
+
+  if (result.state === "no-character") {
+    await sendText(ctx, mode, presentTavernNoCharacter());
+    return;
+  }
+
+  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BAR);
+  await sendText(ctx, mode, presentKorchmaBar(result.character), "bar");
+}
+
 export async function sendTavernBarrel(
   ctx: Context,
   tavernRaidService: TavernRaidService,
@@ -241,6 +268,7 @@ async function sendText(
   keyboard:
     | boolean
     | "hall"
+    | "bar"
     | "front"
     | "arrivals"
     | "barrel-result"
@@ -252,6 +280,8 @@ async function sendText(
         reply_markup:
           keyboard === "hall"
             ? buildKorchmaHallKeyboard()
+            : keyboard === "bar"
+              ? buildKorchmaBarKeyboard()
             : keyboard === "front"
               ? buildKorchmaFrontKeyboard()
               : keyboard === "arrivals"

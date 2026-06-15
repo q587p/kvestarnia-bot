@@ -30,12 +30,19 @@ export function buildKorchmaHallKeyboard(): InlineKeyboard {
     .text("📋 Стіл зі справами", makePlaceCallbackData("quest-table"))
     .row()
     .text("🛢️ Бочка", makePlaceCallbackData("barrel"))
-    .text("🍻 Всім пива", makeTavernCallbackData("round"))
+    .text("🍻 Шинок", makePlaceCallbackData("bar"))
     .row()
     .text("📰 Дошка вістей", makePlaceCallbackData("news-corner"))
     .text("🐭 Підвал", makePlaceCallbackData("cellar"))
     .row()
     .text("🚪 Надвір", makePlaceCallbackData("front"));
+}
+
+export function buildKorchmaBarKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🍻 Всім пива", makeTavernCallbackData("round"))
+    .row()
+    .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
 export function buildBackToKorchmaHallKeyboard(): InlineKeyboard {
@@ -92,7 +99,7 @@ export function buildKorchmaRoundOfferKeyboard(
     }
   }
 
-  return keyboard.text("⬅️ До зали", makePlaceCallbackData("hall"));
+  return keyboard.text("⬅️ До шинку", makePlaceCallbackData("bar"));
 }
 
 export function buildKorchmaRoundResultKeyboard(
@@ -102,5 +109,5 @@ export function buildKorchmaRoundResultKeyboard(
     return new InlineKeyboard().text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
   }
 
-  return buildKorchmaHallKeyboard();
+  return buildKorchmaBarKeyboard();
 }

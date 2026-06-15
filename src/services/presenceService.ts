@@ -12,6 +12,7 @@ export const PRESENCE_IDLE_MS = 15 * 60 * 1000;
 export const PRESENCE_LOCATION_KORCHMA_FRONT = "location.korchma.front";
 export const PRESENCE_LOCATION_KORCHMA_HALL = "location.korchma.hall";
 export const PRESENCE_LOCATION_KORCHMA_QUEST_TABLE = "location.korchma.quest_table";
+export const PRESENCE_LOCATION_KORCHMA_BAR = "location.korchma.bar";
 export const PRESENCE_LOCATION_KORCHMA_CELLAR = "location.korchma.cellar";
 export const PRESENCE_LOCATION_KORCHMA_BARREL = "location.korchma.barrel";
 export const PRESENCE_LOCATION_KORCHMA_NEWS_CORNER = "location.korchma.news_corner";
@@ -24,6 +25,7 @@ export const PRESENCE_LOCATION_TAVERN_CELLAR = "location.tavern-cellar";
 const KORCHMA_INTERIOR_LOCATION_IDS = [
   PRESENCE_LOCATION_KORCHMA_HALL,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER
@@ -516,6 +518,16 @@ export function getPublicPresenceLocation(
     return {
       locationId: id,
       title: "Стіл зі справами",
+      regionName: "Корчма Квестарні",
+      showNames: true,
+      isSpecific: true
+    };
+  }
+
+  if (id === PRESENCE_LOCATION_KORCHMA_BAR) {
+    return {
+      locationId: id,
+      title: "Шинок",
       regionName: "Корчма Квестарні",
       showNames: true,
       isSpecific: true

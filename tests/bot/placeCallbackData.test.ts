@@ -9,6 +9,7 @@ describe("place callback data", () => {
   it.each([
     "hall",
     "quest-table",
+    "bar",
     "barrel",
     "news-corner",
     "cellar",

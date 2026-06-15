@@ -16,12 +16,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Added short `v1:ygr:*` callback data, Yeger presenter/keyboards, and tests for quest states, callback hardening, turn-in rewards, Quest Hub rows, and targeted fight selection.
 - Added `Єгерська риска на дощечці` as a protected cosmetic keepsake reward.
 - Added the front-door `Видатні жителі` level milestone board, showing the first three known characters to reach recorded levels.
+- Added `Шинок` as a distinct korchma location for beer rounds and future korchmar turn-ins.
 
 ### Changed
 - `/hunt` and the Quest Hub now point to Єгер's quest surface instead of the old hourly Hunt Board reward faucet.
 - Old `v1:hunt:*` callbacks now safely refresh the Yeger board instead of claiming combatless hourly rewards.
 - Quest Hub now shows Yeger rows for locked/offered/in-progress/turn-in/completed states.
 - Level-up reward paths now write idempotent milestone records for newly reached levels, with a best-effort backfill from current character levels.
+- The hall `🍻 Всім пива` button is now `🍻 Шинок`; beer spending happens inside `Шинок` and presence is tracked there.
 - Playtesting and game-design docs now frame the hourly Hunt Board as legacy and the Yeger trial as the current player-facing hunt loop.
 
 ### Not Included Yet
@@ -376,7 +378,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `v1:quest:*` callback parsing for hub action routing.
 - Added secondary `/cellar` command as a fallback surface without adding it to the Telegram side command menu or persistent reply keyboard.
 - Added pending barrel raid timing: `🍺 У рейд на бочку` now starts a 5-8 minute wait before rewards are claimed, while the korchmar still promises «Дві-три хвилини. Максимум».
-- Added `🍻 Всім пива` as the first tiny korchma hall gold sink gated by today’s barrel raid: it shows explicit 100-gold and 10-gold choices, then spends only after the player confirms a quality.
+- Added `🍻 Всім пива` as the first tiny korchma gold sink gated by today’s barrel raid: it shows explicit 100-gold and 10-gold choices, then spends only after the player confirms a quality.
 - Added a persistent korchma round purchase log and generosity leaderboard for day, week, and month rankings.
 - Tests cover quest hub rendering, outside gates, `/fight` and `/cellar` routing, quest callback parsing, and presence middleware behavior.
 
@@ -398,7 +400,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added the first repeatable low-stakes activity: `Підвальна справа`, a korchma-cellar mouse errand reached from `/quest` after the daily shawarma quest and fight probe are spent.
 - Added three cellar errand callbacks: cheese trap, brave sweeping, and mouse negotiation.
 - Added persistent `character_cooldowns` storage for repeatable activity cooldowns without Redis.
-- Added canonical korchma place ids for new presence writes: `location.korchma.front`, `location.korchma.hall`, `location.korchma.quest_table`, `location.korchma.cellar`, `location.korchma.barrel`, and `location.korchma.news_corner`.
+- Added canonical korchma place ids for new presence writes: `location.korchma.front`, `location.korchma.hall`, `location.korchma.quest_table`, `location.korchma.bar`, `location.korchma.cellar`, `location.korchma.barrel`, and `location.korchma.news_corner`.
 - Added cellar presence via `location.korchma.cellar` and `adventure.cellar.mouse-errand`, including public web presence counts without public player names.
 - Tests cover cellar callback parsing, presenter output, cooldown reward idempotency, `/quest` fallback, presence integration, and Prisma schema shape.
 

@@ -22,9 +22,9 @@ import {
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
   PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_FRONT,
-  PRESENCE_LOCATION_KORCHMA_HALL,
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
@@ -92,6 +92,7 @@ import { registerStartCommand } from "./commands/startCommand";
 import {
   registerTavernCommand,
   sendKorchmaArrivalBoard,
+  sendKorchmaBar,
   sendKorchmaFront,
   sendTavern,
   sendTavernBarrel
@@ -538,7 +539,7 @@ function getPresenceContext(ctx: Context): PresenceContext | null {
 function getCallbackPresenceContext(data: string): PresenceContext | null {
   if (data.startsWith("v1:tavern:round")) {
     return {
-      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      locationId: PRESENCE_LOCATION_KORCHMA_BAR,
       currentRaidId: null,
       currentAdventureId: null
     };
@@ -613,6 +614,10 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
   }
 
   if (data === "v1:place:quest-table") {
+    return {};
+  }
+
+  if (data === "v1:place:bar") {
     return {};
   }
 
@@ -1214,6 +1219,11 @@ async function handlePlaceCallback(
 
   if (action === "barrel") {
     await sendTavernBarrel(ctx, services.tavern, services.presence, "reply");
+    return;
+  }
+
+  if (action === "bar") {
+    await sendKorchmaBar(ctx, services.tavern, services.presence, "edit");
     return;
   }
 

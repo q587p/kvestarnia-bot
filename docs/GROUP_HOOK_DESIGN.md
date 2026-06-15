@@ -37,7 +37,7 @@
 
 ## Що можна перевикористати вже зараз
 
-- `presence` і coarse location ids, особливо `location.korchma.hall`, `location.korchma.quest_table`, `location.korchma.barrel`.
+- `presence` і coarse location ids, особливо `location.korchma.hall`, `location.korchma.quest_table`, `location.korchma.bar`, `location.korchma.barrel`.
 - Поточний `tavern` solo placeholder як тимчасову форму для майбутнього групового hook-а.
 - Ідемпотентні reward-claims із `daily_actions` або новим session-key підходом.
 - Поточні presenter/helper патерни для коротких Telegram HTML сцен.

@@ -4,6 +4,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 export type PlaceCallback =
   | "hall"
   | "quest-table"
+  | "bar"
   | "barrel"
   | "news-corner"
   | "cellar"
@@ -15,6 +16,7 @@ const PREFIX = "v1:place";
 const placeCallbacks = new Set<PlaceCallback>([
   "hall",
   "quest-table",
+  "bar",
   "barrel",
   "news-corner",
   "cellar",

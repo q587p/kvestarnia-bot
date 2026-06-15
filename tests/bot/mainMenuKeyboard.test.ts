@@ -37,6 +37,7 @@ import {
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
 import {
   buildKorchmaArrivalBoardKeyboard,
+  buildKorchmaBarKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
   buildKorchmaRoundOfferKeyboard,
@@ -78,10 +79,26 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard())).toEqual([
       "📋 Стіл зі справами",
       "🛢️ Бочка",
-      "🍻 Всім пива",
+      "🍻 Шинок",
       "📰 Дошка вістей",
       "🐭 Підвал",
       "🚪 Надвір"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard())).toEqual([
+      "v1:place:quest-table",
+      "v1:place:barrel",
+      "v1:place:bar",
+      "v1:place:news-corner",
+      "v1:place:cellar",
+      "v1:place:front"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaBarKeyboard())).toEqual([
+      "🍻 Всім пива",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaBarKeyboard())).toEqual([
+      "v1:tavern:round",
+      "v1:place:hall"
     ]);
   });
 
@@ -133,7 +150,7 @@ describe("main menu and scene keyboards", () => {
           leaderboard: emptyRoundLeaderboard
         })
       )
-    ).toEqual(["🍻 Якісне — 100", "🍺 Просте — 10", "⬅️ До зали"]);
+    ).toEqual(["🍻 Якісне — 100", "🍺 Просте — 10", "⬅️ До шинку"]);
     expect(
       flatInlineButtonCallbacks(
         buildKorchmaRoundOfferKeyboard({
@@ -145,7 +162,7 @@ describe("main menu and scene keyboards", () => {
           leaderboard: emptyRoundLeaderboard
         })
       )
-    ).toEqual(["v1:tavern:round-simple", "v1:place:hall"]);
+    ).toEqual(["v1:tavern:round-simple", "v1:place:bar"]);
   });
 
   it("links directly to the Barrel when korchma rounds are blocked by an active raid", () => {

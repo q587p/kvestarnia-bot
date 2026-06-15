@@ -368,7 +368,7 @@ Tavern raid timing in `0.0.11`/`0.0.15`/`0.0.16`:
 ## Presence MVP
 `0.0.9` додає легку in-game присутність на рівні `users`, бо окремої session table ще немає:
 - `last_action_at` оновлюється тільки від оброблених команд, reply-кнопок і callback-ів;
-- `last_seen_location_id` тримає coarse місцину на кшталт `location.korchma.hall`, `location.korchma.quest_table`, `location.korchma.cellar`, `location.korchma.barrel` або `location.korchma.news_corner`;
+- `last_seen_location_id` тримає coarse місцину на кшталт `location.korchma.hall`, `location.korchma.quest_table`, `location.korchma.bar`, `location.korchma.cellar`, `location.korchma.barrel` або `location.korchma.news_corner`;
 - `current_raid_id` і `current_adventure_id` тримають поточну сценову участь, доки немає справжніх raid/adventure session tables.
 
 Пороги:
@@ -391,6 +391,7 @@ Web presence у `0.0.9`:
 - `location.korchma.front` — Перед корчмою;
 - `location.korchma.hall` — Зала корчми;
 - `location.korchma.quest_table` — Стіл зі справами;
+- `location.korchma.bar` — Шинок;
 - `location.korchma.cellar` — Підвал корчми;
 - `location.korchma.barrel` — Біля Бочки Пінного Міражу;
 - `location.korchma.news_corner` — Дошка вістей.
@@ -406,6 +407,7 @@ Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і 
 - leaderboard сортується за сумою витраченого золота, потім за кількістю частувань;
 - майбутній tie-breaker має бути детермінованим: earliest purchase in period, потім stable `character_id`, якщо потрібно, щоб привітання за перше місце не стрибали між рівними rows;
 - unlimited repeatable spending прийнятний для першого sink, бо кожна покупка вимагає явного підтвердження, але майбутній UX/anti-spam може додати soft cooldown або rate limit.
+У `0.0.28` ці callback-и вважаються діями Шинку: presence пишеться в `location.korchma.bar`, а зала веде туди через `v1:place:bar`.
 
 ## Telegram callback data
 Callback data коротка, версіонована.
@@ -419,6 +421,7 @@ Callback data коротка, версіонована.
 - `v1:place:front`
 - `v1:place:arrivals`
 - `v1:place:quest-table`
+- `v1:place:bar`
 - `v1:place:barrel`
 - `v1:place:cellar`
 - `v1:place:news-corner`
