@@ -1,5 +1,6 @@
 import { InlineKeyboard } from "grammy";
 import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
+import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
@@ -24,7 +25,9 @@ export function buildKorchmaFrontKeyboard(): InlineKeyboard {
     .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
     .row()
     .text("📜 Табличка прибулих", makePlaceCallbackData("arrivals"))
-    .text("🏅 Пропамʼятна дошка", makePlaceCallbackData("memorial"));
+    .text("🏅 Пропамʼятна дошка", makePlaceCallbackData("memorial"))
+    .row()
+    .text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData());
 }
 
 export function buildKorchmaHallKeyboard(): InlineKeyboard {

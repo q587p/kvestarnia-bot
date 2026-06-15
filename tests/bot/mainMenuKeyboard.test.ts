@@ -67,16 +67,19 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard())).toEqual([
       "🚪 Зайти в корчму",
       "📜 Табличка прибулих",
-      "🏅 Пропамʼятна дошка"
+      "🏅 Пропамʼятна дошка",
+      "🎒 Манчкін-скупник"
     ]);
     expect(inlineButtonRows(buildKorchmaFrontKeyboard())).toEqual([
       ["🚪 Зайти в корчму"],
-      ["📜 Табличка прибулих", "🏅 Пропамʼятна дошка"]
+      ["📜 Табличка прибулих", "🏅 Пропамʼятна дошка"],
+      ["🎒 Манчкін-скупник"]
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaFrontKeyboard())).toEqual([
       "v1:place:hall",
       "v1:place:arrivals",
-      "v1:place:memorial"
+      "v1:place:memorial",
+      "v1:lvlx:open"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaArrivalBoardKeyboard())).toEqual([
       "🚪 Зайти в корчму",

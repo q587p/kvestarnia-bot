@@ -59,7 +59,7 @@ Current tiny inventory slice:
 - Future `/fight` should replace the single generic `Вдарити` action with class/race/combo-aware attack options: physical strikes, mana-spending spells, tricks, seals, songs, traps, and equipment-shaped variants with visible resource costs.
 - Future equipment rules should support level-gated items that can drop before they are wearable, plus rarer race/class/path-specific манатки with future bypass/attunement/respec tricks.
 - Future player-to-player exchange should let heroes give unsuitable манатки to others without duplicating items or bypassing anti-abuse checks.
-- Future item economy should give most манатки a gold value or explicit priceless marker, then use that value for selling, trading, and a later item-to-level exchange.
+- Item economy now uses `goldValue` for display, the Скриня Манаток pressure valve, and the first Манчкін-скупник level exchange. Future selling/trading still needs item-instance safety and clearer player-to-player rules.
 - New fight loot increases item volume, so `0.0.24` added the first `Дружня Скриня` / `Манатко-скриня` auto-pick sink: 5 eligible манаток become 1 better-than-average output item with confirmation and transaction safety. `0.0.27` added manual input selection with compact index callbacks, final preview, and stale-input protection; cleanup/reuse for abandoned pending runs remains future polish. Canonical planning doc: `docs/MANTOK_CHEST_BACKLOG.md`.
 
 Current repeatable slice:
@@ -156,7 +156,7 @@ Done when:
 - Collections: «Бестіарій», «Музей Манаток».
 - Inspiration-backed content packs із `docs/INSPIRATION_CONTENT_BACKLOG.md`: перші 10–15 монстрів, 20–30 манаток і 5–8 quest/adventure seeds у малих PR з тестами.
 - Level-gated equipment, race/class/path-specific rare items, and safe player-to-player item exchange.
-- Item values, priceless trophies, and a suspicious outside-korchma item-to-level exchange inspired by Munchkin.
+- Polish the suspicious outside-korchma Манчкін-скупник exchange: manual item selection, cleanup/reuse for stale previews, and future item-instance safety before shops/trading.
 - Stronger level impact pass for resources, combat, event checks, and activity gates.
 - Class/race/combo-aware combat actions: multiple attack variants, visible mana costs for spells, fallback actions when mana is low, and equipment/effective-stats integration so манатки eventually shape the numbers.
 - Epic levels `14-23`: milestone abilities for races/classes in the spirit of Munchkin-style extra tricks, with visible text flavor and tested balance guardrails.

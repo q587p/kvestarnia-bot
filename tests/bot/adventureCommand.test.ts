@@ -71,6 +71,12 @@ describe("adventure command", () => {
               text: "🏅 Пропамʼятна дошка",
               callback_data: makePlaceCallbackData("memorial")
             }
+          ],
+          [
+            {
+              text: "🎒 Манчкін-скупник",
+              callback_data: "v1:lvlx:open"
+            }
           ]
         ]
       }

@@ -68,6 +68,25 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - beer result text не каже, що гравець отримав золото;
 - tests cover not-enough, simple threshold, quality threshold, protected/equipped/priceless exclusions, duplicate confirm, and generosity ledger entry.
 
+## Later — Манчкін-скупник Manual Selection Polish
+
+**Objective**
+Доробити `🎒 Манчкін-скупника` після auto-pick MVP: дати гравцю ручний вибір манаток для рівня без роздування callback data і без ризику stale списань.
+
+**Rules**
+
+- Поріг лишається `1000` оціночного золота разом із докладеним золотом з гаманця.
+- `12 → 13` не дозволяти: 13 рівень тільки боями.
+- Екіпіровані, безцінні, story/quest/protected і zero-value манатки не eligible.
+- Preview має показувати конкретні selected stacks, суму манаток, докладене золото, переплату й XP carry.
+
+**Acceptance criteria**
+
+- manual selector не кладе довгі item ids у callback-и;
+- confirm перечитує inventory/equipment/gold і відхиляє stale input;
+- repeated confirm не дає другий рівень;
+- tests cover exact threshold, gold-fill threshold, protected/equipped exclusions, stale manual selection, and level-13 refusal.
+
 ## Later — Bestiary Browse Filters
 
 **Objective**

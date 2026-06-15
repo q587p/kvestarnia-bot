@@ -14,6 +14,7 @@ import type { YegerQuestService } from "../services/yegerQuestService";
 import { isYegerUnquietTarget } from "../services/yegerQuestService";
 import type { EquipmentService } from "../services/equipmentService";
 import type { InventoryService } from "../services/inventoryService";
+import type { LevelBarterService } from "../services/levelBarterService";
 import type { LevelMilestoneService } from "../services/levelMilestoneService";
 import type { MantokChestService } from "../services/mantokChestService";
 import type { OnboardingService } from "../services/onboardingService";
@@ -41,6 +42,10 @@ import { parseCellarCallbackData, type CellarCallback } from "./callbacks/cellar
 import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
 import { parseFightCallbackData, type FightCallback } from "./callbacks/fightCallbackData";
 import { parseHuntCallbackData, type HuntCallback } from "./callbacks/huntCallbackData";
+import {
+  parseLevelBarterCallbackData,
+  type LevelBarterCallback
+} from "./callbacks/levelBarterCallbackData";
 import { parseYegerCallbackData, type YegerCallback } from "./callbacks/yegerCallbackData";
 import {
   parseEquipmentCallbackData,
@@ -117,6 +122,11 @@ import {
   buildItemDetailKeyboard
 } from "./keyboards/inventoryKeyboard";
 import {
+  buildLevelBarterOfferKeyboard,
+  buildLevelBarterPreviewKeyboard,
+  buildLevelBarterResultKeyboard
+} from "./keyboards/levelBarterKeyboard";
+import {
   buildMantokChestHelpKeyboard,
   buildMantokChestManualSelectionKeyboard,
   buildMantokChestOverviewKeyboard,
@@ -179,6 +189,11 @@ import {
 import { presentItemDetail } from "./presenters/itemDetailPresenter";
 import { presentLevelUpCelebration } from "./presenters/levelGrowthPresenter";
 import {
+  presentLevelBarterConfirmResult,
+  presentLevelBarterOffer,
+  presentLevelBarterPreview
+} from "./presenters/levelBarterPresenter";
+import {
   presentMantokChestHelp,
   presentMantokChestManualSelection,
   presentMantokChestOverview,
@@ -234,6 +249,7 @@ export interface BotServices {
   hero: HeroService;
   equipment: EquipmentService;
   inventory: InventoryService;
+  levelBarter: LevelBarterService;
   levelMilestones?: LevelMilestoneService;
   mantokChest: MantokChestService;
   presence: PresenceService;
@@ -348,6 +364,17 @@ export function createBot(token: string, services: BotServices): Bot {
     }
 
     await handleMantokChestCallback(ctx, parsed.value, services);
+  });
+
+  bot.callbackQuery(/^v1:lvlx:/, async (ctx) => {
+    const parsed = parseLevelBarterCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleLevelBarterCallback(ctx, parsed.value, services);
   });
 
   bot.callbackQuery(/^v1:news:/, async (ctx) => {
@@ -1176,6 +1203,62 @@ async function handleMantokChestCallback(
   await safeEditMessageText(ctx, presentMantokChestRecycleResult(result), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildMantokChestResultKeyboard(outputItem)
+  });
+}
+
+async function handleLevelBarterCallback(
+  ctx: Context,
+  action: LevelBarterCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (action.type === "open") {
+    const offer = await services.levelBarter.getOfferForTelegramUser(telegramUserId);
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentLevelBarterOffer(offer), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildLevelBarterOfferKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "auto") {
+    const preview = await services.levelBarter.createAutoPreviewForTelegramUser(telegramUserId);
+
+    await safeAnswerCallbackQuery(
+      ctx,
+      preview.state === "insufficient"
+        ? { text: "Манчкінові ще не вистачає добра на рівень.", show_alert: true }
+        : { show_alert: preview.state === "no-character" || preview.state === "battle-only-level" }
+    );
+    await safeEditMessageText(ctx, presentLevelBarterPreview(preview), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildLevelBarterPreviewKeyboard(preview)
+    });
+    return;
+  }
+
+  const result = await services.levelBarter.confirmAutoExchangeForTelegramUser(
+    telegramUserId,
+    action.token
+  );
+
+  await safeAnswerCallbackQuery(
+    ctx,
+    result.state === "exchanged"
+      ? { text: "Манчкін підкинув рівень." }
+      : { show_alert: result.state !== "stale-selection" }
+  );
+  await safeEditMessageText(ctx, presentLevelBarterConfirmResult(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildLevelBarterResultKeyboard()
   });
 }
 
