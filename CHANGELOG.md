@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.29] - 12026-06-16 - Yeger Tracking Search
+
+### Added
+- Added a timed Yeger tracking step before `Неспокійні справи` starts an unquiet persistent fight.
+- Added persisted tracking state through existing `character_cooldowns`: `👣 Вийти на слід` starts a short wait, `/hunt` shows pending/ready state, and `🔎 Перевірити слід` resolves the trail.
+- Added deterministic tracking outcome logic with class/stat-aware modifiers, tested without exposing exact chances in player-facing text.
+- Added no-fight tracking outcomes so a resolved trail can miss without changing quest progress or granting rewards.
+- Added tests for pending cooldown reuse, ready success/failure, ranger advantage caps, Yeger keyboard states, and callback rendering.
+
+### Changed
+- Yeger tracking no longer starts the fight immediately on first click; it now requires a ready trail check.
+- Existing active non-Yeger fights still block Yeger tracking flavor instead of being mislabeled as unquiet targets.
+- Playtesting and game-design docs now describe the two-step Yeger trail loop.
+
+### Not Included Yet
+- Background auto-resolution, bait/lure/ambush tables, surprise opening turns, Yeger reputation, daily samples, shops, trading, crafting, item-instance inventory, or a broad combat formula rewrite.
+
 ## [0.0.28] - 12026-06-15 - Yeger Trial: Unquiet Hunt Quest
 
 ### Added
@@ -27,7 +44,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Playtesting and game-design docs now frame the hourly Hunt Board as legacy and the Yeger trial as the current player-facing hunt loop.
 
 ### Not Included Yet
-- Timed tracking searches, bait/lure/ambush tables, surprise opening turns, Yeger reputation, daily samples, shops, trading, crafting, item-instance inventory, or a broad combat formula rewrite.
+- Bait/lure/ambush tables, surprise opening turns, Yeger reputation, daily samples, shops, trading, crafting, item-instance inventory, or a broad combat formula rewrite.
 
 ## [0.0.27] - 12026-06-15 - Manual Mantok Chest Selection
 

@@ -332,6 +332,7 @@ Phase 1 scope lock: Hunt Board ledger і `/bestiary` лишаються bridge/d
 
 У `0.0.10` таблиця `character_cooldowns` використовується для першої repeatable активності:
 - `cellar.mouse-errand` → 3-хвилинний cooldown для «Підвальної справи».
+- `0.0.29` повторно використовує цей самий repository contract для Єгерського сліду: `quest.yeger.unquiet-trial.tracking` зберігає коротке pending/ready очікування без XP/золота/items, а ready callback атомарно переводить row у наступний cooldown перед resolution roll.
 
 Cooldown reward claim має бути transactional:
 - якщо `available_at > now`, повернути cooldown без XP/золота/items;
@@ -399,11 +400,12 @@ Web presence у `0.0.9`:
 - `location.korchma.cellar` — Підвал корчми;
 - `location.korchma.barrel` — Біля Бочки Пінного Міражу;
 - `location.korchma.news_corner` — Дошка вістей;
-- `location.korchma.ranger_corner` — Єгерський куток.
+- `location.korchma.ranger_corner` — Єгерський куток;
+- `location.korchma.hlybka` — Глибка, dungeon-місцина для бойових справ.
 
 Legacy ids `location.tavern`, `location.shawarma-table` і `location.tavern-cellar` лишаються read aliases для старих rows, але нові writes мають використовувати `location.korchma.*`. `/quest` не позначає гравця біля столу зі справами на рівні глобальної кнопки; command handler спершу перевіряє поточну місцину, блокує квест надворі й лише тоді переводить героя до столу. Підвал є відкритою aggregate-місциною для public `/presence`, але public web усе одно лишає `players` порожнім за замовчуванням.
 
-Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/hunt` у цьому MVP відкриває Єгерський куток, пише `location.korchma.ranger_corner` і `adventure.hunt-board.contract`, доки немає окремої wilderness/session model. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу.
+Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/fight` для persistent `Тринадцяти дрібних проблем` у майбутньому має писати `location.korchma.hlybka`, бо Стіл зі справами є маршрутизатором, а не місцем бою. `/hunt` у цьому MVP відкриває Єгерський куток, пише `location.korchma.ranger_corner` і `adventure.hunt-board.contract`, доки немає окремої wilderness/session model. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу.
 
 `0.0.11` також додає `korchma_round_purchases` як малий журнал підтверджених частувань:
 - `v1:tavern:round` тільки показує offer/statistics screen і не списує золото;

@@ -263,17 +263,27 @@ describe("scene callback HTML options", () => {
             }),
           trackForTelegramUser: () =>
             Promise.resolve({
-              state: "persistent-active",
+              state: "tracking-resolved-success",
               character,
-              session: persistentSession("monster.deadline-spider"),
-              monster: {
-                id: "monster.deadline-spider",
-                name: "Павук дедлайнів",
-                description: "Плете павутину з «сьогодні швиденько».",
-                level: 2,
-                tags: ["beast", "time", "web"]
+              progress: { wins: 1, target: 5 },
+              tracking: {
+                state: "tracking-pending",
+                availableAt: new Date("2026-06-15T10:08:00.000Z"),
+                now: new Date("2026-06-15T10:05:00.000Z")
               },
-              questProgress: null
+              fight: {
+                state: "persistent-active",
+                character,
+                session: persistentSession("monster.deadline-spider"),
+                monster: {
+                  id: "monster.deadline-spider",
+                  name: "Павук дедлайнів",
+                  description: "Плете павутину з «сьогодні швиденько».",
+                  level: 2,
+                  tags: ["beast", "time", "web"]
+                },
+                questProgress: null
+              }
             })
         }
       })
@@ -299,17 +309,27 @@ describe("scene callback HTML options", () => {
             }),
           trackForTelegramUser: () =>
             Promise.resolve({
-              state: "persistent-active",
+              state: "tracking-resolved-success",
               character,
-              session: persistentSession("monster.complaint-lantern"),
-              monster: {
-                id: "monster.complaint-lantern",
-                name: "Скаргова лампа",
-                description: "Світить лише тоді, коли хтось починає жалітись.",
-                level: 4,
-                tags: ["paperwork", "sound", "time", "unquiet"]
+              progress: { wins: 1, target: 5 },
+              tracking: {
+                state: "tracking-pending",
+                availableAt: new Date("2026-06-15T10:08:00.000Z"),
+                now: new Date("2026-06-15T10:05:00.000Z")
               },
-              questProgress: null
+              fight: {
+                state: "persistent-active",
+                character,
+                session: persistentSession("monster.complaint-lantern"),
+                monster: {
+                  id: "monster.complaint-lantern",
+                  name: "Скаргова лампа",
+                  description: "Світить лише тоді, коли хтось починає жалітись.",
+                  level: 4,
+                  tags: ["paperwork", "sound", "time", "unquiet"]
+                },
+                questProgress: null
+              }
             })
         }
       })

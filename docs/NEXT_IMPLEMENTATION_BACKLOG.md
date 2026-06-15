@@ -39,6 +39,93 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - повторний startup/resume або retry не надсилає кілька однакових completed-повідомлень;
 - tests cover due-on-startup, future-reschedule, already-completed, and duplicate-worker/idempotency paths.
 
+## Later — Shynok Mantok-for-Beer Sink
+
+**Objective**
+Додати в `🍻 Шинок` опцію `Продаж манаток задля пива`: гравець спалює зайві priced манатки не за золото в кишеню, а прямо за раунд пива для корчми.
+
+**Rules**
+
+- Корчмар приймає манатки за курсом у 5 разів гіршим за номінальну вартість.
+- Обрано манаток на `50+` оціночного золота — можна виставити просте пиво.
+- Обрано манаток на `500+` оціночного золота — можна виставити якісне пиво.
+- Надлишок вартости не повертається автоматично; UI має чесно сказати, що корчмар округлює на користь піни.
+- Манатки списуються тільки після явного confirmation screen зі списком конкретних речей.
+
+**Guardrails**
+
+- Не давати вільне золото й не відкривати broad selling/trading/shop loop у цьому slice.
+- Не приймати `безцінні`, екіпіровані, заблоковані, story/quest або protected манатки.
+- Manual selection може повторити підхід `0.0.27` Дружньої Скрині: короткі індексні callback-и, preview конкретних stacks, stale-input protection на confirm.
+- Дія не має обходити raid gate для частування пивом.
+- Успішне частування через манатки має писатися в той самий рейтинг щедрості, але окремо позначати spend type, щоб статистика золота й манаток не змішувалась.
+
+**Acceptance criteria**
+
+- кнопка в `🍻 Шинок` зʼявляється тільки коли є eligible манатки на мінімум `50` оціночного золота;
+- просте/якісне пиво коректно визначається за сумою selected priced items;
+- repeated або stale confirm не списує манатки вдруге;
+- beer result text не каже, що гравець отримав золото;
+- tests cover not-enough, simple threshold, quality threshold, protected/equipped/priceless exclusions, duplicate confirm, and generosity ledger entry.
+
+## Later — Bestiary Browse Filters
+
+**Objective**
+Додати в read-only `📖 Бестіарій` швидку навігацію за рівнями й типами, щоб 30+ монстрів не виглядали як випадкова купа сторінок.
+
+**Scope**
+
+- На головному екрані бестіарію додати кнопки `Рівні` й `Типи`.
+- `Рівні` відкриває список наявних рівнів із кількістю монстрів біля кожного.
+- Натискання рівня показує всіх монстрів цього рівня з кнопками на detail-записи.
+- `Типи` відкриває список наявних тегів/типів із player-facing українськими назвами й кількістю монстрів.
+- Натискання типу показує всіх монстрів із цим тегом.
+- У відфільтрованих списках лишити шлях назад: до `Рівні`, до `Типи`, до загального списку.
+
+**Non-goals**
+
+- no collection tracking;
+- no seen/resolved/studied states;
+- no new monster content in this navigation slice;
+- no reward, loot, XP, gold, or progression promises.
+
+**Acceptance criteria**
+
+- callback data for level/type filters stays under Telegram 64-byte limit;
+- filters derive available levels/tags from `src/content/monsters.ts`, not from hardcoded stale lists;
+- tags use `BESTIARY_TAG_LABELS`, and tests fail if a monster tag lacks a player-facing label;
+- tests cover level list, type list, filtered monster lists, empty-safe fallback, and back buttons.
+
+## Later — Hlybka Dungeon Location
+
+**Objective**
+Додати нову локацію `Глибка` як першу dungeon-місцину для бойових справ, щоб Стіл зі справами був орієнтиром і журналом, а не місцем, де проблеми бʼються прямо між паперами.
+
+**Scope**
+
+- Додати place/presence id для Глибки, орієнтовно `location.korchma.hlybka`, якщо runtime лишається в корчемній location-моделі.
+- У залі або зі `Стіл зі справами` дати перехід до `Глибка`.
+- `Тринадцять дрібних проблем` має вести в Глибку: quest hub показує справу біля столу, але кнопка бойової дії переводить у dungeon screen і вже там стартує/показує persistent fight.
+- `/fight` для level 3+ має або вести в Глибку після interior gate, або пояснювати, що проблеми чекають унизу, не біля столу.
+- `👀 Хто поруч` у Глибці показує персонажів саме в цій місцині, не всіх біля Столу зі справами.
+- Пізніші бойові/підземельні справи зможуть теж вести в Глибку, щоб не плодити окремі «кімнати бою» для кожного квесту.
+
+**Non-goals**
+
+- no full dungeon crawl;
+- no map/grid/exploration system;
+- no group dungeon session;
+- no new combat formulas or rewards just because зʼявилась локація;
+- no schema migration unless existing presence/place abstractions are insufficient.
+
+**Acceptance criteria**
+
+- Стіл зі справами лишається списком справ і маршрутизатором;
+- старт/продовження `Тринадцяти дрібних проблем` змінює presence на Глибку;
+- active persistent fight screen має back path до Глибки або Столу, без відчуття, що бій відбувається на столі;
+- old quest/fight callbacks лишаються safe і не телепортують гравця надвір;
+- tests cover place callback, quest hub route, `/fight` route, presence location, and stale callback behavior.
+
 ## 0.0.20 — Combat Domain Engine
 
 **Status**
@@ -314,10 +401,12 @@ Implemented in the `0.0.27` slice as manual stack-unit selection for the existin
 **Status**
 Implemented in the `0.0.28` slice as `Неспокійні справи`: level 4+ quest, 5 won unquiet persistent solo fights, one-time XP/gold/keepsake reward.
 
+`0.0.29` adds the first timed tracking search before a fight: `👣 Вийти на слід` creates a short persisted `character_cooldowns` wait, `/hunt` shows pending/ready trail state, and `🔎 Перевірити слід` resolves into either a targeted unquiet persistent fight or a no-fight miss.
+
 **Follow-up backlog**
 
-- timed tracking search;
 - lure/ambush table with манатка-as-bait;
+- background auto-resolution or notifications for ready tracks, if the product later wants it;
 - Yeger reputation as a real table instead of flavor;
 - wilderness/location-aware hunt presence;
 - group hunt hooks after solo loop stabilizes.

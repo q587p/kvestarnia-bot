@@ -6,6 +6,12 @@ import type {
   CreateCharacterResult
 } from "../../src/db/repositories/characterRepository";
 import type {
+  CharacterCooldownRecord,
+  ClaimCooldownRewardInput,
+  ClaimCooldownRewardResult,
+  CooldownRepository
+} from "../../src/db/repositories/cooldownRepository";
+import type {
   ClaimDailyActionInput,
   ClaimDailyActionResult,
   DailyActionRecord,
@@ -14,10 +20,14 @@ import type {
 import type { SoloCombatSessionRepository } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { items, monsters } from "../../src/content";
+import { summarizeCharacter, type CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { isProtectedMantokChestItem } from "../../src/domain/mantokChest";
+import { FakeRandomSource } from "../../src/shared/random";
 import type { FightService } from "../../src/services/fightService";
 import {
+  getYegerTrackingExactChance,
   isYegerUnquietTarget,
+  YEGER_TRACKING_COOLDOWN_KEY,
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
   YEGER_UNQUIET_TRIAL_REWARD,
   YEGER_UNQUIET_TRIAL_STARTED_KEY,
@@ -26,6 +36,7 @@ import {
 
 const telegramUserId = 42n;
 const startedAt = new Date("2026-06-15T10:00:00.000Z");
+const now = new Date("2026-06-15T10:05:00.000Z");
 
 describe("YegerQuestService", () => {
   it("gates the first Yeger quest at level 4", async () => {
@@ -145,18 +156,157 @@ describe("YegerQuestService", () => {
     expect([...targetLevels].sort((left, right) => left - right)).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
     expect(targetLevels.size).toBeGreaterThanOrEqual(10);
   });
+
+  it("starts tracking as a cooldown without rewards", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 5, xp: 110 });
+    world.addAction(YEGER_UNQUIET_TRIAL_STARTED_KEY, startedAt);
+    world.randomValues = [0];
+
+    const result = await world.service().trackForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "tracking-started",
+      progress: { wins: 0, target: 5 },
+      tracking: {
+        state: "tracking-pending",
+        availableAt: new Date("2026-06-15T10:08:00.000Z")
+      }
+    });
+    expect(world.cooldowns).toHaveLength(1);
+    expect(world.character?.xp).toBe(110);
+    expect(world.character?.gold).toBe(0);
+    expect(world.itemGrants).toEqual([]);
+  });
+
+  it("does not restart or shorten pending tracking", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 5, xp: 110 });
+    world.addAction(YEGER_UNQUIET_TRIAL_STARTED_KEY, startedAt);
+    world.addCooldown(new Date("2026-06-15T10:12:00.000Z"));
+
+    const result = await world.service().trackForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "tracking-pending",
+      tracking: {
+        availableAt: new Date("2026-06-15T10:12:00.000Z")
+      }
+    });
+    expect(world.cooldowns[0]?.availableAt).toEqual(new Date("2026-06-15T10:12:00.000Z"));
+  });
+
+  it("resolves a ready successful trail into a targeted unquiet fight", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 5, xp: 110 });
+    world.addAction(YEGER_UNQUIET_TRIAL_STARTED_KEY, startedAt);
+    world.addCooldown(new Date("2026-06-15T10:04:00.000Z"));
+    world.randomValues = [0, 0.1];
+    let fightStarts = 0;
+    world.fightResult = () => {
+      fightStarts += 1;
+      return Promise.resolve({
+        state: "persistent-active",
+        character: world.characterSummary(),
+        session: {
+          id: "fight-1",
+          characterId: "character-42",
+          monsterId: "monster.complaint-lantern",
+          status: "active",
+          turn: 1,
+          state: null,
+          reward: null,
+          expiresAt: new Date(now.getTime() + 600_000),
+          createdAt: now,
+          updatedAt: now
+        },
+        monster: {
+          id: "monster.complaint-lantern",
+          name: "Скаргова лампа",
+          description: "Світить не там.",
+          level: 4,
+          tags: ["unquiet"]
+        },
+        questProgress: null
+      });
+    };
+
+    const result = await world.service().trackForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "tracking-resolved-success",
+      fight: {
+        state: "persistent-active",
+        monster: { id: "monster.complaint-lantern" }
+      }
+    });
+    expect(fightStarts).toBe(1);
+    expect(world.cooldowns[0]?.availableAt).toEqual(new Date("2026-06-15T10:08:00.000Z"));
+  });
+
+  it("resolves a ready failed trail without starting a fight", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 5, xp: 110 });
+    world.addAction(YEGER_UNQUIET_TRIAL_STARTED_KEY, startedAt);
+    world.addCooldown(new Date("2026-06-15T10:04:00.000Z"));
+    world.randomValues = [0, 0.99, 0.99];
+    let fightStarts = 0;
+    world.fightResult = () => {
+      fightStarts += 1;
+      return Promise.resolve({ state: "no-character" });
+    };
+
+    const result = await world.service().trackForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "tracking-resolved-none",
+      outcome: "none",
+      progress: { wins: 0, target: 5 }
+    });
+    expect(fightStarts).toBe(0);
+  });
+
+  it("gives rangers a bounded tracking advantage", () => {
+    const ordinary = worldCharacterSummary({ classId: "class.warrior" });
+    const ranger = worldCharacterSummary({ classId: "class.ranger" });
+    const sharpRanger = worldCharacterSummary({
+      classId: "class.ranger",
+      statsJson: {
+        strength: 6,
+        dexterity: 6,
+        intelligence: 20,
+        charisma: 6,
+        luck: 20
+      }
+    });
+
+    expect(getYegerTrackingExactChance(ranger)).toBeGreaterThan(getYegerTrackingExactChance(ordinary));
+    expect(getYegerTrackingExactChance(sharpRanger)).toBeLessThanOrEqual(0.95);
+  });
 });
 
-class FakeWorld implements CharacterRepository, DailyActionRepository, SoloCombatSessionRepository {
-  private character: CharacterRecord | null = null;
+class FakeWorld implements CharacterRepository, DailyActionRepository, SoloCombatSessionRepository, CooldownRepository {
+  character: CharacterRecord | null = null;
   readonly actions: DailyActionRecord[] = [];
   readonly sessions: Array<{ monsterId: string; status: "won" | "lost" | "fled" | "expired"; createdAt: Date }> = [];
   readonly itemGrants: Array<{ itemId: string; quantity: number }> = [];
+  readonly cooldowns: CharacterCooldownRecord[] = [];
+  randomValues: number[] = [0];
+  fightResult: () => ReturnType<FightService["getOrStartPersistentFightForTelegramUser"]> = () =>
+    Promise.resolve({ state: "no-character" });
 
   service(): YegerQuestService {
-    return new YegerQuestService(this, this, this, {
-      getOrStartPersistentFightForTelegramUser: () => Promise.resolve({ state: "no-character" })
-    } as unknown as FightService);
+    return new YegerQuestService(
+      this,
+      this,
+      this,
+      {
+        getOrStartPersistentFightForTelegramUser: () => this.fightResult()
+      } as unknown as FightService,
+      this,
+      () => now,
+      new FakeRandomSource(this.randomValues)
+    );
   }
 
   addCharacter(overrides: Partial<CharacterRecord> = {}): void {
@@ -186,6 +336,28 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     };
   }
 
+  addCooldown(availableAt: Date): void {
+    if (!this.character) {
+      throw new Error("No character.");
+    }
+
+    this.cooldowns.push({
+      id: `cooldown-${this.cooldowns.length + 1}`,
+      characterId: this.character.id,
+      key: YEGER_TRACKING_COOLDOWN_KEY,
+      availableAt,
+      updatedAt: now
+    });
+  }
+
+  characterSummary(): CharacterSummary {
+    if (!this.character) {
+      throw new Error("No character.");
+    }
+
+    return summarizeCharacter(this.character);
+  }
+
   addAction(key: string, createdAt = startedAt): void {
     if (!this.character) {
       throw new Error("No character.");
@@ -206,10 +378,83 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     return Promise.resolve(this.character ? { ...this.character } : null);
   }
 
-  findForTelegramUser(_telegramUserId: bigint, input: { key: string; localDate: string }): Promise<DailyActionRecord | null> {
+  findForTelegramUser(
+    _telegramUserId: bigint,
+    input: { key: string; localDate: string }
+  ): Promise<DailyActionRecord | null>;
+  findForTelegramUser(
+    _telegramUserId: bigint,
+    key: string
+  ): Promise<{ cooldown: CharacterCooldownRecord | null; character: CharacterRecord } | null>;
+  findForTelegramUser(
+    _telegramUserId: bigint,
+    input: { key: string; localDate: string } | string
+  ): Promise<DailyActionRecord | { cooldown: CharacterCooldownRecord | null; character: CharacterRecord } | null> {
+    if (typeof input === "string") {
+      if (!this.character) {
+        return Promise.resolve(null);
+      }
+
+      return Promise.resolve({
+        cooldown: this.cooldowns.find((cooldown) => cooldown.key === input) ?? null,
+        character: { ...this.character }
+      });
+    }
+
     return Promise.resolve(
       this.actions.find((action) => action.key === input.key && action.localDate === input.localDate) ?? null
     );
+  }
+
+  claimRewardForTelegramUser(
+    _telegramUserId: bigint,
+    input: ClaimCooldownRewardInput
+  ): Promise<ClaimCooldownRewardResult | null> {
+    if (!this.character) {
+      return Promise.resolve(null);
+    }
+
+    const existing = this.cooldowns.find((cooldown) => cooldown.key === input.key);
+
+    if (existing && existing.availableAt > input.now) {
+      return Promise.resolve({
+        state: "on-cooldown",
+        cooldown: existing,
+        character: { ...this.character }
+      });
+    }
+
+    const cooldown: CharacterCooldownRecord = existing ?? {
+      id: `cooldown-${this.cooldowns.length + 1}`,
+      characterId: this.character.id,
+      key: input.key,
+      availableAt: input.availableAt,
+      updatedAt: input.now
+    };
+    cooldown.availableAt = input.availableAt;
+    cooldown.updatedAt = input.now;
+
+    if (!existing) {
+      this.cooldowns.push(cooldown);
+    }
+
+    this.character = {
+      ...this.character,
+      xp: this.character.xp + input.rewardXp,
+      gold: this.character.gold + input.rewardGold
+    };
+
+    return Promise.resolve({
+      state: "completed",
+      cooldown,
+      character: { ...this.character },
+      levelChange: {
+        oldLevel: this.character.level,
+        newLevel: this.character.level,
+        leveledUp: false
+      },
+      itemGrants: input.itemGrants ?? []
+    });
   }
 
   claimForTelegramUser(_telegramUserId: bigint, input: ClaimDailyActionInput): Promise<ClaimDailyActionResult | null> {
@@ -283,4 +528,11 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     this.addCharacter(input);
     return Promise.resolve({ character: this.character as CharacterRecord, created: true });
   }
+}
+
+function worldCharacterSummary(overrides: Partial<CharacterRecord> = {}): CharacterSummary {
+  const world = new FakeWorld();
+  world.addCharacter(overrides);
+
+  return world.characterSummary();
 }

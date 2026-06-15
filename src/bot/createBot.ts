@@ -206,6 +206,8 @@ import {
   presentYegerQuest,
   presentYegerStart,
   presentYegerTrackingBlockedByOtherFight,
+  presentYegerTrackingNone,
+  presentYegerTrackingPending,
   presentYegerTrackingStart,
   presentYegerTurnIn
 } from "./presenters/yegerPresenter";
@@ -2005,28 +2007,72 @@ async function handleYegerCallback(
       return;
     }
 
-    if (result.state === "level-retired") {
-      await safeEditMessageText(ctx, presentFightLevelRetired(result), HTML_MESSAGE_OPTIONS);
+    if (result.state === "not-in-progress") {
+      await safeEditMessageText(ctx, presentYegerQuest(result.quest), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerKeyboard(result.quest)
+      });
       return;
     }
 
-    if (result.state === "needs-rest") {
-      await safeEditMessageText(ctx, presentFightNeedsRest(result), HTML_MESSAGE_OPTIONS);
+    if (result.state === "tracking-started" || result.state === "tracking-pending") {
+      await safeEditMessageText(ctx, presentYegerTrackingPending(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerKeyboard({
+          state: "in-progress",
+          character: result.character,
+          progress: result.progress,
+          tracking: result.tracking
+        })
+      });
       return;
     }
 
-    if (result.state === "persistent-active" || result.state === "persistent-terminal") {
-      const trackingIntro = result.monster && isYegerUnquietTarget(result.monster)
+    if (result.state === "tracking-resolved-none") {
+      await safeEditMessageText(ctx, presentYegerTrackingNone(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerKeyboard({
+          state: "in-progress",
+          character: result.character,
+          progress: result.progress,
+          tracking: result.tracking
+        })
+      });
+      return;
+    }
+
+    if (result.state !== "tracking-resolved-success") {
+      await safeEditMessageText(ctx, "Слід охолов.\n\nЄгер мовчить так переконливо, що навіть мапа перестала шарудіти.", {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerHelpKeyboard()
+      });
+      return;
+    }
+
+    const fight = result.fight;
+
+    if (fight.state === "level-retired") {
+      await safeEditMessageText(ctx, presentFightLevelRetired(fight), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    if (fight.state === "needs-rest") {
+      await safeEditMessageText(ctx, presentFightNeedsRest(fight), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    if (fight.state === "persistent-active" || fight.state === "persistent-terminal") {
+      const trackingIntro = fight.monster && isYegerUnquietTarget(fight.monster)
         ? presentYegerTrackingStart({
-            yegerProgress: quest.progress,
-            thirteenProgress: result.questProgress
+            yegerProgress: result.progress,
+            thirteenProgress: fight.questProgress
           })
         : presentYegerTrackingBlockedByOtherFight();
 
       await safeEditMessageText(ctx, trackingIntro, HTML_MESSAGE_OPTIONS);
-      await ctx.reply(presentPersistentFight(result), {
+      await ctx.reply(presentPersistentFight(fight), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
+        reply_markup: buildPersistentFightResultKeyboard(fight.session, fight.character)
       });
       return;
     }

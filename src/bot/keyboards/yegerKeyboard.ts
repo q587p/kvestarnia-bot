@@ -25,7 +25,7 @@ export function buildYegerKeyboard(
   }
 
   if (result.state === "in-progress") {
-    return inProgressKeyboard();
+    return inProgressKeyboard(result.tracking.state);
   }
 
   if (result.state === "turn-in-ready") {
@@ -101,9 +101,17 @@ export function buildYegerHelpKeyboard(): InlineKeyboard {
     .text("🍺 До зали", makePlaceCallbackData("hall"));
 }
 
-function inProgressKeyboard(): InlineKeyboard {
+function inProgressKeyboard(
+  trackingState: "none" | "tracking-pending" | "tracking-ready" = "none"
+): InlineKeyboard {
+  const trackButtonText = trackingState === "tracking-ready"
+    ? "🔎 Перевірити слід"
+    : trackingState === "tracking-pending"
+      ? "⏳ Чекати слід"
+      : "👣 Вийти на слід";
+
   return baseYegerKeyboard()
-    .text("👣 Вийти на слід", makeYegerTrackCallbackData())
+    .text(trackButtonText, makeYegerTrackCallbackData())
     .row()
     .text("📖 Кого шукати?", makeYegerHelpCallbackData())
     .row()

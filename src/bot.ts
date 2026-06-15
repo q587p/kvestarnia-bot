@@ -59,7 +59,7 @@ const services = {
   cellarGrownup: new CellarGrownupQuestService(cellarGrownupQuests, dailyActions, cooldowns),
   fight,
   hunt: new HuntService(characters, dailyActions, huntContracts),
-  yeger: new YegerQuestService(characters, dailyActions, soloCombatSessions, fight),
+  yeger: new YegerQuestService(characters, dailyActions, soloCombatSessions, fight, cooldowns),
   onboarding: new OnboardingService(users, characters),
   hero: new HeroService(characters, inventory, equipment),
   equipment: new EquipmentService(equipment, inventory, characters),
