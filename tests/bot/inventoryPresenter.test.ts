@@ -87,6 +87,9 @@ describe("inventory presenter", () => {
     const firstPage = presentInventory(result, 0);
     const secondPage = presentInventory(result, 1);
 
+    expect(firstPage).toContain(
+      "Оціночна вартість столу: <b>0 золота</b>. Стіл уже поводиться як фінансовий радник.\n\nСторінка <b>1/2</b>"
+    );
     expect(firstPage).toContain("Сторінка <b>1/2</b>");
     expect(firstPage).toContain("<b>Манатка 1</b>");
     expect(firstPage).toContain(`<b>Манатка ${INVENTORY_PAGE_SIZE}</b>`);

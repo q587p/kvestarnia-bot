@@ -49,7 +49,7 @@ export function presentInventory(
     slotFilter
       ? `Знайдено підхожих манаток: <b>${filteredItems.length}</b>. Правила екіпірування все одно перевірить Корчмар.`
       : `Оціночна вартість столу: <b>${result.totalGoldValue} золота</b>. Стіл уже поводиться як фінансовий радник.`,
-    ...(totalPages > 1 ? [`Сторінка <b>${safePage + 1}/${totalPages}</b>. Усе інше стіл поки тримає під ліктем.`] : []),
+    ...(totalPages > 1 ? ["", `Сторінка <b>${safePage + 1}/${totalPages}</b>. Усе інше стіл поки тримає під ліктем.`] : []),
     "",
     ...pageItems.flatMap((item) => [
       presentItemStackLine({
