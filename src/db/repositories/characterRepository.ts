@@ -42,6 +42,12 @@ export interface UpdateCharacterResourcesInput {
   manaCurrent: number;
   hpRegenAt: Date;
   manaRegenAt: Date;
+  expected?: {
+    hpCurrent: number;
+    manaCurrent: number;
+    hpRegenAt?: Date | null;
+    manaRegenAt?: Date | null;
+  };
 }
 
 export interface CreateCharacterResult {

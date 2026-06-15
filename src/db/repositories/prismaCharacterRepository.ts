@@ -82,6 +82,28 @@ export class PrismaCharacterRepository implements CharacterRepository {
     telegramUserId: bigint,
     input: UpdateCharacterResourcesInput
   ): Promise<CharacterRecord | null> {
+    if (input.expected) {
+      const updated = await this.prisma.character.updateMany({
+        where: {
+          user: {
+            telegramUserId
+          },
+          hpCurrent: input.expected.hpCurrent,
+          manaCurrent: input.expected.manaCurrent,
+          ...(input.expected.hpRegenAt ? { hpRegenAt: input.expected.hpRegenAt } : {}),
+          ...(input.expected.manaRegenAt ? { manaRegenAt: input.expected.manaRegenAt } : {})
+        },
+        data: {
+          hpCurrent: input.hpCurrent,
+          manaCurrent: input.manaCurrent,
+          hpRegenAt: input.hpRegenAt,
+          manaRegenAt: input.manaRegenAt
+        }
+      });
+
+      return updated.count > 0 ? this.findByTelegramUserId(telegramUserId) : null;
+    }
+
     const character = await this.prisma.character.findFirst({
       where: {
         user: {

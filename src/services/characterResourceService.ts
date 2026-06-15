@@ -49,12 +49,30 @@ export async function summarizeAndSyncCharacterResources(input: {
   });
 
   if (input.persist !== false && regeneration.changed) {
-    await input.characters.updateResourcesForTelegramUser?.(input.telegramUserId, {
+    const updated = await input.characters.updateResourcesForTelegramUser?.(input.telegramUserId, {
       hpCurrent: regeneration.resources.hpCurrent,
       manaCurrent: regeneration.resources.manaCurrent,
       hpRegenAt: regeneration.resources.hpRegenAt ?? input.now,
-      manaRegenAt: regeneration.resources.manaRegenAt ?? input.now
+      manaRegenAt: regeneration.resources.manaRegenAt ?? input.now,
+      expected: {
+        hpCurrent: input.character.hpCurrent,
+        manaCurrent: input.character.manaCurrent,
+        hpRegenAt: input.character.hpRegenAt ?? null,
+        manaRegenAt: input.character.manaRegenAt ?? null
+      }
     });
+
+    if (!updated) {
+      const latest = await input.characters.findByTelegramUserId(input.telegramUserId);
+
+      if (latest) {
+        return summarizeAndSyncCharacterResources({
+          ...input,
+          character: latest,
+          persist: false
+        });
+      }
+    }
   }
 
   return {
