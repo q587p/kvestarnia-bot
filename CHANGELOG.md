@@ -30,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Mantok Chest results now include a direct item-detail button for the newly produced манатка.
 - Quest Hub now hints that level 4+ heroes have `Справа не до миші` in the cellar and keeps the cellar button available after the novice errand retires.
 - Quest Hub now uses a distinct `🧾 До проблем` button icon instead of repeating the `📋 Стіл зі справами` header icon.
+- The main reply keyboard now labels the quest hub as `🗺️ Квести`, while still accepting the previous `🗺️ Квест` text from older Telegram keyboards.
 
 ### Not Included Yet
 - Potions, temple healing, paid healing, consumable item use, combat-time regeneration, full death penalties, resource-management манатки, full effect processors for every loot effect id, shops, trading, crafting, or item-instance inventory.
@@ -313,7 +314,7 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.0.11] - 12026-06-13 - Korchma Quest Hub, Barrel Timing & First Gold Sink
 
 ### Added
-- Added a compact `Стіл зі справами` quest hub for `/quest`, the `🗺️ Квест` reply button, and the korchma quest-table place callback.
+- Added a compact `Стіл зі справами` quest hub for `/quest`, the `🗺️ Квести` reply button, and the korchma quest-table place callback.
 - Added quest-hub buttons for the daily shawarma adventure, daily mimic fight probe, repeatable cellar errand, and return to the korchma hall.
 - Added `v1:quest:*` callback parsing for hub action routing.
 - Added secondary `/cellar` command as a fallback surface without adding it to the Telegram side command menu or persistent reply keyboard.

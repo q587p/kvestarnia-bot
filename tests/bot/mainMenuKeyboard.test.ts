@@ -51,6 +51,7 @@ describe("main menu and scene keyboards", () => {
       [mainMenuButtons.quest, mainMenuButtons.inventory],
       [mainMenuButtons.participants, mainMenuButtons.help]
     ]);
+    expect(mainMenuButtons.quest).toBe("🗺️ Квести");
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
     expect(keyboard.is_persistent).toBe(true);

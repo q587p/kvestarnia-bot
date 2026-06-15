@@ -1185,7 +1185,7 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
     await sendTavern(ctx, services.tavern, services.presence, "reply");
   });
 
-  bot.hears(mainMenuButtons.quest, async (ctx) => {
+  bot.hears([mainMenuButtons.quest, "🗺️ Квест"], async (ctx) => {
     await sendQuestHub(
       ctx,
       {
