@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { sendHuntBoard } from "../../src/bot/commands/huntCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
-import type { HuntService } from "../../src/services/huntService";
+import type { YegerQuestService } from "../../src/services/yegerQuestService";
 import {
   PRESENCE_ADVENTURE_HUNT_BOARD,
   PRESENCE_LOCATION_KORCHMA_FRONT,
@@ -60,8 +60,8 @@ describe("hunt command", () => {
       requireKorchmaInterior: true
     });
 
-    expect(replies[0]?.text).toContain("🏹 Дошка полювання");
-    expect(replies[0]?.text).toContain("Скелет-вахтер печаток");
+    expect(replies[0]?.text).toContain("🏹 Єгерська дошка");
+    expect(replies[0]?.text).toContain("Неспокійні справи");
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,
@@ -69,63 +69,67 @@ describe("hunt command", () => {
     });
   });
 
-  it("blocks /hunt before level three without marking the quest table", async () => {
+  it("blocks /hunt before level four without marking the quest table", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
       locationId: PRESENCE_LOCATION_KORCHMA_HALL,
       insideKorchma: true
     });
-    const huntService = {
-      getHuntBoardForTelegramUser: () =>
+    const yegerQuestService = {
+      getForTelegramUser: () =>
         Promise.resolve({
           state: "level-locked",
           character: {
             ...character,
-            level: 2,
-            xp: 10,
-            nextLevelXp: 25,
-            xpToNextLevel: 15
+            level: 3,
+            xp: 25,
+            nextLevelXp: 45,
+            xpToNextLevel: 20
           },
-          requiredLevel: 3
+          requiredLevel: 4
         })
-    } as unknown as HuntService;
+    } as unknown as YegerQuestService;
 
-    await sendHuntBoard(makeContext(replies), huntService, "reply", {
+    await sendHuntBoard(makeContext(replies), yegerQuestService, "reply", {
       presence,
       requireKorchmaInterior: true
     });
 
-    expect(replies[0]?.text).toContain("Дошка полювання поки зависоко");
-    expect(replies[0]?.text).toContain("3 рівня");
+    expect(replies[0]?.text).toContain("Єгерська дошка");
+    expect(replies[0]?.text).toContain("4 рівня");
     expect(presence.marks).toEqual([]);
   });
 
-  it("does not show hunt action buttons after today's hunt is already completed", async () => {
+  it("does not show hunt action buttons after the Yeger quest is completed", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
       locationId: PRESENCE_LOCATION_KORCHMA_HALL,
       insideKorchma: true
     });
-    const huntService = {
-      getHuntBoardForTelegramUser: () =>
+    const yegerQuestService = {
+      getForTelegramUser: () =>
         Promise.resolve({
-          state: "already-completed",
+          state: "completed",
           character,
-          contract
+          progress: { wins: 5, target: 5 },
+          reward: {
+            xp: 80,
+            gold: 120,
+            itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 1 }]
+          }
         })
-    } as unknown as HuntService;
+    } as unknown as YegerQuestService;
 
-    await sendHuntBoard(makeContext(replies), huntService, "reply", {
+    await sendHuntBoard(makeContext(replies), yegerQuestService, "reply", {
       presence,
       requireKorchmaInterior: true
     });
 
-    expect(replies[0]?.text).toContain("Полювання цієї години вже зараховано");
-    expect(replies[0]?.text).not.toContain("Що робимо?");
+    expect(replies[0]?.text).toContain("Неспокійні справи закрито");
+    expect(replies[0]?.text).not.toContain("Вийти на слід");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML"
     });
-    expect(replies[0]?.options).not.toHaveProperty("reply_markup");
   });
 });
 
@@ -159,15 +163,15 @@ class CapturingPresenceService {
   }
 }
 
-function readyHuntService(): HuntService {
+function readyHuntService(): YegerQuestService {
   return {
-    getHuntBoardForTelegramUser: () =>
+    getForTelegramUser: () =>
       Promise.resolve({
-        state: "ready",
+        state: "offered",
         character,
-        contract
+        progress: { wins: 0, target: 5 }
       })
-  } as unknown as HuntService;
+  } as unknown as YegerQuestService;
 }
 
 function makeContext(replies: Array<{ text: string; options: unknown }>): Context {
@@ -194,10 +198,10 @@ const character: CharacterSummary = {
   classId: "class.warrior",
   className: "Воїн",
   title: "Пересічні Пригодники",
-  level: 3,
-  xp: 25,
-  nextLevelXp: 45,
-  xpToNextLevel: 20,
+  level: 4,
+  xp: 70,
+  nextLevelXp: 110,
+  xpToNextLevel: 40,
   gold: 0,
   hpCurrent: 20,
   hpMax: 20,
@@ -218,17 +222,4 @@ const character: CharacterSummary = {
       bonus: 0
     }
   }
-};
-
-const contract = {
-  localPeriodId: "2026-06-14T08",
-  contractToken: "abc1234",
-  monster: {
-    id: "monster.stamp-doorkeeper-skeleton",
-    name: "Скелет-вахтер печаток",
-    description: "Не пускає навіть смерть без пропуску.",
-    level: 2,
-    tags: ["undead"]
-  },
-  startFlavor: null
 };

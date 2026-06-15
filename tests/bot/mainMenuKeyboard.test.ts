@@ -830,14 +830,14 @@ describe("main menu and scene keyboards", () => {
         buildQuestHubKeyboard({
           adventure: { state: "ready", character },
           fight: { state: "ready", character },
-          hunt: { state: "ready", character, contract: huntContract },
+          yeger: { state: "offered", character, progress: { wins: 0, target: 5 } },
           cellar: { state: "ready", character }
         })
       )
     ).toEqual([
       "🌯 До шаурми",
       "⚔️ До сутички",
-      "🏹 До дошки",
+      "🏹 До Єгеря",
       "🧹 У підвал",
       "📖 Бестіарій",
       "🍺 До зали"
@@ -862,10 +862,11 @@ describe("main menu and scene keyboards", () => {
               rewardClaimed: false
             }
           },
-          hunt: {
-            state: "already-completed",
+          yeger: {
+            state: "completed",
             character,
-            contract: huntContract
+            progress: { wins: 5, target: 5 },
+            reward: { xp: 80, gold: 120, itemGrants: [] }
           },
           cellar: { state: "level-retired", character, maxLevel: 3 }
         })
@@ -885,10 +886,11 @@ describe("main menu and scene keyboards", () => {
             character,
             questAvailable: false
           },
-          hunt: {
-            state: "already-completed",
+          yeger: {
+            state: "completed",
             character,
-            contract: huntContract
+            progress: { wins: 5, target: 5 },
+            reward: { xp: 80, gold: 120, itemGrants: [] }
           },
           cellar: { state: "ready", character }
         })
@@ -908,7 +910,7 @@ describe("main menu and scene keyboards", () => {
             character,
             maxLevel: 2
           },
-          hunt: { state: "ready", character, contract: huntContract },
+          yeger: { state: "offered", character, progress: { wins: 0, target: 5 } },
           cellar: {
             state: "level-retired",
             character,
@@ -916,7 +918,7 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["🏹 До дошки", "🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["🏹 До Єгеря", "🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -931,10 +933,11 @@ describe("main menu and scene keyboards", () => {
             character,
             maxLevel: 2
           },
-          hunt: {
-            state: "already-completed",
+          yeger: {
+            state: "completed",
             character,
-            contract: huntContract
+            progress: { wins: 5, target: 5 },
+            reward: { xp: 80, gold: 120, itemGrants: [] }
           },
           cellar: {
             state: "level-retired",

@@ -188,6 +188,14 @@ export interface FightReward {
   itemGrants: RewardItemGrant[];
 }
 
+export interface PersistentFightStartOptions {
+  source?: "normal" | "yeger";
+  target?: {
+    tagsAny?: string[];
+    monsterIds?: string[];
+  };
+}
+
 export class FightService {
   constructor(
     private readonly characters: CharacterRepository,
@@ -197,6 +205,13 @@ export class FightService {
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly equipment?: EquipmentRepository
   ) {}
+
+  async getOrStartPersistentFightForTelegramUser(
+    telegramUserId: bigint,
+    options: PersistentFightStartOptions = {}
+  ): Promise<FightLookupResult> {
+    return this.getFightForTelegramUser(telegramUserId, options);
+  }
 
   async getFightOverviewForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
@@ -311,7 +326,10 @@ export class FightService {
     };
   }
 
-  async getFightForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
+  async getFightForTelegramUser(
+    telegramUserId: bigint,
+    options: PersistentFightStartOptions = {}
+  ): Promise<FightLookupResult> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
@@ -428,7 +446,9 @@ export class FightService {
       };
     }
 
-    const monster = selectSoloFightMonster(characterSummary, this.rng);
+    const monster = options.target
+      ? selectTargetedSoloFightMonster(characterSummary, this.rng, options.target)
+      : selectSoloFightMonster(characterSummary, this.rng);
     const sessionId = randomUUID();
     const state = startCombat({
       id: sessionId,
@@ -1171,6 +1191,33 @@ function selectSoloFightMonster(
   }
 
   return candidates[rng.nextInt(0, candidates.length - 1)] ?? candidates[0] ?? fallback;
+}
+
+function selectTargetedSoloFightMonster(
+  character: CharacterSummary,
+  rng: RandomSource,
+  target: NonNullable<PersistentFightStartOptions["target"]>
+): MonsterContent {
+  const maxMonsterLevel = Math.max(3, character.level);
+  const closeMonsterLevelFloor = Math.max(1, character.level - 2);
+  const targetMonsterIds = new Set(target.monsterIds ?? []);
+  const targetTags = new Set(target.tagsAny ?? []);
+  const eligibleMonsters = monsters.filter(
+    (monster) =>
+      isSoloFightMonsterEligible(monster, maxMonsterLevel) &&
+      (targetMonsterIds.has(monster.id) || monster.tags.some((tag) => targetTags.has(tag)))
+  );
+  const closeCandidates = eligibleMonsters.filter(
+    (monster) => monster.level >= closeMonsterLevelFloor
+  );
+  const candidates =
+    closeCandidates.length > 0 ? closeCandidates : selectHighestAvailableMonsterLevel(eligibleMonsters);
+
+  if (candidates.length > 0) {
+    return candidates[rng.nextInt(0, candidates.length - 1)] ?? candidates[0] ?? selectSoloFightMonster(character, rng);
+  }
+
+  return selectSoloFightMonster(character, rng);
 }
 
 function isSoloFightMonsterEligible(monster: MonsterContent, maxMonsterLevel: number): boolean {

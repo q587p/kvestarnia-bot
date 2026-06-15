@@ -34,6 +34,7 @@ import { OnboardingService } from "./services/onboardingService";
 import { PresenceService } from "./services/presenceService";
 import { RestartService } from "./services/restartService";
 import { TavernRaidService } from "./services/tavernRaidService";
+import { YegerQuestService } from "./services/yegerQuestService";
 
 const config = loadConfig();
 const users = new PrismaUserRepository(prisma);
@@ -48,12 +49,14 @@ const mantokChestRuns = new PrismaMantokChestRepository(prisma);
 const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
 const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
+const fight = new FightService(characters, dailyActions, undefined, soloCombatSessions, undefined, equipment);
 const services = {
   adventure: new AdventureService(characters, dailyActions),
   cellarErrand: new CellarErrandService(cooldowns),
   cellarGrownup: new CellarGrownupQuestService(cellarGrownupQuests, dailyActions, cooldowns),
-  fight: new FightService(characters, dailyActions, undefined, soloCombatSessions, undefined, equipment),
+  fight,
   hunt: new HuntService(characters, dailyActions, huntContracts),
+  yeger: new YegerQuestService(characters, dailyActions, soloCombatSessions, fight),
   onboarding: new OnboardingService(users, characters),
   hero: new HeroService(characters, inventory, equipment),
   equipment: new EquipmentService(equipment, inventory, characters),

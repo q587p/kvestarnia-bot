@@ -384,11 +384,17 @@ describe("presence middleware", () => {
     let boardCount = 0;
     let claimCount = 0;
     const bot = createTestBot(presence, {
-      hunt: {
-        getHuntBoardForTelegramUser: () => {
+      yeger: {
+        getForTelegramUser: () => {
           boardCount += 1;
           return Promise.resolve({ state: "no-character" });
         },
+        startForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        trackForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        turnInForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      hunt: {
+        getHuntBoardForTelegramUser: () => Promise.resolve({ state: "no-character" }),
         completeHuntContract: () => {
           claimCount += 1;
           return Promise.resolve({ state: "no-character" });
@@ -601,6 +607,12 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
     hunt: {
       getHuntBoardForTelegramUser: () => Promise.resolve({ state: "no-character" }),
       completeHuntContract: () => Promise.resolve({ state: "no-character" })
+    },
+    yeger: {
+      getForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      startForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      trackForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      turnInForTelegramUser: () => Promise.resolve({ state: "no-character" })
     },
     onboarding: {},
     hero: {

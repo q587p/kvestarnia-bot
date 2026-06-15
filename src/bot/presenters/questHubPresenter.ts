@@ -3,15 +3,15 @@ import type { AdventureLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult } from "../../services/fightService";
-import type { HuntLookupResult } from "../../services/huntService";
+import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
 import { BESTIARY_MIN_LEVEL, meetsActivityLevel } from "../../domain/progression/activityGates";
-import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
+import { presentCharacterHeader } from "./telegramHtml";
 
 export interface QuestHubSnapshot {
   character: CharacterSummary;
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
-  hunt: Exclude<HuntLookupResult, { state: "no-character" }>;
+  yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
 }
@@ -25,7 +25,7 @@ export function presentQuestHub(snapshot: QuestHubSnapshot): string {
     "",
     presentAdventureRow(snapshot.adventure),
     presentFightRow(snapshot.fight),
-    presentHuntRow(snapshot.hunt),
+    presentYegerRow(snapshot.yeger),
     presentCellarRow(snapshot.cellar, snapshot.cellarGrownup),
     "",
     presentQuestHubFooter(snapshot)
@@ -88,21 +88,24 @@ function presentThirteenProblemsStatus(progress: {
   return `${progress.wins}/${progress.target} проблем у журналі`;
 }
 
-function presentHuntRow(hunt: Exclude<HuntLookupResult, { state: "no-character" }>): string {
-  if (hunt.state === "level-locked") {
-    return `🏹 <i>Дошка полювання</i> — відкриється з ${hunt.requiredLevel} рівня.`;
+function presentYegerRow(yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>): string {
+  if (yeger.state === "level-locked") {
+    return `🏹 <i>Єгерська справа</i> — відкриється з ${yeger.requiredLevel} рівня.`;
   }
 
-  if (hunt.state === "missing-contract-monster") {
-    return "🏹 <i>Дошка полювання</i> — корчмар шукає старий запис у журналі.";
+  if (yeger.state === "offered") {
+    return "🏹 <i>Єгерська справа</i> — Єгер має роботу для тих, хто вже не плутає слід із мотузкою.";
   }
 
-  const status =
-    hunt.state === "ready"
-      ? `контракт на ${escapeHtml(hunt.contract.monster.name)}`
-      : "у цю годину вже закрито";
+  if (yeger.state === "in-progress") {
+    return `🏹 <i>Неспокійні справи</i> — ${yeger.progress.wins}/${yeger.progress.target} неупокоєних у журналі.`;
+  }
 
-  return `🏹 <i>Дошка полювання</i> — ${status}.`;
+  if (yeger.state === "turn-in-ready") {
+    return `🏹 <i>Неспокійні справи</i> — ${yeger.progress.wins}/${yeger.progress.target}, Єгер чекає дощечку.`;
+  }
+
+  return "🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.";
 }
 
 function presentCellarRow(
@@ -157,7 +160,9 @@ function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
     snapshot.fight.state === "persistent-ready" ||
     snapshot.fight.state === "persistent-active" ||
     snapshot.fight.state === "persistent-terminal" ||
-    snapshot.hunt.state === "ready" ||
+    snapshot.yeger.state === "offered" ||
+    snapshot.yeger.state === "in-progress" ||
+    snapshot.yeger.state === "turn-in-ready" ||
     snapshot.cellar.state === "ready"
   );
 }

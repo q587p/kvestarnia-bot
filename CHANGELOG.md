@@ -7,6 +7,24 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.28] - 12026-06-15 - Yeger Trial: Unquiet Hunt Quest
+
+### Added
+- Added the first Єгер quest, `Неспокійні справи`, unlocked at level 4.
+- Added a narrow Yeger quest service that uses existing `daily_actions` for start/completion and counts won `solo_combat_sessions` after quest start.
+- Added targeted persistent fight start for Yeger tracking, selecting ordinary non-boss monsters with `undead`, `ghost`, `cursed`, or `unquiet` tags when no active fight exists.
+- Added short `v1:ygr:*` callback data, Yeger presenter/keyboards, and tests for quest states, callback hardening, turn-in rewards, Quest Hub rows, and targeted fight selection.
+- Added `Єгерська риска на дощечці` as a protected cosmetic keepsake reward.
+
+### Changed
+- `/hunt` and the Quest Hub now point to Єгер's quest surface instead of the old hourly Hunt Board reward faucet.
+- Old `v1:hunt:*` callbacks now safely refresh the Yeger board instead of claiming combatless hourly rewards.
+- Quest Hub now shows Yeger rows for locked/offered/in-progress/turn-in/completed states.
+- Playtesting and game-design docs now frame the hourly Hunt Board as legacy and the Yeger trial as the current player-facing hunt loop.
+
+### Not Included Yet
+- Timed tracking searches, bait/lure/ambush tables, surprise opening turns, Yeger reputation, daily samples, shops, trading, crafting, item-instance inventory, or a broad combat formula rewrite.
+
 ## [0.0.27] - 12026-06-15 - Manual Mantok Chest Selection
 
 ### Added

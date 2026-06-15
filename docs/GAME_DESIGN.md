@@ -124,13 +124,15 @@ Achievements Phase 1 лишається rewardless later slice після осн
 - `monsterLoot` — це mapping monster → item ids. До `0.0.22` він був future-safe content contract, а з `0.0.23` ним користується контрольований loot engine для won persistent solo fights.
 - Повний ростер і лутові нотатки живуть у `docs/BESTIARY.md` і `docs/MONSTER_LOOT_DROPS.md`.
 
-`0.0.17` вмикає перший runtime use цього контенту через `/hunt` і кнопку `🏹 До дошки` зі Столу зі справами:
-- Дошка полювання щогодини детерміновано вибирає одного монстра з бестіарію за київським годинним відтинком і character id.
-- Перший MVP виключає `monster.mimic-shawarma` і boss-tagged монстрів, щоб `/hunt` не плутався з першою шаурмою і не обіцяв великий boss loop раніше часу.
-- Один shared idempotency key `combat.hunt-board.contract` видає винагороду лише раз на київську годину, незалежно від обраної кнопки.
-- Дії: вдарити по проблемі, обдурити проблему або закрити справу актом. Це flavor/result loop, а не повний бій з HP/mana.
-- Нагорода маленька: `3-7 XP`, `0-3 золота` і максимум один детермінований трофей із `monsterLoot` для цього монстра. Повторні й старі callback-и не дублюють винагороду.
-- Presence для `/hunt` поки пишеться в `location.korchma.quest_table` і `adventure.hunt-board.contract`; майбутній wilderness/location system має винести полювання з корчемного столу в окремі місцини.
+`0.0.17-0.0.19` вмикали перший runtime use цього контенту через стару Дошку полювання: щогодинний deterministic contract, малу нагороду через `daily_actions` і persisted `hunt_contracts` ledger. З `0.0.28` ця player-facing поверхня замінена Єгерською справою.
+
+`0.0.28` робить `/hunt` першим квестом Єгеря:
+- `Неспокійні справи` відкриваються з 4 рівня.
+- Старт і completion зберігаються в `daily_actions` як `quest.yeger.unquiet-trial.started` і `quest.yeger.unquiet-trial.completed` з `localDate: once`.
+- Прогрес рахується за won `solo_combat_sessions` після старту справи, де монстр має тег `undead`, `ghost`, `cursed` або `unquiet`.
+- `👣 Вийти на слід` не створює окремий combat resolver: воно запускає або повертає existing persistent solo fight через `FightService`, але з target-filter для Єгерських цілей.
+- Нагорода за turn-in: `+80 XP`, `+120 золота`, `Єгерська риска на дощечці`; claim ідемпотентний і не дублює items.
+- Старі `v1:hunt:*` callback-и лишаються compatibility-refresh до Єгерської дошки, а не reward claim.
 
 `0.0.18` harden-ить contract identity і відкриває read-only бестіарій у Telegram:
 - Нові Hunt Board callback-и містять короткий deterministic contract token, побудований із київського годинного відтинку, character id, monster id, level, tags і known loot ids.
@@ -149,7 +151,7 @@ Achievements Phase 1 лишається rewardless later slice після осн
 - Щоб onboarding не вивалював усе одразу, Дошка полювання відкривається з 3 рівня. До цього hub показує locked-рядок без кнопки `🏹 До дошки`, а direct `/hunt` або старий hunt callback не створює contract ledger і не видає reward. Стартові шаурма й fight probe лишаються новачковими справами для рівнів 1-2; з 3 рівня hub показує retired-рядок без action-кнопок і веде героя до старших справ.
 - `/bestiary` і `/monsters` лишаються read-only, але відкриваються з 3 рівня: нотатки корисні як довідник, та не мають спойлерити стартову шаурму й перші чудовиська до знайомства з ними.
 
-Залишковий борг перед великим `/hunt`: ledger ще не є повною encounter/session system. Немає persistent HP/mana, групових учасників, wilderness location або bestiary collection progression. Random loot engine у `0.0.23` підключений до persistent solo fights, але Hunt Board лишається своїм окремим small deterministic reward loop.
+Залишковий борг перед великим `/hunt`: ще немає timed tracking search, lure/ambush table, wilderness location, групових учасників або reputation table. Поточний Єгерський квест навмисно використовує persistent solo combat і existing reward idempotency, а не broad quest engine.
 
 Ширший backlog заготовок для monsters/items/quests живе в `docs/INSPIRATION_CONTENT_BACKLOG.md`. Runtime PR має переносити його малими pack-ами й не обіцяти гравецькі drops раніше, ніж є encounter routing, loot table або deterministic grant.
 

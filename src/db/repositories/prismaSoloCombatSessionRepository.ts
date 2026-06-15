@@ -51,6 +51,38 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     });
   }
 
+  async listByTelegramUserIdSince(
+    telegramUserId: bigint,
+    since: Date
+  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt">>> {
+    const records = await this.prisma.soloCombatSession.findMany({
+      where: {
+        createdAt: {
+          gte: since
+        },
+        character: {
+          user: {
+            telegramUserId
+          }
+        }
+      },
+      orderBy: {
+        createdAt: "asc"
+      },
+      select: {
+        monsterId: true,
+        status: true,
+        createdAt: true
+      }
+    });
+
+    return records.map((record) => ({
+      monsterId: record.monsterId,
+      status: parseStatus(record.status),
+      createdAt: record.createdAt
+    }));
+  }
+
   async findByIdForTelegramUserId(
     telegramUserId: bigint,
     sessionId: string

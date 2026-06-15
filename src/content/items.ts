@@ -189,6 +189,14 @@ export const items = [
     slot: "cosmetic",
     goldValue: 113
   },
+  {
+    id: "item.yeger.first-notch",
+    name: "Єгерська риска на дощечці",
+    description: "Маленька риска, яка доводить: Єгер бачив вашу роботу й не повністю заперечує її існування.",
+    rarity: "uncommon",
+    slot: "cosmetic",
+    priceless: true
+  },
   ...monsterLootItemAdditions,
   ...lootExpansionV1ItemContents
 ] satisfies ItemContent[];

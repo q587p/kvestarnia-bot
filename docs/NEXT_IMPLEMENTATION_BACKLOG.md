@@ -279,7 +279,23 @@ Implemented in the `0.0.27` slice as manual stack-unit selection for the existin
 - selected items never disappear unless 1 valid output item is created;
 - player-facing copy stays clear that input манатки are gone forever after confirmation.
 
-## 0.0.28 — Phase 1 Balance and Playtest Polish
+## 0.0.28 — Yeger Trial: Unquiet Hunt Quest
+
+**Objective**
+Замінити player-facing hourly Hunt Board на першу Єгерську справу з persistent combat progress.
+
+**Status**
+Implemented in the `0.0.28` slice as `Неспокійні справи`: level 4+ quest, 5 won unquiet persistent solo fights, one-time XP/gold/keepsake reward.
+
+**Follow-up backlog**
+
+- timed tracking search;
+- lure/ambush table with манатка-as-bait;
+- Yeger reputation as a real table instead of flavor;
+- wilderness/location-aware hunt presence;
+- group hunt hooks after solo loop stabilizes.
+
+## 0.0.29+ — Phase 1 Balance and Playtest Polish
 
 **Objective**
 Не додавати фічі, а довести Phase 1 до done: real fight → reward → loot → level-up → hero/equipment/resources impact має мати нормальний темп 1-13 і зрозумілий playtest checklist.

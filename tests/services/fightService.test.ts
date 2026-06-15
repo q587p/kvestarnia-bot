@@ -357,6 +357,37 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
+  it("starts a targeted persistent fight matching requested monster tags", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 4, xp: 70 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0])
+    );
+
+    const first = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      source: "yeger",
+      target: { tagsAny: ["undead", "ghost", "cursed", "unquiet"] }
+    });
+    const second = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      source: "yeger",
+      target: { tagsAny: ["undead", "ghost", "cursed", "unquiet"] }
+    });
+
+    expect(first.state).toBe("persistent-active");
+    if (first.state === "persistent-active") {
+      expect(first.monster.tags.some((tag) => ["undead", "ghost", "cursed", "unquiet"].includes(tag))).toBe(true);
+      expect(first.monster.level).toBeLessThanOrEqual(4);
+    }
+    expect(second.state).toBe("persistent-active");
+    expect(sessions.createCount).toBe(1);
+  });
+
   it("syncs passive resources before starting a new persistent fight", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, {
@@ -1586,6 +1617,25 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     return [...this.sessions.values()].filter(
       (candidate) => candidate.characterId === character.id && candidate.status === "won"
     ).length;
+  }
+
+  async listByTelegramUserIdSince(
+    telegramUserId: bigint,
+    since: Date
+  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt">>> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return [];
+    }
+
+    return [...this.sessions.values()]
+      .filter((candidate) => candidate.characterId === character.id && candidate.createdAt >= since)
+      .map((candidate) => ({
+        monsterId: candidate.monsterId,
+        status: candidate.status,
+        createdAt: candidate.createdAt
+      }));
   }
 
   async findActiveByTelegramUserId(

@@ -1,21 +1,18 @@
 import type { Bot, Context } from "grammy";
-import type { HuntService } from "../../services/huntService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
+import type { YegerQuestService } from "../../services/yegerQuestService";
 import {
   PRESENCE_ADVENTURE_HUNT_BOARD,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type PresenceService
 } from "../../services/presenceService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
-import { buildHuntBoardKeyboard } from "../keyboards/huntKeyboard";
+import { buildYegerKeyboard } from "../keyboards/yegerKeyboard";
 import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import {
-  presentHuntAlreadyCompleted,
-  presentHuntBoard,
-  presentHuntLevelLocked,
-  presentHuntMissingContractMonster,
-  presentHuntNoCharacter
-} from "../presenters/huntPresenter";
+  presentYegerNoCharacter,
+  presentYegerQuest
+} from "../presenters/yegerPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
@@ -29,11 +26,11 @@ export interface HuntCommandOptions {
 
 export function registerHuntCommand(
   bot: Bot,
-  huntService: HuntService,
+  yegerQuestService: YegerQuestService,
   options: HuntCommandOptions
 ): void {
   bot.command("hunt", async (ctx) => {
-    await sendHuntBoard(ctx, huntService, "reply", {
+    await sendHuntBoard(ctx, yegerQuestService, "reply", {
       ...options,
       requireKorchmaInterior: true
     });
@@ -42,7 +39,7 @@ export function registerHuntCommand(
 
 export async function sendHuntBoard(
   ctx: Context,
-  huntService: HuntService,
+  yegerQuestService: YegerQuestService,
   mode: "reply" | "edit",
   options?: HuntCommandOptions & {
     requireKorchmaInterior?: boolean;
@@ -65,7 +62,7 @@ export async function sendHuntBoard(
     const place = await options.presence.getCurrentPlaceForTelegramUser(telegramUserId);
 
     if (place.state === "no-character") {
-      await sendText(ctx, mode, presentHuntNoCharacter());
+      await sendText(ctx, mode, presentYegerNoCharacter());
       return;
     }
 
@@ -75,31 +72,20 @@ export async function sendHuntBoard(
     }
   }
 
-  const result = await huntService.getHuntBoardForTelegramUser(telegramUserId);
+  const result = await yegerQuestService.getForTelegramUser(telegramUserId);
 
   if (result.state === "no-character") {
-    await sendText(ctx, mode, presentHuntNoCharacter());
+    await sendText(ctx, mode, presentYegerNoCharacter());
     return;
   }
 
   if (result.state === "level-locked") {
-    await sendText(ctx, mode, presentHuntLevelLocked(result));
+    await sendText(ctx, mode, presentYegerQuest(result));
     return;
   }
 
   await markHuntPresence(ctx, options?.presence);
-
-  if (result.state === "missing-contract-monster") {
-    await sendText(ctx, mode, presentHuntMissingContractMonster(result));
-    return;
-  }
-
-  if (result.state === "already-completed") {
-    await sendText(ctx, mode, presentHuntAlreadyCompleted(result));
-    return;
-  }
-
-  await sendText(ctx, mode, presentHuntBoard(result), result);
+  await sendText(ctx, mode, presentYegerQuest(result), result);
 }
 
 export async function markHuntPresence(
@@ -124,13 +110,13 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  keyboard: Parameters<typeof buildHuntBoardKeyboard>[0] | "enter-korchma" | false = false
+  keyboard: Parameters<typeof buildYegerKeyboard>[0] | "enter-korchma" | false = false
 ): Promise<void> {
   const options = keyboard
     ? {
         parse_mode: "HTML" as const,
         reply_markup:
-          keyboard === "enter-korchma" ? buildKorchmaFrontKeyboard() : buildHuntBoardKeyboard(keyboard)
+          keyboard === "enter-korchma" ? buildKorchmaFrontKeyboard() : buildYegerKeyboard(keyboard)
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
 

@@ -9,8 +9,8 @@ import type { AdventureService } from "../../src/services/adventureService";
 import type { CellarErrandService } from "../../src/services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
 import type { FightService } from "../../src/services/fightService";
-import type { HuntService } from "../../src/services/huntService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
+import type { YegerQuestService } from "../../src/services/yegerQuestService";
 import {
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
@@ -66,14 +66,13 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).toContain(
       "📋 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
     );
-    expect(replies[0]?.text).toContain("🏹 <i>Дошка полювання</i> — контракт на Скелет-вахтер печаток.");
+    expect(replies[0]?.text).toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).not.toContain("Мімік-шаурма");
     expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша приймає аргументи.");
     expect(replies[0]?.options).toMatchObject({
       reply_markup: {
         inline_keyboard: [
           [{ text: "🧾 До проблем", callback_data: makeQuestCallbackData("fight") }],
-          [{ text: "🏹 До дошки", callback_data: makeQuestCallbackData("hunt") }],
           [{ text: "🧹 У підвал", callback_data: makeQuestCallbackData("cellar") }],
           [{ text: "📖 Бестіарій", callback_data: makeBestiaryListCallbackData(0) }],
           [{ text: "🍺 До зали", callback_data: makePlaceCallbackData("hall") }]
@@ -96,13 +95,13 @@ describe("quest hub command", () => {
       servicesWith({
         adventure: readyAdventureService(levelOneCharacter),
         fight: readyFightService(levelOneCharacter),
-        hunt: readyHuntService(levelOneCharacter),
+        yeger: readyYegerService(levelOneCharacter),
         cellarErrand: readyCellarService(levelOneCharacter)
       }),
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🏹 <i>Дошка полювання</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — відкриється з 2 рівня.");
     const buttons = (
       replies[0]?.options as {
@@ -116,7 +115,7 @@ describe("quest hub command", () => {
     ]);
   });
 
-  it("opens cellar from level two but keeps hunt unavailable until level three", async () => {
+  it("opens cellar from level two but keeps Yeger unavailable until level four", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const levelTwoCharacter = characterAtLevel(2);
 
@@ -125,13 +124,13 @@ describe("quest hub command", () => {
       servicesWith({
         adventure: readyAdventureService(levelTwoCharacter),
         fight: readyFightService(levelTwoCharacter),
-        hunt: readyHuntService(levelTwoCharacter),
+        yeger: readyYegerService(levelTwoCharacter),
         cellarErrand: readyCellarService(levelTwoCharacter)
       }),
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🏹 <i>Дошка полювання</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша приймає аргументи.");
     const buttons = (
       replies[0]?.options as {
@@ -184,7 +183,6 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🏹 До дошки",
       "🧹 У підвал",
       "📖 Бестіарій",
       "🍺 До зали"
@@ -200,15 +198,19 @@ describe("quest hub command", () => {
       servicesWith({
         adventure: readyAdventureService(grownCharacter),
         fight: readyFightService(grownCharacter),
-        hunt: {
-          getHuntBoardForTelegramUser: () =>
+        yeger: {
+          getForTelegramUser: () =>
             Promise.resolve({
-              state: "already-completed",
+              state: "completed",
               character: grownCharacter,
-              contract: huntContract
+              progress: { wins: 5, target: 5 },
+              reward: {
+                xp: 80,
+                gold: 120,
+                itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 1 }]
+              }
             }),
-          completeHuntContract: () => Promise.resolve({ state: "no-character" })
-        } as unknown as HuntService,
+        } as unknown as YegerQuestService,
         cellarErrand: readyCellarService(grownCharacter)
       }),
       "reply"
@@ -246,7 +248,7 @@ describe("quest hub command", () => {
       servicesWith({
         adventure: readyAdventureService(grownCharacter),
         fight: readyFightService(grownCharacter),
-        hunt: readyHuntService(grownCharacter),
+        yeger: readyYegerService(grownCharacter),
         cellarErrand: readyCellarService(grownCharacter),
         cellarGrownup: completedCellarGrownupService(grownCharacter)
       }),
@@ -266,7 +268,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🧾 До проблем",
-      "🏹 До дошки",
+      "🏹 До Єгеря",
       "📖 Бестіарій",
       "🍺 До зали"
     ]);
@@ -285,7 +287,7 @@ describe("quest hub command", () => {
       servicesWith({
         adventure: readyAdventureService(exhaustedCharacter),
         cellarErrand: readyCellarService(exhaustedCharacter),
-        hunt: readyHuntService(exhaustedCharacter),
+        yeger: readyYegerService(exhaustedCharacter),
         fight: {
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
@@ -327,7 +329,7 @@ describe("quest hub command", () => {
       servicesWith({
         adventure: readyAdventureService(staleAdventureCharacter),
         cellarErrand: readyCellarService(recoveredFightCharacter),
-        hunt: readyHuntService(recoveredFightCharacter),
+        yeger: readyYegerService(recoveredFightCharacter),
         fight: {
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
@@ -383,7 +385,7 @@ describe("quest hub command", () => {
             }),
           completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
         } as unknown as FightService,
-        hunt: readyHuntService(grownCharacter),
+        yeger: readyYegerService(grownCharacter),
         cellarErrand: readyCellarService(grownCharacter)
       }),
       "reply"
@@ -409,7 +411,7 @@ describe("quest hub command", () => {
       servicesWith({
         adventure: readyAdventureService(grownCharacter),
         fight: readyFightService(grownCharacter),
-        hunt: readyHuntService(grownCharacter),
+        yeger: readyYegerService(grownCharacter),
         cellarErrand: readyCellarService(grownCharacter)
       }),
       "reply"
@@ -427,7 +429,6 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🧾 До проблем",
-      "🏹 До дошки",
       "🧹 У підвал",
       "📖 Бестіарій",
       "🍺 До зали"
@@ -523,19 +524,6 @@ const character: CharacterSummary = {
   }
 };
 
-const huntContract = {
-  localPeriodId: "2026-06-14T08",
-  contractToken: "abc1234",
-  monster: {
-    id: "monster.stamp-doorkeeper-skeleton",
-    name: "Скелет-вахтер печаток",
-    description: "Не пускає навіть смерть без пропуску.",
-    level: 2,
-    tags: ["undead"]
-  },
-  startFlavor: null
-};
-
 class CapturingPresenceService {
   readonly marks: MarkPlayerPresenceInput[] = [];
 
@@ -574,7 +562,7 @@ function servicesWith(overrides: {
   cellarErrand?: CellarErrandService;
   cellarGrownup?: CellarGrownupQuestService;
   fight?: FightService;
-  hunt?: HuntService;
+  yeger?: YegerQuestService;
   presence?: CapturingPresenceService;
   tavernRaid?: TavernRaidService;
 } = {}) {
@@ -589,9 +577,9 @@ function servicesWith(overrides: {
     fight:
       overrides.fight ??
       readyFightService(character),
-    hunt:
-      overrides.hunt ??
-      readyHuntService(character),
+    yeger:
+      overrides.yeger ??
+      readyYegerService(character),
     presence: overrides.presence ?? new CapturingPresenceService(),
     tavernRaid: overrides.tavernRaid
   };
@@ -698,24 +686,23 @@ function readyCellarService(summary: CharacterSummary): CellarErrandService {
   } as unknown as CellarErrandService;
 }
 
-function readyHuntService(summary: CharacterSummary): HuntService {
+function readyYegerService(summary: CharacterSummary): YegerQuestService {
   return {
-    getHuntBoardForTelegramUser: () =>
+    getForTelegramUser: () =>
       Promise.resolve(
-        summary.level < 3
+        summary.level < 4
           ? {
               state: "level-locked",
               character: summary,
-              requiredLevel: 3
+              requiredLevel: 4
             }
           : {
-              state: "ready",
+              state: "offered",
               character: summary,
-              contract: huntContract
+              progress: { wins: 0, target: 5 }
             }
-      ),
-    completeHuntContract: () => Promise.resolve({ state: "no-character" })
-  } as unknown as HuntService;
+      )
+  } as unknown as YegerQuestService;
 }
 
 function makeContext(replies: Array<{ text: string; options: unknown }>): Context {
