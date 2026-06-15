@@ -8,6 +8,7 @@ import {
 } from "../../src/bot/commands/tavernCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { PresenceService } from "../../src/services/presenceService";
+import type { LevelMilestoneService } from "../../src/services/levelMilestoneService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 
 describe("tavern command screens", () => {
@@ -51,11 +52,16 @@ describe("tavern command screens", () => {
       makeContext(replies),
       readyTavernService(),
       korchmaArrivalService(),
-      "reply"
+      "reply",
+      levelMilestoneService()
     );
 
     expect(replies[0]?.text).toContain("📜 Табличка прибулих");
     expect(replies[0]?.text).toContain("Дара · рівень 2 · Зала корчми");
+    expect(replies[0]?.text).toContain("Видатні жителі");
+    expect(replies[0]?.text).toContain(
+      "рівень 4: 🥇 Дара · 🥈 Нестор Межовий · 🥉 Архіварка"
+    );
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",
       reply_markup: {
@@ -174,6 +180,45 @@ function korchmaArrivalService(): PresenceService {
         ]
       })
   } as unknown as PresenceService;
+}
+
+function levelMilestoneService(): LevelMilestoneService {
+  return {
+    getBoard: () =>
+      Promise.resolve({
+        levels: [
+          {
+            level: 4,
+            entries: [
+              {
+                rank: 1,
+                telegramUserId: 77n,
+                characterId: "character-dara",
+                name: "Дара",
+                level: 4,
+                reachedAt: new Date("2026-06-15T10:00:00.000Z")
+              },
+              {
+                rank: 2,
+                telegramUserId: 88n,
+                characterId: "character-nestor",
+                name: "Нестор Межовий",
+                level: 4,
+                reachedAt: new Date("2026-06-15T10:05:00.000Z")
+              },
+              {
+                rank: 3,
+                telegramUserId: 99n,
+                characterId: "character-archivist",
+                name: "Архіварка",
+                level: 4,
+                reachedAt: new Date("2026-06-15T10:09:00.000Z")
+              }
+            ]
+          }
+        ]
+      })
+  } as unknown as LevelMilestoneService;
 }
 
 function makeContext(replies: Array<{ text: string; options: unknown }>): Context {

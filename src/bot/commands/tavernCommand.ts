@@ -7,6 +7,7 @@ import {
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
+import type { LevelMilestoneService } from "../../services/levelMilestoneService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildKorchmaArrivalBoardKeyboard,
@@ -129,7 +130,8 @@ export async function sendKorchmaArrivalBoard(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  levelMilestoneService?: LevelMilestoneService
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -159,8 +161,9 @@ export async function sendKorchmaArrivalBoard(
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FRONT);
   const board = await presenceService.getKorchmaArrivalBoard();
+  const milestones = levelMilestoneService ? await levelMilestoneService.getBoard() : undefined;
 
-  await sendText(ctx, mode, presentKorchmaArrivalBoard(result.character, board), "arrivals");
+  await sendText(ctx, mode, presentKorchmaArrivalBoard(result.character, board, milestones), "arrivals");
 }
 
 export async function sendTavernBarrel(

@@ -13,6 +13,7 @@ import type { HuntService } from "../services/huntService";
 import type { YegerQuestService } from "../services/yegerQuestService";
 import type { EquipmentService } from "../services/equipmentService";
 import type { InventoryService } from "../services/inventoryService";
+import type { LevelMilestoneService } from "../services/levelMilestoneService";
 import type { MantokChestService } from "../services/mantokChestService";
 import type { OnboardingService } from "../services/onboardingService";
 import {
@@ -228,6 +229,7 @@ export interface BotServices {
   hero: HeroService;
   equipment: EquipmentService;
   inventory: InventoryService;
+  levelMilestones?: LevelMilestoneService;
   mantokChest: MantokChestService;
   presence: PresenceService;
   devReset: DevResetService;
@@ -1200,7 +1202,13 @@ async function handlePlaceCallback(
   }
 
   if (action === "arrivals") {
-    await sendKorchmaArrivalBoard(ctx, services.tavern, services.presence, "edit");
+    await sendKorchmaArrivalBoard(
+      ctx,
+      services.tavern,
+      services.presence,
+      "edit",
+      services.levelMilestones
+    );
     return;
   }
 

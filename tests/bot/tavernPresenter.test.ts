@@ -73,11 +73,38 @@ describe("tavern presenter", () => {
           locationName: "Зала корчми"
         }
       ]
+    }, {
+      levels: [
+        {
+          level: 4,
+          entries: [
+            {
+              rank: 1,
+              telegramUserId: 77n,
+              characterId: "character-dara",
+              name: "<b>Дара</b>",
+              level: 4,
+              reachedAt: new Date("2026-06-15T10:00:00.000Z")
+            },
+            {
+              rank: 2,
+              telegramUserId: 88n,
+              characterId: "character-nestor",
+              name: "Нестор Межовий",
+              level: 4,
+              reachedAt: new Date("2026-06-15T10:05:00.000Z")
+            }
+          ]
+        }
+      ]
     });
 
     expect(text).toContain("Табличка прибулих");
     expect(text).toContain("Останні зарубки:");
     expect(text).toContain("&lt;b&gt;Дара&lt;/b&gt; · рівень 2 · Зала корчми");
+    expect(text).toContain("Видатні жителі");
+    expect(text).toContain("Перші зарубки за рівні:");
+    expect(text).toContain("• рівень 4: 🥇 &lt;b&gt;Дара&lt;/b&gt; · 🥈 Нестор Межовий");
     expect(text).not.toContain("<b>Дара</b>");
   });
 

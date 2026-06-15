@@ -12,6 +12,7 @@ import type {
   KorchmaRoundLeaderboardEntry
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
 import type { KorchmaArrivalBoard, PresenceGroup } from "../../services/presenceService";
+import type { LevelMilestoneBoard } from "../../db/repositories/levelMilestoneRepository";
 import {
   selectCharacterFlavorLine,
   selectCharacterFlavorLines,
@@ -41,7 +42,8 @@ export function presentKorchmaFront(character: CharacterSummary): string {
 
 export function presentKorchmaArrivalBoard(
   character: CharacterSummary,
-  board: KorchmaArrivalBoard
+  board: KorchmaArrivalBoard,
+  milestones?: LevelMilestoneBoard
 ): string {
   return [
     "📜 Табличка прибулих",
@@ -50,6 +52,8 @@ export function presentKorchmaArrivalBoard(
     "Біля дверей висить дошка з іменами тих, кого корчма вже бачила й поки не заперечує.",
     "",
     ...presentKorchmaArrivalEntries(board),
+    "",
+    ...presentLevelMilestoneEntries(milestones),
     "",
     "Корчмар каже, що це не список боржників. Табличка тактовно мовчить."
   ].join("\n");
@@ -479,6 +483,43 @@ function presentKorchmaArrivalEntries(board: KorchmaArrivalBoard): string[] {
       return `• ${escapeHtml(entry.name)}${level} · ${escapeHtml(entry.locationName)}`;
     })
   ];
+}
+
+function presentLevelMilestoneEntries(milestones: LevelMilestoneBoard | undefined): string[] {
+  if (!milestones || milestones.levels.length === 0) {
+    return [
+      "<b>Видатні жителі</b>",
+      "Поки що ніхто не встиг офіційно вирости настільки, щоб дошка перестала вдавати меблі."
+    ];
+  }
+
+  return [
+    "<b>Видатні жителі</b>",
+    "Перші зарубки за рівні:",
+    ...milestones.levels.map((group) => {
+      const entries = group.entries
+        .map((entry) => `${presentMilestoneRank(entry.rank)} ${escapeHtml(entry.name)}`)
+        .join(" · ");
+
+      return `• рівень ${group.level}: ${entries}`;
+    })
+  ];
+}
+
+function presentMilestoneRank(rank: number): string {
+  if (rank === 1) {
+    return "🥇";
+  }
+
+  if (rank === 2) {
+    return "🥈";
+  }
+
+  if (rank === 3) {
+    return "🥉";
+  }
+
+  return `${rank}.`;
 }
 
 function presentTavernPresence(

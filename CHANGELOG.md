@@ -15,11 +15,13 @@ This project follows a simple pre-1.0 versioning policy:
 - Added targeted persistent fight start for Yeger tracking, selecting ordinary non-boss monsters with `undead`, `ghost`, `cursed`, or `unquiet` tags when no active fight exists.
 - Added short `v1:ygr:*` callback data, Yeger presenter/keyboards, and tests for quest states, callback hardening, turn-in rewards, Quest Hub rows, and targeted fight selection.
 - Added `Єгерська риска на дощечці` as a protected cosmetic keepsake reward.
+- Added the front-door `Видатні жителі` level milestone board, showing the first three known characters to reach recorded levels.
 
 ### Changed
 - `/hunt` and the Quest Hub now point to Єгер's quest surface instead of the old hourly Hunt Board reward faucet.
 - Old `v1:hunt:*` callbacks now safely refresh the Yeger board instead of claiming combatless hourly rewards.
 - Quest Hub now shows Yeger rows for locked/offered/in-progress/turn-in/completed states.
+- Level-up reward paths now write idempotent milestone records for newly reached levels, with a best-effort backfill from current character levels.
 - Playtesting and game-design docs now frame the hourly Hunt Board as legacy and the Yeger trial as the current player-facing hunt loop.
 
 ### Not Included Yet

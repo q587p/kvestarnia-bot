@@ -13,6 +13,7 @@ import { PrismaEquipmentRepository } from "./db/repositories/prismaEquipmentRepo
 import { PrismaHuntContractRepository } from "./db/repositories/prismaHuntContractRepository";
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "./db/repositories/prismaKorchmaRoundPurchaseRepository";
+import { PrismaLevelMilestoneRepository } from "./db/repositories/prismaLevelMilestoneRepository";
 import { PrismaMantokChestRepository } from "./db/repositories/prismaMantokChestRepository";
 import { PrismaPresenceRepository } from "./db/repositories/prismaPresenceRepository";
 import { PrismaSoloCombatSessionRepository } from "./db/repositories/prismaSoloCombatSessionRepository";
@@ -29,6 +30,7 @@ import { FightService } from "./services/fightService";
 import { HeroService } from "./services/heroService";
 import { HuntService } from "./services/huntService";
 import { InventoryService } from "./services/inventoryService";
+import { LevelMilestoneService } from "./services/levelMilestoneService";
 import { MantokChestService } from "./services/mantokChestService";
 import { OnboardingService } from "./services/onboardingService";
 import { PresenceService } from "./services/presenceService";
@@ -45,6 +47,7 @@ const dailyActions = new PrismaDailyActionRepository(prisma);
 const equipment = new PrismaEquipmentRepository(prisma);
 const huntContracts = new PrismaHuntContractRepository(prisma);
 const inventory = new PrismaInventoryRepository(prisma);
+const levelMilestones = new PrismaLevelMilestoneRepository(prisma);
 const mantokChestRuns = new PrismaMantokChestRepository(prisma);
 const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
@@ -61,6 +64,7 @@ const services = {
   hero: new HeroService(characters, inventory, equipment),
   equipment: new EquipmentService(equipment, inventory, characters),
   inventory: new InventoryService(inventory),
+  levelMilestones: new LevelMilestoneService(levelMilestones),
   mantokChest: new MantokChestService(mantokChestRuns),
   presence: new PresenceService(presence),
   devReset: new DevResetService(characters, config.nodeEnv),
