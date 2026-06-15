@@ -3,6 +3,7 @@ import {
   LEVEL_MILESTONE_LOCAL_DATE,
   LEVEL_MILESTONE_MAX_LEVEL,
   LEVEL_MILESTONE_MIN_LEVEL,
+  LEVEL_MILESTONE_VISIBLE_LEVELS,
   LEVEL_MILESTONE_KEY_PREFIX,
   buildLevelMilestoneKey,
   createLevelMilestone,
@@ -11,7 +12,7 @@ import {
   type LevelMilestoneRepository
 } from "./levelMilestoneRepository";
 
-const DEFAULT_VISIBLE_LEVELS = 6;
+const DEFAULT_VISIBLE_LEVELS = LEVEL_MILESTONE_VISIBLE_LEVELS;
 const DEFAULT_VISIBLE_ENTRIES_PER_LEVEL = 3;
 
 export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository {

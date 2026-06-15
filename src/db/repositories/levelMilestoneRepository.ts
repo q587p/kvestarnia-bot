@@ -4,6 +4,7 @@ export const LEVEL_MILESTONE_KEY_PREFIX = "milestone.level.";
 export const LEVEL_MILESTONE_LOCAL_DATE = "once";
 export const LEVEL_MILESTONE_MIN_LEVEL = 2;
 export const LEVEL_MILESTONE_MAX_LEVEL = 13;
+export const LEVEL_MILESTONE_VISIBLE_LEVELS = LEVEL_MILESTONE_MAX_LEVEL - LEVEL_MILESTONE_MIN_LEVEL + 1;
 
 export interface LevelMilestoneEntry {
   rank: number;

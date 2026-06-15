@@ -19,6 +19,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Yeger tracking no longer starts the fight immediately on first click; it now requires a ready trail check.
 - Existing active non-Yeger fights still block Yeger tracking flavor instead of being mislabeled as unquiet targets.
+- The `Пропамʼятна дошка` level board now shows the full known milestone range down to level 2 instead of only the six highest levels.
 - Playtesting and game-design docs now describe the two-step Yeger trail loop.
 
 ### Not Included Yet

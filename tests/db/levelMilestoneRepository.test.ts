@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildLevelMilestoneKey,
+  LEVEL_MILESTONE_VISIBLE_LEVELS,
   parseLevelMilestoneKey,
   recordLevelMilestones
 } from "../../src/db/repositories/levelMilestoneRepository";
@@ -60,5 +61,9 @@ describe("level milestone repository helpers", () => {
     expect(parseLevelMilestoneKey("milestone.level.1")).toBeNull();
     expect(parseLevelMilestoneKey("daily.level.7")).toBeNull();
     expect(parseLevelMilestoneKey("milestone.level.nope")).toBeNull();
+  });
+
+  it("keeps the public board range wide enough to show levels 13 down to 2", () => {
+    expect(LEVEL_MILESTONE_VISIBLE_LEVELS).toBe(12);
   });
 });
