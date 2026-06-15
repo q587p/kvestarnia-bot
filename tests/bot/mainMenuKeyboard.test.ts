@@ -165,7 +165,7 @@ describe("main menu and scene keyboards", () => {
     ).toEqual(["v1:tavern:round-simple", "v1:place:bar"]);
   });
 
-  it("links directly to the Barrel when korchma rounds are blocked by an active raid", () => {
+  it("links to the Barrel and hall when korchma rounds are blocked by an active raid", () => {
     const blockedByBarrel = {
       state: "raid-required" as const,
       character,
@@ -173,16 +173,20 @@ describe("main menu and scene keyboards", () => {
     };
 
     expect(flatInlineButtonTexts(buildKorchmaRoundOfferKeyboard(blockedByBarrel))).toEqual([
-      "🛢️ До Бочки"
+      "🛢️ До Бочки",
+      "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaRoundOfferKeyboard(blockedByBarrel))).toEqual([
-      "v1:place:barrel"
+      "v1:place:barrel",
+      "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaRoundResultKeyboard(blockedByBarrel))).toEqual([
-      "🛢️ До Бочки"
+      "🛢️ До Бочки",
+      "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaRoundResultKeyboard(blockedByBarrel))).toEqual([
-      "v1:place:barrel"
+      "v1:place:barrel",
+      "v1:place:hall"
     ]);
   });
 
