@@ -361,6 +361,7 @@ Tavern raid timing in `0.0.11`/`0.0.15`/`0.0.16`:
 - Bot layer ставить in-process `setTimeout` notification після `pending-started`, а `completeFridayBarrelRaid(telegramUserId, periodId)` лишається джерелом правди для reward claim. У `0.0.16` scheduler має один timer на `chatId + telegramUserId + periodId`, чистить map після firing і не надсилає completed-message для `already-completed`, `pending`, `audit-break` або `no-character`. Ця нотифікація best-effort: після restart/deploy таймери губляться, а за кількох bot worker-ів локальні timer map-и можуть дублювати повідомлення, якщо deployment не гарантує один worker.
 - Manual fallback шукає pending raid у поточному й останніх 23 годинних period id, щоб завершення не губилося після restart або довгої паузи гравця. Старіші pending рейди потребують cleanup/migration або durable replay, бо поточний fallback не сканує безмежну історію.
 - Для MVP це лишається cooldown/action state без persistent job scheduler; перед горизонтальним scaling або group raids треба перейти на outbox/persistent jobs, `raids` і `raid_participants`.
+- Follow-up для надійного UX: додати durable scheduler/outbox для завершення Бочки. На startup/redeploy бот має просканувати pending cooldown/action rows, знайти рейди, час яких уже настав або ще настане, негайно провести due completion через `completeFridayBarrelRaid(...)`, запланувати future due notifications і використовувати унікальний ключ на кшталт `chatId + telegramUserId + periodId` або outbox-row id, щоб retries/workers не дублювали повідомлення й reward delivery.
 
 Рішення й борги для raid timing:
 - Pending-рейд на Бочку має переживати rollover годинного відтинку й видавати винагороду за period id старту. Поточний MVP зберігає period id у полі `daily_actions.local_date`; перед повним activity model це імʼя поля варто переглянути або задокументувати як generic idempotency bucket.
@@ -397,11 +398,12 @@ Web presence у `0.0.9`:
 - `location.korchma.bar` — Шинок;
 - `location.korchma.cellar` — Підвал корчми;
 - `location.korchma.barrel` — Біля Бочки Пінного Міражу;
-- `location.korchma.news_corner` — Дошка вістей.
+- `location.korchma.news_corner` — Дошка вістей;
+- `location.korchma.ranger_corner` — Єгерський куток.
 
 Legacy ids `location.tavern`, `location.shawarma-table` і `location.tavern-cellar` лишаються read aliases для старих rows, але нові writes мають використовувати `location.korchma.*`. `/quest` не позначає гравця біля столу зі справами на рівні глобальної кнопки; command handler спершу перевіряє поточну місцину, блокує квест надворі й лише тоді переводить героя до столу. Підвал є відкритою aggregate-місциною для public `/presence`, але public web усе одно лишає `players` порожнім за замовчуванням.
 
-Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/hunt` у цьому MVP пише `location.korchma.quest_table` і `adventure.hunt-board.contract`, доки немає окремої wilderness/session model. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу.
+Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/hunt` у цьому MVP відкриває Єгерський куток, пише `location.korchma.ranger_corner` і `adventure.hunt-board.contract`, доки немає окремої wilderness/session model. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу.
 
 `0.0.11` також додає `korchma_round_purchases` як малий журнал підтверджених частувань:
 - `v1:tavern:round` тільки показує offer/statistics screen і не списує золото;
@@ -423,6 +425,7 @@ Callback data коротка, версіонована.
 - `v1:place:hall`
 - `v1:place:front`
 - `v1:place:arrivals`
+- `v1:place:memorial`
 - `v1:place:quest-table`
 - `v1:place:bar`
 - `v1:place:barrel`

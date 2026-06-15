@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   makeYegerHelpCallbackData,
   makeYegerOpenCallbackData,
+  makeYegerQuestCallbackData,
   makeYegerStartCallbackData,
   makeYegerTrackCallbackData,
   makeYegerTurnInCallbackData,
@@ -18,6 +19,10 @@ describe("Yeger callback data", () => {
     expect(parseYegerCallbackData(makeYegerStartCallbackData())).toEqual({
       ok: true,
       value: { type: "start", questId: "u1" }
+    });
+    expect(parseYegerCallbackData(makeYegerQuestCallbackData())).toEqual({
+      ok: true,
+      value: { type: "quest", questId: "u1" }
     });
     expect(parseYegerCallbackData(makeYegerTrackCallbackData())).toEqual({
       ok: true,
@@ -36,6 +41,7 @@ describe("Yeger callback data", () => {
   it("keeps generated callbacks within the Telegram limit", () => {
     for (const callback of [
       makeYegerOpenCallbackData(),
+      makeYegerQuestCallbackData(),
       makeYegerStartCallbackData(),
       makeYegerTrackCallbackData(),
       makeYegerTurnInCallbackData(),

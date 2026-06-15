@@ -357,9 +357,9 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
-  it("starts a targeted persistent fight matching requested monster tags", async () => {
+  it("starts a targeted persistent fight at the highest suitable requested monster level", async () => {
     const characters = new FakeCharacterRepository();
-    characters.add(telegramUserId, { level: 4, xp: 70 });
+    characters.add(telegramUserId, { level: 4, xp: 45 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const service = new FightService(
@@ -382,7 +382,7 @@ describe("FightService", () => {
     expect(first.state).toBe("persistent-active");
     if (first.state === "persistent-active") {
       expect(first.monster.tags.some((tag) => ["undead", "ghost", "cursed", "unquiet"].includes(tag))).toBe(true);
-      expect(first.monster.level).toBeLessThanOrEqual(4);
+      expect(first.monster.level).toBe(4);
     }
     expect(second.state).toBe("persistent-active");
     expect(sessions.createCount).toBe(1);

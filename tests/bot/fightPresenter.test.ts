@@ -185,11 +185,12 @@ describe("fight presenter", () => {
     expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
     expect(text).toContain("&lt;i&gt;Монстр&lt;/i&gt;");
     expect(text).toContain("Проти вас: <b>&lt;i&gt;Монстр&lt;/i&gt;</b> · рівень 3");
-    expect(text).toContain("📋 <b>Тринадцять дрібних проблем</b>");
-    expect(text).toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
+    expect(text).not.toContain("📋 <b>Тринадцять дрібних проблем</b>");
+    expect(text).not.toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
     expect(text).toContain("👹 Монстр: 18/18");
     expect(text).toContain("Що робимо?");
+    expect(text).not.toContain("Не зволікайте надто довго");
     expect(text).not.toContain("Нагорода");
     expect(text).not.toContain("XP");
     expect(text).not.toContain("золота</b>");
@@ -369,8 +370,8 @@ describe("fight presenter", () => {
       }
     });
 
-    expect(text).toContain("Прогрес справи: <b>14/13</b> · закрито.");
     expect(text).toContain("Винагорода за бій:\n<b>+9 XP\n+2 золота</b>");
+    expect(text).not.toContain("Корчмар підсунув малу оплату за закриту проблему");
     expect(text).toContain("Здобуто: <i>Павутинка обіцянки «завтра»</i>");
     expect(text).toContain("Тринадцята проблема впала");
     expect(text).toContain("Нагорода за справу:\n<b>+35 XP\n+10 золота</b>");
@@ -460,11 +461,12 @@ describe("fight presenter", () => {
       questReward: null
     });
 
-    expect(text).toContain("Корчмар підсунув 1 XP за спробу");
-    expect(text).toContain("Винагорода за бій:\n<b>+1 XP</b>");
+    expect(text).toContain("🎒 За спробу:\n<b>+1 XP</b>");
+    expect(text).not.toContain("Корчмар підсунув 1 XP за спробу");
+    expect(text).not.toContain("Винагорода за бій:\n<b>+1 XP</b>");
     expect(text).not.toContain("+0 золота");
-    expect(text).toContain("Ви програли");
-    expect(text).toContain("Список дрібних проблем не зрушив");
+    expect(text).toContain("💤 Ви програли. Список дрібних проблем не зрушив");
+    expect(text).not.toContain("цінні дані для балансу");
     expect(text).not.toContain("оплату за закриту проблему");
   });
 
@@ -512,7 +514,7 @@ describe("fight presenter", () => {
     });
 
     expect(text).toContain("Ви програли");
-    expect(text).toContain("Прогрес справи: <b>14/13</b> · закрито.");
+    expect(text).not.toContain("Прогрес справи: <b>14/13</b> · закрито.");
     expect(text).not.toContain("Список дрібних проблем не зрушив");
     expect(text).not.toContain("зробив вигляд, що співчуває");
   });

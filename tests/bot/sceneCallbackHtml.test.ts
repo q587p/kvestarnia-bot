@@ -7,6 +7,7 @@ import { makeEquipItemCallbackData } from "../../src/bot/callbacks/itemCallbackD
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
+import { makeYegerTrackCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("scene callback HTML options", () => {
@@ -249,6 +250,76 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("Це правило манатки, не помилка героя.");
   });
 
+  it("does not describe an active non-Yeger fight as an unquiet target", async () => {
+    const calls = await captureApiCalls(
+      makeYegerTrackCallbackData(),
+      servicesWith({
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "in-progress",
+              character,
+              progress: { wins: 1, target: 5 }
+            }),
+          trackForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-active",
+              character,
+              session: persistentSession("monster.deadline-spider"),
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const fight = calls.find((call) => call.method === "sendMessage");
+
+    expect(String(edit?.payload.text)).toContain("У вас уже триває інша сутичка.");
+    expect(String(edit?.payload.text)).not.toContain("Щось неупокоєне знайшлося");
+    expect(String(fight?.payload.text)).toContain("Павук дедлайнів");
+  });
+
+  it("keeps Yeger tracking flavor for active matching unquiet fights", async () => {
+    const calls = await captureApiCalls(
+      makeYegerTrackCallbackData(),
+      servicesWith({
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "in-progress",
+              character,
+              progress: { wins: 1, target: 5 }
+            }),
+          trackForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-active",
+              character,
+              session: persistentSession("monster.complaint-lantern"),
+              monster: {
+                id: "monster.complaint-lantern",
+                name: "Скаргова лампа",
+                description: "Світить лише тоді, коли хтось починає жалітись.",
+                level: 4,
+                tags: ["paperwork", "sound", "time", "unquiet"]
+              },
+              questProgress: null
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("Щось неупокоєне знайшлося");
+    expect(String(edit?.payload.text)).not.toContain("У вас уже триває інша сутичка.");
+  });
+
   it("sends an HTML barrel raid completion notification after the pending timer ends", async () => {
     vi.useFakeTimers();
 
@@ -416,6 +487,35 @@ const levelChange = {
   oldLevel: 2,
   newLevel: 3
 };
+
+function persistentSession(monsterId: string) {
+  return {
+    id: "session-1",
+    characterId: "character-1",
+    monsterId,
+    status: "active" as const,
+    turn: 1,
+    reward: null,
+    createdAt: new Date("2026-06-15T10:00:00.000Z"),
+    updatedAt: new Date("2026-06-15T10:00:00.000Z"),
+    expiresAt: new Date("2026-06-15T10:20:00.000Z"),
+    state: {
+      id: "session-1",
+      status: "active" as const,
+      turn: 1,
+      hero: {
+        hp: 20,
+        hpMax: 20,
+        mana: 10,
+        manaMax: 10
+      },
+      monster: {
+        hp: 12,
+        hpMax: 12
+      }
+    }
+  };
+}
 
 function servicesWith(overrides: Partial<BotServices>): BotServices {
   return {

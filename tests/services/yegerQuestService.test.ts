@@ -13,7 +13,7 @@ import type {
 } from "../../src/db/repositories/dailyActionRepository";
 import type { SoloCombatSessionRepository } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
-import { items } from "../../src/content";
+import { items, monsters } from "../../src/content";
 import { isProtectedMantokChestItem } from "../../src/domain/mantokChest";
 import type { FightService } from "../../src/services/fightService";
 import {
@@ -121,6 +121,29 @@ describe("YegerQuestService", () => {
     expect(isYegerUnquietTarget({ tags: ["ghost"] })).toBe(true);
     expect(isYegerUnquietTarget({ tags: ["cursed"] })).toBe(true);
     expect(isYegerUnquietTarget({ tags: ["beast", "paperwork"] })).toBe(false);
+  });
+
+  it("keeps Yeger targets available across the ordinary level ladder", () => {
+    const targetLevels = new Set(
+      monsters
+        .filter((monster) => {
+          const tags = new Set(monster.tags);
+
+          return (
+            monster.level >= 4 &&
+            monster.level <= 13 &&
+            !tags.has("starter") &&
+            !tags.has("boss") &&
+            !tags.has("mini-boss") &&
+            !tags.has("tiny-boss") &&
+            isYegerUnquietTarget(monster)
+          );
+        })
+        .map((monster) => monster.level)
+    );
+
+    expect([...targetLevels].sort((left, right) => left - right)).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    expect(targetLevels.size).toBeGreaterThanOrEqual(10);
   });
 });
 

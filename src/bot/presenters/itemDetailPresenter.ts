@@ -73,7 +73,7 @@ function presentEquipmentLine(item: ItemContent, equippedSlot: EquipmentSlot | n
     return `Екіпірування: <b>вдягнено — ${presentEquipmentSlotLabel(equippedSlot)}</b>.`;
   }
 
-  return "Екіпірування: <i>можна екіпірувати. Гачок уже розминається.</i>";
+  return "Екіпірування: <i>можна екіпірувати. Спорядження вже звільняє місце.</i>";
 }
 
 function presentItemEffectLine(item: ItemContent): string | null {
@@ -115,7 +115,7 @@ export function presentItemValue(item: ItemContent): string {
 
 function presentItemFlavor(item: ItemContent): string {
   if (item.slot === "weapon") {
-    return "<i>Гачок для зброї схвально скрипить. Він давно чекав аргумент із ручкою.</i>";
+    return "<i>Стійка для зброї робить поважний вигляд. Вона давно чекала аргумент із ручкою.</i>";
   }
 
   if (item.slot === "armor") {
@@ -123,12 +123,12 @@ function presentItemFlavor(item: ItemContent): string {
   }
 
   if (item.slot === "accessory") {
-    return "<i>Малий гачок обережно блищить. Так роблять аксесуари, коли хочуть до інвентаря без черги.</i>";
+    return "<i>Поличка для дрібних дивин обережно блищить. Так роблять аксесуари, коли хочуть до інвентаря без черги.</i>";
   }
 
   if (item.slot === "junk") {
     return "<i>Корчмар записав це в журнал як «важливо, але не чіпати голими руками».</i>";
   }
 
-  return "<i>Корчмар крутить манатку в руках і ще думає, на який гачок її повісити.</i>";
+  return "<i>Корчмар крутить манатку в руках і ще думає, до якої полиці її не підпускати.</i>";
 }

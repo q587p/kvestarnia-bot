@@ -16,19 +16,21 @@ export interface QuestHubSnapshot {
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
 }
 
-export function presentQuestHub(snapshot: QuestHubSnapshot): string {
+export type QuestHubMode = "active" | "archive";
+
+export function presentQuestHub(snapshot: QuestHubSnapshot, mode: QuestHubMode = "active"): string {
+  const rows = mode === "archive" ? getQuestHubArchiveRows(snapshot) : getQuestHubActiveRows(snapshot);
   const lines = [
-    "📋 Стіл зі справами",
+    mode === "archive" ? "📦 Архів справ" : "📋 Стіл зі справами",
     presentCharacterHeader(snapshot.character),
     "",
-    "На столі лежать справи. Деякі лежать тихо. Деякі дихають.",
+    mode === "archive"
+      ? "Архів показує закриті й недоступні справи. Він шарудить так, ніби памʼятає більше, ніж треба."
+      : "На столі лежать актуальні справи. Деякі лежать тихо. Деякі дихають.",
     "",
-    presentAdventureRow(snapshot.adventure),
-    presentFightRow(snapshot.fight),
-    presentYegerRow(snapshot.yeger),
-    presentCellarRow(snapshot.cellar, snapshot.cellarGrownup),
+    ...rows,
     "",
-    presentQuestHubFooter(snapshot)
+    mode === "archive" ? presentQuestHubArchiveFooter() : presentQuestHubFooter(snapshot)
   ];
 
   return lines.join("\n");
@@ -54,6 +56,16 @@ function presentAdventureRow(
   return `🌯 <i>Підозріла шаурма</i> — ${status}.`;
 }
 
+function presentAdventureArchiveRow(
+  adventure: Exclude<AdventureLookupResult, { state: "no-character" }>
+): string | null {
+  if (adventure.state === "ready") {
+    return null;
+  }
+
+  return presentAdventureRow(adventure);
+}
+
 function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string {
   if (fight.state === "needs-rest") {
     return "⚔️ <i>Сутичка з невідомим монстром</i> — герой ще не тримається на ногах, спершу /hero.";
@@ -74,6 +86,42 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
 
   return `⚔️ <i>Сутичка з невідомим монстром</i> — ${status}.`;
+}
+
+function presentActiveFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string | null {
+  if (fight.state === "level-retired" || fight.state === "already-completed") {
+    return null;
+  }
+
+  if (
+    (fight.state === "persistent-active" ||
+      fight.state === "persistent-ready" ||
+      fight.state === "persistent-terminal") &&
+    fight.questProgress.completed
+  ) {
+    const status = fight.state === "persistent-active" ? "бій уже триває" : "можна шукати нову проблему";
+
+    return `⚔️ <i>Сутичка з невідомим монстром</i> — ${status}.`;
+  }
+
+  return presentFightRow(fight);
+}
+
+function presentFightArchiveRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string | null {
+  if (fight.state === "level-retired" || fight.state === "already-completed") {
+    return presentFightRow(fight);
+  }
+
+  if (
+    (fight.state === "persistent-active" ||
+      fight.state === "persistent-ready" ||
+      fight.state === "persistent-terminal") &&
+    fight.questProgress.completed
+  ) {
+    return `📋 <i>Тринадцять дрібних проблем</i> — ${presentThirteenProblemsStatus(fight.questProgress)}.`;
+  }
+
+  return null;
 }
 
 function presentThirteenProblemsStatus(progress: {
@@ -108,6 +156,22 @@ function presentYegerRow(yeger: Exclude<YegerQuestLookupResult, { state: "no-cha
   return "🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.";
 }
 
+function presentActiveYegerRow(yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>): string | null {
+  if (yeger.state === "level-locked" || yeger.state === "completed") {
+    return null;
+  }
+
+  return presentYegerRow(yeger);
+}
+
+function presentYegerArchiveRow(yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>): string | null {
+  if (yeger.state !== "level-locked" && yeger.state !== "completed") {
+    return null;
+  }
+
+  return presentYegerRow(yeger);
+}
+
 function presentCellarRow(
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>,
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>
@@ -137,6 +201,92 @@ function presentCellarRow(
   return `🧹 <i>Підвальна справа</i> — пауза ще ${formatCooldown(cellar.availableAt, cellar.now)}.`;
 }
 
+function presentActiveCellarRow(
+  cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>,
+  cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>
+): string | null {
+  if (cellar.state === "level-locked") {
+    return null;
+  }
+
+  if (cellar.state === "level-retired") {
+    if (cellarGrownup?.state === "completed") {
+      return null;
+    }
+
+    if (hasGrownupBottle(cellarGrownup)) {
+      return "🐭 <i>Справа не до миші</i> — пляшка вже з вами; Корчмар чекає в Шинку.";
+    }
+
+    return "🐭 <i>Справа не до миші</i> — у підвалі є інша справа для старших пригодників.";
+  }
+
+  return presentCellarRow(cellar, cellarGrownup);
+}
+
+function hasGrownupBottle(
+  cellarGrownup:
+    | Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>
+    | undefined
+): boolean {
+  return cellarGrownup?.state === "bottle-obtained" && cellarGrownup.bottleQuantity > 0;
+}
+
+function presentCellarArchiveRows(
+  cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>,
+  cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>
+): string[] {
+  if (cellar.state === "level-locked") {
+    return [presentCellarRow(cellar, cellarGrownup)];
+  }
+
+  if (cellar.state !== "level-retired") {
+    return [];
+  }
+
+  const rows = [`🧹 <i>Підвальна справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`];
+
+  if (cellarGrownup?.state === "completed") {
+    rows.push("🐭 <i>Справа не до миші</i> — дорослу підвальну справу вже закрито; пляшка стоїть у журналі й тихо булькає.");
+  }
+
+  return rows;
+}
+
+function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
+  const rows = [
+    snapshot.adventure.state === "ready" ? presentAdventureRow(snapshot.adventure) : null,
+    presentActiveFightRow(snapshot.fight),
+    presentActiveYegerRow(snapshot.yeger),
+    presentActiveCellarRow(snapshot.cellar, snapshot.cellarGrownup)
+  ].filter(isPresent);
+
+  if (rows.length > 0) {
+    return rows;
+  }
+
+  return ["На столі зараз немає живих справ. Архів тихо кашляє пилом і робить вигляд, що це спецефект."];
+}
+
+function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
+  const rows = [
+    presentAdventureArchiveRow(snapshot.adventure),
+    presentFightArchiveRow(snapshot.fight),
+    presentYegerArchiveRow(snapshot.yeger),
+    ...presentCellarArchiveRows(snapshot.cellar, snapshot.cellarGrownup)
+  ].filter(isPresent);
+
+  if (rows.length > 0) {
+    return rows;
+  }
+
+  return ["Архів поки порожній. Навіть пил ще не встиг оформити вступний внесок."];
+}
+
+function isPresent(row: string | null): row is string {
+  return row !== null;
+}
+
 function presentQuestHubFooter(snapshot: QuestHubSnapshot): string {
   if (snapshot.character.hpCurrent <= 0) {
     return "HP 0? Спершу /hero, тоді /fight. Справи почекають.";
@@ -163,8 +313,13 @@ function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
     snapshot.yeger.state === "offered" ||
     snapshot.yeger.state === "in-progress" ||
     snapshot.yeger.state === "turn-in-ready" ||
-    snapshot.cellar.state === "ready"
+    snapshot.cellar.state === "ready" ||
+    (snapshot.cellar.state === "level-retired" && snapshot.cellarGrownup?.state !== "completed")
   );
+}
+
+function presentQuestHubArchiveFooter(): string {
+  return "Актуальні справи лежать на столі. Архів лише підморгує обкладинкою.";
 }
 
 function formatCooldown(availableAt: Date, now: Date): string {

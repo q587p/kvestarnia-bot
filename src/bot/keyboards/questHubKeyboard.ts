@@ -11,6 +11,7 @@ import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 
 export interface QuestHubKeyboardInput {
+  mode?: "active" | "archive";
   characterLevel?: number;
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
@@ -21,6 +22,19 @@ export interface QuestHubKeyboardInput {
 
 export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+
+  if (input.mode === "archive") {
+    keyboard.text("📋 До справ", makeQuestCallbackData("list")).row();
+
+    if (canOpenBestiary(input)) {
+      keyboard.text("📖 Бестіарій", makeBestiaryListCallbackData(0)).row();
+    }
+
+    keyboard.text("🍺 До зали", makePlaceCallbackData("hall"));
+
+    return keyboard;
+  }
+
   let hasAction = false;
 
   if (input.adventure.state === "ready") {
@@ -65,7 +79,12 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   }
 
   if (canOpenBestiary(input)) {
+    keyboard.text("📦 Архів", makeQuestCallbackData("archive"));
+    keyboard.row();
     keyboard.text("📖 Бестіарій", makeBestiaryListCallbackData(0));
+    keyboard.row();
+  } else {
+    keyboard.text("📦 Архів", makeQuestCallbackData("archive"));
     keyboard.row();
   }
 

@@ -35,7 +35,9 @@ export function presentKorchmaFront(character: CharacterSummary): string {
     "• <i>Підвал</i>: миша, дрібний бізнес і дуже серйозні серветки.",
     "• <i>Дошка вістей</i>: новини, які корчмар прибив, поки вони не втекли.",
     "",
-    "Зліва від дверей висить <i>табличка прибулих</i>. Вона стверджує, що це памʼять, а не список боржників.",
+    "Зліва від дверей висить <i>табличка прибулих</i>: хто вже проходив повз і не був стертий дощем.",
+    "",
+    "Справа від дверей висить <i>пропамʼятна дошка</i>. Вона міряє рівні, але робить вигляд, що це історія.",
     "",
     "Натисніть «🚪 Зайти в корчму» або відкрийте двері через /tavern."
   ].join("\n");
@@ -43,20 +45,33 @@ export function presentKorchmaFront(character: CharacterSummary): string {
 
 export function presentKorchmaArrivalBoard(
   character: CharacterSummary,
-  board: KorchmaArrivalBoard,
-  milestones?: LevelMilestoneBoard
+  board: KorchmaArrivalBoard
 ): string {
   return [
     "📜 Табличка прибулих",
     presentCharacterHeader(character),
     "",
-    "Біля дверей висить дошка з іменами тих, кого корчма вже бачила й поки не заперечує.",
+    "Зліва від дверей висить дошка з іменами тих, кого корчма вже бачила й поки не заперечує.",
     "",
     ...presentKorchmaArrivalEntries(board),
     "",
+    "Корчмар каже, що це не список боржників. Табличка тактовно мовчить."
+  ].join("\n");
+}
+
+export function presentKorchmaMemorialBoard(
+  character: CharacterSummary,
+  milestones?: LevelMilestoneBoard
+): string {
+  return [
+    "🏅 Пропамʼятна дошка",
+    presentCharacterHeader(character),
+    "",
+    "Справа від дверей висить дошка для тих, хто першим доріс до числа й не впав з табурета.",
+    "",
     ...presentLevelMilestoneEntries(milestones),
     "",
-    "Корчмар каже, що це не список боржників. Табличка тактовно мовчить."
+    "Корчмар каже, що це не змагання. Дошка вже рахує місця."
   ].join("\n");
 }
 
@@ -177,16 +192,6 @@ export function presentTavernRaidReadyToComplete(
 
 export function presentTavernNoCharacter(): string {
   return "Спершу створіть пригодника через /start. Бочка не воює з анонімами.";
-}
-
-export function presentTavernRanger(character: CharacterSummary): string {
-  return [
-    "🧥 Єгер у кутку",
-    "",
-    "У темному кутку сидить людисько-єгер у капюшоні. Він курить трубку, підозріло дивиться на всіх і має вигляд людини, яка точно не чекає на сюжетний гачок.",
-    "",
-    npcQuote("Єгер", presentRangerReaction(character))
-  ].join("\n");
 }
 
 export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { state: "no-character" }>): string {
@@ -614,32 +619,4 @@ function pluralizeIdle(count: number): string {
   }
 
   return "притихлих";
-}
-
-function presentRangerReaction(character: CharacterSummary): string {
-  if (character.raceId === "race.human-ish" && character.classId === "class.ranger") {
-    return "Людисько-єгер. Нарешті хтось, хто розуміє, що капюшон — це не стиль, а документація намірів.";
-  }
-
-  if (character.raceId === "race.domovyk") {
-    return "На мить я подумав про гобітів. Але їх тут немає з причин, які корчмар називає «ліцензійною магією».";
-  }
-
-  if (character.classId === "class.ranger") {
-    return "Єгер єгеря бачить здалеку. Навіть якщо один із них робить вигляд, що просто сидить біля бочки.";
-  }
-
-  if (character.classId === "class.rogue") {
-    return "Ваші руки надто чесно поводяться. Це мене непокоїть.";
-  }
-
-  if (character.raceId === "race.elf") {
-    return "Ельф у корчмі — це завжди або балада, або скарга на дим. Сьогодні перевіримо, що швидше.";
-  }
-
-  if (character.classId === "class.bureaucramancer") {
-    return "Якщо у вас є форма на підозрілий погляд, не показуйте. Я працюю без печаток.";
-  }
-
-  return "Сидіть рівно. Не тому, що небезпечно. Просто так легше зрозуміти, хто першим збреше.";
 }

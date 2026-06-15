@@ -9,7 +9,8 @@ export type PlaceCallback =
   | "news-corner"
   | "cellar"
   | "front"
-  | "arrivals";
+  | "arrivals"
+  | "memorial";
 export type PlaceCallbackError = "invalid-version" | "invalid-prefix" | "invalid-action" | "too-long";
 
 const PREFIX = "v1:place";
@@ -21,7 +22,8 @@ const placeCallbacks = new Set<PlaceCallback>([
   "news-corner",
   "cellar",
   "front",
-  "arrivals"
+  "arrivals",
+  "memorial"
 ]);
 
 export function makePlaceCallbackData(action: PlaceCallback): string {

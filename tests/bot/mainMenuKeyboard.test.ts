@@ -40,10 +40,10 @@ import {
   buildKorchmaBarKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
+  buildKorchmaMemorialBoardKeyboard,
   buildKorchmaRoundOfferKeyboard,
   buildKorchmaRoundResultKeyboard,
   buildTavernParticipantsKeyboard,
-  buildTavernRangerKeyboard,
   buildTavernKeyboard,
   buildTavernResultKeyboard
 } from "../../src/bot/keyboards/tavernKeyboard";
@@ -66,13 +66,23 @@ describe("main menu and scene keyboards", () => {
   it("builds korchma place navigation", () => {
     expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard())).toEqual([
       "🚪 Зайти в корчму",
-      "📜 Табличка прибулих"
+      "📜 Табличка прибулих",
+      "🏅 Пропамʼятна дошка"
+    ]);
+    expect(inlineButtonRows(buildKorchmaFrontKeyboard())).toEqual([
+      ["🚪 Зайти в корчму"],
+      ["📜 Табличка прибулих", "🏅 Пропамʼятна дошка"]
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaFrontKeyboard())).toEqual([
       "v1:place:hall",
-      "v1:place:arrivals"
+      "v1:place:arrivals",
+      "v1:place:memorial"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaArrivalBoardKeyboard())).toEqual([
+      "🚪 Зайти в корчму",
+      "⬅️ До дверей"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaMemorialBoardKeyboard())).toEqual([
       "🚪 Зайти в корчму",
       "⬅️ До дверей"
     ]);
@@ -134,7 +144,6 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonTexts(buildTavernParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
     expect(flatInlineButtonCallbacks(buildTavernParticipantsKeyboard())).toEqual(["v1:place:barrel"]);
-    expect(flatInlineButtonTexts(buildTavernRangerKeyboard())).toEqual(["⬅️ До зали"]);
   });
 
   it("uses icons for destructive confirmation keyboards", () => {
@@ -883,6 +892,7 @@ describe("main menu and scene keyboards", () => {
       "⚔️ До сутички",
       "🏹 До Єгеря",
       "🧹 У підвал",
+      "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
     ]);
@@ -915,7 +925,7 @@ describe("main menu and scene keyboards", () => {
           cellar: { state: "level-retired", character, maxLevel: 3 }
         })
       )
-    ).toEqual(["🧾 До проблем", "🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["🧾 До проблем", "🧹 У підвал", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -939,7 +949,7 @@ describe("main menu and scene keyboards", () => {
           cellar: { state: "ready", character }
         })
       )
-    ).toEqual(["🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["🧹 У підвал", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -962,7 +972,7 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["🏹 До Єгеря", "🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["🏹 До Єгеря", "🧹 У підвал", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -990,7 +1000,36 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["🧹 У підвал", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
+
+    expect(
+      flatInlineButtonTexts(
+        buildQuestHubKeyboard({
+          mode: "archive",
+          adventure: {
+            state: "level-retired",
+            character,
+            maxLevel: 2
+          },
+          fight: {
+            state: "level-retired",
+            character,
+            maxLevel: 2
+          },
+          yeger: {
+            state: "completed",
+            character,
+            progress: { wins: 5, target: 5 },
+            reward: { xp: 80, gold: 120, itemGrants: [] }
+          },
+          cellar: {
+            state: "level-retired",
+            character,
+            maxLevel: 3
+          }
+        })
+      )
+    ).toEqual(["📋 До справ", "📖 Бестіарій", "🍺 До зали"]);
   });
 });
 
@@ -1089,6 +1128,10 @@ function persistentFightSession(): SoloCombatSessionRecord {
 
 function flatInlineButtonTexts(keyboard: { inline_keyboard: { text: string }[][] }): string[] {
   return keyboard.inline_keyboard.flat().map((button) => button.text);
+}
+
+function inlineButtonRows(keyboard: { inline_keyboard: { text: string }[][] }): string[][] {
+  return keyboard.inline_keyboard.map((row) => row.map((button) => button.text));
 }
 
 function flatInlineButtonCallbacks(

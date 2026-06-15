@@ -23,7 +23,8 @@ export function buildKorchmaFrontKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
     .row()
-    .text("📜 Табличка прибулих", makePlaceCallbackData("arrivals"));
+    .text("📜 Табличка прибулих", makePlaceCallbackData("arrivals"))
+    .text("🏅 Пропамʼятна дошка", makePlaceCallbackData("memorial"));
 }
 
 export function buildKorchmaHallKeyboard(): InlineKeyboard {
@@ -61,6 +62,13 @@ export function buildKorchmaArrivalBoardKeyboard(): InlineKeyboard {
     .text("⬅️ До дверей", makePlaceCallbackData("front"));
 }
 
+export function buildKorchmaMemorialBoardKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
+    .row()
+    .text("⬅️ До дверей", makePlaceCallbackData("front"));
+}
+
 export function buildTavernResultKeyboard(
   state: TavernResultKeyboardState
 ): InlineKeyboard {
@@ -79,10 +87,6 @@ export function buildTavernResultKeyboard(
 
 export function buildTavernParticipantsKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text("⬅️ Назад", makePlaceCallbackData("barrel"));
-}
-
-export function buildTavernRangerKeyboard(): InlineKeyboard {
-  return new InlineKeyboard().text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
 export function buildKorchmaRoundOfferKeyboard(

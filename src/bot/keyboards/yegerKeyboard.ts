@@ -1,10 +1,12 @@
 import { InlineKeyboard } from "grammy";
 import type { YegerQuestLookupResult, YegerQuestTurnInResult } from "../../services/yegerQuestService";
 import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData";
+import { makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
   makeYegerHelpCallbackData,
   makeYegerOpenCallbackData,
+  makeYegerQuestCallbackData,
   makeYegerStartCallbackData,
   makeYegerTrackCallbackData,
   makeYegerTurnInCallbackData
@@ -36,13 +38,32 @@ export function buildYegerKeyboard(
   }
 
   if (result.state === "completed") {
-    return new InlineKeyboard()
+    const keyboard = new InlineKeyboard();
+
+    addRewardItemButton(keyboard, result.reward);
+
+    return keyboard
       .text("📖 Бестіарій", makeBestiaryListCallbackData(0))
       .row()
       .text("⬅️ До столу", makePlaceCallbackData("quest-table"));
   }
 
   return new InlineKeyboard().text("⬅️ До столу", makePlaceCallbackData("quest-table"));
+}
+
+export function buildYegerCornerKeyboard(
+  result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (result.state !== "level-locked") {
+    keyboard.text("🏹 Неспокійні справи", makeYegerQuestCallbackData()).row();
+  }
+
+  return keyboard
+    .text("📖 Бестіарій", makeBestiaryListCallbackData(0))
+    .row()
+    .text("🍺 До зали", makePlaceCallbackData("hall"));
 }
 
 export function buildYegerTurnInKeyboard(
@@ -59,7 +80,13 @@ export function buildYegerTurnInKeyboard(
     return inProgressKeyboard();
   }
 
-  return new InlineKeyboard()
+  const keyboard = new InlineKeyboard();
+
+  if (result.state === "completed" || result.state === "already-completed") {
+    addRewardItemButton(keyboard, result.reward);
+  }
+
+  return keyboard
     .text("⬅️ До Єгеря", makeYegerOpenCallbackData())
     .row()
     .text("🍺 До зали", makePlaceCallbackData("hall"));
@@ -85,4 +112,17 @@ function inProgressKeyboard(): InlineKeyboard {
 
 function baseYegerKeyboard(): InlineKeyboard {
   return new InlineKeyboard();
+}
+
+function addRewardItemButton(
+  keyboard: InlineKeyboard,
+  reward: { itemGrants: Array<{ itemId: string; name: string }> }
+): InlineKeyboard {
+  const item = reward.itemGrants[0];
+
+  if (!item) {
+    return keyboard;
+  }
+
+  return keyboard.text(`🔎 ${item.name}`, makeItemDetailCallbackData(item.itemId)).row();
 }

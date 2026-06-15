@@ -21,14 +21,14 @@ type EquipRequirementReason = Extract<
 >["reasons"][number];
 
 const equipmentSlots: readonly SlotView[] = [
-  { id: "weapon", icon: "🗡️", label: "Зброя", emptyText: "гачок чекає важкий аргумент." },
+  { id: "weapon", icon: "🗡️", label: "Зброя", emptyText: "стійка чекає важкий аргумент." },
   { id: "chest", icon: "🧥", label: "Тулуб", emptyText: "манекен мерзне професійно." },
-  { id: "accessory", icon: "💍", label: "Аксесуар", emptyText: "малий гачок чекає велику дивину." }
+  { id: "accessory", icon: "💍", label: "Аксесуар", emptyText: "поличка чекає велику дивину." }
 ];
 
 export function presentEquipment(result: EquipmentResult): string {
   if (result.state === "no-character") {
-    return "Спершу створіть пригодника через /start. Гачки не мають на кого дивитися.";
+    return "Спершу створіть пригодника через /start. Манекен поки дивиться в порожнечу.";
   }
 
   return [
@@ -52,7 +52,7 @@ export function presentEquipItemResult(result: EquipItemResult): string {
   }
 
   if (result.state === "not-equippable") {
-    return "Це радше трофей, ніж спорядження. Гачок подивився й чемно відмовився.";
+    return "Це радше трофей, ніж спорядження. Шафа подивилась і чемно відмовилась.";
   }
 
   if (result.state === "requirements-not-met") {
@@ -67,7 +67,7 @@ export function presentEquipItemResult(result: EquipItemResult): string {
   }
 
   if (result.state === "unsupported-slot") {
-    return "Для цієї манатки ще немає гачка. Корчмар записав борг у майбутню шафу.";
+    return "Для цієї манатки ще немає місця. Корчмар записав борг у майбутню шафу.";
   }
 
   const effect = presentItemEffect(result.item.content.effect);
@@ -84,7 +84,7 @@ export function presentUnequipSlotResult(result: UnequipSlotResult): string {
   const label = presentEquipmentSlotLabel(result.slot);
 
   if (result.state === "empty-slot") {
-    return `${label} і так порожній. Гачок вдячний за увагу.`;
+    return `${label} і так порожній. Шафа вдячна за увагу.`;
   }
 
   return `${label} звільнено. Манатка лишилася в торбі, просто перестала позувати.`;

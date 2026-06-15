@@ -238,8 +238,6 @@ function presentPersistentFightState(input: {
     "",
     input.intro,
     "",
-    ...presentThirteenSmallProblemsBlock(input.questProgress),
-    "",
     `Проти вас: <b>${escapeHtml(input.monsterName)}</b>${monsterLevel}`,
     "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
@@ -270,12 +268,13 @@ function presentPersistentFightState(input: {
       "Наступний крок: /hero або /quest."
     );
   } else if (state?.status === "lost") {
+    const questLines = presentLostFightQuestLines(input.questProgress);
+
     lines.push(
       "",
       `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
       "",
-      "💤 Ви програли. Корчмар каже, що це «цінні дані для балансу».",
-      ...presentLostFightQuestLines(input.questProgress),
+      questLines.length > 0 ? `💤 Ви програли. ${questLines[0]}` : "💤 Ви програли.",
       "Спершу /hero, тоді новий бій."
     );
   } else if (state?.status === "fled") {
@@ -295,7 +294,10 @@ function presentPersistentFightState(input: {
       "Спершу /hero, тоді новий бій."
     );
   } else {
-    lines.push("", "Що робимо?");
+    lines.push(
+      "",
+      "Що робимо?"
+    );
   }
 
   return lines.join("\n");
@@ -316,20 +318,24 @@ function presentPersistentFightReward(
     return [];
   }
 
-  const intro =
-    isConsolationFightReward(reward)
-      ? "🎒 Корчмар підсунув 1 XP за спробу. Каже, що поразка теж папірець у досвід."
-      : reward.state === "claimed"
-        ? "🎒 Корчмар підсунув малу оплату за закриту проблему."
-      : reward.state === "already-claimed"
-        ? "🎒 Цю винагороду вже занесли в журнал. Корчмар показує запис, а не відкриває касу вдруге."
-        : "🎒 Винагорода вже видана. Корчмар перегортає журнал і показує той самий запис.";
-  const lines = [
-    intro,
-    "",
+  if (isConsolationFightReward(reward)) {
+    return ["🎒 За спробу:", presentRewardAmount(reward.reward)];
+  }
+
+  const lines: string[] = [];
+
+  if (reward.state === "already-claimed") {
+    lines.push("🎒 Цю винагороду вже занесли в журнал. Корчмар показує запис, а не відкриває касу вдруге.", "");
+  }
+
+  if (reward.state === "replayed") {
+    lines.push("🎒 Винагорода вже видана. Корчмар перегортає журнал і показує той самий запис.", "");
+  }
+
+  lines.push(
     presentRewardAmount({ ...reward.reward, label: "Винагорода за бій" }),
     ...presentItemGrantBlock(reward.reward.itemGrants)
-  ];
+  );
 
   if (reward.itemReplayUnavailable) {
     lines.push("", "Детальний лут уже в торбі або журналі; повторно його не перекидаємо.");
@@ -352,28 +358,6 @@ function presentDuration(seconds: number): string {
   const minutes = Math.ceil(Math.max(0, seconds) / 60);
 
   return `${Math.max(1, minutes)} хв`;
-}
-
-function presentThirteenSmallProblemsBlock(
-  progress: ThirteenSmallProblemsProgress | null
-): string[] {
-  if (!progress) {
-    return [];
-  }
-
-  if (progress.completed) {
-    return [
-      "📋 <b>Тринадцять дрібних проблем</b>",
-      "Перший список корчмаря закрито. Подальші бійки поки для практики, шуму й майбутньої бухгалтерії.",
-      `Прогрес справи: <b>${progress.wins}/${progress.target}</b> · закрито.`
-    ];
-  }
-
-  return [
-    "📋 <b>Тринадцять дрібних проблем</b>",
-    "Корчмар видав список. Список дивиться так, ніби сам себе не схвалює.",
-    `Прогрес справи: <b>${progress.wins}/${progress.target}</b> проблем записано в журнал.`
-  ];
 }
 
 function presentThirteenSmallProblemsReward(reward: ThirteenSmallProblemsReward): string[] {

@@ -12,6 +12,33 @@
 persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/mana persistence → recovery/balance polish → inventory/chest polish → balance/playtest polish
 ```
 
+## Later — Durable Barrel Raid Notifications
+
+**Objective**
+Зробити автозавершення Бочки надійним після restart/deploy, не змінюючи економіку й не дублюючи винагороди.
+
+**Scope**
+
+- durable outbox або persistent job row для pending barrel raid notifications;
+- startup-resume: знайти pending-рейди, час яких уже настав або ще настане;
+- due рейди завершувати через наявний idempotent reward path;
+- future рейди планувати заново після старту процесу;
+- унікальний ключ для notification delivery, щоб retries або кілька workers не слали дубль.
+
+**Non-goals**
+
+- no group raid/session rewrite;
+- no reward rebalance;
+- no new loot table;
+- no migration of all cooldowns into a broad scheduler in the same slice.
+
+**Acceptance criteria**
+
+- після restart/deploy pending Бочка не губить завершальне повідомлення;
+- manual `🍺 Перевірити бочку` лишається fallback і не дублює reward;
+- повторний startup/resume або retry не надсилає кілька однакових completed-повідомлень;
+- tests cover due-on-startup, future-reschedule, already-completed, and duplicate-worker/idempotency paths.
+
 ## 0.0.20 — Combat Domain Engine
 
 **Status**

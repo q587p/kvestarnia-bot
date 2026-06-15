@@ -1211,7 +1211,9 @@ function selectTargetedSoloFightMonster(
     (monster) => monster.level >= closeMonsterLevelFloor
   );
   const candidates =
-    closeCandidates.length > 0 ? closeCandidates : selectHighestAvailableMonsterLevel(eligibleMonsters);
+    closeCandidates.length > 0
+      ? selectHighestAvailableMonsterLevel(closeCandidates)
+      : selectHighestAvailableMonsterLevel(eligibleMonsters);
 
   if (candidates.length > 0) {
     return candidates[rng.nextInt(0, candidates.length - 1)] ?? candidates[0] ?? selectSoloFightMonster(character, rng);

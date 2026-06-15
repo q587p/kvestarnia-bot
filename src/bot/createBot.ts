@@ -11,6 +11,7 @@ import type { FightService } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
 import type { HuntService } from "../services/huntService";
 import type { YegerQuestService } from "../services/yegerQuestService";
+import { isYegerUnquietTarget } from "../services/yegerQuestService";
 import type { EquipmentService } from "../services/equipmentService";
 import type { InventoryService } from "../services/inventoryService";
 import type { LevelMilestoneService } from "../services/levelMilestoneService";
@@ -76,7 +77,7 @@ import { registerEquipmentCommand, sendEquipment } from "./commands/equipmentCom
 import { registerFightCommand, sendFight } from "./commands/fightCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
 import { registerHeroCommand, sendHero } from "./commands/heroCommand";
-import { registerHuntCommand, markHuntPresence, sendHuntBoard } from "./commands/huntCommand";
+import { registerHuntCommand, markHuntPresence, sendHuntBoard, sendYegerCorner } from "./commands/huntCommand";
 import { registerInventoryCommand, sendInventory } from "./commands/inventoryCommand";
 import { registerLookCommand } from "./commands/lookCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
@@ -94,6 +95,7 @@ import {
   sendKorchmaArrivalBoard,
   sendKorchmaBar,
   sendKorchmaFront,
+  sendKorchmaMemorialBoard,
   sendTavern,
   sendTavernBarrel
 } from "./commands/tavernCommand";
@@ -134,7 +136,6 @@ import {
   buildKorchmaRoundOfferKeyboard,
   buildKorchmaRoundResultKeyboard,
   buildTavernParticipantsKeyboard,
-  buildTavernRangerKeyboard,
   buildTavernResultKeyboard
 } from "./keyboards/tavernKeyboard";
 import {
@@ -204,6 +205,7 @@ import {
   presentYegerNoCharacter,
   presentYegerQuest,
   presentYegerStart,
+  presentYegerTrackingBlockedByOtherFight,
   presentYegerTrackingStart,
   presentYegerTurnIn
 } from "./presenters/yegerPresenter";
@@ -211,7 +213,6 @@ import { presentParticipants } from "./presenters/presencePresenter";
 import {
   presentTavernNoCharacter,
   presentPendingRaidActionBlock,
-  presentTavernRanger,
   presentTavernRaidResult,
   presentTavernRoundOffer,
   presentTavernRoundResult
@@ -373,7 +374,7 @@ export function createBot(token: string, services: BotServices): Bot {
       return;
     }
 
-    await handleTavernCallback(ctx, parsed.value, services.tavern, services.presence, bot);
+    await handleTavernCallback(ctx, parsed.value, services.tavern, services.yeger, services.presence, bot);
   });
 
   bot.callbackQuery(/^v1:adv:/, async (ctx) => {
@@ -1212,6 +1213,16 @@ async function handlePlaceCallback(
       ctx,
       services.tavern,
       services.presence,
+      "edit"
+    );
+    return;
+  }
+
+  if (action === "memorial") {
+    await sendKorchmaMemorialBoard(
+      ctx,
+      services.tavern,
+      services.presence,
       "edit",
       services.levelMilestones
     );
@@ -1263,6 +1274,16 @@ async function handleQuestCallback(
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (telegramUserId && (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))) {
+    return;
+  }
+
+  if (action === "archive" || action === "list") {
+    await sendQuestHub(
+      ctx,
+      buildQuestHubCommandOptions(services),
+      "edit",
+      action === "archive" ? "archive" : "active"
+    );
     return;
   }
 
@@ -1343,6 +1364,7 @@ async function handleTavernCallback(
   ctx: Context,
   action: TavernCallback,
   tavernRaidService: TavernRaidService,
+  yegerQuestService: YegerQuestService,
   presenceService: PresenceService,
   bot: Bot
 ): Promise<void> {
@@ -1368,18 +1390,11 @@ async function handleTavernCallback(
   }
 
   if (action === "ranger") {
-    const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
-
-    if (result.state === "no-character") {
-      await safeAnswerCallbackQuery(ctx);
-      await safeEditMessageText(ctx, presentTavernNoCharacter());
-      return;
-    }
-
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentTavernRanger(result.character), {
-      ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildTavernRangerKeyboard()
+    await sendYegerCorner(ctx, yegerQuestService, "edit", {
+      presence: presenceService,
+      tavernRaid: tavernRaidService,
+      requireKorchmaInterior: true
     });
     return;
   }
@@ -1920,6 +1935,16 @@ async function handleYegerCallback(
 
   if (callback.type === "open") {
     await safeAnswerCallbackQuery(ctx);
+    await sendYegerCorner(ctx, services.yeger, "edit", {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      requireKorchmaInterior: true
+    });
+    return;
+  }
+
+  if (callback.type === "quest") {
+    await safeAnswerCallbackQuery(ctx);
     await sendHuntBoard(ctx, services.yeger, "edit", {
       presence: services.presence,
       tavernRaid: services.tavern,
@@ -1991,7 +2016,15 @@ async function handleYegerCallback(
     }
 
     if (result.state === "persistent-active" || result.state === "persistent-terminal") {
-      await safeEditMessageText(ctx, [presentYegerTrackingStart(), "", presentPersistentFight(result)].join("\n"), {
+      const trackingIntro = result.monster && isYegerUnquietTarget(result.monster)
+        ? presentYegerTrackingStart({
+            yegerProgress: quest.progress,
+            thirteenProgress: result.questProgress
+          })
+        : presentYegerTrackingBlockedByOtherFight();
+
+      await safeEditMessageText(ctx, trackingIntro, HTML_MESSAGE_OPTIONS);
+      await ctx.reply(presentPersistentFight(result), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
       });

@@ -17,12 +17,12 @@ describe("equipment presenter", () => {
     const text = presentEquipment(emptyEquipment());
 
     expect(text).toContain("🧥 <b>Спорядження</b>");
-    expect(text).toContain("🗡️ <b>Зброя</b>: <i>гачок чекає важкий аргумент.</i>");
+    expect(text).toContain("🗡️ <b>Зброя</b>: <i>стійка чекає важкий аргумент.</i>");
     expect(text).toContain("🧥 <b>Тулуб</b>");
     expect(text).toContain("💍 <b>Аксесуар</b>");
     expect(text).toContain(
       [
-        "🗡️ <b>Зброя</b>: <i>гачок чекає важкий аргумент.</i>",
+        "🗡️ <b>Зброя</b>: <i>стійка чекає важкий аргумент.</i>",
         "",
         "🧥 <b>Тулуб</b>: Фартух піностійкого пригодника",
         "Ефект: <i>+2 HP · +1 до захисту</i>",

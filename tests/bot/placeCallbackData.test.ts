@@ -14,7 +14,8 @@ describe("place callback data", () => {
     "news-corner",
     "cellar",
     "front",
-    "arrivals"
+    "arrivals",
+    "memorial"
   ] as const)(
     "parses %s place",
     (action) => {

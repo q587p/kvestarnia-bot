@@ -95,7 +95,7 @@ describe("item detail presenter", () => {
     expect(armor).toContain("Манекен випростав плечі");
     expect(accessory).toContain("Категорія: <b>аксесуар</b>");
     expect(accessory).toContain("Ефект: <b>+1 Вдачі</b>");
-    expect(accessory).toContain("Малий гачок обережно блищить");
+    expect(accessory).toContain("Поличка для дрібних дивин обережно блищить");
   });
 
   it("uses clear fallback flavor for consumables instead of future-system wording", () => {
@@ -113,6 +113,7 @@ describe("item detail presenter", () => {
     );
 
     expect(text).toContain("Корчмар крутить манатку в руках");
+    expect(text).toContain("до якої полиці її не підпускати");
     expect(text).not.toContain("правила майбутнього спорядження");
   });
 

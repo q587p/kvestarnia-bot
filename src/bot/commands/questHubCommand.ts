@@ -16,6 +16,7 @@ import {
   presentKorchmaQuestGate,
   presentQuestHub,
   presentQuestHubNoCharacter,
+  type QuestHubMode,
   type QuestHubSnapshot
 } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
@@ -42,7 +43,8 @@ export function registerQuestHubCommand(bot: Bot, options: QuestHubCommandOption
 export async function sendQuestHub(
   ctx: Context,
   options: QuestHubCommandOptions,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  hubMode: QuestHubMode = "active"
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -77,7 +79,7 @@ export async function sendQuestHub(
   }
 
   await markQuestTablePresence(ctx, options.presence);
-  await sendText(ctx, mode, presentQuestHub(snapshot), snapshot);
+  await sendText(ctx, mode, presentQuestHub(snapshot, hubMode), { snapshot, mode: hubMode });
 }
 
 async function buildQuestHubSnapshot(
@@ -135,7 +137,7 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  keyboard: QuestHubSnapshot | "enter-korchma" | false = false
+  keyboard: { snapshot: QuestHubSnapshot; mode: QuestHubMode } | "enter-korchma" | false = false
 ): Promise<void> {
   const options = keyboard
     ? {
@@ -144,8 +146,9 @@ async function sendText(
           keyboard === "enter-korchma"
             ? buildKorchmaFrontKeyboard()
             : buildQuestHubKeyboard({
-                ...keyboard,
-                characterLevel: keyboard.character.level
+                ...keyboard.snapshot,
+                characterLevel: keyboard.snapshot.character.level,
+                mode: keyboard.mode
               })
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);

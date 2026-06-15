@@ -5,6 +5,7 @@ import {
   sendKorchmaArrivalBoard,
   sendKorchmaBar,
   sendKorchmaFront,
+  sendKorchmaMemorialBoard,
   sendTavern
 } from "../../src/bot/commands/tavernCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -40,6 +41,10 @@ describe("tavern command screens", () => {
             {
               text: "📜 Табличка прибулих",
               callback_data: makePlaceCallbackData("arrivals")
+            },
+            {
+              text: "🏅 Пропамʼятна дошка",
+              callback_data: makePlaceCallbackData("memorial")
             }
           ]
         ]
@@ -54,16 +59,13 @@ describe("tavern command screens", () => {
       makeContext(replies),
       readyTavernService(),
       korchmaArrivalService(),
-      "reply",
-      levelMilestoneService()
+      "reply"
     );
 
     expect(replies[0]?.text).toContain("📜 Табличка прибулих");
     expect(replies[0]?.text).toContain("Дара · рівень 2 · Зала корчми");
-    expect(replies[0]?.text).toContain("Видатні жителі");
-    expect(replies[0]?.text).toContain(
-      "рівень 4: 🥇 Дара · 🥈 Нестор Межовий · 🥉 Архіварка"
-    );
+    expect(replies[0]?.text).not.toContain("Видатні жителі");
+    expect(replies[0]?.text).not.toContain("Перші зарубки за рівні:");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",
       reply_markup: {
@@ -132,6 +134,45 @@ describe("tavern command screens", () => {
     });
   });
 
+  it("shows a separate front-door memorial board for level firsts", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaMemorialBoard(
+      makeContext(replies),
+      readyTavernService(),
+      korchmaArrivalService(),
+      "reply",
+      levelMilestoneService()
+    );
+
+    expect(replies[0]?.text).toContain("🏅 Пропамʼятна дошка");
+    expect(replies[0]?.text).toContain("Видатні жителі");
+    expect(replies[0]?.text).toContain("Перші зарубки за рівні:");
+    expect(replies[0]?.text).toContain(
+      "рівень 4: 🥇 Дара · 🥈 Нестор Межовий · 🥉 Архіварка"
+    );
+    expect(replies[0]?.text).not.toContain("Останні зарубки:");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🚪 Зайти в корчму",
+              callback_data: makePlaceCallbackData("hall")
+            }
+          ],
+          [
+            {
+              text: "⬅️ До дверей",
+              callback_data: makePlaceCallbackData("front")
+            }
+          ]
+        ]
+      }
+    });
+  });
+
   it("offers bottle turn-in from the Шинок when the cellar bottle is carried", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
@@ -157,6 +198,38 @@ describe("tavern command screens", () => {
             {
               text: "🍾 Здати пляшку",
               callback_data: "v1:cellar:grownup-turn-in"
+            }
+          ],
+          [
+            {
+              text: "⬅️ До зали",
+              callback_data: makePlaceCallbackData("hall")
+            }
+          ]
+        ]
+      }
+    });
+  });
+
+  it("does not offer bottle turn-in from the Шинок after the bottle is gone", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      bottleObtainedGrownupQuest(0)
+    );
+
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🍻 Всім пива",
+              callback_data: "v1:tavern:round"
             }
           ],
           [
@@ -255,13 +328,13 @@ function korchmaArrivalService(): PresenceService {
   } as unknown as PresenceService;
 }
 
-function bottleObtainedGrownupQuest(): CellarGrownupQuestService {
+function bottleObtainedGrownupQuest(bottleQuantity = 1): CellarGrownupQuestService {
   return {
     getForTelegramUser: () =>
       Promise.resolve({
         state: "bottle-obtained",
         character,
-        bottleQuantity: 1
+        bottleQuantity
       })
   } as unknown as CellarGrownupQuestService;
 }

@@ -49,6 +49,10 @@ describe("fight command", () => {
             {
               text: "📜 Табличка прибулих",
               callback_data: makePlaceCallbackData("arrivals")
+            },
+            {
+              text: "🏅 Пропамʼятна дошка",
+              callback_data: makePlaceCallbackData("memorial")
             }
           ]
         ]
@@ -143,6 +147,8 @@ describe("fight command", () => {
     expect(replies[0]?.text).toContain("⚔️ Бій");
     expect(replies[0]?.text).toContain("Павук дедлайнів");
     expect(replies[0]?.text).toContain("поки не видає нагород");
+    expect(replies[0]?.text).not.toContain("Тринадцять дрібних проблем");
+    expect(replies[0]?.text).not.toContain("Не зволікайте надто довго");
     const options = replies[0]?.options as {
       parse_mode: string;
       reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };

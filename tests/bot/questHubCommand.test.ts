@@ -43,6 +43,10 @@ describe("quest hub command", () => {
             {
               text: "📜 Табличка прибулих",
               callback_data: makePlaceCallbackData("arrivals")
+            },
+            {
+              text: "🏅 Пропамʼятна дошка",
+              callback_data: makePlaceCallbackData("memorial")
             }
           ]
         ]
@@ -62,11 +66,11 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).toContain("📋 Стіл зі справами");
     expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
-    expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
+    expect(replies[0]?.text).not.toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
       "📋 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
     );
-    expect(replies[0]?.text).toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
+    expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).not.toContain("Мімік-шаурма");
     expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша приймає аргументи.");
     expect(replies[0]?.options).toMatchObject({
@@ -74,6 +78,7 @@ describe("quest hub command", () => {
         inline_keyboard: [
           [{ text: "🧾 До проблем", callback_data: makeQuestCallbackData("fight") }],
           [{ text: "🧹 У підвал", callback_data: makeQuestCallbackData("cellar") }],
+          [{ text: "📦 Архів", callback_data: makeQuestCallbackData("archive") }],
           [{ text: "📖 Бестіарій", callback_data: makeBestiaryListCallbackData(0) }],
           [{ text: "🍺 До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
@@ -86,7 +91,7 @@ describe("quest hub command", () => {
     });
   });
 
-  it("keeps cellar and hunt unavailable on level one", async () => {
+  it("keeps locked cellar and hunt out of the active list on level one", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const levelOneCharacter = characterAtLevel(1);
 
@@ -101,8 +106,8 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
-    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — відкриється з 2 рівня.");
+    expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
+    expect(replies[0]?.text).not.toContain("🧹 <i>Підвальна справа</i> — відкриється з 2 рівня.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
@@ -111,11 +116,12 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🌯 До шаурми",
       "⚔️ До сутички",
+      "📦 Архів",
       "🍺 До зали"
     ]);
   });
 
-  it("opens cellar from level two but keeps Yeger unavailable until level four", async () => {
+  it("opens cellar from level two but keeps Yeger out of the active list until level four", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const levelTwoCharacter = characterAtLevel(2);
 
@@ -130,7 +136,7 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
+    expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша приймає аргументи.");
     const buttons = (
       replies[0]?.options as {
@@ -141,6 +147,7 @@ describe("quest hub command", () => {
       "🌯 До шаурми",
       "⚔️ До сутички",
       "🧹 У підвал",
+      "📦 Архів",
       "🍺 До зали"
     ]);
   });
@@ -173,8 +180,8 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — сьогодні вже дала свідчення.");
-    expect(replies[0]?.text).toContain(
+    expect(replies[0]?.text).not.toContain("🌯 <i>Підозріла шаурма</i> — сьогодні вже дала свідчення.");
+    expect(replies[0]?.text).not.toContain(
       "⚔️ <i>Сутичка з невідомим монстром</i> — сьогодні вже зараховано."
     );
     const buttons = (
@@ -184,6 +191,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🧹 У підвал",
+      "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
     ]);
@@ -219,7 +227,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).toContain(
       "📋 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
     );
-    expect(replies[0]?.text).toContain(
+    expect(replies[0]?.text).not.toContain(
       "🧹 <i>Підвальна справа</i> — новачкова справа до 3 рівня."
     );
     expect(replies[0]?.text).toContain(
@@ -234,12 +242,13 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🧾 До проблем",
       "🧹 У підвал",
+      "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
     ]);
   });
 
-  it("shows completed grownup cellar state without sending players back to cellar", async () => {
+  it("hides completed grownup cellar state from the active list", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const grownCharacter = characterAtLevel(4);
 
@@ -255,7 +264,7 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain(
+    expect(replies[0]?.text).not.toContain(
       "🐭 <i>Справа не до миші</i> — дорослу підвальну справу вже закрито; пляшка стоїть у журналі й тихо булькає."
     );
     expect(replies[0]?.text).not.toContain(
@@ -269,9 +278,92 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🧾 До проблем",
       "🏹 До Єгеря",
+      "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
     ]);
+  });
+
+  it("does not claim the grownup cellar bottle is carried when quantity is zero", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(grownCharacter),
+        fight: readyFightService(grownCharacter),
+        yeger: readyYegerService(grownCharacter),
+        cellarErrand: readyCellarService(grownCharacter),
+        cellarGrownup: bottleObtainedCellarGrownupService(grownCharacter, 0)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).not.toContain("пляшка вже з вами; Корчмар чекає в Шинку");
+    expect(replies[0]?.text).toContain(
+      "🐭 <i>Справа не до миші</i> — у підвалі є інша справа для старших пригодників."
+    );
+  });
+
+  it("shows completed and unavailable cases in the archive", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(grownCharacter),
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-terminal",
+              character: grownCharacter,
+              session: null,
+              monster: null,
+              questProgress: questProgress(14, true)
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        } as unknown as FightService,
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "completed",
+              character: grownCharacter,
+              progress: { wins: 5, target: 5 },
+              reward: {
+                xp: 80,
+                gold: 120,
+                itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 1 }]
+              }
+            }),
+        } as unknown as YegerQuestService,
+        cellarErrand: readyCellarService(grownCharacter),
+        cellarGrownup: completedCellarGrownupService(grownCharacter)
+      }),
+      "reply",
+      "archive"
+    );
+
+    expect(replies[0]?.text).toContain("📦 Архів справ");
+    expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
+    expect(replies[0]?.text).toContain(
+      "📋 <i>Тринадцять дрібних проблем</i> — 14/13 проблем у журналі, перший список закрито; далі практика."
+    );
+    expect(replies[0]?.text).toContain("🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.");
+    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — новачкова справа до 3 рівня.");
+    expect(replies[0]?.text).toContain(
+      "🐭 <i>Справа не до миші</i> — дорослу підвальну справу вже закрито; пляшка стоїть у журналі й тихо булькає."
+    );
+    expect(replies[0]?.options).toMatchObject({
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "📋 До справ", callback_data: makeQuestCallbackData("list") }],
+          [{ text: "📖 Бестіарій", callback_data: makeBestiaryListCallbackData(0) }],
+          [{ text: "🍺 До зали", callback_data: makePlaceCallbackData("hall") }]
+        ]
+      }
+    });
   });
 
   it("reminds exhausted heroes to rest before opening a new fight", async () => {
@@ -391,7 +483,8 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain(
+    expect(replies[0]?.text).toContain("⚔️ <i>Сутичка з невідомим монстром</i> — можна шукати нову проблему.");
+    expect(replies[0]?.text).not.toContain(
       "📋 <i>Тринадцять дрібних проблем</i> — 14/13 проблем у журналі, перший список закрито; далі практика."
     );
     const buttons = (
@@ -417,7 +510,7 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
+    expect(replies[0]?.text).not.toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
       "📋 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
     );
@@ -430,6 +523,7 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🧾 До проблем",
       "🧹 У підвал",
+      "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
     ]);
@@ -596,6 +690,20 @@ function completedCellarGrownupService(summary: CharacterSummary): CellarGrownup
           xp: 40,
           gold: 0
         }
+      })
+  } as unknown as CellarGrownupQuestService;
+}
+
+function bottleObtainedCellarGrownupService(
+  summary: CharacterSummary,
+  bottleQuantity = 1
+): CellarGrownupQuestService {
+  return {
+    getForTelegramUser: () =>
+      Promise.resolve({
+        state: "bottle-obtained",
+        character: summary,
+        bottleQuantity
       })
   } as unknown as CellarGrownupQuestService;
 }

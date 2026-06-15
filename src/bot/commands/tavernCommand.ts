@@ -16,6 +16,7 @@ import {
   buildKorchmaBarKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
+  buildKorchmaMemorialBoardKeyboard,
   buildTavernKeyboard,
   buildTavernResultKeyboard
 } from "../keyboards/tavernKeyboard";
@@ -24,6 +25,7 @@ import {
   presentKorchmaBar,
   presentKorchmaFront,
   presentKorchmaHall,
+  presentKorchmaMemorialBoard,
   presentTavern,
   presentTavernAlreadyRaided,
   presentTavernNoCharacter,
@@ -134,6 +136,44 @@ export async function sendKorchmaArrivalBoard(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
+  mode: "reply" | "edit"
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
+
+  if (result.state === "no-character") {
+    await sendText(ctx, mode, presentTavernNoCharacter());
+    return;
+  }
+
+  if (result.state === "pending") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
+    return;
+  }
+
+  if (result.state === "pending-complete") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
+    return;
+  }
+
+  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FRONT);
+  const board = await presenceService.getKorchmaArrivalBoard();
+
+  await sendText(ctx, mode, presentKorchmaArrivalBoard(result.character, board), "arrivals");
+}
+
+export async function sendKorchmaMemorialBoard(
+  ctx: Context,
+  tavernRaidService: TavernRaidService,
+  presenceService: PresenceService,
   mode: "reply" | "edit",
   levelMilestoneService?: LevelMilestoneService
 ): Promise<void> {
@@ -164,10 +204,9 @@ export async function sendKorchmaArrivalBoard(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FRONT);
-  const board = await presenceService.getKorchmaArrivalBoard();
   const milestones = levelMilestoneService ? await levelMilestoneService.getBoard() : undefined;
 
-  await sendText(ctx, mode, presentKorchmaArrivalBoard(result.character, board, milestones), "arrivals");
+  await sendText(ctx, mode, presentKorchmaMemorialBoard(result.character, milestones), "memorial");
 }
 
 export async function sendKorchmaBar(
@@ -197,7 +236,8 @@ export async function sendKorchmaBar(
     : null;
   await sendText(ctx, mode, presentKorchmaBar(result.character), {
     state: "bar",
-    includeBottleTurnIn: cellarGrownup?.state === "bottle-obtained"
+    includeBottleTurnIn:
+      cellarGrownup?.state === "bottle-obtained" && cellarGrownup.bottleQuantity > 0
   });
 }
 
@@ -279,6 +319,7 @@ async function sendText(
     | { state: "bar"; includeBottleTurnIn?: boolean }
     | "front"
     | "arrivals"
+    | "memorial"
     | "barrel-result"
     | "barrel-pending" = false
 ): Promise<void> {
@@ -294,8 +335,10 @@ async function sendText(
                 })
             : keyboard === "front"
               ? buildKorchmaFrontKeyboard()
-              : keyboard === "arrivals"
-                ? buildKorchmaArrivalBoardKeyboard()
+            : keyboard === "arrivals"
+              ? buildKorchmaArrivalBoardKeyboard()
+              : keyboard === "memorial"
+                ? buildKorchmaMemorialBoardKeyboard()
                 : keyboard === "barrel-result"
                   ? buildTavernResultKeyboard("already-completed")
                   : keyboard === "barrel-pending"
@@ -319,6 +362,7 @@ function isBarKeyboard(
     | { state: "bar"; includeBottleTurnIn?: boolean }
     | "front"
     | "arrivals"
+    | "memorial"
     | "barrel-result"
     | "barrel-pending"
     | "barrel-participants"

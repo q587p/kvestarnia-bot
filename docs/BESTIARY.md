@@ -405,7 +405,7 @@ Tags: `dragon`, `boss`, `gold`, `bureaucracy`, `tax`
 ## 21. Скаргова лампа — `monster.complaint-lantern`
 
 Level: `4`
-Tags: `paperwork`, `sound`, `time`
+Tags: `paperwork`, `sound`, `time`, `unquiet`
 
 **Опис:** Світить лише тоді, коли хтось починає жалітись голосніше за корчмаря.
 
@@ -418,7 +418,7 @@ Tags: `paperwork`, `sound`, `time`
 ## 22. Кабан прибутково-видаткової книги — `monster.ledger-boar`
 
 Level: `5`
-Tags: `beast`, `paperwork`, `audit`
+Tags: `beast`, `paperwork`, `audit`, `unquiet`
 
 **Опис:** Риє нісом у рахунках і залишає після себе тільки сумнівні витрати та сліди копит.
 
@@ -431,7 +431,7 @@ Tags: `beast`, `paperwork`, `audit`
 ## 23. Крендель солоної обіцянки — `monster.salted-oath-pretzel`
 
 Level: `6`
-Tags: `food`, `bread`, `rules`
+Tags: `food`, `bread`, `rules`, `unquiet`
 
 **Опис:** Сухий, гнучкий і страшенно переконаний, що довіра — це теж начинка.
 
@@ -444,7 +444,7 @@ Tags: `food`, `bread`, `rules`
 ## 24. Мапа коридору, яка бреше — `monster.liar-corridor-map`
 
 Level: `7`
-Tags: `paper`, `rules`, `trickster`
+Tags: `paper`, `rules`, `trickster`, `unquiet`
 
 **Опис:** Показує вихід там, де насправді тільки ще один коридор і трохи сорому.
 
@@ -457,7 +457,7 @@ Tags: `paper`, `rules`, `trickster`
 ## 25. Пінний ревізор у чоботях — `monster.foam-auditor-boots`
 
 Level: `8`
-Tags: `audit`, `queue`, `sound`
+Tags: `audit`, `queue`, `sound`, `unquiet`
 
 **Опис:** Перевіряє кружки, піну й вашу готовність відповідати за третю кружку.
 
@@ -483,7 +483,7 @@ Tags: `bureaucracy`, `construct`, `cursed`
 ## 27. Наглядач сирного сховку — `monster.cheese-vault-warden`
 
 Level: `10`
-Tags: `food`, `stone`, `gatekeeper`
+Tags: `food`, `stone`, `gatekeeper`, `unquiet`
 
 **Опис:** Стійкий до холоду, спокуси і будь-яких аргументів без серветки.
 
@@ -496,7 +496,7 @@ Tags: `food`, `stone`, `gatekeeper`
 ## 28. Гідра календарних переносів — `monster.calendar-hydra`
 
 Level: `11`
-Tags: `time`, `paperwork`, `water`
+Tags: `time`, `paperwork`, `water`, `unquiet`
 
 **Опис:** Відрізали понеділок — виріс вівторок, але вже з іншим дедлайном.
 
@@ -509,7 +509,7 @@ Tags: `time`, `paperwork`, `water`
 ## 29. Пророк інвентарної недостачі — `monster.inventory-prophet`
 
 Level: `12`
-Tags: `gold`, `paperwork`, `mind`
+Tags: `gold`, `paperwork`, `mind`, `unquiet`
 
 **Опис:** Знає, що зникло, ще до того, як ви зрозуміли, що це було.
 

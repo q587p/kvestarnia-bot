@@ -16,6 +16,7 @@ export const PRESENCE_LOCATION_KORCHMA_BAR = "location.korchma.bar";
 export const PRESENCE_LOCATION_KORCHMA_CELLAR = "location.korchma.cellar";
 export const PRESENCE_LOCATION_KORCHMA_BARREL = "location.korchma.barrel";
 export const PRESENCE_LOCATION_KORCHMA_NEWS_CORNER = "location.korchma.news_corner";
+export const PRESENCE_LOCATION_KORCHMA_RANGER_CORNER = "location.korchma.ranger_corner";
 export const PRESENCE_LOCATION_UNKNOWN = "location.unknown";
 
 export const PRESENCE_LOCATION_TAVERN = "location.tavern";
@@ -28,7 +29,8 @@ const KORCHMA_INTERIOR_LOCATION_IDS = [
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
-  PRESENCE_LOCATION_KORCHMA_NEWS_CORNER
+  PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
 ];
 
 export const PRESENCE_RAID_FRIDAY_BARREL = "raid.friday-barrel";
@@ -564,6 +566,16 @@ export function getPublicPresenceLocation(
     };
   }
 
+  if (id === PRESENCE_LOCATION_KORCHMA_RANGER_CORNER) {
+    return {
+      locationId: id,
+      title: "Єгерський куток",
+      regionName: "Корчма Квестарні",
+      showNames: true,
+      isSpecific: true
+    };
+  }
+
   return {
     locationId: id,
     title: "Невідома місцина",
@@ -601,7 +613,8 @@ export function isKorchmaInteriorLocation(locationId: string | null | undefined)
     id === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE ||
     id === PRESENCE_LOCATION_KORCHMA_CELLAR ||
     id === PRESENCE_LOCATION_KORCHMA_BARREL ||
-    id === PRESENCE_LOCATION_KORCHMA_NEWS_CORNER
+    id === PRESENCE_LOCATION_KORCHMA_NEWS_CORNER ||
+    id === PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
   );
 }
 
@@ -681,7 +694,7 @@ function getAdventureName(id: string): string {
   }
 
   if (id === PRESENCE_ADVENTURE_HUNT_BOARD) {
-    return "Дошка полювання";
+    return "Єгерська справа";
   }
 
   if (id === PRESENCE_ADVENTURE_MIMIC_FIGHT) {
