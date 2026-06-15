@@ -140,5 +140,75 @@ export const monsters = [
     description: "Маленький тільки на відстані. Зблизька питає, чому скарб названо «знахідкою».",
     level: 5,
     tags: ["dragon", "boss", "gold", "bureaucracy", "tax"]
+  },
+  {
+    id: "monster.complaint-lantern",
+    name: "Скаргова лампа",
+    description: "Світить лише тоді, коли хтось починає жалітись голосніше за корчмаря.",
+    level: 4,
+    tags: ["paperwork", "sound", "time"]
+  },
+  {
+    id: "monster.ledger-boar",
+    name: "Кабан прибутково-видаткової книги",
+    description: "Риє нісом у рахунках і залишає після себе тільки сумнівні витрати та сліди копит.",
+    level: 5,
+    tags: ["beast", "paperwork", "audit"]
+  },
+  {
+    id: "monster.salted-oath-pretzel",
+    name: "Крендель солоної обіцянки",
+    description: "Сухий, гнучкий і страшенно переконаний, що довіра — це теж начинка.",
+    level: 6,
+    tags: ["food", "bread", "rules"]
+  },
+  {
+    id: "monster.liar-corridor-map",
+    name: "Мапа коридору, яка бреше",
+    description: "Показує вихід там, де насправді тільки ще один коридор і трохи сорому.",
+    level: 7,
+    tags: ["paper", "rules", "trickster"]
+  },
+  {
+    id: "monster.foam-auditor-boots",
+    name: "Пінний ревізор у чоботях",
+    description: "Перевіряє кухлі, піну й вашу готовність відповідати за третю кружку.",
+    level: 8,
+    tags: ["audit", "queue", "sound"]
+  },
+  {
+    id: "monster.three-signature-chimera",
+    name: "Химера трьох підписів",
+    description: "Кожна голова погоджується з двома іншими, але тільки на словах.",
+    level: 9,
+    tags: ["bureaucracy", "construct", "cursed"]
+  },
+  {
+    id: "monster.cheese-vault-warden",
+    name: "Наглядач сирного сховку",
+    description: "Стійкий до холоду, до спокуси і до будь-яких аргументів без серветки.",
+    level: 10,
+    tags: ["food", "stone", "gatekeeper"]
+  },
+  {
+    id: "monster.calendar-hydra",
+    name: "Гідра календарних переносів",
+    description: "Відрізали понеділок — виріс вівторок, але вже з іншим дедлайном.",
+    level: 11,
+    tags: ["time", "paperwork", "water"]
+  },
+  {
+    id: "monster.inventory-prophet",
+    name: "Пророк інвентарної недостачі",
+    description: "Знає, що зникло, ще до того, як ви зрозуміли, що це було.",
+    level: 12,
+    tags: ["gold", "paperwork", "mind"]
+  },
+  {
+    id: "monster.quiet-catastrophe-clerk",
+    name: "Писар тихої катастрофи",
+    description: "Записує кінець світу так акуратно, ніби це просто внутрішня службова.",
+    level: 13,
+    tags: ["paperwork", "cursed", "soft"]
   }
 ] satisfies MonsterContent[];

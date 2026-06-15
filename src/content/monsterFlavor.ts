@@ -1399,5 +1399,125 @@ export const monsterFlavorLines: MonsterFlavorLine[] = [
     "monsterId": "monster.zero-declaration-tax-dragon",
     "placement": "monster.loot-note",
     "text": "Дракон не віддав скарб. Він видав «тимчасово не заборонено»."
+  },
+  {
+    "id": "monster-flavor.complaint-lantern.fallback.start",
+    "monsterId": "monster.complaint-lantern",
+    "placement": "monster.start",
+    "text": "Скаргова лампа спалахує над столом і підсвічує все, що ви ще не встигли поскаржити."
+  },
+  {
+    "id": "monster-flavor.complaint-lantern.loot-note",
+    "monsterId": "monster.complaint-lantern",
+    "placement": "monster.loot-note",
+    "text": "Світло лишилося в скарзі. Воно, здається, теж незадоволене."
+  },
+  {
+    "id": "monster-flavor.ledger-boar.fallback.start",
+    "monsterId": "monster.ledger-boar",
+    "placement": "monster.start",
+    "text": "Кабан прибутково-видаткової книги риє нісом у рахунках і шукає, де ви сховали дрібні витрати."
+  },
+  {
+    "id": "monster-flavor.ledger-boar.loot-note",
+    "monsterId": "monster.ledger-boar",
+    "placement": "monster.loot-note",
+    "text": "Кабан лишив сліди копит і один дуже товстий запис."
+  },
+  {
+    "id": "monster-flavor.salted-oath-pretzel.fallback.start",
+    "monsterId": "monster.salted-oath-pretzel",
+    "placement": "monster.start",
+    "text": "Крендель солоної обіцянки лежить на таці так, ніби він уже поклявся бути небезпечним."
+  },
+  {
+    "id": "monster-flavor.salted-oath-pretzel.loot-note",
+    "monsterId": "monster.salted-oath-pretzel",
+    "placement": "monster.loot-note",
+    "text": "Крендель тримає обіцянку тільки поки не проголодніє."
+  },
+  {
+    "id": "monster-flavor.liar-corridor-map.fallback.start",
+    "monsterId": "monster.liar-corridor-map",
+    "placement": "monster.start",
+    "text": "Мапа коридору, яка бреше, уже показала вихід. Тому виходу тут, звісно, нема."
+  },
+  {
+    "id": "monster-flavor.liar-corridor-map.loot-note",
+    "monsterId": "monster.liar-corridor-map",
+    "placement": "monster.loot-note",
+    "text": "Мапа переклала коридор на власну версію реальности."
+  },
+  {
+    "id": "monster-flavor.foam-auditor-boots.fallback.start",
+    "monsterId": "monster.foam-auditor-boots",
+    "placement": "monster.start",
+    "text": "Пінний ревізор у чоботях заходить у залу так, ніби зараз перевірятиме кружки на відповідність."
+  },
+  {
+    "id": "monster-flavor.foam-auditor-boots.loot-note",
+    "monsterId": "monster.foam-auditor-boots",
+    "placement": "monster.loot-note",
+    "text": "Ревізія лишила тільки піну. Вона теж рахується."
+  },
+  {
+    "id": "monster-flavor.three-signature-chimera.fallback.start",
+    "monsterId": "monster.three-signature-chimera",
+    "placement": "monster.start",
+    "text": "Химера трьох підписів складається з трьох різних поглядів на одну й ту саму форму."
+  },
+  {
+    "id": "monster-flavor.three-signature-chimera.loot-note",
+    "monsterId": "monster.three-signature-chimera",
+    "placement": "monster.loot-note",
+    "text": "Три підписи сховалися в одній тіні. Дивно, але законно."
+  },
+  {
+    "id": "monster-flavor.cheese-vault-warden.fallback.start",
+    "monsterId": "monster.cheese-vault-warden",
+    "placement": "monster.start",
+    "text": "Наглядач сирного сховку виходить із тіні й ставить між вами та запасами офіційний запах."
+  },
+  {
+    "id": "monster-flavor.cheese-vault-warden.loot-note",
+    "monsterId": "monster.cheese-vault-warden",
+    "placement": "monster.loot-note",
+    "text": "Сирний сховок відчинився, але не визнав провини."
+  },
+  {
+    "id": "monster-flavor.calendar-hydra.fallback.start",
+    "monsterId": "monster.calendar-hydra",
+    "placement": "monster.start",
+    "text": "Гідра календарних переносів уже з’їла понеділок і пропонує перенести вівторок на вчора."
+  },
+  {
+    "id": "monster-flavor.calendar-hydra.loot-note",
+    "monsterId": "monster.calendar-hydra",
+    "placement": "monster.loot-note",
+    "text": "Перенос календаря зламався об стіну. Стіна не винна."
+  },
+  {
+    "id": "monster-flavor.inventory-prophet.fallback.start",
+    "monsterId": "monster.inventory-prophet",
+    "placement": "monster.start",
+    "text": "Пророк інвентарної недостачі чує брязкіт торби й одразу знає, що зникне ще до пошуку."
+  },
+  {
+    "id": "monster-flavor.inventory-prophet.loot-note",
+    "monsterId": "monster.inventory-prophet",
+    "placement": "monster.loot-note",
+    "text": "Інвентар шепоче про недостачу, але дуже ввічливо."
+  },
+  {
+    "id": "monster-flavor.quiet-catastrophe-clerk.fallback.start",
+    "monsterId": "monster.quiet-catastrophe-clerk",
+    "placement": "monster.start",
+    "text": "Писар тихої катастрофи сидить рівно, як новий штамп, і називає це спокоєм перед оформленням."
+  },
+  {
+    "id": "monster-flavor.quiet-catastrophe-clerk.loot-note",
+    "monsterId": "monster.quiet-catastrophe-clerk",
+    "placement": "monster.loot-note",
+    "text": "Писар зберіг катастрофу в папці. Папка все заперечує."
   }
 ];
