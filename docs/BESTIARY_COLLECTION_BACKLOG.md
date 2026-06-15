@@ -1,6 +1,6 @@
 # Bestiary Collection Backlog
 
-> Status after `0.0.19`: parked until Phase 1 finish. Не брати ці задачі як наступний gameplay PR, доки не закриті combat engine, equipment stat effects, loot engine і level 1-10. Бестіарій лишається content/data foundation для combat/loot, не окремим collection feature track.
+> Status after `0.0.19`: parked until Phase 1 finish. Не брати ці задачі як наступний gameplay PR, доки не закриті combat engine, equipment stat effects, loot engine і level 1-13. Бестіарій лишається content/data foundation для combat/loot, не окремим collection feature track.
 
 Нижче — пріоритетний backlog для bestiary collection / hunt journal slices.
 

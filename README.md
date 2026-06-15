@@ -127,7 +127,7 @@
 - [`docs/INSPIRATION_CONTENT_BACKLOG.md`](docs/INSPIRATION_CONTENT_BACKLOG.md) — очищені джерела смаку, безпечні правила запозичення й backlog монстрів, манаток, пригод та алюзій.
 - [`docs/TERMINOLOGY.md`](docs/TERMINOLOGY.md) — правило `пригодник` / `персонаж` / `герой` і репутаційні шляхи.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — фази розвитку й Definition of Done для продукту.
-- [`docs/PHASE1_FINISH_PLAN.md`](docs/PHASE1_FINISH_PLAN.md) — scope lock для добивання combat → equipment stats → loot → рівнів 1-10, із ачівками як rewardless later slice.
+- [`docs/PHASE1_FINISH_PLAN.md`](docs/PHASE1_FINISH_PLAN.md) — scope lock для добивання combat → equipment stats → loot → рівнів 1-13, із ачівками як rewardless later slice.
 - [`docs/BALANCE_NOTES.md`](docs/BALANCE_NOTES.md) — формули, економіка, RNG і балансні guardrails.
 - [`docs/SECURITY_AND_FAIR_PLAY.md`](docs/SECURITY_AND_FAIR_PLAY.md) — антиаб’юз, приватність, idempotency і чесна гра.
 - [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md) — архітектура, домени, дані й майбутні технічні рішення.

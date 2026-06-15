@@ -26,7 +26,13 @@ describe("level progression", () => {
     [305, 9],
     [399, 9],
     [400, 10],
-    [999, 10]
+    [519, 10],
+    [520, 11],
+    [659, 11],
+    [660, 12],
+    [824, 12],
+    [825, 13],
+    [999, 13]
   ])("maps %i XP to level %i", (xp, level) => {
     expect(getLevelForXp(xp)).toBe(level);
   });
@@ -36,7 +42,9 @@ describe("level progression", () => {
     expect(getNextLevelThreshold(2)).toBe(25);
     expect(getNextLevelThreshold(5)).toBe(110);
     expect(getNextLevelThreshold(9)).toBe(400);
-    expect(getNextLevelThreshold(10)).toBeNull();
+    expect(getNextLevelThreshold(10)).toBe(520);
+    expect(getNextLevelThreshold(12)).toBe(825);
+    expect(getNextLevelThreshold(13)).toBeNull();
   });
 
   it("detects threshold crossing", () => {

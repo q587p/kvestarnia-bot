@@ -46,8 +46,8 @@ describe("summarizeCharacter", () => {
   });
 
   it("handles capped level", () => {
-    expect(summarizeCharacter(character({ level: 10, xp: 425 }))).toMatchObject({
-      level: 10,
+    expect(summarizeCharacter(character({ level: 13, xp: 900 }))).toMatchObject({
+      level: 13,
       nextLevelXp: null,
       xpToNextLevel: null
     });

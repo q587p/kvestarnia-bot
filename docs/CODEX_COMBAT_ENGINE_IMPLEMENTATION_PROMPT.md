@@ -148,7 +148,7 @@ Start with simple formulas from `docs/COMBAT_ENGINE_DESIGN.md` / `docs/BALANCE_N
 Add or update a simulation script if practical:
 
 ```bash
-npm run simulate:combat -- --levels 1-10 --runs 10000
+npm run simulate:combat -- --levels 1-13 --runs 10000
 ```
 
 If adding the script is too much for this PR, add domain tests that approximate:

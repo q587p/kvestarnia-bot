@@ -10,7 +10,7 @@
 /start → герой → справжній бій → XP/золото/лут → inventory/equipment → рівень і цифри реально впливають на наступний бій
 ```
 
-Бестіарій, Hunt Board, presence, корчма й flavor уже дали корисну інфраструктуру. Persistent `/fight` уже зʼявився як session slice з одним маленьким quest wrapper-ом на 13 перемог, equipment effects уже впливають на числа, а `0.0.23` додає перший контрольований per-session reward/loot path із replay деталей. Phase 1 не закрита, доки цей combat → equipment stats → loot → level 1-10 loop не пройде балансний polish і playtesting. Achievements Phase 1 дозволений як later rewardless meta-slice для титулів і прогресу, але не має перебивати цей ланцюжок.
+Бестіарій, Hunt Board, presence, корчма й flavor уже дали корисну інфраструктуру. Persistent `/fight` уже зʼявився як session slice з одним маленьким quest wrapper-ом на 13 перемог, equipment effects уже впливають на числа, а `0.0.23` додає перший контрольований per-session reward/loot path із replay деталей. Phase 1 не закрита, доки цей combat → equipment stats → loot → level 1-13 loop не пройде балансний polish і playtesting. Achievements Phase 1 дозволений як later rewardless meta-slice для титулів і прогресу, але не має перебивати цей ланцюжок.
 
 ## Scope Lock
 
@@ -41,19 +41,22 @@
 5. **Loot Engine + Reward Replay**
    Контрольовані loot tables із rarity, bounded LUCK modifier, deterministic/injected RNG, idempotent reward claim і replay деталей. Реалізовано в `0.0.23` для won persistent solo fights.
 
-6. **Friendly Chest / Манатко-скриня**
+6. **Level Cap 13**
+   Підняти current alpha cap до 13 рівня, перенести capstone `/restart` suggestion туди й змістити майбутні epic levels на `14-23`.
+
+7. **Friendly Chest / Манатко-скриня**
    Після ввімкнення fight loot кількість манаток росте швидше, ніж раніше. Перед великим tuning pass додати маленький item sink: `5` eligible манаток у Дружню Скриню → `1` нова манатка краща за середнє вкладених, із confirmation, транзакційністю й idempotent callback safety. Деталі: `docs/MANTOK_CHEST_BACKLOG.md`.
 
-7. **Level 1-10 Reward Tuning**
+8. **Level 1-13 Reward Tuning**
    Перевірити, що fight victory rewards, loot, level thresholds, multi-level grant і cap behavior разом дають нормальний Phase 1 темп. Не додавати нові системи, доки current loop не проходить smoke і симуляції.
 
-8. **Achievements Phase 1**
+9. **Achievements Phase 1**
    Rewardless ачівки як колекція титулів: seed definitions, idempotent unlock service, кнопка `🏅 Ачівки`, пагінація, hidden states і grouped notifications. Без XP, золота, предметів, stat effects або active-title selection. Деталі: `docs/ACHIEVEMENTS_PHASE1.md`.
 
-9. **Phase 1 Balance / Playtest / Polish**
+10. **Phase 1 Balance / Playtest / Polish**
    Не додавати фічі. Пройти smoke checklist, симуляції або balance matrix, оновити docs/release surfaces.
 
-## Пропонована XP-крива для альфи 1-10
+## Пропонована XP-крива для альфи 1-13
 
 Це робоча крива для видимого прогресу, не фінальний баланс:
 
@@ -69,6 +72,9 @@
 | 8 | 225 |
 | 9 | 305 |
 | 10 | 400 |
+| 11 | 520 |
+| 12 | 660 |
+| 13 | 825 |
 
 ## Phase 1 Done
 
@@ -81,7 +87,7 @@ Phase 1 можна вважати закритою, коли:
 - перемога видає XP/gold/item через loot engine і repeated callback replay-ить той самий запис;
 - повторний callback не дублює XP/gold/items/level;
 - inventory має перший item sink для зайвого fight loot: Манатко-скриня зменшує `5` eligible речей до `1` output без втрати input items при помилці;
-- level-up 1-10 має тести й видимий короткий текст;
+- level-up 1-13 має тести й видимий короткий текст;
 - loss/flee не карають жорстко й не стають безкоштовним full reward;
 - `npm run check` або еквівалентні lint/typecheck/build/test проходять;
 - `docs/ROADMAP.md`, `docs/GAME_DESIGN.md`, `docs/BALANCE_NOTES.md`, `docs/PLAYTESTING.md`, `CHANGELOG.md`, `news.md` оновлені для runtime-релізів.
