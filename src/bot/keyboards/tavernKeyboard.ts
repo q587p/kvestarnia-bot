@@ -1,4 +1,5 @@
 import { InlineKeyboard } from "grammy";
+import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
@@ -38,10 +39,14 @@ export function buildKorchmaHallKeyboard(): InlineKeyboard {
     .text("🚪 Надвір", makePlaceCallbackData("front"));
 }
 
-export function buildKorchmaBarKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
-    .text("🍻 Всім пива", makeTavernCallbackData("round"))
-    .row()
+export function buildKorchmaBarKeyboard(options: { includeBottleTurnIn?: boolean } = {}): InlineKeyboard {
+  const keyboard = new InlineKeyboard().text("🍻 Всім пива", makeTavernCallbackData("round")).row();
+
+  if (options.includeBottleTurnIn) {
+    keyboard.text("🍾 Здати пляшку", makeCellarCallbackData("grownup-turn-in")).row();
+  }
+
+  return keyboard
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 

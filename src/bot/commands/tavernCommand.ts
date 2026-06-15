@@ -9,6 +9,7 @@ import {
 } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import type { LevelMilestoneService } from "../../services/levelMilestoneService";
+import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildKorchmaArrivalBoardKeyboard,
@@ -173,7 +174,8 @@ export async function sendKorchmaBar(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  cellarGrownupQuestService?: CellarGrownupQuestService
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -190,7 +192,13 @@ export async function sendKorchmaBar(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BAR);
-  await sendText(ctx, mode, presentKorchmaBar(result.character), "bar");
+  const cellarGrownup = cellarGrownupQuestService
+    ? await cellarGrownupQuestService.getForTelegramUser(telegramUserId)
+    : null;
+  await sendText(ctx, mode, presentKorchmaBar(result.character), {
+    state: "bar",
+    includeBottleTurnIn: cellarGrownup?.state === "bottle-obtained"
+  });
 }
 
 export async function sendTavernBarrel(
@@ -268,7 +276,7 @@ async function sendText(
   keyboard:
     | boolean
     | "hall"
-    | "bar"
+    | { state: "bar"; includeBottleTurnIn?: boolean }
     | "front"
     | "arrivals"
     | "barrel-result"
@@ -280,8 +288,10 @@ async function sendText(
         reply_markup:
           keyboard === "hall"
             ? buildKorchmaHallKeyboard()
-            : keyboard === "bar"
-              ? buildKorchmaBarKeyboard()
+            : isBarKeyboard(keyboard)
+              ? buildKorchmaBarKeyboard({
+                  includeBottleTurnIn: Boolean(keyboard.includeBottleTurnIn)
+                })
             : keyboard === "front"
               ? buildKorchmaFrontKeyboard()
               : keyboard === "arrivals"
@@ -300,4 +310,18 @@ async function sendText(
   }
 
   await ctx.reply(text, options);
+}
+
+function isBarKeyboard(
+  keyboard:
+    | boolean
+    | "hall"
+    | { state: "bar"; includeBottleTurnIn?: boolean }
+    | "front"
+    | "arrivals"
+    | "barrel-result"
+    | "barrel-pending"
+    | "barrel-participants"
+): keyboard is { state: "bar"; includeBottleTurnIn?: boolean } {
+  return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "bar";
 }

@@ -100,6 +100,16 @@ describe("main menu and scene keyboards", () => {
       "v1:tavern:round",
       "v1:place:hall"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ includeBottleTurnIn: true }))).toEqual([
+      "🍻 Всім пива",
+      "🍾 Здати пляшку",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaBarKeyboard({ includeBottleTurnIn: true }))).toEqual([
+      "v1:tavern:round",
+      "v1:cellar:grownup-turn-in",
+      "v1:place:hall"
+    ]);
   });
 
   it("keeps tavern inline buttons scoped to tavern actions", () => {
@@ -841,6 +851,19 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
       "v1:item:detail:item.cellar.foamy-mirage-bottle",
       "v1:place:quest-table",
+      "v1:place:hall"
+    ]);
+  });
+
+  it("routes an obtained grownup cellar bottle to the Шинок for turn-in", () => {
+    const keyboard = buildCellarGrownupKeyboard("bottle-obtained");
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "🍻 До шинку",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:place:bar",
       "v1:place:hall"
     ]);
   });

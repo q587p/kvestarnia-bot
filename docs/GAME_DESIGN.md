@@ -161,8 +161,8 @@ Achievements Phase 1 лишається rewardless later slice після осн
 `0.0.24` додає вузький level 4+ follow-up, `Справа не до миші`, який зʼявляється, коли герой виріс із мишачої справи й заходить старим `/cellar` route. Це once-per-player вертикальний slice, не broad quest engine:
 - купити `Сирну пломбу Корчмаря` або спробувати roleplay bypass;
 - після успіху отримати `Пляшку Пінного Міражу` максимум один раз;
-- у фіналі здати пляшку Корчмарю або лишити собі;
-- будь-який фінал ставить permanent completion flag через `daily_actions`, а repeated callback-и replay-ять стан без дублювання XP/золота/items.
+- підвал не приймає фінальне рішення: пляшку треба забрати з собою й здати Корчмарю в `🍻 Шинку`;
+- фінальний turn-in у Шинку ставить permanent completion flag через `daily_actions`, а repeated callback-и replay-ять стан без дублювання XP/золота/items. Старий `keep` path лишається тільки compatibility/stale-callback боргом, не видимим UX.
 
 Пломба й пляшка є content foundation для майбутніх quest/item взаємодій, але цей slice не додає магазину, crafting, продажу, обміну або повного quest-session model.
 

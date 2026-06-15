@@ -194,7 +194,7 @@ Implemented in `0.0.24`.
 - persistent solo fights prefer monsters closer to the hero level and fall back to the highest eligible lower-level monster when content has no same-band enemy yet;
 - XP from persistent solo fights is capped to `1` when the monster is more than 2 levels below the hero;
 - level 4+ `/cellar` route opens `Справа не до миші` instead of the retired mouse dead-end;
-- seal purchase, roleplay bypass, bottle grant, and final choice are idempotent through existing `daily_actions` / cooldown / item rows;
+- seal purchase, roleplay bypass, bottle grant, and `Шинок` turn-in are idempotent through existing `daily_actions` / cooldown / item rows;
 - no broad quest engine or new schema was added.
 
 ## 0.0.25 — Persistent HP/Mana & Loot Expansion

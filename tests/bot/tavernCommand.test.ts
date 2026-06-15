@@ -8,6 +8,7 @@ import {
   sendTavern
 } from "../../src/bot/commands/tavernCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import type { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
 import type { PresenceService } from "../../src/services/presenceService";
 import type { LevelMilestoneService } from "../../src/services/levelMilestoneService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
@@ -130,6 +131,44 @@ describe("tavern command screens", () => {
       }
     });
   });
+
+  it("offers bottle turn-in from the Шинок when the cellar bottle is carried", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      bottleObtainedGrownupQuest()
+    );
+
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🍻 Всім пива",
+              callback_data: "v1:tavern:round"
+            }
+          ],
+          [
+            {
+              text: "🍾 Здати пляшку",
+              callback_data: "v1:cellar:grownup-turn-in"
+            }
+          ],
+          [
+            {
+              text: "⬅️ До зали",
+              callback_data: makePlaceCallbackData("hall")
+            }
+          ]
+        ]
+      }
+    });
+  });
 });
 
 const character: CharacterSummary = {
@@ -214,6 +253,17 @@ function korchmaArrivalService(): PresenceService {
         ]
       })
   } as unknown as PresenceService;
+}
+
+function bottleObtainedGrownupQuest(): CellarGrownupQuestService {
+  return {
+    getForTelegramUser: () =>
+      Promise.resolve({
+        state: "bottle-obtained",
+        character,
+        bottleQuantity: 1
+      })
+  } as unknown as CellarGrownupQuestService;
 }
 
 function levelMilestoneService(): LevelMilestoneService {

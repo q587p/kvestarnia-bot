@@ -129,6 +129,7 @@ import {
 } from "./keyboards/onboardingKeyboard";
 import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
 import {
+  buildKorchmaBarKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaRoundOfferKeyboard,
   buildKorchmaRoundResultKeyboard,
@@ -1223,7 +1224,7 @@ async function handlePlaceCallback(
   }
 
   if (action === "bar") {
-    await sendKorchmaBar(ctx, services.tavern, services.presence, "edit");
+    await sendKorchmaBar(ctx, services.tavern, services.presence, "edit", services.cellarGrownup);
     return;
   }
 
@@ -1714,9 +1715,9 @@ async function handleCellarGrownupCallback(
 
   if (result.state !== "no-character" && result.state !== "too-young") {
     await markScenePresence(ctx, services.presence, {
-      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+      locationId: action === "grownup-turn-in" ? PRESENCE_LOCATION_KORCHMA_BAR : PRESENCE_LOCATION_KORCHMA_CELLAR,
       currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+      currentAdventureId: action === "grownup-turn-in" ? null : PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
     });
   }
 
@@ -1725,12 +1726,16 @@ async function handleCellarGrownupCallback(
 
   await safeEditMessageText(ctx, presentCellarGrownupResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    ...(grownupKeyboardState
+    ...(action === "grownup-turn-in"
       ? {
-          reply_markup: buildCellarGrownupKeyboard(grownupKeyboardState, {
-            includeKeptBottle: shouldShowCellarGrownupKeptBottleButton(result)
-          })
+          reply_markup: buildKorchmaBarKeyboard()
         }
+      : grownupKeyboardState
+        ? {
+            reply_markup: buildCellarGrownupKeyboard(grownupKeyboardState, {
+              includeKeptBottle: shouldShowCellarGrownupKeptBottleButton(result)
+            })
+          }
       : {})
   });
 

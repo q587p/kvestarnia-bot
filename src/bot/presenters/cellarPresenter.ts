@@ -74,9 +74,9 @@ export function presentCellarGrownupQuest(
       "",
       `<b>${escapeHtml(result.character.name)}</b> тримає пляшку, яка робить вигляд, що це вона тримає підвал.`,
       "",
-      npcQuote("Корчмар", "Ну що, віддаємо її в журнал чи залишаємо собі як проблему на потім?"),
+      npcQuote("Корчмар", "Несете в Шинок. Я такі речі приймаю тільки там, де є стійка, журнал і свідки."),
       "",
-      "Що робимо?"
+      "Пляшку можна здати Корчмарю в Шинку."
     ].join("\n");
   }
 
@@ -185,7 +185,7 @@ export function presentCellarGrownupResult(result: CellarGrownupQuestResult): st
       "",
       ...presentItemGrantLines(result.reward.itemGrants),
       "",
-      "Тепер її можна здати Корчмарю або лишити собі."
+      "Заберіть її з собою. Корчмар приймає такі речі в Шинку, бо там журнал товстіший і стійка менше тікає."
     ].join("\n");
   }
 

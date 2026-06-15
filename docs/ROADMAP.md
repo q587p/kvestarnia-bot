@@ -67,7 +67,7 @@ Current repeatable slice:
 - Cooldown lives in SQLite `character_cooldowns`, not Redis.
 - `0.0.11` adds a compact `Стіл зі справами` quest hub for `/quest`, `🗺️ Квести`, daily shawarma, fight probe, and cellar fallback.
 - `/cellar` exists only as a secondary fallback command; more repeatable activities and a full activity refactor remain later work.
-- `0.0.24` adds `Справа не до миші` for level 4+ heroes who try the retired cellar route: buy a seal or roleplay past the mouse, obtain `Пляшка Пінного Міражу` once, then hand it in or keep it with permanent completion through `daily_actions`.
+- `0.0.24` adds `Справа не до миші` for level 4+ heroes who try the retired cellar route: buy a seal or roleplay past the mouse, obtain `Пляшка Пінного Міражу` once, then carry it to `🍻 Шинок` for permanent turn-in through `daily_actions`.
 - Корчемний рейд у `0.0.11` отримав pending state на випадкові 5–8 хвилин: пригодник «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
 - A future progression/balance pass should make level matter more strongly in HP, mana, combat math, event checks, content gates, and reward-facing decisions.
 
