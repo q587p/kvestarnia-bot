@@ -9,7 +9,7 @@
 Не розширювати бестіарій як окрему фічу, collection loop, share card або journal progression, доки не закритий основний RPG-ланцюжок:
 
 ```text
-combat domain → persistent fight → equipment stats → loot engine → level 1-10 tuning → achievements phase 1 → balance/playtest polish
+combat domain → persistent fight → equipment stats → loot engine → level 1-13 tuning → achievements phase 1 → balance/playtest polish
 ```
 
 ## 0.0.20 — Combat Domain Engine
@@ -180,15 +180,27 @@ Implemented in `0.0.23` for won persistent solo fights.
 - повторний callback не reroll-ить loot;
 - reward UI безпечно показує exact items.
 
-## 0.0.24 — Fight Rewards and Level 1-10
+## 0.0.24 — Level Cap 13
+
+**Status**
+Implemented in `0.0.24`.
+
+**Scope**
+
+- current alpha cap raised from level 10 to level 13;
+- total XP thresholds extended with `520`, `660`, `825`;
+- level-cap celebration and `/restart` suggestion moved to level 13;
+- epic-level planning bracket moved to levels `14-23`.
+
+## 0.0.25 — Fight Rewards and Level 1-13
 
 **Objective**
-Довести solo loop після першого reward/loot path: real fight → reward → loot → level-up → hero/equipment impact має мати нормальний темп 1-10 і зрозумілий playtest checklist.
+Довести solo loop після першого reward/loot path: real fight → reward → loot → level-up → hero/equipment impact має мати нормальний темп 1-13 і зрозумілий playtest checklist.
 
 **Scope**
 
 - tune current fight reward/loot/progression path;
-- level thresholds 1-10 in one module;
+- level thresholds 1-13 in one module;
 - multi-level grant;
 - level cap / alpha max behavior;
 - level affects combat math through effective stats;
@@ -208,11 +220,14 @@ Implemented in `0.0.23` for won persistent solo fights.
 8: 225
 9: 305
 10: 400
+11: 520
+12: 660
+13: 825
 ```
 
 **Acceptance criteria**
 
-- tests cover threshold crossing, multiple levels, cap at 10, duplicate reward no duplicate level;
+- tests cover threshold crossing, multiple levels, cap at 13, duplicate reward no duplicate level;
 - `/hero` and combat agree on level/effective values.
 
 ## 0.0.26 — Phase 1 Balance and Playtest Polish

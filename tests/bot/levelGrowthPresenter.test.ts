@@ -40,8 +40,8 @@ describe("level growth presenter", () => {
   it("renders a special message at the current level cap", () => {
     const text = presentLevelUpCelebration(
       {
-        oldLevel: 9,
-        newLevel: 10,
+        oldLevel: 12,
+        newLevel: 13,
         leveledUp: true
       },
       "class.warrior"

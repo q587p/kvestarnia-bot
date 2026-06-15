@@ -7,6 +7,17 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.24] - 12026-06-15 - Level Cap 13
+
+### Changed
+- Raised the current alpha level cap from 10 to 13 with new XP thresholds at `520`, `660`, and `825` total XP.
+- Moved the level-cap celebration and `/restart` suggestion from level 10 to level 13.
+- Updated combat simulation defaults and progression docs to treat levels 1-13 as the current alpha range.
+- Moved the future epic-level planning bracket from `11-20` to `14-23`.
+
+### Not Included Yet
+- Epic-level abilities, level 14+ progression, new rewards, shops, trading, crafting, achievements runtime, or combat rebalance.
+
 ## [0.0.23] - 12026-06-15 - Loot Engine & Reward Replay
 
 ### Added
@@ -250,7 +261,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added the first character impact loop: race, class, hidden path, pronoun, title, and authored combo flavor can now affect korchma greetings, starter quest text, action outcomes, and barrel raid prep hints without changing rewards.
 - Added a hooded human-ish ranger NPC near the barrel with biography-aware reactions and korchma round flavor.
 - Added character flavor authoring docs for korchma greetings, quest routing, raid role hints, and future content review.
-- Added future backlog notes for character-facing progression: stronger level impact, level-gated and race/class-specific items, front-of-korchma community boards, epic levels `11-20`, time-of-day encounter modifiers, fair-play lootbox wording, Donjons and Dragons flavor, party-gathering flavor, and item-to-level sinks.
+- Added future backlog notes for character-facing progression: stronger level impact, level-gated and race/class-specific items, front-of-korchma community boards, epic levels, time-of-day encounter modifiers, fair-play lootbox wording, Donjons and Dragons flavor, party-gathering flavor, and item-to-level sinks.
 
 ### Changed
 - Updated scene and menu buttons with clearer icons and back navigation where the player naturally expects a return path.

@@ -162,7 +162,7 @@ Milestones:
 - lvl 3 — перше class-special уміння.
 - lvl 5 — race-special або combo flavor з малим ефектом.
 - lvl 10 — перша альфа-віха: особлива репліка, title/board entry, маленьке signature upgrade.
-- lvl 11-20 — епічний діапазон із milestone-ами, але не просто більші числа.
+- lvl 14-23 — епічний діапазон із milestone-ами, але не просто більші числа.
 
 Milestone має бути data-driven, щоб presenter міг сказати «що змінилося» без hard-coded текстового пошуку.
 
@@ -418,7 +418,7 @@ Never let repeated callback reroll damage, loot, surrender, backup call, XP or g
 - Backup call caps at one extra enemy in solo MVP.
 - Equipment effects only from intended metadata.
 - Race/class/path flavor does not leak hidden path names.
-- Simulations: levels 1–10, all classes, all races, at least day/night phases.
+- Simulations: levels 1–13, all classes, all races, at least day/night phases.
 
 ## Definition of Done
 

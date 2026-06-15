@@ -97,12 +97,12 @@
 - **Implementation notes:** цей квест має лишитися дружнім до `0.0.22` equipment effects.
 - **Phase:** `Phase 1+`.
 
-### 7. `quest.contract.level10.capstone.notice`
+### 7. `quest.contract.level13.capstone.notice`
 
-- **Title:** `Десята відмітка, і далі вже серйозно`
+- **Title:** `Тринадцята відмітка, і далі вже серйозно`
 - **Flavor:** Корчмар підписує папірець так, ніби ти нарешті навчився не плутати міміка зі скринею.
-- **Trigger / progress source:** досягнення 10 рівня.
-- **Target:** точна умова `level = 10`.
+- **Trigger / progress source:** досягнення 13 рівня.
+- **Target:** точна умова `level = 13`.
 - **Reward concept:** церемонний титул, згадка на дошці вістей або коротка підсумкова сцена.
 - **Non-goals:** жодного power spike поза нормальною математикою рівня.
 - **Implementation notes:** це capstone, а не прогрес-важіль; не роби його обов’язковим sink.

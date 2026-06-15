@@ -125,10 +125,10 @@ Done when:
 - Copy explains the attunement idea in one screen.
 - Tests prove the quest does not change equipment math.
 
-## Prompt 5 — Level 10 capstone tavern notice
+## Prompt 5 — Level 13 capstone tavern notice
 
 Goal:
-Add a small capstone quest / notice for reaching level 10, mostly as a ceremonial finish line for Phase 1.
+Add a small capstone quest / notice for reaching level 13, mostly as a ceremonial finish line for Phase 1.
 
 Context:
 Read first:
@@ -149,6 +149,6 @@ Constraints:
 - Keep the capstone ceremonial, not grindy.
 
 Done when:
-- Level 10 triggers a short notice or quest completion.
+- Level 13 triggers a short notice or quest completion.
 - Copy feels like a capstone, not a mechanic trap.
 - Tests cover the threshold and repeated display.

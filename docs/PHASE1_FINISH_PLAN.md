@@ -10,7 +10,7 @@
 /start → герой → справжній бій → XP/золото/лут → inventory/equipment → рівень і цифри реально впливають на наступний бій
 ```
 
-Бестіарій, Hunt Board, presence, корчма й flavor уже дали корисну інфраструктуру. Persistent `/fight` уже зʼявився як session slice з одним маленьким quest wrapper-ом на 13 перемог, equipment effects уже впливають на числа, а `0.0.23` додає перший контрольований per-session reward/loot path із replay деталей. Phase 1 не закрита, доки цей combat → equipment stats → loot → level 1-10 loop не пройде балансний polish і playtesting. Achievements Phase 1 дозволений як later rewardless meta-slice для титулів і прогресу, але не має перебивати цей ланцюжок.
+Бестіарій, Hunt Board, presence, корчма й flavor уже дали корисну інфраструктуру. Persistent `/fight` уже зʼявився як session slice з одним маленьким quest wrapper-ом на 13 перемог, equipment effects уже впливають на числа, а `0.0.23` додає перший контрольований per-session reward/loot path із replay деталей. Phase 1 не закрита, доки цей combat → equipment stats → loot → level 1-13 loop не пройде балансний polish і playtesting. Achievements Phase 1 дозволений як later rewardless meta-slice для титулів і прогресу, але не має перебивати цей ланцюжок.
 
 ## Scope Lock
 
@@ -41,7 +41,7 @@
 5. **Loot Engine + Reward Replay**
    Контрольовані loot tables із rarity, bounded LUCK modifier, deterministic/injected RNG, idempotent reward claim і replay деталей. Реалізовано в `0.0.23` для won persistent solo fights.
 
-6. **Level 1-10 Reward Tuning**
+6. **Level 1-13 Reward Tuning**
    Перевірити, що fight victory rewards, loot, level thresholds, multi-level grant і cap behavior разом дають нормальний Phase 1 темп. Не додавати нові системи, доки current loop не проходить smoke і симуляції.
 
 7. **Achievements Phase 1**
@@ -50,7 +50,7 @@
 8. **Phase 1 Balance / Playtest / Polish**
    Не додавати фічі. Пройти smoke checklist, симуляції або balance matrix, оновити docs/release surfaces.
 
-## Пропонована XP-крива для альфи 1-10
+## Пропонована XP-крива для альфи 1-13
 
 Це робоча крива для видимого прогресу, не фінальний баланс:
 
@@ -66,6 +66,9 @@
 | 8 | 225 |
 | 9 | 305 |
 | 10 | 400 |
+| 11 | 520 |
+| 12 | 660 |
+| 13 | 825 |
 
 ## Phase 1 Done
 
@@ -77,7 +80,7 @@ Phase 1 можна вважати закритою, коли:
 - stats, level і equipped items впливають на damage/survival/skill outcome через один helper;
 - перемога видає XP/gold/item через loot engine і repeated callback replay-ить той самий запис;
 - повторний callback не дублює XP/gold/items/level;
-- level-up 1-10 має тести й видимий короткий текст;
+- level-up 1-13 має тести й видимий короткий текст;
 - loss/flee не карають жорстко й не стають безкоштовним full reward;
 - `npm run check` або еквівалентні lint/typecheck/build/test проходять;
 - `docs/ROADMAP.md`, `docs/GAME_DESIGN.md`, `docs/BALANCE_NOTES.md`, `docs/PLAYTESTING.md`, `CHANGELOG.md`, `news.md` оновлені для runtime-релізів.

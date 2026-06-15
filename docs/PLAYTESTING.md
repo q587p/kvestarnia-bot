@@ -192,7 +192,7 @@
 13. `/hero` змінює effective stats після equip.
 14. Наступний fight показує або використовує змінені values.
 15. Level-up text показується при перетині threshold.
-16. Level 10 cap / alpha behavior зрозумілий.
+16. Level 13 cap / alpha behavior зрозумілий.
 
 ## Що це ще не перевіряє
 
