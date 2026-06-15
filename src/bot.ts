@@ -13,6 +13,7 @@ import { PrismaEquipmentRepository } from "./db/repositories/prismaEquipmentRepo
 import { PrismaHuntContractRepository } from "./db/repositories/prismaHuntContractRepository";
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "./db/repositories/prismaKorchmaRoundPurchaseRepository";
+import { PrismaMantokChestRepository } from "./db/repositories/prismaMantokChestRepository";
 import { PrismaPresenceRepository } from "./db/repositories/prismaPresenceRepository";
 import { PrismaSoloCombatSessionRepository } from "./db/repositories/prismaSoloCombatSessionRepository";
 import { PrismaUserRepository } from "./db/repositories/prismaUserRepository";
@@ -28,6 +29,7 @@ import { FightService } from "./services/fightService";
 import { HeroService } from "./services/heroService";
 import { HuntService } from "./services/huntService";
 import { InventoryService } from "./services/inventoryService";
+import { MantokChestService } from "./services/mantokChestService";
 import { OnboardingService } from "./services/onboardingService";
 import { PresenceService } from "./services/presenceService";
 import { RestartService } from "./services/restartService";
@@ -42,6 +44,7 @@ const dailyActions = new PrismaDailyActionRepository(prisma);
 const equipment = new PrismaEquipmentRepository(prisma);
 const huntContracts = new PrismaHuntContractRepository(prisma);
 const inventory = new PrismaInventoryRepository(prisma);
+const mantokChestRuns = new PrismaMantokChestRepository(prisma);
 const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
 const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
@@ -55,6 +58,7 @@ const services = {
   hero: new HeroService(characters, inventory, equipment),
   equipment: new EquipmentService(equipment, inventory),
   inventory: new InventoryService(inventory),
+  mantokChest: new MantokChestService(mantokChestRuns),
   presence: new PresenceService(presence),
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),

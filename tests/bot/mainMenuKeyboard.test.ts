@@ -329,7 +329,7 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["🛡️ Спорядження", "🔎 Квиток мокрого пригодника"]);
+    ).toEqual(["🛡️ Спорядження", "♻️ До Дружньої Скрині", "🔎 Квиток мокрого пригодника"]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard({
@@ -352,7 +352,7 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["v1:equip:view", "v1:item:detail:item.wet-hero-ticket"]);
+    ).toEqual(["v1:equip:view", "v1:chest:open", "v1:item:detail:item.wet-hero-ticket"]);
     expect(
       flatInlineButtonTexts(
         buildInventoryKeyboard(
@@ -376,7 +376,7 @@ describe("main menu and scene keyboards", () => {
           1
         )
       )
-    ).toEqual(["🛡️ Спорядження", "🔎 Манатка 9", "◀️ Назад", "2/2"]);
+    ).toEqual(["🛡️ Спорядження", "♻️ До Дружньої Скрині", "🔎 Манатка 9", "◀️ Назад", "2/2"]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard(
@@ -402,6 +402,7 @@ describe("main menu and scene keyboards", () => {
       )
     ).toEqual([
       "v1:equip:view",
+      "v1:chest:open",
       "v1:item:detail:item.test-9:1",
       "v1:item:inventory",
       "v1:item:inventory:1"

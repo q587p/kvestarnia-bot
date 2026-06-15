@@ -311,7 +311,14 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - Якщо session уже `won`, але reward claim ще не встиг створитися, terminal read пробує той самий idempotent claim/recover path замість тихо лишати бій без винагороди.
 - `daily_actions.local_date = solo_combat_sessions.id` у цьому path є generic idempotency bucket, а не календарна дата. Перед analytics/reporting pass це поле варто або перейменувати в майбутній схемі, або явно документувати як bucket id.
 
-`0.0.23` не додає shops, selling, trading, crafting, consumables або широкий economy pass. Але новий fight loot збільшує item volume, тому перший наступний pressure valve описаний як `docs/MANTOK_CHEST_BACKLOG.md`: Дружня Скриня / Манатко-скриня має recycle-ити 5 eligible манаток в 1 better-than-average output item із confirmation, транзакційністю й idempotent callback safety.
+`0.0.23` не додає shops, selling, trading, crafting, consumables або широкий economy pass. Але новий fight loot збільшує item volume, тому `0.0.24` додає перший pressure valve: Дружня Скриня / Манатко-скриня recycle-ить 5 eligible манаток в 1 better-than-average output item із confirmation, транзакційністю й idempotent callback safety.
+
+Mantok Chest implementation notes:
+- `mantok_chest_runs` зберігає pending/completed audit row із token, input item counts, output item, average/minimum/output score.
+- Preview не мутує inventory. Confirm перечитує inventory/equipment у транзакції, перевіряє stored input units, guarded-decrement-ить input stacks, upsert-ить output stack і завершує run.
+- Inventory поки stack-based (`CharacterItem.itemId + quantity`), без item-instance ids. Через це `0.0.24` споживає 5 units зі stack-ів, а якщо `itemId` екіпірований, увесь stack захищений від Скрині.
+- `priceless` і protected/story items не eligible. Locked/favorite/trade/mail/auction flags ще не існують, тому вони не застосовуються в цьому slice.
+- Manual selection відкладено: поточний runtime path має тільки `Згодувати 5 найдешевших`.
 
 Залишковий борг перед великим Hunt Board: ledger ще не є persistent combat/encounter state. Для групових полювань, wilderness sessions, collection progression, складного loot tracking або combat HP/mana потрібна окрема session model і ширший transaction boundary.
 
@@ -439,6 +446,12 @@ Callback data коротка, версіонована.
 - `v1:equip:view`
 - `v1:equip:item:{itemId}`
 - `v1:equip:clear:{slot}`
+- `v1:chest:open`
+- `v1:chest:help`
+- `v1:chest:auto`
+- `v1:chest:confirm:{token}`
+- `v1:chest:cancel:{token}`
+- `v1:chest:inventory`
 - `v1:fight:mimic:attack`
 - `v1:fight:mimic:receipt`
 - `v1:fight:mimic:flee`

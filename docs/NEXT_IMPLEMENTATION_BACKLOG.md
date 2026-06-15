@@ -197,23 +197,20 @@ Implemented in `0.0.24`.
 - seal purchase, roleplay bypass, bottle grant, and final choice are idempotent through existing `daily_actions` / cooldown / item rows;
 - no broad quest engine or new schema was added.
 
-## 0.0.25 — Friendly Chest / Манатко-скриня
+## 0.0.25 — Mantok Chest Manual Selection & Inventory Polish
 
 **Objective**
-Дати першому fight loot path безпечний item sink: гравець має спосіб зменшувати довгий inventory і перетворювати зайві манатки на одну кращу середню річ без магазинів, продажу або trading.
+Доробити Дружню Скриню після runtime MVP: ручний вибір манаток, краща інвентарна ергономіка й підготовка до item-instance identity без магазинів, продажу або trading.
 
 **Status**
-Planned after `0.0.24`, because new fight loot increases item volume and the 1-13 cap is now in place.
+Planned after `0.0.24`, because runtime auto-pick chest exists, but manual selection and deeper inventory polish are still deferred.
 
 **Scope**
 
-- entry point із inventory: `♻️ До Дружньої Скрині`;
-- рівно 5 eligible манаток → 1 output манатка;
-- manual selection або `Згодувати 5 найдешевших`;
-- confirmation before consuming items;
-- transaction/idempotency safety for repeated Telegram callbacks;
-- protected/equipped/story/foreign items are not eligible;
-- output score is strictly greater than average input score;
+- manual selection with pagination and `x/5` counter;
+- clearer item grouping/filtering around recyclable vs protected/equipped/priceless stacks;
+- keep transaction/idempotency safety from the `0.0.24` auto-pick path;
+- document or design item-instance identity if stack-level protection becomes too restrictive;
 - docs source: `docs/MANTOK_CHEST_BACKLOG.md`.
 
 **Non-goals**
@@ -227,8 +224,8 @@ Planned after `0.0.24`, because new fight loot increases item volume and the 1-1
 
 **Acceptance criteria**
 
-- tests cover score, eligibility, rollback, duplicate callbacks and auto-pick;
-- 5 consumed items never disappear unless 1 valid output item is created;
+- tests cover manual selection, callback size, stale selections and duplicate callbacks;
+- selected items never disappear unless 1 valid output item is created;
 - player-facing copy stays clear that input манатки are gone forever after confirmation.
 
 ## 0.0.26 — Fight Rewards and Level 1-13

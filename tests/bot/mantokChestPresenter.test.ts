@@ -1,0 +1,88 @@
+import { describe, expect, it } from "vitest";
+import type { MantokChestRunRecord } from "../../src/db/repositories/mantokChestRepository";
+import type { MantokChestPresentedItem } from "../../src/services/mantokChestService";
+import {
+  presentMantokChestOverview,
+  presentMantokChestPreview,
+  presentMantokChestRecycleResult
+} from "../../src/bot/presenters/mantokChestPresenter";
+
+const now = new Date("2026-06-15T07:30:00.000Z");
+
+describe("Mantok Chest presenter", () => {
+  it("shows eligible count on the overview", () => {
+    expect(presentMantokChestOverview({ state: "ready", eligibleCount: 7 })).toContain(
+      "Доступних манаток: <b>7</b>"
+    );
+  });
+
+  it("shows confirmation warning and selected input list", () => {
+    const text = presentMantokChestPreview({
+      state: "preview-created",
+      run: run(),
+      inputItems: [
+        item("item.<unsafe>", "<b>Пательня</b>", 2),
+        item("item.cheese", "Сир", 3)
+      ],
+      averageInputScore: 30,
+      minimumOutputScore: 31
+    });
+
+    expect(text).toContain("Скриня зʼїсть ці 5 манаток назавжди");
+    expect(text).toContain("<b>&lt;b&gt;Пательня&lt;/b&gt;</b> ×2");
+    expect(text).toContain("Мінімальний score нової манатки: <b>31</b>");
+  });
+
+  it("shows success output card and escapes item text", () => {
+    const text = presentMantokChestRecycleResult({
+      state: "recycled",
+      run: run(),
+      outputItem: item("item.output", "<i>Нова</i>", 1)
+    });
+
+    expect(text).toContain("Хрум. Шурх");
+    expect(text).toContain("&lt;i&gt;Нова&lt;/i&gt;");
+  });
+
+  it("shows stale and not-enough states without throwing", () => {
+    expect(presentMantokChestPreview({ state: "not-enough-items", eligibleCount: 4 })).toContain(
+      "треба 5 доступних манаток"
+    );
+    expect(presentMantokChestRecycleResult({ state: "stale-inputs", run: run() })).toContain(
+      "манатка втекла з меню"
+    );
+  });
+});
+
+function run(): MantokChestRunRecord {
+  return {
+    id: "run-1",
+    characterId: "character-42",
+    token: "12345678-1234-4234-9234-123456789abc",
+    status: "pending",
+    inputItems: [],
+    outputItems: [],
+    averageInputScore: 30,
+    minimumOutputScore: 31,
+    outputScore: null,
+    completedAt: null,
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+function item(itemId: string, name: string, quantity: number): MantokChestPresentedItem {
+  return {
+    itemId,
+    quantity,
+    score: 30,
+    content: {
+      id: itemId,
+      name,
+      description: "Опис <script>",
+      rarity: "common",
+      slot: "junk",
+      goldValue: 1
+    }
+  };
+}

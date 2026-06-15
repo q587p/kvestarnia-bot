@@ -237,6 +237,8 @@ Achievements Phase 1 лишається rewardless later slice після осн
 - Видимий equipment UI у `0.0.14` показує тільки чесно підтримані слоти: зброя, тулуб, аксесуар. Head і legs лишаються future vocabulary, доки content/schema не матимуть реальних речей для них.
 - `0.0.22` додає перший малий stat-effect шар: currently equipped items можуть додати HP/ману, core stats, armor/resist, weapon damage або spell power через один effective-stats helper. `/hero`, `/equipment`, item detail і persistent solo combat читають цей самий summary.
 - Екіпірування не змінює inventory quantity, не продається, не ролиться випадково і не змінює reward math. Junk, cosmetics, priceless trophies і quest badges не мають випадкових power effects.
+- У `0.0.24` `/inventory` отримує перший item sink: `Дружня Скриня`. Вона бере 5 eligible units, показує confirmation і повертає 1 output item зі score строго вище середнього input score. Це не магазин, не продаж і не crafting tree; це маленький pressure valve проти довгої торби.
+- Через stack-based inventory Скриня поки не знає item instances. Якщо `itemId` екіпірований, весь stack цього `itemId` захищений; `priceless` і story/protected items теж не eligible. Manual selection лишається follow-up після auto-pick MVP.
 - Callback-и `v1:item:*` і `v1:equip:*` валідовані; item detail перевіряє ownership перед показом.
 
 Майбутній itemization/equipment борг:

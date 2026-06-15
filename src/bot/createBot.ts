@@ -12,6 +12,7 @@ import type { HeroService } from "../services/heroService";
 import type { HuntService } from "../services/huntService";
 import type { EquipmentService } from "../services/equipmentService";
 import type { InventoryService } from "../services/inventoryService";
+import type { MantokChestService } from "../services/mantokChestService";
 import type { OnboardingService } from "../services/onboardingService";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
@@ -43,6 +44,10 @@ import {
   type EquipmentCallback,
   type ItemCallback
 } from "./callbacks/itemCallbackData";
+import {
+  parseMantokChestCallbackData,
+  type MantokChestCallback
+} from "./callbacks/mantokChestCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
 import { parsePlaceCallbackData, type PlaceCallback } from "./callbacks/placeCallbackData";
@@ -99,6 +104,12 @@ import { buildFightResultKeyboard, buildPersistentFightResultKeyboard } from "./
 import { buildHuntResultKeyboard } from "./keyboards/huntKeyboard";
 import { buildEquipmentKeyboard, buildItemDetailKeyboard } from "./keyboards/inventoryKeyboard";
 import {
+  buildMantokChestHelpKeyboard,
+  buildMantokChestOverviewKeyboard,
+  buildMantokChestPreviewKeyboard,
+  buildMantokChestResultKeyboard
+} from "./keyboards/mantokChestKeyboard";
+import {
   buildClassKeyboard,
   buildConfirmationKeyboard,
   buildGenderKeyboard,
@@ -152,6 +163,12 @@ import {
 import { presentItemDetail } from "./presenters/itemDetailPresenter";
 import { presentLevelUpCelebration } from "./presenters/levelGrowthPresenter";
 import {
+  presentMantokChestHelp,
+  presentMantokChestOverview,
+  presentMantokChestPreview,
+  presentMantokChestRecycleResult
+} from "./presenters/mantokChestPresenter";
+import {
   presentCharacterCreated,
   presentClassSelected,
   presentGenderSelected,
@@ -188,6 +205,7 @@ export interface BotServices {
   hero: HeroService;
   equipment: EquipmentService;
   inventory: InventoryService;
+  mantokChest: MantokChestService;
   presence: PresenceService;
   devReset: DevResetService;
   restart: RestartService;
@@ -295,6 +313,17 @@ export function createBot(token: string, services: BotServices): Bot {
     }
 
     await handleItemCallback(ctx, parsed.value, services);
+  });
+
+  bot.callbackQuery(/^v1:chest:/, async (ctx) => {
+    const parsed = parseMantokChestCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleMantokChestCallback(ctx, parsed.value, services);
   });
 
   bot.callbackQuery(/^v1:news:/, async (ctx) => {
@@ -517,7 +546,7 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
     return {};
   }
 
-  if (data.startsWith("v1:item:") || data.startsWith("v1:equip:")) {
+  if (data.startsWith("v1:item:") || data.startsWith("v1:equip:") || data.startsWith("v1:chest:")) {
     return {};
   }
 
@@ -921,6 +950,99 @@ async function handleEquipmentCallback(
   await safeEditMessageText(ctx, presentEquipment(equipment), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildEquipmentKeyboard(equipment)
+  });
+}
+
+async function handleMantokChestCallback(
+  ctx: Context,
+  action: MantokChestCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (action.type === "inventory") {
+    await safeAnswerCallbackQuery(ctx);
+    await sendInventory(ctx, services.inventory, "edit");
+    return;
+  }
+
+  if (action.type === "help") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentMantokChestHelp(), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildMantokChestHelpKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "open") {
+    const overview = await services.mantokChest.getOverviewForTelegramUser(telegramUserId);
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentMantokChestOverview(overview), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildMantokChestOverviewKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "auto") {
+    const preview = await services.mantokChest.createAutoPickPreviewForTelegramUser(telegramUserId);
+
+    await safeAnswerCallbackQuery(
+      ctx,
+      preview.state === "not-enough-items"
+        ? { text: "Скрині треба 5 доступних манаток.", show_alert: true }
+        : { show_alert: preview.state === "no-character" }
+    );
+    await safeEditMessageText(ctx, presentMantokChestPreview(preview), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        preview.state === "preview-created"
+          ? buildMantokChestPreviewKeyboard(preview.run.token)
+          : buildMantokChestOverviewKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "cancel") {
+    const result = await services.mantokChest.cancelRecycleForTelegramUser(
+      telegramUserId,
+      action.token
+    );
+
+    await safeAnswerCallbackQuery(ctx, {
+      text: result.state === "cancelled" ? "Скриня відпустила манатки." : presentInvalidCallback(),
+      show_alert: result.state !== "cancelled"
+    });
+
+    const overview = await services.mantokChest.getOverviewForTelegramUser(telegramUserId);
+    await safeEditMessageText(ctx, presentMantokChestOverview(overview), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildMantokChestOverviewKeyboard()
+    });
+    return;
+  }
+
+  const result = await services.mantokChest.confirmRecycleForTelegramUser(
+    telegramUserId,
+    action.token
+  );
+
+  await safeAnswerCallbackQuery(
+    ctx,
+    result.state === "recycled"
+      ? { text: "Скриня хрумкнула." }
+      : { show_alert: result.state === "invalid-token" || result.state === "stale-inputs" }
+  );
+  await safeEditMessageText(ctx, presentMantokChestRecycleResult(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildMantokChestResultKeyboard()
   });
 }
 

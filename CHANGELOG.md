@@ -14,6 +14,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a narrow `CellarGrownupQuestService` and repository path that use existing `daily_actions`, `character_items`, and `character_cooldowns` instead of introducing a broad quest engine.
 - Added `Сирна пломба Корчмаря`, `Кльовий шмат сиру`, and `Пляшка Пінного Міражу` content items as the first post-mouse cellar objects.
 - Added idempotent paths for buying the seal, trying a roleplay bypass, receiving the bottle once, and choosing the final ending.
+- Added the runtime MVP for `Дружня Скриня`: inventory entry point, auto-pick of 5 cheapest eligible манатки, confirmation, transactional recycling, idempotent replay, and one better-than-average output item.
+- Added a `mantok_chest_runs` ledger for pending/completed chest runs with stored input/output audit data.
 
 ### Changed
 - Raised the current alpha level cap from 10 to 13 with a steeper post-level-9 XP curve: `450`, `650`, `900`, and `1300` total XP for levels 10-13.
@@ -23,9 +25,10 @@ This project follows a simple pre-1.0 versioning policy:
 - The old repeatable mouse cellar errand remains for levels 2-3; level 4+ heroes now get the new once-per-player cellar quest instead of a dead retired state.
 - Persistent solo fights now prefer monsters closer to the hero level; when content has no same-band monster yet, the selector uses the highest eligible lower-level monster instead of random level 1-2 filler.
 - Persistent solo fight XP is capped to `1` when the defeated monster is more than 2 levels below the hero.
+- The Mantok Chest MVP treats inventory as stack-based: it consumes 5 units, protects entire equipped `itemId` stacks, excludes priceless/story items, and defers manual selection until item-instance identity or a larger selection UI exists.
 
 ### Not Included Yet
-- Epic-level abilities, level 14+ progression, broad quest engine, shops, trading, crafting, achievements runtime, or combat rebalance.
+- Epic-level abilities, level 14+ progression, broad quest engine, shops, trading, crafting, achievements runtime, manual chest selection, item-instance inventory, or combat rebalance.
 
 ## [0.0.23] - 12026-06-15 - Loot Engine & Reward Replay
 
