@@ -118,8 +118,8 @@ import {
 import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
 import {
   buildKorchmaFrontKeyboard,
-  buildKorchmaHallKeyboard,
   buildKorchmaRoundOfferKeyboard,
+  buildKorchmaRoundResultKeyboard,
   buildTavernParticipantsKeyboard,
   buildTavernRangerKeyboard,
   buildTavernResultKeyboard
@@ -1289,7 +1289,7 @@ async function handleTavernCallback(
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentTavernRoundResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildKorchmaHallKeyboard()
+      reply_markup: buildKorchmaRoundResultKeyboard(result)
     });
     return;
   }

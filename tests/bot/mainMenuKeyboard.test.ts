@@ -34,6 +34,7 @@ import {
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
   buildKorchmaRoundOfferKeyboard,
+  buildKorchmaRoundResultKeyboard,
   buildTavernParticipantsKeyboard,
   buildTavernRangerKeyboard,
   buildTavernKeyboard,
@@ -138,6 +139,27 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual(["v1:tavern:round-simple", "v1:place:hall"]);
+  });
+
+  it("links directly to the Barrel when korchma rounds are blocked by an active raid", () => {
+    const blockedByBarrel = {
+      state: "raid-required" as const,
+      character,
+      leaderboard: emptyRoundLeaderboard
+    };
+
+    expect(flatInlineButtonTexts(buildKorchmaRoundOfferKeyboard(blockedByBarrel))).toEqual([
+      "🛢️ До Бочки"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaRoundOfferKeyboard(blockedByBarrel))).toEqual([
+      "v1:place:barrel"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaRoundResultKeyboard(blockedByBarrel))).toEqual([
+      "🛢️ До Бочки"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaRoundResultKeyboard(blockedByBarrel))).toEqual([
+      "v1:place:barrel"
+    ]);
   });
 
   it("keeps adventure inline buttons scoped to quest actions", () => {
