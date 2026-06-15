@@ -63,7 +63,7 @@ Current tiny inventory slice:
 - New fight loot increases item volume, so `0.0.24` added the first `Дружня Скриня` / `Манатко-скриня` auto-pick sink: 5 eligible манаток become 1 better-than-average output item with confirmation and transaction safety. `0.0.27` added manual input selection with compact index callbacks, final preview, and stale-input protection; cleanup/reuse for abandoned pending runs remains future polish. Canonical planning doc: `docs/MANTOK_CHEST_BACKLOG.md`.
 
 Current repeatable slice:
-- `0.0.10` adds «Підвальна справа» as the first low-stakes repeatable fallback after the daily shawarma quest and fight probe are spent.
+- `0.0.10` adds «Льохова справа» as the first low-stakes repeatable fallback after the daily shawarma quest and fight probe are spent.
 - Cooldown lives in SQLite `character_cooldowns`, not Redis.
 - `0.0.11` adds a compact `Стіл зі справами` quest hub for `/quest`, `🗺️ Квести`, daily shawarma, fight probe, and cellar fallback.
 - `/cellar` exists only as a secondary fallback command; more repeatable activities and a full activity refactor remain later work.

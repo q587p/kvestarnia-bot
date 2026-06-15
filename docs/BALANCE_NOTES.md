@@ -250,7 +250,7 @@ item_power_budget = base_by_level + rarity_bonus
 
 Junk, cosmetics, priceless trophies і quest badges не мають випадкових power effects. Якщо предмет має впливати на combat, його треба явно перевести в supported equippable content і покрити тестом. Поточний content test вимагає `effect` для кожної `weapon`/`armor`/`accessory` манатки, щоб спорядження не виглядало як порожня обіцянка.
 
-`0.0.15` додає reachable starter gear для всіх видимих слотів: weapon через `/fight`, armor через Бочку Пінного Міражу, accessory через підвальну мишу. Це розширює контент і оцінну вартість манаток, але не додає бойових ефектів, sell/trade логіки або нових reward formulas.
+`0.0.15` додає reachable starter gear для всіх видимих слотів: weapon через `/fight`, armor через Бочку Пінного Міражу, accessory через льохову мишу. Це розширює контент і оцінну вартість манаток, але не додає бойових ефектів, sell/trade логіки або нових reward formulas.
 
 Після `0.0.19` starter weapon не є гарантованою baseline для балансування: starter `/fight` закритий після 2 рівня, cellar errands існують на 2-3 рівнях, Hunt Board відкривається з 3 рівня, а gates живуть у `src/domain/progression/activityGates.ts`. Combat math має мати unarmed/basic fallback і не вимагати `item.pan-of-persuasion` або `item.stamp-of-minor-authority` для нормального першого бою.
 

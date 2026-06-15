@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { presentHelp } from "../../src/bot/presenters/helpPresenter";
 
 describe("help presenter", () => {
@@ -39,7 +39,7 @@ describe("help presenter", () => {
     expect(text).toContain("⚔️ /fight — сутичка з монстром");
     expect(text).toContain("🏹 /hunt — дошка полювання");
     expect(text).toContain("📚 /bestiary, /monsters — бестіарій із 3 рівня");
-    expect(text).toContain("🧹 /cellar — підвальна справа");
+    expect(text).toContain("🧹 /cellar — льохова справа");
     expect(text).toContain("🎒 /inventory, /items, /bag — манатки й торба");
     expect(text).toContain("🧥 /equipment, /gear, /equip — спорядження й бонуси");
     expect(text).toContain("👥 /online — хто поруч");

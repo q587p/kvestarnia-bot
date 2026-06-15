@@ -1,4 +1,4 @@
-﻿import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
@@ -153,7 +153,7 @@ describe("scene callback HTML options", () => {
           complete: () => Promise.resolve({ state: "no-character" })
         }
       }),
-      expectedText: "Підвальна справа"
+      expectedText: "Льохова справа"
     },
     {
       name: "place cellar route",
@@ -164,7 +164,7 @@ describe("scene callback HTML options", () => {
           complete: () => Promise.resolve({ state: "no-character" })
         }
       }),
-      expectedText: "Підвальна справа"
+      expectedText: "Льохова справа"
     }
   ])("opens $name as a fresh message so old action taps do not hit new choices", async ({ callbackData, services, expectedText }) => {
     const calls = await captureApiCalls(callbackData, services);

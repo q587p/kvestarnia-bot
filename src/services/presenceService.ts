@@ -539,7 +539,7 @@ export function getPublicPresenceLocation(
   if (id === PRESENCE_LOCATION_KORCHMA_CELLAR) {
     return {
       locationId: id,
-      title: "Підвал корчми",
+      title: "Льох корчми",
       regionName: "Корчма Квестарні",
       showNames: true,
       isSpecific: true
@@ -690,7 +690,7 @@ function getRaidName(id: string): string {
 
 function getAdventureName(id: string): string {
   if (id === PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND) {
-    return "Підвальна справа";
+    return "Льохова справа";
   }
 
   if (id === PRESENCE_ADVENTURE_HUNT_BOARD) {

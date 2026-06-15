@@ -313,7 +313,7 @@ export const monsterFlavorLines: MonsterFlavorLine[] = [
     "id": "monster-flavor.basement-mouse-with-title.fallback.start",
     "monsterId": "monster.basement-mouse-with-title",
     "placement": "monster.start",
-    "text": "Підвальна Миша з Титулом зʼявляється з виглядом істоти, яка давно чекала на вашу погану ідею."
+    "text": "Льохова Миша з Титулом зʼявляється з виглядом істоти, яка давно чекала на вашу погану ідею."
   },
   {
     "id": "monster-flavor.basement-mouse-with-title.race.domovyk",
@@ -360,7 +360,7 @@ export const monsterFlavorLines: MonsterFlavorLine[] = [
         }
       ]
     },
-    "text": "Ви оголошуєте підвал житловою комісією. Миша просить сир як адміністративний збір."
+    "text": "Ви оголошуєте льох житловою комісією. Миша просить сир як адміністративний збір."
   },
   {
     "id": "monster-flavor.basement-mouse-with-title.loot-note",

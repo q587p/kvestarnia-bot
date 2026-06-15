@@ -82,7 +82,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "cellar",
     icon: "🧹",
-    description: "підвальна справа",
+    description: "льохова справа",
     includeInMenu: false
   },
   {

@@ -102,7 +102,7 @@ export const items = [
   },
   {
     id: "item.bristle-of-basement-order",
-    name: "Щетина підвального порядку",
+    name: "Щетина льохового порядку",
     description: "Доказ, що підмітання теж може мати лут, якщо дуже наполягати.",
     rarity: "common",
     slot: "junk",

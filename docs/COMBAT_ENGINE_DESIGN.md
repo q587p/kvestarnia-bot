@@ -202,7 +202,7 @@ Milestone має бути data-driven, щоб presenter міг сказати «
 - **Ельф** — crit/dodge/точність.
 - **Бісини** — trick/social/INT/CHA, плутають демонів і надто самовпевнені формулювання.
 - **Дрантогор** — STR/LUCK, сильний перший charge або «я так і планував» swing.
-- **Домовик** — корчма, підвал, дрібний лут, guard.
+- **Домовик** — корчма, льох, дрібний лут, guard.
 - **Русалка сухопутна** — magic/CHA/control, взаємодії з водою, чайниками й dry jokes.
 - **Орк-інтелігент** — STR + INT, bonk із цитатою, edge проти straightforward і бюрократичних монстрів.
 - **Мольфарська душа** — LUCK/magic/time-of-day/weather hooks, omen-style rerolls або tiny resist.

@@ -51,7 +51,7 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
   {
     commands: ["cellar"],
     icon: "🧹",
-    description: "підвальна справа"
+    description: "льохова справа"
   },
   {
     commands: ["inventory", "items", "bag"],

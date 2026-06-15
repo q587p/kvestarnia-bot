@@ -1,4 +1,4 @@
-﻿import type { Context } from "grammy";
+import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { sendCellarErrandRouted } from "../../src/bot/commands/cellarCommand";
@@ -65,7 +65,7 @@ describe("cellar command", () => {
 
     await sendCellarErrandRouted(makeContext(replies), cellarErrandService, presence, "reply");
 
-    expect(replies[0]?.text).toContain("🐭 Підвальна справа");
+    expect(replies[0]?.text).toContain("🐭 Льохова справа");
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
       currentRaidId: null,
@@ -159,7 +159,7 @@ describe("cellar command", () => {
 
     await sendCellarErrandRouted(makeContext(replies), levelOne, presence, "reply");
 
-    expect(replies[0]?.text).toContain("Підвал поки зачинено");
+    expect(replies[0]?.text).toContain("Льох поки зачинено");
     expect(replies[0]?.text).toContain("2 рівня");
     expect(presence.marks).toEqual([]);
   });

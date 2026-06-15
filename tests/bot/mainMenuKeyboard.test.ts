@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   buildAdventureParticipantsKeyboard,
   buildAdventureKeyboard,
@@ -94,7 +94,7 @@ describe("main menu and scene keyboards", () => {
       "🛢️ Бочка",
       "🍻 Шинок",
       "📰 Дошка вістей",
-      "🐭 Підвал",
+      "🐭 Льох",
       "🚪 Надвір"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard())).toEqual([
@@ -894,7 +894,7 @@ describe("main menu and scene keyboards", () => {
       "🌯 До шаурми",
       "⚔️ До сутички",
       "🏹 До Єгеря",
-      "🧹 У підвал",
+      "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
@@ -928,7 +928,7 @@ describe("main menu and scene keyboards", () => {
           cellar: { state: "level-retired", character, maxLevel: 3 }
         })
       )
-    ).toEqual(["🧾 До проблем", "🧹 У підвал", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["🧾 До проблем", "🧹 У льох", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -952,7 +952,7 @@ describe("main menu and scene keyboards", () => {
           cellar: { state: "ready", character }
         })
       )
-    ).toEqual(["🧹 У підвал", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["🧹 У льох", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -975,7 +975,7 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["🏹 До Єгеря", "🧹 У підвал", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["🏹 До Єгеря", "🧹 У льох", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -1003,7 +1003,7 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["🧹 У підвал", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["🧹 У льох", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(

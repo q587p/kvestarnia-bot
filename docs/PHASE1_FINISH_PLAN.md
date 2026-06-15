@@ -41,7 +41,7 @@
 5. **Loot Engine + Reward Replay**
    Контрольовані loot tables із rarity, bounded LUCK modifier, deterministic/injected RNG, idempotent reward claim і replay деталей. Реалізовано в `0.0.23` для won persistent solo fights.
 
-6. **Level Cap 13 + доросла підвальна справа**
+6. **Level Cap 13 + доросла льохова справа**
    Підняти current alpha cap до 13 рівня, перенести capstone `/restart` suggestion туди, змістити майбутні epic levels на `14-23` і замінити retired `/cellar` dead-end для level 4+ на вузьку once-per-player справу `Справа не до миші` без broad quest engine.
 
 7. **Persistent HP/Mana + Loot Expansion**

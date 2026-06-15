@@ -70,7 +70,7 @@ Deprecated/fallback:
 4. Квести дають хоча б одну персоналізовану репліку, кнопку або outcome.
 5. Рейди дають role-hint або жарт про те, як цей персонаж поводився б у повному рейді.
 6. Гравець бачить, що біографія реально змінює текстову гру.
-7. Після денних квестів/підвалу/рейду `/restart` стає способом подивитися інші реакції, а не лише «почати спочатку».
+7. Після денних квестів/льоху/рейду `/restart` стає способом подивитися інші реакції, а не лише «почати спочатку».
 
 ## Принципи
 
@@ -212,7 +212,7 @@ selectFlavorLines(lines, context, seedParts, limit)
 
 - `presentAdventureStart()` — додати `quest.start` line.
 - `presentActionOutcome()` — додати character-aware outcome або додатковий рядок після базового outcome.
-- 0.0.19 тримає перший playable loop щільнішим: підвал і Дошка полювання відкриваються рівнями, тому шаурма має давати більше варіятивності одразу.
+- 0.0.19 тримає перший playable loop щільнішим: льох і Дошка полювання відкриваються рівнями, тому шаурма має давати більше варіятивності одразу.
 - Для `shawarma` потрібні окремі race/class pools і combo-lines для всіх доступних onboarding комбінацій.
 - Character-aware labels на кнопках можуть міняти текст дії, але не callback payload, reward math або idempotency key.
 - Не міняти reward keys у першому PR.
@@ -226,13 +226,13 @@ selectFlavorLines(lines, context, seedParts, limit)
 - Квест має звучати як дослідити/допитати/оформити підозрілу їжу, а fight — як удар/трюк/контроль/відступ проти монстра.
 - Бойова математика лишається deterministic і без нових бонусів.
 
-### Підвальна справа
+### Льохова справа
 
 - `presentCellarStart()` — додати персоналізований старт.
 - `presentCellarOutcome()` — додати character-aware outcome для `negotiate`, `cheese-trap`, `sweep-bravely`.
 - Домовик + negotiate має бути першим obvious win у флейворі.
-- Підвал — друге знайомство з варіятивністю після шаурми, тому потрібні race/class pools і combo-lines для всіх доступних onboarding комбінацій.
-- Character-aware labels на кнопках підвалу можуть міняти текст дії, але не callback payload, cooldown, reward math або item grants.
+- Льох — друге знайомство з варіятивністю після шаурми, тому потрібні race/class pools і combo-lines для всіх доступних onboarding комбінацій.
+- Character-aware labels на кнопках льоху можуть міняти текст дії, але не callback payload, cooldown, reward math або item grants.
 - Дії мають звучати різно: сирна пастка, хоробре підмітання й переговори з мишею не повинні відчуватись як одна кнопка з різними емоджі.
 
 ### Манатки
@@ -252,7 +252,7 @@ selectFlavorLines(lines, context, seedParts, limit)
 Не показувати це постійно. Варіанти місць:
 
 - після `already-completed` для шаурми, якщо і quest, і fight сьогодні вже закриті;
-- після підвальної справи на cooldown;
+- після льохової справи на cooldown;
 - у `/hero` раз на N переглядів у майбутньому;
 - у restart confirmation: «Старий титул піде в архів, але корчмар отримає нову причину нервувати».
 

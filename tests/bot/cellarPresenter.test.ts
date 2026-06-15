@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   presentCellarCooldown,
   presentCellarGrownupQuest,
@@ -16,7 +16,7 @@ describe("cellar presenter", () => {
   it("renders a short cellar start scene with HTML quote", () => {
     const text = presentCellarStart(ready);
 
-    expect(text).toContain("🐭 Підвальна справа");
+    expect(text).toContain("🐭 Льохова справа");
     expect(text).toContain("<blockquote>");
     expect(text).toContain("Миша:");
     expect(text).toContain("що робимо?");
@@ -75,7 +75,7 @@ describe("cellar presenter", () => {
       ].join("\n")
     );
     expect(text).toContain("Здобуто: <i>Сир процедурного сумніву</i>");
-    expect(text).toContain("Підвал знову чекатиме за 3 хвилини.");
+    expect(text).toContain("Льох знову чекатиме за 3 хвилини.");
     expect(text).not.toContain("за:");
     expect(text).not.toMatch(/\d{1,2}:\d{2}/);
     expect(text).not.toMatch(/\d+\s*(?:секунд|хвилин)\s+тому/i);
@@ -119,7 +119,7 @@ describe("cellar presenter", () => {
   it("renders cooldown without exact timestamp", () => {
     const text = presentCellarCooldown(onCooldown);
 
-    expect(text).toContain("🐭 Підвал тимчасово тихий.");
+    expect(text).toContain("🐭 Льох тимчасово тихий.");
     expect(text).toContain("Можна повернутись за 2 хвилини.");
     expect(text).not.toContain("за:");
     expect(text).not.toMatch(/\d{1,2}:\d{2}/);
@@ -139,8 +139,8 @@ describe("cellar presenter", () => {
       }
     } satisfies Extract<CellarGrownupQuestLookupResult, { state: "completed" }>);
 
-    expect(text).toContain("✅ Підвальна доросла справа вже закрита.");
-    expect(text).toContain("Підвал визнав це фіналом");
+    expect(text).toContain("✅ Доросла льохова справа вже закрита.");
+    expect(text).toContain("Льох визнав це фіналом");
     expect(text).toContain("Далі краще повернутися до столу справ або зали.");
     expect(text).not.toContain("Що робимо?");
   });

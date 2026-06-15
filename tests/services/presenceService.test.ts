@@ -191,7 +191,7 @@ describe("PresenceService", () => {
       player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL),
       player(2n, "Дара", minutesAgo(7), PRESENCE_LOCATION_KORCHMA_HALL),
       player(3n, "Нестор Межовий", minutesAgo(2), PRESENCE_LOCATION_KORCHMA_QUEST_TABLE),
-      player(7n, "Підвальний Свідок", minutesAgo(2), PRESENCE_LOCATION_KORCHMA_CELLAR),
+      player(7n, "Льоховий Свідок", minutesAgo(2), PRESENCE_LOCATION_KORCHMA_CELLAR),
       player(4n, "Тихий плащ", minutesAgo(3), "location.secret-cellar"),
       player(5n, "Не показувати", minutesAgo(4), PRESENCE_LOCATION_KORCHMA_QUEST_TABLE, {
         showInPublicPresence: false
@@ -234,7 +234,7 @@ describe("PresenceService", () => {
       players: []
     });
     expect(cellar).toMatchObject({
-      title: "Підвал корчми",
+      title: "Льох корчми",
       regionName: "Корчма Квестарні",
       activeCount: 1,
       idleCount: 0,
@@ -246,7 +246,7 @@ describe("PresenceService", () => {
     expect(JSON.stringify(snapshot)).not.toContain("587");
     expect(JSON.stringify(snapshot)).not.toContain("Дара");
     expect(JSON.stringify(snapshot)).not.toContain("Нестор Межовий");
-    expect(JSON.stringify(snapshot)).not.toContain("Підвальний Свідок");
+    expect(JSON.stringify(snapshot)).not.toContain("Льоховий Свідок");
     expect(JSON.stringify(snapshot)).not.toContain("Давно не озивалися");
     expect(JSON.stringify(snapshot)).not.toContain("Тихий плащ");
     expect(JSON.stringify(snapshot)).not.toContain("Не показувати");

@@ -332,22 +332,22 @@ Phase 1 scope lock: Hunt Board ledger і `/bestiary` лишаються bridge/d
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 
 У `0.0.10` таблиця `character_cooldowns` використовується для першої repeatable активності:
-- `cellar.mouse-errand` → 3-хвилинний cooldown для «Підвальної справи».
+- `cellar.mouse-errand` → 3-хвилинний cooldown для «Льохової справи».
 - `0.0.29` повторно використовує цей самий repository contract для Єгерського сліду: `quest.yeger.unquiet-trial.tracking` зберігає коротке pending/ready очікування без XP/золота/items, а ready callback атомарно переводить row у наступний cooldown перед resolution roll.
 
 Cooldown reward claim має бути transactional:
 - якщо `available_at > now`, повернути cooldown без XP/золота/items;
 - якщо cooldown відсутній або минув, conditionally створити/оновити row, видати маленьку винагороду й перерахувати level;
 - concurrent callback-и не мають проходити як дві винагороди.
-- Onboarding gate: Підвальна справа відкривається з 2 рівня і закривається після 3 рівня. Перевірка стоїть до cooldown reward claim, а command/callback handlers не мають переносити presence в `location.korchma.cellar`, якщо герой ще locked. Якщо герой вже виріс із новачкової справи, hub може показати кнопку `🧹 У підвал`, але route має вести в `cellar.grownup`, а не в стару мишачу винагороду.
+- Onboarding gate: Льохова справа відкривається з 2 рівня і закривається після 3 рівня. Перевірка стоїть до cooldown reward claim, а command/callback handlers не мають переносити presence в `location.korchma.cellar`, якщо герой ще locked. Якщо герой вже виріс із новачкової справи, hub може показати кнопку `🧹 У льох`, але route має вести в `cellar.grownup`, а не в стару мишачу винагороду.
 
-У `0.0.24` рівень 4+ більше не отримує dead-end retired state у підвалі. Старий `/cellar` route відкриває вузьку once-per-player справу `cellar.grownup`:
+У `0.0.24` рівень 4+ більше не отримує dead-end retired state у льосі. Старий `/cellar` route відкриває вузьку once-per-player справу `cellar.grownup`:
 - `CellarGrownupQuestService` лишається vertical slice, не broad quest engine;
 - `daily_actions` із local bucket `once` є idempotency authority для seal purchase audit, bottle grant і permanent completion;
 - `character_items` тримає `item.cellar.cheese-seal` і `item.cellar.foamy-mirage-bottle`, а bottle grant має `maxOwnedQuantity: 1`;
 - failed roleplay bypass пише cooldown `cellar.grownup.roleplay` у `character_cooldowns`, але не створює completion і не блокує paid seal route;
-- видимий UX після bottle grant веде з підвалу до `location.korchma.bar`; кнопка `Здати пляшку` живе в Шинку й викликає `turn-in`, який ставить permanent completion claim;
-- legacy `keep` callback може лишатися для старих повідомлень, але нові підвальні екрани не мають закривати справу через `keep`. Repeated callback-и не дублюють XP, золото, items або cooldown/progress state.
+- видимий UX після bottle grant веде з льоху до `location.korchma.bar`; кнопка `Здати пляшку` живе в Шинку й викликає `turn-in`, який ставить permanent completion claim;
+- legacy `keep` callback може лишатися для старих повідомлень, але нові льохові екрани не мають закривати справу через `keep`. Repeated callback-и не дублюють XP, золото, items або cooldown/progress state.
 
 Цей slice не додає schema migration: використано існуючі `daily_actions`, `character_items` і `character_cooldowns`. Перед майбутнім broad quest/session model варто не переузагальнювати це як універсальний контракт: це лише безпечний pattern для маленьких once-per-player справ.
 
@@ -384,7 +384,7 @@ Tavern raid timing in `0.0.11`/`0.0.15`/`0.0.16`:
 
 Це не Telegram online tracking. Не показувати точні timestamp-и, не показувати глобальний список локацій і не робити background ticks джерелом присутності.
 
-Важливий борг `0.0.9`/`0.0.10`: присутність place-based, але ще не session-based. Якщо гравець зайшов у залу корчми, до столу зі справами, підвалу або іншої малої місцини, цей coarse place id може лишатися останньою відомою місциною до 15-хвилинного idle cutoff або до наступної location-changing команди/callback-а. Це прийнятно для MVP-присутності, але майбутні групові рейди, pending actions і справжні локації мають перейти на окремі session/raid rows.
+Важливий борг `0.0.9`/`0.0.10`: присутність place-based, але ще не session-based. Якщо гравець зайшов у залу корчми, до столу зі справами, льоху або іншої малої місцини, цей coarse place id може лишатися останньою відомою місциною до 15-хвилинного idle cutoff або до наступної location-changing команди/callback-а. Це прийнятно для MVP-присутності, але майбутні групові рейди, pending actions і справжні локації мають перейти на окремі session/raid rows.
 
 Web presence у `0.0.9`:
 - `GET /api/presence/locations` повертає тільки активні/притихлі місцини з лічильниками; публічні `players` за замовчуванням порожні, доки немає реального privacy UI або явно увімкненого future flag-а;
@@ -398,13 +398,13 @@ Web presence у `0.0.9`:
 - `location.korchma.hall` — Зала корчми;
 - `location.korchma.quest_table` — Стіл зі справами;
 - `location.korchma.bar` — Шинок;
-- `location.korchma.cellar` — Підвал корчми;
+- `location.korchma.cellar` — Льох корчми;
 - `location.korchma.barrel` — Біля Бочки Пінного Міражу;
 - `location.korchma.news_corner` — Дошка вістей;
 - `location.korchma.ranger_corner` — Єгерський куток;
 - `location.korchma.hlybka` — Глибка, dungeon-місцина для бойових справ.
 
-Legacy ids `location.tavern`, `location.shawarma-table` і `location.tavern-cellar` лишаються read aliases для старих rows, але нові writes мають використовувати `location.korchma.*`. `/quest` не позначає гравця біля столу зі справами на рівні глобальної кнопки; command handler спершу перевіряє поточну місцину, блокує квест надворі й лише тоді переводить героя до столу. Підвал є відкритою aggregate-місциною для public `/presence`, але public web усе одно лишає `players` порожнім за замовчуванням.
+Legacy ids `location.tavern`, `location.shawarma-table` і `location.tavern-cellar` лишаються read aliases для старих rows, але нові writes мають використовувати `location.korchma.*`. `/quest` не позначає гравця біля столу зі справами на рівні глобальної кнопки; command handler спершу перевіряє поточну місцину, блокує квест надворі й лише тоді переводить героя до столу. Льох є відкритою aggregate-місциною для public `/presence`, але public web усе одно лишає `players` порожнім за замовчуванням.
 
 Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/fight` для persistent `Тринадцяти дрібних проблем` у майбутньому має писати `location.korchma.hlybka`, бо Стіл зі справами є маршрутизатором, а не місцем бою. Completion/turn-in для `Тринадцяти дрібних проблем` має вести до Корчмаря в `location.korchma.bar`; після здачі `13` проблем там може відкриватися continuation quest на `42` проблеми з окремим reward key/bucket. `/hunt` у цьому MVP відкриває Єгерський куток, пише `location.korchma.ranger_corner` і `adventure.hunt-board.contract`, доки немає окремої wilderness/session model. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу.
 
@@ -475,7 +475,7 @@ Callback data коротка, версіонована.
 - `v1:hunt:act:{localPeriodId}:{contractToken}:trick`
 - `v1:hunt:act:{localPeriodId}:{contractToken}:retreat`
 
-`participants` callback-и для бочки, шаурми й підвалу лишаються валідними для старих Telegram-повідомлень, але нові scene keyboards не мають їх показувати. Поточна видима поверхня присутності — reply-кнопка `👀 Хто поруч`, яка викликає `/online`-еквівалент. Будь-який список імен у Telegram має мати cap на видимі рядки, truncation довгих імен і coarse status-и без timestamp-ів; якщо потрібні повні списки, додавати окрему пагінацію callback-ами.
+`participants` callback-и для бочки, шаурми й льоху лишаються валідними для старих Telegram-повідомлень, але нові scene keyboards не мають їх показувати. Поточна видима поверхня присутності — reply-кнопка `👀 Хто поруч`, яка викликає `/online`-еквівалент. Будь-який список імен у Telegram має мати cap на видимі рядки, truncation довгих імен і coarse status-и без timestamp-ів; якщо потрібні повні списки, додавати окрему пагінацію callback-ами.
 
 Майбутній `activityType` / activity presence:
 - зберігати короткий coarse тип поточної дії поруч із presence, не виводячи точний час;

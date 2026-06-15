@@ -10,7 +10,7 @@ export const monsters = [
   },
   {
     id: "monster.basement-mouse-with-title",
-    name: "Підвальна Миша з Титулом",
+    name: "Льохова Миша з Титулом",
     description: "Мала істота великого самопроголошення. Вимагає сир, повагу й дрібний герб.",
     level: 1,
     tags: ["beast", "cellar", "tiny-boss", "diplomacy"]

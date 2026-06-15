@@ -38,7 +38,7 @@ export function buildKorchmaHallKeyboard(): InlineKeyboard {
     .text("🍻 Шинок", makePlaceCallbackData("bar"))
     .row()
     .text("📰 Дошка вістей", makePlaceCallbackData("news-corner"))
-    .text("🐭 Підвал", makePlaceCallbackData("cellar"))
+    .text("🐭 Льох", makePlaceCallbackData("cellar"))
     .row()
     .text("🚪 Надвір", makePlaceCallbackData("front"));
 }
