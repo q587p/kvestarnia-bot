@@ -311,6 +311,8 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - Якщо session уже `won`, але reward claim ще не встиг створитися, terminal read пробує той самий idempotent claim/recover path замість тихо лишати бій без винагороди.
 - `daily_actions.local_date = solo_combat_sessions.id` у цьому path є generic idempotency bucket, а не календарна дата. Перед analytics/reporting pass це поле варто або перейменувати в майбутній схемі, або явно документувати як bucket id.
 
+`0.0.23` не додає shops, selling, trading, crafting, consumables або широкий economy pass. Але новий fight loot збільшує item volume, тому перший наступний pressure valve описаний як `docs/MANTOK_CHEST_BACKLOG.md`: Дружня Скриня / Манатко-скриня має recycle-ити 5 eligible манаток в 1 better-than-average output item із confirmation, транзакційністю й idempotent callback safety.
+
 Залишковий борг перед великим Hunt Board: ledger ще не є persistent combat/encounter state. Для групових полювань, wilderness sessions, collection progression, складного loot tracking або combat HP/mana потрібна окрема session model і ширший transaction boundary.
 
 Phase 1 scope lock: Hunt Board ledger і `/bestiary` лишаються bridge/data foundation. `/bestiary` і `/monsters` gate-яться до 3 рівня, щоб read-only довідник не спойлерив starter encounters. Не будувати окремий bestiary collection/journal progression track, доки не закриті combat engine, equipment stat effects, loot engine і level 1-10 loop. Наступні bestiary-зміни мають або виправляти поточну safety/read-only поведінку, або прямо обслуговувати combat/loot.

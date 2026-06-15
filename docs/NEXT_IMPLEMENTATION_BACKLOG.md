@@ -180,7 +180,41 @@ Implemented in `0.0.23` for won persistent solo fights.
 - повторний callback не reroll-ить loot;
 - reward UI безпечно показує exact items.
 
-## 0.0.24 — Fight Rewards and Level 1-10
+## 0.0.24 — Friendly Chest / Манатко-скриня
+
+**Objective**
+Дати першому fight loot path безпечний item sink: гравець має спосіб зменшувати довгий inventory і перетворювати зайві манатки на одну кращу середню річ без магазинів, продажу або trading.
+
+**Status**
+Planned after `0.0.23`, because new fight loot increases item volume.
+
+**Scope**
+
+- entry point із inventory: `♻️ До Дружньої Скрині`;
+- рівно 5 eligible манаток → 1 output манатка;
+- manual selection або `Згодувати 5 найдешевших`;
+- confirmation before consuming items;
+- transaction/idempotency safety for repeated Telegram callbacks;
+- protected/equipped/story/foreign items are not eligible;
+- output score is strictly greater than average input score;
+- docs source: `docs/MANTOK_CHEST_BACKLOG.md`.
+
+**Non-goals**
+
+- no shops;
+- no selling/trading;
+- no crafting tree;
+- no item-to-level exchange;
+- no social recycling;
+- no new combat rewards.
+
+**Acceptance criteria**
+
+- tests cover score, eligibility, rollback, duplicate callbacks and auto-pick;
+- 5 consumed items never disappear unless 1 valid output item is created;
+- player-facing copy stays clear that input манатки are gone forever after confirmation.
+
+## 0.0.25 — Fight Rewards and Level 1-10
 
 **Objective**
 Довести solo loop після першого reward/loot path: real fight → reward → loot → level-up → hero/equipment impact має мати нормальний темп 1-10 і зрозумілий playtest checklist.
