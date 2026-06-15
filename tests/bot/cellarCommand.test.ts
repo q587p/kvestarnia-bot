@@ -38,6 +38,10 @@ describe("cellar command", () => {
             {
               text: "📜 Табличка прибулих",
               callback_data: makePlaceCallbackData("arrivals")
+            },
+            {
+              text: "🏅 Пропамʼятна дошка",
+              callback_data: makePlaceCallbackData("memorial")
             }
           ]
         ]

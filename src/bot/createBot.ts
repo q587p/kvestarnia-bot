@@ -10,8 +10,11 @@ import type { DevResetService } from "../services/devResetService";
 import type { FightService } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
 import type { HuntService } from "../services/huntService";
+import type { YegerQuestService } from "../services/yegerQuestService";
+import { isYegerUnquietTarget } from "../services/yegerQuestService";
 import type { EquipmentService } from "../services/equipmentService";
 import type { InventoryService } from "../services/inventoryService";
+import type { LevelMilestoneService } from "../services/levelMilestoneService";
 import type { MantokChestService } from "../services/mantokChestService";
 import type { OnboardingService } from "../services/onboardingService";
 import {
@@ -20,9 +23,9 @@ import {
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
   PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_FRONT,
-  PRESENCE_LOCATION_KORCHMA_HALL,
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
@@ -38,6 +41,7 @@ import { parseCellarCallbackData, type CellarCallback } from "./callbacks/cellar
 import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
 import { parseFightCallbackData, type FightCallback } from "./callbacks/fightCallbackData";
 import { parseHuntCallbackData, type HuntCallback } from "./callbacks/huntCallbackData";
+import { parseYegerCallbackData, type YegerCallback } from "./callbacks/yegerCallbackData";
 import {
   parseEquipmentCallbackData,
   parseItemCallbackData,
@@ -73,7 +77,7 @@ import { registerEquipmentCommand, sendEquipment } from "./commands/equipmentCom
 import { registerFightCommand, sendFight } from "./commands/fightCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
 import { registerHeroCommand, sendHero } from "./commands/heroCommand";
-import { registerHuntCommand, markHuntPresence, sendHuntBoard } from "./commands/huntCommand";
+import { registerHuntCommand, markHuntPresence, sendHuntBoard, sendYegerCorner } from "./commands/huntCommand";
 import { registerInventoryCommand, sendInventory } from "./commands/inventoryCommand";
 import { registerLookCommand } from "./commands/lookCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
@@ -89,7 +93,9 @@ import { registerStartCommand } from "./commands/startCommand";
 import {
   registerTavernCommand,
   sendKorchmaArrivalBoard,
+  sendKorchmaBar,
   sendKorchmaFront,
+  sendKorchmaMemorialBoard,
   sendTavern,
   sendTavernBarrel
 } from "./commands/tavernCommand";
@@ -105,8 +111,11 @@ import {
   buildCellarResultKeyboard
 } from "./keyboards/cellarKeyboard";
 import { buildFightResultKeyboard, buildPersistentFightResultKeyboard } from "./keyboards/fightKeyboard";
-import { buildHuntResultKeyboard } from "./keyboards/huntKeyboard";
-import { buildEquipmentKeyboard, buildItemDetailKeyboard } from "./keyboards/inventoryKeyboard";
+import {
+  buildEquipItemResultKeyboard,
+  buildEquipmentKeyboard,
+  buildItemDetailKeyboard
+} from "./keyboards/inventoryKeyboard";
 import {
   buildMantokChestHelpKeyboard,
   buildMantokChestManualSelectionKeyboard,
@@ -122,13 +131,18 @@ import {
 } from "./keyboards/onboardingKeyboard";
 import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
 import {
+  buildKorchmaBarKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaRoundOfferKeyboard,
   buildKorchmaRoundResultKeyboard,
   buildTavernParticipantsKeyboard,
-  buildTavernRangerKeyboard,
   buildTavernResultKeyboard
 } from "./keyboards/tavernKeyboard";
+import {
+  buildYegerHelpKeyboard,
+  buildYegerKeyboard,
+  buildYegerTurnInKeyboard
+} from "./keyboards/yegerKeyboard";
 import {
   presentAdventureLevelRetired,
   presentAdventureNoCharacter,
@@ -149,16 +163,13 @@ import {
   presentDevResetNoCharacter
 } from "./presenters/devResetPresenter";
 import {
+  presentFightNeedsRest,
   presentFightLevelRetired,
   presentFightNoCharacter,
   presentFightResult,
+  presentPersistentFight,
   presentPersistentFightTurn
 } from "./presenters/fightPresenter";
-import {
-  presentHuntLevelLocked,
-  presentHuntNoCharacter,
-  presentHuntResult
-} from "./presenters/huntPresenter";
 import { presentHelp } from "./presenters/helpPresenter";
 import {
   presentEquipment,
@@ -189,17 +200,26 @@ import {
   presentRestartDeleted,
   presentRestartNoCharacter
 } from "./presenters/restartPresenter";
+import {
+  presentYegerHelp,
+  presentYegerNoCharacter,
+  presentYegerQuest,
+  presentYegerStart,
+  presentYegerTrackingBlockedByOtherFight,
+  presentYegerTrackingStart,
+  presentYegerTurnIn
+} from "./presenters/yegerPresenter";
 import { presentParticipants } from "./presenters/presencePresenter";
 import {
   presentTavernNoCharacter,
   presentPendingRaidActionBlock,
-  presentTavernRanger,
   presentTavernRaidResult,
   presentTavernRoundOffer,
   presentTavernRoundResult
 } from "./presenters/tavernPresenter";
 import { safeAnswerCallbackQuery } from "./safeAnswerCallbackQuery";
 import { safeEditMessageText } from "./safeEditMessageText";
+import { installMessageFreshnessTracking } from "./messageFreshness";
 
 export interface BotServices {
   adventure: AdventureService;
@@ -207,10 +227,12 @@ export interface BotServices {
   cellarGrownup?: CellarGrownupQuestService;
   fight: FightService;
   hunt: HuntService;
+  yeger: YegerQuestService;
   onboarding: OnboardingService;
   hero: HeroService;
   equipment: EquipmentService;
   inventory: InventoryService;
+  levelMilestones?: LevelMilestoneService;
   mantokChest: MantokChestService;
   presence: PresenceService;
   devReset: DevResetService;
@@ -232,6 +254,7 @@ export function createBot(token: string, services: BotServices): Bot {
     console.error("Квестарня: помилка в Telegram middleware.", error.error);
   });
 
+  installMessageFreshnessTracking(bot);
   registerPresenceMiddleware(bot, services.presence);
   registerAdventureCommand(bot, services.adventure, {
     cellarErrand: services.cellarErrand,
@@ -242,7 +265,7 @@ export function createBot(token: string, services: BotServices): Bot {
     presence: services.presence,
     tavernRaid: services.tavern
   });
-  registerHuntCommand(bot, services.hunt, {
+  registerHuntCommand(bot, services.yeger, {
     presence: services.presence,
     tavernRaid: services.tavern
   });
@@ -351,7 +374,7 @@ export function createBot(token: string, services: BotServices): Bot {
       return;
     }
 
-    await handleTavernCallback(ctx, parsed.value, services.tavern, services.presence, bot);
+    await handleTavernCallback(ctx, parsed.value, services.tavern, services.yeger, services.presence, bot);
   });
 
   bot.callbackQuery(/^v1:adv:/, async (ctx) => {
@@ -420,6 +443,17 @@ export function createBot(token: string, services: BotServices): Bot {
     await handleHuntCallback(ctx, parsed.value, services);
   });
 
+  bot.callbackQuery(/^v1:ygr:/, async (ctx) => {
+    const parsed = parseYegerCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleYegerCallback(ctx, parsed.value, services);
+  });
+
   bot.callbackQuery(/^v1:bst:/, async (ctx) => {
     const parsed = parseBestiaryCallbackData(ctx.callbackQuery.data);
 
@@ -462,7 +496,7 @@ export function buildQuestHubCommandOptions(services: BotServices): QuestHubComm
     cellarErrand: services.cellarErrand,
     ...(services.cellarGrownup ? { cellarGrownup: services.cellarGrownup } : {}),
     fight: services.fight,
-    hunt: services.hunt,
+    yeger: services.yeger,
     presence: services.presence,
     tavernRaid: services.tavern
   };
@@ -507,7 +541,7 @@ function getPresenceContext(ctx: Context): PresenceContext | null {
 function getCallbackPresenceContext(data: string): PresenceContext | null {
   if (data.startsWith("v1:tavern:round")) {
     return {
-      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      locationId: PRESENCE_LOCATION_KORCHMA_BAR,
       currentRaidId: null,
       currentAdventureId: null
     };
@@ -582,6 +616,10 @@ function getCallbackPresenceContext(data: string): PresenceContext | null {
   }
 
   if (data === "v1:place:quest-table") {
+    return {};
+  }
+
+  if (data === "v1:place:bar") {
     return {};
   }
 
@@ -931,10 +969,7 @@ async function handleEquipmentCallback(
       action.itemId
     );
 
-    await safeAnswerCallbackQuery(ctx, {
-      text: presentEquipItemResult(result),
-      show_alert: result.state !== "equipped" && result.state !== "requirements-not-met"
-    });
+    await safeAnswerCallbackQuery(ctx);
 
     if (result.state === "equipped") {
       const equipment = await services.equipment.getEquipmentForTelegramUser(telegramUserId);
@@ -942,7 +977,13 @@ async function handleEquipmentCallback(
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildEquipmentKeyboard(equipment)
       });
+      return;
     }
+
+    await safeEditMessageText(ctx, presentEquipItemResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildEquipItemResultKeyboard()
+    });
     return;
   }
 
@@ -1168,12 +1209,33 @@ async function handlePlaceCallback(
   }
 
   if (action === "arrivals") {
-    await sendKorchmaArrivalBoard(ctx, services.tavern, services.presence, "edit");
+    await sendKorchmaArrivalBoard(
+      ctx,
+      services.tavern,
+      services.presence,
+      "edit"
+    );
+    return;
+  }
+
+  if (action === "memorial") {
+    await sendKorchmaMemorialBoard(
+      ctx,
+      services.tavern,
+      services.presence,
+      "edit",
+      services.levelMilestones
+    );
     return;
   }
 
   if (action === "barrel") {
     await sendTavernBarrel(ctx, services.tavern, services.presence, "reply");
+    return;
+  }
+
+  if (action === "bar") {
+    await sendKorchmaBar(ctx, services.tavern, services.presence, "edit", services.cellarGrownup);
     return;
   }
 
@@ -1215,6 +1277,16 @@ async function handleQuestCallback(
     return;
   }
 
+  if (action === "archive" || action === "list") {
+    await sendQuestHub(
+      ctx,
+      buildQuestHubCommandOptions(services),
+      "edit",
+      action === "archive" ? "archive" : "active"
+    );
+    return;
+  }
+
   if (action === "adventure") {
     await sendAdventure(ctx, services.adventure, "reply", {
       cellarErrand: services.cellarErrand,
@@ -1236,7 +1308,7 @@ async function handleQuestCallback(
   }
 
   if (action === "hunt") {
-    await sendHuntBoard(ctx, services.hunt, "reply", {
+    await sendHuntBoard(ctx, services.yeger, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
       requireKorchmaInterior: true
@@ -1292,6 +1364,7 @@ async function handleTavernCallback(
   ctx: Context,
   action: TavernCallback,
   tavernRaidService: TavernRaidService,
+  yegerQuestService: YegerQuestService,
   presenceService: PresenceService,
   bot: Bot
 ): Promise<void> {
@@ -1317,18 +1390,11 @@ async function handleTavernCallback(
   }
 
   if (action === "ranger") {
-    const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
-
-    if (result.state === "no-character") {
-      await safeAnswerCallbackQuery(ctx);
-      await safeEditMessageText(ctx, presentTavernNoCharacter());
-      return;
-    }
-
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentTavernRanger(result.character), {
-      ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildTavernRangerKeyboard()
+    await sendYegerCorner(ctx, yegerQuestService, "edit", {
+      presence: presenceService,
+      tavernRaid: tavernRaidService,
+      requireKorchmaInterior: true
     });
     return;
   }
@@ -1664,9 +1730,9 @@ async function handleCellarGrownupCallback(
 
   if (result.state !== "no-character" && result.state !== "too-young") {
     await markScenePresence(ctx, services.presence, {
-      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+      locationId: action === "grownup-turn-in" ? PRESENCE_LOCATION_KORCHMA_BAR : PRESENCE_LOCATION_KORCHMA_CELLAR,
       currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+      currentAdventureId: action === "grownup-turn-in" ? null : PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
     });
   }
 
@@ -1675,12 +1741,16 @@ async function handleCellarGrownupCallback(
 
   await safeEditMessageText(ctx, presentCellarGrownupResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    ...(grownupKeyboardState
+    ...(action === "grownup-turn-in"
       ? {
-          reply_markup: buildCellarGrownupKeyboard(grownupKeyboardState, {
-            includeKeptBottle: shouldShowCellarGrownupKeptBottleButton(result)
-          })
+          reply_markup: buildKorchmaBarKeyboard()
         }
+      : grownupKeyboardState
+        ? {
+            reply_markup: buildCellarGrownupKeyboard(grownupKeyboardState, {
+              includeKeptBottle: shouldShowCellarGrownupKeptBottleButton(result)
+            })
+          }
       : {})
   });
 
@@ -1810,6 +1880,7 @@ async function handleHuntCallback(
   callback: HuntCallback,
   services: BotServices
 ): Promise<void> {
+  void callback;
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
@@ -1821,33 +1892,27 @@ async function handleHuntCallback(
     return;
   }
 
-  if (callback.type === "view") {
-    await safeAnswerCallbackQuery(ctx);
-    await sendHuntBoard(ctx, services.hunt, "edit", {
-      presence: services.presence,
-      tavernRaid: services.tavern,
-      requireKorchmaInterior: true
-    });
+  await safeAnswerCallbackQuery(ctx);
+  await sendHuntBoard(ctx, services.yeger, "edit", {
+    presence: services.presence,
+    tavernRaid: services.tavern,
+    requireKorchmaInterior: true
+  });
+}
+
+async function handleYegerCallback(
+  ctx: Context,
+  callback: YegerCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
     return;
   }
 
-  if (callback.type === "legacy-view") {
-    await safeAnswerCallbackQuery(ctx);
-    await sendHuntBoard(ctx, services.hunt, "edit", {
-      presence: services.presence,
-      tavernRaid: services.tavern,
-      requireKorchmaInterior: true
-    });
-    return;
-  }
-
-  if (callback.type === "legacy-action") {
-    await safeAnswerCallbackQuery(ctx);
-    await sendHuntBoard(ctx, services.hunt, "edit", {
-      presence: services.presence,
-      tavernRaid: services.tavern,
-      requireKorchmaInterior: true
-    });
+  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
     return;
   }
 
@@ -1855,7 +1920,7 @@ async function handleHuntCallback(
 
   if (place.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentHuntNoCharacter());
+    await safeEditMessageText(ctx, presentYegerNoCharacter());
     return;
   }
 
@@ -1868,36 +1933,128 @@ async function handleHuntCallback(
     return;
   }
 
-  const result = await services.hunt.completeHuntContract(
-    telegramUserId,
-    callback.localPeriodId,
-    callback.type === "action" ? callback.contractToken : null,
-    callback.action
-  );
-
-  if (result.state === "no-character") {
+  if (callback.type === "open") {
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentHuntNoCharacter());
+    await sendYegerCorner(ctx, services.yeger, "edit", {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      requireKorchmaInterior: true
+    });
     return;
   }
 
-  if (result.state === "level-locked") {
+  if (callback.type === "quest") {
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentHuntLevelLocked(result), HTML_MESSAGE_OPTIONS);
+    await sendHuntBoard(ctx, services.yeger, "edit", {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      requireKorchmaInterior: true
+    });
     return;
   }
 
-  if (result.state !== "stale-period") {
+  if (callback.type === "help") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentYegerHelp(), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildYegerHelpKeyboard()
+    });
+    return;
+  }
+
+  if (callback.type === "start") {
+    const result = await services.yeger.startForTelegramUser(telegramUserId);
+    await safeAnswerCallbackQuery(ctx);
     await markHuntPresence(ctx, services.presence);
+    if (result.state === "no-character") {
+      await safeEditMessageText(ctx, presentYegerStart(result), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    await safeEditMessageText(ctx, presentYegerStart(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildYegerKeyboard(result)
+    });
+    return;
   }
 
+  if (callback.type === "track") {
+    const quest = await services.yeger.getForTelegramUser(telegramUserId);
+
+    if (quest.state !== "in-progress") {
+      await safeAnswerCallbackQuery(ctx);
+
+      if (quest.state === "no-character") {
+        await safeEditMessageText(ctx, presentYegerNoCharacter());
+        return;
+      }
+
+      await safeEditMessageText(ctx, presentYegerQuest(quest), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerKeyboard(quest)
+      });
+      return;
+    }
+
+    const result = await services.yeger.trackForTelegramUser(telegramUserId);
+    await safeAnswerCallbackQuery(ctx);
+    await markHuntPresence(ctx, services.presence);
+
+    if (result.state === "no-character") {
+      await safeEditMessageText(ctx, presentYegerNoCharacter());
+      return;
+    }
+
+    if (result.state === "level-retired") {
+      await safeEditMessageText(ctx, presentFightLevelRetired(result), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    if (result.state === "needs-rest") {
+      await safeEditMessageText(ctx, presentFightNeedsRest(result), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    if (result.state === "persistent-active" || result.state === "persistent-terminal") {
+      const trackingIntro = result.monster && isYegerUnquietTarget(result.monster)
+        ? presentYegerTrackingStart({
+            yegerProgress: quest.progress,
+            thirteenProgress: result.questProgress
+          })
+        : presentYegerTrackingBlockedByOtherFight();
+
+      await safeEditMessageText(ctx, trackingIntro, HTML_MESSAGE_OPTIONS);
+      await ctx.reply(presentPersistentFight(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
+      });
+      return;
+    }
+
+    await safeEditMessageText(ctx, "Слід охолов.\n\nЄгер мовчить так переконливо, що навіть мапа перестала шарудіти.", {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildYegerHelpKeyboard()
+    });
+    return;
+  }
+
+  const result = await services.yeger.turnInForTelegramUser(telegramUserId);
   await safeAnswerCallbackQuery(ctx);
-  await safeEditMessageText(ctx, presentHuntResult(result), {
+  await markHuntPresence(ctx, services.presence);
+  if (result.state === "no-character") {
+    await safeEditMessageText(ctx, presentYegerTurnIn(result), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
+  await safeEditMessageText(ctx, presentYegerTurnIn(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildHuntResultKeyboard(result)
+    reply_markup: buildYegerTurnInKeyboard(result)
   });
-  if (result.state === "completed") {
-    await sendLevelUpCelebration(ctx, result);
+  if (result.state === "completed" && result.levelChange) {
+    await sendLevelUpCelebration(ctx, {
+      character: result.character,
+      levelChange: result.levelChange
+    });
   }
 }
 

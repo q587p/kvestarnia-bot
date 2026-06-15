@@ -3,10 +3,11 @@ import {
   presentTavern,
   presentTavernAlreadyRaided,
   presentKorchmaArrivalBoard,
+  presentKorchmaBar,
   presentKorchmaFront,
   presentKorchmaHall,
+  presentKorchmaMemorialBoard,
   presentPendingRaidActionBlock,
-  presentTavernRanger,
   presentTavernNoCharacter,
   presentTavernRaidAuditBreak,
   presentTavernRaidPending,
@@ -59,8 +60,14 @@ describe("tavern presenter", () => {
   it("formats the korchma name at the front door", () => {
     const text = presentKorchmaFront(character);
 
-    expect(text).toContain("За дверима гуде <i>Корчма Квестарні</i>.");
-    expect(text).toContain("табличка прибулих");
+    expect(text).toContain("За дверима гуде <b>Корчма Квестарні</b>.");
+    expect(text).toContain("<i>Стіл зі справами</i>");
+    expect(text).toContain("<i>Шинок</i>");
+    expect(text).toContain("<i>Бочка Пінного Міражу</i>");
+    expect(text).toContain("<i>Підвал</i>");
+    expect(text).toContain("<i>Дошка вістей</i>");
+    expect(text).toContain("<i>табличка прибулих</i>");
+    expect(text).toContain("<i>пропамʼятна дошка</i>");
   });
 
   it("shows a front-door arrivals plaque with escaped visitor names", () => {
@@ -78,6 +85,43 @@ describe("tavern presenter", () => {
     expect(text).toContain("Табличка прибулих");
     expect(text).toContain("Останні зарубки:");
     expect(text).toContain("&lt;b&gt;Дара&lt;/b&gt; · рівень 2 · Зала корчми");
+    expect(text).not.toContain("Видатні жителі");
+    expect(text).not.toContain("Перші зарубки за рівні:");
+    expect(text).not.toContain("<b>Дара</b>");
+  });
+
+  it("shows a separate memorial board with escaped level firsts", () => {
+    const text = presentKorchmaMemorialBoard(character, {
+      levels: [
+        {
+          level: 4,
+          entries: [
+            {
+              rank: 1,
+              telegramUserId: 77n,
+              characterId: "character-dara",
+              name: "<b>Дара</b>",
+              level: 4,
+              reachedAt: new Date("2026-06-15T10:00:00.000Z")
+            },
+            {
+              rank: 2,
+              telegramUserId: 88n,
+              characterId: "character-nestor",
+              name: "Нестор Межовий",
+              level: 4,
+              reachedAt: new Date("2026-06-15T10:05:00.000Z")
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(text).toContain("Пропамʼятна дошка");
+    expect(text).toContain("Видатні жителі");
+    expect(text).toContain("Перші зарубки за рівні:");
+    expect(text).toContain("• рівень 4: 🥇 &lt;b&gt;Дара&lt;/b&gt; · 🥈 Нестор Межовий");
+    expect(text).not.toContain("Останні зарубки:");
     expect(text).not.toContain("<b>Дара</b>");
   });
 
@@ -90,12 +134,23 @@ describe("tavern presenter", () => {
     expect(text).toContain(
       "без нагляду.\n\nПраворуч стоїть <i>Стіл зі справами</i>"
     );
+    expect(text).toContain("неподалік шумить <i>Шинок</i>");
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
     expect(text).toContain("<i>Підвал</i>");
     expect(text).toContain("<i>Дошка вістей</i>");
     expect(text).toContain("Корчмар:\n<blockquote>");
     expect(text).toContain("Куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
+  });
+
+  it("shows Шинок as the korchmar and beer location", () => {
+    const text = presentKorchmaBar(character);
+
+    expect(text).toContain("🍻 Шинок");
+    expect(text).toContain("<i>Шинок</i>");
+    expect(text).toContain("корчмаря");
+    expect(text).toContain("частують пивом");
+    expect(text).toContain("Що наливаємо?");
   });
 
   it("accepts a changing flavor seed for korchma hall greetings", () => {
@@ -529,28 +584,6 @@ describe("tavern presenter", () => {
     expect(text).toContain("просте за 10");
     expect(text).toContain("Рейтинг щедрості");
     expect(text).not.toContain("Списано");
-  });
-
-  it("presents the hooded ranger with biography-aware reactions", () => {
-    const humanRanger = {
-      ...character,
-      classId: "class.ranger",
-      className: "Єгер"
-    };
-    const domovyk = {
-      ...character,
-      raceId: "race.domovyk",
-      raceName: "Домовик"
-    };
-    const rogue = {
-      ...character,
-      classId: "class.rogue",
-      className: "Злодій"
-    };
-
-    expect(presentTavernRanger(humanRanger)).toContain("Людисько-єгер");
-    expect(presentTavernRanger(domovyk)).toContain("ліцензійною магією");
-    expect(presentTavernRanger(rogue)).toContain("Ваші руки надто чесно поводяться");
   });
 });
 

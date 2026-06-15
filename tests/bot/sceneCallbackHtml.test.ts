@@ -3,9 +3,11 @@ import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
 import { makeFightCallbackData } from "../../src/bot/callbacks/fightCallbackData";
+import { makeEquipItemCallbackData } from "../../src/bot/callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
+import { makeYegerTrackCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("scene callback HTML options", () => {
@@ -212,6 +214,112 @@ describe("scene callback HTML options", () => {
     );
   });
 
+  it("edits equip requirement denials as message text instead of popup text", async () => {
+    const calls = await captureApiCalls(
+      makeEquipItemCallbackData("item.loot-v1-borgomanta-token-plus-3"),
+      servicesWith({
+        equipment: {
+          equipItemForTelegramUser: () =>
+            Promise.resolve({
+              state: "requirements-not-met",
+              reasons: ["min-level", "class"],
+              item: {
+                itemId: "item.loot-v1-borgomanta-token-plus-3",
+                content: {
+                  id: "item.loot-v1-borgomanta-token-plus-3",
+                  name: "Жетон Боргоманта +3",
+                  description: "Маленька річ, великий привід сперечатися з балансом.",
+                  rarity: "rare",
+                  slot: "accessory",
+                  goldValue: 986
+                }
+              }
+            })
+        }
+      })
+    );
+    const callbackAnswer = calls.find((call) => call.method === "answerCallbackQuery");
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(callbackAnswer?.payload).not.toHaveProperty("text");
+    expect(edit?.payload).toMatchObject({
+      parse_mode: "HTML"
+    });
+    expect(String(edit?.payload.text)).toContain("Ще не екіпірується: Жетон Боргоманта +3.");
+    expect(String(edit?.payload.text)).toContain("Потрібно: вищий рівень, сумісний клас.");
+    expect(String(edit?.payload.text)).toContain("Це правило манатки, не помилка героя.");
+  });
+
+  it("does not describe an active non-Yeger fight as an unquiet target", async () => {
+    const calls = await captureApiCalls(
+      makeYegerTrackCallbackData(),
+      servicesWith({
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "in-progress",
+              character,
+              progress: { wins: 1, target: 5 }
+            }),
+          trackForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-active",
+              character,
+              session: persistentSession("monster.deadline-spider"),
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const fight = calls.find((call) => call.method === "sendMessage");
+
+    expect(String(edit?.payload.text)).toContain("У вас уже триває інша сутичка.");
+    expect(String(edit?.payload.text)).not.toContain("Щось неупокоєне знайшлося");
+    expect(String(fight?.payload.text)).toContain("Павук дедлайнів");
+  });
+
+  it("keeps Yeger tracking flavor for active matching unquiet fights", async () => {
+    const calls = await captureApiCalls(
+      makeYegerTrackCallbackData(),
+      servicesWith({
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "in-progress",
+              character,
+              progress: { wins: 1, target: 5 }
+            }),
+          trackForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-active",
+              character,
+              session: persistentSession("monster.complaint-lantern"),
+              monster: {
+                id: "monster.complaint-lantern",
+                name: "Скаргова лампа",
+                description: "Світить лише тоді, коли хтось починає жалітись.",
+                level: 4,
+                tags: ["paperwork", "sound", "time", "unquiet"]
+              },
+              questProgress: null
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("Щось неупокоєне знайшлося");
+    expect(String(edit?.payload.text)).not.toContain("У вас уже триває інша сутичка.");
+  });
+
   it("sends an HTML barrel raid completion notification after the pending timer ends", async () => {
     vi.useFakeTimers();
 
@@ -379,6 +487,35 @@ const levelChange = {
   oldLevel: 2,
   newLevel: 3
 };
+
+function persistentSession(monsterId: string) {
+  return {
+    id: "session-1",
+    characterId: "character-1",
+    monsterId,
+    status: "active" as const,
+    turn: 1,
+    reward: null,
+    createdAt: new Date("2026-06-15T10:00:00.000Z"),
+    updatedAt: new Date("2026-06-15T10:00:00.000Z"),
+    expiresAt: new Date("2026-06-15T10:20:00.000Z"),
+    state: {
+      id: "session-1",
+      status: "active" as const,
+      turn: 1,
+      hero: {
+        hp: 20,
+        hpMax: 20,
+        mana: 10,
+        manaMax: 10
+      },
+      monster: {
+        hp: 12,
+        hpMax: 12
+      }
+    }
+  };
+}
 
 function servicesWith(overrides: Partial<BotServices>): BotServices {
   return {

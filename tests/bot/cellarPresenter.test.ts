@@ -2,6 +2,7 @@
 import {
   presentCellarCooldown,
   presentCellarGrownupQuest,
+  presentCellarGrownupResult,
   presentCellarResult,
   presentCellarStart
 } from "../../src/bot/presenters/cellarPresenter";
@@ -142,6 +143,39 @@ describe("cellar presenter", () => {
     expect(text).toContain("Підвал визнав це фіналом");
     expect(text).toContain("Далі краще повернутися до столу справ або зали.");
     expect(text).not.toContain("Що робимо?");
+  });
+
+  it("sends the obtained grownup cellar bottle to the Шинок instead of resolving it in the cellar", () => {
+    const lookupText = presentCellarGrownupQuest({
+      state: "bottle-obtained",
+      character: {
+        ...character,
+        level: 4
+      },
+      bottleQuantity: 1
+    } satisfies Extract<CellarGrownupQuestLookupResult, { state: "bottle-obtained" }>);
+    const resultText = presentCellarGrownupResult({
+      state: "bottle-obtained",
+      character: {
+        ...character,
+        level: 4
+      },
+      source: "roleplay",
+      reward: {
+        itemGrants: [
+          {
+            itemId: "item.cellar.foamy-mirage-bottle",
+            name: "Пляшка Пінного Міражу",
+            quantity: 1
+          }
+        ]
+      }
+    });
+
+    expect(lookupText).toContain("Пляшку можна здати Корчмарю в Шинку.");
+    expect(resultText).toContain("Заберіть її з собою");
+    expect(resultText).toContain("Корчмар приймає такі речі в Шинку");
+    expect(resultText).not.toContain("здати Корчмарю або лишити собі");
   });
 });
 

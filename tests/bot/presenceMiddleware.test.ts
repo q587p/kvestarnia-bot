@@ -13,6 +13,7 @@ import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackDa
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
+  PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_FRONT,
@@ -71,7 +72,7 @@ describe("presence middleware", () => {
     });
   });
 
-  it("marks korchma round callbacks as hall actions, not barrel raid presence", async () => {
+  it("marks korchma round callbacks as Шинок actions, not barrel raid presence", async () => {
     const presence = new CapturingPresenceService();
     const bot = createTestBot(presence);
     await bot.init();
@@ -80,7 +81,7 @@ describe("presence middleware", () => {
 
     expect(presence.marks).toHaveLength(1);
     expect(presence.marks[0]).toMatchObject({
-      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      locationId: PRESENCE_LOCATION_KORCHMA_BAR,
       currentRaidId: null,
       currentAdventureId: null
     });
@@ -384,11 +385,17 @@ describe("presence middleware", () => {
     let boardCount = 0;
     let claimCount = 0;
     const bot = createTestBot(presence, {
-      hunt: {
-        getHuntBoardForTelegramUser: () => {
+      yeger: {
+        getForTelegramUser: () => {
           boardCount += 1;
           return Promise.resolve({ state: "no-character" });
         },
+        startForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        trackForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        turnInForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      hunt: {
+        getHuntBoardForTelegramUser: () => Promise.resolve({ state: "no-character" }),
         completeHuntContract: () => {
           claimCount += 1;
           return Promise.resolve({ state: "no-character" });
@@ -601,6 +608,12 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
     hunt: {
       getHuntBoardForTelegramUser: () => Promise.resolve({ state: "no-character" }),
       completeHuntContract: () => Promise.resolve({ state: "no-character" })
+    },
+    yeger: {
+      getForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      startForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      trackForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      turnInForTelegramUser: () => Promise.resolve({ state: "no-character" })
     },
     onboarding: {},
     hero: {

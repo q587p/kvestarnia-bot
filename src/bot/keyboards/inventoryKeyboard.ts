@@ -94,6 +94,13 @@ export function buildItemDetailKeyboard(
     .text("🛡️ Спорядження", makeEquipmentCallbackData());
 }
 
+export function buildEquipItemResultKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("⬅️ До манаток", makeInventoryCallbackData())
+    .row()
+    .text("🛡️ Спорядження", makeEquipmentCallbackData());
+}
+
 export function buildEquipmentKeyboard(result: EquipmentResult): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 

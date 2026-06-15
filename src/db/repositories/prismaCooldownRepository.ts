@@ -8,6 +8,7 @@ import type {
   CooldownRepository
 } from "./cooldownRepository";
 import type { ItemGrant } from "./dailyActionRepository";
+import { recordLevelMilestones } from "./levelMilestoneRepository";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -169,6 +170,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
               level: newLevel
             }
           });
+    await recordLevelMilestones(tx, character.id, rewardProgress.oldLevel, newLevel);
     const itemGrants = input.itemGrants ?? [];
 
     const appliedItemGrants = await grantItems(tx, character.id, itemGrants);

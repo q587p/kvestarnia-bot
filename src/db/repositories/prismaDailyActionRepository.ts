@@ -7,6 +7,7 @@ import type {
   DailyActionRepository,
   ItemGrant
 } from "./dailyActionRepository";
+import { recordLevelMilestones } from "./levelMilestoneRepository";
 
 export class PrismaDailyActionRepository implements DailyActionRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -117,6 +118,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
                   level: newLevel
                 }
               });
+        await recordLevelMilestones(tx, character.id, rewardProgress.oldLevel, newLevel);
         const itemGrants = input.itemGrants ?? [];
         const appliedItemGrants: ItemGrant[] = [];
 

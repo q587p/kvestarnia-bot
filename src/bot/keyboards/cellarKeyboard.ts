@@ -55,9 +55,7 @@ export function buildCellarGrownupKeyboard(
 ): InlineKeyboard {
   if (state === "bottle-obtained") {
     return new InlineKeyboard()
-      .text("🍾 Здати Корчмарю", makeCellarCallbackData("grownup-turn-in"))
-      .row()
-      .text("🎒 Лишити собі", makeCellarCallbackData("grownup-keep-bottle"))
+      .text("🍻 До шинку", makePlaceCallbackData("bar"))
       .row()
       .text("⬅️ До зали", makePlaceCallbackData("hall"));
   }

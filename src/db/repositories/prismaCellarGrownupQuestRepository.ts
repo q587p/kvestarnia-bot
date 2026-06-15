@@ -9,6 +9,7 @@ import type {
   CellarGrownupQuestSnapshot,
   CompleteCellarGrownupQuestResult
 } from "./cellarGrownupQuestRepository";
+import { recordLevelMilestones } from "./levelMilestoneRepository";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -179,6 +180,7 @@ export class PrismaCellarGrownupQuestRepository implements CellarGrownupQuestRep
             }
           });
         }
+        await recordLevelMilestones(tx, snapshot.character.id, rewardProgress.oldLevel, newLevel);
 
         const updated = await getSnapshot(tx, telegramUserId, input.keys);
 

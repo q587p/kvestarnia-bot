@@ -12,6 +12,33 @@
 persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/mana persistence → recovery/balance polish → inventory/chest polish → balance/playtest polish
 ```
 
+## Later — Durable Barrel Raid Notifications
+
+**Objective**
+Зробити автозавершення Бочки надійним після restart/deploy, не змінюючи економіку й не дублюючи винагороди.
+
+**Scope**
+
+- durable outbox або persistent job row для pending barrel raid notifications;
+- startup-resume: знайти pending-рейди, час яких уже настав або ще настане;
+- due рейди завершувати через наявний idempotent reward path;
+- future рейди планувати заново після старту процесу;
+- унікальний ключ для notification delivery, щоб retries або кілька workers не слали дубль.
+
+**Non-goals**
+
+- no group raid/session rewrite;
+- no reward rebalance;
+- no new loot table;
+- no migration of all cooldowns into a broad scheduler in the same slice.
+
+**Acceptance criteria**
+
+- після restart/deploy pending Бочка не губить завершальне повідомлення;
+- manual `🍺 Перевірити бочку` лишається fallback і не дублює reward;
+- повторний startup/resume або retry не надсилає кілька однакових completed-повідомлень;
+- tests cover due-on-startup, future-reschedule, already-completed, and duplicate-worker/idempotency paths.
+
 ## 0.0.20 — Combat Domain Engine
 
 **Status**
@@ -194,7 +221,7 @@ Implemented in `0.0.24`.
 - persistent solo fights prefer monsters closer to the hero level and fall back to the highest eligible lower-level monster when content has no same-band enemy yet;
 - XP from persistent solo fights is capped to `1` when the monster is more than 2 levels below the hero;
 - level 4+ `/cellar` route opens `Справа не до миші` instead of the retired mouse dead-end;
-- seal purchase, roleplay bypass, bottle grant, and final choice are idempotent through existing `daily_actions` / cooldown / item rows;
+- seal purchase, roleplay bypass, bottle grant, and `Шинок` turn-in are idempotent through existing `daily_actions` / cooldown / item rows;
 - no broad quest engine or new schema was added.
 
 ## 0.0.25 — Persistent HP/Mana & Loot Expansion
@@ -279,7 +306,23 @@ Implemented in the `0.0.27` slice as manual stack-unit selection for the existin
 - selected items never disappear unless 1 valid output item is created;
 - player-facing copy stays clear that input манатки are gone forever after confirmation.
 
-## 0.0.28 — Phase 1 Balance and Playtest Polish
+## 0.0.28 — Yeger Trial: Unquiet Hunt Quest
+
+**Objective**
+Замінити player-facing hourly Hunt Board на першу Єгерську справу з persistent combat progress.
+
+**Status**
+Implemented in the `0.0.28` slice as `Неспокійні справи`: level 4+ quest, 5 won unquiet persistent solo fights, one-time XP/gold/keepsake reward.
+
+**Follow-up backlog**
+
+- timed tracking search;
+- lure/ambush table with манатка-as-bait;
+- Yeger reputation as a real table instead of flavor;
+- wilderness/location-aware hunt presence;
+- group hunt hooks after solo loop stabilizes.
+
+## 0.0.29+ — Phase 1 Balance and Playtest Polish
 
 **Objective**
 Не додавати фічі, а довести Phase 1 до done: real fight → reward → loot → level-up → hero/equipment/resources impact має мати нормальний темп 1-13 і зрозумілий playtest checklist.

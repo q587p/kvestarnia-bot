@@ -15,20 +15,20 @@ export function renderHomePage(
 ): string {
   const latestNews = newsEntries[0]
     ? renderNewsEntry(newsEntries[0])
-    : "<p>Новини тимчасово пішли шукати цвях для Дошки вістей.</p>";
+    : "<p>Вісті тимчасово пішли шукати цвях для Дошки вістей.</p>";
 
   return renderPage(
-    "Квестарня — українська Telegram RPG",
+    "Квестарня — гумористична фентезі-РПҐ у Telegram",
     `
     <section class="hero band">
       <div class="hero-copy">
-        <p class="eyebrow">Telegram RPG українською</p>
+        <p class="eyebrow">Гумористична фентезі-РПҐ у Telegram</p>
         <h1>Квестарня</h1>
-        <p class="lead">Україномовна Telegram RPG про корчму, квести, дурнуватих монстрів, манатки, рівні й героїчні помилки, які зручно робити просто в чаті.</p>
+        <p class="lead">Створи пригодника, зайди в корчму, бери короткі квести, бий дурнуватих монстрів і тягни додому манатки сумнівної цінності. Українською з нуля, без важкого UI й серйозного обличчя без потреби.</p>
         <nav class="cta-row" aria-label="Головні посилання">
           <a class="button primary" href="${TELEGRAM_BOT_URL}">Грати в Telegram</a>
           <a class="button" href="/presence">Жива Квестарня</a>
-          <a class="button" href="/news">Новини</a>
+          <a class="button" href="/news">Вісті</a>
         </nav>
       </div>
       <div class="hero-visual" aria-hidden="true">
@@ -47,7 +47,7 @@ export function renderHomePage(
         <p>Короткі сцени, кнопки замість важкого UI, швидкий прогрес, смішний лут і соціяльні пригоди, які хочеться переказати друзям у чаті.</p>
       </div>
       <div class="feature-grid">
-        ${renderFeature("🎲", "Легка RPG у Telegram", "Створюєш пригодника через <code>/start</code>, обираєш расу й клас, заходиш у корчму й береш першу маленьку проблему.")}
+        ${renderFeature("🎲", "Легка РПҐ у Telegram", "Створюєш пригодника через <code>/start</code>, обираєш расу й клас, заходиш у корчму й береш першу маленьку проблему.")}
         ${renderFeature("⚔️", "Прогрес за хвилину", "XP, золото, рівні, манатки й перші безпечні сутички без окремого клієнта або довгого мануалу.")}
         ${renderFeature("👥", "Соціяльна корчма", "Присутність, частування, майбутні рейди й жарти працюють там, де вже живуть чати.")}
       </div>
@@ -86,11 +86,11 @@ export function renderHomePage(
 
     <section class="band news-band">
       <div class="section-head">
-        <h2>Остання новина</h2>
+        <h2>Остання вість</h2>
         <p>Дошка вістей не гарантує спокою, але гарантує архів.</p>
       </div>
       ${latestNews}
-      <p class="more-link"><a href="/news">Усі новини</a></p>
+      <p class="more-link"><a href="/news">Усі вісті</a></p>
     </section>
     `
   );
@@ -100,9 +100,9 @@ export function renderNewsArchivePage(entries: NewsEntry[], selectedIndex: numbe
   const selected = entries[selectedIndex] ?? entries[0] ?? null;
   const body = selected
     ? renderNewsEntry(selected, 1)
-    : "<h1>Новини</h1><p>Дошка вістей тимчасово порожня. Це підозріло, але акуратно.</p>";
+    : "<h1>Вісті</h1><p>Дошка вістей тимчасово порожня. Це підозріло, але акуратно.</p>";
   const archive = entries.length
-    ? `<aside class="archive" aria-label="Архів новин">
+    ? `<aside class="archive" aria-label="Архів вістей">
         <h2>Архів</h2>
         <ol>
           ${entries
@@ -116,7 +116,7 @@ export function renderNewsArchivePage(entries: NewsEntry[], selectedIndex: numbe
     : "";
 
   return renderPage(
-    selected ? `${selected.title} — Новини Квестарні` : "Новини Квестарні",
+    selected ? `${selected.title} — Вісті Квестарні` : "Вісті Квестарні",
     `
     <section class="band news-layout">
       <div>
@@ -172,7 +172,7 @@ function renderPage(title: string, body: string, options: { refresh?: boolean } 
     <nav aria-label="Навігація">
       <a href="${TELEGRAM_BOT_URL}">Telegram</a>
       <a href="/presence">Жива</a>
-      <a href="/news">Новини</a>
+      <a href="/news">Вісті</a>
     </nav>
   </header>
   <main>
@@ -253,7 +253,7 @@ function renderNewsPagination(entries: NewsEntry[], selectedIndex: number): stri
     selectedIndex < entries.length - 1 ? `<a href="/news?entry=${selectedIndex + 1}">Старіша</a>` : ""
   ].filter(Boolean);
 
-  return links.length === 0 ? "" : `<nav class="pager" aria-label="Навігація новинами">${links.join("")}</nav>`;
+  return links.length === 0 ? "" : `<nav class="pager" aria-label="Навігація вістями">${links.join("")}</nav>`;
 }
 
 const SITE_CSS = `

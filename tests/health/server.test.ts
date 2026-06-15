@@ -58,10 +58,14 @@ describe("health server", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
+    expect(text).toContain("<title>Квестарня — гумористична фентезі-РПҐ у Telegram</title>");
     expect(text).toContain("Квестарня");
+    expect(text).toContain("Гумористична фентезі-РПҐ у Telegram");
+    expect(text).toContain("Створи пригодника, зайди в корчму, бери короткі квести");
     expect(text).toContain("https://t.me/kvestarnia_bot");
     expect(text).toContain("/presence");
     expect(text).toContain("/news");
+    expect(text).toContain('href="/news">Вісті</a>');
     expect(text).not.toContain('href="/health"');
     expect(text).not.toContain(">Health</a>");
     expect(text).toContain("Що вже можна зробити");
@@ -71,7 +75,7 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Скриня дала виделку");
+    expect(text).toContain("Єгер відкрив справу");
     expect(text).toContain("У грі зараз: 4");
     expect(text).not.toContain("— Дара");
     expect(text).not.toContain("— Нестор Межовий");
@@ -85,6 +89,7 @@ describe("health server", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
+    expect(text).toContain("Вісті Квестарні");
     expect(text).toContain("Бочка дивиться на годинник, сайт відчиняє двері");
     expect(text).toContain("Архів");
     expect(text).toContain("Манатки знайшли дорогу до пригод");

@@ -149,7 +149,7 @@ Suggested rules:
 
 - `group_id` can point to a Telegram group chat or a korchma scene umbrella.
 - `raid_sessions` should not replace presence; it should sit beside it.
-- presence can still show who is in `location.korchma.barrel` or `location.korchma.hall`.
+- presence can still show who is in `location.korchma.barrel`, `location.korchma.bar`, or `location.korchma.hall`.
 - session rows are only for the active group event.
 
 ## Existing systems to reuse

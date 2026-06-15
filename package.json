@@ -1,8 +1,8 @@
 {
   "name": "kvestarnia-bot",
-  "version": "0.0.27",
+  "version": "0.0.28",
   "private": true,
-  "description": "Квестарня — україномовна Telegram RPG bot foundation.",
+  "description": "Квестарня — гумористична фентезі-РПҐ у Telegram.",
   "main": "dist/bot.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/bot.ts",

@@ -1,11 +1,19 @@
 import type { Context } from "grammy";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  clearMessageFreshnessTracking,
+  rememberLatestMessageForChat
+} from "../../src/bot/messageFreshness";
 import {
   isMessageNotModifiedError,
   safeEditMessageText
 } from "../../src/bot/safeEditMessageText";
 
 describe("safeEditMessageText", () => {
+  afterEach(() => {
+    clearMessageFreshnessTracking();
+  });
+
   it("treats Telegram message-not-modified errors as unchanged", async () => {
     const ctx = {
       editMessageText: () =>
@@ -17,6 +25,46 @@ describe("safeEditMessageText", () => {
     } as unknown as Pick<Context, "editMessageText">;
 
     await expect(safeEditMessageText(ctx, "same")).resolves.toBe("unchanged");
+  });
+
+  it("edits a callback message when it is still the latest known chat message", async () => {
+    rememberLatestMessageForChat(42, 10);
+    const editMessageText = vi.fn(() => Promise.resolve(true));
+    const reply = vi.fn(() => Promise.resolve(true));
+    const ctx = {
+      callbackQuery: {
+        message: {
+          message_id: 10,
+          chat: { id: 42 }
+        }
+      },
+      editMessageText,
+      reply
+    } as unknown as Pick<Context, "callbackQuery" | "editMessageText" | "reply">;
+
+    await expect(safeEditMessageText(ctx, "new")).resolves.toBe("edited");
+    expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(reply).not.toHaveBeenCalled();
+  });
+
+  it("sends a new message when a callback tries to edit an older chat message", async () => {
+    rememberLatestMessageForChat(42, 12);
+    const editMessageText = vi.fn(() => Promise.resolve(true));
+    const reply = vi.fn(() => Promise.resolve(true));
+    const ctx = {
+      callbackQuery: {
+        message: {
+          message_id: 10,
+          chat: { id: 42 }
+        }
+      },
+      editMessageText,
+      reply
+    } as unknown as Pick<Context, "callbackQuery" | "editMessageText" | "reply">;
+
+    await expect(safeEditMessageText(ctx, "new")).resolves.toBe("sent");
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(editMessageText).not.toHaveBeenCalled();
   });
 
   it("rethrows other edit errors", async () => {

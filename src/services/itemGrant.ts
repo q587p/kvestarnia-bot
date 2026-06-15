@@ -18,6 +18,7 @@ export const BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID =
 export const CELLAR_CHEESE_SEAL_ITEM_ID = "item.cellar.cheese-seal";
 export const CELLAR_FANCY_CHEESE_ITEM_ID = "item.cellar.fancy-cheese";
 export const CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID = "item.cellar.foamy-mirage-bottle";
+export const YEGER_FIRST_NOTCH_ITEM_ID = "item.yeger.first-notch";
 export const STARTER_EQUIPMENT_MAX_OWNED_QUANTITY = 1;
 
 export interface RewardItemGrant {

@@ -5,7 +5,7 @@ import {
 } from "../../src/bot/callbacks/questCallbackData";
 
 describe("quest callback data", () => {
-  it.each(["adventure", "fight", "hunt", "cellar"] as const)("parses %s quest action", (action) => {
+  it.each(["adventure", "fight", "hunt", "cellar", "archive", "list"] as const)("parses %s quest action", (action) => {
     expect(parseQuestCallbackData(makeQuestCallbackData(action))).toEqual({
       ok: true,
       value: action

@@ -19,6 +19,8 @@ describe("news presenter", () => {
     expect(page.text).toContain("- <b>0.0.3 — 12026-06-12 — Рейд на бочку</b>");
     expect(page.text).toContain("Архів");
     expect(page.keyboard).toBeDefined();
+    expect(flatInlineButtonTexts(page.keyboard)).toContain("⬅️ До зали");
+    expect(flatInlineButtonCallbacks(page.keyboard)).toContain("v1:place:hall");
   });
 
   it("shows a selected archived entry with a back button", () => {
@@ -27,6 +29,8 @@ describe("news presenter", () => {
     expect(page.text).toContain("<b>0.0.3 — 12026-06-12 — Рейд на бочку</b>");
     expect(page.text).toContain("https://t.me/kvestarnia");
     expect(page.keyboard).toBeDefined();
+    expect(flatInlineButtonTexts(page.keyboard)).toContain("⬅️ До зали");
+    expect(flatInlineButtonCallbacks(page.keyboard)).toContain("v1:place:hall");
   });
 
   it("escapes selected news titles for Telegram HTML", () => {
@@ -36,6 +40,21 @@ describe("news presenter", () => {
     expect(page.text).not.toContain("A < B");
   });
 });
+
+function flatInlineButtonTexts(keyboard: unknown): string[] {
+  return flatInlineButtons(keyboard).map((button) => String(button.text));
+}
+
+function flatInlineButtonCallbacks(keyboard: unknown): string[] {
+  return flatInlineButtons(keyboard).map((button) => String(button.callback_data));
+}
+
+function flatInlineButtons(keyboard: unknown): Array<{ text: unknown; callback_data: unknown }> {
+  const inlineKeyboard = (keyboard as { inline_keyboard?: Array<Array<{ text: unknown; callback_data: unknown }>> })
+    .inline_keyboard;
+
+  return inlineKeyboard?.flat() ?? [];
+}
 
 function makeEntry(index: number, title: string): NewsEntry {
   return {

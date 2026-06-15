@@ -320,7 +320,9 @@ Mantok Chest implementation notes:
 - Preview не мутує inventory. Confirm перечитує inventory/equipment у транзакції, перевіряє stored input units, guarded-decrement-ить input stacks, upsert-ить output stack і завершує run.
 - Inventory поки stack-based (`CharacterItem.itemId + quantity`), без item-instance ids. Через це `0.0.24` споживає 5 units зі stack-ів, а якщо `itemId` екіпірований, увесь stack захищений від Скрині.
 - `priceless` і protected/story items не eligible. Locked/favorite/trade/mail/auction flags ще не існують, тому вони не застосовуються в цьому slice.
-- Manual selection відкладено: поточний runtime path має тільки `Згодувати 5 найдешевших`.
+- `0.0.27` додає manual selection: кнопки `➕`/`➖` передають компактний індекс у відсортованому eligible list, а не `itemId`, щоб callback data лишалася короткою.
+- Якщо inventory різко зміниться між показом manual selection screen і натисканням `➕`/`➖`, індекс теоретично може вказати на інший stack. Для stack-based MVP це прийнятно, бо перед остаточним confirm є preview зі списком конкретних манаток, а confirm має stale-input protection і не споживає зниклі або вже неeligible речі.
+- Кожне відкриття manual selection створює pending `mantok_chest_runs` row. Багато відкритих і нескасованих runs можуть накопичуватися, якщо гравець часто заходить у ручний вибір і кидає flow; для SQLite масштабу alpha це не blocker, але майбутній cleanup або `reuse latest pending run` лишається технічним боргом.
 
 Залишковий борг перед великим Hunt Board: ledger ще не є persistent combat/encounter state. Для групових полювань, wilderness sessions, collection progression, складного loot tracking або combat HP/mana потрібна окрема session model і ширший transaction boundary.
 
@@ -342,7 +344,8 @@ Cooldown reward claim має бути transactional:
 - `daily_actions` із local bucket `once` є idempotency authority для seal purchase audit, bottle grant і permanent completion;
 - `character_items` тримає `item.cellar.cheese-seal` і `item.cellar.foamy-mirage-bottle`, а bottle grant має `maxOwnedQuantity: 1`;
 - failed roleplay bypass пише cooldown `cellar.grownup.roleplay` у `character_cooldowns`, але не створює completion і не блокує paid seal route;
-- фінали `turn-in` і `keep` обидва ставлять permanent completion claim, repeated callback-и не дублюють XP, золото, items або cooldown/progress state.
+- видимий UX після bottle grant веде з підвалу до `location.korchma.bar`; кнопка `Здати пляшку` живе в Шинку й викликає `turn-in`, який ставить permanent completion claim;
+- legacy `keep` callback може лишатися для старих повідомлень, але нові підвальні екрани не мають закривати справу через `keep`. Repeated callback-и не дублюють XP, золото, items або cooldown/progress state.
 
 Цей slice не додає schema migration: використано існуючі `daily_actions`, `character_items` і `character_cooldowns`. Перед майбутнім broad quest/session model варто не переузагальнювати це як універсальний контракт: це лише безпечний pattern для маленьких once-per-player справ.
 
@@ -358,6 +361,7 @@ Tavern raid timing in `0.0.11`/`0.0.15`/`0.0.16`:
 - Bot layer ставить in-process `setTimeout` notification після `pending-started`, а `completeFridayBarrelRaid(telegramUserId, periodId)` лишається джерелом правди для reward claim. У `0.0.16` scheduler має один timer на `chatId + telegramUserId + periodId`, чистить map після firing і не надсилає completed-message для `already-completed`, `pending`, `audit-break` або `no-character`. Ця нотифікація best-effort: після restart/deploy таймери губляться, а за кількох bot worker-ів локальні timer map-и можуть дублювати повідомлення, якщо deployment не гарантує один worker.
 - Manual fallback шукає pending raid у поточному й останніх 23 годинних period id, щоб завершення не губилося після restart або довгої паузи гравця. Старіші pending рейди потребують cleanup/migration або durable replay, бо поточний fallback не сканує безмежну історію.
 - Для MVP це лишається cooldown/action state без persistent job scheduler; перед горизонтальним scaling або group raids треба перейти на outbox/persistent jobs, `raids` і `raid_participants`.
+- Follow-up для надійного UX: додати durable scheduler/outbox для завершення Бочки. На startup/redeploy бот має просканувати pending cooldown/action rows, знайти рейди, час яких уже настав або ще настане, негайно провести due completion через `completeFridayBarrelRaid(...)`, запланувати future due notifications і використовувати унікальний ключ на кшталт `chatId + telegramUserId + periodId` або outbox-row id, щоб retries/workers не дублювали повідомлення й reward delivery.
 
 Рішення й борги для raid timing:
 - Pending-рейд на Бочку має переживати rollover годинного відтинку й видавати винагороду за period id старту. Поточний MVP зберігає period id у полі `daily_actions.local_date`; перед повним activity model це імʼя поля варто переглянути або задокументувати як generic idempotency bucket.
@@ -368,7 +372,7 @@ Tavern raid timing in `0.0.11`/`0.0.15`/`0.0.16`:
 ## Presence MVP
 `0.0.9` додає легку in-game присутність на рівні `users`, бо окремої session table ще немає:
 - `last_action_at` оновлюється тільки від оброблених команд, reply-кнопок і callback-ів;
-- `last_seen_location_id` тримає coarse місцину на кшталт `location.korchma.hall`, `location.korchma.quest_table`, `location.korchma.cellar`, `location.korchma.barrel` або `location.korchma.news_corner`;
+- `last_seen_location_id` тримає coarse місцину на кшталт `location.korchma.hall`, `location.korchma.quest_table`, `location.korchma.bar`, `location.korchma.cellar`, `location.korchma.barrel` або `location.korchma.news_corner`;
 - `current_raid_id` і `current_adventure_id` тримають поточну сценову участь, доки немає справжніх raid/adventure session tables.
 
 Пороги:
@@ -391,13 +395,15 @@ Web presence у `0.0.9`:
 - `location.korchma.front` — Перед корчмою;
 - `location.korchma.hall` — Зала корчми;
 - `location.korchma.quest_table` — Стіл зі справами;
+- `location.korchma.bar` — Шинок;
 - `location.korchma.cellar` — Підвал корчми;
 - `location.korchma.barrel` — Біля Бочки Пінного Міражу;
-- `location.korchma.news_corner` — Дошка вістей.
+- `location.korchma.news_corner` — Дошка вістей;
+- `location.korchma.ranger_corner` — Єгерський куток.
 
 Legacy ids `location.tavern`, `location.shawarma-table` і `location.tavern-cellar` лишаються read aliases для старих rows, але нові writes мають використовувати `location.korchma.*`. `/quest` не позначає гравця біля столу зі справами на рівні глобальної кнопки; command handler спершу перевіряє поточну місцину, блокує квест надворі й лише тоді переводить героя до столу. Підвал є відкритою aggregate-місциною для public `/presence`, але public web усе одно лишає `players` порожнім за замовчуванням.
 
-Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/hunt` у цьому MVP пише `location.korchma.quest_table` і `adventure.hunt-board.contract`, доки немає окремої wilderness/session model. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу.
+Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/hunt` у цьому MVP відкриває Єгерський куток, пише `location.korchma.ranger_corner` і `adventure.hunt-board.contract`, доки немає окремої wilderness/session model. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу.
 
 `0.0.11` також додає `korchma_round_purchases` як малий журнал підтверджених частувань:
 - `v1:tavern:round` тільки показує offer/statistics screen і не списує золото;
@@ -406,6 +412,7 @@ Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і 
 - leaderboard сортується за сумою витраченого золота, потім за кількістю частувань;
 - майбутній tie-breaker має бути детермінованим: earliest purchase in period, потім stable `character_id`, якщо потрібно, щоб привітання за перше місце не стрибали між рівними rows;
 - unlimited repeatable spending прийнятний для першого sink, бо кожна покупка вимагає явного підтвердження, але майбутній UX/anti-spam може додати soft cooldown або rate limit.
+У `0.0.28` ці callback-и вважаються діями Шинку: presence пишеться в `location.korchma.bar`, а зала веде туди через `v1:place:bar`.
 
 ## Telegram callback data
 Callback data коротка, версіонована.
@@ -418,7 +425,9 @@ Callback data коротка, версіонована.
 - `v1:place:hall`
 - `v1:place:front`
 - `v1:place:arrivals`
+- `v1:place:memorial`
 - `v1:place:quest-table`
+- `v1:place:bar`
 - `v1:place:barrel`
 - `v1:place:cellar`
 - `v1:place:news-corner`

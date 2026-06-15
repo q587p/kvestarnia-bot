@@ -3,8 +3,8 @@ import type { AdventureService } from "../../services/adventureService";
 import type { CellarErrandService } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import type { FightService } from "../../services/fightService";
-import type { HuntService } from "../../services/huntService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
+import type { YegerQuestService } from "../../services/yegerQuestService";
 import {
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type PresenceService
@@ -16,6 +16,7 @@ import {
   presentKorchmaQuestGate,
   presentQuestHub,
   presentQuestHubNoCharacter,
+  type QuestHubMode,
   type QuestHubSnapshot
 } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
@@ -28,7 +29,7 @@ export interface QuestHubCommandOptions {
   cellarErrand: CellarErrandService;
   cellarGrownup?: CellarGrownupQuestService;
   fight: FightService;
-  hunt: HuntService;
+  yeger: YegerQuestService;
   presence: PresenceService;
   tavernRaid?: TavernRaidService;
 }
@@ -42,7 +43,8 @@ export function registerQuestHubCommand(bot: Bot, options: QuestHubCommandOption
 export async function sendQuestHub(
   ctx: Context,
   options: QuestHubCommandOptions,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  hubMode: QuestHubMode = "active"
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -77,7 +79,7 @@ export async function sendQuestHub(
   }
 
   await markQuestTablePresence(ctx, options.presence);
-  await sendText(ctx, mode, presentQuestHub(snapshot), snapshot);
+  await sendText(ctx, mode, presentQuestHub(snapshot, hubMode), { snapshot, mode: hubMode });
 }
 
 async function buildQuestHubSnapshot(
@@ -91,14 +93,14 @@ async function buildQuestHubSnapshot(
   }
 
   const fight = await options.fight.getFightOverviewForTelegramUser(telegramUserId);
-  const hunt = await options.hunt.getHuntBoardForTelegramUser(telegramUserId);
+  const yeger = await options.yeger.getForTelegramUser(telegramUserId);
   const cellar = await options.cellarErrand.getForTelegramUser(telegramUserId);
   const cellarGrownup =
     cellar.state === "level-retired" && options.cellarGrownup
       ? await options.cellarGrownup.getForTelegramUser(telegramUserId)
       : null;
 
-  if (fight.state === "no-character" || hunt.state === "no-character" || cellar.state === "no-character") {
+  if (fight.state === "no-character" || yeger.state === "no-character" || cellar.state === "no-character") {
     return null;
   }
 
@@ -108,7 +110,7 @@ async function buildQuestHubSnapshot(
     character,
     adventure,
     fight,
-    hunt,
+    yeger,
     cellar,
     ...(cellarGrownup && cellarGrownup.state !== "no-character" && cellarGrownup.state !== "too-young"
       ? { cellarGrownup }
@@ -135,7 +137,7 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  keyboard: QuestHubSnapshot | "enter-korchma" | false = false
+  keyboard: { snapshot: QuestHubSnapshot; mode: QuestHubMode } | "enter-korchma" | false = false
 ): Promise<void> {
   const options = keyboard
     ? {
@@ -144,8 +146,9 @@ async function sendText(
           keyboard === "enter-korchma"
             ? buildKorchmaFrontKeyboard()
             : buildQuestHubKeyboard({
-                ...keyboard,
-                characterLevel: keyboard.character.level
+                ...keyboard.snapshot,
+                characterLevel: keyboard.snapshot.character.level,
+                mode: keyboard.mode
               })
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);

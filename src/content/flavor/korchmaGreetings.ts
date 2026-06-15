@@ -1384,7 +1384,7 @@ export const korchmaGreetingLines = [
   {
     "id": "korchma.greeting.v2.class.rogue.07",
     "placement": "korchma.greeting",
-    "text": "Барна стійка під наглядом. Нагляд під вашим наглядом. Я бачу проблему.",
+    "text": "Шинок під наглядом. Нагляд під вашим наглядом. Я бачу проблему.",
     "selector": {
       "classIds": [
         "class.rogue"

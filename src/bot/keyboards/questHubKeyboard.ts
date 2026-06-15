@@ -3,7 +3,7 @@ import type { AdventureLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult } from "../../services/fightService";
-import type { HuntLookupResult } from "../../services/huntService";
+import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
 import { BESTIARY_MIN_LEVEL, meetsActivityLevel } from "../../domain/progression/activityGates";
 import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData";
 import { makeMenuCallbackData } from "../callbacks/menuCallbackData";
@@ -11,16 +11,30 @@ import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 
 export interface QuestHubKeyboardInput {
+  mode?: "active" | "archive";
   characterLevel?: number;
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
-  hunt: Exclude<HuntLookupResult, { state: "no-character" }>;
+  yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
 }
 
 export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+
+  if (input.mode === "archive") {
+    keyboard.text("📋 До справ", makeQuestCallbackData("list")).row();
+
+    if (canOpenBestiary(input)) {
+      keyboard.text("📖 Бестіарій", makeBestiaryListCallbackData(0)).row();
+    }
+
+    keyboard.text("🍺 До зали", makePlaceCallbackData("hall"));
+
+    return keyboard;
+  }
+
   let hasAction = false;
 
   if (input.adventure.state === "ready") {
@@ -46,8 +60,12 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.row();
   }
 
-  if (input.hunt.state === "ready") {
-    keyboard.text("🏹 До дошки", makeQuestCallbackData("hunt"));
+  if (
+    input.yeger.state === "offered" ||
+    input.yeger.state === "in-progress" ||
+    input.yeger.state === "turn-in-ready"
+  ) {
+    keyboard.text("🏹 До Єгеря", makeQuestCallbackData("hunt"));
     keyboard.row();
   }
 
@@ -61,7 +79,12 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   }
 
   if (canOpenBestiary(input)) {
+    keyboard.text("📦 Архів", makeQuestCallbackData("archive"));
+    keyboard.row();
     keyboard.text("📖 Бестіарій", makeBestiaryListCallbackData(0));
+    keyboard.row();
+  } else {
+    keyboard.text("📦 Архів", makeQuestCallbackData("archive"));
     keyboard.row();
   }
 
@@ -98,7 +121,9 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
     input.fight.state === "persistent-ready" ||
     input.fight.state === "persistent-active" ||
     input.fight.state === "persistent-terminal" ||
-    input.hunt.state === "ready" ||
+    input.yeger.state === "offered" ||
+    input.yeger.state === "in-progress" ||
+    input.yeger.state === "turn-in-ready" ||
     input.cellar.state === "ready" ||
     (input.cellar.state === "level-retired" && input.cellarGrownup?.state !== "completed")
   );

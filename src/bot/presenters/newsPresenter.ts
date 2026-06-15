@@ -3,6 +3,7 @@ import {
   makeNewsEntryCallbackData,
   makeNewsListCallbackData
 } from "../callbacks/newsCallbackData";
+import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import type { NewsEntry } from "../../news/newsMarkdown";
 import { escapeHtml } from "./telegramHtml";
 
@@ -97,7 +98,7 @@ function buildNewsIndexKeyboard(
     }
   }
 
-  return keyboard;
+  return keyboard.row().text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
 function buildNewsEntryKeyboard(
@@ -119,7 +120,8 @@ function buildNewsEntryKeyboard(
     keyboard.row();
   }
 
-  keyboard.text("↩️ До архіву", makeNewsListCallbackData(requestedListPage));
+  keyboard.text("↩️ До архіву", makeNewsListCallbackData(requestedListPage)).row();
+  keyboard.text("⬅️ До зали", makePlaceCallbackData("hall"));
   return keyboard;
 }
 

@@ -67,6 +67,7 @@ export const BESTIARY_TAG_LABELS: Record<string, string> = {
   troll: "останньословне",
   tutorial: "пояснювальне",
   undead: "не зовсім живе",
+  unquiet: "неупокоєне",
   water: "водно-сухе",
   web: "павутинне"
 };
