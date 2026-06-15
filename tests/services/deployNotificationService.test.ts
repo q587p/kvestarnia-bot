@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { join, posix } from "path";
 import { tmpdir } from "os";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { UserRecord, UserRepository } from "../../src/db/repositories/userRepository";
 import type { NewsEntry } from "../../src/news/newsMarkdown";
 import {
@@ -97,6 +97,39 @@ describe("deploy notification service", () => {
     });
     await expect(readFile(markerPath, "utf8")).resolves.toBe("0.0.4\n");
   });
+
+  it("skips blocked users without logging deploy notification errors", async () => {
+    const databaseUrl = await makeSqliteUrl();
+    const markerPath = resolveDeployMarkerPath(databaseUrl);
+    const service = new DeployNotificationService(makeUsers([42n, 43n]), {
+      enabled: true,
+      databaseUrl,
+      version: "0.0.4"
+    });
+    const sender = makeSender({
+      "42": Object.assign(new Error("Call to 'sendMessage' failed"), {
+        error_code: 403,
+        description: "Forbidden: bot was blocked by the user"
+      })
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      await service.announceIfNeeded(sender);
+
+      expect(sender.messages).toHaveLength(1);
+      expect(sender.messages[0]?.chatId).toBe("43");
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Квестарня: користувач 42 заблокував бота, нотифікацію про версію пропущено."
+      );
+      expect(errorSpy).not.toHaveBeenCalled();
+      await expect(readFile(markerPath, "utf8")).resolves.toBe("0.0.4\n");
+    } finally {
+      warnSpy.mockRestore();
+      errorSpy.mockRestore();
+    }
+  });
 });
 
 function makeUsers(ids: bigint[]): UserRepository {
@@ -110,7 +143,7 @@ function makeUsers(ids: bigint[]): UserRepository {
   };
 }
 
-function makeSender(): TelegramMessageSender & {
+function makeSender(failures: Record<string, unknown> = {}): TelegramMessageSender & {
   messages: Array<{ chatId: string; text: string; options: unknown }>;
 } {
   const messages: Array<{ chatId: string; text: string; options: unknown }> = [];
@@ -119,6 +152,12 @@ function makeSender(): TelegramMessageSender & {
     messages,
     api: {
       sendMessage(chatId: string, text: string, options?: unknown): Promise<void> {
+        const failure = failures[chatId];
+
+        if (failure) {
+          return Promise.reject(failure);
+        }
+
         messages.push({ chatId, text, options });
         return Promise.resolve();
       }
