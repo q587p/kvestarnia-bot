@@ -15,6 +15,11 @@ interface SlotView {
   emptyText: string;
 }
 
+type EquipRequirementReason = Extract<
+  EquipItemResult,
+  { state: "requirements-not-met" }
+>["reasons"][number];
+
 const equipmentSlots: readonly SlotView[] = [
   { id: "weapon", icon: "🗡️", label: "Зброя", emptyText: "гачок чекає важкий аргумент." },
   { id: "chest", icon: "🧥", label: "Тулуб", emptyText: "манекен мерзне професійно." },
@@ -51,10 +56,14 @@ export function presentEquipItemResult(result: EquipItemResult): string {
   }
 
   if (result.state === "requirements-not-met") {
+    const itemName = plainTextForCallback(result.item.content.name);
+    const reasons = presentEquipRequirementReasons(result.reasons);
+
     return [
-      `Манатка <b>${escapeHtml(result.item.content.name)}</b> просить іншу анкету пригодника.`,
-      "Корчмар каже: «Можна носити гордо, але екіпірувати за правилами поки не виходить»."
-    ].join("\n\n");
+      `Ще не екіпірується: ${itemName}.`,
+      reasons ? `Потрібно: ${reasons}.` : "Корчмар ще звіряє правила цієї манатки.",
+      "Це правило манатки, не помилка героя."
+    ].join(" ");
   }
 
   if (result.state === "unsupported-slot") {
@@ -64,7 +73,7 @@ export function presentEquipItemResult(result: EquipItemResult): string {
   const effect = presentItemEffect(result.item.content.effect);
   const effectText = effect ? ` Ефект: ${effect}.` : " Бойового ефекту не виявлено.";
 
-  return `Екіпіровано: ${escapeHtml(result.item.content.name)}.${effectText}`;
+  return `Екіпіровано: ${plainTextForCallback(result.item.content.name)}.${effectText}`;
 }
 
 export function presentUnequipSlotResult(result: UnequipSlotResult): string {
@@ -102,4 +111,32 @@ function presentEquipmentSlot(slot: SlotView, slots: EquipmentSlotSummary[]): st
 
 function intersperseBlankLines(lines: string[]): string[] {
   return lines.flatMap((line, index) => (index === 0 ? [line] : ["", line]));
+}
+
+function presentEquipRequirementReasons(reasons: readonly EquipRequirementReason[]): string {
+  const labels = reasons.map((reason) => {
+    switch (reason) {
+      case "min-level":
+        return "вищий рівень";
+      case "class":
+        return "сумісний клас";
+      case "race":
+        return "сумісне походження";
+      case "title":
+        return "відповідний титул";
+      case "unknown-item":
+        return "відомі правила предмета";
+    }
+  });
+
+  return [...new Set(labels)].join(", ");
+}
+
+function plainTextForCallback(value: string): string {
+  return value
+    .replace(/<\/?[^>]+>/g, "")
+    .replace(/</g, "‹")
+    .replace(/>/g, "›")
+    .replace(/\s+/g, " ")
+    .trim();
 }

@@ -922,7 +922,7 @@ async function handleEquipmentCallback(
 
     await safeAnswerCallbackQuery(ctx, {
       text: presentEquipItemResult(result),
-      show_alert: result.state !== "equipped"
+      show_alert: result.state !== "equipped" && result.state !== "requirements-not-met"
     });
 
     if (result.state === "equipped") {
