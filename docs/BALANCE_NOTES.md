@@ -151,9 +151,9 @@ item: максимум 1 controlled monsterLoot item
 
 Hand-authored `monsterLoot` trophies still matter alongside the broad pool. The ordinary level `4-13` ladder now has at least one stable small trophy per monster, so specific higher-level problems can leave recognizable evidence without creating a full random loot table. In `0.0.26`, most of those handcrafted trophies also become modest supported equipment when they occupy weapon, armor, or accessory slots; only intentional keepsakes stay pure `junk`/`cosmetic`.
 
-У `0.0.24` вибір монстра для persistent solo fight став ближчим до рівня героя: сервіс спершу шукає звичайних небосів у вікні `рівень героя - 2 ... рівень героя`, а якщо такого контенту ще бракує, бере найвищий доступний нижчий рівень замість випадкової дрібноти. Якщо монстр нижчий за героя більше ніж на 2 рівні, XP за перемогу стискається до `1`; золото й контрольований item roll поки лишаються за чинною малою reward formula.
+У `0.0.24` вибір монстра для persistent solo fight став ближчим до рівня героя: сервіс спершу шукає звичайних небосів у вікні `рівень героя - 2 ... рівень героя`, а якщо такого контенту ще бракує, бере найвищий доступний нижчий рівень замість випадкової дрібноти. Якщо монстр нижчий за героя більше ніж на 2 рівні, XP за перемогу стискається до `3` при різниці рівно 3 рівні й до `2` при більшій різниці; золото й контрольований item roll поки лишаються за чинною малою reward formula.
 
-Loss, flee і expired fights не отримують full victory reward. Repeated callback replay-ить persisted reward summary з `solo_combat_sessions` і не reroll-ить item.
+Loss отримує тільки малий consolation reward `1 XP` за спробу, без золота, луту або прогресу в `Тринадцять дрібних проблем`. Flee і expired fights не отримують reward. Repeated callback replay-ить persisted reward summary з `solo_combat_sessions` і не reroll-ить item.
 
 Модифікатори LUCK не мають ламати таблицю. Наприклад, LUCK додає не «+10% epic», а маленький бонус до upgrade roll.
 

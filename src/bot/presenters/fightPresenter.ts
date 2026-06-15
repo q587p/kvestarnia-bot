@@ -309,8 +309,10 @@ function presentPersistentFightReward(
   }
 
   const intro =
-    reward.state === "claimed"
-      ? "🎒 Корчмар підсунув малу оплату за закриту проблему."
+    isConsolationFightReward(reward)
+      ? "🎒 Корчмар підсунув 1 XP за спробу. Каже, що поразка теж папірець у досвід."
+      : reward.state === "claimed"
+        ? "🎒 Корчмар підсунув малу оплату за закриту проблему."
       : reward.state === "already-claimed"
         ? "🎒 Цю винагороду вже занесли в журнал. Корчмар показує запис, а не відкриває касу вдруге."
         : "🎒 Винагорода вже видана. Корчмар перегортає журнал і показує той самий запис.";
@@ -326,6 +328,16 @@ function presentPersistentFightReward(
   }
 
   return lines;
+}
+
+function isConsolationFightReward(
+  reward: NonNullable<Extract<PersistentFightTurnResult, { state: "updated" }>["fightReward"]>
+): boolean {
+  return (
+    reward.reward.xp === 1 &&
+    reward.reward.gold === 0 &&
+    reward.reward.itemGrants.length === 0
+  );
 }
 
 function presentDuration(seconds: number): string {

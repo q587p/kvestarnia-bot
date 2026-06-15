@@ -763,7 +763,7 @@ export class FightService {
     }
 
     const fightReward =
-      updated.status === "won"
+      updated.status === "won" || updated.status === "lost"
         ? await this.claimPersistentFightReward(telegramUserId, updated, monster, characterSummary)
         : null;
     const questReward =
@@ -798,7 +798,12 @@ export class FightService {
       return replay;
     }
 
-    const reward = buildPersistentFightReward(monster, character, this.rng);
+    const reward = buildPersistentFightReward(
+      monster,
+      character,
+      this.rng,
+      session.state?.status ?? session.status
+    );
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
       localDate: session.id,
@@ -878,7 +883,9 @@ export class FightService {
       return replay;
     }
 
-    if (session.status !== "won" && session.state?.status !== "won") {
+    const terminalStatus = session.state?.status ?? session.status;
+
+    if (terminalStatus !== "won" && terminalStatus !== "lost") {
       return null;
     }
 
@@ -992,8 +999,17 @@ export class FightService {
 function buildPersistentFightReward(
   monster: MonsterContent,
   character: CharacterSummary,
-  rng: RandomSource
+  rng: RandomSource,
+  status: SoloCombatSessionRecord["status"] = "won"
 ): { xp: number; gold: number; itemGrants: Array<{ itemId: string; quantity: number }> } {
+  if (status === "lost") {
+    return {
+      xp: 1,
+      gold: 0,
+      itemGrants: []
+    };
+  }
+
   const loot = rollMonsterLoot({
     monsterId: monster.id,
     monsterLoot,
@@ -1011,10 +1027,24 @@ function buildPersistentFightReward(
   });
 
   return {
-    xp: character.level - monster.level > 2 ? 1 : Math.min(14, Math.max(5, 3 + monster.level * 2)),
+    xp: buildPersistentFightWinXp(character.level, monster.level),
     gold: Math.min(7, Math.max(1, 1 + Math.floor(monster.level / 2))),
     itemGrants: loot.state === "dropped" ? [{ itemId: loot.item.id, quantity: 1 }] : []
   };
+}
+
+function buildPersistentFightWinXp(characterLevel: number, monsterLevel: number): number {
+  const levelGap = characterLevel - monsterLevel;
+
+  if (levelGap > 3) {
+    return 2;
+  }
+
+  if (levelGap > 2) {
+    return 3;
+  }
+
+  return Math.min(14, Math.max(5, 3 + monsterLevel * 2));
 }
 
 function getLootExpansionSourceForMonster(monster: MonsterContent): LootExpansionSourceId {

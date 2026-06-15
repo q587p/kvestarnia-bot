@@ -416,6 +416,56 @@ describe("fight presenter", () => {
     expect(text).toContain("Проти вас: <b>&lt;b&gt;Монстр&lt;/b&gt;</b> · рівень 3");
     expect(text).not.toContain("<b>Монстр</b>");
   });
+
+  it("shows consolation XP for a lost persistent fight as an attempt reward", () => {
+    const text = presentPersistentFightTurn({
+      state: "updated",
+      character,
+      session: persistentSession({
+        status: "lost",
+        turn: 4,
+        hero: {
+          hp: 0,
+          hpMax: 56,
+          mana: 28,
+          manaMax: 28
+        },
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "miss",
+          heroDamage: 0,
+          monsterDamage: 41,
+          manaSpent: 0,
+          critical: false
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(2),
+      fightReward: {
+        state: "claimed",
+        reward: {
+          xp: 1,
+          gold: 0,
+          localDate: "123e4567-e89b-12d3-a456-426614174000",
+          itemGrants: []
+        },
+        levelChange: null
+      },
+      questReward: null
+    });
+
+    expect(text).toContain("Корчмар підсунув 1 XP за спробу");
+    expect(text).toContain("Винагорода за бій:\n<b>+1 XP</b>");
+    expect(text).not.toContain("+0 золота");
+    expect(text).toContain("Ви програли");
+    expect(text).not.toContain("оплату за закриту проблему");
+  });
 });
 
 function completed(

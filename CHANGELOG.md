@@ -20,6 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Tuned the ordinary monster derivation curve downward at the top end so level 8 and 13 monsters stop looking like impossible math mistakes while keeping the ladder meaningfully stronger than the hero baseline.
 - Persistent-fight and quest-hub wording now points exhausted heroes back to `/hero` before `/fight`.
 - Item detail screens now omit the no-effect warning for true junk/cosmetic keepsakes, while equippable items are covered by content tests that require an explicit effect.
+- Persistent-fight losses now grant a one-time `1 XP` attempt reward, while victories over much weaker monsters now pay `2-3 XP` instead of dropping to `1 XP`.
 
 ### Not Included Yet
 - Potions, temple healing, paid healing, combat-time regeneration, daily free samples, Telegram gift broadcasts, manual Mantok Chest selection, item-instance inventory, shops, trading, crafting, or broader combat rewrites.
