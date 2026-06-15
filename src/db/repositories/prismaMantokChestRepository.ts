@@ -158,6 +158,56 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
           return { state: "no-output-candidate", run };
         }
 
+        const claimed = await tx.mantokChestRun.updateMany({
+          where: {
+            id: run.id,
+            status: "pending"
+          },
+          data: {
+            status: "completed",
+            outputItemsJson: [{ itemId: selected.itemId, quantity: 1 }],
+            outputScore: selected.score,
+            completedAt: input.now,
+            updatedAt: input.now
+          }
+        });
+
+        if (claimed.count !== 1) {
+          const current = mapRun(
+            await tx.mantokChestRun.findFirst({
+              where: {
+                id: run.id
+              }
+            })
+          );
+
+          if (!current) {
+            return { state: "invalid-token" };
+          }
+
+          if (current.status === "completed") {
+            return { state: "replayed", run: current };
+          }
+
+          if (current.status === "cancelled") {
+            return { state: "cancelled", run: current };
+          }
+
+          return { state: "invalid-token" };
+        }
+
+        const claimedRun = mapRun(
+          await tx.mantokChestRun.findFirst({
+            where: {
+              id: run.id
+            }
+          })
+        );
+
+        if (!claimedRun) {
+          throw new Error("Mantok Chest claim did not leave a run row.");
+        }
+
         for (const item of run.inputItems) {
           const consumed = await tx.characterItem.updateMany({
             where: {
@@ -207,22 +257,9 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
           }
         });
 
-        const updated = await tx.mantokChestRun.update({
-          where: {
-            id: run.id
-          },
-          data: {
-            status: "completed",
-            outputItemsJson: [{ itemId: selected.itemId, quantity: 1 }],
-            outputScore: selected.score,
-            completedAt: input.now,
-            updatedAt: input.now
-          }
-        });
-
         return {
           state: "recycled",
-          run: mapRun(updated) ?? run
+          run: claimedRun
         };
       });
     } catch (error) {

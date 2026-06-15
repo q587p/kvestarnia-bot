@@ -240,6 +240,7 @@ Planned after `0.0.24`, because runtime auto-pick chest exists, but manual selec
 - multi-level grant;
 - level cap / alpha max behavior;
 - level affects combat math through effective stats;
+- next resource-management slice: persist HP/mana between fights and add slow out-of-combat regeneration affected by class/race/title/stats; no full auto-restore before every fight;
 - future-safe monster level modifiers: манатки або дії інших гравців можуть тимчасово знижувати чи піднімати effective рівень монстра; нижчий рівень має давати менші/гірші rewards, вищий — кращі rewards, але різко складніший бій і більшу потребу в разових манатках;
 - short Ukrainian level-up copy with concrete changes.
 
