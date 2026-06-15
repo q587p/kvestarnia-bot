@@ -161,6 +161,14 @@ export function isEquippableItem(item: ItemContent): boolean {
   return mapItemToEquipmentSlot(item) !== null;
 }
 
+export function getEquippedItemContents(rows: CharacterEquipmentRecord[]): ItemContent[] {
+  return rows.flatMap((row) => {
+    const content = items.find((item) => item.id === row.itemId);
+
+    return content ? [content] : [];
+  });
+}
+
 function buildSlots(rows: CharacterEquipmentRecord[]): EquipmentSlotSummary[] {
   return equipmentSlots.map((slot) => {
     const row = rows.find((candidate) => candidate.slot === slot);

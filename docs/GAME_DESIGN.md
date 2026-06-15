@@ -100,7 +100,7 @@ Achievements Phase 1 лишається rewardless later slice після осн
 
 У 0.0.21 persistent fight не видає XP, золото або манатки за кожну окрему перемогу. Щоб loop не виглядав голою кнопкою, цей зріз має перший вузький quest wrapper: `Тринадцять дрібних проблем`. Прогрес рахується з won `solo_combat_sessions`, ціль нагороди — `13`, але лічильник далі показує фактичні перемоги на кшталт `14/13`; completion reward видається один раз через `daily_actions` bucket `once`: `+35 XP`, `+10` золота й `item.badge-of-thirteen-small-problems`. Це не broad quest engine і не loot path; це маленький корчемний контракт поверх сесій.
 
-Важливе правило для runtime-підключення: герой може не мати starter weapon, бо starter fight закривається після 2 рівня. Combat engine має підтримувати unarmed/basic fallback, а equipment effects мають додаватися пізніше через один helper.
+Важливе правило для runtime-підключення: герой може не мати starter weapon, бо starter fight закривається після 2 рівня. Combat engine підтримує unarmed/basic fallback, а equipment effects із `0.0.22` лише додають малі бонуси через один helper.
 
 Майбутній зріз бойових дій має замінити одну загальну кнопку `Вдарити` на набір дій, які відчувають персонажа:
 - Фізичні класи отримують силові, швидкі або позиційні удари, що спираються на силу, спритність, рівень і зброю.
@@ -213,14 +213,15 @@ Achievements Phase 1 лишається rewardless later slice після осн
 - Tavern/adventure/fight grants deterministic і прив’язані до existing daily action keys.
 - Повторний callback того ж key/date не дублює XP, золото або items.
 - Перші persistent reward items: `item.wet-hero-ticket`, `item.pan-of-persuasion`, `item.suspicious-shawarma-wrapper`, `item.receipt-of-formal-suspicion`.
-- Перші preview-equippable content items: `item.pan-of-persuasion` і `item.pot-helmet-of-early-access`.
-- Item detail показує назву, рідкість, категорію/слот, вартість або `безцінна`, опис, quantity і чи предмет preview-equippable.
+- Перші equippable content items: `item.pan-of-persuasion`, `item.pot-helmet-of-early-access`, `item.stamp-of-minor-authority`, `item.apron-of-foam-resistance` і `item.cork-ring-of-serious-business`.
+- Item detail показує назву, рідкість, категорію/слот, вартість або `безцінна`, опис, quantity, чи предмет екіпірується, і підтриманий ефект, якщо він є.
 - У `0.0.13` кожна манатка має `goldValue` або `priceless`; це тільки metadata для огляду й майбутніх sinks, не продаж і не обмін.
 - У `0.0.14` `/inventory` показує сумарну оціночну вартість priced манаток, а `/hero` показує це число поруч із живим золотом персонажа. Це display-only: золото не додається, предмети не списуються.
 - У `0.0.19` `/inventory` пагінується по 8 манаток на сторінку, щоб торба не ставала простирадлом після кількох рейдів, підвалів і полювань.
-- Спорядження у `0.0.14` persistent, але без stat effects: можна екіпірувати owned weapon у `weapon`, armor у `chest`, accessory у `accessory`, а також зняти зайнятий слот.
+- Спорядження у `0.0.14` persistent: можна екіпірувати owned weapon у `weapon`, armor у `chest`, accessory у `accessory`, а також зняти зайнятий слот.
 - Видимий equipment UI у `0.0.14` показує тільки чесно підтримані слоти: зброя, тулуб, аксесуар. Head і legs лишаються future vocabulary, доки content/schema не матимуть реальних речей для них.
-- Екіпірування не змінює inventory quantity, не продається, не ролиться випадково і не змінює stats, HP, ману, combat preview або reward math.
+- `0.0.22` додає перший малий stat-effect шар: currently equipped items можуть додати HP/ману, core stats, armor/resist, weapon damage або spell power через один effective-stats helper. `/hero`, `/equipment`, item detail і persistent solo combat читають цей самий summary.
+- Екіпірування не змінює inventory quantity, не продається, не ролиться випадково і не змінює reward math. Junk, cosmetics, priceless trophies і quest badges не мають випадкових power effects.
 - Callback-и `v1:item:*` і `v1:equip:*` валідовані; item detail перевіряє ownership перед показом.
 
 Майбутній itemization/equipment борг:
@@ -265,7 +266,7 @@ Alpha scaling рахується як derived effective values від збере
 
 Важливий майбутній борг: коли з’являться persistent combat state, поранення, витрати мани, лікування або відпочинок, «поточні HP/мана» не мають магічно відновлюватись у summary. Тоді модель треба розвести на effective max values і окремий persisted current/resource state, а presenter має показувати саме збережений current, обмежений новим effective max.
 
-Це не equipment effects, не healing/rest system і не повний stat rebalance. Майбутні бонуси предметів мають нашаровуватись поверх цього helper-а.
+Це не healing/rest system і не повний stat rebalance. Бонуси предметів із `0.0.22` нашаровуються поверх цього helper-а, а майбутні розширення мають зберегти той самий шлях.
 
 Майбутній balance борг: рівень має стати сильнішим важелем, а не декоративним числом біля імені. Наступний progression pass має помітніше впливати на HP, ману, основні перевірки, бій, шанси/пороги подій і доступ до активностей. Квестарня грає в жарти, але ще й у циферки: якщо персонаж виріс, події мають це відчувати в формулах, а не лише в summary.
 
@@ -314,7 +315,7 @@ Alpha scaling рахується як derived effective values від збере
 - Дії: `cheese-trap`, `sweep-bravely`, `negotiate`.
 - Нагороди маленькі: `+1–2 XP`, `+0–1 золота` і deterministic дрібний лут за дію: сирний сумнів, щетина порядку або серветка дипломатії.
 - У `0.0.14` підвальна миша має кілька стартових і outcome-реплік; вибір стабільний від героя/дії, без RNG. Частина outcome-дiйства спеціально реагує на расу, клас і займенники героя, а не лише підставляє generic фразу.
-- У `0.0.15` переговори з мишею також можуть дати `item.cork-ring-of-serious-business` як перший reachable аксесуар; це все ще flavor/value loot без stat effects.
+- У `0.0.15` переговори з мишею також можуть дати `item.cork-ring-of-serious-business` як перший reachable аксесуар; у `0.0.22` він отримує малий `luck +1` effect.
 - Cooldown: 3 хвилини через persisted `character_cooldowns`, без Redis.
 - Повторний callback під час cooldown не дублює XP/золото й показує coarse час повернення, не точний timestamp.
 - Presence: герой переходить у `location.korchma.cellar`; це відкрита aggregate-місцина для public `/presence`, але public web усе одно показує counts-only без імен.

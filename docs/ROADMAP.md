@@ -23,7 +23,7 @@ Deliverables:
 - Race/class selection.
 - First tiny `/adventure` scene: `Мімік-шаурма`, once-per-date reward, no full combat yet.
 - First tiny `/fight` combat probe: deterministic preview, once-per-date reward, no persistent HP loss yet.
-- First tiny `/inventory` surface: persistent deterministic item grants, no equipment effects yet.
+- First tiny `/inventory` and `/equipment` surface: persistent deterministic item grants and small equipment effects.
 - Simple level-up thresholds for visible progress.
 - Combat engine.
 - Loot engine.
@@ -46,12 +46,12 @@ Current tiny inventory slice:
 - `0.0.19` adds a persisted Hunt Board ledger so posted contracts are auditable and completed hunt callbacks can replay original XP/gold/item summaries without duplicate rewards; the same slice adds light onboarding gates: starter shawarma/fight run only on levels 1-2, cellar errands run on levels 2-3, Hunt Board starts from level 3, and read-only bestiary is held until level 3 to avoid early spoilers.
 - `0.0.20` adds the pure domain Combat Engine: serializable fight state, attack/skill/flee resolution, HP/mana, status guards, monster stat derivation, deterministic RNG injection, and unarmed/basic fallback.
 - `0.0.21` wires that engine into Telegram `/fight` for level 3+ heroes as persistent solo sessions with HP/mana, turn validation, stale callback safety, lazy expiry, and no XP/gold/items yet. Levels 1-2 keep the starter combat probe.
-- Next slice after `0.0.21`: `0.0.22 — Equipment Stat Effects`, so equipped манатки can change visible numbers through one shared helper before fight rewards and loot arrive.
-- Phase 1 finish rule after `0.0.21`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки не закритий основний RPG-ланцюжок: equipment stat effects → loot engine → рівні 1-10. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
+- `0.0.22` adds small equipment stat effects through one shared effective-stats helper: `/hero`, `/equipment`, item detail, and persistent solo combat read the same equipped-item contributions.
+- Phase 1 finish rule after `0.0.22`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки не закритий основний RPG-ланцюжок: loot engine → рівні 1-10 polish. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
 - Detailed finish sequence lives in `docs/PHASE1_FINISH_PLAN.md`; `docs/NEXT_IMPLEMENTATION_BACKLOG.md` tracks the next small PR order.
 - Tavern/adventure/fight first completions can grant fixed items.
-- Full itemization, equipment effects, random loot tables, crafting, market, and trading remain later Phase 1+ work.
-- Future equipment effects should layer through one equipment/effective-stats helper before combat uses them; the current shell must not change `/hero`, fight preview, rewards, cooldowns, HP, mana, or level-up math.
+- Full itemization, random loot tables, crafting, market, and trading remain later Phase 1+ work.
+- Future equipment expansions should keep layering through the same equipment/effective-stats helper instead of adding presenter-specific math.
 - Future `/fight` should replace the single generic `Вдарити` action with class/race/combo-aware attack options: physical strikes, mana-spending spells, tricks, seals, songs, traps, and equipment-shaped variants with visible resource costs.
 - Future equipment rules should support level-gated items that can drop before they are wearable, plus rarer race/class/path-specific манатки with future bypass/attunement/respec tricks.
 - Future player-to-player exchange should let heroes give unsuitable манатки to others without duplicating items or bypassing anti-abuse checks.

@@ -119,13 +119,14 @@ Implemented in `0.0.21` as the first Telegram runtime wiring for the combat doma
 
 ## 0.0.22 — Equipment Stat Effects
 
+Status: implemented in `0.0.22`.
+
 **Objective**
 Екіпіровані манатки починають давати маленькі прозорі bonuses, а combat і `/hero` читають ту саму effective stats математику.
 
 **Scope**
 
 - optional item effects, наприклад stat bonus, HP/mana max, armor, weapon damage, spell power;
-- optional usable item metadata for later explicit use actions: healing, mana restore, temporary buff, combat option unlock, or dialogue option unlock;
 - one effective-stats helper for base + level + equipment;
 - `/hero`, `/equipment`, item detail показують внесок предметів;
 - combat session reads effective values.
@@ -144,6 +145,8 @@ Implemented in `0.0.21` as the first Telegram runtime wiring for the combat doma
 - usable-item candidates are documented and safe, but any actual spend/use action requires explicit confirmation and idempotent callback design;
 - junk/cosmetic/priceless items не дають power випадково;
 - presenter не рахує приховану математику.
+
+Follow-up debt: usable item metadata and actual item-use actions remain future work with explicit confirmation and idempotent callback design.
 
 ## 0.0.23 — Loot Engine + Reward Replay
 

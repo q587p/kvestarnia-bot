@@ -8,7 +8,10 @@ export const items = [
     description: "Важкий аргумент для легких суперечок.",
     rarity: "common",
     slot: "weapon",
-    goldValue: 25
+    goldValue: 25,
+    effect: {
+      weaponDamage: 2
+    }
   },
   {
     id: "item.pot-helmet-of-early-access",
@@ -16,7 +19,10 @@ export const items = [
     description: "Дзвенить як обладунок і натякає, що бонуси ще в дорозі.",
     rarity: "common",
     slot: "armor",
-    goldValue: 18
+    goldValue: 18,
+    effect: {
+      armor: 1
+    }
   },
   {
     id: "item.stamp-of-minor-authority",
@@ -24,7 +30,11 @@ export const items = [
     description: "Б'є не сильно, зате залишає слід «розглянуто» там, де монстр просив «не треба».",
     rarity: "uncommon",
     slot: "weapon",
-    goldValue: 16
+    goldValue: 16,
+    effect: {
+      weaponDamage: 1,
+      intelligence: 1
+    }
   },
   {
     id: "item.apron-of-foam-resistance",
@@ -32,7 +42,11 @@ export const items = [
     description: "Пережив бочку, підлогу й погляд корчмаря. Тепер вимагає окремого гачка.",
     rarity: "common",
     slot: "armor",
-    goldValue: 14
+    goldValue: 14,
+    effect: {
+      armor: 1,
+      hpMax: 2
+    }
   },
   {
     id: "item.barrel-splinter-of-optimism",
@@ -64,7 +78,10 @@ export const items = [
     description: "Миша сказала, що це печатка. Корок не заперечив, бо зайнятий кар'єрою.",
     rarity: "common",
     slot: "accessory",
-    goldValue: 6
+    goldValue: 6,
+    effect: {
+      luck: 1
+    }
   },
   {
     id: "item.wet-hero-ticket",

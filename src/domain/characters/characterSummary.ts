@@ -1,9 +1,10 @@
 import { classes } from "../../content/classes";
 import { getComboTitle, getPronounLabel, isPronoun } from "../../content/characterOptions";
 import { races } from "../../content/races";
-import type { Pronoun } from "../../content/schema";
+import type { ItemContent, Pronoun } from "../../content/schema";
 import {
   buildEffectiveCharacterStats,
+  type EquipmentEffectSummary,
   type LevelBonus
 } from "../progression/effectiveStats";
 import { getLevelForXp, getNextLevelThreshold } from "../progression/level";
@@ -32,6 +33,7 @@ export interface CharacterSummary {
   manaMax: number;
   stats: CharacterStats;
   levelBonus: LevelBonus;
+  equipmentEffects?: EquipmentEffectSummary;
 }
 
 export interface CharacterSummaryInput {
@@ -51,7 +53,14 @@ export interface CharacterSummaryInput {
   statsJson: unknown;
 }
 
-export function summarizeCharacter(input: CharacterSummaryInput): CharacterSummary {
+export interface CharacterSummaryOptions {
+  equippedItems?: ItemContent[];
+}
+
+export function summarizeCharacter(
+  input: CharacterSummaryInput,
+  options: CharacterSummaryOptions = {}
+): CharacterSummary {
   const race = races.find((candidate) => candidate.id === input.raceId);
   const characterClass = classes.find((candidate) => candidate.id === input.classId);
   const pronoun = parsePronoun(input.pronoun);
@@ -65,7 +74,12 @@ export function summarizeCharacter(input: CharacterSummaryInput): CharacterSumma
     hpMax: input.hpMax,
     manaCurrent: input.manaCurrent,
     manaMax: input.manaMax,
-    stats: parseStats(input.statsJson)
+    stats: parseStats(input.statsJson),
+    equipment: (options.equippedItems ?? []).map((item) => ({
+      itemId: item.id,
+      itemName: item.name,
+      ...(item.effect ? { effect: item.effect } : {})
+    }))
   });
 
   return {
@@ -89,7 +103,8 @@ export function summarizeCharacter(input: CharacterSummaryInput): CharacterSumma
     manaCurrent: effectiveStats.manaCurrent,
     manaMax: effectiveStats.manaMax,
     stats: effectiveStats.stats,
-    levelBonus: effectiveStats.levelBonus
+    levelBonus: effectiveStats.levelBonus,
+    equipmentEffects: effectiveStats.equipmentEffects
   };
 }
 

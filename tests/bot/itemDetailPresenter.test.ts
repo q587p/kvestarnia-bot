@@ -31,7 +31,7 @@ describe("item detail presenter", () => {
     expect(text).toContain("не вдягається");
   });
 
-  it("shows preview-equippable wording for weapon items", () => {
+  it("shows equippable wording and effects for weapon items", () => {
     const text = presentOwnedItemDetail(
       itemSummary({
         content: {
@@ -40,15 +40,19 @@ describe("item detail presenter", () => {
           description: "Важкий аргумент.",
           rarity: "common",
           slot: "weapon",
-          goldValue: 25
+          goldValue: 25,
+          effect: {
+            weaponDamage: 2
+          }
         }
       })
     );
 
     expect(text).toContain("Категорія: <b>зброя</b>");
     expect(text).toContain("Вартість: <b>25 золота</b>");
+    expect(text).toContain("Ефект: <b>+2 до удару</b>");
     expect(text).toContain("можна екіпірувати");
-    expect(text).toContain("бонуси поки лежать у бухгалтерії");
+    expect(text).not.toContain("бонуси поки лежать у бухгалтерії");
   });
 
   it("shows slot-specific wording for armor and accessories", () => {
@@ -60,7 +64,11 @@ describe("item detail presenter", () => {
           description: "Пережив бочку.",
           rarity: "common",
           slot: "armor",
-          goldValue: 14
+          goldValue: 14,
+          effect: {
+            armor: 1,
+            hpMax: 2
+          }
         }
       })
     );
@@ -72,14 +80,19 @@ describe("item detail presenter", () => {
           description: "Миша сказала, що це печатка.",
           rarity: "common",
           slot: "accessory",
-          goldValue: 6
+          goldValue: 6,
+          effect: {
+            luck: 1
+          }
         }
       })
     );
 
     expect(armor).toContain("Категорія: <b>обладунок</b>");
+    expect(armor).toContain("Ефект: <b>+2 HP · +1 до захисту</b>");
     expect(armor).toContain("Манекен випростав плечі");
     expect(accessory).toContain("Категорія: <b>аксесуар</b>");
+    expect(accessory).toContain("Ефект: <b>+1 Вдачі</b>");
     expect(accessory).toContain("Малий гачок обережно блищить");
   });
 
@@ -92,7 +105,10 @@ describe("item detail presenter", () => {
           description: "Важкий аргумент.",
           rarity: "common",
           slot: "weapon",
-          goldValue: 25
+          goldValue: 25,
+          effect: {
+            weaponDamage: 2
+          }
         }
       }),
       { equippedSlot: "weapon" }
@@ -100,7 +116,8 @@ describe("item detail presenter", () => {
 
     expect(text).toContain("вдягнено");
     expect(text).toContain("Зброя");
-    expect(text).toContain("Бонуси ще не рахуються");
+    expect(text).toContain("Ефект: <b>+2 до удару</b>");
+    expect(text).not.toContain("Бонуси ще не рахуються");
   });
 
   it("escapes unsafe item names and descriptions", () => {

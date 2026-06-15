@@ -67,6 +67,58 @@ describe("summarizeCharacter", () => {
       title: "Етична Зцілювачка Кулаком"
     });
   });
+
+  it("combines base, level, and equipped item effects once", () => {
+    expect(
+      summarizeCharacter(character({ level: 3, xp: 25 }), {
+        equippedItems: [
+          {
+            id: "item.test-pan",
+            name: "Тестова пательня",
+            description: "Неважливо.",
+            rarity: "common",
+            slot: "weapon",
+            goldValue: 1,
+            effect: {
+              weaponDamage: 2,
+              strength: 1
+            }
+          },
+          {
+            id: "item.test-apron",
+            name: "Тестовий фартух",
+            description: "Неважливо.",
+            rarity: "common",
+            slot: "armor",
+            goldValue: 1,
+            effect: {
+              hpMax: 2,
+              armor: 1
+            }
+          }
+        ]
+      })
+    ).toMatchObject({
+      hpMax: 30,
+      manaMax: 14,
+      stats: {
+        strength: 11
+      },
+      equipmentEffects: {
+        hpMax: 2,
+        armor: 1,
+        weaponDamage: 2,
+        contributions: [
+          {
+            itemId: "item.test-pan"
+          },
+          {
+            itemId: "item.test-apron"
+          }
+        ]
+      }
+    });
+  });
 });
 
 function character(overrides: Partial<Parameters<typeof summarizeCharacter>[0]> = {}) {

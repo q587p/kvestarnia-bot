@@ -80,6 +80,41 @@ describe("hero presenter", () => {
     expect(text).toContain("корчмар уже примружився");
   });
 
+  it("shows equipment contributions without hiding level growth", () => {
+    const text = presentHero({
+      ...summary,
+      hpCurrent: 26,
+      hpMax: 26,
+      stats: {
+        ...summary.stats,
+        luck: 7
+      },
+      equipmentEffects: {
+        hpMax: 2,
+        manaMax: 0,
+        armor: 1,
+        resist: 0,
+        weaponDamage: 2,
+        spellPower: 0,
+        stats: {
+          strength: 0,
+          dexterity: 0,
+          intelligence: 0,
+          charisma: 0,
+          luck: 1
+        },
+        contributions: []
+      }
+    });
+
+    expect(text).toContain("❤️ HP 26/26");
+    expect(text).toContain("🎒 Манатки: +2 HP · +1 Вдачі");
+    expect(text).toContain("🛡️ Захист спорядження: +1 до захисту");
+    expect(text).toContain("🗡️ Зброя: +2 до удару");
+    expect(text).toContain("Ріст: +4 HP · +2 мани · +1 Сили");
+  });
+
+
   it("uses distinct wealth jokes when gold or inventory value is zero", () => {
     const emptyHero = presentHero({ ...summary, gold: 0 }, { inventoryGoldValue: 0 });
     const itemRichHero = presentHero({ ...summary, gold: 0 }, { inventoryGoldValue: 28 });

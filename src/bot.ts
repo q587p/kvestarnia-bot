@@ -45,10 +45,10 @@ const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
 const services = {
   adventure: new AdventureService(characters, dailyActions),
   cellarErrand: new CellarErrandService(cooldowns),
-  fight: new FightService(characters, dailyActions, undefined, soloCombatSessions),
+  fight: new FightService(characters, dailyActions, undefined, soloCombatSessions, undefined, equipment),
   hunt: new HuntService(characters, dailyActions, huntContracts),
   onboarding: new OnboardingService(users, characters),
-  hero: new HeroService(characters, inventory),
+  hero: new HeroService(characters, inventory, equipment),
   equipment: new EquipmentService(equipment, inventory),
   inventory: new InventoryService(inventory),
   presence: new PresenceService(presence),

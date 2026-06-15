@@ -74,7 +74,7 @@ describe("buildEffectiveCharacterStats", () => {
   });
 
   it("scales HP and mana for unknown classes without crashing", () => {
-    expect(buildEffectiveCharacterStats(input({ classId: "class.mystery", level: 2 }))).toEqual({
+    expect(buildEffectiveCharacterStats(input({ classId: "class.mystery", level: 2 }))).toMatchObject({
       hpCurrent: 24,
       hpMax: 24,
       manaCurrent: 12,

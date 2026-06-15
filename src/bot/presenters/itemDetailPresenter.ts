@@ -6,6 +6,7 @@ import type {
   InventoryItemSummary
 } from "../../services/inventoryService";
 import { presentEquipmentSlotLabel } from "./equipmentPresenter";
+import { presentItemEffect } from "./itemEffectPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export interface ItemDetailOptions {
@@ -40,6 +41,7 @@ export function presentOwnedItemDetail(
     `Категорія: <b>${presentItemSlot(content.slot)}</b>`,
     `Вартість: ${presentItemValue(content)}`,
     `Кількість: <b>${quantity}</b>`,
+    presentItemEffectLine(content),
     "",
     `<i>${escapeHtml(content.description)}</i>`,
     "",
@@ -66,10 +68,20 @@ function presentEquipmentLine(item: ItemContent, equippedSlot: EquipmentSlot | n
   }
 
   if (equippedSlot) {
-    return `Екіпірування: <b>вдягнено — ${presentEquipmentSlotLabel(equippedSlot)}</b>. <i>Бонуси ще не рахуються.</i>`;
+    return `Екіпірування: <b>вдягнено — ${presentEquipmentSlotLabel(equippedSlot)}</b>.`;
   }
 
-  return "Екіпірування: <i>можна екіпірувати, але бонуси поки лежать у бухгалтерії.</i>";
+  return "Екіпірування: <i>можна екіпірувати. Гачок уже розминається.</i>";
+}
+
+function presentItemEffectLine(item: ItemContent): string {
+  const effect = presentItemEffect(item.effect);
+
+  if (effect) {
+    return `Ефект: <b>${effect}</b>`;
+  }
+
+  return "Бойовий ефект: <i>не виявлено, але вигляд має переконаний.</i>";
 }
 
 export function presentItemSlot(slot: ItemContent["slot"]): string {

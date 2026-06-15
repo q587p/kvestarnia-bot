@@ -1,7 +1,9 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import { createEmptyEquipmentEffectSummary } from "../../domain/progression/effectiveStats";
 import { getLocationName } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 import { presentLevelBonus } from "./levelGrowthPresenter";
+import { presentHeroEquipmentEffectLines } from "./itemEffectPresenter";
 
 export function presentHero(
   summary: CharacterSummary,
@@ -15,6 +17,9 @@ export function presentHero(
   const inventoryGoldValue = options.inventoryGoldValue ?? 0;
   const starterHint =
     summary.level < 3 ? ["", "<i>Далі: /tavern, /quest або /fight.</i>"] : [];
+  const equipmentLines = presentHeroEquipmentEffectLines(
+    summary.equipmentEffects ?? createEmptyEquipmentEffectSummary()
+  );
 
   return [
     `👤 <b>${escapeHtml(summary.name)}</b>`,
@@ -28,6 +33,7 @@ export function presentHero(
     `❤️ HP ${summary.hpCurrent}/${summary.hpMax} · 🔮 мана ${summary.manaCurrent}/${summary.manaMax}`,
     `Сили ${summary.stats.strength} · Спритн. ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
+    ...(equipmentLines.length > 0 ? ["", ...equipmentLines] : []),
     "",
     `👛 Золото: <b>${summary.gold}</b> <i>${presentWealthAside(summary.gold, inventoryGoldValue)}</i>`,
     "",

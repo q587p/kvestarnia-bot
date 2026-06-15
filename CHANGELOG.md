@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.22] - 12026-06-15 - Equipment Stat Effects
+
+### Added
+- Added small optional item effect metadata for supported equippable items: HP, mana, core stats, armor, resist, weapon damage, and spell power.
+- Added equipment effect aggregation through the shared effective-stats path, combining base character stats, level growth, and currently equipped item effects.
+- Added visible effect lines to `/equipment`, item details, and `/hero`, including equipment contribution rows for HP, stats, armor, weapon damage, and spell power.
+- Wired equipped item effects into persistent solo combat start and turn resolution for level 3+ fights.
+- Added tests for content effect validation, no accidental power on junk/cosmetic items, effective stat aggregation, hero/equipment/item-detail presentation, and persistent fight equipment integration.
+
+### Changed
+- Starter equippable items now have small transparent effects: the pan adds weapon damage, the stamp adds weapon damage and intelligence, the apron adds armor and HP, the pot helmet adds armor, and the cork ring adds luck.
+- Persistent fight basic attacks treat `weaponDamage` as a bonus on top of the unarmed/basic fallback, so heroes without equipped weapons still fight.
+- `/help` now describes equipment as an active bonus surface instead of a preview-only shell.
+
+### Not Included Yet
+- Per-fight XP/gold/items, random loot tables, shops, selling, trading, crafting, consumable item actions, group fights, PvP, Redis/jobs, Mini App UI, or broad combat rebalance.
+
 ## [0.0.21] - 12026-06-15 - Persistent Fight Sessions
 
 ### Added

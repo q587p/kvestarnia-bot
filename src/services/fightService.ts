@@ -7,6 +7,7 @@ import type {
   SoloCombatSessionRecord,
   SoloCombatSessionRepository
 } from "../db/repositories/soloCombatSessionRepository";
+import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   runCombatProbe,
@@ -26,6 +27,7 @@ import {
   isWithinActivityMaxLevel,
   STARTER_ACTIVITY_MAX_LEVEL
 } from "../domain/progression/activityGates";
+import { createEmptyEquipmentEffectSummary } from "../domain/progression/effectiveStats";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
@@ -42,6 +44,7 @@ import {
   SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
   type RewardItemGrant
 } from "./itemGrant";
+import { getEquippedItemContents } from "./equipmentService";
 
 export { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./dailyActionKeys";
 export type FightAction = CombatProbeAction;
@@ -171,7 +174,8 @@ export class FightService {
     private readonly dailyActions: DailyActionRepository,
     private readonly clock: Clock = systemClock,
     private readonly combatSessions?: SoloCombatSessionRepository,
-    private readonly rng: RandomSource = new CryptoRandomSource()
+    private readonly rng: RandomSource = new CryptoRandomSource(),
+    private readonly equipment?: EquipmentRepository
   ) {}
 
   async getFightOverviewForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
@@ -181,11 +185,13 @@ export class FightService {
       return { state: "no-character" };
     }
 
-    const characterSummary = summarizeCharacter(character);
+    const baseSummary = summarizeCharacter(character);
 
-    if (isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
+    if (isWithinActivityMaxLevel(baseSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
       return this.getMimicShawarmaForTelegramUser(telegramUserId);
     }
+
+    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
 
     if (!this.combatSessions) {
       return {
@@ -269,11 +275,13 @@ export class FightService {
       return { state: "no-character" };
     }
 
-    const characterSummary = summarizeCharacter(character);
+    const baseSummary = summarizeCharacter(character);
 
-    if (isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
+    if (isWithinActivityMaxLevel(baseSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
       return this.getMimicShawarmaForTelegramUser(telegramUserId);
     }
+
+    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
 
     if (!this.combatSessions) {
       return {
@@ -367,7 +375,7 @@ export class FightService {
       return { state: "no-character" };
     }
 
-    const characterSummary = summarizeCharacter(character);
+    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
 
     if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
       return {
@@ -479,7 +487,7 @@ export class FightService {
       return { state: "no-character" };
     }
 
-    const characterSummary = summarizeCharacter(character);
+    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
 
     if (!this.combatSessions) {
       return {
@@ -701,6 +709,17 @@ export class FightService {
       levelChange: claim.levelChange
     };
   }
+
+  private async summarizeCharacterWithEquipment(
+    telegramUserId: bigint,
+    character: Parameters<typeof summarizeCharacter>[0]
+  ): Promise<CharacterSummary> {
+    const equipmentSnapshot = await this.equipment?.listByTelegramUserId(telegramUserId);
+
+    return summarizeCharacter(character, {
+      equippedItems: equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : []
+    });
+  }
 }
 
 function buildFightItemGrants(action: FightAction): Array<{ itemId: string; quantity: number }> {
@@ -728,12 +747,18 @@ function buildFightItemGrants(action: FightAction): Array<{ itemId: string; quan
 }
 
 function buildHeroCombatStats(character: CharacterSummary): CombatActorStats {
+  const equipment = character.equipmentEffects ?? createEmptyEquipmentEffectSummary();
+
   return {
     level: character.level,
     hpMax: character.hpMax,
     manaMax: character.manaMax,
     classId: character.classId,
-    ...character.stats
+    ...character.stats,
+    armor: equipment.armor,
+    resist: equipment.resist,
+    weaponDamage: equipment.weaponDamage,
+    spellPower: equipment.spellPower
   };
 }
 

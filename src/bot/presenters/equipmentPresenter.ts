@@ -5,6 +5,7 @@ import type {
   EquipItemResult,
   UnequipSlotResult
 } from "../../services/equipmentService";
+import { presentItemEffect } from "./itemEffectPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 interface SlotView {
@@ -30,12 +31,9 @@ export function presentEquipment(result: EquipmentResult): string {
     "",
     "Корчма вже запамʼятовує, що висить на пригоднику.",
     "",
-    "<i>Бонуси спорядження ще не рахуються.</i>",
-    "<i>HP, мана, бій і нагороди не змінюються.</i>",
+    "<i>Манатки нарешті штовхають циферки. Корчма робить вигляд, що так і планувала.</i>",
     "",
-    ...intersperseBlankLines(equipmentSlots.map((slot) => presentEquipmentSlot(slot, result.slots))),
-    "",
-    "<i>Зараз це чесна примірка без циферок. Бухгалтерія ще точить олівець.</i>"
+    ...intersperseBlankLines(equipmentSlots.map((slot) => presentEquipmentSlot(slot, result.slots)))
   ].join("\n");
 }
 
@@ -56,7 +54,10 @@ export function presentEquipItemResult(result: EquipItemResult): string {
     return "Для цієї манатки ще немає гачка. Корчмар записав борг у майбутню шафу.";
   }
 
-  return `Екіпіровано: ${escapeHtml(result.item.content.name)}. Бонуси ще не рахуються.`;
+  const effect = presentItemEffect(result.item.content.effect);
+  const effectText = effect ? ` Ефект: ${effect}.` : " Бойового ефекту не виявлено.";
+
+  return `Екіпіровано: ${escapeHtml(result.item.content.name)}.${effectText}`;
 }
 
 export function presentUnequipSlotResult(result: UnequipSlotResult): string {
@@ -81,7 +82,12 @@ function presentEquipmentSlot(slot: SlotView, slots: EquipmentSlotSummary[]): st
   const equipped = slots.find((candidate) => candidate.slot === slot.id)?.item;
 
   if (equipped) {
-    return `${slot.icon} <b>${slot.label}</b>: ${escapeHtml(equipped.content.name)}`;
+    const effect = presentItemEffect(equipped.content.effect);
+
+    return [
+      `${slot.icon} <b>${slot.label}</b>: ${escapeHtml(equipped.content.name)}`,
+      `Ефект: <i>${effect ?? "бойового ефекту не виявлено"}</i>`
+    ].join("\n");
   }
 
   return `${slot.icon} <b>${slot.label}</b>: <i>${slot.emptyText}</i>`;
