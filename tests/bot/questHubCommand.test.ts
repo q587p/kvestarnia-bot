@@ -310,6 +310,50 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).toContain("HP 0? Спершу /hero, тоді /fight. Справи почекають.");
   });
 
+  it("uses the fight resource snapshot after lazy recovery sync", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const staleAdventureCharacter = {
+      ...characterAtLevel(3),
+      hpCurrent: 0,
+      hpMax: 20
+    };
+    const recoveredFightCharacter = {
+      ...staleAdventureCharacter,
+      hpCurrent: 5
+    };
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(staleAdventureCharacter),
+        cellarErrand: readyCellarService(recoveredFightCharacter),
+        hunt: readyHuntService(recoveredFightCharacter),
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-ready",
+              character: recoveredFightCharacter,
+              questProgress: questProgress(0)
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        } as unknown as FightService
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
+    expect(replies[0]?.text).toContain(
+      "📋 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
+    );
+    expect(replies[0]?.text).not.toContain("HP 0? Спершу /hero, тоді /fight. Справи почекають.");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.text)).toContain("🧾 До проблем");
+  });
+
   it("keeps terminal persistent fights recoverable from the quest hub", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const grownCharacter = characterAtLevel(4);

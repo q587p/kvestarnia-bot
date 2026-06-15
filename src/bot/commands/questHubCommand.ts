@@ -102,8 +102,10 @@ async function buildQuestHubSnapshot(
     return null;
   }
 
+  const character = fight.character;
+
   return {
-    character: adventure.character,
+    character,
     adventure,
     fight,
     hunt,
