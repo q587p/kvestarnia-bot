@@ -102,6 +102,16 @@ describe("health server", () => {
     expect(text).toContain("Новіша");
   });
 
+  it("keeps invalid selected news entries on the latest archive item", async () => {
+    const baseUrl = await listen();
+
+    const response = await fetch(`${baseUrl}/news?entry=not-a-number`);
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(text).toContain("Бочка дивиться на годинник, сайт відчиняє двері");
+  });
+
   it("returns 404 for other paths", async () => {
     const baseUrl = await listen();
 

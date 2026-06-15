@@ -10,6 +10,12 @@ const HTML_MESSAGE_OPTIONS = {
 
 type TimerHandle = ReturnType<typeof setTimeout>;
 type TimerFactory = (handler: () => void, delayMs: number) => TimerHandle;
+type TimerState = {
+  timer: TimerHandle;
+};
+
+const DEFAULT_RETRY_DELAY_MS = 60_000;
+const DEFAULT_MAX_ATTEMPTS = 3;
 
 export interface BarrelRaidCompletionScheduleInput {
   bot: Bot;
@@ -29,23 +35,26 @@ export interface BarrelRaidCompletionScheduler {
 
 interface BarrelRaidCompletionSchedulerOptions {
   setTimeout?: TimerFactory;
+  retryDelayMs?: number;
+  maxAttempts?: number;
   logger?: Pick<Console, "error">;
 }
 
 export function createBarrelRaidCompletionScheduler(
   options: BarrelRaidCompletionSchedulerOptions = {}
 ): BarrelRaidCompletionScheduler {
-  const timers = new Map<string, TimerHandle>();
+  const timers = new Map<string, TimerState>();
   const setTimer = options.setTimeout;
+  const retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
+  const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
   const logger = options.logger ?? console;
 
   async function sendCompletion(
     input: BarrelRaidCompletionScheduleInput,
     key: string,
-    chatId: number
+    chatId: number,
+    attempt: number
   ): Promise<void> {
-    timers.delete(key);
-
     try {
       const completed = await input.tavernRaidService.completeFridayBarrelRaid(
         input.telegramUserId,
@@ -53,16 +62,60 @@ export function createBarrelRaidCompletionScheduler(
       );
 
       if (completed.state !== "completed") {
+        timers.delete(key);
         return;
       }
 
+      await sendCompletedResult(input, key, chatId, completed, 1);
+    } catch (error) {
+      logger.error("Квестарня: не вдалося надіслати завершення рейду.", error);
+      if (attempt >= maxAttempts) {
+        timers.delete(key);
+        return;
+      }
+
+      const retryTimer = (setTimer ?? setTimeout)(() => {
+        void sendCompletion(input, key, chatId, attempt + 1);
+      }, retryDelayMs);
+
+      retryTimer.unref?.();
+      timers.set(key, { timer: retryTimer });
+    }
+  }
+
+  async function sendCompletedResult(
+    input: BarrelRaidCompletionScheduleInput,
+    key: string,
+    chatId: number,
+    completed: Extract<TavernRaidResult, { state: "completed" }>,
+    attempt: number
+  ): Promise<void> {
+    try {
       await input.bot.api.sendMessage(chatId, presentTavernRaidResult(completed), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildTavernResultKeyboard(completed.state)
       });
-      await sendLevelUpCelebrationToChat(input.bot, chatId, completed);
+
+      try {
+        await sendLevelUpCelebrationToChat(input.bot, chatId, completed);
+      } catch (error) {
+        logger.error("Квестарня: не вдалося надіслати повідомлення про рівень після рейду.", error);
+      }
+
+      timers.delete(key);
     } catch (error) {
       logger.error("Квестарня: не вдалося надіслати завершення рейду.", error);
+      if (attempt >= maxAttempts) {
+        timers.delete(key);
+        return;
+      }
+
+      const retryTimer = (setTimer ?? setTimeout)(() => {
+        void sendCompletedResult(input, key, chatId, completed, attempt + 1);
+      }, retryDelayMs);
+
+      retryTimer.unref?.();
+      timers.set(key, { timer: retryTimer });
     }
   }
 
@@ -81,11 +134,11 @@ export function createBarrelRaidCompletionScheduler(
 
       const delayMs = Math.max(0, input.availableAt.getTime() - input.now.getTime());
       const timer = (setTimer ?? setTimeout)(() => {
-        void sendCompletion(input, key, chatId);
+        void sendCompletion(input, key, chatId, 1);
       }, delayMs);
 
       timer.unref?.();
-      timers.set(key, timer);
+      timers.set(key, { timer });
       return true;
     },
     pendingCount() {

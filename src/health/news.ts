@@ -8,11 +8,7 @@ export interface NewsEntry {
 }
 
 export function readNewsEntries(filePath = resolve(process.cwd(), "news.md")): NewsEntry[] {
-  try {
-    return parseNewsEntries(readFileSync(filePath, "utf8"));
-  } catch {
-    return [];
-  }
+  return parseNewsEntries(readFileSync(filePath, "utf8"));
 }
 
 export function parseNewsEntries(markdown: string): NewsEntry[] {
