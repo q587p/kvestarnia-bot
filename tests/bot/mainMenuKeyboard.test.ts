@@ -587,7 +587,7 @@ describe("main menu and scene keyboards", () => {
           cellar: { state: "level-retired", character, maxLevel: 3 }
         })
       )
-    ).toEqual(["📋 До проблем", "🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["🧾 До проблем", "🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(

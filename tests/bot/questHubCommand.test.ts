@@ -71,7 +71,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.options).toMatchObject({
       reply_markup: {
         inline_keyboard: [
-          [{ text: "📋 До проблем", callback_data: makeQuestCallbackData("fight") }],
+          [{ text: "🧾 До проблем", callback_data: makeQuestCallbackData("fight") }],
           [{ text: "🏹 До дошки", callback_data: makeQuestCallbackData("hunt") }],
           [{ text: "🧹 У підвал", callback_data: makeQuestCallbackData("cellar") }],
           [{ text: "📖 Бестіарій", callback_data: makeBestiaryListCallbackData(0) }],
@@ -229,7 +229,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "📋 До проблем",
+      "🧾 До проблем",
       "🧹 У підвал",
       "📖 Бестіарій",
       "🍺 До зали"
@@ -279,7 +279,7 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    expect(buttons.map((button) => button.text)).toContain("📋 До проблем");
+    expect(buttons.map((button) => button.text)).toContain("🧾 До проблем");
   });
 
   it("hides starter shawarma and offers persistent fight at level three", async () => {
@@ -308,7 +308,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "📋 До проблем",
+      "🧾 До проблем",
       "🏹 До дошки",
       "🧹 У підвал",
       "📖 Бестіарій",

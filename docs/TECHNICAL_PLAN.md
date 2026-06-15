@@ -335,7 +335,7 @@ Cooldown reward claim має бути transactional:
 - якщо `available_at > now`, повернути cooldown без XP/золота/items;
 - якщо cooldown відсутній або минув, conditionally створити/оновити row, видати маленьку винагороду й перерахувати level;
 - concurrent callback-и не мають проходити як дві винагороди.
-- Onboarding gate: Підвальна справа відкривається з 2 рівня і закривається після 3 рівня. Перевірка стоїть до cooldown reward claim, а command/callback handlers не мають переносити presence в `location.korchma.cellar`, якщо герой ще locked або вже виріс із цієї новачкової справи.
+- Onboarding gate: Підвальна справа відкривається з 2 рівня і закривається після 3 рівня. Перевірка стоїть до cooldown reward claim, а command/callback handlers не мають переносити presence в `location.korchma.cellar`, якщо герой ще locked. Якщо герой вже виріс із новачкової справи, hub може показати кнопку `🧹 У підвал`, але route має вести в `cellar.grownup`, а не в стару мишачу винагороду.
 
 У `0.0.24` рівень 4+ більше не отримує dead-end retired state у підвалі. Старий `/cellar` route відкриває вузьку once-per-player справу `cellar.grownup`:
 - `CellarGrownupQuestService` лишається vertical slice, не broad quest engine;

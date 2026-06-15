@@ -78,7 +78,7 @@ function canOpenBestiary(input: QuestHubKeyboardInput): boolean {
 }
 
 function getFightButtonLabel(fight: QuestHubKeyboardInput["fight"]): string {
-  return isPersistentFightState(fight.state) ? "📋 До проблем" : "⚔️ До сутички";
+  return isPersistentFightState(fight.state) ? "🧾 До проблем" : "⚔️ До сутички";
 }
 
 function isPersistentFightState(state: QuestHubKeyboardInput["fight"]["state"]): boolean {
