@@ -567,6 +567,7 @@ Future korchma progression boards:
 - Render або інший PaaS із Node.js runtime.
 - SQLite database file через persistent disk для поточного мінімального setup.
 - Start command: `npm run db:deploy && npm run start`.
+- `db:deploy` first repairs the known failed `0.0.25` migration record if Render has one, then continues with `prisma migrate deploy`.
 - Redis не є обов’язковим, доки немає features для jobs/cache/cooldowns.
 
 Для альфи polling простіший, але webhook краще для стабільності.
