@@ -4,15 +4,31 @@ import type { MonsterCombatStats } from "./combatState";
 export function deriveMonsterCombatStats(monster: MonsterContent): MonsterCombatStats {
   const tags = [...monster.tags];
   const level = Math.max(1, Math.floor(monster.level));
+  const highTierLevel = Math.max(0, level - 4);
+  const thresholdBoost = highTierLevel > 0 ? 1 : 0;
 
   return {
     monsterId: monster.id,
     level,
-    hpMax: 10 + level * 6 + tagHpBonus(tags),
-    attack: 2 + level * 2 + tagAttackBonus(tags),
-    armor: Math.floor(level / 2) + tagArmorBonus(tags),
-    resist: Math.floor(level / 3) + tagResistBonus(tags),
-    dexterity: 5 + level + tagDexterityBonus(tags),
+    hpMax:
+      10 +
+      level * 6 +
+      highTierLevel * (8 + Math.floor(level / 2)) +
+      thresholdBoost * 8 +
+      tagHpBonus(tags),
+    attack:
+      2 +
+      level * 2 +
+      highTierLevel * 3 +
+      Math.floor(highTierLevel / 2) +
+      thresholdBoost * 2 +
+      tagAttackBonus(tags),
+    armor:
+      Math.floor(level / 2) + Math.floor(highTierLevel / 2) + thresholdBoost + tagArmorBonus(tags),
+    resist:
+      Math.floor(level / 3) + Math.floor(highTierLevel / 2) + thresholdBoost + tagResistBonus(tags),
+    dexterity:
+      5 + level + Math.floor(highTierLevel / 2) + thresholdBoost + tagDexterityBonus(tags),
     tags
   };
 }
