@@ -62,6 +62,120 @@ describe("MantokChestService", () => {
     }
   });
 
+  it("starts manual selection with pagination and an empty counter", async () => {
+    const repository = new FakeMantokChestRepository(snapshot([
+      item("item.suspicious-shawarma-wrapper", 1),
+      item("item.cheese-of-procedural-doubt", 1),
+      item("item.bristle-of-basement-order", 1),
+      item("item.receipt-of-formal-suspicion", 1),
+      item("item.barrel-splinter-of-optimism", 1),
+      item("item.foam-cork-of-accounting", 1)
+    ]));
+    const service = new MantokChestService(repository, () => fixedNow);
+
+    const selection = await service.startManualSelectionForTelegramUser(telegramUserId);
+
+    expect(selection.state).toBe("selection");
+    if (selection.state === "selection") {
+      expect(selection.selectedCount).toBe(0);
+      expect(selection.requiredCount).toBe(5);
+      expect(selection.page).toBe(0);
+      expect(selection.pageCount).toBe(2);
+      expect(selection.items).toHaveLength(5);
+    }
+  });
+
+  it("adds and removes manual selection units one stack unit at a time", async () => {
+    const repository = new FakeMantokChestRepository(snapshot([
+      item("item.suspicious-shawarma-wrapper", 5),
+      item("item.cheese-of-procedural-doubt", 2)
+    ]));
+    const service = new MantokChestService(repository, () => fixedNow);
+    const started = await service.startManualSelectionForTelegramUser(telegramUserId);
+    expect(started.state).toBe("selection");
+    if (started.state !== "selection") {
+      return;
+    }
+
+    const added = await service.addManualSelectionUnitForTelegramUser(telegramUserId, {
+      token: started.run.token,
+      page: 0,
+      index: 0
+    });
+    expect(added.state).toBe("selection");
+    if (added.state !== "selection") {
+      return;
+    }
+    expect(added.selectedCount).toBe(1);
+    expect(added.items.find((entry) => entry.index === 0)?.selectedQuantity).toBe(1);
+
+    const removed = await service.removeManualSelectionUnitForTelegramUser(telegramUserId, {
+      token: started.run.token,
+      page: 0,
+      index: 0
+    });
+    expect(removed.state).toBe("selection");
+    if (removed.state === "selection") {
+      expect(removed.selectedCount).toBe(0);
+      expect(removed.items.find((entry) => entry.index === 0)?.selectedQuantity).toBe(0);
+    }
+  });
+
+  it("does not build a manual preview below five selected units", async () => {
+    const repository = new FakeMantokChestRepository(snapshot([
+      item("item.suspicious-shawarma-wrapper", 5)
+    ]));
+    const service = new MantokChestService(repository, () => fixedNow);
+    const started = await service.startManualSelectionForTelegramUser(telegramUserId);
+    expect(started.state).toBe("selection");
+    if (started.state !== "selection") {
+      return;
+    }
+
+    await service.addManualSelectionUnitForTelegramUser(telegramUserId, {
+      token: started.run.token,
+      page: 0,
+      index: 0
+    });
+
+    await expect(service.getManualPreviewForTelegramUser(telegramUserId, started.run.token)).resolves.toEqual({
+      state: "selection-incomplete",
+      selectedCount: 1
+    });
+  });
+
+  it("confirms exactly the manually selected five units and replays repeated confirm", async () => {
+    const repository = new FakeMantokChestRepository(snapshot([
+      item("item.suspicious-shawarma-wrapper", 5),
+      item("item.cheese-of-procedural-doubt", 2)
+    ]));
+    const service = new MantokChestService(repository, () => fixedNow, new FakeRandomSource([0]));
+    const started = await service.startManualSelectionForTelegramUser(telegramUserId);
+    expect(started.state).toBe("selection");
+    if (started.state !== "selection") {
+      return;
+    }
+
+    for (let count = 0; count < 5; count += 1) {
+      await service.addManualSelectionUnitForTelegramUser(telegramUserId, {
+        token: started.run.token,
+        page: 0,
+        index: 0
+      });
+    }
+
+    const preview = await service.getManualPreviewForTelegramUser(telegramUserId, started.run.token);
+    expect(preview.state).toBe("preview-created");
+    const first = await service.confirmRecycleForTelegramUser(telegramUserId, started.run.token);
+    const second = await service.confirmRecycleForTelegramUser(telegramUserId, started.run.token);
+
+    expect(first.state).toBe("recycled");
+    expect(second.state).toBe("replayed");
+    expect(repository.completedCount).toBe(1);
+    expect(repository.getQuantities()["item.suspicious-shawarma-wrapper"]).toBeUndefined();
+    expect(repository.getQuantities()["item.cheese-of-procedural-doubt"]).toBe(2);
+  });
+
   it("consumes five units and upserts one output on confirm", async () => {
     const repository = new FakeMantokChestRepository(snapshot([
       item("item.suspicious-shawarma-wrapper", 4),
@@ -143,6 +257,54 @@ describe("MantokChestService", () => {
 
     expect(result.state).toBe("stale-inputs");
     expect(repository.getQuantities()["item.suspicious-shawarma-wrapper"]).toBe(4);
+  });
+
+  it("returns stale-inputs when manually selected items disappear before confirm", async () => {
+    const repository = new FakeMantokChestRepository(snapshot([
+      item("item.suspicious-shawarma-wrapper", 5)
+    ]));
+    const service = new MantokChestService(repository, () => fixedNow);
+    const started = await service.startManualSelectionForTelegramUser(telegramUserId);
+    expect(started.state).toBe("selection");
+    if (started.state !== "selection") {
+      return;
+    }
+
+    for (let count = 0; count < 5; count += 1) {
+      await service.addManualSelectionUnitForTelegramUser(telegramUserId, {
+        token: started.run.token,
+        page: 0,
+        index: 0
+      });
+    }
+    repository.setQuantity("item.suspicious-shawarma-wrapper", 4);
+
+    const result = await service.confirmRecycleForTelegramUser(telegramUserId, started.run.token);
+
+    expect(result.state).toBe("stale-inputs");
+    expect(repository.getQuantities()["item.suspicious-shawarma-wrapper"]).toBe(4);
+  });
+
+  it("keeps equipped, protected, priceless, story, and apology items out of manual selection", async () => {
+    const repository = new FakeMantokChestRepository(snapshot(
+      [
+        item("item.pan-of-persuasion", 5),
+        item("item.badge-of-thirteen-small-problems", 5),
+        item("item.cellar.foamy-mirage-bottle", 5),
+        item("item.apology.rollback-receipt", 5),
+        item("item.bristle-of-basement-order", 2)
+      ],
+      ["item.pan-of-persuasion"]
+    ));
+    const service = new MantokChestService(repository, () => fixedNow);
+
+    const selection = await service.startManualSelectionForTelegramUser(telegramUserId);
+
+    expect(selection.state).toBe("selection");
+    if (selection.state === "selection") {
+      expect(selection.eligibleCount).toBe(2);
+      expect(selection.items.map((entry) => entry.itemId)).toEqual(["item.bristle-of-basement-order"]);
+    }
   });
 
   it("leaves inputs untouched when there is no output candidate", async () => {
@@ -247,6 +409,47 @@ class FakeMantokChestRepository implements MantokChestRepository {
     this.runs.set(input.token, run);
 
     return Promise.resolve(structuredCloneRun(run));
+  }
+
+  findRunForTelegramUser(
+    telegramUserId: bigint,
+    token: string
+  ): Promise<MantokChestRunRecord | null> {
+    if (telegramUserId !== 42n) {
+      return Promise.resolve(null);
+    }
+
+    const run = this.runs.get(token);
+
+    return Promise.resolve(run ? structuredCloneRun(run) : null);
+  }
+
+  updatePendingRunInputItemsForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      token: string;
+      inputItems: MantokChestRunItem[];
+      averageInputScore: number;
+      minimumOutputScore: number;
+      now: Date;
+    }
+  ): Promise<MantokChestRunRecord | null> {
+    const run = this.runs.get(input.token);
+
+    if (!run || telegramUserId !== 42n || run.status !== "pending") {
+      return Promise.resolve(null);
+    }
+
+    const updated: MantokChestRunRecord = {
+      ...run,
+      inputItems: input.inputItems,
+      averageInputScore: Math.floor(input.averageInputScore),
+      minimumOutputScore: input.minimumOutputScore,
+      updatedAt: input.now
+    };
+    this.runs.set(input.token, updated);
+
+    return Promise.resolve(structuredCloneRun(updated));
   }
 
   cancelRunForTelegramUser(): Promise<MantokChestRunRecord | null> {

@@ -7,9 +7,11 @@ import {
   calculateMantokChestItemScore,
   calculateMinimumMantokChestOutputScore,
   countMantokChestEligibleUnits,
+  expandMantokChestStacks,
   MANTOK_CHEST_BATCH_SIZE,
   selectCheapestMantokChestUnits,
-  selectMantokChestOutputItem
+  selectMantokChestOutputItem,
+  summarizeMantokChestUnits
 } from "../domain/mantokChest";
 import type {
   MantokChestRepository,
@@ -26,12 +28,27 @@ export type MantokChestOverviewResult =
 export type MantokChestPreviewResult =
   | { state: "no-character" }
   | { state: "not-enough-items"; eligibleCount: number }
+  | { state: "selection-incomplete"; selectedCount: number }
   | {
       state: "preview-created";
       run: MantokChestRunRecord;
       inputItems: MantokChestPresentedItem[];
       averageInputScore: number;
       minimumOutputScore: number;
+    };
+
+export type MantokChestManualSelectionResult =
+  | { state: "no-character" }
+  | { state: "invalid-token" }
+  | {
+      state: "selection";
+      run: MantokChestRunRecord;
+      items: MantokChestSelectableItem[];
+      selectedCount: number;
+      requiredCount: number;
+      eligibleCount: number;
+      page: number;
+      pageCount: number;
     };
 
 export type MantokChestRecycleResult =
@@ -55,6 +72,14 @@ export interface MantokChestPresentedItem {
   score: number;
 }
 
+export interface MantokChestSelectableItem extends MantokChestPresentedItem {
+  index: number;
+  selectedQuantity: number;
+  availableQuantity: number;
+}
+
+export const MANTOK_CHEST_MANUAL_PAGE_SIZE = 5;
+
 export class MantokChestService {
   constructor(
     private readonly repository: MantokChestRepository,
@@ -72,6 +97,109 @@ export class MantokChestService {
     return {
       state: "ready",
       eligibleCount: countMantokChestEligibleUnits(getEligibleStacks(snapshot))
+    };
+  }
+
+  async startManualSelectionForTelegramUser(
+    telegramUserId: bigint,
+    page = 0
+  ): Promise<MantokChestManualSelectionResult> {
+    const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId);
+
+    if (!snapshot) {
+      return { state: "no-character" };
+    }
+
+    const run = await this.repository.createPendingRunForTelegramUser(telegramUserId, {
+      token: randomUUID(),
+      inputItems: [],
+      averageInputScore: 0,
+      minimumOutputScore: 0,
+      now: this.clock()
+    });
+
+    if (!run) {
+      return { state: "no-character" };
+    }
+
+    return buildManualSelectionResult(snapshot, run, page);
+  }
+
+  async getManualSelectionForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    page = 0
+  ): Promise<MantokChestManualSelectionResult> {
+    const [snapshot, run] = await Promise.all([
+      this.repository.getSnapshotForTelegramUser(telegramUserId),
+      this.repository.findRunForTelegramUser(telegramUserId, token)
+    ]);
+
+    if (!snapshot) {
+      return { state: "no-character" };
+    }
+
+    if (!run || run.status !== "pending") {
+      return { state: "invalid-token" };
+    }
+
+    return buildManualSelectionResult(snapshot, run, page);
+  }
+
+  async addManualSelectionUnitForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      token: string;
+      page: number;
+      index: number;
+    }
+  ): Promise<MantokChestManualSelectionResult> {
+    return this.updateManualSelectionUnit(telegramUserId, input, "add");
+  }
+
+  async removeManualSelectionUnitForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      token: string;
+      page: number;
+      index: number;
+    }
+  ): Promise<MantokChestManualSelectionResult> {
+    return this.updateManualSelectionUnit(telegramUserId, input, "remove");
+  }
+
+  async getManualPreviewForTelegramUser(
+    telegramUserId: bigint,
+    token: string
+  ): Promise<MantokChestPreviewResult> {
+    const [snapshot, run] = await Promise.all([
+      this.repository.getSnapshotForTelegramUser(telegramUserId),
+      this.repository.findRunForTelegramUser(telegramUserId, token)
+    ]);
+
+    if (!snapshot) {
+      return { state: "no-character" };
+    }
+
+    if (!run || run.status !== "pending") {
+      return { state: "not-enough-items", eligibleCount: 0 };
+    }
+
+    const selectedCount = run.inputItems.reduce((sum, item) => sum + item.quantity, 0);
+
+    if (selectedCount !== MANTOK_CHEST_BATCH_SIZE) {
+      return {
+        state: "selection-incomplete",
+        selectedCount
+      };
+    }
+
+    return {
+      state: "preview-created",
+      run,
+      inputItems: presentRunItems(run.inputItems),
+      averageInputScore: run.averageInputScore,
+      minimumOutputScore: run.minimumOutputScore
     };
   }
 
@@ -163,6 +291,63 @@ export class MantokChestService {
     };
   }
 
+  private async updateManualSelectionUnit(
+    telegramUserId: bigint,
+    input: {
+      token: string;
+      page: number;
+      index: number;
+    },
+    action: "add" | "remove"
+  ): Promise<MantokChestManualSelectionResult> {
+    const [snapshot, run] = await Promise.all([
+      this.repository.getSnapshotForTelegramUser(telegramUserId),
+      this.repository.findRunForTelegramUser(telegramUserId, input.token)
+    ]);
+
+    if (!snapshot) {
+      return { state: "no-character" };
+    }
+
+    if (!run || run.status !== "pending") {
+      return { state: "invalid-token" };
+    }
+
+    const eligibleStacks = sortEligibleStacks(getEligibleStacks(snapshot));
+    const stack = eligibleStacks[input.index];
+
+    if (!stack) {
+      return buildManualSelectionResult(snapshot, run, input.page);
+    }
+
+    const selectedUnits = expandStoredRunItems(run.inputItems, eligibleStacks);
+    const selectedCount = selectedUnits.length;
+    const selectedInStack = run.inputItems.find((item) => item.itemId === stack.itemId)?.quantity ?? 0;
+
+    const nextUnits =
+      action === "add"
+        ? selectedCount < MANTOK_CHEST_BATCH_SIZE && selectedInStack < stack.quantity
+          ? [...selectedUnits, { itemId: stack.itemId, content: stack.content, score: stack.score }]
+          : selectedUnits
+        : removeOneUnit(selectedUnits, stack.itemId);
+    const averageInputScore = calculateMantokChestAverageScore(nextUnits);
+    const minimumOutputScore =
+      nextUnits.length === 0 ? 0 : calculateMinimumMantokChestOutputScore(averageInputScore);
+    const updated = await this.repository.updatePendingRunInputItemsForTelegramUser(telegramUserId, {
+      token: input.token,
+      inputItems: summarizeMantokChestUnits(nextUnits),
+      averageInputScore,
+      minimumOutputScore,
+      now: this.clock()
+    });
+
+    if (!updated) {
+      return { state: "invalid-token" };
+    }
+
+    return buildManualSelectionResult(snapshot, updated, input.page);
+  }
+
   private selectOutputForRun(
     snapshot: MantokChestSnapshot,
     run: MantokChestRunRecord
@@ -208,6 +393,46 @@ function getEligibleStacks(snapshot: MantokChestSnapshot) {
   });
 }
 
+function buildManualSelectionResult(
+  snapshot: MantokChestSnapshot,
+  run: MantokChestRunRecord,
+  requestedPage: number
+): MantokChestManualSelectionResult {
+  const stacks = sortEligibleStacks(getEligibleStacks(snapshot));
+  const selectedById = new Map(run.inputItems.map((item) => [item.itemId, item.quantity]));
+  const eligibleCount = countMantokChestEligibleUnits(stacks);
+  const selectedCount = run.inputItems.reduce((sum, item) => sum + item.quantity, 0);
+  const pageCount = Math.max(1, Math.ceil(stacks.length / MANTOK_CHEST_MANUAL_PAGE_SIZE));
+  const page = clampPage(requestedPage, pageCount);
+  const start = page * MANTOK_CHEST_MANUAL_PAGE_SIZE;
+  const items = stacks
+    .slice(start, start + MANTOK_CHEST_MANUAL_PAGE_SIZE)
+    .map((stack, offset) => ({
+      itemId: stack.itemId,
+      quantity: stack.quantity,
+      content: stack.content,
+      score: stack.score,
+      index: start + offset,
+      selectedQuantity: selectedById.get(stack.itemId) ?? 0,
+      availableQuantity: stack.quantity
+    }));
+
+  return {
+    state: "selection",
+    run,
+    items,
+    selectedCount,
+    requiredCount: MANTOK_CHEST_BATCH_SIZE,
+    eligibleCount,
+    page,
+    pageCount
+  };
+}
+
+function sortEligibleStacks(stacks: ReturnType<typeof getEligibleStacks>) {
+  return [...stacks].sort((left, right) => left.score - right.score || left.itemId.localeCompare(right.itemId));
+}
+
 function expandStoredRunItems(
   runItems: readonly MantokChestRunItem[],
   eligibleStacks: ReturnType<typeof getEligibleStacks>
@@ -227,6 +452,30 @@ function expandStoredRunItems(
       score: stack.score
     }));
   });
+}
+
+function removeOneUnit(
+  units: ReturnType<typeof expandMantokChestStacks>,
+  itemId: string
+): ReturnType<typeof expandMantokChestStacks> {
+  let removed = false;
+
+  return units.filter((unit) => {
+    if (!removed && unit.itemId === itemId) {
+      removed = true;
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function clampPage(page: number, pageCount: number): number {
+  if (!Number.isInteger(page) || page < 0) {
+    return 0;
+  }
+
+  return Math.min(page, pageCount - 1);
 }
 
 function presentRunItems(runItems: readonly MantokChestRunItem[]): MantokChestPresentedItem[] {

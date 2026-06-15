@@ -5,7 +5,12 @@ import {
   makeMantokChestConfirmCallbackData,
   makeMantokChestHelpCallbackData,
   makeMantokChestInventoryCallbackData,
+  makeMantokChestAddCallbackData,
+  makeMantokChestManualCallbackData,
   makeMantokChestOpenCallbackData,
+  makeMantokChestPageCallbackData,
+  makeMantokChestPreviewCallbackData,
+  makeMantokChestRemoveCallbackData,
   parseMantokChestCallbackData
 } from "../../src/bot/callbacks/mantokChestCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
@@ -18,7 +23,12 @@ describe("Mantok Chest callback data", () => {
       makeMantokChestOpenCallbackData(),
       makeMantokChestHelpCallbackData(),
       makeMantokChestAutoCallbackData(),
+      makeMantokChestManualCallbackData(),
       makeMantokChestInventoryCallbackData(),
+      makeMantokChestPageCallbackData(token, 12),
+      makeMantokChestAddCallbackData(token, 12, 99),
+      makeMantokChestRemoveCallbackData(token, 12, 99),
+      makeMantokChestPreviewCallbackData(token),
       makeMantokChestConfirmCallbackData(token),
       makeMantokChestCancelCallbackData(token)
     ];
@@ -35,11 +45,38 @@ describe("Mantok Chest callback data", () => {
         token
       }
     });
+    expect(parseMantokChestCallbackData(makeMantokChestAddCallbackData(token, 2, 3))).toEqual({
+      ok: true,
+      value: {
+        type: "add",
+        token,
+        page: 2,
+        index: 3
+      }
+    });
+    expect(parseMantokChestCallbackData(makeMantokChestRemoveCallbackData(token, 4, 5))).toEqual({
+      ok: true,
+      value: {
+        type: "remove",
+        token,
+        page: 4,
+        index: 5
+      }
+    });
+    expect(parseMantokChestCallbackData(makeMantokChestPreviewCallbackData(token))).toEqual({
+      ok: true,
+      value: {
+        type: "preview",
+        token
+      }
+    });
   });
 
   it("rejects invalid and overlong callbacks", () => {
     expect(parseMantokChestCallbackData("v1:chest:confirm:not-a-token").ok).toBe(false);
     expect(parseMantokChestCallbackData("v1:chest:auto:extra").ok).toBe(false);
+    expect(parseMantokChestCallbackData(`v1:chest:add:${token}:not-a-page:1`).ok).toBe(false);
+    expect(parseMantokChestCallbackData(`v1:chest:add:${token}:1:not-an-index`).ok).toBe(false);
     expect(parseMantokChestCallbackData("v1:item:inventory").ok).toBe(false);
     expect(parseMantokChestCallbackData(`v1:chest:confirm:${"a".repeat(80)}`).ok).toBe(false);
     expect(() => makeMantokChestConfirmCallbackData("a".repeat(80))).toThrow(RangeError);

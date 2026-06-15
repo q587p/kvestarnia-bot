@@ -1,4 +1,5 @@
 import type {
+  MantokChestManualSelectionResult,
   MantokChestOverviewResult,
   MantokChestPresentedItem,
   MantokChestPreviewResult,
@@ -33,8 +34,49 @@ export function presentMantokChestHelp(): string {
     "",
     "Екіпіровані, безцінні й сюжетні речі не чіпає. Бо має манери. Або юриста.",
     "",
-    "У цьому MVP Скриня сама вибирає 5 найдешевших доступних манаток. Ручний вибір буде пізніше, коли вона навчиться не рахувати ніжками."
+    "Можна згодувати 5 найдешевших автоматично або обрати вручну. Ручний вибір Скриня рахує не ніжками, а дуже серйозним поглядом."
   ].join("\n");
+}
+
+export function presentMantokChestManualSelection(result: MantokChestManualSelectionResult): string {
+  if (result.state === "no-character") {
+    return "Спершу створіть пригодника через /start. Скриня не обирає з порожньої анкети.";
+  }
+
+  if (result.state === "invalid-token") {
+    return "🧰 Скриня загубила цей список. Відкрий її ще раз, поки вона не зробила вигляд, що так і було.";
+  }
+
+  const lines = [
+    "♻️ <b>Дружня Скриня</b>",
+    `Обрано: <b>${result.selectedCount}/${result.requiredCount}</b>`,
+    "",
+    "Скриня киває кришкою. Це не згода, це апетит.",
+    "",
+    `Доступних манаток: <b>${result.eligibleCount}</b>`,
+    `Сторінка <b>${result.page + 1}/${result.pageCount}</b>`,
+    ""
+  ];
+
+  if (result.items.length === 0) {
+    lines.push("Скриня не бачить нічого їстівного. Екіпіроване, безцінне й сюжетне вона чемно не чіпає.");
+  } else {
+    lines.push(
+      ...result.items.map((item) => {
+        const selected = item.selectedQuantity > 0
+          ? ` · на виделці <b>${item.selectedQuantity}</b>`
+          : "";
+
+        return `• <b>${escapeHtml(item.content.name)}</b> ×${item.availableQuantity}${selected}`;
+      })
+    );
+  }
+
+  if (result.selectedCount === result.requiredCount) {
+    lines.push("", "Можна переходити до підтвердження. Після нього ці 5 манаток зникнуть назавжди.");
+  }
+
+  return lines.join("\n");
 }
 
 export function presentMantokChestPreview(result: MantokChestPreviewResult): string {
@@ -47,6 +89,14 @@ export function presentMantokChestPreview(result: MantokChestPreviewResult): str
       "🧰 <b>Дружня Скриня</b>",
       "",
       `Скриня чемно постукала кришкою: їй треба 5 доступних манаток, а зараз <b>${result.eligibleCount}</b>.`
+    ].join("\n");
+  }
+
+  if (result.state === "selection-incomplete") {
+    return [
+      "🧰 <b>Дружня Скриня</b>",
+      "",
+      `Скриня порахувала виделки: обрано <b>${result.selectedCount}/5</b>. До підтвердження треба рівно 5 манаток.`
     ].join("\n");
   }
 

@@ -253,12 +253,13 @@ Current stabilization slice after `0.0.25`. This is the small pass that keeps HP
 Доробити Дружню Скриню після runtime MVP: ручний вибір манаток, краща інвентарна ергономіка й підготовка до item-instance identity без магазинів, продажу або trading.
 
 **Status**
-Planned after `0.0.26`, because runtime auto-pick chest exists, but manual selection and deeper inventory polish are still deferred.
+Implemented in the `0.0.27` slice as manual stack-unit selection for the existing Дружня Скриня flow. Deeper item-instance identity remains deferred.
 
 **Scope**
 
 - manual selection with pagination and `x/5` counter;
-- clearer item grouping/filtering around recyclable vs protected/equipped/priceless stacks;
+- one-unit add/remove controls for eligible stacks, with selected/available counts;
+- clearer distinction between recyclable vs protected/equipped/priceless/story/apology stacks;
 - keep transaction/idempotency safety from the `0.0.24` auto-pick path;
 - document or design item-instance identity if stack-level protection becomes too restrictive;
 - docs source: `docs/MANTOK_CHEST_BACKLOG.md`.

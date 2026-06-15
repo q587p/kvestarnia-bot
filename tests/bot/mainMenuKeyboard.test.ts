@@ -23,7 +23,11 @@ import {
   buildInventoryKeyboard,
   buildItemDetailKeyboard
 } from "../../src/bot/keyboards/inventoryKeyboard";
-import { buildMantokChestResultKeyboard } from "../../src/bot/keyboards/mantokChestKeyboard";
+import {
+  buildMantokChestManualSelectionKeyboard,
+  buildMantokChestOverviewKeyboard,
+  buildMantokChestResultKeyboard
+} from "../../src/bot/keyboards/mantokChestKeyboard";
 import {
   buildDevResetKeyboard,
   buildMainMenuKeyboard,
@@ -705,6 +709,82 @@ describe("main menu and scene keyboards", () => {
       "v1:equip:clear:accessory",
       "v1:item:inventory"
     ]);
+  });
+
+  it("offers manual Mantok Chest selection and compact item-index callbacks", () => {
+    const token = "12345678-1234-4234-9234-123456789abc";
+
+    expect(flatInlineButtonTexts(buildMantokChestOverviewKeyboard())).toEqual([
+      "Згодувати 5 найдешевших",
+      "Обрати вручну",
+      "Що вона робить?",
+      "⬅️ До манаток"
+    ]);
+    expect(flatInlineButtonCallbacks(buildMantokChestOverviewKeyboard())).toEqual([
+      "v1:chest:auto",
+      "v1:chest:manual",
+      "v1:chest:help",
+      "v1:chest:inventory"
+    ]);
+
+    const keyboard = buildMantokChestManualSelectionKeyboard({
+      state: "selection",
+      run: {
+        id: "run-1",
+        characterId: "character-42",
+        token,
+        status: "pending",
+        inputItems: [],
+        outputItems: [],
+        averageInputScore: 30,
+        minimumOutputScore: 31,
+        outputScore: null,
+        completedAt: null,
+        createdAt: new Date("2026-06-15T07:30:00.000Z"),
+        updatedAt: new Date("2026-06-15T07:30:00.000Z")
+      },
+      items: [
+        {
+          itemId: "item.generated-very-long-loot-id-that-must-not-enter-callback",
+          quantity: 2,
+          score: 30,
+          index: 12,
+          selectedQuantity: 1,
+          availableQuantity: 2,
+          content: {
+            id: "item.generated-very-long-loot-id-that-must-not-enter-callback",
+            name: "Довга манатка",
+            description: "Тест.",
+            rarity: "common",
+            slot: "junk"
+          }
+        }
+      ],
+      selectedCount: 5,
+      requiredCount: 5,
+      eligibleCount: 9,
+      page: 2,
+      pageCount: 3
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "➖ Довга манатка",
+      "✅ До підтвердження",
+      "◀️ Назад",
+      "3/3",
+      "⬅️ Не годувати",
+      "⬅️ До манаток"
+    ]);
+    const callbacks = flatInlineButtonCallbacks(keyboard);
+    expect(callbacks).toEqual([
+      `v1:chest:rm:${token}:2:12`,
+      `v1:chest:preview:${token}`,
+      `v1:chest:page:${token}:1`,
+      `v1:chest:page:${token}:2`,
+      `v1:chest:cancel:${token}`,
+      "v1:chest:inventory"
+    ]);
+    expect(callbacks.every((callback) => Buffer.byteLength(callback, "utf8") <= 64)).toBe(true);
   });
 
   it("links Mantok Chest output directly to item details", () => {

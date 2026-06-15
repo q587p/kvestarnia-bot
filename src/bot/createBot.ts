@@ -105,6 +105,7 @@ import { buildHuntResultKeyboard } from "./keyboards/huntKeyboard";
 import { buildEquipmentKeyboard, buildItemDetailKeyboard } from "./keyboards/inventoryKeyboard";
 import {
   buildMantokChestHelpKeyboard,
+  buildMantokChestManualSelectionKeyboard,
   buildMantokChestOverviewKeyboard,
   buildMantokChestPreviewKeyboard,
   buildMantokChestResultKeyboard
@@ -164,6 +165,7 @@ import { presentItemDetail } from "./presenters/itemDetailPresenter";
 import { presentLevelUpCelebration } from "./presenters/levelGrowthPresenter";
 import {
   presentMantokChestHelp,
+  presentMantokChestManualSelection,
   presentMantokChestOverview,
   presentMantokChestPreview,
   presentMantokChestRecycleResult
@@ -1000,6 +1002,82 @@ async function handleMantokChestCallback(
       preview.state === "not-enough-items"
         ? { text: "Скрині треба 5 доступних манаток.", show_alert: true }
         : { show_alert: preview.state === "no-character" }
+    );
+    await safeEditMessageText(ctx, presentMantokChestPreview(preview), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        preview.state === "preview-created"
+          ? buildMantokChestPreviewKeyboard(preview.run.token)
+          : buildMantokChestOverviewKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "manual") {
+    const selection = await services.mantokChest.startManualSelectionForTelegramUser(telegramUserId);
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentMantokChestManualSelection(selection), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        selection.state === "selection"
+          ? buildMantokChestManualSelectionKeyboard(selection)
+          : buildMantokChestOverviewKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "page") {
+    const selection = await services.mantokChest.getManualSelectionForTelegramUser(
+      telegramUserId,
+      action.token,
+      action.page
+    );
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentMantokChestManualSelection(selection), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        selection.state === "selection"
+          ? buildMantokChestManualSelectionKeyboard(selection)
+          : buildMantokChestOverviewKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "add" || action.type === "remove") {
+    const selection =
+      action.type === "add"
+        ? await services.mantokChest.addManualSelectionUnitForTelegramUser(telegramUserId, action)
+        : await services.mantokChest.removeManualSelectionUnitForTelegramUser(telegramUserId, action);
+
+    await safeAnswerCallbackQuery(
+      ctx,
+      selection.state === "selection" && selection.selectedCount === selection.requiredCount
+        ? { text: "На виделці рівно 5 манаток." }
+        : undefined
+    );
+    await safeEditMessageText(ctx, presentMantokChestManualSelection(selection), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        selection.state === "selection"
+          ? buildMantokChestManualSelectionKeyboard(selection)
+          : buildMantokChestOverviewKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "preview") {
+    const preview = await services.mantokChest.getManualPreviewForTelegramUser(
+      telegramUserId,
+      action.token
+    );
+
+    await safeAnswerCallbackQuery(
+      ctx,
+      preview.state === "selection-incomplete"
+        ? { text: "Скрині треба рівно 5 манаток.", show_alert: true }
+        : { show_alert: preview.state !== "preview-created" }
     );
     await safeEditMessageText(ctx, presentMantokChestPreview(preview), {
       ...HTML_MESSAGE_OPTIONS,

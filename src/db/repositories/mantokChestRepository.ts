@@ -49,6 +49,20 @@ export interface MantokChestRepository {
       now: Date;
     }
   ): Promise<MantokChestRunRecord | null>;
+  findRunForTelegramUser(
+    telegramUserId: bigint,
+    token: string
+  ): Promise<MantokChestRunRecord | null>;
+  updatePendingRunInputItemsForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      token: string;
+      inputItems: MantokChestRunItem[];
+      averageInputScore: number;
+      minimumOutputScore: number;
+      now: Date;
+    }
+  ): Promise<MantokChestRunRecord | null>;
   cancelRunForTelegramUser(
     telegramUserId: bigint,
     token: string,
