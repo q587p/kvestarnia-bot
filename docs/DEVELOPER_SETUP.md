@@ -114,7 +114,15 @@ npm run check
 - `npm run db:generate` — Prisma Client.
 - `npm run db:validate` — перевірка Prisma schema.
 - `npm run db:migrate` — локальні міграції Prisma.
-- `npm run db:deploy` — застосування закомічених migrations для Render/CI.
+- `npm run db:deploy` — застосування закомічених migrations для Render/CI; якщо Render уже має failed migration record для `0.0.25`, скрипт спершу безпечно розрулює цей known state, а потім продовжує deploy.
+
+Recovery note for an already-failed Render DB after the fixed branch is deployed:
+
+```bash
+npx prisma migrate resolve --rolled-back 20260615140000_add_character_resource_regen_timestamps
+npm run db:deploy
+```
+
 - `npm run db:studio` — Prisma Studio.
 
 ## Render setup

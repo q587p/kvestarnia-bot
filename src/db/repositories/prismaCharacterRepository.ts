@@ -90,8 +90,10 @@ export class PrismaCharacterRepository implements CharacterRepository {
           },
           hpCurrent: input.expected.hpCurrent,
           manaCurrent: input.expected.manaCurrent,
-          ...(input.expected.hpRegenAt ? { hpRegenAt: input.expected.hpRegenAt } : {}),
-          ...(input.expected.manaRegenAt ? { manaRegenAt: input.expected.manaRegenAt } : {})
+          ...(input.expected.hpRegenAt === undefined ? {} : { hpRegenAt: input.expected.hpRegenAt }),
+          ...(input.expected.manaRegenAt === undefined
+            ? {}
+            : { manaRegenAt: input.expected.manaRegenAt })
         },
         data: {
           hpCurrent: input.hpCurrent,
