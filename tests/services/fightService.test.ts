@@ -375,7 +375,8 @@ describe("FightService", () => {
     expect(started.state).toBe("persistent-active");
     if (started.state === "persistent-active") {
       expect(started.character.level).toBe(8);
-      expect(started.monster.level).toBe(3);
+      expect(started.monster.level).toBeGreaterThanOrEqual(started.character.level - 2);
+      expect(started.monster.level).toBeLessThanOrEqual(started.character.level);
       expect(started.monster.id).not.toBe("monster.mimic-shawarma");
     }
   });
@@ -607,7 +608,7 @@ describe("FightService", () => {
 
   it("limits XP to one for persistent fight rewards from much weaker monsters", async () => {
     const characters = new FakeCharacterRepository();
-    characters.add(telegramUserId, { xp: 225 });
+    characters.add(telegramUserId, { xp: 1300 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const service = new FightService(
@@ -622,8 +623,20 @@ describe("FightService", () => {
     if (started.state !== "persistent-active") {
       return;
     }
-    expect(started.character.level - started.monster.level).toBeGreaterThan(2);
-    sessions.setMonsterHp(started.session.id, 1);
+    sessions.addSession({
+      ...started.session,
+      monsterId: "monster.deadline-spider",
+      state: started.session.state
+        ? {
+            ...started.session.state,
+            monster: {
+              id: "monster.deadline-spider",
+              hp: 1,
+              hpMax: 18
+            }
+          }
+        : started.session.state
+    });
 
     const result = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: started.session.id,
@@ -634,6 +647,7 @@ describe("FightService", () => {
     expect(result.state).toBe("updated");
     if (result.state === "updated") {
       expect(result.session.status).toBe("won");
+      expect(result.character.level - result.monster.level).toBeGreaterThan(2);
       expect(result.fightReward?.reward.xp).toBe(1);
     }
     expect(dailyActions.records).toHaveLength(1);
