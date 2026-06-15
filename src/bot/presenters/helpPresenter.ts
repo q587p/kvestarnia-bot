@@ -61,7 +61,7 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
   {
     commands: ["equipment", "gear", "equip"],
     icon: "🧥",
-    description: "спорядження без бонусів"
+    description: "спорядження й бонуси"
   },
   {
     commands: ["online"],
@@ -115,7 +115,7 @@ export function presentHelp(includeDevReset: boolean): string {
     ...commandLines.flatMap((line) => [line, ""])
   ];
 
-  lines.push("Повний бій, бонуси спорядження й ґільдії ще готуються.");
+  lines.push("Лут, ґільдії й повна бойова бухгалтерія ще готуються.");
 
   return lines.join("\n");
 }

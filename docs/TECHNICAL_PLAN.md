@@ -110,7 +110,8 @@ Future equipment/trading notes:
 - Equipping validates current ownership and known equippable content before upserting a slot. Unknown content ids, trophies, consumables, cosmetics, and junk are not equippable in this shell.
 - Current slot mapping: `weapon` → `weapon`, `armor` → `chest`, `accessory` → `accessory`. The repository slot vocabulary still allows `head` and `legs` for future compatibility, but the visible UI hides them until content/schema has real supported items.
 - Known equipment debt: `character_equipment` stores content `item_id`, not a concrete `character_item.id`. That is acceptable for the current MVP because equipping does not change quantity and there is no selling, trading, item instance state, or item-to-level exchange yet. Before any sell/trade/item-to-level flow, revisit this relation so equipped state cannot point at a stack that was consumed, transferred, split, or instance-mutated.
-- Equipment currently has no stat effects. `/hero`, fight preview, rewards, cooldowns, HP/mana, and level-up math remain unchanged. Future stat effects should layer through one equipment/effective-stats helper, not ad hoc presenter math.
+- `0.0.22` adds small item effects to supported equippable content and routes them through `buildEffectiveCharacterStats(...)`: base character values + level growth + equipped item effects produce one `CharacterSummary` for `/hero`, `/equipment`, item detail, and persistent solo combat. Presenters format the resulting contributions; they do not calculate combat bonuses.
+- Persistent fight sessions use effective HP/mana maxima when a new fight starts. During turns, weapon/armor/stat/spell bonuses are read from the same equipment-aware summary path, so swapping манатки can affect future turn calculations. Existing session HP/mana values remain the stored combat state and are not secretly healed or refilled by equipment changes.
 - Item content metadata should eventually support `requiredLevel`, allowed `raceId`/`classId` lists, and optional hidden `path`/pronoun selectors for rare restricted манатки.
 - Item content metadata includes `goldValue` for priced items or an explicit `priceless` marker for story trophies and special collectibles. Current code displays this in item detail, inventory total value, and hero wallet context; it does not sell, trade, convert, or spend items.
 - `character_items` stays the ownership/count table. Actual equipment slots, temporary permission effects, cursed exceptions, attunement, respec/form-change state, and trade offers should be separate rows or state machines.
@@ -489,7 +490,7 @@ Future combat-state note: this is an alpha shortcut, not the final resource mode
 - Mana max: `stored manaMax + (level - 1) * 2`.
 - Primary stat: `stored primary stat + (level - 1)`.
 
-Future equipment effects should layer on top of this effective-stats helper instead of rewriting stored starter values.
+`0.0.22` layers equipment effects on top of this helper instead of rewriting stored starter values. The stored `hpMax`/`manaMax`/`statsJson` remain the base; equipped item content contributes additional summary values at read time.
 
 Future progression pass:
 - Revisit the alpha formulas so level has a stronger, visible impact on HP, mana, combat coefficients, event checks, and activity/content gates.

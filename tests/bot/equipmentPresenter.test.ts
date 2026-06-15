@@ -7,7 +7,7 @@ describe("equipment presenter", () => {
     expect(presentEquipment({ state: "no-character" })).toContain("/start");
   });
 
-  it("shows persistent slots without claiming stat effects", () => {
+  it("shows persistent slots and equipped stat effects", () => {
     const text = presentEquipment(emptyEquipment());
 
     expect(text).toContain("🧥 <b>Спорядження</b>");
@@ -19,25 +19,26 @@ describe("equipment presenter", () => {
         "🗡️ <b>Зброя</b>: <i>гачок чекає важкий аргумент.</i>",
         "",
         "🧥 <b>Тулуб</b>: Фартух піностійкого пригодника",
+        "Ефект: <i>+2 HP · +1 до захисту</i>",
         "",
-        "💍 <b>Аксесуар</b>: Корковий перстень серйозних справ"
+        "💍 <b>Аксесуар</b>: Корковий перстень серйозних справ",
+        "Ефект: <i>+1 Вдачі</i>"
       ].join("\n")
     );
     expect(text).not.toContain("🎩 <b>Голова</b>");
     expect(text).not.toContain("🥾 <b>Ноги</b>");
-    expect(text).toContain("Бонуси спорядження ще не рахуються");
+    expect(text).toContain("Манатки нарешті штовхають циферки");
     expect(text).toContain(
-      "Корчма вже запамʼятовує, що висить на пригоднику.\n\n<i>Бонуси спорядження ще не рахуються.</i>"
+      "Корчма вже запамʼятовує, що висить на пригоднику.\n\n<i>Манатки нарешті штовхають циферки."
     );
-    expect(text).toContain("HP, мана, бій і нагороди не змінюються");
-    expect(text).not.toContain("+2");
-    expect(text).not.toContain("додає");
+    expect(text).not.toContain("HP, мана, бій і нагороди не змінюються");
   });
 
   it("shows equipped items in their persisted slots", () => {
     const text = presentEquipment(foundEquipment());
 
     expect(text).toContain("🗡️ <b>Зброя</b>: Пательня переконання");
+    expect(text).toContain("Ефект: <i>+2 до удару</i>");
     expect(text).toContain("🧥 <b>Тулуб</b>: Фартух піностійкого пригодника");
     expect(text).toContain("💍 <b>Аксесуар</b>: Корковий перстень серйозних справ");
     expect(text).not.toContain("Пательня переконання — приклад");
@@ -89,7 +90,11 @@ function emptyEquipment(): EquipmentResult {
             description: "Пережив бочку.",
             rarity: "common",
             slot: "armor",
-            goldValue: 14
+            goldValue: 14,
+            effect: {
+              armor: 1,
+              hpMax: 2
+            }
           }
         }
       },
@@ -104,7 +109,10 @@ function emptyEquipment(): EquipmentResult {
             description: "Миша сказала, що це печатка.",
             rarity: "common",
             slot: "accessory",
-            goldValue: 6
+            goldValue: 6,
+            effect: {
+              luck: 1
+            }
           }
         }
       }
@@ -126,7 +134,10 @@ function foundEquipment(): EquipmentResult {
             description: "Важкий аргумент.",
             rarity: "common",
             slot: "weapon",
-            goldValue: 25
+            goldValue: 25,
+            effect: {
+              weaponDamage: 2
+            }
           }
         }
       },
@@ -141,7 +152,11 @@ function foundEquipment(): EquipmentResult {
             description: "Пережив бочку.",
             rarity: "common",
             slot: "armor",
-            goldValue: 14
+            goldValue: 14,
+            effect: {
+              armor: 1,
+              hpMax: 2
+            }
           }
         }
       },
@@ -156,7 +171,10 @@ function foundEquipment(): EquipmentResult {
             description: "Миша сказала, що це печатка.",
             rarity: "common",
             slot: "accessory",
-            goldValue: 6
+            goldValue: 6,
+            effect: {
+              luck: 1
+            }
           }
         }
       }

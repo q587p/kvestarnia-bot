@@ -54,7 +54,7 @@ Equipment effects для атак мають заходити через оди�
 - accessory може давати малий situational modifier, resource discount або extra flavor hook;
 - priceless/trophy items не дають бойових бонусів, доки контент явно не переведений у equippable/effect item.
 
-`0.0.21` persistent solo `/fight` використовує бойовий рушій у runtime, але навмисно не видає XP, золото або лут. Це дає перевірити session correctness, stale callbacks, mana failure і terminal states без нового economy source. Наступний балансний крок — equipment stat effects через один helper, а вже потім reward/loot path для перемог.
+`0.0.21` persistent solo `/fight` використовує бойовий рушій у runtime, але навмисно не видає XP, золото або лут. Це дає перевірити session correctness, stale callbacks, mana failure і terminal states без нового economy source. `0.0.22` додає перші малі equipment stat effects через один helper, а наступний балансний крок — reward/loot path для перемог.
 
 ### Hit chance
 MVP можна почати без промахів у звичайній атаці або з дуже простим шансом:
@@ -145,7 +145,15 @@ item_power_budget = base_by_level + rarity_bonus
 
 Не робити предмети з безкоштовними бонусами. Якщо предмет дає сильний ефект, він має нижчі стати або кулдаун.
 
-`0.0.14` має persistent equipment shell, але це ще не балансний важіль. Екіпірована пательня або обладунок мають зберігатися й показуватися, але не змінювати `/hero`, HP, ману, fight preview, rewards, cooldowns або level-up math. Перший прохід stat effects має йти через один equipment/effective-stats helper із тестами, щоб предмети не почали додавати силу з різних місць коду.
+`0.0.22` робить persistent equipment першим малим балансним важелем. Ефекти йдуть тільки з content metadata через один equipment/effective-stats helper: `/hero`, `/equipment`, item detail і persistent solo combat читають однаковий summary. Нова fight-сесія бере effective HP/ману на старті, а наступні ходи читають live equipment-aware combat stats без прихованого лікування чи refill-а. Поточний budget навмисно скромний:
+- `item.pan-of-persuasion`: `weaponDamage +2`;
+- `item.stamp-of-minor-authority`: `weaponDamage +1`, `intelligence +1`;
+- `item.apron-of-foam-resistance`: `armor +1`, `hpMax +2`;
+- `item.pot-helmet-of-early-access`: `armor +1`;
+- `item.cork-ring-of-serious-business`: `luck +1`;
+- `item.badge-of-thirteen-small-problems`: no power effect.
+
+Junk, cosmetics, priceless trophies і quest badges не мають випадкових power effects. Якщо майбутній предмет має впливати на combat, його треба явно перевести в supported equippable content і покрити тестом.
 
 `0.0.15` додає reachable starter gear для всіх видимих слотів: weapon через `/fight`, armor через Бочку Пінного Міражу, accessory через підвальну мишу. Це розширює контент і оцінну вартість манаток, але не додає бойових ефектів, sell/trade логіки або нових reward formulas.
 
@@ -195,7 +203,7 @@ item_power_budget = base_by_level + rarity_bonus
 npm run simulate:combat -- -- --levels 1-10 --runs 1000
 ```
 
-Це допоміжний інструмент для playtest-циклу, а не production-фіча і не доказ фінального балансу. Звіт варто читати разом із реальними `/fight` сесіями, equipment effects і loot progression, коли вони вже будуть підключені.
+Це допоміжний інструмент для playtest-циклу, а не production-фіча і не доказ фінального балансу. Звіт варто читати разом із реальними `/fight` сесіями, поточними equipment effects і майбутнім loot progression.
 
 ## Anti-snowball
 - Рейдові нагороди: участь + performance, але не winner-takes-all.

@@ -1,4 +1,5 @@
 import { classes } from "../../content/classes";
+import type { ItemEffectContent } from "../../content/schema";
 import type { CharacterStats, StatKey } from "../characters/starterStats";
 
 export interface EffectiveCharacterStatsInput {
@@ -9,6 +10,7 @@ export interface EffectiveCharacterStatsInput {
   manaCurrent: number;
   manaMax: number;
   stats: CharacterStats;
+  equipment?: EquipmentEffectSource[];
 }
 
 export interface LevelPrimaryStatBonus {
@@ -29,6 +31,30 @@ export interface EffectiveCharacterStats {
   manaMax: number;
   stats: CharacterStats;
   levelBonus: LevelBonus;
+  equipmentEffects: EquipmentEffectSummary;
+}
+
+export interface EquipmentEffectSource {
+  itemId: string;
+  itemName: string;
+  effect?: ItemEffectContent;
+}
+
+export interface EquipmentEffectContribution {
+  itemId: string;
+  itemName: string;
+  effect: ItemEffectContent;
+}
+
+export interface EquipmentEffectSummary {
+  hpMax: number;
+  manaMax: number;
+  armor: number;
+  resist: number;
+  weaponDamage: number;
+  spellPower: number;
+  stats: CharacterStats;
+  contributions: EquipmentEffectContribution[];
 }
 
 const HP_MAX_PER_LEVEL = 4;
@@ -39,14 +65,22 @@ export function buildEffectiveCharacterStats(
   input: EffectiveCharacterStatsInput
 ): EffectiveCharacterStats {
   const levelBonus = buildLevelBonus(input.level, input.classId);
+  const equipmentEffects = buildEquipmentEffectSummary(input.equipment ?? []);
   const stats = { ...input.stats };
 
   if (levelBonus.primaryStat) {
     stats[levelBonus.primaryStat.stat] += levelBonus.primaryStat.bonus;
   }
 
-  const hpMax = Math.max(1, Math.floor(input.hpMax) + levelBonus.hpMax);
-  const manaMax = Math.max(0, Math.floor(input.manaMax) + levelBonus.manaMax);
+  for (const stat of statKeys) {
+    stats[stat] += equipmentEffects.stats[stat];
+  }
+
+  const hpMax = Math.max(1, Math.floor(input.hpMax) + levelBonus.hpMax + equipmentEffects.hpMax);
+  const manaMax = Math.max(
+    0,
+    Math.floor(input.manaMax) + levelBonus.manaMax + equipmentEffects.manaMax
+  );
 
   return {
     hpCurrent: hpMax,
@@ -54,7 +88,57 @@ export function buildEffectiveCharacterStats(
     manaCurrent: manaMax,
     manaMax,
     stats,
-    levelBonus
+    levelBonus,
+    equipmentEffects
+  };
+}
+
+export function buildEquipmentEffectSummary(
+  sources: EquipmentEffectSource[]
+): EquipmentEffectSummary {
+  const summary = createEmptyEquipmentEffectSummary();
+
+  for (const source of sources) {
+    if (!source.effect) {
+      continue;
+    }
+
+    summary.contributions.push({
+      itemId: source.itemId,
+      itemName: source.itemName,
+      effect: source.effect
+    });
+    summary.hpMax += source.effect.hpMax ?? 0;
+    summary.manaMax += source.effect.manaMax ?? 0;
+    summary.armor += source.effect.armor ?? 0;
+    summary.resist += source.effect.resist ?? 0;
+    summary.weaponDamage += source.effect.weaponDamage ?? 0;
+    summary.spellPower += source.effect.spellPower ?? 0;
+
+    for (const stat of statKeys) {
+      summary.stats[stat] += source.effect[stat] ?? 0;
+    }
+  }
+
+  return summary;
+}
+
+export function createEmptyEquipmentEffectSummary(): EquipmentEffectSummary {
+  return {
+    hpMax: 0,
+    manaMax: 0,
+    armor: 0,
+    resist: 0,
+    weaponDamage: 0,
+    spellPower: 0,
+    stats: {
+      strength: 0,
+      dexterity: 0,
+      intelligence: 0,
+      charisma: 0,
+      luck: 0
+    },
+    contributions: []
   };
 }
 
@@ -107,3 +191,11 @@ function normalizeLevel(level: number): number {
 function findPrimaryStat(classId: string): StatKey | undefined {
   return classes.find((candidate) => candidate.id === classId)?.primaryStat;
 }
+
+const statKeys: readonly StatKey[] = [
+  "strength",
+  "dexterity",
+  "intelligence",
+  "charisma",
+  "luck"
+];

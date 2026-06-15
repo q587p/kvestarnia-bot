@@ -45,6 +45,22 @@ export const monsterSchema = z.object({
 
 export const itemRaritySchema = z.enum(["common", "uncommon", "rare", "epic"]);
 
+export const itemEffectSchema = z.object({
+  hpMax: z.number().int().min(0).max(20).optional(),
+  manaMax: z.number().int().min(0).max(20).optional(),
+  strength: z.number().int().min(0).max(10).optional(),
+  dexterity: z.number().int().min(0).max(10).optional(),
+  intelligence: z.number().int().min(0).max(10).optional(),
+  charisma: z.number().int().min(0).max(10).optional(),
+  luck: z.number().int().min(0).max(10).optional(),
+  armor: z.number().int().min(0).max(10).optional(),
+  resist: z.number().int().min(0).max(10).optional(),
+  weaponDamage: z.number().int().min(0).max(10).optional(),
+  spellPower: z.number().int().min(0).max(10).optional()
+}).strict().refine((effect) => Object.values(effect).some((value) => value !== undefined), {
+  message: "Item effect must contain at least one supported bonus."
+});
+
 export const itemSchema = z.object({
   id: contentIdSchema,
   name: z.string().min(1),
@@ -52,7 +68,8 @@ export const itemSchema = z.object({
   rarity: itemRaritySchema,
   slot: z.enum(["weapon", "armor", "accessory", "consumable", "cosmetic", "junk"]),
   goldValue: z.number().int().min(0).optional(),
-  priceless: z.boolean().optional()
+  priceless: z.boolean().optional(),
+  effect: itemEffectSchema.optional()
 }).superRefine((item, ctx) => {
   const hasGoldValue = item.goldValue !== undefined;
   const isPriceless = item.priceless === true;
@@ -70,10 +87,18 @@ export const itemSchema = z.object({
       message: "Item must have goldValue or priceless."
     });
   }
+
+  if (item.effect && !["weapon", "armor", "accessory"].includes(item.slot)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Only equippable items can have item effects."
+    });
+  }
 });
 
 export type RaceContent = z.infer<typeof raceSchema>;
 export type ClassContent = z.infer<typeof classSchema>;
 export type Pronoun = z.infer<typeof pronounSchema>;
 export type MonsterContent = z.infer<typeof monsterSchema>;
+export type ItemEffectContent = z.infer<typeof itemEffectSchema>;
 export type ItemContent = z.infer<typeof itemSchema>;

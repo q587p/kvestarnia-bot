@@ -9,6 +9,11 @@ import type {
   CharacterItemRecord,
   InventoryRepository
 } from "../../src/db/repositories/inventoryRepository";
+import type {
+  CharacterEquipmentRecord,
+  CharacterEquipmentSnapshot,
+  EquipmentRepository
+} from "../../src/db/repositories/equipmentRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { HeroService } from "../../src/services/heroService";
 
@@ -30,13 +35,26 @@ describe("HeroService", () => {
           itemId: "item.wet-hero-ticket",
           quantity: 8
         })
-      ])
+      ]),
+      new FakeEquipmentRepository({
+        characterId: "character-42",
+        equipment: [
+          buildEquipment({ slot: "weapon", itemId: "item.pan-of-persuasion" }),
+          buildEquipment({ id: "equipment-2", slot: "chest", itemId: "item.apron-of-foam-resistance" })
+        ]
+      })
     );
 
     await expect(service.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       state: "existing-character",
       character: {
-        gold: 9
+        gold: 9,
+        hpMax: 24,
+        equipmentEffects: {
+          hpMax: 2,
+          armor: 1,
+          weaponDamage: 2
+        }
       },
       inventoryGoldValue: 29
     });
@@ -76,6 +94,18 @@ function buildCharacter(overrides: Partial<CharacterRecord> = {}): CharacterReco
       charisma: 6,
       luck: 6
     },
+    ...overrides
+  };
+}
+
+function buildEquipment(overrides: Partial<CharacterEquipmentRecord>): CharacterEquipmentRecord {
+  return {
+    id: "equipment-1",
+    characterId: "character-42",
+    slot: "weapon",
+    itemId: "item.pan-of-persuasion",
+    createdAt: new Date("2026-06-13T12:00:00.000Z"),
+    updatedAt: new Date("2026-06-13T12:00:00.000Z"),
     ...overrides
   };
 }
@@ -127,5 +157,21 @@ class FakeInventoryRepository implements InventoryRepository {
   listByTelegramUserId(): Promise<CharacterItemRecord[] | null> {
     this.listCount += 1;
     return Promise.resolve(this.rows);
+  }
+}
+
+class FakeEquipmentRepository implements EquipmentRepository {
+  constructor(private readonly snapshot: CharacterEquipmentSnapshot | null) {}
+
+  listByTelegramUserId(): Promise<CharacterEquipmentSnapshot | null> {
+    return Promise.resolve(this.snapshot);
+  }
+
+  equipForCharacter(): Promise<CharacterEquipmentRecord> {
+    throw new Error("Not needed in this test.");
+  }
+
+  unequipForCharacter(): Promise<boolean> {
+    throw new Error("Not needed in this test.");
   }
 }

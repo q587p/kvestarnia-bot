@@ -14,7 +14,7 @@ export function rollBasicAttack(
   rng: RandomSource
 ): HeroAttackRoll {
   return rollHeroDamage({
-    baseDamage: hero.weaponDamage ?? 2,
+    baseDamage: 2 + (hero.weaponDamage ?? 0),
     statValue: hero.strength,
     level: hero.level,
     armorOrResist: monster.armor,

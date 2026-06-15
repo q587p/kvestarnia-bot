@@ -18,6 +18,11 @@ import type {
   SoloCombatSessionStatus,
   UpdateSoloCombatSessionInput
 } from "../../src/db/repositories/soloCombatSessionRepository";
+import type {
+  CharacterEquipmentRecord,
+  CharacterEquipmentSnapshot,
+  EquipmentRepository
+} from "../../src/db/repositories/equipmentRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import type { CombatState } from "../../src/domain/combat";
 import { getLevelForXp } from "../../src/domain/progression/level";
@@ -348,6 +353,122 @@ describe("FightService", () => {
     }
     expect(sessions.createCount).toBe(1);
     expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("uses live equipped weapon bonuses during persistent fight turns", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const equipment = new FakeEquipmentRepository({ characterId: "character-42", equipment: [] });
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0.9, 0.6, 0.1, 0.1, 0.9, 0.6]),
+      equipment
+    );
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+
+    expect(started.session.state?.hero).toMatchObject({
+      hp: 30,
+      hpMax: 30,
+      mana: 14,
+      manaMax: 14
+    });
+
+    equipment.setSnapshot({
+      characterId: "character-42",
+      equipment: [buildEquipment({ slot: "weapon", itemId: "item.pan-of-persuasion" })]
+    });
+
+    const equippedTurn = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(equippedTurn.state).toBe("updated");
+    if (equippedTurn.state !== "updated") {
+      return;
+    }
+
+    const withoutEquipment = new FakeCharacterRepository();
+    withoutEquipment.add(telegramUserId, { xp: 25 });
+    const withoutEquipmentSessions = new FakeSoloCombatSessionRepository(withoutEquipment);
+    const withoutEquipmentService = new FightService(
+      withoutEquipment,
+      new FakeDailyActionRepository(withoutEquipment),
+      fixedClock,
+      withoutEquipmentSessions,
+      new FakeRandomSource([0.1, 0.1, 0.9, 0.6]),
+      new FakeEquipmentRepository({ characterId: "character-42", equipment: [] })
+    );
+    const baselineStarted = await withoutEquipmentService.getFightForTelegramUser(telegramUserId);
+    expect(baselineStarted.state).toBe("persistent-active");
+    if (baselineStarted.state !== "persistent-active") {
+      return;
+    }
+    const baselineTurn = await withoutEquipmentService.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: baselineStarted.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(baselineTurn.state).toBe("updated");
+    if (baselineTurn.state === "updated") {
+      expect(equippedTurn.session.state?.lastTurn?.heroDamage).toBeGreaterThan(
+        baselineTurn.session.state?.lastTurn?.heroDamage ?? 0
+      );
+      expect(equippedTurn.session.state?.lastTurn?.heroDamage).toBe(10);
+      expect(baselineTurn.session.state?.lastTurn?.heroDamage).toBe(8);
+    }
+  });
+
+  it("does not refill active fight resources when equipment changes mid-fight", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const equipment = new FakeEquipmentRepository({ characterId: "character-42", equipment: [] });
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0.9, 0.6]),
+      equipment
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+
+    sessions.setHeroHp(started.session.id, 12);
+    equipment.setSnapshot({
+      characterId: "character-42",
+      equipment: [buildEquipment({ slot: "chest", itemId: "item.apron-of-foam-resistance" })]
+    });
+
+    const turn = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(turn.state).toBe("updated");
+    if (turn.state === "updated") {
+      expect(turn.character.equipmentEffects).toMatchObject({ hpMax: 2, armor: 1 });
+      expect(turn.session.state?.hero.hpMax).toBe(30);
+      expect(turn.session.state?.hero.hp).toBeLessThan(12);
+    }
   });
 
   it("expires an active persistent fight with a missing monster instead of returning a dead-end", async () => {
@@ -735,6 +856,18 @@ function fixedClock(): Date {
   return new Date("2026-06-12T10:30:00.000Z");
 }
 
+function buildEquipment(overrides: Partial<CharacterEquipmentRecord>): CharacterEquipmentRecord {
+  return {
+    id: "equipment-1",
+    characterId: "character-42",
+    slot: "weapon",
+    itemId: "item.pan-of-persuasion",
+    createdAt: fixedClock(),
+    updatedAt: fixedClock(),
+    ...overrides
+  };
+}
+
 class FakeCharacterRepository implements CharacterRepository {
   private readonly charactersByTelegramUserId = new Map<bigint, CharacterRecord>();
 
@@ -918,6 +1051,26 @@ class FakeDailyActionRepository implements DailyActionRepository {
   }
 }
 
+class FakeEquipmentRepository implements EquipmentRepository {
+  constructor(private snapshot: CharacterEquipmentSnapshot | null) {}
+
+  listByTelegramUserId(): Promise<CharacterEquipmentSnapshot | null> {
+    return Promise.resolve(this.snapshot);
+  }
+
+  setSnapshot(snapshot: CharacterEquipmentSnapshot | null): void {
+    this.snapshot = snapshot;
+  }
+
+  equipForCharacter(): Promise<CharacterEquipmentRecord> {
+    throw new Error("Not needed in this test.");
+  }
+
+  unequipForCharacter(): Promise<boolean> {
+    throw new Error("Not needed in this test.");
+  }
+}
+
 class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   private readonly sessions = new Map<string, SoloCombatSessionRecord>();
   createCount = 0;
@@ -1078,6 +1231,25 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
         hero: {
           ...session.state.hero,
           mana
+        }
+      }
+    });
+  }
+
+  setHeroHp(sessionId: string, hp: number): void {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return;
+    }
+
+    this.sessions.set(sessionId, {
+      ...session,
+      state: {
+        ...session.state,
+        hero: {
+          ...session.state.hero,
+          hp
         }
       }
     });

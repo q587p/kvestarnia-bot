@@ -395,7 +395,9 @@ describe("HuntService", () => {
 
         expect(itemIds.has(itemId)).toBe(true);
         expect(item?.goldValue !== undefined || item?.priceless === true).toBe(true);
-        expect(item).not.toHaveProperty("effect");
+        if (item?.effect) {
+          expect(["weapon", "armor", "accessory"]).toContain(item.slot);
+        }
         expect(item).not.toHaveProperty("statBonus");
       }
     }

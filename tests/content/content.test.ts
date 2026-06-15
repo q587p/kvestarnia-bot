@@ -49,7 +49,7 @@ describe("content tables", () => {
     );
   });
 
-  it("keeps equipment preview content free of stat effects", () => {
+  it("gives starter equipment small declared effects", () => {
     const equippablePreviewItems = items.filter((item) =>
       ["weapon", "armor", "accessory"].includes(item.slot)
     );
@@ -62,12 +62,63 @@ describe("content tables", () => {
         "item.cork-ring-of-serious-business"
       ])
     );
-    for (const item of items) {
+    expect(items.find((item) => item.id === "item.pan-of-persuasion")).toMatchObject({
+      effect: {
+        weaponDamage: 2
+      }
+    });
+    expect(items.find((item) => item.id === "item.stamp-of-minor-authority")).toMatchObject({
+      effect: {
+        weaponDamage: 1,
+        intelligence: 1
+      }
+    });
+    expect(items.find((item) => item.id === "item.apron-of-foam-resistance")).toMatchObject({
+      effect: {
+        armor: 1,
+        hpMax: 2
+      }
+    });
+    expect(items.find((item) => item.id === "item.cork-ring-of-serious-business")).toMatchObject({
+      effect: {
+        luck: 1
+      }
+    });
+  });
+
+  it("keeps junk, cosmetics, and the thirteen-problems badge free of power effects", () => {
+    for (const item of items.filter((candidate) =>
+      ["junk", "cosmetic", "consumable"].includes(candidate.slot)
+    )) {
+      expect(item).not.toHaveProperty("effect");
       expect(item).not.toHaveProperty("stats");
       expect(item).not.toHaveProperty("effects");
       expect(item).not.toHaveProperty("combatBonus");
       expect(item).not.toHaveProperty("rewardBonus");
     }
+
+    expect(items.find((item) => item.id === "item.badge-of-thirteen-small-problems")).toMatchObject({
+      slot: "cosmetic"
+    });
+    expect(items.find((item) => item.id === "item.badge-of-thirteen-small-problems")).not.toHaveProperty(
+      "effect"
+    );
+  });
+
+  it("rejects accidental power effects on unsupported item slots", () => {
+    expect(() =>
+      itemSchema.parse({
+        id: "item.test-junk-power",
+        name: "Сміття з амбіціями",
+        description: "Дуже хоче бути мечем.",
+        rarity: "common",
+        slot: "junk",
+        goldValue: 1,
+        effect: {
+          weaponDamage: 1
+        }
+      })
+    ).toThrow();
   });
 
   it("gives every item either a gold value or a priceless marker", () => {
