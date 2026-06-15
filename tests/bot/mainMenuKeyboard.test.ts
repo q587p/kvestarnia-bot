@@ -432,6 +432,86 @@ describe("main menu and scene keyboards", () => {
       "v1:item:inventory",
       "v1:item:inventory:1"
     ]);
+    expect(
+      flatInlineButtonTexts(
+        buildInventoryKeyboard(
+          {
+            state: "found",
+            totalGoldValue: 0,
+            items: [
+              {
+                id: "character-item-1",
+                itemId: "item.pan-of-persuasion",
+                quantity: 1,
+                content: {
+                  id: "item.pan-of-persuasion",
+                  name: "Пательня переконання",
+                  description: "Важкий аргумент.",
+                  rarity: "common",
+                  slot: "weapon",
+                  goldValue: 25
+                }
+              },
+              {
+                id: "character-item-2",
+                itemId: "item.wet-hero-ticket",
+                quantity: 1,
+                content: {
+                  id: "item.wet-hero-ticket",
+                  name: "Квиток мокрого пригодника",
+                  description: "Трофей.",
+                  rarity: "common",
+                  slot: "junk",
+                  priceless: true
+                }
+              }
+            ]
+          },
+          0,
+          "weapon"
+        )
+      )
+    ).toEqual(["🛡️ Спорядження", "🎒 Усі манатки", "🔎 Пательня переконання"]);
+    expect(
+      flatInlineButtonCallbacks(
+        buildInventoryKeyboard(
+          {
+            state: "found",
+            totalGoldValue: 0,
+            items: [
+              {
+                id: "character-item-1",
+                itemId: "item.pan-of-persuasion",
+                quantity: 1,
+                content: {
+                  id: "item.pan-of-persuasion",
+                  name: "Пательня переконання",
+                  description: "Важкий аргумент.",
+                  rarity: "common",
+                  slot: "weapon",
+                  goldValue: 25
+                }
+              },
+              {
+                id: "character-item-2",
+                itemId: "item.wet-hero-ticket",
+                quantity: 1,
+                content: {
+                  id: "item.wet-hero-ticket",
+                  name: "Квиток мокрого пригодника",
+                  description: "Трофей.",
+                  rarity: "common",
+                  slot: "junk",
+                  priceless: true
+                }
+              }
+            ]
+          },
+          0,
+          "weapon"
+        )
+      )
+    ).toEqual(["v1:equip:view", "v1:item:inventory", "v1:item:detail:item.pan-of-persuasion:s:w"]);
     expect(flatInlineButtonTexts(buildItemDetailKeyboard({ state: "not-owned" }))).toEqual([
       "⬅️ До манаток",
       "🛡️ Спорядження"
@@ -480,6 +560,56 @@ describe("main menu and scene keyboards", () => {
         )
       )
     ).toEqual(["Зняти", "⬅️ До манаток", "🛡️ Спорядження"]);
+    expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-1",
+              itemId: "item.pan-of-persuasion",
+              quantity: 1,
+              content: {
+                id: "item.pan-of-persuasion",
+                name: "Пательня переконання",
+                description: "Важкий аргумент.",
+                rarity: "common",
+                slot: "weapon",
+                goldValue: 25
+              }
+            }
+          },
+          null,
+          0,
+          "weapon"
+        )
+      )
+    ).toEqual(["🧥 Екіпірувати", "⬅️ До списку слота", "🛡️ Спорядження"]);
+    expect(
+      flatInlineButtonCallbacks(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-1",
+              itemId: "item.pan-of-persuasion",
+              quantity: 1,
+              content: {
+                id: "item.pan-of-persuasion",
+                name: "Пательня переконання",
+                description: "Важкий аргумент.",
+                rarity: "common",
+                slot: "weapon",
+                goldValue: 25
+              }
+            }
+          },
+          null,
+          0,
+          "weapon"
+        )
+      )
+    ).toEqual(["v1:equip:item:item.pan-of-persuasion", "v1:item:inventory:s:w", "v1:equip:view"]);
     expect(flatInlineButtonTexts(buildEquipmentKeyboard({ state: "no-character" }))).toEqual([]);
     expect(
       flatInlineButtonTexts(
@@ -520,7 +650,61 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["Зняти зброю", "Зняти аксесуар", "⬅️ До манаток"]);
+    ).toEqual([
+      "🗡️ Показати зброю",
+      "🧥 Показати тулуб",
+      "💍 Показати аксесуари",
+      "Зняти зброю",
+      "Зняти аксесуар",
+      "⬅️ До манаток"
+    ]);
+    expect(
+      flatInlineButtonCallbacks(
+        buildEquipmentKeyboard({
+          state: "ready",
+          slots: [
+            {
+              slot: "weapon",
+              item: {
+                itemId: "item.pan-of-persuasion",
+                content: {
+                  id: "item.pan-of-persuasion",
+                  name: "Пательня переконання",
+                  description: "Важкий аргумент.",
+                  rarity: "common",
+                  slot: "weapon",
+                  goldValue: 25
+                }
+              }
+            },
+            { slot: "head", item: null },
+            { slot: "chest", item: null },
+            { slot: "legs", item: null },
+            {
+              slot: "accessory",
+              item: {
+                itemId: "item.cork-ring-of-serious-business",
+                content: {
+                  id: "item.cork-ring-of-serious-business",
+                  name: "Корковий перстень серйозних справ",
+                  description: "Малий гачок обережно блищить.",
+                  rarity: "common",
+                  slot: "accessory",
+                  goldValue: 6
+                }
+              }
+            }
+          ]
+        })
+      )
+    ).toEqual([
+      "v1:item:inventory:s:w",
+      "v1:item:inventory:s:c",
+      "v1:item:inventory:s:a",
+      "v1:equip:clear:weapon",
+      "v1:equip:clear:accessory",
+      "v1:item:inventory"
+    ]);
   });
 
   it("links Mantok Chest output directly to item details", () => {

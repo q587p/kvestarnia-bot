@@ -95,9 +95,40 @@ describe("inventory presenter", () => {
     expect(secondPage).toContain(`<b>Манатка ${INVENTORY_PAGE_SIZE + 1}</b>`);
     expect(secondPage).not.toContain("<b>Манатка 1</b>");
   });
+
+  it("filters inventory by equipment slot", () => {
+    const result: InventoryResult = {
+      state: "found",
+      totalGoldValue: 0,
+      items: [
+        item("item.test-weapon", "Тестова пательня", "weapon"),
+        item("item.test-armor", "Тестовий фартух", "armor"),
+        item("item.test-junk", "Тестова квитанція", "junk")
+      ]
+    };
+    const text = presentInventory(result, 0, "weapon");
+
+    expect(text).toContain("🗡️ <b>Манатки-зброя</b>");
+    expect(text).toContain("Показано лише те, що можна спробувати вдягнути в цей слот.");
+    expect(text).toContain("<b>Тестова пательня</b>");
+    expect(text).not.toContain("<b>Тестовий фартух</b>");
+    expect(text).not.toContain("<b>Тестова квитанція</b>");
+  });
+
+  it("explains when a filtered equipment slot has no items", () => {
+    const result: InventoryResult = {
+      state: "found",
+      totalGoldValue: 0,
+      items: [item("item.test-junk", "Тестова квитанція", "junk")]
+    };
+    const text = presentInventory(result, 0, "accessory");
+
+    expect(text).toContain("💍 <b>Манатки-аксесуари</b>");
+    expect(text).toContain("У торбі поки немає манаток для цього гачка.");
+  });
 });
 
-function item(itemId: string, name: string): InventoryItemSummary {
+function item(itemId: string, name: string, slot = "junk"): InventoryItemSummary {
   return {
     id: `character-${itemId}`,
     itemId,
@@ -107,7 +138,7 @@ function item(itemId: string, name: string): InventoryItemSummary {
       name,
       description: "Лежить і чекає, коли її перегорнуть.",
       rarity: "common",
-      slot: "junk",
+      slot,
       priceless: true
     }
   };
