@@ -24,6 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Persistent fight terminal states now save the actual remaining HP/mana back to the character and start recovery from that point.
 - Fight result screens now show the post-fight HP/mana snapshot.
 - Persistent fight loot now can include weighted Loot Expansion v1 items while preserving existing idempotent reward replay.
+- Persistent fight last-turn summaries now use short separate lines instead of stacking multiple colons in one sentence.
 
 ### Not Included Yet
 - Potions, temple healing, paid healing, consumable item use, combat-time regeneration, full death penalties, resource-management манатки, full effect processors for every loot effect id, shops, trading, crafting, or item-instance inventory.

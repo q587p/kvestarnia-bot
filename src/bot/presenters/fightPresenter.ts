@@ -370,37 +370,41 @@ function presentThirteenSmallProblemsReward(reward: ThirteenSmallProblemsReward)
 
 function presentTurnSummary(summary: CombatTurnSummary): string {
   if (summary.heroOutcome === "not-enough-mana") {
-    return "Останній хід: мани не вистачило.";
+    return ["Останній хід", "Мани не вистачило."].join("\n");
   }
 
   if (summary.heroOutcome === "fled") {
-    return "Останній хід: ви вийшли з бою без переможного фанфарства.";
+    return ["Останній хід", "Ви вийшли з бою без переможного фанфарства."].join("\n");
   }
 
   if (summary.heroOutcome === "flee-failed") {
-    return `Останній хід: втеча не вдалася, монстр відповів на ${summary.monsterDamage} шкоди.`;
+    return [
+      "Останній хід",
+      "Втеча не вдалася.",
+      `Монстр відповів на ${summary.monsterDamage} шкоди.`
+    ].join("\n");
   }
 
   if (summary.heroOutcome === "inactive") {
-    return "Останній хід: бій прострочився без героїчного підпису.";
+    return ["Останній хід", "Бій прострочився без героїчного підпису."].join("\n");
   }
 
   const action =
     summary.action === "skill"
-      ? "вміння"
+      ? "Вміння"
       : summary.action === "attack"
-        ? "атака"
-        : "відступ";
+        ? "Атака"
+        : "Відступ";
   const hit =
     summary.heroOutcome === "miss"
-      ? "не влучає"
-      : `влучає${summary.critical ? " критично" : ""}: ${summary.heroDamage} шкоди`;
+      ? `${action} не влучає.`
+      : `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
   const response =
     summary.monsterDamage > 0
-      ? ` Монстр відповів на ${summary.monsterDamage} шкоди.`
+      ? `Монстр відповів на ${summary.monsterDamage} шкоди.`
       : summary.monsterOutcome === "miss"
-        ? " Монстр промахнувся й зробив вигляд, що так і планував."
+        ? "Монстр промахнувся й зробив вигляд, що так і планував."
         : "";
 
-  return `Останній хід: ${action} ${hit}.${response}`;
+  return ["Останній хід", hit, response].filter(Boolean).join("\n");
 }

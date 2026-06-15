@@ -249,8 +249,12 @@ describe("fight presenter", () => {
     });
 
     expect(text).toContain(
-      "Останній хід: вміння влучає критично: 17 шкоди. Монстр відповів на 8 шкоди."
+      ["Останній хід", "Вміння влучає критично на 17 шкоди.", "Монстр відповів на 8 шкоди."].join(
+        "\n"
+      )
     );
+    expect(text).not.toContain("Останній хід: вміння");
+    expect(text).not.toContain("критично:");
     expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
     expect(text).not.toContain("критично дала");
   });
