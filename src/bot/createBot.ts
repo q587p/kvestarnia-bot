@@ -251,6 +251,7 @@ export function createBot(token: string, services: BotServices): Bot {
   registerQuestHubCommand(bot, {
     adventure: services.adventure,
     cellarErrand: services.cellarErrand,
+    ...(services.cellarGrownup ? { cellarGrownup: services.cellarGrownup } : {}),
     fight: services.fight,
     hunt: services.hunt,
     presence: services.presence,

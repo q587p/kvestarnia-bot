@@ -1,6 +1,7 @@
 import type { Bot, Context } from "grammy";
 import type { AdventureService } from "../../services/adventureService";
 import type { CellarErrandService } from "../../services/cellarErrandService";
+import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import type { FightService } from "../../services/fightService";
 import type { HuntService } from "../../services/huntService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
@@ -25,6 +26,7 @@ type ReplyOptions = Parameters<Context["reply"]>[1];
 export interface QuestHubCommandOptions {
   adventure: AdventureService;
   cellarErrand: CellarErrandService;
+  cellarGrownup?: CellarGrownupQuestService;
   fight: FightService;
   hunt: HuntService;
   presence: PresenceService;
@@ -91,6 +93,10 @@ async function buildQuestHubSnapshot(
   const fight = await options.fight.getFightOverviewForTelegramUser(telegramUserId);
   const hunt = await options.hunt.getHuntBoardForTelegramUser(telegramUserId);
   const cellar = await options.cellarErrand.getForTelegramUser(telegramUserId);
+  const cellarGrownup =
+    cellar.state === "level-retired" && options.cellarGrownup
+      ? await options.cellarGrownup.getForTelegramUser(telegramUserId)
+      : null;
 
   if (fight.state === "no-character" || hunt.state === "no-character" || cellar.state === "no-character") {
     return null;
@@ -101,7 +107,10 @@ async function buildQuestHubSnapshot(
     adventure,
     fight,
     hunt,
-    cellar
+    cellar,
+    ...(cellarGrownup && cellarGrownup.state !== "no-character" && cellarGrownup.state !== "too-young"
+      ? { cellarGrownup }
+      : {})
   };
 }
 

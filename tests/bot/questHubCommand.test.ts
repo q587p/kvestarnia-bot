@@ -7,6 +7,7 @@ import { sendQuestHub } from "../../src/bot/commands/questHubCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { AdventureService } from "../../src/services/adventureService";
 import type { CellarErrandService } from "../../src/services/cellarErrandService";
+import type { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
 import type { FightService } from "../../src/services/fightService";
 import type { HuntService } from "../../src/services/huntService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
@@ -231,6 +232,41 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🧾 До проблем",
       "🧹 У підвал",
+      "📖 Бестіарій",
+      "🍺 До зали"
+    ]);
+  });
+
+  it("shows completed grownup cellar state without sending players back to cellar", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(grownCharacter),
+        fight: readyFightService(grownCharacter),
+        hunt: readyHuntService(grownCharacter),
+        cellarErrand: readyCellarService(grownCharacter),
+        cellarGrownup: completedCellarGrownupService(grownCharacter)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain(
+      "🐭 <i>Справа не до миші</i> — дорослу підвальну справу вже закрито; пляшка стоїть у журналі й тихо булькає."
+    );
+    expect(replies[0]?.text).not.toContain(
+      "🐭 <i>Справа не до миші</i> — у підвалі є інша справа для старших пригодників."
+    );
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.text)).toEqual([
+      "🧾 До проблем",
+      "🏹 До дошки",
       "📖 Бестіарій",
       "🍺 До зали"
     ]);
@@ -492,6 +528,7 @@ class CapturingPresenceService {
 function servicesWith(overrides: {
   adventure?: AdventureService;
   cellarErrand?: CellarErrandService;
+  cellarGrownup?: CellarGrownupQuestService;
   fight?: FightService;
   hunt?: HuntService;
   presence?: CapturingPresenceService;
@@ -504,6 +541,7 @@ function servicesWith(overrides: {
     cellarErrand:
       overrides.cellarErrand ??
       readyCellarService(character),
+    cellarGrownup: overrides.cellarGrownup,
     fight:
       overrides.fight ??
       readyFightService(character),
@@ -513,6 +551,21 @@ function servicesWith(overrides: {
     presence: overrides.presence ?? new CapturingPresenceService(),
     tavernRaid: overrides.tavernRaid
   };
+}
+
+function completedCellarGrownupService(summary: CharacterSummary): CellarGrownupQuestService {
+  return {
+    getForTelegramUser: () =>
+      Promise.resolve({
+        state: "completed",
+        character: summary,
+        ending: "keep",
+        reward: {
+          xp: 40,
+          gold: 0
+        }
+      })
+  } as unknown as CellarGrownupQuestService;
 }
 
 function readyAdventureService(summary: CharacterSummary): AdventureService {
