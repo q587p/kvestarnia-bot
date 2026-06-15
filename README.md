@@ -119,8 +119,9 @@
 - [`docs/BRAND.md`](docs/BRAND.md) — назва, voice, tone, public wording і заборонені варіанти неймінґу.
 - [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) — core loop, персонаж, раси, класи, бойові й пригодові зрізи.
 - [`docs/BESTIARY.md`](docs/BESTIARY.md) — перший ростер із 20 монстрів і їхніми reaction hooks.
-- [`docs/MONSTER_LOOT_DROPS.md`](docs/MONSTER_LOOT_DROPS.md) — monster → item mapping без увімкненого random loot engine.
+- [`docs/MONSTER_LOOT_DROPS.md`](docs/MONSTER_LOOT_DROPS.md) — monster → item mapping для контрольованого loot engine.
 - [`docs/MONSTER_FLAVOR_ROUTING.md`](docs/MONSTER_FLAVOR_ROUTING.md) — selector-пріоритети для race/class/path/combo monster flavor.
+- [`docs/MANTOK_CHEST_BACKLOG.md`](docs/MANTOK_CHEST_BACKLOG.md) — наступний item-volume sink: Дружня Скриня / Манатко-скриня для переробки зайвих манаток.
 - [`docs/ACHIEVEMENTS_PHASE1.md`](docs/ACHIEVEMENTS_PHASE1.md) — план rewardless ачівок/титулів для later PR після основної бойової петлі.
 - [`docs/CONTENT_STYLE_GUIDE.md`](docs/CONTENT_STYLE_GUIDE.md) — український тон, гумор, лапки, формат Telegram-повідомлень.
 - [`docs/INSPIRATION_CONTENT_BACKLOG.md`](docs/INSPIRATION_CONTENT_BACKLOG.md) — очищені джерела смаку, безпечні правила запозичення й backlog монстрів, манаток, пригод та алюзій.

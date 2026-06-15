@@ -48,7 +48,7 @@ Current tiny inventory slice:
 - `0.0.21` wires that engine into Telegram `/fight` for level 3+ heroes as persistent solo sessions with HP/mana, turn validation, stale callback safety, lazy expiry, and no XP/gold/items yet. Levels 1-2 keep the starter combat probe.
 - `0.0.22` adds small equipment stat effects through one shared effective-stats helper: `/hero`, `/equipment`, item detail, and persistent solo combat read the same equipped-item contributions.
 - `0.0.23` adds the first controlled loot engine and reward replay for won persistent solo fights: small XP/gold, at most one monsterLoot item, and stored replay so repeated callbacks do not reroll or duplicate rewards.
-- Phase 1 finish rule after `0.0.23`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки не закритий основний RPG-ланцюжок: рівні 1-10 tuning → balance/playtest polish. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
+- Phase 1 finish rule after `0.0.23`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки не закритий основний RPG-ланцюжок: Манатко-скриня для item-volume sink → рівні 1-10 tuning → balance/playtest polish. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
 - Detailed finish sequence lives in `docs/PHASE1_FINISH_PLAN.md`; `docs/NEXT_IMPLEMENTATION_BACKLOG.md` tracks the next small PR order.
 - Tavern/adventure/fight first completions can grant fixed items.
 - Full itemization, random loot tables, crafting, market, and trading remain later Phase 1+ work.
@@ -57,6 +57,7 @@ Current tiny inventory slice:
 - Future equipment rules should support level-gated items that can drop before they are wearable, plus rarer race/class/path-specific манатки with future bypass/attunement/respec tricks.
 - Future player-to-player exchange should let heroes give unsuitable манатки to others without duplicating items or bypassing anti-abuse checks.
 - Future item economy should give most манатки a gold value or explicit priceless marker, then use that value for selling, trading, and a later item-to-level exchange.
+- New fight loot increases item volume, so the next small sink before broader economy work is `Дружня Скриня` / `Манатко-скриня`: 5 eligible манаток become 1 better-than-average output item with confirmation and transaction safety. Canonical planning doc: `docs/MANTOK_CHEST_BACKLOG.md`.
 
 Current repeatable slice:
 - `0.0.10` adds «Підвальна справа» as the first low-stakes repeatable fallback after the daily shawarma quest and fight probe are spent.
@@ -123,6 +124,7 @@ Done when:
 Мета: поглибити лут і sinks, не зламавши баланс.
 
 Deliverables:
+- Friendly Chest / Манатко-скриня as the first item-volume sink.
 - Repair/enchant/reroll.
 - Simple crafting.
 - Item sink.

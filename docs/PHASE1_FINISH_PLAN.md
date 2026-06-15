@@ -41,13 +41,16 @@
 5. **Loot Engine + Reward Replay**
    Контрольовані loot tables із rarity, bounded LUCK modifier, deterministic/injected RNG, idempotent reward claim і replay деталей. Реалізовано в `0.0.23` для won persistent solo fights.
 
-6. **Level 1-10 Reward Tuning**
+6. **Friendly Chest / Манатко-скриня**
+   Після ввімкнення fight loot кількість манаток росте швидше, ніж раніше. Перед великим tuning pass додати маленький item sink: `5` eligible манаток у Дружню Скриню → `1` нова манатка краща за середнє вкладених, із confirmation, транзакційністю й idempotent callback safety. Деталі: `docs/MANTOK_CHEST_BACKLOG.md`.
+
+7. **Level 1-10 Reward Tuning**
    Перевірити, що fight victory rewards, loot, level thresholds, multi-level grant і cap behavior разом дають нормальний Phase 1 темп. Не додавати нові системи, доки current loop не проходить smoke і симуляції.
 
-7. **Achievements Phase 1**
+8. **Achievements Phase 1**
    Rewardless ачівки як колекція титулів: seed definitions, idempotent unlock service, кнопка `🏅 Ачівки`, пагінація, hidden states і grouped notifications. Без XP, золота, предметів, stat effects або active-title selection. Деталі: `docs/ACHIEVEMENTS_PHASE1.md`.
 
-8. **Phase 1 Balance / Playtest / Polish**
+9. **Phase 1 Balance / Playtest / Polish**
    Не додавати фічі. Пройти smoke checklist, симуляції або balance matrix, оновити docs/release surfaces.
 
 ## Пропонована XP-крива для альфи 1-10
@@ -77,6 +80,7 @@ Phase 1 можна вважати закритою, коли:
 - stats, level і equipped items впливають на damage/survival/skill outcome через один helper;
 - перемога видає XP/gold/item через loot engine і repeated callback replay-ить той самий запис;
 - повторний callback не дублює XP/gold/items/level;
+- inventory має перший item sink для зайвого fight loot: Манатко-скриня зменшує `5` eligible речей до `1` output без втрати input items при помилці;
 - level-up 1-10 має тести й видимий короткий текст;
 - loss/flee не карають жорстко й не стають безкоштовним full reward;
 - `npm run check` або еквівалентні lint/typecheck/build/test проходять;
