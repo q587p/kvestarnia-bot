@@ -582,6 +582,60 @@ describe("FightService", () => {
     expect(dailyActions.records).toHaveLength(1);
   });
 
+  it("falls back to the authoritative reward claim when session replay storage is missing", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.dropRewardReplayWrites();
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 1);
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("updated");
+    expect(dailyActions.records).toHaveLength(1);
+    expect(sessions.getById(started.session.id)?.reward).toBeNull();
+    const action = dailyActions.records[0];
+
+    const repeated = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(repeated.state).toBe("terminal");
+    if (repeated.state === "terminal") {
+      expect(repeated.fightReward).toEqual({
+        state: "already-claimed",
+        reward: {
+          xp: action?.rewardXp,
+          gold: action?.rewardGold,
+          localDate: started.session.id,
+          itemGrants: []
+        },
+        levelChange: null,
+        itemReplayUnavailable: true
+      });
+    }
+    expect(dailyActions.records).toHaveLength(1);
+  });
+
   it("counts a won persistent fight toward thirteen small problems", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -1178,6 +1232,7 @@ class FakeEquipmentRepository implements EquipmentRepository {
 
 class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   private readonly sessions = new Map<string, SoloCombatSessionRecord>();
+  private persistRewardReplay = true;
   createCount = 0;
   updateCount = 0;
 
@@ -1297,7 +1352,7 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   ): Promise<SoloCombatSessionRecord | null> {
     const session = this.sessions.get(sessionId);
 
-    if (!session) {
+    if (!session || !this.persistRewardReplay) {
       return Promise.resolve(null);
     }
 
@@ -1313,6 +1368,16 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     };
     this.sessions.set(sessionId, updated);
     return Promise.resolve(cloneSession(updated));
+  }
+
+  dropRewardReplayWrites(): void {
+    this.persistRewardReplay = false;
+  }
+
+  getById(sessionId: string): SoloCombatSessionRecord | null {
+    const session = this.sessions.get(sessionId);
+
+    return session ? cloneSession(session) : null;
   }
 
   markStatusById(
