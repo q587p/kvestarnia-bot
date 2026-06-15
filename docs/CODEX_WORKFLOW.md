@@ -174,7 +174,7 @@ PR має містити:
 
 Бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, collection UI, share cards або окремий journal/progression loop, доки не закриті combat → equipment stats → loot → level 1-13. Нові bestiary-зміни допустимі тільки якщо вони прямо обслуговують combat/loot або виправляють безпеку/неточність уже наявного read-only surface.
 
-Докладна послідовність живе в `docs/PHASE1_FINISH_PLAN.md`, а copy-paste backlog для наступних PR — у `docs/NEXT_IMPLEMENTATION_BACKLOG.md`.
+Докладна послідовність живе в `docs/PHASE1_FINISH_PLAN.md`, cutline для закриття `0.0.x` і переходу до `0.1.x` — у `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`, фінальний smoke gate — у `docs/PHASE1_CLOSEOUT_SMOKE.md`, а copy-paste backlog для наступних PR — у `docs/NEXT_IMPLEMENTATION_BACKLOG.md`.
 
 Не стрибати в shops, trading, групові hunts/raids або Redis/jobs, якщо користувач прямо не розширив scope.
 

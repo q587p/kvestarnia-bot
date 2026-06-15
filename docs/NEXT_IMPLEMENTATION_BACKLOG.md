@@ -1,5 +1,13 @@
 ﻿# Next Implementation Backlog після `0.0.25`
 
+## 0.0.x Closeout / 0.1.x Transition
+
+Перед новими feature tracks звірятися з `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md` і `docs/PHASE1_CLOSEOUT_SMOKE.md`.
+
+Після `0.0.29 — Yeger Tracking Search` не тягнути в лінійку `0.0.x` нові системи на кшталт Achievements runtime, продажу манаток задля пива, Bestiary filters, Глибки, durable Barrel outbox, shops/trading/crafting, group raids, guilds, PvP або Mini App. Якщо це не blocker core loop і не маленький targeted fix, воно має їхати в `0.1.x` backlog.
+
+Closure PR `0.1.0` має бути release/docs/smoke PR: version surface, changelog/news, README, roadmap/backlog freeze, Phase 1 release notes і явний deferred list. Runtime gameplay changes у ньому допустимі тільки як мінімальні blocker fixes.
+
 Нижче — канонічний порядок маленьких PR для добивання Phase 1. Кожен slice має бути перевірюваним окремо; якщо PR роздувається, різати.
 
 ## Phase 1 Scope Guard
@@ -39,7 +47,7 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - повторний startup/resume або retry не надсилає кілька однакових completed-повідомлень;
 - tests cover due-on-startup, future-reschedule, already-completed, and duplicate-worker/idempotency paths.
 
-## Later — Shynok Mantok-for-Beer Sink
+## Later — Шинок Mantok-for-Beer Sink
 
 **Objective**
 Додати в `🍻 Шинок` опцію `Продаж манаток задля пива`: гравець спалює зайві priced манатки не за золото в кишеню, а прямо за раунд пива для корчми.
@@ -68,7 +76,7 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - beer result text не каже, що гравець отримав золото;
 - tests cover not-enough, simple threshold, quality threshold, protected/equipped/priceless exclusions, duplicate confirm, and generosity ledger entry.
 
-## Later — Shynok Food Buffs
+## Later — Шинок Food Buffs
 
 **Objective**
 Додати в `🍻 Шинок` їжу як другий корчмарський спосіб витратити золото: пригодник купує короткий обід/перекус/підозрілу тарілку й отримує тимчасовий баф до наступного бою, кількох ходів або короткого проміжку часу.
@@ -115,7 +123,7 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - `/hero` або окрема деталь показує активний харчовий баф без технічних id;
 - tests cover insufficient gold, one active buff, replace flow, stale confirm, HP/mana edge cases, and fight consumption.
 
-## Later — Shynok Bard Performance
+## Later — Шинок Bard Performance
 
 **Objective**
 Додати в `🍻 Шинок` бардівський виступ як малу культурну дію: бард раз на день або раз на годину може спробувати заспівати, заграти або скласти сатиричний куплет і отримати трохи золота. Може й не отримати, бо корчма має право на художню критику.
@@ -244,7 +252,7 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 - tags use `BESTIARY_TAG_LABELS`, and tests fail if a monster tag lacks a player-facing label;
 - tests cover level list, type list, filtered monster lists, empty-safe fallback, and back buttons.
 
-## Later — Hlybka Dungeon Location
+## Later — Глибка Dungeon Location
 
 **Objective**
 Додати нову локацію `Глибка` як першу dungeon-місцину для бойових справ, щоб Стіл зі справами був орієнтиром і журналом, а не місцем, де проблеми бʼються прямо між паперами.

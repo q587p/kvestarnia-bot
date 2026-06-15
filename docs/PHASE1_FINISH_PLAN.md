@@ -2,6 +2,8 @@
 
 Цей документ фіксує scope lock після `0.0.21`: добиваємо основний solo RPG loop, а нові поверхні додаємо тільки коли вони rewardless і не відволікають від бойової петлі.
 
+Closeout-рамка для закриття лінійки `0.0.x`, release PR `0.1.0` і deferred backlog `0.1.x` живе в `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`. Фінальний smoke/release gate перед `0.1.0` живе в `docs/PHASE1_CLOSEOUT_SMOKE.md`.
+
 ## Головна ціль
 
 Новий гравець має за кілька хвилин пройти зрозумілу RPG-петлю:

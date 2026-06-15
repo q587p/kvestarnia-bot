@@ -52,7 +52,7 @@ Current tiny inventory slice:
 - `0.0.25` adds persistent HP/mana attrition and lazy recovery, Loot Expansion v1 for persistent fights, level 4-13 monster trophy coverage, Hunt Board scaling, and the release-surface cleanup from PR #39.
 - `0.0.26` is the recovery/balance stabilization pass: clearer HP 0 rest guidance, a small ordinary-monster curve tune for the 3/4/8/13 smoke band, and no new systems.
 - Phase 1 finish rule after `0.0.25`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки не закритий основний RPG-ланцюжок: recovery/balance polish → inventory/chest polish → levels/resources/rewards tuning → balance/playtest polish. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
-- Detailed finish sequence lives in `docs/PHASE1_FINISH_PLAN.md`; `docs/NEXT_IMPLEMENTATION_BACKLOG.md` tracks the next small PR order.
+- Detailed finish sequence lives in `docs/PHASE1_FINISH_PLAN.md`; the closeout cutline for `0.0.x` → `0.1.x` lives in `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`, and the final smoke gate lives in `docs/PHASE1_CLOSEOUT_SMOKE.md`. `docs/NEXT_IMPLEMENTATION_BACKLOG.md` tracks the next small PR order.
 - Tavern/adventure/fight first completions can grant fixed items.
 - Full itemization, random loot tables, crafting, market, and trading remain later Phase 1+ work.
 - Future equipment expansions should keep layering through the same equipment/effective-stats helper instead of adding presenter-specific math.
