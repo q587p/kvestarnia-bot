@@ -377,6 +377,7 @@ describe("fight presenter", () => {
     expect(text).toContain("Нагорода за справу:\n<b>+35 XP\n+10 золота</b>");
     expect(text).toContain("Здобуто: <i>Жетон тринадцяти дрібних проблем</i>");
     expect(text).toContain("У корчмі стало на одну проблему тихіше");
+    expect(text).not.toContain("Після бою:");
     expect(text).not.toContain("список дрібних проблем теж не відвертівся");
   });
 
@@ -467,6 +468,7 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Винагорода за бій:\n<b>+1 XP</b>");
     expect(text).not.toContain("+0 золота");
     expect(text).toContain("💤 Ви програли. Список дрібних проблем не зрушив");
+    expect(text).not.toContain("Після бою:");
     expect(text).not.toContain("цінні дані для балансу");
     expect(text).not.toContain("оплату за закриту проблему");
   });

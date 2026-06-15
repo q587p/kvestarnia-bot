@@ -260,8 +260,6 @@ function presentPersistentFightState(input: {
   if (state?.status === "won") {
     lines.push(
       "",
-      `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
-      "",
       input.questReward
         ? "🎉 Ви перемогли. У корчмі стало на одну проблему тихіше."
         : "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою.",
@@ -272,15 +270,11 @@ function presentPersistentFightState(input: {
 
     lines.push(
       "",
-      `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
-      "",
       questLines.length > 0 ? `💤 Ви програли. ${questLines[0]}` : "💤 Ви програли.",
       "Спершу /hero, тоді новий бій."
     );
   } else if (state?.status === "fled") {
     lines.push(
-      "",
-      `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
       "",
       "🏃 Ви відступили. Тактичний вітер підтримав ваше рішення.",
       "Справу не зараховано: проблема лишилась дрібною, нахабною і живою.",
