@@ -55,8 +55,23 @@ describe("HuntService", () => {
 
     expect(first).toEqual(second);
     expect(first.id).not.toBe("monster.mimic-shawarma");
+    expect(first.tags).not.toContain("starter");
     expect(first.tags).not.toContain("boss");
     expect(first.level).toBeLessThanOrEqual(3);
+  });
+
+  it("selects hunt monsters close to the current character level", () => {
+    const levelEight = selectHuntMonster("2026-06-14T00", "character-42", 8);
+    const levelThirteen = selectHuntMonster("2026-06-14T00", "character-42", 13);
+
+    expect(levelEight.tags).not.toContain("starter");
+    expect(levelEight.tags).not.toContain("boss");
+    expect(levelEight.level).toBeGreaterThanOrEqual(6);
+    expect(levelEight.level).toBeLessThanOrEqual(8);
+    expect(levelThirteen.tags).not.toContain("starter");
+    expect(levelThirteen.tags).not.toContain("boss");
+    expect(levelThirteen.level).toBeGreaterThanOrEqual(11);
+    expect(levelThirteen.level).toBeLessThanOrEqual(13);
   });
 
   it("locks hunt contracts until level three without creating a ledger row", async () => {
@@ -80,23 +95,33 @@ describe("HuntService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
-  it("keeps at least one eligible hunt monster in content", () => {
-    const eligible = monsters.filter(
-      (monster) =>
+  it("keeps eligible hunt monsters across the current level range in content", () => {
+    const eligible = monsters.filter((monster) => {
+      const tags = new Set(monster.tags);
+
+      return (
         monster.id !== "monster.mimic-shawarma" &&
-        !monster.tags.includes("boss") &&
-        monster.level <= 3
-    );
+        !tags.has("starter") &&
+        !tags.has("boss") &&
+        monster.level >= 3 &&
+        monster.level <= 13
+      );
+    });
+    const eligibleLevels = new Set(eligible.map((monster) => monster.level));
 
     expect(eligible.length).toBeGreaterThan(0);
     expect(eligible.every((monster) => monster.id !== "monster.mimic-shawarma")).toBe(true);
+    expect(eligible.every((monster) => !monster.tags.includes("starter"))).toBe(true);
     expect(eligible.every((monster) => !monster.tags.includes("boss"))).toBe(true);
-    expect(eligible.every((monster) => monster.level <= 3)).toBe(true);
+    expect(eligibleLevels.has(3)).toBe(true);
+    expect(eligibleLevels.has(8)).toBe(true);
+    expect(eligibleLevels.has(13)).toBe(true);
   });
 
   it("keeps hunt reward amounts bounded by action and monster level", () => {
     const levelOne = { level: 1 } as MonsterContent;
     const levelThree = { level: 3 } as MonsterContent;
+    const levelThirteen = { level: 13 } as MonsterContent;
 
     expect(buildHuntRewardAmounts(levelOne, "strike")).toEqual({ xp: 5, gold: 0 });
     expect(buildHuntRewardAmounts(levelOne, "trick")).toEqual({ xp: 4, gold: 1 });
@@ -104,6 +129,10 @@ describe("HuntService", () => {
     expect(buildHuntRewardAmounts(levelThree, "strike")).toEqual({ xp: 7, gold: 1 });
     expect(buildHuntRewardAmounts(levelThree, "trick")).toEqual({ xp: 6, gold: 2 });
     expect(buildHuntRewardAmounts(levelThree, "retreat")).toEqual({ xp: 5, gold: 1 });
+    expect(buildHuntRewardAmounts(levelThirteen, "strike", 13)).toEqual({ xp: 14, gold: 6 });
+    expect(buildHuntRewardAmounts(levelThirteen, "trick", 13)).toEqual({ xp: 14, gold: 7 });
+    expect(buildHuntRewardAmounts(levelThirteen, "retreat", 13)).toEqual({ xp: 14, gold: 6 });
+    expect(buildHuntRewardAmounts(levelThree, "strike", 6)).toEqual({ xp: 1, gold: 1 });
   });
 
   it("uses Kyiv-local hour periods for hunt contracts", () => {

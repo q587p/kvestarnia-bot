@@ -45,10 +45,41 @@ describe("hunt presenter", () => {
   it("shows a completed hunt reward and at most owned item grant", () => {
     const text = presentHuntResult(completed("strike"));
 
-    expect(text).toContain("Ви вдарили по проблемі");
+    expect(text).toContain("Ви закрили контракт ударом");
     expect(text).toContain("Нагорода:\n<b>+5 XP\n+1 золота</b>");
     expect(text).toContain("Здобуто: <i>Кістяний ключ напівдоступу</i>");
     expect(text).not.toContain("×1");
+  });
+
+  it("explains symbolic XP for much weaker hunt targets", () => {
+    const text = presentHuntResult({
+      ...completed("strike"),
+      character: {
+        ...character,
+        level: 8
+      },
+      contract: {
+        ...contract,
+        monster: {
+          ...contract.monster,
+          level: 3
+        }
+      },
+      reward: {
+        xp: 1,
+        gold: 1,
+        localPeriodId: "2026-06-14T08",
+        itemGrants: []
+      },
+      levelChange: {
+        oldLevel: 8,
+        newLevel: 8,
+        leveledUp: false
+      }
+    });
+
+    expect(text).toContain("XP символічною");
+    expect(text).toContain("Великі герої не ростуть на дрібних папірцях");
   });
 
   it("does not show action buttons text for completed, stale, or already-completed states", () => {
