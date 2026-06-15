@@ -24,9 +24,22 @@ const baselineCharacter = {
   path: "sun" as const
 };
 
+const ordinaryMonsterLadderIds = [
+  "monster.complaint-lantern",
+  "monster.ledger-boar",
+  "monster.salted-oath-pretzel",
+  "monster.liar-corridor-map",
+  "monster.foam-auditor-boots",
+  "monster.three-signature-chimera",
+  "monster.cheese-vault-warden",
+  "monster.calendar-hydra",
+  "monster.inventory-prophet",
+  "monster.quiet-catastrophe-clerk"
+] as const;
+
 describe("monster flavor content", () => {
-  it("keeps the first bestiary at exactly 20 monsters", () => {
-    expect(monsters).toHaveLength(20);
+  it("keeps the first bestiary at exactly 30 monsters", () => {
+    expect(monsters).toHaveLength(30);
     expect(monsters.map((monster) => monster.id)).toContain("monster.mimic-shawarma");
   });
 
@@ -42,8 +55,8 @@ describe("monster flavor content", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("gives every monster fallback, race, class, path or pronoun, combo, and loot-note hooks", () => {
-    for (const monster of monsters) {
+  it("keeps the original bestiary rich and the new ladder minimal but valid", () => {
+    for (const monster of monsters.slice(0, 20)) {
       const lines = monsterFlavorLines.filter((line) => line.monsterId === monster.id);
       const startLines = lines.filter((line) => line.placement === "monster.start");
 
@@ -55,6 +68,20 @@ describe("monster flavor content", () => {
       ).toBe(true);
       expect(startLines.some((line) => line.selector?.combos?.length)).toBe(true);
       expect(lines.some((line) => line.placement === "monster.loot-note")).toBe(true);
+    }
+
+    for (const monsterId of ordinaryMonsterLadderIds) {
+      const lines = monsterFlavorLines.filter((line) => line.monsterId === monsterId);
+      const startLines = lines.filter((line) => line.placement === "monster.start");
+
+      expect(startLines.some((line) => !line.selector)).toBe(true);
+      expect(lines.some((line) => line.placement === "monster.loot-note")).toBe(true);
+      expect(startLines.some((line) => line.selector?.raceIds?.length)).toBe(false);
+      expect(startLines.some((line) => line.selector?.classIds?.length)).toBe(false);
+      expect(
+        startLines.some((line) => line.selector?.paths?.length || line.selector?.pronouns?.length)
+      ).toBe(false);
+      expect(startLines.some((line) => line.selector?.combos?.length)).toBe(false);
     }
   });
 
@@ -150,6 +177,6 @@ describe("monster flavor content", () => {
       }
     }
 
-    expect(Object.keys(monsterLoot)).toHaveLength(monsters.length);
+    expect(Object.keys(monsterLoot)).toHaveLength(20);
   });
 });

@@ -7,7 +7,7 @@ import {
   parseOnboardingCallbackData,
   TELEGRAM_CALLBACK_DATA_LIMIT
 } from "../../src/bot/callbacks/onboardingCallbackData";
-import { activeRaces, classes, items, monsters, races } from "../../src/content";
+import { activeRaces, classes, items, monsterFlavorLines, monsters, races } from "../../src/content";
 import { getComboTitle, pronounOptions } from "../../src/content/characterOptions";
 import { classSchema, itemSchema, monsterSchema, raceSchema } from "../../src/content/schema";
 
@@ -16,6 +16,19 @@ const contentTables = [
   { name: "classes", rows: classes, schema: classSchema },
   { name: "monsters", rows: monsters, schema: monsterSchema },
   { name: "items", rows: items, schema: itemSchema }
+] as const;
+
+const ordinaryMonsterLadderIds = [
+  "monster.complaint-lantern",
+  "monster.ledger-boar",
+  "monster.salted-oath-pretzel",
+  "monster.liar-corridor-map",
+  "monster.foam-auditor-boots",
+  "monster.three-signature-chimera",
+  "monster.cheese-vault-warden",
+  "monster.calendar-hydra",
+  "monster.inventory-prophet",
+  "monster.quiet-catastrophe-clerk"
 ] as const;
 
 describe("content tables", () => {
@@ -170,6 +183,55 @@ describe("content tables", () => {
     expect(getComboTitle("race.molfar-soul", "class.bureaucramancer", "they")).toBe(
       "Писарі Оберегових Справ"
     );
+  });
+
+  it("covers the ordinary solo-fight ladder from level 4 through 13", () => {
+    expect(monsters.map((monster) => monster.id)).toEqual(
+      expect.arrayContaining(ordinaryMonsterLadderIds)
+    );
+
+    for (const level of Array.from({ length: 10 }, (_, index) => index + 4)) {
+      const ordinaryMonstersAtLevel = monsters.filter(
+        (monster) =>
+          monster.level === level &&
+          !monster.tags.includes("starter") &&
+          !monster.tags.includes("boss") &&
+          !monster.tags.includes("mini-boss") &&
+          !monster.tags.includes("tiny-boss")
+      );
+
+      expect(ordinaryMonstersAtLevel).not.toHaveLength(0);
+    }
+
+    for (const monsterId of ordinaryMonsterLadderIds) {
+      const monster = monsters.find((candidate) => candidate.id === monsterId);
+
+      expect(monster, `missing monster ${monsterId}`).toBeDefined();
+      expect(monster?.tags).not.toEqual(
+        expect.arrayContaining(["starter", "boss", "mini-boss", "tiny-boss"])
+      );
+    }
+  });
+
+  it("gives every new ladder monster fallback start and loot-note flavor lines", () => {
+    for (const monsterId of ordinaryMonsterLadderIds) {
+      expect(
+        monsterFlavorLines.some(
+          (line) =>
+            line.monsterId === monsterId &&
+            line.placement === "monster.start" &&
+            line.id.endsWith(".fallback.start")
+        ),
+        `missing fallback start line for ${monsterId}`
+      ).toBe(true);
+
+      expect(
+        monsterFlavorLines.some(
+          (line) => line.monsterId === monsterId && line.placement === "monster.loot-note"
+        ),
+        `missing loot-note line for ${monsterId}`
+      ).toBe(true);
+    }
   });
 
   it("keeps onboarding gender callbacks valid and within Telegram limits", () => {

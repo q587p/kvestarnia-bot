@@ -357,6 +357,30 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
+  it("prefers the closest available solo fight monster level for higher-level characters", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 225 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.character.level).toBe(8);
+      expect(started.monster.level).toBeGreaterThanOrEqual(started.character.level - 2);
+      expect(started.monster.level).toBeLessThanOrEqual(started.character.level);
+      expect(started.monster.id).not.toBe("monster.mimic-shawarma");
+    }
+  });
+
   it("uses live equipped weapon bonuses during persistent fight turns", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -580,6 +604,57 @@ describe("FightService", () => {
       });
     }
     expect(dailyActions.records).toHaveLength(1);
+  });
+
+  it("limits XP to one for persistent fight rewards from much weaker monsters", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 1300 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.addSession({
+      ...started.session,
+      monsterId: "monster.deadline-spider",
+      state: started.session.state
+        ? {
+            ...started.session.state,
+            monster: {
+              id: "monster.deadline-spider",
+              hp: 1,
+              hpMax: 18
+            }
+          }
+        : started.session.state
+    });
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.status).toBe("won");
+      expect(result.character.level - result.monster.level).toBeGreaterThan(2);
+      expect(result.fightReward?.reward.xp).toBe(1);
+    }
+    expect(dailyActions.records).toHaveLength(1);
+    expect(dailyActions.records[0]).toMatchObject({
+      key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
+      rewardXp: 1
+    });
   });
 
   it("falls back to the authoritative reward claim when session replay storage is missing", async () => {

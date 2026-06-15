@@ -467,11 +467,11 @@ describe("combat domain engine", () => {
         tags: ["boss"]
       })
     ).toMatchObject({
-      hpMax: 52,
-      attack: 13,
-      armor: 2,
-      resist: 1,
-      dexterity: 10
+      hpMax: 70,
+      attack: 18,
+      armor: 3,
+      resist: 2,
+      dexterity: 11
     });
 
     expect(
@@ -521,5 +521,34 @@ describe("combat domain engine", () => {
       resist: 1,
       dexterity: 8
     });
+  });
+
+  it("makes level 5+ monsters scale harder than the early ladder", () => {
+    const levelFour = deriveMonsterCombatStats({
+      id: "monster.level-four-test",
+      name: "Тест за вісімдесят",
+      description: "Жодних підказок не буде.",
+      level: 4,
+      tags: []
+    });
+    const levelFive = deriveMonsterCombatStats({
+      id: "monster.level-five-test",
+      name: "Тест за п’ятером",
+      description: "Надтяжкий тест на підкрутку.",
+      level: 5,
+      tags: []
+    });
+    const levelThirteen = deriveMonsterCombatStats({
+      id: "monster.level-thirteen-test",
+      name: "Тест за тринадцяткою",
+      description: "Підвищена шкідливість та вигода.",
+      level: 13,
+      tags: []
+    });
+
+    expect(levelFive.hpMax - levelFour.hpMax).toBeGreaterThan(12);
+    expect(levelFive.attack - levelFour.attack).toBeGreaterThan(3);
+    expect(levelThirteen.hpMax).toBeGreaterThan(levelFive.hpMax * 3);
+    expect(levelThirteen.attack).toBeGreaterThan(levelFive.attack * 3);
   });
 });

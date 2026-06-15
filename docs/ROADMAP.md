@@ -27,7 +27,7 @@ Deliverables:
 - Simple level-up thresholds for visible progress.
 - Combat engine.
 - Loot engine.
-- Level-up 1–10.
+- Level-up 1–13.
 - 20 монстрів, 50 предметів.
 - Cooldowns.
 
@@ -48,7 +48,8 @@ Current tiny inventory slice:
 - `0.0.21` wires that engine into Telegram `/fight` for level 3+ heroes as persistent solo sessions with HP/mana, turn validation, stale callback safety, lazy expiry, and no XP/gold/items yet. Levels 1-2 keep the starter combat probe.
 - `0.0.22` adds small equipment stat effects through one shared effective-stats helper: `/hero`, `/equipment`, item detail, and persistent solo combat read the same equipped-item contributions.
 - `0.0.23` adds the first controlled loot engine and reward replay for won persistent solo fights: small XP/gold, at most one monsterLoot item, and stored replay so repeated callbacks do not reroll or duplicate rewards.
-- Phase 1 finish rule after `0.0.23`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки не закритий основний RPG-ланцюжок: рівні 1-10 tuning → balance/playtest polish. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
+- `0.0.24` raises the current alpha cap to level 13, moves the capstone `/restart` suggestion there, and adds a narrow level 4+ cellar follow-up once the mouse errand retires.
+- Phase 1 finish rule after `0.0.24`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки не закритий основний RPG-ланцюжок: Манатко-скриня для item-volume sink → рівні 1-13 tuning → balance/playtest polish. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
 - Detailed finish sequence lives in `docs/PHASE1_FINISH_PLAN.md`; `docs/NEXT_IMPLEMENTATION_BACKLOG.md` tracks the next small PR order.
 - Tavern/adventure/fight first completions can grant fixed items.
 - Full itemization, random loot tables, crafting, market, and trading remain later Phase 1+ work.
@@ -57,12 +58,14 @@ Current tiny inventory slice:
 - Future equipment rules should support level-gated items that can drop before they are wearable, plus rarer race/class/path-specific манатки with future bypass/attunement/respec tricks.
 - Future player-to-player exchange should let heroes give unsuitable манатки to others without duplicating items or bypassing anti-abuse checks.
 - Future item economy should give most манатки a gold value or explicit priceless marker, then use that value for selling, trading, and a later item-to-level exchange.
+- New fight loot increases item volume, so the next small sink before broader economy work is `Дружня Скриня` / `Манатко-скриня`: 5 eligible манаток become 1 better-than-average output item with confirmation and transaction safety. Canonical planning doc: `docs/MANTOK_CHEST_BACKLOG.md`.
 
 Current repeatable slice:
 - `0.0.10` adds «Підвальна справа» as the first low-stakes repeatable fallback after the daily shawarma quest and fight probe are spent.
 - Cooldown lives in SQLite `character_cooldowns`, not Redis.
 - `0.0.11` adds a compact `Стіл зі справами` quest hub for `/quest`, `🗺️ Квест`, daily shawarma, fight probe, and cellar fallback.
 - `/cellar` exists only as a secondary fallback command; more repeatable activities and a full activity refactor remain later work.
+- `0.0.24` adds `Справа не до миші` for level 4+ heroes who try the retired cellar route: buy a seal or roleplay past the mouse, obtain `Пляшка Пінного Міражу` once, then hand it in or keep it with permanent completion through `daily_actions`.
 - Корчемний рейд у `0.0.11` отримав pending state на випадкові 5–8 хвилин: пригодник «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
 - A future progression/balance pass should make level matter more strongly in HP, mana, combat math, event checks, content gates, and reward-facing decisions.
 
@@ -123,6 +126,7 @@ Done when:
 Мета: поглибити лут і sinks, не зламавши баланс.
 
 Deliverables:
+- Friendly Chest / Манатко-скриня as the first item-volume sink.
 - Repair/enchant/reroll.
 - Simple crafting.
 - Item sink.
@@ -153,10 +157,10 @@ Done when:
 - Item values, priceless trophies, and a suspicious outside-korchma item-to-level exchange inspired by Munchkin.
 - Stronger level impact pass for resources, combat, event checks, and activity gates.
 - Class/race/combo-aware combat actions: multiple attack variants, visible mana costs for spells, fallback actions when mana is low, and equipment/effective-stats integration so манатки eventually shape the numbers.
-- Epic levels `11-20`: milestone abilities for races/classes in the spirit of Munchkin-style extra tricks, with visible text flavor and tested balance guardrails.
+- Epic levels `14-23`: milestone abilities for races/classes in the spirit of Munchkin-style extra tricks, with visible text flavor and tested balance guardrails.
 - Real time-of-day modifiers for tagged enemies and scenes: night strengthens night/dark enemies, while morning/day/evening can affect other encounter types without exposing exact timestamps.
 - Повний надвірний журнал прибулих перед корчмою: durable first-arrival events і пагінований список пригодників, які вперше приєдналися або дісталися корчми. Поточна `📜 Табличка прибулих` є presence-based MVP без повної історії.
-- Надвірна дошка рівневих досягнень: останні level-up записи, рейтинг за досягнутим рівнем і особливе оформлення 10 рівня.
+- Надвірна дошка рівневих досягнень: останні level-up записи, рейтинг за досягнутим рівнем і особливе оформлення 13 рівня.
 - Стікерпак для level-up: коли персонаж бере новий рівень, бот зможе надсилати коротке привітання стікером перед або після текстового святкування.
 - Daily tavern rumor.
 - Корчемне соціяльне частування: пригостити їжею/питвом присутніх у корчмі після появи location presence list.

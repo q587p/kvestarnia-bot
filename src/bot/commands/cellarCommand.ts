@@ -7,9 +7,11 @@ import {
   PRESENCE_LOCATION_KORCHMA_CELLAR
 } from "../../services/presenceService";
 import type { CellarErrandService } from "../../services/cellarErrandService";
+import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
-import { buildCellarResultKeyboard } from "../keyboards/cellarKeyboard";
+import { buildCellarGrownupKeyboard, buildCellarResultKeyboard } from "../keyboards/cellarKeyboard";
 import {
+  presentCellarGrownupQuest,
   presentCellarCooldown,
   presentCellarLevelLocked,
   presentCellarLevelRetired,
@@ -27,7 +29,8 @@ export function registerCellarCommand(
   bot: Bot,
   cellarErrandService: CellarErrandService,
   presenceService: PresenceService,
-  tavernRaidService?: TavernRaidService
+  tavernRaidService?: TavernRaidService,
+  grownupQuestService?: CellarGrownupQuestService
 ): void {
   bot.command("cellar", async (ctx) => {
     await sendCellarErrandRouted(
@@ -35,7 +38,10 @@ export function registerCellarCommand(
       cellarErrandService,
       presenceService,
       "reply",
-      tavernRaidService ? { tavernRaid: tavernRaidService } : undefined
+      {
+        ...(tavernRaidService ? { tavernRaid: tavernRaidService } : {}),
+        ...(grownupQuestService ? { grownupQuest: grownupQuestService } : {})
+      }
     );
   });
 }
@@ -45,7 +51,7 @@ export async function sendCellarErrandRouted(
   cellarErrandService: CellarErrandService,
   presenceService: PresenceService,
   mode: "reply" | "edit",
-  options?: { tavernRaid?: TavernRaidService }
+  options?: { tavernRaid?: TavernRaidService; grownupQuest?: CellarGrownupQuestService }
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -72,14 +78,21 @@ export async function sendCellarErrandRouted(
     return;
   }
 
-  await sendCellarErrand(ctx, cellarErrandService, presenceService, mode);
+  await sendCellarErrand(
+    ctx,
+    cellarErrandService,
+    presenceService,
+    mode,
+    options?.grownupQuest ? { grownupQuest: options.grownupQuest } : undefined
+  );
 }
 
 export async function sendCellarErrand(
   ctx: Context,
   cellarErrandService: CellarErrandService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  options?: { grownupQuest?: CellarGrownupQuestService }
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -101,6 +114,30 @@ export async function sendCellarErrand(
   }
 
   if (result.state === "level-retired") {
+    if (options?.grownupQuest) {
+      const grownup = await options.grownupQuest.getForTelegramUser(telegramUserId);
+
+      if (grownup.state === "no-character") {
+        await sendText(ctx, mode, presentCellarNoCharacter());
+        return;
+      }
+
+      if (grownup.state === "too-young") {
+        await sendText(ctx, mode, presentCellarLevelLocked({
+          state: "level-locked",
+          character: grownup.character,
+          requiredLevel: grownup.requiredLevel
+        }));
+        return;
+      }
+
+      await markCellarPresence(ctx, presenceService);
+      await sendText(ctx, mode, presentCellarGrownupQuest(grownup), {
+        state: grownup.state
+      });
+      return;
+    }
+
     await sendText(ctx, mode, presentCellarLevelRetired(result));
     return;
   }
@@ -146,6 +183,7 @@ async function sendText(
   keyboard:
     | false
     | "enter-korchma"
+    | { state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient" }
     | { state: "ready" | "on-cooldown"; character: CharacterSummary } = false
 ): Promise<void> {
   const options = keyboard
@@ -154,6 +192,8 @@ async function sendText(
         reply_markup:
           keyboard === "enter-korchma"
             ? buildKorchmaFrontKeyboard()
+            : isGrownupKeyboard(keyboard)
+              ? buildCellarGrownupKeyboard(keyboard.state)
             : buildCellarResultKeyboard(keyboard.state, keyboard.character)
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
@@ -164,4 +204,15 @@ async function sendText(
   }
 
   await ctx.reply(text, options);
+}
+
+function isGrownupKeyboard(
+  keyboard:
+    | "enter-korchma"
+    | { state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient" }
+    | { state: "ready" | "on-cooldown"; character: CharacterSummary }
+): keyboard is {
+  state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient";
+} {
+  return typeof keyboard !== "string" && !("character" in keyboard);
 }

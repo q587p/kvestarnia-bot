@@ -940,7 +940,7 @@ function buildPersistentFightReward(
   });
 
   return {
-    xp: Math.min(14, Math.max(5, 3 + monster.level * 2)),
+    xp: character.level - monster.level > 2 ? 1 : Math.min(14, Math.max(5, 3 + monster.level * 2)),
     gold: Math.min(7, Math.max(1, 1 + Math.floor(monster.level / 2))),
     itemGrants: loot.state === "dropped" ? [{ itemId: loot.item.id, quantity: 1 }] : []
   };
@@ -1021,16 +1021,14 @@ function selectSoloFightMonster(
   character: CharacterSummary,
   rng: RandomSource
 ): MonsterContent {
-  const candidates = monsters.filter((monster) => {
-    const tags = new Set(monster.tags);
-
-    return (
-      monster.id !== "monster.mimic-shawarma" &&
-      !tags.has("starter") &&
-      !tags.has("boss") &&
-      monster.level <= Math.max(3, character.level)
-    );
-  });
+  const maxMonsterLevel = Math.max(3, character.level);
+  const closeMonsterLevelFloor = Math.max(1, character.level - 2);
+  const eligibleMonsters = monsters.filter((monster) => isSoloFightMonsterEligible(monster, maxMonsterLevel));
+  const closeCandidates = eligibleMonsters.filter(
+    (monster) => monster.level >= closeMonsterLevelFloor
+  );
+  const candidates =
+    closeCandidates.length > 0 ? closeCandidates : selectHighestAvailableMonsterLevel(eligibleMonsters);
   const fallback = monsters.find((monster) => monster.id === "monster.deadline-spider");
 
   if (!fallback) {
@@ -1042,6 +1040,26 @@ function selectSoloFightMonster(
   }
 
   return candidates[rng.nextInt(0, candidates.length - 1)] ?? candidates[0] ?? fallback;
+}
+
+function isSoloFightMonsterEligible(monster: MonsterContent, maxMonsterLevel: number): boolean {
+  const tags = new Set(monster.tags);
+
+  return (
+    monster.id !== "monster.mimic-shawarma" &&
+    !tags.has("starter") &&
+    !tags.has("boss") &&
+    monster.level <= maxMonsterLevel
+  );
+}
+
+function selectHighestAvailableMonsterLevel(monstersByLevel: MonsterContent[]): MonsterContent[] {
+  const highestLevel = monstersByLevel.reduce(
+    (currentHighest, monster) => Math.max(currentHighest, monster.level),
+    0
+  );
+
+  return monstersByLevel.filter((monster) => monster.level === highestLevel);
 }
 
 export function getPersistentFightSkillLabel(character: CharacterSummary): string {

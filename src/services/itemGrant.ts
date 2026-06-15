@@ -15,6 +15,9 @@ export const SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID = "item.suspicious-shawarma-wra
 export const RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID = "item.receipt-of-formal-suspicion";
 export const BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID =
   "item.badge-of-thirteen-small-problems";
+export const CELLAR_CHEESE_SEAL_ITEM_ID = "item.cellar.cheese-seal";
+export const CELLAR_FANCY_CHEESE_ITEM_ID = "item.cellar.fancy-cheese";
+export const CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID = "item.cellar.foamy-mirage-bottle";
 export const STARTER_EQUIPMENT_MAX_OWNED_QUANTITY = 1;
 
 export interface RewardItemGrant {

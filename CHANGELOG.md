@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable project changes are documented here.
 
@@ -6,6 +6,29 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.0.x` for foundation and local playability slices.
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
+
+## [0.0.24] - 12026-06-15 - Level Cap 13 & Grownup Cellar Quest
+
+### Added
+- Added the first level 4+ cellar follow-up, `Справа не до миші`, which replaces the retired mouse errand when an older hero tries the old cellar route.
+- Added a narrow `CellarGrownupQuestService` and repository path that use existing `daily_actions`, `character_items`, and `character_cooldowns` instead of introducing a broad quest engine.
+- Added `Сирна пломба Корчмаря`, `Кльовий шмат сиру`, and `Пляшка Пінного Міражу` content items as the first post-mouse cellar objects.
+- Added idempotent paths for buying the seal, trying a roleplay bypass, receiving the bottle once, and choosing the final ending.
+- Added the runtime MVP for `Дружня Скриня`: inventory entry point, auto-pick of 5 cheapest eligible манатки, confirmation, transactional recycling, idempotent replay, and one better-than-average output item.
+- Added a `mantok_chest_runs` ledger for pending/completed chest runs with stored input/output audit data.
+
+### Changed
+- Raised the current alpha level cap from 10 to 13 with a steeper post-level-9 XP curve: `450`, `650`, `900`, and `1300` total XP for levels 10-13.
+- Moved the level-cap celebration and `/restart` suggestion from level 10 to level 13.
+- Updated combat simulation defaults and progression docs to treat levels 1-13 as the current alpha range.
+- Moved the future epic-level planning bracket from `11-20` to `14-23`.
+- The old repeatable mouse cellar errand remains for levels 2-3; level 4+ heroes now get the new once-per-player cellar quest instead of a dead retired state.
+- Persistent solo fights now prefer monsters closer to the hero level; when content has no same-band monster yet, the selector uses the highest eligible lower-level monster instead of random level 1-2 filler.
+- Persistent solo fight XP is capped to `1` when the defeated monster is more than 2 levels below the hero.
+- The Mantok Chest MVP treats inventory as stack-based: it consumes 5 units, protects entire equipped `itemId` stacks, excludes priceless/story items, and defers manual selection until item-instance identity or a larger selection UI exists.
+
+### Not Included Yet
+- Epic-level abilities, level 14+ progression, broad quest engine, shops, trading, crafting, achievements runtime, manual chest selection, item-instance inventory, or combat rebalance.
 
 ## [0.0.23] - 12026-06-15 - Loot Engine & Reward Replay
 
@@ -250,7 +273,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added the first character impact loop: race, class, hidden path, pronoun, title, and authored combo flavor can now affect korchma greetings, starter quest text, action outcomes, and barrel raid prep hints without changing rewards.
 - Added a hooded human-ish ranger NPC near the barrel with biography-aware reactions and korchma round flavor.
 - Added character flavor authoring docs for korchma greetings, quest routing, raid role hints, and future content review.
-- Added future backlog notes for character-facing progression: stronger level impact, level-gated and race/class-specific items, front-of-korchma community boards, epic levels `11-20`, time-of-day encounter modifiers, fair-play lootbox wording, Donjons and Dragons flavor, party-gathering flavor, and item-to-level sinks.
+- Added future backlog notes for character-facing progression: stronger level impact, level-gated and race/class-specific items, front-of-korchma community boards, epic levels, time-of-day encounter modifiers, fair-play lootbox wording, Donjons and Dragons flavor, party-gathering flavor, and item-to-level sinks.
 
 ### Changed
 - Updated scene and menu buttons with clearer icons and back navigation where the player naturally expects a return path.

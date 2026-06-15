@@ -167,9 +167,9 @@ PR має містити:
 1. Combat engine: persistent solo combat session, turn state, HP/mana inside combat, idempotent actions.
 2. Equipment stat effects: маленькі прозорі бонуси від уже екіпірованих манаток через один effective-stats helper.
 3. Loot engine: контрольовані таблиці здобичі, deterministic/idempotent reward claims, без економічного сніжного кому.
-4. Level 1-10 loop: рівневі unlock-и, баланс XP, HP/мани, ворогів і rewards для повного першого діапазону.
+4. Level 1-13 loop: рівневі unlock-и, баланс XP, HP/мани, ворогів і rewards для повного першого діапазону.
 
-Бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, collection UI, share cards або окремий journal/progression loop, доки не закриті combat → equipment stats → loot → level 1-10. Нові bestiary-зміни допустимі тільки якщо вони прямо обслуговують combat/loot або виправляють безпеку/неточність уже наявного read-only surface.
+Бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, collection UI, share cards або окремий journal/progression loop, доки не закриті combat → equipment stats → loot → level 1-13. Нові bestiary-зміни допустимі тільки якщо вони прямо обслуговують combat/loot або виправляють безпеку/неточність уже наявного read-only surface.
 
 Докладна послідовність живе в `docs/PHASE1_FINISH_PLAN.md`, а copy-paste backlog для наступних PR — у `docs/NEXT_IMPLEMENTATION_BACKLOG.md`.
 

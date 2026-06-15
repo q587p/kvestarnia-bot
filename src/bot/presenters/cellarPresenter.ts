@@ -3,6 +3,10 @@ import type {
   CellarErrandLookupResult,
   CellarErrandResult
 } from "../../services/cellarErrandService";
+import type {
+  CellarGrownupQuestLookupResult,
+  CellarGrownupQuestResult
+} from "../../services/cellarGrownupQuestService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
@@ -54,6 +58,164 @@ export function presentCellarLevelRetired(
     `Після ${result.maxLevel} рівня миша називає пригодника «надмірним аргументом» і ховає сир у профспілку.`,
     "",
     "Для старших справ є дошка полювання: /hunt"
+  ].join("\n");
+}
+
+export function presentCellarGrownupQuest(
+  result: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>
+): string {
+  if (result.state === "completed") {
+    return presentCellarGrownupAlreadyCompleted(result);
+  }
+
+  if (result.state === "bottle-obtained") {
+    return [
+      "🍾 Пляшка Пінного Міражу",
+      "",
+      `<b>${escapeHtml(result.character.name)}</b> тримає пляшку, яка робить вигляд, що це вона тримає підвал.`,
+      "",
+      npcQuote("Корчмар", "Ну що, віддаємо її в журнал чи залишаємо собі як проблему на потім?"),
+      "",
+      "Що робимо?"
+    ].join("\n");
+  }
+
+  if (result.state === "has-seal") {
+    return [
+      "🧀 Сирна пломба Корчмаря",
+      "",
+      "Пломба пахне офіційно. Миша знизу вдає, що не чує, але вже нервово сортує крихти.",
+      "",
+      npcQuote("Корчмар", "Покажете пломбу — пройдете. Спробуєте домовитись — буде смішніше, але не факт, що швидше."),
+      "",
+      `<b>${escapeHtml(result.character.name)}</b>, як ідемо?`
+    ].join("\n");
+  }
+
+  if (result.state === "roleplay-cooldown") {
+    return [
+      "🐭 Миша вас запамʼятала.",
+      "",
+      "Це не погроза, це бухгалтерія. Такий самий обхід можна спробувати пізніше.",
+      "",
+      `Поверніться за ${formatCooldown(result.availableAt, result.now)}.`,
+      "",
+      "Або купіть пломбу й зробіть вигляд, що так і планували."
+    ].join("\n");
+  }
+
+  return presentCellarGrownupOffer(result.character, result.price);
+}
+
+export function presentCellarGrownupResult(result: CellarGrownupQuestResult): string {
+  if (result.state === "no-character") {
+    return presentCellarNoCharacter();
+  }
+
+  if (result.state === "too-young") {
+    return presentCellarLevelLocked({
+      state: "level-locked",
+      character: result.character,
+      requiredLevel: result.requiredLevel
+    });
+  }
+
+  if (result.state === "already-completed") {
+    return presentCellarGrownupAlreadyCompleted(result);
+  }
+
+  if (result.state === "seal-purchased") {
+    return [
+      "🧀 Пломбу оформлено.",
+      "",
+      `Корчмар забрав ${result.price} золота й видав Сирну пломбу Корчмаря.`,
+      "",
+      npcQuote("Корчмар", "Покажете миші. Не їжте. Це важливо, бо я вже бачив пригодників."),
+      "",
+      "Тепер можна спускатися."
+    ].join("\n");
+  }
+
+  if (result.state === "seal-already-owned") {
+    return [
+      "🧀 Пломба вже у вас.",
+      "",
+      "Корчмар не списує золото вдруге. Йому неприємно, але бухгалтерія дивиться."
+    ].join("\n");
+  }
+
+  if (result.state === "insufficient-gold") {
+    return [
+      "🧀 Пломба дивиться дорого.",
+      "",
+      `Потрібно ${result.price} золота. У вас — ${result.character.gold}.`,
+      "",
+      npcQuote("Корчмар", "Заробіть на дошці полювання або спробуйте домовитись із мишею. Я теж колись вірив у розмови.")
+    ].join("\n");
+  }
+
+  if (result.state === "roleplay-cooldown") {
+    return presentCellarGrownupQuest(result);
+  }
+
+  if (result.state === "roleplay-failed") {
+    return [
+      "🐭 Обхід не вдався.",
+      "",
+      "Миша подивилася на ваш аргумент, на сирну політику, на стелю — і вибрала стелю.",
+      "",
+      npcQuote("Миша", "Спроба цікава. В архіві буде під розділом «майже»."),
+      "",
+      `Спробувати так само можна за ${formatCooldown(result.availableAt, result.now)}.`
+    ].join("\n");
+  }
+
+  if (result.state === "bottle-obtained") {
+    const intro =
+      result.source === "seal"
+        ? "Миша побачила пломбу й офіційно відвернулася."
+        : "Миша не погодилась, але двері чомусь перестали сперечатися.";
+
+    return [
+      "🍾 Пляшку знайдено.",
+      "",
+      intro,
+      "",
+      "На полиці стоїть Пляшка Пінного Міражу. Стоїть — це сильно сказано: вона сперечається з гравітацією й поки перемагає.",
+      "",
+      ...presentItemGrantLines(result.reward.itemGrants),
+      "",
+      "Тепер її можна здати Корчмарю або лишити собі."
+    ].join("\n");
+  }
+
+  if (result.state === "missing-seal") {
+    return [
+      "🧀 Пломби немає.",
+      "",
+      "Миша просить документ, Корчмар просив не їсти документ, а інвентар мовчить підозріло голосно."
+    ].join("\n");
+  }
+
+  if (result.state === "missing-bottle") {
+    return [
+      "🍾 Пляшки немає.",
+      "",
+      "Корчмар дивиться в журнал, журнал дивиться на вас, підвал робить вигляд, що він тут узагалі ні до чого."
+    ].join("\n");
+  }
+
+  const endingLine =
+    result.ending === "turn-in"
+      ? "Ви здали Пляшку Пінного Міражу Корчмарю. Пляшка ображено булькнула в журнал."
+      : "Ви залишили Пляшку Пінного Міражу собі. Корчмар записав це як «героїчна самостійність із ризиком»";
+
+  return [
+    result.ending === "turn-in" ? "✅ Справу закрито." : "🎒 Пляшку залишено.",
+    "",
+    endingLine,
+    "",
+    presentRewardAmount(result.reward)
   ].join("\n");
 }
 
@@ -143,6 +305,40 @@ function formatCooldown(availableAt: Date, now: Date): string {
   const minutes = Math.max(1, Math.ceil(remainingMs / 60_000));
 
   return `${minutes} ${pluralize(minutes, "хвилину", "хвилини", "хвилин")}`;
+}
+
+function presentCellarGrownupOffer(character: CharacterSummary, price: number): string {
+  return [
+    "🐭 Справа не до миші",
+    "",
+    "Підвал визнав вас занадто дорослим. Миша назвала вас «надмірним аргументом», сховала сир у профспілку й показала хвостом на Корчмаря.",
+    "",
+    npcQuote("Корчмар", `Є справа формально не до миші. Пломба коштує ${price} золота. Або спробуйте пройти характером, якщо характер не проти.`),
+    "",
+    "Для старших справ є дошка полювання: /hunt",
+    "",
+    `<b>${escapeHtml(character.name)}</b>, що робимо?`
+  ].join("\n");
+}
+
+function presentCellarGrownupAlreadyCompleted(
+  result:
+    | Extract<CellarGrownupQuestLookupResult, { state: "completed" }>
+    | Extract<CellarGrownupQuestResult, { state: "already-completed" }>
+): string {
+  const endingLine =
+    result.ending === "turn-in"
+      ? "Пляшка вже в журналі Корчмаря. Журнал трохи піниться, але тримається."
+      : "Пляшка вже записана за вами. Корчмар каже, що це теж фінал, просто з довшим післясмаком.";
+
+  return [
+    "✅ Підвальна доросла справа вже закрита.",
+    "",
+    endingLine,
+    "",
+    "Вже отримано:",
+    presentRewardAmount(result.reward)
+  ].join("\n");
 }
 
 function pluralize(count: number, one: string, few: string, many: string): string {

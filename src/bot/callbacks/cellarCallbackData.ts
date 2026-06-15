@@ -1,8 +1,9 @@
 import { err, ok, type Result } from "../../shared/result";
 import type { CellarErrandAction } from "../../services/cellarErrandService";
+import type { CellarGrownupQuestAction } from "../../services/cellarGrownupQuestService";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
-export type CellarCallback = CellarErrandAction | "participants";
+export type CellarCallback = CellarErrandAction | CellarGrownupQuestAction | "participants";
 export type CellarCallbackError =
   | "invalid-version"
   | "invalid-prefix"
@@ -14,6 +15,11 @@ const cellarCallbacks = new Set<CellarCallback>([
   "cheese-trap",
   "sweep-bravely",
   "negotiate",
+  "grownup-buy-seal",
+  "grownup-roleplay",
+  "grownup-show-seal",
+  "grownup-turn-in",
+  "grownup-keep-bottle",
   "participants"
 ]);
 

@@ -246,5 +246,5 @@ Scope guard:
 Після цього повернутися до основного RPG-ланцюжка:
 
 ```text
-persistent fight sessions → equipment stat effects → loot engine → level 1-10 polish
+persistent fight sessions → equipment stat effects → loot engine → level 1-13 polish
 ```

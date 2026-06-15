@@ -1,4 +1,4 @@
-# Next Implementation Backlog після `0.0.23`
+﻿# Next Implementation Backlog після `0.0.24`
 
 Нижче — канонічний порядок маленьких PR для добивання Phase 1. Кожен slice має бути перевірюваним окремо; якщо PR роздувається, різати.
 
@@ -9,7 +9,7 @@
 Не розширювати бестіарій як окрему фічу, collection loop, share card або journal progression, доки не закритий основний RPG-ланцюжок:
 
 ```text
-combat domain → persistent fight → equipment stats → loot engine → level 1-10 tuning → achievements phase 1 → balance/playtest polish
+combat domain → persistent fight → equipment stats → loot engine → level 1-13 tuning → achievements phase 1 → balance/playtest polish
 ```
 
 ## 0.0.20 — Combat Domain Engine
@@ -180,18 +180,67 @@ Implemented in `0.0.23` for won persistent solo fights.
 - повторний callback не reroll-ить loot;
 - reward UI безпечно показує exact items.
 
-## 0.0.24 — Fight Rewards and Level 1-10
+## 0.0.24 — Level Cap 13 & Grownup Cellar Quest
+
+**Status**
+Implemented in `0.0.24`.
+
+**Scope**
+
+- current alpha cap raised from level 10 to level 13;
+- total XP thresholds extended with a steeper post-level-9 climb: `450`, `650`, `900`, `1300`;
+- level-cap celebration and `/restart` suggestion moved to level 13;
+- epic-level planning bracket moved to levels `14-23`;
+- persistent solo fights prefer monsters closer to the hero level and fall back to the highest eligible lower-level monster when content has no same-band enemy yet;
+- XP from persistent solo fights is capped to `1` when the monster is more than 2 levels below the hero;
+- level 4+ `/cellar` route opens `Справа не до миші` instead of the retired mouse dead-end;
+- seal purchase, roleplay bypass, bottle grant, and final choice are idempotent through existing `daily_actions` / cooldown / item rows;
+- no broad quest engine or new schema was added.
+
+## 0.0.25 — Mantok Chest Manual Selection & Inventory Polish
 
 **Objective**
-Довести solo loop після першого reward/loot path: real fight → reward → loot → level-up → hero/equipment impact має мати нормальний темп 1-10 і зрозумілий playtest checklist.
+Доробити Дружню Скриню після runtime MVP: ручний вибір манаток, краща інвентарна ергономіка й підготовка до item-instance identity без магазинів, продажу або trading.
+
+**Status**
+Planned after `0.0.24`, because runtime auto-pick chest exists, but manual selection and deeper inventory polish are still deferred.
+
+**Scope**
+
+- manual selection with pagination and `x/5` counter;
+- clearer item grouping/filtering around recyclable vs protected/equipped/priceless stacks;
+- keep transaction/idempotency safety from the `0.0.24` auto-pick path;
+- document or design item-instance identity if stack-level protection becomes too restrictive;
+- docs source: `docs/MANTOK_CHEST_BACKLOG.md`.
+
+**Non-goals**
+
+- no shops;
+- no selling/trading;
+- no crafting tree;
+- no item-to-level exchange;
+- no social recycling;
+- no new combat rewards.
+
+**Acceptance criteria**
+
+- tests cover manual selection, callback size, stale selections and duplicate callbacks;
+- selected items never disappear unless 1 valid output item is created;
+- player-facing copy stays clear that input манатки are gone forever after confirmation.
+
+## 0.0.26 — Fight Rewards and Level 1-13
+
+**Objective**
+Довести solo loop після першого reward/loot path: real fight → reward → loot → level-up → hero/equipment impact має мати нормальний темп 1-13 і зрозумілий playtest checklist.
 
 **Scope**
 
 - tune current fight reward/loot/progression path;
-- level thresholds 1-10 in one module;
+- level thresholds 1-13 in one module;
 - multi-level grant;
 - level cap / alpha max behavior;
 - level affects combat math through effective stats;
+- next resource-management slice: persist HP/mana between fights and add slow out-of-combat regeneration affected by class/race/title/stats; no full auto-restore before every fight;
 - future-safe monster level modifiers: манатки або дії інших гравців можуть тимчасово знижувати чи піднімати effective рівень монстра; нижчий рівень має давати менші/гірші rewards, вищий — кращі rewards, але різко складніший бій і більшу потребу в разових манатках;
 - short Ukrainian level-up copy with concrete changes.
 
@@ -207,12 +256,15 @@ Implemented in `0.0.23` for won persistent solo fights.
 7: 160
 8: 225
 9: 305
-10: 400
+10: 450
+11: 650
+12: 900
+13: 1300
 ```
 
 **Acceptance criteria**
 
-- tests cover threshold crossing, multiple levels, cap at 10, duplicate reward no duplicate level;
+- tests cover threshold crossing, multiple levels, cap at 13, duplicate reward no duplicate level;
 - `/hero` and combat agree on level/effective values.
 
 ## 0.0.26 — Phase 1 Balance and Playtest Polish

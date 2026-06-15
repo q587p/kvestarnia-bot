@@ -1,6 +1,6 @@
 # Codex Bestiary Collection Prompts
 
-> Status after `0.0.19`: parked. Бестіарій лишається data/content foundation і read-only довідником. Не використовувати ці prompts як наступний implementation track, доки не закриті combat engine → equipment stat effects → loot engine → level 1-10. Повертатися сюди тільки після Phase 1 finish або якщо конкретний bestiary patch прямо потрібен для combat/loot safety.
+> Status after `0.0.19`: parked. Бестіарій лишається data/content foundation і read-only довідником. Не використовувати ці prompts як наступний implementation track, доки не закриті combat engine → equipment stat effects → loot engine → level 1-13. Повертатися сюди тільки після Phase 1 finish або якщо конкретний bestiary patch прямо потрібен для combat/loot safety.
 
 Нижче — parked copy-paste prompts для майбутніх implementation PRs після Phase 1 finish.
 

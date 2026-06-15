@@ -40,6 +40,7 @@ model Character {
   korchmaRoundPurchases KorchmaRoundPurchase[]
   huntContracts HuntContract[]
   soloCombatSessions SoloCombatSession[]
+  mantokChestRuns MantokChestRun[]
   name      String
   pronoun   String   @default("they")
   path      String   @default("boundary")
@@ -123,6 +124,25 @@ model CharacterItem {
   @@unique([characterId, itemId])
   @@index([itemId])
   @@map("character_items")
+}
+
+model MantokChestRun {
+  id                 String    @id @default(uuid())
+  characterId        String    @map("character_id")
+  character          Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  token              String    @unique
+  status             String    @default("pending")
+  inputItemsJson     Json      @map("input_items_json")
+  outputItemsJson    Json?     @map("output_items_json")
+  averageInputScore  Int       @map("average_input_score")
+  minimumOutputScore Int       @map("minimum_output_score")
+  outputScore        Int?      @map("output_score")
+  completedAt        DateTime? @map("completed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([characterId, status])
+  @@map("mantok_chest_runs")
 }
 
 model DailyAction {

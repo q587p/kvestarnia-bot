@@ -224,4 +224,30 @@ describe("Prisma schema", () => {
     expect(rewardReplayMigration).toContain("ADD COLUMN \"reward_items_json\"");
     expect(rewardReplayMigration).toContain("ADD COLUMN \"reward_claimed_at\"");
   });
+
+  it("stores Mantok Chest audit runs for inventory recycling", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260615110000_add_mantok_chest_runs",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model MantokChestRun");
+    expect(schema).toContain("mantokChestRuns MantokChestRun[]");
+    expect(schema).toContain("@map(\"input_items_json\")");
+    expect(schema).toContain("@map(\"output_items_json\")");
+    expect(schema).toContain("@map(\"average_input_score\")");
+    expect(schema).toContain("@map(\"minimum_output_score\")");
+    expect(schema).toContain("@@index([characterId, status])");
+    expect(schema).toContain("@@map(\"mantok_chest_runs\")");
+    expect(migration).toContain("CREATE TABLE \"mantok_chest_runs\"");
+    expect(migration).toContain("CREATE UNIQUE INDEX \"mantok_chest_runs_token_key\"");
+    expect(migration).toContain("CREATE INDEX \"mantok_chest_runs_character_id_status_idx\"");
+  });
 });

@@ -6,6 +6,7 @@ import {
   makeItemDetailCallbackData,
   makeUnequipSlotCallbackData
 } from "../callbacks/itemCallbackData";
+import { makeMantokChestOpenCallbackData } from "../callbacks/mantokChestCallbackData";
 import type { InventoryItemDetailResult, InventoryResult } from "../../services/inventoryService";
 import type { EquipmentResult, EquipmentSlot } from "../../services/equipmentService";
 import { isEquippableItem } from "../../services/equipmentService";
@@ -23,6 +24,7 @@ export function buildInventoryKeyboard(result: InventoryResult, page = 0): Inlin
   }
 
   keyboard.text("🛡️ Спорядження", makeEquipmentCallbackData());
+  keyboard.text("♻️ До Дружньої Скрині", makeMantokChestOpenCallbackData()).row();
 
   if (result.state !== "found") {
     return keyboard;

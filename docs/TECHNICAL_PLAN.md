@@ -1,4 +1,4 @@
-# Technical Plan
+﻿# Technical Plan
 
 ## Архітектурна ідея
 Bot-first, domain-driven, data-driven content.
@@ -311,9 +311,18 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - Якщо session уже `won`, але reward claim ще не встиг створитися, terminal read пробує той самий idempotent claim/recover path замість тихо лишати бій без винагороди.
 - `daily_actions.local_date = solo_combat_sessions.id` у цьому path є generic idempotency bucket, а не календарна дата. Перед analytics/reporting pass це поле варто або перейменувати в майбутній схемі, або явно документувати як bucket id.
 
+`0.0.23` не додає shops, selling, trading, crafting, consumables або широкий economy pass. Але новий fight loot збільшує item volume, тому `0.0.24` додає перший pressure valve: Дружня Скриня / Манатко-скриня recycle-ить 5 eligible манаток в 1 better-than-average output item із confirmation, транзакційністю й idempotent callback safety.
+
+Mantok Chest implementation notes:
+- `mantok_chest_runs` зберігає pending/completed audit row із token, input item counts, output item, average/minimum/output score.
+- Preview не мутує inventory. Confirm перечитує inventory/equipment у транзакції, перевіряє stored input units, guarded-decrement-ить input stacks, upsert-ить output stack і завершує run.
+- Inventory поки stack-based (`CharacterItem.itemId + quantity`), без item-instance ids. Через це `0.0.24` споживає 5 units зі stack-ів, а якщо `itemId` екіпірований, увесь stack захищений від Скрині.
+- `priceless` і protected/story items не eligible. Locked/favorite/trade/mail/auction flags ще не існують, тому вони не застосовуються в цьому slice.
+- Manual selection відкладено: поточний runtime path має тільки `Згодувати 5 найдешевших`.
+
 Залишковий борг перед великим Hunt Board: ledger ще не є persistent combat/encounter state. Для групових полювань, wilderness sessions, collection progression, складного loot tracking або combat HP/mana потрібна окрема session model і ширший transaction boundary.
 
-Phase 1 scope lock: Hunt Board ledger і `/bestiary` лишаються bridge/data foundation. `/bestiary` і `/monsters` gate-яться до 3 рівня, щоб read-only довідник не спойлерив starter encounters. Не будувати окремий bestiary collection/journal progression track, доки не закриті combat engine, equipment stat effects, loot engine і level 1-10 loop. Наступні bestiary-зміни мають або виправляти поточну safety/read-only поведінку, або прямо обслуговувати combat/loot.
+Phase 1 scope lock: Hunt Board ledger і `/bestiary` лишаються bridge/data foundation. `/bestiary` і `/monsters` gate-яться до 3 рівня, щоб read-only довідник не спойлерив starter encounters. Не будувати окремий bestiary collection/journal progression track, доки не закриті combat engine, equipment stat effects, loot engine і level 1-13 loop. Наступні bestiary-зміни мають або виправляти поточну safety/read-only поведінку, або прямо обслуговувати combat/loot.
 
 Цей механізм поки не є повним cooldown system і не потребує Redis.
 
@@ -325,6 +334,15 @@ Cooldown reward claim має бути transactional:
 - якщо cooldown відсутній або минув, conditionally створити/оновити row, видати маленьку винагороду й перерахувати level;
 - concurrent callback-и не мають проходити як дві винагороди.
 - Onboarding gate: Підвальна справа відкривається з 2 рівня і закривається після 3 рівня. Перевірка стоїть до cooldown reward claim, а command/callback handlers не мають переносити presence в `location.korchma.cellar`, якщо герой ще locked або вже виріс із цієї новачкової справи.
+
+У `0.0.24` рівень 4+ більше не отримує dead-end retired state у підвалі. Старий `/cellar` route відкриває вузьку once-per-player справу `cellar.grownup`:
+- `CellarGrownupQuestService` лишається vertical slice, не broad quest engine;
+- `daily_actions` із local bucket `once` є idempotency authority для seal purchase audit, bottle grant і permanent completion;
+- `character_items` тримає `item.cellar.cheese-seal` і `item.cellar.foamy-mirage-bottle`, а bottle grant має `maxOwnedQuantity: 1`;
+- failed roleplay bypass пише cooldown `cellar.grownup.roleplay` у `character_cooldowns`, але не створює completion і не блокує paid seal route;
+- фінали `turn-in` і `keep` обидва ставлять permanent completion claim, repeated callback-и не дублюють XP, золото, items або cooldown/progress state.
+
+Цей slice не додає schema migration: використано існуючі `daily_actions`, `character_items` і `character_cooldowns`. Перед майбутнім broad quest/session model варто не переузагальнювати це як універсальний контракт: це лише безпечний pattern для маленьких once-per-player справ.
 
 Redis лишається майбутнім cache/job інструментом, не dependency для `0.0.10`.
 
@@ -428,6 +446,12 @@ Callback data коротка, версіонована.
 - `v1:equip:view`
 - `v1:equip:item:{itemId}`
 - `v1:equip:clear:{slot}`
+- `v1:chest:open`
+- `v1:chest:help`
+- `v1:chest:auto`
+- `v1:chest:confirm:{token}`
+- `v1:chest:cancel:{token}`
+- `v1:chest:inventory`
 - `v1:fight:mimic:attack`
 - `v1:fight:mimic:receipt`
 - `v1:fight:mimic:flee`
@@ -487,7 +511,7 @@ Domain result → presenter → Telegram text/buttons.
 - `getNextLevelThreshold(level)`
 - `applyXpReward(currentXp, xpReward)`
 
-Поточні Phase 1 alpha-пороги: `0`, `10`, `25`, `45`, `70`, `110`, `160`, `225`, `305`, `400` XP для рівнів 1–10. Tavern, adventure, fight, cellar, Hunt Board і raid rewards мають використовувати цей helper, щоб `/hero` відразу показував оновлений рівень. `summarizeCharacter(...)` також піднімає summary-рівень за stored XP, щоб персонажі, які вперлися у стару стелю, не лишалися під старим cap після розширення лінійки.
+Поточні Phase 1 alpha-пороги: `0`, `10`, `25`, `45`, `70`, `110`, `160`, `225`, `305`, `450`, `650`, `900`, `1300` XP для рівнів 1–13. Після 9 рівня крива навмисно крутіша, щоб верхні alpha-рівні не пролітали надто швидко. Tavern, adventure, fight, cellar, Hunt Board і raid rewards мають використовувати цей helper, щоб `/hero` відразу показував оновлений рівень. `summarizeCharacter(...)` також піднімає summary-рівень за stored XP, щоб персонажі, які вперлися у стару стелю, не лишалися під старим cap після розширення лінійки.
 
 `0.0.7` додає derived effective stats без міграції схеми:
 - stored `hpMax`, `manaMax` і `statsJson` залишаються level-1 базою;
@@ -508,7 +532,7 @@ Future progression pass:
 - Revisit the alpha formulas so level has a stronger, visible impact on HP, mana, combat coefficients, event checks, and activity/content gates.
 - Keep the source of truth centralized in progression/effective-stat helpers; presenters, services, and combat/event logic should not each invent their own level math.
 - Add tests around level breakpoints so raising level changes real outcomes, not only displayed summary numbers.
-- Model levels `11-20` as an epic bracket with milestone unlocks for race/class abilities, inspired by Munchkin-style extra class/race tricks. Keep unlock definitions data-driven enough for tests and presenters to answer «what changed at this level?» without hard-coded string checks.
+- Model levels `14-23` as an epic bracket with milestone unlocks for race/class abilities, inspired by Munchkin-style extra class/race tricks. Keep unlock definitions data-driven enough for tests and presenters to answer «what changed at this level?» without hard-coded string checks.
 
 Future time-of-day combat modifiers:
 - Derive a coarse local phase from the shared time helper: `morning`, `day`, `evening`, `night`.
@@ -521,7 +545,7 @@ Future korchma progression boards:
 - Add a durable event/log source for first arrival and level-up milestones instead of deriving them from mutable current character state.
 - Level-up records should be idempotent per `character_id` + reached `level`; repeated reward callbacks must not duplicate the same milestone.
 - The front-of-korchma level board can show recent level-ups plus a ranking by highest reached level. Use deterministic tie-breakers: reached level desc, achieved time asc, then stable `character_id`.
-- Level 10 already has a distinct level-up presenter branch; the future board needs a durable milestone type/event so it can highlight the same achievement without hard-coding string searches.
+- Level 13 already has a distinct level-up presenter branch; the future board needs a durable milestone type/event so it can highlight the same achievement without hard-coding string searches.
 - Keep these boards as in-game Telegram surfaces near `location.korchma.front`; public web presence must still avoid exposing player names by default.
 
 ## Observability

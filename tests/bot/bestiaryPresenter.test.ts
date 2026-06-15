@@ -55,6 +55,15 @@ describe("bestiary presenter", () => {
     expect(text).toContain("<i>Штемпельна подушка останнього попередження</i>");
   });
 
+  it("renders the new ladder monsters with their field notes", () => {
+    const text = presentBestiaryMonster("monster.calendar-hydra");
+
+    expect(text).toContain("<b>Гідра календарних переносів</b>");
+    expect(text).toContain("Рівень: 11");
+    expect(text).toContain("Польова нотатка:");
+    expect(text).toContain("Перенос календаря зламався об стіну. Стіна не винна.");
+  });
+
   it("uses monster-specific field notes instead of repeated tag-generic notes", () => {
     const text = presentBestiaryMonster("monster.spreadsheet-goblin");
 

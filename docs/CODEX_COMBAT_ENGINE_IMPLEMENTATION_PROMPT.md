@@ -79,6 +79,7 @@ Implement timeout behavior in a safe minimal way:
 
 - Store `nextTimeoutAt`, `missedTurns`, `autoTurnCount`, `hardExpiresAt` in combat state.
 - Add `advanceCombatTimeout(combatId)` in service/domain.
+- If the player does not react for roughly 23 seconds after the combat prompt, try a safe auto-action from the available set instead of immediately expiring the fight.
 - First missed turn uses a safe default action.
 - Second missed turn guards or tries to flee.
 - Third missed turn or hard expiry ends as `expired`/safe flee with no reward.
@@ -145,10 +146,12 @@ combat:{combatId}:reward
 
 Start with simple formulas from `docs/COMBAT_ENGINE_DESIGN.md` / `docs/BALANCE_NOTES.md`. Keep numbers tiny. Do not chase perfect balance in the implementation PR, but add enough tests/simulations to catch obvious outliers.
 
+The `coward` scenario must have an explicit flee threshold in service logic and tests. Do not hide it in presenter-only text; if the hero is low HP or the enemy is cowardly, the timeout ladder may prefer `escape` earlier than `attack`.
+
 Add or update a simulation script if practical:
 
 ```bash
-npm run simulate:combat -- --levels 1-10 --runs 10000
+npm run simulate:combat -- --levels 1-13 --runs 10000
 ```
 
 If adding the script is too much for this PR, add domain tests that approximate:

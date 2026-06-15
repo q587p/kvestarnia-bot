@@ -4,6 +4,7 @@ import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData
 import { sendCellarErrandRouted } from "../../src/bot/commands/cellarCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { CellarErrandService } from "../../src/services/cellarErrandService";
+import type { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
@@ -55,6 +56,68 @@ describe("cellar command", () => {
     await sendCellarErrandRouted(makeContext(replies), cellarErrandService, presence, "reply");
 
     expect(replies[0]?.text).toContain("🐭 Підвальна справа");
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+    });
+  });
+
+  it("opens the grownup cellar quest for level four heroes", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+    const retiredMouse = {
+      getForTelegramUser: () =>
+        Promise.resolve({
+          state: "level-retired",
+          character: {
+            ...character,
+            level: 4,
+            xp: 95,
+            nextLevelXp: 135,
+            xpToNextLevel: 40
+          },
+          maxLevel: 3
+        }),
+      complete: () => Promise.resolve({ state: "no-character" })
+    } as unknown as CellarErrandService;
+    const grownupQuest = {
+      getForTelegramUser: () =>
+        Promise.resolve({
+          state: "offered",
+          character: {
+            ...character,
+            level: 4,
+            xp: 95,
+            nextLevelXp: 135,
+            xpToNextLevel: 40
+          },
+          price: 240
+        })
+    } as unknown as CellarGrownupQuestService;
+
+    await sendCellarErrandRouted(makeContext(replies), retiredMouse, presence, "reply", {
+      grownupQuest
+    });
+
+    expect(replies[0]?.text).toContain("🐭 Справа не до миші");
+    expect(replies[0]?.text).toContain("Пломба коштує 240 золота");
+    const options = replies[0]?.options as {
+      parse_mode?: string;
+      reply_markup?: {
+        inline_keyboard?: Array<Array<{ text: string; callback_data: string }>>;
+      };
+    };
+    const buttons = options.reply_markup?.inline_keyboard?.flat() ?? [];
+
+    expect(options.parse_mode).toBe("HTML");
+    expect(buttons).toContainEqual({
+      text: "🧀 Купити пломбу",
+      callback_data: "v1:cellar:grownup-buy-seal"
+    });
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
       currentRaidId: null,

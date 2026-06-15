@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { summarizeCharacter } from "../../src/domain/characters/characterSummary";
 
 describe("summarizeCharacter", () => {
@@ -46,8 +46,8 @@ describe("summarizeCharacter", () => {
   });
 
   it("handles capped level", () => {
-    expect(summarizeCharacter(character({ level: 10, xp: 425 }))).toMatchObject({
-      level: 10,
+    expect(summarizeCharacter(character({ level: 13, xp: 1300 }))).toMatchObject({
+      level: 13,
       nextLevelXp: null,
       xpToNextLevel: null
     });

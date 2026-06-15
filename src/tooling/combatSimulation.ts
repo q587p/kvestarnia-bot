@@ -427,7 +427,7 @@ function buildSimulationHero(input: {
 }
 
 function normalizeOptions(options: Partial<CombatSimulationOptions>): CombatSimulationOptions {
-  const defaultLevels = Array.from({ length: 10 }, (_, index) => index + 1);
+  const defaultLevels = Array.from({ length: 13 }, (_, index) => index + 1);
   const levels = normalizeNumberList(options.levels ?? defaultLevels, defaultLevels);
   const classIds = normalizeClassIds(options.classIds ?? classes.map((characterClass) => characterClass.id));
   const raceId = resolveDefaultRaceId(options.raceId);
