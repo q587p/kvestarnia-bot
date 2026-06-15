@@ -157,6 +157,46 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 - generated musical manatky appear in loot/content pool and item detail does not leak internal ids;
 - tests cover no-character, non-bard locked state, bard without instrument, bard with universal instrument, bard with bard-preferred/bard-only instrument, cooldown replay, and reward idempotency.
 
+## Later — Calendar Korchma Revels and Wednesday Frogs
+
+**Objective**
+Додати легкий календарний шар для корчми: неділі, свята й окремі дні тижня можуть давати короткі події, flavor, малі бонуси або особливі encounter weights. Це має відчуватися як корчма, де у вихідні й святкові дні шумніше, а в середу чомусь підозріло більше жаб.
+
+**Design source**
+
+Історична корчма була місцем святкувань, музики й танців до пізньої ночі. Для Квестарні це означає не сухий календар, а маленькі повторювані приводи зайти: недільний гамір, святковий Шинок, середові жаби, коротка чутка, тимчасовий бонус до тосту або тематичний монстр.
+
+**First slice**
+
+- `CalendarService` або маленький helper, який визначає київський день тижня, неділю, відомі ручні свята й special tags на сьогодні.
+- `🍺 Корчма` / `🍻 Шинок` показують один короткий calendar flavor рядок, якщо є подія.
+- У середу додати frog-themed flavor або підвищити вагу frog/frogfolk-tagged контенту там, де це вже безпечно підтримується.
+- У неділю або ручне свято можна дати малий social/flavor bonus: дешевший тост, додатковий рядок для бардівського виступу, +малий шанс на добрий виступ або короткий recovery comfort.
+- Не робити перший slice повним seasonal event engine.
+
+**Wednesday frog direction**
+
+- Мем `It Is Wednesday My Dudes` використовувати тільки як джерело смаку, не як дослівний player-facing текст.
+- Квестарнянський варіянт: `середові жаби`, `жаби календарного схвалення`, `ква-календар`, `Жаба, що прийшла рівно посеред тижня`.
+- Existing/generated content уже має `frogfolk`/frog hooks у loot expansion, тож runtime PR має перевірити, чи можна безпечно підняти вагу таких манаток у середу без нового content pack.
+- Якщо контенту мало, додати невеликий starter pack жаб: монстр, 3-5 манаток, 3-5 коротких реплік.
+
+**Guardrails**
+
+- Календарні бонуси мають бути малими й не-FOMO: якщо гравець пропустив середу або неділю, прогрес не зламався.
+- Time basis — `Europe/Kyiv`, не UTC.
+- Player-facing текст не показує технічні timestamps або exact formula.
+- Свята не мають зачіпати реальні трагедії або політичні дати як punchline.
+- Не змішувати календарні бонуси з release/news: це runtime flavor, не обіцянка майбутніх persistent scheduler-ів.
+
+**Acceptance criteria**
+
+- helper має unit tests для понеділка/середи/неділі, київської timezone і ручного holiday override;
+- середовий frog flavor deterministic у межах дня й не дублюється хаотично на кожен refresh;
+- недільний/святковий bonus не обходить cooldown-и й не дублює rewards;
+- event text короткий, український і без дослівного копіювання мемів;
+- tests cover no-event day, Wednesday frog day, Sunday revel day, explicit holiday day, and replay/idempotency.
+
 ## Later — Манчкін-скупник Manual Selection Polish
 
 **Objective**
