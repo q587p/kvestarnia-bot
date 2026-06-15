@@ -706,6 +706,7 @@ function persistentFightSession(): SoloCombatSessionRecord {
         hpMax: 18
       }
     },
+    reward: null,
     createdAt: new Date("2026-06-12T10:30:00.000Z"),
     updatedAt: new Date("2026-06-12T10:30:00.000Z"),
     expiresAt: new Date("2026-06-12T11:00:00.000Z")

@@ -2,6 +2,13 @@ import type { CombatState, CombatStatus } from "../../domain/combat";
 
 export type SoloCombatSessionStatus = CombatStatus;
 
+export interface SoloCombatRewardRecord {
+  xp: number;
+  gold: number;
+  itemGrants: Array<{ itemId: string; quantity: number }>;
+  claimedAt: Date;
+}
+
 export interface SoloCombatSessionRecord {
   id: string;
   characterId: string;
@@ -9,6 +16,7 @@ export interface SoloCombatSessionRecord {
   status: SoloCombatSessionStatus;
   turn: number;
   state: CombatState | null;
+  reward: SoloCombatRewardRecord | null;
   createdAt: Date;
   updatedAt: Date;
   expiresAt: Date;
@@ -25,6 +33,13 @@ export interface UpdateSoloCombatSessionInput {
   state: CombatState;
   status: SoloCombatSessionStatus;
   expiresAt?: Date;
+}
+
+export interface RecordSoloCombatRewardInput {
+  rewardXp: number;
+  rewardGold: number;
+  itemGrants: Array<{ itemId: string; quantity: number }>;
+  claimedAt: Date;
 }
 
 export interface SoloCombatSessionRepository {
@@ -46,6 +61,10 @@ export interface SoloCombatSessionRepository {
     sessionId: string,
     expectedTurn: number,
     input: UpdateSoloCombatSessionInput
+  ): Promise<SoloCombatSessionRecord | null>;
+  recordRewardById(
+    sessionId: string,
+    input: RecordSoloCombatRewardInput
   ): Promise<SoloCombatSessionRecord | null>;
   markStatusById(
     sessionId: string,

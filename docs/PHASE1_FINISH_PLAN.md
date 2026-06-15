@@ -10,7 +10,7 @@
 /start → герой → справжній бій → XP/золото/лут → inventory/equipment → рівень і цифри реально впливають на наступний бій
 ```
 
-Бестіарій, Hunt Board, presence, корчма й flavor уже дали корисну інфраструктуру. Persistent `/fight` уже зʼявився як session slice з одним маленьким quest wrapper-ом на 13 перемог, але без per-fight rewards. Phase 1 не закрита, доки немає справжнього combat → equipment stats → loot → level 1-10 loop. Achievements Phase 1 дозволений як later rewardless meta-slice для титулів і прогресу, але не має перебивати цей ланцюжок.
+Бестіарій, Hunt Board, presence, корчма й flavor уже дали корисну інфраструктуру. Persistent `/fight` уже зʼявився як session slice з одним маленьким quest wrapper-ом на 13 перемог, equipment effects уже впливають на числа, а `0.0.23` додає перший контрольований per-session reward/loot path із replay деталей. Phase 1 не закрита, доки цей combat → equipment stats → loot → level 1-10 loop не пройде балансний polish і playtesting. Achievements Phase 1 дозволений як later rewardless meta-slice для титулів і прогресу, але не має перебивати цей ланцюжок.
 
 ## Scope Lock
 
@@ -39,10 +39,10 @@
    Один helper для base stats + level + equipment. Манатки дають маленькі прозорі bonuses, `/hero` і combat читають ту саму математику.
 
 5. **Loot Engine + Reward Replay**
-   Контрольовані loot tables із rarity, bounded LUCK modifier, deterministic/injected RNG, idempotent reward claim і replay деталей.
+   Контрольовані loot tables із rarity, bounded LUCK modifier, deterministic/injected RNG, idempotent reward claim і replay деталей. Реалізовано в `0.0.23` для won persistent solo fights.
 
-6. **Integrated Fight Rewards + Level 1-10**
-   Fight victory видає XP/gold/item через новий path. Level thresholds 1-10 живуть в одному модулі, multi-level grant і cap behavior протестовані.
+6. **Level 1-10 Reward Tuning**
+   Перевірити, що fight victory rewards, loot, level thresholds, multi-level grant і cap behavior разом дають нормальний Phase 1 темп. Не додавати нові системи, доки current loop не проходить smoke і симуляції.
 
 7. **Achievements Phase 1**
    Rewardless ачівки як колекція титулів: seed definitions, idempotent unlock service, кнопка `🏅 Ачівки`, пагінація, hidden states і grouped notifications. Без XP, золота, предметів, stat effects або active-title selection. Деталі: `docs/ACHIEVEMENTS_PHASE1.md`.
@@ -75,7 +75,7 @@ Phase 1 можна вважати закритою, коли:
 - у бою є attack, class/special action і flee;
 - HP/mana змінюються в межах combat session і відображаються;
 - stats, level і equipped items впливають на damage/survival/skill outcome через один helper;
-- перемога видає XP/gold/item через loot engine;
+- перемога видає XP/gold/item через loot engine і repeated callback replay-ить той самий запис;
 - повторний callback не дублює XP/gold/items/level;
 - level-up 1-10 має тести й видимий короткий текст;
 - loss/flee не карають жорстко й не стають безкоштовним full reward;

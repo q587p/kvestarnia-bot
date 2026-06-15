@@ -184,6 +184,7 @@ Added in `0.0.21 — Persistent Fight Sessions` for the first solo `/fight` runt
 - `state_json`
 - `status`: active/won/lost/fled/expired
 - `expires_at`
+- `reward_xp`, `reward_gold`, `reward_items_json`, `reward_claimed_at` nullable replay fields from `0.0.23`
 - `created_at`
 - `updated_at`
 
@@ -192,7 +193,8 @@ Rules:
 - `turn` duplicates the current `CombatState.turn` as a normal integer column so callbacks can use a conditional DB update instead of JSON filtering.
 - One active playable row per character is protected by an unmanaged SQLite partial unique index on `character_id WHERE status = 'active'`; the migration expires older duplicate active rows before installing the index.
 - Callback data contains `sessionId`, `turn`, and `action`. The service rejects stale turns without mutating state, and turn resolution writes through a repository-level conditional update: only the still-active row with the expected turn may advance.
-- Per-fight rewards are not used by persistent solo fights in 0.0.21. The only reward path in this slice is the narrow one-time wrapper `quest.thirteen-small-problems` with `local_date = once`: progress is derived from won `solo_combat_sessions`, while `daily_actions` remains the idempotent XP/gold/item authority for the fixed completion reward.
+- In `0.0.21`, per-fight rewards were deliberately absent. `0.0.23` adds a small won-session reward path: `daily_actions` with key `combat.solo-fight.reward` and `local_date = solo_combat_sessions.id` remains the idempotent reward authority, while nullable reward fields on `solo_combat_sessions` store replay/audit details for repeated callbacks.
+- The narrow one-time wrapper `quest.thirteen-small-problems` stays separate with `local_date = once`: progress is derived from won `solo_combat_sessions`, and its fixed completion reward is not replaced by the per-session fight reward.
 - Lazy expiry happens when `/fight` or a fight callback touches an old active session; no Redis/job worker is required for this slice.
 
 ### groups
@@ -298,6 +300,16 @@ Paths are not player-facing and must not add stat modifiers or gameplay bonuses.
 - Onboarding gates: starter shawarma/adventure and starter fight run only on levels 1-2 and retire from level 3; cellar errands run only on levels 2-3; Hunt Board opens from level 3. Перевірка Hunt Board стоїть у service path до `hunt_contracts` upsert і до `daily_actions.claimForTelegramUser`, щоб низькорівневий `/hunt` або stale action callback не створював ledger row і не рухав reward state.
 
 `daily_actions` лишається reward-idempotency authority. `hunt_contracts` не має сам видавати XP/gold/items і не замінює encounter session. Це audit/replay layer для current one-shot Hunt Board.
+
+У `0.0.23` persistent solo fights отримують перший small reward/loot path:
+- `combat.solo-fight.reward` → один reward claim на `solo_combat_sessions.id`;
+- reward amount рахується з рівня монстра, а item roll іде через pure `domain/loot` engine з injected RNG, rarity weights і bounded LUCK modifier;
+- won session може видати XP/gold і максимум один controlled `monsterLoot` item;
+- loss/flee/expired sessions не створюють full victory reward claim;
+- після успішного claim `solo_combat_sessions.reward_*` поля зберігають replay summary; repeated callback показує stored summary і не reroll-ить item.
+- Якщо `daily_actions` claim уже створений, але запис replay payload у session не зберігся, terminal read має fallback-нутися на authoritative `daily_actions` record: показати stored XP/gold, не вигадувати item details і лишити `daily_actions` єдиним джерелом «чи вже видано».
+- Якщо session уже `won`, але reward claim ще не встиг створитися, terminal read пробує той самий idempotent claim/recover path замість тихо лишати бій без винагороди.
+- `daily_actions.local_date = solo_combat_sessions.id` у цьому path є generic idempotency bucket, а не календарна дата. Перед analytics/reporting pass це поле варто або перейменувати в майбутній схемі, або явно документувати як bucket id.
 
 Залишковий борг перед великим Hunt Board: ledger ще не є persistent combat/encounter state. Для групових полювань, wilderness sessions, collection progression, складного loot tracking або combat HP/mana потрібна окрема session model і ширший transaction boundary.
 
@@ -467,7 +479,7 @@ Domain result → presenter → Telegram text/buttons.
 - `combatEngine.ts` приймає action + state + stats + injected `RandomSource` і повертає новий state без Telegram payloads.
 - `combatActions.ts` дає broad class-shaped skill profiles, не повні class kits.
 - `monsterCombatStats.ts` derivation бере existing monster content без schema migration.
-- `0.0.21` підключає runtime `/fight` для level 3+ через `solo_combat_sessions`, `v1:fight:turn:{sessionId}:{turn}:{action}`, ownership/turn validation і presenter layer. Persistent fight у цьому slice не видає per-fight XP/gold/items, але має one-time wrapper `Тринадцять дрібних проблем` на 13 won сесій.
+- `0.0.21` підключає runtime `/fight` для level 3+ через `solo_combat_sessions`, `v1:fight:turn:{sessionId}:{turn}:{action}`, ownership/turn validation і presenter layer. Persistent fight стартував без per-fight XP/gold/items, але має one-time wrapper `Тринадцять дрібних проблем` на 13 won сесій; `0.0.23` додає окремий small per-session reward/loot path із replay fields.
 
 ## Progression helper
 `0.0.4` вводить маленький deterministic helper для рівнів:

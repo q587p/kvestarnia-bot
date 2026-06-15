@@ -1,4 +1,4 @@
-# Next Implementation Backlog після `0.0.21`
+# Next Implementation Backlog після `0.0.23`
 
 Нижче — канонічний порядок маленьких PR для добивання Phase 1. Кожен slice має бути перевірюваним окремо; якщо PR роздувається, різати.
 
@@ -9,7 +9,7 @@
 Не розширювати бестіарій як окрему фічу, collection loop, share card або journal progression, доки не закритий основний RPG-ланцюжок:
 
 ```text
-combat domain → persistent fight → equipment stats → loot engine → level 1-10 → achievements phase 1 → balance/playtest polish
+combat domain → persistent fight → equipment stats → loot engine → level 1-10 tuning → achievements phase 1 → balance/playtest polish
 ```
 
 ## 0.0.20 — Combat Domain Engine
@@ -48,7 +48,7 @@ Implemented in `0.0.20` as pure domain code. Runtime `/fight` wiring landed in `
 ## 0.0.21 — Persistent Fight Sessions
 
 **Status**
-Implemented in `0.0.21` as the first Telegram runtime wiring for the combat domain engine. Persistent fights have no per-fight rewards in this slice, but include one tiny wrapper quest, `Тринадцять дрібних проблем`, with a fixed one-time completion reward after 13 won sessions.
+Implemented in `0.0.21` as the first Telegram runtime wiring for the combat domain engine. Persistent fights initially shipped without per-fight rewards in this slice, but include one tiny wrapper quest, `Тринадцять дрібних проблем`, with a fixed one-time completion reward after 13 won sessions. `0.0.23` later adds the first small per-session reward/loot path.
 
 **Objective**
 Підʼєднати combat engine до `/fight` як справжню persistent solo session.
@@ -66,7 +66,7 @@ Implemented in `0.0.21` as the first Telegram runtime wiring for the combat doma
 
 **Non-goals**
 
-- no per-fight rewards, XP, gold, or item grants for persistent fights yet;
+- no per-fight rewards, XP, gold, or item grants in the original `0.0.21` slice; this gap is later addressed by `0.0.23`;
 - no random loot tables;
 - no equipment effects;
 - no group/PvP combat;
@@ -153,6 +153,9 @@ Follow-up debt: usable item metadata and actual item-use actions remain future w
 **Objective**
 Перетворити monster loot mapping на контрольований, тестований loot engine.
 
+**Status**
+Implemented in `0.0.23` for won persistent solo fights.
+
 **Scope**
 
 - `src/domain/loot/*` із rarity table;
@@ -161,6 +164,7 @@ Follow-up debt: usable item metadata and actual item-use actions remain future w
 - deterministic або injected RNG;
 - reward claim transactional/idempotent;
 - repeat/retry callback може показати stored reward details.
+- won persistent fight claims a small XP/gold/item reward once per session.
 
 **Non-goals**
 
@@ -179,11 +183,11 @@ Follow-up debt: usable item metadata and actual item-use actions remain future w
 ## 0.0.24 — Fight Rewards and Level 1-10
 
 **Objective**
-Закрити solo loop: real fight → reward → loot → level-up → hero/equipment impact.
+Довести solo loop після першого reward/loot path: real fight → reward → loot → level-up → hero/equipment impact має мати нормальний темп 1-10 і зрозумілий playtest checklist.
 
 **Scope**
 
-- fight victory calls reward/loot/progression path;
+- tune current fight reward/loot/progression path;
 - level thresholds 1-10 in one module;
 - multi-level grant;
 - level cap / alpha max behavior;

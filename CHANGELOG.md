@@ -7,6 +7,22 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.23] - 12026-06-15 - Loot Engine & Reward Replay
+
+### Added
+- Added a pure loot domain engine with rarity weights, deterministic/injected RNG, bounded LUCK influence, monster loot candidates from content, and safe no-loot fallback.
+- Added reward replay fields to `solo_combat_sessions` so won persistent fight rewards can be shown again without rerolling loot.
+- Added a small per-session reward path for won persistent solo fights: XP, gold, and at most one controlled monster loot item.
+- Added idempotent reward claiming for persistent fight victories through `daily_actions` using the solo combat session id as the reward bucket.
+- Added tests for loot selection, bounded LUCK, no eligible loot fallback, persistent fight reward claim/replay, no rewards for flee/expired outcomes, presenter copy, and schema shape.
+
+### Changed
+- Persistent fight victory screens now show the fight reward and replay the same reward summary on repeated callbacks instead of implying a second payout.
+- The `Тринадцять дрібних проблем` wrapper reward remains a separate one-time reward and still does not replace the per-session fight reward.
+
+### Not Included Yet
+- Shops, selling, trading, crafting, item-to-level exchange, consumable item actions, achievements runtime, group/PvP combat, Redis/jobs, Mini App UI, broad quest engine, or bestiary collection progression.
+
 ## [0.0.22] - 12026-06-15 - Equipment Stat Effects
 
 ### Added

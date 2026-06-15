@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { items, monsterLoot } from "../content";
 import { monsters } from "../content/monsters";
 import type { MonsterContent } from "../content/schema";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
@@ -23,6 +24,7 @@ import {
   type CombatActionType,
   type CombatActorStats
 } from "../domain/combat";
+import { rollMonsterLoot } from "../domain/loot";
 import {
   isWithinActivityMaxLevel,
   STARTER_ACTIVITY_MAX_LEVEL
@@ -32,7 +34,8 @@ import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
   MIMIC_SHAWARMA_ADVENTURE_KEY,
-  MIMIC_SHAWARMA_COMBAT_PROBE_KEY
+  MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
+  PERSISTENT_SOLO_FIGHT_REWARD_KEY
 } from "./dailyActionKeys";
 import {
   BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID,
@@ -47,6 +50,7 @@ import {
 import { getEquippedItemContents } from "./equipmentService";
 
 export { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./dailyActionKeys";
+export { PERSISTENT_SOLO_FIGHT_REWARD_KEY } from "./dailyActionKeys";
 export type FightAction = CombatProbeAction;
 
 export const MIMIC_SHAWARMA_COMBAT_REWARDS = {
@@ -86,6 +90,13 @@ export interface ThirteenSmallProblemsReward {
   levelChange: RewardLevelChange | null;
 }
 
+export interface PersistentFightReward {
+  state: "claimed" | "replayed" | "already-claimed";
+  reward: FightReward;
+  levelChange: RewardLevelChange | null;
+  itemReplayUnavailable?: boolean;
+}
+
 export type FightLookupResult =
   | { state: "no-character" }
   | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
@@ -107,6 +118,7 @@ export type FightLookupResult =
       session: SoloCombatSessionRecord;
       monster: MonsterContent | null;
       questProgress: ThirteenSmallProblemsProgress;
+      fightReward: PersistentFightReward | null;
     }
   | { state: "ready"; character: CharacterSummary }
   | { state: "already-completed"; character: CharacterSummary; questAvailable: boolean };
@@ -151,6 +163,7 @@ export type PersistentFightTurnResult =
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
       questProgress: ThirteenSmallProblemsProgress;
+      fightReward: PersistentFightReward | null;
       questReward: ThirteenSmallProblemsReward | null;
     }
   | {
@@ -159,6 +172,7 @@ export type PersistentFightTurnResult =
       session: SoloCombatSessionRecord;
       monster: MonsterContent | null;
       questProgress: ThirteenSmallProblemsProgress;
+      fightReward: PersistentFightReward | null;
     };
 
 export interface FightReward {
@@ -220,7 +234,13 @@ export class FightService {
         character: characterSummary,
         session: expiredSession ?? { ...activeSession, status: "expired" },
         monster: findMonster(activeSession.monsterId),
-        questProgress
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          expiredSession ?? activeSession,
+          findMonster(activeSession.monsterId),
+          characterSummary
+        )
       };
     }
 
@@ -236,7 +256,13 @@ export class FightService {
         character: characterSummary,
         session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
         monster: findMonster(activeSession.monsterId),
-        questProgress
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          expiredSession ?? activeSession,
+          findMonster(activeSession.monsterId),
+          characterSummary
+        )
       };
     }
 
@@ -255,7 +281,13 @@ export class FightService {
         character: characterSummary,
         session: expiredSession ?? { ...activeSession, state: expiredState, status: expiredState.status },
         monster,
-        questProgress
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          expiredSession ?? activeSession,
+          monster,
+          characterSummary
+        )
       };
     }
 
@@ -309,7 +341,13 @@ export class FightService {
           character: characterSummary,
           session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
           monster: findMonster(activeSession.monsterId),
-          questProgress
+          questProgress,
+          fightReward: await this.getOrRecoverPersistentFightReward(
+            telegramUserId,
+            expiredSession ?? activeSession,
+            findMonster(activeSession.monsterId),
+            characterSummary
+          )
         };
       } else {
         const monster = findMonster(activeSession.monsterId);
@@ -326,12 +364,34 @@ export class FightService {
             character: characterSummary,
             session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
             monster: null,
-            questProgress
+            questProgress,
+            fightReward: await this.getOrRecoverPersistentFightReward(
+              telegramUserId,
+              expiredSession ?? activeSession,
+              null,
+              characterSummary
+            )
+          };
+        }
+
+        if (activeSession.state.status !== "active") {
+          return {
+            state: "persistent-terminal",
+            character: characterSummary,
+            session: activeSession,
+            monster,
+            questProgress,
+            fightReward: await this.getOrRecoverPersistentFightReward(
+              telegramUserId,
+              activeSession,
+              monster,
+              characterSummary
+            )
           };
         }
 
         return {
-          state: activeSession.state.status === "active" ? "persistent-active" : "persistent-terminal",
+          state: "persistent-active",
           character: characterSummary,
           session: activeSession,
           monster,
@@ -529,7 +589,13 @@ export class FightService {
         character: characterSummary,
         session,
         monster: findMonster(session.monsterId),
-        questProgress
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          session,
+          findMonster(session.monsterId),
+          characterSummary
+        )
       };
     }
 
@@ -540,7 +606,8 @@ export class FightService {
         character: characterSummary,
         session: { ...session, status: "expired" },
         monster: findMonster(session.monsterId),
-        questProgress
+        questProgress,
+        fightReward: null
       };
     }
 
@@ -558,7 +625,13 @@ export class FightService {
         character: characterSummary,
         session: updated ?? { ...session, state: expiredState, status: "expired" },
         monster,
-        questProgress
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          updated ?? session,
+          monster,
+          characterSummary
+        )
       };
     }
 
@@ -568,7 +641,13 @@ export class FightService {
         character: characterSummary,
         session,
         monster,
-        questProgress
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          session,
+          monster,
+          characterSummary
+        )
       };
     }
 
@@ -606,7 +685,13 @@ export class FightService {
         character: characterSummary,
         session,
         monster,
-        questProgress
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          session,
+          monster,
+          characterSummary
+        )
       };
     }
 
@@ -623,17 +708,35 @@ export class FightService {
       );
       const fallbackSession = currentSession ?? session;
 
+      if (fallbackSession.status === "active" && fallbackSession.state?.status === "active") {
+        return {
+          state: "stale-turn",
+          character: characterSummary,
+          session: fallbackSession,
+          monster: findMonster(fallbackSession.monsterId),
+          questProgress
+        };
+      }
+
       return {
-        state: fallbackSession.status === "active" && fallbackSession.state?.status === "active"
-          ? "stale-turn"
-          : "terminal",
+        state: "terminal",
         character: characterSummary,
         session: fallbackSession,
         monster: findMonster(fallbackSession.monsterId),
-        questProgress
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          fallbackSession,
+          findMonster(fallbackSession.monsterId),
+          characterSummary
+        )
       };
     }
 
+    const fightReward =
+      updated.status === "won"
+        ? await this.claimPersistentFightReward(telegramUserId, updated, monster, characterSummary)
+        : null;
     const questReward =
       updated.status === "won"
         ? await this.claimThirteenSmallProblemsRewardIfComplete(telegramUserId)
@@ -645,7 +748,68 @@ export class FightService {
       session: updated,
       monster,
       questProgress: await this.getThirteenSmallProblemsProgress(telegramUserId),
+      fightReward,
       questReward
+    };
+  }
+
+  private async claimPersistentFightReward(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    monster: MonsterContent,
+    character: CharacterSummary
+  ): Promise<PersistentFightReward | null> {
+    const replay = buildPersistentFightRewardReplay(session);
+
+    if (replay) {
+      return replay;
+    }
+
+    const reward = buildPersistentFightReward(monster, character, this.rng);
+    const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+      key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
+      localDate: session.id,
+      rewardXp: reward.xp,
+      rewardGold: reward.gold,
+      itemGrants: reward.itemGrants
+    });
+
+    if (!claim) {
+      return null;
+    }
+
+    if (claim.state === "existing") {
+      return {
+        state: "already-claimed",
+        reward: {
+          xp: claim.action.rewardXp,
+          gold: claim.action.rewardGold,
+          localDate: claim.action.localDate,
+          itemGrants: []
+        },
+        levelChange: null,
+        itemReplayUnavailable: true
+      };
+    }
+
+    const stored =
+      await this.combatSessions?.recordRewardById(session.id, {
+        rewardXp: claim.action.rewardXp,
+        rewardGold: claim.action.rewardGold,
+        itemGrants: claim.itemGrants,
+        claimedAt: this.clock()
+      });
+
+    return {
+      state: "claimed",
+      reward: {
+        xp: claim.action.rewardXp,
+        gold: claim.action.rewardGold,
+        localDate: claim.action.localDate,
+        itemGrants: enrichRewardItemGrants(claim.itemGrants)
+      },
+      levelChange: claim.levelChange,
+      ...(stored ? {} : { itemReplayUnavailable: claim.itemGrants.length > 0 })
     };
   }
 
@@ -666,6 +830,46 @@ export class FightService {
       target: THIRTEEN_SMALL_PROBLEMS_TARGET_WINS,
       completed: wins >= THIRTEEN_SMALL_PROBLEMS_TARGET_WINS,
       rewardClaimed: rewardClaim !== null
+    };
+  }
+
+  private async getOrRecoverPersistentFightReward(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    monster: MonsterContent | null,
+    character: CharacterSummary
+  ): Promise<PersistentFightReward | null> {
+    const replay = buildPersistentFightRewardReplay(session);
+
+    if (replay) {
+      return replay;
+    }
+
+    if (session.status !== "won" && session.state?.status !== "won") {
+      return null;
+    }
+
+    const action = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
+      localDate: session.id
+    });
+
+    if (!action) {
+      return monster
+        ? this.claimPersistentFightReward(telegramUserId, session, monster, character)
+        : null;
+    }
+
+    return {
+      state: "already-claimed",
+      reward: {
+        xp: action.rewardXp,
+        gold: action.rewardGold,
+        localDate: session.id,
+        itemGrants: []
+      },
+      levelChange: null,
+      itemReplayUnavailable: true
     };
   }
 
@@ -720,6 +924,45 @@ export class FightService {
       equippedItems: equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : []
     });
   }
+}
+
+function buildPersistentFightReward(
+  monster: MonsterContent,
+  character: CharacterSummary,
+  rng: RandomSource
+): { xp: number; gold: number; itemGrants: Array<{ itemId: string; quantity: number }> } {
+  const loot = rollMonsterLoot({
+    monsterId: monster.id,
+    monsterLoot,
+    items,
+    luck: character.stats.luck,
+    rng
+  });
+
+  return {
+    xp: Math.min(14, Math.max(5, 3 + monster.level * 2)),
+    gold: Math.min(7, Math.max(1, 1 + Math.floor(monster.level / 2))),
+    itemGrants: loot.state === "dropped" ? [{ itemId: loot.item.id, quantity: 1 }] : []
+  };
+}
+
+function buildPersistentFightRewardReplay(
+  session: SoloCombatSessionRecord
+): PersistentFightReward | null {
+  if (!session.reward) {
+    return null;
+  }
+
+  return {
+    state: "replayed",
+    reward: {
+      xp: session.reward.xp,
+      gold: session.reward.gold,
+      localDate: session.id,
+      itemGrants: enrichRewardItemGrants(session.reward.itemGrants)
+    },
+    levelChange: null
+  };
 }
 
 function buildFightItemGrants(action: FightAction): Array<{ itemId: string; quantity: number }> {
