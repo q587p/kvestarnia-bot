@@ -98,6 +98,24 @@ describe("item detail presenter", () => {
     expect(accessory).toContain("Малий гачок обережно блищить");
   });
 
+  it("uses clear fallback flavor for consumables instead of future-system wording", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        content: {
+          id: "item.test-soup",
+          name: "Суп службової паузи",
+          description: "Ще не натискається, але пахне планом.",
+          rarity: "common",
+          slot: "consumable",
+          goldValue: 3
+        }
+      })
+    );
+
+    expect(text).toContain("Корчмар крутить манатку в руках");
+    expect(text).not.toContain("правила майбутнього спорядження");
+  });
+
   it("shows when an item is already equipped", () => {
     const text = presentOwnedItemDetail(
       itemSummary({
