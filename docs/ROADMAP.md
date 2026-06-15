@@ -60,7 +60,7 @@ Current tiny inventory slice:
 - Future equipment rules should support level-gated items that can drop before they are wearable, plus rarer race/class/path-specific манатки with future bypass/attunement/respec tricks.
 - Future player-to-player exchange should let heroes give unsuitable манатки to others without duplicating items or bypassing anti-abuse checks.
 - Future item economy should give most манатки a gold value or explicit priceless marker, then use that value for selling, trading, and a later item-to-level exchange.
-- New fight loot increases item volume, so `0.0.24` added the first `Дружня Скриня` / `Манатко-скриня` auto-pick sink: 5 eligible манаток become 1 better-than-average output item with confirmation and transaction safety. Manual input selection remains a future inventory polish slice. Canonical planning doc: `docs/MANTOK_CHEST_BACKLOG.md`.
+- New fight loot increases item volume, so `0.0.24` added the first `Дружня Скриня` / `Манатко-скриня` auto-pick sink: 5 eligible манаток become 1 better-than-average output item with confirmation and transaction safety. `0.0.27` added manual input selection with compact index callbacks, final preview, and stale-input protection; cleanup/reuse for abandoned pending runs remains future polish. Canonical planning doc: `docs/MANTOK_CHEST_BACKLOG.md`.
 
 Current repeatable slice:
 - `0.0.10` adds «Підвальна справа» as the first low-stakes repeatable fallback after the daily shawarma quest and fight probe are spent.

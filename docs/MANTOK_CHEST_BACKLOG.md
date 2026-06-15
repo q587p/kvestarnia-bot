@@ -50,6 +50,10 @@ Eligible манатки:
 
 Поточна важлива реалізаційна межа: inventory stack-based (`CharacterItem.itemId + quantity`), без item-instance identity. Тому Скриня споживає 5 одиниць зі stack-ів, а не 5 окремих rows; ручний вибір додає або знімає по одній одиниці з eligible stack. Якщо `itemId` екіпірований, увесь stack цього `itemId` захищений від Скрині, навіть якщо `quantity > 1`. Locked/favorite/trade/mail/auction прапорців ще немає, тому вони не застосовуються.
 
+Manual selection у `0.0.27` використовує індекс у відсортованому eligible list, а не `itemId` у callback data, щоб кнопки лишалися короткими. Якщо inventory зміниться між показом екрана й натисканням `➕`/`➖`, індекс теоретично може вказати на інший stack. Для stack-based MVP це прийнятно: перед остаточним confirm гравець бачить preview зі списком конкретних манаток, а confirm перечитує inventory і повертає stale/error state, якщо щось уже не можна спожити.
+
+Ще один прийнятий MVP-борг: багато pending preview/selection runs можуть накопичуватися, якщо гравець часто відкриває ручний вибір і не проходить cancel/confirm. Для alpha SQLite це не blocker; майбутній polish може додати cleanup старих pending runs або reuse latest pending run для гравця.
+
 ## Score-модель
 
 У `0.0.24` item level ще не існує, тому runtime формула спирається на наявні content fields:
@@ -92,6 +96,8 @@ Entry point із inventory:
 - використовувати існуючі inventory/item/reward patterns;
 - не створювати паралельну loot архітектуру, якщо `domain/loot` уже достатній;
 - callback data тримати короткою; якщо selection не влазить, зберігати selection state server-side;
+- manual selection callback-и можуть використовувати компактний індекс лише за умови final preview і stale-input protection на confirm;
+- додати cleanup/reuse policy для старих pending `mantok_chest_runs` перед більшим inventory traffic;
 - додати audit/event log або найближчий наявний аналог;
 - не додавати production dependency;
 - user-facing рядки українською, з лапками `«»` там, де потрібні цитати.

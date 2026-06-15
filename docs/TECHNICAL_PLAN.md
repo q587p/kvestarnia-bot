@@ -320,7 +320,9 @@ Mantok Chest implementation notes:
 - Preview не мутує inventory. Confirm перечитує inventory/equipment у транзакції, перевіряє stored input units, guarded-decrement-ить input stacks, upsert-ить output stack і завершує run.
 - Inventory поки stack-based (`CharacterItem.itemId + quantity`), без item-instance ids. Через це `0.0.24` споживає 5 units зі stack-ів, а якщо `itemId` екіпірований, увесь stack захищений від Скрині.
 - `priceless` і protected/story items не eligible. Locked/favorite/trade/mail/auction flags ще не існують, тому вони не застосовуються в цьому slice.
-- Manual selection відкладено: поточний runtime path має тільки `Згодувати 5 найдешевших`.
+- `0.0.27` додає manual selection: кнопки `➕`/`➖` передають компактний індекс у відсортованому eligible list, а не `itemId`, щоб callback data лишалася короткою.
+- Якщо inventory різко зміниться між показом manual selection screen і натисканням `➕`/`➖`, індекс теоретично може вказати на інший stack. Для stack-based MVP це прийнятно, бо перед остаточним confirm є preview зі списком конкретних манаток, а confirm має stale-input protection і не споживає зниклі або вже неeligible речі.
+- Кожне відкриття manual selection створює pending `mantok_chest_runs` row. Багато відкритих і нескасованих runs можуть накопичуватися, якщо гравець часто заходить у ручний вибір і кидає flow; для SQLite масштабу alpha це не blocker, але майбутній cleanup або `reuse latest pending run` лишається технічним боргом.
 
 Залишковий борг перед великим Hunt Board: ledger ще не є persistent combat/encounter state. Для групових полювань, wilderness sessions, collection progression, складного loot tracking або combat HP/mana потрібна окрема session model і ширший transaction boundary.
 
