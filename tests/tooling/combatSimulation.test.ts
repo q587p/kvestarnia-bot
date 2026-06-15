@@ -176,6 +176,28 @@ describe("combatSimulation", () => {
     expect(formatted).toContain("Warnings summary");
     expect(report.rows).toHaveLength(1);
   });
+
+  it("uses exact ladder monsters when simulating levels 4 and 13", () => {
+    const report = runCombatSimulation({
+      levels: [4, 13],
+      monsterLevels: "same",
+      runsPerMatchup: 1,
+      seed: "ladder-sanity",
+      classIds: ["class.bureaucramancer"],
+      policy: "aggressive",
+      maxTurns: 8
+    });
+
+    expect(report.rows).toHaveLength(2);
+    expect(report.rows.map((row) => row.heroLevel)).toEqual([4, 13]);
+    expect(report.rows.map((row) => row.monsterLevel)).toEqual([4, 13]);
+    expect(report.rows.map((row) => row.monsterId)).toEqual(
+      expect.arrayContaining([
+        "monster.complaint-lantern",
+        "monster.quiet-catastrophe-clerk"
+      ])
+    );
+  });
 });
 
 function makeRow(
