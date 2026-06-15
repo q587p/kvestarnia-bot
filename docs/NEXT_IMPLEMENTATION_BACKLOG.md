@@ -115,6 +115,48 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - `/hero` або окрема деталь показує активний харчовий баф без технічних id;
 - tests cover insufficient gold, one active buff, replace flow, stale confirm, HP/mana edge cases, and fight consumption.
 
+## Later — Shynok Bard Performance
+
+**Objective**
+Додати в `🍻 Шинок` бардівський виступ як малу культурну дію: бард раз на день або раз на годину може спробувати заспівати, заграти або скласти сатиричний куплет і отримати трохи золота. Може й не отримати, бо корчма має право на художню критику.
+
+**Design source**
+
+Корчма історично була місцем неофіційної культури: пісні, жарти, сатиричні куплети, бандура, скрипка, ложки, живий гумор і раптові виступи. У Квестарні це має стати не лекцією, а кнопкою з ризиком, короткою сценою й корчмарським висновком.
+
+**Rules**
+
+- Почати з класового доступу: тільки `Бард` бачить дію `🎶 Виступити` у `🍻 Шинку`.
+- Кулдаун: перший безпечний варіянт — раз на день за Києвом; якщо payout малий і не фармиться, можна окремо перевести на раз на годину.
+- Результат залежить від `charisma` і `luck`, із bounded randomness і без показу точних шансів.
+- Музична манатка дає суттєвий бонус до перевірки або payout. Якщо манатка bard-only, бонус для барда більший; якщо universal, інші класи можуть отримати дрібний flavor/майбутній bonus, але не цю дію.
+- Результати: провал із жартом і `0` золота, скромні оплески з малим золотом, добрий виступ із кращим золотом, рідкісний великий успіх із записом на дошці або короткою реплікою корчмаря.
+- Не давати XP, лут, рівень або бойовий баф у першому slice. Це мале золото й соціяльний flavor, не новий основний grind.
+- Не дозволяти виступ під час pending raid або інших станів, де пригодові дії заблоковані.
+
+**Musical manatky starter pack**
+
+Додати в loot/content pool кілька музичних манаток перед або разом із runtime-дією, бо зараз у контенті є бардівський flavor, але майже немає dedicated інструментів:
+
+- `item.bandura-of-careful-applause` — `Бандура обережних оплесків`, accessory/weapon-like focus, bard-preferred.
+- `item.fiddle-of-second-chorus` — `Скрипка другого куплету`, accessory, universal, bard bonus stronger.
+- `item.spoons-of-public-rhythm` — `Ложки громадського ритму`, common accessory/junk, cheap but funny.
+- `item.kobza-of-suspicious-encore` — `Кобза підозрілого бісу`, rare accessory, bard-only or bard-preferred.
+- `item.whistle-of-table-silence` — `Свисток столової тиші`, common utility, not bard-only.
+- `item.lyre-that-knows-one-song` — `Ліра, що знає одну пісню`, uncommon accessory, good for first implementation.
+
+Instrument metadata should include whether it is `musical`, whether it is `bardPreferred` or `bardOnly`, and what performance modifier it gives. Do not hide these rules behind item names only.
+
+**Acceptance criteria**
+
+- `🍻 Шинок` shows `🎶 Виступити` only for bards with an eligible character state;
+- daily/hourly cooldown is Kyiv-based and idempotent;
+- payout is deterministic for a claimed action and replay does not reroll gold;
+- charisma/luck influence the result within tested caps;
+- equipped or carried musical manatky affect performance according to clear metadata;
+- generated musical manatky appear in loot/content pool and item detail does not leak internal ids;
+- tests cover no-character, non-bard locked state, bard without instrument, bard with universal instrument, bard with bard-preferred/bard-only instrument, cooldown replay, and reward idempotency.
+
 ## Later — Манчкін-скупник Manual Selection Polish
 
 **Objective**

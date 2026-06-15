@@ -167,6 +167,7 @@ Done when:
 - Daily tavern rumor.
 - Корчемне соціяльне частування: пригостити їжею/питвом присутніх у корчмі після появи location presence list.
 - Їжа в `🍻 Шинку` як gold sink із короткими бафами: один активний харчовий баф, підтвердження покупки, гумористичне меню, без stacking-а й без shortcuts до XP/loot.
+- Бардівський виступ у `🍻 Шинку`: раз на день або після balance pass раз на годину, перевірка харизми/вдачі, малий capped gold payout, bonus від музичних манаток і starter pack інструментів у loot pool.
 - Player titles.
 - Seasonal boss.
 - Вісник ґільдії.
