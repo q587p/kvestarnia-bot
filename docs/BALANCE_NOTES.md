@@ -54,7 +54,7 @@ Equipment effects для атак мають заходити через оди�
 - accessory може давати малий situational modifier, resource discount або extra flavor hook;
 - priceless/trophy items не дають бойових бонусів, доки контент явно не переведений у equippable/effect item.
 
-`0.0.21` persistent solo `/fight` використовує бойовий рушій у runtime, але навмисно не видає XP, золото або лут. Це дає перевірити session correctness, stale callbacks, mana failure і terminal states без нового economy source. `0.0.22` додає перші малі equipment stat effects через один helper, а наступний балансний крок — reward/loot path для перемог.
+`0.0.21` persistent solo `/fight` використовує бойовий рушій у runtime. У цьому slice він навмисно не видавав XP, золото або лут, щоб перевірити session correctness, stale callbacks, mana failure і terminal states без нового economy source. `0.0.22` додає перші малі equipment stat effects через один helper, а `0.0.23` додає малий reward/loot path для won persistent fights.
 
 ### Hit chance
 MVP можна почати без промахів у звичайній атаці або з дуже простим шансом:
@@ -130,6 +130,22 @@ rare:      7%
 epic:      1%
 ```
 
+`0.0.23` підключає цю таблицю як контрольований loot engine для won persistent solo fights:
+- базовий шанс item drop: `35%`;
+- LUCK дає тільки bounded modifier до drop chance: поточний cap `25-45%`, тож висока вдача не гарантує лут;
+- LUCK може підняти rarity максимум на один крок і теж має малий cap, щоб rare/epic не ставали обовʼязковими;
+- якщо монстр не має eligible loot candidates, перемога все одно може видати XP/gold без item;
+- якщо потрібної rarity немає серед candidates, engine падає до найближчої доступної нижчої rarity, а потім до найближчої вищої, щоб не ламати reward path.
+
+Поточний persistent fight payout навмисно малий:
+```text
+XP:   clamp(3 + monster.level * 2, 5, 14)
+gold: clamp(1 + floor(monster.level / 2), 1, 7)
+item: максимум 1 controlled monsterLoot item
+```
+
+Loss, flee і expired fights не отримують full victory reward. Repeated callback replay-ить persisted reward summary з `solo_combat_sessions` і не reroll-ить item.
+
 Модифікатори LUCK не мають ламати таблицю. Наприклад, LUCK додає не «+10% epic», а маленький бонус до upgrade roll.
 
 ## Pity / захист від невдачі
@@ -163,7 +179,7 @@ Junk, cosmetics, priceless trophies і quest badges не мають випадк
 
 `0.0.16` піднімає raid reward math: Бочка дає deterministic roll `18-26 XP` і `8-14 золота`, плюс фартух і детермінований дрібний trophy item. У `0.0.19` це замінено на duration-based reward: рівень 1 лишається в діапазоні `5-8` хвилин, кожен рівень після першого додає `30` секунд до можливого максимуму, а XP/золото лінійно рахуються від фактичної тривалості pending-рейду. На 1 рівні максимум лишається `26 XP` і `14 золота`; на 10 рівні поточний максимум стає `38 XP` і `23 золота`. Фактичні `rewardXp`/`rewardGold` записуються в claim, тому repeated callback не перекидає нагороду й не дублює прогрес. Reliability-частина лишається важливою: period bucket, audit break, pending completion, notification dedupe і beer gate мають лишатися ідемпотентними, без нових шансів на дубль нагороди або безкоштовне частування.
 
-`0.0.16` також додає content bestiary і monster loot definitions як data contract, не як нову економічну петлю. Нові monster loot items мають display value або `priceless`, але не падають випадково в runtime, доки не зʼявиться окремий loot table engine із тестами шансів, pity/anti-abuse guardrails і прозорими reward claims.
+`0.0.16` також додає content bestiary і monster loot definitions як data contract. З `0.0.23` ці definitions уже можуть падати через контрольований persistent-fight loot engine, але це ще не широка економічна петля: немає продажу, обміну, crafting, consumable use або item-to-level sink.
 
 Сумарна вартість манаток у `/inventory` і `/hero` — це valuation, не spendable gold. Вона не додається до `character.gold`, не дозволяє купити пиво й не має впливати на gates, доки не з’явиться окрема підтверджена sell/trade/sink дія.
 

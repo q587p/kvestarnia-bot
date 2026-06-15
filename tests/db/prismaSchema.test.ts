@@ -179,6 +179,10 @@ describe("Prisma schema", () => {
     expect(schema).toContain("@map(\"monster_id\")");
     expect(schema).toContain("@map(\"state_json\")");
     expect(schema).toContain("turn        Int       @default(1)");
+    expect(schema).toContain("@map(\"reward_xp\")");
+    expect(schema).toContain("@map(\"reward_gold\")");
+    expect(schema).toContain("@map(\"reward_items_json\")");
+    expect(schema).toContain("@map(\"reward_claimed_at\")");
     expect(schema).toContain("@map(\"expires_at\")");
     expect(schema).toContain("@@index([characterId, status])");
     expect(schema).toContain("@@map(\"solo_combat_sessions\")");
@@ -203,5 +207,21 @@ describe("Prisma schema", () => {
       "CREATE UNIQUE INDEX \"solo_combat_sessions_one_active_per_character_idx\""
     );
     expect(hardeningMigration).toContain("WHERE \"status\" = 'active'");
+
+    const rewardReplayMigration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260615043000_add_solo_combat_reward_replay",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(rewardReplayMigration).toContain("ADD COLUMN \"reward_xp\"");
+    expect(rewardReplayMigration).toContain("ADD COLUMN \"reward_gold\"");
+    expect(rewardReplayMigration).toContain("ADD COLUMN \"reward_items_json\"");
+    expect(rewardReplayMigration).toContain("ADD COLUMN \"reward_claimed_at\"");
   });
 });

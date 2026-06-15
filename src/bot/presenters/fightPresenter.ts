@@ -101,6 +101,7 @@ export function presentPersistentFight(
     monsterName: result.monster?.name ?? "Невідомий монстр",
     monsterLevel: result.monster?.level ?? null,
     questProgress: result.questProgress,
+    fightReward: result.state === "persistent-terminal" ? result.fightReward : null,
     intro
   });
 }
@@ -129,7 +130,7 @@ export function presentPersistentFightTurn(
       return "Цей бій уже завершився. Повторні натискання не переписують історію.";
     }
 
-    return "Хід записано. Нагород поки немає: бойова бухгалтерія ще вчиться рахувати чесно.";
+    return "Хід записано. Корчма звіряє винагороду без зайвого дзенькоту.";
   })();
 
   return presentPersistentFightState({
@@ -138,6 +139,7 @@ export function presentPersistentFightTurn(
     monsterName: result.monster?.name ?? "Невідомий монстр",
     monsterLevel: result.monster?.level ?? null,
     questProgress: result.questProgress,
+    fightReward: result.state === "updated" || result.state === "terminal" ? result.fightReward : null,
     questReward: result.state === "updated" ? result.questReward : null,
     intro
   });
@@ -206,6 +208,7 @@ function presentPersistentFightState(input: {
   monsterName: string;
   monsterLevel: number | null;
   questProgress: ThirteenSmallProblemsProgress | null;
+  fightReward?: Extract<PersistentFightTurnResult, { state: "updated" }>["fightReward"];
   questReward?: ThirteenSmallProblemsReward | null;
   intro: string;
 }): string {
@@ -234,12 +237,16 @@ function presentPersistentFightState(input: {
     lines.push("", ...presentThirteenSmallProblemsReward(input.questReward));
   }
 
+  if (input.fightReward) {
+    lines.push("", ...presentPersistentFightReward(input.fightReward));
+  }
+
   if (state?.status === "won") {
     lines.push(
       "",
       input.questReward
-        ? "🎉 Ви перемогли. Сам бій лишається без окремої оплати, зате список корчмаря нарешті розщедрився."
-        : "🎉 Ви перемогли. За сам бій поки не платять, але корчмар уважно рахує проблеми у списку."
+        ? "🎉 Ви перемогли. Корчмар записав бій і список дрібних проблем теж не відвертівся."
+        : "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою."
     );
   } else if (state?.status === "lost") {
     lines.push(
@@ -264,6 +271,33 @@ function presentPersistentFightState(input: {
   }
 
   return lines.join("\n");
+}
+
+function presentPersistentFightReward(
+  reward: Extract<PersistentFightTurnResult, { state: "updated" }>["fightReward"]
+): string[] {
+  if (!reward) {
+    return [];
+  }
+
+  const intro =
+    reward.state === "claimed"
+      ? "🎒 Корчмар підсунув малу оплату за закриту проблему."
+      : reward.state === "already-claimed"
+        ? "🎒 Цю винагороду вже занесли в журнал. Корчмар показує запис, а не відкриває касу вдруге."
+        : "🎒 Винагорода вже видана. Корчмар перегортає журнал і показує той самий запис.";
+  const lines = [
+    intro,
+    "",
+    presentRewardAmount({ ...reward.reward, label: "Винагорода за бій" }),
+    ...presentItemGrantBlock(reward.reward.itemGrants)
+  ];
+
+  if (reward.itemReplayUnavailable) {
+    lines.push("", "Детальний лут уже в торбі або журналі; повторно його не перекидаємо.");
+  }
+
+  return lines;
 }
 
 function presentThirteenSmallProblemsBlock(

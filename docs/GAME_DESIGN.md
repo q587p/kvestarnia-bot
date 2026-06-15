@@ -98,7 +98,9 @@ Achievements Phase 1 лишається rewardless later slice після осн
 - стан бою показує HP/ману героя, HP монстра, номер ходу й останній результат;
 - terminal states `won/lost/fled/expired` стабільні й не дають повторних ходів.
 
-У 0.0.21 persistent fight не видає XP, золото або манатки за кожну окрему перемогу. Щоб loop не виглядав голою кнопкою, цей зріз має перший вузький quest wrapper: `Тринадцять дрібних проблем`. Прогрес рахується з won `solo_combat_sessions`, ціль нагороди — `13`, але лічильник далі показує фактичні перемоги на кшталт `14/13`; completion reward видається один раз через `daily_actions` bucket `once`: `+35 XP`, `+10` золота й `item.badge-of-thirteen-small-problems`. Це не broad quest engine і не loot path; це маленький корчемний контракт поверх сесій.
+У 0.0.21 persistent fight стартував без XP/золота/луту за кожну окрему перемогу, щоб спершу перевірити session correctness. Щоб loop не виглядав голою кнопкою, цей зріз має перший вузький quest wrapper: `Тринадцять дрібних проблем`. Прогрес рахується з won `solo_combat_sessions`, ціль нагороди — `13`, але лічильник далі показує фактичні перемоги на кшталт `14/13`; completion reward видається один раз через `daily_actions` bucket `once`: `+35 XP`, `+10` золота й `item.badge-of-thirteen-small-problems`. Це не broad quest engine; це маленький корчемний контракт поверх сесій.
+
+`0.0.23` додає перший контрольований per-session reward path для won persistent solo fights: малий XP/gold payout, максимум один item із `monsterLoot`, bounded LUCK modifier і persisted reward replay у `solo_combat_sessions`. Loss/flee/expired не отримують full victory reward, а repeated callback показує той самий запис із журналу без reroll-а й дублювання XP/gold/items. `daily_actions` лишається authority для idempotent claim, а session reward fields — replay/audit layer.
 
 Важливе правило для runtime-підключення: герой може не мати starter weapon, бо starter fight закривається після 2 рівня. Combat engine підтримує unarmed/basic fallback, а equipment effects із `0.0.22` лише додають малі бонуси через один helper.
 
@@ -117,7 +119,7 @@ Achievements Phase 1 лишається rewardless later slice після осн
 - `src/content/monsters.ts` лишається простою таблицею `id`, `name`, `description`, `level`, `tags`.
 - `src/content/monsterFlavor.ts` містить data-only hooks для `monster.start` і `monster.loot-note` з пріоритетом selector-ів: exact combo, class, race, path/pronoun, fallback.
 - Hidden path ids `sun`, `moon`, `boundary` дозволені тільки в selector data й не виходять у player-facing `id` або `text`.
-- `monsterLoot` — це future-safe mapping monster → item ids; він перевіряє посилання на предмети, але сам по собі ще не кидає випадкову здобич у runtime.
+- `monsterLoot` — це mapping monster → item ids. До `0.0.22` він був future-safe content contract, а з `0.0.23` ним користується контрольований loot engine для won persistent solo fights.
 - Повний ростер і лутові нотатки живуть у `docs/BESTIARY.md` і `docs/MONSTER_LOOT_DROPS.md`.
 
 `0.0.17` вмикає перший runtime use цього контенту через `/hunt` і кнопку `🏹 До дошки` зі Столу зі справами:
@@ -145,7 +147,7 @@ Achievements Phase 1 лишається rewardless later slice після осн
 - Щоб onboarding не вивалював усе одразу, Дошка полювання відкривається з 3 рівня. До цього hub показує locked-рядок без кнопки `🏹 До дошки`, а direct `/hunt` або старий hunt callback не створює contract ledger і не видає reward. Стартові шаурма й fight probe лишаються новачковими справами для рівнів 1-2; з 3 рівня hub показує retired-рядок без action-кнопок і веде героя до старших справ.
 - `/bestiary` і `/monsters` лишаються read-only, але відкриваються з 3 рівня: нотатки корисні як довідник, та не мають спойлерити стартову шаурму й перші чудовиська до знайомства з ними.
 
-Залишковий борг перед великим `/hunt`: ledger ще не є повною encounter/session system. Немає persistent HP/mana, групових учасників, wilderness location, bestiary collection progression або random loot table engine.
+Залишковий борг перед великим `/hunt`: ledger ще не є повною encounter/session system. Немає persistent HP/mana, групових учасників, wilderness location або bestiary collection progression. Random loot engine у `0.0.23` підключений до persistent solo fights, але Hunt Board лишається своїм окремим small deterministic reward loop.
 
 Ширший backlog заготовок для monsters/items/quests живе в `docs/INSPIRATION_CONTENT_BACKLOG.md`. Runtime PR має переносити його малими pack-ами й не обіцяти гравецькі drops раніше, ніж є encounter routing, loot table або deterministic grant.
 

@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import type { CombatState, CombatStatus, CombatTurnSummary } from "../../domain/combat";
 import type {
   CreateSoloCombatSessionInput,
+  RecordSoloCombatRewardInput,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository,
   SoloCombatSessionStatus,
@@ -191,6 +192,31 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
     return mapRecord(record);
   }
+
+  async recordRewardById(
+    sessionId: string,
+    input: RecordSoloCombatRewardInput
+  ): Promise<SoloCombatSessionRecord | null> {
+    const record = await this.prisma.soloCombatSession.update({
+      where: {
+        id: sessionId
+      },
+      data: {
+        rewardXp: input.rewardXp,
+        rewardGold: input.rewardGold,
+        rewardItemsJson: input.itemGrants,
+        rewardClaimedAt: input.claimedAt
+      }
+    }).catch((error: unknown) => {
+      if (isPrismaNotFound(error)) {
+        return null;
+      }
+
+      throw error;
+    });
+
+    return mapRecord(record);
+  }
 }
 
 function mapRecord(record: PrismaSoloCombatSessionRecord): SoloCombatSessionRecord | null {
@@ -205,10 +231,44 @@ function mapRecord(record: PrismaSoloCombatSessionRecord): SoloCombatSessionReco
     status: parseStatus(record.status),
     turn: record.turn,
     state: parseCombatState(record.stateJson),
+    reward: parseReward(record),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     expiresAt: record.expiresAt
   };
+}
+
+function parseReward(record: NonNullable<PrismaSoloCombatSessionRecord>): SoloCombatSessionRecord["reward"] {
+  if (
+    record.rewardXp === null ||
+    record.rewardGold === null ||
+    record.rewardClaimedAt === null
+  ) {
+    return null;
+  }
+
+  return {
+    xp: record.rewardXp,
+    gold: record.rewardGold,
+    itemGrants: parseItemGrants(record.rewardItemsJson),
+    claimedAt: record.rewardClaimedAt
+  };
+}
+
+function parseItemGrants(value: unknown): Array<{ itemId: string; quantity: number }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.itemId !== "string") {
+      return [];
+    }
+
+    const quantity = intOrNull(entry.quantity);
+
+    return quantity === null || quantity <= 0 ? [] : [{ itemId: entry.itemId, quantity }];
+  });
 }
 
 function parseStatus(value: string): SoloCombatSessionStatus {

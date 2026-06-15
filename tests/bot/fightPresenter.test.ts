@@ -244,6 +244,7 @@ describe("fight presenter", () => {
         tags: ["test"]
       },
       questProgress: questProgress(4),
+      fightReward: null,
       questReward: null
     });
 
@@ -283,6 +284,22 @@ describe("fight presenter", () => {
         tags: ["test"]
       },
       questProgress: questProgress(14, true),
+      fightReward: {
+        state: "claimed",
+        reward: {
+          xp: 9,
+          gold: 2,
+          localDate: "123e4567-e89b-12d3-a456-426614174000",
+          itemGrants: [
+            {
+              itemId: "item.web-of-tomorrow-promise",
+              name: "Павутинка обіцянки «завтра»",
+              quantity: 1
+            }
+          ]
+        },
+        levelChange: null
+      },
       questReward: {
         state: "claimed",
         reward: {
@@ -302,10 +319,51 @@ describe("fight presenter", () => {
     });
 
     expect(text).toContain("Прогрес справи: <b>14/13</b> · закрито.");
+    expect(text).toContain("Винагорода за бій:\n<b>+9 XP\n+2 золота</b>");
+    expect(text).toContain("Здобуто: <i>Павутинка обіцянки «завтра»</i>");
     expect(text).toContain("Тринадцята проблема впала");
     expect(text).toContain("Нагорода за справу:\n<b>+35 XP\n+10 золота</b>");
     expect(text).toContain("Здобуто: <i>Жетон тринадцяти дрібних проблем</i>");
-    expect(text).toContain("список корчмаря нарешті розщедрився");
+    expect(text).toContain("список дрібних проблем теж не відвертівся");
+  });
+
+  it("replays persistent fight rewards without implying duplicate payment", () => {
+    const text = presentPersistentFightTurn({
+      state: "terminal",
+      character,
+      session: persistentSession({
+        status: "won",
+        turn: 3,
+        monster: {
+          id: "monster.test",
+          hp: 0,
+          hpMax: 18
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "<b>Монстр</b>",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(5),
+      fightReward: {
+        state: "replayed",
+        reward: {
+          xp: 7,
+          gold: 2,
+          localDate: "123e4567-e89b-12d3-a456-426614174000",
+          itemGrants: []
+        },
+        levelChange: null
+      }
+    });
+
+    expect(text).toContain("Винагорода вже видана");
+    expect(text).toContain("Винагорода за бій:\n<b>+7 XP\n+2 золота</b>");
+    expect(text).toContain("Проти вас: <b>&lt;b&gt;Монстр&lt;/b&gt;</b> · рівень 3");
+    expect(text).not.toContain("<b>Монстр</b>");
   });
 });
 
@@ -382,6 +440,7 @@ function persistentSession(overrides: Partial<NonNullable<SoloCombatSessionRecor
       },
       ...overrides
     },
+    reward: null,
     createdAt: new Date("2026-06-12T10:30:00.000Z"),
     updatedAt: new Date("2026-06-12T10:30:00.000Z"),
     expiresAt: new Date("2026-06-12T11:00:00.000Z")
