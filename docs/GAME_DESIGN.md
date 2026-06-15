@@ -102,6 +102,8 @@ Achievements Phase 1 лишається rewardless later slice після осн
 
 `0.0.23` додає перший контрольований per-session reward path для won persistent solo fights: малий XP/gold payout, максимум один item із `monsterLoot`, bounded LUCK modifier і persisted reward replay у `solo_combat_sessions`. Loss/flee/expired не отримують full victory reward, а repeated callback показує той самий запис із журналу без reroll-а й дублювання XP/gold/items. `daily_actions` лишається authority для idempotent claim, а session reward fields — replay/audit layer.
 
+У `0.0.24` persistent fight selection не має підсовувати високорівневому герою випадкового монстра 1-2 рівня, якщо в контенті є ближчий варіянт. Сервіс віддає перевагу небосам у межах двох рівнів униз від героя; якщо такого контенту ще немає, бере найвищого доступного нижчого монстра. Перемоги над монстрами, що відстають більше ніж на 2 рівні, дають лише `1 XP`, щоб старші герої не фармили дрібноту як головний шлях росту.
+
 Важливе правило для runtime-підключення: герой може не мати starter weapon, бо starter fight закривається після 2 рівня. Combat engine підтримує unarmed/basic fallback, а equipment effects із `0.0.22` лише додають малі бонуси через один helper.
 
 Майбутній зріз бойових дій має замінити одну загальну кнопку `Вдарити` на набір дій, які відчувають персонажа:

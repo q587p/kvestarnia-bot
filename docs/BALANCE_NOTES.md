@@ -147,6 +147,8 @@ gold: clamp(1 + floor(monster.level / 2), 1, 7)
 item: максимум 1 controlled monsterLoot item
 ```
 
+У `0.0.24` вибір монстра для persistent solo fight став ближчим до рівня героя: сервіс спершу шукає звичайних небосів у вікні `рівень героя - 2 ... рівень героя`, а якщо такого контенту ще бракує, бере найвищий доступний нижчий рівень замість випадкової дрібноти. Якщо монстр нижчий за героя більше ніж на 2 рівні, XP за перемогу стискається до `1`; золото й контрольований item roll поки лишаються за чинною малою reward formula.
+
 Loss, flee і expired fights не отримують full victory reward. Repeated callback replay-ить persisted reward summary з `solo_combat_sessions` і не reroll-ить item.
 
 Модифікатори LUCK не мають ламати таблицю. Наприклад, LUCK додає не «+10% epic», а маленький бонус до upgrade roll.

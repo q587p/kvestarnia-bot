@@ -21,6 +21,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Updated combat simulation defaults and progression docs to treat levels 1-13 as the current alpha range.
 - Moved the future epic-level planning bracket from `11-20` to `14-23`.
 - The old repeatable mouse cellar errand remains for levels 2-3; level 4+ heroes now get the new once-per-player cellar quest instead of a dead retired state.
+- Persistent solo fights now prefer monsters closer to the hero level; when content has no same-band monster yet, the selector uses the highest eligible lower-level monster instead of random level 1-2 filler.
+- Persistent solo fight XP is capped to `1` when the defeated monster is more than 2 levels below the hero.
 
 ### Not Included Yet
 - Epic-level abilities, level 14+ progression, broad quest engine, shops, trading, crafting, achievements runtime, or combat rebalance.
