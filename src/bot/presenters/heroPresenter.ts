@@ -20,6 +20,7 @@ export function presentHero(
   const equipmentLines = presentHeroEquipmentEffectLines(
     summary.equipmentEffects ?? createEmptyEquipmentEffectSummary()
   );
+  const resourceRecoveryLines = presentResourceRecovery(summary);
 
   return [
     `👤 <b>${escapeHtml(summary.name)}</b>`,
@@ -31,7 +32,8 @@ export function presentHero(
     ...(growthLine ? [`Ріст: ${growthLine}`] : []),
     "",
     `❤️ HP ${summary.hpCurrent}/${summary.hpMax} · 🔮 мана ${summary.manaCurrent}/${summary.manaMax}`,
-    ...presentResourceRecovery(summary),
+    ...resourceRecoveryLines,
+    ...(resourceRecoveryLines.length > 0 ? [""] : []),
     `Сили ${summary.stats.strength} · Спритн. ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
     ...(equipmentLines.length > 0 ? ["", ...equipmentLines] : []),
