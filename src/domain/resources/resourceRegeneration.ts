@@ -118,6 +118,7 @@ function regenerateResource(input: {
   fullRegenSeconds: number;
 }): { current: number; marker: Date; changed: boolean } {
   const current = clampResource(input.current, input.max);
+  const markerWasMissing = input.marker == null;
   const marker = input.marker ?? input.now;
 
   if (input.max <= 0) {
@@ -144,7 +145,7 @@ function regenerateResource(input: {
     return {
       current,
       marker,
-      changed: current !== input.current
+      changed: current !== input.current || markerWasMissing
     };
   }
 

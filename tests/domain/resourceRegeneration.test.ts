@@ -97,6 +97,45 @@ describe("applyPassiveResourceRegeneration", () => {
     expect(result.changed).toBe(false);
   });
 
+  it("persists missing markers for partially recovered resources so recovery can progress", () => {
+    const now = new Date("2026-06-12T10:00:00.000Z");
+    const result = applyPassiveResourceRegeneration({
+      resources: {
+        hpCurrent: 10,
+        hpMax: 20,
+        manaCurrent: 5,
+        manaMax: 10,
+        hpRegenAt: null,
+        manaRegenAt: null
+      },
+      profile: {
+        raceId: "race.human-ish",
+        classId: "class.rogue",
+        stats: baseStats
+      },
+      now
+    });
+
+    expect(result.resources.hpCurrent).toBe(10);
+    expect(result.resources.manaCurrent).toBe(5);
+    expect(result.resources.hpRegenAt).toEqual(now);
+    expect(result.resources.manaRegenAt).toEqual(now);
+    expect(result.changed).toBe(true);
+
+    const progressed = applyPassiveResourceRegeneration({
+      resources: result.resources,
+      profile: {
+        raceId: "race.human-ish",
+        classId: "class.rogue",
+        stats: baseStats
+      },
+      now: new Date("2026-06-12T10:05:00.000Z")
+    });
+
+    expect(progressed.resources.hpCurrent).toBeGreaterThan(10);
+    expect(progressed.resources.manaCurrent).toBeGreaterThan(5);
+  });
+
   it("clamps overfilled resources and reports a change", () => {
     const now = new Date("2026-06-12T10:05:00.000Z");
     const marker = new Date("2026-06-12T09:00:00.000Z");
