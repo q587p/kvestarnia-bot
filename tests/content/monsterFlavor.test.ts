@@ -37,6 +37,29 @@ const ordinaryMonsterLadderIds = [
   "monster.quiet-catastrophe-clerk"
 ] as const;
 
+const legacyMonsterLootIds = [
+  "monster.mimic-shawarma",
+  "monster.basement-mouse-with-title",
+  "monster.stamp-doorkeeper-skeleton",
+  "monster.spreadsheet-goblin",
+  "monster.deadline-spider",
+  "monster.preapproval-dragonling",
+  "monster.unread-rules-ghost",
+  "monster.anxious-slippers-swarm",
+  "monster.borshch-slime",
+  "monster.conditionally-sliced-loaf-bandit",
+  "monster.queue-counter-gargoyle",
+  "monster.audit-mosquito",
+  "monster.archival-knysh-eater",
+  "monster.final-comment-troll",
+  "monster.report-jellyfish",
+  "monster.no-change-merchantling",
+  "monster.self-critique-mirror",
+  "monster.dry-sea-teapot",
+  "monster.cabbage-knight-on-break",
+  "monster.zero-declaration-tax-dragon"
+] as const;
+
 describe("monster flavor content", () => {
   it("keeps the first bestiary at exactly 30 monsters", () => {
     expect(monsters).toHaveLength(30);
@@ -168,7 +191,10 @@ describe("monster flavor content", () => {
     const itemIds = new Set(items.map((item) => item.id));
     const monsterIds = new Set(monsters.map((monster) => monster.id));
 
-    for (const [monsterId, lootIds] of Object.entries(monsterLoot)) {
+    for (const monsterId of legacyMonsterLootIds) {
+      const lootIds = monsterLoot[monsterId] ?? [];
+
+      expect(lootIds).toBeDefined();
       expect(monsterIds.has(monsterId)).toBe(true);
       expect(lootIds.length).toBeGreaterThanOrEqual(2);
 
@@ -177,6 +203,21 @@ describe("monster flavor content", () => {
       }
     }
 
-    expect(Object.keys(monsterLoot)).toHaveLength(20);
+    expect(Object.keys(monsterLoot)).toHaveLength(30);
+  });
+
+  it("covers the ordinary monster ladder with at least one loot item each", () => {
+    const itemIds = new Set(items.map((item) => item.id));
+
+    for (const monsterId of ordinaryMonsterLadderIds) {
+      const lootIds = monsterLoot[monsterId] ?? [];
+
+      expect(monsterLoot[monsterId], `missing loot mapping for ${monsterId}`).toBeDefined();
+      expect(lootIds.length, `missing loot ids for ${monsterId}`).toBeGreaterThanOrEqual(1);
+
+      for (const itemId of lootIds) {
+        expect(itemIds.has(itemId), `missing loot item ${itemId} for ${monsterId}`).toBe(true);
+      }
+    }
   });
 });

@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `hp_regen_at` and `mana_regen_at` timestamps to `characters` so SQLite can track resource recovery without Redis or background jobs.
 - Added visible recovery context to `/hero` and a no-fight rest state when a hero has 0 HP.
 - Added Loot Expansion v1 as a content-backed persistent-fight loot pool: `120` base item families, `500` generated `item.loot-v1-*` variants, `+1...+5` enhancement gates, soft affinity weights, and hard equip requirement checks.
+- Added handcrafted loot coverage for the ordinary level 4-13 monster ladder so each higher-level monster has at least one stable content trophy.
 - Added `npm run sample:loot` for deterministic local loot sampling across levels and profile archetypes.
 - Added tests for resource regeneration, non-refill effective stats, fight start sync, zero-HP denial, and terminal fight resource persistence.
 

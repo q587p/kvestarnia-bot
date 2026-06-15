@@ -216,6 +216,36 @@ export const monsterLoot = {
   "monster.zero-declaration-tax-dragon": [
     "item.scale-of-zero-declaration",
     "item.candle-of-fiscal-dread"
+  ],
+  "monster.complaint-lantern": [
+    "item.wick-of-complaint-light"
+  ],
+  "monster.ledger-boar": [
+    "item.hoofprint-ledger-scrap"
+  ],
+  "monster.salted-oath-pretzel": [
+    "item.salt-knot-of-oath"
+  ],
+  "monster.liar-corridor-map": [
+    "item.folded-wrong-turn"
+  ],
+  "monster.foam-auditor-boots": [
+    "item.foam-stained-checklist"
+  ],
+  "monster.three-signature-chimera": [
+    "item.third-signature-scale"
+  ],
+  "monster.cheese-vault-warden": [
+    "item.cold-cheese-key"
+  ],
+  "monster.calendar-hydra": [
+    "item.weekday-slip-of-postponement"
+  ],
+  "monster.inventory-prophet": [
+    "item.missing-label-prophecy"
+  ],
+  "monster.quiet-catastrophe-clerk": [
+    "item.calm-apocalypse-memo"
   ]
 } as const;
 
