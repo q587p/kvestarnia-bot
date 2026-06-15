@@ -158,51 +158,57 @@
 - Loot ids: `item.calm-apocalypse-memo`
 - Note: Катастрофа зберігається в папці, а папка просить не панікувати.
 
-## Нові item definitions
+## Item definitions and effects
 
-- `item.stamp-pad-of-last-warning` — **Штемпельна подушка останнього попередження** (common, junk, 2 зол.): М’яка, чорнильна й суворіша за більшість дверей.
-- `item.bone-key-of-half-access` — **Кістяний ключ напівдоступу** (uncommon, accessory, 9 зол.): Відчиняє не всі двері, зате дуже переконливо бряжчить біля зачинених.
-- `item.cell-of-responsible-pain` — **Клітинка відповідального болю** (common, junk, 2 зол.): Маленький квадратик, у якому біль нарешті має адресу.
-- `item.formula-of-small-losses` — **Формула дрібних втрат** (uncommon, junk, 5 зол.): Пояснює, чому мінус три HP виглядають як план.
-- `item.web-of-tomorrow-promise` — **Павутинка обіцянки «завтра»** (common, junk, 2 зол.): Липне до пальців і до всіх планів, які «точно швидко».
-- `item.hourglass-with-deadline-teeth` — **Пісочний годинник із дедлайновими зубами** (uncommon, accessory, 12 зол.): Не кусає, доки ви не скажете «ще п’ять хвилин».
-- `item.scale-of-preliminary-approval` — **Луска попереднього погодження** (common, junk, 4 зол.): Блищить тільки після усного дозволу, але не чекає письмового.
-- `item.tiny-fire-permit` — **Дозвіл на мале полум’я** (uncommon, junk, 7 зол.): Згорів би, якби не був такий юридично обережний.
-- `item.bookmark-of-unread-courage` — **Закладка непрочитаної хоробрости** (common, junk, 2 зол.): Смілива, бо ніколи не доходила до страшного розділу.
-- `item.sigh-of-regulation` — **Зітхання регламенту в пляшечці** (uncommon, junk, 6 зол.): Відкривається тільки біля правил, які ніхто не хотів читати.
-- `item.left-slipper-of-tactical-retreat` — **Лівий капець тактичного відступу** (common, cosmetic, 3 зол.): Правий утік першим, але цей зробив вигляд, що прикривав маневр.
-- `item.sole-of-nervous-mobility` — **Підошва тривожної мобільности** (common, junk, 3 зол.): Стоїть на місці так, ніби вже запізнюється.
-- `item.beet-of-thermal-doubt` — **Бурячок температурного сумніву** (common, junk, 2 зол.): Не гарячий, не холодний, а процесуально ображений.
-- `item.apron-stain-of-courage` — **Пляма хоробрости на фартуху** (common, cosmetic, 4 зол.): Сміливо не відпирається й натякає на кулінарний подвиг.
-- `item.crust-of-conditional-surrender` — **Скоринка умовної капітуляції** (common, junk, 1 зол.): Здалася тільки після того, як її назвали краєм конфлікту.
-- `item.bread-knife-of-polite-boundaries` — **Ніж хлібних кордонів** (uncommon, weapon, 15 зол.): Ріже тільки після ввічливого «можна?» і дуже серйозного кивка.
-- `item.ticket-number-never-called` — **Номерок, який не викликали** (common, junk, 2 зол.): Чекає своєї черги так довго, що став реліквією малого терпіння.
-- `item.gargoyle-chip-of-patience` — **Скол терпіння ґарґульї** (uncommon, junk, 5 зол.): Камінчик, який бачив більше черг, ніж деякі корчмарі.
-- `item.proboscis-of-small-audit` — **Хоботок малого аудиту** (common, junk, 2 зол.): Підозріло тонкий інструмент для надто великих питань.
-- `item.buzzing-receipt-copy` — **Дзижчача копія чека** (common, junk, 3 зол.): Копія правильна, але чомусь постійно питає «а це точно все?».
-- `item.crumb-of-archival-knysh` — **Крихта архівного книша** (common, junk, 1 зол.): Занадто стара для перекусу, занадто важлива для смітника.
-- `item.folder-with-bite-marks` — **Тека зі слідами укусу** (common, junk, 3 зол.): Документальна база того, що хтось мав апетит до справи.
-- `item.comment-pebble-of-final-word` — **Камінчик останнього коментаря** (common, junk, 2 зол.): Малий, важкий і переконаний, що після нього тему закрито.
-- `item.underbridge-moderation-badge` — **Підмостовий жетон модерації** (uncommon, accessory, 8 зол.): Блищить тільки тоді, коли хтось пише «останнє повідомлення».
-- `item.tentacle-of-soft-reporting` — **Щупальце м’якої звітности** (common, junk, 3 зол.): Ніжно торкається плану й одразу додає ще один пункт.
-- `item.ink-bubble-of-quarterly-panic` — **Чорнильна бульбашка квартальної паніки** (common, junk, 4 зол.): Лопається тільки біля слів «підсумковий документ».
-- `item.button-of-exact-change` — **Ґудзик точної здачі** (common, accessory, 6 зол.): Завжди дрібний, завжди доречний, завжди в іншій кишені.
-- `item.receipt-folded-into-accusation` — **Чек, складений в обвинувачення** (common, junk, 3 зол.): Паперовий літачок, який летить прямо в сумління крамарика.
-- `item.shard-of-constructive-offense` — **Скалка конструктивної образи** (common, junk, 3 зол.): Ріже не руку, а впевненість, і ще просить подякувати за фідбек.
-- `item.frame-of-almost-confidence` — **Рамка майже впевнености** (uncommon, accessory, 11 зол.): Підходить для портрета того, хто вже майже не сумнівається.
-- `item.whistle-of-dry-tide` — **Свисток сухого припливу** (common, junk, 2 зол.): Кличе хвилю, але приходить тільки чай із характером.
-- `item.lid-of-maritime-overthinking` — **Кришечка морської тривоги** (common, accessory, 5 зол.): Закриває чайник і відкриває три зайві думки про океан.
-- `item.leaf-of-folded-honor` — **Листок згорнутої честі** (common, junk, 2 зол.): Капустяний, але тримається як лицарський прапор у маленькій кризі.
-- `item.sauerkraut-squire-badge` — **Жетон квашеного зброєносця** (uncommon, accessory, 7 зол.): Пахне присягою, грядкою і майбутньою закускою.
-- `item.scale-of-zero-declaration` — **Луска нульової декларації** (rare, junk, 20 зол.): Блищить так, ніби нічого не приховує. Саме це й підозріло.
-- `item.candle-of-fiscal-dread` — **Свічка фіскального трепету** (uncommon, cosmetic, 10 зол.): Горить тихо, але змушує монети ставати рівніше.
-- `item.wick-of-complaint-light` — **Гніт скаржної лампи** (common, junk, 3 зол.): Ще теплий від чужого невдоволення й трохи образи.
-- `item.hoofprint-ledger-scrap` — **Копито-чернетка книги витрат** (common, junk, 2 зол.): На ній видно, куди побігли цифри. Самі цифри теж протестують.
-- `item.salt-knot-of-oath` — **Сольовий вузлик обіцянки** (common, junk, 2 зол.): Скрипить сухо, але все одно наполягає, що це була клятва.
-- `item.folded-wrong-turn` — **Складений хибний поворот** (common, junk, 3 зол.): Нібито карта, але більше схоже на дуже вперту помилку.
-- `item.foam-stained-checklist` — **Чеклист у пивній плямі** (common, cosmetic, 4 зол.): Залишок ревізії, яка пішла трохи далі, ніж мала б.
-- `item.third-signature-scale` — **Луска третього підпису** (uncommon, accessory, 8 зол.): Блищить лише тоді, коли двох погоджень уже недостатньо для спокою.
-- `item.cold-cheese-key` — **Холодний сирний ключ** (uncommon, accessory, 7 зол.): Відмикає не двері, а право підійти ближче до сховку.
-- `item.weekday-slip-of-postponement` — **Квиток відкладеного будня** (common, junk, 2 зол.): Дрібний, мокрий і вперто просить перенести все на завтра.
-- `item.missing-label-prophecy` — **Пророцтво про бракуючу етикетку** (uncommon, junk, 5 зол.): Каже, що річ уже не там, де її шукатимуть першою.
-- `item.calm-apocalypse-memo` — **Службова записка тихої катастрофи** (common, junk, 3 зол.): Офіційно підтверджує кінець світу в максимально ввічливій формі.
+Source of truth for current item slots, rarity, valuation and effects is `src/content/monsterLootItems.ts`.
+
+As of `0.0.26`, most handcrafted monster trophies are intentionally equippable and effect-bearing: common trophies usually provide one small hook, uncommon trophies combine two small hooks or a resource bump, and rarer trophies get a slightly clearer identity. A few keepsake/story scraps remain pure `junk` so Квестарня can still have funny evidence that does not pretend to be gear.
+
+Stable ids in this pack:
+
+- `item.stamp-pad-of-last-warning`
+- `item.bone-key-of-half-access`
+- `item.cell-of-responsible-pain`
+- `item.formula-of-small-losses`
+- `item.web-of-tomorrow-promise`
+- `item.hourglass-with-deadline-teeth`
+- `item.scale-of-preliminary-approval`
+- `item.tiny-fire-permit`
+- `item.bookmark-of-unread-courage`
+- `item.sigh-of-regulation`
+- `item.left-slipper-of-tactical-retreat`
+- `item.sole-of-nervous-mobility`
+- `item.beet-of-thermal-doubt`
+- `item.apron-stain-of-courage`
+- `item.crust-of-conditional-surrender`
+- `item.bread-knife-of-polite-boundaries`
+- `item.ticket-number-never-called`
+- `item.gargoyle-chip-of-patience`
+- `item.proboscis-of-small-audit`
+- `item.buzzing-receipt-copy`
+- `item.crumb-of-archival-knysh`
+- `item.folder-with-bite-marks`
+- `item.comment-pebble-of-final-word`
+- `item.underbridge-moderation-badge`
+- `item.tentacle-of-soft-reporting`
+- `item.ink-bubble-of-quarterly-panic`
+- `item.button-of-exact-change`
+- `item.receipt-folded-into-accusation`
+- `item.shard-of-constructive-offense`
+- `item.frame-of-almost-confidence`
+- `item.whistle-of-dry-tide`
+- `item.lid-of-maritime-overthinking`
+- `item.leaf-of-folded-honor`
+- `item.sauerkraut-squire-badge`
+- `item.scale-of-zero-declaration`
+- `item.candle-of-fiscal-dread`
+- `item.wick-of-complaint-light`
+- `item.hoofprint-ledger-scrap`
+- `item.salt-knot-of-oath`
+- `item.folded-wrong-turn`
+- `item.foam-stained-checklist`
+- `item.third-signature-scale`
+- `item.cold-cheese-key`
+- `item.weekday-slip-of-postponement`
+- `item.missing-label-prophecy`
+- `item.calm-apocalypse-memo`

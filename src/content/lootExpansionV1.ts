@@ -461,6 +461,10 @@ function mapLootExpansionSlot(base: LootExpansionBaseItem): ItemContent["slot"] 
     return "accessory";
   }
 
+  if (base.category === "tool") {
+    return "accessory";
+  }
+
   if (base.category === "consumable") {
     return "consumable";
   }
@@ -503,7 +507,90 @@ function mapLootExpansionEffect(
     effect.luck = clampInt(Math.max(1, base.stats.luck + (enhancement >= 2 ? 1 : 0)), 1, 10);
   }
 
+  if (base.stats.speed > 0 || base.stats.dodge_pct > 0) {
+    effect.dexterity = clampInt(
+      (effect.dexterity ?? 0) +
+        Math.max(1, Math.ceil((base.stats.speed + base.stats.dodge_pct) / 2) + enhancementStep(enhancement)),
+      1,
+      10
+    );
+  }
+
+  if (base.stats.social > 0) {
+    effect.charisma = clampInt(
+      (effect.charisma ?? 0) +
+        Math.max(1, Math.ceil(base.stats.social / 2) + enhancementStep(enhancement)),
+      1,
+      10
+    );
+  }
+
+  if (base.stats.crit_pct > 0 && slot === "accessory") {
+    effect.luck = clampInt(
+      (effect.luck ?? 0) + Math.max(1, Math.ceil(base.stats.crit_pct / 2)),
+      1,
+      10
+    );
+  }
+
+  if (base.stats.carry > 0 && slot === "accessory") {
+    effect.hpMax = clampInt(
+      (effect.hpMax ?? 0) + Math.max(1, base.stats.carry + enhancementStep(enhancement)),
+      1,
+      20
+    );
+  }
+
+  if (base.stats.armor > 0 && slot === "accessory") {
+    effect.armor = clampInt(
+      (effect.armor ?? 0) + Math.max(1, Math.ceil(base.stats.armor / 2)),
+      1,
+      10
+    );
+  }
+
+  if (Object.keys(effect).length === 0 && slot === "accessory") {
+    Object.assign(effect, buildFallbackAccessoryEffect(base, enhancement));
+  }
+
   return Object.keys(effect).length > 0 ? effect : undefined;
+}
+
+function buildFallbackAccessoryEffect(
+  base: LootExpansionBaseItem,
+  enhancement: LootExpansionEnhancement
+): Partial<ItemEffectContent> {
+  const idsAndTags = [...base.effect_ids, ...base.tags].join(" ");
+  const bonus = 1 + enhancementStep(enhancement);
+
+  if (/boss|respawn|survival|shield|barrier|tank/.test(idsAndTags)) {
+    return {
+      hpMax: clampInt(2 + bonus, 1, 20),
+      resist: clampInt(bonus, 1, 10)
+    };
+  }
+
+  if (/magic|mana|spark|tea|arcane|craft/.test(idsAndTags)) {
+    return {
+      manaMax: clampInt(1 + bonus, 1, 20),
+      spellPower: clampInt(bonus, 1, 10)
+    };
+  }
+
+  if (/goblin|quest|map|labyrinth|tool|warning/.test(idsAndTags)) {
+    return {
+      dexterity: clampInt(bonus, 1, 10),
+      luck: clampInt(bonus, 1, 10)
+    };
+  }
+
+  return {
+    luck: clampInt(bonus, 1, 10)
+  };
+}
+
+function enhancementStep(enhancement: LootExpansionEnhancement): number {
+  return enhancement >= 4 ? 2 : enhancement >= 2 ? 1 : 0;
 }
 
 function maxAffinityBonus(

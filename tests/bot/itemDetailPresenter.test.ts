@@ -29,6 +29,8 @@ describe("item detail presenter", () => {
     expect(text).toContain("Кількість: <b>2</b>");
     expect(text).toContain("<i>Трофей корчемної логістики.</i>");
     expect(text).toContain("не вдягається");
+    expect(text).not.toContain("Бойовий ефект");
+    expect(text).not.toContain("Ефект:");
   });
 
   it("shows equippable wording and effects for weapon items", () => {
