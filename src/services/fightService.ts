@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { items, monsterLoot } from "../content";
 import { monsters } from "../content/monsters";
 import type { MonsterContent } from "../content/schema";
+import type { LootExpansionSourceId } from "../content/lootExpansionV1";
 import type {
   CharacterRecord,
   CharacterRepository
@@ -998,7 +999,15 @@ function buildPersistentFightReward(
     monsterLoot,
     items,
     luck: character.stats.luck,
-    rng
+    rng,
+    character: {
+      level: character.level,
+      classId: character.classId,
+      raceId: character.raceId,
+      title: character.title
+    },
+    sourceId: getLootExpansionSourceForMonster(monster),
+    sourceTags: monster.tags
   });
 
   return {
@@ -1006,6 +1015,32 @@ function buildPersistentFightReward(
     gold: Math.min(7, Math.max(1, 1 + Math.floor(monster.level / 2))),
     itemGrants: loot.state === "dropped" ? [{ itemId: loot.item.id, quantity: 1 }] : []
   };
+}
+
+function getLootExpansionSourceForMonster(monster: MonsterContent): LootExpansionSourceId {
+  const tags = new Set(monster.tags);
+
+  if (["food", "kitchen", "pan", "cheese"].some((tag) => tags.has(tag))) {
+    return "kitchen_dungeon";
+  }
+
+  if (
+    ["bureaucracy", "paper", "queue", "tax", "audit", "deadline", "calendar"].some((tag) =>
+      tags.has(tag)
+    )
+  ) {
+    return "bureaucracy_wing";
+  }
+
+  if (["forest", "garden", "druid", "frog"].some((tag) => tags.has(tag))) {
+    return "forest_sidequest";
+  }
+
+  if (monster.level >= 10) {
+    return "elite_mob";
+  }
+
+  return "trash_mob";
 }
 
 function buildPersistentFightRewardReplay(

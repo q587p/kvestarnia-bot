@@ -1,4 +1,5 @@
 import type { ItemContent } from "./schema";
+import { lootExpansionV1ItemContents } from "./lootExpansionV1";
 import { monsterLootItemAdditions } from "./monsterLootItems";
 
 export const items = [
@@ -163,5 +164,6 @@ export const items = [
     slot: "consumable",
     priceless: true
   },
-  ...monsterLootItemAdditions
+  ...monsterLootItemAdditions,
+  ...lootExpansionV1ItemContents
 ] satisfies ItemContent[];

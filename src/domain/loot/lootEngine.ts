@@ -1,4 +1,14 @@
 import type { ItemContent } from "../../content/schema";
+import {
+  buildLootExpansionVariant,
+  getEnhancementWeight,
+  getLootExpansionAffinityMultiplier,
+  getLootExpansionSourceWeightMultiplier,
+  getLootExpansionTagMultiplier,
+  lootExpansionV1Data,
+  type LootExpansionProfile,
+  type LootExpansionSourceId
+} from "../../content/lootExpansionV1";
 import type { RandomSource } from "../../shared/random";
 
 export type LootRarity = "common" | "uncommon" | "rare" | "epic";
@@ -6,6 +16,7 @@ export type LootRarity = "common" | "uncommon" | "rare" | "epic";
 export interface LootCandidate {
   item: ItemContent;
   rarity: LootRarity;
+  weight?: number;
 }
 
 export interface LootRollInput {
@@ -14,6 +25,9 @@ export interface LootRollInput {
   items: readonly ItemContent[];
   luck: number;
   rng: RandomSource;
+  character?: LootExpansionProfile;
+  sourceId?: LootExpansionSourceId;
+  sourceTags?: readonly string[];
 }
 
 export type LootRollResult =
@@ -40,7 +54,16 @@ export const BASE_ITEM_DROP_CHANCE = 0.35;
 const rarityOrder: LootRarity[] = ["common", "uncommon", "rare", "epic"];
 
 export function rollMonsterLoot(input: LootRollInput): LootRollResult {
-  const candidates = getLootCandidates(input);
+  const candidates = [
+    ...getLootCandidates(input),
+    ...(input.character
+      ? getLootExpansionCandidates({
+          profile: input.character,
+          sourceId: input.sourceId ?? "trash_mob",
+          sourceTags: input.sourceTags ?? []
+        })
+      : [])
+  ];
 
   if (candidates.length === 0) {
     return { state: "none", reason: "no-eligible-loot" };
@@ -52,7 +75,7 @@ export function rollMonsterLoot(input: LootRollInput): LootRollResult {
 
   const rarity = rollLootRarity(input.rng, input.luck);
   const eligible = selectCandidatesForRarity(candidates, rarity);
-  const selected = eligible[input.rng.nextInt(0, eligible.length - 1)];
+  const selected = selectWeightedCandidate(eligible, input.rng);
 
   if (!selected) {
     return { state: "none", rarity, reason: "no-eligible-loot" };
@@ -79,6 +102,71 @@ export function getLootCandidates(input: Omit<LootRollInput, "luck" | "rng">): L
 
     return item ? [{ item, rarity: item.rarity }] : [];
   });
+}
+
+export function getLootExpansionCandidates(input: {
+  profile: LootExpansionProfile;
+  sourceId: LootExpansionSourceId;
+  sourceTags?: readonly string[];
+}): LootCandidate[] {
+  const playerLevel = Math.max(1, Math.floor(input.profile.level));
+
+  return lootExpansionV1Data.items.flatMap((base) => {
+    const maxEnhancement = Math.min(base.max_enhancement, 5);
+    const rarityMultiplier = getLootExpansionSourceWeightMultiplier(input.sourceId, base.rarity);
+
+    if (rarityMultiplier <= 0 || base.min_level > playerLevel) {
+      return [];
+    }
+
+    const affinityMultiplier = getLootExpansionAffinityMultiplier(base, input.profile);
+    const tagMultiplier = getLootExpansionTagMultiplier(input.sourceId, [
+      ...base.tags,
+      ...(input.sourceTags ?? [])
+    ]);
+    const baseWeight = base.roll_weight * rarityMultiplier * affinityMultiplier * tagMultiplier;
+
+    return ([0, 1, 2, 3, 4, 5] as const).flatMap((enhancement) => {
+      if (enhancement > maxEnhancement) {
+        return [];
+      }
+
+      const enhancementWeight = getEnhancementWeight(playerLevel, enhancement);
+
+      if (enhancementWeight <= 0) {
+        return [];
+      }
+
+      const variant = buildLootExpansionVariant(base, enhancement);
+
+      if (variant.minLevel > playerLevel) {
+        return [];
+      }
+
+      return [
+        {
+          item: variant.item,
+          rarity: variant.item.rarity,
+          weight: baseWeight * (enhancementWeight / 100)
+        }
+      ];
+    });
+  });
+}
+
+export function rollLootExpansionItem(input: {
+  profile: LootExpansionProfile;
+  sourceId?: LootExpansionSourceId;
+  sourceTags?: readonly string[];
+  rng: RandomSource;
+}): ItemContent | null {
+  const candidates = getLootExpansionCandidates({
+    profile: input.profile,
+    sourceId: input.sourceId ?? "trash_mob",
+    ...(input.sourceTags ? { sourceTags: input.sourceTags } : {})
+  });
+
+  return selectWeightedCandidate(candidates, input.rng)?.item ?? null;
 }
 
 export function rollLootRarity(rng: RandomSource, luck: number): LootRarity {
@@ -147,6 +235,37 @@ function selectCandidatesForRarity(
   }
 
   return [...candidates];
+}
+
+function selectWeightedCandidate(
+  candidates: readonly LootCandidate[],
+  rng: RandomSource
+): LootCandidate | undefined {
+  if (candidates.length === 0) {
+    return undefined;
+  }
+
+  const totalWeight = candidates.reduce(
+    (sum, candidate) => sum + Math.max(0, candidate.weight ?? 1),
+    0
+  );
+
+  if (totalWeight <= 0) {
+    return candidates[0];
+  }
+
+  const target = rng.nextFloat() * totalWeight;
+  let cursor = 0;
+
+  for (const candidate of candidates) {
+    cursor += Math.max(0, candidate.weight ?? 1);
+
+    if (target < cursor) {
+      return candidate;
+    }
+  }
+
+  return candidates.at(-1);
 }
 
 function clamp(value: number, min: number, max: number): number {
