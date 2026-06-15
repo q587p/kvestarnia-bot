@@ -3,6 +3,7 @@ import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
 import { makeFightCallbackData } from "../../src/bot/callbacks/fightCallbackData";
+import { makeEquipItemCallbackData } from "../../src/bot/callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
@@ -210,6 +211,42 @@ describe("scene callback HTML options", () => {
     expect(String(celebration?.payload.text)).toContain(
       "📈 Стало краще: <b>+4 HP · +2 мани · +1 Спритності</b>"
     );
+  });
+
+  it("edits equip requirement denials as message text instead of popup text", async () => {
+    const calls = await captureApiCalls(
+      makeEquipItemCallbackData("item.loot-v1-borgomanta-token-plus-3"),
+      servicesWith({
+        equipment: {
+          equipItemForTelegramUser: () =>
+            Promise.resolve({
+              state: "requirements-not-met",
+              reasons: ["min-level", "class"],
+              item: {
+                itemId: "item.loot-v1-borgomanta-token-plus-3",
+                content: {
+                  id: "item.loot-v1-borgomanta-token-plus-3",
+                  name: "Жетон Боргоманта +3",
+                  description: "Маленька річ, великий привід сперечатися з балансом.",
+                  rarity: "rare",
+                  slot: "accessory",
+                  goldValue: 986
+                }
+              }
+            })
+        }
+      })
+    );
+    const callbackAnswer = calls.find((call) => call.method === "answerCallbackQuery");
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(callbackAnswer?.payload).not.toHaveProperty("text");
+    expect(edit?.payload).toMatchObject({
+      parse_mode: "HTML"
+    });
+    expect(String(edit?.payload.text)).toContain("Ще не екіпірується: Жетон Боргоманта +3.");
+    expect(String(edit?.payload.text)).toContain("Потрібно: вищий рівень, сумісний клас.");
+    expect(String(edit?.payload.text)).toContain("Це правило манатки, не помилка героя.");
   });
 
   it("sends an HTML barrel raid completion notification after the pending timer ends", async () => {

@@ -107,7 +107,11 @@ import {
   buildCellarResultKeyboard
 } from "./keyboards/cellarKeyboard";
 import { buildFightResultKeyboard, buildPersistentFightResultKeyboard } from "./keyboards/fightKeyboard";
-import { buildEquipmentKeyboard, buildItemDetailKeyboard } from "./keyboards/inventoryKeyboard";
+import {
+  buildEquipItemResultKeyboard,
+  buildEquipmentKeyboard,
+  buildItemDetailKeyboard
+} from "./keyboards/inventoryKeyboard";
 import {
   buildMantokChestHelpKeyboard,
   buildMantokChestManualSelectionKeyboard,
@@ -954,10 +958,7 @@ async function handleEquipmentCallback(
       action.itemId
     );
 
-    await safeAnswerCallbackQuery(ctx, {
-      text: presentEquipItemResult(result),
-      show_alert: result.state !== "equipped" && result.state !== "requirements-not-met"
-    });
+    await safeAnswerCallbackQuery(ctx);
 
     if (result.state === "equipped") {
       const equipment = await services.equipment.getEquipmentForTelegramUser(telegramUserId);
@@ -965,7 +966,13 @@ async function handleEquipmentCallback(
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildEquipmentKeyboard(equipment)
       });
+      return;
     }
+
+    await safeEditMessageText(ctx, presentEquipItemResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildEquipItemResultKeyboard()
+    });
     return;
   }
 
