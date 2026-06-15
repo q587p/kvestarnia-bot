@@ -36,7 +36,8 @@ import {
   isBarrelRaidAuditBreak,
   KORCHMA_FINE_ROUND_COST,
   KORCHMA_SIMPLE_ROUND_COST,
-  TavernRaidService
+  TavernRaidService,
+  toKorchmaLocalDate
 } from "../../src/services/tavernRaidService";
 
 const telegramUserId = 42n;
@@ -77,6 +78,11 @@ describe("TavernRaidService", () => {
     expect(isBarrelRaidAuditBreak(new Date("2026-01-11T01:00:00.000Z"))).toBe(true);
     expect(isBarrelRaidAuditBreak(new Date("2026-01-11T04:59:59.000Z"))).toBe(true);
     expect(isBarrelRaidAuditBreak(new Date("2026-01-11T05:00:00.000Z"))).toBe(false);
+  });
+
+  it("formats round leaderboard dates by Kyiv korchma time", () => {
+    expect(toKorchmaLocalDate(new Date("2026-06-15T20:59:59.000Z"))).toBe("2026-06-15");
+    expect(toKorchmaLocalDate(new Date("2026-06-15T21:00:00.000Z"))).toBe("2026-06-16");
   });
 
   it("returns the next available barrel raid time after the audit break", () => {
@@ -750,6 +756,39 @@ describe("TavernRaidService", () => {
     });
   });
 
+  it("records beer rounds under the Kyiv-local leaderboard day after midnight", async () => {
+    const clock = () => new Date("2026-06-15T21:33:00.000Z");
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { gold: 125 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const roundPurchases = new FakeKorchmaRoundPurchaseRepository(characters);
+    const service = new TavernRaidService(
+      characters,
+      dailyActions,
+      roundPurchases,
+      new FakeCooldownRepository(characters),
+      clock,
+      new FakeRandomSource([0])
+    );
+
+    await service.completeFridayBarrelRaid(telegramUserId);
+    const result = await service.buyRoundForTelegramUser(telegramUserId, "fine");
+
+    expect(result).toMatchObject({
+      state: "fine-round"
+    });
+    expect(roundPurchases.purchases[0]).toMatchObject({
+      localDate: "2026-06-16"
+    });
+    expect(roundPurchases.requestedLeaderboardDates).toEqual(["2026-06-16", "2026-06-16"]);
+    if (result.state === "fine-round") {
+      expect(result.leaderboard.day[0]).toMatchObject({
+        name: "Мандрівник",
+        spentGold: KORCHMA_FINE_ROUND_COST
+      });
+    }
+  });
+
   it("marks a hero as new leader only when they overtake the previous top patron", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { gold: 125 });
@@ -968,6 +1007,7 @@ class FakeCharacterRepository implements CharacterRepository {
 
 class FakeKorchmaRoundPurchaseRepository implements KorchmaRoundPurchaseRepository {
   readonly purchases: FakeKorchmaRoundPurchase[] = [];
+  readonly requestedLeaderboardDates: string[] = [];
 
   constructor(private readonly characters: FakeCharacterRepository) {}
 
@@ -993,10 +1033,11 @@ class FakeKorchmaRoundPurchaseRepository implements KorchmaRoundPurchaseReposito
     this.purchases.push(input);
   }
 
-  getLeaderboard(): Promise<KorchmaRoundLeaderboard> {
+  getLeaderboard(localDate: string): Promise<KorchmaRoundLeaderboard> {
+    this.requestedLeaderboardDates.push(localDate);
     const entries = new Map<string, { roundCount: number; spentGold: number }>();
 
-    for (const purchase of this.purchases) {
+    for (const purchase of this.purchases.filter((entry) => entry.localDate === localDate)) {
       const current = entries.get(purchase.characterId) ?? {
         roundCount: 0,
         spentGold: 0

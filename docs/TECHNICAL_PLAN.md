@@ -411,7 +411,7 @@ Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і 
 `0.0.11` також додає `korchma_round_purchases` як малий журнал підтверджених частувань:
 - `v1:tavern:round` тільки показує offer/statistics screen і не списує золото;
 - `v1:tavern:round-simple` і `v1:tavern:round-fine` виконують repeatable spending після raid gate;
-- рейтинги за добу, тиждень і місяць агрегуються з purchase log за `local_date`;
+- рейтинги за добу, тиждень і місяць агрегуються з purchase log за `local_date`; для частувань це київська локальна дата за `Europe/Kyiv`, не UTC-день;
 - leaderboard сортується за сумою витраченого золота, потім за кількістю частувань;
 - майбутній tie-breaker має бути детермінованим: earliest purchase in period, потім stable `character_id`, якщо потрібно, щоб привітання за перше місце не стрибали між рівними rows;
 - unlimited repeatable spending прийнятний для першого sink, бо кожна покупка вимагає явного підтвердження, але майбутній UX/anti-spam може додати soft cooldown або rate limit.

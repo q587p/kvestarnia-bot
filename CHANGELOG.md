@@ -23,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Yeger tracking no longer starts the fight immediately on first click; it now requires a ready trail check.
 - Existing active non-Yeger fights still block Yeger tracking flavor instead of being mislabeled as unquiet targets.
 - The `Пропамʼятна дошка` level board now shows the full known milestone range down to level 2 instead of only the six highest levels.
+- The `Шинок` generosity leaderboard now records beer-round dates by Kyiv korchma time instead of UTC.
 - Game-design, technical-plan, roadmap, and backlog docs now describe the two-step Yeger trail loop and the Манчкін-скупник exchange scope.
 
 ### Not Included Yet
