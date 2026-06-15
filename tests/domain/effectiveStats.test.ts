@@ -13,9 +13,9 @@ const storedStats: CharacterStats = {
 describe("buildEffectiveCharacterStats", () => {
   it("returns stored HP, mana, and stats unchanged at level 1", () => {
     expect(buildEffectiveCharacterStats(input({ level: 1 }))).toMatchObject({
-      hpCurrent: 20,
+      hpCurrent: 11,
       hpMax: 20,
-      manaCurrent: 10,
+      manaCurrent: 3,
       manaMax: 10,
       stats: storedStats,
       levelBonus: {
@@ -31,9 +31,9 @@ describe("buildEffectiveCharacterStats", () => {
 
   it("adds HP, mana, and one primary stat point at level 2", () => {
     expect(buildEffectiveCharacterStats(input({ level: 2 }))).toMatchObject({
-      hpCurrent: 24,
+      hpCurrent: 11,
       hpMax: 24,
-      manaCurrent: 12,
+      manaCurrent: 3,
       manaMax: 12,
       stats: {
         strength: 9,
@@ -55,9 +55,9 @@ describe("buildEffectiveCharacterStats", () => {
 
   it("adds cumulative level growth at level 3", () => {
     expect(buildEffectiveCharacterStats(input({ level: 3 }))).toMatchObject({
-      hpCurrent: 28,
+      hpCurrent: 11,
       hpMax: 28,
-      manaCurrent: 14,
+      manaCurrent: 3,
       manaMax: 14,
       stats: {
         strength: 10
@@ -75,9 +75,9 @@ describe("buildEffectiveCharacterStats", () => {
 
   it("scales HP and mana for unknown classes without crashing", () => {
     expect(buildEffectiveCharacterStats(input({ classId: "class.mystery", level: 2 }))).toMatchObject({
-      hpCurrent: 24,
+      hpCurrent: 11,
       hpMax: 24,
-      manaCurrent: 12,
+      manaCurrent: 3,
       manaMax: 12,
       stats: storedStats,
       levelBonus: {
@@ -97,9 +97,36 @@ describe("buildEffectiveCharacterStats", () => {
 
   it("treats levels below 1 as level 1", () => {
     expect(buildEffectiveCharacterStats(input({ level: 0 }))).toMatchObject({
+      hpCurrent: 11,
       hpMax: 20,
+      manaCurrent: 3,
       manaMax: 10,
       stats: storedStats
+    });
+  });
+
+  it("does not refill current resources when level or equipment raises maximums", () => {
+    expect(
+      buildEffectiveCharacterStats(
+        input({
+          level: 2,
+          equipment: [
+            {
+              itemId: "item.test-apron",
+              itemName: "Тестовий фартух",
+              effect: {
+                hpMax: 2,
+                manaMax: 1
+              }
+            }
+          ]
+        })
+      )
+    ).toMatchObject({
+      hpCurrent: 11,
+      hpMax: 26,
+      manaCurrent: 3,
+      manaMax: 13
     });
   });
 });

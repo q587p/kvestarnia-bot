@@ -16,6 +16,8 @@ export interface CharacterRecord {
   hpMax: number;
   manaCurrent: number;
   manaMax: number;
+  hpRegenAt?: Date | null;
+  manaRegenAt?: Date | null;
   statsJson: unknown;
 }
 
@@ -35,6 +37,13 @@ export interface CreateCharacterInput {
   statsJson: unknown;
 }
 
+export interface UpdateCharacterResourcesInput {
+  hpCurrent: number;
+  manaCurrent: number;
+  hpRegenAt: Date;
+  manaRegenAt: Date;
+}
+
 export interface CreateCharacterResult {
   character: CharacterRecord;
   created: boolean;
@@ -43,6 +52,10 @@ export interface CreateCharacterResult {
 export interface CharacterRepository {
   findByUserId(userId: string): Promise<CharacterRecord | null>;
   findByTelegramUserId(telegramUserId: bigint): Promise<CharacterRecord | null>;
+  updateResourcesForTelegramUser?(
+    telegramUserId: bigint,
+    input: UpdateCharacterResourcesInput
+  ): Promise<CharacterRecord | null>;
   deleteByTelegramUserId(telegramUserId: bigint): Promise<boolean>;
   createForTelegramUserIfMissing(
     user: TelegramUserProfile,

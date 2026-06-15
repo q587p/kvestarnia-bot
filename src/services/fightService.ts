@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import { items, monsterLoot } from "../content";
 import { monsters } from "../content/monsters";
 import type { MonsterContent } from "../content/schema";
-import type { CharacterRepository } from "../db/repositories/characterRepository";
+import type {
+  CharacterRecord,
+  CharacterRepository
+} from "../db/repositories/characterRepository";
 import type { DailyActionRepository, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import type {
   SoloCombatSessionRecord,
@@ -32,6 +35,7 @@ import {
 import { createEmptyEquipmentEffectSummary } from "../domain/progression/effectiveStats";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
+import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import {
   MIMIC_SHAWARMA_ADVENTURE_KEY,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
@@ -100,6 +104,7 @@ export interface PersistentFightReward {
 export type FightLookupResult =
   | { state: "no-character" }
   | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
+  | { state: "needs-rest"; character: CharacterSummary }
   | {
       state: "persistent-ready";
       character: CharacterSummary;
@@ -205,9 +210,9 @@ export class FightService {
       return this.getMimicShawarmaForTelegramUser(telegramUserId);
     }
 
-    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
-
     if (!this.combatSessions) {
+      const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+
       return {
         state: "level-retired",
         character: characterSummary,
@@ -217,6 +222,9 @@ export class FightService {
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
     const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character, {
+      syncResources: !activeSession
+    });
 
     if (!activeSession) {
       return {
@@ -250,6 +258,7 @@ export class FightService {
         state: expiredState,
         status: expiredState.status
       });
+      await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
 
       return {
         state: "persistent-terminal",
@@ -275,6 +284,7 @@ export class FightService {
         state: expiredState,
         status: expiredState.status
       });
+      await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
 
       return {
         state: "persistent-terminal",
@@ -313,9 +323,9 @@ export class FightService {
       return this.getMimicShawarmaForTelegramUser(telegramUserId);
     }
 
-    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
-
     if (!this.combatSessions) {
+      const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+
       return {
         state: "level-retired",
         character: characterSummary,
@@ -327,6 +337,10 @@ export class FightService {
     const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
 
     if (activeSession) {
+      const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character, {
+        syncResources: false
+      });
+
       if (!activeSession.state) {
         await this.combatSessions.markStatusById(activeSession.id, "expired");
       } else if (isExpired(activeSession, this.clock())) {
@@ -335,6 +349,7 @@ export class FightService {
           state: expiredState,
           status: expiredState.status
         });
+        await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
 
         return {
           state: "persistent-terminal",
@@ -358,6 +373,7 @@ export class FightService {
             state: expiredState,
             status: expiredState.status
           });
+          await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
 
           return {
             state: "persistent-terminal",
@@ -398,6 +414,17 @@ export class FightService {
           questProgress
         };
       }
+    }
+
+    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character, {
+      syncResources: true
+    });
+
+    if (characterSummary.hpCurrent <= 0) {
+      return {
+        state: "needs-rest",
+        character: characterSummary
+      };
     }
 
     const monster = selectSoloFightMonster(characterSummary, this.rng);
@@ -619,6 +646,7 @@ export class FightService {
         state: expiredState,
         status: expiredState.status
       });
+      await this.persistCharacterResourcesFromSession(telegramUserId, updated ?? session);
 
       return {
         state: "terminal",
@@ -741,6 +769,10 @@ export class FightService {
       updated.status === "won"
         ? await this.claimThirteenSmallProblemsRewardIfComplete(telegramUserId)
         : null;
+
+    if (updated.status !== "active") {
+      await this.persistCharacterResourcesFromSession(telegramUserId, updated);
+    }
 
     return {
       state: "updated",
@@ -916,12 +948,42 @@ export class FightService {
 
   private async summarizeCharacterWithEquipment(
     telegramUserId: bigint,
-    character: Parameters<typeof summarizeCharacter>[0]
+    character: CharacterRecord,
+    options: { syncResources?: boolean } = {}
   ): Promise<CharacterSummary> {
     const equipmentSnapshot = await this.equipment?.listByTelegramUserId(telegramUserId);
+    const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
+
+    if (options.syncResources) {
+      const resourceAware = await summarizeAndSyncCharacterResources({
+        characters: this.characters,
+        telegramUserId,
+        character,
+        equippedItems,
+        now: this.clock()
+      });
+
+      return resourceAware.character;
+    }
 
     return summarizeCharacter(character, {
-      equippedItems: equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : []
+      equippedItems
+    });
+  }
+
+  private async persistCharacterResourcesFromSession(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord
+  ): Promise<void> {
+    if (!session.state) {
+      return;
+    }
+
+    await this.characters.updateResourcesForTelegramUser?.(telegramUserId, {
+      hpCurrent: session.state.hero.hp,
+      manaCurrent: session.state.hero.mana,
+      hpRegenAt: this.clock(),
+      manaRegenAt: this.clock()
     });
   }
 }
@@ -989,13 +1051,17 @@ function buildFightItemGrants(action: FightAction): Array<{ itemId: string; quan
   return [];
 }
 
-function buildHeroCombatStats(character: CharacterSummary): CombatActorStats {
+function buildHeroCombatStats(
+  character: CharacterSummary
+): CombatActorStats & { hpCurrent: number; manaCurrent: number } {
   const equipment = character.equipmentEffects ?? createEmptyEquipmentEffectSummary();
 
   return {
     level: character.level,
     hpMax: character.hpMax,
     manaMax: character.manaMax,
+    hpCurrent: character.hpCurrent,
+    manaCurrent: character.manaCurrent,
     classId: character.classId,
     ...character.stats,
     armor: equipment.armor,

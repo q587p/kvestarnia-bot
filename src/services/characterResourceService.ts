@@ -1,0 +1,71 @@
+import type { ItemContent } from "../content/schema";
+import type {
+  CharacterRecord,
+  CharacterRepository
+} from "../db/repositories/characterRepository";
+import {
+  summarizeCharacter,
+  type CharacterSummary
+} from "../domain/characters/characterSummary";
+import {
+  applyPassiveResourceRegeneration,
+  type ResourceRegenerationResult
+} from "../domain/resources/resourceRegeneration";
+
+export interface CharacterResourceSyncResult {
+  character: CharacterSummary;
+  regeneration: ResourceRegenerationResult;
+}
+
+export async function summarizeAndSyncCharacterResources(input: {
+  characters: CharacterRepository;
+  telegramUserId: bigint;
+  character: CharacterRecord;
+  equippedItems?: ItemContent[];
+  now: Date;
+  persist?: boolean;
+}): Promise<CharacterResourceSyncResult> {
+  const baseSummary = summarizeCharacter(input.character, {
+    equippedItems: input.equippedItems ?? []
+  });
+  const regeneration = applyPassiveResourceRegeneration({
+    resources: {
+      hpCurrent: baseSummary.hpCurrent,
+      hpMax: baseSummary.hpMax,
+      manaCurrent: baseSummary.manaCurrent,
+      manaMax: baseSummary.manaMax,
+      ...(input.character.hpRegenAt === undefined ? {} : { hpRegenAt: input.character.hpRegenAt }),
+      ...(input.character.manaRegenAt === undefined
+        ? {}
+        : { manaRegenAt: input.character.manaRegenAt })
+    },
+    profile: {
+      raceId: baseSummary.raceId,
+      classId: baseSummary.classId,
+      title: baseSummary.title,
+      stats: baseSummary.stats
+    },
+    now: input.now
+  });
+
+  if (input.persist !== false && regeneration.changed) {
+    await input.characters.updateResourcesForTelegramUser?.(input.telegramUserId, {
+      hpCurrent: regeneration.resources.hpCurrent,
+      manaCurrent: regeneration.resources.manaCurrent,
+      hpRegenAt: regeneration.resources.hpRegenAt ?? input.now,
+      manaRegenAt: regeneration.resources.manaRegenAt ?? input.now
+    });
+  }
+
+  return {
+    character: {
+      ...baseSummary,
+      hpCurrent: regeneration.resources.hpCurrent,
+      hpMax: regeneration.resources.hpMax,
+      manaCurrent: regeneration.resources.manaCurrent,
+      manaMax: regeneration.resources.manaMax,
+      resourceRecovery: regeneration.recovery
+    },
+    regeneration
+  };
+}

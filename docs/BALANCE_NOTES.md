@@ -153,6 +153,24 @@ Loss, flee і expired fights не отримують full victory reward. Repeat
 
 Модифікатори LUCK не мають ламати таблицю. Наприклад, LUCK додає не «+10% epic», а маленький бонус до upgrade roll.
 
+## HP/mana persistence and recovery
+`0.0.25` робить HP і ману справжнім станом персонажа для persistent solo fights:
+- current HP/mana зберігаються в `characters` і більше не відновлюються до максимуму при кожному `/fight` або `/hero`;
+- новий старший бій стартує з поточного ресурсу після lazy out-of-combat regeneration;
+- terminal fight state записує фактичні залишки HP/mana назад у персонажа й ставить нову точку відліку регенерації;
+- якщо HP дорівнює 0, новий persistent fight не стартує, доки пасивне відновлення не поверне хоча б 1 HP;
+- active fight не отримує природного відновлення між ходами.
+
+Поточні повні цикли відновлення:
+```text
+HP:   base 10 хв, clamp 5-13 хв
+mana: base 9 хв, clamp 4-13 хв
+```
+
+Class/race/title/stat modifiers змінюють саме час повного відновлення, а не максимуми й не бойові формули. STR прискорює HP recovery, INT прискорює mana recovery; класові й расові поправки лишаються малими та затиснутими clamp-ами. Це локальна attrition-система, не повний healing economy.
+
+Не включено в цей slice: зілля, храмове лікування, платне лікування, resource-манатки, combat-time regeneration або штрафи смерті. Будь-який миттєвий heal/refill має бути окремою явною дією з idempotency boundary, а не прихованим побічним ефектом summary або equipment max changes.
+
 ## Pity / захист від невдачі
 Навіть у MVP варто вести lightweight pity counter:
 - Якщо 20 пригод без rare, наступні 5 пригод мають підвищений шанс rare.

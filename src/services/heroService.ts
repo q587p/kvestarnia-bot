@@ -1,7 +1,9 @@
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import type { InventoryRepository } from "../db/repositories/inventoryRepository";
-import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
+import type { CharacterSummary } from "../domain/characters/characterSummary";
+import { systemClock, type Clock } from "../shared/time";
+import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import { getEquippedItemContents } from "./equipmentService";
 import { calculateInventoryRowsGoldValue } from "./inventoryService";
 
@@ -13,7 +15,8 @@ export class HeroService {
   constructor(
     private readonly characters: CharacterRepository,
     private readonly inventory: InventoryRepository,
-    private readonly equipment?: EquipmentRepository
+    private readonly equipment?: EquipmentRepository,
+    private readonly clock: Clock = systemClock
   ) {}
 
   async findByTelegramUserId(telegramUserId: bigint): Promise<HeroLookupResult> {
@@ -28,11 +31,18 @@ export class HeroService {
       this.equipment?.listByTelegramUserId(telegramUserId) ?? Promise.resolve(null)
     ]);
 
+    const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
+    const resourceAware = await summarizeAndSyncCharacterResources({
+      characters: this.characters,
+      telegramUserId,
+      character,
+      equippedItems,
+      now: this.clock()
+    });
+
     return {
       state: "existing-character",
-      character: summarizeCharacter(character, {
-        equippedItems: equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : []
-      }),
+      character: resourceAware.character,
       inventoryGoldValue: inventoryRows ? calculateInventoryRowsGoldValue(inventoryRows) : 0
     };
   }

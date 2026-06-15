@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.25] - 12026-06-15 - Persistent HP/Mana Regeneration
+
+### Added
+- Added persisted HP/mana attrition for level 3+ persistent solo fights: new fights now start from the character's current resources instead of silently restoring to full.
+- Added passive out-of-combat HP/mana regeneration with lazy sync on profile/fight entry, deterministic formulas, and class/race/title/stat modifiers within safe caps.
+- Added `hp_regen_at` and `mana_regen_at` timestamps to `characters` so SQLite can track resource recovery without Redis or background jobs.
+- Added visible recovery context to `/hero` and a no-fight rest state when a hero has 0 HP.
+- Added tests for resource regeneration, non-refill effective stats, fight start sync, zero-HP denial, and terminal fight resource persistence.
+
+### Changed
+- Effective character stats now clamp stored current HP/mana to effective maximums instead of setting current resources to maximum on every summary.
+- Persistent fight terminal states now save the actual remaining HP/mana back to the character and start recovery from that point.
+- Fight result screens now show the post-fight HP/mana snapshot.
+
+### Not Included Yet
+- Potions, temple healing, paid healing, consumable item use, combat-time regeneration, full death penalties, or resource-management манатки.
+
 ## [0.0.24] - 12026-06-15 - Level Cap 13 & Grownup Cellar Quest
 
 ### Added

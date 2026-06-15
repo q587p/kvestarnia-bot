@@ -63,6 +63,24 @@ export function presentFightLevelRetired(
   ].join("\n");
 }
 
+export function presentFightNeedsRest(
+  result: Extract<FightLookupResult, { state: "needs-rest" }>
+): string {
+  const recovery = result.character.resourceRecovery;
+  const hpEta =
+    recovery && recovery.hpSecondsToFull > 0
+      ? ` Орієнтовно до повного HP: ~${presentDuration(recovery.hpSecondsToFull)}.`
+      : "";
+
+  return [
+    "❤️ Пригодник ще не тримається на ногах.",
+    "",
+    `Зараз HP ${result.character.hpCurrent}/${result.character.hpMax}, мана ${result.character.manaCurrent}/${result.character.manaMax}.${hpEta}`,
+    "",
+    "Квестарня радить перевірити /hero і дати ранам дописати пояснювальну."
+  ].join("\n");
+}
+
 export function presentFightResult(result: Exclude<FightResult, { state: "no-character" }>): string {
   if (result.state === "level-retired") {
     return presentFightLevelRetired(result);
@@ -244,6 +262,8 @@ function presentPersistentFightState(input: {
   if (state?.status === "won") {
     lines.push(
       "",
+      `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
+      "",
       input.questReward
         ? "🎉 Ви перемогли. Корчмар записав бій і список дрібних проблем теж не відвертівся."
         : "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою."
@@ -251,11 +271,15 @@ function presentPersistentFightState(input: {
   } else if (state?.status === "lost") {
     lines.push(
       "",
+      `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
+      "",
       "💤 Ви програли. Корчмар каже, що це «цінні дані для балансу».",
       "Список дрібних проблем не зрушив, але зробив вигляд, що співчуває."
     );
   } else if (state?.status === "fled") {
     lines.push(
+      "",
+      `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
       "",
       "🏃 Ви відступили. Тактичний вітер підтримав ваше рішення.",
       "Справу не зараховано: проблема лишилась дрібною, нахабною і живою."
@@ -298,6 +322,12 @@ function presentPersistentFightReward(
   }
 
   return lines;
+}
+
+function presentDuration(seconds: number): string {
+  const minutes = Math.ceil(Math.max(0, seconds) / 60);
+
+  return `${Math.max(1, minutes)} хв`;
 }
 
 function presentThirteenSmallProblemsBlock(

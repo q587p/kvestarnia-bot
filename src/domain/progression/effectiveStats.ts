@@ -83,9 +83,9 @@ export function buildEffectiveCharacterStats(
   );
 
   return {
-    hpCurrent: hpMax,
+    hpCurrent: clampResource(input.hpCurrent, hpMax),
     hpMax,
-    manaCurrent: manaMax,
+    manaCurrent: clampResource(input.manaCurrent, manaMax),
     manaMax,
     stats,
     levelBonus,
@@ -186,6 +186,16 @@ function buildLevelBonus(level: number, classId: string): LevelBonus {
 
 function normalizeLevel(level: number): number {
   return Math.max(1, Math.floor(level));
+}
+
+function clampResource(current: number, max: number): number {
+  const safeMax = Math.max(0, Math.floor(max));
+
+  if (safeMax === 0) {
+    return 0;
+  }
+
+  return Math.min(safeMax, Math.max(0, Math.floor(current)));
 }
 
 function findPrimaryStat(classId: string): StatKey | undefined {

@@ -3,7 +3,8 @@ import type {
   CharacterRecord,
   CharacterRepository,
   CreateCharacterInput,
-  CreateCharacterResult
+  CreateCharacterResult,
+  UpdateCharacterResourcesInput
 } from "./characterRepository";
 import type { TelegramUserProfile } from "./userRepository";
 
@@ -75,6 +76,47 @@ export class PrismaCharacterRepository implements CharacterRepository {
 
       return true;
     });
+  }
+
+  async updateResourcesForTelegramUser(
+    telegramUserId: bigint,
+    input: UpdateCharacterResourcesInput
+  ): Promise<CharacterRecord | null> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!character) {
+      return null;
+    }
+
+    const updated = await this.prisma.character.update({
+      where: {
+        id: character.id
+      },
+      data: {
+        hpCurrent: input.hpCurrent,
+        manaCurrent: input.manaCurrent,
+        hpRegenAt: input.hpRegenAt,
+        manaRegenAt: input.manaRegenAt
+      },
+      include: {
+        user: {
+          select: {
+            lastSeenLocationId: true
+          }
+        }
+      }
+    });
+
+    return toCharacterRecord(updated);
   }
 
   async createForTelegramUserIfMissing(
