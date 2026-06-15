@@ -142,6 +142,7 @@ Spawn 3 agents and consolidate:
 
 - `main` завжди зелений;
 - якщо задача прямо не просить stacked PR або іншу base-гілку, дивитися на актуальний `main`, рахувати diff проти `main` і відкривати/retarget PR саме на `main`;
+- якщо вже є активний PR для поточної роботи, follow-up правки додавати в цю ж гілку і цей же PR, а не створювати нову гілку/PR без прямого прохання;
 - `docs/public-readme-polish`;
 - `feat/combat-engine`;
 - `feat/start-flow`;
