@@ -131,8 +131,8 @@ function regenerateResource(input: {
   if (current >= input.max) {
     return {
       current: input.max,
-      marker: input.now,
-      changed: current !== input.max || marker.getTime() !== input.now.getTime()
+      marker,
+      changed: input.current !== input.max
     };
   }
 

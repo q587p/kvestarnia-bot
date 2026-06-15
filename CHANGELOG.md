@@ -23,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Effective character stats now clamp stored current HP/mana to effective maximums instead of setting current resources to maximum on every summary.
 - Persistent fight terminal states now save the actual remaining HP/mana back to the character and start recovery from that point.
+- Passive HP/mana regeneration sync now avoids full-resource timestamp churn and guards stale read-path writes from overwriting fresher resource rows.
 - Fight result screens now show the post-fight HP/mana snapshot.
 - Persistent fight loot now can include weighted Loot Expansion v1 items while preserving existing idempotent reward replay.
 - Persistent fight last-turn summaries now use short separate lines instead of stacking multiple colons in one sentence.

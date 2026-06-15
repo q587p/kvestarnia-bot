@@ -65,18 +65,20 @@ describe("applyPassiveResourceRegeneration", () => {
     expect(result.resources.manaCurrent).toBe(1);
     expect(result.resources.hpRegenAt).toBe(marker);
     expect(result.resources.manaRegenAt).toBe(marker);
+    expect(result.changed).toBe(false);
   });
 
-  it("clamps resources and marks full resources from now", () => {
+  it("does not mark full resources changed just because old markers passed", () => {
     const now = new Date("2026-06-12T10:05:00.000Z");
+    const marker = new Date("2026-06-12T09:00:00.000Z");
     const result = applyPassiveResourceRegeneration({
       resources: {
-        hpCurrent: 99,
+        hpCurrent: 20,
         hpMax: 20,
-        manaCurrent: 99,
+        manaCurrent: 10,
         manaMax: 10,
-        hpRegenAt: new Date("2026-06-12T09:00:00.000Z"),
-        manaRegenAt: new Date("2026-06-12T09:00:00.000Z")
+        hpRegenAt: marker,
+        manaRegenAt: marker
       },
       profile: {
         raceId: "race.human-ish",
@@ -88,10 +90,38 @@ describe("applyPassiveResourceRegeneration", () => {
 
     expect(result.resources.hpCurrent).toBe(20);
     expect(result.resources.manaCurrent).toBe(10);
-    expect(result.resources.hpRegenAt).toEqual(now);
-    expect(result.resources.manaRegenAt).toEqual(now);
+    expect(result.resources.hpRegenAt).toBe(marker);
+    expect(result.resources.manaRegenAt).toBe(marker);
     expect(result.recovery.hpSecondsToFull).toBe(0);
     expect(result.recovery.manaSecondsToFull).toBe(0);
+    expect(result.changed).toBe(false);
+  });
+
+  it("clamps overfilled resources and reports a change", () => {
+    const now = new Date("2026-06-12T10:05:00.000Z");
+    const marker = new Date("2026-06-12T09:00:00.000Z");
+    const result = applyPassiveResourceRegeneration({
+      resources: {
+        hpCurrent: 99,
+        hpMax: 20,
+        manaCurrent: 99,
+        manaMax: 10,
+        hpRegenAt: marker,
+        manaRegenAt: marker
+      },
+      profile: {
+        raceId: "race.human-ish",
+        classId: "class.rogue",
+        stats: baseStats
+      },
+      now
+    });
+
+    expect(result.resources.hpCurrent).toBe(20);
+    expect(result.resources.manaCurrent).toBe(10);
+    expect(result.resources.hpRegenAt).toBe(marker);
+    expect(result.resources.manaRegenAt).toBe(marker);
+    expect(result.changed).toBe(true);
   });
 
   it("lets class, race, title, and stats affect regeneration speed within caps", () => {
