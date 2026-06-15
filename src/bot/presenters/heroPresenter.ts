@@ -58,8 +58,13 @@ function presentResourceRecovery(summary: CharacterSummary): string[] {
     recovery.hpSecondsToFull > 0 ? `HP за ~${presentDuration(recovery.hpSecondsToFull)}` : null,
     recovery.manaSecondsToFull > 0 ? `мана за ~${presentDuration(recovery.manaSecondsToFull)}` : null
   ].filter((part): part is string => part !== null);
+  const lines = parts.length > 0 ? [`Відновлення: ${parts.join(" · ")}`] : [];
 
-  return parts.length > 0 ? [`Відновлення: ${parts.join(" · ")}`] : [];
+  if (summary.hpCurrent <= 0) {
+    lines.push("Стан: HP 0 — спершу відпочиньте, тоді /fight.");
+  }
+
+  return lines;
 }
 
 function presentDuration(seconds: number): string {

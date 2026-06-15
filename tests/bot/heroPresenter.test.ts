@@ -72,6 +72,21 @@ describe("hero presenter", () => {
     expect(text.split("\n").length).toBeLessThanOrEqual(18);
   });
 
+  it("adds a short rest hint when the hero is at zero HP", () => {
+    const text = presentHero({
+      ...summary,
+      hpCurrent: 0,
+      hpMax: 24,
+      resourceRecovery: {
+        hpSecondsToFull: 600,
+        manaSecondsToFull: 0
+      }
+    });
+
+    expect(text).toContain("Відновлення: HP за ~10 хв");
+    expect(text).toContain("Стан: HP 0 — спершу відпочиньте, тоді /fight.");
+  });
+
   it("shows inventory value next to carried gold", () => {
     const text = presentHero(summary, { inventoryGoldValue: 28 });
 

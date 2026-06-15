@@ -77,7 +77,7 @@ export function presentFightNeedsRest(
     "",
     `Зараз HP ${result.character.hpCurrent}/${result.character.hpMax}, мана ${result.character.manaCurrent}/${result.character.manaMax}.${hpEta}`,
     "",
-    "Квестарня радить перевірити /hero і дати ранам дописати пояснювальну."
+    "Спершу /hero: бій знову відчиниться, коли HP буде хоча б 1."
   ].join("\n");
 }
 
@@ -266,7 +266,8 @@ function presentPersistentFightState(input: {
       "",
       input.questReward
         ? "🎉 Ви перемогли. Корчмар записав бій і список дрібних проблем теж не відвертівся."
-        : "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою."
+        : "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою.",
+      "Наступний крок: /hero або /quest."
     );
   } else if (state?.status === "lost") {
     lines.push(
@@ -274,7 +275,8 @@ function presentPersistentFightState(input: {
       `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
       "",
       "💤 Ви програли. Корчмар каже, що це «цінні дані для балансу».",
-      "Список дрібних проблем не зрушив, але зробив вигляд, що співчуває."
+      "Список дрібних проблем не зрушив, але зробив вигляд, що співчуває.",
+      "Спершу /hero, тоді новий бій."
     );
   } else if (state?.status === "fled") {
     lines.push(
@@ -282,13 +284,15 @@ function presentPersistentFightState(input: {
       `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
       "",
       "🏃 Ви відступили. Тактичний вітер підтримав ваше рішення.",
-      "Справу не зараховано: проблема лишилась дрібною, нахабною і живою."
+      "Справу не зараховано: проблема лишилась дрібною, нахабною і живою.",
+      "Спершу /hero, тоді новий бій."
     );
   } else if (state?.status === "expired") {
     lines.push(
       "",
       "⌛ Бій видихнувся. Монстр теж мав справи.",
-      "Корчмар не ставить галочку за бій, який розійшовся на перерву."
+      "Корчмар не ставить галочку за бій, який розійшовся на перерву.",
+      "Спершу /hero, тоді новий бій."
     );
   } else {
     lines.push("", "Що робимо?");

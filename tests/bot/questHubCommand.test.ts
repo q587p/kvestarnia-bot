@@ -236,6 +236,44 @@ describe("quest hub command", () => {
     ]);
   });
 
+  it("reminds exhausted heroes to rest before opening a new fight", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const exhaustedCharacter = {
+      ...character,
+      hpCurrent: 0,
+      hpMax: 20
+    };
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(exhaustedCharacter),
+        cellarErrand: readyCellarService(exhaustedCharacter),
+        hunt: readyHuntService(exhaustedCharacter),
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "needs-rest",
+              character: {
+                ...exhaustedCharacter,
+                resourceRecovery: {
+                  hpSecondsToFull: 600,
+                  manaSecondsToFull: 0
+                }
+              }
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        } as unknown as FightService
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain(
+      "⚔️ <i>Сутичка з невідомим монстром</i> — герой ще не тримається на ногах, спершу /hero."
+    );
+    expect(replies[0]?.text).toContain("HP 0? Спершу /hero, тоді /fight. Справи почекають.");
+  });
+
   it("keeps terminal persistent fights recoverable from the quest hub", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const grownCharacter = characterAtLevel(4);

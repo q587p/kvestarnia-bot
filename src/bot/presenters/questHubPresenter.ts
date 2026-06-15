@@ -53,6 +53,10 @@ function presentAdventureRow(
 }
 
 function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string {
+  if (fight.state === "needs-rest") {
+    return "⚔️ <i>Сутичка з невідомим монстром</i> — герой ще не тримається на ногах, спершу /hero.";
+  }
+
   if (fight.state === "level-retired") {
     return `⚔️ <i>Сутичка з невідомим монстром</i> — тренувальний бій для 1-${fight.maxLevel} рівнів.`;
   }
@@ -121,6 +125,10 @@ function presentCellarRow(
 }
 
 function presentQuestHubFooter(snapshot: QuestHubSnapshot): string {
+  if (snapshot.character.hpCurrent <= 0) {
+    return "HP 0? Спершу /hero, тоді /fight. Справи почекають.";
+  }
+
   if (hasReadyQuestAction(snapshot)) {
     return "Оберіть справу, поки вона не обрала вас.";
   }

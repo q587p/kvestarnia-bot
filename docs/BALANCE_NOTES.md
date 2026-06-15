@@ -175,6 +175,15 @@ Class/race/title/stat modifiers змінюють саме час повного 
 
 Не включено в цей slice: зілля, храмове лікування, платне лікування, resource-манатки, combat-time regeneration або штрафи смерті. Будь-який миттєвий heal/refill має бути окремою явною дією з idempotency boundary, а не прихованим побічним ефектом summary або equipment max changes.
 
+## 0.0.26 Phase 1 recovery & balance polish
+Після `0.0.25` smoke-прохід дивиться на ті самі 3, 4, 8 і 13 рівні, але вже з меншими монстрами-гігантами та яснішим повідомленням про відпочинок:
+- same-level ordinary fights мають лишатися в районі `75-90%` win rate та `2-5` ходів;
+- рівні 8 і 13 більше не повинні виглядати як помилка в математиці, де герой просто спостерігає за своєю поразкою;
+- `/hero`, `needs-rest`, quest hub і terminal fight copy мають чітко пояснювати, що `HP 0` — це пауза, а не soft-lock;
+- `npm run simulate:combat` і `npm run sample:loot` лишаються локальними smoke-інструментами, а не доказом фінального балансу.
+
+Цей slice не додає potion economy, temple healing, combat-time regeneration або ручний chest selection. Він лише вирівнює відчуття після attrition/loot expansion, щоб наступні PR-и не працювали проти вже зламаного темпу.
+
 ## Pity / захист від невдачі
 Навіть у MVP варто вести lightweight pity counter:
 - Якщо 20 пригод без rare, наступні 5 пригод мають підвищений шанс rare.

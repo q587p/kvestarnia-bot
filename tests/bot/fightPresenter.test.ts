@@ -2,6 +2,7 @@
 import {
   presentFightAlreadyCompleted,
   presentFightNoCharacter,
+  presentFightNeedsRest,
   presentFightResult,
   presentFightStart,
   presentPersistentFight,
@@ -85,6 +86,25 @@ describe("fight presenter", () => {
     expect(withQuest).not.toContain("Що робимо?");
     expect(withoutQuest).not.toContain("/quest");
     expect(withoutQuest).toContain("/hero");
+  });
+
+  it("tells zero-HP heroes to rest before opening a new fight", () => {
+    const text = presentFightNeedsRest({
+      state: "needs-rest",
+      character: {
+        ...character,
+        hpCurrent: 0,
+        hpMax: 24,
+        resourceRecovery: {
+          hpSecondsToFull: 600,
+          manaSecondsToFull: 0
+        }
+      }
+    });
+
+    expect(text).toContain("Пригодник ще не тримається на ногах");
+    expect(text).toContain("Орієнтовно до повного HP: ~10 хв.");
+    expect(text).toContain("Спершу /hero");
   });
 
   it("shows combat preview and reward for a completed action", () => {
@@ -173,6 +193,33 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Нагорода");
     expect(text).not.toContain("XP");
     expect(text).not.toContain("золота</b>");
+  });
+
+  it("guides wounded persistent fighters back to /hero after a terminal result", () => {
+    const text = presentPersistentFight({
+      state: "persistent-terminal",
+      character,
+      session: persistentSession({
+        status: "lost",
+        hero: {
+          hp: 0,
+          hpMax: 24,
+          mana: 4,
+          manaMax: 12
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    });
+
+    expect(text).toContain("Спершу /hero, тоді новий бій.");
   });
 
   it("shows stale and mana failure persistent turns without mutating reward copy", () => {

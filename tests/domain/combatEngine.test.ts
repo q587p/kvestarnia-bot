@@ -467,11 +467,11 @@ describe("combat domain engine", () => {
         tags: ["boss"]
       })
     ).toMatchObject({
-      hpMax: 70,
-      attack: 18,
-      armor: 3,
-      resist: 2,
-      dexterity: 11
+      hpMax: 44,
+      attack: 11,
+      armor: 1,
+      resist: 1,
+      dexterity: 10
     });
 
     expect(
@@ -483,9 +483,9 @@ describe("combat domain engine", () => {
         tags: ["undead"]
       })
     ).toMatchObject({
-      hpMax: 22,
-      attack: 6,
-      armor: 1,
+      hpMax: 18,
+      attack: 5,
+      armor: 0,
       resist: 1,
       dexterity: 7
     });
@@ -499,9 +499,9 @@ describe("combat domain engine", () => {
         tags: ["beast"]
       })
     ).toMatchObject({
-      hpMax: 22,
-      attack: 6,
-      armor: 1,
+      hpMax: 18,
+      attack: 5,
+      armor: 0,
       resist: 0,
       dexterity: 8
     });
@@ -515,8 +515,8 @@ describe("combat domain engine", () => {
         tags: ["construct"]
       })
     ).toMatchObject({
-      hpMax: 28,
-      attack: 8,
+      hpMax: 22,
+      attack: 6,
       armor: 2,
       resist: 1,
       dexterity: 8
@@ -546,9 +546,9 @@ describe("combat domain engine", () => {
       tags: []
     });
 
-    expect(levelFive.hpMax - levelFour.hpMax).toBeGreaterThan(12);
-    expect(levelFive.attack - levelFour.attack).toBeGreaterThan(3);
-    expect(levelThirteen.hpMax).toBeGreaterThan(levelFive.hpMax * 3);
-    expect(levelThirteen.attack).toBeGreaterThan(levelFive.attack * 3);
+    expect(levelFive.hpMax - levelFour.hpMax).toBeGreaterThan(4);
+    expect(levelFive.attack - levelFour.attack).toBeGreaterThan(0);
+    expect(levelThirteen.hpMax).toBeGreaterThan(levelFive.hpMax * 2.5);
+    expect(levelThirteen.attack).toBeGreaterThan(levelFive.attack * 2.5);
   });
 });

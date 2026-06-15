@@ -9,7 +9,7 @@
 Не розширювати бестіарій як окрему фічу, collection loop, share card або journal progression, доки не закритий основний RPG-ланцюжок:
 
 ```text
-persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/mana persistence → inventory/chest polish → balance/playtest polish
+persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/mana persistence → recovery/balance polish → inventory/chest polish → balance/playtest polish
 ```
 
 ## 0.0.20 — Combat Domain Engine
@@ -218,13 +218,42 @@ Implemented in PR #39.
 - no manual Mantok Chest input selection;
 - no potions, temple healing, paid healing, combat-time regeneration, shops, trading, crafting, item-instance inventory, full loot effect processors, or full Hunt Board combat loop.
 
-## 0.0.26 — Manual Mantok Chest Selection & Inventory Polish
+## 0.0.26 — Phase 1 Recovery & Balance Polish
+
+**Status**
+Current stabilization slice after `0.0.25`. This is the small pass that keeps HP/mana attrition, passive recovery, loot expansion, Hunt Board scaling, and persistent fight rewards coherent before the next feature slice.
+
+**Objective**
+Підрівняти відчуття після `0.0.25`: hero recovery має бути зрозумілим, same-level fights — не ламатися на верхніх рівнях, а локальний smoke path — легко повторюваним.
+
+**Scope**
+
+- passive recovery clarity in `/hero`, fight rest states, and quest hub hints;
+- small monster-derivation tuning only where smoke tests show obvious outliers;
+- docs/checklist updates for the 3, 4, 8, 13 smoke band;
+- no new systems or economy branches.
+
+**Non-goals**
+
+- no potion/healing economy;
+- no manual chest selection;
+- no new loot families;
+- no combat formula rewrites beyond a small monster-side tune;
+- no schema changes.
+
+**Acceptance criteria**
+
+- zero-HP reads tell the player to rest first;
+- same-level ordinary fights stay in the target feel band after smoke checks;
+- `npm run simulate:combat`, `npm run sample:loot`, and `npm run check` are documented in the playtesting notes.
+
+## 0.0.27 — Manual Mantok Chest Selection & Inventory Polish
 
 **Objective**
 Доробити Дружню Скриню після runtime MVP: ручний вибір манаток, краща інвентарна ергономіка й підготовка до item-instance identity без магазинів, продажу або trading.
 
 **Status**
-Planned after `0.0.25`, because runtime auto-pick chest exists, but manual selection and deeper inventory polish are still deferred.
+Planned after `0.0.26`, because runtime auto-pick chest exists, but manual selection and deeper inventory polish are still deferred.
 
 **Scope**
 
@@ -249,7 +278,7 @@ Planned after `0.0.25`, because runtime auto-pick chest exists, but manual selec
 - selected items never disappear unless 1 valid output item is created;
 - player-facing copy stays clear that input манатки are gone forever after confirmation.
 
-## 0.0.27 — Phase 1 Balance and Playtest Polish
+## 0.0.28 — Phase 1 Balance and Playtest Polish
 
 **Objective**
 Не додавати фічі, а довести Phase 1 до done: real fight → reward → loot → level-up → hero/equipment/resources impact має мати нормальний темп 1-13 і зрозумілий playtest checklist.
@@ -259,7 +288,7 @@ Planned after `0.0.25`, because runtime auto-pick chest exists, but manual selec
 - tune current fight reward/loot/progression path;
 - verify level thresholds 1-13, multi-level grant, cap behavior, and weak-target XP together;
 - verify level/equipment/resource persistence affects combat math through shared effective stats without hidden refills;
-- after `0.0.25`, resource-management follow-up should add explicit healing/rest/item actions only through confirmed, idempotent flows; no hidden full auto-restore before every fight;
+- after `0.0.26`, resource-management follow-up should add explicit healing/rest/item actions only through confirmed, idempotent flows; no hidden full auto-restore before every fight;
 - future-safe monster level modifiers: манатки або дії інших гравців можуть тимчасово знижувати чи піднімати effective рівень монстра; нижчий рівень має давати менші/гірші rewards, вищий — кращі rewards, але різко складніший бій і більшу потребу в разових манатках;
 - short Ukrainian level-up copy with concrete changes.
 
