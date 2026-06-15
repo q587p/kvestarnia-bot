@@ -107,7 +107,7 @@ export function presentMantokChestPreview(result: MantokChestPreviewResult): str
     "",
     ...result.inputItems.map(presentMantokChestItemLine),
     "",
-    `Мінімальний score нової манатки: <b>${result.minimumOutputScore}</b>.`,
+    `Нова манатка має тягнути щонайменше на <b>${result.minimumOutputScore}</b> умовних скринячих одиниць. Що це за одиниці, Скриня не каже. Має право.`,
     "",
     "Годуємо?"
   ].join("\n");

@@ -55,7 +55,8 @@ describe("Mantok Chest presenter", () => {
 
     expect(text).toContain("Скриня зʼїсть ці 5 манаток назавжди");
     expect(text).toContain("<b>&lt;b&gt;Пательня&lt;/b&gt;</b> ×2");
-    expect(text).toContain("Мінімальний score нової манатки: <b>31</b>");
+    expect(text).toContain("щонайменше на <b>31</b> умовних скринячих одиниць");
+    expect(text).not.toContain("score");
   });
 
   it("shows success output card and escapes item text", () => {
