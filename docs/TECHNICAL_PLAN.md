@@ -91,6 +91,8 @@ docs/
 - `hp_max`
 - `mana_current`
 - `mana_max`
+- `hp_regen_at`
+- `mana_regen_at`
 - `stats_json`
 - `created_at`
 - `updated_at`
@@ -333,7 +335,7 @@ Cooldown reward claim має бути transactional:
 - якщо `available_at > now`, повернути cooldown без XP/золота/items;
 - якщо cooldown відсутній або минув, conditionally створити/оновити row, видати маленьку винагороду й перерахувати level;
 - concurrent callback-и не мають проходити як дві винагороди.
-- Onboarding gate: Підвальна справа відкривається з 2 рівня і закривається після 3 рівня. Перевірка стоїть до cooldown reward claim, а command/callback handlers не мають переносити presence в `location.korchma.cellar`, якщо герой ще locked або вже виріс із цієї новачкової справи.
+- Onboarding gate: Підвальна справа відкривається з 2 рівня і закривається після 3 рівня. Перевірка стоїть до cooldown reward claim, а command/callback handlers не мають переносити presence в `location.korchma.cellar`, якщо герой ще locked. Якщо герой вже виріс із новачкової справи, hub може показати кнопку `🧹 У підвал`, але route має вести в `cellar.grownup`, а не в стару мишачу винагороду.
 
 У `0.0.24` рівень 4+ більше не отримує dead-end retired state у підвалі. Старий `/cellar` route відкриває вузьку once-per-player справу `cellar.grownup`:
 - `CellarGrownupQuestService` лишається vertical slice, не broad quest engine;
@@ -516,10 +518,10 @@ Domain result → presenter → Telegram text/buttons.
 `0.0.7` додає derived effective stats без міграції схеми:
 - stored `hpMax`, `manaMax` і `statsJson` залишаються level-1 базою;
 - `summarizeCharacter(...)` рахує effective HP, ману й головну характеристику класу з урахуванням рівня;
-- current HP і mana поки дорівнюють effective max, бо persistent HP loss і mana spending ще не реалізовані;
+- з `0.0.25` current HP і mana більше не дорівнюють effective max автоматично: persisted current values clamp-яться до effective max і відновлюються через lazy out-of-combat regeneration;
 - fight preview бере ці effective значення через `CharacterSummary`, а не напряму з БД.
 
-Future combat-state note: this is an alpha shortcut, not the final resource model. When persistent HP loss, mana spending, healing, rest, or turn-based combat state ships, `CharacterSummary` must stop treating current HP/mana as automatically full. Keep effective max calculation separate from persisted current resource state, clamp persisted current to the effective max, and avoid silent full-heal/full-mana behavior in summaries.
+Resource-state note: effective max calculation must stay separate from persisted current resource state. `CharacterSummary` may derive max HP/mana from level/equipment, but current HP/mana comes from stored character resources plus lazy regeneration, then clamps to the effective max. Equipment or level changes must not silently full-heal or full-refill the character.
 
 Формули alpha slice:
 - HP max: `stored hpMax + (level - 1) * 4`.
@@ -527,6 +529,8 @@ Future combat-state note: this is an alpha shortcut, not the final resource mode
 - Primary stat: `stored primary stat + (level - 1)`.
 
 `0.0.22` layers equipment effects on top of this helper instead of rewriting stored starter values. The stored `hpMax`/`manaMax`/`statsJson` remain the base; equipped item content contributes additional summary values at read time.
+
+`0.0.25` adds `hp_regen_at` and `mana_regen_at` to `characters` and syncs passive resource recovery lazily on `/hero` and new persistent fight entry. Active fight turns do not naturally regenerate. Terminal persistent fights save actual remaining HP/mana back to `characters`; repeated terminal callbacks replay reward state without spending or restoring resources again.
 
 Future progression pass:
 - Revisit the alpha formulas so level has a stronger, visible impact on HP, mana, combat coefficients, event checks, and activity/content gates.

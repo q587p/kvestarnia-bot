@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type {
+  CharacterRecord,
+  CharacterRepository,
+  CreateCharacterResult
+} from "../../src/db/repositories/characterRepository";
+import type {
   CharacterEquipmentRecord,
   CharacterEquipmentSnapshot,
   EquipmentRepository,
@@ -90,6 +95,30 @@ describe("EquipmentService", () => {
     });
   });
 
+  it("rejects expansion equipment when hard requirements do not match the character", async () => {
+    const service = createService({
+      inventoryRows: [buildItem({ itemId: "item.loot-v1-w027" })],
+      character: buildCharacter({ level: 8, classId: "class.warrior" })
+    });
+
+    await expect(service.equipItemForTelegramUser(telegramUserId, "item.loot-v1-w027")).resolves.toMatchObject({
+      state: "requirements-not-met",
+      reasons: ["class"]
+    });
+  });
+
+  it("allows expansion equipment when hard requirements match the character", async () => {
+    const service = createService({
+      inventoryRows: [buildItem({ itemId: "item.loot-v1-w027" })],
+      character: buildCharacter({ level: 8, classId: "class.bureaucramancer" })
+    });
+
+    await expect(service.equipItemForTelegramUser(telegramUserId, "item.loot-v1-w027")).resolves.toMatchObject({
+      state: "equipped",
+      slot: "weapon"
+    });
+  });
+
   it("rejects unowned items", async () => {
     const service = createService({
       inventoryRows: [buildItem({ itemId: "item.wet-hero-ticket" })]
@@ -163,15 +192,45 @@ describe("EquipmentService", () => {
 
 function createService({
   snapshot = { characterId, equipment: [] },
-  inventoryRows
+  inventoryRows,
+  character
 }: {
   snapshot?: CharacterEquipmentSnapshot | null;
   inventoryRows: CharacterItemRecord[] | null;
+  character?: CharacterRecord | null;
 }): EquipmentService {
   return new EquipmentService(
     new FakeEquipmentRepository(snapshot),
-    new FakeInventoryRepository(inventoryRows)
+    new FakeInventoryRepository(inventoryRows),
+    character === undefined ? undefined : new FakeCharacterRepository(character)
   );
+}
+
+function buildCharacter(overrides: Partial<CharacterRecord> = {}): CharacterRecord {
+  return {
+    id: characterId,
+    userId: "user-42",
+    name: "Test Hero",
+    pronoun: "they",
+    path: "boundary",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 1,
+    xp: 0,
+    gold: 0,
+    hpCurrent: 10,
+    hpMax: 10,
+    manaCurrent: 5,
+    manaMax: 5,
+    statsJson: {
+      strength: 6,
+      dexterity: 6,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6
+    },
+    ...overrides
+  };
 }
 
 function buildEquipment(overrides: Partial<CharacterEquipmentRecord>): CharacterEquipmentRecord {
@@ -245,5 +304,29 @@ class FakeInventoryRepository implements InventoryRepository {
 
   listByTelegramUserId(): Promise<CharacterItemRecord[] | null> {
     return Promise.resolve(this.rows);
+  }
+}
+
+class FakeCharacterRepository implements CharacterRepository {
+  constructor(private readonly character: CharacterRecord | null) {}
+
+  findByUserId(): Promise<CharacterRecord | null> {
+    return Promise.resolve(this.character);
+  }
+
+  findByTelegramUserId(): Promise<CharacterRecord | null> {
+    return Promise.resolve(this.character);
+  }
+
+  deleteByTelegramUserId(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+
+  createForTelegramUserIfMissing(): Promise<CreateCharacterResult> {
+    if (!this.character) {
+      throw new Error("FakeCharacterRepository cannot create missing characters.");
+    }
+
+    return Promise.resolve({ character: this.character, created: false });
   }
 }

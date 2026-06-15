@@ -93,9 +93,19 @@ describe("tavern presenter", () => {
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
     expect(text).toContain("<i>Підвал</i>");
     expect(text).toContain("<i>Дошка вістей</i>");
-    expect(text).toContain("Залізо тримайте спокійно");
+    expect(text).toContain("Корчмар:\n<blockquote>");
     expect(text).toContain("Куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
+  });
+
+  it("accepts a changing flavor seed for korchma hall greetings", () => {
+    const text = presentKorchmaHall(character, null, undefined, {
+      flavorSeed: "korchma-hall:test-seed"
+    });
+
+    expect(text).toContain("Корчмар:\n<blockquote>");
+    expect(text).toContain("</blockquote>");
+    expect(text).toContain("Куди йдемо?");
   });
 
   it("says only-you only when the current player is the sole active person inside", () => {

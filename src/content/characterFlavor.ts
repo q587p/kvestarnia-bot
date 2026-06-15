@@ -2,6 +2,7 @@ import type { CharacterSummary } from "../domain/characters/characterSummary";
 import type { CharacterPath } from "../domain/characters/path";
 import { getComboTitle } from "./characterOptions";
 import { classes } from "./classes";
+import { korchmaGreetingLines } from "./flavor/korchmaGreetings";
 import { activeRaces } from "./races";
 import type { Pronoun } from "./schema";
 
@@ -97,6 +98,126 @@ export function selectCharacterFlavorLines(
   }
 
   return selected.slice(0, limit);
+}
+
+type KorchmaGreetingBucket = "combo" | "class" | "race" | "path" | "fallback";
+
+const KORCHMA_GREETING_BUCKET_WEIGHTS: Array<{
+  bucket: KorchmaGreetingBucket;
+  weight: number;
+}> = [
+  { bucket: "combo", weight: 30 },
+  { bucket: "class", weight: 30 },
+  { bucket: "race", weight: 25 },
+  { bucket: "path", weight: 5 },
+  { bucket: "fallback", weight: 10 }
+];
+
+export function selectKorchmaGreetingLine(
+  character: CharacterSummary,
+  seed: string
+): CharacterFlavorLine | null {
+  const buckets = bucketKorchmaGreetingLines(character);
+  const available = KORCHMA_GREETING_BUCKET_WEIGHTS.filter(
+    (entry) => buckets[entry.bucket].length > 0
+  );
+
+  if (available.length === 0) {
+    return null;
+  }
+
+  const totalWeight = available.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = hashString(buildKorchmaGreetingSeed(character, seed, "bucket")) % totalWeight;
+  let selectedBucket = available[0]?.bucket ?? "fallback";
+
+  for (const entry of available) {
+    if (roll < entry.weight) {
+      selectedBucket = entry.bucket;
+      break;
+    }
+
+    roll -= entry.weight;
+  }
+
+  const candidates = buckets[selectedBucket].sort((left, right) =>
+    left.id.localeCompare(right.id)
+  );
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  return renderCharacterFlavorLine(
+    pickDeterministic(candidates, buildKorchmaGreetingSeed(character, seed, selectedBucket)),
+    character
+  );
+}
+
+function bucketKorchmaGreetingLines(
+  character: CharacterSummary
+): Record<KorchmaGreetingBucket, CharacterFlavorLine[]> {
+  const buckets: Record<KorchmaGreetingBucket, CharacterFlavorLine[]> = {
+    combo: [],
+    class: [],
+    race: [],
+    path: [],
+    fallback: []
+  };
+
+  for (const line of characterFlavorLines) {
+    if (line.placement !== "korchma.greeting") {
+      continue;
+    }
+
+    const selector = line.selector;
+
+    if (!selector) {
+      buckets.fallback.push(line);
+      continue;
+    }
+
+    if (
+      selector.combos?.some(
+        (combo) => combo.raceId === character.raceId && combo.classId === character.classId
+      )
+    ) {
+      buckets.combo.push(line);
+      continue;
+    }
+
+    if (selector.classIds?.includes(character.classId)) {
+      buckets.class.push(line);
+      continue;
+    }
+
+    if (selector.raceIds?.includes(character.raceId)) {
+      buckets.race.push(line);
+      continue;
+    }
+
+    if (selector.pronouns?.includes(character.pronoun) || selector.paths?.includes(character.path)) {
+      buckets.path.push(line);
+    }
+  }
+
+  return buckets;
+}
+
+function buildKorchmaGreetingSeed(
+  character: CharacterSummary,
+  seed: string,
+  suffix: string
+): string {
+  return [
+    seed,
+    character.name,
+    character.raceId,
+    character.classId,
+    character.pronoun,
+    character.path,
+    character.title,
+    suffix
+  ].join("|");
 }
 
 function getScoredFlavorLines(
@@ -998,6 +1119,7 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
     selector: { combos: [{ raceId: "race.molfar-soul", classId: "class.mage" }] },
     text: "{title}? Не складайте туман біля вікна, він знову втече в кредит."
   },
+  ...korchmaGreetingLines,
   {
     id: "shawarma.start.class.mage",
     placement: "quest.start",

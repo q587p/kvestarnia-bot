@@ -5,7 +5,7 @@ import { makeRestartCallbackData } from "../callbacks/restartCallbackData";
 export const mainMenuButtons = {
   hero: "👤 Персонаж",
   tavern: "🍺 Корчма",
-  quest: "🗺️ Квест",
+  quest: "🗺️ Квести",
   inventory: "🎒 Манатки",
   participants: "👀 Хто поруч",
   help: "📖 Допомога"

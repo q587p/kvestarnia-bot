@@ -1,6 +1,6 @@
 {
   "name": "kvestarnia-bot",
-  "version": "0.0.24",
+  "version": "0.0.25",
   "private": true,
   "description": "Квестарня — україномовна Telegram RPG bot foundation.",
   "main": "dist/bot.js",
@@ -17,6 +17,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "simulate:combat": "ts-node scripts/simulate-combat.ts",
+    "sample:loot": "ts-node scripts/sample-loot.ts",
     "check": "npm run lint && npm run typecheck && npm run build && npm test"
   },
   "dependencies": {

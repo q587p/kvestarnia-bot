@@ -125,6 +125,7 @@ Spawn 3 agents and consolidate:
 - Чи є tests для нової логіки.
 - Чи не з’явились магічні числа замість content/balance config.
 - Чи не розширився scope понад задачу.
+- Чи не дублюються іконки в одному повідомленні/клавіатурі для різних дій, якщо це не однотипні `Назад`, `До зали`, пагінація або схожа навігація.
 - Для docs-only змін: чи README лишається вітриною, а setup/runbook живе в окремих docs.
 
 ## Типові помилки
@@ -142,6 +143,8 @@ Spawn 3 agents and consolidate:
 
 - `main` завжди зелений;
 - якщо задача прямо не просить stacked PR або іншу base-гілку, дивитися на актуальний `main`, рахувати diff проти `main` і відкривати/retarget PR саме на `main`;
+- ready/merge-ready PR не має лишатися на non-main base. Stacked PR дозволений тільки на час незмердженої залежності або за прямим проханням користувача; PR body має явно називати dependency, а після merge dependency треба ретаргетнути PR на `main` і повторно перевірити mergeability;
+- якщо вже є активний PR для поточної роботи, follow-up правки додавати в цю ж гілку і цей же PR, а не створювати нову гілку/PR без прямого прохання;
 - `docs/public-readme-polish`;
 - `feat/combat-engine`;
 - `feat/start-flow`;

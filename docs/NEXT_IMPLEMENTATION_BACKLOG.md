@@ -1,4 +1,4 @@
-﻿# Next Implementation Backlog після `0.0.24`
+﻿# Next Implementation Backlog після `0.0.25`
 
 Нижче — канонічний порядок маленьких PR для добивання Phase 1. Кожен slice має бути перевірюваним окремо; якщо PR роздувається, різати.
 
@@ -9,7 +9,7 @@
 Не розширювати бестіарій як окрему фічу, collection loop, share card або journal progression, доки не закритий основний RPG-ланцюжок:
 
 ```text
-combat domain → persistent fight → equipment stats → loot engine → level 1-13 tuning → achievements phase 1 → balance/playtest polish
+persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/mana persistence → inventory/chest polish → balance/playtest polish
 ```
 
 ## 0.0.20 — Combat Domain Engine
@@ -197,13 +197,34 @@ Implemented in `0.0.24`.
 - seal purchase, roleplay bypass, bottle grant, and final choice are idempotent through existing `daily_actions` / cooldown / item rows;
 - no broad quest engine or new schema was added.
 
-## 0.0.25 — Mantok Chest Manual Selection & Inventory Polish
+## 0.0.25 — Persistent HP/Mana & Loot Expansion
+
+**Status**
+Implemented in PR #39.
+
+**Scope**
+
+- persisted HP/mana attrition for level 3+ persistent solo fights;
+- lazy out-of-combat HP/mana regeneration with class/race/title/stat modifiers;
+- guarded passive regen writes so stale read paths do not overwrite fresher combat/equipment resource rows;
+- Loot Expansion v1 as a wide content-backed persistent-fight loot pool;
+- handcrafted loot coverage for the ordinary level 4-13 monster ladder;
+- Hunt Board scaling against the level 4-13 monster ladder;
+- direct item-detail links from Mantok Chest output and the kept grownup cellar bottle result;
+- public-site/news/docs cleanup for the player-facing release surface.
+
+**Non-goals**
+
+- no manual Mantok Chest input selection;
+- no potions, temple healing, paid healing, combat-time regeneration, shops, trading, crafting, item-instance inventory, full loot effect processors, or full Hunt Board combat loop.
+
+## 0.0.26 — Manual Mantok Chest Selection & Inventory Polish
 
 **Objective**
 Доробити Дружню Скриню після runtime MVP: ручний вибір манаток, краща інвентарна ергономіка й підготовка до item-instance identity без магазинів, продажу або trading.
 
 **Status**
-Planned after `0.0.24`, because runtime auto-pick chest exists, but manual selection and deeper inventory polish are still deferred.
+Planned after `0.0.25`, because runtime auto-pick chest exists, but manual selection and deeper inventory polish are still deferred.
 
 **Scope**
 
@@ -228,19 +249,17 @@ Planned after `0.0.24`, because runtime auto-pick chest exists, but manual selec
 - selected items never disappear unless 1 valid output item is created;
 - player-facing copy stays clear that input манатки are gone forever after confirmation.
 
-## 0.0.26 — Fight Rewards and Level 1-13
+## 0.0.27 — Phase 1 Balance and Playtest Polish
 
 **Objective**
-Довести solo loop після першого reward/loot path: real fight → reward → loot → level-up → hero/equipment impact має мати нормальний темп 1-13 і зрозумілий playtest checklist.
+Не додавати фічі, а довести Phase 1 до done: real fight → reward → loot → level-up → hero/equipment/resources impact має мати нормальний темп 1-13 і зрозумілий playtest checklist.
 
 **Scope**
 
 - tune current fight reward/loot/progression path;
-- level thresholds 1-13 in one module;
-- multi-level grant;
-- level cap / alpha max behavior;
-- level affects combat math through effective stats;
-- next resource-management slice: persist HP/mana between fights and add slow out-of-combat regeneration affected by class/race/title/stats; no full auto-restore before every fight;
+- verify level thresholds 1-13, multi-level grant, cap behavior, and weak-target XP together;
+- verify level/equipment/resource persistence affects combat math through shared effective stats without hidden refills;
+- after `0.0.25`, resource-management follow-up should add explicit healing/rest/item actions only through confirmed, idempotent flows; no hidden full auto-restore before every fight;
 - future-safe monster level modifiers: манатки або дії інших гравців можуть тимчасово знижувати чи піднімати effective рівень монстра; нижчий рівень має давати менші/гірші rewards, вищий — кращі rewards, але різко складніший бій і більшу потребу в разових манатках;
 - short Ukrainian level-up copy with concrete changes.
 
@@ -266,26 +285,6 @@ Planned after `0.0.24`, because runtime auto-pick chest exists, but manual selec
 
 - tests cover threshold crossing, multiple levels, cap at 13, duplicate reward no duplicate level;
 - `/hero` and combat agree on level/effective values.
-
-## 0.0.26 — Phase 1 Balance and Playtest Polish
-
-**Objective**
-Не додавати фічі, а довести Phase 1 до done.
-
-**Scope**
-
-- `npm run check` green;
-- combat simulations або lightweight balance matrix;
-- `docs/PLAYTESTING.md` real smoke test;
-- roadmap/GDD/balance docs match code;
-- changelog/news for runtime release.
-
-**Acceptance criteria**
-
-- новий гравець проходить Phase 1 loop за кілька хвилин;
-- звичайний бій триває приблизно 2-5 ходів;
-- win rate не виглядає каральним;
-- loss/flee не забирають цінний лут.
 
 ## Later / Не Phase 1 Finish
 

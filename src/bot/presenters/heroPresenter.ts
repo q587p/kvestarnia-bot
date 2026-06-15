@@ -31,6 +31,7 @@ export function presentHero(
     ...(growthLine ? [`Ріст: ${growthLine}`] : []),
     "",
     `❤️ HP ${summary.hpCurrent}/${summary.hpMax} · 🔮 мана ${summary.manaCurrent}/${summary.manaMax}`,
+    ...presentResourceRecovery(summary),
     `Сили ${summary.stats.strength} · Спритн. ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
     ...(equipmentLines.length > 0 ? ["", ...equipmentLines] : []),
@@ -44,6 +45,32 @@ export function presentHero(
 
 export function presentHeroMissing(): string {
   return "Пригодника ще немає. Напишіть /start, і Квестарня знайде вам куток біля каміна.";
+}
+
+function presentResourceRecovery(summary: CharacterSummary): string[] {
+  const recovery = summary.resourceRecovery;
+
+  if (!recovery) {
+    return [];
+  }
+
+  const parts = [
+    recovery.hpSecondsToFull > 0 ? `HP за ~${presentDuration(recovery.hpSecondsToFull)}` : null,
+    recovery.manaSecondsToFull > 0 ? `мана за ~${presentDuration(recovery.manaSecondsToFull)}` : null
+  ].filter((part): part is string => part !== null);
+
+  return parts.length > 0 ? [`Відновлення: ${parts.join(" · ")}`] : [];
+}
+
+function presentDuration(seconds: number): string {
+  const safeSeconds = Math.max(0, Math.ceil(seconds));
+  const minutes = Math.ceil(safeSeconds / 60);
+
+  if (minutes <= 1) {
+    return "1 хв";
+  }
+
+  return `${minutes} хв`;
 }
 
 function presentWealthAside(gold: number, inventoryGoldValue: number): string {

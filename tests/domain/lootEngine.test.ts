@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { ItemContent } from "../../src/content/schema";
 import {
   getItemDropChance,
+  getLootExpansionCandidates,
   getLootCandidates,
   getLuckUpgradeChance,
+  rollLootExpansionItem,
   rollLootRarity,
   rollMonsterLoot
 } from "../../src/domain/loot";
-import { FakeRandomSource } from "../../src/shared/random";
+import { FakeRandomSource, SeededRandomSource } from "../../src/shared/random";
 
 const items = [
   item("item.common-spoon", "common"),
@@ -102,6 +104,84 @@ describe("loot engine", () => {
         id: "item.common-spoon"
       }
     });
+  });
+
+  it("does not generate enhanced expansion loot below its unlock levels", () => {
+    const levelTwoCandidates = getLootExpansionCandidates({
+      profile: { level: 2, classId: "class.warrior", raceId: "race.human-ish" },
+      sourceId: "trash_mob"
+    });
+    const levelNineCandidates = getLootExpansionCandidates({
+      profile: { level: 9, classId: "class.warrior", raceId: "race.human-ish" },
+      sourceId: "trash_mob"
+    });
+    const levelEighteenCandidates = getLootExpansionCandidates({
+      profile: { level: 18, classId: "class.warrior", raceId: "race.human-ish" },
+      sourceId: "boss_chest"
+    });
+
+    expect(levelTwoCandidates.every((candidate) => !candidate.item.name.match(/\+[1-5]$/))).toBe(
+      true
+    );
+    expect(levelNineCandidates.every((candidate) => !candidate.item.name.endsWith("+3"))).toBe(
+      true
+    );
+    expect(levelEighteenCandidates.some((candidate) => candidate.item.name.endsWith("+5"))).toBe(
+      true
+    );
+  });
+
+  it("uses expansion candidates only when a character profile is supplied", () => {
+    const withoutProfile = rollMonsterLoot({
+      monsterId: "monster.common-only",
+      monsterLoot,
+      items,
+      luck: 6,
+      rng: new FakeRandomSource([0.1, 0.99, 0.9, 0])
+    });
+    const withProfile = rollMonsterLoot({
+      monsterId: "monster.common-only",
+      monsterLoot,
+      items,
+      luck: 6,
+      rng: new FakeRandomSource([0.1, 0.99, 0.9, 0.99]),
+      character: { level: 18, classId: "class.varenyk-mancer", raceId: "race.human-ish" },
+      sourceId: "kitchen_dungeon"
+    });
+
+    expect(withoutProfile).toMatchObject({
+      state: "dropped",
+      item: { id: "item.common-spoon" }
+    });
+    expect(withProfile).toMatchObject({
+      state: "dropped"
+    });
+
+    if (withProfile.state === "dropped") {
+      expect([withProfile.item.id, withProfile.item.id.startsWith("item.loot-v1-")]).toContain(
+        true
+      );
+    }
+  });
+
+  it("keeps seeded expansion sampling deterministic", () => {
+    const input = {
+      profile: {
+        level: 10,
+        classId: "class.bureaucramancer",
+        raceId: "race.domovyk",
+        titleIds: ["archive_rat"]
+      },
+      sourceId: "bureaucracy_wing" as const
+    };
+    const first = Array.from({ length: 5 }, () =>
+      rollLootExpansionItem({ ...input, rng: new SeededRandomSource("loot-seed") })?.id
+    );
+    const second = Array.from({ length: 5 }, () =>
+      rollLootExpansionItem({ ...input, rng: new SeededRandomSource("loot-seed") })?.id
+    );
+
+    expect(first).toEqual(second);
   });
 });
 

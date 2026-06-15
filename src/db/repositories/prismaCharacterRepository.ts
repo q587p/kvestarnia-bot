@@ -3,7 +3,8 @@ import type {
   CharacterRecord,
   CharacterRepository,
   CreateCharacterInput,
-  CreateCharacterResult
+  CreateCharacterResult,
+  UpdateCharacterResourcesInput
 } from "./characterRepository";
 import type { TelegramUserProfile } from "./userRepository";
 
@@ -75,6 +76,69 @@ export class PrismaCharacterRepository implements CharacterRepository {
 
       return true;
     });
+  }
+
+  async updateResourcesForTelegramUser(
+    telegramUserId: bigint,
+    input: UpdateCharacterResourcesInput
+  ): Promise<CharacterRecord | null> {
+    if (input.expected) {
+      const updated = await this.prisma.character.updateMany({
+        where: {
+          user: {
+            telegramUserId
+          },
+          hpCurrent: input.expected.hpCurrent,
+          manaCurrent: input.expected.manaCurrent,
+          ...(input.expected.hpRegenAt ? { hpRegenAt: input.expected.hpRegenAt } : {}),
+          ...(input.expected.manaRegenAt ? { manaRegenAt: input.expected.manaRegenAt } : {})
+        },
+        data: {
+          hpCurrent: input.hpCurrent,
+          manaCurrent: input.manaCurrent,
+          hpRegenAt: input.hpRegenAt,
+          manaRegenAt: input.manaRegenAt
+        }
+      });
+
+      return updated.count > 0 ? this.findByTelegramUserId(telegramUserId) : null;
+    }
+
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!character) {
+      return null;
+    }
+
+    const updated = await this.prisma.character.update({
+      where: {
+        id: character.id
+      },
+      data: {
+        hpCurrent: input.hpCurrent,
+        manaCurrent: input.manaCurrent,
+        hpRegenAt: input.hpRegenAt,
+        manaRegenAt: input.manaRegenAt
+      },
+      include: {
+        user: {
+          select: {
+            lastSeenLocationId: true
+          }
+        }
+      }
+    });
+
+    return toCharacterRecord(updated);
   }
 
   async createForTelegramUserIfMissing(

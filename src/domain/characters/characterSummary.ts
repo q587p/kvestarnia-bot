@@ -7,6 +7,7 @@ import {
   type EquipmentEffectSummary,
   type LevelBonus
 } from "../progression/effectiveStats";
+import type { ResourceRecoveryEstimate } from "../resources/resourceRegeneration";
 import { getLevelForXp, getNextLevelThreshold } from "../progression/level";
 import { getCharacterPath, type CharacterPath } from "./path";
 import type { CharacterStats } from "./starterStats";
@@ -31,6 +32,7 @@ export interface CharacterSummary {
   hpMax: number;
   manaCurrent: number;
   manaMax: number;
+  resourceRecovery?: ResourceRecoveryEstimate;
   stats: CharacterStats;
   levelBonus: LevelBonus;
   equipmentEffects?: EquipmentEffectSummary;
@@ -55,6 +57,7 @@ export interface CharacterSummaryInput {
 
 export interface CharacterSummaryOptions {
   equippedItems?: ItemContent[];
+  resourceRecovery?: ResourceRecoveryEstimate;
 }
 
 export function summarizeCharacter(
@@ -102,6 +105,7 @@ export function summarizeCharacter(
     hpMax: effectiveStats.hpMax,
     manaCurrent: effectiveStats.manaCurrent,
     manaMax: effectiveStats.manaMax,
+    ...(options.resourceRecovery ? { resourceRecovery: options.resourceRecovery } : {}),
     stats: effectiveStats.stats,
     levelBonus: effectiveStats.levelBonus,
     equipmentEffects: effectiveStats.equipmentEffects

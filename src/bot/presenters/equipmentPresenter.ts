@@ -50,6 +50,13 @@ export function presentEquipItemResult(result: EquipItemResult): string {
     return "Це радше трофей, ніж спорядження. Гачок подивився й чемно відмовився.";
   }
 
+  if (result.state === "requirements-not-met") {
+    return [
+      `Манатка <b>${escapeHtml(result.item.content.name)}</b> просить іншу анкету пригодника.`,
+      "Корчмар каже: «Можна носити гордо, але екіпірувати за правилами поки не виходить»."
+    ].join("\n\n");
+  }
+
   if (result.state === "unsupported-slot") {
     return "Для цієї манатки ще немає гачка. Корчмар записав борг у майбутню шафу.";
   }

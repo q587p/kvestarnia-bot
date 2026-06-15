@@ -147,11 +147,33 @@ gold: clamp(1 + floor(monster.level / 2), 1, 7)
 item: максимум 1 controlled monsterLoot item
 ```
 
+`0.0.25` додає Loot Expansion v1 як широкий content-backed pool для persistent fight loot: `120` базових сімей манаток і `500` generated variants. Runtime зберігає тільки звичайні `item.*` ids, без нової міграції: базові pack ids перетворюються на `item.loot-v1-*`, а `+1...+5` мають level gates `3/6/10/14/18`. Affinity за класом, расою і титулом є м’якою вагою дропу, не hard-ban для випадіння. Hard requirements застосовуються тільки при екіпіруванні. `legendary` з pack поки мапиться у чинну `epic` rarity, бо поточна публічна item schema ще не має окремої легендарної категорії.
+
+Hand-authored `monsterLoot` trophies still matter alongside the broad pool. The ordinary level `4-13` ladder now has at least one stable small trophy per monster, so specific higher-level problems can leave recognizable evidence without creating a full random loot table or new item effects.
+
 У `0.0.24` вибір монстра для persistent solo fight став ближчим до рівня героя: сервіс спершу шукає звичайних небосів у вікні `рівень героя - 2 ... рівень героя`, а якщо такого контенту ще бракує, бере найвищий доступний нижчий рівень замість випадкової дрібноти. Якщо монстр нижчий за героя більше ніж на 2 рівні, XP за перемогу стискається до `1`; золото й контрольований item roll поки лишаються за чинною малою reward formula.
 
 Loss, flee і expired fights не отримують full victory reward. Repeated callback replay-ить persisted reward summary з `solo_combat_sessions` і не reroll-ить item.
 
 Модифікатори LUCK не мають ламати таблицю. Наприклад, LUCK додає не «+10% epic», а маленький бонус до upgrade roll.
+
+## HP/mana persistence and recovery
+`0.0.25` робить HP і ману справжнім станом персонажа для persistent solo fights:
+- current HP/mana зберігаються в `characters` і більше не відновлюються до максимуму при кожному `/fight` або `/hero`;
+- новий старший бій стартує з поточного ресурсу після lazy out-of-combat regeneration;
+- terminal fight state записує фактичні залишки HP/mana назад у персонажа й ставить нову точку відліку регенерації;
+- якщо HP дорівнює 0, новий persistent fight не стартує, доки пасивне відновлення не поверне хоча б 1 HP;
+- active fight не отримує природного відновлення між ходами.
+
+Поточні повні цикли відновлення:
+```text
+HP:   base 10 хв, clamp 5-13 хв
+mana: base 9 хв, clamp 4-13 хв
+```
+
+Class/race/title/stat modifiers змінюють саме час повного відновлення, а не максимуми й не бойові формули. STR прискорює HP recovery, INT прискорює mana recovery; класові й расові поправки лишаються малими та затиснутими clamp-ами. Це локальна attrition-система, не повний healing economy.
+
+Не включено в цей slice: зілля, храмове лікування, платне лікування, resource-манатки, combat-time regeneration або штрафи смерті. Будь-який миттєвий heal/refill має бути окремою явною дією з idempotency boundary, а не прихованим побічним ефектом summary або equipment max changes.
 
 ## Pity / захист від невдачі
 Навіть у MVP варто вести lightweight pity counter:
@@ -179,6 +201,8 @@ Junk, cosmetics, priceless trophies і quest badges не мають випадк
 `0.0.15` додає reachable starter gear для всіх видимих слотів: weapon через `/fight`, armor через Бочку Пінного Міражу, accessory через підвальну мишу. Це розширює контент і оцінну вартість манаток, але не додає бойових ефектів, sell/trade логіки або нових reward formulas.
 
 Після `0.0.19` starter weapon не є гарантованою baseline для балансування: starter `/fight` закритий після 2 рівня, cellar errands існують на 2-3 рівнях, Hunt Board відкривається з 3 рівня, а gates живуть у `src/domain/progression/activityGates.ts`. Combat math має мати unarmed/basic fallback і не вимагати `item.pan-of-persuasion` або `item.stamp-of-minor-authority` для нормального першого бою.
+
+Hunt Board лишається простим для входу: один контракт на годину і три дії. Після появи рівнів `4-13` дошка не повинна застрягати на старих рівнях `1-3`: вона обирає звичайних небосів поруч із рівнем героя (`рівень - 2 ... рівень`), а якщо persisted або fallback-контракт значно слабший, XP стискається до `1`. Це синхронізує `/hunt` із persistent solo fight selection без перетворення дошки на повний combat loop.
 
 `0.0.20` реалізує перший domain-only combat engine з цим fallback-ом. Поточні numbers навмисно прості: same-level ordinary fight має вкладатися приблизно в 2-5 ходів, skill damage витрачає ману там, де це доречно, flee завершує бій окремим статусом, а loss не означає reward win. До підключення persistent `/fight` ці формули не видають лут і не змінюють live HP/mana в БД.
 

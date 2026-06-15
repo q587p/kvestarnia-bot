@@ -137,6 +137,7 @@ export function presentHuntResult(result: Exclude<HuntResult, { state: "no-chara
   const lines = [
     ...presentOutcome(result),
     ...presentOutcomeFlavor(result.outcomeFlavor),
+    ...presentRewardScaleHint(result),
     "",
     presentRewardAmount({ ...result.reward, label: "Нагорода" }),
     ...presentItemGrantBlock(result.reward.itemGrants),
@@ -154,7 +155,7 @@ function presentOutcome(
 
   if (result.action === "strike") {
     return [
-      "🗡️ Ви вдарили по проблемі.",
+      "🗡️ Ви закрили контракт ударом.",
       "",
       `<b>${monsterName}</b> отримує аргумент, який важко оскаржити без шолома.`
     ];
@@ -172,6 +173,17 @@ function presentOutcome(
     "📋 Ви закрили справу актом.",
     "",
     `<b>${monsterName}</b> вважає це своєю перемогою. Корчмар вважає це закритою справою.`
+  ];
+}
+
+function presentRewardScaleHint(result: Extract<HuntResult, { state: "completed" }>): string[] {
+  if (result.levelChange.oldLevel - result.contract.monster.level <= 2) {
+    return [];
+  }
+
+  return [
+    "",
+    "Ціль була значно нижче вашого рівня, тож Корчмар лишив XP символічною. Великі герої не ростуть на дрібних папірцях."
   ];
 }
 

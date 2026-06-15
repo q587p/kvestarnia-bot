@@ -62,8 +62,16 @@ describe("health server", () => {
     expect(text).toContain("https://t.me/kvestarnia_bot");
     expect(text).toContain("/presence");
     expect(text).toContain("/news");
-    expect(text).toContain("/health");
-    expect(text).toContain("Корчмар зсунув верхню полицю");
+    expect(text).not.toContain('href="/health"');
+    expect(text).not.toContain(">Health</a>");
+    expect(text).toContain("Що вже можна зробити");
+    expect(text).toContain("Створити пригодника з расою й класом.");
+    expect(text).toContain("Зайти в корчму й узяти перші справи.");
+    expect(text).toContain("Побитися з дивними монстрами.");
+    expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
+    expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
+    expect(text).not.toContain("Поточні команди й можливості");
+    expect(text).toContain("Рани памʼятають, манатки множаться");
     expect(text).toContain("У грі зараз: 4");
     expect(text).not.toContain("— Дара");
     expect(text).not.toContain("— Нестор Межовий");

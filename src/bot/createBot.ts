@@ -118,8 +118,8 @@ import {
 import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
 import {
   buildKorchmaFrontKeyboard,
-  buildKorchmaHallKeyboard,
   buildKorchmaRoundOfferKeyboard,
+  buildKorchmaRoundResultKeyboard,
   buildTavernParticipantsKeyboard,
   buildTavernRangerKeyboard,
   buildTavernResultKeyboard
@@ -1040,9 +1040,12 @@ async function handleMantokChestCallback(
       ? { text: "Скриня хрумкнула." }
       : { show_alert: result.state === "invalid-token" || result.state === "stale-inputs" }
   );
+  const outputItem =
+    result.state === "recycled" || result.state === "replayed" ? result.outputItem : null;
+
   await safeEditMessageText(ctx, presentMantokChestRecycleResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildMantokChestResultKeyboard()
+    reply_markup: buildMantokChestResultKeyboard(outputItem)
   });
 }
 
@@ -1182,7 +1185,7 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
     await sendTavern(ctx, services.tavern, services.presence, "reply");
   });
 
-  bot.hears(mainMenuButtons.quest, async (ctx) => {
+  bot.hears([mainMenuButtons.quest, "🗺️ Квест"], async (ctx) => {
     await sendQuestHub(
       ctx,
       {
@@ -1289,7 +1292,7 @@ async function handleTavernCallback(
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentTavernRoundResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildKorchmaHallKeyboard()
+      reply_markup: buildKorchmaRoundResultKeyboard(result)
     });
     return;
   }
@@ -1595,10 +1598,16 @@ async function handleCellarGrownupCallback(
   }
 
   await safeAnswerCallbackQuery(ctx);
+  const grownupKeyboardState = getCellarGrownupKeyboardState(result);
+
   await safeEditMessageText(ctx, presentCellarGrownupResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    ...(getCellarGrownupKeyboardState(result)
-      ? { reply_markup: buildCellarGrownupKeyboard(getCellarGrownupKeyboardState(result)!) }
+    ...(grownupKeyboardState
+      ? {
+          reply_markup: buildCellarGrownupKeyboard(grownupKeyboardState, {
+            includeKeptBottle: shouldShowCellarGrownupKeptBottleButton(result)
+          })
+        }
       : {})
   });
 
@@ -1635,6 +1644,13 @@ function getCellarGrownupKeyboardState(
   }
 
   return null;
+}
+
+function shouldShowCellarGrownupKeptBottleButton(result: CellarGrownupQuestResult): boolean {
+  return (
+    (result.state === "completed" || result.state === "already-completed") &&
+    result.ending === "keep"
+  );
 }
 
 async function handleFightCallback(

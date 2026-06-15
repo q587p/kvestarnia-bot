@@ -8,9 +8,9 @@ describe("summarizeCharacter", () => {
       xp: 15,
       nextLevelXp: 25,
       xpToNextLevel: 10,
-      hpCurrent: 24,
+      hpCurrent: 20,
       hpMax: 24,
-      manaCurrent: 12,
+      manaCurrent: 10,
       manaMax: 12,
       stats: {
         strength: 9,

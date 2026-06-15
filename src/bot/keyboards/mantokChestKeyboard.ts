@@ -1,4 +1,5 @@
 import { InlineKeyboard } from "grammy";
+import { makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
 import {
   makeMantokChestAutoCallbackData,
   makeMantokChestCancelCallbackData,
@@ -33,8 +34,17 @@ export function buildMantokChestPreviewKeyboard(token: string): InlineKeyboard {
     .text("⬅️ До манаток", makeMantokChestInventoryCallbackData());
 }
 
-export function buildMantokChestResultKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
+export function buildMantokChestResultKeyboard(outputItem?: {
+  itemId: string;
+  content: { name: string };
+} | null): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (outputItem) {
+    keyboard.text(`🔎 ${outputItem.content.name}`, makeItemDetailCallbackData(outputItem.itemId)).row();
+  }
+
+  return keyboard
     .text("♻️ Ще до Скрині", makeMantokChestOpenCallbackData())
     .row()
     .text("⬅️ До манаток", makeMantokChestInventoryCallbackData());

@@ -112,7 +112,7 @@ describe("FightService", () => {
     if (result.state === "completed") {
       expect(result.combat).toMatchObject({
         playerHpMaxPreview: 26,
-        playerHpPreview: 23,
+        playerHpPreview: 19,
         playerDamage: 10
       });
       expect(result.character).toMatchObject({
@@ -357,6 +357,58 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
+  it("syncs passive resources before starting a new persistent fight", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, {
+      xp: 25,
+      hpCurrent: 1,
+      manaCurrent: 1,
+      hpRegenAt: new Date("2026-06-12T09:30:00.000Z"),
+      manaRegenAt: new Date("2026-06-12T09:30:00.000Z")
+    });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.session.state?.hero.hp).toBeGreaterThan(1);
+      expect(started.session.state?.hero.mana).toBeGreaterThan(1);
+    }
+    expect(characters.resourceUpdateCount).toBe(1);
+  });
+
+  it("does not start a new persistent fight at zero HP", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, {
+      xp: 25,
+      hpCurrent: 0,
+      hpRegenAt: fixedClock()
+    });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const result = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(result.state).toBe("needs-rest");
+    expect(sessions.createCount).toBe(0);
+  });
+
   it("prefers the closest available solo fight monster level for higher-level characters", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 225 });
@@ -403,9 +455,9 @@ describe("FightService", () => {
     }
 
     expect(started.session.state?.hero).toMatchObject({
-      hp: 30,
+      hp: 22,
       hpMax: 30,
-      mana: 14,
+      mana: 10,
       manaMax: 14
     });
 
@@ -582,8 +634,11 @@ describe("FightService", () => {
     });
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       xp: 25 + (result.state === "updated" ? result.fightReward?.reward.xp ?? 0 : 0),
-      gold: result.state === "updated" ? result.fightReward?.reward.gold ?? 0 : 0
+      gold: result.state === "updated" ? result.fightReward?.reward.gold ?? 0 : 0,
+      hpCurrent: result.state === "updated" ? result.session.state?.hero.hp : undefined,
+      manaCurrent: result.state === "updated" ? result.session.state?.hero.mana : undefined
     });
+    expect(characters.resourceUpdateCount).toBeGreaterThan(0);
 
     const repeated = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: started.session.id,
@@ -1161,6 +1216,7 @@ function buildEquipment(overrides: Partial<CharacterEquipmentRecord>): Character
 
 class FakeCharacterRepository implements CharacterRepository {
   private readonly charactersByTelegramUserId = new Map<bigint, CharacterRecord>();
+  resourceUpdateCount = 0;
 
   add(userTelegramId: bigint, overrides: Partial<CharacterRecord> = {}): void {
     const xp = overrides.xp ?? 0;
@@ -1216,6 +1272,34 @@ class FakeCharacterRepository implements CharacterRepository {
 
   findByTelegramUserId(userTelegramId: bigint): Promise<CharacterRecord | null> {
     return Promise.resolve(this.charactersByTelegramUserId.get(userTelegramId) ?? null);
+  }
+
+  updateResourcesForTelegramUser(
+    userTelegramId: bigint,
+    input: {
+      hpCurrent: number;
+      manaCurrent: number;
+      hpRegenAt: Date;
+      manaRegenAt: Date;
+    }
+  ): Promise<CharacterRecord | null> {
+    const character = this.charactersByTelegramUserId.get(userTelegramId);
+
+    if (!character) {
+      return Promise.resolve(null);
+    }
+
+    this.resourceUpdateCount += 1;
+    const updated = {
+      ...character,
+      hpCurrent: input.hpCurrent,
+      manaCurrent: input.manaCurrent,
+      hpRegenAt: input.hpRegenAt,
+      manaRegenAt: input.manaRegenAt
+    };
+    this.charactersByTelegramUserId.set(userTelegramId, updated);
+
+    return Promise.resolve(updated);
   }
 
   deleteByTelegramUserId(userTelegramId: bigint): Promise<boolean> {

@@ -1,7 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
-import type { TavernRoundOfferResult } from "../../services/tavernRaidService";
+import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
 
 export type TavernResultKeyboardState =
   | "completed"
@@ -76,6 +76,10 @@ export function buildTavernRangerKeyboard(): InlineKeyboard {
 export function buildKorchmaRoundOfferKeyboard(
   result: Exclude<TavernRoundOfferResult, { state: "no-character" }>
 ): InlineKeyboard {
+  if (result.state === "raid-required") {
+    return buildKorchmaRoundResultKeyboard(result);
+  }
+
   const keyboard = new InlineKeyboard();
 
   if (result.state === "ready") {
@@ -89,4 +93,14 @@ export function buildKorchmaRoundOfferKeyboard(
   }
 
   return keyboard.text("⬅️ До зали", makePlaceCallbackData("hall"));
+}
+
+export function buildKorchmaRoundResultKeyboard(
+  result: Exclude<TavernRoundResult, { state: "no-character" }>
+): InlineKeyboard {
+  if (result.state === "raid-required") {
+    return new InlineKeyboard().text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
+  }
+
+  return buildKorchmaHallKeyboard();
 }

@@ -183,7 +183,7 @@ export class HuntService {
       };
     }
 
-    const reward = buildHuntRewardAmounts(contract.monster, action);
+    const reward = buildHuntRewardAmounts(contract.monster, action, summary.level);
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: HUNT_BOARD_CONTRACT_KEY,
       localDate: currentLocalPeriodId,
@@ -267,7 +267,7 @@ export class HuntService {
       existing ??
       (await this.huntContracts.upsertPostedContractForTelegramUser(telegramUserId, {
         localPeriodId,
-        ...buildPostedContractIdentity(localPeriodId, character.id)
+        ...buildPostedContractIdentity(localPeriodId, character.id, summary.level)
       }));
 
     if (!record) {
@@ -284,12 +284,21 @@ export class HuntService {
   }
 }
 
-export function selectHuntMonster(localPeriodId: string, characterId: string): MonsterContent {
-  const candidates = monsters
-    .filter((monster) => monster.id !== "monster.mimic-shawarma")
-    .filter((monster) => !monster.tags.includes("boss"))
-    .filter((monster) => monster.level <= 3)
+export function selectHuntMonster(
+  localPeriodId: string,
+  characterId: string,
+  characterLevel = HUNT_MIN_LEVEL
+): MonsterContent {
+  const maxMonsterLevel = Math.max(HUNT_MIN_LEVEL, characterLevel);
+  const closeMonsterLevelFloor = Math.max(1, characterLevel - 2);
+  const eligibleMonsters = monsters
+    .filter((monster) => isHuntMonsterEligible(monster, maxMonsterLevel))
     .sort((left, right) => left.id.localeCompare(right.id));
+  const closeCandidates = eligibleMonsters.filter(
+    (monster) => monster.level >= closeMonsterLevelFloor
+  );
+  const candidates =
+    closeCandidates.length > 0 ? closeCandidates : selectHighestAvailableMonsterLevel(eligibleMonsters);
 
   const monster = candidates[stableHash(`${localPeriodId}:${characterId}:hunt-board`) % candidates.length];
 
@@ -298,6 +307,26 @@ export function selectHuntMonster(localPeriodId: string, characterId: string): M
   }
 
   return monster;
+}
+
+function isHuntMonsterEligible(monster: MonsterContent, maxMonsterLevel: number): boolean {
+  const tags = new Set(monster.tags);
+
+  return (
+    monster.id !== "monster.mimic-shawarma" &&
+    !tags.has("starter") &&
+    !tags.has("boss") &&
+    monster.level <= maxMonsterLevel
+  );
+}
+
+function selectHighestAvailableMonsterLevel(monstersByLevel: MonsterContent[]): MonsterContent[] {
+  const highestLevel = monstersByLevel.reduce(
+    (currentHighest, monster) => Math.max(currentHighest, monster.level),
+    0
+  );
+
+  return monstersByLevel.filter((monster) => monster.level === highestLevel);
 }
 
 export function toKyivHourPeriodId(date: Date): string {
@@ -318,9 +347,10 @@ export function toKyivHourPeriodId(date: Date): string {
 
 function buildPostedContractIdentity(
   localPeriodId: string,
-  characterId: string
+  characterId: string,
+  characterLevel: number
 ): { monsterId: string; contractToken: string } {
-  const monster = selectHuntMonster(localPeriodId, characterId);
+  const monster = selectHuntMonster(localPeriodId, characterId, characterLevel);
 
   return {
     monsterId: monster.id,
@@ -373,14 +403,16 @@ export function buildHuntContractToken(
 
 export function buildHuntRewardAmounts(
   monster: MonsterContent,
-  action: HuntAction
+  action: HuntAction,
+  characterLevel = HUNT_MIN_LEVEL
 ): { xp: number; gold: number } {
   const actionXpBonus = action === "trick" ? 1 : action === "retreat" ? 0 : 2;
   const actionGoldBonus = action === "retreat" ? 0 : action === "trick" ? 1 : 0;
+  const weakMonsterXp = characterLevel - monster.level > 2;
 
   return {
-    xp: Math.min(7, Math.max(3, 2 + monster.level + actionXpBonus)),
-    gold: Math.min(3, Math.max(0, Math.floor(monster.level / 2) + actionGoldBonus))
+    xp: weakMonsterXp ? 1 : Math.min(14, Math.max(3, 2 + monster.level + actionXpBonus)),
+    gold: Math.min(7, Math.max(0, Math.floor(monster.level / 2) + actionGoldBonus))
   };
 }
 

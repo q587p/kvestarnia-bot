@@ -6,6 +6,7 @@ import {
 } from "../../src/bot/keyboards/adventureKeyboard";
 import {
   buildCellarKeyboard,
+  buildCellarGrownupKeyboard,
   buildCellarParticipantsKeyboard,
   buildCellarResultKeyboard
 } from "../../src/bot/keyboards/cellarKeyboard";
@@ -22,6 +23,7 @@ import {
   buildInventoryKeyboard,
   buildItemDetailKeyboard
 } from "../../src/bot/keyboards/inventoryKeyboard";
+import { buildMantokChestResultKeyboard } from "../../src/bot/keyboards/mantokChestKeyboard";
 import {
   buildDevResetKeyboard,
   buildMainMenuKeyboard,
@@ -34,6 +36,7 @@ import {
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
   buildKorchmaRoundOfferKeyboard,
+  buildKorchmaRoundResultKeyboard,
   buildTavernParticipantsKeyboard,
   buildTavernRangerKeyboard,
   buildTavernKeyboard,
@@ -49,6 +52,7 @@ describe("main menu and scene keyboards", () => {
       [mainMenuButtons.quest, mainMenuButtons.inventory],
       [mainMenuButtons.participants, mainMenuButtons.help]
     ]);
+    expect(mainMenuButtons.quest).toBe("🗺️ Квести");
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
     expect(keyboard.is_persistent).toBe(true);
@@ -138,6 +142,27 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual(["v1:tavern:round-simple", "v1:place:hall"]);
+  });
+
+  it("links directly to the Barrel when korchma rounds are blocked by an active raid", () => {
+    const blockedByBarrel = {
+      state: "raid-required" as const,
+      character,
+      leaderboard: emptyRoundLeaderboard
+    };
+
+    expect(flatInlineButtonTexts(buildKorchmaRoundOfferKeyboard(blockedByBarrel))).toEqual([
+      "🛢️ До Бочки"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaRoundOfferKeyboard(blockedByBarrel))).toEqual([
+      "v1:place:barrel"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaRoundResultKeyboard(blockedByBarrel))).toEqual([
+      "🛢️ До Бочки"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaRoundResultKeyboard(blockedByBarrel))).toEqual([
+      "v1:place:barrel"
+    ]);
   });
 
   it("keeps adventure inline buttons scoped to quest actions", () => {
@@ -498,6 +523,43 @@ describe("main menu and scene keyboards", () => {
     ).toEqual(["Зняти зброю", "Зняти аксесуар", "⬅️ До манаток"]);
   });
 
+  it("links Mantok Chest output directly to item details", () => {
+    const keyboard = buildMantokChestResultKeyboard({
+      itemId: "item.previous-approval-scale",
+      content: {
+        name: "Луска попереднього погодження"
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "🔎 Луска попереднього погодження",
+      "♻️ Ще до Скрині",
+      "⬅️ До манаток"
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:item:detail:item.previous-approval-scale",
+      "v1:chest:open",
+      "v1:chest:inventory"
+    ]);
+  });
+
+  it("links kept grownup cellar bottle directly to item details", () => {
+    const keyboard = buildCellarGrownupKeyboard("completed", {
+      includeKeptBottle: true
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "🔎 Пляшка Пінного Міражу",
+      "📋 До справ",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:item:detail:item.cellar.foamy-mirage-bottle",
+      "v1:place:quest-table",
+      "v1:place:hall"
+    ]);
+  });
+
   it("builds quest hub buttons from available actions", () => {
     expect(
       flatInlineButtonTexts(
@@ -544,7 +606,7 @@ describe("main menu and scene keyboards", () => {
           cellar: { state: "level-retired", character, maxLevel: 3 }
         })
       )
-    ).toEqual(["📋 До проблем", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["🧾 До проблем", "🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -590,7 +652,7 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["🏹 До дошки", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["🏹 До дошки", "🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(
@@ -617,7 +679,7 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["📖 Бестіарій", "🎒 Манатки", "🍺 До зали"]);
+    ).toEqual(["🧹 У підвал", "📖 Бестіарій", "🍺 До зали"]);
   });
 });
 

@@ -10,7 +10,7 @@
 /start → герой → справжній бій → XP/золото/лут → inventory/equipment → рівень і цифри реально впливають на наступний бій
 ```
 
-Бестіарій, Hunt Board, presence, корчма й flavor уже дали корисну інфраструктуру. Persistent `/fight` уже зʼявився як session slice з одним маленьким quest wrapper-ом на 13 перемог, equipment effects уже впливають на числа, а `0.0.23` додає перший контрольований per-session reward/loot path із replay деталей. Phase 1 не закрита, доки цей combat → equipment stats → loot → level 1-13 loop не пройде балансний polish і playtesting. Achievements Phase 1 дозволений як later rewardless meta-slice для титулів і прогресу, але не має перебивати цей ланцюжок.
+Бестіарій, Hunt Board, presence, корчма й flavor уже дали корисну інфраструктуру. Persistent `/fight` уже зʼявився як session slice з одним маленьким quest wrapper-ом на 13 перемог, equipment effects уже впливають на числа, `0.0.23` додає перший контрольований per-session reward/loot path із replay деталей, а `0.0.25` додає persistent HP/mana, lazy recovery і ширший loot pool. Phase 1 не закрита, доки цей combat → equipment stats → loot/reward replay → level 1-13/resources loop не пройде балансний polish і playtesting. Achievements Phase 1 дозволений як later rewardless meta-slice для титулів і прогресу, але не має перебивати цей ланцюжок.
 
 ## Scope Lock
 
@@ -44,16 +44,19 @@
 6. **Level Cap 13 + доросла підвальна справа**
    Підняти current alpha cap до 13 рівня, перенести capstone `/restart` suggestion туди, змістити майбутні epic levels на `14-23` і замінити retired `/cellar` dead-end для level 4+ на вузьку once-per-player справу `Справа не до миші` без broad quest engine.
 
-7. **Friendly Chest / Манатко-скриня**
-   Після ввімкнення fight loot кількість манаток росте швидше, ніж раніше. Перед великим tuning pass додати маленький item sink: `5` eligible манаток у Дружню Скриню → `1` нова манатка краща за середнє вкладених, із confirmation, транзакційністю й idempotent callback safety. Деталі: `docs/MANTOK_CHEST_BACKLOG.md`.
+7. **Persistent HP/Mana + Loot Expansion**
+   Реалізовано в `0.0.25` / PR #39: current HP/mana більше не restore-яться автоматично перед кожним боєм, ресурси повільно відновлюються поза боєм, persistent fight loot отримав Loot Expansion v1, а старші монстри мають власні дрібні трофеї.
 
-8. **Level 1-13 Reward Tuning**
+8. **Inventory / Chest Polish**
+   Після auto-pick MVP Дружньої Скрині лишається маленький inventory polish slice: ручний вибір 5 манаток, краща ергономіка protected/equipped/priceless stack-ів і підготовка до item-instance identity без магазинів, продажу або trading. Деталі: `docs/MANTOK_CHEST_BACKLOG.md`.
+
+9. **Level 1-13 Reward Tuning**
    Перевірити, що fight victory rewards, loot, level thresholds, multi-level grant і cap behavior разом дають нормальний Phase 1 темп. Не додавати нові системи, доки current loop не проходить smoke і симуляції.
 
-9. **Achievements Phase 1**
+10. **Achievements Phase 1**
    Rewardless ачівки як колекція титулів: seed definitions, idempotent unlock service, кнопка `🏅 Ачівки`, пагінація, hidden states і grouped notifications. Без XP, золота, предметів, stat effects або active-title selection. Деталі: `docs/ACHIEVEMENTS_PHASE1.md`.
 
-10. **Phase 1 Balance / Playtest / Polish**
+11. **Phase 1 Balance / Playtest / Polish**
    Не додавати фічі. Пройти smoke checklist, симуляції або balance matrix, оновити docs/release surfaces.
 
 ## Пропонована XP-крива для альфи 1-13

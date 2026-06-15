@@ -147,7 +147,7 @@ describe("MantokChestService", () => {
 
   it("leaves inputs untouched when there is no output candidate", async () => {
     const repository = new FakeMantokChestRepository(snapshot([
-      item("item.cellar.fancy-cheese", 5)
+      item("item.loot-v1-x025-plus-5", 5)
     ]));
     const service = new MantokChestService(repository, () => fixedNow);
     const preview = await service.createAutoPickPreviewForTelegramUser(telegramUserId);
@@ -160,7 +160,7 @@ describe("MantokChestService", () => {
 
     expect(result.state).toBe("no-output-candidate");
     expect(repository.getQuantities()).toEqual({
-      "item.cellar.fancy-cheese": 5
+      "item.loot-v1-x025-plus-5": 5
     });
   });
 

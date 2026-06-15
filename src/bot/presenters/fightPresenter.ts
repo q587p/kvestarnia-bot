@@ -63,6 +63,24 @@ export function presentFightLevelRetired(
   ].join("\n");
 }
 
+export function presentFightNeedsRest(
+  result: Extract<FightLookupResult, { state: "needs-rest" }>
+): string {
+  const recovery = result.character.resourceRecovery;
+  const hpEta =
+    recovery && recovery.hpSecondsToFull > 0
+      ? ` Орієнтовно до повного HP: ~${presentDuration(recovery.hpSecondsToFull)}.`
+      : "";
+
+  return [
+    "❤️ Пригодник ще не тримається на ногах.",
+    "",
+    `Зараз HP ${result.character.hpCurrent}/${result.character.hpMax}, мана ${result.character.manaCurrent}/${result.character.manaMax}.${hpEta}`,
+    "",
+    "Квестарня радить перевірити /hero і дати ранам дописати пояснювальну."
+  ].join("\n");
+}
+
 export function presentFightResult(result: Exclude<FightResult, { state: "no-character" }>): string {
   if (result.state === "level-retired") {
     return presentFightLevelRetired(result);
@@ -244,6 +262,8 @@ function presentPersistentFightState(input: {
   if (state?.status === "won") {
     lines.push(
       "",
+      `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
+      "",
       input.questReward
         ? "🎉 Ви перемогли. Корчмар записав бій і список дрібних проблем теж не відвертівся."
         : "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою."
@@ -251,11 +271,15 @@ function presentPersistentFightState(input: {
   } else if (state?.status === "lost") {
     lines.push(
       "",
+      `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
+      "",
       "💤 Ви програли. Корчмар каже, що це «цінні дані для балансу».",
       "Список дрібних проблем не зрушив, але зробив вигляд, що співчуває."
     );
   } else if (state?.status === "fled") {
     lines.push(
+      "",
+      `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
       "",
       "🏃 Ви відступили. Тактичний вітер підтримав ваше рішення.",
       "Справу не зараховано: проблема лишилась дрібною, нахабною і живою."
@@ -300,6 +324,12 @@ function presentPersistentFightReward(
   return lines;
 }
 
+function presentDuration(seconds: number): string {
+  const minutes = Math.ceil(Math.max(0, seconds) / 60);
+
+  return `${Math.max(1, minutes)} хв`;
+}
+
 function presentThirteenSmallProblemsBlock(
   progress: ThirteenSmallProblemsProgress | null
 ): string[] {
@@ -340,37 +370,41 @@ function presentThirteenSmallProblemsReward(reward: ThirteenSmallProblemsReward)
 
 function presentTurnSummary(summary: CombatTurnSummary): string {
   if (summary.heroOutcome === "not-enough-mana") {
-    return "Останній хід: мани не вистачило.";
+    return ["Останній хід", "Мани не вистачило."].join("\n");
   }
 
   if (summary.heroOutcome === "fled") {
-    return "Останній хід: ви вийшли з бою без переможного фанфарства.";
+    return ["Останній хід", "Ви вийшли з бою без переможного фанфарства."].join("\n");
   }
 
   if (summary.heroOutcome === "flee-failed") {
-    return `Останній хід: втеча не вдалася, монстр відповів на ${summary.monsterDamage} шкоди.`;
+    return [
+      "Останній хід",
+      "Втеча не вдалася.",
+      `Монстр відповів на ${summary.monsterDamage} шкоди.`
+    ].join("\n");
   }
 
   if (summary.heroOutcome === "inactive") {
-    return "Останній хід: бій прострочився без героїчного підпису.";
+    return ["Останній хід", "Бій прострочився без героїчного підпису."].join("\n");
   }
 
   const action =
     summary.action === "skill"
-      ? "вміння"
+      ? "Вміння"
       : summary.action === "attack"
-        ? "атака"
-        : "відступ";
+        ? "Атака"
+        : "Відступ";
   const hit =
     summary.heroOutcome === "miss"
-      ? "не влучає"
-      : `влучає${summary.critical ? " критично" : ""}: ${summary.heroDamage} шкоди`;
+      ? `${action} не влучає.`
+      : `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
   const response =
     summary.monsterDamage > 0
-      ? ` Монстр відповів на ${summary.monsterDamage} шкоди.`
+      ? `Монстр відповів на ${summary.monsterDamage} шкоди.`
       : summary.monsterOutcome === "miss"
-        ? " Монстр промахнувся й зробив вигляд, що так і планував."
+        ? "Монстр промахнувся й зробив вигляд, що так і планував."
         : "";
 
-  return `Останній хід: ${action} ${hit}.${response}`;
+  return ["Останній хід", hit, response].filter(Boolean).join("\n");
 }

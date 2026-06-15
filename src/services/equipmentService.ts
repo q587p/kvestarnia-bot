@@ -1,5 +1,11 @@
 import { items } from "../content";
+import {
+  checkLootExpansionEquipRequirement,
+  isLootExpansionItemId,
+  type LootExpansionEquipCheck
+} from "../content/lootExpansionV1";
 import type { ItemContent } from "../content/schema";
+import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type {
   CharacterEquipmentRecord,
   EquipmentRepository,
@@ -22,6 +28,11 @@ export type EquipItemResult =
   | { state: "no-character" }
   | { state: "not-owned" }
   | { state: "not-equippable" }
+  | {
+      state: "requirements-not-met";
+      reasons: LootExpansionEquipCheck["reasons"];
+      item: EquipmentItemSummary;
+    }
   | { state: "unsupported-slot" }
   | { state: "equipped"; slot: EquipmentSlot; item: EquipmentItemSummary; slots: EquipmentSlotSummary[] };
 
@@ -43,7 +54,8 @@ export interface EquipmentSlotSummary {
 export class EquipmentService {
   constructor(
     private readonly equipment: EquipmentRepository,
-    private readonly inventory: InventoryRepository
+    private readonly inventory: InventoryRepository,
+    private readonly characters?: CharacterRepository
   ) {}
 
   async getEquipmentForTelegramUser(telegramUserId: bigint): Promise<EquipmentResult> {
@@ -92,6 +104,31 @@ export class EquipmentService {
 
     if (!equipmentSlots.includes(slot)) {
       return { state: "unsupported-slot" };
+    }
+
+    if (isLootExpansionItemId(itemId) && this.characters) {
+      const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+      if (!character) {
+        return { state: "no-character" };
+      }
+
+      const equipCheck = checkLootExpansionEquipRequirement(itemId, {
+        level: character.level,
+        classId: character.classId,
+        raceId: character.raceId
+      });
+
+      if (!equipCheck.canEquip) {
+        return {
+          state: "requirements-not-met",
+          reasons: equipCheck.reasons,
+          item: {
+            itemId,
+            content
+          }
+        };
+      }
     }
 
     const equipped = await this.equipment.equipForCharacter(snapshot.characterId, slot, itemId);

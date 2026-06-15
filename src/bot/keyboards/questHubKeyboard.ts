@@ -49,7 +49,11 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.row();
   }
 
-  if (input.cellar.state === "ready" || input.cellar.state === "on-cooldown") {
+  if (
+    input.cellar.state === "ready" ||
+    input.cellar.state === "on-cooldown" ||
+    input.cellar.state === "level-retired"
+  ) {
     keyboard.text("🧹 У підвал", makeQuestCallbackData("cellar"));
     keyboard.row();
   }
@@ -74,7 +78,7 @@ function canOpenBestiary(input: QuestHubKeyboardInput): boolean {
 }
 
 function getFightButtonLabel(fight: QuestHubKeyboardInput["fight"]): string {
-  return isPersistentFightState(fight.state) ? "📋 До проблем" : "⚔️ До сутички";
+  return isPersistentFightState(fight.state) ? "🧾 До проблем" : "⚔️ До сутички";
 }
 
 function isPersistentFightState(state: QuestHubKeyboardInput["fight"]["state"]): boolean {
@@ -93,6 +97,7 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
     input.fight.state === "persistent-active" ||
     input.fight.state === "persistent-terminal" ||
     input.hunt.state === "ready" ||
-    input.cellar.state === "ready"
+    input.cellar.state === "ready" ||
+    input.cellar.state === "level-retired"
   );
 }

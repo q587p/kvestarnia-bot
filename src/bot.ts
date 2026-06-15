@@ -56,7 +56,7 @@ const services = {
   hunt: new HuntService(characters, dailyActions, huntContracts),
   onboarding: new OnboardingService(users, characters),
   hero: new HeroService(characters, inventory, equipment),
-  equipment: new EquipmentService(equipment, inventory),
+  equipment: new EquipmentService(equipment, inventory, characters),
   inventory: new InventoryService(inventory),
   mantokChest: new MantokChestService(mantokChestRuns),
   presence: new PresenceService(presence),
