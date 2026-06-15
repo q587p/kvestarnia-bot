@@ -324,6 +324,7 @@ Planned after `0.0.26`, because runtime auto-pick chest exists, but manual selec
 - trading/gifting;
 - shops/selling;
 - crafting/enchant/reroll;
+- daily tavern sample packs after usable items exist: one claim per Kyiv-local day, no power creep, no healing/consumable effects until item-use callbacks are explicit and idempotent, and reusable gift-campaign definitions with `localDate` as the claim bucket;
 - Redis/BullMQ/jobs, якщо SQLite transactions достатні;
 - Mini App inventory/profile;
 - more bestiary content or collection UI.

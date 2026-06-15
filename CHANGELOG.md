@@ -13,13 +13,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a small Phase 1 smoke/balance pass around persistent HP/mana recovery and the ordinary monster ladder after `0.0.25`.
 - Added clearer zero-HP rest guidance in `/hero`, quest hub fight rows, and persistent-fight terminal copy so the player sees that recovery is the next step.
 - Added docs updates for the 3, 4, 8, and 13 level smoke band, along with the current balance/playtest follow-up order.
+- Added a one-time technical-apology gift campaign foundation, three non-power apology keepsakes, and `npm run grant:gift` for dry-run/apply grants through existing `daily_actions` and `character_items`.
 
 ### Changed
 - Tuned the ordinary monster derivation curve downward at the top end so level 8 and 13 monsters stop looking like impossible math mistakes while keeping the ladder meaningfully stronger than the hero baseline.
 - Persistent-fight and quest-hub wording now points exhausted heroes back to `/hero` before `/fight`.
 
 ### Not Included Yet
-- Potions, temple healing, paid healing, combat-time regeneration, manual Mantok Chest selection, item-instance inventory, shops, trading, crafting, or broader combat rewrites.
+- Potions, temple healing, paid healing, combat-time regeneration, daily free samples, Telegram gift broadcasts, manual Mantok Chest selection, item-instance inventory, shops, trading, crafting, or broader combat rewrites.
 
 ## [0.0.25] - 12026-06-15 - Persistent HP/Mana & Loot Expansion
 

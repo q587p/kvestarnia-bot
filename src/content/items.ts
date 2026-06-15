@@ -164,6 +164,31 @@ export const items = [
     slot: "consumable",
     priceless: true
   },
+  {
+    id: "item.apology.rollback-receipt",
+    name: "Квитанція відкоченої міграції",
+    description:
+      "Папірець, який доводить: корчмар теж уміє сказати «ой» офіційним тоном.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 99
+  },
+  {
+    id: "item.apology.redeploy-cork",
+    name: "Корок повторного деплою",
+    description: "Ним заткнули діру в реальності. Тепер корок вимагає рядок у changelog.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 101
+  },
+  {
+    id: "item.apology.p3009-stamp",
+    name: "Печатка P3009 «Уже лагодимо»",
+    description: "Ставиться на технічні збої, міграційні нерви й корчмареві пояснювальні.",
+    rarity: "uncommon",
+    slot: "cosmetic",
+    goldValue: 113
+  },
   ...monsterLootItemAdditions,
   ...lootExpansionV1ItemContents
 ] satisfies ItemContent[];

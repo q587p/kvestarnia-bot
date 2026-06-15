@@ -8,6 +8,11 @@ import {
   selectMantokChestOutputItem
 } from "../../src/domain/mantokChest";
 import { FakeRandomSource } from "../../src/shared/random";
+import {
+  APOLOGY_P3009_STAMP_ITEM_ID,
+  APOLOGY_REDEPLOY_CORK_ITEM_ID,
+  APOLOGY_ROLLBACK_RECEIPT_ITEM_ID
+} from "../../src/content/giftCampaigns";
 
 describe("Mantok Chest domain", () => {
   it("scores items from gold value and rarity rank", () => {
@@ -48,6 +53,16 @@ describe("Mantok Chest domain", () => {
         score: 28
       }
     ]);
+  });
+
+  it("protects technical apology keepsakes from auto-pick", () => {
+    expect([...protectedMantokChestItemIds]).toEqual(
+      expect.arrayContaining([
+        APOLOGY_ROLLBACK_RECEIPT_ITEM_ID,
+        APOLOGY_REDEPLOY_CORK_ITEM_ID,
+        APOLOGY_P3009_STAMP_ITEM_ID
+      ])
+    );
   });
 
   it("auto-picks exactly five lowest-score units and can pick multiple units from one stack", () => {

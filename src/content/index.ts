@@ -16,6 +16,8 @@ export {
   raceKeyToId
 } from "./characterOptions";
 export { items } from "./items";
+export { findGiftCampaign, giftCampaigns } from "./giftCampaigns";
+export type { GiftCampaignContent, GiftCampaignItemGrant } from "./giftCampaigns";
 export { monsterFlavorLines, monsterLoot, selectMonsterFlavorLine } from "./monsterFlavor";
 export { monsters } from "./monsters";
 export { activeRaces, races } from "./races";
