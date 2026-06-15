@@ -12,7 +12,11 @@ import type {
   KorchmaRoundLeaderboardEntry
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
 import type { KorchmaArrivalBoard, PresenceGroup } from "../../services/presenceService";
-import { selectCharacterFlavorLine, selectCharacterFlavorLines } from "../../content/characterFlavor";
+import {
+  selectCharacterFlavorLine,
+  selectCharacterFlavorLines,
+  selectKorchmaGreetingLine
+} from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
 
@@ -54,7 +58,8 @@ export function presentKorchmaArrivalBoard(
 export function presentKorchmaHall(
   character: CharacterSummary,
   presence?: PresenceGroup | null,
-  viewerTelegramUserId?: bigint
+  viewerTelegramUserId?: bigint,
+  options: { flavorSeed?: string } = {}
 ): string {
   return [
     "🍺 Зала корчми",
@@ -64,7 +69,7 @@ export function presentKorchmaHall(
     "",
     "Праворуч стоїть <i>Стіл зі справами</i>, у кутку піниться <i>Бочка Пінного Міражу</i>, під ногами бурчить <i>Підвал</i>, а біля дверей висить <i>Дошка вістей</i>.",
     "",
-    ...presentKorchmaGreeting(character),
+    ...presentKorchmaGreeting(character, options.flavorSeed),
     "",
     ...presentTavernPresence(presence, viewerTelegramUserId),
     "",
@@ -302,10 +307,8 @@ export function presentTavernRoundOffer(
   ].join("\n");
 }
 
-function presentKorchmaGreeting(character: CharacterSummary): string[] {
-  const flavor = selectCharacterFlavorLine(character, {
-    placement: "korchma.greeting"
-  });
+function presentKorchmaGreeting(character: CharacterSummary, seed = "korchma-hall"): string[] {
+  const flavor = selectKorchmaGreetingLine(character, seed);
 
   return flavor ? [npcQuote("Корчмар", flavor.text)] : [];
 }

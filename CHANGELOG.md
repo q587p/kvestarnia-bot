@@ -18,6 +18,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added handcrafted loot coverage for the ordinary level 4-13 monster ladder so each higher-level monster has at least one stable content trophy.
 - Added `npm run sample:loot` for deterministic local loot sampling across levels and profile archetypes.
 - Added tests for resource regeneration, non-refill effective stats, fight start sync, zero-HP denial, and terminal fight resource persistence.
+- Added a larger Korchmar greeting bank for fallback, class, race, pronoun/path, and combo reactions so the korchma hall stops repeating one class-specific line.
 
 ### Changed
 - Effective character stats now clamp stored current HP/mana to effective maximums instead of setting current resources to maximum on every summary.
@@ -31,6 +32,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Quest Hub now hints that level 4+ heroes have `Справа не до миші` in the cellar and keeps the cellar button available after the novice errand retires.
 - Quest Hub now uses a distinct `🧾 До проблем` button icon instead of repeating the `📋 Стіл зі справами` header icon.
 - The main reply keyboard now labels the quest hub as `🗺️ Квести`, while still accepting the previous `🗺️ Квест` text from older Telegram keyboards.
+- Korchma hall greetings now use a weighted rotating selector across combo, class, race, pronoun/path, and fallback buckets instead of strict best-tier selection.
 
 ### Not Included Yet
 - Potions, temple healing, paid healing, consumable item use, combat-time regeneration, full death penalties, resource-management манатки, full effect processors for every loot effect id, shops, trading, crafting, or item-instance inventory.

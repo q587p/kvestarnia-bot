@@ -79,7 +79,14 @@ export async function sendTavern(
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_HALL);
   const presence = await presenceService.getKorchmaInteriorPresence();
 
-  await sendText(ctx, mode, presentKorchmaHall(result.character, presence, telegramUserId), "hall");
+  await sendText(
+    ctx,
+    mode,
+    presentKorchmaHall(result.character, presence, telegramUserId, {
+      flavorSeed: `korchma-hall:${ctx.update?.update_id ?? "manual"}`
+    }),
+    "hall"
+  );
 }
 
 export async function sendKorchmaFront(

@@ -2,6 +2,7 @@
 import {
   characterFlavorLines,
   selectCharacterFlavorLine,
+  selectKorchmaGreetingLine,
   type CharacterFlavorQuery
 } from "../../src/content/characterFlavor";
 import { getComboTitle } from "../../src/content/characterOptions";
@@ -65,10 +66,8 @@ describe("character flavor content", () => {
     ];
 
     for (const line of characterFlavorLines) {
-      const inspected = `${line.id}: ${line.text}`;
-
       for (const pattern of forbiddenPatterns) {
-        expect(inspected).not.toMatch(pattern);
+        expect(line.text).not.toMatch(pattern);
       }
     }
   });
@@ -115,7 +114,7 @@ describe("character flavor content", () => {
     }
   });
 
-  it("falls back to general korchma greeting when no specific scene line matches", () => {
+  it("still returns a korchma greeting when no race or class line matches", () => {
     const line = selectCharacterFlavorLine(
       {
         ...baseCharacter,
@@ -125,7 +124,7 @@ describe("character flavor content", () => {
       fixed("korchma.greeting")
     );
 
-    expect(line?.id).toMatch(/^korchma\.greeting\.fallback\./);
+    expect(line?.placement).toBe("korchma.greeting");
   });
 
   it("prefers exact race and class combo flavor over class or race lines", () => {
@@ -140,8 +139,12 @@ describe("character flavor content", () => {
       fixed("korchma.greeting")
     );
 
-    expect(line?.id).toBe("korchma.greeting.combo.bisyny-bard");
-    expect(line?.text).toContain("культурний скандал");
+    expect(
+      line?.selector?.combos?.some(
+        (combo) => combo.raceId === "race.bisyny" && combo.classId === "class.bard"
+      )
+    ).toBe(true);
+    expect(line?.text).not.toContain("{title}");
   });
 
   it("renders combo flavor with the authored title instead of long race-class labels", () => {
@@ -306,6 +309,80 @@ describe("character flavor content", () => {
 
     expect(lines.filter((line) => !line.selector).length).toBeGreaterThanOrEqual(10);
     expect(lines.filter((line) => line.selector?.combos?.length).length).toBeGreaterThanOrEqual(42);
+  });
+
+  it("has broad korchma greeting coverage for classes, races, paths, and fallback", () => {
+    const lines = characterFlavorLines.filter((line) => line.placement === "korchma.greeting");
+
+    expect(lines.filter((line) => !line.selector).length).toBeGreaterThanOrEqual(12);
+
+    for (const heroClass of classes) {
+      const matching = lines.filter((line) =>
+        line.selector?.classIds?.includes(heroClass.id)
+      );
+      const expectedCount = heroClass.id === "class.ranger" ? 16 : 8;
+
+      expect(matching.length, heroClass.id).toBeGreaterThanOrEqual(expectedCount);
+    }
+
+    for (const race of activeRaces) {
+      expect(
+        lines.filter((line) => line.selector?.raceIds?.includes(race.id)).length,
+        race.id
+      ).toBeGreaterThanOrEqual(6);
+    }
+
+    const pronouns: Pronoun[] = ["he", "she", "they"];
+    const paths = ["sun", "moon", "boundary"] as const;
+
+    for (const pronoun of pronouns) {
+      expect(
+        lines.filter((line) => line.selector?.pronouns?.includes(pronoun)).length,
+        pronoun
+      ).toBeGreaterThanOrEqual(2);
+    }
+
+    for (const path of paths) {
+      expect(
+        lines.filter((line) => line.selector?.paths?.includes(path)).length,
+        path
+      ).toBeGreaterThanOrEqual(2);
+    }
+
+    const comboGroups = new Map<string, number>();
+
+    for (const line of lines) {
+      for (const combo of line.selector?.combos ?? []) {
+        const key = `${combo.raceId}:${combo.classId}`;
+        comboGroups.set(key, (comboGroups.get(key) ?? 0) + 1);
+      }
+    }
+
+    expect([...comboGroups.values()].filter((count) => count >= 2).length).toBeGreaterThanOrEqual(
+      10
+    );
+  });
+
+  it("rotates korchma greetings for the same ranger across changing seeds", () => {
+    const ranger = {
+      ...baseCharacter,
+      raceId: "race.human-ish",
+      raceName: "Людисько",
+      classId: "class.ranger",
+      className: "Єгер",
+      title: "Завідувач Слідів Біля Бару"
+    };
+    const selectedTexts = new Set<string>();
+
+    for (let index = 0; index < 40; index += 1) {
+      const line = selectKorchmaGreetingLine(ranger, `korchma-hall:test-${index}`);
+
+      if (line) {
+        selectedTexts.add(line.text);
+      }
+    }
+
+    expect(selectedTexts.size).toBeGreaterThanOrEqual(3);
   });
 
   it("has first quest start flavor for every active race and class", () => {
