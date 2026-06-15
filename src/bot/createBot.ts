@@ -1040,9 +1040,12 @@ async function handleMantokChestCallback(
       ? { text: "Скриня хрумкнула." }
       : { show_alert: result.state === "invalid-token" || result.state === "stale-inputs" }
   );
+  const outputItem =
+    result.state === "recycled" || result.state === "replayed" ? result.outputItem : null;
+
   await safeEditMessageText(ctx, presentMantokChestRecycleResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildMantokChestResultKeyboard()
+    reply_markup: buildMantokChestResultKeyboard(outputItem)
   });
 }
 

@@ -22,6 +22,7 @@ import {
   buildInventoryKeyboard,
   buildItemDetailKeyboard
 } from "../../src/bot/keyboards/inventoryKeyboard";
+import { buildMantokChestResultKeyboard } from "../../src/bot/keyboards/mantokChestKeyboard";
 import {
   buildDevResetKeyboard,
   buildMainMenuKeyboard,
@@ -518,6 +519,26 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual(["Зняти зброю", "Зняти аксесуар", "⬅️ До манаток"]);
+  });
+
+  it("links Mantok Chest output directly to item details", () => {
+    const keyboard = buildMantokChestResultKeyboard({
+      itemId: "item.previous-approval-scale",
+      content: {
+        name: "Луска попереднього погодження"
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "🔎 Луска попереднього погодження",
+      "♻️ Ще до Скрині",
+      "⬅️ До манаток"
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:item:detail:item.previous-approval-scale",
+      "v1:chest:open",
+      "v1:chest:inventory"
+    ]);
   });
 
   it("builds quest hub buttons from available actions", () => {
