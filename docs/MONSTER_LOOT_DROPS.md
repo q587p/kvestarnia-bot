@@ -6,6 +6,8 @@
 
 У `0.0.18` `/bestiary` і `/monsters` можуть показувати ці mappings як «можливі трофеї за нотатками». Це read-only hint, не гарантія drop-а і не повний random loot engine.
 
+У `0.0.24` ordinary ladder рівнів 4–13 теж отримав окремі трофейні нотатки, щоб старші solo-fight монстри не лишалися без flavor-loot покриття.
+
 ## Мімік-шаурма — `monster.mimic-shawarma`
 
 - Loot ids: `item.suspicious-shawarma-wrapper`, `item.receipt-of-formal-suspicion`, `item.stamp-of-minor-authority`
@@ -106,6 +108,56 @@
 - Loot ids: `item.scale-of-zero-declaration`, `item.candle-of-fiscal-dread`
 - Note: Дракон не віддав скарб. Він видав «тимчасово не заборонено».
 
+## Скаргова лампа — `monster.complaint-lantern`
+
+- Loot ids: `item.wick-of-complaint-light`
+- Note: Лампа лишає по собі тільки гніт і підозру, що скарга ще не закрита.
+
+## Кабан прибутково-видаткової книги — `monster.ledger-boar`
+
+- Loot ids: `item.hoofprint-ledger-scrap`
+- Note: Кабан риє в рахунках так, ніби шукає останню копійку в полі.
+
+## Крендель солоної обіцянки — `monster.salted-oath-pretzel`
+
+- Loot ids: `item.salt-knot-of-oath`
+- Note: Крендель ламається, але офіційно це називає компромісом.
+
+## Мапа коридору, яка бреше — `monster.liar-corridor-map`
+
+- Loot ids: `item.folded-wrong-turn`
+- Note: Мапа показує вихід рівно до того моменту, поки ви не повірите.
+
+## Пінний ревізор у чоботях — `monster.foam-auditor-boots`
+
+- Loot ids: `item.foam-stained-checklist`
+- Note: Ревізор лишає після себе не трофеї, а порядок у кружках.
+
+## Химера трьох підписів — `monster.three-signature-chimera`
+
+- Loot ids: `item.third-signature-scale`
+- Note: Три голови, дві правки, одна правильна печатка.
+
+## Наглядач сирного сховку — `monster.cheese-vault-warden`
+
+- Loot ids: `item.cold-cheese-key`
+- Note: Сирний сховок не ділиться запасами, але дуже любить ключі.
+
+## Гідра календарних переносів — `monster.calendar-hydra`
+
+- Loot ids: `item.weekday-slip-of-postponement`
+- Note: Один день відрізався, два виросли, а годинник образився.
+
+## Пророк інвентарної недостачі — `monster.inventory-prophet`
+
+- Loot ids: `item.missing-label-prophecy`
+- Note: Пророк каже, що бракує саме того, що ви щойно шукали.
+
+## Писар тихої катастрофи — `monster.quiet-catastrophe-clerk`
+
+- Loot ids: `item.calm-apocalypse-memo`
+- Note: Катастрофа зберігається в папці, а папка просить не панікувати.
+
 ## Нові item definitions
 
 - `item.stamp-pad-of-last-warning` — **Штемпельна подушка останнього попередження** (common, junk, 2 зол.): М’яка, чорнильна й суворіша за більшість дверей.
@@ -144,3 +196,13 @@
 - `item.sauerkraut-squire-badge` — **Жетон квашеного зброєносця** (uncommon, accessory, 7 зол.): Пахне присягою, грядкою і майбутньою закускою.
 - `item.scale-of-zero-declaration` — **Луска нульової декларації** (rare, junk, 20 зол.): Блищить так, ніби нічого не приховує. Саме це й підозріло.
 - `item.candle-of-fiscal-dread` — **Свічка фіскального трепету** (uncommon, cosmetic, 10 зол.): Горить тихо, але змушує монети ставати рівніше.
+- `item.wick-of-complaint-light` — **Гніт скаржної лампи** (common, junk, 3 зол.): Ще теплий від чужого невдоволення й трохи образи.
+- `item.hoofprint-ledger-scrap` — **Копито-чернетка книги витрат** (common, junk, 2 зол.): На ній видно, куди побігли цифри. Самі цифри теж протестують.
+- `item.salt-knot-of-oath` — **Сольовий вузлик обіцянки** (common, junk, 2 зол.): Скрипить сухо, але все одно наполягає, що це була клятва.
+- `item.folded-wrong-turn` — **Складений хибний поворот** (common, junk, 3 зол.): Нібито карта, але більше схоже на дуже вперту помилку.
+- `item.foam-stained-checklist` — **Чеклист у пивній плямі** (common, cosmetic, 4 зол.): Залишок ревізії, яка пішла трохи далі, ніж мала б.
+- `item.third-signature-scale` — **Луска третього підпису** (uncommon, accessory, 8 зол.): Блищить лише тоді, коли двох погоджень уже недостатньо для спокою.
+- `item.cold-cheese-key` — **Холодний сирний ключ** (uncommon, accessory, 7 зол.): Відмикає не двері, а право підійти ближче до сховку.
+- `item.weekday-slip-of-postponement` — **Квиток відкладеного будня** (common, junk, 2 зол.): Дрібний, мокрий і вперто просить перенести все на завтра.
+- `item.missing-label-prophecy` — **Пророцтво про бракуючу етикетку** (uncommon, junk, 5 зол.): Каже, що річ уже не там, де її шукатимуть першою.
+- `item.calm-apocalypse-memo` — **Службова записка тихої катастрофи** (common, junk, 3 зол.): Офіційно підтверджує кінець світу в максимально ввічливій формі.
