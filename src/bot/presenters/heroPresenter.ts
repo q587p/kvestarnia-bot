@@ -56,7 +56,7 @@ function presentRemortLines(summary: CharacterSummary): string[] {
 
   return [
     "",
-    `🕯️ Ремортів: <b>${count}</b> · памʼять <b>${memoryRank}</b>/5`
+    `🕯️ Памʼять минулих пригод: <b>${count}</b>`
   ];
 }
 

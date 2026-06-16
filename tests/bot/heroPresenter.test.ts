@@ -147,6 +147,19 @@ describe("hero presenter", () => {
     expect(text).toContain("Ріст: +4 HP · +2 мани · +1 Сили");
   });
 
+  it("shows remort memory without exposing the internal cap as a public scale", () => {
+    const text = presentHero({
+      ...summary,
+      remortCount: 2,
+      remortMemoryRank: 2
+    });
+
+    expect(text).toContain("🕯️ Памʼять минулих пригод: <b>2</b>");
+    expect(text).not.toContain("Ремортів: <b>2</b> · Памʼять");
+    expect(text).not.toContain("памʼять <b>2</b>/5");
+    expect(text).not.toContain("2</b>/5");
+  });
+
 
   it("uses distinct wealth jokes when gold or inventory value is zero", () => {
     const emptyHero = presentHero({ ...summary, gold: 0 }, { inventoryGoldValue: 0 });
