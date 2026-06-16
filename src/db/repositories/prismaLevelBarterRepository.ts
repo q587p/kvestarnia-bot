@@ -106,7 +106,7 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
         });
 
         if (updatedCharacter.count !== 1) {
-          return { state: "stale-selection" };
+          throw new LevelBarterStaleSelectionError();
         }
 
         for (const item of plan.items) {
