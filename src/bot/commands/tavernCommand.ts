@@ -9,6 +9,7 @@ import {
 } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import type { LevelMilestoneService } from "../../services/levelMilestoneService";
+import type { RemortService } from "../../services/remortService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
@@ -175,7 +176,8 @@ export async function sendKorchmaMemorialBoard(
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
   mode: "reply" | "edit",
-  levelMilestoneService?: LevelMilestoneService
+  levelMilestoneService?: LevelMilestoneService,
+  remortService?: Pick<RemortService, "listBoard">
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -204,9 +206,12 @@ export async function sendKorchmaMemorialBoard(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FRONT);
-  const milestones = levelMilestoneService ? await levelMilestoneService.getBoard() : undefined;
+  const [milestones, remorts] = await Promise.all([
+    levelMilestoneService ? levelMilestoneService.getBoard() : Promise.resolve(undefined),
+    remortService ? remortService.listBoard() : Promise.resolve(undefined)
+  ]);
 
-  await sendText(ctx, mode, presentKorchmaMemorialBoard(result.character, milestones), "memorial");
+  await sendText(ctx, mode, presentKorchmaMemorialBoard(result.character, milestones, remorts), "memorial");
 }
 
 export async function sendKorchmaBar(

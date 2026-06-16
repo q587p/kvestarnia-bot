@@ -31,7 +31,7 @@ Phase 2 не починається з «великого рейду на всі
 2. **Result/rematch/tournament cards.** Compact share card, rematch button, small daily/weekly recognition without power creep.
 3. **Trading/gifting MVP.** Передати одну eligible манатку або stack-unit іншому гравцю з explicit confirmation and audit row.
 4. **Combat variety.** Guard, cooldowns, monster skills, class/race/action catalog, item tags and one-use manatky.
-5. **Remort at 13.** `/remort` as prestige loop with capped memory legacy, small transparent bonuses and selected manatky preservation, not paid power and not a hidden wipe.
+5. **Remort follow-ups.** The base `/remort` loop shipped in `0.1.2`; future Phase 2 work can add remort-only flavor/options without paid power, hidden wipes or veteran snowball.
 6. **Multi-enemy combat.** Main enemy plus controlled helper/summon pattern, compact UI, no doubled reward faucet.
 7. **Party combat / real raids.** Only after duel/session/invite, multi-actor and multi-enemy shapes are proven.
 

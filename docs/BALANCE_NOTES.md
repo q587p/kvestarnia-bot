@@ -10,7 +10,7 @@ MVP має бути веселим, не ідеально збалансован
 - Level-up 1–5 швидкий, 6–13 помітно повільніший.
 - Рідкісний лут приємний, але не обов’язковий для прогресу.
 
-`0.1.0` закриває Phase 1 як playable first loop, не як фінальний баланс. Поточна крива 1-13, persistent HP/мана, loot replay, Mantok Chest і Манчкін-скупник достатні для playtest-у, але числові пороги, win-rate, reward pacing і item pressure мають лишатися предметом окремих `0.1.x` balance PR після реального smoke/playtest fallout.
+`0.1.0` закриває Phase 1 як playable first loop, не як фінальний баланс. Поточна крива 1-13, persistent HP/мана, loot replay, Mantok Chest, Манчкін-скупник і перший `/remort` достатні для playtest-у, але числові пороги, win-rate, reward pacing, item pressure і prestige pacing мають лишатися предметом окремих `0.1.x` balance PR після реального smoke/playtest fallout.
 
 Phase 2 додає соціяльний бій та взаємодії до фінального балансу, тому перші runtime-slices мають покладатися на caps, audit rows and replay-safe results, not perfect formulas. Canonical notes: [phase2/UNSTABLE_BALANCE_PRINCIPLES.md](phase2/UNSTABLE_BALANCE_PRINCIPLES.md).
 
@@ -317,11 +317,13 @@ Hunt Board лишається простим для входу: один кон�
 - No auction house, market pricing or gold add-ons until transfer audit/idempotency is proven.
 - Trading should help players move unsuitable манатки, not bypass progression, level gates or anti-abuse rules.
 
-## Phase 2 remort guardrails
+## Remort guardrails
+`0.1.2` додає перший `/remort` runtime slice:
 - `/remort` is explicit and unavailable below level 13.
-- First remort slice should preserve social/cosmetic legacy, not permanent combat power.
-- No paid remort, hidden wipe or automatic prestige.
-- Reset/preserve rules must be visible before confirmation and covered by tests.
+- It is not `/restart`: reset/preserve rules must be visible before confirmation and covered by tests.
+- First remort slice preserves memory and selected safe manatky, not permanent combat power.
+- Legacy bonus is capped at memory rank 5: `+2 HP` and `+1` mana per rank for the next start only.
+- No paid remort, hidden wipe, automatic prestige, 14+ levels or remort-only power track in this slice.
 
 ## Combat simulation harness
 Для локальної балансної перевірки запускай:

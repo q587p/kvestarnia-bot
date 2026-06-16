@@ -7,7 +7,12 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.2] - 12026-06-16 - Presence Interior & Routing Cleanup
+## [0.1.2] - 12026-06-16 - Remort at Level 13 & Presence Cleanup
+
+### Added
+- Added `/remort` as an explicit level-13 prestige loop: preview, identity rebuild, safe manatky preservation, confirmation and idempotent replay.
+- Added `character_remort_drafts` and `character_remorts` ledger tables for remort drafts, completed remort history and the front-door memorial board.
+- Added a `🕯️ Реморти Тринадцятки` block to the Propamiatna Doshka, showing the first remorts by remort number.
 
 ### Fixed
 - `Шинок` now counts as korchma interior for quest/fight/hunt/cellar gates that check the hero's current place.
@@ -15,9 +20,11 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Extracted bot presence routing rules from `createBot.ts` into a small tested `presenceRouting` module.
 - Added table-driven regression tests for callback, command and main-menu presence routing, preserving the distinction between no-op presence updates and unknown callbacks.
+- Level-13 capstone copy now points to `/remort` rather than treating `/restart` as the main next step.
+- `/hero` can show remort count and capped memory rank after a character has remorted.
 
 ### Not Included Yet
-- Durable Barrel completion notifications, Mantok Chest pending cleanup, new gameplay systems, callback payload changes, schema changes, or public presence privacy changes.
+- Rename flow during remort, remort-only races/classes, paid power, 14+ levels, broad prestige economy, Durable Barrel completion notifications, Mantok Chest pending cleanup, or public presence privacy changes.
 
 ## [0.1.1] - 12026-06-16 - Support Jar & Link Plumbing
 
@@ -62,7 +69,7 @@ This project follows a simple pre-1.0 versioning policy:
 - First Phase 2 duel invite slice only after the core loop remains stable; rewardless achievements and other side tracks stay secondary.
 
 ### Not Included Yet
-- No achievements runtime, duel/PvP runtime, trading/gifting runtime, `/remort`, food/coffee buffs, NPC ranking runtime, expanded equipment, battle interventions, manual Munchkin selection, shops, selling, crafting, item-instance inventory, group raids, guilds, Mini App, or broad combat rewrite.
+- No achievements runtime, duel/PvP runtime, trading/gifting runtime, remort-only advanced options, food/coffee buffs, NPC ranking runtime, expanded equipment, battle interventions, manual Munchkin selection, shops, selling, crafting, item-instance inventory, group raids, guilds, Mini App, or broad combat rewrite.
 
 ## [0.0.30] - 12026-06-16 - Level Barter Safety & Closeout Alignment
 

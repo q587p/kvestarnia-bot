@@ -36,6 +36,8 @@ export interface CharacterSummary {
   stats: CharacterStats;
   levelBonus: LevelBonus;
   equipmentEffects?: EquipmentEffectSummary;
+  remortCount?: number;
+  remortMemoryRank?: number;
 }
 
 export interface CharacterSummaryInput {
@@ -58,6 +60,7 @@ export interface CharacterSummaryInput {
 export interface CharacterSummaryOptions {
   equippedItems?: ItemContent[];
   resourceRecovery?: ResourceRecoveryEstimate;
+  remortCount?: number;
 }
 
 export function summarizeCharacter(
@@ -108,7 +111,13 @@ export function summarizeCharacter(
     ...(options.resourceRecovery ? { resourceRecovery: options.resourceRecovery } : {}),
     stats: effectiveStats.stats,
     levelBonus: effectiveStats.levelBonus,
-    equipmentEffects: effectiveStats.equipmentEffects
+    equipmentEffects: effectiveStats.equipmentEffects,
+    ...(options.remortCount !== undefined
+      ? {
+          remortCount: Math.max(0, Math.floor(options.remortCount)),
+          remortMemoryRank: Math.max(0, Math.min(5, Math.floor(options.remortCount)))
+        }
+      : {})
   };
 }
 

@@ -146,6 +146,12 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     includeInMenu: false
   },
   {
+    command: "remort",
+    icon: "🕯️",
+    description: "нове життя після 13 рівня",
+    includeInMenu: false
+  },
+  {
     command: "version",
     icon: "🧾",
     description: "версія Квестарні",

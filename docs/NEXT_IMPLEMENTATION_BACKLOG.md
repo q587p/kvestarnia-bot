@@ -14,14 +14,14 @@
 Перший порядок після `0.1.0`:
 
 1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, and smoke fallout.
-2. `0.1.2` — presence interior/routing cleanup: treat `Шинок` as korchma interior and move bot presence routing rules out of `createBot.ts`.
+2. `0.1.2` — presence interior/routing cleanup plus first runtime `/remort` at level 13: treat `Шинок` as korchma interior, move bot presence routing rules out of `createBot.ts`, and add replay-safe remort drafts/history.
 3. `0.1.3` — choose one reliability/polish item based on real pain: durable Barrel completion notifications or Mantok Chest pending cleanup.
 4. `0.1.4` — Hlybka routing or fight/quest navigation cleanup if playtest shows confusion around where fights happen.
 5. First Phase 2 prep/runtime slice only after smoke evidence: duel invite MVP, not group raid.
 6. Duel result/rematch/tournament card support.
 7. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
 8. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
-9. `/remort` at level 13 with capped memory legacy and explicit preserved-manatky selection.
+9. Remort follow-ups: remort-only advanced options, richer legacy flavor and social/cosmetic records; the base `/remort` loop is already runtime in `0.1.2`.
 10. Multi-enemy combat.
 11. Party combat / real raid MVP with capped contribution-aware rewards.
 
@@ -41,10 +41,10 @@ Each slice below should be independently testable. If a PR starts turning into s
 persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/mana persistence → recovery/balance polish → inventory/chest polish → balance/playtest polish
 ```
 
-## Later — `/remort` After Level 13
+## Implemented in `0.1.2` — `/remort` After Level 13
 
 **Objective**
-Замість того, щоб після 13 рівня просто пропонувати `/restart`, спроєктувати окрему механіку `/remort`: переродження героя у стилі MUD-ів, де завершений персонаж починає нове коло не як чистий wipe, а з памʼяттю, статусом або обмеженим legacy-бонусом.
+Замість того, щоб після 13 рівня просто пропонувати `/restart`, `0.1.2` відкриває окрему механіку `/remort`: переродження героя у стилі MUD-ів, де завершений персонаж починає нове коло не як чистий wipe, а з памʼяттю, статусом або обмеженим legacy-бонусом.
 
 **Research note**
 
@@ -53,12 +53,19 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 
 **Scope**
 
-- Додати команду `/remort` як окремий шлях після досягнення 13 рівня.
-- На 13 рівні capstone copy має пропонувати `/remort`, а не лише `/restart`.
-- Зберегти `/restart` як технічний reset/discovery loop, але не робити його головною endgame-пропозицією.
-- Вирішити точні runtime details для legacy: remort-count, титул/косметична відзнака, запис дошки, малий memory-бонус від розвиненої стати/ідентичности, трохи кращі стартові HP/мана і до 5 явно вибраних eligible манаток.
-- Перед reset показати preview: що скидається, що лишається, які саме манатки обрані й чому частина речей не eligible.
+- Команда `/remort` є окремим шляхом після досягнення 13 рівня.
+- На 13 рівні capstone copy пропонує `/remort`, а не лише `/restart`.
+- `/restart` лишається технічним reset/discovery loop, але не головною endgame-пропозицією.
+- Runtime details першого slice: remort-count, запис дошки, capped memory bonus до стартових HP/мани і до 5 явно вибраних eligible манаток.
+- Перед reset показується preview: що скидається, що лишається, які саме манатки обрані й чому частина речей не eligible.
 - Нове коло має відкривати інший смак проходження без pay-to-win і без обовʼязкового grind-покарання.
+
+**Follow-ups**
+
+- remort-only title/cosmetic options;
+- remort-only race/class flavor without stronger power snowball;
+- richer public board/history text;
+- possible renaming flow after separate UGC/moderation guardrails.
 
 **Non-goals**
 

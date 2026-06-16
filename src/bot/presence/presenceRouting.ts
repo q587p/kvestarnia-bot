@@ -144,7 +144,8 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
   if (
     data.startsWith("v1:menu:") ||
     data.startsWith("v1:devreset:") ||
-    data.startsWith("v1:restart:")
+    data.startsWith("v1:restart:") ||
+    data.startsWith("v1:rm:")
   ) {
     return {};
   }
@@ -234,6 +235,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "support" ||
     command === "version" ||
     command === "restart" ||
+    command === "remort" ||
     command === "dev_reset_me"
   ) {
     return {};

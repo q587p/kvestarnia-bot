@@ -17,6 +17,7 @@ import { PrismaKorchmaRoundPurchaseRepository } from "./db/repositories/prismaKo
 import { PrismaLevelMilestoneRepository } from "./db/repositories/prismaLevelMilestoneRepository";
 import { PrismaMantokChestRepository } from "./db/repositories/prismaMantokChestRepository";
 import { PrismaPresenceRepository } from "./db/repositories/prismaPresenceRepository";
+import { PrismaRemortRepository } from "./db/repositories/prismaRemortRepository";
 import { PrismaSoloCombatSessionRepository } from "./db/repositories/prismaSoloCombatSessionRepository";
 import { PrismaUserRepository } from "./db/repositories/prismaUserRepository";
 import { startHealthServer } from "./health/server";
@@ -36,6 +37,7 @@ import { LevelBarterService } from "./services/levelBarterService";
 import { MantokChestService } from "./services/mantokChestService";
 import { OnboardingService } from "./services/onboardingService";
 import { PresenceService } from "./services/presenceService";
+import { RemortService } from "./services/remortService";
 import { RestartService } from "./services/restartService";
 import { TavernRaidService } from "./services/tavernRaidService";
 import { YegerQuestService } from "./services/yegerQuestService";
@@ -54,6 +56,7 @@ const levelMilestones = new PrismaLevelMilestoneRepository(prisma);
 const mantokChestRuns = new PrismaMantokChestRepository(prisma);
 const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
+const remorts = new PrismaRemortRepository(prisma);
 const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
 const fight = new FightService(characters, dailyActions, undefined, soloCombatSessions, undefined, equipment);
 const services = {
@@ -64,13 +67,14 @@ const services = {
   hunt: new HuntService(characters, dailyActions, huntContracts),
   yeger: new YegerQuestService(characters, dailyActions, soloCombatSessions, fight, cooldowns),
   onboarding: new OnboardingService(users, characters),
-  hero: new HeroService(characters, inventory, equipment),
+  hero: new HeroService(characters, inventory, equipment, remorts),
   equipment: new EquipmentService(equipment, inventory, characters),
   inventory: new InventoryService(inventory),
   levelBarter: new LevelBarterService(levelBarter),
   levelMilestones: new LevelMilestoneService(levelMilestones),
   mantokChest: new MantokChestService(mantokChestRuns),
   presence: new PresenceService(presence),
+  remort: new RemortService(remorts),
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),
   tavern: new TavernRaidService(characters, dailyActions, roundPurchases, cooldowns)

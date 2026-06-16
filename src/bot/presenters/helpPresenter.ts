@@ -79,9 +79,9 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     description: "ґільдії"
   },
   {
-    commands: ["restart"],
+    commands: ["restart", "remort"],
     icon: "🔄",
-    description: "почати з початку"
+    description: "нове коло героя"
   },
   {
     commands: ["news", "version"],

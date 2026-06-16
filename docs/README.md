@@ -27,13 +27,13 @@
 
 ## Phase 2 roadmap reset
 
-Phase 2 більше не починається з великого групового рейду. Новий напрям: **Social Combat & Interactions** — спершу opt-in дуелі й запрошення, потім картки результатів, реванші, турнірний шум, обмін/дарування, бойова різноманітність, `/remort`, multi-enemy combat і тільки після цього party combat / real raids.
+Phase 2 більше не починається з великого групового рейду. Новий напрям: **Social Combat & Interactions** — спершу opt-in дуелі й запрошення, потім картки результатів, реванші, турнірний шум, обмін/дарування, бойова різноманітність, remort-only follow-ups після базового `/remort` з `0.1.2`, multi-enemy combat і тільки після цього party combat / real raids.
 
 - [phase2/SOCIAL_COMBAT_PLAN.md](phase2/SOCIAL_COMBAT_PLAN.md) — головний план Phase 2.
 - [phase2/DUELS_AND_INVITES.md](phase2/DUELS_AND_INVITES.md) — перший MVP для дуелей і shareable invite cards.
 - [phase2/GROUP_COMBAT_AND_RAIDS.md](phase2/GROUP_COMBAT_AND_RAIDS.md) — як рейди виростають із дуелей, party sessions і multi-enemy combat.
 - [phase2/TRADING_AND_GIFTING.md](phase2/TRADING_AND_GIFTING.md) — безпечний обмін і подарунки між гравцями.
-- [phase2/REMORT.md](phase2/REMORT.md) — `/remort` після 13 рівня з capped legacy, preview і вибором preserved manatky без power snowball.
+- [phase2/REMORT.md](phase2/REMORT.md) — shipped `/remort` після 13 рівня з capped legacy, preview і вибором preserved manatky без power snowball, плюс follow-up нотатки.
 - [phase2/ITEM_TAGS_AND_CONSUMABLES.md](phase2/ITEM_TAGS_AND_CONSUMABLES.md) — item tags, одноразові манатки й бойові дії від предметів.
 - [phase2/UNSTABLE_BALANCE_PRINCIPLES.md](phase2/UNSTABLE_BALANCE_PRINCIPLES.md) — як лишати баланс веселим, але не токсичним.
 

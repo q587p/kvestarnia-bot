@@ -72,7 +72,7 @@ Detailed route: [PHASE1_CLOSEOUT_SMOKE.md](PHASE1_CLOSEOUT_SMOKE.md).
 - No shops, selling, trading, crafting, or broad economy loop.
 - No item-instance inventory; current inventory remains stack-based.
 - No achievements runtime.
-- No true group raids, guilds, duel/PvP runtime, trading/gifting runtime, `/remort`, or Mini App.
+- At `0.1.0` closeout there were no true group raids, guilds, duel/PvP runtime, trading/gifting runtime, `/remort`, or Mini App. The first base `/remort` loop shipped later in `0.1.2`.
 - Barrel completion notifications are not a broad durable scheduler/outbox architecture.
 - Yeger bait, lure, ambush, and reputation are future work.
 - Munchkin manual item selection is future work.
@@ -81,10 +81,10 @@ Detailed route: [PHASE1_CLOSEOUT_SMOKE.md](PHASE1_CLOSEOUT_SMOKE.md).
 ## Deferred to 0.1.x
 
 1. `0.1.1` — playtest bugfixes, copy polish, and small UX papercuts.
-2. `0.1.2` — choose one reliability/polish item based on pain: durable Barrel completion notifications or Mantok Chest pending cleanup.
+2. `0.1.2` — after closeout, this became presence/routing cleanup plus the first runtime `/remort` slice because a player reached the cap during playtest.
 3. `0.1.3` — Hlybka routing or fight/quest navigation cleanup if playtest shows it matters.
 4. First Phase 2 runtime prep if the core loop remains stable: duel invite MVP.
-5. Later Phase 2 order — result/rematch/tournament cards, trading/gifting, combat variety, `/remort`, multi-enemy combat, party combat / real raids.
+5. Later Phase 2 order — result/rematch/tournament cards, trading/gifting, combat variety, remort-only follow-ups after the `0.1.2` base loop, multi-enemy combat, party combat / real raids.
 6. Side tracks — rewardless achievements, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, and similarly small scoped expansions only if they do not steal the main spine.
 
 ## Hard-deferred beyond 0.1.x stabilization

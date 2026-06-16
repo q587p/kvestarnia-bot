@@ -13,6 +13,7 @@ import type {
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
 import type { KorchmaArrivalBoard, PresenceGroup } from "../../services/presenceService";
 import type { LevelMilestoneBoard } from "../../db/repositories/levelMilestoneRepository";
+import type { RemortBoard } from "../../db/repositories/remortRepository";
 import {
   selectCharacterFlavorLine,
   selectCharacterFlavorLines,
@@ -56,7 +57,8 @@ export function presentKorchmaArrivalBoard(
 
 export function presentKorchmaMemorialBoard(
   character: CharacterSummary,
-  milestones?: LevelMilestoneBoard
+  milestones?: LevelMilestoneBoard,
+  remorts?: RemortBoard
 ): string {
   return [
     "🏅 Пропамʼятна дошка",
@@ -65,6 +67,8 @@ export function presentKorchmaMemorialBoard(
     "Справа від дверей висить дошка для тих, хто першим доріс до числа й не впав з табурета.",
     "",
     ...presentLevelMilestoneEntries(milestones),
+    "",
+    ...presentRemortBoardEntries(remorts),
     "",
     "Корчмар каже, що це не змагання. Дошка вже рахує місця."
   ].join("\n");
@@ -516,6 +520,26 @@ function presentLevelMilestoneEntries(milestones: LevelMilestoneBoard | undefine
         .join(" · ");
 
       return `• рівень ${group.level}: ${entries}`;
+    })
+  ];
+}
+
+function presentRemortBoardEntries(remorts: RemortBoard | undefined): string[] {
+  if (!remorts || remorts.remorts.length === 0) {
+    return [
+      "<b>🕯️ Реморти Тринадцятки</b>",
+      "Ще ніхто не повертався з тринадцятого рівня так офіційно, щоб дошка попросила другу свічку."
+    ];
+  }
+
+  return [
+    "<b>🕯️ Реморти Тринадцятки</b>",
+    ...remorts.remorts.map((group) => {
+      const entries = group.entries
+        .map((entry) => `${presentMilestoneRank(entry.rank)} ${escapeHtml(entry.name)}`)
+        .join(" · ");
+
+      return `• реморт ${group.remortNumber}: ${entries}`;
     })
   ];
 }

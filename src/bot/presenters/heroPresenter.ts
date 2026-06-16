@@ -27,6 +27,7 @@ export function presentHero(
     `<i>${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}</i>`,
     "",
     `Титул: <i>${escapeHtml(summary.title)}</i>`,
+    ...presentRemortLines(summary),
     "",
     progressLine,
     ...(growthLine ? [`Ріст: ${growthLine}`] : []),
@@ -43,6 +44,20 @@ export function presentHero(
     `Зараз пригодник тут: <b>${escapeHtml(getLocationName(summary.currentLocationId ?? ""))}</b>.`,
     ...starterHint
   ].join("\n");
+}
+
+function presentRemortLines(summary: CharacterSummary): string[] {
+  const count = summary.remortCount ?? 0;
+  const memoryRank = summary.remortMemoryRank ?? 0;
+
+  if (count <= 0 && memoryRank <= 0) {
+    return [];
+  }
+
+  return [
+    "",
+    `🕯️ Ремортів: <b>${count}</b> · памʼять <b>${memoryRank}</b>/5`
+  ];
 }
 
 export function presentHeroMissing(): string {

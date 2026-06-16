@@ -42,6 +42,8 @@ model Character {
   soloCombatSessions SoloCombatSession[]
   mantokChestRuns MantokChestRun[]
   levelBarterExchanges LevelBarterExchange[]
+  remortDrafts CharacterRemortDraft[]
+  remorts CharacterRemort[]
   name      String
   pronoun   String   @default("they")
   path      String   @default("boundary")
@@ -171,6 +173,42 @@ model LevelBarterExchange {
   @@unique([characterId, token])
   @@index([characterId, status])
   @@map("level_barter_exchanges")
+}
+
+model CharacterRemortDraft {
+  id                   String    @id @default(uuid())
+  characterId          String    @map("character_id")
+  character            Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  token                String    @unique
+  status               String    @default("pending")
+  selectedIdentityJson Json      @map("selected_identity_json")
+  selectedItemsJson    Json      @map("selected_items_json")
+  expiresAt            DateTime  @map("expires_at")
+  completedAt          DateTime? @map("completed_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@index([characterId, status])
+  @@index([expiresAt])
+  @@map("character_remort_drafts")
+}
+
+model CharacterRemort {
+  id                    String    @id @default(uuid())
+  characterId           String    @map("character_id")
+  character             Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  token                 String    @unique
+  remortNumber          Int       @map("remort_number")
+  previousLevel         Int       @map("previous_level")
+  previousXp            Int       @map("previous_xp")
+  previousGold          Int       @map("previous_gold")
+  displayNameSnapshot   String    @map("display_name_snapshot")
+  preservedPayloadJson  Json      @map("preserved_payload_json")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  @@unique([characterId, remortNumber])
+  @@index([remortNumber, createdAt])
+  @@map("character_remorts")
 }
 
 model DailyAction {

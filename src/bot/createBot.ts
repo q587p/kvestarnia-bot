@@ -31,6 +31,7 @@ import {
   type PresenceService
 } from "../services/presenceService";
 import type { RestartService } from "../services/restartService";
+import type { RemortService } from "../services/remortService";
 import type { TavernRaidService } from "../services/tavernRaidService";
 import { createBarrelRaidCompletionScheduler } from "./barrelRaidCompletionNotifier";
 import { parseAdventureCallbackData, type AdventureCallback } from "./callbacks/adventureCallbackData";
@@ -63,6 +64,7 @@ import {
   type OnboardingCallback
 } from "./callbacks/onboardingCallbackData";
 import { parseRestartCallbackData } from "./callbacks/restartCallbackData";
+import { parseRemortCallbackData, type RemortCallback } from "./callbacks/remortCallbackData";
 import { parseTavernCallbackData, type TavernCallback } from "./callbacks/tavernCallbackData";
 import { registerAdventureCommand, sendAdventure } from "./commands/adventureCommand";
 import {
@@ -91,6 +93,7 @@ import {
   type QuestHubCommandOptions
 } from "./commands/questHubCommand";
 import { registerRestartCommand } from "./commands/restartCommand";
+import { registerRemortCommand } from "./commands/remortCommand";
 import { registerStartCommand } from "./commands/startCommand";
 import { registerSupportCommand } from "./commands/supportCommand";
 import {
@@ -146,6 +149,7 @@ import {
   buildTavernParticipantsKeyboard,
   buildTavernResultKeyboard
 } from "./keyboards/tavernKeyboard";
+import { buildRemortKeyboard, buildRemortResultKeyboard } from "./keyboards/remortKeyboard";
 import {
   buildYegerHelpKeyboard,
   buildYegerKeyboard,
@@ -213,6 +217,7 @@ import {
   presentRestartDeleted,
   presentRestartNoCharacter
 } from "./presenters/restartPresenter";
+import { presentRemortConfirm, presentRemortUpdate } from "./presenters/remortPresenter";
 import {
   presentYegerHelp,
   presentYegerNoCharacter,
@@ -254,6 +259,7 @@ export interface BotServices {
   presence: PresenceService;
   devReset: DevResetService;
   restart: RestartService;
+  remort?: RemortService;
   tavern: TavernRaidService;
 }
 
@@ -311,6 +317,9 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   registerVersionCommand(bot);
   registerDevResetCommand(bot, services.devReset);
   registerRestartCommand(bot);
+  if (services.remort) {
+    registerRemortCommand(bot, services.remort);
+  }
   registerTavernCommand(bot, services.tavern, services.presence);
   registerPlannedCommands(bot);
   registerMainMenuKeyboard(bot, services);
@@ -518,6 +527,17 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     }
 
     await handleRestartCallback(ctx, parsed.value, services.restart);
+  });
+
+  bot.callbackQuery(/^v1:rm:/, async (ctx) => {
+    const parsed = parseRemortCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok || !services.remort) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleRemortCallback(ctx, parsed.value, services.remort);
   });
 
   return bot;
@@ -1101,7 +1121,8 @@ async function handlePlaceCallback(
       services.tavern,
       services.presence,
       "edit",
-      services.levelMilestones
+      services.levelMilestones,
+      services.remort
     );
     return;
   }
@@ -2098,4 +2119,64 @@ async function handleRestartCallback(
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, message);
+}
+
+async function handleRemortCallback(
+  ctx: Context,
+  callback: RemortCallback,
+  remortService: RemortService
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (callback.type === "open") {
+    const result = await remortService.openForTelegramUser(telegramUserId);
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentRemortUpdate(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildRemortKeyboard(result)
+    });
+    return;
+  }
+
+  if (callback.type === "confirm") {
+    const result = await remortService.confirmForTelegramUser(telegramUserId, callback.token);
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "completed" || result.state === "replayed"
+        ? { text: result.state === "replayed" ? "Цей реморт уже записано." : "Реморт записано." }
+        : { show_alert: result.state !== "invalid-draft" }
+    );
+    await safeEditMessageText(ctx, presentRemortConfirm(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildRemortResultKeyboard()
+    });
+    return;
+  }
+
+  const result =
+    callback.type === "pronoun"
+      ? await remortService.selectPronoun(telegramUserId, callback.token, callback.pronoun)
+      : callback.type === "race"
+        ? await remortService.selectRace(telegramUserId, callback.token, callback.raceKey)
+        : callback.type === "class"
+          ? await remortService.selectClass(telegramUserId, callback.token, callback.classKey)
+          : await remortService.toggleItem(telegramUserId, callback.token, callback.itemId);
+
+  await safeAnswerCallbackQuery(
+    ctx,
+    result.state === "invalid-selection" ? { text: result.reason, show_alert: true } : undefined
+  );
+  const keyboardResult =
+    result.state === "invalid-selection"
+      ? result.view ?? { state: "no-character" as const }
+      : result;
+  await safeEditMessageText(ctx, presentRemortUpdate(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildRemortKeyboard(keyboardResult)
+  });
 }

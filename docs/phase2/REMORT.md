@@ -1,6 +1,8 @@
-# Phase 2 — Remort at Level 13
+# Remort at Level 13
 
-`/remort` is the intended answer to «what happens after level 13?» once the current alpha cap becomes a real loop endpoint. It should feel like heroic reincarnation with jokes and memory, not a punishment and not paid power.
+Status after `0.1.2`: the first runtime `/remort` loop exists. This document now records the shipped base rules and the future remort-only expansion direction.
+
+`/remort` is the answer to «what happens after level 13?» now that the current alpha cap is a real loop endpoint. It should feel like heroic reincarnation with jokes and memory, not a punishment and not paid power.
 
 ## Design goal
 
@@ -18,7 +20,7 @@ Legacy should be noticeable enough to feel like memory, not strong enough to rep
 
 `/restart` remains the hard reset/discovery command. `/remort` is a prestige loop with explicit confirmation.
 
-## MVP flow
+## Shipped MVP flow
 
 1. Hero reaches level 13.
 2. Capstone copy points to `/remort` as the next long-term option.
@@ -39,10 +41,11 @@ Legacy should be noticeable enough to feel like memory, not strong enough to rep
 
 ## Preserve rules
 
-The runtime PR must define item eligibility before implementation:
+The current runtime item eligibility is intentionally conservative:
 
-- equipped, protected, story, quest, priceless and explicitly blocked manatky are not auto-preserved;
-- if any protected/story/priceless exception is ever allowed, it needs explicit design text and tests before runtime;
+- equipped and effect-bearing manatky are not selectable as remort carry-over;
+- protected/story/priceless keepsakes are preserved by system rule when appropriate, not manually selected as power;
+- if any protected/story/priceless exception becomes manually selectable later, it needs explicit design text and tests before runtime;
 - selected manatky must be shown by name before confirmation;
 - if inventory changes between preview and confirm, the confirm must revalidate and fail safely or replay the already completed result;
 - `/restart` remains separate, destructive and should not silently share `/remort` preserve behavior.
@@ -72,3 +75,10 @@ The exact reset/preserve list must be decided in the runtime PR and covered by t
 - Remort record is idempotent; repeated confirm cannot duplicate remort count, legacy bonus, preserved manatky or rewards.
 - `/restart` and `/remort` are explained as different actions.
 - Player-facing text uses Квестарня’s comic tone without hiding consequences.
+
+## Future follow-ups
+
+- Remort-only titles, cosmetic marks and richer board copy.
+- Remort-only race/class flavor with no paid power and no veteran runaway.
+- Rename/identity polish only after separate user-generated-name moderation decisions.
+- Stronger legacy mechanics only after playtest proves the base loop is fair.

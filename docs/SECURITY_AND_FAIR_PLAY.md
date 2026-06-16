@@ -36,8 +36,11 @@ MVP limits:
 - raid reward.
 - daily reward.
 - level-up grant.
+- remort/reset-like prestige flows.
 
 Повторний запит має повертати попередній результат або «вже зараховано».
+
+`/remort` з `0.1.2` є irreversible progression flow, не `/restart`: draft і completed remort records мають бути token-scoped, replay-safe і transaction-backed. Повторний confirm не може додати ще один remort count, legacy bonus або збережені манатки; зміни inventory/equipment між preview і confirm мають або безпечно відхилити confirm, або replay-нути вже завершений результат.
 
 ## Callback validation
 Callback data має:

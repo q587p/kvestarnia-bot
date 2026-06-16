@@ -28,6 +28,7 @@ describe("help presenter", () => {
     expect(text).toContain("/look");
     expect(text).toContain("/guild");
     expect(text).toContain("/restart");
+    expect(text).toContain("/remort");
     expect(text).toContain("/version");
     expect(text).toContain("/news");
     expect(text).toContain("/support");
@@ -45,6 +46,7 @@ describe("help presenter", () => {
     expect(text).toContain("🧥 /equipment, /gear, /equip — спорядження й бонуси");
     expect(text).toContain("👥 /online — хто поруч");
     expect(text).toContain("👀 /look — озирнутися");
+    expect(text).toContain("🔄 /restart, /remort — нове коло героя");
     expect(text).toContain("📖 /help — допомога");
     expect(text).toContain("🫙 /support — добровільна підтримка без бонусів");
     expect(text).toContain("👤 /hero, /profile, /me");
