@@ -182,6 +182,9 @@ function renderPage(title: string, body: string, options: { refresh?: boolean } 
   <main>
     ${body}
   </main>
+  <footer class="site-footer">
+    <p>Квестарню розробляє <a href="https://t.me/q587p">@q587p</a> — той самий корчмар за стійкою.</p>
+  </footer>
 </body>
 </html>`;
 }
@@ -208,7 +211,7 @@ function renderSupportBlock(
   return `<section class="band support-band">
   <div class="support-card">
     <p class="eyebrow">Добровільно й без сили за гроші</p>
-    <h2>🫙 Підтримати Квестарню</h2>
+    <h2>💚 Підтримати Квестарню</h2>
     <p>Квестарня безкоштовна й без купівлі ігрової сили.</p>
     <p>Якщо хочеться допомогти проєкту — можна добровільно підкинути монет у Банку підтримки: на сервер, токени для Кодексу, тексти, редактуру, коректуру, ілюстрації й корчмарську інфраструктуру.</p>
     <p>Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч. Просто корчмі стане трохи тепліше.</p>
@@ -360,6 +363,20 @@ a {
   color: var(--muted);
   font-size: 0.95rem;
   text-decoration: none;
+}
+
+.site-footer {
+  padding: 24px max(18px, calc((100vw - 1120px) / 2));
+  background: var(--wood-deep);
+  color: rgba(255, 247, 223, 0.86);
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+.site-footer a {
+  color: #f3c15c;
 }
 
 main {

@@ -62,6 +62,9 @@ describe("health server", () => {
     expect(text).toContain("Квестарня");
     expect(text).toContain("Гумористична фентезі-РПҐ у Telegram");
     expect(text).toContain("Створи пригодника, зайди в корчму, бери короткі квести");
+    expect(text).toContain(
+      'Квестарню розробляє <a href="https://t.me/q587p">@q587p</a> — той самий корчмар за стійкою.'
+    );
     expect(text).toContain("https://t.me/kvestarnia_bot");
     expect(text).toContain("/presence");
     expect(text).toContain("/news");
@@ -75,7 +78,9 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Банка підтримки отримала табличку");
+    expect(text).toContain("Тринадцятий рівень навчився пам");
+    expect(text).toContain("/remort");
+    expect(text).toContain("Шинок нарешті визнали внутрішньою справою");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");
@@ -100,7 +105,8 @@ describe("health server", () => {
     const text = await response.text();
 
     expect(response.status).toBe(200);
-    expect(text).toContain("🫙 Підтримати Квестарню");
+    expect(text).toContain("💚 Підтримати Квестарню");
+    expect(text).not.toContain("🫙 Підтримати Квестарню");
     expect(text).toContain("Підтримати корчму");
     expect(text).toContain('href="https://send.monobank.ua/jar/test-placeholder"');
     expect(text).toContain("Стан Банки видно за посиланням.");

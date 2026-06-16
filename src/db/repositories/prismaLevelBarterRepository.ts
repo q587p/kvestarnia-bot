@@ -12,6 +12,7 @@ import type {
   LevelBarterRepository,
   LevelBarterSnapshot
 } from "./levelBarterRepository";
+import { getIncludedRemortCount } from "./prismaRemortCount";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -51,6 +52,7 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
           return {
             state: "replayed",
             character: snapshot.character,
+            remortCount: snapshot.remortCount,
             plan: planFromExchange(existing)
           };
         }
@@ -180,6 +182,7 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
         return {
           state: "exchanged",
           character: toCharacterRecord(character),
+          remortCount: snapshot.remortCount,
           plan
         };
       });
@@ -224,6 +227,11 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
             status: "completed"
           },
           take: 1
+        },
+        _count: {
+          select: {
+            remorts: true
+          }
         }
       }
     });
@@ -237,6 +245,7 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
     return {
       state: "replayed",
       character: toCharacterRecord(character),
+      remortCount: getIncludedRemortCount(character),
       plan: planFromExchange(exchange)
     };
   }
@@ -259,6 +268,11 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint): Promise<LevelB
       user: {
         select: {
           lastSeenLocationId: true
+        }
+      },
+      _count: {
+        select: {
+          remorts: true
         }
       }
     }
@@ -294,15 +308,17 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint): Promise<LevelB
 
   return {
     character: toCharacterRecord(character),
+    remortCount: getIncludedRemortCount(character),
     items: items.map(toCharacterItemRecord),
     equippedItemIds: equipment.map((row) => row.itemId)
   };
 }
 
 function toCharacterRecord(
-  character: Character & { user: { lastSeenLocationId: string | null } }
+  character: Character & { user: { lastSeenLocationId: string | null }; _count?: unknown }
 ): CharacterRecord {
   const { user, ...record } = character;
+  delete (record as { _count?: unknown })._count;
 
   return {
     ...record,

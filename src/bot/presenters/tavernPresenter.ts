@@ -13,6 +13,7 @@ import type {
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
 import type { KorchmaArrivalBoard, PresenceGroup } from "../../services/presenceService";
 import type { LevelMilestoneBoard } from "../../db/repositories/levelMilestoneRepository";
+import type { RemortBoard } from "../../db/repositories/remortRepository";
 import {
   selectCharacterFlavorLine,
   selectCharacterFlavorLines,
@@ -56,7 +57,8 @@ export function presentKorchmaArrivalBoard(
 
 export function presentKorchmaMemorialBoard(
   character: CharacterSummary,
-  milestones?: LevelMilestoneBoard
+  milestones?: LevelMilestoneBoard,
+  remorts?: RemortBoard
 ): string {
   return [
     "🏅 Пропамʼятна дошка",
@@ -65,6 +67,8 @@ export function presentKorchmaMemorialBoard(
     "Справа від дверей висить дошка для тих, хто першим доріс до числа й не впав з табурета.",
     "",
     ...presentLevelMilestoneEntries(milestones),
+    "",
+    ...presentRemortBoardEntries(remorts),
     "",
     "Корчмар каже, що це не змагання. Дошка вже рахує місця."
   ].join("\n");
@@ -83,6 +87,7 @@ export function presentKorchmaHall(
     "Корчма Квестарні тримає тепло, шум і кілька справ, які краще не залишати без нагляду.",
     "",
     "Праворуч стоїть <i>Стіл зі справами</i>, неподалік шумить <i>Шинок</i>, у кутку піниться <i>Бочка Пінного Міражу</i>, під ногами бурчить <i>Льох</i>, а біля дверей висить <i>Дошка вістей</i>.",
+    ...presentRemortCandleHint(character),
     "",
     ...presentKorchmaGreeting(character, options.flavorSeed),
     "",
@@ -90,6 +95,17 @@ export function presentKorchmaHall(
     "",
     "Куди йдемо?"
   ].join("\n");
+}
+
+function presentRemortCandleHint(character: CharacterSummary): string[] {
+  if (character.level < 13) {
+    return [];
+  }
+
+  return [
+    "",
+    "На стійці запалилася свічка персонально для вас. Раніше вона вдавала вічно згаслу, але тринадцятий рівень змушує навіть віск переглянути позицію."
+  ];
 }
 
 export function presentKorchmaBar(character: CharacterSummary): string {
@@ -516,6 +532,27 @@ function presentLevelMilestoneEntries(milestones: LevelMilestoneBoard | undefine
         .join(" · ");
 
       return `• рівень ${group.level}: ${entries}`;
+    })
+  ];
+}
+
+function presentRemortBoardEntries(remorts: RemortBoard | undefined): string[] {
+  if (!remorts || remorts.remorts.length === 0) {
+    return [
+      "<b>🕯️ Реморти Тринадцятки</b>",
+      "Ще ніхто не повертався з тринадцятого рівня так офіційно, щоб дошка попросила другу свічку."
+    ];
+  }
+
+  return [
+    "<b>🕯️ Реморти Тринадцятки</b>",
+    ...remorts.remorts.map((group) => {
+      const entries = group.entries
+        .slice(0, 3)
+        .map((entry) => `${presentMilestoneRank(entry.rank)} ${escapeHtml(entry.name)}`)
+        .join(" · ");
+
+      return `• реморт ${group.remortNumber}: ${entries}`;
     })
   ];
 }

@@ -14,21 +14,47 @@
 Перший порядок після `0.1.0`:
 
 1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, and smoke fallout.
-2. `0.1.2` — choose one reliability/polish item based on real pain: durable Barrel completion notifications or Mantok Chest pending cleanup.
-3. `0.1.3` — Hlybka routing or fight/quest navigation cleanup if playtest shows confusion around where fights happen.
-4. First Phase 2 prep/runtime slice only after smoke evidence: duel invite MVP, not group raid.
-5. Duel result/rematch/tournament card support.
-6. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
-7. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
-8. `/remort` at level 13 with capped memory legacy and explicit preserved-manatky selection.
-9. Multi-enemy combat.
-10. Party combat / real raid MVP with capped contribution-aware rewards.
+2. `0.1.2` — presence interior/routing cleanup plus first runtime `/remort` at level 13: treat `Шинок` as korchma interior, move bot presence routing rules out of `createBot.ts`, and add replay-safe remort drafts/history.
+3. `0.1.3` — choose one reliability/polish item based on real pain: durable Barrel completion notifications or Mantok Chest pending cleanup.
+4. `0.1.4` — Hlybka routing or fight/quest navigation cleanup if playtest shows confusion around where fights happen.
+5. First Phase 2 prep/runtime slice only after smoke evidence: бійцівський куток із тренувальним `Сумлінним Допельґанґером`, не груповий рейд.
+6. Duel invite MVP після того, як допельґанґер доведе форму бою й картку результату.
+7. Duel result/rematch/tournament card support.
+8. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
+9. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
+10. Remort follow-ups: remort-only advanced options, richer legacy flavor and social/cosmetic records; the base `/remort` loop is already runtime in `0.1.2`.
+11. Multi-enemy combat.
+12. Party combat / real raid MVP with capped contribution-aware rewards.
 
 Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
 
-Deferred side tracks remain useful but should not steal the Phase 2 spine: durable Barrel notification reliability, Mantok Chest pending cleanup, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs, NPC rankings and the docs-planned support Barrel.
+Deferred side tracks remain useful but should not steal the Phase 2 spine: durable Barrel notification reliability, Mantok Chest pending cleanup, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs, NPC rankings, the docs-planned Support Jar live status, and very-late alternate clients such as web play or non-Telegram messenger bots.
 
 Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
+
+## Later — Старший Брат Бочки
+
+**Objective**
+Додати після простецького solo-рейду на Бочку варіянт follow-up encounter: старший родич або наглядач Бочки, який вирішує, що пригодник уже достатньо шумів біля піни, і тепер «справа переходить у старші руки».
+
+**Inspiration**
+
+- Впізнавана алюзія на Big Brother з `1984` Джорджа Орвелла: не копіювати цитати дослівно, не брати чужі назви як runtime content, а зробити власну корчемну версію про піну, облік і нагляд.
+- Приклад тону: «Я бачив, як ви розмовляли з молодшою піною. Тепер я записую це особисто.»
+- Інший варіянт: «Бочка була тренуванням. Я — інструкція, яку вона не дочитала.»
+
+**Possible runtime shape**
+
+- Trigger після кількох завершених solo-рейдів або як рідкісний post-raid twist, не заміна поточної Бочки.
+- Може бути mini-boss, quest contract або більший barrel-family encounter.
+- Не має ставати справжнім груповим рейдом автоматично; групові рейди лишаються окремим Phase 2+ напрямом.
+
+**Guardrails**
+
+- Не робити прямий `Big Brother` у назві ворога або предметів.
+- Не копіювати довгі або впізнавані дослівні цитати з Орвелла.
+- Жарт має працювати сам по собі: старший бочковий наглядач, який усе заносить у пінний журнал.
+- Reward/replay/idempotency має йти через наявні безпечні патерни, якщо це стане runtime.
 
 ## Post-closeout scope guard
 
@@ -40,10 +66,10 @@ Each slice below should be independently testable. If a PR starts turning into s
 persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/mana persistence → recovery/balance polish → inventory/chest polish → balance/playtest polish
 ```
 
-## Later — `/remort` After Level 13
+## Implemented in `0.1.2` — `/remort` After Level 13
 
 **Objective**
-Замість того, щоб після 13 рівня просто пропонувати `/restart`, спроєктувати окрему механіку `/remort`: переродження героя у стилі MUD-ів, де завершений персонаж починає нове коло не як чистий wipe, а з памʼяттю, статусом або обмеженим legacy-бонусом.
+Замість того, щоб після 13 рівня просто пропонувати `/restart`, `0.1.2` відкриває окрему механіку `/remort`: переродження героя у стилі MUD-ів, де завершений персонаж починає нове коло не як чистий wipe, а з памʼяттю, статусом або обмеженим legacy-бонусом.
 
 **Research note**
 
@@ -52,12 +78,20 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 
 **Scope**
 
-- Додати команду `/remort` як окремий шлях після досягнення 13 рівня.
-- На 13 рівні capstone copy має пропонувати `/remort`, а не лише `/restart`.
-- Зберегти `/restart` як технічний reset/discovery loop, але не робити його головною endgame-пропозицією.
-- Вирішити точні runtime details для legacy: remort-count, титул/косметична відзнака, запис дошки, малий memory-бонус від розвиненої стати/ідентичности, трохи кращі стартові HP/мана і до 5 явно вибраних eligible манаток.
-- Перед reset показати preview: що скидається, що лишається, які саме манатки обрані й чому частина речей не eligible.
+- Команда `/remort` є окремим шляхом після досягнення 13 рівня.
+- На 13 рівні capstone copy пропонує `/remort`, а не лише `/restart`.
+- `/restart` лишається технічним reset/discovery loop, але не головною endgame-пропозицією.
+- Runtime details першого slice: remort-count, запис дошки, `Памʼять минулих пригод` як 23% від попереднього level-growth для HP/мани/головної характеристики, і до 5 явно вибраних owned манаток.
+- Перед reset показується preview: що скидається, що лишається і які саме манатки обрані.
 - Нове коло має відкривати інший смак проходження без pay-to-win і без обовʼязкового grind-покарання.
+
+**Follow-ups**
+
+- remort-only title/cosmetic options;
+- remort-only race/class flavor without stronger power snowball;
+- rare remort-gated manatky that only wake up, equip or reveal their proper joke after one or more remorts;
+- richer public board/history text;
+- possible renaming flow after separate UGC/moderation guardrails.
 
 **Non-goals**
 
@@ -74,8 +108,8 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - `/remort` має окремий confirmation flow і не плутається з `/restart`;
 - unavailable below level 13;
 - preview shows reset/preserve consequences;
-- player can explicitly select up to 5 eligible preserved manatky;
-- protected/story/priceless/equipped manatky rules are explicit;
+- player can explicitly select up to 5 owned preserved manatky;
+- protected/story/priceless/equipped/effect-bearing manatky rules are explicit and player-facing;
 - remort-state/rewards ідемпотентні й не дублюються повторним callback-ом;
 - docs пояснюють, чим `/remort` відрізняється від `/restart`;
 - tests cover unavailable below level 13, confirmation, successful remort, repeated confirm, and preserved/deleted state choices.
@@ -100,9 +134,9 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 
 **UI rules**
 
-- Показувати максимум перші `39` місць: три сторінки по `13` рядків.
+- Показувати максимум перші `42` місця: три сторінки по `14` рядків або інша компактна пагінація, якщо Telegram-верстка краще витримає інший розподіл.
 - Пагінація кнопками `⬅️` / `➡️`, без довгих повідомлень, які ризикують упертися в Telegram limit.
-- У кожному leaderboard показувати власну позицію окремим рядком: навіть якщо гравець поза top 39, він бачить своє місце, але бот не показує весь хвіст списку.
+- У кожному leaderboard показувати власну позицію окремим рядком. Якщо гравець поза top 42, не рахувати й не показувати весь хвіст списку; писати компактно: `Ваша позиція: 42+`.
 - Формат рядка: медаль для `1-3`, далі номер, коротке імʼя, optional guild/tag, значення score людською мовою.
 - Якщо значення однакове, tie-breaker має бути детермінованим: спершу вищий рівень/релевантний secondary score, потім earliest joined/created або stable `character_id`.
 - Не показувати технічні id, telegram usernames без потреби, exact timestamps або приховані локації.
@@ -118,10 +152,42 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 
 - NPC має entry point із надвору/дошки й коротке пояснення;
 - є три вкладки/кнопки: сила, золото, манатки;
-- кожен топ пагінується по `13`, максимум `39` видимих позицій;
-- власна позиція показується окремо й працює поза top 39;
+- кожен топ показує максимум `42` видимі позиції;
+- власна позиція показується окремо; поза top 42 вона рендериться як `Ваша позиція: 42+`;
 - ties стабільні між переглядами;
-- tests cover score calculation, pagination, own-rank outside top 39, privacy-safe names, no exact timestamps, and Telegram message length guard.
+- tests cover score calculation, pagination, own-rank outside top 42, privacy-safe names, no exact timestamps, and Telegram message length guard.
+
+## Very later — Web and Multi-Messenger Play Surfaces
+
+**Objective**
+Колись дати гравцям можливість грати не тільки через Telegram: легкий web-клієнт і, можливо, окремі bot adapters для інших месенджерів на кшталт WhatsApp, Viber або інших платформ, якщо там буде сенс і нормальні API.
+
+**Product direction**
+
+- Telegram bot лишається канонічним playable surface до стабільної альфи.
+- Web play surface має бути саме грою, а не лише dashboard-ом: герой, корчма, справи, бій, манатки й базова навігація через shared application services.
+- Інші месенджери мають бути adapters поверх тієї самої доменної логіки, без копіювання правил гри в окремі кодові гілки.
+- Кожна платформа повинна мати чесні privacy, identity, callback/idempotency і anti-abuse правила; не переносити Telegram-specific припущення як універсальні.
+
+**Preconditions**
+
+- core Telegram loop стабільний і має достатньо playtest evidence;
+- domain/services відділені від grammY настільки, щоб інший adapter не вимагав переписати бойову, loot, inventory або remort логіку;
+- є нормальна web/session/auth історія без витоку Telegram id, приватних локацій або player names;
+- є окремий support/hosting план, бо кілька клієнтів означають більше surface area, логів і maintenance.
+
+**Non-goals before then**
+
+- no WhatsApp/Viber runtime у `0.1.x`;
+- no web rewrite замість Telegram bot-а;
+- no Mini App dependency як обовʼязковий шлях гри;
+- no public promise про дату або конкретну платформу, доки немає технічного spike-а й політик платформи.
+
+**First investigation slice**
+
+- перевірити API/ToS/hosting constraints для web, WhatsApp, Viber та інших кандидатів;
+- описати shared adapter boundary: input command/callback → application service → presenter payload → platform renderer;
+- вибрати одну read-only або low-risk дію для proof-of-concept, наприклад `/hero` чи read-only корчемний hub, без reward mutation.
 
 ## Later — Durable Barrel Raid Notifications
 
@@ -183,6 +249,47 @@ First safe runtime/link-plumbing slice shipped in `0.1.1`: optional strict Monob
 - regular `/start` stays unchanged;
 - support copy stays voluntary and secondary;
 - `npm.cmd run check` passes for the runtime PR.
+
+## Later — Live Support Jar Status
+
+**Objective**
+Показувати у `/support` і на сайті реальний aggregate status `Банки підтримки Квестарні` через офіційний Monobank API, щоб maintainer не оновлював суму й ціль вручну в env.
+
+Canonical design doc: [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md).
+
+**Scope**
+
+- server-side only `MONOBANK_API_TOKEN`;
+- `GET /personal/client-info` only;
+- find jar by `sendId` from `SUPPORT_JAR_URL`;
+- cache with TTL, default `300` seconds, minimum `60`;
+- coalesce concurrent refreshes;
+- show only aggregate balance/goal for UAH;
+- safe fallback when token absent, API unavailable, jar missing, response invalid, rate limited or unsupported currency;
+- `/support` and homepage support block may render live aggregate status when available.
+
+**Non-goals**
+
+- no Monobank webhook;
+- no statement endpoint;
+- no scraping `send.monobank.ua`;
+- no payment confirmation;
+- no donor table, donor state, donor list or donor rankings;
+- no premium;
+- no XP, gold, loot, манатки, levels, combat power, progress or feature access;
+- no DB migration for donor/payment data;
+- no real Monobank URL or token in repository;
+- no full Monobank response in logs.
+
+**Acceptance criteria**
+
+- app works with only `SUPPORT_JAR_URL` and no token;
+- live current/goal renders when token and jar match;
+- stale cache is used on refresh failure;
+- no request happens more often than configured TTL;
+- token never appears in UI, logs, docs, snapshots or errors;
+- tests mock API calls and do not hit real Monobank;
+- gameplay `Бочка Пінного Міражу` remains untouched.
 
 ## Later — Шинок Mantok-for-Beer Sink
 

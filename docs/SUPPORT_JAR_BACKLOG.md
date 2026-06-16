@@ -234,7 +234,7 @@ If URL is absent, do not show a broken link.
 
 ### Future live status
 
-Live read-only status may be considered only as a separate PR after checking official Monobank API docs, token scopes, rate limits, caching, privacy and logging boundaries.
+Live read-only status may be considered only as a separate PR after checking official Monobank API docs, token scopes, rate limits, caching, privacy and logging boundaries. Canonical future plan: [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md).
 
 Rules for any future live integration:
 

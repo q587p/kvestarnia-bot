@@ -214,6 +214,13 @@
 - No new raid stats, no roles in DB, no group raid logic yet.
 - Add comments in the code near hints: “future raid role flavor only; no mechanics yet”.
 
+### Future post-solo raid twist
+
+- Після кількох завершених простецьких solo-рейдів на Бочку можна додати окремий follow-up encounter: старший родич або наглядач Бочки, який виходить із тіні й каже, що весь цей пінний шум уже занесено в старший журнал.
+- Це має бути корчемна алюзія на Big Brother з `1984` Орвелла, але без прямого копіювання цитат, назв чи чужого авторського голосу.
+- Приклад власного тону: «Я бачив, як ви домовлялися з молодшою піною. Тепер протокол читаю я.»
+- Варіянти назв у runtime PR вигадати свої: не `Big Brother`, а щось на кшталт старшої бочкової інстанції, пінного наглядача або родича Бочки, який надто любить облік.
+
 ### Future raid engine
 
 When full raids arrive:

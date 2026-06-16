@@ -2,7 +2,9 @@
 import {
   applyXpReward,
   getLevelForXp,
-  getNextLevelThreshold
+  getLevelStartXp,
+  getNextLevelThreshold,
+  getRemortXpExtraTotal
 } from "../../src/domain/progression/level";
 
 describe("level progression", () => {
@@ -47,11 +49,29 @@ describe("level progression", () => {
     expect(getNextLevelThreshold(13)).toBeNull();
   });
 
+  it("raises thresholds by 23 percent per remort", () => {
+    expect(getRemortXpExtraTotal(1, 1)).toBe(0);
+    expect(getRemortXpExtraTotal(13, 1)).toBe(299);
+    expect(getLevelStartXp(13, { remortCount: 1 })).toBe(1599);
+    expect(getNextLevelThreshold(12, { remortCount: 1 })).toBe(1599);
+    expect(getLevelForXp(1300, { remortCount: 1 })).toBe(12);
+    expect(getLevelForXp(1599, { remortCount: 1 })).toBe(13);
+  });
+
   it("detects threshold crossing", () => {
     expect(applyXpReward(7, 8)).toMatchObject({
       oldLevel: 1,
       newLevel: 2,
       newXp: 15,
+      leveledUp: true
+    });
+  });
+
+  it("detects threshold crossing on remort-adjusted curves", () => {
+    expect(applyXpReward(540, 20, { remortCount: 1 })).toMatchObject({
+      oldLevel: 9,
+      newLevel: 10,
+      newXp: 560,
       leveledUp: true
     });
   });

@@ -62,6 +62,7 @@ Current tiny inventory slice:
 - `0.0.29` adds Yeger tracking wait/ready resolution and the first outside-korchma Munchkin level barter exchange.
 - `0.0.30` hardens Munchkin barter with replay-safe audit rows, no gold-only exchange, protected/equipped exclusions, and pending Barrel guards.
 - `0.1.0` closes Phase 1 with version, release notes, changelog/news, smoke docs, roadmap/backlog alignment, and no new gameplay runtime.
+- `0.1.2` fixes the first post-closeout presence/routing papercut and opens the first explicit level-13 `/remort` loop: `Шинок` is now a korchma interior location for routing gates, presence routing rules are tested outside `createBot.ts`, and remort drafts/history are replay-safe.
 - Phase 1 finish rule after `0.1.0`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки `0.1.x` playtest не покаже, що core loop стабільний. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
 - Detailed finish sequence lives in `docs/PHASE1_FINISH_PLAN.md`; the closeout cutline for `0.0.x` → `0.1.x` lives in `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`, the final smoke gate lives in `docs/PHASE1_CLOSEOUT_SMOKE.md`, and canonical release notes live in `docs/PHASE1_RELEASE_NOTES.md`. `docs/NEXT_IMPLEMENTATION_BACKLOG.md` tracks the next small PR order.
 - Tavern/adventure/fight first completions can grant fixed items.
@@ -87,10 +88,11 @@ Current repeatable slice:
 
 Current order:
 1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, smoke fallout.
-2. `0.1.2` — один reliability/polish item за реальним болем: durable Barrel completion notifications або Mantok Chest pending cleanup.
-3. `0.1.3` — Hlybka routing або fight/quest navigation cleanup, якщо playtest показує плутанину.
-4. `0.1.4` — тільки якщо core loop стабільний: перший вузький Phase 2 design/runtime prep або rewardless achievements як retention slice.
-5. Later `0.1.x` — Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, Munchkin manual selection and other small scoped expansions only if they do not steal the Phase 2 spine.
+2. `0.1.2` — presence interior/routing cleanup plus first runtime `/remort` at level 13, because playtest reached the cap sooner than the old Phase 2 plan expected.
+3. `0.1.3` — один reliability/polish item за реальним болем: durable Barrel completion notifications або Mantok Chest pending cleanup.
+4. `0.1.4` — Hlybka routing або fight/quest navigation cleanup, якщо playtest показує плутанину.
+5. Later `0.1.x` — тільки якщо core loop стабільний: перший вузький Phase 2 design/runtime prep або rewardless achievements як retention slice.
+6. Later `0.1.x` — Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, Munchkin manual selection and other small scoped expansions only if they do not steal the Phase 2 spine.
 
 Guardrails:
 - No new large gameplay system in `0.1.0`.
@@ -108,20 +110,22 @@ Canonical docs:
 - [docs/phase2/GROUP_COMBAT_AND_RAIDS.md](phase2/GROUP_COMBAT_AND_RAIDS.md)
 
 Deliverables:
+- Бійцівський куток із тренувальним `Сумлінним Допельґанґером`: копія поточного героя для безвинагородного спарингу перед справжніми дуелями з гравцями.
 - Duel invite MVP: challenge, accept/decline/expire, quick resolve, replay-safe result.
 - Shareable result/rematch/tournament cards without exact hidden formulas or toxic pressure.
 - Trading/gifting MVP: transfer one eligible манатка or stack unit with explicit confirmation and audit row.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
-- `/remort` at level 13 as explicit prestige loop: reset/preserve preview, capped memory bonus, slightly better starting HP/mana, and up to 5 selected eligible manatky; not hidden wipe and not power snowball.
+- Remort follow-ups after the `0.1.2` base loop: remort-only advanced options, richer legacy flavor and future cosmetic/social records, without hidden wipe or power snowball.
 - Multi-enemy combat foundation: main enemy plus controlled helper/summon pattern.
 - Party combat and real raids after duel/session/invite and multi-enemy primitives are proven, with capped contribution-aware rare/serious manatky rewards.
 
 Done when:
+- Гравець може потренуватися проти безпечної копії-допельґанґера перед викликом іншого гравця.
 - Two players can complete an opt-in duel without reward duplication.
 - Result/rematch cards are short, safe and useful in Telegram.
 - Repeated/stale callbacks replay state instead of mutating it again.
 - Social rewards are capped and do not create PvP/economy snowball.
-- Remort and raid reward paths are explicit, idempotent and do not create veteran runaway power.
+- Remort follow-ups and raid reward paths are explicit, idempotent and do not create veteran runaway power.
 - The data shape does not block later party combat, group raids, trading and gifting.
 
 Non-goals for the first Phase 2 runtime slice:
@@ -190,6 +194,9 @@ Deliverables:
 Done when:
 - Mini App покращує UX, але основна гра залишається playable через bot buttons.
 
+Very-later platform note:
+- Повноцінний web-клієнт і боти для інших месенджерів на кшталт WhatsApp/Viber лишаються дуже далеким напрямом після стабілізації core loop, соціяльних систем і adapter boundaries. Це не частина `0.1.x` і не public promise.
+
 ## Backlog фіч
 - Achievements Phase 1: 54 seed definitions, earned/locked/hidden states, paginated `🏅 Ачівки` surface, grouped unlock notifications, no gameplay bonuses. Canonical doc: `docs/ACHIEVEMENTS_PHASE1.md`.
 - Collections: «Бестіарій», «Музей Манаток».
@@ -216,6 +223,7 @@ Done when:
 - Inline-bot виклики на драку для майбутнього соціяльного PvP: challenge card з інших чатів, але з opt-in, cooldowns і privacy guardrails.
 - Moderation tools for group admins.
 - Web dashboard for balancing.
+- Very-later web play client and non-Telegram messenger adapters after the core bot architecture is stable.
 
 ## Не робити до стабільної альфи
 - Real-money power.

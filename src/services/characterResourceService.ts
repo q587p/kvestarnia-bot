@@ -22,11 +22,13 @@ export async function summarizeAndSyncCharacterResources(input: {
   telegramUserId: bigint;
   character: CharacterRecord;
   equippedItems?: ItemContent[];
+  remortCount?: number;
   now: Date;
   persist?: boolean;
 }): Promise<CharacterResourceSyncResult> {
   const baseSummary = summarizeCharacter(input.character, {
-    equippedItems: input.equippedItems ?? []
+    equippedItems: input.equippedItems ?? [],
+    ...(input.remortCount !== undefined ? { remortCount: input.remortCount } : {})
   });
   const regeneration = applyPassiveResourceRegeneration({
     resources: {
@@ -69,6 +71,9 @@ export async function summarizeAndSyncCharacterResources(input: {
         return summarizeAndSyncCharacterResources({
           ...input,
           character: latest,
+          ...(input.remortCount !== undefined || latest.remortCount !== undefined
+            ? { remortCount: input.remortCount ?? latest.remortCount }
+            : {}),
           persist: false
         });
       }

@@ -3,7 +3,7 @@ export interface BotCommandCatalogEntry {
   icon: string;
   description: string;
   includeInMenu: boolean;
-  devOnly?: boolean;
+  devOnly?: "reset" | "grant";
 }
 
 export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
@@ -146,6 +146,12 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     includeInMenu: false
   },
   {
+    command: "remort",
+    icon: "🕯️",
+    description: "нове життя після 13 рівня",
+    includeInMenu: false
+  },
+  {
     command: "version",
     icon: "🧾",
     description: "версія Квестарні",
@@ -174,22 +180,81 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     icon: "🧪",
     description: "скинути персонажа локально",
     includeInMenu: false,
-    devOnly: true
+    devOnly: "reset"
+  },
+  {
+    command: "dev_add_level",
+    icon: "🪜",
+    description: "додати рівень локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_add_xp",
+    icon: "🔢",
+    description: "додати XP локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_add_gold",
+    icon: "🪙",
+    description: "додати золото локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_add_random_item",
+    icon: "🎲",
+    description: "додати випадкові манатки локально",
+    includeInMenu: false,
+    devOnly: "grant"
   }
 ];
 
-export function getHelpCommandEntries(includeDevReset: boolean): BotCommandCatalogEntry[] {
-  return botCommandCatalog.filter((entry) => !entry.devOnly || includeDevReset);
+export interface DevCommandVisibility {
+  includeDevReset: boolean;
+  includeDevGrant?: boolean;
 }
 
-export function getTelegramMenuCommands(includeDevReset: boolean): Array<{
+export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility): BotCommandCatalogEntry[] {
+  const normalized = normalizeDevCommandVisibility(visibility);
+
+  return botCommandCatalog.filter((entry) => {
+    if (!entry.devOnly) {
+      return true;
+    }
+
+    return entry.devOnly === "reset"
+      ? normalized.includeDevReset
+      : normalized.includeDevGrant;
+  });
+}
+
+export function getTelegramMenuCommands(visibility: boolean | DevCommandVisibility): Array<{
   command: string;
   description: string;
 }> {
-  return getHelpCommandEntries(includeDevReset)
+  return getHelpCommandEntries(visibility)
     .filter((entry) => entry.includeInMenu)
     .map((entry) => ({
       command: entry.command,
       description: `${entry.icon} ${entry.description}`
     }));
+}
+
+function normalizeDevCommandVisibility(
+  visibility: boolean | DevCommandVisibility
+): Required<DevCommandVisibility> {
+  if (typeof visibility === "boolean") {
+    return {
+      includeDevReset: visibility,
+      includeDevGrant: visibility
+    };
+  }
+
+  return {
+    includeDevReset: visibility.includeDevReset,
+    includeDevGrant: visibility.includeDevGrant ?? false
+  };
 }

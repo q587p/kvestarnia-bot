@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient } from "@prisma/client";
+import { Prisma, type Character, type PrismaClient } from "@prisma/client";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import type { CharacterRecord } from "./characterRepository";
 import type {
@@ -9,6 +9,7 @@ import type {
 } from "./cooldownRepository";
 import type { ItemGrant } from "./dailyActionRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
+import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -24,7 +25,8 @@ export class PrismaCooldownRepository implements CooldownRepository {
         user: {
           telegramUserId
         }
-      }
+      },
+      include: remortCountInclude
     });
 
     if (!character) {
@@ -42,7 +44,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
 
     return {
       cooldown,
-      character
+      character: toCharacterRecord(character)
     };
   }
 
@@ -57,7 +59,8 @@ export class PrismaCooldownRepository implements CooldownRepository {
             user: {
               telegramUserId
             }
-          }
+          },
+          include: remortCountInclude
         });
 
         if (!character) {
@@ -79,7 +82,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
           return {
             state: "on-cooldown",
             cooldown: existing,
-            character
+            character: toCharacterRecord(character)
           };
         }
 
@@ -106,7 +109,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
             return {
               state: "on-cooldown",
               cooldown: refreshed,
-              character
+              character: toCharacterRecord(character)
             };
           }
 
@@ -116,7 +119,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
             }
           });
 
-          return this.rewardCharacter(tx, character, cooldown, input);
+          return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
         }
 
         const cooldown = await tx.characterCooldown.create({
@@ -127,7 +130,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
           }
         });
 
-        return this.rewardCharacter(tx, character, cooldown, input);
+        return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
       });
     } catch (error) {
       if (isUniqueConstraintError(error)) {
@@ -157,8 +160,10 @@ export class PrismaCooldownRepository implements CooldownRepository {
         }
       }
     });
-    const rewardProgress = applyXpReward(character.xp, input.rewardXp);
-    const newLevel = getLevelForXp(rewardedCharacter.xp);
+    const remortCount = await countCharacterRemorts(tx, character.id);
+    const rewardProgress = applyXpReward(character.xp, input.rewardXp, { remortCount });
+    const oldLevel = Math.max(character.level, rewardProgress.oldLevel);
+    const newLevel = Math.max(rewardedCharacter.level, getLevelForXp(rewardedCharacter.xp, { remortCount }));
     const updatedCharacter =
       newLevel === rewardedCharacter.level
         ? rewardedCharacter
@@ -170,7 +175,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
               level: newLevel
             }
           });
-    await recordLevelMilestones(tx, character.id, rewardProgress.oldLevel, newLevel);
+    await recordLevelMilestones(tx, character.id, oldLevel, newLevel);
     const itemGrants = input.itemGrants ?? [];
 
     const appliedItemGrants = await grantItems(tx, character.id, itemGrants);
@@ -178,11 +183,14 @@ export class PrismaCooldownRepository implements CooldownRepository {
     return {
       state: "completed",
       cooldown,
-      character: updatedCharacter,
+      character: {
+        ...updatedCharacter,
+        remortCount
+      },
       levelChange: {
-        oldLevel: rewardProgress.oldLevel,
+        oldLevel,
         newLevel,
-        leveledUp: newLevel > rewardProgress.oldLevel
+        leveledUp: newLevel > oldLevel
       },
       itemGrants: appliedItemGrants
     };
@@ -197,7 +205,8 @@ export class PrismaCooldownRepository implements CooldownRepository {
         user: {
           telegramUserId
         }
-      }
+      },
+      include: remortCountInclude
     });
 
     if (!character) {
@@ -220,9 +229,28 @@ export class PrismaCooldownRepository implements CooldownRepository {
     return {
       state: "on-cooldown",
       cooldown,
-      character
+      character: toCharacterRecord(character)
     };
   }
+}
+
+const remortCountInclude = {
+  _count: {
+    select: {
+      remorts: true
+    }
+  }
+} satisfies Prisma.CharacterInclude;
+
+function toCharacterRecord(character: Character & { _count?: { remorts?: number } }): CharacterRecord {
+  const remortCount = getIncludedRemortCount(character);
+  const record = { ...character };
+  delete (record as { _count?: unknown })._count;
+
+  return {
+    ...record,
+    remortCount
+  };
 }
 
 async function grantItems(

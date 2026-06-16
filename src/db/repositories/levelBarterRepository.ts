@@ -3,6 +3,7 @@ import type { CharacterItemRecord } from "./inventoryRepository";
 
 export interface LevelBarterSnapshot {
   character: CharacterRecord;
+  remortCount: number;
   items: CharacterItemRecord[];
   equippedItemIds: string[];
 }
@@ -32,8 +33,8 @@ export type LevelBarterConfirmRepositoryResult =
   | { state: "battle-only-level"; level: number }
   | { state: "insufficient"; eligibleTotalValue: number; gold: number }
   | { state: "stale-selection" }
-  | { state: "exchanged"; character: CharacterRecord; plan: LevelBarterExchangePlan }
-  | { state: "replayed"; character: CharacterRecord; plan: LevelBarterExchangePlan };
+  | { state: "exchanged"; character: CharacterRecord; remortCount: number; plan: LevelBarterExchangePlan }
+  | { state: "replayed"; character: CharacterRecord; remortCount: number; plan: LevelBarterExchangePlan };
 
 export interface LevelBarterRepository {
   getSnapshotForTelegramUser(telegramUserId: bigint): Promise<LevelBarterSnapshot | null>;

@@ -7,6 +7,29 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.2] - 12026-06-17 - Remort at Level 13 & Presence Cleanup
+
+### Added
+- Added `/remort` as an explicit level-13 prestige loop: preview, identity rebuild, selected manatky preservation, confirmation and idempotent replay.
+- Added `character_remort_drafts` and `character_remorts` ledger tables for remort drafts, completed remort history and the front-door memorial board.
+- Added a `🕯️ Реморти Тринадцятки` block to the Propamiatna Doshka, showing the first remorts by remort number.
+- Added local-only dev helper commands for playtesting: `/dev_add_level`, `/dev_add_xp`, `/dev_add_gold` and `/dev_add_random_item`.
+
+### Fixed
+- `Шинок` now counts as korchma interior for quest/fight/hunt/cellar gates that check the hero's current place.
+
+### Changed
+- Extracted bot presence routing rules from `createBot.ts` into a small tested `presenceRouting` module.
+- Added table-driven regression tests for callback, command and main-menu presence routing, preserving the distinction between no-op presence updates and unknown callbacks.
+- Level-13 capstone copy now points to `/remort` rather than treating `/restart` as the main next step.
+- `/hero` can show `Памʼять минулих пригод` after a character has remorted, without duplicating remort count or exposing a public `x/5` scale.
+- Remort memory now preserves 23% of the previous life’s level-growth HP, mana and primary-stat bonus, rounded up, instead of the old flat `+2 HP` / `+1` mana placeholder.
+- Hardened remort confirmation: pending Barrel raids block remort actions, selected items must still exist at confirm time, archived/unknown items are visible instead of silently carried, and preserved stacks keep one unit per selected item id.
+- Remort count now raises future XP thresholds proportionally, making the next climb to level 13 longer without changing the 1-13 cap.
+
+### Not Included Yet
+- Rename flow during remort, remort-only races/classes, paid power, 14+ levels, broad prestige economy, Durable Barrel completion notifications, Mantok Chest pending cleanup, or public presence privacy changes.
+
 ## [0.1.1] - 12026-06-16 - Support Jar & Link Plumbing
 
 ### Added
@@ -50,7 +73,7 @@ This project follows a simple pre-1.0 versioning policy:
 - First Phase 2 duel invite slice only after the core loop remains stable; rewardless achievements and other side tracks stay secondary.
 
 ### Not Included Yet
-- No achievements runtime, duel/PvP runtime, trading/gifting runtime, `/remort`, food/coffee buffs, NPC ranking runtime, expanded equipment, battle interventions, manual Munchkin selection, shops, selling, crafting, item-instance inventory, group raids, guilds, Mini App, or broad combat rewrite.
+- No achievements runtime, duel/PvP runtime, trading/gifting runtime, remort-only advanced options, food/coffee buffs, NPC ranking runtime, expanded equipment, battle interventions, manual Munchkin selection, shops, selling, crafting, item-instance inventory, group raids, guilds, Mini App, or broad combat rewrite.
 
 ## [0.0.30] - 12026-06-16 - Level Barter Safety & Closeout Alignment
 

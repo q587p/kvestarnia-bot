@@ -49,7 +49,7 @@ describe("level growth presenter", () => {
 
     expect(text).toContain("🏆 Ви дісталися вершини поточної Квестарні!");
     expect(text).toContain("Вітаємо: ви виграли гру.");
-    expect(text).toContain("/restart відкриє новий журнал");
+    expect(text).toContain("/remort відкриє свічку");
     expect(text).toContain("📈 Останній ріст: <b>+4 HP · +2 мани · +1 Сили</b>");
   });
 });

@@ -20,7 +20,11 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 
 `0.1.1` adds Support Jar & Link Plumbing: optional `SUPPORT_JAR_URL`, secondary `/support`, `/start support_thanks`, and a public-site support block when the URL is configured. It does not add payment confirmation, donor state, schema migration, gameplay rewards, support rankings, or gated features.
 
-Phase 2 planning now starts with social session primitives: duel invites, result/rematch cards, trading/gifting, item tags, `/remort`, multi-enemy combat and later party/raid sessions. The first runtime implementation should add only the narrow tables/state it needs and must not treat the sketches below as already migrated schema.
+`0.1.2` adds the first post-closeout presence/routing cleanup and the first runtime `/remort` slice. `location.korchma.bar` is treated as korchma interior for place gates, bot presence routing rules live in `src/bot/presence/presenceRouting.ts`, and remort state lives in narrow `character_remort_drafts` / `character_remorts` ledgers. This slice does not change public presence privacy, combat formulas, loot rewards, level cap, paid power or the broad economy.
+
+Future Support Jar live status is documented in [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md). It should be a separate read-only integration with Monobank `client-info`, server-side token handling, TTL cache, no DB donor state, no payment confirmation and no gameplay rewards. Do not treat manual `SUPPORT_JAR_CURRENT_UAH`/`SUPPORT_JAR_GOAL_UAH` values as the long-term status path after that slice lands.
+
+Phase 2 planning now starts with social session primitives: duel invites, result/rematch cards, trading/gifting, item tags, remort-only advanced options, multi-enemy combat and later party/raid sessions. The first runtime implementation should add only the narrow tables/state it needs and must not treat the sketches below as already migrated schema.
 
 ## Структура репозиторію
 ```text
@@ -251,22 +255,20 @@ Rules:
 - Equipped, priceless, protected, story and already-pending items are not eligible.
 - The first transfer slice should move item units only; gold add-ons and markets are later.
 
-### future remort records
-Planned for `/remort` at level 13; not present in `0.1.0`.
+### remort records
+Added in `0.1.2` for explicit `/remort` at level 13.
 
-- `id` UUID
-- `character_id` FK
-- `remort_number`
-- `previous_level`
-- `preserved_payload_json`
-- `created_at`
-- unique (`character_id`, `remort_number`)
+- `character_remort_drafts`: `id`, `character_id`, unique `token`, `status`, `selected_identity_json`, `selected_items_json`, `expires_at`, `completed_at`, timestamps, indexes by (`character_id`, `status`) and `expires_at`.
+- `character_remorts`: `id`, `character_id`, unique `token`, `remort_number`, previous level/XP/gold snapshots, `display_name_snapshot`, `preserved_payload_json`, `created_at`, unique (`character_id`, `remort_number`) and board index by (`remort_number`, `created_at`).
 
 Rules:
 - `/remort` must be explicit and unavailable below level 13.
-- It is not `/restart`; it shows reset/preserve preview, can preserve up to 5 explicitly selected eligible manatky, and must not create runaway veteran power.
-- Preserved legacy may include remort count, title/cosmetic mark, public board memory, a small capped memory bonus and slightly better starting HP/mana.
-- Equipped, protected, story, quest, priceless and blocked items need explicit eligibility rules and tests before any preserve path can keep them.
+- It is not `/restart`; it shows reset/preserve preview, can preserve up to 5 explicitly selected owned manatky, and must not create runaway veteran power.
+- Confirm re-reads the character, draft, inventory and equipment in one transaction; repeated confirm for a completed token replays the remort instead of resetting twice.
+- Current MVP preserves selected owned manatky at max 1 per item id. Equipped, effect-bearing, protected, story, quest and priceless items are selectable on purpose: remort is allowed to carry a few memorable or powerful things forward. Unknown item ids appear as visible fallback choices and count toward the same 5 selected item id limit; no hidden inventory preservation is allowed. If balance breaks, future patches should add explicit item tags, level gates, attunement or remort-only restrictions with player-facing preview.
+- Remort confirm revalidates selected item ids against the current inventory snapshot. If a selected item disappeared or has zero quantity before confirm, the service returns `invalid-draft` and asks the player to reopen `/remort`; completed tokens still replay.
+- Completed remort resets level/XP/gold/resources, clears equipment, expires active solo fights, cancels pending Mantok Chest / level-barter / remort previews and clears stale adventure/raid ids.
+- Legacy power is capped: memory rank is `min(remortNumber, 5)` and grants only small starting HP/mana bonuses.
 
 ### future groups, parties and raids
 Group raid tables remain future work and should follow duel/session primitives instead of preceding them.

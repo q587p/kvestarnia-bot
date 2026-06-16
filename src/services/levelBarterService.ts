@@ -106,7 +106,7 @@ export class LevelBarterService {
     if (result.state === "battle-only-level") {
       return {
         state: "battle-only-level",
-        character: summarizeCharacter(snapshot.character),
+        character: summarizeCharacter(snapshot.character, { remortCount: snapshot.remortCount }),
         level: result.level
       };
     }
@@ -114,7 +114,7 @@ export class LevelBarterService {
     if (result.state === "insufficient") {
       return {
         state: "insufficient",
-        character: summarizeCharacter(snapshot.character),
+        character: summarizeCharacter(snapshot.character, { remortCount: snapshot.remortCount }),
         eligibleTotalValue: result.eligibleTotalValue,
         gold: result.gold,
         combinedValue: result.eligibleTotalValue + result.gold,
@@ -128,7 +128,7 @@ export class LevelBarterService {
 
     return {
       state: "ready",
-      character: summarizeCharacter(snapshot.character),
+      character: summarizeCharacter(snapshot.character, { remortCount: snapshot.remortCount }),
       offer: presentPlan(result.plan)
     };
   }
@@ -160,7 +160,7 @@ export class LevelBarterService {
     if (result.state === "exchanged" || result.state === "replayed") {
       return {
         state: result.state,
-        character: summarizeCharacter(result.character),
+        character: summarizeCharacter(result.character, { remortCount: result.remortCount }),
         offer: presentPlan(result.plan)
       };
     }
@@ -185,7 +185,8 @@ function buildPlanForSnapshot(
 ): LevelBarterPlanResult {
   const progression = buildLevelBarterProgression({
     storedLevel: snapshot.character.level,
-    xp: snapshot.character.xp
+    xp: snapshot.character.xp,
+    remortCount: snapshot.remortCount
   });
 
   if (!canLevelBarterProgress(progression)) {

@@ -7,6 +7,7 @@ import { makeEquipItemCallbackData } from "../../src/bot/callbacks/itemCallbackD
 import { makeLevelBarterAutoCallbackData } from "../../src/bot/callbacks/levelBarterCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
+import { makeRemortConfirmCallbackData } from "../../src/bot/callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import { makeYegerTrackCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -355,6 +356,32 @@ describe("scene callback HTML options", () => {
         },
         levelBarter: {
           createAutoPreviewForTelegramUser: vi.fn(() => Promise.reject(new Error("should not be called")))
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("Ви зараз у рейді");
+  });
+
+  it("blocks remort callbacks while the Barrel raid is pending", async () => {
+    const calls = await captureApiCalls(
+      makeRemortConfirmCallbackData("0123456789abcdef"),
+      servicesWith({
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({
+              state: "pending",
+              character,
+              availableAt: new Date("2026-06-16T10:08:00.000Z"),
+              now: new Date("2026-06-16T10:03:00.000Z")
+            })
+        },
+        remort: {
+          confirmForTelegramUser: vi.fn(() => Promise.reject(new Error("should not be called")))
         }
       })
     );

@@ -77,6 +77,12 @@ describe("loadConfig", () => {
     expect(config.deployNotificationsEnabled).toBe(false);
   });
 
+  it("keeps dev grant commands disabled by default", () => {
+    const config = loadConfig(validEnv);
+
+    expect(config.devGrantCommandsEnabled).toBe(false);
+  });
+
   it("can enable deploy notifications explicitly", () => {
     const config = loadConfig({
       ...validEnv,
@@ -84,6 +90,33 @@ describe("loadConfig", () => {
     });
 
     expect(config.deployNotificationsEnabled).toBe(true);
+  });
+
+  it("can enable dev grant commands only through an explicit flag value", () => {
+    for (const value of ["true", "1", "yes", "on"]) {
+      expect(loadConfig({
+        ...validEnv,
+        DEV_GRANT_COMMANDS_ENABLED: value
+      }).devGrantCommandsEnabled).toBe(true);
+    }
+
+    for (const value of ["false", "0", "no", "off", "maybe"]) {
+      expect(loadConfig({
+        ...validEnv,
+        DEV_GRANT_COMMANDS_ENABLED: value
+      }).devGrantCommandsEnabled).toBe(false);
+    }
+  });
+
+  it("parses the dev grant flag in production but leaves production blocking to the service", () => {
+    const config = loadConfig({
+      ...validEnv,
+      NODE_ENV: "production",
+      DEV_GRANT_COMMANDS_ENABLED: "true"
+    });
+
+    expect(config.nodeEnv).toBe("production");
+    expect(config.devGrantCommandsEnabled).toBe(true);
   });
 
   it("keeps support jar URL optional", () => {

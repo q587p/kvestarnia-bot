@@ -9,6 +9,7 @@ import {
 } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import type { LevelMilestoneService } from "../../services/levelMilestoneService";
+import type { RemortService } from "../../services/remortService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
@@ -92,7 +93,7 @@ export async function sendTavern(
     presentKorchmaHall(result.character, presence, telegramUserId, {
       flavorSeed: `korchma-hall:${ctx.update?.update_id ?? "manual"}`
     }),
-    "hall"
+    { state: "hall", characterLevel: result.character.level }
   );
 }
 
@@ -175,7 +176,8 @@ export async function sendKorchmaMemorialBoard(
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
   mode: "reply" | "edit",
-  levelMilestoneService?: LevelMilestoneService
+  levelMilestoneService?: LevelMilestoneService,
+  remortService?: Pick<RemortService, "listBoard">
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -204,9 +206,12 @@ export async function sendKorchmaMemorialBoard(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FRONT);
-  const milestones = levelMilestoneService ? await levelMilestoneService.getBoard() : undefined;
+  const [milestones, remorts] = await Promise.all([
+    levelMilestoneService ? levelMilestoneService.getBoard() : Promise.resolve(undefined),
+    remortService ? remortService.listBoard() : Promise.resolve(undefined)
+  ]);
 
-  await sendText(ctx, mode, presentKorchmaMemorialBoard(result.character, milestones), "memorial");
+  await sendText(ctx, mode, presentKorchmaMemorialBoard(result.character, milestones, remorts), "memorial");
 }
 
 export async function sendKorchmaBar(
@@ -316,6 +321,7 @@ async function sendText(
   keyboard:
     | boolean
     | "hall"
+    | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean }
     | "front"
     | "arrivals"
@@ -329,6 +335,10 @@ async function sendText(
         reply_markup:
           keyboard === "hall"
             ? buildKorchmaHallKeyboard()
+            : isHallKeyboard(keyboard)
+              ? buildKorchmaHallKeyboard(
+                  keyboard.characterLevel === undefined ? {} : { characterLevel: keyboard.characterLevel }
+                )
             : isBarKeyboard(keyboard)
               ? buildKorchmaBarKeyboard({
                   includeBottleTurnIn: Boolean(keyboard.includeBottleTurnIn)
@@ -359,6 +369,7 @@ function isBarKeyboard(
   keyboard:
     | boolean
     | "hall"
+    | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean }
     | "front"
     | "arrivals"
@@ -368,4 +379,20 @@ function isBarKeyboard(
     | "barrel-participants"
 ): keyboard is { state: "bar"; includeBottleTurnIn?: boolean } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "bar";
+}
+
+function isHallKeyboard(
+  keyboard:
+    | boolean
+    | "hall"
+    | { state: "hall"; characterLevel?: number }
+    | { state: "bar"; includeBottleTurnIn?: boolean }
+    | "front"
+    | "arrivals"
+    | "memorial"
+    | "barrel-result"
+    | "barrel-pending"
+    | "barrel-participants"
+): keyboard is { state: "hall"; characterLevel?: number } {
+  return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "hall";
 }

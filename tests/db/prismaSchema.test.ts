@@ -276,4 +276,35 @@ describe("Prisma schema", () => {
     expect(migration).toContain("CREATE UNIQUE INDEX \"level_barter_exchanges_character_id_token_key\"");
     expect(migration).toContain("CREATE INDEX \"level_barter_exchanges_character_id_status_idx\"");
   });
+
+  it("stores remort drafts and completed remort history", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260616120000_add_character_remorts",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model CharacterRemortDraft");
+    expect(schema).toContain("remortDrafts CharacterRemortDraft[]");
+    expect(schema).toContain("@map(\"selected_identity_json\")");
+    expect(schema).toContain("@map(\"selected_items_json\")");
+    expect(schema).toContain("@@index([characterId, status])");
+    expect(schema).toContain("@@map(\"character_remort_drafts\")");
+    expect(schema).toContain("model CharacterRemort");
+    expect(schema).toContain("remorts CharacterRemort[]");
+    expect(schema).toContain("@map(\"remort_number\")");
+    expect(schema).toContain("@map(\"preserved_payload_json\")");
+    expect(schema).toContain("@@unique([characterId, remortNumber])");
+    expect(schema).toContain("@@map(\"character_remorts\")");
+    expect(migration).toContain("CREATE TABLE \"character_remort_drafts\"");
+    expect(migration).toContain("CREATE TABLE \"character_remorts\"");
+    expect(migration).toContain("CREATE UNIQUE INDEX \"character_remort_drafts_token_key\"");
+    expect(migration).toContain("CREATE UNIQUE INDEX \"character_remorts_character_id_remort_number_key\"");
+  });
 });

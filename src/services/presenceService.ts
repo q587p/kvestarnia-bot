@@ -611,6 +611,7 @@ export function isKorchmaInteriorLocation(locationId: string | null | undefined)
   return (
     id === PRESENCE_LOCATION_KORCHMA_HALL ||
     id === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE ||
+    id === PRESENCE_LOCATION_KORCHMA_BAR ||
     id === PRESENCE_LOCATION_KORCHMA_CELLAR ||
     id === PRESENCE_LOCATION_KORCHMA_BARREL ||
     id === PRESENCE_LOCATION_KORCHMA_NEWS_CORNER ||

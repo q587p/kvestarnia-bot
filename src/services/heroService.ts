@@ -1,6 +1,7 @@
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import type { InventoryRepository } from "../db/repositories/inventoryRepository";
+import type { RemortRepository } from "../db/repositories/remortRepository";
 import type { CharacterSummary } from "../domain/characters/characterSummary";
 import { systemClock, type Clock } from "../shared/time";
 import { summarizeAndSyncCharacterResources } from "./characterResourceService";
@@ -16,6 +17,7 @@ export class HeroService {
     private readonly characters: CharacterRepository,
     private readonly inventory: InventoryRepository,
     private readonly equipment?: EquipmentRepository,
+    private readonly remorts?: Pick<RemortRepository, "countByTelegramUserId">,
     private readonly clock: Clock = systemClock
   ) {}
 
@@ -26,9 +28,10 @@ export class HeroService {
       return { state: "no-character" };
     }
 
-    const [inventoryRows, equipmentSnapshot] = await Promise.all([
+    const [inventoryRows, equipmentSnapshot, remortCount] = await Promise.all([
       this.inventory.listByTelegramUserId(telegramUserId),
-      this.equipment?.listByTelegramUserId(telegramUserId) ?? Promise.resolve(null)
+      this.equipment?.listByTelegramUserId(telegramUserId) ?? Promise.resolve(null),
+      this.remorts?.countByTelegramUserId(telegramUserId) ?? Promise.resolve(0)
     ]);
 
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
@@ -37,6 +40,7 @@ export class HeroService {
       telegramUserId,
       character,
       equippedItems,
+      remortCount,
       now: this.clock()
     });
 

@@ -46,6 +46,7 @@ NODE_ENV=development
 BOT_TOKEN=
 DATABASE_URL=file:./dev.db
 DEPLOY_NOTIFICATIONS_ENABLED=false
+DEV_GRANT_COMMANDS_ENABLED=false
 # SUPPORT_JAR_URL=https://send.monobank.ua/jar/<real-jar-id>
 # SUPPORT_JAR_CURRENT_UAH=0
 # SUPPORT_JAR_GOAL_UAH=5000
@@ -67,6 +68,27 @@ BOT_TOKEN=replace-with-real-token
 ```
 
 Не коміть `.env`, реальні токени, приватні `chat_id` або будь-які секрети.
+
+## Локальні dev-команди
+
+`/dev_reset_me` лишається локальним reset-хелпером і працює, коли `NODE_ENV` не `production`.
+
+Value-granting helper commands вмикаються тільки явним локальним opt-in:
+
+```env
+NODE_ENV=development
+DEV_GRANT_COMMANDS_ENABLED=true
+```
+
+Вони працюють лише коли `NODE_ENV` не `production` **і** `DEV_GRANT_COMMANDS_ENABLED=true` / `1` / `yes` / `on`. Не вмикай `DEV_GRANT_COMMANDS_ENABLED` на hosted production: ці команди напряму змінюють рівень, XP, золото й манатки.
+
+- `/dev_reset_me` — скидає поточного персонажа.
+- `/dev_add_level` — додає 1 рівень поточному персонажу.
+- `/dev_add_xp [число]` — додає вказану кількість XP; без числа додає 1 XP.
+- `/dev_add_gold [число]` — додає вказану кількість золота; без числа додає 1 золото.
+- `/dev_add_random_item [число]` — додає випадкові манатки; без числа додає одну.
+
+Ці команди не потрапляють у бокове меню Telegram. `/help` показує value-granting dev-команди тільки тоді, коли вони реально enabled.
 
 ## Prisma
 

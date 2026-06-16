@@ -9,6 +9,7 @@ import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepo
 import { PrismaCellarGrownupQuestRepository } from "./db/repositories/prismaCellarGrownupQuestRepository";
 import { PrismaCooldownRepository } from "./db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "./db/repositories/prismaDailyActionRepository";
+import { PrismaDevGrantRepository } from "./db/repositories/prismaDevGrantRepository";
 import { PrismaEquipmentRepository } from "./db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "./db/repositories/prismaHuntContractRepository";
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
@@ -17,6 +18,7 @@ import { PrismaKorchmaRoundPurchaseRepository } from "./db/repositories/prismaKo
 import { PrismaLevelMilestoneRepository } from "./db/repositories/prismaLevelMilestoneRepository";
 import { PrismaMantokChestRepository } from "./db/repositories/prismaMantokChestRepository";
 import { PrismaPresenceRepository } from "./db/repositories/prismaPresenceRepository";
+import { PrismaRemortRepository } from "./db/repositories/prismaRemortRepository";
 import { PrismaSoloCombatSessionRepository } from "./db/repositories/prismaSoloCombatSessionRepository";
 import { PrismaUserRepository } from "./db/repositories/prismaUserRepository";
 import { startHealthServer } from "./health/server";
@@ -25,6 +27,7 @@ import { AdventureService } from "./services/adventureService";
 import { CellarErrandService } from "./services/cellarErrandService";
 import { CellarGrownupQuestService } from "./services/cellarGrownupQuestService";
 import { DevResetService } from "./services/devResetService";
+import { DevGrantService } from "./services/devGrantService";
 import { DeployNotificationService } from "./services/deployNotificationService";
 import { EquipmentService } from "./services/equipmentService";
 import { FightService } from "./services/fightService";
@@ -36,6 +39,7 @@ import { LevelBarterService } from "./services/levelBarterService";
 import { MantokChestService } from "./services/mantokChestService";
 import { OnboardingService } from "./services/onboardingService";
 import { PresenceService } from "./services/presenceService";
+import { RemortService } from "./services/remortService";
 import { RestartService } from "./services/restartService";
 import { TavernRaidService } from "./services/tavernRaidService";
 import { YegerQuestService } from "./services/yegerQuestService";
@@ -46,6 +50,7 @@ const characters = new PrismaCharacterRepository(prisma);
 const cellarGrownupQuests = new PrismaCellarGrownupQuestRepository(prisma);
 const cooldowns = new PrismaCooldownRepository(prisma);
 const dailyActions = new PrismaDailyActionRepository(prisma);
+const devGrants = new PrismaDevGrantRepository(prisma);
 const equipment = new PrismaEquipmentRepository(prisma);
 const huntContracts = new PrismaHuntContractRepository(prisma);
 const inventory = new PrismaInventoryRepository(prisma);
@@ -54,6 +59,7 @@ const levelMilestones = new PrismaLevelMilestoneRepository(prisma);
 const mantokChestRuns = new PrismaMantokChestRepository(prisma);
 const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
+const remorts = new PrismaRemortRepository(prisma);
 const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
 const fight = new FightService(characters, dailyActions, undefined, soloCombatSessions, undefined, equipment);
 const services = {
@@ -64,13 +70,15 @@ const services = {
   hunt: new HuntService(characters, dailyActions, huntContracts),
   yeger: new YegerQuestService(characters, dailyActions, soloCombatSessions, fight, cooldowns),
   onboarding: new OnboardingService(users, characters),
-  hero: new HeroService(characters, inventory, equipment),
+  hero: new HeroService(characters, inventory, equipment, remorts),
   equipment: new EquipmentService(equipment, inventory, characters),
   inventory: new InventoryService(inventory),
   levelBarter: new LevelBarterService(levelBarter),
   levelMilestones: new LevelMilestoneService(levelMilestones),
   mantokChest: new MantokChestService(mantokChestRuns),
   presence: new PresenceService(presence),
+  devGrant: new DevGrantService(devGrants, config.nodeEnv, config.devGrantCommandsEnabled),
+  remort: new RemortService(remorts),
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),
   tavern: new TavernRaidService(characters, dailyActions, roundPurchases, cooldowns)
@@ -104,7 +112,10 @@ if (!config.botToken) {
 } else {
   bot = createBot(config.botToken, services, supportJarOptions);
 
-  void bot.api.setMyCommands(getTelegramMenuCommands(services.devReset.isEnabled())).catch((error) => {
+  void bot.api.setMyCommands(getTelegramMenuCommands({
+    includeDevReset: services.devReset.isEnabled(),
+    includeDevGrant: services.devGrant.isEnabled()
+  })).catch((error) => {
     console.error("Квестарня: бокове меню команд не оновилось.", error);
   });
 

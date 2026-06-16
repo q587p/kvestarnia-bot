@@ -4,7 +4,12 @@ interface HelpCommandGroup {
   commands: string[];
   icon: string;
   description: string;
-  devOnly?: boolean;
+  devOnly?: "reset" | "grant";
+}
+
+export interface HelpVisibility {
+  includeDevReset: boolean;
+  includeDevGrant?: boolean;
 }
 
 const helpCommandGroups: readonly HelpCommandGroup[] = [
@@ -79,9 +84,9 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     description: "ґільдії"
   },
   {
-    commands: ["restart"],
+    commands: ["restart", "remort"],
     icon: "🔄",
-    description: "почати з початку"
+    description: "нове коло героя"
   },
   {
     commands: ["news", "version"],
@@ -102,16 +107,41 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     commands: ["dev_reset_me"],
     icon: "🧪",
     description: "скинути персонажа локально",
-    devOnly: true
+    devOnly: "reset"
+  },
+  {
+    commands: ["dev_add_level"],
+    icon: "🪜",
+    description: "додати рівень локально",
+    devOnly: "grant"
+  },
+  {
+    commands: ["dev_add_xp"],
+    icon: "🔢",
+    description: "додати XP локально",
+    devOnly: "grant"
+  },
+  {
+    commands: ["dev_add_gold"],
+    icon: "🪙",
+    description: "додати золото локально",
+    devOnly: "grant"
+  },
+  {
+    commands: ["dev_add_random_item"],
+    icon: "🎲",
+    description: "додати випадкові манатки локально",
+    devOnly: "grant"
   }
 ];
 
-export function presentHelp(includeDevReset: boolean): string {
+export function presentHelp(visibility: boolean | HelpVisibility): string {
+  const normalized = normalizeHelpVisibility(visibility);
   const availableCommands = new Set(
-    getHelpCommandEntries(includeDevReset).map((entry) => entry.command)
+    getHelpCommandEntries(normalized).map((entry) => entry.command)
   );
   const commandLines = helpCommandGroups
-    .filter((group) => !group.devOnly || includeDevReset)
+    .filter((group) => isHelpGroupVisible(group, normalized))
     .filter((group) => group.commands.every((command) => availableCommands.has(command)))
     .map(presentHelpCommandGroup);
   const lines = [
@@ -120,7 +150,11 @@ export function presentHelp(includeDevReset: boolean): string {
     ...commandLines.flatMap((line) => [line, ""])
   ];
 
-  lines.push("Лут, ґільдії й повна бойова бухгалтерія ще готуються.");
+  lines.push(
+    "Лут, ґільдії й повна бойова бухгалтерія ще готуються.",
+    "",
+    "Квестарню розробляє @q587p — розробник і корчмар за стійкою."
+  );
 
   return lines.join("\n");
 }
@@ -128,4 +162,31 @@ export function presentHelp(includeDevReset: boolean): string {
 function presentHelpCommandGroup(group: HelpCommandGroup): string {
   const commands = group.commands.map((command) => `/${command}`).join(", ");
   return `${group.icon} ${commands} — ${group.description}`;
+}
+
+function isHelpGroupVisible(
+  group: HelpCommandGroup,
+  visibility: Required<HelpVisibility>
+): boolean {
+  if (!group.devOnly) {
+    return true;
+  }
+
+  return group.devOnly === "reset"
+    ? visibility.includeDevReset
+    : visibility.includeDevGrant;
+}
+
+function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required<HelpVisibility> {
+  if (typeof visibility === "boolean") {
+    return {
+      includeDevReset: visibility,
+      includeDevGrant: visibility
+    };
+  }
+
+  return {
+    includeDevReset: visibility.includeDevReset,
+    includeDevGrant: visibility.includeDevGrant ?? false
+  };
 }

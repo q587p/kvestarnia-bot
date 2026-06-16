@@ -293,7 +293,15 @@ Achievements Phase 1 лишається rewardless later slice після осн
 - Рівень 12: `900 XP`.
 - Рівень 13: `1300 XP`.
 
-Після 9 рівня вимоги ростуть суттєвіше, щоб 10-13 відчувалися як довший alpha-climb. Tavern, adventure, fight, cellar, Hunt Board і raid rewards оновлюють XP, золото й рівень через спільний deterministic helper. На 13 рівні герой отримує окреме ігрове привітання й пропозицію почати іншу комбінацію через `/restart`; news не спойлерить точний жарт.
+Після 9 рівня вимоги ростуть суттєвіше, щоб 10-13 відчувалися як довший alpha-climb. Tavern, adventure, fight, cellar, Hunt Board і raid rewards оновлюють XP, золото й рівень через спільний deterministic helper. На 13 рівні герой отримує окреме ігрове привітання й пропозицію піти в `/remort`; news не спойлерить точний жарт.
+
+## Реморт після 13 рівня
+
+`0.1.2` додає перший runtime `/remort`: це не `/restart` і не прихований wipe. Команда недоступна нижче 13 рівня, показує preview наслідків, дає переписати видиму анкету персонажа (звертання, расу, клас), явно вибрати до 5 owned манаток для наступного кола і тільки тоді підтвердити переродження.
+
+Підтвердження скидає рівень до 1, XP і золото до 0, знімає спорядження, закриває активні solo fight sessions і старі pending previews. Для реморту MVP можна явно перенести навіть екіпіровані, безцінні, памʼятні або бонусні речі: ідея саме в тому, що герой бере з собою кілька важливих манаток. Якщо це створить перекіс, наступні PR мають ловити його level gates, tags, attunement або remort-only restrictions, а не прихованим wipe-ом.
+
+Кожен завершений реморт пишеться в `character_remorts`, має idempotent token replay і додає `Памʼять минулих пригод`: `ceil(23% * remort_number)` від попереднього level-growth для HP, мани й головної характеристики старого класу. Це вже відчутна памʼять, але не прихований ветеранський режим: якщо bonus почне ламати баланс, наступні PR мають вводити явні gates/tags/attunement, а не мовчки різати гравецькі речі чи цифри. Пропамʼятна дошка надворі показує перші реморти за remort number.
 
 ## Ріст рівня 0.0.7
 Поки немає повного бою, екіпірування й постійної втрати HP, рівень усе одно має видимо рухати «циферки».
@@ -472,7 +480,7 @@ Rewards and anti-grind:
 - result/rematch/tournament cards;
 - trading/gifting MVP;
 - combat variety: guard, cooldowns, monster skills, item tags and one-use manatky;
-- `/remort` at level 13;
+- remort-only advanced options after the `0.1.2` MVP;
 - multi-enemy combat;
 - party combat and real raids.
 

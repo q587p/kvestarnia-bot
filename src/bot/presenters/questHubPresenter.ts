@@ -288,19 +288,31 @@ function isPresent(row: string | null): row is string {
 }
 
 function presentQuestHubFooter(snapshot: QuestHubSnapshot): string {
+  const withRemortHint = (text: string): string => {
+    if (snapshot.character.level < 13) {
+      return text;
+    }
+
+    return [
+      text,
+      "",
+      "Або оберіть /remort і спробуйте інакше повирішувати всі ці справи."
+    ].join("\n");
+  };
+
   if (snapshot.character.hpCurrent <= 0) {
-    return "HP 0? Спершу /hero, тоді /fight. Справи почекають.";
+    return withRemortHint("HP 0? Спершу /hero, тоді /fight. Справи почекають.");
   }
 
   if (hasReadyQuestAction(snapshot)) {
-    return "Оберіть справу, поки вона не обрала вас.";
+    return withRemortHint("Оберіть справу, поки вона не обрала вас.");
   }
 
   if (!meetsActivityLevel(snapshot.character.level, BESTIARY_MIN_LEVEL)) {
-    return "Справи зараз удають меблі. Можна перевірити манатки або повернутися до зали.";
+    return withRemortHint("Справи зараз удають меблі. Можна перевірити манатки або повернутися до зали.");
   }
 
-  return "Справи зараз удають меблі. Можна почитати бестіарій, перевірити манатки або повернутися до зали.";
+  return withRemortHint("Справи зараз удають меблі. Можна почитати бестіарій, перевірити манатки або повернутися до зали.");
 }
 
 function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {

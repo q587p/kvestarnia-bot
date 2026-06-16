@@ -110,6 +110,24 @@ describe("main menu and scene keyboards", () => {
       "v1:place:cellar",
       "v1:place:front"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ characterLevel: 13 }))).toEqual([
+      "🕯️ Реморт",
+      "📋 Стіл зі справами",
+      "🛢️ Бочка",
+      "🍻 Шинок",
+      "📰 Дошка вістей",
+      "🐭 Льох",
+      "🚪 Надвір"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard({ characterLevel: 13 }))).toEqual([
+      "v1:rm:open",
+      "v1:place:quest-table",
+      "v1:place:barrel",
+      "v1:place:bar",
+      "v1:place:news-corner",
+      "v1:place:cellar",
+      "v1:place:front"
+    ]);
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard())).toEqual([
       "🍻 Всім пива",
       "⬅️ До зали"
@@ -946,6 +964,39 @@ describe("main menu and scene keyboards", () => {
       "🍺 До зали"
     ]);
     expect(inlineButtonRows(fullHubKeyboard)).toContainEqual(["📦 Архів", "📖 Бестіарій"]);
+
+    const level13HubKeyboard = buildQuestHubKeyboard({
+      adventure: { state: "level-retired", character, maxLevel: 2 },
+      fight: {
+        state: "persistent-ready",
+        character,
+        questProgress: {
+          title: "Тринадцять дрібних проблем",
+          wins: 13,
+          target: 13,
+          completed: true,
+          rewardClaimed: true
+        }
+      },
+      yeger: {
+        state: "completed",
+        character,
+        progress: { wins: 5, target: 5 },
+        reward: { xp: 80, gold: 120, itemGrants: [] }
+      },
+      cellar: { state: "level-retired", character, maxLevel: 3 },
+      characterLevel: 13
+    });
+
+    expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
+      "🕯️ Реморт",
+      "🧾 До проблем",
+      "🧹 У льох",
+      "📦 Архів",
+      "📖 Бестіарій",
+      "🍺 До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(level13HubKeyboard)).toContain("v1:rm:open");
 
     expect(
       flatInlineButtonTexts(

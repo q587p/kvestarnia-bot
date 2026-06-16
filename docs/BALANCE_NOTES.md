@@ -10,7 +10,7 @@ MVP має бути веселим, не ідеально збалансован
 - Level-up 1–5 швидкий, 6–13 помітно повільніший.
 - Рідкісний лут приємний, але не обов’язковий для прогресу.
 
-`0.1.0` закриває Phase 1 як playable first loop, не як фінальний баланс. Поточна крива 1-13, persistent HP/мана, loot replay, Mantok Chest і Манчкін-скупник достатні для playtest-у, але числові пороги, win-rate, reward pacing і item pressure мають лишатися предметом окремих `0.1.x` balance PR після реального smoke/playtest fallout.
+`0.1.0` закриває Phase 1 як playable first loop, не як фінальний баланс. Поточна крива 1-13, persistent HP/мана, loot replay, Mantok Chest, Манчкін-скупник і перший `/remort` достатні для playtest-у, але числові пороги, win-rate, reward pacing, item pressure і prestige pacing мають лишатися предметом окремих `0.1.x` balance PR після реального smoke/playtest fallout.
 
 Phase 2 додає соціяльний бій та взаємодії до фінального балансу, тому перші runtime-slices мають покладатися на caps, audit rows and replay-safe results, not perfect formulas. Canonical notes: [phase2/UNSTABLE_BALANCE_PRINCIPLES.md](phase2/UNSTABLE_BALANCE_PRINCIPLES.md).
 
@@ -98,6 +98,8 @@ level 13: 1300
 ```
 
 Після 9 рівня крива навмисно стає крутішою: 10-13 мають відчуватися як довший alpha-climb, а не як ще чотири швидкі сходинки. Це не фінальний баланс. Якщо combat simulations покажуть надто швидкий або повільний темп, коригувати в окремому balance PR, а не ховати нові thresholds у feature PR.
+
+Після реморту другий прохід до 13 рівня не має бути таким самим швидким, як перший. Орієнтир із MUD-досвіду: кожне нове життя може піднімати XP-планку за рівень; у Квестарні flat `+200 XP` за рівень було б забагато, тому `0.1.2` використовує просту пропорційну добавку до total XP: `ceil(base_threshold * (1 + 0.23 * remort_count))`. Для першого реморту це дає `1599 total XP` до 13 рівня. Це runtime-правило першого prestige slice, а не фінальний баланс.
 
 ## Вага рівня
 Рівень має бути одним із головних важелів, бо Квестарня також про приємний ріст циферок. Якщо персонаж отримав новий рівень, це має відчуватися не тільки в `/hero`, а й у формулах.
@@ -317,11 +319,14 @@ Hunt Board лишається простим для входу: один кон�
 - No auction house, market pricing or gold add-ons until transfer audit/idempotency is proven.
 - Trading should help players move unsuitable манатки, not bypass progression, level gates or anti-abuse rules.
 
-## Phase 2 remort guardrails
+## Remort guardrails
+`0.1.2` додає перший `/remort` runtime slice:
 - `/remort` is explicit and unavailable below level 13.
-- First remort slice should preserve social/cosmetic legacy, not permanent combat power.
-- No paid remort, hidden wipe or automatic prestige.
-- Reset/preserve rules must be visible before confirmation and covered by tests.
+- It is not `/restart`: reset/preserve rules must be visible before confirmation and covered by tests.
+- First remort slice preserves memory and up to 5 selected owned manatky, including powerful or sentimental ones. If this bends balance too much, fix it with explicit tags, level gates, attunement or remort-only rules rather than silent deletion.
+- Remort preserves one unit per selected item id in this MVP. Unknown/archived item ids may be selectable with a fallback label, but they must not be carried invisibly outside the 5-item promise.
+- Legacy bonus uses `ceil(previous_level_growth_bonus * 0.23 * remort_number)` for HP, mana and the previous class’s primary stat. It is visible as `Памʼять минулих пригод`, not a public `x/5` cap; if it snowballs, tune through explicit gates/tags/attunement.
+- No paid remort, hidden wipe, automatic prestige, 14+ levels or remort-only power track in this slice.
 
 ## Combat simulation harness
 Для локальної балансної перевірки запускай:

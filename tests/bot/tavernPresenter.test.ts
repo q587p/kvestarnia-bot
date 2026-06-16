@@ -126,6 +126,55 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("<b>Дара</b>");
   });
 
+  it("shows remort memorial board entries with escaped names", () => {
+    const text = presentKorchmaMemorialBoard(
+      character,
+      { levels: [] },
+      {
+        remorts: [
+          {
+            remortNumber: 2,
+            entries: [
+              {
+                rank: 1,
+                characterId: "character-dara",
+                name: "<b>Дара</b>",
+                remortNumber: 2,
+                reachedAt: new Date("2026-06-16T10:00:00.000Z")
+              },
+              {
+                rank: 2,
+                characterId: "character-nestor",
+                name: "Нестор Межовий",
+                remortNumber: 2,
+                reachedAt: new Date("2026-06-16T10:05:00.000Z")
+              },
+              {
+                rank: 3,
+                characterId: "character-shannar",
+                name: "Shannar de Kassal",
+                remortNumber: 2,
+                reachedAt: new Date("2026-06-16T10:10:00.000Z")
+              },
+              {
+                rank: 4,
+                characterId: "character-extra",
+                name: "Зайвий Рядок",
+                remortNumber: 2,
+                reachedAt: new Date("2026-06-16T10:15:00.000Z")
+              }
+            ]
+          }
+        ]
+      }
+    );
+
+    expect(text).toContain("🕯️ Реморти Тринадцятки");
+    expect(text).toContain("• реморт 2: 🥇 &lt;b&gt;Дара&lt;/b&gt; · 🥈 Нестор Межовий · 🥉 Shannar de Kassal");
+    expect(text).not.toContain("Зайвий Рядок");
+    expect(text).not.toContain("<b>Дара</b>");
+  });
+
   it("shows the korchma hall as the hub", () => {
     const text = presentKorchmaHall(character);
 
@@ -142,6 +191,14 @@ describe("tavern presenter", () => {
     expect(text).toContain("Корчмар:\n<blockquote>");
     expect(text).toContain("Куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
+    expect(text).not.toContain("запалилася свічка");
+  });
+
+  it("shows a personal remort candle in the korchma hall at level 13", () => {
+    const text = presentKorchmaHall({ ...character, level: 13 });
+
+    expect(text).toContain("На стійці запалилася свічка персонально для вас.");
+    expect(text).toContain("тринадцятий рівень");
   });
 
   it("shows Шинок as the korchmar and beer location", () => {

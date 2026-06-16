@@ -19,6 +19,7 @@ export interface CharacterRecord {
   hpRegenAt?: Date | null;
   manaRegenAt?: Date | null;
   statsJson: unknown;
+  remortCount?: number;
 }
 
 export interface CreateCharacterInput {

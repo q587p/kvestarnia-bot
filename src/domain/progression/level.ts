@@ -8,12 +8,16 @@ export interface XpRewardResult {
   leveledUp: boolean;
 }
 
-export function getLevelForXp(xp: number): number {
+export interface LevelProgressionOptions {
+  remortCount?: number;
+}
+
+export function getLevelForXp(xp: number, options: LevelProgressionOptions = {}): number {
   const safeXp = Math.max(0, Math.floor(xp));
   let level = 1;
 
   for (let index = 0; index < LEVEL_XP_THRESHOLDS.length; index += 1) {
-    const threshold = LEVEL_XP_THRESHOLDS[index];
+    const threshold = getLevelStartXp(index + 1, options);
 
     if (threshold !== undefined && safeXp >= threshold) {
       level = index + 1;
@@ -23,19 +27,43 @@ export function getLevelForXp(xp: number): number {
   return level;
 }
 
-export function getNextLevelThreshold(level: number): number | null {
+export function getNextLevelThreshold(level: number, options: LevelProgressionOptions = {}): number | null {
   if (level < 1 || level >= LEVEL_XP_THRESHOLDS.length) {
     return null;
   }
 
-  return LEVEL_XP_THRESHOLDS[level] ?? null;
+  return getLevelStartXp(level + 1, options);
 }
 
-export function applyXpReward(currentXp: number, xpReward: number): XpRewardResult {
+export function getLevelStartXp(level: number, options: LevelProgressionOptions = {}): number {
+  const normalizedLevel = Math.max(1, Math.floor(level));
+  const baseThreshold = LEVEL_XP_THRESHOLDS[normalizedLevel - 1] ?? LEVEL_XP_THRESHOLDS[LEVEL_XP_THRESHOLDS.length - 1] ?? 0;
+
+  return baseThreshold + getRemortXpExtraTotal(normalizedLevel, options.remortCount ?? 0);
+}
+
+export function getRemortXpExtraTotal(level: number, remortCount: number): number {
+  const safeLevel = Math.max(1, Math.floor(level));
+  const safeRemorts = Math.max(0, Math.floor(remortCount));
+
+  if (safeRemorts <= 0) {
+    return 0;
+  }
+
+  const baseThreshold = LEVEL_XP_THRESHOLDS[Math.min(safeLevel, LEVEL_XP_THRESHOLDS.length) - 1] ?? 0;
+
+  return Math.ceil(baseThreshold * 0.23 * safeRemorts);
+}
+
+export function applyXpReward(
+  currentXp: number,
+  xpReward: number,
+  options: LevelProgressionOptions = {}
+): XpRewardResult {
   const oldXp = Math.max(0, Math.floor(currentXp));
   const newXp = Math.max(0, oldXp + Math.floor(xpReward));
-  const oldLevel = getLevelForXp(oldXp);
-  const newLevel = getLevelForXp(newXp);
+  const oldLevel = getLevelForXp(oldXp, options);
+  const newLevel = getLevelForXp(newXp, options);
 
   return {
     oldLevel,

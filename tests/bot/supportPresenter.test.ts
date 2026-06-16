@@ -11,6 +11,9 @@ describe("support presenter", () => {
     expect(text).toContain("🫙 Банка підтримки Квестарні");
     expect(text).toContain("https://send.monobank.ua/jar/test-placeholder");
     expect(text).toContain("Стан Банки видно за посиланням.");
+    expect(text).toContain(
+      "Банка підтримки допомагає @q587p тримати Квестарню живою: сервер, токени для Кодексу, тексти, редактура, коректура й інші корчмарські витрати."
+    );
     expect(text).not.toContain("0 грн");
     expect(text).toContain(
       "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч."
@@ -70,6 +73,9 @@ describe("support presenter", () => {
     });
 
     expect(text).toContain("посилання ще прибивають");
+    expect(text).toContain(
+      "Банка підтримки допомагає @q587p тримати Квестарню живою: сервер, токени для Кодексу, тексти, редактура, коректура й інші корчмарські витрати."
+    );
     expect(text).toContain(
       "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч."
     );

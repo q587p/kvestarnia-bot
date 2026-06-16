@@ -28,11 +28,16 @@ describe("help presenter", () => {
     expect(text).toContain("/look");
     expect(text).toContain("/guild");
     expect(text).toContain("/restart");
+    expect(text).toContain("/remort");
     expect(text).toContain("/version");
     expect(text).toContain("/news");
     expect(text).toContain("/support");
     expect(text).toContain("/help");
     expect(text).not.toContain("/dev_reset_me");
+    expect(text).not.toContain("/dev_add_level");
+    expect(text).not.toContain("/dev_add_xp");
+    expect(text).not.toContain("/dev_add_gold");
+    expect(text).not.toContain("/dev_add_random_item");
     expect(text).toContain("👤 /hero, /profile, /me — персонаж і прогрес");
     expect(text).toContain("🍺 /tavern, /raid — корчма й рейд на бочку");
     expect(text).toContain("🗺️ /quest — стіл зі справами");
@@ -45,6 +50,7 @@ describe("help presenter", () => {
     expect(text).toContain("🧥 /equipment, /gear, /equip — спорядження й бонуси");
     expect(text).toContain("👥 /online — хто поруч");
     expect(text).toContain("👀 /look — озирнутися");
+    expect(text).toContain("🔄 /restart, /remort — нове коло героя");
     expect(text).toContain("📖 /help — допомога");
     expect(text).toContain("🫙 /support — добровільна підтримка без бонусів");
     expect(text).toContain("👤 /hero, /profile, /me");
@@ -55,11 +61,27 @@ describe("help presenter", () => {
     expect(text).not.toContain("те саме, що");
     expect(text).not.toContain("/hunt — ще");
     expect(text).toContain("Лут, ґільдії й повна бойова бухгалтерія");
-    expect(text.split("\n").length).toBeLessThanOrEqual(40);
+    expect(text).toContain(
+      "Квестарню розробляє @q587p — розробник і корчмар за стійкою."
+    );
+    expect(text.split("\n").length).toBeLessThanOrEqual(42);
   });
 
-  it("includes dev reset only when enabled", () => {
-    expect(presentHelp(true)).toContain("🧪 /dev_reset_me");
-    expect(presentHelp(true)).toContain("допомога\n\n🧪");
+  it("includes dev reset and value grants only when each gate is enabled", () => {
+    const resetOnly = presentHelp({ includeDevReset: true, includeDevGrant: false });
+    const grantsEnabled = presentHelp({ includeDevReset: true, includeDevGrant: true });
+
+    expect(resetOnly).toContain("🧪 /dev_reset_me");
+    expect(resetOnly).not.toContain("🪜 /dev_add_level");
+    expect(resetOnly).not.toContain("🔢 /dev_add_xp");
+    expect(resetOnly).not.toContain("🪙 /dev_add_gold");
+    expect(resetOnly).not.toContain("🎲 /dev_add_random_item");
+    expect(resetOnly).toContain("допомога\n\n🧪");
+
+    expect(grantsEnabled).toContain("🧪 /dev_reset_me");
+    expect(grantsEnabled).toContain("🪜 /dev_add_level");
+    expect(grantsEnabled).toContain("🔢 /dev_add_xp");
+    expect(grantsEnabled).toContain("🪙 /dev_add_gold");
+    expect(grantsEnabled).toContain("🎲 /dev_add_random_item");
   });
 });
