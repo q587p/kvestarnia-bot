@@ -10,7 +10,7 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.1.1] - 12026-06-16 - Support Barrel & Link Plumbing
 
 ### Added
-- Added optional `SUPPORT_BARREL_URL` config for the voluntary Support Barrel, validated as an absolute `https://send.monobank.ua/...` URL.
+- Added optional `SUPPORT_BARREL_URL` config for the voluntary Support Barrel, validated as an absolute `https://send.monobank.ua/jar/...` URL.
 - Added secondary `/support` bot command with configured-link and missing-link fallback copy.
 - Added `/start barrel_thanks` gratitude deep link that does not require a character and does not mutate gameplay state.
 - Added a secondary public homepage support block that renders only when the support URL is configured.

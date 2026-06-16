@@ -88,7 +88,7 @@ Guardrails:
 - не зберігати donor state без окремого privacy/legal рішення;
 - не видавати XP, золото, items, манатки, екіпірування, рейтингові записи або доступ до фіч;
 - не показувати битий support URL, якщо `SUPPORT_BARREL_URL` не налаштований або не проходить validation;
-- `SUPPORT_BARREL_URL` у першому runtime-slice приймає тільки `https://send.monobank.ua/...`;
+- `SUPPORT_BARREL_URL` у першому runtime-slice приймає тільки `https://send.monobank.ua/jar/...` без URL credentials;
 - не лоґувати персональні платіжні дані;
 - не називати це благодійністю, якщо юридично це не благодійний збір.
 

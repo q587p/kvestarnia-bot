@@ -5,7 +5,7 @@ const databaseUrlSchema = z.string().min(1).refine(isValidDatabaseUrl, {
   message: "DATABASE_URL must be a URL or a Prisma SQLite file: path"
 });
 const supportBarrelUrlSchema = z.string().refine(isValidSupportBarrelUrl, {
-  message: "SUPPORT_BARREL_URL must be an absolute https://send.monobank.ua URL"
+  message: "SUPPORT_BARREL_URL must be an absolute https://send.monobank.ua/jar/... URL"
 });
 
 export const configSchema = z.object({
@@ -49,7 +49,14 @@ function isValidDatabaseUrl(value: string): boolean {
 function isValidSupportBarrelUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && url.hostname === "send.monobank.ua";
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "send.monobank.ua" &&
+      url.pathname.startsWith("/jar/") &&
+      url.pathname.length > "/jar/".length &&
+      !url.username &&
+      !url.password
+    );
   } catch {
     return false;
   }

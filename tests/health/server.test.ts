@@ -101,8 +101,18 @@ describe("health server", () => {
     expect(text).toContain("Підтримати корчму");
     expect(text).toContain('href="https://send.monobank.ua/jar/test-placeholder"');
     expect(text).toContain("без купівлі ігрової сили");
-    expect(text).toContain("не дає луту, золота, XP або переваг");
+    expect(text).toContain(
+      "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч."
+    );
+    expect(text).not.toContain("платіж підтверджено");
+    expect(text).not.toContain("отримано XP");
+    expect(text).not.toContain("видано золото");
+    expect(text).not.toContain("манатку додано");
     expect(text).toContain("Грати в Telegram");
+    expect(text.indexOf("Грати в Telegram")).toBeLessThan(text.indexOf("Підтримати корчму"));
+    expect(text.indexOf("Вісті з-під стійки")).toBeLessThan(
+      text.indexOf("Підтримати корчму")
+    );
   });
 
   it("serves the public news archive from news.md", async () => {

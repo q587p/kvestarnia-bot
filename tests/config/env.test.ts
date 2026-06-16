@@ -92,6 +92,15 @@ describe("loadConfig", () => {
     expect(config.supportBarrelUrl).toBeUndefined();
   });
 
+  it("trims a blank support barrel URL to undefined", () => {
+    const config = loadConfig({
+      ...validEnv,
+      SUPPORT_BARREL_URL: "   "
+    });
+
+    expect(config.supportBarrelUrl).toBeUndefined();
+  });
+
   it("accepts a configured Monobank support barrel URL", () => {
     const config = loadConfig({
       ...validEnv,
@@ -102,17 +111,21 @@ describe("loadConfig", () => {
   });
 
   it("rejects support barrel URLs outside HTTPS Monobank jars", () => {
-    expect(() =>
-      loadConfig({
-        ...validEnv,
-        SUPPORT_BARREL_URL: "http://send.monobank.ua/jar/test-placeholder"
-      })
-    ).toThrow();
-    expect(() =>
-      loadConfig({
-        ...validEnv,
-        SUPPORT_BARREL_URL: "https://example.com/support"
-      })
-    ).toThrow();
+    const invalidUrls = [
+      "http://send.monobank.ua/jar/test-placeholder",
+      "https://example.com/jar/test-placeholder",
+      "https://send.monobank.ua/",
+      "https://send.monobank.ua/not-jar/test-placeholder",
+      "https://user:password@send.monobank.ua/jar/test-placeholder"
+    ];
+
+    for (const url of invalidUrls) {
+      expect(() =>
+        loadConfig({
+          ...validEnv,
+          SUPPORT_BARREL_URL: url
+        })
+      ).toThrow();
+    }
   });
 });

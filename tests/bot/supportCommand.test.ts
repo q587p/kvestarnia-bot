@@ -10,8 +10,10 @@ describe("support command and start deep links", () => {
 
     expect(String(message?.payload.text)).toContain("Бочка підтримки Квестарні");
     expect(String(message?.payload.text)).toContain("https://send.monobank.ua/jar/test-placeholder");
-    expect(String(message?.payload.text)).toContain("жодної купівлі сили");
-    expect(String(message?.payload.text)).not.toContain("платіж підтверджено");
+    expect(String(message?.payload.text)).toContain(
+      "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч."
+    );
+    expectNoUnsafeRewardClaims(String(message?.payload.text));
     expect(String(message?.payload.text)).not.toContain("undefined");
   });
 
@@ -20,7 +22,10 @@ describe("support command and start deep links", () => {
     const message = calls.find((call) => call.method === "sendMessage");
 
     expect(String(message?.payload.text)).toContain("посилання ще прибивають");
-    expect(String(message?.payload.text)).toContain("не продає силу, лут або прогрес");
+    expect(String(message?.payload.text)).toContain(
+      "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч."
+    );
+    expectNoUnsafeRewardClaims(String(message?.payload.text));
     expect(String(message?.payload.text)).not.toContain("undefined");
     expect(String(message?.payload.text)).not.toContain("https://");
   });
@@ -33,14 +38,21 @@ describe("support command and start deep links", () => {
         onboarding: {
           start: onboardingStart
         }
-      } as Partial<BotServices>)
+      } as Partial<BotServices>),
+      {
+        supportBarrelUrl: "https://send.monobank.ua/jar/test-placeholder"
+      }
     );
     const message = calls.find((call) => call.method === "sendMessage");
 
     expect(onboardingStart).not.toHaveBeenCalled();
     expect(String(message?.payload.text)).toContain("Бочка вдячно булькнула");
     expect(String(message?.payload.text)).toContain("Ефект косметичний");
-    expect(String(message?.payload.text)).not.toContain("платіж підтверджено");
+    expect(String(message?.payload.text)).toContain(
+      "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч."
+    );
+    expectNoUnsafeRewardClaims(String(message?.payload.text));
+    expect(String(message?.payload.text)).not.toContain("https://send.monobank.ua");
   });
 
   it("keeps regular /start and unknown payloads on the onboarding path", async () => {
@@ -157,4 +169,11 @@ function servicesWith(overrides: Partial<BotServices> = {}): BotServices {
     tavern: {},
     ...overrides
   } as unknown as BotServices;
+}
+
+function expectNoUnsafeRewardClaims(text: string): void {
+  expect(text).not.toContain("платіж підтверджено");
+  expect(text).not.toContain("отримано XP");
+  expect(text).not.toContain("видано золото");
+  expect(text).not.toContain("манатку додано");
 }
