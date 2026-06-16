@@ -13,7 +13,9 @@ export function registerStartCommand(bot: Bot, onboardingService: OnboardingServ
     const payload = parseStartPayload(typeof ctx.match === "string" ? ctx.match : undefined);
 
     if (payload.type === "support-thanks") {
-      await ctx.reply(presentSupportThanks());
+      await ctx.reply(presentSupportThanks(), {
+        parse_mode: "HTML"
+      });
       return;
     }
 

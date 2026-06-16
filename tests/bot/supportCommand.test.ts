@@ -82,6 +82,8 @@ describe("support command and start deep links", () => {
     );
     expectNoUnsafeRewardClaims(String(message?.payload.text));
     expectNoOldSupportNaming(String(message?.payload.text));
+    expect(message?.payload.parse_mode).toBe("HTML");
+    expect(String(message?.payload.text)).toContain("✨ <b>+1000 до настрою корчми</b>");
     expect(String(message?.payload.text)).not.toContain("https://send.monobank.ua");
     expect(String(message?.payload.text)).not.toContain("У Банці зараз");
   });

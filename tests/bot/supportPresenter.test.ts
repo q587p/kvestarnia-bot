@@ -90,7 +90,7 @@ describe("support presenter", () => {
     expect(text).toContain(
       "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч."
     );
-    expect(text).toContain("+1000 до настрою корчми");
+    expect(text).toContain("✨ <b>+1000 до настрою корчми</b>");
     expect(text).toContain("Ефект косметичний");
     expectNoUnsafeRewardClaims(text);
     expectNoOldSupportNaming(text);

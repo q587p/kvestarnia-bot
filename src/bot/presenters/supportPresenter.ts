@@ -42,7 +42,7 @@ export function presentSupportThanks(): string {
     "",
     NO_GAMEPLAY_ADVANTAGE_LINE,
     "",
-    "+1000 до настрою корчми",
+    "✨ <b>+1000 до настрою корчми</b>",
     "",
     "Ефект косметичний. Піна справжня настільки, наскільки це дозволяє Telegram."
   ].join("\n");
