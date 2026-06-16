@@ -16,7 +16,9 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 - Vitest для тестів.
 - Локальна SQLite БД через `DATABASE_URL=file:./dev.db`.
 
-`0.1.0` is a release/docs/smoke closeout for Phase 1. It does not add a production dependency, schema migration, scheduler architecture, or new runtime gameplay system.
+`0.1.0` is a release/docs/smoke closeout for Phase 1 plus a Phase 2 roadmap reset. It does not add a production dependency, schema migration, scheduler architecture, or new runtime gameplay system.
+
+Phase 2 planning now starts with social session primitives: duel invites, result/rematch cards, trading/gifting, item tags, `/remort`, multi-enemy combat and later party/raid sessions. The first runtime implementation should add only the narrow tables/state it needs and must not treat the sketches below as already migrated schema.
 
 ## Структура репозиторію
 ```text
@@ -204,22 +206,91 @@ Rules:
 - The narrow one-time wrapper `quest.thirteen-small-problems` stays separate with `local_date = once`: progress is derived from won `solo_combat_sessions`, and its fixed completion reward is not replaced by the per-session fight reward.
 - Lazy expiry happens when `/fight` or a fight callback touches an old active session; no Redis/job worker is required for this slice.
 
-### groups
+### future duel_challenges
+Planned for the first Phase 2 social-combat slice; not present in `0.1.0`.
+
+- `id` UUID
+- `challenger_character_id` FK
+- `target_character_id` FK nullable for shareable/open invites
+- `context_chat_id` nullable
+- `invite_token` unique
+- `status`: pending, declined, expired, accepted, resolved, cancelled
+- `expires_at`
+- `resolved_at` nullable
+- `result_json` nullable replay/audit payload
+- `created_at`
+- `updated_at`
+
+Rules:
+- Accept/decline/expire must be transactional and idempotent.
+- Result replay is stored server-side; Telegram callbacks never recompute rewards from button text.
+- Pair/day caps and abuse logging should be designed with the first reward-bearing duel slice, not bolted on after tournaments.
+
+### future item_transfers
+Planned for Phase 2 trading/gifting after duel invite primitives are proven; not present in `0.1.0`.
+
+- `id` UUID
+- `sender_character_id` FK
+- `receiver_character_id` FK
+- `status`: pending, accepted, declined, expired, completed, cancelled
+- `offered_item_id`
+- `offered_quantity`
+- `requested_item_id` nullable
+- `requested_quantity` nullable
+- `audit_payload_json` nullable
+- `expires_at`
+- `completed_at` nullable
+- `created_at`
+- `updated_at`
+
+Rules:
+- Confirm rereads sender inventory/equipment inside the transaction.
+- Equipped, priceless, protected, story and already-pending items are not eligible.
+- The first transfer slice should move item units only; gold add-ons and markets are later.
+
+### future remort records
+Planned for `/remort` at level 13; not present in `0.1.0`.
+
+- `id` UUID
+- `character_id` FK
+- `remort_number`
+- `previous_level`
+- `preserved_payload_json`
+- `created_at`
+- unique (`character_id`, `remort_number`)
+
+Rules:
+- `/remort` must be explicit and unavailable below level 13.
+- It is not `/restart`; it preserves selected legacy and must not create permanent combat snowball in the first slice.
+
+### future groups, parties and raids
+Group raid tables remain future work and should follow duel/session primitives instead of preceding them.
+
+Future groups:
 - `id` UUID
 - `telegram_chat_id` bigint unique
 - `title`
 - `created_at`
 
-### raids
+Future parties:
 - `id` UUID
-- `group_id` FK
-- `boss_id`
+- `leader_character_id` FK
+- `context_chat_id` nullable
+- `invite_token`
+- `status`
+- `expires_at`
+- `created_at`
+
+Future raids:
+- `id` UUID
+- `group_id` or `party_id` FK
+- `boss_id` or `encounter_id`
 - `state_json`
 - `status`
 - `starts_at`
 - `ends_at`
 
-### raid_participants
+Future raid participants:
 - `raid_id` FK
 - `character_id` FK
 - `damage_done`
@@ -494,6 +565,9 @@ Callback data коротка, версіонована.
 - `v1:restart:cancel`
 
 Заплановані приклади для майбутніх persistent systems:
+- `v1:duel:new` / `v1:duel:accept:{token}` / `v1:duel:decline:{token}` / `v1:duel:rematch:{duelId}` or shorter equivalents for Phase 2 duel invites and result cards;
+- `v1:gift:offer:{token}` / `v1:gift:accept:{token}` / `v1:trade:confirm:{token}` or shorter equivalents for narrow item transfer flows;
+- `v1:remort:view` / `v1:remort:confirm:{token}` for explicit level-13 remort confirmation;
 - `v1:combat:*` або коротший equivalent для майбутніх group/PvP combats, якщо solo `v1:fight:turn:*` стане затісним;
 - `v1:equip:wear:{itemId}` або коротший equivalent — future richer equipment mutation after the `0.0.14` shell, if slots, restrictions, or item instances need more data than content ids.
 

@@ -2,22 +2,31 @@
 
 ## Current order after `0.1.0`
 
-`0.0.x` завершено після `0.0.30 — Level Barter Safety & Closeout Alignment`. `0.1.0 — Phase 1 Closeout` є release/docs/smoke PR: version bump, release notes, changelog/news, README, roadmap/backlog/playtesting alignment, and no new gameplay runtime.
+`0.0.x` завершено після `0.0.30 — Level Barter Safety & Closeout Alignment`. `0.1.0 — Phase 1 Closeout & Phase 2 Roadmap` є release/docs/smoke PR: version bump, release notes, changelog/news, README, roadmap/backlog/playtesting alignment, Phase 2 docs reset, and no new gameplay runtime.
 
 Перед новими feature tracks звірятися з:
 - [PHASE1_RELEASE_NOTES.md](PHASE1_RELEASE_NOTES.md)
 - [PHASE1_CLOSEOUT_0_1_TRANSITION.md](PHASE1_CLOSEOUT_0_1_TRANSITION.md)
 - [PHASE1_CLOSEOUT_SMOKE.md](PHASE1_CLOSEOUT_SMOKE.md)
+- [phase2/SOCIAL_COMBAT_PLAN.md](phase2/SOCIAL_COMBAT_PLAN.md)
+- [phase2/DUELS_AND_INVITES.md](phase2/DUELS_AND_INVITES.md)
 
-Перший порядок `0.1.x`:
+Перший порядок після `0.1.0`:
 
 1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, and smoke fallout.
 2. `0.1.2` — choose one reliability/polish item based on real pain: durable Barrel completion notifications or Mantok Chest pending cleanup.
 3. `0.1.3` — Hlybka routing or fight/quest navigation cleanup if playtest shows confusion around where fights happen.
-4. `0.1.4` — rewardless achievements only if the core loop remains stable.
-5. Later `0.1.x` — Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, Munchkin manual selection, and other small scoped expansions.
+4. First Phase 2 prep/runtime slice only after smoke evidence: duel invite MVP, not group raid.
+5. Duel result/rematch/tournament card support.
+6. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
+7. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
+8. `/remort` at level 13.
+9. Multi-enemy combat.
+10. Party combat / real raid MVP.
 
-Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, `/remort`, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/trading/crafting, item-instance inventory, group raids, guilds, PvP, Mini App, and broad combat rewrites are not part of `0.1.0`.
+Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
+
+Deferred side tracks remain useful but should not steal the Phase 2 spine: durable Barrel notification reliability, Mantok Chest pending cleanup, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs and NPC rankings.
 
 Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
 

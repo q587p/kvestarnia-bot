@@ -7,11 +7,12 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.0] - 12026-06-16 - Phase 1 Closeout
+## [0.1.0] - 12026-06-16 - Phase 1 Closeout & Phase 2 Roadmap
 
 ### Milestone
 - Closed the `0.0.x` Phase 1 build line as a playable solo MVP loop and opened the `0.1.x` stabilization/playtest line.
-- Added the canonical Phase 1 release notes and aligned README, roadmap, backlog, smoke, balance, technical, changelog, and player-facing news surfaces.
+- Reset Phase 2 around Social Combat & Interactions: duel invites first, then result/rematch/tournament cards, trading/gifting, combat variety, `/remort`, multi-enemy combat, and later party combat / real raids.
+- Added the canonical Phase 1 release notes, docs index, Phase 2 planning docs, and aligned README, roadmap, backlog, smoke, balance, technical, changelog, and player-facing news surfaces.
 
 ### Phase 1 runtime now includes
 - Onboarding and `/hero` for creating and reading a persistent adventurer.
@@ -29,10 +30,10 @@ This project follows a simple pre-1.0 versioning policy:
 - Playtest bugfixes, copy polish, small UX papercuts, and balance/reliability work.
 - Durable Barrel completion notifications or Mantok Chest pending cleanup, depending on observed pain.
 - Hlybka routing or fight/quest navigation cleanup if playtest shows the current routing is confusing.
-- Rewardless achievements only after the core loop remains stable.
+- First Phase 2 duel invite slice only after the core loop remains stable; rewardless achievements and other side tracks stay secondary.
 
 ### Not Included Yet
-- No achievements runtime, `/remort`, food/coffee buffs, NPC ranking runtime, expanded equipment, battle interventions, manual Munchkin selection, shops, selling, trading, crafting, item-instance inventory, group raids, guilds, PvP, Mini App, or broad combat rewrite.
+- No achievements runtime, duel/PvP runtime, trading/gifting runtime, `/remort`, food/coffee buffs, NPC ranking runtime, expanded equipment, battle interventions, manual Munchkin selection, shops, selling, crafting, item-instance inventory, group raids, guilds, Mini App, or broad combat rewrite.
 
 ## [0.0.30] - 12026-06-16 - Level Barter Safety & Closeout Alignment
 

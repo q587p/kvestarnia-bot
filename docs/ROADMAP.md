@@ -83,45 +83,53 @@ Current repeatable slice:
 - A future progression/balance pass should make level matter more strongly in HP, mana, combat math, event checks, content gates, and reward-facing decisions.
 
 ## 0.1.x — Stabilization / Playtest line
-Мета: стабілізувати закриту Phase 1 петлю, виправити реальні playtest-болі й лише потім обережно додавати малі розширення.
+Мета: стабілізувати закриту Phase 1 петлю, виправити реальні playtest-болі й лише потім обережно відкривати Phase 2.
 
 Current order:
-1. `0.1.1` — playtest bugfixes, copy polish, and small UX papercuts.
-2. `0.1.2` — choose one reliability/polish item based on pain: durable Barrel completion notifications or Mantok Chest pending cleanup.
-3. `0.1.3` — Hlybka routing or fight/quest navigation cleanup if playtest shows the current flow is confusing.
-4. `0.1.4` — rewardless achievements only if the core loop remains stable.
-5. Later `0.1.x` — Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, and similarly small scoped expansions.
+1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, smoke fallout.
+2. `0.1.2` — один reliability/polish item за реальним болем: durable Barrel completion notifications або Mantok Chest pending cleanup.
+3. `0.1.3` — Hlybka routing або fight/quest navigation cleanup, якщо playtest показує плутанину.
+4. `0.1.4` — тільки якщо core loop стабільний: перший вузький Phase 2 design/runtime prep або rewardless achievements як retention slice.
+5. Later `0.1.x` — Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, Munchkin manual selection and other small scoped expansions only if they do not steal the Phase 2 spine.
 
 Guardrails:
 - No new large gameplay system in `0.1.0`.
 - New runtime feature tracks should wait for smoke and stabilization evidence.
-- Phase 2 group hook remains future work, not part of the closeout PR.
+- Phase 2 is now **Social Combat & Interactions**, not «group raid first».
+- Old group-raid docs remain useful input for later party/raid work, but they are not the first post-closeout promise.
 
-## Phase 2 — Group hook
-Мета: перша фіча, заради якої бот додають у групу.
+## Phase 2 — Social Combat & Interactions
+Мета: перша причина покликати іншого гравця в Квестарню — короткий opt-in соціяльний бій, результат якого хочеться показати в чаті.
+
+Canonical docs:
+- [docs/phase2/SOCIAL_COMBAT_PLAN.md](phase2/SOCIAL_COMBAT_PLAN.md)
+- [docs/phase2/DUELS_AND_INVITES.md](phase2/DUELS_AND_INVITES.md)
+- [docs/phase2/TRADING_AND_GIFTING.md](phase2/TRADING_AND_GIFTING.md)
+- [docs/phase2/GROUP_COMBAT_AND_RAIDS.md](phase2/GROUP_COMBAT_AND_RAIDS.md)
 
 Deliverables:
-- Реєстрація групи.
-- `/raid` або «бос дня».
-- Join кнопка.
-- Майбутній справжній рейд має вимагати мінімум 3 учасників перед стартом або підсумком; поточна Бочка Пінного Міражу лишається solo-compatible placeholder до цього зрізу.
-- Коли з’явиться список присутніх у локаціях, корчма має отримати соціяльну дію: пригостити їжею або питвом тих, хто зараз у корчмі.
-- Легка presence-система вже є з `0.0.9`: `/online`, `/look`, локальні counts і participants для перших сцен; майбутні групові рейди мають перейти з scene-based ids на справжні raid/session rows.
-- Перед розширенням рейдів зберегти малі рішення з `0.0.11`: pending-рейд на Бочку має завершуватися за день старту після date rollover, stale adventure/fight/cellar callback-и не мають переносити presence з Бочки під час pending-рейду, а пивні рейтинги потребують детермінованих tie-breaker-ів.
-- Для group gate або виходу з корчми додати впізнавану відсилку до `You must gather your party before venturing forth.` з перших Baldur's Gate; спершу перевірити канонічний український переклад, інакше адаптувати українською без дослівної кальки.
-- Колись обіграти `Джурозвір` як мета-жарт про переклад `Familiar` від ШБТ і суперечку довкола нього.
-- Колись обіграти дискусію довкола перекладу `dwarf`/`gnome`: Два(о)рфи, Гноми, Карлики, Дверги, Ґноми, Цверґи, Коротуни тощо.
-- 1–3 дії учасника.
-- Підсумок рейду з топ-учасниками.
-- Group leaderboard.
-- Fresh-edit guard для Telegram callbacks: якщо callback прийшов зі старого повідомлення, а після нього вже були нові повідомлення бота, слати нове повідомлення замість редагування старого.
+- Duel invite MVP: challenge, accept/decline/expire, quick resolve, replay-safe result.
+- Shareable result/rematch/tournament cards without exact hidden formulas or toxic pressure.
+- Trading/gifting MVP: transfer one eligible манатка or stack unit with explicit confirmation and audit row.
+- Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
+- `/remort` at level 13 as explicit prestige loop, not hidden wipe and not power snowball.
+- Multi-enemy combat foundation: main enemy plus controlled helper/summon pattern.
+- Party combat and real raids after duel/session/invite and multi-enemy primitives are proven.
 
 Done when:
-- 3–5 гравців можуть завершити рейд у групі без ручного втручання.
-- Повторні callback-и не дублюють damage/rewards.
+- Two players can complete an opt-in duel without reward duplication.
+- Result/rematch cards are short, safe and useful in Telegram.
+- Repeated/stale callbacks replay state instead of mutating it again.
+- Social rewards are capped and do not create PvP/economy snowball.
+- The data shape does not block later party combat, group raids, trading and gifting.
+
+Non-goals for the first Phase 2 runtime slice:
+- No item loss, gold steal, wagers, auction house, guild wars, paid power or forced PvP.
+- No full MMO raid engine before smaller social sessions work.
+- No Mini App dependency.
 
 ## Phase 3 — Closed alpha
-Мета: перевірити retention, гумор, UX, баланс.
+Мета: перевірити retention, гумор, UX, баланс і перші соціяльні взаємодії.
 
 Deliverables:
 - Admin allowlist.
@@ -129,32 +137,35 @@ Deliverables:
 - Feedback command.
 - Балансні симуляції.
 - 2–3 тижні контенту.
+- Duel/social-combat telemetry: challenge acceptance, rematch rate, stale callback rate, repeat-pair abuse signals.
 
 Done when:
 - Є 30–100 тестерів.
 - Зібрані 20+ якісних фідбеків.
 - Визначені 5 найбільших friction points.
 
-## Phase 4 — Соціяльна прогресія
-Мета: ґільдії, м’яке PvP, сезонність.
+## Phase 4 — Party Progression
+Мета: виростити з Phase 2 social sessions справжні групові цілі.
 
 Deliverables:
+- Party combat MVP.
+- Real group raids with minimum participant rules, participant actions and idempotent per-player rewards.
 - Створення, вступ і вихід із ґільдії.
 - XP ґільдії.
 - Бос ґільдії.
-- Бойовий куток: consent-based дуелі з присутніми пригодниками, race/class/stat-залежним random resolve, anti-grind caps і daily/weekly recognition.
 - Season 1 content.
 - Cosmetic titles.
 
 Done when:
 - Гравці мають групову мету на тиждень.
-- PvP не руйнує новачковий досвід.
+- Party/raid rewards не руйнують solo loop і новачковий досвід.
 
 ## Phase 5 — Economy expansion
-Мета: поглибити лут і sinks, не зламавши баланс.
+Мета: поглибити лут, sinks, gifting/trading і item identities, не зламавши баланс.
 
 Deliverables:
 - Friendly Chest / Манатко-скриня as the first item-volume sink.
+- Safe gifting/trading grows beyond the first Phase 2 MVP only after audit/idempotency proves stable.
 - Repair/enchant/reroll.
 - Simple crafting.
 - Item sink.

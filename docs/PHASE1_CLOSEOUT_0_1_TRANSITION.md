@@ -8,7 +8,7 @@
 
 `0.0.x` — це будівельна лінійка Phase 1: створення пригодника, корчма, перші квести, persistent solo-бій, HP/мана, манатки, спорядження, контрольована здобич, рівні 1-13, Дружня Скриня, Єгерська справа і базова присутність.
 
-`0.1.0 — Phase 1 Closeout` є closure/release PR: версійна поверхня, release notes, docs freeze, smoke checklist і чіткий backlog на `0.1.x`. Без нових gameplay-систем, крім мінімальних blocker-fix змін.
+`0.1.0 — Phase 1 Closeout & Phase 2 Roadmap` є closure/release PR: версійна поверхня, release notes, docs freeze, smoke checklist, чіткий backlog на `0.1.x` і reset Phase 2 у напрямі Social Combat & Interactions. Без нових gameplay-систем, крім мінімальних blocker-fix змін.
 
 `0.1.x` — це стабілізація і малі свідомі розширення після playtest-у, а не продовження «ще трошки Phase 1».
 
@@ -51,8 +51,9 @@ Scope closure PR:
 - `news.md` з player-facing новиною без внутрішньої кухні й без спойлерів;
 - `README.md` з актуальним playable loop;
 - `docs/PHASE1_RELEASE_NOTES.md`;
-- `docs/ROADMAP.md`, де Phase 1 позначено закритою, а `0.1.x` — стабілізаційною лінійкою;
+- `docs/ROADMAP.md`, де Phase 1 позначено закритою, `0.1.x` — стабілізаційною лінійкою, а Phase 2 — Social Combat & Interactions;
 - `docs/NEXT_IMPLEMENTATION_BACKLOG.md` з top-order для `0.1.x`;
+- `docs/README.md` і `docs/phase2/*` як новий planning index для duel invites, trading/gifting, `/remort`, item tags, multi-enemy and party combat;
 - `docs/PLAYTESTING.md` або окремий smoke doc із closure route;
 - `docs/BALANCE_NOTES.md` із відомими не-фінальними балансними припущеннями.
 
@@ -140,8 +141,8 @@ Non-goals closure PR:
 1. `0.1.1` — тільки bugfixes from playtest.
 2. `0.1.2` — durable Barrel outbox або Mantok Chest pending cleanup, залежно від реального болю.
 3. `0.1.3` — Глибка dungeon routing, якщо playtest показує, що бій біля Столу зі справами ламає уявлення.
-4. `0.1.4` — rewardless Achievements slice, якщо core loop стабільний.
-5. `0.1.5+` — Шинок item-for-beer sink, Bestiary filters, Yeger bait/lure/ambush.
+4. Перший Phase 2 slice — duel invite MVP, якщо core loop стабільний.
+5. Далі — result/rematch/tournament cards, trading/gifting, combat variety, `/remort`, multi-enemy combat, party combat / real raids.
 
 Кожен `0.1.x` PR має відповідати на питання: це стабілізує вже наявну гру чи відкриває новий feature track? Якщо друге — краще відкласти.
 
@@ -193,7 +194,7 @@ Non-goals closure PR:
 
 - Shops/selling/trading/crafting.
 - Item-instance inventory.
-- Group raids/guilds/PvP.
+- Guilds, large raids, markets and broad PvP modes beyond opt-in duel MVP.
 - Mini App.
 - Broad combat rewrite.
 - Lore bible expansion.

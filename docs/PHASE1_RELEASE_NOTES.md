@@ -2,9 +2,11 @@
 
 ## Summary
 
-`0.1.0` closes the `0.0.x` Phase 1 build line as a playable first loop for Квестарня. This is a release/docs/smoke milestone: it documents what shipped, marks the next work as `0.1.x` stabilization/playtest, and does not add new gameplay runtime.
+`0.1.0` closes the `0.0.x` Phase 1 build line as a playable first loop for Квестарня and resets the next roadmap around Phase 2 Social Combat & Interactions. This is a release/docs/smoke milestone: it documents what shipped, marks the next work as `0.1.x` stabilization/playtest, adds Phase 2 planning docs, and does not add new gameplay runtime.
 
 Phase 1 is playable, not final-balanced and not closed-alpha complete. The next line should use real smoke/playtest pain to choose small fixes instead of opening several new feature tracks at once.
+
+After stabilization, the planned Phase 2 spine is: duel invites, result/rematch/tournament cards, trading/gifting, combat variety, `/remort`, multi-enemy combat, and later party combat / real raids.
 
 ## What is playable now
 
@@ -70,25 +72,26 @@ Detailed route: [PHASE1_CLOSEOUT_SMOKE.md](PHASE1_CLOSEOUT_SMOKE.md).
 - No shops, selling, trading, crafting, or broad economy loop.
 - No item-instance inventory; current inventory remains stack-based.
 - No achievements runtime.
-- No true group raids, guilds, PvP, or Mini App.
+- No true group raids, guilds, duel/PvP runtime, trading/gifting runtime, `/remort`, or Mini App.
 - Barrel completion notifications are not a broad durable scheduler/outbox architecture.
 - Yeger bait, lure, ambush, and reputation are future work.
 - Munchkin manual item selection is future work.
-- Food/coffee, `/remort`, NPC rankings, expanded equipment, and battle interventions are backlog only.
+- Food/coffee, NPC rankings, expanded equipment, battle interventions, item tags and one-use manatky are backlog only.
 
 ## Deferred to 0.1.x
 
 1. `0.1.1` — playtest bugfixes, copy polish, and small UX papercuts.
 2. `0.1.2` — choose one reliability/polish item based on pain: durable Barrel completion notifications or Mantok Chest pending cleanup.
 3. `0.1.3` — Hlybka routing or fight/quest navigation cleanup if playtest shows it matters.
-4. `0.1.4` — rewardless achievements only if the core loop remains stable.
-5. Later `0.1.x` — Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, and similarly small scoped expansions.
+4. First Phase 2 runtime prep if the core loop remains stable: duel invite MVP.
+5. Later Phase 2 order — result/rematch/tournament cards, trading/gifting, combat variety, `/remort`, multi-enemy combat, party combat / real raids.
+6. Side tracks — rewardless achievements, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, and similarly small scoped expansions only if they do not steal the main spine.
 
 ## Hard-deferred beyond 0.1.x stabilization
 
 - Shops, selling, trading, crafting, and market systems.
 - Item-instance inventory refactor.
-- True group raids, guilds, and PvP.
+- True group raids, guilds, broad PvP modes, market systems and party combat beyond the first opt-in social slices.
 - Mini App.
 - Broad combat rewrite, multi-enemy combat, summons, monster AI, and large action-system changes.
 - Production monetization and any pay-to-win path.

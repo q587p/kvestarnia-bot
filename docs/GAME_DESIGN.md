@@ -439,53 +439,52 @@ Alpha scaling рахується як derived effective values від збере
 - Павук, який бачив ваші дедлайни.
 - Бос: Великий Жабокнязь Сирого Льоху.
 
-## Групова активність MVP
-«Бос дня» в групі:
-- Бот постить або гравець викликає боса.
-- До 5–10 гравців можуть приєднатись кнопкою.
-- Кожен робить 1 дію/внесок.
-- Після таймера або коли HP = 0 — нагороди.
-- Текст результату згадує топ-учасників.
+## Phase 2 Social Combat MVP
+Phase 2 починається не з великого групового рейду, а з коротких opt-in соціяльних боїв і взаємодій. Канонічний planning layer живе в [phase2/SOCIAL_COMBAT_PLAN.md](phase2/SOCIAL_COMBAT_PLAN.md).
 
-Мета: щоб у чаті з’явився спільний жарт, а не лише таблиця damage.
-
-## PvP MVP
-Робоча назва: `Бойовий куток`, а не велика `Арена`.
-
-Натхнення: у The Witcher 3 кулачні турніри серії Fists of Fury працюють як локальні бійки при помітних місцях, а не як одна глобальна арена. У Велені це зокрема Inn at the Crossroads, Blackbough, Crow's Perch і Lindenvale; у Новіграді — The Golden Sturgeon, брами й Farcorners; на Скелліґе — The New Port, Arinbjorn, Harviken і фінальна арена біля Urialla Harbor. Для Квестарні MVP краще звучить корчемний «куток для драки», де столи трохи відсунули, бочка зробила вигляд, що це не її справа, а корчмар тримає журнал ставок на моральну перевагу.
+Перший runtime hook: `Бойовий куток`, але не велика `Арена`.
 
 MVP flow:
-- Вхід із корчми або presence-екрана: `🥊 Бойовий куток`.
-- Герой бачить присутніх персонажів, яких можна покликати на драку.
-- Виклик створює pending duel: challenger, target, location, expiresAt, daily/weekly period ids.
-- Target отримує кнопку `Прийняти виклик` і коротку образливо-ввічливу причину, чому саме його кличуть.
-- Якщо target не приймає до expiry, виклик тихо тухне з текстом про те, що підлога вже встигла охолонути.
-- Після прийняття duel resolve одразу або після короткого countdown; це не повний покроковий combat engine.
+- Гравець створює duel invite з корчми, presence surface або майбутньої shareable card.
+- Target приймає виклик явною кнопкою.
+- Виклик має expiry, decline/cancel states і replay-safe result.
+- Resolve спершу quick, не full turn-based PvP.
+- Result card коротко показує, хто кого переміг, чому це смішно й чи можна натиснути `Реванш`.
 
 Resolution formula має бути напіврандомною, але відчутно залежати від героя:
-- База: level bracket і core stats.
-- Для кулачних бійок strength і hp важать більше, dexterity допомагає ухилятися, luck додає малий swing.
-- Race/class modifiers мають бути помітні: воїн-орк має суттєво частіше вигравати у прямій драці, ніж бард того самого рівня, але не мати 100% гарантії.
-- Бард, мольфарська душа або інші не-силові комбінації можуть отримувати окремі funny outs: підніжка римою, юридично сумнівний приспів, «це був не удар, а перформанс».
-- Випадковість має лишати шанс на апсет, щоб слабший герой іноді міг виграти й мати історію, але довга статистика має показувати перевагу сильних бійців.
+- База: level bracket, HP, core stats and shared effective stats.
+- STR/HP допомагають у прямій бійці; DEX допомагає ухилятися; LUCK дає bounded swing; CHA/INT можуть відкривати trick/social outs.
+- Race/class modifiers мають бути помітні, але не абсолютні.
+- Бард, мольфарська душа або інші не-силові комбінації можуть перемагати через funny outs: підніжка римою, юридично сумнівний приспів, перформанс замість удару.
+- Player-facing текст не показує точні формули.
 
 Rewards and anti-grind:
-- Малий XP за участь, трохи більший XP за перемогу.
-- Перші `3` зараховані бійки з тим самим opponent pair за день можуть давати gameplay XP; далі тільки flavor/rating або нічого, щоб друзі не молотили одне одного як навчальний манекен із почуттями.
-- Окремий per-character daily cap на reward-bearing duels.
 - No item loss, no gold steal, no injury spiral.
-- Повторні callbacks мають бути ідемпотентними: один accepted duel не може видати дві нагороди.
+- No wagers in the first duel slice.
+- Reward-bearing duels мають pair caps and per-character daily caps.
+- Повторні callbacks replay-ять той самий result і не дублюють XP/social score.
+- Daily/weekly recognition має бути social/cosmetic first: титул, запис на дошці, коротка згадка, а не power snowball.
 
-Daily/weekly recognition:
-- Щоденна нагорода найбільш успішному бійцю: маленький XP/gold/cosmetic-title або запис на дошці, без power snowball.
-- Щотижнева нагорода: помітніший титул/бейдж/запис у вістях, але не предмет, який робить чемпіона ще сильнішим у PvP.
-- Leaderboard має враховувати win rate, кількість різних опонентів і reward caps, а не тільки raw win count.
-- Потрібен захист від фарму альтів і домовлених програшів: diminishing returns за повторні пари, мінімальна різноманітність опонентів для weekly title, abuse logging.
+Після дуелей Phase 2 розкладається так:
+- result/rematch/tournament cards;
+- trading/gifting MVP;
+- combat variety: guard, cooldowns, monster skills, item tags and one-use manatky;
+- `/remort` at level 13;
+- multi-enemy combat;
+- party combat and real raids.
 
-Майбутня задача після MVP:
-- Inline-bot challenge: гравець може викликати героя в іншому чаті через inline mode, а бот приносить challenge card назад у Квестарню.
-- Inline flow не має розкривати приватні дані, chat_id або presence за межами дозволеного контексту.
-- Виклик із зовнішнього чату має все одно перевіряти character ownership, cooldowns, target opt-in і block/mute safety.
+## Групова активність later
+Справжній груповий рейд лишається важливим напрямом, але тепер це later Phase 2 / Phase 4 slice, а не перший post-closeout крок.
+
+Майбутній raid flow:
+- party or group invite;
+- 3+ explicit participants before reward-bearing finish;
+- 1-3 compact actions per participant;
+- summary with participation, not only damage table;
+- idempotent per-player rewards;
+- stale callbacks replay state instead of duplicating actions or loot.
+
+Old group hook docs remain useful as input: [GROUP_HOOK_DESIGN.md](GROUP_HOOK_DESIGN.md) and [GROUP_RAID_SESSION_NOTES.md](GROUP_RAID_SESSION_NOTES.md).
 
 ## Ґільдії
 Post-MVP:
