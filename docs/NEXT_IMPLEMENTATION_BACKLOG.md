@@ -700,6 +700,10 @@ Implemented in the `0.0.28` slice as `Неспокійні справи`: level 
 - tests cover threshold crossing, multiple levels, cap at 13, duplicate reward no duplicate level;
 - `/hero` and combat agree on level/effective values.
 
+**Small copy/UX debts**
+
+- Fight turn wording cleanup: якщо callback answer каже `Хід записано`, а fight screen уже показує `Хід: N`, не називати log section `Останній хід` поруч із цим. Звести до одного терміна (`Раунд`, `Журнал`, `Остання дія` або без заголовка), щоб бойовий екран не звучав як три службові журнали один на одному. Tests should cover the player-facing flow text, not only individual presenter snippets.
+
 ## Later — Combat Variety: Guard, Cooldowns, Monster Skills
 
 **Objective**
