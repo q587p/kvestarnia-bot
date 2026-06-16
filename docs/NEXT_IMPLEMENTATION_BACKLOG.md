@@ -703,6 +703,7 @@ Implemented in the `0.0.28` slice as `Неспокійні справи`: level 
 **Small copy/UX debts**
 
 - Fight turn wording cleanup: якщо callback answer каже `Хід записано`, а fight screen уже показує `Хід: N`, не називати log section `Останній хід` поруч із цим. Звести до одного терміна (`Раунд`, `Журнал`, `Остання дія` або без заголовка), щоб бойовий екран не звучав як три службові журнали один на одному. Tests should cover the player-facing flow text, not only individual presenter snippets.
+- Active fight keyboard cleanup: коли persistent fight уже активний, не показувати `⬅️ До столу` поруч із бойовими діями. У бою гравець має або діяти (`Вдарити`, уміння, майбутній `Захист`), або пробувати `Відступити`; вихід до Столу має зʼявлятися тільки в terminal/non-active states або як окрема safe navigation після завершення. Tests should assert active fight keyboards do not include quest-table navigation.
 
 ## Later — Combat Variety: Guard, Cooldowns, Monster Skills
 
