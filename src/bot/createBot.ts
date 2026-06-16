@@ -2170,7 +2170,7 @@ async function handleRemortCallback(
         ? await remortService.selectRace(telegramUserId, callback.token, callback.raceKey)
         : callback.type === "class"
           ? await remortService.selectClass(telegramUserId, callback.token, callback.classKey)
-          : await remortService.toggleItem(telegramUserId, callback.token, callback.itemId);
+          : await remortService.toggleItem(telegramUserId, callback.token, callback.itemKey);
 
   await safeAnswerCallbackQuery(
     ctx,

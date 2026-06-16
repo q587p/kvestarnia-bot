@@ -5,12 +5,12 @@ export type RemortCallback =
   | { type: "pronoun"; token: string; pronoun: string }
   | { type: "race"; token: string; raceKey: string }
   | { type: "class"; token: string; classKey: string }
-  | { type: "item"; token: string; itemId: string }
+  | { type: "item"; token: string; itemKey: string }
   | { type: "confirm"; token: string };
 
 const TOKEN_RE = /^[a-f0-9]{16}$/;
 const KEY_RE = /^[a-z0-9-]+$/;
-const ITEM_KEY_RE = /^[a-z]+(\.[a-z0-9]+(?:-[a-z0-9]+)*)+$/;
+const ITEM_KEY_RE = /^[a-f0-9]{12}$/;
 
 export function makeRemortOpenCallbackData(): string {
   return "v1:rm:open";
@@ -28,8 +28,8 @@ export function makeRemortClassCallbackData(token: string, classKey: string): st
   return assertCallbackLength(`v1:rm:cl:${token}:${classKey}`);
 }
 
-export function makeRemortItemCallbackData(token: string, itemId: string): string {
-  return assertCallbackLength(`v1:rm:it:${token}:${itemId}`);
+export function makeRemortItemCallbackData(token: string, itemKey: string): string {
+  return assertCallbackLength(`v1:rm:it:${token}:${itemKey}`);
 }
 
 export function makeRemortConfirmCallbackData(token: string): string {
@@ -71,7 +71,7 @@ export function parseRemortCallbackData(data: string | undefined): Result<Remort
   }
 
   if (parts[2] === "it" && parts.length === 5 && value && ITEM_KEY_RE.test(value)) {
-    return ok({ type: "item", token, itemId: value });
+    return ok({ type: "item", token, itemKey: value });
   }
 
   if (parts[2] === "go" && parts.length === 4) {

@@ -1,10 +1,13 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { items } from "../content";
 import {
   classIdToKey,
   findClass,
   findRace,
   getPronounLabel,
+  getRaceUnavailableReason,
+  isClassAvailableForChoice,
+  isRaceAvailableForPronoun,
   raceIdToKey,
   raceKeyToId,
   classKeyToId
@@ -80,6 +83,7 @@ export interface RemortIdentityView {
 
 export interface RemortEligibleItemView {
   itemId: string;
+  itemKey: string;
   name: string;
   quantity: number;
   selected: boolean;
@@ -173,18 +177,27 @@ export class RemortService {
     }
 
     const current = view.identity;
-    const preferred = validateRemortIdentity({
+    if (!isRaceAvailableForPronoun(current.pronoun, raceId)) {
+      return {
+        state: "invalid-selection",
+        reason: getRaceUnavailableReason(current.pronoun, raceId),
+        view
+      };
+    }
+
+    const fallbackClassId = firstCompatibleClassId(current.pronoun, raceId);
+    if (!fallbackClassId) {
+      return { state: "invalid-selection", reason: "Канцелярія не знайшла класу для цієї раси.", view };
+    }
+
+    const classId = isClassAvailableForChoice(current.pronoun, raceId, current.classId)
+      ? current.classId
+      : fallbackClassId;
+    const identity = {
       pronoun: current.pronoun,
       raceId,
-      classId: current.classId
-    });
-    const identity = preferred.ok
-      ? preferred.identity
-      : getDefaultRemortIdentity({
-          pronoun: current.pronoun,
-          raceId,
-          classId: current.classId
-        });
+      classId
+    };
 
     return this.updateDraftIdentity(telegramUserId, token, identity);
   }
@@ -220,18 +233,20 @@ export class RemortService {
   async toggleItem(
     telegramUserId: bigint,
     token: string,
-    itemId: string
+    itemKey: string
   ): Promise<RemortUpdateResult> {
     const view = await this.buildReadyViewOrNull(telegramUserId, token);
     if (!view) {
       return { state: "invalid-selection", reason: "Чернетка реморту вже не відгукується.", view: null };
     }
 
-    const eligible = view.eligibleItems.find((item) => item.itemId === itemId);
+    const matches = view.eligibleItems.filter((item) => item.itemKey === itemKey);
+    const eligible = matches.length === 1 ? matches[0] : null;
     if (!eligible) {
       return { state: "invalid-selection", reason: "Ця манатка не проходить у нове життя.", view };
     }
 
+    const itemId = eligible.itemId;
     const selected = new Set(view.selectedItems.map((item) => item.itemId));
     if (selected.has(itemId)) {
       selected.delete(itemId);
@@ -435,6 +450,7 @@ function buildEligibleItems(snapshot: RemortSnapshot): RemortEligibleItemView[] 
 
     return [{
       itemId: row.itemId,
+      itemKey: makeRemortItemSelectionKey(row.itemId),
       name: content?.name ?? "Архівна манатка",
       quantity,
       selected: false,
@@ -549,6 +565,14 @@ export function getRemortClassOptions(): Array<{ key: string; label: string }> {
 
 function itemName(itemId: string): string {
   return items.find((item) => item.id === itemId)?.name ?? "Архівна манатка";
+}
+
+export function makeRemortItemSelectionKey(itemId: string): string {
+  return createHash("sha256").update(itemId).digest("hex").slice(0, 12);
+}
+
+function firstCompatibleClassId(pronoun: Pronoun, raceId: string): string | null {
+  return classes.find((candidate) => isClassAvailableForChoice(pronoun, raceId, candidate.id))?.id ?? null;
 }
 
 function generateRemortToken(): string {

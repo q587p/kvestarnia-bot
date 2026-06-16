@@ -9,7 +9,8 @@ import type {
   RemortRepository,
   RemortSnapshot
 } from "../../src/db/repositories/remortRepository";
-import { RemortService } from "../../src/services/remortService";
+import { buildRemortKeyboard } from "../../src/bot/keyboards/remortKeyboard";
+import { makeRemortItemSelectionKey, RemortService } from "../../src/services/remortService";
 
 const telegramUserId = 42n;
 const fixedNow = new Date("2026-06-16T09:00:00.000Z");
@@ -28,13 +29,14 @@ describe("RemortService", () => {
   });
 
   it("opens a level 13 draft with every known item available for explicit selection", async () => {
+    const archivedItemId = "ARCHIVE:Legacy/Item_With_Callback_Breakers_And_A_Name_Long_Enough_To_Overflow";
     const repository = new FakeRemortRepository(snapshot({
       level: 13,
       items: [
         item({ itemId: "item.foam-cork-of-accounting", quantity: 2 }),
         item({ id: "protected", itemId: "item.wet-hero-ticket", quantity: 1 }),
         item({ id: "equipped", itemId: "item.pan-of-persuasion", quantity: 1 }),
-        item({ id: "archived", itemId: "item.archived-old-ladle", quantity: 3 })
+        item({ id: "archived", itemId: archivedItemId, quantity: 3 })
       ],
       equippedItemIds: ["item.pan-of-persuasion"]
     }));
@@ -48,17 +50,24 @@ describe("RemortService", () => {
         "item.foam-cork-of-accounting",
         "item.wet-hero-ticket",
         "item.pan-of-persuasion",
-        "item.archived-old-ladle"
+        archivedItemId
+      ]);
+      expect(result.eligibleItems.map((row) => row.itemKey)).toEqual([
+        makeRemortItemSelectionKey("item.foam-cork-of-accounting"),
+        makeRemortItemSelectionKey("item.wet-hero-ticket"),
+        makeRemortItemSelectionKey("item.pan-of-persuasion"),
+        makeRemortItemSelectionKey(archivedItemId)
       ]);
       expect(result.eligibleItems.find((row) => row.itemId === "item.foam-cork-of-accounting")).toMatchObject({
         quantity: 2,
         known: true
       });
-      expect(result.eligibleItems.find((row) => row.itemId === "item.archived-old-ladle")).toMatchObject({
+      expect(result.eligibleItems.find((row) => row.itemId === archivedItemId)).toMatchObject({
         name: "Архівна манатка",
         quantity: 3,
         known: false
       });
+      expect(() => buildRemortKeyboard(result)).not.toThrow();
       expect(result.selectedItems).toEqual([]);
       expect(repository.draft?.identity).toMatchObject({
         pronoun: "they",
@@ -89,9 +98,9 @@ describe("RemortService", () => {
       return;
     }
 
-    await service.toggleItem(telegramUserId, opened.draft.token, "item.foam-cork-of-accounting");
-    await service.toggleItem(telegramUserId, opened.draft.token, "item.wet-hero-ticket");
-    await service.toggleItem(telegramUserId, opened.draft.token, "item.pan-of-persuasion");
+    await service.toggleItem(telegramUserId, opened.draft.token, itemKey(opened, "item.foam-cork-of-accounting"));
+    await service.toggleItem(telegramUserId, opened.draft.token, itemKey(opened, "item.wet-hero-ticket"));
+    await service.toggleItem(telegramUserId, opened.draft.token, itemKey(opened, "item.pan-of-persuasion"));
     const first = await service.confirmForTelegramUser(telegramUserId, opened.draft.token);
     const second = await service.confirmForTelegramUser(telegramUserId, opened.draft.token);
 
@@ -126,7 +135,7 @@ describe("RemortService", () => {
       return;
     }
 
-    await service.toggleItem(telegramUserId, opened.draft.token, "item.foam-cork-of-accounting");
+    await service.toggleItem(telegramUserId, opened.draft.token, itemKey(opened, "item.foam-cork-of-accounting"));
     repository.setItems([]);
 
     const result = await service.confirmForTelegramUser(telegramUserId, opened.draft.token);
@@ -136,6 +145,65 @@ describe("RemortService", () => {
       expect(result.reason).toContain("манаток");
     }
     expect(repository.completedCount).toBe(0);
+  });
+
+  it("selects and preserves an archived item through its short callback key", async () => {
+    const archivedItemId = "ARCHIVE:Legacy/Item_With_Callback_Breakers_And_A_Name_Long_Enough_To_Overflow";
+    const repository = new FakeRemortRepository(snapshot({
+      level: 13,
+      items: [item({ itemId: archivedItemId, quantity: 4 })]
+    }));
+    const service = new RemortService(repository, () => fixedNow);
+    const opened = await service.openForTelegramUser(telegramUserId);
+    expect(opened.state).toBe("ready");
+    if (opened.state !== "ready") {
+      return;
+    }
+
+    const selected = await service.toggleItem(telegramUserId, opened.draft.token, itemKey(opened, archivedItemId));
+    const result = await service.confirmForTelegramUser(telegramUserId, opened.draft.token);
+
+    expect(selected.state).toBe("ready");
+    if (selected.state === "ready") {
+      expect(selected.selectedItems).toEqual([
+        expect.objectContaining({
+          itemId: archivedItemId,
+          itemKey: makeRemortItemSelectionKey(archivedItemId),
+          name: "Архівна манатка",
+          quantity: 4
+        })
+      ]);
+    }
+    expect(result.state).toBe("completed");
+    if (result.state === "completed") {
+      expect(result.preservedItems).toEqual([
+        expect.objectContaining({
+          itemId: archivedItemId,
+          name: "Архівна манатка",
+          quantity: 1
+        })
+      ]);
+    }
+  });
+
+  it("rejects stale remort item keys without crashing", async () => {
+    const repository = new FakeRemortRepository(snapshot({
+      level: 13,
+      items: [item({ itemId: "item.foam-cork-of-accounting", quantity: 1 })]
+    }));
+    const service = new RemortService(repository, () => fixedNow);
+    const opened = await service.openForTelegramUser(telegramUserId);
+    expect(opened.state).toBe("ready");
+    if (opened.state !== "ready") {
+      return;
+    }
+
+    const result = await service.toggleItem(telegramUserId, opened.draft.token, "ffffffffffff");
+
+    expect(result).toMatchObject({
+      state: "invalid-selection",
+      reason: "Ця манатка не проходить у нове життя."
+    });
   });
 
   it("applies changed pronoun, race, class, starter stats, and memory bonus", async () => {
@@ -191,6 +259,69 @@ describe("RemortService", () => {
 
     expect(result.state).toBe("invalid-draft");
     expect(repository.completedCount).toBe(0);
+  });
+
+  it("keeps a selected race and falls back only the incompatible class", async () => {
+    const repository = new FakeRemortRepository(snapshot({ level: 13 }));
+    const service = new RemortService(repository, () => fixedNow);
+    const opened = await service.openForTelegramUser(telegramUserId);
+    expect(opened.state).toBe("ready");
+    if (opened.state !== "ready") {
+      return;
+    }
+
+    const result = await service.selectRace(telegramUserId, opened.draft.token, "domovyk");
+
+    expect(result.state).toBe("ready");
+    if (result.state === "ready") {
+      expect(result.identity).toMatchObject({
+        pronoun: "they",
+        raceId: "race.domovyk",
+        classId: "class.rogue"
+      });
+    }
+  });
+
+  it("preserves the current race and class when selecting a still-valid pronoun", async () => {
+    const repository = new FakeRemortRepository(snapshot({ level: 13 }));
+    const service = new RemortService(repository, () => fixedNow);
+    const opened = await service.openForTelegramUser(telegramUserId);
+    expect(opened.state).toBe("ready");
+    if (opened.state !== "ready") {
+      return;
+    }
+
+    await service.selectRace(telegramUserId, opened.draft.token, "elf");
+    await service.selectClass(telegramUserId, opened.draft.token, "mage");
+    const result = await service.selectPronoun(telegramUserId, opened.draft.token, "she");
+
+    expect(result.state).toBe("ready");
+    if (result.state === "ready") {
+      expect(result.identity).toMatchObject({
+        pronoun: "she",
+        raceId: "race.elf",
+        classId: "class.mage"
+      });
+    }
+  });
+
+  it("rejects a race that is unavailable for the current pronoun", async () => {
+    const repository = new FakeRemortRepository(snapshot({ level: 13 }));
+    const service = new RemortService(repository, () => fixedNow);
+    const opened = await service.openForTelegramUser(telegramUserId);
+    expect(opened.state).toBe("ready");
+    if (opened.state !== "ready") {
+      return;
+    }
+
+    await service.selectPronoun(telegramUserId, opened.draft.token, "he");
+    const result = await service.selectRace(telegramUserId, opened.draft.token, "dryland-rusalka");
+
+    expect(result.state).toBe("invalid-selection");
+    if (result.state === "invalid-selection") {
+      expect(result.reason).toContain("русалка");
+      expect(result.view?.identity.raceId).toBe("race.human-ish");
+    }
   });
 });
 
@@ -422,4 +553,16 @@ function pathForPronoun(pronoun: string): string {
   }
 
   return "boundary";
+}
+
+function itemKey(
+  view: Extract<Awaited<ReturnType<RemortService["openForTelegramUser"]>>, { state: "ready" }>,
+  itemId: string
+): string {
+  const item = view.eligibleItems.find((candidate) => candidate.itemId === itemId);
+  if (!item) {
+    throw new Error(`Missing remort item in test: ${itemId}`);
+  }
+
+  return item.itemKey;
 }

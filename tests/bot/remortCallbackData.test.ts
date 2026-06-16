@@ -10,6 +10,7 @@ import {
 } from "../../src/bot/callbacks/remortCallbackData";
 
 const token = "0123456789abcdef";
+const itemKey = "a1b2c3d4e5f6";
 
 describe("remort callback data", () => {
   it("round-trips valid remort callbacks", () => {
@@ -29,9 +30,9 @@ describe("remort callback data", () => {
       ok: true,
       value: { type: "class", token, classKey: "warrior" }
     });
-    expect(parseRemortCallbackData(makeRemortItemCallbackData(token, "item.foam-cork-of-accounting"))).toEqual({
+    expect(parseRemortCallbackData(makeRemortItemCallbackData(token, itemKey))).toEqual({
       ok: true,
-      value: { type: "item", token, itemId: "item.foam-cork-of-accounting" }
+      value: { type: "item", token, itemKey }
     });
     expect(parseRemortCallbackData(makeRemortConfirmCallbackData(token))).toEqual({
       ok: true,
@@ -49,6 +50,10 @@ describe("remort callback data", () => {
       ok: false,
       error: "invalid"
     });
+    expect(parseRemortCallbackData("v1:rm:it:0123456789abcdef:item.foam-cork-of-accounting")).toEqual({
+      ok: false,
+      error: "invalid"
+    });
   });
 
   it("keeps generated callback data within Telegram limit", () => {
@@ -57,10 +62,22 @@ describe("remort callback data", () => {
       makeRemortPronounCallbackData(token, "they"),
       makeRemortRaceCallbackData(token, "intellectual-orc"),
       makeRemortClassCallbackData(token, "bureaucramancer"),
-      makeRemortItemCallbackData(token, "item.cellar.foamy-mirage-bottle"),
+      makeRemortItemCallbackData(token, itemKey),
       makeRemortConfirmCallbackData(token)
     ];
 
     expect(callbacks.every((callback) => Buffer.byteLength(callback, "utf8") <= 64)).toBe(true);
+  });
+
+  it("keeps hostile archived item ids out of callback data", () => {
+    const hostileItemId = "ARCHIVE:Legacy/Item_With_Callback_Breakers_And_A_Name_Long_Enough_To_Overflow";
+    const callback = makeRemortItemCallbackData(token, itemKey);
+
+    expect(callback).not.toContain(hostileItemId);
+    expect(Buffer.byteLength(callback, "utf8")).toBeLessThanOrEqual(64);
+    expect(parseRemortCallbackData(callback)).toEqual({
+      ok: true,
+      value: { type: "item", token, itemKey }
+    });
   });
 });
