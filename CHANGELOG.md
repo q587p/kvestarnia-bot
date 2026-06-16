@@ -7,6 +7,19 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.3] - 12026-06-17 - Durable Barrel Notifications & Chest Cleanup
+
+### Added
+- Added `barrel_raid_notifications` as a durable notification ledger for pending `Бочка Пінного Міражу` raid completion messages.
+- Added startup resume for pending Barrel completion notifications: future rows are rescheduled and due rows run through the existing idempotent Barrel reward path.
+
+### Fixed
+- Manual Barrel completion remains the fallback; later durable notifications now skip already-completed raids instead of sending a confusing duplicate completion message.
+- `Дружня Скриня` pending runs older than the cleanup TTL now expire safely and old confirm callbacks ask the player to reopen the chest instead of touching inventory.
+
+### Not Included
+- No reward changes, loot changes, combat formula changes, remort rule changes, Support Jar runtime, group raids, shops, trading, crafting, or Phase 2 runtime.
+
 ## [0.1.2] - 12026-06-17 - Remort at Level 13 & Presence Cleanup
 
 ### Added

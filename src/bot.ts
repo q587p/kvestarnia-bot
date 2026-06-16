@@ -6,6 +6,7 @@ import { createBot } from "./bot/createBot";
 import { loadConfig } from "./config/env";
 import { prisma } from "./db/prisma";
 import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepository";
+import { PrismaBarrelRaidNotificationRepository } from "./db/repositories/prismaBarrelRaidNotificationRepository";
 import { PrismaCellarGrownupQuestRepository } from "./db/repositories/prismaCellarGrownupQuestRepository";
 import { PrismaCooldownRepository } from "./db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "./db/repositories/prismaDailyActionRepository";
@@ -46,6 +47,7 @@ import { YegerQuestService } from "./services/yegerQuestService";
 
 const config = loadConfig();
 const users = new PrismaUserRepository(prisma);
+const barrelRaidNotifications = new PrismaBarrelRaidNotificationRepository(prisma);
 const characters = new PrismaCharacterRepository(prisma);
 const cellarGrownupQuests = new PrismaCellarGrownupQuestRepository(prisma);
 const cooldowns = new PrismaCooldownRepository(prisma);
@@ -64,6 +66,7 @@ const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
 const fight = new FightService(characters, dailyActions, undefined, soloCombatSessions, undefined, equipment);
 const services = {
   adventure: new AdventureService(characters, dailyActions),
+  barrelRaidNotifications,
   cellarErrand: new CellarErrandService(cooldowns),
   cellarGrownup: new CellarGrownupQuestService(cellarGrownupQuests, dailyActions, cooldowns),
   fight,
@@ -111,6 +114,10 @@ if (!config.botToken) {
   console.log("Квестарня: BOT_TOKEN не задано, Telegram polling не запускається.");
 } else {
   bot = createBot(config.botToken, services, supportJarOptions);
+
+  void services.mantokChest.cleanupExpiredPendingRuns().catch((error) => {
+    console.error("Квестарня: старі бланки Дружньої Скрині не прибрались.", error);
+  });
 
   void bot.api.setMyCommands(getTelegramMenuCommands({
     includeDevReset: services.devReset.isEnabled(),

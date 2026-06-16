@@ -244,11 +244,55 @@ describe("Prisma schema", () => {
     expect(schema).toContain("@map(\"output_items_json\")");
     expect(schema).toContain("@map(\"average_input_score\")");
     expect(schema).toContain("@map(\"minimum_output_score\")");
+    expect(schema).toContain("@map(\"expired_at\")");
     expect(schema).toContain("@@index([characterId, status])");
     expect(schema).toContain("@@map(\"mantok_chest_runs\")");
     expect(migration).toContain("CREATE TABLE \"mantok_chest_runs\"");
     expect(migration).toContain("CREATE UNIQUE INDEX \"mantok_chest_runs_token_key\"");
     expect(migration).toContain("CREATE INDEX \"mantok_chest_runs_character_id_status_idx\"");
+
+    const expiryMigration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260617120000_add_barrel_notifications_and_chest_expiry",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(expiryMigration).toContain("\"expired_at\" DATETIME");
+  });
+
+  it("stores durable Barrel raid notification rows", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260617120000_add_barrel_notifications_and_chest_expiry",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model BarrelRaidNotification");
+    expect(schema).toContain("barrelRaidNotifications BarrelRaidNotification[]");
+    expect(schema).toContain("@map(\"telegram_user_id\")");
+    expect(schema).toContain("@map(\"chat_id\")");
+    expect(schema).toContain("@map(\"period_id\")");
+    expect(schema).toContain("@map(\"available_at\")");
+    expect(schema).toContain("@map(\"last_error\")");
+    expect(schema).toContain("@@unique([telegramUserId, periodId])");
+    expect(schema).toContain("@@index([status, availableAt])");
+    expect(schema).toContain("@@map(\"barrel_raid_notifications\")");
+    expect(migration).toContain("CREATE TABLE \"barrel_raid_notifications\"");
+    expect(migration).toContain(
+      "CREATE UNIQUE INDEX \"barrel_raid_notifications_telegram_user_id_period_id_key\""
+    );
+    expect(migration).toContain("CREATE INDEX \"barrel_raid_notifications_status_available_at_idx\"");
   });
 
   it("stores level barter exchanges for retry-safe irreversible spending", () => {

@@ -126,6 +126,14 @@ export function presentMantokChestRecycleResult(result: MantokChestRecycleResult
     return "🧰 Скриня зітхнула кришкою й відпустила манатки назад у торбу.";
   }
 
+  if (result.state === "expired") {
+    return [
+      "🧰 <b>Скриня вже прибрала старий бланк.</b>",
+      "",
+      "Відкрийте Дружню Скриню ще раз: старе меню вона чемно здала в архів."
+    ].join("\n");
+  }
+
   if (result.state === "stale-inputs") {
     return [
       "🧰 <b>Скриня вже приготувалася, але одна манатка втекла з меню.</b>",

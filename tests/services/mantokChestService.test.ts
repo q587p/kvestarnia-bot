@@ -219,6 +219,55 @@ describe("MantokChestService", () => {
     expect(repository.completedCount).toBe(1);
   });
 
+  it("expires stale pending runs without touching fresh or completed runs", async () => {
+    const repository = new FakeMantokChestRepository(snapshot([
+      item("item.suspicious-shawarma-wrapper", 5)
+    ]));
+    const service = new MantokChestService(repository, () => fixedNow, new FakeRandomSource([0]));
+    const staleRun = repository.addRun({
+      token: "stale-token",
+      status: "pending",
+      createdAt: new Date("2026-06-15T06:00:00.000Z")
+    });
+    const freshRun = repository.addRun({
+      token: "fresh-token",
+      status: "pending",
+      createdAt: new Date("2026-06-15T07:00:00.000Z")
+    });
+    const completedRun = repository.addRun({
+      token: "completed-token",
+      status: "completed",
+      createdAt: new Date("2026-06-15T06:00:00.000Z")
+    });
+
+    await expect(service.cleanupExpiredPendingRuns()).resolves.toBe(1);
+    await expect(service.cleanupExpiredPendingRuns()).resolves.toBe(0);
+
+    expect(repository.getRun(staleRun.token)?.status).toBe("expired");
+    expect(repository.getRun(staleRun.token)?.expiredAt).toEqual(fixedNow);
+    expect(repository.getRun(freshRun.token)?.status).toBe("pending");
+    expect(repository.getRun(completedRun.token)?.status).toBe("completed");
+  });
+
+  it("returns expired for a stale confirm after cleanup without spending items", async () => {
+    const repository = new FakeMantokChestRepository(snapshot([
+      item("item.suspicious-shawarma-wrapper", 5)
+    ]));
+    const service = new MantokChestService(repository, () => fixedNow);
+    const run = repository.addRun({
+      token: "stale-token",
+      status: "pending",
+      createdAt: new Date("2026-06-15T06:00:00.000Z")
+    });
+
+    const result = await service.confirmRecycleForTelegramUser(telegramUserId, run.token);
+
+    expect(result.state).toBe("expired");
+    expect(repository.getQuantities()).toEqual({
+      "item.suspicious-shawarma-wrapper": 5
+    });
+  });
+
   it("does not consume equipped, protected, priceless, or stale items", async () => {
     const repository = new FakeMantokChestRepository(snapshot(
       [
@@ -403,6 +452,7 @@ class FakeMantokChestRepository implements MantokChestRepository {
       minimumOutputScore: input.minimumOutputScore,
       outputScore: null,
       completedAt: null,
+      expiredAt: null,
       createdAt: input.now,
       updatedAt: input.now
     };
@@ -476,6 +526,10 @@ class FakeMantokChestRepository implements MantokChestRepository {
       return Promise.resolve({ state: "replayed", run: structuredCloneRun(run) });
     }
 
+    if (run.status === "expired") {
+      return Promise.resolve({ state: "expired", run: structuredCloneRun(run) });
+    }
+
     const selected = input.selectOutput(snapshot, run);
 
     if (selected.state !== "ok") {
@@ -518,6 +572,59 @@ class FakeMantokChestRepository implements MantokChestRepository {
     this.completedCount += 1;
 
     return Promise.resolve({ state: "recycled", run: structuredCloneRun(completed) });
+  }
+
+  expirePendingRunsOlderThan(cutoff: Date, now: Date): Promise<number> {
+    let expired = 0;
+
+    for (const [token, run] of this.runs) {
+      if (run.status !== "pending" || run.createdAt >= cutoff) {
+        continue;
+      }
+
+      this.runs.set(token, {
+        ...run,
+        status: "expired",
+        expiredAt: now,
+        updatedAt: now
+      });
+      expired += 1;
+    }
+
+    return Promise.resolve(expired);
+  }
+
+  addRun(input: {
+    token: string;
+    status: MantokChestRunRecord["status"];
+    createdAt: Date;
+  }): MantokChestRunRecord {
+    const run: MantokChestRunRecord = {
+      id: `run-${this.runs.size + 1}`,
+      characterId: "character-42",
+      token: input.token,
+      status: input.status,
+      inputItems: [{ itemId: "item.suspicious-shawarma-wrapper", quantity: 5 }],
+      outputItems: input.status === "completed"
+        ? [{ itemId: "item.cheese-of-procedural-doubt", quantity: 1 }]
+        : [],
+      averageInputScore: 26,
+      minimumOutputScore: 27,
+      outputScore: input.status === "completed" ? 28 : null,
+      completedAt: input.status === "completed" ? fixedNow : null,
+      expiredAt: input.status === "expired" ? fixedNow : null,
+      createdAt: input.createdAt,
+      updatedAt: input.createdAt
+    };
+    this.runs.set(input.token, run);
+
+    return structuredCloneRun(run);
+  }
+
+  getRun(token: string): MantokChestRunRecord | null {
+    const run = this.runs.get(token);
+
+    return run ? structuredCloneRun(run) : null;
   }
 
   setQuantity(itemId: string, quantity: number): void {

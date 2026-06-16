@@ -1,4 +1,8 @@
 import type { Bot } from "grammy";
+import type {
+  BarrelRaidNotificationRecord,
+  BarrelRaidNotificationRepository
+} from "../db/repositories/barrelRaidNotificationRepository";
 import type { TavernRaidResult, TavernRaidService } from "../services/tavernRaidService";
 import { buildTavernResultKeyboard } from "./keyboards/tavernKeyboard";
 import { presentLevelUpCelebration } from "./presenters/levelGrowthPresenter";
@@ -25,10 +29,18 @@ export interface BarrelRaidCompletionScheduleInput {
   availableAt: Date;
   now: Date;
   tavernRaidService: Pick<TavernRaidService, "completeFridayBarrelRaid">;
+  notifications?: BarrelRaidNotificationRepository;
+  notificationId?: string;
 }
 
 export interface BarrelRaidCompletionScheduler {
   schedule(input: BarrelRaidCompletionScheduleInput): boolean;
+  resumePending(input: {
+    bot: Bot;
+    now: Date;
+    tavernRaidService: Pick<TavernRaidService, "completeFridayBarrelRaid">;
+    notifications: BarrelRaidNotificationRepository;
+  }): Promise<number>;
   pendingCount(): number;
   has(input: Pick<BarrelRaidCompletionScheduleInput, "chatId" | "telegramUserId" | "periodId">): boolean;
 }
@@ -55,6 +67,17 @@ export function createBarrelRaidCompletionScheduler(
     chatId: number,
     attempt: number
   ): Promise<void> {
+    const now = new Date();
+    const notification =
+      input.notifications && input.notificationId
+        ? await input.notifications.claimPending(input.notificationId, now)
+        : null;
+
+    if (input.notifications && input.notificationId && !notification) {
+      timers.delete(key);
+      return;
+    }
+
     try {
       const completed = await input.tavernRaidService.completeFridayBarrelRaid(
         input.telegramUserId,
@@ -62,14 +85,24 @@ export function createBarrelRaidCompletionScheduler(
       );
 
       if (completed.state !== "completed") {
+        if (notification && input.notifications) {
+          await input.notifications.markSkipped(notification.id, new Date(), completed.state);
+        }
         timers.delete(key);
         return;
       }
 
-      await sendCompletedResult(input, key, chatId, completed, 1);
+      await sendCompletedResult(input, key, chatId, completed, 1, notification);
     } catch (error) {
       logger.error("Квестарня: не вдалося надіслати завершення рейду.", error);
       if (attempt >= maxAttempts) {
+        if (notification && input.notifications) {
+          await input.notifications.markPendingAfterFailure(
+            notification.id,
+            new Date(),
+            stringifyError(error)
+          );
+        }
         timers.delete(key);
         return;
       }
@@ -88,13 +121,18 @@ export function createBarrelRaidCompletionScheduler(
     key: string,
     chatId: number,
     completed: Extract<TavernRaidResult, { state: "completed" }>,
-    attempt: number
+    attempt: number,
+    notification: BarrelRaidNotificationRecord | null
   ): Promise<void> {
     try {
       await input.bot.api.sendMessage(chatId, presentTavernRaidResult(completed), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildTavernResultKeyboard(completed.state)
       });
+
+      if (notification && input.notifications) {
+        await input.notifications.markSent(notification.id, new Date());
+      }
 
       try {
         await sendLevelUpCelebrationToChat(input.bot, chatId, completed);
@@ -106,12 +144,19 @@ export function createBarrelRaidCompletionScheduler(
     } catch (error) {
       logger.error("Квестарня: не вдалося надіслати завершення рейду.", error);
       if (attempt >= maxAttempts) {
+        if (notification && input.notifications) {
+          await input.notifications.markPendingAfterFailure(
+            notification.id,
+            new Date(),
+            stringifyError(error)
+          );
+        }
         timers.delete(key);
         return;
       }
 
       const retryTimer = (setTimer ?? setTimeout)(() => {
-        void sendCompletedResult(input, key, chatId, completed, attempt + 1);
+        void sendCompletedResult(input, key, chatId, completed, attempt + 1, notification);
       }, retryDelayMs);
 
       retryTimer.unref?.();
@@ -140,6 +185,30 @@ export function createBarrelRaidCompletionScheduler(
       timer.unref?.();
       timers.set(key, { timer });
       return true;
+    },
+    async resumePending(input) {
+      const pending = await input.notifications.listPending();
+      let scheduled = 0;
+
+      for (const notification of pending) {
+        const didSchedule = this.schedule({
+          bot: input.bot,
+          chatId: bigIntToSafeNumber(notification.chatId),
+          telegramUserId: notification.telegramUserId,
+          periodId: notification.periodId,
+          availableAt: notification.availableAt,
+          now: input.now,
+          tavernRaidService: input.tavernRaidService,
+          notifications: input.notifications,
+          notificationId: notification.id
+        });
+
+        if (didSchedule) {
+          scheduled += 1;
+        }
+      }
+
+      return scheduled;
     },
     pendingCount() {
       return timers.size;
@@ -172,4 +241,14 @@ async function sendLevelUpCelebrationToChat(
   }
 
   await bot.api.sendMessage(chatId, text, HTML_MESSAGE_OPTIONS);
+}
+
+function stringifyError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function bigIntToSafeNumber(value: bigint): number | undefined {
+  const numberValue = Number(value);
+
+  return Number.isSafeInteger(numberValue) ? numberValue : undefined;
 }

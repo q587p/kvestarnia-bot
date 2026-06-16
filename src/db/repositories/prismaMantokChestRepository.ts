@@ -212,6 +212,10 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
           return { state: "cancelled", run };
         }
 
+        if (run.status === "expired") {
+          return { state: "expired", run };
+        }
+
         const selected = input.selectOutput(snapshot, run);
 
         if (selected.state === "stale-inputs") {
@@ -337,6 +341,24 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
       throw error;
     }
   }
+
+  async expirePendingRunsOlderThan(cutoff: Date, now: Date): Promise<number> {
+    const expired = await this.prisma.mantokChestRun.updateMany({
+      where: {
+        status: "pending",
+        createdAt: {
+          lt: cutoff
+        }
+      },
+      data: {
+        status: "expired",
+        expiredAt: now,
+        updatedAt: now
+      }
+    });
+
+    return expired.count;
+  }
 }
 
 class MantokChestStaleInputsError extends Error {
@@ -408,13 +430,16 @@ function mapRun(record: PrismaMantokChestRunRecord): MantokChestRunRecord | null
     minimumOutputScore: record.minimumOutputScore,
     outputScore: record.outputScore,
     completedAt: record.completedAt,
+    expiredAt: record.expiredAt,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt
   };
 }
 
 function parseStatus(status: string): MantokChestRunStatus {
-  return status === "completed" || status === "cancelled" ? status : "pending";
+  return status === "completed" || status === "cancelled" || status === "expired"
+    ? status
+    : "pending";
 }
 
 function parseRunItems(value: unknown): MantokChestRunItem[] {

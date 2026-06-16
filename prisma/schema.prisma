@@ -40,6 +40,7 @@ model Character {
   korchmaRoundPurchases KorchmaRoundPurchase[]
   huntContracts HuntContract[]
   soloCombatSessions SoloCombatSession[]
+  barrelRaidNotifications BarrelRaidNotification[]
   mantokChestRuns MantokChestRun[]
   levelBarterExchanges LevelBarterExchange[]
   remortDrafts CharacterRemortDraft[]
@@ -143,11 +144,33 @@ model MantokChestRun {
   minimumOutputScore Int       @map("minimum_output_score")
   outputScore        Int?      @map("output_score")
   completedAt        DateTime? @map("completed_at")
+  expiredAt          DateTime? @map("expired_at")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@index([characterId, status])
   @@map("mantok_chest_runs")
+}
+
+model BarrelRaidNotification {
+  id             String    @id @default(uuid())
+  characterId    String    @map("character_id")
+  character      Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  telegramUserId BigInt    @map("telegram_user_id")
+  chatId         BigInt    @map("chat_id")
+  periodId       String    @map("period_id")
+  availableAt    DateTime  @map("available_at")
+  status         String    @default("pending")
+  sentAt         DateTime? @map("sent_at")
+  skippedAt      DateTime? @map("skipped_at")
+  lastError      String?   @map("last_error")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@unique([telegramUserId, periodId])
+  @@index([characterId, status])
+  @@index([status, availableAt])
+  @@map("barrel_raid_notifications")
 }
 
 model LevelBarterExchange {

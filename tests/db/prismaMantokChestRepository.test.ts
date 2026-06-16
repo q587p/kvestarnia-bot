@@ -65,6 +65,7 @@ class FakeMantokChestPrisma {
       minimumOutputScore: 8,
       outputScore: null,
       completedAt: null,
+      expiredAt: null,
       createdAt: fixedNow,
       updatedAt: fixedNow
     }
@@ -309,6 +310,7 @@ interface FakeMantokChestRun {
   minimumOutputScore: number;
   outputScore: number | null;
   completedAt: Date | null;
+  expiredAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

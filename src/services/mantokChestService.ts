@@ -55,6 +55,7 @@ export type MantokChestRecycleResult =
   | { state: "no-character" }
   | { state: "invalid-token" }
   | { state: "cancelled"; run: MantokChestRunRecord }
+  | { state: "expired"; run: MantokChestRunRecord }
   | { state: "stale-inputs"; run: MantokChestRunRecord }
   | { state: "no-output-candidate"; run: MantokChestRunRecord }
   | { state: "recycled"; run: MantokChestRunRecord; outputItem: MantokChestPresentedItem }
@@ -79,6 +80,7 @@ export interface MantokChestSelectableItem extends MantokChestPresentedItem {
 }
 
 export const MANTOK_CHEST_MANUAL_PAGE_SIZE = 5;
+export const MANTOK_CHEST_PENDING_TTL_MS = 60 * 60 * 1000;
 
 export class MantokChestService {
   constructor(
@@ -88,6 +90,7 @@ export class MantokChestService {
   ) {}
 
   async getOverviewForTelegramUser(telegramUserId: bigint): Promise<MantokChestOverviewResult> {
+    await this.cleanupExpiredPendingRuns();
     const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId);
 
     if (!snapshot) {
@@ -104,6 +107,7 @@ export class MantokChestService {
     telegramUserId: bigint,
     page = 0
   ): Promise<MantokChestManualSelectionResult> {
+    await this.cleanupExpiredPendingRuns();
     const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId);
 
     if (!snapshot) {
@@ -130,6 +134,7 @@ export class MantokChestService {
     token: string,
     page = 0
   ): Promise<MantokChestManualSelectionResult> {
+    await this.cleanupExpiredPendingRuns();
     const [snapshot, run] = await Promise.all([
       this.repository.getSnapshotForTelegramUser(telegramUserId),
       this.repository.findRunForTelegramUser(telegramUserId, token)
@@ -172,6 +177,7 @@ export class MantokChestService {
     telegramUserId: bigint,
     token: string
   ): Promise<MantokChestPreviewResult> {
+    await this.cleanupExpiredPendingRuns();
     const [snapshot, run] = await Promise.all([
       this.repository.getSnapshotForTelegramUser(telegramUserId),
       this.repository.findRunForTelegramUser(telegramUserId, token)
@@ -206,6 +212,7 @@ export class MantokChestService {
   async createAutoPickPreviewForTelegramUser(
     telegramUserId: bigint
   ): Promise<MantokChestPreviewResult> {
+    await this.cleanupExpiredPendingRuns();
     const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId);
 
     if (!snapshot) {
@@ -248,6 +255,7 @@ export class MantokChestService {
     telegramUserId: bigint,
     token: string
   ): Promise<MantokChestRecycleResult> {
+    await this.cleanupExpiredPendingRuns();
     const result = await this.repository.confirmRunForTelegramUser(telegramUserId, {
       token,
       now: this.clock(),
@@ -275,6 +283,7 @@ export class MantokChestService {
     telegramUserId: bigint,
     token: string
   ): Promise<MantokChestCancelResult> {
+    await this.cleanupExpiredPendingRuns();
     const run = await this.repository.cancelRunForTelegramUser(telegramUserId, token, this.clock());
 
     if (!run) {
@@ -291,6 +300,13 @@ export class MantokChestService {
     };
   }
 
+  async cleanupExpiredPendingRuns(): Promise<number> {
+    const now = this.clock();
+    const cutoff = new Date(now.getTime() - MANTOK_CHEST_PENDING_TTL_MS);
+
+    return this.repository.expirePendingRunsOlderThan(cutoff, now);
+  }
+
   private async updateManualSelectionUnit(
     telegramUserId: bigint,
     input: {
@@ -300,6 +316,7 @@ export class MantokChestService {
     },
     action: "add" | "remove"
   ): Promise<MantokChestManualSelectionResult> {
+    await this.cleanupExpiredPendingRuns();
     const [snapshot, run] = await Promise.all([
       this.repository.getSnapshotForTelegramUser(telegramUserId),
       this.repository.findRunForTelegramUser(telegramUserId, input.token)
