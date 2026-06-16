@@ -128,4 +128,63 @@ describe("loadConfig", () => {
       ).toThrow();
     }
   });
+
+  it("keeps support barrel status fields optional", () => {
+    const config = loadConfig(validEnv);
+
+    expect(config.supportBarrelStatus).toBeUndefined();
+  });
+
+  it("accepts manual support barrel status fields", () => {
+    const zeroConfig = loadConfig({
+      ...validEnv,
+      SUPPORT_BARREL_CURRENT_UAH: "0"
+    });
+    const filledConfig = loadConfig({
+      ...validEnv,
+      SUPPORT_BARREL_CURRENT_UAH: "1234",
+      SUPPORT_BARREL_GOAL_UAH: "5000",
+      SUPPORT_BARREL_STATUS_UPDATED_AT: "2026-06-16"
+    });
+
+    expect(zeroConfig.supportBarrelStatus).toEqual({ currentUah: 0 });
+    expect(filledConfig.supportBarrelStatus).toEqual({
+      currentUah: 1234,
+      goalUah: 5000,
+      updatedAt: "2026-06-16"
+    });
+  });
+
+  it("rejects invalid support barrel current amounts", () => {
+    for (const current of ["-1", "12.5", "many"]) {
+      expect(() =>
+        loadConfig({
+          ...validEnv,
+          SUPPORT_BARREL_CURRENT_UAH: current
+        })
+      ).toThrow();
+    }
+  });
+
+  it("rejects invalid support barrel goals", () => {
+    for (const goal of ["0", "-1", "12.5", "many"]) {
+      expect(() =>
+        loadConfig({
+          ...validEnv,
+          SUPPORT_BARREL_GOAL_UAH: goal
+        })
+      ).toThrow();
+    }
+  });
+
+  it("rejects unsafe support barrel status update dates", () => {
+    for (const updatedAt of ["2026-06-16T12:00:00Z", "2026-06-16<script>", "today"]) {
+      expect(() =>
+        loadConfig({
+          ...validEnv,
+          SUPPORT_BARREL_STATUS_UPDATED_AT: updatedAt
+        })
+      ).toThrow();
+    }
+  });
 });

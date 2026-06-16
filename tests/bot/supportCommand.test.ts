@@ -10,11 +10,31 @@ describe("support command and start deep links", () => {
 
     expect(String(message?.payload.text)).toContain("Бочка підтримки Квестарні");
     expect(String(message?.payload.text)).toContain("https://send.monobank.ua/jar/test-placeholder");
+    expect(String(message?.payload.text)).toContain("Стан Банки видно за посиланням.");
+    expect(String(message?.payload.text)).not.toContain("0 грн");
     expect(String(message?.payload.text)).toContain(
       "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч."
     );
     expectNoUnsafeRewardClaims(String(message?.payload.text));
     expect(String(message?.payload.text)).not.toContain("undefined");
+  });
+
+  it("renders /support with configured manual status", async () => {
+    const calls = await captureMessageCalls("/support", servicesWith(), {
+      supportBarrelUrl: "https://send.monobank.ua/jar/test-placeholder",
+      supportBarrelStatus: {
+        currentUah: 1234,
+        goalUah: 5000,
+        updatedAt: "2026-06-16"
+      }
+    });
+    const message = calls.find((call) => call.method === "sendMessage");
+
+    expect(String(message?.payload.text)).toContain("У Бочці зараз: 1 234 грн");
+    expect(String(message?.payload.text)).toContain("Ціль: 5 000 грн");
+    expect(String(message?.payload.text)).toContain("Оновлено вручну: 2026-06-16");
+    expect(String(message?.payload.text)).not.toContain("залишилось тільки");
+    expectNoUnsafeRewardClaims(String(message?.payload.text));
   });
 
   it("renders /support fallback without a broken URL", async () => {
@@ -40,7 +60,12 @@ describe("support command and start deep links", () => {
         }
       } as Partial<BotServices>),
       {
-        supportBarrelUrl: "https://send.monobank.ua/jar/test-placeholder"
+        supportBarrelUrl: "https://send.monobank.ua/jar/test-placeholder",
+        supportBarrelStatus: {
+          currentUah: 1234,
+          goalUah: 5000,
+          updatedAt: "2026-06-16"
+        }
       }
     );
     const message = calls.find((call) => call.method === "sendMessage");
@@ -53,6 +78,7 @@ describe("support command and start deep links", () => {
     );
     expectNoUnsafeRewardClaims(String(message?.payload.text));
     expect(String(message?.payload.text)).not.toContain("https://send.monobank.ua");
+    expect(String(message?.payload.text)).not.toContain("У Бочці зараз");
   });
 
   it("keeps regular /start and unknown payloads on the onboarding path", async () => {
@@ -86,7 +112,10 @@ interface ApiCall {
 async function captureMessageCalls(
   text: string,
   services: BotServices,
-  options: { supportBarrelUrl?: string } = {}
+  options: {
+    supportBarrelUrl?: string;
+    supportBarrelStatus?: { currentUah?: number; goalUah?: number; updatedAt?: string };
+  } = {}
 ): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services, options);
   const calls: ApiCall[] = [];
@@ -176,4 +205,5 @@ function expectNoUnsafeRewardClaims(text: string): void {
   expect(text).not.toContain("отримано XP");
   expect(text).not.toContain("видано золото");
   expect(text).not.toContain("манатку додано");
+  expect(text).not.toContain("донорський статус");
 }

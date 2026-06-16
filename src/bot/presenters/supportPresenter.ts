@@ -1,7 +1,12 @@
+import type { SupportBarrelStatus } from "../../config/env";
+
 const NO_GAMEPLAY_ADVANTAGE_LINE =
   "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч.";
 
-export function presentSupportBarrel(supportBarrelUrl: string | undefined): string {
+export function presentSupportBarrel(
+  supportBarrelUrl: string | undefined,
+  supportBarrelStatus: SupportBarrelStatus | undefined
+): string {
   if (!supportBarrelUrl) {
     return [
       "🫙 Бочка підтримки Квестарні",
@@ -23,6 +28,8 @@ export function presentSupportBarrel(supportBarrelUrl: string | undefined): stri
     "",
     NO_GAMEPLAY_ADVANTAGE_LINE,
     "",
+    ...presentSupportBarrelStatus(supportBarrelStatus),
+    "",
     `Підтримати: ${supportBarrelUrl}`
   ].join("\n");
 }
@@ -40,4 +47,25 @@ export function presentBarrelThanks(): string {
     "",
     "Ефект косметичний. Піна справжня настільки, наскільки це дозволяє Telegram."
   ].join("\n");
+}
+
+function presentSupportBarrelStatus(status: SupportBarrelStatus | undefined): string[] {
+  const lines =
+    status?.currentUah === undefined
+      ? ["Стан Банки видно за посиланням."]
+      : [`У Бочці зараз: ${formatUah(status.currentUah)} грн`];
+
+  if (status?.goalUah !== undefined) {
+    lines.push(`Ціль: ${formatUah(status.goalUah)} грн`);
+  }
+
+  if (status?.updatedAt) {
+    lines.push(`Оновлено вручну: ${status.updatedAt}`);
+  }
+
+  return lines;
+}
+
+function formatUah(amount: number): string {
+  return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }

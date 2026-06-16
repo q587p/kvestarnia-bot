@@ -76,7 +76,10 @@ const services = {
   tavern: new TavernRaidService(characters, dailyActions, roundPurchases, cooldowns)
 };
 const supportBarrelOptions = config.supportBarrelUrl
-  ? { supportBarrelUrl: config.supportBarrelUrl }
+  ? {
+      supportBarrelUrl: config.supportBarrelUrl,
+      ...(config.supportBarrelStatus ? { supportBarrelStatus: config.supportBarrelStatus } : {})
+    }
   : {};
 const healthServer = startHealthServer({
   presence: services.presence,

@@ -1,3 +1,4 @@
+import type { SupportBarrelStatus } from "../config/env";
 import type { PublicPresenceLocationsSnapshot } from "../services/presenceService";
 import { escapeHtml, renderNewsEntry, type NewsEntry } from "./news";
 
@@ -12,7 +13,7 @@ const EMPTY_PRESENCE: PublicPresenceLocationsSnapshot = {
 export function renderHomePage(
   snapshot: PublicPresenceLocationsSnapshot = EMPTY_PRESENCE,
   newsEntries: NewsEntry[] = [],
-  options: { supportBarrelUrl?: string } = {}
+  options: { supportBarrelUrl?: string; supportBarrelStatus?: SupportBarrelStatus } = {}
 ): string {
   const latestNews = newsEntries[0]
     ? renderNewsEntry(newsEntries[0])
@@ -94,7 +95,7 @@ export function renderHomePage(
       <p class="more-link"><a href="/news">Усі вісті</a></p>
     </section>
 
-    ${renderSupportBlock(options.supportBarrelUrl)}
+    ${renderSupportBlock(options.supportBarrelUrl, options.supportBarrelStatus)}
     `
   );
 }
@@ -193,12 +194,16 @@ function renderFeature(icon: string, title: string, text: string): string {
 </article>`;
 }
 
-function renderSupportBlock(supportBarrelUrl: string | undefined): string {
+function renderSupportBlock(
+  supportBarrelUrl: string | undefined,
+  supportBarrelStatus: SupportBarrelStatus | undefined
+): string {
   if (!supportBarrelUrl) {
     return "";
   }
 
   const escapedUrl = escapeHtml(supportBarrelUrl);
+  const statusBlock = renderSupportStatus(supportBarrelStatus);
 
   return `<section class="band support-band">
   <div class="support-card">
@@ -207,9 +212,31 @@ function renderSupportBlock(supportBarrelUrl: string | undefined): string {
     <p>Квестарня безкоштовна й без купівлі ігрової сили.</p>
     <p>Якщо хочеться допомогти проєкту — можна добровільно підкинути монет у Бочку підтримки: на сервер, токени для Кодексу, тексти, редактуру, коректуру, ілюстрації й корчмарську інфраструктуру.</p>
     <p>Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч. Просто корчмі стане трохи тепліше.</p>
+    ${statusBlock}
     <p><a class="support-button" href="${escapedUrl}">Підтримати корчму</a></p>
   </div>
 </section>`;
+}
+
+function renderSupportStatus(status: SupportBarrelStatus | undefined): string {
+  const lines =
+    status?.currentUah === undefined
+      ? ["Стан Банки видно за посиланням."]
+      : [`У Бочці зараз: ${formatUah(status.currentUah)} грн`];
+
+  if (status?.goalUah !== undefined) {
+    lines.push(`Ціль: ${formatUah(status.goalUah)} грн`);
+  }
+
+  if (status?.updatedAt) {
+    lines.push(`Оновлено вручну: ${status.updatedAt}`);
+  }
+
+  return `<p>${lines.map(escapeHtml).join("<br>")}</p>`;
+}
+
+function formatUah(amount: number): string {
+  return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
 function renderPresenceSummary(snapshot: PublicPresenceLocationsSnapshot): string {

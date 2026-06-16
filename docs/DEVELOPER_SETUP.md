@@ -47,11 +47,16 @@ BOT_TOKEN=
 DATABASE_URL=file:./dev.db
 DEPLOY_NOTIFICATIONS_ENABLED=false
 # SUPPORT_BARREL_URL=https://send.monobank.ua/jar/...
+# SUPPORT_BARREL_CURRENT_UAH=0
+# SUPPORT_BARREL_GOAL_UAH=5000
+# SUPPORT_BARREL_STATUS_UPDATED_AT=2026-06-16
 ```
 
 `BOT_TOKEN` може бути порожнім для локальних перевірок без реального Telegram polling. У цьому режимі бот валідовує конфіг і запускає HTTP healthcheck server, але не під’єднується до Telegram API.
 
 `SUPPORT_BARREL_URL` optional. Якщо він заданий, це має бути absolute `https://send.monobank.ua/jar/...` без URL credentials; без нього `/support` і public site не показують битих support-link-ів.
+
+`SUPPORT_BARREL_CURRENT_UAH`, `SUPPORT_BARREL_GOAL_UAH` і `SUPPORT_BARREL_STATUS_UPDATED_AT` optional та ручні. Вони лише показують спокійний read-only стан Бочки в `/support` і на public site; це не payment confirmation і не donor state. Дата статусу має бути короткою `YYYY-MM-DD`.
 
 Щоб запустити реального бота, додай токен:
 

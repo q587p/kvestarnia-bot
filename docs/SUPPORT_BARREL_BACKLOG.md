@@ -90,6 +90,9 @@ Env/config:
 
 ```env
 SUPPORT_BARREL_URL=https://send.monobank.ua/jar/...
+SUPPORT_BARREL_CURRENT_UAH=1234
+SUPPORT_BARREL_GOAL_UAH=5000
+SUPPORT_BARREL_STATUS_UPDATED_AT=2026-06-16
 ```
 
 Rules:
@@ -97,7 +100,23 @@ Rules:
 - якщо `SUPPORT_BARREL_URL` заданий — можна показувати кнопку/лінк підтримки;
 - якщо не заданий — не рендерити `undefined`, `null`, порожній або битий URL;
 - URL має бути absolute `https://send.monobank.ua/jar/...` без URL credentials;
+- `SUPPORT_BARREL_CURRENT_UAH`, якщо заданий, має бути non-negative integer;
+- `SUPPORT_BARREL_GOAL_UAH`, якщо заданий, має бути positive integer;
+- `SUPPORT_BARREL_STATUS_UPDATED_AT`, якщо заданий, має бути короткою датою `YYYY-MM-DD`;
+- status fields є ручним read-only display, не payment integration і не donor state;
 - не хардкодити вигаданий Monobank URL у коді чи README.
+
+Якщо URL є, а сума не налаштована, `/support` і public site можуть показати спокійне `Стан Банки видно за посиланням.` без вигаданої суми.
+
+Якщо сума налаштована:
+
+```text
+У Бочці зараз: 1 234 грн
+Ціль: 5 000 грн
+Оновлено вручну: 2026-06-16
+```
+
+Не писати pressure/FOMO copy на кшталт `залишилось тільки`, `терміново`, `останній шанс` або `донесіть до цілі`.
 
 ### Bot command `/support`
 
@@ -185,6 +204,21 @@ CTA:
 ```
 
 If URL is absent, do not show a broken link.
+
+### Future live status
+
+Live read-only status may be considered only as a separate PR after checking official Monobank API docs, token scopes, rate limits, caching, privacy and logging boundaries.
+
+Rules for any future live integration:
+
+- server-side only;
+- cache results and avoid polling on every `/support` request;
+- never expose API tokens;
+- never log payment details, donor names, comments, cards or any individual payment data;
+- never confirm individual payments in Telegram;
+- keep support cosmetic-only with no XP, gold, loot, manatky, levels, ranks, titles, feature access or gameplay advantage.
+
+Scraping `send.monobank.ua` pages is not allowed unless the maintainer explicitly approves it later. Prefer official APIs or manual runtime config.
 
 ### README section
 

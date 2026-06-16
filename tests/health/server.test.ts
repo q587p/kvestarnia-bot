@@ -82,6 +82,9 @@ describe("health server", () => {
     expect(text).toContain("Розклад за відкритими місцинами живе на окремій сторінці.");
     expect(text).not.toContain("Підтримати корчму");
     expect(text).not.toContain("send.monobank.ua");
+    expect(text).not.toContain("У Бочці зараз");
+    expect(text).not.toContain("undefined");
+    expect(text).not.toContain("null");
     expect(text).not.toContain("Зала корчми");
     expect(text).not.toContain("— Дара");
     expect(text).not.toContain("— Нестор Межовий");
@@ -100,6 +103,8 @@ describe("health server", () => {
     expect(text).toContain("🫙 Підтримати Квестарню");
     expect(text).toContain("Підтримати корчму");
     expect(text).toContain('href="https://send.monobank.ua/jar/test-placeholder"');
+    expect(text).toContain("Стан Банки видно за посиланням.");
+    expect(text).not.toContain("0 грн");
     expect(text).toContain("без купівлі ігрової сили");
     expect(text).toContain(
       "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч."
@@ -113,6 +118,31 @@ describe("health server", () => {
     expect(text.indexOf("Вісті з-під стійки")).toBeLessThan(
       text.indexOf("Підтримати корчму")
     );
+  });
+
+  it("serves manual support status inside the secondary support block", async () => {
+    const baseUrl = await listen({
+      presence: presenceServiceWith(publicPresenceSnapshot),
+      supportBarrelUrl: "https://send.monobank.ua/jar/test-placeholder",
+      supportBarrelStatus: {
+        currentUah: 1234,
+        goalUah: 5000,
+        updatedAt: "2026-06-16"
+      }
+    });
+
+    const response = await fetch(`${baseUrl}/`);
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(text).toContain("У Бочці зараз: 1 234 грн");
+    expect(text).toContain("Ціль: 5 000 грн");
+    expect(text).toContain("Оновлено вручну: 2026-06-16");
+    expect(text).not.toContain("залишилось тільки");
+    expect(text).not.toContain("платіж підтверджено");
+    expect(text).not.toContain("донорський статус");
+    expect(text.indexOf("Підтримати Квестарню")).toBeLessThan(text.indexOf("1 234 грн"));
+    expect(text.indexOf("Грати в Telegram")).toBeLessThan(text.indexOf("1 234 грн"));
   });
 
   it("serves the public news archive from news.md", async () => {
@@ -245,7 +275,13 @@ describe("health server", () => {
 });
 
 async function listen(
-  options: PresenceService | { presence?: PresenceService; supportBarrelUrl?: string } = {}
+  options:
+    | PresenceService
+    | {
+        presence?: PresenceService;
+        supportBarrelUrl?: string;
+        supportBarrelStatus?: { currentUah?: number; goalUah?: number; updatedAt?: string };
+      } = {}
 ): Promise<string> {
   const serverOptions =
     "getPublicPresenceLocations" in options ? { presence: options } : options;
