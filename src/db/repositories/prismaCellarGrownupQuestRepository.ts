@@ -10,6 +10,7 @@ import type {
   CompleteCellarGrownupQuestResult
 } from "./cellarGrownupQuestRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
+import { countCharacterRemorts } from "./prismaRemortCount";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -167,8 +168,10 @@ export class PrismaCellarGrownupQuestRepository implements CellarGrownupQuestRep
             }
           }
         });
-        const rewardProgress = applyXpReward(snapshot.character.xp, input.rewardXp);
-        const newLevel = getLevelForXp(rewarded.xp);
+        const remortCount = await countCharacterRemorts(tx, snapshot.character.id);
+        const rewardProgress = applyXpReward(snapshot.character.xp, input.rewardXp, { remortCount });
+        const oldLevel = Math.max(snapshot.character.level, rewardProgress.oldLevel);
+        const newLevel = Math.max(rewarded.level, getLevelForXp(rewarded.xp, { remortCount }));
 
         if (newLevel !== rewarded.level) {
           await tx.character.update({
@@ -180,7 +183,7 @@ export class PrismaCellarGrownupQuestRepository implements CellarGrownupQuestRep
             }
           });
         }
-        await recordLevelMilestones(tx, snapshot.character.id, rewardProgress.oldLevel, newLevel);
+        await recordLevelMilestones(tx, snapshot.character.id, oldLevel, newLevel);
 
         const updated = await getSnapshot(tx, telegramUserId, input.keys);
 
@@ -196,9 +199,9 @@ export class PrismaCellarGrownupQuestRepository implements CellarGrownupQuestRep
           },
           ending: input.ending,
           levelChange: {
-            oldLevel: rewardProgress.oldLevel,
+            oldLevel,
             newLevel,
-            leveledUp: newLevel > rewardProgress.oldLevel
+            leveledUp: newLevel > oldLevel
           }
         };
       });

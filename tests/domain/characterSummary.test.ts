@@ -53,6 +53,18 @@ describe("summarizeCharacter", () => {
     });
   });
 
+  it("uses remort-adjusted XP thresholds when remort count is present", () => {
+    expect(
+      summarizeCharacter(character({ level: 1, xp: 1300 }), { remortCount: 1 })
+    ).toMatchObject({
+      level: 10,
+      nextLevelXp: 1344,
+      xpToNextLevel: 44,
+      remortCount: 1,
+      remortMemoryRank: 1
+    });
+  });
+
   it("uses the selected pronoun for content-derived titles", () => {
     expect(
       summarizeCharacter(

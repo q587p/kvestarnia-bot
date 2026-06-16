@@ -145,6 +145,22 @@ describe("level barter domain", () => {
     });
   });
 
+  it("uses remort-adjusted thresholds while preserving XP carry", () => {
+    const progression = buildLevelBarterProgression({
+      storedLevel: 9,
+      xp: 800,
+      remortCount: 1
+    });
+
+    expect(progression).toMatchObject({
+      levelBefore: 9,
+      levelAfter: 10,
+      xpBefore: 800,
+      xpCarry: 51,
+      xpAfter: 1064
+    });
+  });
+
   it("blocks barter into level 13", () => {
     const progression = buildLevelBarterProgression({
       storedLevel: 12,

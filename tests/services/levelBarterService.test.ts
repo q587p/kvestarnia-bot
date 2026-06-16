@@ -41,6 +41,30 @@ describe("LevelBarterService", () => {
     }
   });
 
+  it("previews remort-adjusted XP carry", async () => {
+    const service = new LevelBarterService(
+      new FakeLevelBarterRepository(snapshot({
+        level: 9,
+        xp: 800,
+        remortCount: 1,
+        gold: 975,
+        items: [{ itemId: "item.pan-of-persuasion", quantity: 1 }]
+      })),
+      () => fixedNow
+    );
+
+    const preview = await service.createAutoPreviewForTelegramUser(telegramUserId);
+
+    expect(preview.state).toBe("preview");
+    if (preview.state === "preview") {
+      expect(preview.offer.levelBefore).toBe(9);
+      expect(preview.offer.levelAfter).toBe(10);
+      expect(preview.offer.xpCarry).toBe(51);
+      expect(preview.offer.xpAfter).toBe(1064);
+      expect(preview.character.remortCount).toBe(1);
+    }
+  });
+
   it("confirms one level with XP carry and wallet spend", async () => {
     const repository = new FakeLevelBarterRepository(snapshot({
       level: 4,
@@ -175,6 +199,7 @@ class FakeLevelBarterRepository implements LevelBarterRepository {
       return Promise.resolve({
         state: "replayed",
         character: this.completed.character,
+        remortCount: this.snapshot.remortCount,
         plan: this.completed.plan
       });
     }
@@ -206,6 +231,7 @@ class FakeLevelBarterRepository implements LevelBarterRepository {
     return Promise.resolve({
       state: "exchanged",
       character,
+      remortCount: this.snapshot.remortCount,
       plan: plan.plan
     });
   }
@@ -215,6 +241,7 @@ function snapshot(input: {
   level?: number;
   xp?: number;
   gold?: number;
+  remortCount?: number;
   items: Array<{ itemId: string; quantity: number }>;
 }): LevelBarterSnapshot {
   return {
@@ -223,6 +250,7 @@ function snapshot(input: {
       xp: input.xp ?? 48,
       gold: input.gold ?? 0
     }),
+    remortCount: input.remortCount ?? 0,
     items: input.items.map((entry, index) => ({
       id: `character-item-${index}`,
       characterId: "character-1",

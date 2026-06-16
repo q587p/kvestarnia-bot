@@ -26,19 +26,19 @@ Useful reference: [r/MUD discussion, «Does your MUD have Remort levels?»](http
 
 The part worth borrowing is not a specific system wholesale, but the pacing idea: remort can keep the same level range while making each new life a little heavier to climb. One comment describes a MUD where each remort adds «extra 200 xp per level» on top of a normal per-level cost. For Квестарня, a flat `+200 XP` per level would be too blunt and too large for the current 1-13 curve, but the principle is useful.
 
-Future balance direction:
+Runtime balance rule in `0.1.2`:
 
-- first remort should make the next trip to level 13 meaningfully longer, not punitive;
-- draft target: level 13 after one remort requires about `2300 total XP` instead of `1300`;
+- first remort makes the next trip to level 13 meaningfully longer, not punitive;
+- level 13 after one remort requires about `2300 total XP` instead of `1300`;
 - lower levels should get a smaller addition, with most of the extra weight landing after level 9;
-- possible draft formula for remort-adjusted total thresholds:
+- current formula for remort-adjusted total thresholds:
 
 ```text
 remort_extra_total(level, remort_count) =
   round(remort_count * 1000 * ((level - 1) / 12)^2)
 ```
 
-This makes the first post-remort climb roughly:
+This makes the first post-remort climb:
 
 ```text
 level 1: 0
@@ -56,7 +56,7 @@ level 12: 1740
 level 13: 2300
 ```
 
-This is a planning note, not shipped runtime in `0.1.2`. Before implementation, run reward pacing and combat simulations so remort does not become either a trivial victory lap or a paper wall with candles.
+This is intentionally simple runtime math, not final prestige balance. After playtest fallout, run reward pacing and combat simulations so remort does not become either a trivial victory lap or a paper wall with candles.
 
 ## Shipped MVP flow
 

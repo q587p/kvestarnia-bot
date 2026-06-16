@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { ItemContent } from "../content/schema";
 import { isProtectedMantokChestItem } from "./mantokChest";
-import { LEVEL_XP_THRESHOLDS, getLevelForXp, getNextLevelThreshold } from "./progression/level";
+import { getLevelForXp, getLevelStartXp, getNextLevelThreshold } from "./progression/level";
 
 export const LEVEL_BARTER_COST_GOLD = 1000;
 export const LEVEL_BARTER_BATTLE_ONLY_LEVEL = 13;
@@ -197,13 +197,15 @@ export function summarizeLevelBarterUnits(
 export function buildLevelBarterProgression(input: {
   storedLevel: number;
   xp: number;
+  remortCount?: number;
 }): LevelBarterProgression {
   const xpBefore = Math.max(0, Math.floor(input.xp));
-  const levelBefore = Math.max(1, Math.floor(input.storedLevel), getLevelForXp(xpBefore));
+  const progressionOptions = { remortCount: input.remortCount ?? 0 };
+  const levelBefore = Math.max(1, Math.floor(input.storedLevel), getLevelForXp(xpBefore, progressionOptions));
   const levelAfter = levelBefore + 1;
-  const xpCarry = Math.max(0, xpBefore - getLevelStartXp(levelBefore));
-  const nextThreshold = getNextLevelThreshold(levelAfter);
-  const unclampedXpAfter = getLevelStartXp(levelAfter) + xpCarry;
+  const xpCarry = Math.max(0, xpBefore - getLevelStartXp(levelBefore, progressionOptions));
+  const nextThreshold = getNextLevelThreshold(levelAfter, progressionOptions);
+  const unclampedXpAfter = getLevelStartXp(levelAfter, progressionOptions) + xpCarry;
   const xpAfter = nextThreshold === null ? unclampedXpAfter : Math.min(unclampedXpAfter, nextThreshold - 1);
 
   return {
@@ -211,7 +213,7 @@ export function buildLevelBarterProgression(input: {
     levelAfter,
     xpBefore,
     xpAfter,
-    xpCarry: Math.max(0, xpAfter - getLevelStartXp(levelAfter))
+    xpCarry: Math.max(0, xpAfter - getLevelStartXp(levelAfter, progressionOptions))
   };
 }
 
@@ -239,12 +241,6 @@ export function createLevelBarterToken(input: {
     )
     .digest("hex")
     .slice(0, 16);
-}
-
-export function getLevelStartXp(level: number): number {
-  const normalizedLevel = Math.max(1, Math.floor(level));
-
-  return LEVEL_XP_THRESHOLDS[normalizedLevel - 1] ?? LEVEL_XP_THRESHOLDS[LEVEL_XP_THRESHOLDS.length - 1] ?? 0;
 }
 
 function chooseBetterLevelBarterCandidate(

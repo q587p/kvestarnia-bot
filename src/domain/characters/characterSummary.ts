@@ -71,8 +71,12 @@ export function summarizeCharacter(
   const characterClass = classes.find((candidate) => candidate.id === input.classId);
   const pronoun = parsePronoun(input.pronoun);
   const xp = Math.max(0, Math.floor(input.xp));
-  const level = Math.max(1, Math.floor(input.level), getLevelForXp(xp));
-  const nextLevelXp = getNextLevelThreshold(level);
+  const remortCount = options.remortCount === undefined
+    ? undefined
+    : Math.max(0, Math.floor(options.remortCount));
+  const progressionOptions = remortCount === undefined ? {} : { remortCount };
+  const level = Math.max(1, Math.floor(input.level), getLevelForXp(xp, progressionOptions));
+  const nextLevelXp = getNextLevelThreshold(level, progressionOptions);
   const effectiveStats = buildEffectiveCharacterStats({
     level,
     classId: input.classId,
@@ -112,10 +116,10 @@ export function summarizeCharacter(
     stats: effectiveStats.stats,
     levelBonus: effectiveStats.levelBonus,
     equipmentEffects: effectiveStats.equipmentEffects,
-    ...(options.remortCount !== undefined
+    ...(remortCount !== undefined
       ? {
-          remortCount: Math.max(0, Math.floor(options.remortCount)),
-          remortMemoryRank: Math.max(0, Math.min(5, Math.floor(options.remortCount)))
+          remortCount,
+          remortMemoryRank: Math.max(0, Math.min(5, remortCount))
         }
       : {})
   };

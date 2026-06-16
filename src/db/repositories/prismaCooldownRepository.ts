@@ -9,6 +9,7 @@ import type {
 } from "./cooldownRepository";
 import type { ItemGrant } from "./dailyActionRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
+import { countCharacterRemorts } from "./prismaRemortCount";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -157,8 +158,10 @@ export class PrismaCooldownRepository implements CooldownRepository {
         }
       }
     });
-    const rewardProgress = applyXpReward(character.xp, input.rewardXp);
-    const newLevel = getLevelForXp(rewardedCharacter.xp);
+    const remortCount = await countCharacterRemorts(tx, character.id);
+    const rewardProgress = applyXpReward(character.xp, input.rewardXp, { remortCount });
+    const oldLevel = Math.max(character.level, rewardProgress.oldLevel);
+    const newLevel = Math.max(rewardedCharacter.level, getLevelForXp(rewardedCharacter.xp, { remortCount }));
     const updatedCharacter =
       newLevel === rewardedCharacter.level
         ? rewardedCharacter
@@ -170,7 +173,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
               level: newLevel
             }
           });
-    await recordLevelMilestones(tx, character.id, rewardProgress.oldLevel, newLevel);
+    await recordLevelMilestones(tx, character.id, oldLevel, newLevel);
     const itemGrants = input.itemGrants ?? [];
 
     const appliedItemGrants = await grantItems(tx, character.id, itemGrants);
@@ -180,9 +183,9 @@ export class PrismaCooldownRepository implements CooldownRepository {
       cooldown,
       character: updatedCharacter,
       levelChange: {
-        oldLevel: rewardProgress.oldLevel,
+        oldLevel,
         newLevel,
-        leveledUp: newLevel > rewardProgress.oldLevel
+        leveledUp: newLevel > oldLevel
       },
       itemGrants: appliedItemGrants
     };

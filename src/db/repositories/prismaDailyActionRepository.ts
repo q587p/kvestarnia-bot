@@ -8,6 +8,7 @@ import type {
   ItemGrant
 } from "./dailyActionRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
+import { countCharacterRemorts } from "./prismaRemortCount";
 
 export class PrismaDailyActionRepository implements DailyActionRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -105,8 +106,10 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             }
           }
         });
-        const rewardProgress = applyXpReward(character.xp, input.rewardXp);
-        const newLevel = getLevelForXp(rewardedCharacter.xp);
+        const remortCount = await countCharacterRemorts(tx, character.id);
+        const rewardProgress = applyXpReward(character.xp, input.rewardXp, { remortCount });
+        const oldLevel = Math.max(character.level, rewardProgress.oldLevel);
+        const newLevel = Math.max(rewardedCharacter.level, getLevelForXp(rewardedCharacter.xp, { remortCount }));
         const updatedCharacter =
           newLevel === rewardedCharacter.level
             ? rewardedCharacter
@@ -118,7 +121,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
                   level: newLevel
                 }
               });
-        await recordLevelMilestones(tx, character.id, rewardProgress.oldLevel, newLevel);
+        await recordLevelMilestones(tx, character.id, oldLevel, newLevel);
         const itemGrants = input.itemGrants ?? [];
         const appliedItemGrants: ItemGrant[] = [];
 
@@ -162,9 +165,9 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           action,
           character: updatedCharacter,
           levelChange: {
-            oldLevel: rewardProgress.oldLevel,
+            oldLevel,
             newLevel,
-            leveledUp: newLevel > rewardProgress.oldLevel
+            leveledUp: newLevel > oldLevel
           },
           itemGrants: appliedItemGrants
         };
