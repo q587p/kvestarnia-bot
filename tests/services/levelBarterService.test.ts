@@ -57,10 +57,10 @@ describe("LevelBarterService", () => {
 
     expect(preview.state).toBe("preview");
     if (preview.state === "preview") {
-      expect(preview.offer.levelBefore).toBe(9);
-      expect(preview.offer.levelAfter).toBe(10);
-      expect(preview.offer.xpCarry).toBe(51);
-      expect(preview.offer.xpAfter).toBe(1064);
+      expect(preview.offer.levelBefore).toBe(11);
+      expect(preview.offer.levelAfter).toBe(12);
+      expect(preview.offer.xpCarry).toBe(0);
+      expect(preview.offer.xpAfter).toBe(1107);
       expect(preview.character.remortCount).toBe(1);
     }
   });

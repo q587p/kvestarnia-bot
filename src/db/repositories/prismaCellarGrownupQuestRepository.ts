@@ -10,7 +10,7 @@ import type {
   CompleteCellarGrownupQuestResult
 } from "./cellarGrownupQuestRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
-import { countCharacterRemorts } from "./prismaRemortCount";
+import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -239,7 +239,8 @@ async function getSnapshot(
       user: {
         telegramUserId
       }
-    }
+    },
+    include: remortCountInclude
   });
 
   if (!character) {
@@ -387,8 +388,23 @@ function endingFromCompletedAction(action: DailyAction): CellarGrownupFinalEndin
   return action.rewardGold > 0 ? "turn-in" : "keep";
 }
 
-function toCharacterRecord(character: Character): CharacterRecord {
-  return character;
+const remortCountInclude = {
+  _count: {
+    select: {
+      remorts: true
+    }
+  }
+} satisfies Prisma.CharacterInclude;
+
+function toCharacterRecord(character: Character & { _count?: { remorts?: number } }): CharacterRecord {
+  const remortCount = getIncludedRemortCount(character);
+  const record = { ...character };
+  delete (record as { _count?: unknown })._count;
+
+  return {
+    ...record,
+    remortCount
+  };
 }
 
 function isUniqueConstraintError(error: unknown): boolean {

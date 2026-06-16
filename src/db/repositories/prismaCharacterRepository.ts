@@ -7,6 +7,7 @@ import type {
   UpdateCharacterResourcesInput
 } from "./characterRepository";
 import type { TelegramUserProfile } from "./userRepository";
+import { getIncludedRemortCount } from "./prismaRemortCount";
 
 export type SpendGoldForTelegramUserResult =
   | { state: "spent"; character: CharacterRecord }
@@ -21,11 +22,7 @@ export class PrismaCharacterRepository implements CharacterRepository {
         userId
       },
       include: {
-        user: {
-          select: {
-            lastSeenLocationId: true
-          }
-        }
+        ...characterRecordInclude
       }
     });
 
@@ -40,11 +37,7 @@ export class PrismaCharacterRepository implements CharacterRepository {
         }
       },
       include: {
-        user: {
-          select: {
-            lastSeenLocationId: true
-          }
-        }
+        ...characterRecordInclude
       }
     });
 
@@ -132,11 +125,7 @@ export class PrismaCharacterRepository implements CharacterRepository {
         manaRegenAt: input.manaRegenAt
       },
       include: {
-        user: {
-          select: {
-            lastSeenLocationId: true
-          }
-        }
+        ...characterRecordInclude
       }
     });
 
@@ -168,12 +157,13 @@ export class PrismaCharacterRepository implements CharacterRepository {
       const existing = await tx.character.findUnique({
         where: {
           userId: user.id
-        }
+        },
+        include: characterRecordInclude
       });
 
       if (existing) {
         return {
-          character: { ...existing, currentLocationId: user.lastSeenLocationId },
+          character: toCharacterRecord(existing),
           created: false
         };
       }
@@ -198,7 +188,7 @@ export class PrismaCharacterRepository implements CharacterRepository {
       });
 
       return {
-        character: { ...character, currentLocationId: user.lastSeenLocationId },
+        character: { ...character, currentLocationId: user.lastSeenLocationId, remortCount: 0 },
         created: true
       };
     });
@@ -216,11 +206,7 @@ export class PrismaCharacterRepository implements CharacterRepository {
           }
         },
         include: {
-          user: {
-            select: {
-              lastSeenLocationId: true
-            }
-          }
+          ...characterRecordInclude
         }
       });
 
@@ -245,11 +231,7 @@ export class PrismaCharacterRepository implements CharacterRepository {
           }
         },
         include: {
-          user: {
-            select: {
-              lastSeenLocationId: true
-            }
-          }
+          ...characterRecordInclude
         }
       });
 
@@ -261,13 +243,28 @@ export class PrismaCharacterRepository implements CharacterRepository {
   }
 }
 
+const characterRecordInclude = {
+  user: {
+    select: {
+      lastSeenLocationId: true
+    }
+  },
+  _count: {
+    select: {
+      remorts: true
+    }
+  }
+} satisfies Prisma.CharacterInclude;
+
 function toCharacterRecord(
-  character: Character & { user: { lastSeenLocationId: string | null } }
+  character: Character & { user: { lastSeenLocationId: string | null }; _count?: { remorts?: number } }
 ): CharacterRecord {
   const { user, ...record } = character;
+  delete (record as { _count?: unknown })._count;
 
   return {
     ...record,
-    currentLocationId: user.lastSeenLocationId
+    currentLocationId: user.lastSeenLocationId,
+    remortCount: getIncludedRemortCount(character)
   };
 }

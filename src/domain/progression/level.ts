@@ -46,13 +46,13 @@ export function getRemortXpExtraTotal(level: number, remortCount: number): numbe
   const safeLevel = Math.max(1, Math.floor(level));
   const safeRemorts = Math.max(0, Math.floor(remortCount));
 
-  if (safeRemorts <= 0 || safeLevel <= 1) {
+  if (safeRemorts <= 0) {
     return 0;
   }
 
-  const progress = (Math.min(safeLevel, LEVEL_XP_THRESHOLDS.length) - 1) / (LEVEL_XP_THRESHOLDS.length - 1);
+  const baseThreshold = LEVEL_XP_THRESHOLDS[Math.min(safeLevel, LEVEL_XP_THRESHOLDS.length) - 1] ?? 0;
 
-  return Math.round(safeRemorts * 1000 * progress * progress);
+  return Math.ceil(baseThreshold * 0.23 * safeRemorts);
 }
 
 export function applyXpReward(

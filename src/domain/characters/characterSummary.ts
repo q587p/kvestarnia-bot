@@ -55,6 +55,7 @@ export interface CharacterSummaryInput {
   manaCurrent: number;
   manaMax: number;
   statsJson: unknown;
+  remortCount?: number;
 }
 
 export interface CharacterSummaryOptions {
@@ -71,10 +72,8 @@ export function summarizeCharacter(
   const characterClass = classes.find((candidate) => candidate.id === input.classId);
   const pronoun = parsePronoun(input.pronoun);
   const xp = Math.max(0, Math.floor(input.xp));
-  const remortCount = options.remortCount === undefined
-    ? undefined
-    : Math.max(0, Math.floor(options.remortCount));
-  const progressionOptions = remortCount === undefined ? {} : { remortCount };
+  const remortCount = Math.max(0, Math.floor(options.remortCount ?? input.remortCount ?? 0));
+  const progressionOptions = remortCount > 0 ? { remortCount } : {};
   const level = Math.max(1, Math.floor(input.level), getLevelForXp(xp, progressionOptions));
   const nextLevelXp = getNextLevelThreshold(level, progressionOptions);
   const effectiveStats = buildEffectiveCharacterStats({
@@ -116,7 +115,7 @@ export function summarizeCharacter(
     stats: effectiveStats.stats,
     levelBonus: effectiveStats.levelBonus,
     equipmentEffects: effectiveStats.equipmentEffects,
-    ...(remortCount !== undefined
+    ...(remortCount > 0
       ? {
           remortCount,
           remortMemoryRank: Math.max(0, Math.min(5, remortCount))

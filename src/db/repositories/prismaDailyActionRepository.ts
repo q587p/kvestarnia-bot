@@ -74,10 +74,12 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
         });
 
         if (existing) {
+          const remortCount = await countCharacterRemorts(tx, character.id);
+
           return {
             state: "existing",
             action: existing,
-            character,
+            character: { ...character, remortCount },
             levelChange: null,
             itemGrants: []
           };
@@ -163,7 +165,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
         return {
           state: "created",
           action,
-          character: updatedCharacter,
+          character: { ...updatedCharacter, remortCount },
           levelChange: {
             oldLevel,
             newLevel,
@@ -211,10 +213,12 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
       throw new Error("Daily action unique conflict did not leave an existing row.");
     }
 
+    const remortCount = await countCharacterRemorts(this.prisma, character.id);
+
     return {
       state: "existing",
       action,
-      character,
+      character: { ...character, remortCount },
       levelChange: null,
       itemGrants: []
     };

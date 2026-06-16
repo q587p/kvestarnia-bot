@@ -292,6 +292,31 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(0);
   });
 
+  it("uses record remort count for fight level gates", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 2, xp: 25, remortCount: 1 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "ready",
+      character: {
+        level: 2,
+        remortCount: 1
+      }
+    });
+    expect(sessions.createCount).toBe(0);
+  });
+
   it("shows thirteen-problems progress beyond the reward target without claiming from overview", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });

@@ -71,6 +71,9 @@ export async function summarizeAndSyncCharacterResources(input: {
         return summarizeAndSyncCharacterResources({
           ...input,
           character: latest,
+          ...(input.remortCount !== undefined || latest.remortCount !== undefined
+            ? { remortCount: input.remortCount ?? latest.remortCount }
+            : {}),
           persist: false
         });
       }

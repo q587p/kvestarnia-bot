@@ -153,11 +153,11 @@ describe("level barter domain", () => {
     });
 
     expect(progression).toMatchObject({
-      levelBefore: 9,
-      levelAfter: 10,
+      levelBefore: 11,
+      levelAfter: 12,
       xpBefore: 800,
-      xpCarry: 51,
-      xpAfter: 1064
+      xpCarry: 0,
+      xpAfter: 1107
     });
   });
 

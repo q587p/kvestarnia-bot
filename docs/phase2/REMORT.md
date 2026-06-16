@@ -29,31 +29,31 @@ The part worth borrowing is not a specific system wholesale, but the pacing idea
 Runtime balance rule in `0.1.2`:
 
 - first remort makes the next trip to level 13 meaningfully longer, not punitive;
-- level 13 after one remort requires about `2300 total XP` instead of `1300`;
-- lower levels should get a smaller addition, with most of the extra weight landing after level 9;
+- level 13 after one remort requires `1599 total XP` instead of `1300`;
+- lower levels get the same simple proportional bump as the capstone;
 - current formula for remort-adjusted total thresholds:
 
 ```text
-remort_extra_total(level, remort_count) =
-  round(remort_count * 1000 * ((level - 1) / 12)^2)
+remort_threshold(level, remort_count) =
+  ceil(base_threshold(level) * (1 + 0.23 * remort_count))
 ```
 
 This makes the first post-remort climb:
 
 ```text
 level 1: 0
-level 2: 17
-level 3: 53
-level 4: 108
-level 5: 181
-level 6: 284
-level 7: 410
-level 8: 565
-level 9: 749
-level 10: 1013
-level 11: 1344
-level 12: 1740
-level 13: 2300
+level 2: 13
+level 3: 31
+level 4: 56
+level 5: 87
+level 6: 136
+level 7: 197
+level 8: 277
+level 9: 376
+level 10: 554
+level 11: 800
+level 12: 1107
+level 13: 1599
 ```
 
 This is intentionally simple runtime math, not final prestige balance. After playtest fallout, run reward pacing and combat simulations so remort does not become either a trivial victory lap or a paper wall with candles.

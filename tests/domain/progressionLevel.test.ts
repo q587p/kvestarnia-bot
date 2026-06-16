@@ -49,13 +49,13 @@ describe("level progression", () => {
     expect(getNextLevelThreshold(13)).toBeNull();
   });
 
-  it("raises thresholds proportionally after remort", () => {
+  it("raises thresholds by 23 percent per remort", () => {
     expect(getRemortXpExtraTotal(1, 1)).toBe(0);
-    expect(getRemortXpExtraTotal(13, 1)).toBe(1000);
-    expect(getLevelStartXp(13, { remortCount: 1 })).toBe(2300);
-    expect(getNextLevelThreshold(12, { remortCount: 1 })).toBe(2300);
-    expect(getLevelForXp(1300, { remortCount: 1 })).toBe(10);
-    expect(getLevelForXp(2300, { remortCount: 1 })).toBe(13);
+    expect(getRemortXpExtraTotal(13, 1)).toBe(299);
+    expect(getLevelStartXp(13, { remortCount: 1 })).toBe(1599);
+    expect(getNextLevelThreshold(12, { remortCount: 1 })).toBe(1599);
+    expect(getLevelForXp(1300, { remortCount: 1 })).toBe(12);
+    expect(getLevelForXp(1599, { remortCount: 1 })).toBe(13);
   });
 
   it("detects threshold crossing", () => {
@@ -68,10 +68,10 @@ describe("level progression", () => {
   });
 
   it("detects threshold crossing on remort-adjusted curves", () => {
-    expect(applyXpReward(990, 30, { remortCount: 1 })).toMatchObject({
+    expect(applyXpReward(540, 20, { remortCount: 1 })).toMatchObject({
       oldLevel: 9,
       newLevel: 10,
-      newXp: 1020,
+      newXp: 560,
       leveledUp: true
     });
   });
