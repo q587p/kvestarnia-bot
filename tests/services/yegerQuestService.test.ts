@@ -23,7 +23,7 @@ import { items, monsters } from "../../src/content";
 import { summarizeCharacter, type CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { isProtectedMantokChestItem } from "../../src/domain/mantokChest";
 import { FakeRandomSource } from "../../src/shared/random";
-import type { FightService } from "../../src/services/fightService";
+import type { FightLookupResult, FightService } from "../../src/services/fightService";
 import {
   getYegerTrackingExactChance,
   isYegerUnquietTarget,
@@ -244,6 +244,58 @@ describe("YegerQuestService", () => {
     expect(world.cooldowns[0]?.availableAt).toEqual(new Date("2026-06-15T10:08:00.000Z"));
   });
 
+  it("does not consume a ready trail while another fight is active", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 5, xp: 110 });
+    world.addAction(YEGER_UNQUIET_TRIAL_STARTED_KEY, startedAt);
+    world.addCooldown(new Date("2026-06-15T10:04:00.000Z"));
+    world.fightOverviewResult = {
+      state: "persistent-active",
+      character: world.characterSummary(),
+      session: {
+        id: "fight-1",
+        characterId: "character-42",
+        monsterId: "monster.deadline-spider",
+        status: "active",
+        turn: 1,
+        state: null,
+        reward: null,
+        expiresAt: new Date(now.getTime() + 600_000),
+        createdAt: now,
+        updatedAt: now
+      },
+      monster: {
+        id: "monster.deadline-spider",
+        name: "Павук дедлайнів",
+        description: "Плете павутину.",
+        level: 2,
+        tags: ["beast", "time", "web"]
+      },
+      questProgress: null
+    };
+    let fightStarts = 0;
+    world.fightResult = () => {
+      fightStarts += 1;
+      return Promise.resolve({ state: "no-character" });
+    };
+
+    const result = await world.service().trackForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "tracking-blocked-by-other-fight",
+      tracking: {
+        state: "tracking-ready",
+        availableAt: new Date("2026-06-15T10:04:00.000Z")
+      },
+      fight: {
+        state: "persistent-active",
+        monster: { id: "monster.deadline-spider" }
+      }
+    });
+    expect(world.cooldowns[0]?.availableAt).toEqual(new Date("2026-06-15T10:04:00.000Z"));
+    expect(fightStarts).toBe(0);
+  });
+
   it("resolves a ready failed trail without starting a fight", async () => {
     const world = new FakeWorld();
     world.addCharacter({ level: 5, xp: 110 });
@@ -292,6 +344,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
   readonly itemGrants: Array<{ itemId: string; quantity: number }> = [];
   readonly cooldowns: CharacterCooldownRecord[] = [];
   randomValues: number[] = [0];
+  fightOverviewResult: FightLookupResult = { state: "no-character" };
   fightResult: () => ReturnType<FightService["getOrStartPersistentFightForTelegramUser"]> = () =>
     Promise.resolve({ state: "no-character" });
 
@@ -301,6 +354,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
       this,
       this,
       {
+        getFightOverviewForTelegramUser: () => Promise.resolve(this.fightOverviewResult),
         getOrStartPersistentFightForTelegramUser: () => this.fightResult()
       } as unknown as FightService,
       this,

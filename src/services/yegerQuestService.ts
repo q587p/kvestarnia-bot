@@ -86,6 +86,13 @@ export type YegerTrackingResult =
       outcome: "near-miss" | "none";
     }
   | {
+      state: "tracking-blocked-by-other-fight";
+      character: CharacterSummary;
+      progress: YegerQuestProgress;
+      tracking: Extract<YegerTrackingSummary, { state: "tracking-ready" }>;
+      fight: Extract<FightLookupResult, { state: "persistent-active" }>;
+    }
+  | {
       state: "tracking-resolved-success";
       character: CharacterSummary;
       progress: YegerQuestProgress;
@@ -226,6 +233,20 @@ export class YegerQuestService {
         progress: current.progress,
         tracking: current.tracking
       };
+    }
+
+    if (current.tracking.state === "tracking-ready") {
+      const activeFight = await this.fight.getFightOverviewForTelegramUser(telegramUserId);
+
+      if (activeFight.state === "persistent-active" && !isYegerUnquietTarget(activeFight.monster)) {
+        return {
+          state: "tracking-blocked-by-other-fight",
+          character: current.character,
+          progress: current.progress,
+          tracking: current.tracking,
+          fight: activeFight
+        };
+      }
     }
 
     const now = this.now();

@@ -266,31 +266,39 @@ describe("scene callback HTML options", () => {
                 now: new Date("2026-06-15T10:05:00.000Z")
               }
             }),
-          trackForTelegramUser: vi.fn(() => Promise.reject(new Error("should not be called")))
-        },
-        fight: {
-          getOrStartPersistentFightForTelegramUser: () =>
+          trackForTelegramUser: () =>
             Promise.resolve({
-              state: "persistent-active",
+              state: "tracking-blocked-by-other-fight",
               character,
-              session: persistentSession("monster.deadline-spider"),
-              monster: {
-                id: "monster.deadline-spider",
-                name: "Павук дедлайнів",
-                description: "Плете павутину з «сьогодні швиденько».",
-                level: 2,
-                tags: ["beast", "time", "web"]
+              progress: { wins: 1, target: 5 },
+              tracking: {
+                state: "tracking-ready",
+                availableAt: new Date("2026-06-15T10:04:00.000Z"),
+                now: new Date("2026-06-15T10:05:00.000Z")
               },
-              questProgress: null
+              fight: {
+                state: "persistent-active",
+                character,
+                session: persistentSession("monster.deadline-spider"),
+                monster: {
+                  id: "monster.deadline-spider",
+                  name: "Павук дедлайнів",
+                  description: "Плете павутину з «сьогодні швиденько».",
+                  level: 2,
+                  tags: ["beast", "time", "web"]
+                },
+                questProgress: null
+              }
             })
         }
       })
     );
     const edit = calls.find((call) => call.method === "editMessageText");
+    const fight = calls.find((call) => call.method === "sendMessage");
 
     expect(String(edit?.payload.text)).toContain("У вас уже триває інша сутичка.");
     expect(String(edit?.payload.text)).not.toContain("Щось неупокоєне знайшлося");
-    expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(String(fight?.payload.text)).toContain("Павук дедлайнів");
   });
 
   it("keeps Yeger tracking flavor for active matching unquiet fights", async () => {
@@ -332,14 +340,6 @@ describe("scene callback HTML options", () => {
                 },
                 questProgress: null
               }
-            })
-        },
-        fight: {
-          getOrStartPersistentFightForTelegramUser: () =>
-            Promise.resolve({
-              state: "persistent-ready",
-              character,
-              questProgress: null
             })
         }
       })

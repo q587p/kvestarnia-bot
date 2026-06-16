@@ -11,7 +11,7 @@ import type { FightService } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
 import type { HuntService } from "../services/huntService";
 import type { YegerQuestService } from "../services/yegerQuestService";
-import { isYegerUnquietTarget, YEGER_UNQUIET_TRIAL_TAGS } from "../services/yegerQuestService";
+import { isYegerUnquietTarget } from "../services/yegerQuestService";
 import type { EquipmentService } from "../services/equipmentService";
 import type { InventoryService } from "../services/inventoryService";
 import type { LevelBarterService } from "../services/levelBarterService";
@@ -2081,21 +2081,6 @@ async function handleYegerCallback(
       return;
     }
 
-    const activeFight = await services.fight.getOrStartPersistentFightForTelegramUser(telegramUserId, {
-      source: "yeger",
-      target: { tagsAny: [...YEGER_UNQUIET_TRIAL_TAGS] }
-    });
-
-    if (activeFight.state === "persistent-active" && !isYegerUnquietTarget(activeFight.monster)) {
-      await safeAnswerCallbackQuery(ctx);
-      await markHuntPresence(ctx, services.presence);
-      await safeEditMessageText(ctx, presentYegerTrackingBlockedByOtherFight(), {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildYegerKeyboard(quest)
-      });
-      return;
-    }
-
     const result = await services.yeger.trackForTelegramUser(telegramUserId);
     await safeAnswerCallbackQuery(ctx);
     await markHuntPresence(ctx, services.presence);
@@ -2135,6 +2120,23 @@ async function handleYegerCallback(
           progress: result.progress,
           tracking: result.tracking
         })
+      });
+      return;
+    }
+
+    if (result.state === "tracking-blocked-by-other-fight") {
+      await safeEditMessageText(ctx, presentYegerTrackingBlockedByOtherFight(), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerKeyboard({
+          state: "in-progress",
+          character: result.character,
+          progress: result.progress,
+          tracking: result.tracking
+        })
+      });
+      await ctx.reply(presentPersistentFight(result.fight), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPersistentFightResultKeyboard(result.fight.session, result.fight.character)
       });
       return;
     }
