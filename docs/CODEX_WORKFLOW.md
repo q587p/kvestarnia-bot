@@ -145,6 +145,7 @@ Spawn 3 agents and consolidate:
 - якщо задача прямо не просить stacked PR або іншу base-гілку, дивитися на актуальний `main`, рахувати diff проти `main` і відкривати/retarget PR саме на `main`;
 - ready/merge-ready PR не має лишатися на non-main base. Stacked PR дозволений тільки на час незмердженої залежності або за прямим проханням користувача; PR body має явно називати dependency, а після merge dependency треба ретаргетнути PR на `main` і повторно перевірити mergeability;
 - якщо вже є активний PR для поточної роботи, follow-up правки додавати в цю ж гілку і цей же PR, а не створювати нову гілку/PR без прямого прохання;
+- якщо follow-up розширює scope PR новою фічею, окремим runtime/economy track або помітним docs package, PR title/body і release surfaces мають чесно це відображати; не лишати вузьку назву й вузький body поверх ширшого diff;
 - `docs/public-readme-polish`;
 - `feat/combat-engine`;
 - `feat/start-flow`;
