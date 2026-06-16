@@ -34,6 +34,11 @@ import {
   buildRestartKeyboard,
   mainMenuButtons
 } from "../../src/bot/keyboards/mainMenuKeyboard";
+import {
+  buildLevelBarterOfferKeyboard,
+  buildLevelBarterPreviewKeyboard,
+  buildLevelBarterResultKeyboard
+} from "../../src/bot/keyboards/levelBarterKeyboard";
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
 import {
   buildKorchmaArrivalBoardKeyboard,
@@ -201,6 +206,29 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual(["v1:tavern:round-simple", "v1:place:bar"]);
+  });
+
+  it("keeps Munchkin barter outside the korchma hall", () => {
+    expect(flatInlineButtonTexts(buildLevelBarterOfferKeyboard())).toEqual([
+      "🧮 Автопідібрати манатки й золото",
+      "↩️ До дверей"
+    ]);
+    expect(flatInlineButtonCallbacks(buildLevelBarterOfferKeyboard())).toEqual([
+      "v1:lvlx:auto",
+      "v1:place:front"
+    ]);
+    expect(flatInlineButtonTexts(buildLevelBarterPreviewKeyboard({
+      state: "insufficient",
+      character,
+      eligibleTotalValue: 800,
+      gold: 70,
+      combinedValue: 870,
+      cost: 1000
+    }))).toEqual(["↩️ До дверей"]);
+    expect(flatInlineButtonTexts(buildLevelBarterResultKeyboard())).toEqual([
+      "👤 Персонаж",
+      "↩️ До дверей"
+    ]);
   });
 
   it("links to the Barrel and hall when korchma rounds are blocked by an active raid", () => {
