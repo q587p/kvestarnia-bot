@@ -32,6 +32,30 @@ Deferred side tracks remain useful but should not steal the Phase 2 spine: durab
 
 Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
 
+## Later — Старший Брат Бочки
+
+**Objective**
+Додати після простецького solo-рейду на Бочку варіянт follow-up encounter: старший родич або наглядач Бочки, який вирішує, що пригодник уже достатньо шумів біля піни, і тепер «справа переходить у старші руки».
+
+**Inspiration**
+
+- Впізнавана алюзія на Big Brother з `1984` Джорджа Орвелла: не копіювати цитати дослівно, не брати чужі назви як runtime content, а зробити власну корчемну версію про піну, облік і нагляд.
+- Приклад тону: «Я бачив, як ви розмовляли з молодшою піною. Тепер я записую це особисто.»
+- Інший варіянт: «Бочка була тренуванням. Я — інструкція, яку вона не дочитала.»
+
+**Possible runtime shape**
+
+- Trigger після кількох завершених solo-рейдів або як рідкісний post-raid twist, не заміна поточної Бочки.
+- Може бути mini-boss, quest contract або більший barrel-family encounter.
+- Не має ставати справжнім груповим рейдом автоматично; групові рейди лишаються окремим Phase 2+ напрямом.
+
+**Guardrails**
+
+- Не робити прямий `Big Brother` у назві ворога або предметів.
+- Не копіювати довгі або впізнавані дослівні цитати з Орвелла.
+- Жарт має працювати сам по собі: старший бочковий наглядач, який усе заносить у пінний журнал.
+- Reward/replay/idempotency має йти через наявні безпечні патерни, якщо це стане runtime.
+
 ## Post-closeout scope guard
 
 Бестіарій лишається content/data foundation: read-only `/bestiary`, monster content, loot notes, flavor routing і Hunt Board contract source.
