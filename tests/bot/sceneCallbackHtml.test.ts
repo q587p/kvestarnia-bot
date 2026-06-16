@@ -250,7 +250,7 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("Це правило манатки, не помилка героя.");
   });
 
-  it("does not describe an active non-Yeger fight as an unquiet target", async () => {
+  it("does not spend the Yeger trail cooldown while another fight is already active", async () => {
     const calls = await captureApiCalls(
       makeYegerTrackCallbackData(),
       servicesWith({
@@ -259,41 +259,38 @@ describe("scene callback HTML options", () => {
             Promise.resolve({
               state: "in-progress",
               character,
-              progress: { wins: 1, target: 5 }
-            }),
-          trackForTelegramUser: () =>
-            Promise.resolve({
-              state: "tracking-resolved-success",
-              character,
               progress: { wins: 1, target: 5 },
               tracking: {
-                state: "tracking-pending",
-                availableAt: new Date("2026-06-15T10:08:00.000Z"),
+                state: "tracking-ready",
+                availableAt: new Date("2026-06-15T10:04:00.000Z"),
                 now: new Date("2026-06-15T10:05:00.000Z")
-              },
-              fight: {
-                state: "persistent-active",
-                character,
-                session: persistentSession("monster.deadline-spider"),
-                monster: {
-                  id: "monster.deadline-spider",
-                  name: "Павук дедлайнів",
-                  description: "Плете павутину з «сьогодні швиденько».",
-                  level: 2,
-                  tags: ["beast", "time", "web"]
-                },
-                questProgress: null
               }
+            }),
+          trackForTelegramUser: vi.fn(() => Promise.reject(new Error("should not be called")))
+        },
+        fight: {
+          getOrStartPersistentFightForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-active",
+              character,
+              session: persistentSession("monster.deadline-spider"),
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null
             })
         }
       })
     );
     const edit = calls.find((call) => call.method === "editMessageText");
-    const fight = calls.find((call) => call.method === "sendMessage");
 
     expect(String(edit?.payload.text)).toContain("У вас уже триває інша сутичка.");
     expect(String(edit?.payload.text)).not.toContain("Щось неупокоєне знайшлося");
-    expect(String(fight?.payload.text)).toContain("Павук дедлайнів");
+    expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 
   it("keeps Yeger tracking flavor for active matching unquiet fights", async () => {
@@ -305,7 +302,12 @@ describe("scene callback HTML options", () => {
             Promise.resolve({
               state: "in-progress",
               character,
-              progress: { wins: 1, target: 5 }
+              progress: { wins: 1, target: 5 },
+              tracking: {
+                state: "tracking-ready",
+                availableAt: new Date("2026-06-15T10:04:00.000Z"),
+                now: new Date("2026-06-15T10:05:00.000Z")
+              }
             }),
           trackForTelegramUser: () =>
             Promise.resolve({
@@ -330,6 +332,14 @@ describe("scene callback HTML options", () => {
                 },
                 questProgress: null
               }
+            })
+        },
+        fight: {
+          getOrStartPersistentFightForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-ready",
+              character,
+              questProgress: null
             })
         }
       })
