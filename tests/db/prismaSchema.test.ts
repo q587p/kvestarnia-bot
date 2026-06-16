@@ -250,4 +250,30 @@ describe("Prisma schema", () => {
     expect(migration).toContain("CREATE UNIQUE INDEX \"mantok_chest_runs_token_key\"");
     expect(migration).toContain("CREATE INDEX \"mantok_chest_runs_character_id_status_idx\"");
   });
+
+  it("stores level barter exchanges for retry-safe irreversible spending", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260616090000_add_level_barter_exchanges",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model LevelBarterExchange");
+    expect(schema).toContain("levelBarterExchanges LevelBarterExchange[]");
+    expect(schema).toContain("@map(\"input_items_json\")");
+    expect(schema).toContain("@map(\"spent_gold\")");
+    expect(schema).toContain("@map(\"level_before\")");
+    expect(schema).toContain("@map(\"xp_carry\")");
+    expect(schema).toContain("@@unique([characterId, token])");
+    expect(schema).toContain("@@map(\"level_barter_exchanges\")");
+    expect(migration).toContain("CREATE TABLE \"level_barter_exchanges\"");
+    expect(migration).toContain("CREATE UNIQUE INDEX \"level_barter_exchanges_character_id_token_key\"");
+    expect(migration).toContain("CREATE INDEX \"level_barter_exchanges_character_id_status_idx\"");
+  });
 });

@@ -79,7 +79,15 @@ export function buildTavernResultKeyboard(
     return new InlineKeyboard().text("🍺 Перевірити бочку", makeTavernCallbackData("raid"));
   }
 
-  if (state === "completed" || state === "already-completed" || state === "audit-break") {
+  if (state === "completed" || state === "already-completed") {
+    return new InlineKeyboard()
+      .text("🍻 Всім пива", makeTavernCallbackData("round"))
+      .row()
+      .text("🧥 Єгер", makeTavernCallbackData("ranger"))
+      .text("⬅️ До зали", makePlaceCallbackData("hall"));
+  }
+
+  if (state === "audit-break") {
     return new InlineKeyboard()
       .text("🧥 Єгер", makeTavernCallbackData("ranger"))
       .text("⬅️ До зали", makePlaceCallbackData("hall"));

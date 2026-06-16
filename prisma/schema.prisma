@@ -41,6 +41,7 @@ model Character {
   huntContracts HuntContract[]
   soloCombatSessions SoloCombatSession[]
   mantokChestRuns MantokChestRun[]
+  levelBarterExchanges LevelBarterExchange[]
   name      String
   pronoun   String   @default("they")
   path      String   @default("boundary")
@@ -145,6 +146,31 @@ model MantokChestRun {
 
   @@index([characterId, status])
   @@map("mantok_chest_runs")
+}
+
+model LevelBarterExchange {
+  id                 String    @id @default(uuid())
+  characterId        String    @map("character_id")
+  character          Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  token              String
+  status             String    @default("completed")
+  inputItemsJson     Json      @map("input_items_json")
+  spentGold          Int       @map("spent_gold")
+  levelBefore        Int       @map("level_before")
+  levelAfter         Int       @map("level_after")
+  xpBefore           Int       @map("xp_before")
+  xpAfter            Int       @map("xp_after")
+  xpCarry            Int       @map("xp_carry")
+  itemTotalValue     Int       @map("item_total_value")
+  selectedTotalValue Int       @map("selected_total_value")
+  overpay            Int
+  completedAt        DateTime? @map("completed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@unique([characterId, token])
+  @@index([characterId, status])
+  @@map("level_barter_exchanges")
 }
 
 model DailyAction {

@@ -7,6 +7,21 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.30] - 12026-06-16 - Level Barter Safety & Closeout Alignment
+
+### Added
+- Added a narrow `level_barter_exchanges` audit ledger so repeated `🎒 Манчкін-скупник` confirm callbacks replay the completed exchange instead of becoming a misleading stale-selection error.
+- Added focused tests for level-barter replay, gold-only refusal, pending Barrel blocking, and the Yeger ready-trail/non-Yeger-active-fight edge.
+- Added Phase 1 smoke/docs alignment for the shipped Munchkin Barter path before the separate `0.1.0` closeout PR.
+
+### Changed
+- `🎒 Манчкін-скупник` now requires at least one eligible priced манатка; wallet gold may fill the missing value but cannot buy a level by itself.
+- Level-barter callbacks are blocked while a Barrel raid is pending, matching other progression/spending actions.
+- Docs now describe `0.0.29` as the broader Yeger + Munchkin Barter runtime that actually shipped, with `0.1.0` still reserved for closeout/release alignment.
+
+### Not Included Yet
+- Manual Munchkin item selection, shops, selling, trading, crafting, item-instance inventory, achievements runtime, or `0.1.0` release closure.
+
 ## [0.0.29] - 12026-06-16 - Yeger Tracking Search & Munchkin Barter
 
 ### Added

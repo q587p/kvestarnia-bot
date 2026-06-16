@@ -79,15 +79,21 @@ describe("level barter domain", () => {
     ]);
   });
 
-  it("allows gold-only exchange when the wallet covers the cost", () => {
-    const selected = pickItemsForLevelBarter([], 1000, 1000);
+  it("requires at least one eligible item even when the wallet covers the cost", () => {
+    expect(pickItemsForLevelBarter([], 1000, 1000)).toBeNull();
 
-    expect(selected).toMatchObject({
-      itemTotalValue: 0,
-      goldSpent: 1000,
+    const token = item({ id: "item.token", goldValue: 25 });
+    const stacks = buildLevelBarterEligibleStacks({
+      stacks: [{ itemId: token.id, quantity: 1 }],
+      itemContents: [token]
+    });
+
+    expect(pickItemsForLevelBarter(stacks, 1000, 1000)).toMatchObject({
+      itemTotalValue: 25,
+      goldSpent: 975,
       selectedTotalValue: 1000,
       overpay: 0,
-      items: []
+      items: [{ itemId: token.id, quantity: 1 }]
     });
   });
 

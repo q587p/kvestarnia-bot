@@ -84,8 +84,10 @@ describe("quest hub command", () => {
         inline_keyboard: [
           [{ text: "🧾 До проблем", callback_data: makeQuestCallbackData("fight") }],
           [{ text: "🧹 У льох", callback_data: makeQuestCallbackData("cellar") }],
-          [{ text: "📦 Архів", callback_data: makeQuestCallbackData("archive") }],
-          [{ text: "📖 Бестіарій", callback_data: makeBestiaryListCallbackData(0) }],
+          [
+            { text: "📦 Архів", callback_data: makeQuestCallbackData("archive") },
+            { text: "📖 Бестіарій", callback_data: makeBestiaryListCallbackData(0) }
+          ],
           [{ text: "🍺 До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
       }

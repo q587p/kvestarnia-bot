@@ -9,10 +9,9 @@ import type { LevelBarterPreviewResult } from "../../services/levelBarterService
 
 export function buildLevelBarterOfferKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
-    .text("✅ Автопідібрати манатки й золото", makeLevelBarterAutoCallbackData())
+    .text("🧮 Автопідібрати манатки й золото", makeLevelBarterAutoCallbackData())
     .row()
-    .text("↩️ До дверей", makePlaceCallbackData("front"))
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text("↩️ До дверей", makePlaceCallbackData("front"));
 }
 
 export function buildLevelBarterPreviewKeyboard(result: LevelBarterPreviewResult): InlineKeyboard {
@@ -23,15 +22,12 @@ export function buildLevelBarterPreviewKeyboard(result: LevelBarterPreviewResult
     keyboard.text("🔁 Перерахувати", makeLevelBarterAutoCallbackData()).row();
   }
 
-  return keyboard
-    .text("↩️ До дверей", makePlaceCallbackData("front"))
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+  return keyboard.text("↩️ До дверей", makePlaceCallbackData("front"));
 }
 
 export function buildLevelBarterResultKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("👤 Персонаж", makeMenuCallbackData("hero"))
     .row()
-    .text("↩️ До дверей", makePlaceCallbackData("front"))
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text("↩️ До дверей", makePlaceCallbackData("front"));
 }

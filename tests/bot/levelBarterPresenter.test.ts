@@ -59,6 +59,31 @@ describe("level barter presenter", () => {
     expect(text).toContain("Пательня переконання");
     expect(text).not.toContain("item.pan-of-persuasion");
   });
+
+  it("explains that gold-only exchange still needs an item", () => {
+    const text = presentLevelBarterPreview({
+      state: "insufficient",
+      character: character({ gold: 1000 }),
+      eligibleTotalValue: 0,
+      gold: 1000,
+      combinedValue: 1000,
+      cost: 1000
+    });
+
+    expect(text).toContain("хоча б одна оцінена манатка");
+  });
+
+  it("shows completed replay without scary stale copy", () => {
+    const text = presentLevelBarterConfirmResult({
+      state: "replayed",
+      character: character({ level: 5, gold: 0 }),
+      offer: offer({ itemTotalValue: 25, goldSpent: 975 })
+    });
+
+    expect(text).toContain("уже заніс цей обмін у журнал");
+    expect(text).toContain("Тепер ви <b>5</b> рівня.");
+    expect(text).not.toContain("Порахуємо ще раз");
+  });
 });
 
 function offer(overrides: Partial<LevelBarterPresentedOffer> = {}): LevelBarterPresentedOffer {

@@ -62,7 +62,8 @@ export type LevelBarterConfirmResult =
       cost: number;
     }
   | { state: "stale-selection" }
-  | { state: "exchanged"; character: CharacterSummary; offer: LevelBarterPresentedOffer };
+  | { state: "exchanged"; character: CharacterSummary; offer: LevelBarterPresentedOffer }
+  | { state: "replayed"; character: CharacterSummary; offer: LevelBarterPresentedOffer };
 
 export interface LevelBarterPresentedOffer {
   token: string;
@@ -156,9 +157,9 @@ export class LevelBarterService {
       createPlan: (snapshot) => buildPlanForSnapshot(snapshot, token)
     });
 
-    if (result.state === "exchanged") {
+    if (result.state === "exchanged" || result.state === "replayed") {
       return {
-        state: "exchanged",
+        state: result.state,
         character: summarizeCharacter(result.character),
         offer: presentPlan(result.plan)
       };

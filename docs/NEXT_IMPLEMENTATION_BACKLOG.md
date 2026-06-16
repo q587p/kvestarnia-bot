@@ -20,6 +20,82 @@ Closure PR `0.1.0` має бути release/docs/smoke PR: version surface, chang
 persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/mana persistence → recovery/balance polish → inventory/chest polish → balance/playtest polish
 ```
 
+## Later — `/remort` After Level 13
+
+**Objective**
+Замість того, щоб після 13 рівня просто пропонувати `/restart`, спроєктувати окрему механіку `/remort`: переродження героя у стилі MUD-ів, де завершений персонаж починає нове коло не як чистий wipe, а з памʼяттю, статусом або обмеженим legacy-бонусом.
+
+**Research note**
+
+- Перед дизайном подивитися, як `remort` працює в MUD-ах: скидання рівня, збереження імені/репутації, remort-count, доступ до нових рас/класів, невеликі permanent бонуси, unlock-и або титули.
+- Виписати, які патерни підходять Квестарні, а які ламають баланс або роблять veteran snowball.
+
+**Scope**
+
+- Додати команду `/remort` як окремий шлях після досягнення 13 рівня.
+- На 13 рівні capstone copy має пропонувати `/remort`, а не лише `/restart`.
+- Зберегти `/restart` як технічний reset/discovery loop, але не робити його головною endgame-пропозицією.
+- Вирішити, що саме переходить у нове коло: імʼя, записи дошки, remort-count, титули, косметичні відзнаки, частина манаток або жодна бойова сила.
+- Нове коло має відкривати інший смак проходження без pay-to-win і без обовʼязкового grind-покарання.
+
+**Non-goals**
+
+- no prestige power snowball у першому slice;
+- no paid power або premium remort;
+- no wipe без явного confirmation;
+- no автоматичне переродження без окремої команди й пояснення.
+
+**Acceptance criteria**
+
+- 13-level celebration пропонує `/remort` як головний наступний крок;
+- `/remort` має окремий confirmation flow і не плутається з `/restart`;
+- remort-state/rewards ідемпотентні й не дублюються повторним callback-ом;
+- docs пояснюють, чим `/remort` відрізняється від `/restart`;
+- tests cover unavailable below level 13, confirmation, successful remort, repeated confirm, and preserved/deleted state choices.
+
+## Later — NPC Player Rankings
+
+**Objective**
+Додати біля корчми або дошки вістей NPC, який веде поточні топи пригодників і говорить про це так, ніби числа самі приходять до нього на сповідь. Це має бути соціяльний гачок і причина посміхнутися, а не таблиця сорому.
+
+**NPC direction**
+
+- Робоча роль: `Лічильник`, `Писар сили`, `Пан з рахівницею`, `Той, хто знає ваше місце`. Назву вибрати в runtime PR.
+- NPC пояснює, що він не вирішує, хто герой, а лише тримає список, поки список не тримає його.
+- Винести поверхню надвір або до дошки, щоб не перевантажувати корчемний hub.
+
+**Leaderboards**
+
+- `Сила пригодника`: рівень, характеристики, effective stats і вдягнені манатки. Не використовувати сирий hidden/internal score без пояснення.
+- `Гаманець`: наявне золото персонажа.
+- `Скарб у манатках`: сумарний item score / оціночна вартість манаток, окремо від spendable gold.
+- Майбутні розширення: щедрість у Шинку, закриті справи, перемоги над проблемами, досягнення рівнів.
+
+**UI rules**
+
+- Показувати максимум перші `39` місць: три сторінки по `13` рядків.
+- Пагінація кнопками `⬅️` / `➡️`, без довгих повідомлень, які ризикують упертися в Telegram limit.
+- У кожному leaderboard показувати власну позицію окремим рядком: навіть якщо гравець поза top 39, він бачить своє місце, але бот не показує весь хвіст списку.
+- Формат рядка: медаль для `1-3`, далі номер, коротке імʼя, optional guild/tag, значення score людською мовою.
+- Якщо значення однакове, tie-breaker має бути детермінованим: спершу вищий рівень/релевантний secondary score, потім earliest joined/created або stable `character_id`.
+- Не показувати технічні id, telegram usernames без потреби, exact timestamps або приховані локації.
+
+**Scoring guardrails**
+
+- `Сила пригодника` має бути derived/read-only, без нового reward source.
+- Equipment effects враховувати через shared effective-stats helper, щоб `/hero`, combat і leaderboard не рахували різні світи.
+- Item score для манаток має використовувати той самий або явно споріднений scoring path, що й Дружня Скриня / Манчкін-скупник, але без автоматичного продажу чи конвертації.
+- Рейтинги не мають давати прямий бойовий бонус. Нагороди, якщо зʼявляться, мають бути cosmetic/social: рядок на дошці, титул, локальний жарт.
+
+**Acceptance criteria**
+
+- NPC має entry point із надвору/дошки й коротке пояснення;
+- є три вкладки/кнопки: сила, золото, манатки;
+- кожен топ пагінується по `13`, максимум `39` видимих позицій;
+- власна позиція показується окремо й працює поза top 39;
+- ties стабільні між переглядами;
+- tests cover score calculation, pagination, own-rank outside top 39, privacy-safe names, no exact timestamps, and Telegram message length guard.
+
 ## Later — Durable Barrel Raid Notifications
 
 **Objective**
@@ -95,33 +171,47 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - `🍞 Грінка чесної сили` — малий STR/physical damage bonus, без stacking-а з сильнішими стравами.
 - `🧀 Сирник дипломатичного тиску` — малий CHA/social action bonus для квестів або trick-дій.
 - `🍄 Печеня «не питайте з чого»` — дешевий risky варіянт: слабший баф, але кумедний flavor або малий шанс не того ефекту.
+- `☕ Кава корчмарської тривоги` — тимчасово стискає кулдауни, а потім змушує організм і Бочку вимагати відсотки.
 
 **Rules**
 
-- У персонажа одночасно активний тільки один харчовий баф або один окремий слот бафа із явною заміною попереднього.
+- У персонажа може бути до пʼяти одночасних харчових бафів. Дублі того самого типу не stack-аються без окремого правила: нова страва або продовжує/оновлює свій слот, або просить confirmation на заміну.
 - Баф має коротку тривалість: наступний persistent fight, кілька ходів, одна квестова перевірка або обмежене часове вікно.
 - Списання золота тільки після confirmation screen із назвою страви, ціною, ефектом і тим, що буде замінено.
 - Не продавати їжу під час pending raid або інших станів, де пригодові дії заблоковані.
 - Бафи мають проходити через той самий effective-stats/resource helper, що й манатки, а не через розкидані presenter hacks.
 - Не давати XP, рівень, loot roll або прямий обхід gates. Це підготовка й стратегічна витрата, не нове джерело прогресу.
 
+**Coffee cooldown effect**
+
+- Кава — окремий харчовий/напійний ефект для cooldown activity, а не бойовий stat buff.
+- Одна, друга й третя кава в позитивній фазі скорочують релевантні кулдауни до `75%`, `60%` і `50%` відповідно. Цілитись у Бочку, мишу/льохові справи, Єгерський пошук сліду й подібні persisted cooldown-и.
+- Позитивна фаза триває приблизно `15-23` хвилини: конкретну тривалість рахувати від `luck` і bounded RNG, без показу точного roll-а гравцю.
+- Після позитивної фази починається відкат: на `1/2/4` години кулдауни подовжуються до `150%/200%/400%` для одного/двох/трьох випитих горнят.
+- Більше трьох кав за один цикл не наливають. Другу й третю можна купити тільки поки триває позитивне скорочення.
+- Під час негативного подовження нову каву не продавати: корчмар каже, що серце героя й так уже читає дрібний шрифт.
+- Коли негативна фаза минула, герой може почати новий кавовий цикл, якщо має золото й не заблокований pending raid / іншою небезпечною дією.
+- UI має чітко показувати фазу кави грубими словами: `кава допомагає`, `кава мститься`, `кава відпустила`; без точних timestamps у player-facing copy.
+
 **Balance guardrails**
 
 - Дешеві страви: помітний flavor, малий ефект, щоб новачок міг спробувати без страху.
 - Дорогі страви: сильніші або довші, але без обовʼязковости для нормального win rate.
-- Не stack-ати їжу з собою; не дозволяти купити 10 борщів і перетворити бій на бухгалтерію супу.
+- Не дозволяти нескінченне stacking-меню: максимум пʼять активних харчових бафів і максимум три кави в одному кавовому циклі.
 - Якщо баф піднімає `hpMax`/`manaMax`, не має безкоштовно лікувати понад описаний ефект. Поточні HP/мана мають оновлюватись явно й тестовано.
+- Кавове прискорення не має міняти already-claimed reward state або дублювати винагороди. Воно лише масштабує майбутню/поточну тривалість cooldown-ів у явно дозволених activities.
 - Добові/тижневі рейтинги пива не змішувати з їжею; якщо зʼявиться food ledger, це окрема мірялка.
 
 **Acceptance criteria**
 
 - `🍻 Шинок` показує меню їжі з цінами й короткими ефектами;
-- purchase confirm списує золото один раз і створює один active food buff;
+- purchase confirm списує золото один раз і створює/оновлює active food buff у межах ліміту пʼяти;
 - repeated/stale callback не списує золото вдруге;
-- новий food buff замінює попередній із ясним текстом;
-- fight start/effective stats враховує активний харчовий баф і гасить його за правилами тривалости;
+- новий food buff оновлює відповідний слот або просить підтвердити заміну, якщо ліміт вичерпано;
+- fight start/effective stats враховує активні харчові бафи й гасить їх за правилами тривалости;
+- кава скорочує/подовжує тільки дозволені cooldown-и, має positive/negative фази, блокує додаткову каву під час негативної фази й не дозволяє понад три горнята за цикл;
 - `/hero` або окрема деталь показує активний харчовий баф без технічних id;
-- tests cover insufficient gold, one active buff, replace flow, stale confirm, HP/mana edge cases, and fight consumption.
+- tests cover insufficient gold, five-buff limit, replace/refresh flow, stale confirm, HP/mana edge cases, fight consumption, coffee 75/60/50% positive scaling, 150/200/400% rebound scaling, and coffee blocking during negative phase.
 
 ## Later — Шинок Bard Performance
 
@@ -205,24 +295,26 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 - event text короткий, український і без дослівного копіювання мемів;
 - tests cover no-event day, Wednesday frog day, Sunday revel day, explicit holiday day, and replay/idempotency.
 
-## Later — Манчкін-скупник Manual Selection Polish
+## 0.1.x Later — Манчкін-скупник Manual Selection Polish
 
 **Objective**
-Доробити `🎒 Манчкін-скупника` після auto-pick MVP: дати гравцю ручний вибір манаток для рівня без роздування callback data і без ризику stale списань.
+Доробити `🎒 Манчкін-скупника` після retry-safe auto-pick MVP: дати гравцю ручний вибір манаток для рівня без роздування callback data і без ризику stale списань.
 
 **Rules**
 
 - Поріг лишається `1000` оціночного золота разом із докладеним золотом з гаманця.
+- Обмін має включати щонайменше одну eligible priced манатку; gold-only лишається забороненим, якщо окремий future PR явно не змінить це рішення.
 - `12 → 13` не дозволяти: 13 рівень тільки боями.
 - Екіпіровані, безцінні, story/quest/protected і zero-value манатки не eligible.
 - Preview має показувати конкретні selected stacks, суму манаток, докладене золото, переплату й XP carry.
+- Runtime confirm уже має `level_barter_exchanges` ledger; manual selection має або переюзати його, або мати такий самий replay/idempotency boundary.
 
 **Acceptance criteria**
 
 - manual selector не кладе довгі item ids у callback-и;
 - confirm перечитує inventory/equipment/gold і відхиляє stale input;
-- repeated confirm не дає другий рівень;
-- tests cover exact threshold, gold-fill threshold, protected/equipped exclusions, stale manual selection, and level-13 refusal.
+- repeated confirm replay-ить уже completed exchange і не дає другий рівень;
+- tests cover exact threshold, gold-fill threshold, gold-only refusal, protected/equipped exclusions, stale manual selection, replay, pending Barrel guard, and level-13 refusal.
 
 ## Later — Bestiary Browse Filters
 
@@ -267,6 +359,7 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 - `/fight` для level 3+ має або вести в Глибку після interior gate, або пояснювати, що проблеми чекають унизу, не біля столу.
 - `👀 Хто поруч` у Глибці показує персонажів саме в цій місцині, не всіх біля Столу зі справами.
 - Пізніші бойові/підземельні справи зможуть теж вести в Глибку, щоб не плодити окремі «кімнати бою» для кожного квесту.
+- Нічний flavor для `🎒 Манчкін-скупника`: коли Глибка вже існує, він може вночі ховатися/працювати саме там, а вдень знову тинятися біля дверей корчми.
 
 **Non-goals**
 
@@ -606,6 +699,182 @@ Implemented in the `0.0.28` slice as `Неспокійні справи`: level 
 
 - tests cover threshold crossing, multiple levels, cap at 13, duplicate reward no duplicate level;
 - `/hero` and combat agree on level/effective values.
+
+**Small copy/UX debts**
+
+- Fight turn wording cleanup: якщо callback answer каже `Хід записано`, а fight screen уже показує `Хід: N`, не називати log section `Останній хід` поруч із цим. Звести до одного терміна (`Раунд`, `Журнал`, `Остання дія` або без заголовка), щоб бойовий екран не звучав як три службові журнали один на одному. Tests should cover the player-facing flow text, not only individual presenter snippets.
+- Active fight keyboard cleanup: коли persistent fight уже активний, не показувати `⬅️ До столу` поруч із бойовими діями. У бою гравець має або діяти (`Вдарити`, уміння, майбутній `Захист`), або пробувати `Відступити`; вихід до Столу має зʼявлятися тільки в terminal/non-active states або як окрема safe navigation після завершення. Tests should assert active fight keyboards do not include quest-table navigation.
+
+## Later — Battle Interventions / Витівка Прилавка
+
+**Objective**
+Додати стартовий risk/reward вибір перед eligible solo боєм: Припічник може послабити монстра за меншу нагороду, лишити все як є або досипати перцю й підняти effective level за кращий потенційний reward.
+
+**Source**
+
+- `docs/BATTLE_INTERVENTIONS.md`;
+- локальний planning archive `kvestarnia-battle-interventions-archive.zip` містив початкові design/copy/tasks/prompt notes.
+
+**Scope**
+
+- pre-first-turn intervention phase for regular solo fights;
+- choices: `help` (`-3` effective monster levels), `none`, `hinder` (`+2` effective monster levels);
+- base monster level and effective monster level tracked separately;
+- combat stats use effective level, while monster identity/content stays the same;
+- reward modifiers make help safer but poorer, and hinder riskier but potentially richer;
+- capped overlevel XP multiplier for defeating a monster above player level;
+- timeout defaults to `none`, never to `hinder`;
+- duplicate/stale/other-user callbacks are idempotent and safe.
+
+**Non-goals**
+
+- no tutorial/story/fixed-reward fights;
+- no group/PvP/social intervention stacking yet;
+- no broad combat rewrite;
+- no hidden mutation of monster templates;
+- no uncapped reward farming;
+- no player-to-player help/hinder until anti-abuse rules exist.
+
+**Acceptance criteria**
+
+- tests cover pure level/reward functions, eligibility, callback ownership, duplicate callbacks, timeout default, and reward differences;
+- result copy clearly says why reward changed;
+- Telegram buttons stay short and Ukrainian;
+- feature can be disabled or kept out of special encounters;
+- future player/event intervention source types are not blocked by the state shape.
+
+## Later — Combat Variety: Guard, Cooldowns, Monster Skills
+
+**Objective**
+Зробити solo-бій менш пласким, не перетворюючи його на повний MMO-combat: додати захисну дію, обмежити частоту сильних умінь і дати монстрам хоча б одну виразну не-базову дію.
+
+**Scope**
+
+- додати player action `guard`: захист зброєю, щитом, підручною манаткою або голими руками, залежно від класу/раси/equipment;
+- `guard` має зменшувати вхідну шкоду цього ходу, іноді давати малу контратаку або позиційну перевагу, але не ставати найкращою атакою;
+- тематично підсилити guard/counter для воїна, гнома, домовика, орка-інтелігента, козака-характерника, жреця й важкої броні;
+- додати cooldown-и для сильних player skills: базово раз на `4-5` ходів, але дешеві cantrip/trick/support-вміння можуть мати коротший cooldown або тільки mana cost;
+- UI має показувати cooldown людською мовою: `ще 2 ходи`, `готово`, `бракує мани`, без прихованого списання ходу;
+- дати кожному ordinary monster хоча б одну просту особливість: guard, heavy attack wind-up, trick, слабкий debuff, self-shield, surrender cue або once-per-fight skill;
+- монстри мають іноді захищатися, а не тільки бити: guard-шанс залежить від тегів `guard`, `bureaucratic`, `coward`, `armored`, `trickster` чи подібних content tags;
+- симуляції мають перевіряти, що guard/cooldown не роздуває звичайні бої далеко за 2-5 ходів і не створює безпечний нескінченний stall.
+
+**Non-goals**
+
+- no multi-enemy combat у цьому slice;
+- no full status-effect engine;
+- no consumable item actions;
+- no permanent class rework або respec;
+- no broad monster AI tree;
+- no reward/loot rebalance, якщо guard/cooldown не вимагає вузького tuning-а.
+
+**Acceptance criteria**
+
+- repeated callback не дає повторної контратаки або подвійного cooldown decrement;
+- skill cooldown і mana cost не списуються, якщо дія не пройшла validation;
+- guard має окремі unit tests для damage reduction, no-weapon fallback, class/race тематичних modifiers і counter chance;
+- monster action tests cover at least attack, guard, and one once-per-fight monster skill;
+- presenter copy коротко пояснює, що сталося: `Ви прикрилися`, `Монстр став у захист`, `Вміння ще готує печатку`;
+- combat simulation reports win-rate/turn-count drift before/after.
+
+## Later — Expanded Equipment Doll and Combat Tags
+
+**Objective**
+Розширити «ляльку» спорядження з трьох слотів до виразної equipment-моделі, де манатки не просто додають цифри, а відкривають бойові варіянти: дві руки, щити, дворучна зброя, взуття, амулети, косметика й тегована поведінка.
+
+**Player-facing direction**
+
+Екран спорядження має читатися як коротка картка героя, а не як debug table:
+
+```text
+Спорядження героя
+
+🗡 Пательня переконання +3 (⚔️ +8, 😎 +1)
+🛡 Кришка обережного борщу +2 (🛡 +5, 🔰 блок)
+🎩 Порожній слот
+🧥 Фартух піностійкого пригодника +1 (🛡 +3, ❤️ +6)
+👢 Чоботи службового тупоту +2 (🦶 копнути)
+🪬 Амулет дрібної недовіри (🔮 +2, 🌀 trick)
+✨ Косметика: значок «Я тут випадково»
+```
+
+Це приклад напрямку, не обіцянка конкретних предметів або чисел.
+
+**Scope**
+
+- розширити slot vocabulary: `mainHand`, `offHand`, `twoHand`, `head`, `chest`, `legs`, `feet`, `accessory1`, `accessory2`, `cosmetic`;
+- визначити rules для рук:
+  - `twoHand` займає обидві руки;
+  - одноручна зброя може бути в `mainHand` або `offHand`, якщо предмет/клас це дозволяє;
+  - щит або захисна манатка може займати одну руку;
+  - два щити можливі тільки як окремий funny/defensive build і не мають давати безсмертя;
+- додати item tags для майбутніх дій: `melee`, `ranged`, `magic-focus`, `shield`, `kick-enabled`, `block`, `counter`, `spell-channel`, `offhand`, `two-handed`, `cosmetic`, `consumable`;
+- пройтися по наявних манатках і проставити tags/effect intent, щоб кожна supported equippable річ чесно пояснювала, чим вона може допомогти;
+- stronger equipment impact має йти через `buildEffectiveCharacterStats(...)` і combat action catalog, а не через presenter hacks;
+- якщо немає зброї, combat має мати unarmed fallback: кулаки, хвіст, голова, роги, пісня, печатка або інший flavor залежно від раси/класу/титулу;
+- взуття з відповідним тегом може відкрити кнопку `Копнути`;
+- щит має впливати на `guard`, block chance, shield bash або counter тільки коли це підтримує клас/раса/титул;
+- магічна палка, посох, кільце або амулет можуть давати spell/trick action навіть не-магічним класам, але з меншим ефектом або дорожчою маною;
+- cosmetic slot не дає бойової сили в першому slice, але може впливати на flavor, профіль або майбутні соціяльні реакції;
+- разові манатки лишаються окремим майбутнім item-action slice з confirmation та idempotency, не автоматичним hidden proc-ом.
+
+**Non-goals**
+
+- no shops, selling, trading або crafting у цьому slice;
+- no durability numbers на всіх предметах, якщо item instances ще не готові;
+- no cursed equipment або forced unequip без окремого safe UX;
+- no full consumable system;
+- no giant stat rebalance без simulation;
+- no cosmetic pay-to-win.
+
+**Implementation notes**
+
+- Перед runtime зміною потрібне рішення щодо `character_equipment`: чи лишається content-id per slot, чи потрібні concrete item instance ids перед split-stack / durability / transfer use cases.
+- Callback data має лишатися коротким: краще slot codes (`mh`, `oh`, `2h`, `hd`, `ft`, `c1`) і server-side lookup, ніж довгі payload-и.
+- UI має допомагати орієнтуватися: у вкладці `Спорядження` варто мати фільтри `Показати зброю`, `Показати захист`, `Показати амулети`, `Показати косметику`, які показують owned compatible items.
+- Equipment restrictions мають пояснюватися in-world: не «не той gender/race», а «ця манатка просить іншу анкету пригодника» з кнопкою до деталей.
+
+**Acceptance criteria**
+
+- tests cover two-handed item occupying both hands, shield/offhand conflicts, two shields if allowed, empty unarmed fallback, and cosmetic no-power guarantee;
+- every visible slot has Ukrainian label and distinct icon where practical;
+- every supported equippable item has tags/effect intent and item detail explains them;
+- `/equipment`, `/hero`, item detail, and combat agree on effective stats and unlocked actions;
+- combat simulations include no-weapon, one-handed weapon, two-handed weapon, shield, dual-shield, magic-focus, and kick-enabled samples;
+- no hidden full heal/refill, duplicate item spend, or automatic consumable use.
+
+## Later — Multi-Enemy Combat and Summoner Tags
+
+**Objective**
+Спроєктувати і потім реалізувати перший обережний бій із кількома противниками, щоб `summoner`-монстри могли кликати допомогу, а майбутні рейди не починали з нуля.
+
+**Scope**
+
+- додати content-level tag або trait на кшталт `summoner` / `callsBackup`, який не гарантує підмогу, а відкриває контрольований шанс;
+- у solo MVP дозволити максимум одного додаткового ворога, щоб не ламати Telegram UI і баланс;
+- визначити ролі підмоги: extra weak attack, shield for main monster, minor heal, distraction або escape pressure;
+- UI має показувати кілька ворогів компактно: головний ворог окремо, підмога одним коротким рядком із HP/станом;
+- rewards не мають автоматично подвоюватися через підмогу; extra enemy може впливати на flavor або малий reward modifier тільки після окремого balance рішення;
+- target selection має бути простим: за замовчуванням атака бʼє головного ворога, special actions можуть зачіпати підмогу, але без складної тактичної сітки;
+- repeated/stale callback не має прикликати підмогу вдруге;
+- цей shape має бути сумісний із майбутніми group raids: кілька enemy records, turn log, compact summary, idempotent reward source.
+
+**Non-goals**
+
+- no повноцінний raid engine;
+- no positioning/grid;
+- no party roles, tanks/healers або aggro table;
+- no group rewards;
+- no AoE/effects explosion у першому slice;
+- no extra loot source just because зʼявився другий ворог.
+
+**Acceptance criteria**
+
+- combat state може серіалізувати 1 основного ворога + 1 підмогу без зміни старих finished sessions;
+- summon trigger has once-per-fight idempotency guard;
+- tests cover summon success, no duplicate summon, helper defeated, main defeated while helper remains, and reward materialization once;
+- Telegram message лишається в один мобільний екран;
+- docs пояснюють, як цей патерн стане основою для майбутнього group raid combat.
 
 ## Later / Не Phase 1 Finish
 

@@ -25,7 +25,9 @@ describe("tavern command screens", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("Усередині вже чекають:");
+    expect(replies[0]?.text).toContain("За дверима гуде <b>Корчма Квестарні</b>");
+    expect(replies[0]?.text).not.toContain("Усередині вже чекають:");
+    expect(replies[0]?.text).not.toContain("Стіл зі справами</i>: квести");
     expect(replies[0]?.text).toContain("/tavern");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",

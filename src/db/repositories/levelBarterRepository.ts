@@ -32,7 +32,8 @@ export type LevelBarterConfirmRepositoryResult =
   | { state: "battle-only-level"; level: number }
   | { state: "insufficient"; eligibleTotalValue: number; gold: number }
   | { state: "stale-selection" }
-  | { state: "exchanged"; character: CharacterRecord; plan: LevelBarterExchangePlan };
+  | { state: "exchanged"; character: CharacterRecord; plan: LevelBarterExchangePlan }
+  | { state: "replayed"; character: CharacterRecord; plan: LevelBarterExchangePlan };
 
 export interface LevelBarterRepository {
   getSnapshotForTelegramUser(telegramUserId: bigint): Promise<LevelBarterSnapshot | null>;

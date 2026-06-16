@@ -78,15 +78,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.row();
   }
 
-  if (canOpenBestiary(input)) {
-    keyboard.text("📦 Архів", makeQuestCallbackData("archive"));
-    keyboard.row();
-    keyboard.text("📖 Бестіарій", makeBestiaryListCallbackData(0));
-    keyboard.row();
-  } else {
-    keyboard.text("📦 Архів", makeQuestCallbackData("archive"));
-    keyboard.row();
-  }
+  addQuestReferenceButtons(keyboard, input);
 
   if (!hasReadyQuestAction(input)) {
     keyboard.text("🎒 Манатки", makeMenuCallbackData("inventory"));
@@ -96,6 +88,19 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   keyboard.text("🍺 До зали", makePlaceCallbackData("hall"));
 
   return keyboard;
+}
+
+function addQuestReferenceButtons(
+  keyboard: InlineKeyboard,
+  input: QuestHubKeyboardInput
+): void {
+  keyboard.text("📦 Архів", makeQuestCallbackData("archive"));
+
+  if (canOpenBestiary(input)) {
+    keyboard.text("📖 Бестіарій", makeBestiaryListCallbackData(0));
+  }
+
+  keyboard.row();
 }
 
 function canOpenBestiary(input: QuestHubKeyboardInput): boolean {

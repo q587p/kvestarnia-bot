@@ -1,4 +1,5 @@
-import type { Character, CharacterItem, Prisma, PrismaClient } from "@prisma/client";
+import type { Character, CharacterItem, LevelBarterExchange, Prisma, PrismaClient } from "@prisma/client";
+import { Prisma as PrismaRuntime } from "@prisma/client";
 import type { CharacterRecord } from "./characterRepository";
 import type { CharacterItemRecord } from "./inventoryRepository";
 import {
@@ -6,6 +7,7 @@ import {
 } from "./levelMilestoneRepository";
 import type {
   LevelBarterConfirmRepositoryResult,
+  LevelBarterExchangePlan,
   LevelBarterPlanResult,
   LevelBarterRepository,
   LevelBarterSnapshot
@@ -36,6 +38,23 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
           return { state: "no-character" };
         }
 
+        const existing = await tx.levelBarterExchange.findUnique({
+          where: {
+            characterId_token: {
+              characterId: snapshot.character.id,
+              token: input.expectedToken
+            }
+          }
+        });
+
+        if (existing?.status === "completed") {
+          return {
+            state: "replayed",
+            character: snapshot.character,
+            plan: planFromExchange(existing)
+          };
+        }
+
         const planResult = input.createPlan(snapshot);
 
         if (planResult.state === "battle-only-level") {
@@ -51,6 +70,24 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
         }
 
         const plan = planResult.plan;
+
+        await tx.levelBarterExchange.create({
+          data: {
+            characterId: snapshot.character.id,
+            token: input.expectedToken,
+            status: "pending",
+            inputItemsJson: plan.items,
+            spentGold: plan.goldSpent,
+            levelBefore: plan.levelBefore,
+            levelAfter: plan.levelAfter,
+            xpBefore: plan.xpBefore,
+            xpAfter: plan.xpAfter,
+            xpCarry: plan.xpCarry,
+            itemTotalValue: plan.itemTotalValue,
+            selectedTotalValue: plan.selectedTotalValue,
+            overpay: plan.overpay
+          }
+        });
 
         const updatedCharacter = await tx.character.updateMany({
           where: {
@@ -69,7 +106,7 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
         });
 
         if (updatedCharacter.count !== 1) {
-          return { state: "stale-selection" };
+          throw new LevelBarterStaleSelectionError();
         }
 
         for (const item of plan.items) {
@@ -110,6 +147,19 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
           input.now
         );
 
+        await tx.levelBarterExchange.update({
+          where: {
+            characterId_token: {
+              characterId: snapshot.character.id,
+              token: input.expectedToken
+            }
+          },
+          data: {
+            status: "completed",
+            completedAt: input.now
+          }
+        });
+
         const character = await tx.character.findUnique({
           where: {
             id: snapshot.character.id
@@ -138,8 +188,57 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
         return { state: "stale-selection" };
       }
 
+      if (error instanceof PrismaRuntime.PrismaClientKnownRequestError && error.code === "P2002") {
+        const replay = await this.findCompletedExchangeForTelegramUser(telegramUserId, input.expectedToken);
+
+        if (replay) {
+          return replay;
+        }
+
+        return { state: "stale-selection" };
+      }
+
       throw error;
     }
+  }
+
+  private async findCompletedExchangeForTelegramUser(
+    telegramUserId: bigint,
+    token: string
+  ): Promise<LevelBarterConfirmRepositoryResult | null> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      include: {
+        user: {
+          select: {
+            lastSeenLocationId: true
+          }
+        },
+        levelBarterExchanges: {
+          where: {
+            token,
+            status: "completed"
+          },
+          take: 1
+        }
+      }
+    });
+
+    const exchange = character?.levelBarterExchanges[0];
+
+    if (!character || !exchange) {
+      return null;
+    }
+
+    return {
+      state: "replayed",
+      character: toCharacterRecord(character),
+      plan: planFromExchange(exchange)
+    };
   }
 }
 
@@ -220,4 +319,45 @@ function toCharacterItemRecord(record: CharacterItem): CharacterItemRecord {
     createdAt: record.createdAt,
     updatedAt: record.updatedAt
   };
+}
+
+function planFromExchange(exchange: LevelBarterExchange): LevelBarterExchangePlan {
+  return {
+    token: exchange.token,
+    items: parseExchangeItems(exchange.inputItemsJson),
+    goldSpent: exchange.spentGold,
+    levelBefore: exchange.levelBefore,
+    levelAfter: exchange.levelAfter,
+    xpBefore: exchange.xpBefore,
+    xpAfter: exchange.xpAfter,
+    xpCarry: exchange.xpCarry,
+    itemTotalValue: exchange.itemTotalValue,
+    selectedTotalValue: exchange.selectedTotalValue,
+    overpay: exchange.overpay
+  };
+}
+
+function parseExchangeItems(input: Prisma.JsonValue): Array<{ itemId: string; quantity: number }> {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input.flatMap((entry) => {
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      Array.isArray(entry) ||
+      typeof entry.itemId !== "string" ||
+      typeof entry.quantity !== "number"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        itemId: entry.itemId,
+        quantity: Math.max(0, Math.floor(entry.quantity))
+      }
+    ];
+  });
 }

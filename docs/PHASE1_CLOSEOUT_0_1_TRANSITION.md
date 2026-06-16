@@ -14,17 +14,17 @@
 
 Phase 1 варто закривати після:
 
-1. завершення поточного `0.0.29 — Yeger Tracking Search` або явного рішення замінити його вузьким fix PR;
+1. завершення `0.0.30 — Level Barter Safety & Closeout Alignment`, бо `0.0.29` уже вмержив ширший runtime: Єгерський слід плюс Манчкін-скупник;
 2. повного smoke core-loop;
 3. одного closure PR до `0.1.0` без нових gameplay-систем;
 4. створення або оновлення канонічного `0.1.x` backlog issue/doc.
 
 ## Must Before 0.1.0
 
-### 1. Закрити активний 0.0.29 хвіст
+### 1. Закрити активний 0.0.30 safety-хвіст
 
 - Перевірити diff.
-- Переконатися, що немає schema migration і нових production dependencies без потреби.
+- Переконатися, що міграція `level_barter_exchanges`, якщо вона є в PR, лишається вузьким audit/idempotency boundary, а не стартом нової економіки.
 - Прогнати або перевірити CI.
 - Якщо є blocker, зробити тільки targeted fix.
 - Не додавати bait/lure/ambush, reputation, shops, trading, crafting або нові scheduler/job системи.
@@ -41,6 +41,7 @@ Phase 1 варто закривати після:
 - inventory/equipment;
 - Дружня Скриня auto/manual;
 - Єгерська справа після `0.0.29`;
+- Манчкін-скупник після `0.0.30`: replay confirm, no gold-only, protected/equipped exclusions, pending Barrel guard;
 - `/version`, `/news`, `/health`, public site і public presence.
 
 Детальний smoke живе в [docs/PHASE1_CLOSEOUT_SMOKE.md](PHASE1_CLOSEOUT_SMOKE.md).
@@ -75,7 +76,7 @@ Non-goals closure PR:
 
 ## Should Before 0.1.0
 
-- Легкий read-only review активного `0.0.29` PR.
+- Легкий read-only review активного `0.0.30` PR.
 - Ручний smoke у Telegram на чистому персонажі.
 - Ручний smoke у Telegram на персонажі 4+.
 - Перевірка public `/news` і `/presence`.
@@ -109,7 +110,7 @@ Non-goals closure PR:
 
 ### День 1 — закрити активний хвіст
 
-Ціль: не полірувати безкінечно, а переконатися, що `0.0.29` безпечний для merge.
+Ціль: не полірувати безкінечно, а переконатися, що `0.0.30` безпечний для merge перед closure PR.
 
 Порядок:
 
@@ -117,8 +118,9 @@ Non-goals closure PR:
 2. Перевірити відсутність небажаного scope creep.
 3. Прогнати `npm.cmd run lint`, `npx.cmd tsc --noEmit`, `npm.cmd test`, `npm.cmd run check`.
 4. Якщо `check` падає на Windows Prisma `EPERM`, зупинити локальний bot/dev process і повторити.
-5. Перевірити Єгерський smoke: lock до 4 рівня, start idempotent, tracking pending, ready trail, active non-Yeger fight не маскується під неупокоєну ціль, 5/5 turn-in idempotent.
-6. Merge або один targeted fix commit.
+5. Перевірити Єгерський smoke: lock до 4 рівня, start idempotent, tracking pending, ready trail, active non-Yeger fight не маскується під неупокоєну ціль і не спалює ready trail, 5/5 turn-in idempotent.
+6. Перевірити Манчкінський smoke: повторний confirm replay-ить успіх, gold-only відхилено, pending Бочка блокує старі кнопки.
+7. Merge або один targeted fix commit.
 
 ### День 2 — closure PR
 

@@ -98,6 +98,10 @@ export function pickItemsForLevelBarter(
   const safeGold = Math.max(0, Math.floor(availableGold));
   const units = expandLevelBarterStacks(stacks);
 
+  if (units.length === 0) {
+    return null;
+  }
+
   if (units.reduce((sum, unit) => sum + unit.unitGoldValue, 0) + safeGold < safeTarget) {
     return null;
   }
@@ -130,13 +134,16 @@ export function pickItemsForLevelBarter(
     }
   }
 
-  best = chooseBetterLevelBarterCandidate(best, candidates.get(0) ?? { units: [], total: 0 }, safeTarget, safeGold);
-
   if (!best) {
     return null;
   }
 
   const selectedUnits = [...best.units].sort((left, right) => left.order - right.order);
+
+  if (selectedUnits.length === 0) {
+    return null;
+  }
+
   const itemTotalValue = best.total;
   const goldSpent = Math.min(safeGold, Math.max(0, safeTarget - itemTotalValue));
   const selectedTotalValue = itemTotalValue + goldSpent;
