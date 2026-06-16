@@ -4,6 +4,8 @@ import {
   presentYegerHelp,
   presentYegerQuest,
   presentYegerStart,
+  presentYegerTrackingNone,
+  presentYegerTrackingPending,
   presentYegerTrackingStart,
   presentYegerTurnIn
 } from "../../src/bot/presenters/yegerPresenter";
@@ -106,9 +108,14 @@ describe("Yeger presenter", () => {
   });
 
   it("explains start and target help", () => {
-    expect(presentYegerStart({ state: "in-progress", character, progress: { wins: 0, target: 5 } })).toContain(
-      "дозвіл на прогрес"
-    );
+    expect(
+      presentYegerStart({
+        state: "in-progress",
+        character,
+        progress: { wins: 0, target: 5 },
+        tracking: { state: "none" }
+      })
+    ).toContain("дозвіл на прогрес");
     expect(presentYegerHelp()).toContain("Втеча, поразка й протермінований бій");
   });
 
@@ -157,10 +164,82 @@ describe("Yeger presenter", () => {
     });
 
     expect(text).toContain("👣 Ви виходите на слід.");
-    expect(text).toContain("Справи, які прислухаються до цього бою:");
+    expect(text).toContain("Поруч із цим боєм:");
     expect(text).toContain("<b>Неспокійні справи</b>: <b>1/5</b>");
     expect(text).toContain("<b>Тринадцять дрібних проблем</b>: <b>2/13</b>");
+    expect(text).not.toContain("відповідні журнали");
     expect(text).not.toContain("⚔️ Бій");
+  });
+
+  it("does not repeat already completed side quest context before Yeger combat", () => {
+    const text = presentYegerTrackingStart({
+      yegerProgress: { wins: 0, target: 5 },
+      thirteenProgress: {
+        title: "Тринадцять дрібних проблем",
+        wins: 13,
+        target: 13,
+        completed: true,
+        rewardClaimed: true
+      }
+    });
+
+    expect(text).toContain("<b>Неспокійні справи</b>: <b>0/5</b> рисок.");
+    expect(text).not.toContain("Тринадцять дрібних проблем");
+    expect(text).not.toContain("ветеран паперової війни");
+  });
+
+  it("shows pending and ready tracking status without formulas", () => {
+    const pendingQuest = presentYegerQuest({
+      state: "in-progress",
+      character,
+      progress: { wins: 1, target: 5 },
+      tracking: {
+        state: "tracking-pending",
+        availableAt: new Date("2026-06-15T10:08:00.000Z"),
+        now: new Date("2026-06-15T10:05:00.000Z")
+      }
+    });
+    const readyQuest = presentYegerQuest({
+      state: "in-progress",
+      character,
+      progress: { wins: 1, target: 5 },
+      tracking: {
+        state: "tracking-ready",
+        availableAt: new Date("2026-06-15T10:04:00.000Z"),
+        now: new Date("2026-06-15T10:05:00.000Z")
+      }
+    });
+
+    expect(pendingQuest).toContain("Слід шукається.");
+    expect(pendingQuest).toContain("приблизно за 3 хв.");
+    expect(readyQuest).toContain("Слід уже чекає перевірки.");
+    expect(pendingQuest).not.toContain("65%");
+  });
+
+  it("renders tracking start and empty resolution messages", () => {
+    const tracking = {
+      state: "tracking-pending" as const,
+      availableAt: new Date("2026-06-15T10:08:00.000Z"),
+      now: new Date("2026-06-15T10:05:00.000Z")
+    };
+    const started = presentYegerTrackingPending({
+      state: "tracking-started",
+      character,
+      progress: { wins: 1, target: 5 },
+      tracking
+    });
+    const empty = presentYegerTrackingNone({
+      state: "tracking-resolved-none",
+      character,
+      progress: { wins: 1, target: 5 },
+      tracking,
+      outcome: "near-miss"
+    });
+
+    expect(started).toContain("👣 Слід узято.");
+    expect(started).toContain("приблизно за 3 хв.");
+    expect(empty).toContain("🔎 Слід перевірено.");
+    expect(empty).toContain("Неупокоєне сьогодні не знайшлося.");
   });
 });
 

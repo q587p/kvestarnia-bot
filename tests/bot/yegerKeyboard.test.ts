@@ -51,6 +51,32 @@ describe("Yeger keyboard", () => {
       callback_data: makeItemDetailCallbackData("item.yeger.first-notch")
     });
   });
+
+  it("shows tracking state actions for active Yeger quest", () => {
+    const pending = buildYegerKeyboard({
+      state: "in-progress",
+      character,
+      progress: { wins: 1, target: 5 },
+      tracking: {
+        state: "tracking-pending",
+        availableAt: new Date("2026-06-15T10:08:00.000Z"),
+        now: new Date("2026-06-15T10:05:00.000Z")
+      }
+    });
+    const ready = buildYegerKeyboard({
+      state: "in-progress",
+      character,
+      progress: { wins: 1, target: 5 },
+      tracking: {
+        state: "tracking-ready",
+        availableAt: new Date("2026-06-15T10:04:00.000Z"),
+        now: new Date("2026-06-15T10:05:00.000Z")
+      }
+    });
+
+    expect(flatButtons(pending)[0]?.text).toBe("⏳ Чекати слід");
+    expect(flatButtons(ready)[0]?.text).toBe("🔎 Перевірити слід");
+  });
 });
 
 const reward = {

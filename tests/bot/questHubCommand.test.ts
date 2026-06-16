@@ -1,4 +1,4 @@
-﻿import type { Context } from "grammy";
+import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
@@ -48,6 +48,12 @@ describe("quest hub command", () => {
               text: "🏅 Пропамʼятна дошка",
               callback_data: makePlaceCallbackData("memorial")
             }
+          ],
+          [
+            {
+              text: "🎒 Манчкін-скупник",
+              callback_data: "v1:lvlx:open"
+            }
           ]
         ]
       }
@@ -72,12 +78,12 @@ describe("quest hub command", () => {
     );
     expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).not.toContain("Мімік-шаурма");
-    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша приймає аргументи.");
+    expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — миша приймає аргументи.");
     expect(replies[0]?.options).toMatchObject({
       reply_markup: {
         inline_keyboard: [
           [{ text: "🧾 До проблем", callback_data: makeQuestCallbackData("fight") }],
-          [{ text: "🧹 У підвал", callback_data: makeQuestCallbackData("cellar") }],
+          [{ text: "🧹 У льох", callback_data: makeQuestCallbackData("cellar") }],
           [{ text: "📦 Архів", callback_data: makeQuestCallbackData("archive") }],
           [{ text: "📖 Бестіарій", callback_data: makeBestiaryListCallbackData(0) }],
           [{ text: "🍺 До зали", callback_data: makePlaceCallbackData("hall") }]
@@ -107,7 +113,7 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
-    expect(replies[0]?.text).not.toContain("🧹 <i>Підвальна справа</i> — відкриється з 2 рівня.");
+    expect(replies[0]?.text).not.toContain("🧹 <i>Льохова справа</i> — відкриється з 2 рівня.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
@@ -137,7 +143,7 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
-    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша приймає аргументи.");
+    expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — миша приймає аргументи.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
@@ -146,7 +152,7 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🌯 До шаурми",
       "⚔️ До сутички",
-      "🧹 У підвал",
+      "🧹 У льох",
       "📦 Архів",
       "🍺 До зали"
     ]);
@@ -190,7 +196,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🧹 У підвал",
+      "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
@@ -228,10 +234,10 @@ describe("quest hub command", () => {
       "📋 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
     );
     expect(replies[0]?.text).not.toContain(
-      "🧹 <i>Підвальна справа</i> — новачкова справа до 3 рівня."
+      "🧹 <i>Льохова справа</i> — новачкова справа до 3 рівня."
     );
     expect(replies[0]?.text).toContain(
-      "🐭 <i>Справа не до миші</i> — у підвалі є інша справа для старших пригодників."
+      "🐭 <i>Справа не до миші</i> — у льосі є інша справа для старших пригодників."
     );
     expect(replies[0]?.text).toContain("Оберіть справу, поки вона не обрала вас.");
     const buttons = (
@@ -241,7 +247,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🧾 До проблем",
-      "🧹 У підвал",
+      "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
@@ -265,10 +271,10 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).not.toContain(
-      "🐭 <i>Справа не до миші</i> — дорослу підвальну справу вже закрито; пляшка стоїть у журналі й тихо булькає."
+      "🐭 <i>Справа не до миші</i> — дорослу льохову справу вже закрито; пляшка стоїть у журналі й тихо булькає."
     );
     expect(replies[0]?.text).not.toContain(
-      "🐭 <i>Справа не до миші</i> — у підвалі є інша справа для старших пригодників."
+      "🐭 <i>Справа не до миші</i> — у льосі є інша справа для старших пригодників."
     );
     const buttons = (
       replies[0]?.options as {
@@ -302,7 +308,7 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).not.toContain("пляшка вже з вами; Корчмар чекає в Шинку");
     expect(replies[0]?.text).toContain(
-      "🐭 <i>Справа не до миші</i> — у підвалі є інша справа для старших пригодників."
+      "🐭 <i>Справа не до миші</i> — у льосі є інша справа для старших пригодників."
     );
   });
 
@@ -351,9 +357,9 @@ describe("quest hub command", () => {
       "📋 <i>Тринадцять дрібних проблем</i> — 14/13 проблем у журналі, перший список закрито; далі практика."
     );
     expect(replies[0]?.text).toContain("🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.");
-    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — новачкова справа до 3 рівня.");
+    expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — новачкова справа до 3 рівня.");
     expect(replies[0]?.text).toContain(
-      "🐭 <i>Справа не до миші</i> — дорослу підвальну справу вже закрито; пляшка стоїть у журналі й тихо булькає."
+      "🐭 <i>Справа не до миші</i> — дорослу льохову справу вже закрито; пляшка стоїть у журналі й тихо булькає."
     );
     expect(replies[0]?.options).toMatchObject({
       reply_markup: {
@@ -514,7 +520,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).toContain(
       "📋 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
     );
-    expect(replies[0]?.text).toContain("🧹 <i>Підвальна справа</i> — миша приймає аргументи.");
+    expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — миша приймає аргументи.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
@@ -522,7 +528,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🧾 До проблем",
-      "🧹 У підвал",
+      "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"

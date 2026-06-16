@@ -14,6 +14,7 @@ import type { YegerQuestService } from "../services/yegerQuestService";
 import { isYegerUnquietTarget } from "../services/yegerQuestService";
 import type { EquipmentService } from "../services/equipmentService";
 import type { InventoryService } from "../services/inventoryService";
+import type { LevelBarterService } from "../services/levelBarterService";
 import type { LevelMilestoneService } from "../services/levelMilestoneService";
 import type { MantokChestService } from "../services/mantokChestService";
 import type { OnboardingService } from "../services/onboardingService";
@@ -41,6 +42,10 @@ import { parseCellarCallbackData, type CellarCallback } from "./callbacks/cellar
 import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
 import { parseFightCallbackData, type FightCallback } from "./callbacks/fightCallbackData";
 import { parseHuntCallbackData, type HuntCallback } from "./callbacks/huntCallbackData";
+import {
+  parseLevelBarterCallbackData,
+  type LevelBarterCallback
+} from "./callbacks/levelBarterCallbackData";
 import { parseYegerCallbackData, type YegerCallback } from "./callbacks/yegerCallbackData";
 import {
   parseEquipmentCallbackData,
@@ -117,6 +122,11 @@ import {
   buildItemDetailKeyboard
 } from "./keyboards/inventoryKeyboard";
 import {
+  buildLevelBarterOfferKeyboard,
+  buildLevelBarterPreviewKeyboard,
+  buildLevelBarterResultKeyboard
+} from "./keyboards/levelBarterKeyboard";
+import {
   buildMantokChestHelpKeyboard,
   buildMantokChestManualSelectionKeyboard,
   buildMantokChestOverviewKeyboard,
@@ -179,6 +189,11 @@ import {
 import { presentItemDetail } from "./presenters/itemDetailPresenter";
 import { presentLevelUpCelebration } from "./presenters/levelGrowthPresenter";
 import {
+  presentLevelBarterConfirmResult,
+  presentLevelBarterOffer,
+  presentLevelBarterPreview
+} from "./presenters/levelBarterPresenter";
+import {
   presentMantokChestHelp,
   presentMantokChestManualSelection,
   presentMantokChestOverview,
@@ -206,6 +221,8 @@ import {
   presentYegerQuest,
   presentYegerStart,
   presentYegerTrackingBlockedByOtherFight,
+  presentYegerTrackingNone,
+  presentYegerTrackingPending,
   presentYegerTrackingStart,
   presentYegerTurnIn
 } from "./presenters/yegerPresenter";
@@ -232,6 +249,7 @@ export interface BotServices {
   hero: HeroService;
   equipment: EquipmentService;
   inventory: InventoryService;
+  levelBarter: LevelBarterService;
   levelMilestones?: LevelMilestoneService;
   mantokChest: MantokChestService;
   presence: PresenceService;
@@ -346,6 +364,17 @@ export function createBot(token: string, services: BotServices): Bot {
     }
 
     await handleMantokChestCallback(ctx, parsed.value, services);
+  });
+
+  bot.callbackQuery(/^v1:lvlx:/, async (ctx) => {
+    const parsed = parseLevelBarterCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleLevelBarterCallback(ctx, parsed.value, services);
   });
 
   bot.callbackQuery(/^v1:news:/, async (ctx) => {
@@ -1177,6 +1206,62 @@ async function handleMantokChestCallback(
   });
 }
 
+async function handleLevelBarterCallback(
+  ctx: Context,
+  action: LevelBarterCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (action.type === "open") {
+    const offer = await services.levelBarter.getOfferForTelegramUser(telegramUserId);
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentLevelBarterOffer(offer), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildLevelBarterOfferKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "auto") {
+    const preview = await services.levelBarter.createAutoPreviewForTelegramUser(telegramUserId);
+
+    await safeAnswerCallbackQuery(
+      ctx,
+      preview.state === "insufficient"
+        ? { text: "Манчкінові ще не вистачає добра на рівень.", show_alert: true }
+        : { show_alert: preview.state === "no-character" || preview.state === "battle-only-level" }
+    );
+    await safeEditMessageText(ctx, presentLevelBarterPreview(preview), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildLevelBarterPreviewKeyboard(preview)
+    });
+    return;
+  }
+
+  const result = await services.levelBarter.confirmAutoExchangeForTelegramUser(
+    telegramUserId,
+    action.token
+  );
+
+  await safeAnswerCallbackQuery(
+    ctx,
+    result.state === "exchanged"
+      ? { text: "Манчкін підкинув рівень." }
+      : { show_alert: result.state !== "stale-selection" }
+  );
+  await safeEditMessageText(ctx, presentLevelBarterConfirmResult(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildLevelBarterResultKeyboard()
+  });
+}
+
 async function handlePlaceCallback(
   ctx: Context,
   action: PlaceCallback,
@@ -2005,28 +2090,89 @@ async function handleYegerCallback(
       return;
     }
 
-    if (result.state === "level-retired") {
-      await safeEditMessageText(ctx, presentFightLevelRetired(result), HTML_MESSAGE_OPTIONS);
+    if (result.state === "not-in-progress") {
+      await safeEditMessageText(ctx, presentYegerQuest(result.quest), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerKeyboard(result.quest)
+      });
       return;
     }
 
-    if (result.state === "needs-rest") {
-      await safeEditMessageText(ctx, presentFightNeedsRest(result), HTML_MESSAGE_OPTIONS);
+    if (result.state === "tracking-started" || result.state === "tracking-pending") {
+      await safeEditMessageText(ctx, presentYegerTrackingPending(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerKeyboard({
+          state: "in-progress",
+          character: result.character,
+          progress: result.progress,
+          tracking: result.tracking
+        })
+      });
       return;
     }
 
-    if (result.state === "persistent-active" || result.state === "persistent-terminal") {
-      const trackingIntro = result.monster && isYegerUnquietTarget(result.monster)
+    if (result.state === "tracking-resolved-none") {
+      await safeEditMessageText(ctx, presentYegerTrackingNone(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerKeyboard({
+          state: "in-progress",
+          character: result.character,
+          progress: result.progress,
+          tracking: result.tracking
+        })
+      });
+      return;
+    }
+
+    if (result.state === "tracking-blocked-by-other-fight") {
+      await safeEditMessageText(ctx, presentYegerTrackingBlockedByOtherFight(), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerKeyboard({
+          state: "in-progress",
+          character: result.character,
+          progress: result.progress,
+          tracking: result.tracking
+        })
+      });
+      await ctx.reply(presentPersistentFight(result.fight), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPersistentFightResultKeyboard(result.fight.session, result.fight.character)
+      });
+      return;
+    }
+
+    if (result.state !== "tracking-resolved-success") {
+      await safeEditMessageText(ctx, "Слід охолов.\n\nЄгер мовчить так переконливо, що навіть мапа перестала шарудіти.", {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerHelpKeyboard()
+      });
+      return;
+    }
+
+    const fight = result.fight;
+
+    if (fight.state === "level-retired") {
+      await safeEditMessageText(ctx, presentFightLevelRetired(fight), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    if (fight.state === "needs-rest") {
+      await safeEditMessageText(ctx, presentFightNeedsRest(fight), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    if (fight.state === "persistent-active" || fight.state === "persistent-terminal") {
+      const trackingIntro = fight.monster && isYegerUnquietTarget(fight.monster)
         ? presentYegerTrackingStart({
-            yegerProgress: quest.progress,
-            thirteenProgress: result.questProgress
+            yegerProgress: result.progress,
+            thirteenProgress: fight.questProgress
           })
         : presentYegerTrackingBlockedByOtherFight();
 
       await safeEditMessageText(ctx, trackingIntro, HTML_MESSAGE_OPTIONS);
-      await ctx.reply(presentPersistentFight(result), {
+      await ctx.reply(presentPersistentFight(fight), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
+        reply_markup: buildPersistentFightResultKeyboard(fight.session, fight.character)
       });
       return;
     }

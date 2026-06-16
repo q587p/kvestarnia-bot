@@ -191,20 +191,9 @@ function renderFeature(icon: string, title: string, text: string): string {
 }
 
 function renderPresenceSummary(snapshot: PublicPresenceLocationsSnapshot): string {
-  const locations = snapshot.locations.slice(0, 4);
-  const locationList =
-    locations.length === 0
-      ? "<p class=\"empty\">Зараз тихо. Корчмар каже, що це теж статистика.</p>"
-      : `<ul class="presence-list">${locations
-          .map(
-            (location) =>
-              `<li><strong>${escapeHtml(location.title)}</strong><span>${formatPresenceCounts(location.activeCount, location.idleCount)}</span></li>`
-          )
-          .join("")}</ul>`;
-
   return `<div class="section-head">
     <h2>Жива Квестарня</h2>
-    <p>Присутність не показує, хто «онлайн» у Telegram. Вона лише рахує, де нещодавно ворушились пригодники: активні, притихлі, відкриті місцини й загальний шум корчми.</p>
+    <p>Присутність не показує, хто «онлайн» у Telegram. Вона лише рахує загальний шум Квестарні: активні, притихлі й усі пригодники разом.</p>
   </div>
   <p class="total">👥 У грі зараз: ${snapshot.total}</p>
   <div class="presence-summary">
@@ -217,8 +206,7 @@ function renderPresenceSummary(snapshot: PublicPresenceLocationsSnapshot): strin
       <span class="idle">🟡 Притихлих: ${snapshot.totalIdle}</span>
     </div>
   </div>
-  ${locationList}
-  <p class="privacy-note">Без точних timestamp-ів, без публічних імен за замовчуванням і без назв прихованих місцин.</p>
+  <p class="privacy-note">Розклад за відкритими місцинами живе на окремій сторінці. Без точних timestamp-ів, без публічних імен за замовчуванням і без назв прихованих місцин.</p>
   <p class="link-row"><a href="/presence">Відкрити Живу Квестарню</a><a href="/api/presence/locations">JSON присутності</a></p>`;
 }
 

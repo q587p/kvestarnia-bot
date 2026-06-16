@@ -51,7 +51,7 @@
 - `/fight` — навчальна сутичка з підозрілим монстром на рівнях 1-2, а з 3 рівня — старший покроковий бій із HP, маною, ходами й втечею.
 - `/hunt` — Єгерська справа з 4 рівня: перший квест `Неспокійні справи`, прогрес через перемоги у старших покрокових боях і одноразова нагорода за 5 неупокоєних цілей.
 - `/bestiary`, `/monsters` — польові нотатки про монстрів, рівні й можливі трофеї з 3 рівня, без повного журналу колекції.
-- `/cellar` — repeatable підвальна справа для рівнів 2-3, а з 4 рівня — вузька once-per-player підвальна справа «не до миші».
+- `/cellar` — repeatable льохова справа для рівнів 2-3, а з 4 рівня — вузька once-per-player льохова справа «не до миші».
 - `/inventory`, `/items`, `/bag` — манатки пригодника з деталями, категоріями, вартістю, сумою оцінених речей у торбі й Дружньою Скринею для переробки зайвого.
 - `/equipment`, `/gear`, `/equip` — спорядження: можна вдягнути owned манатку, побачити її малий ефект і зняти без втрати предмета.
 - `/online`, `/look`, «За столами» і `/presence` — легка присутність без точного стеження за гравцями.
@@ -131,6 +131,8 @@
 - [`docs/TERMINOLOGY.md`](docs/TERMINOLOGY.md) — правило `пригодник` / `персонаж` / `герой` і репутаційні шляхи.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — фази розвитку й Definition of Done для продукту.
 - [`docs/PHASE1_FINISH_PLAN.md`](docs/PHASE1_FINISH_PLAN.md) — scope lock для добивання combat → equipment stats → loot → рівнів 1-13, із ачівками як rewardless later slice.
+- [`docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`](docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md) — cutline для закриття лінійки `0.0.x`, closure PR `0.1.0` і deferred backlog `0.1.x`.
+- [`docs/PHASE1_CLOSEOUT_SMOKE.md`](docs/PHASE1_CLOSEOUT_SMOKE.md) — фінальний smoke/release gate перед тим, як назвати Phase 1 закритою.
 - [`docs/BALANCE_NOTES.md`](docs/BALANCE_NOTES.md) — формули, економіка, RNG і балансні guardrails.
 - [`docs/SECURITY_AND_FAIR_PLAY.md`](docs/SECURITY_AND_FAIR_PLAY.md) — антиаб’юз, приватність, idempotency і чесна гра.
 - [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md) — архітектура, домени, дані й майбутні технічні рішення.

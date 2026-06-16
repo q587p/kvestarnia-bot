@@ -2,6 +2,7 @@ import type { ThirteenSmallProblemsProgress } from "../../services/fightService"
 import type {
   YegerQuestLookupResult,
   YegerQuestStartResult,
+  YegerTrackingResult,
   YegerQuestTurnInResult
 } from "../../services/yegerQuestService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
@@ -46,7 +47,7 @@ export function presentYegerQuest(
     });
   }
 
-  return [
+  const lines = [
     "🧥 Єгерський куток",
     presentCharacterHeader(result.character),
     "",
@@ -57,7 +58,17 @@ export function presentYegerQuest(
     result.state === "turn-in-ready"
       ? "Дощечка має всі риски. Єгер має вираз обличчя «непогано, але я не скажу»."
       : "Єгер провів пальцем по мапі. Мапа зробила вигляд, що не лоскотно."
-  ].join("\n");
+  ];
+
+  if (result.state === "in-progress") {
+    const trackingLine = presentTrackingStatusLine(result.tracking);
+
+    if (trackingLine) {
+      lines.push("", trackingLine);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 export function presentYegerCorner(
@@ -153,14 +164,46 @@ export function presentYegerTrackingStart(input?: {
   if (questLines.length > 0) {
     lines.push(
       "",
-      "Справи, які прислухаються до цього бою:",
-      ...questLines,
-      "",
-      "Якщо переможете, відповідні журнали самі посунуть рахунок. Корчмар каже, що це майже магія, тільки з паперами."
+      "Поруч із цим боєм:",
+      ...questLines
     );
   }
 
   return lines.join("\n");
+}
+
+export function presentYegerTrackingPending(
+  result: Extract<YegerTrackingResult, { state: "tracking-started" | "tracking-pending" }>
+): string {
+  const intro = result.state === "tracking-started"
+    ? "Єгер кладе мапу на стіл. Мапа одразу вдає, що вона тут головна."
+    : "Слід ще гріється десь між підлогою і підозрою.";
+
+  return [
+    "👣 Слід узято.",
+    "",
+    intro,
+    "",
+    `Перевірити можна буде ${formatTrackingWait(result.tracking.availableAt, result.tracking.now)}.`
+  ].join("\n");
+}
+
+export function presentYegerTrackingNone(
+  result: Extract<YegerTrackingResult, { state: "tracking-resolved-none" }>
+): string {
+  const line = result.outcome === "near-miss"
+    ? "Слід привів до дуже переконливої тіні. Тінь виявилася тінню, але трималася професійно."
+    : "Слід зробив коло, подивився на Єгеря й удав, що його неправильно зрозуміли.";
+
+  return [
+    "🔎 Слід перевірено.",
+    "",
+    line,
+    "",
+    "Неупокоєне сьогодні не знайшлося. Єгер каже, що це не провал, а економія бинтів.",
+    "",
+    `Новий слід можна буде взяти ${formatTrackingWait(result.tracking.availableAt, result.tracking.now)}.`
+  ].join("\n");
 }
 
 export function presentYegerTrackingBlockedByOtherFight(): string {
@@ -250,6 +293,30 @@ function presentProgressLine(progress: { wins: number; target: number }): string
   return `Прогрес: <b>${progress.wins}/${progress.target}</b>.`;
 }
 
+function presentTrackingStatusLine(tracking: { state: string; availableAt?: Date; now?: Date }): string | null {
+  if (tracking.state === "tracking-pending" && tracking.availableAt && tracking.now) {
+    return `Слід шукається. Перевірити можна ${formatTrackingWait(tracking.availableAt, tracking.now)}.`;
+  }
+
+  if (tracking.state === "tracking-ready") {
+    return "Слід уже чекає перевірки. Єгер робить вигляд, що не хвилюється.";
+  }
+
+  return null;
+}
+
+function formatTrackingWait(availableAt: Date, now: Date): string {
+  const diffMs = availableAt.getTime() - now.getTime();
+
+  if (diffMs <= 0) {
+    return "зараз";
+  }
+
+  const minutes = Math.max(1, Math.ceil(diffMs / 60_000));
+
+  return `приблизно за ${minutes} хв.`;
+}
+
 function presentTrackingQuestLines(input?: {
   yegerProgress?: { wins: number; target: number };
   thirteenProgress?: ThirteenSmallProblemsProgress | null;
@@ -258,7 +325,7 @@ function presentTrackingQuestLines(input?: {
 
   if (input?.yegerProgress) {
     lines.push(
-      `• <b>Неспокійні справи</b>: <b>${input.yegerProgress.wins}/${input.yegerProgress.target}</b> рисок до здачі Єгерю.`
+      `• <b>Неспокійні справи</b>: <b>${input.yegerProgress.wins}/${input.yegerProgress.target}</b> рисок.`
     );
   }
 
@@ -266,12 +333,8 @@ function presentTrackingQuestLines(input?: {
 
   if (thirteen && !thirteen.completed) {
     lines.push(
-      `• <b>Тринадцять дрібних проблем</b>: <b>${thirteen.wins}/${thirteen.target}</b> проблем у журналі.`
+      `• <b>Тринадцять дрібних проблем</b>: <b>${thirteen.wins}/${thirteen.target}</b> проблем.`
     );
-  }
-
-  if (thirteen?.completed) {
-    lines.push("• <b>Тринадцять дрібних проблем</b>: список уже закрито й поводиться як ветеран паперової війни.");
   }
 
   return lines;

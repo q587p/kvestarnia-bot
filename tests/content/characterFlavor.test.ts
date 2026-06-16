@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   characterFlavorLines,
   selectCharacterFlavorLine,
@@ -408,10 +408,10 @@ describe("character flavor content", () => {
       "помічає, що підозрілий монстр рухається",
       "оцінює сутичку: зуби є",
       "виходить із сутички з виглядом, ніби все було під контролем",
-      "заходить у підвал так, ніби миша вже має пояснити",
-      "бачить у підвалі не просто",
-      "лишає підвал трохи",
-      "завершує підвальну справу професійно"
+      "заходить у льох так, ніби миша вже має пояснити",
+      "бачить у льосі не просто",
+      "лишає льох трохи",
+      "завершує льохову справу професійно"
     ];
     const generatedPoolLines = characterFlavorLines.filter(
       (line) => line.id.includes(".race-pool.") || line.id.includes(".class-pool.")

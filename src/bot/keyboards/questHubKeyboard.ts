@@ -74,7 +74,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     input.cellar.state === "on-cooldown" ||
     (input.cellar.state === "level-retired" && input.cellarGrownup?.state !== "completed")
   ) {
-    keyboard.text("🧹 У підвал", makeQuestCallbackData("cellar"));
+    keyboard.text("🧹 У льох", makeQuestCallbackData("cellar"));
     keyboard.row();
   }
 

@@ -12,6 +12,7 @@ import { PrismaDailyActionRepository } from "./db/repositories/prismaDailyAction
 import { PrismaEquipmentRepository } from "./db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "./db/repositories/prismaHuntContractRepository";
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
+import { PrismaLevelBarterRepository } from "./db/repositories/prismaLevelBarterRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "./db/repositories/prismaKorchmaRoundPurchaseRepository";
 import { PrismaLevelMilestoneRepository } from "./db/repositories/prismaLevelMilestoneRepository";
 import { PrismaMantokChestRepository } from "./db/repositories/prismaMantokChestRepository";
@@ -31,6 +32,7 @@ import { HeroService } from "./services/heroService";
 import { HuntService } from "./services/huntService";
 import { InventoryService } from "./services/inventoryService";
 import { LevelMilestoneService } from "./services/levelMilestoneService";
+import { LevelBarterService } from "./services/levelBarterService";
 import { MantokChestService } from "./services/mantokChestService";
 import { OnboardingService } from "./services/onboardingService";
 import { PresenceService } from "./services/presenceService";
@@ -47,6 +49,7 @@ const dailyActions = new PrismaDailyActionRepository(prisma);
 const equipment = new PrismaEquipmentRepository(prisma);
 const huntContracts = new PrismaHuntContractRepository(prisma);
 const inventory = new PrismaInventoryRepository(prisma);
+const levelBarter = new PrismaLevelBarterRepository(prisma);
 const levelMilestones = new PrismaLevelMilestoneRepository(prisma);
 const mantokChestRuns = new PrismaMantokChestRepository(prisma);
 const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
@@ -59,11 +62,12 @@ const services = {
   cellarGrownup: new CellarGrownupQuestService(cellarGrownupQuests, dailyActions, cooldowns),
   fight,
   hunt: new HuntService(characters, dailyActions, huntContracts),
-  yeger: new YegerQuestService(characters, dailyActions, soloCombatSessions, fight),
+  yeger: new YegerQuestService(characters, dailyActions, soloCombatSessions, fight, cooldowns),
   onboarding: new OnboardingService(users, characters),
   hero: new HeroService(characters, inventory, equipment),
   equipment: new EquipmentService(equipment, inventory, characters),
   inventory: new InventoryService(inventory),
+  levelBarter: new LevelBarterService(levelBarter),
   levelMilestones: new LevelMilestoneService(levelMilestones),
   mantokChest: new MantokChestService(mantokChestRuns),
   presence: new PresenceService(presence),

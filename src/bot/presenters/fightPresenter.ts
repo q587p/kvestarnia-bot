@@ -260,10 +260,8 @@ function presentPersistentFightState(input: {
   if (state?.status === "won") {
     lines.push(
       "",
-      `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
-      "",
       input.questReward
-        ? "🎉 Ви перемогли. Корчмар записав бій і список дрібних проблем теж не відвертівся."
+        ? "🎉 Ви перемогли. У корчмі стало на одну проблему тихіше."
         : "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою.",
       "Наступний крок: /hero або /quest."
     );
@@ -272,15 +270,11 @@ function presentPersistentFightState(input: {
 
     lines.push(
       "",
-      `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
-      "",
       questLines.length > 0 ? `💤 Ви програли. ${questLines[0]}` : "💤 Ви програли.",
       "Спершу /hero, тоді новий бій."
     );
   } else if (state?.status === "fled") {
     lines.push(
-      "",
-      `Після бою: ❤️ ${state.hero.hp}/${state.hero.hpMax}, 🔮 ${state.hero.mana}/${state.hero.manaMax}.`,
       "",
       "🏃 Ви відступили. Тактичний вітер підтримав ваше рішення.",
       "Справу не зараховано: проблема лишилась дрібною, нахабною і живою.",
@@ -363,13 +357,13 @@ function presentDuration(seconds: number): string {
 function presentThirteenSmallProblemsReward(reward: ThirteenSmallProblemsReward): string[] {
   if (reward.state === "already-claimed") {
     return [
-      "📋 Тринадцята проблема вже в журналі.",
-      "Винагороду теж уже занесено: корчмар не дає списку двічі відкусити бюджет."
+      "📋 Список уже закритий.",
+      "Тринадцята проблема тихо лежить на полиці й не просить повтору."
     ];
   }
 
   return [
-    "📋 Тринадцята проблема впала. Корчмар урочисто ставить галочку, потім ще одну — для драматургії.",
+    "📋 Тринадцята проблема впала. Список нарешті видихнув.",
     "",
     presentRewardAmount({ ...reward.reward, label: "Нагорода за справу" }),
     ...presentItemGrantBlock(reward.reward.itemGrants)

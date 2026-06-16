@@ -88,10 +88,20 @@ describe("presence presenter", () => {
     const participants = presentParticipants(cellarParticipantsSnapshot);
     const online = presentOnline(cellarOnlineSnapshot);
 
-    expect(participants).toContain("🐭 Підвальна справа");
-    expect(participants).not.toContain("🌯 Підвальна справа");
-    expect(online).toContain("🐭 У пригоді «Підвальна справа»: 1");
-    expect(online).not.toContain("🌯 У пригоді «Підвальна справа»");
+    expect(participants).toContain("🐭 Льохова справа");
+    expect(participants).not.toContain("🌯 Льохова справа");
+    expect(online).toContain("🐭 У пригоді «Льохова справа»: 1");
+    expect(online).not.toContain("🌯 У пригоді «Льохова справа»");
+  });
+
+  it("uses yeger icon for yeger adventure participants and online summaries", () => {
+    const participants = presentParticipants(yegerParticipantsSnapshot);
+    const online = presentOnline(yegerOnlineSnapshot);
+
+    expect(participants).toContain("🏹 Єгерська справа");
+    expect(participants).not.toContain("🌯 Єгерська справа");
+    expect(online).toContain("🏹 У пригоді «Єгерська справа»: 1");
+    expect(online).not.toContain("🌯 У пригоді «Єгерська справа»");
   });
 
   it("limits long Telegram people lists and truncates oversized names", () => {
@@ -189,8 +199,8 @@ const cellarParticipantsSnapshot: ParticipantsSnapshot = {
   activity: {
     kind: "adventure",
     id: "adventure.cellar.mouse-errand",
-    name: "Підвальна справа",
-    locationName: "Підвал корчми",
+    name: "Льохова справа",
+    locationName: "Льох корчми",
     people: {
       active: [{ telegramUserId: 1n, name: "587", status: "active" }],
       idle: [],
@@ -204,10 +214,40 @@ const cellarOnlineSnapshot: OnlineSnapshot = {
   activity: {
     kind: "adventure",
     id: "adventure.cellar.mouse-errand",
-    name: "Підвальна справа",
-    locationName: "Підвал корчми",
+    name: "Льохова справа",
+    locationName: "Льох корчми",
     people: {
       active: [{ telegramUserId: 1n, name: "587", status: "active" }],
+      idle: [],
+      total: 1
+    }
+  }
+};
+
+const yegerParticipantsSnapshot: ParticipantsSnapshot = {
+  state: "ready",
+  activity: {
+    kind: "adventure",
+    id: "adventure.hunt-board.contract",
+    name: "Єгерська справа",
+    locationName: "Єгерський куток",
+    people: {
+      active: [{ telegramUserId: 1n, name: "Shannar de Kassal", status: "active" }],
+      idle: [],
+      total: 1
+    }
+  }
+};
+
+const yegerOnlineSnapshot: OnlineSnapshot = {
+  ...onlineSnapshot,
+  activity: {
+    kind: "adventure",
+    id: "adventure.hunt-board.contract",
+    name: "Єгерська справа",
+    locationName: "Єгерський куток",
+    people: {
+      active: [{ telegramUserId: 1n, name: "Shannar de Kassal", status: "active" }],
       idle: [],
       total: 1
     }

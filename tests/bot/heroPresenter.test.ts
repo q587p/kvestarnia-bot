@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { presentHero, presentHeroMissing } from "../../src/bot/presenters/heroPresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
@@ -64,7 +64,7 @@ describe("hero presenter", () => {
     expect(text).toContain(
       "\n\n👛 Золото: <b>12</b> <i>(а в манатках ще 0; торба чесна, аж нудно)</i>\n\nЗараз пригодник тут:"
     );
-    expect(text).toContain("\n\nЗараз пригодник тут: <b>Підвал корчми</b>.");
+    expect(text).toContain("\n\nЗараз пригодник тут: <b>Льох корчми</b>.");
     expect(text).toContain("<i>Далі: /tavern, /quest або /fight.</i>");
     expect(text).not.toContain("/adventure або /fight");
     expect(text).toContain("\n\nТитул:");

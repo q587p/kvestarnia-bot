@@ -414,7 +414,7 @@ export const korchmaGreetingLines = [
   {
     "id": "korchma.greeting.v2.race.dwarf.04",
     "placement": "korchma.greeting",
-    "text": "У нас немає шахти, але є підвал. Він просить не називати це карʼєрним ростом.",
+    "text": "У нас немає шахти, але є льох. Він просить не називати це карʼєрним ростом.",
     "selector": {
       "raceIds": [
         "race.dwarf"
@@ -774,7 +774,7 @@ export const korchmaGreetingLines = [
   {
     "id": "korchma.greeting.v2.race.domovyk.08",
     "placement": "korchma.greeting",
-    "text": "Миша в підвалі уже просить житлову комісію. Це ви так швидко працюєте?",
+    "text": "Миша в льосі уже просить житлову комісію. Це ви так швидко працюєте?",
     "selector": {
       "raceIds": [
         "race.domovyk"
@@ -934,7 +934,7 @@ export const korchmaGreetingLines = [
   {
     "id": "korchma.greeting.v2.race.intellectual-orc.08",
     "placement": "korchma.greeting",
-    "text": "Ваш диплом лишайте при собі. Минулого разу хтось відкрив ним підвал.",
+    "text": "Ваш диплом лишайте при собі. Минулого разу хтось відкрив ним льох.",
     "selector": {
       "raceIds": [
         "race.intellectual-orc"
@@ -1374,7 +1374,7 @@ export const korchmaGreetingLines = [
   {
     "id": "korchma.greeting.v2.class.rogue.06",
     "placement": "korchma.greeting",
-    "text": "Ключі від підвалу не губились. Вони просто ховаються від таланту.",
+    "text": "Ключі від льоху не губились. Вони просто ховаються від таланту.",
     "selector": {
       "classIds": [
         "class.rogue"
@@ -1904,7 +1904,7 @@ export const korchmaGreetingLines = [
   {
     "id": "korchma.greeting.v2.class.ranger.19",
     "placement": "korchma.greeting",
-    "text": "Миша в підвалі лишила маршрут. Я думав реклама, але там сир.",
+    "text": "Миша в льосі лишила маршрут. Я думав реклама, але там сир.",
     "selector": {
       "classIds": [
         "class.ranger"

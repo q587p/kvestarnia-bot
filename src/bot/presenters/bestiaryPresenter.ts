@@ -17,7 +17,7 @@ export const BESTIARY_TAG_LABELS: Record<string, string> = {
   bread: "хлібне",
   bridge: "мостове",
   bureaucracy: "бюрократичне",
-  cellar: "підвальне",
+  cellar: "льохове",
   comic: "комічне",
   construct: "складене з наміру",
   cursed: "підозріло прокляте",

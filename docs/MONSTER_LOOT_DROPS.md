@@ -13,7 +13,7 @@
 - Loot ids: `item.suspicious-shawarma-wrapper`, `item.receipt-of-formal-suspicion`, `item.stamp-of-minor-authority`
 - Note: Мімік не падає — він розгортається у докази.
 
-## Підвальна Миша з Титулом — `monster.basement-mouse-with-title`
+## Льохова Миша з Титулом — `monster.basement-mouse-with-title`
 
 - Loot ids: `item.cheese-of-procedural-doubt`, `item.napkin-of-mouse-diplomacy`, `item.cork-ring-of-serious-business`
 - Note: Лут пахне сиром, але поводиться як документ.

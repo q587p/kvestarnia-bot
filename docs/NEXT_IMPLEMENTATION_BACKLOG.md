@@ -1,5 +1,13 @@
 ﻿# Next Implementation Backlog після `0.0.25`
 
+## 0.0.x Closeout / 0.1.x Transition
+
+Перед новими feature tracks звірятися з `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md` і `docs/PHASE1_CLOSEOUT_SMOKE.md`.
+
+Після `0.0.29 — Yeger Tracking Search` не тягнути в лінійку `0.0.x` нові системи на кшталт Achievements runtime, продажу манаток задля пива, Bestiary filters, Глибки, durable Barrel outbox, shops/trading/crafting, group raids, guilds, PvP або Mini App. Якщо це не blocker core loop і не маленький targeted fix, воно має їхати в `0.1.x` backlog.
+
+Closure PR `0.1.0` має бути release/docs/smoke PR: version surface, changelog/news, README, roadmap/backlog freeze, Phase 1 release notes і явний deferred list. Runtime gameplay changes у ньому допустимі тільки як мінімальні blocker fixes.
+
 Нижче — канонічний порядок маленьких PR для добивання Phase 1. Кожен slice має бути перевірюваним окремо; якщо PR роздувається, різати.
 
 ## Phase 1 Scope Guard
@@ -38,6 +46,244 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - manual `🍺 Перевірити бочку` лишається fallback і не дублює reward;
 - повторний startup/resume або retry не надсилає кілька однакових completed-повідомлень;
 - tests cover due-on-startup, future-reschedule, already-completed, and duplicate-worker/idempotency paths.
+
+## Later — Шинок Mantok-for-Beer Sink
+
+**Objective**
+Додати в `🍻 Шинок` опцію `Продаж манаток задля пива`: гравець спалює зайві priced манатки не за золото в кишеню, а прямо за раунд пива для корчми.
+
+**Rules**
+
+- Корчмар приймає манатки за курсом у 5 разів гіршим за номінальну вартість.
+- Обрано манаток на `50+` оціночного золота — можна виставити просте пиво.
+- Обрано манаток на `500+` оціночного золота — можна виставити якісне пиво.
+- Надлишок вартости не повертається автоматично; UI має чесно сказати, що корчмар округлює на користь піни.
+- Манатки списуються тільки після явного confirmation screen зі списком конкретних речей.
+
+**Guardrails**
+
+- Не давати вільне золото й не відкривати broad selling/trading/shop loop у цьому slice.
+- Не приймати `безцінні`, екіпіровані, заблоковані, story/quest або protected манатки.
+- Manual selection може повторити підхід `0.0.27` Дружньої Скрині: короткі індексні callback-и, preview конкретних stacks, stale-input protection на confirm.
+- Дія не має обходити raid gate для частування пивом.
+- Успішне частування через манатки має писатися в той самий рейтинг щедрості, але окремо позначати spend type, щоб статистика золота й манаток не змішувалась.
+
+**Acceptance criteria**
+
+- кнопка в `🍻 Шинок` зʼявляється тільки коли є eligible манатки на мінімум `50` оціночного золота;
+- просте/якісне пиво коректно визначається за сумою selected priced items;
+- repeated або stale confirm не списує манатки вдруге;
+- beer result text не каже, що гравець отримав золото;
+- tests cover not-enough, simple threshold, quality threshold, protected/equipped/priceless exclusions, duplicate confirm, and generosity ledger entry.
+
+## Later — Шинок Food Buffs
+
+**Objective**
+Додати в `🍻 Шинок` їжу як другий корчмарський спосіб витратити золото: пригодник купує короткий обід/перекус/підозрілу тарілку й отримує тимчасовий баф до наступного бою, кількох ходів або короткого проміжку часу.
+
+**Flavor direction**
+
+- Їжа має бути смішною, але корисною: не просто «+2 до стата», а «борщ, який переконав HP триматися», «вареники суворої мани», «дерун бюрократичного прискорення», «котлета, що бачила баланс і вижила».
+- Алюзії дозволені як спеція: НРІ, Munchkin, MMORPG food buffs, українська кухня, корчемна побутовість. Не копіювати сучасні IP, назви страв із чужих світів або прямі цитати.
+- Корчмар може коментувати покупку, але не має перетворювати меню на довгу енциклопедію.
+
+**First-menu candidates**
+
+- `🍲 Борщ впертої живучости` — тимчасово піднімає `hpMax` або додає малий shield на перший бій.
+- `🥟 Вареники тихої мани` — прискорюють mana recovery або дають малий `manaMax`/mana refill перед боєм.
+- `🥔 Дерун службового прискорення` — малий bonus до DEX/ініціятиви/ухилення на одну сутичку.
+- `🍞 Грінка чесної сили` — малий STR/physical damage bonus, без stacking-а з сильнішими стравами.
+- `🧀 Сирник дипломатичного тиску` — малий CHA/social action bonus для квестів або trick-дій.
+- `🍄 Печеня «не питайте з чого»` — дешевий risky варіянт: слабший баф, але кумедний flavor або малий шанс не того ефекту.
+
+**Rules**
+
+- У персонажа одночасно активний тільки один харчовий баф або один окремий слот бафа із явною заміною попереднього.
+- Баф має коротку тривалість: наступний persistent fight, кілька ходів, одна квестова перевірка або обмежене часове вікно.
+- Списання золота тільки після confirmation screen із назвою страви, ціною, ефектом і тим, що буде замінено.
+- Не продавати їжу під час pending raid або інших станів, де пригодові дії заблоковані.
+- Бафи мають проходити через той самий effective-stats/resource helper, що й манатки, а не через розкидані presenter hacks.
+- Не давати XP, рівень, loot roll або прямий обхід gates. Це підготовка й стратегічна витрата, не нове джерело прогресу.
+
+**Balance guardrails**
+
+- Дешеві страви: помітний flavor, малий ефект, щоб новачок міг спробувати без страху.
+- Дорогі страви: сильніші або довші, але без обовʼязковости для нормального win rate.
+- Не stack-ати їжу з собою; не дозволяти купити 10 борщів і перетворити бій на бухгалтерію супу.
+- Якщо баф піднімає `hpMax`/`manaMax`, не має безкоштовно лікувати понад описаний ефект. Поточні HP/мана мають оновлюватись явно й тестовано.
+- Добові/тижневі рейтинги пива не змішувати з їжею; якщо зʼявиться food ledger, це окрема мірялка.
+
+**Acceptance criteria**
+
+- `🍻 Шинок` показує меню їжі з цінами й короткими ефектами;
+- purchase confirm списує золото один раз і створює один active food buff;
+- repeated/stale callback не списує золото вдруге;
+- новий food buff замінює попередній із ясним текстом;
+- fight start/effective stats враховує активний харчовий баф і гасить його за правилами тривалости;
+- `/hero` або окрема деталь показує активний харчовий баф без технічних id;
+- tests cover insufficient gold, one active buff, replace flow, stale confirm, HP/mana edge cases, and fight consumption.
+
+## Later — Шинок Bard Performance
+
+**Objective**
+Додати в `🍻 Шинок` бардівський виступ як малу культурну дію: бард раз на день або раз на годину може спробувати заспівати, заграти або скласти сатиричний куплет і отримати трохи золота. Може й не отримати, бо корчма має право на художню критику.
+
+**Design source**
+
+Корчма історично була місцем неофіційної культури: пісні, жарти, сатиричні куплети, бандура, скрипка, ложки, живий гумор і раптові виступи. У Квестарні це має стати не лекцією, а кнопкою з ризиком, короткою сценою й корчмарським висновком.
+
+**Rules**
+
+- Почати з класового доступу: тільки `Бард` бачить дію `🎶 Виступити` у `🍻 Шинку`.
+- Кулдаун: перший безпечний варіянт — раз на день за Києвом; якщо payout малий і не фармиться, можна окремо перевести на раз на годину.
+- Результат залежить від `charisma` і `luck`, із bounded randomness і без показу точних шансів.
+- Музична манатка дає суттєвий бонус до перевірки або payout. Якщо манатка bard-only, бонус для барда більший; якщо universal, інші класи можуть отримати дрібний flavor/майбутній bonus, але не цю дію.
+- Результати: провал із жартом і `0` золота, скромні оплески з малим золотом, добрий виступ із кращим золотом, рідкісний великий успіх із записом на дошці або короткою реплікою корчмаря.
+- Не давати XP, лут, рівень або бойовий баф у першому slice. Це мале золото й соціяльний flavor, не новий основний grind.
+- Не дозволяти виступ під час pending raid або інших станів, де пригодові дії заблоковані.
+
+**Musical manatky starter pack**
+
+Додати в loot/content pool кілька музичних манаток перед або разом із runtime-дією, бо зараз у контенті є бардівський flavor, але майже немає dedicated інструментів:
+
+- `item.bandura-of-careful-applause` — `Бандура обережних оплесків`, accessory/weapon-like focus, bard-preferred.
+- `item.fiddle-of-second-chorus` — `Скрипка другого куплету`, accessory, universal, bard bonus stronger.
+- `item.spoons-of-public-rhythm` — `Ложки громадського ритму`, common accessory/junk, cheap but funny.
+- `item.kobza-of-suspicious-encore` — `Кобза підозрілого бісу`, rare accessory, bard-only or bard-preferred.
+- `item.whistle-of-table-silence` — `Свисток столової тиші`, common utility, not bard-only.
+- `item.lyre-that-knows-one-song` — `Ліра, що знає одну пісню`, uncommon accessory, good for first implementation.
+
+Instrument metadata should include whether it is `musical`, whether it is `bardPreferred` or `bardOnly`, and what performance modifier it gives. Do not hide these rules behind item names only.
+
+**Acceptance criteria**
+
+- `🍻 Шинок` shows `🎶 Виступити` only for bards with an eligible character state;
+- daily/hourly cooldown is Kyiv-based and idempotent;
+- payout is deterministic for a claimed action and replay does not reroll gold;
+- charisma/luck influence the result within tested caps;
+- equipped or carried musical manatky affect performance according to clear metadata;
+- generated musical manatky appear in loot/content pool and item detail does not leak internal ids;
+- tests cover no-character, non-bard locked state, bard without instrument, bard with universal instrument, bard with bard-preferred/bard-only instrument, cooldown replay, and reward idempotency.
+
+## Later — Calendar Korchma Revels and Wednesday Frogs
+
+**Objective**
+Додати легкий календарний шар для корчми: неділі, свята й окремі дні тижня можуть давати короткі події, flavor, малі бонуси або особливі encounter weights. Це має відчуватися як корчма, де у вихідні й святкові дні шумніше, а в середу чомусь підозріло більше жаб.
+
+**Design source**
+
+Історична корчма була місцем святкувань, музики й танців до пізньої ночі. Для Квестарні це означає не сухий календар, а маленькі повторювані приводи зайти: недільний гамір, святковий Шинок, середові жаби, коротка чутка, тимчасовий бонус до тосту або тематичний монстр.
+
+**First slice**
+
+- `CalendarService` або маленький helper, який визначає київський день тижня, неділю, відомі ручні свята й special tags на сьогодні.
+- `🍺 Корчма` / `🍻 Шинок` показують один короткий calendar flavor рядок, якщо є подія.
+- У середу додати frog-themed flavor або підвищити вагу frog/frogfolk-tagged контенту там, де це вже безпечно підтримується.
+- У неділю або ручне свято можна дати малий social/flavor bonus: дешевший тост, додатковий рядок для бардівського виступу, +малий шанс на добрий виступ або короткий recovery comfort.
+- Не робити перший slice повним seasonal event engine.
+
+**Wednesday frog direction**
+
+- Мем `It Is Wednesday My Dudes` використовувати тільки як джерело смаку, не як дослівний player-facing текст.
+- Квестарнянський варіянт: `середові жаби`, `жаби календарного схвалення`, `ква-календар`, `Жаба, що прийшла рівно посеред тижня`.
+- Existing/generated content уже має `frogfolk`/frog hooks у loot expansion, тож runtime PR має перевірити, чи можна безпечно підняти вагу таких манаток у середу без нового content pack.
+- Якщо контенту мало, додати невеликий starter pack жаб: монстр, 3-5 манаток, 3-5 коротких реплік.
+
+**Guardrails**
+
+- Календарні бонуси мають бути малими й не-FOMO: якщо гравець пропустив середу або неділю, прогрес не зламався.
+- Time basis — `Europe/Kyiv`, не UTC.
+- Player-facing текст не показує технічні timestamps або exact formula.
+- Свята не мають зачіпати реальні трагедії або політичні дати як punchline.
+- Не змішувати календарні бонуси з release/news: це runtime flavor, не обіцянка майбутніх persistent scheduler-ів.
+
+**Acceptance criteria**
+
+- helper має unit tests для понеділка/середи/неділі, київської timezone і ручного holiday override;
+- середовий frog flavor deterministic у межах дня й не дублюється хаотично на кожен refresh;
+- недільний/святковий bonus не обходить cooldown-и й не дублює rewards;
+- event text короткий, український і без дослівного копіювання мемів;
+- tests cover no-event day, Wednesday frog day, Sunday revel day, explicit holiday day, and replay/idempotency.
+
+## Later — Манчкін-скупник Manual Selection Polish
+
+**Objective**
+Доробити `🎒 Манчкін-скупника` після auto-pick MVP: дати гравцю ручний вибір манаток для рівня без роздування callback data і без ризику stale списань.
+
+**Rules**
+
+- Поріг лишається `1000` оціночного золота разом із докладеним золотом з гаманця.
+- `12 → 13` не дозволяти: 13 рівень тільки боями.
+- Екіпіровані, безцінні, story/quest/protected і zero-value манатки не eligible.
+- Preview має показувати конкретні selected stacks, суму манаток, докладене золото, переплату й XP carry.
+
+**Acceptance criteria**
+
+- manual selector не кладе довгі item ids у callback-и;
+- confirm перечитує inventory/equipment/gold і відхиляє stale input;
+- repeated confirm не дає другий рівень;
+- tests cover exact threshold, gold-fill threshold, protected/equipped exclusions, stale manual selection, and level-13 refusal.
+
+## Later — Bestiary Browse Filters
+
+**Objective**
+Додати в read-only `📖 Бестіарій` швидку навігацію за рівнями й типами, щоб 30+ монстрів не виглядали як випадкова купа сторінок.
+
+**Scope**
+
+- На головному екрані бестіарію додати кнопки `Рівні` й `Типи`.
+- `Рівні` відкриває список наявних рівнів із кількістю монстрів біля кожного.
+- Натискання рівня показує всіх монстрів цього рівня з кнопками на detail-записи.
+- `Типи` відкриває список наявних тегів/типів із player-facing українськими назвами й кількістю монстрів.
+- Натискання типу показує всіх монстрів із цим тегом.
+- У відфільтрованих списках лишити шлях назад: до `Рівні`, до `Типи`, до загального списку.
+
+**Non-goals**
+
+- no collection tracking;
+- no seen/resolved/studied states;
+- no new monster content in this navigation slice;
+- no reward, loot, XP, gold, or progression promises.
+
+**Acceptance criteria**
+
+- callback data for level/type filters stays under Telegram 64-byte limit;
+- filters derive available levels/tags from `src/content/monsters.ts`, not from hardcoded stale lists;
+- tags use `BESTIARY_TAG_LABELS`, and tests fail if a monster tag lacks a player-facing label;
+- tests cover level list, type list, filtered monster lists, empty-safe fallback, and back buttons.
+
+## Later — Глибка Dungeon Location
+
+**Objective**
+Додати нову локацію `Глибка` як першу dungeon-місцину для бойових справ, щоб Стіл зі справами був орієнтиром і журналом, а не місцем, де проблеми бʼються прямо між паперами.
+
+**Scope**
+
+- Додати place/presence id для Глибки, орієнтовно `location.korchma.hlybka`, якщо runtime лишається в корчемній location-моделі.
+- У залі або зі `Стіл зі справами` дати перехід до `Глибка`.
+- `Тринадцять дрібних проблем` має вести в Глибку: quest hub показує справу біля столу, але кнопка бойової дії переводить у dungeon screen і вже там стартує/показує persistent fight.
+- Здача `Тринадцяти дрібних проблем` має відбуватися у Корчмаря в `🍻 Шинку`, не автоматично на бойовому екрані й не біля Столу зі справами.
+- Після здачі `13` проблем у `🍻 Шинку` Корчмар може видати наступну аналогічну справу на `42` проблеми. `42` — гарне число; нагорода має бути більшою, але це окремий balance pass, не частина першого routing slice.
+- `/fight` для level 3+ має або вести в Глибку після interior gate, або пояснювати, що проблеми чекають унизу, не біля столу.
+- `👀 Хто поруч` у Глибці показує персонажів саме в цій місцині, не всіх біля Столу зі справами.
+- Пізніші бойові/підземельні справи зможуть теж вести в Глибку, щоб не плодити окремі «кімнати бою» для кожного квесту.
+
+**Non-goals**
+
+- no full dungeon crawl;
+- no map/grid/exploration system;
+- no group dungeon session;
+- no new combat formulas or rewards just because зʼявилась локація;
+- no schema migration unless existing presence/place abstractions are insufficient.
+
+**Acceptance criteria**
+
+- Стіл зі справами лишається списком справ і маршрутизатором;
+- старт/продовження `Тринадцяти дрібних проблем` змінює presence на Глибку;
+- completion flow веде до Корчмаря в Шинку для здачі `13` проблем і відкриття наступної справи на `42`;
+- active persistent fight screen має back path до Глибки або Столу, без відчуття, що бій відбувається на столі;
+- old quest/fight callbacks лишаються safe і не телепортують гравця надвір;
+- tests cover place callback, quest hub route, `/fight` route, presence location, and stale callback behavior.
 
 ## 0.0.20 — Combat Domain Engine
 
@@ -314,10 +560,12 @@ Implemented in the `0.0.27` slice as manual stack-unit selection for the existin
 **Status**
 Implemented in the `0.0.28` slice as `Неспокійні справи`: level 4+ quest, 5 won unquiet persistent solo fights, one-time XP/gold/keepsake reward.
 
+`0.0.29` adds the first timed tracking search before a fight: `👣 Вийти на слід` creates a short persisted `character_cooldowns` wait, `/hunt` shows pending/ready trail state, and `🔎 Перевірити слід` resolves into either a targeted unquiet persistent fight or a no-fight miss.
+
 **Follow-up backlog**
 
-- timed tracking search;
 - lure/ambush table with манатка-as-bait;
+- background auto-resolution or notifications for ready tracks, if the product later wants it;
 - Yeger reputation as a real table instead of flavor;
 - wilderness/location-aware hunt presence;
 - group hunt hooks after solo loop stabilizes.
@@ -363,6 +611,7 @@ Implemented in the `0.0.28` slice as `Неспокійні справи`: level 
 
 - group hunts/raids;
 - social player interactions: виклик на дуель у корчемний бійцівський куток, пропозиція всліпу помінятися манатками, маленька інтерактивна міні-гра між гравцями;
+- корчемні ігри з `docs/SOCIAL_ACTIONS_BACKLOG.md`: дуже прості карти/шашки на 2–4 кроки з opt-in викликом nearby пригодника, легким випадковим розвʼязанням, presence flavor і косметичним/соціяльним результатом без бойової переваги;
 - player influence on hunts: допомогти іншому гравцю закрити полювання або, якщо дуже хочеться бути проблемою, допомогти монстру в межах безпечних anti-abuse rules;
 - activity presence: зберігати й показувати coarse тип поточної дії персонажа, наприклад «чекає бочку», «спілкується з єгерем», «бʼється з монстром», «отримує нагороду»;
 - trading/gifting;

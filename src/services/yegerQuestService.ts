@@ -1,9 +1,11 @@
 import { monsters } from "../content/monsters";
 import type { MonsterContent } from "../content/schema";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
+import type { CooldownRepository } from "../db/repositories/cooldownRepository";
 import type { DailyActionRepository, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import type { SoloCombatSessionRepository } from "../db/repositories/soloCombatSessionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
+import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import type { FightLookupResult, FightService } from "./fightService";
 import {
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
@@ -26,17 +28,34 @@ export const YEGER_UNQUIET_TRIAL_REWARD = {
   gold: 120,
   itemId: YEGER_FIRST_NOTCH_ITEM_ID
 };
+export const YEGER_TRACKING_COOLDOWN_KEY = "quest.yeger.unquiet-trial.tracking";
+export const YEGER_TRACKING_MIN_MINUTES = 3;
+export const YEGER_TRACKING_MAX_MINUTES = 7;
+export const YEGER_TRACKING_BASE_EXACT_CHANCE = 0.65;
+export const YEGER_TRACKING_RANGER_BONUS = 0.15;
+export const YEGER_TRACKING_STAT_BONUS_CAP = 0.1;
+export const YEGER_TRACKING_NEAR_MISS_CHANCE = 0.2;
 
 export interface YegerQuestProgress {
   wins: number;
   target: number;
 }
 
+export type YegerTrackingSummary =
+  | { state: "none" }
+  | { state: "tracking-pending"; availableAt: Date; now: Date }
+  | { state: "tracking-ready"; availableAt: Date; now: Date };
+
 export type YegerQuestLookupResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
   | { state: "offered"; character: CharacterSummary; progress: YegerQuestProgress }
-  | { state: "in-progress"; character: CharacterSummary; progress: YegerQuestProgress }
+  | {
+      state: "in-progress";
+      character: CharacterSummary;
+      progress: YegerQuestProgress;
+      tracking: YegerTrackingSummary;
+    }
   | { state: "turn-in-ready"; character: CharacterSummary; progress: YegerQuestProgress }
   | {
       state: "completed";
@@ -49,6 +68,37 @@ export type YegerQuestStartResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
   | Extract<YegerQuestLookupResult, { state: "in-progress" | "turn-in-ready" | "completed" }>;
+
+export type YegerTrackingResult =
+  | { state: "no-character" }
+  | { state: "not-in-progress"; quest: Exclude<YegerQuestLookupResult, { state: "no-character" | "in-progress" }> }
+  | {
+      state: "tracking-started" | "tracking-pending";
+      character: CharacterSummary;
+      progress: YegerQuestProgress;
+      tracking: Extract<YegerTrackingSummary, { state: "tracking-pending" }>;
+    }
+  | {
+      state: "tracking-resolved-none";
+      character: CharacterSummary;
+      progress: YegerQuestProgress;
+      tracking: Extract<YegerTrackingSummary, { state: "tracking-pending" }>;
+      outcome: "near-miss" | "none";
+    }
+  | {
+      state: "tracking-blocked-by-other-fight";
+      character: CharacterSummary;
+      progress: YegerQuestProgress;
+      tracking: Extract<YegerTrackingSummary, { state: "tracking-ready" }>;
+      fight: Extract<FightLookupResult, { state: "persistent-active" }>;
+    }
+  | {
+      state: "tracking-resolved-success";
+      character: CharacterSummary;
+      progress: YegerQuestProgress;
+      tracking: Extract<YegerTrackingSummary, { state: "tracking-pending" }>;
+      fight: FightLookupResult;
+    };
 
 export type YegerQuestTurnInResult =
   | { state: "no-character" }
@@ -75,7 +125,10 @@ export class YegerQuestService {
     private readonly characters: CharacterRepository,
     private readonly dailyActions: DailyActionRepository,
     private readonly combatSessions: SoloCombatSessionRepository,
-    private readonly fight: FightService
+    private readonly fight: FightService,
+    private readonly cooldowns: CooldownRepository,
+    private readonly now: () => Date = () => new Date(),
+    private readonly rng: RandomSource = new CryptoRandomSource()
   ) {}
 
   async getForTelegramUser(telegramUserId: bigint): Promise<YegerQuestLookupResult> {
@@ -128,7 +181,12 @@ export class YegerQuestService {
       return { state: "turn-in-ready", character: summary, progress };
     }
 
-    return { state: "in-progress", character: summary, progress };
+    return {
+      state: "in-progress",
+      character: summary,
+      progress,
+      tracking: await this.getTrackingSummary(telegramUserId)
+    };
   }
 
   async startForTelegramUser(telegramUserId: bigint): Promise<YegerQuestStartResult> {
@@ -152,15 +210,107 @@ export class YegerQuestService {
     return {
       state: "in-progress",
       character: summarizeCharacter(claim.character),
-      progress: { wins: 0, target: YEGER_UNQUIET_TRIAL_TARGET }
+      progress: { wins: 0, target: YEGER_UNQUIET_TRIAL_TARGET },
+      tracking: { state: "none" }
     };
   }
 
-  async trackForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
-    return this.fight.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+  async trackForTelegramUser(telegramUserId: bigint): Promise<YegerTrackingResult> {
+    const current = await this.getForTelegramUser(telegramUserId);
+
+    if (current.state === "no-character") {
+      return { state: "no-character" };
+    }
+
+    if (current.state !== "in-progress") {
+      return { state: "not-in-progress", quest: current };
+    }
+
+    if (current.tracking.state === "tracking-pending") {
+      return {
+        state: "tracking-pending",
+        character: current.character,
+        progress: current.progress,
+        tracking: current.tracking
+      };
+    }
+
+    if (current.tracking.state === "tracking-ready") {
+      const activeFight = await this.fight.getFightOverviewForTelegramUser(telegramUserId);
+
+      if (activeFight.state === "persistent-active" && !isYegerUnquietTarget(activeFight.monster)) {
+        return {
+          state: "tracking-blocked-by-other-fight",
+          character: current.character,
+          progress: current.progress,
+          tracking: current.tracking,
+          fight: activeFight
+        };
+      }
+    }
+
+    const now = this.now();
+    const availableAt = addMinutes(now, this.rollTrackingMinutes());
+    const claim = await this.cooldowns.claimRewardForTelegramUser(telegramUserId, {
+      key: YEGER_TRACKING_COOLDOWN_KEY,
+      now,
+      availableAt,
+      rewardXp: 0,
+      rewardGold: 0
+    });
+
+    if (!claim) {
+      return { state: "no-character" };
+    }
+
+    const tracking = {
+      state: "tracking-pending" as const,
+      availableAt: claim.cooldown.availableAt,
+      now
+    };
+
+    if (claim.state === "on-cooldown") {
+      return {
+        state: "tracking-pending",
+        character: summarizeCharacter(claim.character),
+        progress: current.progress,
+        tracking
+      };
+    }
+
+    if (current.tracking.state !== "tracking-ready") {
+      return {
+        state: "tracking-started",
+        character: summarizeCharacter(claim.character),
+        progress: current.progress,
+        tracking
+      };
+    }
+
+    const outcome = rollYegerTrackingOutcome(summarizeCharacter(claim.character), this.rng);
+
+    if (outcome !== "success") {
+      return {
+        state: "tracking-resolved-none",
+        character: summarizeCharacter(claim.character),
+        progress: current.progress,
+        tracking,
+        outcome
+      };
+    }
+
+    const fight = await this.fight.getOrStartPersistentFightForTelegramUser(telegramUserId, {
       source: "yeger",
       target: { tagsAny: [...YEGER_UNQUIET_TRIAL_TAGS] }
     });
+
+    return {
+      state: "tracking-resolved-success",
+      character: summarizeCharacter(claim.character),
+      progress: current.progress,
+      tracking,
+      fight
+    };
   }
 
   async turnInForTelegramUser(telegramUserId: bigint): Promise<YegerQuestTurnInResult> {
@@ -236,10 +386,62 @@ export class YegerQuestService {
       target: YEGER_UNQUIET_TRIAL_TARGET
     };
   }
+
+  private async getTrackingSummary(telegramUserId: bigint): Promise<YegerTrackingSummary> {
+    const result = await this.cooldowns.findForTelegramUser(telegramUserId, YEGER_TRACKING_COOLDOWN_KEY);
+    const now = this.now();
+
+    if (!result?.cooldown) {
+      return { state: "none" };
+    }
+
+    if (result.cooldown.availableAt > now) {
+      return {
+        state: "tracking-pending",
+        availableAt: result.cooldown.availableAt,
+        now
+      };
+    }
+
+    return {
+      state: "tracking-ready",
+      availableAt: result.cooldown.availableAt,
+      now
+    };
+  }
+
+  private rollTrackingMinutes(): number {
+    return this.rng.nextInt(YEGER_TRACKING_MIN_MINUTES, YEGER_TRACKING_MAX_MINUTES);
+  }
 }
 
 export function isYegerUnquietTarget(monster: Pick<MonsterContent, "tags">): boolean {
   return monster.tags.some((tag) => YEGER_UNQUIET_TRIAL_TAGS.includes(tag as typeof YEGER_UNQUIET_TRIAL_TAGS[number]));
+}
+
+export function getYegerTrackingExactChance(character: CharacterSummary): number {
+  const classBonus = character.classId === "class.ranger" ? YEGER_TRACKING_RANGER_BONUS : 0;
+  const statBonus = Math.min(
+    YEGER_TRACKING_STAT_BONUS_CAP,
+    Math.max(0, character.stats.intelligence - 6) * 0.01 + Math.max(0, character.stats.luck - 6) * 0.01
+  );
+
+  return Math.min(0.95, YEGER_TRACKING_BASE_EXACT_CHANCE + classBonus + statBonus);
+}
+
+export function rollYegerTrackingOutcome(
+  character: CharacterSummary,
+  rng: RandomSource
+): "success" | "near-miss" | "none" {
+  if (rng.nextFloat() < getYegerTrackingExactChance(character)) {
+    return "success";
+  }
+
+  return rng.nextFloat() < YEGER_TRACKING_NEAR_MISS_CHANCE ? "near-miss" : "none";
+}
+
+function addMinutes(date: Date, minutes: number): Date {
+  return new Date(date.getTime() + minutes * 60_000);
 }
 
 function buildYegerQuestReward(input?: {

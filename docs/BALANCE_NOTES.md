@@ -115,14 +115,56 @@ Sources:
 - PvE fights.
 - Daily.
 - Raid rewards.
+- Бардівський виступ у `🍻 Шинку`: малий capped gold payout із cooldown-ом, якщо клас/перевірка й манатки це дозволяють.
 
 Sinks:
 - Repair після поразки.
 - Reroll одного stat на предметі.
 - Cosmetic title.
 - Створення ґільдії.
+- Їжа в `🍻 Шинку` з короткими бафами: золото витрачається на підготовку, а не на прямий shortcut до XP, луту або прогресії.
 
 У MVP не давати гравцям багато gold без sinks.
+
+### Їжа Шинку і тимчасові бафи
+
+Їжа має бути малою тактичною витратою, а не pay-to-win. Вона може давати:
+- малий тимчасовий `hpMax` або shield на наступний бій;
+- малий `manaMax`, часткове відновлення мани або швидшу out-of-combat mana recovery;
+- короткий бонус до STR/DEX/INT/CHA/LUCK для одного fight/check;
+- легкий regeneration/recovery modifier із чіткою тривалістю.
+
+Guardrails:
+- один active food buff за раз; нова страва замінює попередню після явного підтвердження;
+- effect magnitude має бути меншим за добру екіпіровану манатку того ж рівня;
+- тривалість має бути обмежена: наступний бій, кілька ходів, одна перевірка або коротке вікно часу;
+- HP/mana buff не має приховано refill-ити ресурси понад описаний ефект;
+- їжа не дає XP, золото, loot roll, рівень або обхід activity gates;
+- ціни мають бути відчутними, але не обовʼязковими для нормального `75-90%` win rate.
+
+Перші страви краще балансувати як `cheap/funny`, `standard/useful`, `expensive/situational`: дешеві дають малий ефект і добрий жарт, середні допомагають у звичайній сутичці, дорогі мають бути вибором перед складнішою справою, а не щоденним податком на гру.
+
+### Бардівський виступ і золото
+
+Виступ барда в Шинку може бути малим gold source, але не основним методом заробітку:
+- базовий payout нижчий за expected value звичайної перемоги в бою того ж рівня;
+- `CHA` має бути головним модифікатором, `LUCK` — малим swing modifier;
+- музична манатка може дати помітний bonus, але в межах cap-а;
+- cooldown спершу daily за Києвом; hourly дозволяти тільки після симуляції й playtest-у;
+- провал має давати `0` золота або символічну суму без XP;
+- repeated callback replay-ить той самий результат і не reroll-ить виступ;
+- bard-only specialization не має ставати обовʼязковим gold engine для прогресу інших класів.
+
+Для музичних манаток потрібен окремий budget: universal інструмент дає менший performance bonus, bard-preferred або bard-only — більший, але без прямої бойової сили, якщо предмет не має окремого combat effect.
+
+### Календарні бонуси
+
+Неділі, свята й середові жаби можуть давати малі бонуси, але не мають міняти основну економіку:
+- time basis завжди `Europe/Kyiv`;
+- bonus до бардівського виступу, social action або recovery має бути меншим за різницю між поганим і добрим спорядженням;
+- frog-themed Wednesday може піднімати flavor/weight для `frog`/`frogfolk` content, але не гарантувати rare/epic loot;
+- святковий день може дати дешевший тост, кращий NPC mood або малий social bonus, але не безкоштовний рівень, великий XP або обхід fight gates;
+- пропуск календарного дня не має відкидати гравця назад.
 
 ## Loot tables
 Стартова таблиця:
@@ -208,7 +250,7 @@ item_power_budget = base_by_level + rarity_bonus
 
 Junk, cosmetics, priceless trophies і quest badges не мають випадкових power effects. Якщо предмет має впливати на combat, його треба явно перевести в supported equippable content і покрити тестом. Поточний content test вимагає `effect` для кожної `weapon`/`armor`/`accessory` манатки, щоб спорядження не виглядало як порожня обіцянка.
 
-`0.0.15` додає reachable starter gear для всіх видимих слотів: weapon через `/fight`, armor через Бочку Пінного Міражу, accessory через підвальну мишу. Це розширює контент і оцінну вартість манаток, але не додає бойових ефектів, sell/trade логіки або нових reward formulas.
+`0.0.15` додає reachable starter gear для всіх видимих слотів: weapon через `/fight`, armor через Бочку Пінного Міражу, accessory через льохову мишу. Це розширює контент і оцінну вартість манаток, але не додає бойових ефектів, sell/trade логіки або нових reward formulas.
 
 Після `0.0.19` starter weapon не є гарантованою baseline для балансування: starter `/fight` закритий після 2 рівня, cellar errands існують на 2-3 рівнях, Hunt Board відкривається з 3 рівня, а gates живуть у `src/domain/progression/activityGates.ts`. Combat math має мати unarmed/basic fallback і не вимагати `item.pan-of-persuasion` або `item.stamp-of-minor-authority` для нормального першого бою.
 

@@ -1,4 +1,4 @@
-﻿import type { Context } from "grammy";
+import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
 import { sendAdventure } from "../../src/bot/commands/adventureCommand";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
@@ -70,6 +70,12 @@ describe("adventure command", () => {
             {
               text: "🏅 Пропамʼятна дошка",
               callback_data: makePlaceCallbackData("memorial")
+            }
+          ],
+          [
+            {
+              text: "🎒 Манчкін-скупник",
+              callback_data: "v1:lvlx:open"
             }
           ]
         ]
@@ -238,7 +244,7 @@ describe("adventure command", () => {
     });
 
     expect(replies).toHaveLength(1);
-    expect(replies[0]?.text).toContain("🐭 Підвальна справа");
+    expect(replies[0]?.text).toContain("🐭 Льохова справа");
     expect(replies[0]?.options).toHaveProperty("reply_markup");
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,

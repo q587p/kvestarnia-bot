@@ -13,7 +13,7 @@ import type {
 } from "../db/repositories/korchmaRoundPurchaseRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
-import { systemClock, toIsoDate, type Clock } from "../shared/time";
+import { systemClock, type Clock } from "../shared/time";
 import {
   APRON_OF_FOAM_RESISTANCE_ITEM_ID,
   BARREL_SPLINTER_OF_OPTIMISM_ITEM_ID,
@@ -448,8 +448,9 @@ export class TavernRaidService {
   }
 
   async getRoundOfferForTelegramUser(telegramUserId: bigint): Promise<TavernRoundOfferResult> {
-    const localDate = toIsoDate(this.clock());
-    const raidPeriodId = getBarrelRaidPeriod(this.clock()).id;
+    const now = this.clock();
+    const localDate = toKorchmaLocalDate(now);
+    const raidPeriodId = getBarrelRaidPeriod(now).id;
     const character = await this.characters.findByTelegramUserId(telegramUserId);
     const leaderboard = await this.roundPurchases.getLeaderboard(localDate);
 
@@ -493,8 +494,9 @@ export class TavernRaidService {
     telegramUserId: bigint,
     tier: KorchmaRoundTier
   ): Promise<TavernRoundResult> {
-    const localDate = toIsoDate(this.clock());
-    const raidPeriodId = getBarrelRaidPeriod(this.clock()).id;
+    const now = this.clock();
+    const localDate = toKorchmaLocalDate(now);
+    const raidPeriodId = getBarrelRaidPeriod(now).id;
     const character = await this.characters.findByTelegramUserId(telegramUserId);
     const beforeLeaderboard = await this.roundPurchases.getLeaderboard(localDate);
 
@@ -574,6 +576,13 @@ export function getBarrelRaidPeriod(now: Date): BarrelRaidPeriod {
     startsAt,
     endsAt
   };
+}
+
+export function toKorchmaLocalDate(now: Date): string {
+  const parts = getKorchmaWallParts(now);
+  return `${parts.year.toString().padStart(4, "0")}-${parts.month
+    .toString()
+    .padStart(2, "0")}-${parts.day.toString().padStart(2, "0")}`;
 }
 
 function getPreviousBarrelRaidPeriod(period: BarrelRaidPeriod): BarrelRaidPeriod {

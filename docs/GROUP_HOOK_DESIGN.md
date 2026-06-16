@@ -110,7 +110,7 @@
 
 ## Reuse from 0.0.11 / 0.0.12
 
-- Підвальна fallback-логіка показала, як поводитися з exhausted daily content.
+- Льохова fallback-логіка показала, як поводитися з exhausted daily content.
 - Барельний solo placeholder показав, як вбудувати `pending` state без background jobs.
 - Quest hub показав, як корчма може відкривати кілька пов’язаних дій без перевантаження меню.
 - Character impact loop уже дав м’яку flavor-інтеграцію без стат-бонусів, і груповий hook може наслідувати цей принцип.

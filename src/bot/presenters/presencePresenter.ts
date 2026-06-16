@@ -6,7 +6,13 @@ import type {
   PresenceGroup,
   PresencePerson
 } from "../../services/presenceService";
-import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../services/presenceService";
+import {
+  PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
+  PRESENCE_ADVENTURE_HUNT_BOARD,
+  PRESENCE_ADVENTURE_MIMIC_FIGHT,
+  PRESENCE_ADVENTURE_SOLO_FIGHT,
+  PRESENCE_LOCATION_KORCHMA_BARREL
+} from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 
 const MAX_VISIBLE_PRESENCE_PEOPLE = 12;
@@ -118,11 +124,15 @@ function presentActivitySummary(activity: PresenceActivitySnapshot): string[] {
 }
 
 function presentAdventureIcon(activity: PresenceActivitySnapshot): string {
-  if (activity.id === "adventure.cellar.mouse-errand") {
+  if (activity.id === PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND) {
     return "🐭";
   }
 
-  if (activity.id === "adventure.mimic-shawarma-fight") {
+  if (activity.id === PRESENCE_ADVENTURE_HUNT_BOARD) {
+    return "🏹";
+  }
+
+  if (activity.id === PRESENCE_ADVENTURE_MIMIC_FIGHT || activity.id === PRESENCE_ADVENTURE_SOLO_FIGHT) {
     return "⚔️";
   }
 

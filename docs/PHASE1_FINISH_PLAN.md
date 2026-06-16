@@ -2,6 +2,8 @@
 
 Цей документ фіксує scope lock після `0.0.21`: добиваємо основний solo RPG loop, а нові поверхні додаємо тільки коли вони rewardless і не відволікають від бойової петлі.
 
+Closeout-рамка для закриття лінійки `0.0.x`, release PR `0.1.0` і deferred backlog `0.1.x` живе в `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`. Фінальний smoke/release gate перед `0.1.0` живе в `docs/PHASE1_CLOSEOUT_SMOKE.md`.
+
 ## Головна ціль
 
 Новий гравець має за кілька хвилин пройти зрозумілу RPG-петлю:
@@ -41,7 +43,7 @@
 5. **Loot Engine + Reward Replay**
    Контрольовані loot tables із rarity, bounded LUCK modifier, deterministic/injected RNG, idempotent reward claim і replay деталей. Реалізовано в `0.0.23` для won persistent solo fights.
 
-6. **Level Cap 13 + доросла підвальна справа**
+6. **Level Cap 13 + доросла льохова справа**
    Підняти current alpha cap до 13 рівня, перенести capstone `/restart` suggestion туди, змістити майбутні epic levels на `14-23` і замінити retired `/cellar` dead-end для level 4+ на вузьку once-per-player справу `Справа не до миші` без broad quest engine.
 
 7. **Persistent HP/Mana + Loot Expansion**

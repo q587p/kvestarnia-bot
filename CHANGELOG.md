@@ -7,6 +7,28 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.0.29] - 12026-06-16 - Yeger Tracking Search & Munchkin Barter
+
+### Added
+- Added a timed Yeger tracking step before `Неспокійні справи` starts an unquiet persistent fight.
+- Added persisted tracking state through existing `character_cooldowns`: `👣 Вийти на слід` starts a short wait, `/hunt` shows pending/ready state, and `🔎 Перевірити слід` resolves the trail.
+- Added deterministic tracking outcome logic with class/stat-aware modifiers, tested without exposing exact chances in player-facing text.
+- Added no-fight tracking outcomes so a resolved trail can miss without changing quest progress or granting rewards.
+- Added the outside-korchma `🎒 Манчкін-скупник` exchange: eligible манатки plus missing wallet gold can be previewed and confirmed for exactly `+1` level.
+- Added a hard refusal for Манчкін exchange into level 13; that milestone remains battle-only.
+- Added tests for pending cooldown reuse, ready success/failure, ranger advantage caps, Yeger keyboard states, and callback rendering.
+- Added tests for level-barter auto-pick, wallet gold fill, XP carry, stale token handling, and callback hardening.
+
+### Changed
+- Yeger tracking no longer starts the fight immediately on first click; it now requires a ready trail check.
+- Existing active non-Yeger fights still block Yeger tracking flavor instead of being mislabeled as unquiet targets.
+- The `Пропамʼятна дошка` level board now shows the full known milestone range down to level 2 instead of only the six highest levels.
+- The `Шинок` generosity leaderboard now records beer-round dates by Kyiv korchma time instead of UTC.
+- Game-design, technical-plan, roadmap, and backlog docs now describe the two-step Yeger trail loop and the Манчкін-скупник exchange scope.
+
+### Not Included Yet
+- Background auto-resolution, bait/lure/ambush tables, surprise opening turns, Yeger reputation, daily samples, shops, trading, crafting, item-instance inventory, manual Манчкін item selection, or a broad combat formula rewrite.
+
 ## [0.0.28] - 12026-06-15 - Yeger Trial: Unquiet Hunt Quest
 
 ### Added
@@ -27,7 +49,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Playtesting and game-design docs now frame the hourly Hunt Board as legacy and the Yeger trial as the current player-facing hunt loop.
 
 ### Not Included Yet
-- Timed tracking searches, bait/lure/ambush tables, surprise opening turns, Yeger reputation, daily samples, shops, trading, crafting, item-instance inventory, or a broad combat formula rewrite.
+- Bait/lure/ambush tables, surprise opening turns, Yeger reputation, daily samples, shops, trading, crafting, item-instance inventory, or a broad combat formula rewrite.
 
 ## [0.0.27] - 12026-06-15 - Manual Mantok Chest Selection
 

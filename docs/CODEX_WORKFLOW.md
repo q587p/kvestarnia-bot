@@ -145,6 +145,7 @@ Spawn 3 agents and consolidate:
 - якщо задача прямо не просить stacked PR або іншу base-гілку, дивитися на актуальний `main`, рахувати diff проти `main` і відкривати/retarget PR саме на `main`;
 - ready/merge-ready PR не має лишатися на non-main base. Stacked PR дозволений тільки на час незмердженої залежності або за прямим проханням користувача; PR body має явно називати dependency, а після merge dependency треба ретаргетнути PR на `main` і повторно перевірити mergeability;
 - якщо вже є активний PR для поточної роботи, follow-up правки додавати в цю ж гілку і цей же PR, а не створювати нову гілку/PR без прямого прохання;
+- якщо follow-up розширює scope PR новою фічею, окремим runtime/economy track або помітним docs package, PR title/body і release surfaces мають чесно це відображати; не лишати вузьку назву й вузький body поверх ширшого diff;
 - `docs/public-readme-polish`;
 - `feat/combat-engine`;
 - `feat/start-flow`;
@@ -174,7 +175,7 @@ PR має містити:
 
 Бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, collection UI, share cards або окремий journal/progression loop, доки не закриті combat → equipment stats → loot → level 1-13. Нові bestiary-зміни допустимі тільки якщо вони прямо обслуговують combat/loot або виправляють безпеку/неточність уже наявного read-only surface.
 
-Докладна послідовність живе в `docs/PHASE1_FINISH_PLAN.md`, а copy-paste backlog для наступних PR — у `docs/NEXT_IMPLEMENTATION_BACKLOG.md`.
+Докладна послідовність живе в `docs/PHASE1_FINISH_PLAN.md`, cutline для закриття `0.0.x` і переходу до `0.1.x` — у `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`, фінальний smoke gate — у `docs/PHASE1_CLOSEOUT_SMOKE.md`, а copy-paste backlog для наступних PR — у `docs/NEXT_IMPLEMENTATION_BACKLOG.md`.
 
 Не стрибати в shops, trading, групові hunts/raids або Redis/jobs, якщо користувач прямо не розширив scope.
 

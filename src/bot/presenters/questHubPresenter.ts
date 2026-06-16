@@ -177,28 +177,28 @@ function presentCellarRow(
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>
 ): string {
   if (cellar.state === "level-locked") {
-    return `🧹 <i>Підвальна справа</i> — відкриється з ${cellar.requiredLevel} рівня.`;
+    return `🧹 <i>Льохова справа</i> — відкриється з ${cellar.requiredLevel} рівня.`;
   }
 
   if (cellar.state === "level-retired") {
     if (cellarGrownup?.state === "completed") {
       return [
-        `🧹 <i>Підвальна справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`,
-        "🐭 <i>Справа не до миші</i> — дорослу підвальну справу вже закрито; пляшка стоїть у журналі й тихо булькає."
+        `🧹 <i>Льохова справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`,
+        "🐭 <i>Справа не до миші</i> — дорослу льохову справу вже закрито; пляшка стоїть у журналі й тихо булькає."
       ].join("\n");
     }
 
     return [
-      `🧹 <i>Підвальна справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`,
-      "🐭 <i>Справа не до миші</i> — у підвалі є інша справа для старших пригодників."
+      `🧹 <i>Льохова справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`,
+      "🐭 <i>Справа не до миші</i> — у льосі є інша справа для старших пригодників."
     ].join("\n");
   }
 
   if (cellar.state === "ready") {
-    return "🧹 <i>Підвальна справа</i> — миша приймає аргументи.";
+    return "🧹 <i>Льохова справа</i> — миша приймає аргументи.";
   }
 
-  return `🧹 <i>Підвальна справа</i> — пауза ще ${formatCooldown(cellar.availableAt, cellar.now)}.`;
+  return `🧹 <i>Льохова справа</i> — пауза ще ${formatCooldown(cellar.availableAt, cellar.now)}.`;
 }
 
 function presentActiveCellarRow(
@@ -218,7 +218,7 @@ function presentActiveCellarRow(
       return "🐭 <i>Справа не до миші</i> — пляшка вже з вами; Корчмар чекає в Шинку.";
     }
 
-    return "🐭 <i>Справа не до миші</i> — у підвалі є інша справа для старших пригодників.";
+    return "🐭 <i>Справа не до миші</i> — у льосі є інша справа для старших пригодників.";
   }
 
   return presentCellarRow(cellar, cellarGrownup);
@@ -244,10 +244,10 @@ function presentCellarArchiveRows(
     return [];
   }
 
-  const rows = [`🧹 <i>Підвальна справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`];
+  const rows = [`🧹 <i>Льохова справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`];
 
   if (cellarGrownup?.state === "completed") {
-    rows.push("🐭 <i>Справа не до миші</i> — дорослу підвальну справу вже закрито; пляшка стоїть у журналі й тихо булькає.");
+    rows.push("🐭 <i>Справа не до миші</i> — дорослу льохову справу вже закрито; пляшка стоїть у журналі й тихо булькає.");
   }
 
   return rows;

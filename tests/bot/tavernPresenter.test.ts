@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   presentTavern,
   presentTavernAlreadyRaided,
@@ -64,7 +64,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("<i>Стіл зі справами</i>");
     expect(text).toContain("<i>Шинок</i>");
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
-    expect(text).toContain("<i>Підвал</i>");
+    expect(text).toContain("<i>Льох</i>");
     expect(text).toContain("<i>Дошка вістей</i>");
     expect(text).toContain("<i>табличка прибулих</i>");
     expect(text).toContain("<i>пропамʼятна дошка</i>");
@@ -136,7 +136,7 @@ describe("tavern presenter", () => {
     );
     expect(text).toContain("неподалік шумить <i>Шинок</i>");
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
-    expect(text).toContain("<i>Підвал</i>");
+    expect(text).toContain("<i>Льох</i>");
     expect(text).toContain("<i>Дошка вістей</i>");
     expect(text).toContain("Корчмар:\n<blockquote>");
     expect(text).toContain("Куди йдемо?");
@@ -489,7 +489,7 @@ describe("tavern presenter", () => {
         gold: 5,
         leaderboard: emptyRoundLeaderboard
       })
-    ).toContain("у підвалі миші ведуть дрібний бізнес");
+    ).toContain("у льосі миші ведуть дрібний бізнес");
     expect(
       presentTavernRoundResult({
         state: "simple-round",
