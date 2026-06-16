@@ -23,6 +23,14 @@ describe("dev grant commands", () => {
       "Формат: /dev_add_gold [додатне ціле число]."
     );
   });
+
+  it("does not register value-granting commands when disabled", async () => {
+    const devGrant = fakeDevGrantService({ enabled: false });
+    const calls = await captureMessageCalls("/dev_add_xp 7", devGrant);
+
+    expect(devGrant.addXp).not.toHaveBeenCalled();
+    expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+  });
 });
 
 interface ApiCall {
@@ -90,7 +98,7 @@ async function captureMessageCalls(
   return calls;
 }
 
-function fakeDevGrantService(): {
+function fakeDevGrantService(input: { enabled?: boolean } = {}): {
   isEnabled: ReturnType<typeof vi.fn<() => boolean>>;
   addLevel: ReturnType<typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantResult>>>;
   addXp: ReturnType<typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantResult>>>;
@@ -118,7 +126,7 @@ function fakeDevGrantService(): {
   };
 
   return {
-    isEnabled: vi.fn(() => true),
+    isEnabled: vi.fn(() => input.enabled ?? true),
     addLevel: vi.fn((_telegramUserId, amount) => Promise.resolve({
       state: "updated",
       kind: "level",

@@ -67,12 +67,21 @@ describe("help presenter", () => {
     expect(text.split("\n").length).toBeLessThanOrEqual(42);
   });
 
-  it("includes dev reset only when enabled", () => {
-    expect(presentHelp(true)).toContain("🧪 /dev_reset_me");
-    expect(presentHelp(true)).toContain("🪜 /dev_add_level");
-    expect(presentHelp(true)).toContain("🔢 /dev_add_xp");
-    expect(presentHelp(true)).toContain("🪙 /dev_add_gold");
-    expect(presentHelp(true)).toContain("🎲 /dev_add_random_item");
-    expect(presentHelp(true)).toContain("допомога\n\n🧪");
+  it("includes dev reset and value grants only when each gate is enabled", () => {
+    const resetOnly = presentHelp({ includeDevReset: true, includeDevGrant: false });
+    const grantsEnabled = presentHelp({ includeDevReset: true, includeDevGrant: true });
+
+    expect(resetOnly).toContain("🧪 /dev_reset_me");
+    expect(resetOnly).not.toContain("🪜 /dev_add_level");
+    expect(resetOnly).not.toContain("🔢 /dev_add_xp");
+    expect(resetOnly).not.toContain("🪙 /dev_add_gold");
+    expect(resetOnly).not.toContain("🎲 /dev_add_random_item");
+    expect(resetOnly).toContain("допомога\n\n🧪");
+
+    expect(grantsEnabled).toContain("🧪 /dev_reset_me");
+    expect(grantsEnabled).toContain("🪜 /dev_add_level");
+    expect(grantsEnabled).toContain("🔢 /dev_add_xp");
+    expect(grantsEnabled).toContain("🪙 /dev_add_gold");
+    expect(grantsEnabled).toContain("🎲 /dev_add_random_item");
   });
 });

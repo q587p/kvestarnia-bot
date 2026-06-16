@@ -31,11 +31,12 @@ export class DevGrantService {
   constructor(
     private readonly grants: DevGrantRepository,
     private readonly nodeEnv: string,
+    private readonly enabledFlag: boolean,
     private readonly rng: RandomSource = new CryptoRandomSource()
   ) {}
 
   isEnabled(): boolean {
-    return this.nodeEnv !== "production";
+    return this.nodeEnv !== "production" && this.enabledFlag;
   }
 
   async addLevel(telegramUserId: bigint, amount = 1): Promise<DevGrantResult> {

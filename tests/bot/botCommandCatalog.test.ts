@@ -57,18 +57,33 @@ describe("bot command catalog", () => {
   });
 
   it("keeps local dev commands in help but not in the side menu", () => {
-    const devCommands = [
-      "dev_reset_me",
-      "dev_add_level",
-      "dev_add_xp",
-      "dev_add_gold",
-      "dev_add_random_item"
-    ];
-
-    for (const command of devCommands) {
+    for (const command of ["dev_reset_me"]) {
       expect(getHelpCommandEntries(false).some((entry) => entry.command === command)).toBe(false);
       expect(getHelpCommandEntries(true).some((entry) => entry.command === command)).toBe(true);
       expect(getTelegramMenuCommands(true).some((entry) => entry.command === command)).toBe(false);
+    }
+
+    const resetOnly = getHelpCommandEntries({ includeDevReset: true, includeDevGrant: false });
+    const grantsOnly = getHelpCommandEntries({ includeDevReset: false, includeDevGrant: true });
+
+    expect(resetOnly.some((entry) => entry.command === "dev_reset_me")).toBe(true);
+    expect(resetOnly.some((entry) => entry.command === "dev_add_level")).toBe(false);
+    expect(grantsOnly.some((entry) => entry.command === "dev_reset_me")).toBe(false);
+    expect(grantsOnly.some((entry) => entry.command === "dev_add_level")).toBe(true);
+
+    for (const command of ["dev_add_level", "dev_add_xp", "dev_add_gold", "dev_add_random_item"]) {
+      expect(
+        getHelpCommandEntries({ includeDevReset: true, includeDevGrant: false })
+          .some((entry) => entry.command === command)
+      ).toBe(false);
+      expect(
+        getHelpCommandEntries({ includeDevReset: true, includeDevGrant: true })
+          .some((entry) => entry.command === command)
+      ).toBe(true);
+      expect(
+        getTelegramMenuCommands({ includeDevReset: true, includeDevGrant: true })
+          .some((entry) => entry.command === command)
+      ).toBe(false);
     }
   });
 });

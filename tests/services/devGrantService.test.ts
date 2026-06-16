@@ -14,15 +14,23 @@ import { FakeRandomSource } from "../../src/shared/random";
 describe("DevGrantService", () => {
   it("does not grant anything in production", async () => {
     const repository = new FakeDevGrantRepository();
-    const service = new DevGrantService(repository, "production", new FakeRandomSource([0]));
+    const service = new DevGrantService(repository, "production", true, new FakeRandomSource([0]));
 
     await expect(service.addXp(42n, 10)).resolves.toEqual({ state: "disabled" });
     expect(repository.calls).toEqual([]);
   });
 
+  it("does not grant anything in development without the explicit opt-in flag", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", false, new FakeRandomSource([0]));
+
+    await expect(service.addGold(42n, 10)).resolves.toEqual({ state: "disabled" });
+    expect(repository.calls).toEqual([]);
+  });
+
   it("adds level, XP and gold for the current character", async () => {
     const repository = new FakeDevGrantRepository();
-    const service = new DevGrantService(repository, "development", new FakeRandomSource([0]));
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
 
     await expect(service.addLevel(42n)).resolves.toMatchObject({
       state: "updated",
@@ -57,7 +65,7 @@ describe("DevGrantService", () => {
 
   it("adds deterministic random items and enriches their names", async () => {
     const repository = new FakeDevGrantRepository();
-    const service = new DevGrantService(repository, "development", new FakeRandomSource([0]));
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
     const firstItem = items[0];
 
     expect(firstItem).toBeDefined();
@@ -77,7 +85,7 @@ describe("DevGrantService", () => {
 
   it("returns no-character when the repository cannot find a character", async () => {
     const repository = new FakeDevGrantRepository();
-    const service = new DevGrantService(repository, "development", new FakeRandomSource([0]));
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
 
     await expect(service.addGold(404n, 1)).resolves.toEqual({ state: "no-character" });
   });

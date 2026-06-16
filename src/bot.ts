@@ -77,7 +77,7 @@ const services = {
   levelMilestones: new LevelMilestoneService(levelMilestones),
   mantokChest: new MantokChestService(mantokChestRuns),
   presence: new PresenceService(presence),
-  devGrant: new DevGrantService(devGrants, config.nodeEnv),
+  devGrant: new DevGrantService(devGrants, config.nodeEnv, config.devGrantCommandsEnabled),
   remort: new RemortService(remorts),
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),
@@ -112,7 +112,10 @@ if (!config.botToken) {
 } else {
   bot = createBot(config.botToken, services, supportJarOptions);
 
-  void bot.api.setMyCommands(getTelegramMenuCommands(services.devReset.isEnabled())).catch((error) => {
+  void bot.api.setMyCommands(getTelegramMenuCommands({
+    includeDevReset: services.devReset.isEnabled(),
+    includeDevGrant: services.devGrant.isEnabled()
+  })).catch((error) => {
     console.error("Квестарня: бокове меню команд не оновилось.", error);
   });
 

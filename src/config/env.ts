@@ -32,6 +32,7 @@ export const configSchema = z.object({
   botToken: z.string().optional(),
   databaseUrl: databaseUrlSchema,
   deployNotificationsEnabled: z.boolean().default(false),
+  devGrantCommandsEnabled: z.boolean().default(false),
   supportJarUrl: supportJarUrlSchema.optional(),
   supportJarStatus: supportJarStatusSchema
 });
@@ -44,6 +45,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     botToken: blankToUndefined(env.BOT_TOKEN),
     databaseUrl: env.DATABASE_URL,
     deployNotificationsEnabled: parseBoolean(env.DEPLOY_NOTIFICATIONS_ENABLED),
+    devGrantCommandsEnabled: parseBoolean(env.DEV_GRANT_COMMANDS_ENABLED),
     supportJarUrl: blankToUndefined(env.SUPPORT_JAR_URL),
     supportJarStatus: parseSupportJarStatus(env)
   });

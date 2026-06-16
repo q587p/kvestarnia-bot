@@ -314,11 +314,11 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   registerEquipmentCommand(bot, services.equipment);
   registerOnlineCommand(bot, services.presence);
   registerLookCommand(bot, services.presence);
-  registerHelpCommand(bot, services.devReset);
+  registerHelpCommand(bot, services.devReset, services.devGrant);
   registerNewsCommand(bot);
   registerSupportCommand(bot, options.supportJarUrl, options.supportJarStatus);
   registerVersionCommand(bot);
-  if (services.devGrant) {
+  if (services.devGrant?.isEnabled()) {
     registerDevGrantCommands(bot, services.devGrant);
   }
   registerDevResetCommand(bot, services.devReset);
@@ -744,7 +744,10 @@ async function handleMenuCallback(
   }
 
   if (action === "help") {
-    await safeEditMessageText(ctx, presentHelp(services.devReset.isEnabled()));
+    await safeEditMessageText(ctx, presentHelp({
+      includeDevReset: services.devReset.isEnabled(),
+      includeDevGrant: services.devGrant?.isEnabled() ?? false
+    }));
     return;
   }
 
@@ -1258,7 +1261,10 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
   });
 
   bot.hears(mainMenuButtons.help, async (ctx) => {
-    await ctx.reply(presentHelp(services.devReset.isEnabled()), {
+    await ctx.reply(presentHelp({
+      includeDevReset: services.devReset.isEnabled(),
+      includeDevGrant: services.devGrant?.isEnabled() ?? false
+    }), {
       reply_markup: buildMainMenuKeyboard()
     });
   });
