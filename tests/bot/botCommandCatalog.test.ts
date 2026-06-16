@@ -50,17 +50,25 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "version")).toBe(false);
     expect(commands.some((entry) => entry.command === "support")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_me")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_add_level")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_add_xp")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_add_gold")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_add_random_item")).toBe(false);
   });
 
-  it("keeps the local reset command in help but not in the side menu", () => {
-    expect(getHelpCommandEntries(false).some((entry) => entry.command === "dev_reset_me")).toBe(
-      false
-    );
-    expect(getHelpCommandEntries(true).some((entry) => entry.command === "dev_reset_me")).toBe(
-      true
-    );
-    expect(getTelegramMenuCommands(true).some((entry) => entry.command === "dev_reset_me")).toBe(
-      false
-    );
+  it("keeps local dev commands in help but not in the side menu", () => {
+    const devCommands = [
+      "dev_reset_me",
+      "dev_add_level",
+      "dev_add_xp",
+      "dev_add_gold",
+      "dev_add_random_item"
+    ];
+
+    for (const command of devCommands) {
+      expect(getHelpCommandEntries(false).some((entry) => entry.command === command)).toBe(false);
+      expect(getHelpCommandEntries(true).some((entry) => entry.command === command)).toBe(true);
+      expect(getTelegramMenuCommands(true).some((entry) => entry.command === command)).toBe(false);
+    }
   });
 });

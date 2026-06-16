@@ -8,6 +8,7 @@ import type {
   CellarGrownupQuestService
 } from "../services/cellarGrownupQuestService";
 import type { DevResetService } from "../services/devResetService";
+import type { DevGrantService } from "../services/devGrantService";
 import type { FightService } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
 import type { HuntService } from "../services/huntService";
@@ -77,6 +78,7 @@ import {
   sendCellarErrandRouted
 } from "./commands/cellarCommand";
 import { registerDevResetCommand } from "./commands/devResetCommand";
+import { registerDevGrantCommands } from "./commands/devGrantCommand";
 import { registerEquipmentCommand, sendEquipment } from "./commands/equipmentCommand";
 import { registerFightCommand, sendFight } from "./commands/fightCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
@@ -257,6 +259,7 @@ export interface BotServices {
   levelMilestones?: LevelMilestoneService;
   mantokChest: MantokChestService;
   presence: PresenceService;
+  devGrant?: DevGrantService;
   devReset: DevResetService;
   restart: RestartService;
   remort?: RemortService;
@@ -315,6 +318,9 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   registerNewsCommand(bot);
   registerSupportCommand(bot, options.supportJarUrl, options.supportJarStatus);
   registerVersionCommand(bot);
+  if (services.devGrant) {
+    registerDevGrantCommands(bot, services.devGrant);
+  }
   registerDevResetCommand(bot, services.devReset);
   registerRestartCommand(bot);
   if (services.remort) {

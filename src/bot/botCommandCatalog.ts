@@ -181,6 +181,34 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     description: "скинути персонажа локально",
     includeInMenu: false,
     devOnly: true
+  },
+  {
+    command: "dev_add_level",
+    icon: "🪜",
+    description: "додати рівень локально",
+    includeInMenu: false,
+    devOnly: true
+  },
+  {
+    command: "dev_add_xp",
+    icon: "🔢",
+    description: "додати XP локально",
+    includeInMenu: false,
+    devOnly: true
+  },
+  {
+    command: "dev_add_gold",
+    icon: "🪙",
+    description: "додати золото локально",
+    includeInMenu: false,
+    devOnly: true
+  },
+  {
+    command: "dev_add_random_item",
+    icon: "🎲",
+    description: "додати випадкові манатки локально",
+    includeInMenu: false,
+    devOnly: true
   }
 ];
 

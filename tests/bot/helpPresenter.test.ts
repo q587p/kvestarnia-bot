@@ -34,6 +34,10 @@ describe("help presenter", () => {
     expect(text).toContain("/support");
     expect(text).toContain("/help");
     expect(text).not.toContain("/dev_reset_me");
+    expect(text).not.toContain("/dev_add_level");
+    expect(text).not.toContain("/dev_add_xp");
+    expect(text).not.toContain("/dev_add_gold");
+    expect(text).not.toContain("/dev_add_random_item");
     expect(text).toContain("👤 /hero, /profile, /me — персонаж і прогрес");
     expect(text).toContain("🍺 /tavern, /raid — корчма й рейд на бочку");
     expect(text).toContain("🗺️ /quest — стіл зі справами");
@@ -65,6 +69,10 @@ describe("help presenter", () => {
 
   it("includes dev reset only when enabled", () => {
     expect(presentHelp(true)).toContain("🧪 /dev_reset_me");
+    expect(presentHelp(true)).toContain("🪜 /dev_add_level");
+    expect(presentHelp(true)).toContain("🔢 /dev_add_xp");
+    expect(presentHelp(true)).toContain("🪙 /dev_add_gold");
+    expect(presentHelp(true)).toContain("🎲 /dev_add_random_item");
     expect(presentHelp(true)).toContain("допомога\n\n🧪");
   });
 });

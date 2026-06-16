@@ -9,6 +9,7 @@ import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepo
 import { PrismaCellarGrownupQuestRepository } from "./db/repositories/prismaCellarGrownupQuestRepository";
 import { PrismaCooldownRepository } from "./db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "./db/repositories/prismaDailyActionRepository";
+import { PrismaDevGrantRepository } from "./db/repositories/prismaDevGrantRepository";
 import { PrismaEquipmentRepository } from "./db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "./db/repositories/prismaHuntContractRepository";
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
@@ -26,6 +27,7 @@ import { AdventureService } from "./services/adventureService";
 import { CellarErrandService } from "./services/cellarErrandService";
 import { CellarGrownupQuestService } from "./services/cellarGrownupQuestService";
 import { DevResetService } from "./services/devResetService";
+import { DevGrantService } from "./services/devGrantService";
 import { DeployNotificationService } from "./services/deployNotificationService";
 import { EquipmentService } from "./services/equipmentService";
 import { FightService } from "./services/fightService";
@@ -48,6 +50,7 @@ const characters = new PrismaCharacterRepository(prisma);
 const cellarGrownupQuests = new PrismaCellarGrownupQuestRepository(prisma);
 const cooldowns = new PrismaCooldownRepository(prisma);
 const dailyActions = new PrismaDailyActionRepository(prisma);
+const devGrants = new PrismaDevGrantRepository(prisma);
 const equipment = new PrismaEquipmentRepository(prisma);
 const huntContracts = new PrismaHuntContractRepository(prisma);
 const inventory = new PrismaInventoryRepository(prisma);
@@ -74,6 +77,7 @@ const services = {
   levelMilestones: new LevelMilestoneService(levelMilestones),
   mantokChest: new MantokChestService(mantokChestRuns),
   presence: new PresenceService(presence),
+  devGrant: new DevGrantService(devGrants, config.nodeEnv),
   remort: new RemortService(remorts),
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),

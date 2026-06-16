@@ -103,6 +103,30 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     icon: "🧪",
     description: "скинути персонажа локально",
     devOnly: true
+  },
+  {
+    commands: ["dev_add_level"],
+    icon: "🪜",
+    description: "додати рівень локально",
+    devOnly: true
+  },
+  {
+    commands: ["dev_add_xp"],
+    icon: "🔢",
+    description: "додати XP локально",
+    devOnly: true
+  },
+  {
+    commands: ["dev_add_gold"],
+    icon: "🪙",
+    description: "додати золото локально",
+    devOnly: true
+  },
+  {
+    commands: ["dev_add_random_item"],
+    icon: "🎲",
+    description: "додати випадкові манатки локально",
+    devOnly: true
   }
 ];
 
