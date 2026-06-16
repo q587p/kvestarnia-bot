@@ -83,6 +83,7 @@ export interface RemortEligibleItemView {
   name: string;
   quantity: number;
   selected: boolean;
+  known: boolean;
 }
 
 export class RemortService {
@@ -269,7 +270,12 @@ export class RemortService {
           return { state: "invalid-draft", reason: identity.reason };
         }
 
-        const selectedItems = sanitizeSelectedItems(snapshot, draft.selectedItems).map((item) => ({
+        const selectedItemsResult = validateSelectedItemsForConfirm(snapshot, draft.selectedItems);
+        if (!selectedItemsResult.ok) {
+          return { state: "invalid-draft", reason: selectedItemsResult.reason };
+        }
+
+        const selectedItems = selectedItemsResult.items.map((item) => ({
           itemId: item.itemId,
           quantity: 1
         }));
@@ -419,15 +425,20 @@ function buildEligibleItems(snapshot: RemortSnapshot): RemortEligibleItemView[] 
     const content = contentById.get(row.itemId);
     const quantity = Math.max(0, Math.floor(row.quantity));
 
-    if (!content || quantity <= 0 || !isRemortPreservableItem({ item: content })) {
+    if (quantity <= 0) {
+      return [];
+    }
+
+    if (content && !isRemortPreservableItem({ item: content })) {
       return [];
     }
 
     return [{
       itemId: row.itemId,
-      name: content.name,
+      name: content?.name ?? "Архівна манатка",
       quantity,
-      selected: false
+      selected: false,
+      known: Boolean(content)
     }];
   });
 }
@@ -456,30 +467,51 @@ function sanitizeSelectedItems(
   return selected;
 }
 
-function buildKeptItems(
+function validateSelectedItemsForConfirm(
   snapshot: RemortSnapshot,
+  selectedItems: Array<{ itemId: string }>
+): { ok: true; items: Array<{ itemId: string }> } | { ok: false; reason: string } {
+  if (selectedItems.length > REMORT_MAX_PRESERVED_ITEMS) {
+    return {
+      ok: false,
+      reason: `Через реморт можна протягнути тільки ${REMORT_MAX_PRESERVED_ITEMS} манаток.`
+    };
+  }
+
+  const eligibleIds = new Set(buildEligibleItems(snapshot).map((item) => item.itemId));
+  const selected: Array<{ itemId: string }> = [];
+  const seen = new Set<string>();
+
+  for (const item of selectedItems) {
+    if (!item.itemId || seen.has(item.itemId)) {
+      return {
+        ok: false,
+        reason: "Чернетка реморту заплуталась у манатках. Відкрийте /remort ще раз."
+      };
+    }
+
+    if (!eligibleIds.has(item.itemId)) {
+      return {
+        ok: false,
+        reason: "Одна з вибраних манаток уже не в торбі. Відкрийте /remort ще раз і виберіть заново."
+      };
+    }
+
+    selected.push({ itemId: item.itemId });
+    seen.add(item.itemId);
+  }
+
+  return { ok: true, items: selected };
+}
+
+function buildKeptItems(
+  _snapshot: RemortSnapshot,
   selectedItems: Array<{ itemId: string; quantity: number }>
 ): Array<{ itemId: string; quantity: number }> {
-  const contentById = new Map(items.map((item) => [item.id, item]));
-  const selected = new Map(selectedItems.map((item) => [item.itemId, item.quantity]));
-  const kept = new Map<string, number>();
-
-  for (const row of snapshot.items) {
-    const content = contentById.get(row.itemId);
-
-    if (!content) {
-      kept.set(row.itemId, Math.max(0, Math.floor(row.quantity)));
-    }
-  }
-
-  for (const [itemId, quantity] of selected) {
-    kept.set(itemId, Math.max(kept.get(itemId) ?? 0, quantity));
-  }
-
-  return [...kept.entries()]
-    .filter(([, quantity]) => quantity > 0)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([itemId, quantity]) => ({ itemId, quantity }));
+  return selectedItems
+    .filter((item) => item.quantity > 0)
+    .sort((left, right) => left.itemId.localeCompare(right.itemId))
+    .map((item) => ({ itemId: item.itemId, quantity: item.quantity }));
 }
 
 function toIdentityView(identity: RemortIdentityRecord): RemortIdentityView {
@@ -516,7 +548,7 @@ export function getRemortClassOptions(): Array<{ key: string; label: string }> {
 }
 
 function itemName(itemId: string): string {
-  return items.find((item) => item.id === itemId)?.name ?? itemId;
+  return items.find((item) => item.id === itemId)?.name ?? "Архівна манатка";
 }
 
 function generateRemortToken(): string {

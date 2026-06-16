@@ -536,6 +536,7 @@ function presentRemortBoardEntries(remorts: RemortBoard | undefined): string[] {
     "<b>🕯️ Реморти Тринадцятки</b>",
     ...remorts.remorts.map((group) => {
       const entries = group.entries
+        .slice(0, 3)
         .map((entry) => `${presentMilestoneRank(entry.rank)} ${escapeHtml(entry.name)}`)
         .join(" · ");
 

@@ -42,8 +42,9 @@ export function buildRemortKeyboard(result: RemortViewResult): InlineKeyboard {
 
   if (result.eligibleItems.length > 0) {
     result.eligibleItems.slice(0, 8).forEach((item) => {
+      const quantity = item.quantity > 1 ? ` ×${item.quantity}` : "";
       keyboard.text(
-        `${item.selected ? "✅" : "▫️"} ${item.name}`,
+        `${item.selected ? "✅" : "▫️"} ${item.name}${quantity}`,
         makeRemortItemCallbackData(token, item.itemId)
       ).row();
     });

@@ -318,7 +318,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   registerDevResetCommand(bot, services.devReset);
   registerRestartCommand(bot);
   if (services.remort) {
-    registerRemortCommand(bot, services.remort);
+    registerRemortCommand(bot, services.remort, services.tavern);
   }
   registerTavernCommand(bot, services.tavern, services.presence);
   registerPlannedCommands(bot);
@@ -537,7 +537,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
       return;
     }
 
-    await handleRemortCallback(ctx, parsed.value, services.remort);
+    await handleRemortCallback(ctx, parsed.value, services.remort, services.tavern);
   });
 
   return bot;
@@ -2124,12 +2124,17 @@ async function handleRestartCallback(
 async function handleRemortCallback(
   ctx: Context,
   callback: RemortCallback,
-  remortService: RemortService
+  remortService: RemortService,
+  tavernRaidService: TavernRaidService
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, tavernRaidService)) {
     return;
   }
 

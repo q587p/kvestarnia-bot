@@ -44,10 +44,11 @@ Legacy should be noticeable enough to feel like memory, not strong enough to rep
 The current runtime carry-over rule is intentionally bold but explicit:
 
 - known owned manatky are selectable, including equipped, effect-bearing, protected, story and priceless keepsakes;
-- unknown item ids are kept defensively so content drift does not silently delete old inventory;
+- archived/unknown item ids must appear visibly as fallback «Архівна манатка» entries and count toward the same 5 selected item id limit; no hidden extra stacks are carried;
 - the limit of 5 selected item ids is the first guardrail, not a promise that every future item will remain unrestricted forever;
 - future rare/remort-only manatky can require remort count, level gates, tags or attunement if playtest shows power creep.
 - selected manatky must be shown by name before confirmation;
+- selected stacks preserve one unit per item id in this MVP, even when the current stack quantity is greater than 1;
 - if inventory changes between preview and confirm, the confirm must revalidate and fail safely or replay the already completed result;
 - `/restart` remains separate, destructive and should not silently share `/remort` preserve behavior.
 
@@ -71,8 +72,9 @@ The exact reset/preserve list must be decided in the runtime PR and covered by t
 - Unavailable below level 13.
 - Reset/preserve preview appears before any reset.
 - Clear confirmation before any reset.
-- Player can explicitly preserve up to 5 owned manatky, with the selected names shown before confirm.
+- Player can explicitly preserve up to 5 owned manatky, with the selected names and one-unit semantics shown before confirm.
 - Equipped/effect-bearing/protected/story/priceless carry-over rules are explicit and tested.
+- Archived/unknown item ids are visible fallback choices, not invisible carry-over.
 - Remort record is idempotent; repeated confirm cannot duplicate remort count, legacy bonus, preserved manatky or rewards.
 - `/restart` and `/remort` are explained as different actions.
 - Player-facing text uses Квестарня’s comic tone without hiding consequences.

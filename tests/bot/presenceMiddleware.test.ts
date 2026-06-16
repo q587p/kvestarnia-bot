@@ -9,6 +9,7 @@ import {
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeHuntActionCallbackData } from "../../src/bot/callbacks/huntCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
+import { makeRemortConfirmCallbackData } from "../../src/bot/callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import {
@@ -266,6 +267,10 @@ describe("presence middleware", () => {
     {
       name: "cellar",
       callbackData: makeCellarCallbackData("negotiate")
+    },
+    {
+      name: "remort",
+      callbackData: makeRemortConfirmCallbackData("0123456789abcdef")
     },
     {
       name: "hall place",

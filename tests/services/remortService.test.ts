@@ -33,7 +33,8 @@ describe("RemortService", () => {
       items: [
         item({ itemId: "item.foam-cork-of-accounting", quantity: 2 }),
         item({ id: "protected", itemId: "item.wet-hero-ticket", quantity: 1 }),
-        item({ id: "equipped", itemId: "item.pan-of-persuasion", quantity: 1 })
+        item({ id: "equipped", itemId: "item.pan-of-persuasion", quantity: 1 }),
+        item({ id: "archived", itemId: "item.archived-old-ladle", quantity: 3 })
       ],
       equippedItemIds: ["item.pan-of-persuasion"]
     }));
@@ -46,8 +47,18 @@ describe("RemortService", () => {
       expect(result.eligibleItems.map((row) => row.itemId)).toEqual([
         "item.foam-cork-of-accounting",
         "item.wet-hero-ticket",
-        "item.pan-of-persuasion"
+        "item.pan-of-persuasion",
+        "item.archived-old-ladle"
       ]);
+      expect(result.eligibleItems.find((row) => row.itemId === "item.foam-cork-of-accounting")).toMatchObject({
+        quantity: 2,
+        known: true
+      });
+      expect(result.eligibleItems.find((row) => row.itemId === "item.archived-old-ladle")).toMatchObject({
+        name: "Архівна манатка",
+        quantity: 3,
+        known: false
+      });
       expect(result.selectedItems).toEqual([]);
       expect(repository.draft?.identity).toMatchObject({
         pronoun: "they",
@@ -66,7 +77,8 @@ describe("RemortService", () => {
       items: [
         item({ itemId: "item.foam-cork-of-accounting", quantity: 2 }),
         item({ id: "protected", itemId: "item.wet-hero-ticket", quantity: 1 }),
-        item({ id: "equipped", itemId: "item.pan-of-persuasion", quantity: 1 })
+        item({ id: "equipped", itemId: "item.pan-of-persuasion", quantity: 1 }),
+        item({ id: "unselected-archived", itemId: "item.archived-old-ladle", quantity: 2 })
       ],
       equippedItemIds: ["item.pan-of-persuasion"]
     }));
@@ -92,13 +104,93 @@ describe("RemortService", () => {
       expect(first.memoryRank).toBe(2);
       expect(first.hpBonus).toBe(4);
       expect(first.manaBonus).toBe(2);
-      expect(first.preservedItems.map((row) => row.itemId)).toEqual([
-        "item.foam-cork-of-accounting",
-        "item.pan-of-persuasion",
-        "item.wet-hero-ticket"
+      expect(first.preservedItems).toEqual([
+        expect.objectContaining({ itemId: "item.foam-cork-of-accounting", quantity: 1 }),
+        expect.objectContaining({ itemId: "item.pan-of-persuasion", quantity: 1 }),
+        expect.objectContaining({ itemId: "item.wet-hero-ticket", quantity: 1 })
       ]);
+      expect(first.preservedItems.map((row) => row.itemId)).not.toContain("item.archived-old-ladle");
     }
     expect(repository.completedCount).toBe(1);
+  });
+
+  it("fails confirm when a selected item disappeared before confirmation", async () => {
+    const repository = new FakeRemortRepository(snapshot({
+      level: 13,
+      items: [item({ itemId: "item.foam-cork-of-accounting", quantity: 1 })]
+    }));
+    const service = new RemortService(repository, () => fixedNow);
+    const opened = await service.openForTelegramUser(telegramUserId);
+    expect(opened.state).toBe("ready");
+    if (opened.state !== "ready") {
+      return;
+    }
+
+    await service.toggleItem(telegramUserId, opened.draft.token, "item.foam-cork-of-accounting");
+    repository.setItems([]);
+
+    const result = await service.confirmForTelegramUser(telegramUserId, opened.draft.token);
+
+    expect(result.state).toBe("invalid-draft");
+    if (result.state === "invalid-draft") {
+      expect(result.reason).toContain("манаток");
+    }
+    expect(repository.completedCount).toBe(0);
+  });
+
+  it("applies changed pronoun, race, class, starter stats, and memory bonus", async () => {
+    const repository = new FakeRemortRepository(snapshot({
+      level: 13,
+      remortCount: 2
+    }));
+    const service = new RemortService(repository, () => fixedNow);
+    const opened = await service.openForTelegramUser(telegramUserId);
+    expect(opened.state).toBe("ready");
+    if (opened.state !== "ready") {
+      return;
+    }
+
+    await service.selectPronoun(telegramUserId, opened.draft.token, "she");
+    await service.selectClass(telegramUserId, opened.draft.token, "mage");
+    await service.selectRace(telegramUserId, opened.draft.token, "elf");
+
+    const result = await service.confirmForTelegramUser(telegramUserId, opened.draft.token);
+
+    expect(result.state).toBe("completed");
+    if (result.state === "completed") {
+      expect(result.character.pronoun).toBe("she");
+      expect(result.character.path).toBe("moon");
+      expect(result.character.raceId).toBe("race.elf");
+      expect(result.character.classId).toBe("class.mage");
+      expect(result.memoryRank).toBe(3);
+      expect(result.hpBonus).toBe(6);
+      expect(result.manaBonus).toBe(3);
+      expect(result.character.hpCurrent).toBe(result.character.hpMax);
+      expect(result.character.manaCurrent).toBe(result.character.manaMax);
+    }
+  });
+
+  it("rejects an invalid remort identity instead of completing", async () => {
+    const repository = new FakeRemortRepository(snapshot({ level: 13 }));
+    const service = new RemortService(repository, () => fixedNow);
+    const opened = await service.openForTelegramUser(telegramUserId);
+    expect(opened.state).toBe("ready");
+    if (opened.state !== "ready" || !repository.draft) {
+      return;
+    }
+    repository.draft = {
+      ...repository.draft,
+      identity: {
+        pronoun: "he",
+        raceId: "race.dryland-rusalka",
+        classId: "class.ranger"
+      }
+    };
+
+    const result = await service.confirmForTelegramUser(telegramUserId, opened.draft.token);
+
+    expect(result.state).toBe("invalid-draft");
+    expect(repository.completedCount).toBe(0);
   });
 });
 
@@ -178,6 +270,7 @@ class FakeRemortRepository implements RemortRepository {
       pronoun: validation.identity.pronoun,
       raceId: validation.identity.raceId,
       classId: validation.identity.classId,
+      path: pathForPronoun(validation.identity.pronoun),
       level: 1,
       xp: 0,
       gold: 0,
@@ -224,6 +317,17 @@ class FakeRemortRepository implements RemortRepository {
 
   listBoard(): Promise<RemortBoard> {
     return Promise.resolve({ remorts: [] });
+  }
+
+  setItems(items: CharacterItemRecord[]): void {
+    if (!this.snapshotValue) {
+      return;
+    }
+
+    this.snapshotValue = {
+      ...this.snapshotValue,
+      items
+    };
   }
 }
 
@@ -306,4 +410,16 @@ function character(overrides: Partial<CharacterRecord>): CharacterRecord {
     },
     ...overrides
   };
+}
+
+function pathForPronoun(pronoun: string): string {
+  if (pronoun === "he") {
+    return "sun";
+  }
+
+  if (pronoun === "she") {
+    return "moon";
+  }
+
+  return "boundary";
 }

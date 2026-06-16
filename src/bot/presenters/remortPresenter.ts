@@ -104,12 +104,15 @@ function presentSelectedItems(result: Extract<RemortViewResult, { state: "ready"
   }
 
   if (result.selectedItems.length === 0) {
-    return `Можна вибрати до ${REMORT_MAX_PRESERVED_ITEMS}. Поки що нічого не вибрано.`;
+    return `Можна вибрати до ${REMORT_MAX_PRESERVED_ITEMS} манаток, по 1 одиниці кожної. Поки що нічого не вибрано.`;
   }
 
   return [
-    `Вибрано ${result.selectedItems.length}/${REMORT_MAX_PRESERVED_ITEMS}:`,
-    ...result.selectedItems.map((item) => `• <i>${escapeHtml(item.name)}</i>`)
+    `Вибрано ${result.selectedItems.length}/${REMORT_MAX_PRESERVED_ITEMS} (по 1 одиниці):`,
+    ...result.selectedItems.map((item) => {
+      const quantity = item.quantity > 1 ? ` · у торбі ${item.quantity}` : "";
+      return `• <i>${escapeHtml(item.name)}</i>${quantity}`;
+    })
   ].join("\n");
 }
 
@@ -119,7 +122,7 @@ function presentPreservedItemLines(items: Array<{ name: string; quantity: number
   }
 
   return [
-    "Перенесено в нове життя:",
+    "Перенесено в нове життя (по 1 одиниці):",
     ...items.map((item) => {
       const quantity = item.quantity > 1 ? ` ×${item.quantity}` : "";
       return `• <i>${escapeHtml(item.name)}</i>${quantity}`;

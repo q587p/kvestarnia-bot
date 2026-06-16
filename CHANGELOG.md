@@ -22,6 +22,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added table-driven regression tests for callback, command and main-menu presence routing, preserving the distinction between no-op presence updates and unknown callbacks.
 - Level-13 capstone copy now points to `/remort` rather than treating `/restart` as the main next step.
 - `/hero` can show remort count and capped memory rank after a character has remorted.
+- Hardened remort confirmation: pending Barrel raids block remort actions, selected items must still exist at confirm time, archived/unknown items are visible instead of silently carried, and preserved stacks keep one unit per selected item id.
 
 ### Not Included Yet
 - Rename flow during remort, remort-only races/classes, paid power, 14+ levels, broad prestige economy, Durable Barrel completion notifications, Mantok Chest pending cleanup, or public presence privacy changes.
