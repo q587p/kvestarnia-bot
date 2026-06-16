@@ -134,9 +134,9 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 
 **UI rules**
 
-- Показувати максимум перші `39` місць: три сторінки по `13` рядків.
+- Показувати максимум перші `42` місця: три сторінки по `14` рядків або інша компактна пагінація, якщо Telegram-верстка краще витримає інший розподіл.
 - Пагінація кнопками `⬅️` / `➡️`, без довгих повідомлень, які ризикують упертися в Telegram limit.
-- У кожному leaderboard показувати власну позицію окремим рядком: навіть якщо гравець поза top 39, він бачить своє місце, але бот не показує весь хвіст списку.
+- У кожному leaderboard показувати власну позицію окремим рядком. Якщо гравець поза top 42, не рахувати й не показувати весь хвіст списку; писати компактно: `Ваша позиція: 42+`.
 - Формат рядка: медаль для `1-3`, далі номер, коротке імʼя, optional guild/tag, значення score людською мовою.
 - Якщо значення однакове, tie-breaker має бути детермінованим: спершу вищий рівень/релевантний secondary score, потім earliest joined/created або stable `character_id`.
 - Не показувати технічні id, telegram usernames без потреби, exact timestamps або приховані локації.
@@ -152,10 +152,10 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 
 - NPC має entry point із надвору/дошки й коротке пояснення;
 - є три вкладки/кнопки: сила, золото, манатки;
-- кожен топ пагінується по `13`, максимум `39` видимих позицій;
-- власна позиція показується окремо й працює поза top 39;
+- кожен топ показує максимум `42` видимі позиції;
+- власна позиція показується окремо; поза top 42 вона рендериться як `Ваша позиція: 42+`;
 - ties стабільні між переглядами;
-- tests cover score calculation, pagination, own-rank outside top 39, privacy-safe names, no exact timestamps, and Telegram message length guard.
+- tests cover score calculation, pagination, own-rank outside top 42, privacy-safe names, no exact timestamps, and Telegram message length guard.
 
 ## Very later — Web and Multi-Messenger Play Surfaces
 
