@@ -112,15 +112,16 @@ Deliverables:
 - Shareable result/rematch/tournament cards without exact hidden formulas or toxic pressure.
 - Trading/gifting MVP: transfer one eligible манатка or stack unit with explicit confirmation and audit row.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
-- `/remort` at level 13 as explicit prestige loop, not hidden wipe and not power snowball.
+- `/remort` at level 13 as explicit prestige loop: reset/preserve preview, capped memory bonus, slightly better starting HP/mana, and up to 5 selected eligible manatky; not hidden wipe and not power snowball.
 - Multi-enemy combat foundation: main enemy plus controlled helper/summon pattern.
-- Party combat and real raids after duel/session/invite and multi-enemy primitives are proven.
+- Party combat and real raids after duel/session/invite and multi-enemy primitives are proven, with capped contribution-aware rare/serious manatky rewards.
 
 Done when:
 - Two players can complete an opt-in duel without reward duplication.
 - Result/rematch cards are short, safe and useful in Telegram.
 - Repeated/stale callbacks replay state instead of mutating it again.
 - Social rewards are capped and do not create PvP/economy snowball.
+- Remort and raid reward paths are explicit, idempotent and do not create veteran runaway power.
 - The data shape does not block later party combat, group raids, trading and gifting.
 
 Non-goals for the first Phase 2 runtime slice:
@@ -150,6 +151,7 @@ Done when:
 Deliverables:
 - Party combat MVP.
 - Real group raids with minimum participant rules, participant actions and idempotent per-player rewards.
+- Raid rewards can include more serious/rare manatky than ordinary solo fights only through capped, contribution-aware rules.
 - Створення, вступ і вихід із ґільдії.
 - XP ґільдії.
 - Бос ґільдії.

@@ -454,8 +454,10 @@ MVP flow:
 Resolution formula має бути напіврандомною, але відчутно залежати від героя:
 - База: level bracket, HP, core stats and shared effective stats.
 - STR/HP допомагають у прямій бійці; DEX допомагає ухилятися; LUCK дає bounded swing; CHA/INT можуть відкривати trick/social outs.
-- Race/class modifiers мають бути помітні, але не абсолютні.
-- Бард, мольфарська душа або інші не-силові комбінації можуть перемагати через funny outs: підніжка римою, юридично сумнівний приспів, перформанс замість удару.
+- Race/class/title modifiers мають бути помітні, але не абсолютні.
+- Поточний титул, earned identity або майбутній achievement title може підказувати результату funny out, board-memory line або маленький capped modifier.
+- Манатки входять через shared equipment summary і item tags, а не через одноразові presenter hacks.
+- Бард, мольфарська душа, дивний титул або інші не-силові комбінації можуть перемагати через funny outs: підніжка римою, юридично сумнівний приспів, перформанс замість удару.
 - Player-facing текст не показує точні формули.
 
 Rewards and anti-grind:
@@ -482,6 +484,8 @@ Rewards and anti-grind:
 - 1-3 compact actions per participant;
 - summary with participation, not only damage table;
 - idempotent per-player rewards;
+- more serious/rare manatky than ordinary solo fights only through capped, contribution-aware reward rules;
+- no winner-takes-all payout and no free loot multiplier just because more players joined;
 - stale callbacks replay state instead of duplicating actions or loot.
 
 Old group hook docs remain useful as input: [GROUP_HOOK_DESIGN.md](GROUP_HOOK_DESIGN.md) and [GROUP_RAID_SESSION_NOTES.md](GROUP_RAID_SESSION_NOTES.md).

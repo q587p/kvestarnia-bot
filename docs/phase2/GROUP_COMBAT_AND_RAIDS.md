@@ -29,6 +29,18 @@ The old first idea was a small korchma raid. It still fits the world, but starti
 - Each participant gets one compact action.
 - Result summarizes participation without winner-takes-all rewards.
 - Rewards are idempotent per session and per participant.
+- Real raids may award more serious or rare manatky than ordinary solo fights, but only through capped, contribution-aware rewards.
+- Multi-player participation must not become a free loot multiplier.
+
+## Reward shape
+
+Raid rewards should feel meaningfully different from ordinary solo fights without turning every extra participant into another uncontrolled faucet:
+
+- reward rows are unique per `raid_id + character_id`;
+- contribution can affect eligibility, flavor tier or capped bonus odds;
+- low or missed participation can get a smaller summary/reward instead of full loot;
+- no winner-takes-all table that leaves support/control roles with nothing;
+- no duplicate claims from repeated finish, action or reward callbacks.
 
 ## Data sketch
 
@@ -78,4 +90,3 @@ group_combat_sessions
 - Repeated join/action/reward callbacks do not mutate twice.
 - Result card fits one mobile screen.
 - Tests cover participant uniqueness, action uniqueness, finish idempotency, expired sessions and privacy-safe summary.
-

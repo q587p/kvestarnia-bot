@@ -224,6 +224,7 @@ Planned for the first Phase 2 social-combat slice; not present in `0.1.0`.
 Rules:
 - Accept/decline/expire must be transactional and idempotent.
 - Result replay is stored server-side; Telegram callbacks never recompute rewards from button text.
+- Quick resolve may use level bracket, race, class, current title/earned identity, effective stats, equipment/item tags and a bounded seed.
 - Pair/day caps and abuse logging should be designed with the first reward-bearing duel slice, not bolted on after tournaments.
 
 ### future item_transfers
@@ -261,7 +262,9 @@ Planned for `/remort` at level 13; not present in `0.1.0`.
 
 Rules:
 - `/remort` must be explicit and unavailable below level 13.
-- It is not `/restart`; it preserves selected legacy and must not create permanent combat snowball in the first slice.
+- It is not `/restart`; it shows reset/preserve preview, can preserve up to 5 explicitly selected eligible manatky, and must not create runaway veteran power.
+- Preserved legacy may include remort count, title/cosmetic mark, public board memory, a small capped memory bonus and slightly better starting HP/mana.
+- Equipped, protected, story, quest, priceless and blocked items need explicit eligibility rules and tests before any preserve path can keep them.
 
 ### future groups, parties and raids
 Group raid tables remain future work and should follow duel/session primitives instead of preceding them.
@@ -296,6 +299,11 @@ Future raid participants:
 - `damage_done`
 - `actions_count`
 - unique (`raid_id`, `character_id`)
+
+Rules:
+- Solo multi-enemy combat is the bridge, then party versus one boss, then party versus multiple enemies.
+- Real raid rewards may include more serious or rare manatky than ordinary solo fights, but only through capped, contribution-aware, idempotent per-participant rows.
+- No winner-takes-all rewards, duplicate reward claims or free loot multiplier from participant count alone.
 
 ## Content IDs
 Контентні id мають бути стабільними:

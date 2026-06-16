@@ -20,7 +20,7 @@ Phase 2 не починається з «великого рейду на всі
 
 - **Opt-in first.** Ніяких автоматичних нападів, крадіжки золота, втрати манаток або покарання за відмову.
 - **Telegram-native.** Коротке повідомлення, зрозуміла кнопка, shareable result card, мінімум довгих меню.
-- **Character matters.** Рівень, раса, клас, стати й спорядження можуть впливати на odds/flavor, але не створюють гарантованої перемоги.
+- **Character matters.** Рівень, раса, клас, титул/earned identity, стати, спорядження й item tags можуть впливати на odds/flavor, але не створюють гарантованої перемоги.
 - **Funny before competitive.** Дуелі мають давати історії й жарти, а не тільки win/loss.
 - **No snowball.** Нагороди за соціяльні бійки capped, cosmetic/social або дуже малі; перемога не робить наступну перемогу автоматичною.
 - **Composability.** Те, що будуємо для дуелей, має пізніше допомогти trading, gifting, party combat і raids.
@@ -31,7 +31,7 @@ Phase 2 не починається з «великого рейду на всі
 2. **Result/rematch/tournament cards.** Compact share card, rematch button, small daily/weekly recognition without power creep.
 3. **Trading/gifting MVP.** Передати одну eligible манатку або stack-unit іншому гравцю з explicit confirmation and audit row.
 4. **Combat variety.** Guard, cooldowns, monster skills, class/race/action catalog, item tags and one-use manatky.
-5. **Remort at 13.** `/remort` as prestige loop with cosmetic/social legacy, not paid power and not a hidden wipe.
+5. **Remort at 13.** `/remort` as prestige loop with capped memory legacy, small transparent bonuses and selected manatky preservation, not paid power and not a hidden wipe.
 6. **Multi-enemy combat.** Main enemy plus controlled helper/summon pattern, compact UI, no doubled reward faucet.
 7. **Party combat / real raids.** Only after duel/session/invite, multi-actor and multi-enemy shapes are proven.
 
@@ -46,6 +46,20 @@ Phase 2 не починається з «великого рейду на всі
 - no Mini App requirement;
 - no exact hidden formulas in player-facing text.
 
+## Result inputs
+
+Social-combat results may depend on:
+
+- level bracket;
+- race;
+- class;
+- current title, earned identity or future achievement title;
+- stats and shared effective stats;
+- equipment and item tags;
+- bounded randomness.
+
+The goal is not sterile symmetry. A class, race, title or carried/equipped manatka should sometimes create a funny upset, as long as caps and logs prevent abuse loops.
+
 ## Required docs before runtime work
 
 - [DUELS_AND_INVITES.md](DUELS_AND_INVITES.md)
@@ -54,4 +68,3 @@ Phase 2 не починається з «великого рейду на всі
 - [UNSTABLE_BALANCE_PRINCIPLES.md](UNSTABLE_BALANCE_PRINCIPLES.md)
 
 Runtime PRs should name which slice they implement and what they explicitly leave out.
-

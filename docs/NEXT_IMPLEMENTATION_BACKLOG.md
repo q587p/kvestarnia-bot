@@ -20,9 +20,9 @@
 5. Duel result/rematch/tournament card support.
 6. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
 7. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
-8. `/remort` at level 13.
+8. `/remort` at level 13 with capped memory legacy and explicit preserved-manatky selection.
 9. Multi-enemy combat.
-10. Party combat / real raid MVP.
+10. Party combat / real raid MVP with capped contribution-aware rewards.
 
 Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
 
@@ -55,7 +55,8 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - Додати команду `/remort` як окремий шлях після досягнення 13 рівня.
 - На 13 рівні capstone copy має пропонувати `/remort`, а не лише `/restart`.
 - Зберегти `/restart` як технічний reset/discovery loop, але не робити його головною endgame-пропозицією.
-- Вирішити, що саме переходить у нове коло: імʼя, записи дошки, remort-count, титули, косметичні відзнаки, частина манаток або жодна бойова сила.
+- Вирішити точні runtime details для legacy: remort-count, титул/косметична відзнака, запис дошки, малий memory-бонус від розвиненої стати/ідентичности, трохи кращі стартові HP/мана і до 5 явно вибраних eligible манаток.
+- Перед reset показати preview: що скидається, що лишається, які саме манатки обрані й чому частина речей не eligible.
 - Нове коло має відкривати інший смак проходження без pay-to-win і без обовʼязкового grind-покарання.
 
 **Non-goals**
@@ -64,11 +65,17 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - no paid power або premium remort;
 - no wipe без явного confirmation;
 - no автоматичне переродження без окремої команди й пояснення.
+- no рівні 14-23 у тому самому slice;
+- no приховане збереження або списання манаток без preview.
 
 **Acceptance criteria**
 
 - 13-level celebration пропонує `/remort` як головний наступний крок;
 - `/remort` має окремий confirmation flow і не плутається з `/restart`;
+- unavailable below level 13;
+- preview shows reset/preserve consequences;
+- player can explicitly select up to 5 eligible preserved manatky;
+- protected/story/priceless/equipped manatky rules are explicit;
 - remort-state/rewards ідемпотентні й не дублюються повторним callback-ом;
 - docs пояснюють, чим `/remort` відрізняється від `/restart`;
 - tests cover unavailable below level 13, confirmation, successful remort, repeated confirm, and preserved/deleted state choices.
@@ -865,7 +872,7 @@ Closed by `0.1.0`; remaining polish belongs to the explicit `0.1.x` order at the
   - одноручна зброя може бути в `mainHand` або `offHand`, якщо предмет/клас це дозволяє;
   - щит або захисна манатка може займати одну руку;
   - два щити можливі тільки як окремий funny/defensive build і не мають давати безсмертя;
-- додати item tags для майбутніх дій: `melee`, `ranged`, `magic-focus`, `shield`, `kick-enabled`, `block`, `counter`, `spell-channel`, `offhand`, `two-handed`, `cosmetic`, `consumable`;
+- додати item tags для майбутніх дій: `melee`, `ranged`, `magic-focus`, `shield`, `kick-enabled`, `guard`, `counter`, `spell-channel`, `offhand`, `two-handed`, `cosmetic`, `consumable`, `single-use`/`one-use`, `duel-legal`/`duel-blocked`, `raid-legal`/`raid-blocked`, `tradeable`/`trade-blocked`, `memory`, `sentimental`, `soulbound`;
 - пройтися по наявних манатках і проставити tags/effect intent, щоб кожна supported equippable річ чесно пояснювала, чим вона може допомогти;
 - stronger equipment impact має йти через `buildEffectiveCharacterStats(...)` і combat action catalog, а не через presenter hacks;
 - якщо немає зброї, combat має мати unarmed fallback: кулаки, хвіст, голова, роги, пісня, печатка або інший flavor залежно від раси/класу/титулу;
