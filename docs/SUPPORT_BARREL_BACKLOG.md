@@ -4,6 +4,32 @@
 
 Це все ще не payment integration: бот не підтверджує оплату, не зберігає donor state і не видає ігрових нагород.
 
+## Quick setup: which URL goes where
+
+Є два різні посилання:
+
+| Purpose | Where to put it | Value |
+|---|---|---|
+| Bot gratitude deep link | Monobank jar reward / thank-you URL field | `https://t.me/kvestarnia_bot?start=barrel_thanks` |
+| Public jar link | Deployment env `SUPPORT_BARREL_URL` | `https://send.monobank.ua/jar/<real-jar-id>` |
+
+Do not swap them. Telegram deep link goes into Monobank reward settings; public Monobank jar link goes into the app environment.
+
+## Monobank jar setup checklist
+
+1. Create a Monobank jar.
+2. Jar name: `Бочка Квестарні`.
+3. Minimum amount, if configured: `50 грн`.
+4. Reward / thank-you URL in Monobank: `https://t.me/kvestarnia_bot?start=barrel_thanks`.
+5. Copy the public jar link from Monobank. It should look like `https://send.monobank.ua/jar/...`.
+6. Put that public jar link into deployment env as `SUPPORT_BARREL_URL`.
+7. Restart/redeploy the app.
+8. Check `/support` and the homepage.
+
+Do not put the Telegram deep link into `SUPPORT_BARREL_URL`. Do not hardcode the real Monobank jar URL in code, docs or README.
+
+`/start barrel_thanks` only shows cosmetic gratitude. It does not confirm payment and does not grant XP, gold, loot, manatky, levels, titles, rankings, or access.
+
 ## Product rule
 
 Бочка підтримки — це не магазин, не преміум і не монетизація сили.
@@ -100,6 +126,7 @@ Rules:
 - якщо `SUPPORT_BARREL_URL` заданий — можна показувати кнопку/лінк підтримки;
 - якщо не заданий — не рендерити `undefined`, `null`, порожній або битий URL;
 - URL має бути absolute `https://send.monobank.ua/jar/...` без URL credentials;
+- `SUPPORT_BARREL_URL` має бути саме public Monobank jar link, не Telegram reward deep link;
 - `SUPPORT_BARREL_CURRENT_UAH`, якщо заданий, має бути non-negative integer;
 - `SUPPORT_BARREL_GOAL_UAH`, якщо заданий, має бути positive integer;
 - `SUPPORT_BARREL_STATUS_UPDATED_AT`, якщо заданий, має бути короткою датою `YYYY-MM-DD`;
