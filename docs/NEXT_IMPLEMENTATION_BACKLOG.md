@@ -53,6 +53,49 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - docs пояснюють, чим `/remort` відрізняється від `/restart`;
 - tests cover unavailable below level 13, confirmation, successful remort, repeated confirm, and preserved/deleted state choices.
 
+## Later — NPC Player Rankings
+
+**Objective**
+Додати біля корчми або дошки вістей NPC, який веде поточні топи пригодників і говорить про це так, ніби числа самі приходять до нього на сповідь. Це має бути соціяльний гачок і причина посміхнутися, а не таблиця сорому.
+
+**NPC direction**
+
+- Робоча роль: `Лічильник`, `Писар сили`, `Пан з рахівницею`, `Той, хто знає ваше місце`. Назву вибрати в runtime PR.
+- NPC пояснює, що він не вирішує, хто герой, а лише тримає список, поки список не тримає його.
+- Винести поверхню надвір або до дошки, щоб не перевантажувати корчемний hub.
+
+**Leaderboards**
+
+- `Сила пригодника`: рівень, характеристики, effective stats і вдягнені манатки. Не використовувати сирий hidden/internal score без пояснення.
+- `Гаманець`: наявне золото персонажа.
+- `Скарб у манатках`: сумарний item score / оціночна вартість манаток, окремо від spendable gold.
+- Майбутні розширення: щедрість у Шинку, закриті справи, перемоги над проблемами, досягнення рівнів.
+
+**UI rules**
+
+- Показувати максимум перші `39` місць: три сторінки по `13` рядків.
+- Пагінація кнопками `⬅️` / `➡️`, без довгих повідомлень, які ризикують упертися в Telegram limit.
+- У кожному leaderboard показувати власну позицію окремим рядком: навіть якщо гравець поза top 39, він бачить своє місце, але бот не показує весь хвіст списку.
+- Формат рядка: медаль для `1-3`, далі номер, коротке імʼя, optional guild/tag, значення score людською мовою.
+- Якщо значення однакове, tie-breaker має бути детермінованим: спершу вищий рівень/релевантний secondary score, потім earliest joined/created або stable `character_id`.
+- Не показувати технічні id, telegram usernames без потреби, exact timestamps або приховані локації.
+
+**Scoring guardrails**
+
+- `Сила пригодника` має бути derived/read-only, без нового reward source.
+- Equipment effects враховувати через shared effective-stats helper, щоб `/hero`, combat і leaderboard не рахували різні світи.
+- Item score для манаток має використовувати той самий або явно споріднений scoring path, що й Дружня Скриня / Манчкін-скупник, але без автоматичного продажу чи конвертації.
+- Рейтинги не мають давати прямий бойовий бонус. Нагороди, якщо зʼявляться, мають бути cosmetic/social: рядок на дошці, титул, локальний жарт.
+
+**Acceptance criteria**
+
+- NPC має entry point із надвору/дошки й коротке пояснення;
+- є три вкладки/кнопки: сила, золото, манатки;
+- кожен топ пагінується по `13`, максимум `39` видимих позицій;
+- власна позиція показується окремо й працює поза top 39;
+- ties стабільні між переглядами;
+- tests cover score calculation, pagination, own-rank outside top 39, privacy-safe names, no exact timestamps, and Telegram message length guard.
+
 ## Later — Durable Barrel Raid Notifications
 
 **Objective**
