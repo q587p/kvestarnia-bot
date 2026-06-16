@@ -120,7 +120,11 @@ export function presentHelp(includeDevReset: boolean): string {
     ...commandLines.flatMap((line) => [line, ""])
   ];
 
-  lines.push("Лут, ґільдії й повна бойова бухгалтерія ще готуються.");
+  lines.push(
+    "Лут, ґільдії й повна бойова бухгалтерія ще готуються.",
+    "",
+    "Квестарню розробляє @q587p — розробник і корчмар за стійкою."
+  );
 
   return lines.join("\n");
 }

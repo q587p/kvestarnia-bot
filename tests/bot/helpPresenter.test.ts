@@ -57,7 +57,10 @@ describe("help presenter", () => {
     expect(text).not.toContain("те саме, що");
     expect(text).not.toContain("/hunt — ще");
     expect(text).toContain("Лут, ґільдії й повна бойова бухгалтерія");
-    expect(text.split("\n").length).toBeLessThanOrEqual(40);
+    expect(text).toContain(
+      "Квестарню розробляє @q587p — розробник і корчмар за стійкою."
+    );
+    expect(text.split("\n").length).toBeLessThanOrEqual(42);
   });
 
   it("includes dev reset only when enabled", () => {
