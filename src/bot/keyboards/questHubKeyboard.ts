@@ -38,6 +38,10 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
 
   let hasAction = false;
 
+  if (canOpenRemort(input)) {
+    keyboard.text("🕯️ Реморт", makeRemortOpenCallbackData()).row();
+  }
+
   if (input.adventure.state === "ready") {
     keyboard.text("🌯 До шаурми", makeQuestCallbackData("adventure"));
     hasAction = true;
@@ -77,10 +81,6 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   ) {
     keyboard.text("🧹 У льох", makeQuestCallbackData("cellar"));
     keyboard.row();
-  }
-
-  if (canOpenRemort(input)) {
-    keyboard.text("🕯️ Реморт", makeRemortOpenCallbackData()).row();
   }
 
   addQuestReferenceButtons(keyboard, input);

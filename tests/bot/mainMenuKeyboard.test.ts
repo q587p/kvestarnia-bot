@@ -988,7 +988,14 @@ describe("main menu and scene keyboards", () => {
       characterLevel: 13
     });
 
-    expect(flatInlineButtonTexts(level13HubKeyboard)).toContain("🕯️ Реморт");
+    expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
+      "🕯️ Реморт",
+      "🧾 До проблем",
+      "🧹 У льох",
+      "📦 Архів",
+      "📖 Бестіарій",
+      "🍺 До зали"
+    ]);
     expect(flatInlineButtonCallbacks(level13HubKeyboard)).toContain("v1:rm:open");
 
     expect(
