@@ -93,7 +93,7 @@ export async function sendTavern(
     presentKorchmaHall(result.character, presence, telegramUserId, {
       flavorSeed: `korchma-hall:${ctx.update?.update_id ?? "manual"}`
     }),
-    "hall"
+    { state: "hall", characterLevel: result.character.level }
   );
 }
 
@@ -321,6 +321,7 @@ async function sendText(
   keyboard:
     | boolean
     | "hall"
+    | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean }
     | "front"
     | "arrivals"
@@ -334,6 +335,10 @@ async function sendText(
         reply_markup:
           keyboard === "hall"
             ? buildKorchmaHallKeyboard()
+            : isHallKeyboard(keyboard)
+              ? buildKorchmaHallKeyboard(
+                  keyboard.characterLevel === undefined ? {} : { characterLevel: keyboard.characterLevel }
+                )
             : isBarKeyboard(keyboard)
               ? buildKorchmaBarKeyboard({
                   includeBottleTurnIn: Boolean(keyboard.includeBottleTurnIn)
@@ -364,6 +369,7 @@ function isBarKeyboard(
   keyboard:
     | boolean
     | "hall"
+    | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean }
     | "front"
     | "arrivals"
@@ -373,4 +379,20 @@ function isBarKeyboard(
     | "barrel-participants"
 ): keyboard is { state: "bar"; includeBottleTurnIn?: boolean } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "bar";
+}
+
+function isHallKeyboard(
+  keyboard:
+    | boolean
+    | "hall"
+    | { state: "hall"; characterLevel?: number }
+    | { state: "bar"; includeBottleTurnIn?: boolean }
+    | "front"
+    | "arrivals"
+    | "memorial"
+    | "barrel-result"
+    | "barrel-pending"
+    | "barrel-participants"
+): keyboard is { state: "hall"; characterLevel?: number } {
+  return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "hall";
 }

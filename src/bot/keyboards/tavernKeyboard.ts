@@ -2,6 +2,7 @@ import { InlineKeyboard } from "grammy";
 import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
 import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
 
@@ -30,8 +31,14 @@ export function buildKorchmaFrontKeyboard(): InlineKeyboard {
     .text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData());
 }
 
-export function buildKorchmaHallKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
+export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = {}): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if ((options.characterLevel ?? 0) >= 13) {
+    keyboard.text("🕯️ Реморт", makeRemortOpenCallbackData()).row();
+  }
+
+  return keyboard
     .text("📋 Стіл зі справами", makePlaceCallbackData("quest-table"))
     .row()
     .text("🛢️ Бочка", makePlaceCallbackData("barrel"))

@@ -191,6 +191,14 @@ describe("tavern presenter", () => {
     expect(text).toContain("Корчмар:\n<blockquote>");
     expect(text).toContain("Куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
+    expect(text).not.toContain("запалилася свічка");
+  });
+
+  it("shows a personal remort candle in the korchma hall at level 13", () => {
+    const text = presentKorchmaHall({ ...character, level: 13 });
+
+    expect(text).toContain("На стійці запалилася свічка персонально для вас.");
+    expect(text).toContain("тринадцятий рівень");
   });
 
   it("shows Шинок as the korchmar and beer location", () => {

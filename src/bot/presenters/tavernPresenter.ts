@@ -87,6 +87,7 @@ export function presentKorchmaHall(
     "Корчма Квестарні тримає тепло, шум і кілька справ, які краще не залишати без нагляду.",
     "",
     "Праворуч стоїть <i>Стіл зі справами</i>, неподалік шумить <i>Шинок</i>, у кутку піниться <i>Бочка Пінного Міражу</i>, під ногами бурчить <i>Льох</i>, а біля дверей висить <i>Дошка вістей</i>.",
+    ...presentRemortCandleHint(character),
     "",
     ...presentKorchmaGreeting(character, options.flavorSeed),
     "",
@@ -94,6 +95,17 @@ export function presentKorchmaHall(
     "",
     "Куди йдемо?"
   ].join("\n");
+}
+
+function presentRemortCandleHint(character: CharacterSummary): string[] {
+  if (character.level < 13) {
+    return [];
+  }
+
+  return [
+    "",
+    "На стійці запалилася свічка персонально для вас. Раніше вона вдавала вічно згаслу, але тринадцятий рівень змушує навіть віск переглянути позицію."
+  ];
 }
 
 export function presentKorchmaBar(character: CharacterSummary): string {

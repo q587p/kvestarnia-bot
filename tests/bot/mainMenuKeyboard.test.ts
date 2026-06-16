@@ -110,6 +110,24 @@ describe("main menu and scene keyboards", () => {
       "v1:place:cellar",
       "v1:place:front"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ characterLevel: 13 }))).toEqual([
+      "🕯️ Реморт",
+      "📋 Стіл зі справами",
+      "🛢️ Бочка",
+      "🍻 Шинок",
+      "📰 Дошка вістей",
+      "🐭 Льох",
+      "🚪 Надвір"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard({ characterLevel: 13 }))).toEqual([
+      "v1:rm:open",
+      "v1:place:quest-table",
+      "v1:place:barrel",
+      "v1:place:bar",
+      "v1:place:news-corner",
+      "v1:place:cellar",
+      "v1:place:front"
+    ]);
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard())).toEqual([
       "🍻 Всім пива",
       "⬅️ До зали"
