@@ -734,6 +734,72 @@ Implemented in the `0.0.28` slice as `Неспокійні справи`: level 
 - presenter copy коротко пояснює, що сталося: `Ви прикрилися`, `Монстр став у захист`, `Вміння ще готує печатку`;
 - combat simulation reports win-rate/turn-count drift before/after.
 
+## Later — Expanded Equipment Doll and Combat Tags
+
+**Objective**
+Розширити «ляльку» спорядження з трьох слотів до виразної equipment-моделі, де манатки не просто додають цифри, а відкривають бойові варіянти: дві руки, щити, дворучна зброя, взуття, амулети, косметика й тегована поведінка.
+
+**Player-facing direction**
+
+Екран спорядження має читатися як коротка картка героя, а не як debug table:
+
+```text
+Спорядження героя
+
+🗡 Пательня переконання +3 (⚔️ +8, 😎 +1)
+🛡 Кришка обережного борщу +2 (🛡 +5, 🔰 блок)
+🎩 Порожній слот
+🧥 Фартух піностійкого пригодника +1 (🛡 +3, ❤️ +6)
+👢 Чоботи службового тупоту +2 (🦶 копнути)
+🪬 Амулет дрібної недовіри (🔮 +2, 🌀 trick)
+✨ Косметика: значок «Я тут випадково»
+```
+
+Це приклад напрямку, не обіцянка конкретних предметів або чисел.
+
+**Scope**
+
+- розширити slot vocabulary: `mainHand`, `offHand`, `twoHand`, `head`, `chest`, `legs`, `feet`, `accessory1`, `accessory2`, `cosmetic`;
+- визначити rules для рук:
+  - `twoHand` займає обидві руки;
+  - одноручна зброя може бути в `mainHand` або `offHand`, якщо предмет/клас це дозволяє;
+  - щит або захисна манатка може займати одну руку;
+  - два щити можливі тільки як окремий funny/defensive build і не мають давати безсмертя;
+- додати item tags для майбутніх дій: `melee`, `ranged`, `magic-focus`, `shield`, `kick-enabled`, `block`, `counter`, `spell-channel`, `offhand`, `two-handed`, `cosmetic`, `consumable`;
+- пройтися по наявних манатках і проставити tags/effect intent, щоб кожна supported equippable річ чесно пояснювала, чим вона може допомогти;
+- stronger equipment impact має йти через `buildEffectiveCharacterStats(...)` і combat action catalog, а не через presenter hacks;
+- якщо немає зброї, combat має мати unarmed fallback: кулаки, хвіст, голова, роги, пісня, печатка або інший flavor залежно від раси/класу/титулу;
+- взуття з відповідним тегом може відкрити кнопку `Копнути`;
+- щит має впливати на `guard`, block chance, shield bash або counter тільки коли це підтримує клас/раса/титул;
+- магічна палка, посох, кільце або амулет можуть давати spell/trick action навіть не-магічним класам, але з меншим ефектом або дорожчою маною;
+- cosmetic slot не дає бойової сили в першому slice, але може впливати на flavor, профіль або майбутні соціяльні реакції;
+- разові манатки лишаються окремим майбутнім item-action slice з confirmation та idempotency, не автоматичним hidden proc-ом.
+
+**Non-goals**
+
+- no shops, selling, trading або crafting у цьому slice;
+- no durability numbers на всіх предметах, якщо item instances ще не готові;
+- no cursed equipment або forced unequip без окремого safe UX;
+- no full consumable system;
+- no giant stat rebalance без simulation;
+- no cosmetic pay-to-win.
+
+**Implementation notes**
+
+- Перед runtime зміною потрібне рішення щодо `character_equipment`: чи лишається content-id per slot, чи потрібні concrete item instance ids перед split-stack / durability / transfer use cases.
+- Callback data має лишатися коротким: краще slot codes (`mh`, `oh`, `2h`, `hd`, `ft`, `c1`) і server-side lookup, ніж довгі payload-и.
+- UI має допомагати орієнтуватися: у вкладці `Спорядження` варто мати фільтри `Показати зброю`, `Показати захист`, `Показати амулети`, `Показати косметику`, які показують owned compatible items.
+- Equipment restrictions мають пояснюватися in-world: не «не той gender/race», а «ця манатка просить іншу анкету пригодника» з кнопкою до деталей.
+
+**Acceptance criteria**
+
+- tests cover two-handed item occupying both hands, shield/offhand conflicts, two shields if allowed, empty unarmed fallback, and cosmetic no-power guarantee;
+- every visible slot has Ukrainian label and distinct icon where practical;
+- every supported equippable item has tags/effect intent and item detail explains them;
+- `/equipment`, `/hero`, item detail, and combat agree on effective stats and unlocked actions;
+- combat simulations include no-weapon, one-handed weapon, two-handed weapon, shield, dual-shield, magic-focus, and kick-enabled samples;
+- no hidden full heal/refill, duplicate item spend, or automatic consumable use.
+
 ## Later — Multi-Enemy Combat and Summoner Tags
 
 **Objective**
