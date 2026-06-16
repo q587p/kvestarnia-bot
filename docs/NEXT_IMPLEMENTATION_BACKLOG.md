@@ -17,13 +17,14 @@
 2. `0.1.2` — presence interior/routing cleanup plus first runtime `/remort` at level 13: treat `Шинок` as korchma interior, move bot presence routing rules out of `createBot.ts`, and add replay-safe remort drafts/history.
 3. `0.1.3` — choose one reliability/polish item based on real pain: durable Barrel completion notifications or Mantok Chest pending cleanup.
 4. `0.1.4` — Hlybka routing or fight/quest navigation cleanup if playtest shows confusion around where fights happen.
-5. First Phase 2 prep/runtime slice only after smoke evidence: duel invite MVP, not group raid.
-6. Duel result/rematch/tournament card support.
-7. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
-8. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
-9. Remort follow-ups: remort-only advanced options, richer legacy flavor and social/cosmetic records; the base `/remort` loop is already runtime in `0.1.2`.
-10. Multi-enemy combat.
-11. Party combat / real raid MVP with capped contribution-aware rewards.
+5. First Phase 2 prep/runtime slice only after smoke evidence: бійцівський куток із тренувальним `Сумлінним Допельґанґером`, не груповий рейд.
+6. Duel invite MVP після того, як допельґанґер доведе форму бою й картку результату.
+7. Duel result/rematch/tournament card support.
+8. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
+9. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
+10. Remort follow-ups: remort-only advanced options, richer legacy flavor and social/cosmetic records; the base `/remort` loop is already runtime in `0.1.2`.
+11. Multi-enemy combat.
+12. Party combat / real raid MVP with capped contribution-aware rewards.
 
 Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
 

@@ -110,6 +110,7 @@ Canonical docs:
 - [docs/phase2/GROUP_COMBAT_AND_RAIDS.md](phase2/GROUP_COMBAT_AND_RAIDS.md)
 
 Deliverables:
+- Бійцівський куток із тренувальним `Сумлінним Допельґанґером`: копія поточного героя для безвинагородного спарингу перед справжніми дуелями з гравцями.
 - Duel invite MVP: challenge, accept/decline/expire, quick resolve, replay-safe result.
 - Shareable result/rematch/tournament cards without exact hidden formulas or toxic pressure.
 - Trading/gifting MVP: transfer one eligible манатка or stack unit with explicit confirmation and audit row.
@@ -119,6 +120,7 @@ Deliverables:
 - Party combat and real raids after duel/session/invite and multi-enemy primitives are proven, with capped contribution-aware rare/serious manatky rewards.
 
 Done when:
+- Гравець може потренуватися проти безпечної копії-допельґанґера перед викликом іншого гравця.
 - Two players can complete an opt-in duel without reward duplication.
 - Result/rematch cards are short, safe and useful in Telegram.
 - Repeated/stale callbacks replay state instead of mutating it again.
