@@ -7,6 +7,18 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.2] - 12026-06-16 - Presence Interior & Routing Cleanup
+
+### Fixed
+- `Шинок` now counts as korchma interior for quest/fight/hunt/cellar gates that check the hero's current place.
+
+### Changed
+- Extracted bot presence routing rules from `createBot.ts` into a small tested `presenceRouting` module.
+- Added table-driven regression tests for callback, command and main-menu presence routing, preserving the distinction between no-op presence updates and unknown callbacks.
+
+### Not Included Yet
+- Durable Barrel completion notifications, Mantok Chest pending cleanup, new gameplay systems, callback payload changes, schema changes, or public presence privacy changes.
+
 ## [0.1.1] - 12026-06-16 - Support Jar & Link Plumbing
 
 ### Added

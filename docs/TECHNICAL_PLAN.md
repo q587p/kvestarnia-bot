@@ -20,6 +20,8 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 
 `0.1.1` adds Support Jar & Link Plumbing: optional `SUPPORT_JAR_URL`, secondary `/support`, `/start support_thanks`, and a public-site support block when the URL is configured. It does not add payment confirmation, donor state, schema migration, gameplay rewards, support rankings, or gated features.
 
+`0.1.2` adds the first post-closeout presence/routing cleanup: `location.korchma.bar` is treated as korchma interior for place gates, and bot presence routing rules live in `src/bot/presence/presenceRouting.ts` instead of being embedded in `createBot.ts`. This slice does not change callback payloads, public presence privacy, schema, rewards, combat, economy, or gameplay flow.
+
 Phase 2 planning now starts with social session primitives: duel invites, result/rematch cards, trading/gifting, item tags, `/remort`, multi-enemy combat and later party/raid sessions. The first runtime implementation should add only the narrow tables/state it needs and must not treat the sketches below as already migrated schema.
 
 ## Структура репозиторію

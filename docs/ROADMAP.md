@@ -62,6 +62,7 @@ Current tiny inventory slice:
 - `0.0.29` adds Yeger tracking wait/ready resolution and the first outside-korchma Munchkin level barter exchange.
 - `0.0.30` hardens Munchkin barter with replay-safe audit rows, no gold-only exchange, protected/equipped exclusions, and pending Barrel guards.
 - `0.1.0` closes Phase 1 with version, release notes, changelog/news, smoke docs, roadmap/backlog alignment, and no new gameplay runtime.
+- `0.1.2` fixes the first post-closeout presence/routing papercut: `Шинок` is now a korchma interior location for routing gates, and presence routing rules are tested outside `createBot.ts`.
 - Phase 1 finish rule after `0.1.0`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки `0.1.x` playtest не покаже, що core loop стабільний. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
 - Detailed finish sequence lives in `docs/PHASE1_FINISH_PLAN.md`; the closeout cutline for `0.0.x` → `0.1.x` lives in `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`, the final smoke gate lives in `docs/PHASE1_CLOSEOUT_SMOKE.md`, and canonical release notes live in `docs/PHASE1_RELEASE_NOTES.md`. `docs/NEXT_IMPLEMENTATION_BACKLOG.md` tracks the next small PR order.
 - Tavern/adventure/fight first completions can grant fixed items.
@@ -87,10 +88,11 @@ Current repeatable slice:
 
 Current order:
 1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, smoke fallout.
-2. `0.1.2` — один reliability/polish item за реальним болем: durable Barrel completion notifications або Mantok Chest pending cleanup.
-3. `0.1.3` — Hlybka routing або fight/quest navigation cleanup, якщо playtest показує плутанину.
-4. `0.1.4` — тільки якщо core loop стабільний: перший вузький Phase 2 design/runtime prep або rewardless achievements як retention slice.
-5. Later `0.1.x` — Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, Munchkin manual selection and other small scoped expansions only if they do not steal the Phase 2 spine.
+2. `0.1.2` — presence interior/routing cleanup after the first post-closeout architecture audit.
+3. `0.1.3` — один reliability/polish item за реальним болем: durable Barrel completion notifications або Mantok Chest pending cleanup.
+4. `0.1.4` — Hlybka routing або fight/quest navigation cleanup, якщо playtest показує плутанину.
+5. Later `0.1.x` — тільки якщо core loop стабільний: перший вузький Phase 2 design/runtime prep або rewardless achievements як retention slice.
+6. Later `0.1.x` — Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, Munchkin manual selection and other small scoped expansions only if they do not steal the Phase 2 spine.
 
 Guardrails:
 - No new large gameplay system in `0.1.0`.

@@ -7,6 +7,7 @@ import type {
 import {
   getPublicPresenceLocation,
   getPresenceStatus,
+  isKorchmaInteriorLocation,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
@@ -37,6 +38,23 @@ describe("PresenceService", () => {
       regionName: "Корчма Квестарні",
       showNames: true,
       isSpecific: true
+    });
+  });
+
+  it("treats Шинок as korchma interior for routing gates", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_BAR)
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    const place = await service.getCurrentPlaceForTelegramUser(1n);
+
+    expect(isKorchmaInteriorLocation(PRESENCE_LOCATION_KORCHMA_BAR)).toBe(true);
+    expect(place).toMatchObject({
+      state: "ready",
+      locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+      locationName: "Шинок",
+      insideKorchma: true
     });
   });
 
