@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.2] - 12026-06-16 - Remort at Level 13 & Presence Cleanup
+## [0.1.2] - 12026-06-17 - Remort at Level 13 & Presence Cleanup
 
 ### Added
 - Added `/remort` as an explicit level-13 prestige loop: preview, identity rebuild, selected manatky preservation, confirmation and idempotent replay.
