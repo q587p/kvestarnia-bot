@@ -118,6 +118,41 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toMatch(/<b>|<i>/);
   });
 
+  it("offers to buy everyone beer after the Barrel raid completes", async () => {
+    const calls = await captureApiCalls(
+      makeTavernCallbackData("raid"),
+      servicesWith({
+        tavern: {
+          advanceFridayBarrelRaid: () =>
+            Promise.resolve({
+              state: "completed",
+              character,
+              reward: {
+                xp: 31,
+                gold: 18,
+                localDate: "2026-06-16T10:23",
+                itemGrants: [
+                  {
+                    itemId: "item.wet-hero-ticket",
+                    name: "Квиток мокрого пригодника",
+                    quantity: 1
+                  }
+                ]
+              },
+              levelChange: noLevelChange
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(edit?.payload).toMatchObject({
+      parse_mode: "HTML"
+    });
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("🍻 Всім пива");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeTavernCallbackData("round"));
+  });
+
   it.each([
     {
       name: "quest adventure route",

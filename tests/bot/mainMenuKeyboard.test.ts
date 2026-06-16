@@ -132,10 +132,26 @@ describe("main menu and scene keyboards", () => {
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual([
+      "🍻 Всім пива",
       "🧥 Єгер",
       "⬅️ До зали"
     ]);
+    expect(flatInlineButtonCallbacks(buildTavernResultKeyboard("completed"))).toEqual([
+      "v1:tavern:round",
+      "v1:tavern:ranger",
+      "v1:place:hall"
+    ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([
+      "🍻 Всім пива",
+      "🧥 Єгер",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildTavernResultKeyboard("already-completed"))).toEqual([
+      "v1:tavern:round",
+      "v1:tavern:ranger",
+      "v1:place:hall"
+    ]);
+    expect(flatInlineButtonTexts(buildTavernResultKeyboard("audit-break"))).toEqual([
       "🧥 Єгер",
       "⬅️ До зали"
     ]);
