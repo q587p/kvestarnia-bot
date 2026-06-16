@@ -80,7 +80,7 @@ Admin commands:
 
 ### Банка підтримки
 
-`Банка підтримки Квестарні` є добровільною підтримкою, а не payment-to-gameplay integration. У `0.1.1` є тільки link plumbing: optional `SUPPORT_JAR_URL`, `/support`, secondary homepage block and `/start support_thanks`. Канонічний backlog: [SUPPORT_JAR_BACKLOG.md](SUPPORT_JAR_BACKLOG.md).
+`Банка підтримки Квестарні` є добровільною підтримкою, а не payment-to-gameplay integration. У `0.1.1` є тільки link plumbing: optional `SUPPORT_JAR_URL`, `/support`, secondary homepage block and `/start support_thanks`. Канонічний backlog: [SUPPORT_JAR_BACKLOG.md](SUPPORT_JAR_BACKLOG.md). Майбутній read-only live status через Monobank API описаний окремо: [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md).
 
 Guardrails:
 
@@ -91,6 +91,14 @@ Guardrails:
 - `SUPPORT_JAR_URL` у першому runtime-slice приймає тільки `https://send.monobank.ua/jar/...` без URL credentials;
 - не лоґувати персональні платіжні дані;
 - не називати це благодійністю, якщо юридично це не благодійний збір.
+
+Future live status guardrails:
+
+- `MONOBANK_API_TOKEN` має бути тільки server-side secret;
+- не читати statement/webhook endpoints для live aggregate status;
+- не лоґувати token, full Monobank response, account data або individual payment details;
+- кешувати status і не викликати `client-info` частіше за API limit;
+- live status показує тільки агреговані current/goal values і не підтверджує оплату.
 
 ## Moderation
 Потрібно передбачити:

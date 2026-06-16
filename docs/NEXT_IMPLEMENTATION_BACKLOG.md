@@ -27,7 +27,7 @@
 
 Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
 
-Deferred side tracks remain useful but should not steal the Phase 2 spine: durable Barrel notification reliability, Mantok Chest pending cleanup, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs, NPC rankings and the docs-planned support Barrel.
+Deferred side tracks remain useful but should not steal the Phase 2 spine: durable Barrel notification reliability, Mantok Chest pending cleanup, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs, NPC rankings and the docs-planned Support Jar live status.
 
 Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
 
@@ -184,6 +184,47 @@ First safe runtime/link-plumbing slice shipped in `0.1.1`: optional strict Monob
 - regular `/start` stays unchanged;
 - support copy stays voluntary and secondary;
 - `npm.cmd run check` passes for the runtime PR.
+
+## Later — Live Support Jar Status
+
+**Objective**
+Показувати у `/support` і на сайті реальний aggregate status `Банки підтримки Квестарні` через офіційний Monobank API, щоб maintainer не оновлював суму й ціль вручну в env.
+
+Canonical design doc: [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md).
+
+**Scope**
+
+- server-side only `MONOBANK_API_TOKEN`;
+- `GET /personal/client-info` only;
+- find jar by `sendId` from `SUPPORT_JAR_URL`;
+- cache with TTL, default `300` seconds, minimum `60`;
+- coalesce concurrent refreshes;
+- show only aggregate balance/goal for UAH;
+- safe fallback when token absent, API unavailable, jar missing, response invalid, rate limited or unsupported currency;
+- `/support` and homepage support block may render live aggregate status when available.
+
+**Non-goals**
+
+- no Monobank webhook;
+- no statement endpoint;
+- no scraping `send.monobank.ua`;
+- no payment confirmation;
+- no donor table, donor state, donor list or donor rankings;
+- no premium;
+- no XP, gold, loot, манатки, levels, combat power, progress or feature access;
+- no DB migration for donor/payment data;
+- no real Monobank URL or token in repository;
+- no full Monobank response in logs.
+
+**Acceptance criteria**
+
+- app works with only `SUPPORT_JAR_URL` and no token;
+- live current/goal renders when token and jar match;
+- stale cache is used on refresh failure;
+- no request happens more often than configured TTL;
+- token never appears in UI, logs, docs, snapshots or errors;
+- tests mock API calls and do not hit real Monobank;
+- gameplay `Бочка Пінного Міражу` remains untouched.
 
 ## Later — Шинок Mantok-for-Beer Sink
 

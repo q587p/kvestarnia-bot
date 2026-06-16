@@ -22,6 +22,8 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 
 `0.1.2` adds the first post-closeout presence/routing cleanup: `location.korchma.bar` is treated as korchma interior for place gates, and bot presence routing rules live in `src/bot/presence/presenceRouting.ts` instead of being embedded in `createBot.ts`. This slice does not change callback payloads, public presence privacy, schema, rewards, combat, economy, or gameplay flow.
 
+Future Support Jar live status is documented in [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md). It should be a separate read-only integration with Monobank `client-info`, server-side token handling, TTL cache, no DB donor state, no payment confirmation and no gameplay rewards. Do not treat manual `SUPPORT_JAR_CURRENT_UAH`/`SUPPORT_JAR_GOAL_UAH` values as the long-term status path after that slice lands.
+
 Phase 2 planning now starts with social session primitives: duel invites, result/rematch cards, trading/gifting, item tags, `/remort`, multi-enemy combat and later party/raid sessions. The first runtime implementation should add only the narrow tables/state it needs and must not treat the sketches below as already migrated schema.
 
 ## Структура репозиторію

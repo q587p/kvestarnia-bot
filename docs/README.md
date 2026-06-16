@@ -13,6 +13,7 @@
 - [ROADMAP.md](ROADMAP.md) — фази розвитку й Definition of Done.
 - [SECURITY_AND_FAIR_PLAY.md](SECURITY_AND_FAIR_PLAY.md) — приватність, антиаб’юз, idempotency і чесна гра.
 - [SUPPORT_JAR_BACKLOG.md](SUPPORT_JAR_BACKLOG.md) — добровільна «Банка підтримки», `/support`, deep link подяки й no-advantage guardrails.
+- [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md) — майбутній read-only live status Банки через Monobank API без donor state, payment confirmation або ігрових переваг.
 - [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md) — локальний запуск, Prisma, Render, scripts і troubleshooting.
 - [PLAYTESTING.md](PLAYTESTING.md) — ручний smoke test поточного playable loop.
 - [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md) — правила постановки задач, PR і docs-only workflow.
