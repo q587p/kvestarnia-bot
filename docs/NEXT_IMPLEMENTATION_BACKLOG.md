@@ -20,6 +20,39 @@ Closure PR `0.1.0` має бути release/docs/smoke PR: version surface, chang
 persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/mana persistence → recovery/balance polish → inventory/chest polish → balance/playtest polish
 ```
 
+## Later — `/remort` After Level 13
+
+**Objective**
+Замість того, щоб після 13 рівня просто пропонувати `/restart`, спроєктувати окрему механіку `/remort`: переродження героя у стилі MUD-ів, де завершений персонаж починає нове коло не як чистий wipe, а з памʼяттю, статусом або обмеженим legacy-бонусом.
+
+**Research note**
+
+- Перед дизайном подивитися, як `remort` працює в MUD-ах: скидання рівня, збереження імені/репутації, remort-count, доступ до нових рас/класів, невеликі permanent бонуси, unlock-и або титули.
+- Виписати, які патерни підходять Квестарні, а які ламають баланс або роблять veteran snowball.
+
+**Scope**
+
+- Додати команду `/remort` як окремий шлях після досягнення 13 рівня.
+- На 13 рівні capstone copy має пропонувати `/remort`, а не лише `/restart`.
+- Зберегти `/restart` як технічний reset/discovery loop, але не робити його головною endgame-пропозицією.
+- Вирішити, що саме переходить у нове коло: імʼя, записи дошки, remort-count, титули, косметичні відзнаки, частина манаток або жодна бойова сила.
+- Нове коло має відкривати інший смак проходження без pay-to-win і без обовʼязкового grind-покарання.
+
+**Non-goals**
+
+- no prestige power snowball у першому slice;
+- no paid power або premium remort;
+- no wipe без явного confirmation;
+- no автоматичне переродження без окремої команди й пояснення.
+
+**Acceptance criteria**
+
+- 13-level celebration пропонує `/remort` як головний наступний крок;
+- `/remort` має окремий confirmation flow і не плутається з `/restart`;
+- remort-state/rewards ідемпотентні й не дублюються повторним callback-ом;
+- docs пояснюють, чим `/remort` відрізняється від `/restart`;
+- tests cover unavailable below level 13, confirmation, successful remort, repeated confirm, and preserved/deleted state choices.
+
 ## Later — Durable Barrel Raid Notifications
 
 **Objective**
