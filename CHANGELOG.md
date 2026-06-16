@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.1] - 12026-06-16 - Support Jar & Link Plumbing
+
+### Added
+- Added optional `SUPPORT_JAR_URL` config for the voluntary Support Jar, validated as an absolute `https://send.monobank.ua/jar/...` URL.
+- Added optional manual read-only Support Jar status fields for current amount, goal and short manual update date.
+- Added secondary `/support` bot command with configured-link and missing-link fallback copy.
+- Added `/start support_thanks` gratitude deep link that does not require a character and does not mutate gameplay state.
+- Added a secondary public homepage support block that renders only when the support URL is configured.
+- Added small `/start` payload parsing guardrails for future invite-style deep links.
+
+### Guardrails
+- No payment confirmation, donor state, webhook, donor table, gameplay reward, title, rank, gated feature, premium status, or hardcoded real Monobank URL.
+- Support copy explicitly says it gives no XP, gold, loot, manatky, levels, combat power, progress, or gameplay advantage.
+
+### Tests
+- Added focused config, presenter, bot-command, start-payload and public-site coverage for configured/missing URL behavior, `support_thanks`, regular `/start`, unknown start payloads, and no broken support links.
+
 ## [0.1.0] - 12026-06-16 - Phase 1 Closeout & Phase 2 Roadmap
 
 ### Milestone

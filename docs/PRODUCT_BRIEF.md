@@ -120,7 +120,7 @@ MVP-фічі:
 - no paid access to gameplay features;
 - no donor leaderboard with gameplay meaning.
 
-Підтримка може мати тільки статичну подяку, косметичний «Тост із Бочки» або жартовий рядок без збереженого ігрового ефекту. Детальний backlog живе в [SUPPORT_BARREL_BACKLOG.md](SUPPORT_BARREL_BACKLOG.md).
+Підтримка може мати тільки статичну подяку, косметичну корчмарську сцену або жартовий рядок без збереженого ігрового ефекту. Детальний backlog живе в [SUPPORT_JAR_BACKLOG.md](SUPPORT_JAR_BACKLOG.md).
 
 ## Назва і брендинг
 

@@ -12,7 +12,7 @@
 - [BALANCE_NOTES.md](BALANCE_NOTES.md) — формули, економіка, RNG і балансні guardrails.
 - [ROADMAP.md](ROADMAP.md) — фази розвитку й Definition of Done.
 - [SECURITY_AND_FAIR_PLAY.md](SECURITY_AND_FAIR_PLAY.md) — приватність, антиаб’юз, idempotency і чесна гра.
-- [SUPPORT_BARREL_BACKLOG.md](SUPPORT_BARREL_BACKLOG.md) — майбутня добровільна «Бочка підтримки» без ігрових переваг.
+- [SUPPORT_JAR_BACKLOG.md](SUPPORT_JAR_BACKLOG.md) — добровільна «Банка підтримки», `/support`, deep link подяки й no-advantage guardrails.
 - [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md) — локальний запуск, Prisma, Render, scripts і troubleshooting.
 - [PLAYTESTING.md](PLAYTESTING.md) — ручний smoke test поточного playable loop.
 - [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md) — правила постановки задач, PR і docs-only workflow.

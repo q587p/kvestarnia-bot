@@ -158,6 +158,12 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     includeInMenu: true
   },
   {
+    command: "support",
+    icon: "🫙",
+    description: "добровільна підтримка без бонусів",
+    includeInMenu: false
+  },
+  {
     command: "help",
     icon: "📖",
     description: "допомога",

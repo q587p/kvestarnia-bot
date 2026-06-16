@@ -46,9 +46,19 @@ NODE_ENV=development
 BOT_TOKEN=
 DATABASE_URL=file:./dev.db
 DEPLOY_NOTIFICATIONS_ENABLED=false
+# SUPPORT_JAR_URL=https://send.monobank.ua/jar/<real-jar-id>
+# SUPPORT_JAR_CURRENT_UAH=0
+# SUPPORT_JAR_GOAL_UAH=5000
+# SUPPORT_JAR_STATUS_UPDATED_AT=2026-06-16
 ```
 
 `BOT_TOKEN` може бути порожнім для локальних перевірок без реального Telegram polling. У цьому режимі бот валідовує конфіг і запускає HTTP healthcheck server, але не під’єднується до Telegram API.
+
+`SUPPORT_JAR_URL` optional. Якщо він заданий, це має бути absolute `https://send.monobank.ua/jar/...` без URL credentials; без нього `/support` і public site не показують битих support-link-ів.
+
+`SUPPORT_JAR_CURRENT_UAH`, `SUPPORT_JAR_GOAL_UAH` і `SUPPORT_JAR_STATUS_UPDATED_AT` optional та ручні. Вони лише показують спокійний read-only стан Банки в `/support` і на public site; це не payment confirmation і не donor state. Дата статусу має бути короткою `YYYY-MM-DD`.
+
+Support Jar setup lives in `docs/SUPPORT_JAR_BACKLOG.md`; note that the Monobank reward URL and `SUPPORT_JAR_URL` are different links. Do not put `https://t.me/kvestarnia_bot?start=support_thanks` into `SUPPORT_JAR_URL`.
 
 Щоб запустити реального бота, додай токен:
 

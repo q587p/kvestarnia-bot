@@ -75,14 +75,76 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Першу петлю закрито");
+    expect(text).toContain("Банка підтримки отримала табличку");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");
     expect(text).toContain("Розклад за відкритими місцинами живе на окремій сторінці.");
+    expect(text).not.toContain("Підтримати корчму");
+    expect(text).not.toContain("send.monobank.ua");
+    expect(text).not.toContain("У Банці зараз");
+    expect(text).not.toContain("undefined");
+    expect(text).not.toContain("null");
     expect(text).not.toContain("Зала корчми");
     expect(text).not.toContain("— Дара");
     expect(text).not.toContain("— Нестор Межовий");
+  });
+
+  it("serves a secondary support block only when support URL is configured", async () => {
+    const baseUrl = await listen({
+      presence: presenceServiceWith(publicPresenceSnapshot),
+      supportJarUrl: "https://send.monobank.ua/jar/test-placeholder"
+    });
+
+    const response = await fetch(`${baseUrl}/`);
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(text).toContain("🫙 Підтримати Квестарню");
+    expect(text).toContain("Підтримати корчму");
+    expect(text).toContain('href="https://send.monobank.ua/jar/test-placeholder"');
+    expect(text).toContain("Стан Банки видно за посиланням.");
+    expect(text).not.toContain("0 грн");
+    expect(text).toContain("без купівлі ігрової сили");
+    expect(text).toContain(
+      "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч."
+    );
+    expect(text).not.toContain("платіж підтверджено");
+    expect(text).not.toContain("отримано XP");
+    expect(text).not.toContain("видано золото");
+    expect(text).not.toContain("манатку додано");
+    expectNoOldSupportNaming(text);
+    expect(text).toContain("Грати в Telegram");
+    expect(text.indexOf("Грати в Telegram")).toBeLessThan(text.indexOf("Підтримати корчму"));
+    expect(text.indexOf("Вісті з-під стійки")).toBeLessThan(
+      text.indexOf("Підтримати корчму")
+    );
+  });
+
+  it("serves manual support status inside the secondary support block", async () => {
+    const baseUrl = await listen({
+      presence: presenceServiceWith(publicPresenceSnapshot),
+      supportJarUrl: "https://send.monobank.ua/jar/test-placeholder",
+      supportJarStatus: {
+        currentUah: 1234,
+        goalUah: 5000,
+        updatedAt: "2026-06-16"
+      }
+    });
+
+    const response = await fetch(`${baseUrl}/`);
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(text).toContain("У Банці зараз: 1 234 грн");
+    expect(text).toContain("Ціль: 5 000 грн");
+    expect(text).toContain("Оновлено вручну: 2026-06-16");
+    expect(text).not.toContain("залишилось тільки");
+    expect(text).not.toContain("платіж підтверджено");
+    expect(text).not.toContain("донорський статус");
+    expectNoOldSupportNaming(text);
+    expect(text.indexOf("Підтримати Квестарню")).toBeLessThan(text.indexOf("1 234 грн"));
+    expect(text.indexOf("Грати в Telegram")).toBeLessThan(text.indexOf("1 234 грн"));
   });
 
   it("serves the public news archive from news.md", async () => {
@@ -94,9 +156,9 @@ describe("health server", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
     expect(text).toContain("Вісті Квестарні");
-    expect(text).toContain("Бочка дивиться на годинник, сайт відчиняє двері");
+    expect(text).toContain("Банка підтримки отримала табличку");
     expect(text).toContain("Архів");
-    expect(text).toContain("Манатки знайшли дорогу до пригод");
+    expect(text).toContain("Першу петлю закрито");
     expect(text).toContain("/news?entry=1");
   });
 
@@ -118,7 +180,7 @@ describe("health server", () => {
     const text = await response.text();
 
     expect(response.status).toBe(200);
-    expect(text).toContain("Бочка дивиться на годинник, сайт відчиняє двері");
+    expect(text).toContain("Банка підтримки отримала табличку");
   });
 
   it("returns 404 for other paths", async () => {
@@ -214,9 +276,20 @@ describe("health server", () => {
   });
 });
 
-async function listen(presence?: PresenceService): Promise<string> {
+async function listen(
+  options:
+    | PresenceService
+    | {
+        presence?: PresenceService;
+        supportJarUrl?: string;
+        supportJarStatus?: { currentUah?: number; goalUah?: number; updatedAt?: string };
+      } = {}
+): Promise<string> {
+  const serverOptions =
+    "getPublicPresenceLocations" in options ? { presence: options } : options;
+
   server = createServer((request, response) => {
-    handleHealthRequest(request, response, presence ? { presence } : {});
+    handleHealthRequest(request, response, serverOptions);
   });
 
   await new Promise<void>((resolve) => {
@@ -248,3 +321,21 @@ const publicPresenceSnapshot: PublicPresenceLocationsSnapshot = {
     }
   ]
 };
+
+function expectNoOldSupportNaming(text: string): void {
+  const oldTerms = [
+    ["Бочка", "підтримки"].join(" "),
+    ["Бочка", "Квестарні"].join(" "),
+    ["У", "Бочці", "зараз"].join(" "),
+    ["Тост", "із", "Бочки"].join(" "),
+    ["Бочка", "вдячно", "булькнула"].join(" "),
+    ["barrel", "thanks"].join("_"),
+    ["SUPPORT", "BARREL"].join("_"),
+    ["support", "Barrel"].join(""),
+    ["Support", "Barrel"].join("")
+  ];
+
+  for (const term of oldTerms) {
+    expect(text).not.toContain(term);
+  }
+}

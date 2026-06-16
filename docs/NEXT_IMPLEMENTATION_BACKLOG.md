@@ -150,22 +150,22 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - повторний startup/resume або retry не надсилає кілька однакових completed-повідомлень;
 - tests cover due-on-startup, future-reschedule, already-completed, and duplicate-worker/idempotency paths.
 
-## Later — Бочка підтримки
+## Closed in `0.1.1` — Банка підтримки
 
 **Objective**
 Додати добровільну підтримку Квестарні через Monobank-банку без ігрових переваг, без преміуму й без прив’язки реальних грошей до прогресу.
 
 **Status**
-Docs-only backlog exists in `docs/SUPPORT_BARREL_BACKLOG.md`. Runtime work is intentionally later.
+First safe runtime/link-plumbing slice shipped in `0.1.1`: optional strict Monobank `SUPPORT_JAR_URL`, secondary `/support`, `/start support_thanks`, public-site block only when configured, docs/release surfaces and focused tests.
 
 **Scope**
 
-- optional `SUPPORT_BARREL_URL`;
+- optional `SUPPORT_JAR_URL`;
 - secondary `/support` command, not in welcome flow;
-- deep link `/start barrel_thanks` with gratitude scene;
+- deep link `/start support_thanks` with gratitude scene;
 - optional public-site secondary support block;
-- README/docs copy only when real URL/config path is ready;
-- tests for configured URL, missing URL, regular `/start`, `barrel_thanks` and no gameplay rewards.
+- README/docs copy without hardcoded real URL;
+- tests for configured URL, missing URL, regular `/start`, `support_thanks` and no gameplay rewards.
 
 **Non-goals**
 
@@ -174,15 +174,15 @@ Docs-only backlog exists in `docs/SUPPORT_BARREL_BACKLOG.md`. Runtime work is in
 - no donor state;
 - no premium positioning;
 - no hardcoded fake Monobank URL;
-- no changelog/news release entry for docs-only planning.
+- no gameplay reward or monetization release framing.
 
 **Acceptance criteria**
 
 - `/support` never renders a broken URL;
-- `barrel_thanks` explicitly says there are no gameplay advantages;
+- `support_thanks` explicitly says there are no gameplay advantages;
 - regular `/start` stays unchanged;
 - support copy stays voluntary and secondary;
-- `npm.cmd run check` passes in the future runtime PR.
+- `npm.cmd run check` passes for the runtime PR.
 
 ## Later — Шинок Mantok-for-Beer Sink
 

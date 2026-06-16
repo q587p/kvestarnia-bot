@@ -1,4 +1,5 @@
 import { Bot, type Context } from "grammy";
+import type { SupportJarStatus } from "../config/env";
 import type { AdventureService } from "../services/adventureService";
 import type { CellarErrandService } from "../services/cellarErrandService";
 import type {
@@ -95,6 +96,7 @@ import {
 } from "./commands/questHubCommand";
 import { registerRestartCommand } from "./commands/restartCommand";
 import { registerStartCommand } from "./commands/startCommand";
+import { registerSupportCommand } from "./commands/supportCommand";
 import {
   registerTavernCommand,
   sendKorchmaArrivalBoard,
@@ -258,6 +260,11 @@ export interface BotServices {
   tavern: TavernRaidService;
 }
 
+export interface BotOptions {
+  supportJarUrl?: string;
+  supportJarStatus?: SupportJarStatus;
+}
+
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
 };
@@ -265,7 +272,7 @@ const HTML_MESSAGE_OPTIONS = {
 type PresenceContext = Omit<MarkPlayerPresenceInput, "user">;
 const barrelRaidCompletionScheduler = createBarrelRaidCompletionScheduler();
 
-export function createBot(token: string, services: BotServices): Bot {
+export function createBot(token: string, services: BotServices, options: BotOptions = {}): Bot {
   const bot = new Bot(token);
 
   bot.catch((error) => {
@@ -304,6 +311,7 @@ export function createBot(token: string, services: BotServices): Bot {
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset);
   registerNewsCommand(bot);
+  registerSupportCommand(bot, options.supportJarUrl, options.supportJarStatus);
   registerVersionCommand(bot);
   registerDevResetCommand(bot, services.devReset);
   registerRestartCommand(bot);
@@ -757,6 +765,7 @@ function getCommandPresenceContext(command: string): PresenceContext | null {
     command === "online" ||
     command === "look" ||
     command === "help" ||
+    command === "support" ||
     command === "version" ||
     command === "restart" ||
     command === "dev_reset_me"

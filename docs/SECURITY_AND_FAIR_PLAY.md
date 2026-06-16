@@ -78,16 +78,17 @@ Admin commands:
 - Player-facing правило можна формулювати так: «Ніяких лутбоксів тут! Ну, хіба що смішні будуть.» Це означає: жодної оплати за силу або азартної монетизації; максимум прозорі косметичні/жартівні коробки без P2W.
 - Не робити P2W.
 
-### Бочка підтримки
+### Банка підтримки
 
-Майбутня `Бочка підтримки Квестарні` є добровільною підтримкою, а не payment-to-gameplay integration. Канонічний backlog: [SUPPORT_BARREL_BACKLOG.md](SUPPORT_BARREL_BACKLOG.md).
+`Банка підтримки Квестарні` є добровільною підтримкою, а не payment-to-gameplay integration. У `0.1.1` є тільки link plumbing: optional `SUPPORT_JAR_URL`, `/support`, secondary homepage block and `/start support_thanks`. Канонічний backlog: [SUPPORT_JAR_BACKLOG.md](SUPPORT_JAR_BACKLOG.md).
 
 Guardrails:
 
-- deep link `barrel_thanks` не підтверджує оплату;
+- deep link `support_thanks` не підтверджує оплату;
 - не зберігати donor state без окремого privacy/legal рішення;
 - не видавати XP, золото, items, манатки, екіпірування, рейтингові записи або доступ до фіч;
-- не показувати битий support URL, якщо `SUPPORT_BARREL_URL` не налаштований;
+- не показувати битий support URL, якщо `SUPPORT_JAR_URL` не налаштований або не проходить validation;
+- `SUPPORT_JAR_URL` у першому runtime-slice приймає тільки `https://send.monobank.ua/jar/...` без URL credentials;
 - не лоґувати персональні платіжні дані;
 - не називати це благодійністю, якщо юридично це не благодійний збір.
 
