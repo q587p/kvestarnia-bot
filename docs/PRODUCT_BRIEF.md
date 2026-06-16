@@ -106,6 +106,22 @@ MVP-фічі:
 - Mini App UI, крім простого preview або майбутнього кабінету.
 - Монетизація бойової сили.
 
+## Добровільна підтримка
+
+Квестарня може мати добровільну «Бочку підтримки» для сервера, інструментів, токенів для Кодексу, текстів, редактури, коректури, ілюстрацій та корчмарської інфраструктури.
+
+Це не змінює fair free-to-play позиціонування:
+
+- no XP for money;
+- no gold for money;
+- no loot or manatky for money;
+- no paid combat power;
+- no paid progression;
+- no paid access to gameplay features;
+- no donor leaderboard with gameplay meaning.
+
+Підтримка може мати тільки статичну подяку, косметичний «Тост із Бочки» або жартовий рядок без збереженого ігрового ефекту. Детальний backlog живе в [SUPPORT_BARREL_BACKLOG.md](SUPPORT_BARREL_BACKLOG.md).
+
 ## Назва і брендинг
 
 Фінальна назва для гравців: **Квестарня**.

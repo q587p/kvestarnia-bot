@@ -12,6 +12,7 @@
 - [BALANCE_NOTES.md](BALANCE_NOTES.md) — формули, економіка, RNG і балансні guardrails.
 - [ROADMAP.md](ROADMAP.md) — фази розвитку й Definition of Done.
 - [SECURITY_AND_FAIR_PLAY.md](SECURITY_AND_FAIR_PLAY.md) — приватність, антиаб’юз, idempotency і чесна гра.
+- [SUPPORT_BARREL_BACKLOG.md](SUPPORT_BARREL_BACKLOG.md) — майбутня добровільна «Бочка підтримки» без ігрових переваг.
 - [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md) — локальний запуск, Prisma, Render, scripts і troubleshooting.
 - [PLAYTESTING.md](PLAYTESTING.md) — ручний smoke test поточного playable loop.
 - [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md) — правила постановки задач, PR і docs-only workflow.
@@ -42,4 +43,3 @@ Phase 2 більше не починається з великого групо�
 - [SOCIAL_ACTIONS_BACKLOG.md](SOCIAL_ACTIONS_BACKLOG.md) — backlog корчемних соціяльних дій, тепер підпорядкований Phase 2 social-combat spine.
 - [ACHIEVEMENTS_PHASE1.md](ACHIEVEMENTS_PHASE1.md) — rewardless ачівки/титули як later slice.
 - [MANTOK_CHEST_BACKLOG.md](MANTOK_CHEST_BACKLOG.md) — item-volume sink і технічний борг ручного вибору.
-

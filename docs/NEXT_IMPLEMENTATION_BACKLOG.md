@@ -26,7 +26,7 @@
 
 Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
 
-Deferred side tracks remain useful but should not steal the Phase 2 spine: durable Barrel notification reliability, Mantok Chest pending cleanup, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs and NPC rankings.
+Deferred side tracks remain useful but should not steal the Phase 2 spine: durable Barrel notification reliability, Mantok Chest pending cleanup, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs, NPC rankings and the docs-planned support Barrel.
 
 Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
 
@@ -142,6 +142,40 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - manual `🍺 Перевірити бочку` лишається fallback і не дублює reward;
 - повторний startup/resume або retry не надсилає кілька однакових completed-повідомлень;
 - tests cover due-on-startup, future-reschedule, already-completed, and duplicate-worker/idempotency paths.
+
+## Later — Бочка підтримки
+
+**Objective**
+Додати добровільну підтримку Квестарні через Monobank-банку без ігрових переваг, без преміуму й без прив’язки реальних грошей до прогресу.
+
+**Status**
+Docs-only backlog exists in `docs/SUPPORT_BARREL_BACKLOG.md`. Runtime work is intentionally later.
+
+**Scope**
+
+- optional `SUPPORT_BARREL_URL`;
+- secondary `/support` command, not in welcome flow;
+- deep link `/start barrel_thanks` with gratitude scene;
+- optional public-site secondary support block;
+- README/docs copy only when real URL/config path is ready;
+- tests for configured URL, missing URL, regular `/start`, `barrel_thanks` and no gameplay rewards.
+
+**Non-goals**
+
+- no XP, gold, loot, manatky, equipment, rankings or feature access;
+- no payment confirmation;
+- no donor state;
+- no premium positioning;
+- no hardcoded fake Monobank URL;
+- no changelog/news release entry for docs-only planning.
+
+**Acceptance criteria**
+
+- `/support` never renders a broken URL;
+- `barrel_thanks` explicitly says there are no gameplay advantages;
+- regular `/start` stays unchanged;
+- support copy stays voluntary and secondary;
+- `npm.cmd run check` passes in the future runtime PR.
 
 ## Later — Шинок Mantok-for-Beer Sink
 
