@@ -1218,6 +1218,10 @@ async function handleLevelBarterCallback(
     return;
   }
 
+  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
+  }
+
   if (action.type === "open") {
     const offer = await services.levelBarter.getOfferForTelegramUser(telegramUserId);
 
@@ -1252,8 +1256,8 @@ async function handleLevelBarterCallback(
 
   await safeAnswerCallbackQuery(
     ctx,
-    result.state === "exchanged"
-      ? { text: "Манчкін підкинув рівень." }
+    result.state === "exchanged" || result.state === "replayed"
+      ? { text: result.state === "replayed" ? "Цей обмін уже записано." : "Манчкін підкинув рівень." }
       : { show_alert: result.state !== "stale-selection" }
   );
   await safeEditMessageText(ctx, presentLevelBarterConfirmResult(result), {

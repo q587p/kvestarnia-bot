@@ -4,6 +4,7 @@ import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCall
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
 import { makeFightCallbackData } from "../../src/bot/callbacks/fightCallbackData";
 import { makeEquipItemCallbackData } from "../../src/bot/callbacks/itemCallbackData";
+import { makeLevelBarterAutoCallbackData } from "../../src/bot/callbacks/levelBarterCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
@@ -299,6 +300,32 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("У вас уже триває інша сутичка.");
     expect(String(edit?.payload.text)).not.toContain("Щось неупокоєне знайшлося");
     expect(String(fight?.payload.text)).toContain("Павук дедлайнів");
+  });
+
+  it("blocks level barter callbacks while the Barrel raid is pending", async () => {
+    const calls = await captureApiCalls(
+      makeLevelBarterAutoCallbackData(),
+      servicesWith({
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({
+              state: "pending",
+              character,
+              availableAt: new Date("2026-06-16T10:08:00.000Z"),
+              now: new Date("2026-06-16T10:03:00.000Z")
+            })
+        },
+        levelBarter: {
+          createAutoPreviewForTelegramUser: vi.fn(() => Promise.reject(new Error("should not be called")))
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("Ви зараз у рейді");
   });
 
   it("keeps Yeger tracking flavor for active matching unquiet fights", async () => {

@@ -38,10 +38,7 @@ export function presentLevelBarterOffer(result: LevelBarterOfferResult): string 
   ];
 
   if (result.state === "insufficient") {
-    lines.push(
-      "",
-      "Манчкін сумно хитає головою. Каже, що це ще не хабар долі, а тільки вступний внесок у сором."
-    );
+    lines.push("", presentLevelBarterInsufficientReason(result));
   } else {
     lines.push(
       "",
@@ -68,10 +65,7 @@ export function presentLevelBarterPreview(result: LevelBarterPreviewResult): str
       "",
       presentLevelBarterTotals(result),
       "",
-      npcQuote(
-        "Манчкін",
-        "Тут ще не вистачає на рівень. Принеси манаток, золота або хоча б дуже впевнений гаманець."
-      )
+      presentLevelBarterInsufficientReason(result)
     ].join("\n");
   }
 
@@ -118,8 +112,13 @@ export function presentLevelBarterConfirmResult(result: LevelBarterConfirmResult
     ].join("\n");
   }
 
+  const title =
+    result.state === "replayed"
+      ? "🎒 Манчкін уже заніс цей обмін у журнал."
+      : "🎒 Манчкін зникає в шелесті ремінців, пряжок і монет, які ще вчора мали плани.";
+
   return [
-    "🎒 Манчкін зникає в шелесті ремінців, пряжок і монет, які ще вчора мали плани.",
+    title,
     presentCharacterHeader(result.character),
     "",
     "+1 рівень!",
@@ -134,13 +133,9 @@ export function presentLevelBarterConfirmResult(result: LevelBarterConfirmResult
 }
 
 function presentLevelBarterOfferDetails(offer: LevelBarterPresentedOffer): string[] {
-  const itemLines =
-    offer.items.length === 0
-      ? ["• манатки не чіпаємо; сьогодні працює гаманець"]
-      : offer.items.map(
-          (item) =>
-            `• ${escapeHtml(item.content.name)} ×${item.quantity} — ${item.totalGoldValue} золота`
-        );
+  const itemLines = offer.items.map(
+    (item) => `• ${escapeHtml(item.content.name)} ×${item.quantity} — ${item.totalGoldValue} золота`
+  );
 
   return [
     "Купка:",
@@ -154,6 +149,21 @@ function presentLevelBarterOfferDetails(offer: LevelBarterPresentedOffer): strin
     `Результат: рівень <b>${offer.levelBefore}</b> → <b>${offer.levelAfter}</b>`,
     `XP лишається при вас: <b>+${offer.xpCarry}</b> від старту нового рівня.`
   ];
+}
+
+function presentLevelBarterInsufficientReason(input: {
+  eligibleTotalValue: number;
+  gold: number;
+  cost: number;
+}): string {
+  if (input.eligibleTotalValue <= 0 && input.gold >= input.cost) {
+    return npcQuote(
+      "Манчкін",
+      "Гаманець гарний, але мені треба хоча б одна оцінена манатка. Рівень без предметного сорому не рахується."
+    );
+  }
+
+  return "Манчкін сумно хитає головою. Каже, що це ще не хабар долі, а тільки вступний внесок у сором.";
 }
 
 function presentLevelBarterTotals(input: {

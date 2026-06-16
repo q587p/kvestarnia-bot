@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CharacterRecord } from "../../src/db/repositories/characterRepository";
 import type {
   LevelBarterConfirmRepositoryResult,
+  LevelBarterExchangePlan,
   LevelBarterPlanResult,
   LevelBarterRepository,
   LevelBarterSnapshot
@@ -85,6 +86,51 @@ describe("LevelBarterService", () => {
     });
   });
 
+  it("replays a completed exchange without spending twice", async () => {
+    const repository = new FakeLevelBarterRepository(snapshot({
+      level: 4,
+      xp: 48,
+      gold: 975,
+      items: [{ itemId: "item.pan-of-persuasion", quantity: 1 }]
+    }));
+    const service = new LevelBarterService(repository, () => fixedNow);
+    const preview = await service.createAutoPreviewForTelegramUser(telegramUserId);
+    expect(preview.state).toBe("preview");
+    if (preview.state !== "preview") {
+      return;
+    }
+
+    const first = await service.confirmAutoExchangeForTelegramUser(telegramUserId, preview.offer.token);
+    const second = await service.confirmAutoExchangeForTelegramUser(telegramUserId, preview.offer.token);
+
+    expect(first.state).toBe("exchanged");
+    expect(second.state).toBe("replayed");
+    if (second.state === "replayed") {
+      expect(second.offer.levelAfter).toBe(5);
+      expect(second.character.gold).toBe(0);
+    }
+    expect(repository.confirmedCount).toBe(1);
+  });
+
+  it("denies gold-only exchange even with a full wallet", async () => {
+    const service = new LevelBarterService(
+      new FakeLevelBarterRepository(snapshot({
+        level: 4,
+        xp: 48,
+        gold: 1000,
+        items: []
+      })),
+      () => fixedNow
+    );
+
+    await expect(service.createAutoPreviewForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "insufficient",
+      eligibleTotalValue: 0,
+      gold: 1000,
+      combinedValue: 1000
+    });
+  });
+
   it("blocks exchange into level 13", async () => {
     const service = new LevelBarterService(
       new FakeLevelBarterRepository(snapshot({
@@ -105,6 +151,7 @@ describe("LevelBarterService", () => {
 
 class FakeLevelBarterRepository implements LevelBarterRepository {
   confirmedCount = 0;
+  private completed: { character: CharacterRecord; plan: LevelBarterExchangePlan } | null = null;
 
   constructor(public snapshot: LevelBarterSnapshot | null) {}
 
@@ -122,6 +169,14 @@ class FakeLevelBarterRepository implements LevelBarterRepository {
   ): Promise<LevelBarterConfirmRepositoryResult> {
     if (!this.snapshot) {
       return Promise.resolve({ state: "no-character" });
+    }
+
+    if (this.completed) {
+      return Promise.resolve({
+        state: "replayed",
+        character: this.completed.character,
+        plan: this.completed.plan
+      });
     }
 
     const plan = input.createPlan(this.snapshot);
@@ -146,6 +201,7 @@ class FakeLevelBarterRepository implements LevelBarterRepository {
       ...this.snapshot,
       character
     };
+    this.completed = { character, plan: plan.plan };
 
     return Promise.resolve({
       state: "exchanged",

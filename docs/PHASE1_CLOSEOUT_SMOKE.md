@@ -52,10 +52,23 @@
 - [ ] Тільки won target fights рухають Єгерський progress.
 - [ ] `5/5` turn-in grants one-time reward once.
 - [ ] Старі `v1:hunt:*` callbacks safely refresh current Yeger screen.
+- [ ] Ready Yeger trail + unrelated active fight не reset-ить trail cooldown; bot показує blocked copy і окремо рендерить поточний бій.
+
+## Манчкін-скупник
+
+- [ ] Preview показує selected eligible stacks, докладене золото, переплату, XP carry і рівень `N → N+1`.
+- [ ] Confirm списує щонайменше одну eligible priced манатку й тільки потрібне wallet gold.
+- [ ] Repeated confirm після успіху replay-ить той самий exchange і не списує вдруге.
+- [ ] Stale preview до першого успіху не мутує gold/items/level.
+- [ ] Gold-only з `1000+` золота denied: Манчкін вимагає хоча б одну оцінену манатку.
+- [ ] Equipped/priceless/protected/story/zero-value/missing items excluded.
+- [ ] `12 → 13` refused: 13 рівень лишається battle-only.
+- [ ] Pending Бочка блокує open/preview/confirm callback-и Манчкіна.
 
 ## Barrel / Шинок / Presence
 
 - [ ] Pending Бочка блокує adventure/fight/hunt/cellar reward actions.
+- [ ] Pending Бочка блокує level-barter progression/spending action-и.
 - [ ] Pending Бочка не переносить presence із Бочки через stale callbacks.
 - [ ] Manual `🍺 Перевірити бочку` лишається fallback і не дублює reward.
 - [ ] `🍻 Шинок` є окремою місциною, а `👀 Хто поруч` показує локальний зріз.

@@ -205,24 +205,26 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 - event text короткий, український і без дослівного копіювання мемів;
 - tests cover no-event day, Wednesday frog day, Sunday revel day, explicit holiday day, and replay/idempotency.
 
-## Later — Манчкін-скупник Manual Selection Polish
+## 0.1.x Later — Манчкін-скупник Manual Selection Polish
 
 **Objective**
-Доробити `🎒 Манчкін-скупника` після auto-pick MVP: дати гравцю ручний вибір манаток для рівня без роздування callback data і без ризику stale списань.
+Доробити `🎒 Манчкін-скупника` після retry-safe auto-pick MVP: дати гравцю ручний вибір манаток для рівня без роздування callback data і без ризику stale списань.
 
 **Rules**
 
 - Поріг лишається `1000` оціночного золота разом із докладеним золотом з гаманця.
+- Обмін має включати щонайменше одну eligible priced манатку; gold-only лишається забороненим, якщо окремий future PR явно не змінить це рішення.
 - `12 → 13` не дозволяти: 13 рівень тільки боями.
 - Екіпіровані, безцінні, story/quest/protected і zero-value манатки не eligible.
 - Preview має показувати конкретні selected stacks, суму манаток, докладене золото, переплату й XP carry.
+- Runtime confirm уже має `level_barter_exchanges` ledger; manual selection має або переюзати його, або мати такий самий replay/idempotency boundary.
 
 **Acceptance criteria**
 
 - manual selector не кладе довгі item ids у callback-и;
 - confirm перечитує inventory/equipment/gold і відхиляє stale input;
-- repeated confirm не дає другий рівень;
-- tests cover exact threshold, gold-fill threshold, protected/equipped exclusions, stale manual selection, and level-13 refusal.
+- repeated confirm replay-ить уже completed exchange і не дає другий рівень;
+- tests cover exact threshold, gold-fill threshold, gold-only refusal, protected/equipped exclusions, stale manual selection, replay, pending Barrel guard, and level-13 refusal.
 
 ## Later — Bestiary Browse Filters
 
