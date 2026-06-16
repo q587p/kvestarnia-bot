@@ -118,7 +118,7 @@ export function summarizeCharacter(
     ...(remortCount > 0
       ? {
           remortCount,
-          remortMemoryRank: Math.max(0, Math.min(5, remortCount))
+          remortMemoryRank: remortCount
         }
       : {})
   };

@@ -147,7 +147,7 @@ describe("hero presenter", () => {
     expect(text).toContain("Ріст: +4 HP · +2 мани · +1 Сили");
   });
 
-  it("shows remort memory without exposing the internal cap as a public scale", () => {
+  it("shows remort memory without exposing a public x/5 scale", () => {
     const text = presentHero({
       ...summary,
       remortCount: 2,

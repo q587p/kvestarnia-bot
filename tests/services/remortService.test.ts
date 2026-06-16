@@ -111,8 +111,9 @@ describe("RemortService", () => {
       expect(first.character.xp).toBe(0);
       expect(first.character.gold).toBe(0);
       expect(first.memoryRank).toBe(2);
-      expect(first.hpBonus).toBe(4);
-      expect(first.manaBonus).toBe(2);
+      expect(first.hpBonus).toBe(23);
+      expect(first.manaBonus).toBe(12);
+      expect(first.statBonus).toEqual({ stat: "strength", bonus: 6 });
       expect(first.preservedItems).toEqual([
         expect.objectContaining({ itemId: "item.foam-cork-of-accounting", quantity: 1 }),
         expect.objectContaining({ itemId: "item.pan-of-persuasion", quantity: 1 }),
@@ -231,10 +232,14 @@ describe("RemortService", () => {
       expect(result.character.raceId).toBe("race.elf");
       expect(result.character.classId).toBe("class.mage");
       expect(result.memoryRank).toBe(3);
-      expect(result.hpBonus).toBe(6);
-      expect(result.manaBonus).toBe(3);
+      expect(result.hpBonus).toBe(34);
+      expect(result.manaBonus).toBe(17);
+      expect(result.statBonus).toEqual({ stat: "strength", bonus: 9 });
       expect(result.character.hpCurrent).toBe(result.character.hpMax);
       expect(result.character.manaCurrent).toBe(result.character.manaMax);
+      expect(result.character.stats).toMatchObject({
+        strength: 14
+      });
     }
   });
 
@@ -433,7 +438,8 @@ class FakeRemortRepository implements RemortRepository {
           items: validation.keptItems,
           memoryRank: validation.memoryRank,
           hpBonus: validation.hpBonus,
-          manaBonus: validation.manaBonus
+          manaBonus: validation.manaBonus,
+          statBonus: validation.statBonus
         },
         createdAt: fixedNow
       }

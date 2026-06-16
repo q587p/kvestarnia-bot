@@ -57,7 +57,7 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - Команда `/remort` є окремим шляхом після досягнення 13 рівня.
 - На 13 рівні capstone copy пропонує `/remort`, а не лише `/restart`.
 - `/restart` лишається технічним reset/discovery loop, але не головною endgame-пропозицією.
-- Runtime details першого slice: remort-count, запис дошки, capped memory bonus до стартових HP/мани і до 5 явно вибраних owned манаток.
+- Runtime details першого slice: remort-count, запис дошки, `Памʼять минулих пригод` як 23% від попереднього level-growth для HP/мани/головної характеристики, і до 5 явно вибраних owned манаток.
 - Перед reset показується preview: що скидається, що лишається і які саме манатки обрані.
 - Нове коло має відкривати інший смак проходження без pay-to-win і без обовʼязкового grind-покарання.
 

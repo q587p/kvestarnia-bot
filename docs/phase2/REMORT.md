@@ -11,12 +11,12 @@ At level 13, a player can start a new cycle while preserving selected legacy:
 - remort count;
 - title, cosmetic mark or public identity note;
 - public board memory;
-- a small memory bonus tied to one developed stat, class/race identity or earned style;
-- slightly better starting HP/mana for the new cycle;
+- a memory bonus tied to the previous life’s developed HP, mana and primary stat growth;
+- better starting HP/mana for the new cycle;
 - up to 5 explicitly selected owned manatky;
 - no runaway veteran power.
 
-Legacy should be noticeable enough to feel like memory, not strong enough to replace normal progression, gear growth or fresh-player relevance. Every preserved benefit must be capped, transparent and weaker than simply leveling and finding better manatky in the new cycle.
+Legacy should be noticeable enough to feel like memory, not strong enough to replace normal progression, gear growth or fresh-player relevance. Every preserved benefit must be transparent and weaker than simply leveling and finding better manatky in the new cycle; if it snowballs, tune it with visible rules rather than hidden deletion.
 
 `/restart` remains the hard reset/discovery command. `/remort` is a prestige loop with explicit confirmation.
 
@@ -68,6 +68,22 @@ This is intentionally simple runtime math, not final prestige balance. After pla
 6. Service creates an idempotent remort record and resets the chosen character state.
 7. Repeated confirm replays the same remort result without adding count, bonus or items again.
 8. Result shows the legacy mark and the new start.
+
+## Shipped memory bonus
+
+The first runtime memory bonus is intentionally simple:
+
+```text
+ceil(previous_level_growth_bonus * 0.23 * remort_number)
+```
+
+It applies to:
+
+- HP gained from levels in the previous life;
+- mana gained from levels in the previous life;
+- the previous class’s primary stat growth.
+
+Example: a first remort after level 13 keeps a memory of the 12 gained levels: `+12 HP`, `+6` mana and `+3` to the previous primary stat. The UI shows this as `Памʼять минулих пригод`, not as a public `x/5` cap.
 
 ## Non-goals
 

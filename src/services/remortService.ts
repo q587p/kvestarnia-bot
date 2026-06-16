@@ -28,6 +28,7 @@ import {
   getDefaultRemortIdentity,
   getRemortMemoryRank,
   isRemortPreservableItem,
+  type RemortStatBonus,
   REMORT_DRAFT_TTL_MS,
   REMORT_MAX_PRESERVED_ITEMS,
   REMORT_REQUIRED_LEVEL,
@@ -43,6 +44,9 @@ export type RemortViewResult =
       character: CharacterSummary;
       remortCount: number;
       memoryRankAfter: number;
+      hpBonusAfter: number;
+      manaBonusAfter: number;
+      statBonusAfter: RemortStatBonus | null;
       draft: RemortDraftRecord;
       identity: RemortIdentityView;
       eligibleItems: RemortEligibleItemView[];
@@ -66,6 +70,7 @@ export type RemortConfirmResult =
       memoryRank: number;
       hpBonus: number;
       manaBonus: number;
+      statBonus: RemortStatBonus | null;
       preservedItems: Array<{ itemId: string; name: string; quantity: number }>;
       previousLevel: number;
     };
@@ -299,7 +304,9 @@ export class RemortService {
         const starter = buildRemortStarterStats({
           raceId: identity.identity.raceId,
           classId: identity.identity.classId,
-          remortNumber
+          remortNumber,
+          previousLevel: snapshot.character.level,
+          previousClassId: snapshot.character.classId
         });
 
         return {
@@ -311,6 +318,7 @@ export class RemortService {
           memoryRank: starter.memoryRank,
           hpBonus: starter.hpBonus,
           manaBonus: starter.manaBonus,
+          statBonus: starter.statBonus,
           hpCurrent: starter.hpCurrent,
           hpMax: starter.hpMax,
           manaCurrent: starter.manaCurrent,
@@ -329,6 +337,7 @@ export class RemortService {
         memoryRank: result.remort.preservedPayload.memoryRank,
         hpBonus: result.remort.preservedPayload.hpBonus,
         manaBonus: result.remort.preservedPayload.manaBonus,
+        statBonus: result.remort.preservedPayload.statBonus,
         preservedItems: result.remort.preservedPayload.items.map((item) => ({
           ...item,
           name: itemName(item.itemId)
@@ -418,12 +427,22 @@ export class RemortService {
     const identity = identityValidation.ok
       ? identityValidation.identity
       : getDefaultRemortIdentity(snapshot.character);
+    const remortPreview = buildRemortStarterStats({
+      raceId: identity.raceId,
+      classId: identity.classId,
+      remortNumber: snapshot.remortCount + 1,
+      previousLevel: snapshot.character.level,
+      previousClassId: snapshot.character.classId
+    });
 
     return {
       state: "ready",
       character: summarizeCharacter(snapshot.character, { remortCount: snapshot.remortCount }),
       remortCount: snapshot.remortCount,
       memoryRankAfter: getRemortMemoryRank(snapshot.remortCount + 1),
+      hpBonusAfter: remortPreview.hpBonus,
+      manaBonusAfter: remortPreview.manaBonus,
+      statBonusAfter: remortPreview.statBonus,
       draft: snapshot.draft,
       identity: toIdentityView(identity),
       eligibleItems,

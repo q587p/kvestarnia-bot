@@ -52,6 +52,9 @@ describe("remort presenter", () => {
       character,
       remortCount: 1,
       memoryRankAfter: 2,
+      hpBonusAfter: 23,
+      manaBonusAfter: 12,
+      statBonusAfter: { stat: "strength", bonus: 6 },
       draft: {
         token: "0123456789abcdef",
         identity: {
@@ -77,7 +80,7 @@ describe("remort presenter", () => {
       expiresAt: new Date("2026-06-17T12:00:00Z")
     } satisfies RemortViewResult);
 
-    expect(text).toContain("Памʼять минулих пригод додасть <b>+4 HP</b>");
+    expect(text).toContain("Памʼять минулих пригод додасть <b>+23 HP · +12 мани · +6 Сили</b>");
     expect(text).not.toContain("2</b>/5");
   });
 
@@ -87,14 +90,15 @@ describe("remort presenter", () => {
       character,
       remortNumber: 3,
       memoryRank: 3,
-      hpBonus: 6,
-      manaBonus: 3,
+      hpBonus: 34,
+      manaBonus: 17,
+      statBonus: { stat: "strength", bonus: 9 },
       preservedItems: [],
       previousLevel: 13
     } satisfies RemortConfirmResult);
 
     expect(text).toContain("Реморт: <b>3</b> · Памʼять минулих пригод лишилася з вами.");
-    expect(text).toContain("Спомин дав: <b>+6 HP</b> · <b>+3 мани</b>.");
+    expect(text).toContain("Спомин дав: <b>+34 HP · +17 мани · +9 Сили</b>.");
     expect(text).not.toContain("3</b>/5");
   });
 });

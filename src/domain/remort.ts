@@ -9,12 +9,13 @@ import {
 } from "../content/characterOptions";
 import { activeRaces } from "../content/races";
 import type { ItemContent, Pronoun } from "../content/schema";
-import { buildStarterStats } from "./characters/starterStats";
+import { buildStarterStats, type StatKey } from "./characters/starterStats";
+import { buildLevelGrowthBonus } from "./progression/effectiveStats";
 
 export const REMORT_REQUIRED_LEVEL = 13;
 export const REMORT_MAX_PRESERVED_ITEMS = 5;
 export const REMORT_DRAFT_TTL_MS = 30 * 60_000;
-export const REMORT_MAX_MEMORY_RANK = 5;
+const REMORT_MEMORY_BONUS_RATE = 0.23;
 
 export interface RemortIdentitySelection {
   pronoun: Pronoun;
@@ -30,6 +31,11 @@ export interface RemortPreservableItem {
   itemId: string;
   name: string;
   quantity: number;
+}
+
+export interface RemortStatBonus {
+  stat: StatKey;
+  bonus: number;
 }
 
 export type RemortIdentityValidationResult =
@@ -108,29 +114,55 @@ export function getDefaultRemortIdentity(input: {
 }
 
 export function getRemortMemoryRank(remortCount: number): number {
-  return Math.max(0, Math.min(REMORT_MAX_MEMORY_RANK, Math.floor(remortCount)));
+  return Math.max(0, Math.floor(remortCount));
 }
 
 export function buildRemortStarterStats(input: {
   raceId: string;
   classId: string;
   remortNumber: number;
+  previousLevel: number;
+  previousClassId: string;
 }) {
   const starter = buildStarterStats(input.raceId, input.classId);
   const memoryRank = getRemortMemoryRank(input.remortNumber);
-  const hpBonus = memoryRank * 2;
-  const manaBonus = memoryRank;
+  const previousGrowth = buildLevelGrowthBonus(1, input.previousLevel, input.previousClassId);
+  const hpBonus = buildRemortMemoryBonus(previousGrowth.hpMax, memoryRank);
+  const manaBonus = buildRemortMemoryBonus(previousGrowth.manaMax, memoryRank);
+  const statBonus = previousGrowth.primaryStat
+    ? {
+        stat: previousGrowth.primaryStat.stat,
+        bonus: buildRemortMemoryBonus(previousGrowth.primaryStat.bonus, memoryRank)
+      }
+    : null;
+  const stats = { ...starter.stats };
+
+  if (statBonus && statBonus.bonus > 0) {
+    stats[statBonus.stat] += statBonus.bonus;
+  }
 
   return {
     hpCurrent: starter.hpCurrent + hpBonus,
     hpMax: starter.hpMax + hpBonus,
     manaCurrent: starter.manaCurrent + manaBonus,
     manaMax: starter.manaMax + manaBonus,
-    stats: starter.stats,
+    stats,
     memoryRank,
     hpBonus,
-    manaBonus
+    manaBonus,
+    statBonus
   };
+}
+
+function buildRemortMemoryBonus(previousBonus: number, remortNumber: number): number {
+  const safePreviousBonus = Math.max(0, Math.floor(previousBonus));
+  const safeRemortNumber = getRemortMemoryRank(remortNumber);
+
+  if (safePreviousBonus <= 0 || safeRemortNumber <= 0) {
+    return 0;
+  }
+
+  return Math.ceil(safePreviousBonus * REMORT_MEMORY_BONUS_RATE * safeRemortNumber);
 }
 
 export function isRemortPreservableItem(input: {

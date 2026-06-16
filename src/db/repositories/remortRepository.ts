@@ -1,5 +1,6 @@
 import type { CharacterRecord } from "./characterRepository";
 import type { CharacterItemRecord } from "./inventoryRepository";
+import type { RemortStatBonus } from "../../domain/remort";
 
 export interface RemortIdentityRecord {
   pronoun: string;
@@ -35,6 +36,7 @@ export interface RemortRecord {
     memoryRank: number;
     hpBonus: number;
     manaBonus: number;
+    statBonus: RemortStatBonus | null;
   };
   createdAt: Date;
 }
@@ -60,6 +62,7 @@ export interface RemortCompletionInput {
         memoryRank: number;
         hpBonus: number;
         manaBonus: number;
+        statBonus: RemortStatBonus | null;
         hpCurrent: number;
         hpMax: number;
         manaCurrent: number;

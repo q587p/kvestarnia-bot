@@ -1,5 +1,6 @@
 import type { RemortConfirmResult, RemortUpdateResult, RemortViewResult } from "../../services/remortService";
 import { REMORT_MAX_PRESERVED_ITEMS } from "../../domain/remort";
+import type { StatKey } from "../../domain/characters/starterStats";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export function presentRemort(result: RemortViewResult): string {
@@ -27,7 +28,7 @@ export function presentRemort(result: RemortViewResult): string {
     "",
     "Після підтвердження персонаж почне нове життя з 1 рівня: XP і золото скинуться, спорядження знімуть, активні бійки закриються.",
     "",
-    `Памʼять минулих пригод додасть <b>+${result.memoryRankAfter * 2} HP</b> і <b>+${result.memoryRankAfter} мани</b>.`,
+    `Памʼять минулих пригод додасть <b>${presentRemortMemoryBonus(result)}</b>.`,
     "",
     "<b>Нова анкета</b>",
     `✅ Звертання: <b>${escapeHtml(result.identity.pronounLabel)}</b>`,
@@ -90,12 +91,47 @@ export function presentRemortConfirm(result: RemortConfirmResult): string {
     "",
     `<b>${escapeHtml(result.character.name)}</b> знову на 1 рівні.`,
     `Реморт: <b>${result.remortNumber}</b> · Памʼять минулих пригод лишилася з вами.`,
-    `Спомин дав: <b>+${result.hpBonus} HP</b> · <b>+${result.manaBonus} мани</b>.`,
+    `Спомин дав: <b>${presentRemortMemoryBonus(result)}</b>.`,
     "",
     ...presentPreservedItemLines(result.preservedItems),
     "",
     "Корчмар каже: тепер це не початок з нуля. Це початок із підозрілою статистикою."
   ].join("\n");
+}
+
+function presentRemortMemoryBonus(input: {
+  hpBonus?: number;
+  manaBonus?: number;
+  statBonus?: { stat: StatKey; bonus: number } | null;
+  hpBonusAfter?: number;
+  manaBonusAfter?: number;
+  statBonusAfter?: { stat: StatKey; bonus: number } | null;
+}): string {
+  const hpBonus = input.hpBonus ?? input.hpBonusAfter ?? 0;
+  const manaBonus = input.manaBonus ?? input.manaBonusAfter ?? 0;
+  const statBonus = input.statBonus ?? input.statBonusAfter ?? null;
+  const parts = [
+    hpBonus > 0 ? `+${hpBonus} HP` : null,
+    manaBonus > 0 ? `+${manaBonus} мани` : null,
+    statBonus && statBonus.bonus > 0 ? `+${statBonus.bonus} ${statLabelGenitive(statBonus.stat)}` : null
+  ].filter((part): part is string => Boolean(part));
+
+  return parts.length > 0 ? parts.join(" · ") : "поки без чисел, але з важливим виглядом";
+}
+
+function statLabelGenitive(stat: StatKey): string {
+  switch (stat) {
+    case "strength":
+      return "Сили";
+    case "dexterity":
+      return "Спритності";
+    case "intelligence":
+      return "Розуму";
+    case "charisma":
+      return "Харизми";
+    case "luck":
+      return "Вдачі";
+  }
 }
 
 function presentSelectedItems(result: Extract<RemortViewResult, { state: "ready" }>): string {

@@ -22,7 +22,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Extracted bot presence routing rules from `createBot.ts` into a small tested `presenceRouting` module.
 - Added table-driven regression tests for callback, command and main-menu presence routing, preserving the distinction between no-op presence updates and unknown callbacks.
 - Level-13 capstone copy now points to `/remort` rather than treating `/restart` as the main next step.
-- `/hero` can show `Памʼять минулих пригод` after a character has remorted, without duplicating remort count or exposing the internal cap as a public `x/5` scale.
+- `/hero` can show `Памʼять минулих пригод` after a character has remorted, without duplicating remort count or exposing a public `x/5` scale.
+- Remort memory now preserves 23% of the previous life’s level-growth HP, mana and primary-stat bonus, rounded up, instead of the old flat `+2 HP` / `+1` mana placeholder.
 - Hardened remort confirmation: pending Barrel raids block remort actions, selected items must still exist at confirm time, archived/unknown items are visible instead of silently carried, and preserved stacks keep one unit per selected item id.
 - Remort count now raises future XP thresholds proportionally, making the next climb to level 13 longer without changing the 1-13 cap.
 

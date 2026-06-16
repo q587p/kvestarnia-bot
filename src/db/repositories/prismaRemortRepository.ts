@@ -8,6 +8,7 @@ import type {
 } from "@prisma/client";
 import type { CharacterRecord } from "./characterRepository";
 import type { CharacterItemRecord } from "./inventoryRepository";
+import type { StatKey } from "../../domain/characters/starterStats";
 import type {
   RemortBoard,
   RemortCompletionInput,
@@ -237,7 +238,8 @@ export class PrismaRemortRepository implements RemortRepository {
             items: validation.keptItems,
             memoryRank: validation.memoryRank,
             hpBonus: validation.hpBonus,
-            manaBonus: validation.manaBonus
+            manaBonus: validation.manaBonus,
+            statBonus: validation.statBonus
           } as unknown as Prisma.InputJsonValue,
           createdAt: input.now
         }
@@ -602,7 +604,8 @@ function parsePreservedPayload(value: unknown): RemortRecord["preservedPayload"]
       items: [],
       memoryRank: 0,
       hpBonus: 0,
-      manaBonus: 0
+      manaBonus: 0,
+      statBonus: null
     };
   }
 
@@ -611,8 +614,18 @@ function parsePreservedPayload(value: unknown): RemortRecord["preservedPayload"]
     items: parseKeptItems(value.items),
     memoryRank: intOrZero(value.memoryRank),
     hpBonus: intOrZero(value.hpBonus),
-    manaBonus: intOrZero(value.manaBonus)
+    manaBonus: intOrZero(value.manaBonus),
+    statBonus: parseStatBonus(value.statBonus)
   };
+}
+
+function parseStatBonus(value: unknown): { stat: StatKey; bonus: number } | null {
+  if (!isRecord(value) || !isStatKey(value.stat)) {
+    return null;
+  }
+
+  const bonus = intOrZero(value.bonus);
+  return bonus > 0 ? { stat: value.stat, bonus } : null;
 }
 
 function parseKeptItems(value: unknown): Array<{ itemId: string; quantity: number }> {
@@ -671,4 +684,14 @@ function intOrZero(value: unknown): number {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStatKey(value: unknown): value is StatKey {
+  return (
+    value === "strength" ||
+    value === "dexterity" ||
+    value === "intelligence" ||
+    value === "charisma" ||
+    value === "luck"
+  );
 }

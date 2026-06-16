@@ -325,7 +325,7 @@ Hunt Board лишається простим для входу: один кон�
 - It is not `/restart`: reset/preserve rules must be visible before confirmation and covered by tests.
 - First remort slice preserves memory and up to 5 selected owned manatky, including powerful or sentimental ones. If this bends balance too much, fix it with explicit tags, level gates, attunement or remort-only rules rather than silent deletion.
 - Remort preserves one unit per selected item id in this MVP. Unknown/archived item ids may be selectable with a fallback label, but they must not be carried invisibly outside the 5-item promise.
-- Legacy bonus is capped at memory rank 5: `+2 HP` and `+1` mana per rank for the next start only.
+- Legacy bonus uses `ceil(previous_level_growth_bonus * 0.23 * remort_number)` for HP, mana and the previous class’s primary stat. It is visible as `Памʼять минулих пригод`, not a public `x/5` cap; if it snowballs, tune through explicit gates/tags/attunement.
 - No paid remort, hidden wipe, automatic prestige, 14+ levels or remort-only power track in this slice.
 
 ## Combat simulation harness
