@@ -1,20 +1,31 @@
-﻿# Next Implementation Backlog після `0.0.25`
+﻿# Next Implementation Backlog після `0.1.0`
 
-## 0.0.x Closeout / 0.1.x Transition
+## Current order after `0.1.0`
 
-Перед новими feature tracks звірятися з `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md` і `docs/PHASE1_CLOSEOUT_SMOKE.md`.
+`0.0.x` завершено після `0.0.30 — Level Barter Safety & Closeout Alignment`. `0.1.0 — Phase 1 Closeout` є release/docs/smoke PR: version bump, release notes, changelog/news, README, roadmap/backlog/playtesting alignment, and no new gameplay runtime.
 
-Після `0.0.29 — Yeger Tracking Search` не тягнути в лінійку `0.0.x` нові системи на кшталт Achievements runtime, продажу манаток задля пива, Bestiary filters, Глибки, durable Barrel outbox, shops/trading/crafting, group raids, guilds, PvP або Mini App. Якщо це не blocker core loop і не маленький targeted fix, воно має їхати в `0.1.x` backlog.
+Перед новими feature tracks звірятися з:
+- [PHASE1_RELEASE_NOTES.md](PHASE1_RELEASE_NOTES.md)
+- [PHASE1_CLOSEOUT_0_1_TRANSITION.md](PHASE1_CLOSEOUT_0_1_TRANSITION.md)
+- [PHASE1_CLOSEOUT_SMOKE.md](PHASE1_CLOSEOUT_SMOKE.md)
 
-Closure PR `0.1.0` має бути release/docs/smoke PR: version surface, changelog/news, README, roadmap/backlog freeze, Phase 1 release notes і явний deferred list. Runtime gameplay changes у ньому допустимі тільки як мінімальні blocker fixes.
+Перший порядок `0.1.x`:
 
-Нижче — канонічний порядок маленьких PR для добивання Phase 1. Кожен slice має бути перевірюваним окремо; якщо PR роздувається, різати.
+1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, and smoke fallout.
+2. `0.1.2` — choose one reliability/polish item based on real pain: durable Barrel completion notifications or Mantok Chest pending cleanup.
+3. `0.1.3` — Hlybka routing or fight/quest navigation cleanup if playtest shows confusion around where fights happen.
+4. `0.1.4` — rewardless achievements only if the core loop remains stable.
+5. Later `0.1.x` — Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, Munchkin manual selection, and other small scoped expansions.
 
-## Phase 1 Scope Guard
+Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, `/remort`, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/trading/crafting, item-instance inventory, group raids, guilds, PvP, Mini App, and broad combat rewrites are not part of `0.1.0`.
+
+Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
+
+## Post-closeout scope guard
 
 Бестіарій лишається content/data foundation: read-only `/bestiary`, monster content, loot notes, flavor routing і Hunt Board contract source.
 
-Не розширювати бестіарій як окрему фічу, collection loop, share card або journal progression, доки не закритий основний RPG-ланцюжок:
+Не розширювати бестіарій як окрему фічу, collection loop, share card або journal progression, доки `0.1.x` playtest не підтвердить, що закритий Phase 1 ланцюжок стабільний:
 
 ```text
 persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/mana persistence → recovery/balance polish → inventory/chest polish → balance/playtest polish
@@ -587,7 +598,7 @@ Implemented in PR #39.
 ## 0.0.26 — Phase 1 Recovery & Balance Polish
 
 **Status**
-Current stabilization slice after `0.0.25`. This is the small pass that keeps HP/mana attrition, passive recovery, loot expansion, Hunt Board scaling, and persistent fight rewards coherent before the next feature slice.
+Implemented in `0.0.26`; retained here as archive context for the recovery/balance stabilization pass.
 
 **Objective**
 Підрівняти відчуття після `0.0.25`: hero recovery має бути зрозумілим, same-level fights — не ламатися на верхніх рівнях, а локальний smoke path — легко повторюваним.
@@ -664,6 +675,9 @@ Implemented in the `0.0.28` slice as `Неспокійні справи`: level 
 - group hunt hooks after solo loop stabilizes.
 
 ## 0.0.29+ — Phase 1 Balance and Playtest Polish
+
+**Status**
+Closed by `0.1.0`; remaining polish belongs to the explicit `0.1.x` order at the top of this document.
 
 **Objective**
 Не додавати фічі, а довести Phase 1 до done: real fight → reward → loot → level-up → hero/equipment/resources impact має мати нормальний темп 1-13 і зрозумілий playtest checklist.

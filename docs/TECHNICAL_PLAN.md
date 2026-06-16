@@ -16,6 +16,8 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 - Vitest для тестів.
 - Локальна SQLite БД через `DATABASE_URL=file:./dev.db`.
 
+`0.1.0` is a release/docs/smoke closeout for Phase 1. It does not add a production dependency, schema migration, scheduler architecture, or new runtime gameplay system.
+
 ## Структура репозиторію
 ```text
 src/
@@ -121,6 +123,7 @@ Future equipment/trading notes:
 - Player-to-player exchange/gifting needs an idempotent transaction: remove/decrement from sender, create/increment for receiver, write an audit/transfer row, and fail cleanly if the sender no longer owns the item.
 - `0.0.29` adds a narrow Манчкін-скупник item/gold-to-level exchange. Confirm recomputes the auto-pick fingerprint inside a transaction, rejects stale preview tokens, ignores/rejects equipped/priceless/protected/zero-value items, consumes selected stacks with guarded decrements, spends only the missing wallet gold, grants exactly one allowed level, preserves XP carry, and records level milestones. It deliberately blocks the `12 → 13` exchange: 13 рівень має приходити тільки через бої.
 - `0.0.30` hardens that exchange with `level_barter_exchanges`: repeated confirm for an already completed token returns replay/audit data instead of attempting a second spend or showing a misleading stale-selection error. Gold-only exchange is intentionally denied; at least one eligible priced манатка must be part of the exchange, while wallet gold may only fill the missing value. Level-barter callbacks are blocked during pending Barrel raids like other progression/spending actions.
+- `0.1.0` does not widen this economy surface. `level_barter_exchanges` remains a narrow idempotency/audit table for the Munchkin barter path, not a general sale, trade, shop, or item-instance ledger.
 - Follow-up debt: the exchange currently has safe auto-pick only. Manual selection should reuse or generalize the Скриня Манаток selector later and keep the same ledger/replay boundary, and item-instance identity must be revisited before selling/trading or split-stack equipment.
 
 ### cooldowns

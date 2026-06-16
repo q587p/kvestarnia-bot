@@ -1,6 +1,6 @@
 # Phase 1 Closeout Smoke
 
-Цей checklist — фінальна ручна рамка перед `0.1.0`. Він доповнює [docs/PLAYTESTING.md](PLAYTESTING.md) і [docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md](PHASE1_CLOSEOUT_0_1_TRANSITION.md), але не замінює unit/integration tests.
+Цей checklist — фінальна ручна рамка для `0.1.0` Phase 1 closeout. Він доповнює [docs/PLAYTESTING.md](PLAYTESTING.md), [docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md](PHASE1_CLOSEOUT_0_1_TRANSITION.md) і [docs/PHASE1_RELEASE_NOTES.md](PHASE1_RELEASE_NOTES.md), але не замінює unit/integration tests.
 
 ## New Player
 
@@ -80,6 +80,7 @@
 - [ ] `/news` або renders news, або fail-ить помітно, якщо `news.md` відсутній.
 - [ ] Homepage loads.
 - [ ] `/presence` групує по місцинах і не показує exact timestamps.
+- [ ] `/version` після deploy показує `0.1.0`.
 
 ## Release Gate
 

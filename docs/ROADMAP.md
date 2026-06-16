@@ -15,7 +15,7 @@ Done when:
 - `npm test`, `npm run typecheck`, `npm run lint` проходять.
 - Є один приклад content entity: race, class, monster, item.
 
-## Phase 1 — Solo MVP loop
+## Phase 1 — Solo MVP loop (closed in `0.1.0`)
 Мета: гравець може створити персонажа, пройти бій, отримати XP/лут, екіпірувати предмет.
 
 Deliverables:
@@ -36,6 +36,12 @@ Done when:
 - Нагороди ідемпотентні.
 - Бій має unit tests.
 
+Status:
+- Closed by `0.1.0 — Phase 1 Closeout`.
+- `0.0.x` is no longer the active build line after `0.0.30`.
+- Phase 1 is playable and smokeable, not final-balanced and not closed-alpha complete.
+- Next work belongs to the `0.1.x` stabilization/playtest line unless a blocker fix is required.
+
 Current tiny inventory slice:
 - `/inventory`, `/items`, `/bag` show persistent манатки.
 - `0.0.13` adds item detail callbacks, visible item value/priceless metadata, and preview-only `/equipment`, `/gear`, `/equip` without equipped state or stat effects.
@@ -51,10 +57,15 @@ Current tiny inventory slice:
 - `0.0.24` raises the current alpha cap to level 13, moves the capstone `/restart` suggestion there, and adds a narrow level 4+ cellar follow-up once the mouse errand retires.
 - `0.0.25` adds persistent HP/mana attrition and lazy recovery, Loot Expansion v1 for persistent fights, level 4-13 monster trophy coverage, Hunt Board scaling, and the release-surface cleanup from PR #39.
 - `0.0.26` is the recovery/balance stabilization pass: clearer HP 0 rest guidance, a small ordinary-monster curve tune for the 3/4/8/13 smoke band, and no new systems.
-- Phase 1 finish rule after `0.0.25`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки не закритий основний RPG-ланцюжок: recovery/balance polish → inventory/chest polish → levels/resources/rewards tuning → balance/playtest polish. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
-- Detailed finish sequence lives in `docs/PHASE1_FINISH_PLAN.md`; the closeout cutline for `0.0.x` → `0.1.x` lives in `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`, and the final smoke gate lives in `docs/PHASE1_CLOSEOUT_SMOKE.md`. `docs/NEXT_IMPLEMENTATION_BACKLOG.md` tracks the next small PR order.
+- `0.0.27` adds manual Mantok Chest input selection with compact callbacks and stale-input protection.
+- `0.0.28` replaces the old hourly Hunt Board reward faucet with the first Yeger unquiet quest and front-door milestone board.
+- `0.0.29` adds Yeger tracking wait/ready resolution and the first outside-korchma Munchkin level barter exchange.
+- `0.0.30` hardens Munchkin barter with replay-safe audit rows, no gold-only exchange, protected/equipped exclusions, and pending Barrel guards.
+- `0.1.0` closes Phase 1 with version, release notes, changelog/news, smoke docs, roadmap/backlog alignment, and no new gameplay runtime.
+- Phase 1 finish rule after `0.1.0`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки `0.1.x` playtest не покаже, що core loop стабільний. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
+- Detailed finish sequence lives in `docs/PHASE1_FINISH_PLAN.md`; the closeout cutline for `0.0.x` → `0.1.x` lives in `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`, the final smoke gate lives in `docs/PHASE1_CLOSEOUT_SMOKE.md`, and canonical release notes live in `docs/PHASE1_RELEASE_NOTES.md`. `docs/NEXT_IMPLEMENTATION_BACKLOG.md` tracks the next small PR order.
 - Tavern/adventure/fight first completions can grant fixed items.
-- Full itemization, random loot tables, crafting, market, and trading remain later Phase 1+ work.
+- Full itemization, random loot tables, crafting, market, and trading remain later work after stabilization.
 - Future equipment expansions should keep layering through the same equipment/effective-stats helper instead of adding presenter-specific math.
 - Future `/fight` should replace the single generic `Вдарити` action with class/race/combo-aware attack options: physical strikes, mana-spending spells, tricks, seals, songs, traps, and equipment-shaped variants with visible resource costs.
 - Future equipment rules should support level-gated items that can drop before they are wearable, plus rarer race/class/path-specific манатки with future bypass/attunement/respec tricks.
@@ -70,6 +81,21 @@ Current repeatable slice:
 - `0.0.24` adds `Справа не до миші` for level 4+ heroes who try the retired cellar route: buy a seal or roleplay past the mouse, obtain `Пляшка Пінного Міражу` once, then carry it to `🍻 Шинок` for permanent turn-in through `daily_actions`.
 - Корчемний рейд у `0.0.11` отримав pending state на випадкові 5–8 хвилин: пригодник «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
 - A future progression/balance pass should make level matter more strongly in HP, mana, combat math, event checks, content gates, and reward-facing decisions.
+
+## 0.1.x — Stabilization / Playtest line
+Мета: стабілізувати закриту Phase 1 петлю, виправити реальні playtest-болі й лише потім обережно додавати малі розширення.
+
+Current order:
+1. `0.1.1` — playtest bugfixes, copy polish, and small UX papercuts.
+2. `0.1.2` — choose one reliability/polish item based on pain: durable Barrel completion notifications or Mantok Chest pending cleanup.
+3. `0.1.3` — Hlybka routing or fight/quest navigation cleanup if playtest shows the current flow is confusing.
+4. `0.1.4` — rewardless achievements only if the core loop remains stable.
+5. Later `0.1.x` — Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, and similarly small scoped expansions.
+
+Guardrails:
+- No new large gameplay system in `0.1.0`.
+- New runtime feature tracks should wait for smoke and stabilization evidence.
+- Phase 2 group hook remains future work, not part of the closeout PR.
 
 ## Phase 2 — Group hook
 Мета: перша фіча, заради якої бот додають у групу.
