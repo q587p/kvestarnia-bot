@@ -13,7 +13,7 @@ At level 13, a player can start a new cycle while preserving selected legacy:
 - public board memory;
 - a small memory bonus tied to one developed stat, class/race identity or earned style;
 - slightly better starting HP/mana for the new cycle;
-- up to 5 explicitly selected eligible manatky;
+- up to 5 explicitly selected owned manatky;
 - no runaway veteran power.
 
 Legacy should be noticeable enough to feel like memory, not strong enough to replace normal progression, gear growth or fresh-player relevance. Every preserved benefit must be capped, transparent and weaker than simply leveling and finding better manatky in the new cycle.
@@ -25,7 +25,7 @@ Legacy should be noticeable enough to feel like memory, not strong enough to rep
 1. Hero reaches level 13.
 2. Capstone copy points to `/remort` as the next long-term option.
 3. `/remort` shows a reset/preserve preview: level/XP/current combat state reset, selected legacy kept.
-4. Player explicitly selects up to 5 eligible manatky to preserve, or continues with none.
+4. Player explicitly selects up to 5 owned manatky to preserve, or continues with none.
 5. Final confirmation shows the preserved list, legacy bonus and reset consequences.
 6. Service creates an idempotent remort record and resets the chosen character state.
 7. Repeated confirm replays the same remort result without adding count, bonus or items again.
@@ -41,11 +41,12 @@ Legacy should be noticeable enough to feel like memory, not strong enough to rep
 
 ## Preserve rules
 
-The current runtime item eligibility is intentionally conservative:
+The current runtime carry-over rule is intentionally bold but explicit:
 
-- equipped and effect-bearing manatky are not selectable as remort carry-over;
-- protected/story/priceless keepsakes are preserved by system rule when appropriate, not manually selected as power;
-- if any protected/story/priceless exception becomes manually selectable later, it needs explicit design text and tests before runtime;
+- known owned manatky are selectable, including equipped, effect-bearing, protected, story and priceless keepsakes;
+- unknown item ids are kept defensively so content drift does not silently delete old inventory;
+- the limit of 5 selected item ids is the first guardrail, not a promise that every future item will remain unrestricted forever;
+- future rare/remort-only manatky can require remort count, level gates, tags or attunement if playtest shows power creep.
 - selected manatky must be shown by name before confirmation;
 - if inventory changes between preview and confirm, the confirm must revalidate and fail safely or replay the already completed result;
 - `/restart` remains separate, destructive and should not silently share `/remort` preserve behavior.
@@ -70,8 +71,8 @@ The exact reset/preserve list must be decided in the runtime PR and covered by t
 - Unavailable below level 13.
 - Reset/preserve preview appears before any reset.
 - Clear confirmation before any reset.
-- Player can explicitly preserve up to 5 eligible manatky, with the selected names shown before confirm.
-- Protected/story/priceless/equipped rules are explicit and tested.
+- Player can explicitly preserve up to 5 owned manatky, with the selected names shown before confirm.
+- Equipped/effect-bearing/protected/story/priceless carry-over rules are explicit and tested.
 - Remort record is idempotent; repeated confirm cannot duplicate remort count, legacy bonus, preserved manatky or rewards.
 - `/restart` and `/remort` are explained as different actions.
 - Player-facing text uses Квестарня’s comic tone without hiding consequences.
@@ -80,5 +81,6 @@ The exact reset/preserve list must be decided in the runtime PR and covered by t
 
 - Remort-only titles, cosmetic marks and richer board copy.
 - Remort-only race/class flavor with no paid power and no veteran runaway.
+- Rare manatky that require remort to equip, awaken or understand.
 - Rename/identity polish only after separate user-generated-name moderation decisions.
 - Stronger legacy mechanics only after playtest proves the base loop is fair.

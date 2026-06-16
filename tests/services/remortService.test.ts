@@ -27,7 +27,7 @@ describe("RemortService", () => {
     });
   });
 
-  it("opens a level 13 draft with safe item selection", async () => {
+  it("opens a level 13 draft with every known item available for explicit selection", async () => {
     const repository = new FakeRemortRepository(snapshot({
       level: 13,
       items: [
@@ -43,7 +43,11 @@ describe("RemortService", () => {
 
     expect(result.state).toBe("ready");
     if (result.state === "ready") {
-      expect(result.eligibleItems.map((row) => row.itemId)).toEqual(["item.foam-cork-of-accounting"]);
+      expect(result.eligibleItems.map((row) => row.itemId)).toEqual([
+        "item.foam-cork-of-accounting",
+        "item.wet-hero-ticket",
+        "item.pan-of-persuasion"
+      ]);
       expect(result.selectedItems).toEqual([]);
       expect(repository.draft?.identity).toMatchObject({
         pronoun: "they",
@@ -61,8 +65,10 @@ describe("RemortService", () => {
       remortCount: 1,
       items: [
         item({ itemId: "item.foam-cork-of-accounting", quantity: 2 }),
-        item({ id: "protected", itemId: "item.wet-hero-ticket", quantity: 1 })
-      ]
+        item({ id: "protected", itemId: "item.wet-hero-ticket", quantity: 1 }),
+        item({ id: "equipped", itemId: "item.pan-of-persuasion", quantity: 1 })
+      ],
+      equippedItemIds: ["item.pan-of-persuasion"]
     }));
     const service = new RemortService(repository, () => fixedNow);
     const opened = await service.openForTelegramUser(telegramUserId);
@@ -72,6 +78,8 @@ describe("RemortService", () => {
     }
 
     await service.toggleItem(telegramUserId, opened.draft.token, "item.foam-cork-of-accounting");
+    await service.toggleItem(telegramUserId, opened.draft.token, "item.wet-hero-ticket");
+    await service.toggleItem(telegramUserId, opened.draft.token, "item.pan-of-persuasion");
     const first = await service.confirmForTelegramUser(telegramUserId, opened.draft.token);
     const second = await service.confirmForTelegramUser(telegramUserId, opened.draft.token);
 
@@ -86,6 +94,7 @@ describe("RemortService", () => {
       expect(first.manaBonus).toBe(2);
       expect(first.preservedItems.map((row) => row.itemId)).toEqual([
         "item.foam-cork-of-accounting",
+        "item.pan-of-persuasion",
         "item.wet-hero-ticket"
       ]);
     }

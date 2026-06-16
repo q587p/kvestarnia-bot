@@ -11,7 +11,7 @@ import {
 } from "../content/characterOptions";
 import { activeRaces } from "../content/races";
 import { classes } from "../content/classes";
-import type { ItemContent, Pronoun } from "../content/schema";
+import type { Pronoun } from "../content/schema";
 import type {
   RemortBoard,
   RemortDraftRecord,
@@ -414,13 +414,12 @@ export class RemortService {
 
 function buildEligibleItems(snapshot: RemortSnapshot): RemortEligibleItemView[] {
   const contentById = new Map(items.map((item) => [item.id, item]));
-  const equipped = new Set(snapshot.equippedItemIds);
 
   return snapshot.items.flatMap((row) => {
     const content = contentById.get(row.itemId);
     const quantity = Math.max(0, Math.floor(row.quantity));
 
-    if (!content || quantity <= 0 || !isRemortPreservableItem({ item: content, equippedItemIds: equipped })) {
+    if (!content || quantity <= 0 || !isRemortPreservableItem({ item: content })) {
       return [];
     }
 
@@ -468,7 +467,7 @@ function buildKeptItems(
   for (const row of snapshot.items) {
     const content = contentById.get(row.itemId);
 
-    if (!content || shouldAlwaysKeepItem(content)) {
+    if (!content) {
       kept.set(row.itemId, Math.max(0, Math.floor(row.quantity)));
     }
   }
@@ -481,10 +480,6 @@ function buildKeptItems(
     .filter(([, quantity]) => quantity > 0)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([itemId, quantity]) => ({ itemId, quantity }));
-}
-
-function shouldAlwaysKeepItem(item: ItemContent): boolean {
-  return item.priceless === true || item.id === "item.badge-of-thirteen-small-problems";
 }
 
 function toIdentityView(identity: RemortIdentityRecord): RemortIdentityView {

@@ -100,7 +100,7 @@ export function presentRemortConfirm(result: RemortConfirmResult): string {
 
 function presentSelectedItems(result: Extract<RemortViewResult, { state: "ready" }>): string {
   if (result.eligibleItems.length === 0) {
-    return "Немає безпечних манаток для перенесення. Захищені сувеніри лишаться окремо, але бонусні речі в нове життя не пролазять.";
+    return "Немає відомих манаток для перенесення. Торба дивиться на свічку й робить вигляд, що так легше.";
   }
 
   if (result.selectedItems.length === 0) {

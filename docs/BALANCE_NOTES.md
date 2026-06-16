@@ -321,7 +321,7 @@ Hunt Board лишається простим для входу: один кон�
 `0.1.2` додає перший `/remort` runtime slice:
 - `/remort` is explicit and unavailable below level 13.
 - It is not `/restart`: reset/preserve rules must be visible before confirmation and covered by tests.
-- First remort slice preserves memory and selected safe manatky, not permanent combat power.
+- First remort slice preserves memory and up to 5 selected owned manatky, including powerful or sentimental ones. If this bends balance too much, fix it with explicit tags, level gates, attunement or remort-only rules rather than silent deletion.
 - Legacy bonus is capped at memory rank 5: `+2 HP` and `+1` mana per rank for the next start only.
 - No paid remort, hidden wipe, automatic prestige, 14+ levels or remort-only power track in this slice.
 

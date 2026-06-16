@@ -9,7 +9,6 @@ import {
 } from "../content/characterOptions";
 import { activeRaces } from "../content/races";
 import type { ItemContent, Pronoun } from "../content/schema";
-import { isProtectedMantokChestItem } from "./mantokChest";
 import { buildStarterStats } from "./characters/starterStats";
 
 export const REMORT_REQUIRED_LEVEL = 13;
@@ -138,15 +137,7 @@ export function isRemortPreservableItem(input: {
   item: ItemContent;
   equippedItemIds?: ReadonlySet<string>;
 }): boolean {
-  if (input.equippedItemIds?.has(input.item.id)) {
-    return false;
-  }
-
-  if (input.item.effect) {
-    return false;
-  }
-
-  return !isProtectedMantokChestItem(input.item);
+  return Boolean(input.item.id);
 }
 
 export function getPronounShortLabel(pronoun: Pronoun): string {

@@ -263,9 +263,9 @@ Added in `0.1.2` for explicit `/remort` at level 13.
 
 Rules:
 - `/remort` must be explicit and unavailable below level 13.
-- It is not `/restart`; it shows reset/preserve preview, can preserve up to 5 explicitly selected eligible manatky, and must not create runaway veteran power.
+- It is not `/restart`; it shows reset/preserve preview, can preserve up to 5 explicitly selected owned manatky, and must not create runaway veteran power.
 - Confirm re-reads the character, draft, inventory and equipment in one transaction; repeated confirm for a completed token replays the remort instead of resetting twice.
-- Current MVP preserves selected safe non-effect manatky at max 1 per item id and keeps protected/priceless/story souvenirs conservatively. Equipped, effect-bearing, protected, story, quest, priceless and blocked items are not selectable.
+- Current MVP preserves selected known owned manatky at max 1 per item id. Equipped, effect-bearing, protected, story, quest and priceless items are selectable on purpose: remort is allowed to carry a few memorable or powerful things forward. Unknown item ids are kept defensively so content drift does not silently delete old inventory. If balance breaks, future patches should add explicit item tags, level gates, attunement or remort-only restrictions with player-facing preview.
 - Completed remort resets level/XP/gold/resources, clears equipment, expires active solo fights, cancels pending Mantok Chest / level-barter / remort previews and clears stale adventure/raid ids.
 - Legacy power is capped: memory rank is `min(remortNumber, 5)` and grants only small starting HP/mana bonuses.
 

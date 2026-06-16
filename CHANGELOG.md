@@ -10,7 +10,7 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.1.2] - 12026-06-16 - Remort at Level 13 & Presence Cleanup
 
 ### Added
-- Added `/remort` as an explicit level-13 prestige loop: preview, identity rebuild, safe manatky preservation, confirmation and idempotent replay.
+- Added `/remort` as an explicit level-13 prestige loop: preview, identity rebuild, selected manatky preservation, confirmation and idempotent replay.
 - Added `character_remort_drafts` and `character_remorts` ledger tables for remort drafts, completed remort history and the front-door memorial board.
 - Added a `🕯️ Реморти Тринадцятки` block to the Propamiatna Doshka, showing the first remorts by remort number.
 

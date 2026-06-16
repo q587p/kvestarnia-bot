@@ -56,14 +56,15 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - Команда `/remort` є окремим шляхом після досягнення 13 рівня.
 - На 13 рівні capstone copy пропонує `/remort`, а не лише `/restart`.
 - `/restart` лишається технічним reset/discovery loop, але не головною endgame-пропозицією.
-- Runtime details першого slice: remort-count, запис дошки, capped memory bonus до стартових HP/мани і до 5 явно вибраних eligible манаток.
-- Перед reset показується preview: що скидається, що лишається, які саме манатки обрані й чому частина речей не eligible.
+- Runtime details першого slice: remort-count, запис дошки, capped memory bonus до стартових HP/мани і до 5 явно вибраних owned манаток.
+- Перед reset показується preview: що скидається, що лишається і які саме манатки обрані.
 - Нове коло має відкривати інший смак проходження без pay-to-win і без обовʼязкового grind-покарання.
 
 **Follow-ups**
 
 - remort-only title/cosmetic options;
 - remort-only race/class flavor without stronger power snowball;
+- rare remort-gated manatky that only wake up, equip or reveal their proper joke after one or more remorts;
 - richer public board/history text;
 - possible renaming flow after separate UGC/moderation guardrails.
 
@@ -82,8 +83,8 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - `/remort` має окремий confirmation flow і не плутається з `/restart`;
 - unavailable below level 13;
 - preview shows reset/preserve consequences;
-- player can explicitly select up to 5 eligible preserved manatky;
-- protected/story/priceless/equipped manatky rules are explicit;
+- player can explicitly select up to 5 owned preserved manatky;
+- protected/story/priceless/equipped/effect-bearing manatky rules are explicit and player-facing;
 - remort-state/rewards ідемпотентні й не дублюються повторним callback-ом;
 - docs пояснюють, чим `/remort` відрізняється від `/restart`;
 - tests cover unavailable below level 13, confirmation, successful remort, repeated confirm, and preserved/deleted state choices.
