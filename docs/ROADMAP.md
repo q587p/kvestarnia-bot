@@ -192,6 +192,9 @@ Deliverables:
 Done when:
 - Mini App покращує UX, але основна гра залишається playable через bot buttons.
 
+Very-later platform note:
+- Повноцінний web-клієнт і боти для інших месенджерів на кшталт WhatsApp/Viber лишаються дуже далеким напрямом після стабілізації core loop, соціяльних систем і adapter boundaries. Це не частина `0.1.x` і не public promise.
+
 ## Backlog фіч
 - Achievements Phase 1: 54 seed definitions, earned/locked/hidden states, paginated `🏅 Ачівки` surface, grouped unlock notifications, no gameplay bonuses. Canonical doc: `docs/ACHIEVEMENTS_PHASE1.md`.
 - Collections: «Бестіарій», «Музей Манаток».
@@ -218,6 +221,7 @@ Done when:
 - Inline-bot виклики на драку для майбутнього соціяльного PvP: challenge card з інших чатів, але з opt-in, cooldowns і privacy guardrails.
 - Moderation tools for group admins.
 - Web dashboard for balancing.
+- Very-later web play client and non-Telegram messenger adapters after the core bot architecture is stable.
 
 ## Не робити до стабільної альфи
 - Real-money power.

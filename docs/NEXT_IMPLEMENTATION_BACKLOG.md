@@ -27,7 +27,7 @@
 
 Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
 
-Deferred side tracks remain useful but should not steal the Phase 2 spine: durable Barrel notification reliability, Mantok Chest pending cleanup, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs, NPC rankings and the docs-planned Support Jar live status.
+Deferred side tracks remain useful but should not steal the Phase 2 spine: durable Barrel notification reliability, Mantok Chest pending cleanup, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs, NPC rankings, the docs-planned Support Jar live status, and very-late alternate clients such as web play or non-Telegram messenger bots.
 
 Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
 
@@ -131,6 +131,38 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - власна позиція показується окремо й працює поза top 39;
 - ties стабільні між переглядами;
 - tests cover score calculation, pagination, own-rank outside top 39, privacy-safe names, no exact timestamps, and Telegram message length guard.
+
+## Very later — Web and Multi-Messenger Play Surfaces
+
+**Objective**
+Колись дати гравцям можливість грати не тільки через Telegram: легкий web-клієнт і, можливо, окремі bot adapters для інших месенджерів на кшталт WhatsApp, Viber або інших платформ, якщо там буде сенс і нормальні API.
+
+**Product direction**
+
+- Telegram bot лишається канонічним playable surface до стабільної альфи.
+- Web play surface має бути саме грою, а не лише dashboard-ом: герой, корчма, справи, бій, манатки й базова навігація через shared application services.
+- Інші месенджери мають бути adapters поверх тієї самої доменної логіки, без копіювання правил гри в окремі кодові гілки.
+- Кожна платформа повинна мати чесні privacy, identity, callback/idempotency і anti-abuse правила; не переносити Telegram-specific припущення як універсальні.
+
+**Preconditions**
+
+- core Telegram loop стабільний і має достатньо playtest evidence;
+- domain/services відділені від grammY настільки, щоб інший adapter не вимагав переписати бойову, loot, inventory або remort логіку;
+- є нормальна web/session/auth історія без витоку Telegram id, приватних локацій або player names;
+- є окремий support/hosting план, бо кілька клієнтів означають більше surface area, логів і maintenance.
+
+**Non-goals before then**
+
+- no WhatsApp/Viber runtime у `0.1.x`;
+- no web rewrite замість Telegram bot-а;
+- no Mini App dependency як обовʼязковий шлях гри;
+- no public promise про дату або конкретну платформу, доки немає технічного spike-а й політик платформи.
+
+**First investigation slice**
+
+- перевірити API/ToS/hosting constraints для web, WhatsApp, Viber та інших кандидатів;
+- описати shared adapter boundary: input command/callback → application service → presenter payload → platform renderer;
+- вибрати одну read-only або low-risk дію для proof-of-concept, наприклад `/hero` чи read-only корчемний hub, без reward mutation.
 
 ## Later — Durable Barrel Raid Notifications
 
