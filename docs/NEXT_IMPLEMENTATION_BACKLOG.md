@@ -705,6 +705,44 @@ Implemented in the `0.0.28` slice as `Неспокійні справи`: level 
 - Fight turn wording cleanup: якщо callback answer каже `Хід записано`, а fight screen уже показує `Хід: N`, не називати log section `Останній хід` поруч із цим. Звести до одного терміна (`Раунд`, `Журнал`, `Остання дія` або без заголовка), щоб бойовий екран не звучав як три службові журнали один на одному. Tests should cover the player-facing flow text, not only individual presenter snippets.
 - Active fight keyboard cleanup: коли persistent fight уже активний, не показувати `⬅️ До столу` поруч із бойовими діями. У бою гравець має або діяти (`Вдарити`, уміння, майбутній `Захист`), або пробувати `Відступити`; вихід до Столу має зʼявлятися тільки в terminal/non-active states або як окрема safe navigation після завершення. Tests should assert active fight keyboards do not include quest-table navigation.
 
+## Later — Battle Interventions / Витівка Прилавка
+
+**Objective**
+Додати стартовий risk/reward вибір перед eligible solo боєм: Припічник може послабити монстра за меншу нагороду, лишити все як є або досипати перцю й підняти effective level за кращий потенційний reward.
+
+**Source**
+
+- `docs/BATTLE_INTERVENTIONS.md`;
+- локальний planning archive `kvestarnia-battle-interventions-archive.zip` містив початкові design/copy/tasks/prompt notes.
+
+**Scope**
+
+- pre-first-turn intervention phase for regular solo fights;
+- choices: `help` (`-3` effective monster levels), `none`, `hinder` (`+2` effective monster levels);
+- base monster level and effective monster level tracked separately;
+- combat stats use effective level, while monster identity/content stays the same;
+- reward modifiers make help safer but poorer, and hinder riskier but potentially richer;
+- capped overlevel XP multiplier for defeating a monster above player level;
+- timeout defaults to `none`, never to `hinder`;
+- duplicate/stale/other-user callbacks are idempotent and safe.
+
+**Non-goals**
+
+- no tutorial/story/fixed-reward fights;
+- no group/PvP/social intervention stacking yet;
+- no broad combat rewrite;
+- no hidden mutation of monster templates;
+- no uncapped reward farming;
+- no player-to-player help/hinder until anti-abuse rules exist.
+
+**Acceptance criteria**
+
+- tests cover pure level/reward functions, eligibility, callback ownership, duplicate callbacks, timeout default, and reward differences;
+- result copy clearly says why reward changed;
+- Telegram buttons stay short and Ukrainian;
+- feature can be disabled or kept out of special encounters;
+- future player/event intervention source types are not blocked by the state shape.
+
 ## Later — Combat Variety: Guard, Cooldowns, Monster Skills
 
 **Objective**
