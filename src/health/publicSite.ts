@@ -1,4 +1,4 @@
-import type { SupportBarrelStatus } from "../config/env";
+import type { SupportJarStatus } from "../config/env";
 import type { PublicPresenceLocationsSnapshot } from "../services/presenceService";
 import { escapeHtml, renderNewsEntry, type NewsEntry } from "./news";
 
@@ -13,7 +13,7 @@ const EMPTY_PRESENCE: PublicPresenceLocationsSnapshot = {
 export function renderHomePage(
   snapshot: PublicPresenceLocationsSnapshot = EMPTY_PRESENCE,
   newsEntries: NewsEntry[] = [],
-  options: { supportBarrelUrl?: string; supportBarrelStatus?: SupportBarrelStatus } = {}
+  options: { supportJarUrl?: string; supportJarStatus?: SupportJarStatus } = {}
 ): string {
   const latestNews = newsEntries[0]
     ? renderNewsEntry(newsEntries[0])
@@ -95,7 +95,7 @@ export function renderHomePage(
       <p class="more-link"><a href="/news">Усі вісті</a></p>
     </section>
 
-    ${renderSupportBlock(options.supportBarrelUrl, options.supportBarrelStatus)}
+    ${renderSupportBlock(options.supportJarUrl, options.supportJarStatus)}
     `
   );
 }
@@ -195,22 +195,22 @@ function renderFeature(icon: string, title: string, text: string): string {
 }
 
 function renderSupportBlock(
-  supportBarrelUrl: string | undefined,
-  supportBarrelStatus: SupportBarrelStatus | undefined
+  supportJarUrl: string | undefined,
+  supportJarStatus: SupportJarStatus | undefined
 ): string {
-  if (!supportBarrelUrl) {
+  if (!supportJarUrl) {
     return "";
   }
 
-  const escapedUrl = escapeHtml(supportBarrelUrl);
-  const statusBlock = renderSupportStatus(supportBarrelStatus);
+  const escapedUrl = escapeHtml(supportJarUrl);
+  const statusBlock = renderSupportStatus(supportJarStatus);
 
   return `<section class="band support-band">
   <div class="support-card">
     <p class="eyebrow">Добровільно й без сили за гроші</p>
     <h2>🫙 Підтримати Квестарню</h2>
     <p>Квестарня безкоштовна й без купівлі ігрової сили.</p>
-    <p>Якщо хочеться допомогти проєкту — можна добровільно підкинути монет у Бочку підтримки: на сервер, токени для Кодексу, тексти, редактуру, коректуру, ілюстрації й корчмарську інфраструктуру.</p>
+    <p>Якщо хочеться допомогти проєкту — можна добровільно підкинути монет у Банку підтримки: на сервер, токени для Кодексу, тексти, редактуру, коректуру, ілюстрації й корчмарську інфраструктуру.</p>
     <p>Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч. Просто корчмі стане трохи тепліше.</p>
     ${statusBlock}
     <p><a class="support-button" href="${escapedUrl}">Підтримати корчму</a></p>
@@ -218,11 +218,11 @@ function renderSupportBlock(
 </section>`;
 }
 
-function renderSupportStatus(status: SupportBarrelStatus | undefined): string {
+function renderSupportStatus(status: SupportJarStatus | undefined): string {
   const lines =
     status?.currentUah === undefined
       ? ["Стан Банки видно за посиланням."]
-      : [`У Бочці зараз: ${formatUah(status.currentUah)} грн`];
+      : [`У Банці зараз: ${formatUah(status.currentUah)} грн`];
 
   if (status?.goalUah !== undefined) {
     lines.push(`Ціль: ${formatUah(status.goalUah)} грн`);

@@ -86,31 +86,31 @@ describe("loadConfig", () => {
     expect(config.deployNotificationsEnabled).toBe(true);
   });
 
-  it("keeps support barrel URL optional", () => {
+  it("keeps support jar URL optional", () => {
     const config = loadConfig(validEnv);
 
-    expect(config.supportBarrelUrl).toBeUndefined();
+    expect(config.supportJarUrl).toBeUndefined();
   });
 
-  it("trims a blank support barrel URL to undefined", () => {
+  it("trims a blank support jar URL to undefined", () => {
     const config = loadConfig({
       ...validEnv,
-      SUPPORT_BARREL_URL: "   "
+      SUPPORT_JAR_URL: "   "
     });
 
-    expect(config.supportBarrelUrl).toBeUndefined();
+    expect(config.supportJarUrl).toBeUndefined();
   });
 
-  it("accepts a configured Monobank support barrel URL", () => {
+  it("accepts a configured Monobank support jar URL", () => {
     const config = loadConfig({
       ...validEnv,
-      SUPPORT_BARREL_URL: "https://send.monobank.ua/jar/test-placeholder"
+      SUPPORT_JAR_URL: "https://send.monobank.ua/jar/test-placeholder"
     });
 
-    expect(config.supportBarrelUrl).toBe("https://send.monobank.ua/jar/test-placeholder");
+    expect(config.supportJarUrl).toBe("https://send.monobank.ua/jar/test-placeholder");
   });
 
-  it("rejects support barrel URLs outside HTTPS Monobank jars", () => {
+  it("rejects support jar URLs outside HTTPS Monobank jars", () => {
     const invalidUrls = [
       "http://send.monobank.ua/jar/test-placeholder",
       "https://example.com/jar/test-placeholder",
@@ -123,68 +123,79 @@ describe("loadConfig", () => {
       expect(() =>
         loadConfig({
           ...validEnv,
-          SUPPORT_BARREL_URL: url
+          SUPPORT_JAR_URL: url
         })
       ).toThrow();
     }
   });
 
-  it("keeps support barrel status fields optional", () => {
+  it("keeps support jar status fields optional", () => {
     const config = loadConfig(validEnv);
 
-    expect(config.supportBarrelStatus).toBeUndefined();
+    expect(config.supportJarStatus).toBeUndefined();
   });
 
-  it("accepts manual support barrel status fields", () => {
+  it("accepts manual support jar status fields", () => {
     const zeroConfig = loadConfig({
       ...validEnv,
-      SUPPORT_BARREL_CURRENT_UAH: "0"
+      SUPPORT_JAR_CURRENT_UAH: "0"
     });
     const filledConfig = loadConfig({
       ...validEnv,
-      SUPPORT_BARREL_CURRENT_UAH: "1234",
-      SUPPORT_BARREL_GOAL_UAH: "5000",
-      SUPPORT_BARREL_STATUS_UPDATED_AT: "2026-06-16"
+      SUPPORT_JAR_CURRENT_UAH: "1234",
+      SUPPORT_JAR_GOAL_UAH: "5000",
+      SUPPORT_JAR_STATUS_UPDATED_AT: "2026-06-16"
     });
 
-    expect(zeroConfig.supportBarrelStatus).toEqual({ currentUah: 0 });
-    expect(filledConfig.supportBarrelStatus).toEqual({
+    expect(zeroConfig.supportJarStatus).toEqual({ currentUah: 0 });
+    expect(filledConfig.supportJarStatus).toEqual({
       currentUah: 1234,
       goalUah: 5000,
       updatedAt: "2026-06-16"
     });
   });
 
-  it("rejects invalid support barrel current amounts", () => {
+  it("rejects invalid support jar current amounts", () => {
     for (const current of ["-1", "12.5", "many"]) {
       expect(() =>
         loadConfig({
           ...validEnv,
-          SUPPORT_BARREL_CURRENT_UAH: current
+          SUPPORT_JAR_CURRENT_UAH: current
         })
       ).toThrow();
     }
   });
 
-  it("rejects invalid support barrel goals", () => {
+  it("rejects invalid support jar goals", () => {
     for (const goal of ["0", "-1", "12.5", "many"]) {
       expect(() =>
         loadConfig({
           ...validEnv,
-          SUPPORT_BARREL_GOAL_UAH: goal
+          SUPPORT_JAR_GOAL_UAH: goal
         })
       ).toThrow();
     }
   });
 
-  it("rejects unsafe support barrel status update dates", () => {
+  it("rejects unsafe support jar status update dates", () => {
     for (const updatedAt of ["2026-06-16T12:00:00Z", "2026-06-16<script>", "today"]) {
       expect(() =>
         loadConfig({
           ...validEnv,
-          SUPPORT_BARREL_STATUS_UPDATED_AT: updatedAt
+          SUPPORT_JAR_STATUS_UPDATED_AT: updatedAt
         })
       ).toThrow();
     }
+  });
+
+  it("does not read legacy support barrel env names", () => {
+    const config = loadConfig({
+      ...validEnv,
+      [["SUPPORT", "BARREL", "URL"].join("_")]: "https://send.monobank.ua/jar/test-placeholder",
+      [["SUPPORT", "BARREL", "CURRENT", "UAH"].join("_")]: "1234"
+    });
+
+    expect(config.supportJarUrl).toBeUndefined();
+    expect(config.supportJarStatus).toBeUndefined();
   });
 });

@@ -1,6 +1,6 @@
-# Бочка підтримки Квестарні
+# Банка підтримки Квестарні
 
-Цей документ фіксує добровільну підтримку Квестарні через Monobank-банку. З `0.1.1` перший безпечний runtime-slice вже існує: optional `SUPPORT_BARREL_URL`, вторинна команда `/support`, сайтова secondary-картка за наявности URL і deep link `/start barrel_thanks`.
+Цей документ фіксує добровільну підтримку Квестарні через Monobank-банку. З `0.1.1` перший безпечний runtime-slice вже існує: optional `SUPPORT_JAR_URL`, вторинна команда `/support`, сайтова secondary-картка за наявности URL і deep link `/start support_thanks`.
 
 Це все ще не payment integration: бот не підтверджує оплату, не зберігає donor state і не видає ігрових нагород.
 
@@ -10,29 +10,29 @@
 
 | Purpose | Where to put it | Value |
 |---|---|---|
-| Bot gratitude deep link | Monobank jar reward / thank-you URL field | `https://t.me/kvestarnia_bot?start=barrel_thanks` |
-| Public jar link | Deployment env `SUPPORT_BARREL_URL` | `https://send.monobank.ua/jar/<real-jar-id>` |
+| Bot gratitude deep link | Monobank jar reward / thank-you URL field | `https://t.me/kvestarnia_bot?start=support_thanks` |
+| Public jar link | Deployment env `SUPPORT_JAR_URL` | `https://send.monobank.ua/jar/<real-jar-id>` |
 
 Do not swap them. Telegram deep link goes into Monobank reward settings; public Monobank jar link goes into the app environment.
 
 ## Monobank jar setup checklist
 
 1. Create a Monobank jar.
-2. Jar name: `Бочка Квестарні`.
+2. Jar name: `Банка Квестарні`.
 3. Minimum amount, if configured: `50 грн`.
-4. Reward / thank-you URL in Monobank: `https://t.me/kvestarnia_bot?start=barrel_thanks`.
+4. Reward / thank-you URL in Monobank: `https://t.me/kvestarnia_bot?start=support_thanks`.
 5. Copy the public jar link from Monobank. It should look like `https://send.monobank.ua/jar/...`.
-6. Put that public jar link into deployment env as `SUPPORT_BARREL_URL`.
+6. Put that public jar link into deployment env as `SUPPORT_JAR_URL`.
 7. Restart/redeploy the app.
 8. Check `/support` and the homepage.
 
-Do not put the Telegram deep link into `SUPPORT_BARREL_URL`. Do not hardcode the real Monobank jar URL in code, docs or README.
+Do not put the Telegram deep link into `SUPPORT_JAR_URL`. Do not hardcode the real Monobank jar URL in code, docs or README.
 
-`/start barrel_thanks` only shows cosmetic gratitude. It does not confirm payment and does not grant XP, gold, loot, manatky, levels, titles, rankings, or access.
+`/start support_thanks` only shows cosmetic gratitude. It does not confirm payment and does not grant XP, gold, loot, manatky, levels, titles, rankings, or access.
 
 ## Product rule
 
-Бочка підтримки — це не магазин, не преміум і не монетизація сили.
+Банка підтримки — це не магазин, не преміум і не монетизація сили.
 
 Підтримка не має давати:
 
@@ -49,7 +49,7 @@ Do not put the Telegram deep link into `SUPPORT_BARREL_URL`. Do not hardcode the
 Можна давати тільки:
 
 - статичну сцену подяки;
-- косметичний «Тост із Бочки»;
+- косметичну корчмарську сцену подяки;
 - жартову цифру `+1000 до настрою корчми`, яка ніде не зберігається й не впливає на гру.
 
 ## Naming
@@ -57,24 +57,25 @@ Do not put the Telegram deep link into `SUPPORT_BARREL_URL`. Do not hardcode the
 Назовні:
 
 ```text
-Бочка підтримки Квестарні
+Банка підтримки Квестарні
 ```
 
 Коротка назва для Monobank, якщо діє ліміт символів:
 
 ```text
-Бочка Квестарні
+Банка Квестарні
 ```
 
 Пояснення різниці:
 
 ```text
-У Monobank вона зветься коротше — «Бочка Квестарні», бо навіть корчмар не переміг ліміт символів.
+У Monobank вона зветься коротше — «Банка Квестарні», бо навіть корчмар не переміг ліміт символів.
 ```
 
 Не використовувати:
 
-- `Бочка підтримки Квес`;
+- назву через «бочку» для support-фічі;
+- коротку назву Monobank-банки через «бочку»;
 - `донатери отримують бонуси`;
 - `купити лут`;
 - `преміум`;
@@ -86,15 +87,15 @@ Do not put the Telegram deep link into `SUPPORT_BARREL_URL`. Do not hardcode the
 
 Рекомендована конфігурація, коли буде створюватися банка:
 
-- Назва банки: `Бочка Квестарні`.
+- Назва банки: `Банка Квестарні`.
 - Мінімальна сума: `50 грн`.
-- Посилання на нагороду: `https://t.me/kvestarnia_bot?start=barrel_thanks`.
+- Посилання на нагороду: `https://t.me/kvestarnia_bot?start=support_thanks`.
 
 Текст нагороди:
 
 ```text
-🍺 Бочка булькнула. Дякуємо!
-Корчмар ставить вам Тост із Бочки: +1000 до настрою корчми.
+🍺 Корчмар піднімає подячний кухоль.
++1000 до настрою корчми.
 Ефект косметичний, ігрових переваг не дає, але корчмі стало тепліше.
 ```
 
@@ -102,7 +103,7 @@ Do not put the Telegram deep link into `SUPPORT_BARREL_URL`. Do not hardcode the
 
 ```text
 🍺 Дякуємо за підтримку Квестарні!
-Тост із Бочки: +1000 до настрою корчми.
++1000 до настрою корчми.
 Без ігрових переваг — тільки вдячність і тепліша корчма.
 ```
 
@@ -115,21 +116,21 @@ Important: reward link does not confirm payment. Його можна перес�
 Env/config:
 
 ```env
-SUPPORT_BARREL_URL=https://send.monobank.ua/jar/...
-SUPPORT_BARREL_CURRENT_UAH=1234
-SUPPORT_BARREL_GOAL_UAH=5000
-SUPPORT_BARREL_STATUS_UPDATED_AT=2026-06-16
+SUPPORT_JAR_URL=https://send.monobank.ua/jar/...
+SUPPORT_JAR_CURRENT_UAH=1234
+SUPPORT_JAR_GOAL_UAH=5000
+SUPPORT_JAR_STATUS_UPDATED_AT=2026-06-16
 ```
 
 Rules:
 
-- якщо `SUPPORT_BARREL_URL` заданий — можна показувати кнопку/лінк підтримки;
+- якщо `SUPPORT_JAR_URL` заданий — можна показувати кнопку/лінк підтримки;
 - якщо не заданий — не рендерити `undefined`, `null`, порожній або битий URL;
 - URL має бути absolute `https://send.monobank.ua/jar/...` без URL credentials;
-- `SUPPORT_BARREL_URL` має бути саме public Monobank jar link, не Telegram reward deep link;
-- `SUPPORT_BARREL_CURRENT_UAH`, якщо заданий, має бути non-negative integer;
-- `SUPPORT_BARREL_GOAL_UAH`, якщо заданий, має бути positive integer;
-- `SUPPORT_BARREL_STATUS_UPDATED_AT`, якщо заданий, має бути короткою датою `YYYY-MM-DD`;
+- `SUPPORT_JAR_URL` має бути саме public Monobank jar link, не Telegram reward deep link;
+- `SUPPORT_JAR_CURRENT_UAH`, якщо заданий, має бути non-negative integer;
+- `SUPPORT_JAR_GOAL_UAH`, якщо заданий, має бути positive integer;
+- `SUPPORT_JAR_STATUS_UPDATED_AT`, якщо заданий, має бути короткою датою `YYYY-MM-DD`;
 - status fields є ручним read-only display, не payment integration і не donor state;
 - не хардкодити вигаданий Monobank URL у коді чи README.
 
@@ -138,7 +139,7 @@ Rules:
 Якщо сума налаштована:
 
 ```text
-У Бочці зараз: 1 234 грн
+У Банці зараз: 1 234 грн
 Ціль: 5 000 грн
 Оновлено вручну: 2026-06-16
 ```
@@ -157,13 +158,13 @@ Rules:
 Текст із URL:
 
 ```text
-🫙 Бочка підтримки Квестарні
+🫙 Банка підтримки Квестарні
 
 Квестарня безкоштовна: жодної купівлі сили, луту, золота чи прогресу.
 
-Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч.
+Якщо хочете підтримати розробку — можна добровільно підкинути монет у Банку. Вона допомагає оплачувати сервер, токени для Кодексу, тексти, редактуру, коректуру й інші речі, через які корчма не розвалюється між оновленнями.
 
-Якщо хочете підтримати розробку — можна добровільно підкинути монет у Бочку. Вона допомагає оплачувати сервер, токени для Кодексу, тексти, редактуру, коректуру й інші речі, через які корчма не розвалюється між оновленнями.
+Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч.
 
 Підтримати: <URL>
 ```
@@ -171,33 +172,32 @@ Rules:
 Fallback без URL:
 
 ```text
-🫙 Бочка підтримки Квестарні
+🫙 Банка підтримки Квестарні
 
-Корчмар уже поставив Бочку на стійку, але посилання ще прибивають до дошки.
+Корчмар уже поставив Банку на стійку, але посилання ще прибивають до дошки.
 
-Квестарня безкоштовна й не продає силу, лут або прогрес. Коли Бочка відчиниться, тут буде добровільне посилання для підтримки сервера, текстів і корчмарської інфраструктури.
+Квестарня безкоштовна й не продає силу, лут або прогрес. Коли Банка відчиниться, тут буде добровільне посилання для підтримки сервера, текстів і корчмарської інфраструктури.
 
 Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч.
 ```
 
-### Deep link `barrel_thanks`
+### Deep link `support_thanks`
 
 Monobank reward link may point to:
 
 ```text
-https://t.me/kvestarnia_bot?start=barrel_thanks
+https://t.me/kvestarnia_bot?start=support_thanks
 ```
 
 Scene copy:
 
 ```text
-🍺 Бочка вдячно булькнула.
+🍺 Корчмар піднімає подячний кухоль.
 
-Якщо ви тут після поповнення Бочки Квестарні — дякуємо. Ваш внесок допомагає тримати корчму живою: сервер, токени для Кодексу, тексти, редактура, коректура й інші речі, які корчмар називає «та воно саме працює».
+Якщо ви тут після поповнення Банки Квестарні — дякуємо. Ваш внесок допомагає тримати корчму живою: сервер, токени для Кодексу, тексти, редактура, коректура й інші речі, які корчмар називає «та воно саме працює».
 
 Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч.
 
-Корчмар просто ставить вам Тост із Бочки:
 +1000 до настрою корчми
 
 Ефект косметичний. Піна справжня настільки, наскільки це дозволяє Telegram.
@@ -212,14 +212,14 @@ Deep link must not:
 
 ### Public site block
 
-If `SUPPORT_BARREL_URL` exists, the homepage shows a secondary block below gameplay/news context, not in the hero:
+If `SUPPORT_JAR_URL` exists, the homepage shows a secondary block below gameplay/news context, not in the hero:
 
 ```text
 🫙 Підтримати Квестарню
 
 Квестарня безкоштовна й без купівлі ігрової сили.
 
-Якщо хочеться допомогти проєкту — можна добровільно підкинути монет у Бочку підтримки: на сервер, токени для Кодексу, тексти, редактуру, коректуру, ілюстрації й корчмарську інфраструктуру.
+Якщо хочеться допомогти проєкту — можна добровільно підкинути монет у Банку підтримки: на сервер, токени для Кодексу, тексти, редактуру, коректуру, ілюстрації й корчмарську інфраструктуру.
 
 Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч. Просто корчмі стане трохи тепліше.
 ```
@@ -267,10 +267,10 @@ README may mention `/support`, voluntary support and runtime-configured URL, but
 - `/support` renders URL only when configured.
 - `/support` fallback does not show a broken URL.
 - `/start` without parameters works as before.
-- `/start barrel_thanks` shows gratitude scene.
-- `/start barrel_thanks` does not confirm payment.
-- `/start barrel_thanks` does not grant or mutate XP, gold, items, equipment, character progression, ratings or donor state.
+- `/start support_thanks` shows gratitude scene.
+- `/start support_thanks` does not confirm payment.
+- `/start support_thanks` does not grant or mutate XP, gold, items, equipment, character progression, ratings or donor state.
 - Homepage support block is secondary and does not compete with `Грати в Telegram`.
 - README/docs do not invent a real Monobank URL.
-- Tests cover configured URL, missing URL, `barrel_thanks`, no gameplay rewards and unchanged regular `/start`.
+- Tests cover configured URL, missing URL, `support_thanks`, no gameplay rewards and unchanged regular `/start`.
 - `npm.cmd run check` passes.

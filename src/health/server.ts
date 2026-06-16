@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "http";
-import type { SupportBarrelStatus } from "../config/env";
+import type { SupportJarStatus } from "../config/env";
 import type {
   PresenceService,
   PublicPresenceLocationsSnapshot
@@ -19,8 +19,8 @@ export const HEALTH_HOST = "0.0.0.0";
 export interface HealthServerOptions {
   port?: string | number;
   presence?: PresenceService;
-  supportBarrelUrl?: string;
-  supportBarrelStatus?: SupportBarrelStatus;
+  supportJarUrl?: string;
+  supportJarStatus?: SupportJarStatus;
 }
 
 export function resolveHealthPort(value: string | number | undefined): number {
@@ -74,11 +74,11 @@ async function handleRequest(
       renderHomePage(
         await getPublicPresenceSnapshot(options),
         readNewsEntries(),
-        options.supportBarrelUrl
+        options.supportJarUrl
           ? {
-              supportBarrelUrl: options.supportBarrelUrl,
-              ...(options.supportBarrelStatus
-                ? { supportBarrelStatus: options.supportBarrelStatus }
+              supportJarUrl: options.supportJarUrl,
+              ...(options.supportJarStatus
+                ? { supportJarStatus: options.supportJarStatus }
                 : {})
             }
           : {}

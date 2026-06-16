@@ -1,24 +1,24 @@
 import type { Bot, Context } from "grammy";
-import type { SupportBarrelStatus } from "../../config/env";
+import type { SupportJarStatus } from "../../config/env";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
-import { presentSupportBarrel } from "../presenters/supportPresenter";
+import { presentSupportJar } from "../presenters/supportPresenter";
 
 export function registerSupportCommand(
   bot: Bot,
-  supportBarrelUrl: string | undefined,
-  supportBarrelStatus: SupportBarrelStatus | undefined
+  supportJarUrl: string | undefined,
+  supportJarStatus: SupportJarStatus | undefined
 ): void {
   bot.command("support", async (ctx) => {
-    await sendSupport(ctx, supportBarrelUrl, supportBarrelStatus);
+    await sendSupport(ctx, supportJarUrl, supportJarStatus);
   });
 }
 
 export async function sendSupport(
   ctx: Context,
-  supportBarrelUrl: string | undefined,
-  supportBarrelStatus: SupportBarrelStatus | undefined
+  supportJarUrl: string | undefined,
+  supportJarStatus: SupportJarStatus | undefined
 ): Promise<void> {
-  await ctx.reply(presentSupportBarrel(supportBarrelUrl, supportBarrelStatus), {
+  await ctx.reply(presentSupportJar(supportJarUrl, supportJarStatus), {
     reply_markup: buildMainMenuKeyboard()
   });
 }

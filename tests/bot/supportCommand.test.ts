@@ -4,11 +4,11 @@ import { createBot, type BotServices } from "../../src/bot/createBot";
 describe("support command and start deep links", () => {
   it("renders /support with configured URL", async () => {
     const calls = await captureMessageCalls("/support", servicesWith(), {
-      supportBarrelUrl: "https://send.monobank.ua/jar/test-placeholder"
+      supportJarUrl: "https://send.monobank.ua/jar/test-placeholder"
     });
     const message = calls.find((call) => call.method === "sendMessage");
 
-    expect(String(message?.payload.text)).toContain("Бочка підтримки Квестарні");
+    expect(String(message?.payload.text)).toContain("Банка підтримки Квестарні");
     expect(String(message?.payload.text)).toContain("https://send.monobank.ua/jar/test-placeholder");
     expect(String(message?.payload.text)).toContain("Стан Банки видно за посиланням.");
     expect(String(message?.payload.text)).not.toContain("0 грн");
@@ -16,13 +16,14 @@ describe("support command and start deep links", () => {
       "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч."
     );
     expectNoUnsafeRewardClaims(String(message?.payload.text));
+    expectNoOldSupportNaming(String(message?.payload.text));
     expect(String(message?.payload.text)).not.toContain("undefined");
   });
 
   it("renders /support with configured manual status", async () => {
     const calls = await captureMessageCalls("/support", servicesWith(), {
-      supportBarrelUrl: "https://send.monobank.ua/jar/test-placeholder",
-      supportBarrelStatus: {
+      supportJarUrl: "https://send.monobank.ua/jar/test-placeholder",
+      supportJarStatus: {
         currentUah: 1234,
         goalUah: 5000,
         updatedAt: "2026-06-16"
@@ -30,11 +31,12 @@ describe("support command and start deep links", () => {
     });
     const message = calls.find((call) => call.method === "sendMessage");
 
-    expect(String(message?.payload.text)).toContain("У Бочці зараз: 1 234 грн");
+    expect(String(message?.payload.text)).toContain("У Банці зараз: 1 234 грн");
     expect(String(message?.payload.text)).toContain("Ціль: 5 000 грн");
     expect(String(message?.payload.text)).toContain("Оновлено вручну: 2026-06-16");
     expect(String(message?.payload.text)).not.toContain("залишилось тільки");
     expectNoUnsafeRewardClaims(String(message?.payload.text));
+    expectNoOldSupportNaming(String(message?.payload.text));
   });
 
   it("renders /support fallback without a broken URL", async () => {
@@ -46,22 +48,23 @@ describe("support command and start deep links", () => {
       "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч."
     );
     expectNoUnsafeRewardClaims(String(message?.payload.text));
+    expectNoOldSupportNaming(String(message?.payload.text));
     expect(String(message?.payload.text)).not.toContain("undefined");
     expect(String(message?.payload.text)).not.toContain("https://");
   });
 
-  it("renders /start barrel_thanks without starting onboarding", async () => {
+  it("renders /start support_thanks without starting onboarding", async () => {
     const onboardingStart = vi.fn();
     const calls = await captureMessageCalls(
-      "/start barrel_thanks",
+      "/start support_thanks",
       servicesWith({
         onboarding: {
           start: onboardingStart
         }
       } as Partial<BotServices>),
       {
-        supportBarrelUrl: "https://send.monobank.ua/jar/test-placeholder",
-        supportBarrelStatus: {
+        supportJarUrl: "https://send.monobank.ua/jar/test-placeholder",
+        supportJarStatus: {
           currentUah: 1234,
           goalUah: 5000,
           updatedAt: "2026-06-16"
@@ -71,14 +74,16 @@ describe("support command and start deep links", () => {
     const message = calls.find((call) => call.method === "sendMessage");
 
     expect(onboardingStart).not.toHaveBeenCalled();
-    expect(String(message?.payload.text)).toContain("Бочка вдячно булькнула");
+    expect(String(message?.payload.text)).toContain("Корчмар піднімає подячний кухоль");
+    expect(String(message?.payload.text)).toContain("після поповнення Банки Квестарні");
     expect(String(message?.payload.text)).toContain("Ефект косметичний");
     expect(String(message?.payload.text)).toContain(
       "Підтримка не дає XP, золота, луту, манаток, рівнів, бойової сили, прогресу або доступу до фіч."
     );
     expectNoUnsafeRewardClaims(String(message?.payload.text));
+    expectNoOldSupportNaming(String(message?.payload.text));
     expect(String(message?.payload.text)).not.toContain("https://send.monobank.ua");
-    expect(String(message?.payload.text)).not.toContain("У Бочці зараз");
+    expect(String(message?.payload.text)).not.toContain("У Банці зараз");
   });
 
   it("keeps regular /start and unknown payloads on the onboarding path", async () => {
@@ -99,8 +104,16 @@ describe("support command and start deep links", () => {
         }
       } as Partial<BotServices>)
     );
+    await captureMessageCalls(
+      `/start ${["barrel", "thanks"].join("_")}`,
+      servicesWith({
+        onboarding: {
+          start: onboardingStart
+        }
+      } as Partial<BotServices>)
+    );
 
-    expect(onboardingStart).toHaveBeenCalledTimes(2);
+    expect(onboardingStart).toHaveBeenCalledTimes(3);
   });
 });
 
@@ -113,8 +126,8 @@ async function captureMessageCalls(
   text: string,
   services: BotServices,
   options: {
-    supportBarrelUrl?: string;
-    supportBarrelStatus?: { currentUah?: number; goalUah?: number; updatedAt?: string };
+    supportJarUrl?: string;
+    supportJarStatus?: { currentUah?: number; goalUah?: number; updatedAt?: string };
   } = {}
 ): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services, options);
@@ -206,4 +219,22 @@ function expectNoUnsafeRewardClaims(text: string): void {
   expect(text).not.toContain("видано золото");
   expect(text).not.toContain("манатку додано");
   expect(text).not.toContain("донорський статус");
+}
+
+function expectNoOldSupportNaming(text: string): void {
+  const oldTerms = [
+    ["Бочка", "підтримки"].join(" "),
+    ["Бочка", "Квестарні"].join(" "),
+    ["У", "Бочці", "зараз"].join(" "),
+    ["Тост", "із", "Бочки"].join(" "),
+    ["Бочка", "вдячно", "булькнула"].join(" "),
+    ["barrel", "thanks"].join("_"),
+    ["SUPPORT", "BARREL"].join("_"),
+    ["support", "Barrel"].join(""),
+    ["Support", "Barrel"].join("")
+  ];
+
+  for (const term of oldTerms) {
+    expect(text).not.toContain(term);
+  }
 }

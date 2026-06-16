@@ -1,5 +1,5 @@
 import { Bot, type Context } from "grammy";
-import type { SupportBarrelStatus } from "../config/env";
+import type { SupportJarStatus } from "../config/env";
 import type { AdventureService } from "../services/adventureService";
 import type { CellarErrandService } from "../services/cellarErrandService";
 import type {
@@ -261,8 +261,8 @@ export interface BotServices {
 }
 
 export interface BotOptions {
-  supportBarrelUrl?: string;
-  supportBarrelStatus?: SupportBarrelStatus;
+  supportJarUrl?: string;
+  supportJarStatus?: SupportJarStatus;
 }
 
 const HTML_MESSAGE_OPTIONS = {
@@ -311,7 +311,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset);
   registerNewsCommand(bot);
-  registerSupportCommand(bot, options.supportBarrelUrl, options.supportBarrelStatus);
+  registerSupportCommand(bot, options.supportJarUrl, options.supportJarStatus);
   registerVersionCommand(bot);
   registerDevResetCommand(bot, services.devReset);
   registerRestartCommand(bot);

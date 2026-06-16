@@ -18,7 +18,7 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 
 `0.1.0` is a release/docs/smoke closeout for Phase 1 plus a Phase 2 roadmap reset. It does not add a production dependency, schema migration, scheduler architecture, or new runtime gameplay system.
 
-`0.1.1` adds Support Barrel & Link Plumbing: optional `SUPPORT_BARREL_URL`, secondary `/support`, `/start barrel_thanks`, and a public-site support block when the URL is configured. It does not add payment confirmation, donor state, schema migration, gameplay rewards, support rankings, or gated features.
+`0.1.1` adds Support Jar & Link Plumbing: optional `SUPPORT_JAR_URL`, secondary `/support`, `/start support_thanks`, and a public-site support block when the URL is configured. It does not add payment confirmation, donor state, schema migration, gameplay rewards, support rankings, or gated features.
 
 Phase 2 planning now starts with social session primitives: duel invites, result/rematch cards, trading/gifting, item tags, `/remort`, multi-enemy combat and later party/raid sessions. The first runtime implementation should add only the narrow tables/state it needs and must not treat the sketches below as already migrated schema.
 
@@ -589,7 +589,7 @@ Regression guard: item/equipment callback parsers мають і надалі я�
 
 `0.1.1` introduces the first explicit Telegram deep-link payload:
 
-- `/start barrel_thanks` renders the Support Barrel gratitude scene;
+- `/start support_thanks` renders the Support Jar gratitude scene;
 - it does not require an existing character;
 - it does not confirm payment;
 - it does not mutate XP, gold, items, equipment, titles, levels, rankings, donor state or feature access;

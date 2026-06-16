@@ -3,11 +3,18 @@ import { parseStartPayload } from "../../src/bot/startPayload";
 
 describe("start payload parser", () => {
   it("routes the support gratitude payload", () => {
-    expect(parseStartPayload("barrel_thanks")).toEqual({ type: "barrel-thanks" });
+    expect(parseStartPayload("support_thanks")).toEqual({ type: "support-thanks" });
   });
 
   it("keeps empty and unknown payloads safe", () => {
     expect(parseStartPayload(undefined)).toEqual({ type: "none" });
+    const oldSupportPayload = ["barrel", "thanks"].join("_");
+
+    expect(parseStartPayload(oldSupportPayload)).toEqual({
+      type: "unknown",
+      raw: oldSupportPayload,
+      safe: true
+    });
     expect(parseStartPayload("duel_abc123")).toEqual({
       type: "unknown",
       raw: "duel_abc123",

@@ -1,6 +1,6 @@
 export type StartPayload =
   | { type: "none" }
-  | { type: "barrel-thanks" }
+  | { type: "support-thanks" }
   | { type: "unknown"; raw: string; safe: boolean };
 
 const MAX_START_PAYLOAD_LENGTH = 64;
@@ -20,8 +20,8 @@ export function parseStartPayload(raw: string | undefined): StartPayload {
     return { type: "unknown", raw: payload.slice(0, MAX_START_PAYLOAD_LENGTH), safe: false };
   }
 
-  if (payload === "barrel_thanks") {
-    return { type: "barrel-thanks" };
+  if (payload === "support_thanks") {
+    return { type: "support-thanks" };
   }
 
   return { type: "unknown", raw: payload, safe: true };
