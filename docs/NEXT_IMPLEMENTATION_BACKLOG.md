@@ -700,6 +700,73 @@ Implemented in the `0.0.28` slice as `Неспокійні справи`: level 
 - tests cover threshold crossing, multiple levels, cap at 13, duplicate reward no duplicate level;
 - `/hero` and combat agree on level/effective values.
 
+## Later — Combat Variety: Guard, Cooldowns, Monster Skills
+
+**Objective**
+Зробити solo-бій менш пласким, не перетворюючи його на повний MMO-combat: додати захисну дію, обмежити частоту сильних умінь і дати монстрам хоча б одну виразну не-базову дію.
+
+**Scope**
+
+- додати player action `guard`: захист зброєю, щитом, підручною манаткою або голими руками, залежно від класу/раси/equipment;
+- `guard` має зменшувати вхідну шкоду цього ходу, іноді давати малу контратаку або позиційну перевагу, але не ставати найкращою атакою;
+- тематично підсилити guard/counter для воїна, гнома, домовика, орка-інтелігента, козака-характерника, жреця й важкої броні;
+- додати cooldown-и для сильних player skills: базово раз на `4-5` ходів, але дешеві cantrip/trick/support-вміння можуть мати коротший cooldown або тільки mana cost;
+- UI має показувати cooldown людською мовою: `ще 2 ходи`, `готово`, `бракує мани`, без прихованого списання ходу;
+- дати кожному ordinary monster хоча б одну просту особливість: guard, heavy attack wind-up, trick, слабкий debuff, self-shield, surrender cue або once-per-fight skill;
+- монстри мають іноді захищатися, а не тільки бити: guard-шанс залежить від тегів `guard`, `bureaucratic`, `coward`, `armored`, `trickster` чи подібних content tags;
+- симуляції мають перевіряти, що guard/cooldown не роздуває звичайні бої далеко за 2-5 ходів і не створює безпечний нескінченний stall.
+
+**Non-goals**
+
+- no multi-enemy combat у цьому slice;
+- no full status-effect engine;
+- no consumable item actions;
+- no permanent class rework або respec;
+- no broad monster AI tree;
+- no reward/loot rebalance, якщо guard/cooldown не вимагає вузького tuning-а.
+
+**Acceptance criteria**
+
+- repeated callback не дає повторної контратаки або подвійного cooldown decrement;
+- skill cooldown і mana cost не списуються, якщо дія не пройшла validation;
+- guard має окремі unit tests для damage reduction, no-weapon fallback, class/race тематичних modifiers і counter chance;
+- monster action tests cover at least attack, guard, and one once-per-fight monster skill;
+- presenter copy коротко пояснює, що сталося: `Ви прикрилися`, `Монстр став у захист`, `Вміння ще готує печатку`;
+- combat simulation reports win-rate/turn-count drift before/after.
+
+## Later — Multi-Enemy Combat and Summoner Tags
+
+**Objective**
+Спроєктувати і потім реалізувати перший обережний бій із кількома противниками, щоб `summoner`-монстри могли кликати допомогу, а майбутні рейди не починали з нуля.
+
+**Scope**
+
+- додати content-level tag або trait на кшталт `summoner` / `callsBackup`, який не гарантує підмогу, а відкриває контрольований шанс;
+- у solo MVP дозволити максимум одного додаткового ворога, щоб не ламати Telegram UI і баланс;
+- визначити ролі підмоги: extra weak attack, shield for main monster, minor heal, distraction або escape pressure;
+- UI має показувати кілька ворогів компактно: головний ворог окремо, підмога одним коротким рядком із HP/станом;
+- rewards не мають автоматично подвоюватися через підмогу; extra enemy може впливати на flavor або малий reward modifier тільки після окремого balance рішення;
+- target selection має бути простим: за замовчуванням атака бʼє головного ворога, special actions можуть зачіпати підмогу, але без складної тактичної сітки;
+- repeated/stale callback не має прикликати підмогу вдруге;
+- цей shape має бути сумісний із майбутніми group raids: кілька enemy records, turn log, compact summary, idempotent reward source.
+
+**Non-goals**
+
+- no повноцінний raid engine;
+- no positioning/grid;
+- no party roles, tanks/healers або aggro table;
+- no group rewards;
+- no AoE/effects explosion у першому slice;
+- no extra loot source just because зʼявився другий ворог.
+
+**Acceptance criteria**
+
+- combat state може серіалізувати 1 основного ворога + 1 підмогу без зміни старих finished sessions;
+- summon trigger has once-per-fight idempotency guard;
+- tests cover summon success, no duplicate summon, helper defeated, main defeated while helper remains, and reward materialization once;
+- Telegram message лишається в один мобільний екран;
+- docs пояснюють, як цей патерн стане основою для майбутнього group raid combat.
+
 ## Later / Не Phase 1 Finish
 
 - group hunts/raids;

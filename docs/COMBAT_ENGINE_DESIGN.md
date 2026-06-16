@@ -140,6 +140,27 @@ status_cleanup = шанс скинути minor debuff
 
 Guard не має бути найкращою атакою. Це safety valve для low HP, no mana, timeout і навчання.
 
+Guard має мати кілька тематичних форм, але один простий rules contract:
+
+- зброя/щит/броня можуть дати стабільніший block;
+- голі руки лишають fallback-захист, щоб герой без відповідної манатки не втрачав дію повністю;
+- воїн, гном, домовик, орк-інтелігент, козак-характерник, жрець і важка броня можуть мати малий edge у block/counter;
+- контратака має бути рідкісною, once-per-turn і тестованою, без шансів на подвійне спрацювання від repeated callback;
+- guard не має безкоштовно лікувати або перетворювати бій на нескінченний stall.
+
+### Cooldowns for skills
+
+Сильні вміння не мають натискатися щохідно. Базове правило для першого slice: signature skill має cooldown `4-5` ходів, а дешеві cantrip/trick/support-дії можуть мати коротший cooldown або тільки mana cost.
+
+UI має показувати причину недоступности без фрустрації:
+
+```text
+🔮 Печатка готується: ще 2 ходи.
+Мани забракло. Посох пропонує просто стукнути.
+```
+
+Validation order: якщо вміння на cooldown або бракує мани, callback не списує ману, не зсуває turn і не відкриває новий monster response.
+
 ### Втеча
 
 ```text
@@ -258,6 +279,8 @@ Personality archetypes:
 - `undead` — вразливий до жреця, байдужий до частини social checks.
 - `beast` — єгер має зрозумілий edge.
 
+Monster actions мають бути простими, але не однаковими. Кожен ordinary monster у майбутньому combat-variety slice має отримати хоча б одну дію поза basic attack: guard, heavy wind-up, weak debuff, small self-shield, once-per-fight skill, surrender cue або backup call. Це має жити в content/domain data, не в presenter-і.
+
 ## Відмова, здача і backup
 
 ### Ворог відмовляється битися
@@ -279,6 +302,8 @@ Trait `callsBackup`:
 - friend має просту роль: extra attack, shield, heal або distraction;
 - friend не подвоює rewards автоматично;
 - presenter показує подію одним рядком.
+- repeated або stale callback не може прикликати того самого помічника вдруге;
+- target selection у solo MVP має лишатися простим: basic attack бʼє головного ворога, а підмога впливає одним маленьким рядком у turn log.
 
 Приклад:
 
