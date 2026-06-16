@@ -30,6 +30,7 @@ describe("help presenter", () => {
     expect(text).toContain("/restart");
     expect(text).toContain("/version");
     expect(text).toContain("/news");
+    expect(text).toContain("/support");
     expect(text).toContain("/help");
     expect(text).not.toContain("/dev_reset_me");
     expect(text).toContain("👤 /hero, /profile, /me — персонаж і прогрес");
@@ -45,6 +46,7 @@ describe("help presenter", () => {
     expect(text).toContain("👥 /online — хто поруч");
     expect(text).toContain("👀 /look — озирнутися");
     expect(text).toContain("📖 /help — допомога");
+    expect(text).toContain("🫙 /support — добровільна підтримка без бонусів");
     expect(text).toContain("👤 /hero, /profile, /me");
     expect(text).not.toContain("🪪 /profile");
     expect(text).not.toContain("🧭 /me");
@@ -53,7 +55,7 @@ describe("help presenter", () => {
     expect(text).not.toContain("те саме, що");
     expect(text).not.toContain("/hunt — ще");
     expect(text).toContain("Лут, ґільдії й повна бойова бухгалтерія");
-    expect(text.split("\n").length).toBeLessThanOrEqual(38);
+    expect(text.split("\n").length).toBeLessThanOrEqual(40);
   });
 
   it("includes dev reset only when enabled", () => {

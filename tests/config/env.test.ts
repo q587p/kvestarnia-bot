@@ -85,4 +85,34 @@ describe("loadConfig", () => {
 
     expect(config.deployNotificationsEnabled).toBe(true);
   });
+
+  it("keeps support barrel URL optional", () => {
+    const config = loadConfig(validEnv);
+
+    expect(config.supportBarrelUrl).toBeUndefined();
+  });
+
+  it("accepts a configured Monobank support barrel URL", () => {
+    const config = loadConfig({
+      ...validEnv,
+      SUPPORT_BARREL_URL: "https://send.monobank.ua/jar/test-placeholder"
+    });
+
+    expect(config.supportBarrelUrl).toBe("https://send.monobank.ua/jar/test-placeholder");
+  });
+
+  it("rejects support barrel URLs outside HTTPS Monobank jars", () => {
+    expect(() =>
+      loadConfig({
+        ...validEnv,
+        SUPPORT_BARREL_URL: "http://send.monobank.ua/jar/test-placeholder"
+      })
+    ).toThrow();
+    expect(() =>
+      loadConfig({
+        ...validEnv,
+        SUPPORT_BARREL_URL: "https://example.com/support"
+      })
+    ).toThrow();
+  });
 });

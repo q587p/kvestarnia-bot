@@ -18,6 +18,7 @@ export const HEALTH_HOST = "0.0.0.0";
 export interface HealthServerOptions {
   port?: string | number;
   presence?: PresenceService;
+  supportBarrelUrl?: string;
 }
 
 export function resolveHealthPort(value: string | number | undefined): number {
@@ -68,7 +69,11 @@ async function handleRequest(
     sendHtml(
       response,
       200,
-      renderHomePage(await getPublicPresenceSnapshot(options), readNewsEntries())
+      renderHomePage(
+        await getPublicPresenceSnapshot(options),
+        readNewsEntries(),
+        options.supportBarrelUrl ? { supportBarrelUrl: options.supportBarrelUrl } : {}
+      )
     );
     return;
   }

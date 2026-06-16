@@ -46,9 +46,12 @@ NODE_ENV=development
 BOT_TOKEN=
 DATABASE_URL=file:./dev.db
 DEPLOY_NOTIFICATIONS_ENABLED=false
+# SUPPORT_BARREL_URL=https://send.monobank.ua/jar/...
 ```
 
 `BOT_TOKEN` може бути порожнім для локальних перевірок без реального Telegram polling. У цьому режимі бот валідовує конфіг і запускає HTTP healthcheck server, але не під’єднується до Telegram API.
+
+`SUPPORT_BARREL_URL` optional. Якщо він заданий, це має бути absolute `https://send.monobank.ua/...`; без нього `/support` і public site не показують битих support-link-ів.
 
 Щоб запустити реального бота, додай токен:
 

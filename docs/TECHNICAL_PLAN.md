@@ -18,6 +18,8 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 
 `0.1.0` is a release/docs/smoke closeout for Phase 1 plus a Phase 2 roadmap reset. It does not add a production dependency, schema migration, scheduler architecture, or new runtime gameplay system.
 
+`0.1.1` adds Support Barrel & Link Plumbing: optional `SUPPORT_BARREL_URL`, secondary `/support`, `/start barrel_thanks`, and a public-site support block when the URL is configured. It does not add payment confirmation, donor state, schema migration, gameplay rewards, support rankings, or gated features.
+
 Phase 2 planning now starts with social session primitives: duel invites, result/rematch cards, trading/gifting, item tags, `/remort`, multi-enemy combat and later party/raid sessions. The first runtime implementation should add only the narrow tables/state it needs and must not treat the sketches below as already migrated schema.
 
 ## Структура репозиторію
@@ -582,6 +584,24 @@ Callback data коротка, версіонована.
 Валідація обов’язкова. Не довіряти даним з callback: `v1:item:detail:{itemId}` має перевірити, що item id валідний, content існує або має fallback, і герой реально володіє цією манаткою перед показом деталей. `v1:equip:item:{itemId}` має додатково перевірити ownership і equippable content metadata; `v1:equip:clear:{slot}` має відхилити невідомий slot.
 
 Regression guard: item/equipment callback parsers мають і надалі явно відхиляти payload-и довші за `TELEGRAM_CALLBACK_DATA_LIMIT`, навіть якщо generated callback-и зараз короткі.
+
+### `/start` payloads and future deep links
+
+`0.1.1` introduces the first explicit Telegram deep-link payload:
+
+- `/start barrel_thanks` renders the Support Barrel gratitude scene;
+- it does not require an existing character;
+- it does not confirm payment;
+- it does not mutate XP, gold, items, equipment, titles, levels, rankings, donor state or feature access;
+- unknown `/start <payload>` values fall back safely to normal onboarding/current-character behavior.
+
+Deep-link payload hygiene for future Phase 2 invite flows:
+
+- keep payloads short enough for Telegram links;
+- validate charset and length before routing;
+- do not expose raw internal UUIDs, secrets or mutable state in links;
+- gameplay session links should use opaque tokens, expiry, consent checks and replay-safe service state;
+- known payloads should route explicitly; unknown payloads should never throw or create rewards.
 
 Майбутній UX-борг для `safeEditMessageText`:
 - Перед редагуванням callback-повідомлення перевіряти, що це останнє актуальне повідомлення бота в цьому chat/user flow, або що конкретний екран явно дозволено редагувати старим `message_id`.

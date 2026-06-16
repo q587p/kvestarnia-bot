@@ -1,6 +1,8 @@
 # Бочка підтримки Квестарні
 
-Цей документ фіксує майбутню добровільну підтримку Квестарні через Monobank-банку. Це **планувальний docs-only backlog**, не runtime scope і не обіцянка, що `/support`, сайтова кнопка або deep link уже працюють.
+Цей документ фіксує добровільну підтримку Квестарні через Monobank-банку. З `0.1.1` перший безпечний runtime-slice вже існує: optional `SUPPORT_BARREL_URL`, вторинна команда `/support`, сайтова secondary-картка за наявности URL і deep link `/start barrel_thanks`.
+
+Це все ще не payment integration: бот не підтверджує оплату, не зберігає donor state і не видає ігрових нагород.
 
 ## Product rule
 
@@ -80,13 +82,11 @@
 
 Important: reward link does not confirm payment. Його можна переслати, тому бот не має писати «платіж підтверджено» і не має видавати ігрових сутностей.
 
-## Future runtime scope
-
-Runtime робота має бути окремим PR після цього docs-only backlog.
+## Runtime scope in `0.1.1`
 
 ### Optional config
 
-Майбутній env/config:
+Env/config:
 
 ```env
 SUPPORT_BARREL_URL=https://send.monobank.ua/jar/...
@@ -96,6 +96,7 @@ Rules:
 
 - якщо `SUPPORT_BARREL_URL` заданий — можна показувати кнопку/лінк підтримки;
 - якщо не заданий — не рендерити `undefined`, `null`, порожній або битий URL;
+- URL має бути absolute `https://send.monobank.ua/...`;
 - не хардкодити вигаданий Monobank URL у коді чи README.
 
 ### Bot command `/support`
@@ -161,7 +162,7 @@ Deep link must not:
 
 ### Public site block
 
-If `SUPPORT_BARREL_URL` exists, the homepage can show a secondary block below gameplay/news context, not in the hero:
+If `SUPPORT_BARREL_URL` exists, the homepage shows a secondary block below gameplay/news context, not in the hero:
 
 ```text
 🫙 Підтримати Квестарню
@@ -183,7 +184,7 @@ If URL is absent, do not show a broken link.
 
 ### README section
 
-Add only when a real URL/config path is ready:
+README may mention `/support`, voluntary support and runtime-configured URL, but must not hardcode a real Monobank URL:
 
 ```md
 ## 🫙 Підтримати Квестарню
@@ -192,10 +193,10 @@ Add only when a real URL/config path is ready:
 
 Але можна добровільно підтримати розробку: сервер, інструменти, токени для Кодексу, редактура, коректура, тексти, ілюстрації й майбутні візуальні матеріали.
 
-Підтримати: Бочка підтримки Квестарні (`<MONOBANK_JAR_URL>`)
+У боті: `/support`
 ```
 
-## Acceptance checklist for future PR
+## Acceptance checklist
 
 - `/support` exists and is secondary.
 - `/support` renders URL only when configured.

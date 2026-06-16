@@ -11,7 +11,8 @@ const EMPTY_PRESENCE: PublicPresenceLocationsSnapshot = {
 
 export function renderHomePage(
   snapshot: PublicPresenceLocationsSnapshot = EMPTY_PRESENCE,
-  newsEntries: NewsEntry[] = []
+  newsEntries: NewsEntry[] = [],
+  options: { supportBarrelUrl?: string } = {}
 ): string {
   const latestNews = newsEntries[0]
     ? renderNewsEntry(newsEntries[0])
@@ -92,6 +93,8 @@ export function renderHomePage(
       ${latestNews}
       <p class="more-link"><a href="/news">Усі вісті</a></p>
     </section>
+
+    ${renderSupportBlock(options.supportBarrelUrl)}
     `
   );
 }
@@ -188,6 +191,25 @@ function renderFeature(icon: string, title: string, text: string): string {
   <h3>${title}</h3>
   <p>${text}</p>
 </article>`;
+}
+
+function renderSupportBlock(supportBarrelUrl: string | undefined): string {
+  if (!supportBarrelUrl) {
+    return "";
+  }
+
+  const escapedUrl = escapeHtml(supportBarrelUrl);
+
+  return `<section class="band support-band">
+  <div class="support-card">
+    <p class="eyebrow">Добровільно й без сили за гроші</p>
+    <h2>🫙 Підтримати Квестарню</h2>
+    <p>Квестарня безкоштовна й без купівлі ігрової сили.</p>
+    <p>Якщо хочеться допомогти проєкту — можна добровільно підкинути монет у Бочку підтримки: на сервер, токени для Кодексу, тексти, редактуру, коректуру, ілюстрації й корчмарську інфраструктуру.</p>
+    <p>Підтримка не дає луту, золота, XP або переваг. Просто корчмі стане трохи тепліше.</p>
+    <p><a class="support-button" href="${escapedUrl}">Підтримати корчму</a></p>
+  </div>
+</section>`;
 }
 
 function renderPresenceSummary(snapshot: PublicPresenceLocationsSnapshot): string {
@@ -415,6 +437,33 @@ main {
 .parchment,
 .news-band {
   background: var(--parchment);
+}
+
+.support-band {
+  background: #f8efe0;
+}
+
+.support-card {
+  max-width: 820px;
+  padding: 24px;
+  border: 1px solid rgba(132, 47, 63, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.support-card .eyebrow {
+  color: var(--wine);
+}
+
+.support-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: var(--wood);
+  color: var(--foam);
+  text-decoration: none;
 }
 
 .presence-band {

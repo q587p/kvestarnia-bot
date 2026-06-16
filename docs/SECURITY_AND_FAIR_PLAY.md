@@ -80,14 +80,15 @@ Admin commands:
 
 ### Бочка підтримки
 
-Майбутня `Бочка підтримки Квестарні` є добровільною підтримкою, а не payment-to-gameplay integration. Канонічний backlog: [SUPPORT_BARREL_BACKLOG.md](SUPPORT_BARREL_BACKLOG.md).
+`Бочка підтримки Квестарні` є добровільною підтримкою, а не payment-to-gameplay integration. У `0.1.1` є тільки link plumbing: optional `SUPPORT_BARREL_URL`, `/support`, secondary homepage block and `/start barrel_thanks`. Канонічний backlog: [SUPPORT_BARREL_BACKLOG.md](SUPPORT_BARREL_BACKLOG.md).
 
 Guardrails:
 
 - deep link `barrel_thanks` не підтверджує оплату;
 - не зберігати donor state без окремого privacy/legal рішення;
 - не видавати XP, золото, items, манатки, екіпірування, рейтингові записи або доступ до фіч;
-- не показувати битий support URL, якщо `SUPPORT_BARREL_URL` не налаштований;
+- не показувати битий support URL, якщо `SUPPORT_BARREL_URL` не налаштований або не проходить validation;
+- `SUPPORT_BARREL_URL` у першому runtime-slice приймає тільки `https://send.monobank.ua/...`;
 - не лоґувати персональні платіжні дані;
 - не називати це благодійністю, якщо юридично це не благодійний збір.
 

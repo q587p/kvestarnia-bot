@@ -48,6 +48,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "guild")).toBe(false);
     expect(commands.some((entry) => entry.command === "restart")).toBe(false);
     expect(commands.some((entry) => entry.command === "version")).toBe(false);
+    expect(commands.some((entry) => entry.command === "support")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_me")).toBe(false);
   });
 

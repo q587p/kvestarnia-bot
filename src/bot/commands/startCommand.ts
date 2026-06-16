@@ -5,9 +5,18 @@ import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { buildGenderKeyboard } from "../keyboards/onboardingKeyboard";
 import { presentHero } from "../presenters/heroPresenter";
 import { presentWelcome } from "../presenters/onboardingPresenter";
+import { presentBarrelThanks } from "../presenters/supportPresenter";
+import { parseStartPayload } from "../startPayload";
 
 export function registerStartCommand(bot: Bot, onboardingService: OnboardingService): void {
   bot.command("start", async (ctx) => {
+    const payload = parseStartPayload(typeof ctx.match === "string" ? ctx.match : undefined);
+
+    if (payload.type === "barrel-thanks") {
+      await ctx.reply(presentBarrelThanks());
+      return;
+    }
+
     const player = playerFromContext(ctx.from);
 
     if (!player) {

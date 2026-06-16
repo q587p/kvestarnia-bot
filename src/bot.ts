@@ -75,7 +75,13 @@ const services = {
   restart: new RestartService(characters),
   tavern: new TavernRaidService(characters, dailyActions, roundPurchases, cooldowns)
 };
-const healthServer = startHealthServer({ presence: services.presence });
+const supportBarrelOptions = config.supportBarrelUrl
+  ? { supportBarrelUrl: config.supportBarrelUrl }
+  : {};
+const healthServer = startHealthServer({
+  presence: services.presence,
+  ...supportBarrelOptions
+});
 let bot: Bot | null = null;
 
 function shutdown(): void {
@@ -93,7 +99,7 @@ process.once("SIGTERM", shutdown);
 if (!config.botToken) {
   console.log("Квестарня: BOT_TOKEN не задано, Telegram polling не запускається.");
 } else {
-  bot = createBot(config.botToken, services);
+  bot = createBot(config.botToken, services, supportBarrelOptions);
 
   void bot.api.setMyCommands(getTelegramMenuCommands(services.devReset.isEnabled())).catch((error) => {
     console.error("Квестарня: бокове меню команд не оновилось.", error);

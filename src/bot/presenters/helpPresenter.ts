@@ -89,6 +89,11 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     description: "новини й версія"
   },
   {
+    commands: ["support"],
+    icon: "🫙",
+    description: "добровільна підтримка без бонусів"
+  },
+  {
     commands: ["help"],
     icon: "📖",
     description: "допомога"
