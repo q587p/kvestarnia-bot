@@ -965,6 +965,32 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(inlineButtonRows(fullHubKeyboard)).toContainEqual(["📦 Архів", "📖 Бестіарій"]);
 
+    const level13HubKeyboard = buildQuestHubKeyboard({
+      adventure: { state: "level-retired", character, maxLevel: 2 },
+      fight: {
+        state: "persistent-ready",
+        character,
+        questProgress: {
+          title: "Тринадцять дрібних проблем",
+          wins: 13,
+          target: 13,
+          completed: true,
+          rewardClaimed: true
+        }
+      },
+      yeger: {
+        state: "completed",
+        character,
+        progress: { wins: 5, target: 5 },
+        reward: { xp: 80, gold: 120, itemGrants: [] }
+      },
+      cellar: { state: "level-retired", character, maxLevel: 3 },
+      characterLevel: 13
+    });
+
+    expect(flatInlineButtonTexts(level13HubKeyboard)).toContain("🕯️ Реморт");
+    expect(flatInlineButtonCallbacks(level13HubKeyboard)).toContain("v1:rm:open");
+
     expect(
       flatInlineButtonTexts(
         buildQuestHubKeyboard({

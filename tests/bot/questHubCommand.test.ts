@@ -256,6 +256,32 @@ describe("quest hub command", () => {
     ]);
   });
 
+  it("offers remort from the quest table at level 13", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const capstoneCharacter = characterAtLevel(13);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(capstoneCharacter),
+        fight: readyFightService(capstoneCharacter),
+        yeger: readyYegerService(capstoneCharacter),
+        cellarErrand: readyCellarService(capstoneCharacter),
+        cellarGrownup: completedCellarGrownupService(capstoneCharacter)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("Або оберіть /remort");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.text)).toContain("🕯️ Реморт");
+    expect(buttons.map((button) => button.callback_data)).toContain("v1:rm:open");
+  });
+
   it("hides completed grownup cellar state from the active list", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const grownCharacter = characterAtLevel(4);
@@ -567,26 +593,29 @@ describe("quest hub command", () => {
   });
 });
 
-function characterAtLevel(level: 1 | 2 | 3 | 4): CharacterSummary {
+function characterAtLevel(level: 1 | 2 | 3 | 4 | 13): CharacterSummary {
   const xpByLevel = {
     1: 0,
     2: 10,
     3: 25,
-    4: 45
-  } satisfies Record<1 | 2 | 3 | 4, number>;
+    4: 45,
+    13: 1300
+  } satisfies Record<1 | 2 | 3 | 4 | 13, number>;
   const nextByLevel = {
     1: 10,
     2: 25,
     3: 45,
-    4: 70
-  } satisfies Record<1 | 2 | 3 | 4, number>;
+    4: 70,
+    13: null
+  } satisfies Record<1 | 2 | 3 | 4 | 13, number | null>;
+  const nextLevelXp = nextByLevel[level];
 
   return {
     ...character,
     level,
     xp: xpByLevel[level],
-    nextLevelXp: nextByLevel[level],
-    xpToNextLevel: nextByLevel[level] - xpByLevel[level]
+    nextLevelXp,
+    xpToNextLevel: nextLevelXp === null ? null : nextLevelXp - xpByLevel[level]
   };
 }
 

@@ -9,6 +9,7 @@ import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData"
 import { makeMenuCallbackData } from "../callbacks/menuCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 
 export interface QuestHubKeyboardInput {
   mode?: "active" | "archive";
@@ -78,6 +79,10 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.row();
   }
 
+  if (canOpenRemort(input)) {
+    keyboard.text("🕯️ Реморт", makeRemortOpenCallbackData()).row();
+  }
+
   addQuestReferenceButtons(keyboard, input);
 
   if (!hasReadyQuestAction(input)) {
@@ -105,6 +110,10 @@ function addQuestReferenceButtons(
 
 function canOpenBestiary(input: QuestHubKeyboardInput): boolean {
   return input.characterLevel === undefined || meetsActivityLevel(input.characterLevel, BESTIARY_MIN_LEVEL);
+}
+
+function canOpenRemort(input: QuestHubKeyboardInput): boolean {
+  return (input.characterLevel ?? 0) >= 13;
 }
 
 function getFightButtonLabel(fight: QuestHubKeyboardInput["fight"]): string {
