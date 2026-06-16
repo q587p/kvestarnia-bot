@@ -1,21 +1,33 @@
-# Playtesting поточного loop
+# Playtesting поточного loop після `0.1.0`
 
-Цей документ — ручний smoke test для playable slice Квестарні. Він не описує весь майбутній дизайн; він допомагає швидко перевірити, що поточні кнопки, нагороди, кулдауни й присутність поводяться очікувано.
+Цей документ — ручний smoke test для playable Phase 1 loop Квестарні після `0.1.0`. Він не описує весь майбутній дизайн; він допомагає швидко перевірити, що поточні кнопки, нагороди, кулдауни й присутність поводяться очікувано.
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
-## 0.0.26 — Recovery & balance smoke
+## 0.1.0 — Closeout smoke
 
-Для швидкої перевірки стабілізаційного slice:
+Канонічний release gate для Phase 1 closure живе в [`docs/PHASE1_CLOSEOUT_SMOKE.md`](PHASE1_CLOSEOUT_SMOKE.md). Для `0.1.0` він має покривати new player route, level 3+ persistent fight, HP/mana recovery, equipment effective stats, Mantok Chest auto/manual, Yeger tracking, Munchkin barter safety, Barrel/Shynok/presence, and public health/news/presence surfaces.
+
+Автоматизований набір для release/docs closeout:
+
+```bash
+npm.cmd run db:validate
+npm.cmd run lint
+npx.cmd tsc --noEmit
+npm.cmd test
+npm.cmd run check
+git diff --check
+```
+
+Додатковий balance smoke, якщо потрібно окремо перевірити бойову криву:
 
 ```bash
 npm.cmd test -- tests/domain/resourceRegeneration.test.ts tests/services/fightService.test.ts tests/domain/lootEngine.test.ts tests/tooling/combatSimulation.test.ts
 npm.cmd run simulate:combat -- --levels 3,4,8,13 --runs 200 --classes all
 npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
-npm.cmd run check
 ```
 
-Що дивитись у звітах:
+Що дивитись у balance-звітах:
 - рівні 3 і 4 не повинні бути нудно-легкими;
 - рівні 8 і 13 не повинні виглядати як математична помилка;
 - `needs-rest` і `/hero` мають чітко казати, що HP 0 — це пауза, а не тупик;
@@ -237,9 +249,9 @@ npm.cmd run check
 - `/restart` — видаляє персонажа поточного Telegram-користувача після підтвердження.
 - `/dev_reset_me` — у локальному режимі видаляє тільки персонажа поточного користувача після підтвердження.
 
-## Future Phase 1 Smoke
+## `0.1.0` Phase 1 Definition of Done
 
-Це не поточний повний smoke, а Definition of Done для завершення Phase 1 після combat/equipment/loot/level PR:
+Це поточний короткий Definition of Done для закритої Phase 1 петлі. Детальний ручний маршрут живе в [`docs/PHASE1_CLOSEOUT_SMOKE.md`](PHASE1_CLOSEOUT_SMOKE.md):
 
 1. `/start` створює персонажа без дублювання.
 2. `/hero` показує level, XP, gold, HP, mana, stats і equipment summary.
@@ -257,6 +269,10 @@ npm.cmd run check
 14. Наступний fight показує або використовує змінені values.
 15. Level-up text показується при перетині threshold.
 16. Level 13 cap / alpha behavior зрозумілий.
+17. Mantok Chest auto/manual працює як перший item-volume sink.
+18. Yeger tracking і turn-in не дублюють прогрес або reward.
+19. Munchkin barter не дозволяє gold-only, replay-ить completed confirm і не проводить `12 -> 13`.
+20. `/version` після deploy показує `0.1.0`.
 
 ## Що це ще не перевіряє
 

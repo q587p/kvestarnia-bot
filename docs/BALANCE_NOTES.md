@@ -10,6 +10,10 @@ MVP має бути веселим, не ідеально збалансован
 - Level-up 1–5 швидкий, 6–13 помітно повільніший.
 - Рідкісний лут приємний, але не обов’язковий для прогресу.
 
+`0.1.0` закриває Phase 1 як playable first loop, не як фінальний баланс. Поточна крива 1-13, persistent HP/мана, loot replay, Mantok Chest і Манчкін-скупник достатні для playtest-у, але числові пороги, win-rate, reward pacing і item pressure мають лишатися предметом окремих `0.1.x` balance PR після реального smoke/playtest fallout.
+
+Phase 2 додає соціяльний бій та взаємодії до фінального балансу, тому перші runtime-slices мають покладатися на caps, audit rows and replay-safe results, not perfect formulas. Canonical notes: [phase2/UNSTABLE_BALANCE_PRINCIPLES.md](phase2/UNSTABLE_BALANCE_PRINCIPLES.md).
+
 ## Стати MVP
 - STR — фізична шкода.
 - DEX — ухилення/крит.
@@ -283,7 +287,7 @@ Hunt Board лишається простим для входу: один кон�
 
 Більшість манаток має мати вартість, щоб лут був не лише колекцією дивних назв, а й економічним ресурсом. `Безцінні` речі мають бути винятком: сюжетні трофеї, жарти, документи або колекційні штуки, які не можна чесно перетворити на золото чи рівень.
 
-Механіка `🎒 Манчкін-скупник` уже існує як обережний gold/item sink у дусі Munchkin: якщо персонаж здає eligible манатки й докладає золото до визначеної суми `1000`, підозрілий тип надворі може оформити підняття рівня. Guardrails:
+Механіка `🎒 Манчкін-скупник` уже існує як обережний item+gold sink у дусі Munchkin: якщо персонаж здає eligible манатки й докладає золото до визначеної суми `1000`, підозрілий тип надворі може оформити підняття рівня. Це не free-gold loop, не broad selling/trading system і не shortcut до `12 -> 13`. Guardrails:
 - тільки явне підтвердження, без автоматичного списання;
 - не приймати безцінні або заблоковані речі;
 - не дозволяти gold-only: у кожному обміні має бути хоча б одна priced eligible манатка;
@@ -292,9 +296,11 @@ Hunt Board лишається простим для входу: один кон�
 - тримати пороги достатньо високими, щоб це було веселим способом спалити зайве, а не основним шляхом прокачки;
 - repeated confirm має replay-ити audit row і не списувати речі/золото/рівень вдруге.
 
-## PvP guardrails
+## Phase 2 PvP / duel guardrails
 - No item loss.
 - No gold steal у MVP.
+- No wagers in the first duel slice.
+- Consent first: target accepts explicitly, decline/expiry is safe and non-punitive.
 - Match by level bracket.
 - Soft cap на win streak rewards.
 - Newbie protection до level 5 або перших 48 годин.
@@ -303,6 +309,19 @@ Hunt Board лишається простим для входу: один кон�
 - Weekly ranking не має бути raw win count: враховувати різних опонентів, win rate, capped score і abuse flags.
 - Race/class edge дозволений і бажаний у тематичних бійках, але симуляції мають ловити крайнощі: воїн-орк може бути фаворитом у кулачній драці, проте бард такого самого рівня не має падати до майже нульового win rate.
 - Daily/weekly нагороди для переможців мають бути переважно cosmetic/social: титул, запис на дошці, маленький bonus payout. Не давати чемпіону предмет або buff, який збільшує наступний PvP snowball.
+
+## Phase 2 trading/gifting guardrails
+- Gift/trade is not a gold source.
+- First slice transfers one eligible item unit or one narrow item-for-item offer.
+- Equipped, protected, priceless, story, apology and already-pending items are not eligible.
+- No auction house, market pricing or gold add-ons until transfer audit/idempotency is proven.
+- Trading should help players move unsuitable манатки, not bypass progression, level gates or anti-abuse rules.
+
+## Phase 2 remort guardrails
+- `/remort` is explicit and unavailable below level 13.
+- First remort slice should preserve social/cosmetic legacy, not permanent combat power.
+- No paid remort, hidden wipe or automatic prestige.
+- Reset/preserve rules must be visible before confirmation and covered by tests.
 
 ## Combat simulation harness
 Для локальної балансної перевірки запускай:

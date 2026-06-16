@@ -1,20 +1,40 @@
-﻿# Next Implementation Backlog після `0.0.25`
+﻿# Next Implementation Backlog після `0.1.0`
 
-## 0.0.x Closeout / 0.1.x Transition
+## Current order after `0.1.0`
 
-Перед новими feature tracks звірятися з `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md` і `docs/PHASE1_CLOSEOUT_SMOKE.md`.
+`0.0.x` завершено після `0.0.30 — Level Barter Safety & Closeout Alignment`. `0.1.0 — Phase 1 Closeout & Phase 2 Roadmap` є release/docs/smoke PR: version bump, release notes, changelog/news, README, roadmap/backlog/playtesting alignment, Phase 2 docs reset, and no new gameplay runtime.
 
-Після `0.0.29 — Yeger Tracking Search` не тягнути в лінійку `0.0.x` нові системи на кшталт Achievements runtime, продажу манаток задля пива, Bestiary filters, Глибки, durable Barrel outbox, shops/trading/crafting, group raids, guilds, PvP або Mini App. Якщо це не blocker core loop і не маленький targeted fix, воно має їхати в `0.1.x` backlog.
+Перед новими feature tracks звірятися з:
+- [PHASE1_RELEASE_NOTES.md](PHASE1_RELEASE_NOTES.md)
+- [PHASE1_CLOSEOUT_0_1_TRANSITION.md](PHASE1_CLOSEOUT_0_1_TRANSITION.md)
+- [PHASE1_CLOSEOUT_SMOKE.md](PHASE1_CLOSEOUT_SMOKE.md)
+- [phase2/SOCIAL_COMBAT_PLAN.md](phase2/SOCIAL_COMBAT_PLAN.md)
+- [phase2/DUELS_AND_INVITES.md](phase2/DUELS_AND_INVITES.md)
 
-Closure PR `0.1.0` має бути release/docs/smoke PR: version surface, changelog/news, README, roadmap/backlog freeze, Phase 1 release notes і явний deferred list. Runtime gameplay changes у ньому допустимі тільки як мінімальні blocker fixes.
+Перший порядок після `0.1.0`:
 
-Нижче — канонічний порядок маленьких PR для добивання Phase 1. Кожен slice має бути перевірюваним окремо; якщо PR роздувається, різати.
+1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, and smoke fallout.
+2. `0.1.2` — choose one reliability/polish item based on real pain: durable Barrel completion notifications or Mantok Chest pending cleanup.
+3. `0.1.3` — Hlybka routing or fight/quest navigation cleanup if playtest shows confusion around where fights happen.
+4. First Phase 2 prep/runtime slice only after smoke evidence: duel invite MVP, not group raid.
+5. Duel result/rematch/tournament card support.
+6. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
+7. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
+8. `/remort` at level 13 with capped memory legacy and explicit preserved-manatky selection.
+9. Multi-enemy combat.
+10. Party combat / real raid MVP with capped contribution-aware rewards.
 
-## Phase 1 Scope Guard
+Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
+
+Deferred side tracks remain useful but should not steal the Phase 2 spine: durable Barrel notification reliability, Mantok Chest pending cleanup, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs, NPC rankings and the docs-planned support Barrel.
+
+Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
+
+## Post-closeout scope guard
 
 Бестіарій лишається content/data foundation: read-only `/bestiary`, monster content, loot notes, flavor routing і Hunt Board contract source.
 
-Не розширювати бестіарій як окрему фічу, collection loop, share card або journal progression, доки не закритий основний RPG-ланцюжок:
+Не розширювати бестіарій як окрему фічу, collection loop, share card або journal progression, доки `0.1.x` playtest не підтвердить, що закритий Phase 1 ланцюжок стабільний:
 
 ```text
 persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/mana persistence → recovery/balance polish → inventory/chest polish → balance/playtest polish
@@ -35,7 +55,8 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - Додати команду `/remort` як окремий шлях після досягнення 13 рівня.
 - На 13 рівні capstone copy має пропонувати `/remort`, а не лише `/restart`.
 - Зберегти `/restart` як технічний reset/discovery loop, але не робити його головною endgame-пропозицією.
-- Вирішити, що саме переходить у нове коло: імʼя, записи дошки, remort-count, титули, косметичні відзнаки, частина манаток або жодна бойова сила.
+- Вирішити точні runtime details для legacy: remort-count, титул/косметична відзнака, запис дошки, малий memory-бонус від розвиненої стати/ідентичности, трохи кращі стартові HP/мана і до 5 явно вибраних eligible манаток.
+- Перед reset показати preview: що скидається, що лишається, які саме манатки обрані й чому частина речей не eligible.
 - Нове коло має відкривати інший смак проходження без pay-to-win і без обовʼязкового grind-покарання.
 
 **Non-goals**
@@ -44,11 +65,17 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - no paid power або premium remort;
 - no wipe без явного confirmation;
 - no автоматичне переродження без окремої команди й пояснення.
+- no рівні 14-23 у тому самому slice;
+- no приховане збереження або списання манаток без preview.
 
 **Acceptance criteria**
 
 - 13-level celebration пропонує `/remort` як головний наступний крок;
 - `/remort` має окремий confirmation flow і не плутається з `/restart`;
+- unavailable below level 13;
+- preview shows reset/preserve consequences;
+- player can explicitly select up to 5 eligible preserved manatky;
+- protected/story/priceless/equipped manatky rules are explicit;
 - remort-state/rewards ідемпотентні й не дублюються повторним callback-ом;
 - docs пояснюють, чим `/remort` відрізняється від `/restart`;
 - tests cover unavailable below level 13, confirmation, successful remort, repeated confirm, and preserved/deleted state choices.
@@ -122,6 +149,40 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - manual `🍺 Перевірити бочку` лишається fallback і не дублює reward;
 - повторний startup/resume або retry не надсилає кілька однакових completed-повідомлень;
 - tests cover due-on-startup, future-reschedule, already-completed, and duplicate-worker/idempotency paths.
+
+## Later — Бочка підтримки
+
+**Objective**
+Додати добровільну підтримку Квестарні через Monobank-банку без ігрових переваг, без преміуму й без прив’язки реальних грошей до прогресу.
+
+**Status**
+Docs-only backlog exists in `docs/SUPPORT_BARREL_BACKLOG.md`. Runtime work is intentionally later.
+
+**Scope**
+
+- optional `SUPPORT_BARREL_URL`;
+- secondary `/support` command, not in welcome flow;
+- deep link `/start barrel_thanks` with gratitude scene;
+- optional public-site secondary support block;
+- README/docs copy only when real URL/config path is ready;
+- tests for configured URL, missing URL, regular `/start`, `barrel_thanks` and no gameplay rewards.
+
+**Non-goals**
+
+- no XP, gold, loot, manatky, equipment, rankings or feature access;
+- no payment confirmation;
+- no donor state;
+- no premium positioning;
+- no hardcoded fake Monobank URL;
+- no changelog/news release entry for docs-only planning.
+
+**Acceptance criteria**
+
+- `/support` never renders a broken URL;
+- `barrel_thanks` explicitly says there are no gameplay advantages;
+- regular `/start` stays unchanged;
+- support copy stays voluntary and secondary;
+- `npm.cmd run check` passes in the future runtime PR.
 
 ## Later — Шинок Mantok-for-Beer Sink
 
@@ -587,7 +648,7 @@ Implemented in PR #39.
 ## 0.0.26 — Phase 1 Recovery & Balance Polish
 
 **Status**
-Current stabilization slice after `0.0.25`. This is the small pass that keeps HP/mana attrition, passive recovery, loot expansion, Hunt Board scaling, and persistent fight rewards coherent before the next feature slice.
+Implemented in `0.0.26`; retained here as archive context for the recovery/balance stabilization pass.
 
 **Objective**
 Підрівняти відчуття після `0.0.25`: hero recovery має бути зрозумілим, same-level fights — не ламатися на верхніх рівнях, а локальний smoke path — легко повторюваним.
@@ -664,6 +725,9 @@ Implemented in the `0.0.28` slice as `Неспокійні справи`: level 
 - group hunt hooks after solo loop stabilizes.
 
 ## 0.0.29+ — Phase 1 Balance and Playtest Polish
+
+**Status**
+Closed by `0.1.0`; remaining polish belongs to the explicit `0.1.x` order at the top of this document.
 
 **Objective**
 Не додавати фічі, а довести Phase 1 до done: real fight → reward → loot → level-up → hero/equipment/resources impact має мати нормальний темп 1-13 і зрозумілий playtest checklist.
@@ -808,7 +872,7 @@ Implemented in the `0.0.28` slice as `Неспокійні справи`: level 
   - одноручна зброя може бути в `mainHand` або `offHand`, якщо предмет/клас це дозволяє;
   - щит або захисна манатка може займати одну руку;
   - два щити можливі тільки як окремий funny/defensive build і не мають давати безсмертя;
-- додати item tags для майбутніх дій: `melee`, `ranged`, `magic-focus`, `shield`, `kick-enabled`, `block`, `counter`, `spell-channel`, `offhand`, `two-handed`, `cosmetic`, `consumable`;
+- додати item tags для майбутніх дій: `melee`, `ranged`, `magic-focus`, `shield`, `kick-enabled`, `guard`, `counter`, `spell-channel`, `offhand`, `two-handed`, `cosmetic`, `consumable`, `single-use`/`one-use`, `duel-legal`/`duel-blocked`, `raid-legal`/`raid-blocked`, `tradeable`/`trade-blocked`, `memory`, `sentimental`, `soulbound`;
 - пройтися по наявних манатках і проставити tags/effect intent, щоб кожна supported equippable річ чесно пояснювала, чим вона може допомогти;
 - stronger equipment impact має йти через `buildEffectiveCharacterStats(...)` і combat action catalog, а не через presenter hacks;
 - якщо немає зброї, combat має мати unarmed fallback: кулаки, хвіст, голова, роги, пісня, печатка або інший flavor залежно від раси/класу/титулу;

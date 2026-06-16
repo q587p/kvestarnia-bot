@@ -29,6 +29,7 @@ Done when: є unit tests для перемоги, поразки, криту, п
 Для таких змін:
 
 - онови `package.json` version тільки коли це прямо входить у задачу;
+- якщо version рухається, тримай `package.json`, `package-lock.json`, `CHANGELOG.md` і `news.md` у lockstep, якщо користувач не задав вужчий scope;
 - онови `CHANGELOG.md` і `news.md`, якщо зміна має йти як реліз;
 - заголовки release notes мають містити номер, дату за Holocene calendar і короткий опис; дату брати за київським часом (`Europe/Kyiv`) на момент підготовки/публікації запису;
 - PR title для release-oriented зміни починається з номера версії й короткого опису, наприклад `0.0.4 — First Mimic Shawarma Adventure`.
@@ -127,6 +128,8 @@ Spawn 3 agents and consolidate:
 - Чи не розширився scope понад задачу.
 - Чи не дублюються іконки в одному повідомленні/клавіатурі для різних дій, якщо це не однотипні `Назад`, `До зали`, пагінація або схожа навігація.
 - Для docs-only змін: чи README лишається вітриною, а setup/runbook живе в окремих docs.
+- Для docs index / README / release-note path змін: зробити Markdown relative-link spot check, особливо для маршруту `README.md` → `docs/README.md` → release notes / roadmap.
+- Для великих docs PR: запустити `git diff --check`, щоб зловити whitespace churn, і `npm.cmd run check`, якщо PR одночасно торкається version/release surfaces.
 
 ## Типові помилки
 

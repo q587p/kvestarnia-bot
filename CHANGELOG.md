@@ -7,6 +7,34 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.0] - 12026-06-16 - Phase 1 Closeout & Phase 2 Roadmap
+
+### Milestone
+- Closed the `0.0.x` Phase 1 build line as a playable solo MVP loop and opened the `0.1.x` stabilization/playtest line.
+- Reset Phase 2 around Social Combat & Interactions: duel invites first, then result/rematch/tournament cards, trading/gifting, combat variety, `/remort`, multi-enemy combat, and later party combat / real raids.
+- Added the canonical Phase 1 release notes, docs index, Phase 2 planning docs, and aligned README, roadmap, backlog, smoke, balance, technical, changelog, and player-facing news surfaces.
+
+### Phase 1 runtime now includes
+- Onboarding and `/hero` for creating and reading a persistent adventurer.
+- Korchma navigation, Quest Hub routing, light presence, public site/news/presence surfaces, and service commands.
+- Persistent solo fights for level 3+ heroes with HP/mana state, attack/special/flee actions, stale-turn protection, loss/flee handling, and reward replay.
+- Equipment effects through shared effective stats used by hero, equipment, item detail, and combat paths.
+- Controlled fight loot, idempotent XP/gold/item rewards, visible level 1-13 progression, inventory, item details, and the Mantok Chest auto/manual item-volume sink.
+- Yeger unquiet quest tracking and the outside-korchma Munchkin level barter path.
+
+### Stabilized before closeout
+- Munchkin barter safety from `0.0.30`: `level_barter_exchanges` replay/audit rows, no gold-only exchange, protected/equipped/priceless exclusions, `12 -> 13` refusal, and pending Barrel guards.
+- Phase 1 smoke documentation now covers new-player flow, persistent fight, HP/mana recovery, equipment effects, Mantok Chest auto/manual, Yeger tracking, Munchkin barter safety, Barrel/Shynok/presence, and public health/news/presence surfaces.
+
+### Known debts moved to 0.1.x
+- Playtest bugfixes, copy polish, small UX papercuts, and balance/reliability work.
+- Durable Barrel completion notifications or Mantok Chest pending cleanup, depending on observed pain.
+- Hlybka routing or fight/quest navigation cleanup if playtest shows the current routing is confusing.
+- First Phase 2 duel invite slice only after the core loop remains stable; rewardless achievements and other side tracks stay secondary.
+
+### Not Included Yet
+- No achievements runtime, duel/PvP runtime, trading/gifting runtime, `/remort`, food/coffee buffs, NPC ranking runtime, expanded equipment, battle interventions, manual Munchkin selection, shops, selling, crafting, item-instance inventory, group raids, guilds, Mini App, or broad combat rewrite.
+
 ## [0.0.30] - 12026-06-16 - Level Barter Safety & Closeout Alignment
 
 ### Added

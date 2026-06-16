@@ -1,6 +1,34 @@
 # Social Actions Backlog
 
-Цей backlog описує group/social features, які добре йдуть після першого групового рейду.
+Цей backlog описує group/social features, які добре йдуть після Phase 1 closeout and Phase 2 roadmap reset.
+
+Status after `0.1.0`: перший Phase 2 spine — не груповий рейд, а **Social Combat & Interactions**. Канонічний план живе в [phase2/SOCIAL_COMBAT_PLAN.md](phase2/SOCIAL_COMBAT_PLAN.md). Старі group-raid ideas лишаються later input, але найближчий соціяльний runtime напрям — duel invites, result/rematch cards, trading/gifting, combat variety and later party combat.
+
+## 0. Duel invites and result cards
+
+Player value:
+- дає простий привід покликати іншого пригодника;
+- створює коротку історію, яку хочеться показати в чаті;
+- перевіряє social session primitives до рейдів і ґільдій.
+
+Minimum implementation:
+- pending challenge with explicit accept/decline/expiry;
+- quick resolve, not full turn-based PvP;
+- replay-safe result card;
+- rematch button with caps and cooldowns.
+
+Abuse risk:
+- спам викликами;
+- домовні повтори однієї пари;
+- соціяльний тиск на гравців, які не хочуть битися.
+
+Required data:
+- challenge/session row;
+- pair/day caps;
+- result replay/audit payload.
+
+Solo-compatible:
+- частково: NPC/training duel can exist later, але головна цінність — інший гравець.
 
 ## 1. Buy a round for people currently in the korchma
 

@@ -8,26 +8,22 @@
 
 `0.0.x` — це будівельна лінійка Phase 1: створення пригодника, корчма, перші квести, persistent solo-бій, HP/мана, манатки, спорядження, контрольована здобич, рівні 1-13, Дружня Скриня, Єгерська справа і базова присутність.
 
-`0.1.0` має бути closure/release PR: версійна поверхня, release notes, docs freeze, smoke checklist і чіткий backlog на `0.1.x`. Без нових gameplay-систем, крім мінімальних blocker-fix змін.
+`0.1.0 — Phase 1 Closeout & Phase 2 Roadmap` є closure/release PR: версійна поверхня, release notes, docs freeze, smoke checklist, чіткий backlog на `0.1.x` і reset Phase 2 у напрямі Social Combat & Interactions. Без нових gameplay-систем, крім мінімальних blocker-fix змін.
 
 `0.1.x` — це стабілізація і малі свідомі розширення після playtest-у, а не продовження «ще трошки Phase 1».
 
-Phase 1 варто закривати після:
+Phase 1 закривається цим `0.1.0` PR після:
 
 1. завершення `0.0.30 — Level Barter Safety & Closeout Alignment`, бо `0.0.29` уже вмержив ширший runtime: Єгерський слід плюс Манчкін-скупник;
 2. повного smoke core-loop;
-3. одного closure PR до `0.1.0` без нових gameplay-систем;
+3. closure PR до `0.1.0` без нових gameplay-систем;
 4. створення або оновлення канонічного `0.1.x` backlog issue/doc.
 
-## Must Before 0.1.0
+## `0.1.0` closure scope
 
-### 1. Закрити активний 0.0.30 safety-хвіст
+### 1. Baseline
 
-- Перевірити diff.
-- Переконатися, що міграція `level_barter_exchanges`, якщо вона є в PR, лишається вузьким audit/idempotency boundary, а не стартом нової економіки.
-- Прогнати або перевірити CI.
-- Якщо є blocker, зробити тільки targeted fix.
-- Не додавати bait/lure/ambush, reputation, shops, trading, crafting або нові scheduler/job системи.
+`0.0.30` уже вмержено як baseline для closeout. Міграція `level_barter_exchanges` лишається вузьким audit/idempotency boundary для Манчкін-скупника, а не стартом нової економіки.
 
 ### 2. Пройти core smoke
 
@@ -46,7 +42,7 @@ Phase 1 варто закривати після:
 
 Детальний smoke живе в [docs/PHASE1_CLOSEOUT_SMOKE.md](PHASE1_CLOSEOUT_SMOKE.md).
 
-### 3. Зробити closure PR `0.1.0`
+### 3. Closure PR `0.1.0`
 
 Scope closure PR:
 
@@ -55,8 +51,9 @@ Scope closure PR:
 - `news.md` з player-facing новиною без внутрішньої кухні й без спойлерів;
 - `README.md` з актуальним playable loop;
 - `docs/PHASE1_RELEASE_NOTES.md`;
-- `docs/ROADMAP.md`, де Phase 1 позначено закритою, а `0.1.x` — стабілізаційною лінійкою;
+- `docs/ROADMAP.md`, де Phase 1 позначено закритою, `0.1.x` — стабілізаційною лінійкою, а Phase 2 — Social Combat & Interactions;
 - `docs/NEXT_IMPLEMENTATION_BACKLOG.md` з top-order для `0.1.x`;
+- `docs/README.md` і `docs/phase2/*` як новий planning index для duel invites, trading/gifting, `/remort`, item tags, multi-enemy and party combat;
 - `docs/PLAYTESTING.md` або окремий smoke doc із closure route;
 - `docs/BALANCE_NOTES.md` із відомими не-фінальними балансними припущеннями.
 
@@ -70,21 +67,20 @@ Non-goals closure PR:
 - item-instance inventory;
 - group raids, guilds, PvP, Mini App.
 
-### 4. Зафіксувати 0.1.x backlog
+### 4. Зафіксувати `0.1.x` backlog
 
-Після closure PR має існувати один канонічний backlog issue/doc. Усе, що спокушає «доробити перед 0.1.0», але не блокує core loop, має переїхати туди.
+Після closure PR має існувати один канонічний backlog issue/doc. Усе, що спокушає «доробити перед першою стабілізацією», але не блокує core loop, має переїхати туди.
 
-## Should Before 0.1.0
+## Release gate
 
-- Легкий read-only review активного `0.0.30` PR.
 - Ручний smoke у Telegram на чистому персонажі.
 - Ручний smoke у Telegram на персонажі 4+.
 - Перевірка public `/news` і `/presence`.
 - Перевірка, що `news.md` не містить implementation details, internal ids, exact reward spoilers або release-engine debt.
 
-## Could Before 0.1.0
+## Optional docs-only follow-up
 
-Тільки якщо зміна дуже мала і не роздуває closure:
+Тільки якщо зміна дуже мала і не роздуває stabilization:
 
 - cleanup/reuse для старих pending `mantok_chest_runs`;
 - невеликий docs-only archive note;
@@ -106,31 +102,31 @@ Non-goals closure PR:
 - Broad combat rewrite.
 - Lore bible expansion.
 
-## План Дій
+## План Дій Після `0.1.0`
 
-### День 1 — закрити активний хвіст
+### День 1 — release gate
 
-Ціль: не полірувати безкінечно, а переконатися, що `0.0.30` безпечний для merge перед closure PR.
+Ціль: переконатися, що `0.1.0` справді закриває Phase 1 без нового runtime scope.
 
 Порядок:
 
 1. Прочитати diff.
 2. Перевірити відсутність небажаного scope creep.
-3. Прогнати `npm.cmd run lint`, `npx.cmd tsc --noEmit`, `npm.cmd test`, `npm.cmd run check`.
+3. Прогнати `npm.cmd run db:validate`, `npm.cmd run lint`, `npx.cmd tsc --noEmit`, `npm.cmd test`, `npm.cmd run check`, `git diff --check`.
 4. Якщо `check` падає на Windows Prisma `EPERM`, зупинити локальний bot/dev process і повторити.
 5. Перевірити Єгерський smoke: lock до 4 рівня, start idempotent, tracking pending, ready trail, active non-Yeger fight не маскується під неупокоєну ціль і не спалює ready trail, 5/5 turn-in idempotent.
 6. Перевірити Манчкінський smoke: повторний confirm replay-ить успіх, gold-only відхилено, pending Бочка блокує старі кнопки.
-7. Merge або один targeted fix commit.
+7. Merge або один targeted blocker-fix commit, якщо smoke знайшов blocker.
 
-### День 2 — closure PR
+### День 2 — first stabilization
 
-Ціль: поставити крапку у `0.0.x`.
+Ціль: почати `0.1.x` з реального playtest fallout, а не з великої нової системи.
 
-Closure PR має оновити версійну і документаційну поверхню, але не додавати feature track. Якщо під час роботи хочеться додати «маленьку» фічу, її треба перенести в deferred backlog.
+Перший follow-up має бути `0.1.1`: bugfixes, copy polish, small UX papercuts and smoke fallout. Якщо під час роботи хочеться додати «маленьку» фічу, її треба перенести в deferred backlog.
 
-### День 3 — release gate і backlog
+### День 3 — deploy verification і backlog
 
-Після merge/deploy:
+Після merge/deploy `0.1.0`:
 
 1. перевірити `/version`;
 2. перевірити `/health`;
@@ -145,8 +141,8 @@ Closure PR має оновити версійну і документаційн�
 1. `0.1.1` — тільки bugfixes from playtest.
 2. `0.1.2` — durable Barrel outbox або Mantok Chest pending cleanup, залежно від реального болю.
 3. `0.1.3` — Глибка dungeon routing, якщо playtest показує, що бій біля Столу зі справами ламає уявлення.
-4. `0.1.4` — rewardless Achievements slice, якщо core loop стабільний.
-5. `0.1.5+` — Шинок item-for-beer sink, Bestiary filters, Yeger bait/lure/ambush.
+4. Перший Phase 2 slice — duel invite MVP, якщо core loop стабільний.
+5. Далі — result/rematch/tournament cards, trading/gifting, combat variety, `/remort`, multi-enemy combat, party combat / real raids.
 
 Кожен `0.1.x` PR має відповідати на питання: це стабілізує вже наявну гру чи відкриває новий feature track? Якщо друге — краще відкласти.
 
@@ -198,7 +194,7 @@ Closure PR має оновити версійну і документаційн�
 
 - Shops/selling/trading/crafting.
 - Item-instance inventory.
-- Group raids/guilds/PvP.
+- Guilds, large raids, markets and broad PvP modes beyond opt-in duel MVP.
 - Mini App.
 - Broad combat rewrite.
 - Lore bible expansion.
