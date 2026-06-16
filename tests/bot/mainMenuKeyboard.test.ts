@@ -925,14 +925,16 @@ describe("main menu and scene keyboards", () => {
   });
 
   it("builds quest hub buttons from available actions", () => {
+    const fullHubKeyboard = buildQuestHubKeyboard({
+      adventure: { state: "ready", character },
+      fight: { state: "ready", character },
+      yeger: { state: "offered", character, progress: { wins: 0, target: 5 } },
+      cellar: { state: "ready", character }
+    });
+
     expect(
       flatInlineButtonTexts(
-        buildQuestHubKeyboard({
-          adventure: { state: "ready", character },
-          fight: { state: "ready", character },
-          yeger: { state: "offered", character, progress: { wins: 0, target: 5 } },
-          cellar: { state: "ready", character }
-        })
+        fullHubKeyboard
       )
     ).toEqual([
       "🌯 До шаурми",
@@ -943,6 +945,7 @@ describe("main menu and scene keyboards", () => {
       "📖 Бестіарій",
       "🍺 До зали"
     ]);
+    expect(inlineButtonRows(fullHubKeyboard)).toContainEqual(["📦 Архів", "📖 Бестіарій"]);
 
     expect(
       flatInlineButtonTexts(
