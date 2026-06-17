@@ -103,6 +103,18 @@ export async function handleDuelCallback(
   }
 
   if (callback.type === "new") {
+    const place = await options.presence.getCurrentPlaceForTelegramUser(telegramUserId);
+
+    if (place.state === "no-character") {
+      await sendText(ctx, "edit", presentDuelCreate({ state: "no-character" }), "entry");
+      return;
+    }
+
+    if (!place.insideKorchma) {
+      await sendText(ctx, "edit", presentKorchmaQuestGate(), "enter-korchma");
+      return;
+    }
+
     const result = await service.createOpenChallengeForTelegramUser(telegramUserId, {
       contextChatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null
     });

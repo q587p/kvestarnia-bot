@@ -3,6 +3,7 @@ import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeBestiaryMonsterCallbackData } from "../../src/bot/callbacks/bestiaryCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
+import { makeDuelNewCallbackData } from "../../src/bot/callbacks/duelCallbackData";
 import {
   makeFightCallbackData,
   makeFightTurnCallbackData
@@ -15,6 +16,7 @@ import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackDa
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
+  PRESENCE_ADVENTURE_DUEL_CHALLENGE,
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
@@ -107,6 +109,60 @@ describe("presence middleware", () => {
       });
     }
   );
+
+  it("does not create a duel challenge from a stale outside duel-new callback", async () => {
+    const presence = new CapturingPresenceService();
+    let createCount = 0;
+    const bot = createTestBot(presence, {
+      duel: duelServiceWithCreateCounter(() => {
+        createCount += 1;
+      })
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makeDuelNewCallbackData()));
+
+    expect(createCount).toBe(0);
+  });
+
+  it("creates a duel challenge from duel-new callbacks inside the korchma", async () => {
+    const presence = new CapturingPresenceService();
+    presence.currentPlace = {
+      state: "ready",
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      locationName: "Зала корчми",
+      insideKorchma: true
+    };
+    let createCount = 0;
+    const bot = createTestBot(presence, {
+      duel: duelServiceWithCreateCounter(() => {
+        createCount += 1;
+      })
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makeDuelNewCallbackData()));
+
+    expect(createCount).toBe(1);
+    expect(presence.marks).toHaveLength(1);
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_DUEL_CHALLENGE
+    });
+  });
+
+  it("does not teleport presence to the quest table when an outside duel-new callback is blocked", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence, {
+      duel: duelServiceWithCreateCounter()
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makeDuelNewCallbackData()));
+
+    expect(presence.marks).toEqual([]);
+  });
 
   it("marks handled callbacks with raid context", async () => {
     const presence = new CapturingPresenceService();
@@ -644,6 +700,21 @@ function pendingTavernService() {
     getRoundOfferForTelegramUser: () => Promise.resolve({ state: "no-character" }),
     buyRoundForTelegramUser: () => Promise.resolve({ state: "no-character" })
   };
+}
+
+function duelServiceWithCreateCounter(
+  onCreate: () => void = () => undefined
+): NonNullable<BotServices["duel"]> {
+  return {
+    createOpenChallengeForTelegramUser: () => {
+      onCreate();
+      return Promise.resolve({
+        state: "level-gated",
+        character,
+        minLevel: 3
+      });
+    }
+  } as unknown as NonNullable<BotServices["duel"]>;
 }
 
 function questHubReadyServices(): Partial<BotServices> {
