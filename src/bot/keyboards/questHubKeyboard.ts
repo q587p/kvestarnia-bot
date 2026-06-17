@@ -4,7 +4,11 @@ import type { CellarErrandLookupResult } from "../../services/cellarErrandServic
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
 import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
-import { BESTIARY_MIN_LEVEL, meetsActivityLevel } from "../../domain/progression/activityGates";
+import {
+  BESTIARY_MIN_LEVEL,
+  FIGHTING_CORNER_MIN_LEVEL,
+  meetsActivityLevel
+} from "../../domain/progression/activityGates";
 import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData";
 import { makeMenuCallbackData } from "../callbacks/menuCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
@@ -44,9 +48,11 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.text("🕯️ Реморт", makeRemortOpenCallbackData()).row();
   }
 
-  keyboard.text("🥊 До Бійцівського кутка", makePlaceCallbackData("fighting-corner")).row();
+  if (canOpenFightingCorner(input)) {
+    keyboard.text("🥊 До Бійцівського кутка", makePlaceCallbackData("fighting-corner")).row();
+  }
 
-  if (canOpenProblemQuestInBar(problemQuest)) {
+  if (canOpenProblemQuestInBar(input, problemQuest)) {
     keyboard.text("🍻 До шинку", makePlaceCallbackData("bar")).row();
   }
 
@@ -124,6 +130,10 @@ function canOpenRemort(input: QuestHubKeyboardInput): boolean {
   return (input.characterLevel ?? 0) >= 13;
 }
 
+function canOpenFightingCorner(input: QuestHubKeyboardInput): boolean {
+  return input.characterLevel === undefined || meetsActivityLevel(input.characterLevel, FIGHTING_CORNER_MIN_LEVEL);
+}
+
 function getFightButtonLabel(fight: QuestHubKeyboardInput["fight"]): string {
   if (fight.state === "persistent-active") {
     return "⚔️ Продовжити бій";
@@ -140,7 +150,11 @@ function getFightButtonLabel(fight: QuestHubKeyboardInput["fight"]): string {
   return "⚔️ До сутички";
 }
 
-function canOpenProblemQuestInBar(progress: ProblemQuestProgress): boolean {
+function canOpenProblemQuestInBar(input: QuestHubKeyboardInput, progress: ProblemQuestProgress): boolean {
+  if (!canOpenFightingCorner(input)) {
+    return false;
+  }
+
   if (progress.branchComplete) {
     return false;
   }
@@ -179,7 +193,7 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
   return (
     input.adventure.state === "ready" ||
     input.fight.state === "ready" ||
-    !problemQuest.branchComplete ||
+    (canOpenFightingCorner(input) && !problemQuest.branchComplete) ||
     (input.fight.state === "persistent-ready" && problemQuest.issued) ||
     input.fight.state === "persistent-active" ||
     input.fight.state === "persistent-terminal" ||

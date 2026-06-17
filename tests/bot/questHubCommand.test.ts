@@ -121,13 +121,13 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).not.toContain("🧹 <i>Льохова справа</i> — відкриється з 2 рівня.");
+    expect(replies[0]?.text).toContain("📋 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 До Бійцівського кутка",
       "🌯 До шаурми",
       "⚔️ До сутички",
       "📦 Архів",
@@ -152,13 +152,13 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — миша приймає аргументи.");
+    expect(replies[0]?.text).toContain("📋 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 До Бійцівського кутка",
       "🌯 До шаурми",
       "⚔️ До сутички",
       "🧹 У льох",

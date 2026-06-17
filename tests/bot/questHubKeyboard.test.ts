@@ -13,6 +13,14 @@ describe("quest hub keyboard", () => {
     expect(json).not.toContain("v1:duel:new");
   });
 
+  it("hides the fighting corner before level three", () => {
+    const keyboard = buildQuestHubKeyboard(makeInput({ characterLevel: 2 }));
+    const json = JSON.stringify(keyboard);
+
+    expect(json).not.toContain("🥊 До Бійцівського кутка");
+    expect(json).not.toContain("v1:place:fighting-corner");
+  });
+
   it("does not add training corner to archive mode", () => {
     const keyboard = buildQuestHubKeyboard(makeInput({ mode: "archive" }));
     const json = JSON.stringify(keyboard);
