@@ -14,6 +14,7 @@ import {
   presentTrainingDoppelganger,
   presentTrainingDoppelgangerAnotherFight,
   presentTrainingDoppelgangerCooldown,
+  presentTrainingDoppelgangerLevelGate,
   presentTrainingDoppelgangerNeedsRest,
   presentTrainingDoppelgangerNoCharacter
 } from "../presenters/trainingDoppelgangerPresenter";
@@ -79,6 +80,11 @@ export async function sendTrainingDoppelganger(
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentTrainingDoppelgangerNoCharacter());
+    return;
+  }
+
+  if (result.state === "level-gated") {
+    await sendText(ctx, mode, presentTrainingDoppelgangerLevelGate(result), "training");
     return;
   }
 

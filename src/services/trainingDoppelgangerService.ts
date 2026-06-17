@@ -19,6 +19,7 @@ import {
   getTrainingDoppelgangerRecoveryMs,
   isTrainingDoppelgangerMonsterId,
   rollTrainingDoppelgangerXpReward,
+  TRAINING_DOPPELGANGER_MIN_LEVEL,
   TRAINING_DOPPELGANGER_MONSTER_ID,
   type TrainingDoppelgangerXpReward
 } from "../domain/trainingDoppelganger";
@@ -31,6 +32,7 @@ export const TRAINING_DOPPELGANGER_REWARD_KEY = "training.doppelganger.reward";
 
 export type TrainingDoppelgangerLookupResult =
   | { state: "no-character" }
+  | { state: "level-gated"; character: CharacterSummary; minLevel: number }
   | { state: "needs-rest"; character: CharacterSummary }
   | { state: "on-cooldown"; character: CharacterSummary; availableAt: Date; now: Date }
   | { state: "another-fight-active"; character: CharacterSummary }
@@ -50,6 +52,7 @@ export type TrainingDoppelgangerLookupResult =
 
 export type TrainingDoppelgangerTurnResult =
   | { state: "no-character" }
+  | { state: "level-gated"; character: CharacterSummary; minLevel: number }
   | { state: "not-found"; character: CharacterSummary }
   | {
       state: "stale-turn";
@@ -120,6 +123,11 @@ export class TrainingDoppelgangerService {
 
     const equippedItems = await this.getEquippedItemContents(telegramUserId);
     const character = summarizeCharacter(current.character, { equippedItems });
+
+    if (character.level < TRAINING_DOPPELGANGER_MIN_LEVEL) {
+      return { state: "level-gated", character, minLevel: TRAINING_DOPPELGANGER_MIN_LEVEL };
+    }
+
     const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
 
     if (activeSession) {
@@ -184,6 +192,11 @@ export class TrainingDoppelgangerService {
 
     const equippedItems = await this.getEquippedItemContents(telegramUserId);
     const character = summarizeCharacter(current.character, { equippedItems });
+
+    if (character.level < TRAINING_DOPPELGANGER_MIN_LEVEL) {
+      return { state: "level-gated", character, minLevel: TRAINING_DOPPELGANGER_MIN_LEVEL };
+    }
+
     const session = await this.combatSessions.findByIdForTelegramUserId(
       telegramUserId,
       input.sessionId

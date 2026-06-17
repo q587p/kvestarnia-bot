@@ -7,13 +7,14 @@
 Перед повноцінними дуелями з іншими гравцями варто зробити безпечний тренувальний крок у корчемному бійцівському кутку: `Сумлінний Допельґанґер`, який копіює поточного героя й дає відчути майбутній PvP-подібний бій без соціяльного тиску, ставок або ризику зачепити іншого гравця.
 
 Перший slice:
-- `0.1.5` додає `/spar` і кнопку `🥊 Бійцівський куток` у Столі зі справами;
+- `0.1.5` додає `/spar` і кнопку `🥊 Бійцівський куток` у Столі зі справами для героїв з 3 рівня;
 - допельґанґер копіює расу, клас, титул, рівень і effective stats/equipment summary героя;
 - тренування йде як покрокова combat session через `solo_combat_sessions`, але без duel ledger, target ownership або invite flow;
 - результат може дати малий XP: `1 XP` за програш і level-scaled XP за перемогу, приблизно від половини винагороди монстра подібного рівня з luck/random розкидом;
 - золото, лут, манатки, PvP-рейтинг і quest progress не видаються;
 - після завершення допельґанґер отримує recovery cooldown від HP, яке лишилося копії після бою; це не once-per-day gate;
 - pending Barrel raid і korchma interior guard-и проходять до старту сесії, а presence пишеться тільки після успішних guard-ів;
+- рівні 1-2 бачать gate copy і не створюють training session; майбутній duel invite MVP також має стартувати з 3 рівня, якщо окремий балансний PR не змінить це явно;
 - не створювати player-vs-player state, target ownership або invite flow у цьому slice.
 
 Пізніші розширення:
@@ -89,6 +90,7 @@ duel_actions
 ## Guardrails
 
 - Consent first: target must opt in.
+- Minimum level: first duel MVP should be level 3+ to stay out of starter-only `/fight` routing.
 - No item loss, no gold steal, no injury spiral.
 - No wagers in the MVP.
 - Newbie protection and level brackets before reward-bearing дуелі.

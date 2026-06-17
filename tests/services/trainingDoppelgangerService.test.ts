@@ -25,7 +25,10 @@ import type {
   UpdateSoloCombatSessionInput
 } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
-import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
+import {
+  TRAINING_DOPPELGANGER_MIN_LEVEL,
+  TRAINING_DOPPELGANGER_MONSTER_ID
+} from "../../src/domain/trainingDoppelganger";
 import { FakeRandomSource } from "../../src/shared/random";
 import {
   TrainingDoppelgangerService,
@@ -64,6 +67,23 @@ describe("TrainingDoppelgangerService", () => {
     });
     expect(world.actions.size).toBe(0);
     expect(world.cooldowns.size).toBe(0);
+  });
+
+  it("gates level 1-2 heroes before sessions, cooldowns, rewards or resource mutations", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId, { level: 2, xp: 13, hpCurrent: 0 });
+    const service = buildService(world);
+
+    const result = await service.getOrStartForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "level-gated",
+      minLevel: TRAINING_DOPPELGANGER_MIN_LEVEL
+    });
+    expect(world.sessions.size).toBe(0);
+    expect(world.cooldowns.size).toBe(0);
+    expect(world.actions.size).toBe(0);
+    expect(world.resourceMutations).toBe(0);
   });
 
   it("blocks repeat training while the doppelganger recovers", async () => {

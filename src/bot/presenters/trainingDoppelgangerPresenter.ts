@@ -24,6 +24,20 @@ export function presentTrainingDoppelgangerNeedsRest(
   ].join("\n");
 }
 
+export function presentTrainingDoppelgangerLevelGate(result: {
+  character: Extract<TrainingDoppelgangerLookupResult, { state: "level-gated" }>["character"];
+  minLevel: number;
+}): string {
+  return [
+    "🥊 <b>Бійцівський куток ще не підписав вашу довідку</b>",
+    presentCharacterHeader(result.character),
+    "",
+    `Сумлінний Допельґанґер уже намагається скопіювати героя, але Корчмар забрав дзеркало до ${result.minLevel} рівня.`,
+    "",
+    `Поверніться з <b>${result.minLevel} рівня</b>. До того — шаурма, льох і малі неприємності без юридично складного самопобиття.`
+  ].join("\n");
+}
+
 export function presentTrainingDoppelgangerCooldown(
   result: Extract<TrainingDoppelgangerLookupResult, { state: "on-cooldown" }>
 ): string {
@@ -69,6 +83,10 @@ export function presentTrainingDoppelganger(
 export function presentTrainingDoppelgangerTurn(
   result: Exclude<TrainingDoppelgangerTurnResult, { state: "no-character" }>
 ): string {
+  if (result.state === "level-gated") {
+    return presentTrainingDoppelgangerLevelGate(result);
+  }
+
   if (result.state === "not-found") {
     return [
       "🥊 Тренування не знайшлося.",

@@ -27,8 +27,8 @@ Phase 2 не починається з «великого рейду на всі
 
 ## Phase 2 order
 
-1. **Pre-duel training doppelganger.** `0.1.5` adds `/spar` / `🥊 Бійцівський куток`: a turn-based XP-only training fight against a bot-owned mirror copy, with no target player, duel ledger, gold/items/manatky rewards, quest progress, wager, rank or title yet. It reuses solo combat sessions for the local fight state but is explicitly excluded from ordinary `/fight` quest counting.
-2. **Duel invite MVP.** Challenge row, accept/decline/expire, quick resolve, replay-safe result.
+1. **Pre-duel training doppelganger.** `0.1.5` adds level 3+ `/spar` / `🥊 Бійцівський куток`: a turn-based XP-only training fight against a bot-owned mirror copy, with no target player, duel ledger, gold/items/manatky rewards, quest progress, wager, rank or title yet. It reuses solo combat sessions for the local fight state but is explicitly excluded from ordinary `/fight` quest counting.
+2. **Duel invite MVP.** Challenge row, accept/decline/expire, quick resolve, replay-safe result. First duel runtime should also be level 3+ unless explicitly changed later.
 3. **Result/rematch/tournament cards.** Compact share card, rematch button, small daily/weekly recognition without power creep.
 4. **Trading/gifting MVP.** Передати одну eligible манатку або stack-unit іншому гравцю з explicit confirmation and audit row.
 5. **Combat variety.** Guard, cooldowns, monster skills, class/race/action catalog, item tags and one-use manatky.

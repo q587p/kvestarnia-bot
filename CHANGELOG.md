@@ -10,12 +10,13 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.1.5] - 12026-06-17 - Pre-duel Training Doppelganger Prep
 
 ### Added
-- Added `/spar` and a Quest Hub `🥊 Бійцівський куток` entry for a turn-based training fight against the `Сумлінний Допельґанґер`.
+- Added `/spar` and a Quest Hub `🥊 Бійцівський куток` entry for a level 3+ turn-based training fight against the `Сумлінний Допельґанґер`.
 - Added a training combat path that mirrors the current hero summary/equipment into a doppelganger enemy, uses `solo_combat_sessions` for turns and keeps PvP state out of scope.
-- Added `v1:spar:open` and `v1:spar:turn:{sessionId}:{turn}:{action}` callback parsing, presenter/keyboards and neutral-before-handler presence routing; successful training marks `location.korchma.fighting_corner` only after Barrel and interior gates pass.
+- Added `v1:spar:open` and `v1:spar:turn:{sessionId}:{turn}:{action}` callback parsing, presenter/keyboards and neutral-before-handler presence routing; successful training writes `location.korchma.quest_table` / `adventure.training-doppelganger` only after Barrel, interior and level gates pass.
 
 ### Guardrails
 - Pending Barrel raids block the training surface before any training fight starts.
+- Level 1-2 heroes see a friendly `/spar` gate and cannot create or continue training sessions; level 3 is the shared minimum planned for future duel prep unless a later PR changes it explicitly.
 - Training can grant XP only: `1 XP` on loss, level-scaled win XP at roughly half of a similar-level monster reward with small luck/random upside, and no gold, items, manatky or quest progress.
 - Repeat training is gated by a doppelganger recovery cooldown derived from the copy's remaining HP after the fight, not by a once-per-day card.
 

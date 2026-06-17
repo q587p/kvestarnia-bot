@@ -4,6 +4,7 @@ import { getHpFullRegenSeconds } from "./resources/resourceRegeneration";
 import type { RandomSource } from "../shared/random";
 
 export const TRAINING_DOPPELGANGER_MONSTER_ID = "monster.training-doppelganger";
+export const TRAINING_DOPPELGANGER_MIN_LEVEL = 3;
 
 export interface TrainingDoppelgangerXpReward {
   xp: number;

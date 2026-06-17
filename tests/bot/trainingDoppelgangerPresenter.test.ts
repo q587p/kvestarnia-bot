@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   presentTrainingDoppelganger,
+  presentTrainingDoppelgangerLevelGate,
   presentTrainingDoppelgangerNeedsRest,
   presentTrainingDoppelgangerNoCharacter,
   presentTrainingDoppelgangerTurn
@@ -70,17 +71,30 @@ describe("training doppelganger presenter", () => {
     expect(text).toContain("Спершу віддихайтеся");
     expect(text).toContain("Бійцівський куток");
   });
+
+  it("renders a level 3 gate before sparring starts", () => {
+    const character = buildCharacter({ level: 2, xp: 13 });
+    const text = presentTrainingDoppelgangerLevelGate({
+      character,
+      minLevel: 3
+    });
+
+    expect(text).toContain("Бійцівський куток ще не підписав вашу довідку");
+    expect(text).toContain("<b>3 рівня</b>");
+    expect(text).toContain("шаурма, льох");
+    expect(text).not.toContain("Що робимо?");
+  });
 });
 
-function buildCharacter(overrides: { name?: string; hpCurrent?: number } = {}) {
+function buildCharacter(overrides: { name?: string; hpCurrent?: number; level?: number; xp?: number } = {}) {
   return summarizeCharacter({
     name: overrides.name ?? "Мандрівник",
     pronoun: "they",
     path: "path.sun",
     raceId: "race.human-ish",
     classId: "class.warrior",
-    level: 3,
-    xp: 25,
+    level: overrides.level ?? 3,
+    xp: overrides.xp ?? 25,
     gold: 0,
     hpCurrent: overrides.hpCurrent ?? 22,
     hpMax: 22,

@@ -198,6 +198,7 @@ import {
 } from "./presenters/fightPresenter";
 import {
   presentTrainingDoppelgangerNoCharacter,
+  presentTrainingDoppelgangerLevelGate,
   presentTrainingDoppelgangerTurn
 } from "./presenters/trainingDoppelgangerPresenter";
 import { presentHelp } from "./presenters/helpPresenter";
@@ -1312,6 +1313,15 @@ async function handleTrainingDoppelgangerCallback(
     if (result.state === "no-character") {
       await safeAnswerCallbackQuery(ctx);
       await safeEditMessageText(ctx, presentTrainingDoppelgangerNoCharacter());
+      return;
+    }
+
+    if (result.state === "level-gated") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentTrainingDoppelgangerLevelGate(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildTrainingDoppelgangerKeyboard()
+      });
       return;
     }
 

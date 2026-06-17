@@ -79,6 +79,32 @@ describe("training doppelganger command", () => {
     ]);
     expect(replies[0]?.text).toContain("Бійцівський куток");
   });
+
+  it("shows a level gate without turn buttons or presence marks", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = capturingPresence();
+    const service = new FakeTrainingDoppelgangerService({
+      state: "level-gated",
+      character: character({ level: 2, xp: 13 }),
+      minLevel: 3
+    });
+
+    await sendTrainingDoppelganger(
+      makeContext(replies),
+      service as unknown as TrainingDoppelgangerService,
+      "reply",
+      {
+        presence,
+        requireKorchmaInterior: true
+      }
+    );
+
+    expect(service.calls).toBe(1);
+    expect(presence.marks).toEqual([]);
+    expect(replies[0]?.text).toContain("3 рівня");
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:spar:turn");
+    expect(JSON.stringify(replies[0]?.options)).toContain("v1:quest:list");
+  });
 });
 
 function makeContext(replies: Array<{ text: string; options: unknown }>): Context {
@@ -148,15 +174,15 @@ function capturingPresence(): PresenceService & {
   };
 }
 
-function character() {
+function character(overrides: { level?: number; xp?: number } = {}) {
   return summarizeCharacter({
     name: "Мандрівник",
     pronoun: "they",
     path: "path.sun",
     raceId: "race.human-ish",
     classId: "class.warrior",
-    level: 3,
-    xp: 25,
+    level: overrides.level ?? 3,
+    xp: overrides.xp ?? 25,
     gold: 0,
     hpCurrent: 22,
     hpMax: 22,
