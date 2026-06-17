@@ -1,4 +1,6 @@
 import type { Character, Prisma, PrismaClient } from "@prisma/client";
+import { items } from "../../content";
+import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import { getLevelForXp } from "../../domain/progression/level";
 import type { CharacterRecord } from "./characterRepository";
 import type {
@@ -132,7 +134,7 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
       }
 
       const hpCurrent = Math.max(0, Math.floor(character.hpCurrent));
-      const hpMax = Math.max(1, Math.floor(character.hpMax));
+      const hpMax = await getEffectiveHpMax(tx, character);
       const nextHp = amount === undefined
         ? hpMax
         : Math.min(hpMax, hpCurrent + Math.max(0, Math.floor(amount)));
@@ -147,7 +149,13 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
         include: currentLocationInclude
       });
 
-      return { character: toCharacterRecord(updated) };
+      return {
+        character: {
+          ...toCharacterRecord(updated),
+          hpCurrent: Math.min(nextHp, hpMax),
+          hpMax
+        }
+      };
     });
   }
 
@@ -213,6 +221,33 @@ async function findCharacterByTelegramUserId(
     },
     include: currentLocationInclude
   });
+}
+
+async function getEffectiveHpMax(
+  tx: Prisma.TransactionClient,
+  character: Character & { user: { lastSeenLocationId: string | null } }
+): Promise<number> {
+  const [equipment, remortCount] = await Promise.all([
+    tx.characterEquipment.findMany({
+      where: {
+        characterId: character.id
+      },
+      select: {
+        itemId: true
+      }
+    }),
+    countCharacterRemorts(tx, character.id)
+  ]);
+  const equippedItems = equipment.flatMap((row) => {
+    const item = items.find((candidate) => candidate.id === row.itemId);
+
+    return item ? [item] : [];
+  });
+
+  return summarizeCharacter(toCharacterRecord(character), {
+    equippedItems,
+    remortCount
+  }).hpMax;
 }
 
 function mergeItemGrants(itemGrants: ItemGrant[]): ItemGrant[] {
