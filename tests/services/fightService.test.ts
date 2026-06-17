@@ -496,6 +496,7 @@ describe("FightService", () => {
     );
 
     const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+    const problemQuest = await service.getProblemQuestProgressForTelegramUser(telegramUserId);
 
     expect(overview).toMatchObject({
       state: "training-active",
@@ -505,6 +506,13 @@ describe("FightService", () => {
         status: "active"
       },
       questProgress: {
+        wins: 0,
+        completed: false
+      }
+    });
+    expect(problemQuest).toMatchObject({
+      state: "ready",
+      progress: {
         wins: 0,
         completed: false
       }

@@ -7,6 +7,17 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.8] - 12026-06-17 - Problem Quest Shynok Recovery Buttons
+
+### Fixed
+- After taking the first Korchmar problem paper with already recovered legacy progress, the Shynok message now shows the actual old journal counter instead of saying the counter starts from zero.
+- If the recovered first paper is already complete, the same Shynok screen now offers `📋 Здати справу` immediately, so players do not have to leave and re-enter the location to discover the next action.
+- Shynok and Quest Hub now read problem-chain progress through a separate FightService lookup, so an active training doppelganger can block ordinary `/fight` without hiding Korchmar paper actions.
+
+### Guardrails
+- Active training or ordinary fights can still block starting another fight; this patch only clarifies the recovered problem-paper handoff.
+- No reward formula, quest counter, doppelganger combat, schema migration or loot behavior was changed.
+
 ## [0.1.7] - 12026-06-17 - Problem Quest First Paper Recovery
 
 ### Fixed

@@ -240,6 +240,80 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeTavernCallbackData("round"));
   });
 
+  it("offers immediate Shynok turn-in after issuing a recovered completed problem paper", async () => {
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("problem-next"),
+      servicesWith({
+        presence: {
+          markAction: () => Promise.resolve(),
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.bar",
+              locationName: "Шинок",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
+        fight: {
+          issueNextProblemQuestForTelegramUser: () =>
+            Promise.resolve({
+              state: "issued",
+              character,
+              progress: {
+                stageId: "13",
+                title: "Тринадцять дрібних проблем",
+                wins: 14,
+                target: 13,
+                completed: true,
+                rewardClaimed: false,
+                issued: true,
+                branchComplete: false
+              },
+              stage: {
+                id: "13",
+                title: "Тринадцять дрібних проблем",
+                target: 13,
+                reward: {
+                  xp: 35,
+                  gold: 10,
+                  itemId: "item.badge-of-thirteen-small-problems"
+                },
+                issueKey: "quest.problem-chain.13.issued",
+                rewardKey: "quest.thirteen-small-problems",
+                nextStageId: "23"
+              },
+              nextStage: {
+                id: "13",
+                title: "Тринадцять дрібних проблем",
+                target: 13,
+                reward: {
+                  xp: 35,
+                  gold: 10,
+                  itemId: "item.badge-of-thirteen-small-problems"
+                },
+                issueKey: "quest.problem-chain.13.issued",
+                rewardKey: "quest.thirteen-small-problems",
+                nextStageId: "23"
+              },
+              issued: "created"
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("14/13");
+    expect(String(edit?.payload.text)).not.toContain("Лічильник починається з нуля");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("📋 Здати справу");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeQuestCallbackData("problem"));
+  });
+
   it.each([
     {
       name: "quest adventure route",

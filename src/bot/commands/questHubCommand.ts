@@ -93,6 +93,7 @@ async function buildQuestHubSnapshot(
   }
 
   const fight = await options.fight.getFightOverviewForTelegramUser(telegramUserId);
+  const problemQuest = await options.fight.getProblemQuestProgressForTelegramUser(telegramUserId);
   const yeger = await options.yeger.getForTelegramUser(telegramUserId);
   const cellar = await options.cellarErrand.getForTelegramUser(telegramUserId);
   const cellarGrownup =
@@ -100,7 +101,12 @@ async function buildQuestHubSnapshot(
       ? await options.cellarGrownup.getForTelegramUser(telegramUserId)
       : null;
 
-  if (fight.state === "no-character" || yeger.state === "no-character" || cellar.state === "no-character") {
+  if (
+    fight.state === "no-character" ||
+    problemQuest.state === "no-character" ||
+    yeger.state === "no-character" ||
+    cellar.state === "no-character"
+  ) {
     return null;
   }
 
@@ -110,6 +116,7 @@ async function buildQuestHubSnapshot(
     character,
     adventure,
     fight,
+    problemQuest: problemQuest.progress,
     yeger,
     cellar,
     ...(cellarGrownup && cellarGrownup.state !== "no-character" && cellarGrownup.state !== "too-young"

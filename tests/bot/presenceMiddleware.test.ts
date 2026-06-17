@@ -658,14 +658,34 @@ function questHubReadyServices(): Partial<BotServices> {
       completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
     },
     fight: {
+      getProblemQuestProgressForTelegramUser: () =>
+        Promise.resolve({
+          state: "ready",
+          character,
+          progress: {
+            stageId: "13",
+            title: "Тринадцять дрібних проблем",
+            wins: 4,
+            target: 13,
+            completed: false,
+            rewardClaimed: false,
+            issued: true,
+            branchComplete: false
+          }
+        }),
       getFightOverviewForTelegramUser: () =>
         Promise.resolve({
           state: "persistent-ready",
           character,
           questProgress: {
+            stageId: "13",
+            title: "Тринадцять дрібних проблем",
             wins: 4,
             target: 13,
-            completed: false
+            completed: false,
+            rewardClaimed: false,
+            issued: true,
+            branchComplete: false
           }
         }),
       getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),

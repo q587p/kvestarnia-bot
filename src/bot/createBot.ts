@@ -10,7 +10,11 @@ import type {
 } from "../services/cellarGrownupQuestService";
 import type { DevResetService } from "../services/devResetService";
 import type { DevGrantService } from "../services/devGrantService";
-import type { FightService, PersistentFightTurnResult } from "../services/fightService";
+import type {
+  FightService,
+  PersistentFightTurnResult,
+  ProblemQuestIssueNextLookupResult
+} from "../services/fightService";
 import type { HeroService } from "../services/heroService";
 import type { HuntService } from "../services/huntService";
 import type { YegerQuestService } from "../services/yegerQuestService";
@@ -1316,7 +1320,7 @@ async function handleQuestCallback(
       });
       await safeEditMessageText(ctx, presentProblemQuestIssueNext(result), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildKorchmaBarKeyboard()
+        reply_markup: buildKorchmaBarKeyboard(getProblemQuestIssueNextBarKeyboardOptions(result))
       });
       return;
     }
@@ -1363,6 +1367,30 @@ async function handleQuestCallback(
       ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {})
     }
   );
+}
+
+function getProblemQuestIssueNextBarKeyboardOptions(
+  result: Exclude<ProblemQuestIssueNextLookupResult, { state: "no-character" }>
+): Parameters<typeof buildKorchmaBarKeyboard>[0] {
+  if (result.state === "issued") {
+    if (result.progress.completed && !result.progress.rewardClaimed) {
+      return { problemQuestAction: "turn-in" };
+    }
+
+    return {};
+  }
+
+  if (result.state === "not-available") {
+    if (result.progress.completed && !result.progress.rewardClaimed) {
+      return { problemQuestAction: "turn-in" };
+    }
+
+    if (result.progress.rewardClaimed && result.progress.stageId !== "93") {
+      return { problemQuestAction: "next" };
+    }
+  }
+
+  return {};
 }
 
 async function handleTrainingDoppelgangerCallback(

@@ -11,7 +11,7 @@ import type { TavernRaidService } from "../../services/tavernRaidService";
 import type { LevelMilestoneService } from "../../services/levelMilestoneService";
 import type { RemortService } from "../../services/remortService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
-import type { FightLookupResult, FightService, ProblemQuestProgress } from "../../services/fightService";
+import type { FightService, ProblemQuestProgress } from "../../services/fightService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildKorchmaArrivalBoardKeyboard,
@@ -241,10 +241,13 @@ export async function sendKorchmaBar(
   const cellarGrownup = cellarGrownupQuestService
     ? await cellarGrownupQuestService.getForTelegramUser(telegramUserId)
     : null;
-  const fight = fightService
-    ? await fightService.getFightOverviewForTelegramUser(telegramUserId)
+  const problemQuest = fightService
+    ? await fightService.getProblemQuestProgressForTelegramUser(telegramUserId)
     : null;
-  const problemQuestAction = getProblemQuestBarAction(fight);
+  const problemQuestAction =
+    problemQuest?.state === "ready"
+      ? getProblemQuestBarActionFromProgress(problemQuest.progress)
+      : undefined;
   const barOptions = {
     state: "bar",
     includeBottleTurnIn:
@@ -405,19 +408,6 @@ function isHallKeyboard(
     | "barrel-participants"
 ): keyboard is { state: "hall"; characterLevel?: number } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "hall";
-}
-
-function getProblemQuestBarAction(fight: FightLookupResult | null): "turn-in" | "take" | "next" | undefined {
-  if (
-    fight?.state !== "persistent-not-issued" &&
-    fight?.state !== "persistent-ready" &&
-    fight?.state !== "persistent-active" &&
-    fight?.state !== "persistent-terminal"
-  ) {
-    return undefined;
-  }
-
-  return getProblemQuestBarActionFromProgress(fight.questProgress);
 }
 
 function getProblemQuestBarActionFromProgress(

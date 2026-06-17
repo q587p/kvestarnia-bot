@@ -20,6 +20,13 @@ Each stage is still a small once-per-player contract over ordinary won solo figh
 - Training doppelganger fights, lost fights, fled fights and expired fights do not count.
 - Extra wins before the next stage is issued do not auto-complete that next stage.
 
+## Recovery UX
+
+- `0.1.8` keeps first-paper recovery visible at the Shynok handoff: if stage `13` is issued with old saved progress, the issue message must show the recovered counter instead of saying the journal starts from zero.
+- If that recovered first paper is already complete, the same Shynok message should offer the turn-in action immediately.
+- Shynok and Quest Hub should use the public problem-chain progress lookup instead of deriving paper actions from `getFightOverviewForTelegramUser`; active training doppelganger fights may block ordinary `/fight`, but they must not hide Korchmar paper actions.
+- Active fights may still block starting another fight, but they must not be confused with lost problem-chain progress.
+
 ## Allusion notes
 
 - `13` is the original Kvestarnia unlucky-paperwork joke and remains the first small list of problems.

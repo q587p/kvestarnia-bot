@@ -215,6 +215,10 @@ export type ProblemQuestIssueNextLookupResult =
       issued: "created" | "already-issued";
     };
 
+export type ProblemQuestProgressLookupResult =
+  | { state: "no-character" }
+  | { state: "ready"; character: CharacterSummary; progress: ProblemQuestProgress };
+
 export type FightLookupResult =
   | { state: "no-character" }
   | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
@@ -463,6 +467,22 @@ export class FightService {
       session: activeSession,
       monster,
       questProgress
+    };
+  }
+
+  async getProblemQuestProgressForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<ProblemQuestProgressLookupResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "ready",
+      character: await this.summarizeCharacterWithEquipment(telegramUserId, character),
+      progress: await this.getThirteenSmallProblemsProgress(telegramUserId)
     };
   }
 

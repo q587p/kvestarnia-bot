@@ -183,6 +183,12 @@ describe("quest hub command", () => {
           completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
         } as unknown as AdventureService,
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character,
+              progress: questProgress(0)
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "already-completed",
@@ -359,6 +365,12 @@ describe("quest hub command", () => {
       servicesWith({
         adventure: readyAdventureService(grownCharacter),
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: grownCharacter,
+              progress: questProgress(14, true)
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "persistent-terminal",
@@ -425,6 +437,12 @@ describe("quest hub command", () => {
         cellarErrand: readyCellarService(exhaustedCharacter),
         yeger: readyYegerService(exhaustedCharacter),
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: exhaustedCharacter,
+              progress: questProgress(0)
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "needs-rest",
@@ -467,6 +485,12 @@ describe("quest hub command", () => {
         cellarErrand: readyCellarService(recoveredFightCharacter),
         yeger: readyYegerService(recoveredFightCharacter),
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: recoveredFightCharacter,
+              progress: questProgress(0)
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "persistent-ready",
@@ -501,6 +525,12 @@ describe("quest hub command", () => {
       servicesWith({
         adventure: readyAdventureService(grownCharacter),
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: grownCharacter,
+              progress: questProgress(14, true)
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "persistent-terminal",
@@ -586,6 +616,15 @@ describe("quest hub command", () => {
       servicesWith({
         adventure: readyAdventureService(grownCharacter),
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: grownCharacter,
+              progress: {
+                ...questProgress(3),
+                issued: false
+              }
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "persistent-not-issued",
@@ -638,6 +677,15 @@ describe("quest hub command", () => {
         presence,
         adventure: readyAdventureService(grownCharacter),
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: grownCharacter,
+              progress: {
+                ...questProgress(0),
+                issued: false
+              }
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "training-active",
@@ -652,12 +700,14 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain("/spar");
+    expect(replies[0]?.text).toContain("Корчмар має папірець у шинку");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.callback_data)).toContain("v1:spar:open");
+    expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("bar"));
     expect(buttons.map((button) => button.callback_data)).not.toContain(makeQuestCallbackData("fight"));
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
@@ -869,6 +919,12 @@ function readyAdventureService(summary: CharacterSummary): AdventureService {
 
 function readyFightService(summary: CharacterSummary): FightService {
   return {
+    getProblemQuestProgressForTelegramUser: () =>
+      Promise.resolve({
+        state: "ready",
+        character: summary,
+        progress: questProgress(0)
+      }),
     getFightOverviewForTelegramUser: () =>
       Promise.resolve(
         summary.level >= 3
