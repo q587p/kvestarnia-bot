@@ -3,6 +3,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type DuelCallback =
   | { type: "new" }
+  | { type: "new-risk" }
   | { type: "accept"; token: string }
   | { type: "accept-risk"; token: string }
   | { type: "cancel"; token: string }
@@ -21,6 +22,10 @@ const tokenPattern = /^[A-Za-z0-9_-]{8,24}$/;
 
 export function makeDuelNewCallbackData(): string {
   return `${PREFIX}:new`;
+}
+
+export function makeDuelNewRiskCallbackData(): string {
+  return `${PREFIX}:new-risk`;
 }
 
 export function makeDuelAcceptCallbackData(token: string): string {
@@ -56,6 +61,10 @@ export function parseDuelCallbackData(
 
   if (data === `${PREFIX}:new`) {
     return ok({ type: "new" });
+  }
+
+  if (data === `${PREFIX}:new-risk`) {
+    return ok({ type: "new-risk" });
   }
 
   if (!data.startsWith(`${PREFIX}:`)) {

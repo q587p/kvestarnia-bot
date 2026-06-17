@@ -3,7 +3,8 @@ import type {
   DuelCancelResult,
   DuelChallengeView,
   DuelCreateResult,
-  DuelDeclineResult
+  DuelDeclineResult,
+  DuelResourceWarning
 } from "../../services/duelChallengeService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
@@ -29,6 +30,10 @@ export function presentDuelCreate(result: DuelCreateResult, options: DuelPresent
 
   if (result.state === "level-gated") {
     return presentDuelLevelGate(result.character, result.minLevel);
+  }
+
+  if (result.state === "resource-warning") {
+    return presentDuelCreateResourceWarning(result.character, result.warning);
   }
 
   return presentPendingDuel(result, options);
@@ -173,7 +178,7 @@ export function presentDuelInviteShare(character: CharacterSummary, inviteUrl: s
   return [
     "🥊 <b>Дружній корчемний виклик</b>",
     "",
-    `<b>${escapeHtml(character.name)}</b> · рівень ${character.level} лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто.`,
+    `<b>${escapeHtml(character.name)}</b> лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто.`,
     "Переходьте за посиланням, приймайте виклик, а Корчмар зробить вигляд, що все було за правилами.",
     "",
     escapeHtml(inviteUrl)
@@ -205,7 +210,7 @@ function presentResolvedDuel(result: Extract<DuelChallengeView, { state: "resolv
     "",
     "Це збережений результат цього виклику. Повторний перехід за посиланням покаже його знову, а не почне нову дуель.",
     "",
-    `${presentDuelParticipantInline(result.challenger)} проти ${presentDuelParticipantInline(result.target)}`,
+    `${presentDuelParticipantInline(result.challenger)} ⚔️ ${presentDuelParticipantInline(result.target)}`,
     "",
     "Перший і останній хід:",
     "",
@@ -241,23 +246,36 @@ function presentDuelLevelGate(character: CharacterSummary, minLevel: number): st
   ].join("\n");
 }
 
+function presentDuelCreateResourceWarning(character: CharacterSummary, warning: DuelResourceWarning): string {
+  return [
+    "🥊 <b>Кидати виклик зараз?</b>",
+    presentCharacterHeader(character),
+    "",
+    "Корчмар бачить, що ви ще не зовсім віддихалися.",
+    "",
+    presentResourceWarning(warning),
+    "",
+    "Можна кинути виклик усе одно, але посилання краще роздавати з повним кухлем і цілими колінами."
+  ].join("\n");
+}
+
 function presentDuelNoCharacterInvite(): string {
   return [
     "🥊 <b>Виклик чекає біля стійки</b>",
     "",
     "Схоже, ви ще не створили пригодника в Квестарні.",
     "",
-    "Це кілька хвилин: /start, вибір анкети, перша манатка — і можна буде приймати дружні дуелі. На жаль, виклики вимагають зовсім трохи знань гри й бажано хоч трохи манаток, які ви зможете отримати на старті."
+    "Це кілька хвилин: кнопки нижче почнуть анкету, а після першої манатки можна буде приймати дружні дуелі. На жаль, виклики вимагають зовсім трохи знань гри й бажано хоч трохи манаток, які ви зможете отримати на старті."
   ].join("\n");
 }
 
 function presentResourceWarning(warning: { hpBelowMax: boolean; manaBelowMax: boolean }): string {
   if (warning.hpBelowMax && warning.manaBelowMax) {
-    return "Попередження: HP і мана не повні.";
+    return "Попередження: здоров’я й мана не повні.";
   }
 
   if (warning.hpBelowMax) {
-    return "Попередження: HP не повні.";
+    return "Попередження: здоров’я не повне.";
   }
 
   return "Попередження: мана не повна.";

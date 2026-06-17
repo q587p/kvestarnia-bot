@@ -30,6 +30,10 @@ describe("handleDuelCallback", () => {
       botUsername: "kvestarnia_dev_bot"
     });
 
+    expect(createOpenChallengeForTelegramUser).toHaveBeenCalledWith(42n, {
+      contextChatId: -100n,
+      ignoreResourceWarning: false
+    });
     expect(messageText(editMessageText)).toContain("Окреме повідомлення з інвайтом можна переслати в приват або чат.");
     expect(messageText(editMessageText)).not.toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
     expect(messageText(editMessageText)).toContain("Запрошує: <b>Автор Виклику</b> · Пересічні Пригодники · рівень 3");
@@ -38,8 +42,9 @@ describe("handleDuelCallback", () => {
     expect(reply).toHaveBeenCalledTimes(1);
     expect(reply.mock.calls[0]?.[0]).toContain("🥊 <b>Дружній корчемний виклик</b>");
     expect(reply.mock.calls[0]?.[0]).toContain(
-      "<b>Автор Виклику</b> · рівень 3 лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто."
+      "<b>Автор Виклику</b> лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто."
     );
+    expect(reply.mock.calls[0]?.[0]).not.toContain("рівень 3 лишає");
     expect(reply.mock.calls[0]?.[0]).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
     expect(reply.mock.calls[0]?.[1]).toEqual({ parse_mode: "HTML" });
   });
@@ -66,6 +71,64 @@ describe("handleDuelCallback", () => {
       "⚠️ Посилання для копіювання ще не зібралося: Корчмар не знає username цього бота."
     );
     expect(reply).not.toHaveBeenCalled();
+  });
+
+  it("asks for confirmation before creating an invite with partial challenger resources", async () => {
+    const createOpenChallengeForTelegramUser = vi.fn().mockResolvedValue({
+      state: "resource-warning",
+      character: makeCharacterSummary("Втомлений Автор"),
+      warning: {
+        hpBelowMax: true,
+        manaBelowMax: false
+      }
+    });
+    const markAction = vi.fn().mockResolvedValue(undefined);
+    const service = serviceWith({
+      createOpenChallengeForTelegramUser
+    });
+    const { ctx, editMessageText, reply } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "new" }, service, {
+      presence: createPresence(markAction),
+      botUsername: "kvestarnia_dev_bot"
+    });
+
+    expect(messageText(editMessageText)).toContain("Кидати виклик зараз?");
+    expect(messageText(editMessageText)).toContain("Попередження: здоров’я не повне.");
+    expect(keyboardJson(editMessageText)).toContain("v1:duel:new-risk");
+    expect(reply).not.toHaveBeenCalled();
+    expect(markAction).not.toHaveBeenCalled();
+  });
+
+  it("creates the invite after the challenger confirms partial resources", async () => {
+    const challenger = makeCharacterSummary("Втомлений Автор");
+    const createOpenChallengeForTelegramUser = vi.fn().mockResolvedValue({
+      state: "pending",
+      challenge: makeChallenge("pending"),
+      challenger,
+      challengerResourceWarning: {
+        hpBelowMax: true,
+        manaBelowMax: false
+      },
+      expiresAt: EXPIRES_AT,
+      now: NOW
+    });
+    const service = serviceWith({
+      createOpenChallengeForTelegramUser
+    });
+    const { ctx, reply } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "new-risk" }, service, {
+      presence: createPresence(),
+      botUsername: "kvestarnia_dev_bot"
+    });
+
+    expect(createOpenChallengeForTelegramUser).toHaveBeenCalledWith(42n, {
+      contextChatId: -100n,
+      ignoreResourceWarning: true
+    });
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(reply.mock.calls[0]?.[0]).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
   });
 
   it("hides the new challenge button after showing the level gate", async () => {
@@ -224,7 +287,7 @@ describe("handleDuelCallback", () => {
     expect(text).toContain(
       "Це збережений результат цього виклику. Повторний перехід за посиланням покаже його знову, а не почне нову дуель."
     );
-    expect(text).toContain("<b>Автор Виклику</b> · рівень 9 (реморт: 3) проти <b>Ціль Виклику</b> · рівень 3");
+    expect(text).toContain("<b>Автор Виклику</b> · рівень 9 (реморт: 3) ⚔️ <b>Ціль Виклику</b> · рівень 3");
     expect(text).toContain("Перший і останній хід:");
     expect(text.indexOf("Перший і останній хід:")).toBeLessThan(text.indexOf("Ціль Виклику зупиняє сутичку"));
     expect(text.indexOf("Ціль Виклику зупиняє сутичку")).toBeLessThan(

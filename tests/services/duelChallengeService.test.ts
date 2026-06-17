@@ -28,7 +28,7 @@ describe("DuelChallengeService", () => {
     expect(world.challenges.size).toBe(0);
   });
 
-  it("creates an open invite and warns when the challenger is not fully rested", async () => {
+  it("asks for confirmation before creating an open invite when the challenger is not fully rested", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n, { hpCurrent: 12, hpMax: 24 });
     const service = buildService(world);
@@ -36,13 +36,27 @@ describe("DuelChallengeService", () => {
     const result = await service.createOpenChallengeForTelegramUser(1n, { contextChatId: -100n });
 
     expect(result).toMatchObject({
+      state: "resource-warning",
+      warning: {
+        hpBelowMax: true,
+        manaBelowMax: true
+      }
+    });
+    expect(world.challenges.size).toBe(0);
+
+    const confirmed = await service.createOpenChallengeForTelegramUser(1n, {
+      contextChatId: -100n,
+      ignoreResourceWarning: true
+    });
+
+    expect(confirmed).toMatchObject({
       state: "pending",
       challengerResourceWarning: {
         hpBelowMax: true,
         manaBelowMax: true
       }
     });
-    expect(result.state === "pending" && result.challenge.contextChatId).toBe(-100n);
+    expect(confirmed.state === "pending" && confirmed.challenge.contextChatId).toBe(-100n);
   });
 
   it("shows a resource warning before accepting with partial resources", async () => {
@@ -50,7 +64,7 @@ describe("DuelChallengeService", () => {
     world.addCharacter(1n);
     world.addCharacter(2n, { hpCurrent: 10, hpMax: 24, manaCurrent: 4, manaMax: 12 });
     const service = buildService(world);
-    const created = await service.createOpenChallengeForTelegramUser(1n);
+    const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
 
     if (created.state !== "pending") {
       throw new Error(`Expected pending invite, got ${created.state}`);
@@ -85,7 +99,7 @@ describe("DuelChallengeService", () => {
     world.addCharacter(1n);
     world.addCharacter(2n);
     const service = buildService(world);
-    const created = await service.createOpenChallengeForTelegramUser(1n);
+    const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
 
     if (created.state !== "pending") {
       throw new Error(`Expected pending invite, got ${created.state}`);
@@ -109,7 +123,7 @@ describe("DuelChallengeService", () => {
     world.addCharacter(1n);
     world.addCharacter(2n);
     const service = buildService(world);
-    const created = await service.createOpenChallengeForTelegramUser(1n);
+    const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
 
     if (created.state !== "pending") {
       throw new Error(`Expected pending invite, got ${created.state}`);
@@ -131,7 +145,7 @@ describe("DuelChallengeService", () => {
     world.addCharacter(1n);
     world.addCharacter(2n);
     const service = buildService(world);
-    const created = await service.createOpenChallengeForTelegramUser(1n);
+    const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
 
     if (created.state !== "pending") {
       throw new Error(`Expected pending invite, got ${created.state}`);
@@ -152,7 +166,7 @@ describe("DuelChallengeService", () => {
     world.addCharacter(1n);
     world.addCharacter(2n);
     const service = buildService(world);
-    const created = await service.createOpenChallengeForTelegramUser(1n);
+    const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
 
     if (created.state !== "pending") {
       throw new Error(`Expected pending invite, got ${created.state}`);
@@ -174,7 +188,7 @@ describe("DuelChallengeService", () => {
     world.addCharacter(1n, { name: "Пані Сила" });
     world.addCharacter(2n, { name: "Пан Обережний" });
     const service = buildService(world);
-    const created = await service.createOpenChallengeForTelegramUser(1n);
+    const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
 
     if (created.state !== "pending") {
       throw new Error(`Expected pending invite, got ${created.state}`);

@@ -58,6 +58,7 @@ export type DuelChallengeView =
 export type DuelCreateResult =
   | { state: "no-character" }
   | { state: "level-gated"; character: CharacterSummary; minLevel: number }
+  | { state: "resource-warning"; character: CharacterSummary; warning: DuelResourceWarning }
   | Extract<DuelChallengeView, { state: "pending" }>;
 
 export type DuelAcceptResult =
@@ -95,7 +96,7 @@ export class DuelChallengeService {
 
   async createOpenChallengeForTelegramUser(
     telegramUserId: bigint,
-    input: { contextChatId?: bigint | null } = {}
+    input: { contextChatId?: bigint | null; ignoreResourceWarning?: boolean } = {}
   ): Promise<DuelCreateResult> {
     const now = this.clock();
     const challengerSnapshot = await this.challenges.findCharacterByTelegramUser(telegramUserId);
@@ -114,6 +115,16 @@ export class DuelChallengeService {
       };
     }
 
+    const warning = getResourceWarning(challenger);
+
+    if (warning && input.ignoreResourceWarning !== true) {
+      return {
+        state: "resource-warning",
+        character: challenger,
+        warning
+      };
+    }
+
     const challenge = await this.challenges.createOpenForTelegramUser(telegramUserId, {
       inviteToken: createInviteToken(),
       contextChatId: input.contextChatId ?? null,
@@ -128,7 +139,7 @@ export class DuelChallengeService {
       state: "pending",
       challenge,
       challenger,
-      challengerResourceWarning: getResourceWarning(challenger),
+      challengerResourceWarning: warning,
       expiresAt: challenge.expiresAt,
       now
     };

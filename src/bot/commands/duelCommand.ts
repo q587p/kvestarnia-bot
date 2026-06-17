@@ -10,6 +10,7 @@ import {
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildDuelChallengeKeyboard,
+  buildDuelCreateResourceWarningKeyboard,
   buildDuelEntryKeyboard,
   buildDuelNavigationKeyboard,
   buildDuelResourceWarningKeyboard,
@@ -117,7 +118,7 @@ export async function handleDuelCallback(
     return;
   }
 
-  if (callback.type === "new") {
+  if (callback.type === "new" || callback.type === "new-risk") {
     const place = await options.presence.getCurrentPlaceForTelegramUser(telegramUserId);
 
     if (place.state === "no-character") {
@@ -133,10 +134,13 @@ export async function handleDuelCallback(
     }
 
     const result = await service.createOpenChallengeForTelegramUser(telegramUserId, {
-      contextChatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null
+      contextChatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
+      ignoreResourceWarning: callback.type === "new-risk"
     });
     const inviteUrl = getInviteUrl(options.botUsername, result);
-    await markDuelPresence(ctx, options.presence);
+    if (result.state !== "resource-warning") {
+      await markDuelPresence(ctx, options.presence);
+    }
     await answerCallback();
     await sendText(
       ctx,
@@ -146,6 +150,8 @@ export async function handleDuelCallback(
         ? { state: "pending", result }
         : result.state === "level-gated"
           ? "navigation"
+          : result.state === "resource-warning"
+            ? "create-resource-warning"
           : "result"
     );
     if (result.state === "pending" && inviteUrl) {
@@ -253,6 +259,7 @@ async function sendText(
   keyboard:
     | "entry"
     | "enter-korchma"
+    | "create-resource-warning"
     | "navigation"
     | "result"
     | { state: "resource-warning"; token: string }
@@ -268,6 +275,8 @@ async function sendText(
               ? buildDuelEntryKeyboard()
               : keyboard === "enter-korchma"
                 ? buildKorchmaFrontKeyboard()
+                : keyboard === "create-resource-warning"
+                  ? buildDuelCreateResourceWarningKeyboard()
                 : keyboard === "navigation"
                   ? buildDuelNavigationKeyboard()
                 : keyboard === "result"

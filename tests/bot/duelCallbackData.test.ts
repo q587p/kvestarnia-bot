@@ -5,6 +5,7 @@ import {
   makeDuelCancelCallbackData,
   makeDuelDeclineCallbackData,
   makeDuelNewCallbackData,
+  makeDuelNewRiskCallbackData,
   makeDuelViewCallbackData,
   parseDuelCallbackData
 } from "../../src/bot/callbacks/duelCallbackData";
@@ -14,6 +15,10 @@ describe("duel callback data", () => {
     expect(parseDuelCallbackData(makeDuelNewCallbackData())).toEqual({
       ok: true,
       value: { type: "new" }
+    });
+    expect(parseDuelCallbackData(makeDuelNewRiskCallbackData())).toEqual({
+      ok: true,
+      value: { type: "new-risk" }
     });
     expect(parseDuelCallbackData(makeDuelAcceptCallbackData("abc_DEF12"))).toEqual({
       ok: true,

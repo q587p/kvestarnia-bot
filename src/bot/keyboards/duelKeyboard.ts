@@ -9,6 +9,7 @@ import {
   makeDuelCancelCallbackData,
   makeDuelDeclineCallbackData,
   makeDuelNewCallbackData,
+  makeDuelNewRiskCallbackData,
   makeDuelViewCallbackData
 } from "../callbacks/duelCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
@@ -41,6 +42,15 @@ export function buildDuelChallengeKeyboard(
 export function buildDuelResultKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("🥊 Новий виклик", makeDuelNewCallbackData())
+    .row()
+    .text("📋 До справ", makeQuestCallbackData("list"))
+    .row()
+    .text("🍺 До зали", makePlaceCallbackData("hall"));
+}
+
+export function buildDuelCreateResourceWarningKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🥊 Так, кинути виклик", makeDuelNewRiskCallbackData())
     .row()
     .text("📋 До справ", makeQuestCallbackData("list"))
     .row()
