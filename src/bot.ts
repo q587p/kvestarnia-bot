@@ -11,6 +11,7 @@ import { PrismaCellarGrownupQuestRepository } from "./db/repositories/prismaCell
 import { PrismaCooldownRepository } from "./db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "./db/repositories/prismaDailyActionRepository";
 import { PrismaDevGrantRepository } from "./db/repositories/prismaDevGrantRepository";
+import { PrismaDuelChallengeRepository } from "./db/repositories/prismaDuelChallengeRepository";
 import { PrismaEquipmentRepository } from "./db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "./db/repositories/prismaHuntContractRepository";
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
@@ -30,6 +31,7 @@ import { CellarGrownupQuestService } from "./services/cellarGrownupQuestService"
 import { DevResetService } from "./services/devResetService";
 import { DevGrantService } from "./services/devGrantService";
 import { DeployNotificationService } from "./services/deployNotificationService";
+import { DuelChallengeService } from "./services/duelChallengeService";
 import { EquipmentService } from "./services/equipmentService";
 import { FightService } from "./services/fightService";
 import { HeroService } from "./services/heroService";
@@ -54,6 +56,7 @@ const cellarGrownupQuests = new PrismaCellarGrownupQuestRepository(prisma);
 const cooldowns = new PrismaCooldownRepository(prisma);
 const dailyActions = new PrismaDailyActionRepository(prisma);
 const devGrants = new PrismaDevGrantRepository(prisma);
+const duelChallenges = new PrismaDuelChallengeRepository(prisma);
 const equipment = new PrismaEquipmentRepository(prisma);
 const huntContracts = new PrismaHuntContractRepository(prisma);
 const inventory = new PrismaInventoryRepository(prisma);
@@ -82,6 +85,7 @@ const services = {
   mantokChest: new MantokChestService(mantokChestRuns),
   presence: new PresenceService(presence),
   devGrant: new DevGrantService(devGrants, config.nodeEnv, config.devGrantCommandsEnabled),
+  duel: new DuelChallengeService(duelChallenges),
   remort: new RemortService(remorts),
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),
@@ -100,6 +104,7 @@ const supportJarOptions = config.supportJarUrl
       ...(config.supportJarStatus ? { supportJarStatus: config.supportJarStatus } : {})
     }
   : {};
+const botLinkOptions = config.botUsername ? { botUsername: config.botUsername } : {};
 const healthServer = startHealthServer({
   presence: services.presence,
   ...supportJarOptions
@@ -121,7 +126,10 @@ process.once("SIGTERM", shutdown);
 if (!config.botToken) {
   console.log("Квестарня: BOT_TOKEN не задано, Telegram polling не запускається.");
 } else {
-  bot = createBot(config.botToken, services, supportJarOptions);
+  bot = createBot(config.botToken, services, {
+    ...supportJarOptions,
+    ...botLinkOptions
+  });
 
   void services.mantokChest.cleanupExpiredPendingRuns().catch((error) => {
     console.error("Квестарня: старі бланки Дружньої Скрині не прибрались.", error);

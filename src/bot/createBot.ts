@@ -10,6 +10,7 @@ import type {
 } from "../services/cellarGrownupQuestService";
 import type { DevResetService } from "../services/devResetService";
 import type { DevGrantService } from "../services/devGrantService";
+import type { DuelChallengeService } from "../services/duelChallengeService";
 import type {
   FightService,
   PersistentFightTurnResult,
@@ -33,6 +34,7 @@ import {
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
   type PresenceService
@@ -46,6 +48,7 @@ import { parseAdventureCallbackData, type AdventureCallback } from "./callbacks/
 import { parseBestiaryCallbackData, type BestiaryCallback } from "./callbacks/bestiaryCallbackData";
 import { parseCellarCallbackData, type CellarCallback } from "./callbacks/cellarCallbackData";
 import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
+import { parseDuelCallbackData } from "./callbacks/duelCallbackData";
 import { parseFightCallbackData, type FightCallback } from "./callbacks/fightCallbackData";
 import { parseHuntCallbackData, type HuntCallback } from "./callbacks/huntCallbackData";
 import {
@@ -90,6 +93,7 @@ import {
 } from "./commands/cellarCommand";
 import { registerDevResetCommand } from "./commands/devResetCommand";
 import { registerDevGrantCommands } from "./commands/devGrantCommand";
+import { handleDuelCallback, registerDuelCommand } from "./commands/duelCommand";
 import { registerEquipmentCommand, sendEquipment } from "./commands/equipmentCommand";
 import { registerFightCommand, sendFight } from "./commands/fightCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
@@ -117,6 +121,9 @@ import {
   registerTavernCommand,
   sendKorchmaArrivalBoard,
   sendKorchmaBar,
+  sendDuelWinnersBoard,
+  sendKorchmaDeepClosed,
+  sendKorchmaFightingCorner,
   sendKorchmaFront,
   sendKorchmaMemorialBoard,
   sendTavern,
@@ -287,6 +294,7 @@ export interface BotServices {
   mantokChest: MantokChestService;
   presence: PresenceService;
   devGrant?: DevGrantService;
+  duel?: DuelChallengeService;
   devReset: DevResetService;
   restart: RestartService;
   remort?: RemortService;
@@ -297,6 +305,7 @@ export interface BotServices {
 export interface BotOptions {
   supportJarUrl?: string;
   supportJarStatus?: SupportJarStatus;
+  botUsername?: string;
 }
 
 const HTML_MESSAGE_OPTIONS = {
@@ -333,6 +342,13 @@ export function createBot(token: string, services: BotServices, options: BotOpti
       tavernRaid: services.tavern
     });
   }
+  if (services.duel) {
+    registerDuelCommand(bot, services.duel, {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      botUsername: options.botUsername
+    });
+  }
   registerBestiaryCommand(bot, services.hero);
   registerCellarCommand(
     bot,
@@ -342,7 +358,16 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     services.cellarGrownup
   );
   registerQuestHubCommand(bot, buildQuestHubCommandOptions(services));
-  registerStartCommand(bot, services.onboarding);
+  registerStartCommand(
+    bot,
+    services.onboarding,
+    services.duel
+      ? {
+          duel: services.duel,
+          duelBotUsername: options.botUsername
+        }
+      : undefined
+  );
   registerHeroCommand(bot, services.hero);
   registerInventoryCommand(bot, services.inventory);
   registerEquipmentCommand(bot, services.equipment);
@@ -501,6 +526,21 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     }
 
     await handleTrainingDoppelgangerCallback(ctx, parsed.value, services);
+  });
+
+  bot.callbackQuery(/^v1:duel:/, async (ctx) => {
+    const parsed = parseDuelCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok || !services.duel) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleDuelCallback(ctx, parsed.value, services.duel, {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      botUsername: options.botUsername
+    });
   });
 
   bot.callbackQuery(/^v1:cellar:/, async (ctx) => {
@@ -822,7 +862,7 @@ async function handleItemCallback(
 ): Promise<void> {
   if (action.type === "inventory") {
     await safeAnswerCallbackQuery(ctx);
-    await sendInventory(ctx, services.inventory, "edit", action.page, action.slot);
+    await sendInventory(ctx, services.inventory, "edit", action.page, action.slot, services.equipment);
     return;
   }
 
@@ -1211,12 +1251,32 @@ async function handlePlaceCallback(
     return;
   }
 
+  if (action === "fighting-corner") {
+    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "edit");
+    return;
+  }
+
+  if (action === "duel-winners") {
+    if (!services.duel) {
+      await safeEditMessageText(ctx, presentInvalidCallback(), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    await sendDuelWinnersBoard(ctx, services.tavern, services.presence, services.duel, "edit");
+    return;
+  }
+
   if (action === "quest-table") {
     await sendQuestHub(
       ctx,
       buildQuestHubCommandOptions(services),
       "edit"
     );
+    return;
+  }
+
+  if (action === "deep") {
+    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "edit");
     return;
   }
 
@@ -1433,7 +1493,7 @@ async function handleTrainingDoppelgangerCallback(
 
     if (result.state !== "not-found") {
       await markScenePresence(ctx, services.presence, {
-        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
         currentRaidId: null,
         currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
       });

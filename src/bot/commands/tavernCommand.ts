@@ -3,11 +3,14 @@ import type { PresenceService } from "../../services/presenceService";
 import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_BAR,
+  PRESENCE_LOCATION_KORCHMA_DEEP,
+  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
+import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { LevelMilestoneService } from "../../services/levelMilestoneService";
 import type { RemortService } from "../../services/remortService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
@@ -16,6 +19,8 @@ import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildKorchmaArrivalBoardKeyboard,
   buildKorchmaBarKeyboard,
+  buildBackToKorchmaHallKeyboard,
+  buildKorchmaFightingCornerKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
   buildKorchmaMemorialBoardKeyboard,
@@ -25,6 +30,9 @@ import {
 import {
   presentKorchmaArrivalBoard,
   presentKorchmaBar,
+  presentDuelWinnersBoard,
+  presentKorchmaDeepClosed,
+  presentKorchmaFightingCorner,
   presentKorchmaFront,
   presentKorchmaHall,
   presentKorchmaMemorialBoard,
@@ -215,6 +223,116 @@ export async function sendKorchmaMemorialBoard(
   await sendText(ctx, mode, presentKorchmaMemorialBoard(result.character, milestones, remorts), "memorial");
 }
 
+export async function sendKorchmaFightingCorner(
+  ctx: Context,
+  tavernRaidService: TavernRaidService,
+  presenceService: PresenceService,
+  mode: "reply" | "edit"
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
+
+  if (result.state === "no-character") {
+    await sendText(ctx, mode, presentTavernNoCharacter());
+    return;
+  }
+
+  if (result.state === "pending") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
+    return;
+  }
+
+  if (result.state === "pending-complete") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
+    return;
+  }
+
+  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
+  await sendText(ctx, mode, presentKorchmaFightingCorner(result.character), "fighting-corner");
+}
+
+export async function sendKorchmaDeepClosed(
+  ctx: Context,
+  tavernRaidService: TavernRaidService,
+  presenceService: PresenceService,
+  mode: "reply" | "edit"
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
+
+  if (result.state === "no-character") {
+    await sendText(ctx, mode, presentTavernNoCharacter());
+    return;
+  }
+
+  if (result.state === "pending") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
+    return;
+  }
+
+  if (result.state === "pending-complete") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
+    return;
+  }
+
+  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_DEEP);
+  await sendText(ctx, mode, presentKorchmaDeepClosed(result.character), "back-to-hall");
+}
+
+export async function sendDuelWinnersBoard(
+  ctx: Context,
+  tavernRaidService: TavernRaidService,
+  presenceService: PresenceService,
+  duelService: Pick<DuelChallengeService, "getLeaderboard">,
+  mode: "reply" | "edit"
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
+
+  if (result.state === "no-character") {
+    await sendText(ctx, mode, presentTavernNoCharacter());
+    return;
+  }
+
+  if (result.state === "pending") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
+    return;
+  }
+
+  if (result.state === "pending-complete") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
+    return;
+  }
+
+  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
+  const leaderboard = await duelService.getLeaderboard();
+  await sendText(ctx, mode, presentDuelWinnersBoard(result.character, leaderboard), "back-to-fighting-corner");
+}
+
 export async function sendKorchmaBar(
   ctx: Context,
   tavernRaidService: TavernRaidService,
@@ -336,6 +454,9 @@ async function sendText(
     | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
     | "front"
+    | "fighting-corner"
+    | "back-to-fighting-corner"
+    | "back-to-hall"
     | "arrivals"
     | "memorial"
     | "barrel-result"
@@ -356,6 +477,12 @@ async function sendText(
                   includeBottleTurnIn: Boolean(keyboard.includeBottleTurnIn),
                   ...(keyboard.problemQuestAction ? { problemQuestAction: keyboard.problemQuestAction } : {})
                 })
+            : keyboard === "fighting-corner"
+              ? buildKorchmaFightingCornerKeyboard()
+            : keyboard === "back-to-fighting-corner"
+              ? buildKorchmaFightingCornerKeyboard()
+            : keyboard === "back-to-hall"
+              ? buildBackToKorchmaHallKeyboard()
             : keyboard === "front"
               ? buildKorchmaFrontKeyboard()
             : keyboard === "arrivals"
@@ -385,6 +512,9 @@ function isBarKeyboard(
     | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
     | "front"
+    | "fighting-corner"
+    | "back-to-fighting-corner"
+    | "back-to-hall"
     | "arrivals"
     | "memorial"
     | "barrel-result"
@@ -401,6 +531,9 @@ function isHallKeyboard(
     | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
     | "front"
+    | "fighting-corner"
+    | "back-to-fighting-corner"
+    | "back-to-hall"
     | "arrivals"
     | "memorial"
     | "barrel-result"

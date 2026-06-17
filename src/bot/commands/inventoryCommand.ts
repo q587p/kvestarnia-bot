@@ -1,5 +1,5 @@
 import type { Bot, Context } from "grammy";
-import type { EquipmentSlot } from "../../services/equipmentService";
+import type { EquipmentService, EquipmentSlot } from "../../services/equipmentService";
 import type { InventoryService } from "../../services/inventoryService";
 import { playerFromContext } from "../context";
 import { buildInventoryKeyboard } from "../keyboards/inventoryKeyboard";
@@ -20,7 +20,8 @@ export async function sendInventory(
   inventoryService: InventoryService,
   mode: SendMode,
   page = 0,
-  slotFilter: EquipmentSlot | null = null
+  slotFilter: EquipmentSlot | null = null,
+  equipmentService?: Pick<EquipmentService, "getEquipmentForTelegramUser">
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -29,8 +30,19 @@ export async function sendInventory(
     return;
   }
 
-  const result = await inventoryService.listForTelegramUser(telegramUserId);
-  const text = presentInventory(result, page, slotFilter);
+  const [result, equipment] = await Promise.all([
+    inventoryService.listForTelegramUser(telegramUserId),
+    slotFilter && equipmentService
+      ? equipmentService.getEquipmentForTelegramUser(telegramUserId)
+      : Promise.resolve(null)
+  ]);
+  const currentSlotItem =
+    slotFilter && equipment?.state === "ready"
+      ? (equipment.slots.find((slot) => slot.slot === slotFilter)?.item ?? null)
+      : null;
+  const text = presentInventory(result, page, slotFilter, {
+    currentSlotItem
+  });
 
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, {

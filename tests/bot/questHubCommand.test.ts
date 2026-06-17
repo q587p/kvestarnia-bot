@@ -74,7 +74,7 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).toContain("📋 Стіл зі справами");
     expect(replies[0]?.text).toContain("Бійцівський куток");
-    expect(replies[0]?.text).toContain("/spar");
+    expect(replies[0]?.text).toContain("тренування, дружні виклики й дошка переможців");
     expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
     expect(replies[0]?.text).not.toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
@@ -86,7 +86,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.options).toMatchObject({
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🥊 Бійцівський куток", callback_data: "v1:spar:open" }],
+          [{ text: "🥊 До Бійцівського кутка", callback_data: makePlaceCallbackData("fighting-corner") }],
           [{ text: "⚔️ Розвʼязати проблему", callback_data: makeQuestCallbackData("fight") }],
           [{ text: "🧹 У льох", callback_data: makeQuestCallbackData("cellar") }],
           [
@@ -121,13 +121,13 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).not.toContain("🧹 <i>Льохова справа</i> — відкриється з 2 рівня.");
+    expect(replies[0]?.text).toContain("📋 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 Бійцівський куток",
       "🌯 До шаурми",
       "⚔️ До сутички",
       "📦 Архів",
@@ -152,13 +152,13 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — миша приймає аргументи.");
+    expect(replies[0]?.text).toContain("📋 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 Бійцівський куток",
       "🌯 До шаурми",
       "⚔️ До сутички",
       "🧹 У льох",
@@ -212,7 +212,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 Бійцівський куток",
+      "🥊 До Бійцівського кутка",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -263,7 +263,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 Бійцівський куток",
+      "🥊 До Бійцівського кутка",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
       "📦 Архів",
@@ -326,7 +326,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 Бійцівський куток",
+      "🥊 До Бійцівського кутка",
       "⚔️ Розвʼязати проблему",
       "🏹 До Єгеря",
       "📦 Архів",
@@ -657,7 +657,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 Бійцівський куток",
+      "🥊 До Бійцівського кутка",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
       "📦 Архів",
@@ -712,7 +712,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 Бійцівський куток",
+      "🥊 До Бійцівського кутка",
       "🍻 До шинку",
       "🧹 У льох",
       "📦 Архів",
@@ -767,7 +767,9 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    expect(buttons.map((button) => button.callback_data)).toContain("v1:spar:open");
+    expect(buttons.map((button) => button.callback_data)).toContain(
+      makePlaceCallbackData("fighting-corner")
+    );
     expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("bar"));
     expect(buttons.map((button) => button.callback_data)).not.toContain(makeQuestCallbackData("fight"));
     expect(presence.marks[0]).toMatchObject({

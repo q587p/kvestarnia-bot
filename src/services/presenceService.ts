@@ -18,6 +18,7 @@ export const PRESENCE_LOCATION_KORCHMA_BARREL = "location.korchma.barrel";
 export const PRESENCE_LOCATION_KORCHMA_NEWS_CORNER = "location.korchma.news_corner";
 export const PRESENCE_LOCATION_KORCHMA_RANGER_CORNER = "location.korchma.ranger_corner";
 export const PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER = "location.korchma.fighting_corner";
+export const PRESENCE_LOCATION_KORCHMA_DEEP = "location.korchma.deep";
 export const PRESENCE_LOCATION_UNKNOWN = "location.unknown";
 
 export const PRESENCE_LOCATION_TAVERN = "location.tavern";
@@ -32,7 +33,8 @@ const KORCHMA_INTERIOR_LOCATION_IDS = [
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
-  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER
+  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+  PRESENCE_LOCATION_KORCHMA_DEEP
 ];
 
 export const PRESENCE_RAID_FRIDAY_BARREL = "raid.friday-barrel";
@@ -42,6 +44,7 @@ export const PRESENCE_ADVENTURE_SOLO_FIGHT = "adventure.solo-fight";
 export const PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND = "adventure.cellar.mouse-errand";
 export const PRESENCE_ADVENTURE_HUNT_BOARD = "adventure.hunt-board.contract";
 export const PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER = "adventure.training-doppelganger";
+export const PRESENCE_ADVENTURE_DUEL_CHALLENGE = "adventure.duel-challenge";
 
 export type PresenceStatus = "active" | "idle" | "inactive";
 export type PresenceActivityKind = "raid" | "adventure";
@@ -589,6 +592,16 @@ export function getPublicPresenceLocation(
     };
   }
 
+  if (id === PRESENCE_LOCATION_KORCHMA_DEEP) {
+    return {
+      locationId: id,
+      title: "Глибка",
+      regionName: "Корчма Квестарні",
+      showNames: true,
+      isSpecific: true
+    };
+  }
+
   return {
     locationId: id,
     title: "Невідома місцина",
@@ -615,10 +628,6 @@ export function normalizePresenceLocationId(locationId: string | null | undefine
     return PRESENCE_LOCATION_KORCHMA_CELLAR;
   }
 
-  if (locationId === PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER) {
-    return PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
-  }
-
   return locationId;
 }
 
@@ -633,7 +642,8 @@ export function isKorchmaInteriorLocation(locationId: string | null | undefined)
     id === PRESENCE_LOCATION_KORCHMA_BARREL ||
     id === PRESENCE_LOCATION_KORCHMA_NEWS_CORNER ||
     id === PRESENCE_LOCATION_KORCHMA_RANGER_CORNER ||
-    id === PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER
+    id === PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER ||
+    id === PRESENCE_LOCATION_KORCHMA_DEEP
   );
 }
 
@@ -645,7 +655,7 @@ function getLocationQueryIds(locationId: string): string[] {
   }
 
   if (id === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE) {
-    return [id, PRESENCE_LOCATION_SHAWARMA, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER];
+    return [id, PRESENCE_LOCATION_SHAWARMA];
   }
 
   if (id === PRESENCE_LOCATION_KORCHMA_CELLAR) {
@@ -728,6 +738,10 @@ function getAdventureName(id: string): string {
     return "Сумлінний Допельґанґер";
   }
 
+  if (id === PRESENCE_ADVENTURE_DUEL_CHALLENGE) {
+    return "Корчемний виклик";
+  }
+
   return "Підозріла шаурма";
 }
 
@@ -741,7 +755,11 @@ function getActivityLocationName(id: string): string {
   }
 
   if (id === PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER) {
-    return getLocationName(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+    return getLocationName(PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
+  }
+
+  if (id === PRESENCE_ADVENTURE_DUEL_CHALLENGE) {
+    return getLocationName(PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
   }
 
   return getLocationName(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);

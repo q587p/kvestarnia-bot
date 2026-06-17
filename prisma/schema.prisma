@@ -45,6 +45,8 @@ model Character {
   levelBarterExchanges LevelBarterExchange[]
   remortDrafts CharacterRemortDraft[]
   remorts CharacterRemort[]
+  duelChallengesSent DuelChallenge[] @relation("DuelChallenger")
+  duelChallengesReceived DuelChallenge[] @relation("DuelTarget")
   name      String
   pronoun   String   @default("they")
   path      String   @default("boundary")
@@ -235,6 +237,27 @@ model CharacterRemort {
   @@unique([characterId, remortNumber])
   @@index([remortNumber, createdAt])
   @@map("character_remorts")
+}
+
+model DuelChallenge {
+  id                    String    @id @default(uuid())
+  challengerCharacterId String    @map("challenger_character_id")
+  challenger            Character @relation("DuelChallenger", fields: [challengerCharacterId], references: [id], onDelete: Cascade)
+  targetCharacterId     String?   @map("target_character_id")
+  target                Character? @relation("DuelTarget", fields: [targetCharacterId], references: [id], onDelete: SetNull)
+  contextChatId         BigInt?   @map("context_chat_id")
+  inviteToken           String    @unique @map("invite_token")
+  status                String    @default("pending")
+  expiresAt             DateTime  @map("expires_at")
+  resolvedAt            DateTime? @map("resolved_at")
+  resultJson            Json?     @map("result_json")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([challengerCharacterId, status])
+  @@index([targetCharacterId, status])
+  @@index([status, expiresAt])
+  @@map("duel_challenges")
 }
 
 model DailyAction {

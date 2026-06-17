@@ -19,7 +19,7 @@
 4. `0.1.4` — fight/quest navigation cleanup: clearer Quest Hub fight labels, return paths and presence routing; Глибка remains deferred runtime.
 5. `0.1.5` — first Phase 2 prep/runtime slice: level 3+ бійцівський куток із покроковим тренувальним `Сумлінним Допельґанґером`, XP-only reward, recovery cooldown, no PvP state, no group raid.
 6. `0.1.6` — Korchmar/Shynok problem quest chain: `13 -> 23 -> 42 -> 93`, explicit bar turn-in plus next-stage acceptance, fresh per-stage counters and no training doppelganger progress.
-7. Duel invite MVP після того, як допельґанґер доведе форму бою й картку результату.
+7. `0.1.10` — first rewardless duel invite ledger: level 3+ `/duel`, generated deep links, accept/decline/cancel/expire, replay-safe result, no rewards or rating.
 8. Duel result/rematch/tournament card support.
 9. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
 10. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
@@ -32,6 +32,26 @@ Feature tracks start only after smoke and stabilization. Docs-only ideas added a
 Deferred side tracks remain useful but should not steal the Phase 2 spine: Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs, NPC rankings, the docs-planned Support Jar live status, and very-late alternate clients such as web play or non-Telegram messenger bots.
 
 Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
+
+## Later — Quest Hub Transitional Copy Cleanup
+
+**Objective**
+Remove the temporary Quest Hub sentence that points players to the newly separated Fighting Corner after players have had time to learn the new Korchma layout.
+
+**Current temporary copy**
+
+`Бійцівський куток тепер окремо гупає збоку: там тренування, дружні виклики й дошка переможців.`
+
+**Scope**
+
+- simplify the active Quest Hub intro copy once the Fighting Corner split is no longer new;
+- keep actual Fighting Corner routes, buttons and presence rules unchanged;
+- update any presenter tests that assert the transitional sentence.
+
+**Non-goals**
+
+- no Korchma layout rewrite;
+- no duel, `/spar`, winners board or quest routing behavior change.
 
 ## Later — Старший Брат Бочки
 
@@ -525,7 +545,7 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 
 **Scope**
 
-- Додати place/presence id для Глибки, орієнтовно `location.korchma.hlybka`, якщо runtime лишається в корчемній location-моделі.
+- Додати бойовий runtime для вже зарезервованого place/presence id Глибки: `location.korchma.deep`.
 - У залі або зі `Стіл зі справами` дати перехід до `Глибка`.
 - Korchmar problem chain може вести в Глибку: quest hub показує справу біля столу, але кнопка бойової дії переводить у dungeon screen і вже там стартує/показує persistent fight.
 - `0.1.6` уже переносить здачу готового problem-chain етапу до Корчмаря в `🍻 Шинку` і відкриває ланцюжок `13 -> 23 -> 42 -> 93`; future Глибка не має переробляти цю reward/idempotency модель без окремого balance/security рішення.
@@ -617,6 +637,34 @@ Implemented in `0.0.21` as the first Telegram runtime wiring for the combat doma
 - repeated callback того самого ходу не проводить ще один хід;
 - stale callback не дублює damage/rewards;
 - terminal states are stable and do not reopen automatically.
+
+## Later — Shared Combat Turn Timeout
+
+**Objective**
+Додати короткий per-turn timeout для всіх покрокових боїв, щоб зниклий гравець або майбутній PvP-учасник не підвішував бій до довгого session expiry.
+
+**Scope**
+
+- ordinary monster fights, `/spar` against `Сумлінний Допельґанґер` and future turn-based duels use the same timeout model;
+- each active turn gets roughly `23` seconds;
+- after deadline, a background/job path applies a deterministic auto-attack or explicit skip for the active actor;
+- monster/copy/opponent response is resolved through the same combat rules as manual turns;
+- the dynamic battle message is edited to the next state or terminal result;
+- updates are guarded by `sessionId + turn` or equivalent duel/session actor-turn identity so manual clicks racing the job cannot double-resolve a turn;
+- long session expiry remains only cleanup/replay fallback, not the normal wait model.
+
+**Non-goals**
+
+- no reward/economy rebalance;
+- no schema change unless the implementation needs a durable `turn_deadline_at` / job ledger;
+- no full PvP action catalog in the same slice;
+- no hidden consumable use or item durability loss.
+
+**Acceptance criteria**
+
+- tests cover manual click before deadline, timeout after deadline, racing manual/timeout resolution, stale timeout job, terminal replay and no duplicate rewards;
+- `/fight` and `/spar` both advance or close within one timeout cycle when the player disappears;
+- future turn-based duel design can reuse the same actor-turn timeout contract without treating duel invites as combat state.
 
 ## Later — Achievements Phase 1
 
@@ -879,6 +927,7 @@ Closed by `0.1.0`; remaining polish belongs to the explicit `0.1.x` order at the
 **Small copy/UX debts**
 
 - Fight turn wording cleanup: якщо callback answer каже `Хід записано`, а fight screen уже показує `Хід: N`, не називати log section `Останній хід` поруч із цим. Звести до одного терміна (`Раунд`, `Журнал`, `Остання дія` або без заголовка), щоб бойовий екран не звучав як три службові журнали один на одному. Tests should cover the player-facing flow text, not only individual presenter snippets.
+- Split persistent monster fight UX into two messages, matching the Допельґанґер training shape: one static intro card with `⚔️ Бій`, character header and `Проти вас`, then one edited state/action card with HP/mana, turn number, action log, no `Останній хід` label and a named `що робимо?` prompt before the keyboard.
 - Active fight keyboard cleanup: коли persistent fight уже активний, не показувати `⬅️ До столу` поруч із бойовими діями. У бою гравець має або діяти (`Вдарити`, уміння, майбутній `Захист`), або пробувати `Відступити`; вихід до Столу має зʼявлятися тільки в terminal/non-active states або як окрема safe navigation після завершення. Tests should assert active fight keyboards do not include quest-table navigation.
 
 ## Later — Battle Interventions / Витівка Прилавка
@@ -1056,6 +1105,7 @@ Closed by `0.1.0`; remaining polish belongs to the explicit `0.1.x` order at the
 
 - group hunts/raids;
 - social player interactions: виклик на дуель у корчемний бійцівський куток, пропозиція всліпу помінятися манатками, маленька інтерактивна міні-гра між гравцями;
+- targeted nearby duel invites: під `👥 У грі зараз` додати `Кинути виклик`, вибір видимого пригодника в поточній локації, opt-in сповіщення для цілі, безпечний ignore flow і перехід обох у Бійцівський куток тільки після accept та combat/raid guard-ів;
 - корчемні ігри з `docs/SOCIAL_ACTIONS_BACKLOG.md`: дуже прості карти/шашки на 2–4 кроки з opt-in викликом nearby пригодника, легким випадковим розвʼязанням, presence flavor і косметичним/соціяльним результатом без бойової переваги;
 - player influence on hunts: допомогти іншому гравцю закрити полювання або, якщо дуже хочеться бути проблемою, допомогти монстру в межах безпечних anti-abuse rules;
 - activity presence: зберігати й показувати coarse тип поточної дії персонажа, наприклад «чекає бочку», «спілкується з єгерем», «бʼється з монстром», «отримує нагороду»;

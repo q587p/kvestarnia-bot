@@ -50,6 +50,8 @@ MVP limits:
 
 `0.1.9` combat flavor intents are presentation-only for `/spar`: they may add escaped text lines and semantic tags, but they must not create reward state, change quest counters, mutate cooldowns, bypass callback ownership/turn checks or expose hidden formulas. Any later numeric tactics modifier needs a separate tested balance/security review.
 
+`0.1.10` duel invites are opt-in, level 3+, rewardless and ledger-backed. Challenge creation, accept, decline, cancel, expiry and result replay must stay transactional/idempotent through `duel_challenges`; old buttons may replay state but must not reroll a result. Invite recipients without a character receive onboarding copy instead of a hard failure. Partial HP or mana shows an explicit warning before accept, but the player can still proceed deliberately. The first slice must not add wagers, rating, item loss, quest progress, reward grants, rematch automation or tournament state.
+
 ## Callback validation
 Callback data має:
 - мати версію.

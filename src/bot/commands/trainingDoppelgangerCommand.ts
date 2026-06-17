@@ -3,7 +3,7 @@ import type { TrainingDoppelgangerService } from "../../services/trainingDoppelg
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
-  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   type PresenceService
 } from "../../services/presenceService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
@@ -14,6 +14,7 @@ import {
   presentTrainingDoppelganger,
   presentTrainingDoppelgangerAnotherFight,
   presentTrainingDoppelgangerCooldown,
+  presentTrainingDoppelgangerIntro,
   presentTrainingDoppelgangerLevelGate,
   presentTrainingDoppelgangerNeedsRest,
   presentTrainingDoppelgangerNoCharacter
@@ -104,6 +105,15 @@ export async function sendTrainingDoppelganger(
   }
 
   await markTrainingPresence(ctx, options.presence);
+  if (result.state === "active") {
+    await sendText(ctx, mode, presentTrainingDoppelgangerIntro(result));
+    await sendText(ctx, "reply", presentTrainingDoppelganger(result), {
+      session: result.session,
+      character: result.character
+    });
+    return;
+  }
+
   await sendText(ctx, mode, presentTrainingDoppelganger(result), {
     session: result.session,
     character: result.character
@@ -119,7 +129,7 @@ async function markTrainingPresence(ctx: Context, presence: PresenceService): Pr
 
   await presence.markAction({
     user: player,
-    locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+    locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
     currentRaidId: null,
     currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
   });

@@ -4,7 +4,11 @@ import type { CellarErrandLookupResult } from "../../services/cellarErrandServic
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
 import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
-import { BESTIARY_MIN_LEVEL, meetsActivityLevel } from "../../domain/progression/activityGates";
+import {
+  BESTIARY_MIN_LEVEL,
+  FIGHTING_CORNER_MIN_LEVEL,
+  meetsActivityLevel
+} from "../../domain/progression/activityGates";
 import { presentCharacterHeader } from "./telegramHtml";
 
 export interface QuestHubSnapshot {
@@ -28,7 +32,7 @@ export function presentQuestHub(snapshot: QuestHubSnapshot, mode: QuestHubMode =
     "",
     mode === "archive"
       ? "Архів показує закриті й недоступні справи. Він шарудить так, ніби памʼятає більше, ніж треба."
-      : "На столі лежать актуальні справи, а збоку тулиться Бійцівський куток для обережного /spar. Тут обирають напрям, а далі Стіл уже штовхає туди, де справа насправді шумить.",
+      : "На столі лежать актуальні справи. Бійцівський куток тепер окремо гупає збоку: там тренування, дружні виклики й дошка переможців.",
     "",
     ...rows,
     "",
@@ -73,9 +77,14 @@ function presentAdventureArchiveRow(
 }
 
 function presentProblemQuestRow(
+  character: CharacterSummary,
   progress: ProblemQuestProgress,
   fight: Exclude<FightLookupResult, { state: "no-character" }>
 ): string {
+  if (!meetsActivityLevel(character.level, FIGHTING_CORNER_MIN_LEVEL)) {
+    return `📋 <i>${progress.title}</i> — відкриється з ${FIGHTING_CORNER_MIN_LEVEL} рівня.`;
+  }
+
   if (progress.branchComplete) {
     return `📋 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}.`;
   }
@@ -291,7 +300,7 @@ function presentCellarArchiveRows(
 function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
   const rows = [
     snapshot.adventure.state === "ready" ? presentAdventureRow(snapshot.adventure) : null,
-    presentProblemQuestRow(snapshot.problemQuest, snapshot.fight),
+    presentProblemQuestRow(snapshot.character, snapshot.problemQuest, snapshot.fight),
     presentActiveFightRow(snapshot.fight),
     presentActiveYegerRow(snapshot.yeger),
     presentActiveCellarRow(snapshot.cellar, snapshot.cellarGrownup)
@@ -356,7 +365,8 @@ function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
   return (
     snapshot.adventure.state === "ready" ||
     snapshot.fight.state === "ready" ||
-    !snapshot.problemQuest.branchComplete ||
+    (meetsActivityLevel(snapshot.character.level, FIGHTING_CORNER_MIN_LEVEL) &&
+      !snapshot.problemQuest.branchComplete) ||
     snapshot.fight.state === "training-active" ||
     snapshot.yeger.state === "offered" ||
     snapshot.yeger.state === "in-progress" ||

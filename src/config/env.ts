@@ -14,6 +14,11 @@ const supportJarStatusSchema = z
     updatedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
   })
   .optional();
+const botUsernameSchema = z.string().transform(normalizeBotUsername).pipe(
+  z.string().regex(/^[A-Za-z][A-Za-z0-9_]{4,31}$/, {
+    message: "BOT_USERNAME must be a Telegram bot username without https://t.me/"
+  })
+);
 
 export interface SupportJarStatus {
   currentUah?: number;
@@ -30,6 +35,7 @@ interface RawSupportJarStatus {
 export const configSchema = z.object({
   nodeEnv: nodeEnvSchema,
   botToken: z.string().optional(),
+  botUsername: botUsernameSchema.optional(),
   databaseUrl: databaseUrlSchema,
   deployNotificationsEnabled: z.boolean().default(false),
   devGrantCommandsEnabled: z.boolean().default(false),
@@ -43,12 +49,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return configSchema.parse({
     nodeEnv: env.NODE_ENV,
     botToken: blankToUndefined(env.BOT_TOKEN),
+    botUsername: blankToUndefined(env.BOT_USERNAME),
     databaseUrl: env.DATABASE_URL,
     deployNotificationsEnabled: parseBoolean(env.DEPLOY_NOTIFICATIONS_ENABLED),
     devGrantCommandsEnabled: parseBoolean(env.DEV_GRANT_COMMANDS_ENABLED),
     supportJarUrl: blankToUndefined(env.SUPPORT_JAR_URL),
     supportJarStatus: parseSupportJarStatus(env)
   });
+}
+
+function normalizeBotUsername(value: string): string {
+  return value.trim().replace(/^@/, "");
 }
 
 function blankToUndefined(value: string | undefined): string | undefined {

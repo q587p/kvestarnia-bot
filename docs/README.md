@@ -2,6 +2,15 @@
 
 Цей індекс допомагає швидко знайти актуальне джерело правди в документації Квестарні. README лишається public-facing вітриною; докладні runbook-и, дизайн-рішення й плани живуть тут.
 
+
+## AI / Codex workflow
+
+- [ai/context.md](ai/context.md) — compact context pack for Codex; keep it under 250 lines.
+- [ai/rules-for-future.md](ai/rules-for-future.md) — durable token-economy workflow rules.
+- [ai/prompts/main-new-version-thread.md](ai/prompts/main-new-version-thread.md) — short startup prompt for a fresh main Codex thread.
+- [ai/prompts/second-codex-pr-review.md](ai/prompts/second-codex-pr-review.md) — read-only second Codex PR review prompt; changed files only by default.
+- [tasks/README.md](tasks/README.md) — version task doc convention and templates.
+
 ## Canonical project docs
 
 - [BRAND.md](BRAND.md) — назва, voice, tone, public wording і заборонені варіанти неймінґу.
@@ -19,6 +28,13 @@
 - [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md) — локальний запуск, Prisma, Render, scripts і troubleshooting.
 - [PLAYTESTING.md](PLAYTESTING.md) — ручний smoke test поточного playable loop.
 - [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md) — правила постановки задач, PR і docs-only workflow.
+
+## Codex workflow assets
+
+- [tasks/README.md](tasks/README.md) — версійний task registry, шаблони й архів виконаних slice-ів.
+- [ai/context.md](ai/context.md) — стислий контекст для нових Codex-сесій.
+- [ai/prompts/](ai/prompts/) — готові prompts для основного агента, QA, review і release handoff.
+- [ai/CODEX_TOKEN_ECONOMY_APPLIED.md](ai/CODEX_TOKEN_ECONOMY_APPLIED.md) — коротка нотатка про практичну економію токенів у workflow.
 
 ## Phase 1 closeout
 

@@ -44,6 +44,7 @@ Copy-Item .env.example .env
 ```env
 NODE_ENV=development
 BOT_TOKEN=
+BOT_USERNAME=
 DATABASE_URL=file:./dev.db
 DEPLOY_NOTIFICATIONS_ENABLED=false
 DEV_GRANT_COMMANDS_ENABLED=false
@@ -55,6 +56,8 @@ DEV_GRANT_COMMANDS_ENABLED=false
 
 `BOT_TOKEN` може бути порожнім для локальних перевірок без реального Telegram polling. У цьому режимі бот валідовує конфіг і запускає HTTP healthcheck server, але не під’єднується до Telegram API.
 
+`BOT_USERNAME` optional. Якщо він заданий, `/duel` invite links генеруються як `https://t.me/<BOT_USERNAME>?start=duel_<token>`. Тримай dev/prod ботів окремо: локально можна ставити `kvestarnia_dev_bot`, production має використовувати реальний `kvestarnia_bot`. Значення пишеться без `@`.
+
 `SUPPORT_JAR_URL` optional. Якщо він заданий, це має бути absolute `https://send.monobank.ua/jar/...` без URL credentials; без нього `/support` і public site не показують битих support-link-ів.
 
 `SUPPORT_JAR_CURRENT_UAH`, `SUPPORT_JAR_GOAL_UAH` і `SUPPORT_JAR_STATUS_UPDATED_AT` optional та ручні. Вони лише показують спокійний read-only стан Банки в `/support` і на public site; це не payment confirmation і не donor state. Дата статусу має бути короткою `YYYY-MM-DD`.
@@ -65,6 +68,7 @@ Support Jar setup lives in `docs/SUPPORT_JAR_BACKLOG.md`; note that the Monobank
 
 ```env
 BOT_TOKEN=replace-with-real-token
+BOT_USERNAME=kvestarnia_bot
 ```
 
 Не коміть `.env`, реальні токени, приватні `chat_id` або будь-які секрети.

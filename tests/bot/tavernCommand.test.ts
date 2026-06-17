@@ -5,6 +5,9 @@ import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData
 import {
   sendKorchmaArrivalBoard,
   sendKorchmaBar,
+  sendDuelWinnersBoard,
+  sendKorchmaDeepClosed,
+  sendKorchmaFightingCorner,
   sendKorchmaFront,
   sendKorchmaMemorialBoard,
   sendTavern
@@ -142,6 +145,71 @@ describe("tavern command screens", () => {
         ]
       }
     });
+  });
+
+  it("shows the fighting corner as a menu with training duel and winners", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaFightingCorner(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🥊 Бійцівський куток");
+    expect(replies[0]?.text).toContain("Тут не бʼються одразу");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🥊 Потренуватися", callback_data: "v1:spar:open" }],
+          [
+            { text: "🤝 Кинути виклик", callback_data: "v1:duel:new" },
+            { text: "🏆 Переможці", callback_data: makePlaceCallbackData("duel-winners") }
+          ],
+          [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
+        ]
+      }
+    });
+  });
+
+  it("shows the Deep as a closed location", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaDeepClosed(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🕳️ Глибка");
+    expect(replies[0]?.text).toContain("гарчить");
+    expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
+  });
+
+  it("shows duel winners from the fighting corner", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendDuelWinnersBoard(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      {
+        getLeaderboard: () =>
+          Promise.resolve({
+            day: [{ characterId: "character-1", name: "Дара", winCount: 2 }],
+            week: [],
+            month: []
+          })
+      },
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🏆 Переможці дуелей");
+    expect(replies[0]?.text).toContain("1. Дара — 2 перемоги");
+    expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("duel-winners"));
   });
 
   it("offers problem quest turn-in from the Шинок when a stage is ready", async () => {

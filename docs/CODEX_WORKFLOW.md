@@ -1,185 +1,172 @@
 # Codex Workflow
 
-## Як ставити задачі Codex
+This document explains how to give Codex scoped, token-efficient work in Kvestarnia.
 
-Структура промпту:
+## Default shape of a Codex task
 
-```text
-Goal: що треба зробити.
-Context: які файли прочитати.
-Constraints: стек, стиль, що не чіпати.
-Done when: як перевірити готовність.
-```
-
-Приклад:
+Use the smallest useful prompt:
 
 ```text
-Goal: реалізуй чистий combat engine для MVP.
-Context: прочитай AGENTS.md, docs/GAME_DESIGN.md, docs/BALANCE_NOTES.md.
-Constraints: domain не має імпортувати Telegram/grammY; RNG через інтерфейс RandomSource; TypeScript strict.
-Done when: є unit tests для перемоги, поразки, криту, промаху, втечі; npm test проходить.
+Use $kvestarnia-version-task.
+
+Implement:
+docs/tasks/<version>-<short-slug>.md
+
+Context:
+docs/ai/context.md
+
+Follow AGENTS.md.
+Use a minimal diff.
+Run focused tests first.
+Final output: changed files, behavior changed, tests run, risks, completion status. No tutorial.
 ```
 
-## Типи змін
-
-### Версійні gameplay/runtime зміни
-
-Версійними вважаються зміни, які впливають на поведінку бота, дані, міграції, баланс, гравецькі повідомлення в runtime або production deployment.
-
-Для таких змін:
-
-- онови `package.json` version тільки коли це прямо входить у задачу;
-- якщо version рухається, тримай `package.json`, `package-lock.json`, `CHANGELOG.md` і `news.md` у lockstep, якщо користувач не задав вужчий scope;
-- онови `CHANGELOG.md` і `news.md`, якщо зміна має йти як реліз;
-- заголовки release notes мають містити номер, дату за Holocene calendar і короткий опис; дату брати за київським часом (`Europe/Kyiv`) на момент підготовки/публікації запису;
-- PR title для release-oriented зміни починається з номера версії й короткого опису, наприклад `0.0.4 — First Mimic Shawarma Adventure`.
-
-### Docs-only / presentation зміни
-
-Docs-only зміни, які лише покращують README, бренд, product docs, setup docs або workflow docs, **не є номерним релізом**.
-
-Для таких змін:
-
-- не bump-ати `package.json` version;
-- не створювати git tag;
-- не створювати GitHub Release;
-- не оновлювати `CHANGELOG.md` і `news.md`, якщо користувач прямо не попросив;
-- не змінювати runtime-код, Prisma schema, migrations або generated files;
-- PR title має бути звичайним docs title, наприклад `docs: Polish public README and project docs`;
-- у PR body писати `Tests: Not run — docs-only change`, якщо технічні checks не запускалися.
-
-## Перші задачі для порожнього репозиторію
-
-### Task 1 — Scaffold
+The task doc should contain:
 
 ```text
-Goal: створи TypeScript Node.js репозиторій для Telegram RPG bot.
-Context: AGENTS.md, docs/TECHNICAL_PLAN.md.
-Constraints: npm, Vitest, ESLint, TypeScript strict, SQLite через DATABASE_URL. Не реалізуй ігрові фічі.
-Done when: npm run lint/typecheck і npm test проходять; README містить короткий public pitch, а local setup винесено в docs/DEVELOPER_SETUP.md.
+Goal: what should change.
+Scope: what files/areas are in scope.
+Non-goals: what must not be implemented.
+Acceptance criteria: how done is verified.
+Relevant files/search terms: where to start.
+Tests/manual QA: what to run or check.
 ```
 
-### Task 2 — Content validation
+Do not paste long repeated rules into prompts. Keep reusable rules in `AGENTS.md`, `.agents/skills/*`, and `docs/ai/context.md`.
+
+## Versioned gameplay/runtime changes
+
+Versioned changes affect bot behavior, data, migrations, balance, runtime player messages, or production deployment.
+
+For these changes:
+
+- Create or update a short task doc in `docs/tasks/`.
+- Use one fresh Codex thread per versioned task.
+- Use `$kvestarnia-version-task` for the main implementation.
+- Update `package.json` version only when the task includes a version bump.
+- If version moves, keep `package.json`, `package-lock.json`, `CHANGELOG.md`, and `news.md` in lockstep unless the user narrows scope.
+- Update `CHANGELOG.md` and `news.md` only for release-oriented changes.
+- Release headings must include version, Holocene date, and short description.
+- Use Kyiv time (`Europe/Kyiv`) for release/news/changelog dates.
+- PR title starts with version and short changelog description, e.g. `0.0.4 — First Mimic Shawarma Adventure`.
+
+## Docs-only / presentation changes
+
+Docs-only changes improve README, brand docs, product docs, setup docs, workflow docs, task docs, prompts, or skills without runtime behavior.
+
+For these changes:
+
+- Do not bump `package.json`.
+- Do not create a git tag or GitHub Release.
+- Do not update `CHANGELOG.md` or `news.md` unless explicitly requested.
+- Do not change runtime code, Prisma schema, migrations, lockfiles, or generated files.
+- PR title can be a normal docs title, e.g. `docs: tighten Codex workflow prompts`.
+- PR body should say `Tests: Not run — docs-only change` if checks were not run.
+
+## Second Codex workflow
+
+Use a second Codex only when it can help without competing with the main implementation.
+
+Default prompt:
 
 ```text
-Goal: додай content model для races, classes, monsters, items.
-Context: docs/GAME_DESIGN.md, docs/CONTENT_STYLE_GUIDE.md.
-Constraints: Zod validation, stable content ids, без БД.
-Done when: є приклади контенту і тест, що всі таблиці валідні.
+Use $kvestarnia-second-codex-readonly.
+
+Review PR #<number> against main.
+Mode: READ ONLY report only.
+Scope: changed files only by default. Inspect direct dependencies only if needed.
+Focus: correctness, regressions, Telegram callbacks, state/session consistency, idempotency, missing tests.
+Output: blockers, important issues, minor issues, missing tests, manual Telegram checks, safe notes. No tutorial.
 ```
 
-### Task 3 — Combat domain
+Second Codex must not:
 
-```text
-Goal: реалізуй domain combat engine.
-Context: docs/GAME_DESIGN.md, docs/BALANCE_NOTES.md.
-Constraints: pure functions, deterministic RNG injection, no Telegram imports.
-Done when: тести покривають 5 сценаріїв бою.
-```
+- edit files;
+- commit;
+- push;
+- run auto-fix/format/codemod;
+- create an alternative implementation;
+- modify lockfiles, migrations, generated files, snapshots, config, or schemas.
 
-### Task 4 — Character creation bot flow
+## Skills policy
 
-```text
-Goal: реалізуй /start flow з вибором раси й класу.
-Context: docs/GAME_DESIGN.md, docs/CONTENT_STYLE_GUIDE.md, src/content.
-Constraints: callback data v1, idempotent create, all text Ukrainian.
-Done when: integration test mocks Telegram context; повторний /start не дублює персонажа.
-```
+Use one main skill by default:
 
-### Task 5 — Adventure loop
+- Main implementation: `$kvestarnia-version-task`.
+- Second review: `$kvestarnia-second-codex-readonly`.
+- QA-only or high-risk Telegram flow: `$kvestarnia-telegram-qa`.
+- Closeout/handoff: `$kvestarnia-release-checklist`.
+- Balance/economy review: `$balance-review`.
+- Ukrainian content review: `$ukrainian-rpg-content`.
 
-```text
-Goal: зв’яжи /adventure з combat, loot і inventory.
-Context: docs/GAME_DESIGN.md, docs/TECHNICAL_PLAN.md, docs/SECURITY_AND_FAIR_PLAY.md.
-Constraints: транзакційні нагороди, idempotency keys, cooldown.
-Done when: гравець може пройти бій і отримати item; duplicate callback не дублює нагороду.
-```
+Avoid activating multiple skills when one is enough.
 
-## Робота з subagents
+## New thread rule
 
-Для складних змін можна попросити Codex створити кілька агентів:
+After each versioned task:
 
-```text
-Spawn 4 agents and consolidate:
-1. Domain reviewer: знайди проблеми в combat math.
-2. Security reviewer: перевір callback/idempotency risks.
-3. Content reviewer: перевір український тон і довжину повідомлень.
-4. Test reviewer: знайди непокриті edge cases.
-```
+1. Run or list relevant checks.
+2. Produce a compact handoff summary.
+3. Close the old thread.
+4. Start the next versioned task in a new Codex thread using `docs/ai/prompts/main-new-version-thread.md`.
 
-Для docs-only задач корисніші інші ролі:
+Do not carry a long Codex thread through several versioned tasks.
 
-```text
-Spawn 3 agents and consolidate:
-1. Public pitch reviewer: чи README зацікавить людину поза проєктом.
-2. Product consistency reviewer: чи docs не обіцяють неготові фічі як готові.
-3. Developer docs reviewer: чи setup/playtesting винесено без втрати потрібної інформації.
-```
+## How to accept Codex work
 
-## Як приймати роботу Codex
+Check:
 
-Після кожного diff перевірити:
+- No Telegram imports leaked into `src/domain/`.
+- Player-facing text is Ukrainian and Telegram-friendly.
+- Rewards and quest progress are idempotent under duplicate callbacks.
+- Tests cover new runtime logic.
+- No magic numbers replaced content/balance configuration without reason.
+- Scope did not expand beyond the task doc.
+- Docs-only changes did not create a numbered release.
+- Markdown links still work after docs index/path changes.
+- PR title/body match the real diff.
 
-- Чи не з’явився Telegram import у `domain/`.
-- Чи всі user-facing тексти українською.
-- Чи не дублюються нагороди при повторі callback.
-- Чи є tests для нової логіки.
-- Чи не з’явились магічні числа замість content/balance config.
-- Чи не розширився scope понад задачу.
-- Чи не дублюються іконки в одному повідомленні/клавіатурі для різних дій, якщо це не однотипні `Назад`, `До зали`, пагінація або схожа навігація.
-- Для docs-only змін: чи README лишається вітриною, а setup/runbook живе в окремих docs.
-- Для docs index / README / release-note path змін: зробити Markdown relative-link spot check, особливо для маршруту `README.md` → `docs/README.md` → release notes / roadmap.
-- Для великих docs PR: запустити `git diff --check`, щоб зловити whitespace churn, і `npm.cmd run check`, якщо PR одночасно торкається version/release surfaces.
+## Branches and PRs
 
-## Типові помилки
+Defaults:
 
-- Codex робить «MMO все одразу». Зупинити: просити маленький slice.
-- Codex пише надто довгі Telegram-повідомлення. Вказати limit у style guide.
-- Codex хардкодить Telegram-specific state в domain. Винести в presenter/service.
-- Codex додає Prisma schema, але не додає міграцію. Попросити міграцію.
-- Codex змінює контент без тестів валідації. Додати tests.
-- Codex ставить docs-only polish як номерний реліз. Для presentation docs цього не робити.
+- Target `main` unless the user explicitly asks for a stacked PR or another base.
+- Ready/merge-ready PRs should not remain on non-main bases unless intentionally stacked.
+- If an active PR exists for the same work, add small follow-ups to the same branch/PR.
+- If follow-up work expands the scope, update the PR title/body and release/docs surfaces.
+- After opening/updating a PR, check base branch, mergeability, and conflicts.
 
-## Гілки й PR
+Suggested branch names:
 
-Рекомендації для гілок:
+- `docs/codex-workflow-token-economy`
+- `feat/<version-slug>`
+- `fix/<short-bug-slug>`
 
-- `main` завжди зелений;
-- якщо задача прямо не просить stacked PR або іншу base-гілку, дивитися на актуальний `main`, рахувати diff проти `main` і відкривати/retarget PR саме на `main`;
-- ready/merge-ready PR не має лишатися на non-main base. Stacked PR дозволений тільки на час незмердженої залежності або за прямим проханням користувача; PR body має явно називати dependency, а після merge dependency треба ретаргетнути PR на `main` і повторно перевірити mergeability;
-- якщо вже є активний PR для поточної роботи, follow-up правки додавати в цю ж гілку і цей же PR, а не створювати нову гілку/PR без прямого прохання;
-- якщо follow-up розширює scope PR новою фічею, окремим runtime/economy track або помітним docs package, PR title/body і release surfaces мають чесно це відображати; не лишати вузьку назву й вузький body поверх ширшого diff;
-- `docs/public-readme-polish`;
-- `feat/combat-engine`;
-- `feat/start-flow`;
-- `feat/adventure-loop`;
-- `feat/group-raid`;
-- `fix/idempotent-rewards`.
+PR body should include:
 
-PR має містити:
+- Summary
+- Version task or `None — docs-only change`
+- Gameplay impact
+- Changed files
+- Tests run
+- Manual Telegram QA, if runtime/UI changed
+- Balance notes, if formulas/economy changed
+- Risks / follow-ups
 
-- Summary.
-- Gameplay impact або `None — docs-only change`.
-- Tests run.
-- Screenshots або sample bot messages, якщо змінено UI.
-- Balance notes, якщо змінені формули.
-- Release notes тільки для release-oriented змін.
+## Current roadmap guard
 
-Для release notes розділяти аудиторії: `CHANGELOG.md` може містити технічні борги, edge cases і точні механічні нагороди, а `news.md` має лишатися гравецькою новиною без спойлерів. Не виносити в `news.md` точні XP/золото/items/сувеніри за проходження, фінальні punchline-и, приховані умови, persistent scheduler/restart/deploy debt, Redis/BullMQ, Mini App UI, migrations, scaling або подібний platform backlog.
+`0.0.x` foundation is closed after `0.0.30`.
+`0.1.x` is stabilization, playtest polish, and careful Phase 2 prep.
 
-## Поточна послідовність маленьких PR
+Phase 2 direction is Social Combat & Interactions, not group-raid-first.
 
-Після `0.0.19` канонічний Phase 1 finish path:
+Do not jump into shops, trading, group hunts/raids, Redis/jobs, guilds, broad PvP, or Mini App UI unless the user explicitly expands the scope.
 
-1. Combat engine: persistent solo combat session, turn state, HP/mana inside combat, idempotent actions.
-2. Equipment stat effects: маленькі прозорі бонуси від уже екіпірованих манаток через один effective-stats helper.
-3. Loot engine: контрольовані таблиці здобичі, deterministic/idempotent reward claims, без економічного сніжного кому.
-4. Level 1-13 loop: рівневі unlock-и, баланс XP, HP/мани, ворогів і rewards для повного першого діапазону.
+Canonical current docs:
 
-Бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, collection UI, share cards або окремий journal/progression loop, доки не закриті combat → equipment stats → loot → level 1-13. Нові bestiary-зміни допустимі тільки якщо вони прямо обслуговують combat/loot або виправляють безпеку/неточність уже наявного read-only surface.
-
-Докладна послідовність живе в `docs/PHASE1_FINISH_PLAN.md`, cutline для закриття `0.0.x` і переходу до `0.1.x` — у `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`, фінальний smoke gate — у `docs/PHASE1_CLOSEOUT_SMOKE.md`, а copy-paste backlog для наступних PR — у `docs/NEXT_IMPLEMENTATION_BACKLOG.md`.
-
-Не стрибати в shops, trading, групові hunts/raids або Redis/jobs, якщо користувач прямо не розширив scope.
-
-Docs-only polish README/brand/setup можна публікувати окремим PR без номера версії, без changelog/news і без GitHub Release.
+- `docs/PHASE1_RELEASE_NOTES.md`
+- `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`
+- `docs/PHASE1_CLOSEOUT_SMOKE.md`
+- `docs/NEXT_IMPLEMENTATION_BACKLOG.md`
+- `docs/phase2/SOCIAL_COMBAT_PLAN.md`
+- `docs/phase2/DUELS_AND_INVITES.md`

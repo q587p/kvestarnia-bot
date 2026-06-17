@@ -109,10 +109,28 @@ describe("inventory presenter", () => {
         item("item.test-junk", "Тестова квитанція", "junk")
       ]
     };
-    const text = presentInventory(result, 0, "weapon");
+    const text = presentInventory(result, 0, "weapon", {
+      currentSlotItem: {
+        itemId: "item.current-mop",
+        content: {
+          id: "item.current-mop",
+          name: "Швабра Далекого Контакту +3",
+          description: "Тримає проблему на шанобливій відстані.",
+          rarity: "uncommon",
+          slot: "weapon",
+          effect: {
+            dexterity: 2,
+            weaponDamage: 3
+          }
+        }
+      }
+    });
 
     expect(text).toContain("🗡️ <b>Манатки-зброя</b>");
     expect(text).toContain("Показано лише те, що можна спробувати вдягнути в цей слот.");
+    expect(text).toContain("Вдягнено: <b>Швабра Далекого Контакту +3</b>");
+    expect(text).toContain("Ефект: <i>+2 Спритности · +3 до удару</i>");
+    expect(text).toContain("Знайдено підхожих манаток: <b>1</b>.");
     expect(text).toContain("<b>Тестова пательня</b>");
     expect(text).not.toContain("<b>Тестовий фартух</b>");
     expect(text).not.toContain("<b>Тестова квитанція</b>");

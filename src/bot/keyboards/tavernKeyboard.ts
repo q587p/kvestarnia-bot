@@ -5,6 +5,8 @@ import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
+import { makeDuelNewCallbackData } from "../callbacks/duelCallbackData";
+import { makeTrainingDoppelgangerCallbackData } from "../callbacks/trainingDoppelgangerCallbackData";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
 
 export type TavernResultKeyboardState =
@@ -40,15 +42,27 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = 
   }
 
   return keyboard
+    .text("🥊 Бійцівський куток", makePlaceCallbackData("fighting-corner"))
     .text("📋 Стіл зі справами", makePlaceCallbackData("quest-table"))
     .row()
     .text("🛢️ Бочка", makePlaceCallbackData("barrel"))
     .text("🍻 Шинок", makePlaceCallbackData("bar"))
     .row()
-    .text("📰 Дошка вістей", makePlaceCallbackData("news-corner"))
+    .text("🕳️ Глибка", makePlaceCallbackData("deep"))
     .text("🐭 Льох", makePlaceCallbackData("cellar"))
     .row()
+    .text("📰 Дошка вістей", makePlaceCallbackData("news-corner"))
     .text("🚪 Надвір", makePlaceCallbackData("front"));
+}
+
+export function buildKorchmaFightingCornerKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🥊 Потренуватися", makeTrainingDoppelgangerCallbackData())
+    .row()
+    .text("🤝 Кинути виклик", makeDuelNewCallbackData())
+    .text("🏆 Переможці", makePlaceCallbackData("duel-winners"))
+    .row()
+    .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
 export function buildKorchmaBarKeyboard(

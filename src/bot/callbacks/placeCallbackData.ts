@@ -3,27 +3,33 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type PlaceCallback =
   | "hall"
+  | "fighting-corner"
   | "quest-table"
   | "bar"
   | "barrel"
+  | "deep"
   | "news-corner"
   | "cellar"
   | "front"
   | "arrivals"
-  | "memorial";
+  | "memorial"
+  | "duel-winners";
 export type PlaceCallbackError = "invalid-version" | "invalid-prefix" | "invalid-action" | "too-long";
 
 const PREFIX = "v1:place";
 const placeCallbacks = new Set<PlaceCallback>([
   "hall",
+  "fighting-corner",
   "quest-table",
   "bar",
   "barrel",
+  "deep",
   "news-corner",
   "cellar",
   "front",
   "arrivals",
-  "memorial"
+  "memorial",
+  "duel-winners"
 ]);
 
 export function makePlaceCallbackData(action: PlaceCallback): string {
