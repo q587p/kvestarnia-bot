@@ -54,6 +54,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_add_level")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_xp")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_gold")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_heal")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_random_item")).toBe(false);
   });
 
@@ -72,7 +73,7 @@ describe("bot command catalog", () => {
     expect(grantsOnly.some((entry) => entry.command === "dev_reset_me")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_add_level")).toBe(true);
 
-    for (const command of ["dev_add_level", "dev_add_xp", "dev_add_gold", "dev_add_random_item"]) {
+    for (const command of ["dev_add_level", "dev_add_xp", "dev_add_gold", "dev_heal", "dev_add_random_item"]) {
       expect(
         getHelpCommandEntries({ includeDevReset: true, includeDevGrant: false })
           .some((entry) => entry.command === command)

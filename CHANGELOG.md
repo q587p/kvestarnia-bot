@@ -14,6 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added explicit Quest Hub turn-in plumbing for ready problem stages through `🍺 До Корчмаря`, so stage completion and next-stage issuing happen at the bar instead of being auto-claimed inside the fight turn.
 - Added fresh per-stage counting based on the stage issue timestamp: new stages count only won ordinary solo fights created after that stage was issued.
 - Added `docs/PROBLEM_QUEST_CHAIN_REFERENCES.md` to document the safe allusion layer for 13, 23, 42 and 93 without making player news spell out every reward.
+- Added opt-in local `/dev_heal [HP]` for playtesting HP recovery without changing XP, gold or items.
 
 ### Guardrails
 - Training doppelganger sessions remain excluded from the problem chain and do not grant Korhmar quest progress.

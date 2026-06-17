@@ -31,6 +31,11 @@ export interface DevGrantRepository {
     amount: number
   ): Promise<DevGrantCharacterResult | null>;
 
+  healForTelegramUser(
+    telegramUserId: bigint,
+    amount?: number
+  ): Promise<DevGrantCharacterResult | null>;
+
   addItemsForTelegramUser(
     telegramUserId: bigint,
     itemGrants: ItemGrant[]

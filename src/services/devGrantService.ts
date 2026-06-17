@@ -10,7 +10,7 @@ export type DevGrantResult =
   | { state: "no-character" }
   | {
       state: "updated";
-      kind: "level" | "xp" | "gold";
+      kind: "level" | "xp" | "gold" | "heal";
       amount: number;
       character: CharacterRecord;
       levelChange?: RewardLevelChange;
@@ -87,6 +87,23 @@ export class DevGrantService {
           state: "updated",
           kind: "gold",
           amount,
+          character: result.character
+        }
+      : { state: "no-character" };
+  }
+
+  async heal(telegramUserId: bigint, amount?: number): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.grants.healForTelegramUser(telegramUserId, amount);
+
+    return result
+      ? {
+          state: "updated",
+          kind: "heal",
+          amount: amount ?? Math.max(0, result.character.hpMax - result.character.hpCurrent),
           character: result.character
         }
       : { state: "no-character" };

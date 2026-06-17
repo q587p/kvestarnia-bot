@@ -120,6 +120,37 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
     return character ? { character: toCharacterRecord(character) } : null;
   }
 
+  async healForTelegramUser(
+    telegramUserId: bigint,
+    amount?: number
+  ): Promise<DevGrantCharacterResult | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacterByTelegramUserId(tx, telegramUserId);
+
+      if (!character) {
+        return null;
+      }
+
+      const hpCurrent = Math.max(0, Math.floor(character.hpCurrent));
+      const hpMax = Math.max(1, Math.floor(character.hpMax));
+      const nextHp = amount === undefined
+        ? hpMax
+        : Math.min(hpMax, hpCurrent + Math.max(0, Math.floor(amount)));
+      const updated = await tx.character.update({
+        where: {
+          id: character.id
+        },
+        data: {
+          hpCurrent: nextHp,
+          hpRegenAt: null
+        },
+        include: currentLocationInclude
+      });
+
+      return { character: toCharacterRecord(updated) };
+    });
+  }
+
   async addItemsForTelegramUser(
     telegramUserId: bigint,
     itemGrants: ItemGrant[]

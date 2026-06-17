@@ -63,6 +63,47 @@ describe("DevGrantService", () => {
     });
   });
 
+  it("heals the current character to full or by a capped amount", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    repository.setHp(4);
+
+    await expect(service.heal(42n, 7)).resolves.toMatchObject({
+      state: "updated",
+      kind: "heal",
+      amount: 7,
+      character: {
+        hpCurrent: 11,
+        hpMax: 20,
+        hpRegenAt: null
+      }
+    });
+
+    await expect(service.heal(42n, 100)).resolves.toMatchObject({
+      state: "updated",
+      kind: "heal",
+      amount: 100,
+      character: {
+        hpCurrent: 20,
+        hpMax: 20,
+        hpRegenAt: null
+      }
+    });
+
+    repository.setHp(3);
+
+    await expect(service.heal(42n)).resolves.toMatchObject({
+      state: "updated",
+      kind: "heal",
+      character: {
+        hpCurrent: 20,
+        hpMax: 20,
+        hpRegenAt: null
+      }
+    });
+  });
+
   it("adds deterministic random items and enriches their names", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
@@ -94,6 +135,11 @@ describe("DevGrantService", () => {
 class FakeDevGrantRepository implements DevGrantRepository {
   readonly calls: string[] = [];
   private readonly character = makeCharacter();
+
+  setHp(hpCurrent: number): void {
+    this.character.hpCurrent = hpCurrent;
+    this.character.hpRegenAt = new Date("2026-06-17T10:00:00.000Z");
+  }
 
   addLevelForTelegramUser(
     telegramUserId: bigint,
@@ -156,6 +202,24 @@ class FakeDevGrantRepository implements DevGrantRepository {
     return Promise.resolve({ character: this.character });
   }
 
+  healForTelegramUser(
+    telegramUserId: bigint,
+    amount?: number
+  ): Promise<DevGrantCharacterResult | null> {
+    this.calls.push(`heal:${telegramUserId.toString()}:${amount ?? "full"}`);
+
+    if (telegramUserId !== 42n) {
+      return Promise.resolve(null);
+    }
+
+    this.character.hpCurrent = amount === undefined
+      ? this.character.hpMax
+      : Math.min(this.character.hpMax, this.character.hpCurrent + amount);
+    this.character.hpRegenAt = null;
+
+    return Promise.resolve({ character: this.character });
+  }
+
   addItemsForTelegramUser(
     telegramUserId: bigint,
     itemGrants: ItemGrant[]
@@ -199,6 +263,7 @@ function makeCharacter(): CharacterRecord {
     gold: 0,
     hpCurrent: 20,
     hpMax: 20,
+    hpRegenAt: null,
     manaCurrent: 10,
     manaMax: 10,
     statsJson: {

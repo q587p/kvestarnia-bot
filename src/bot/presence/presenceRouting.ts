@@ -249,6 +249,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "dev_add_level" ||
     command === "dev_add_xp" ||
     command === "dev_add_gold" ||
+    command === "dev_heal" ||
     command === "dev_add_random_item"
   ) {
     return {};

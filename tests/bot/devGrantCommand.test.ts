@@ -1,35 +1,52 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
-import type { DevGrantItemsResult, DevGrantResult } from "../../src/services/devGrantService";
+import type {
+  DevGrantItemsResult,
+  DevGrantResult
+} from "../../src/services/devGrantService";
 
 describe("dev grant commands", () => {
   it("passes explicit and default amounts to the dev grant service", async () => {
     const devGrant = fakeDevGrantService();
     const xpCalls = await captureMessageCalls("/dev_add_xp 7", devGrant);
     const itemCalls = await captureMessageCalls("/dev_add_random_item", devGrant);
+    const fullHealCalls = await captureMessageCalls("/dev_heal", devGrant);
+    const partialHealCalls = await captureMessageCalls("/dev_heal 7", devGrant);
 
     expect(devGrant.addXp).toHaveBeenCalledWith(42n, 7);
     expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 1);
+    expect(devGrant.heal).toHaveBeenCalledWith(42n, undefined);
+    expect(devGrant.heal).toHaveBeenCalledWith(42n, 7);
     expect(String(xpCalls.at(-1)?.payload.text)).toContain("додано 7 XP");
     expect(String(itemCalls.at(-1)?.payload.text)).toContain("додано 1 манатку");
+    expect(String(fullHealCalls.at(-1)?.payload.text)).toContain("HP: 20/20");
+    expect(String(partialHealCalls.at(-1)?.payload.text)).toContain("HP: 20/20");
   });
 
   it("rejects invalid amounts before mutating", async () => {
     const devGrant = fakeDevGrantService();
     const calls = await captureMessageCalls("/dev_add_gold nope", devGrant);
+    const healCalls = await captureMessageCalls("/dev_heal 0", devGrant);
 
     expect(devGrant.addGold).not.toHaveBeenCalled();
+    expect(devGrant.heal).not.toHaveBeenCalled();
     expect(String(calls.at(-1)?.payload.text)).toContain(
       "Формат: /dev_add_gold [додатне ціле число]."
+    );
+    expect(String(healCalls.at(-1)?.payload.text)).toContain(
+      "Формат: /dev_heal [додатне ціле число HP]."
     );
   });
 
   it("does not register value-granting commands when disabled", async () => {
     const devGrant = fakeDevGrantService({ enabled: false });
     const calls = await captureMessageCalls("/dev_add_xp 7", devGrant);
+    const healCalls = await captureMessageCalls("/dev_heal 7", devGrant);
 
     expect(devGrant.addXp).not.toHaveBeenCalled();
+    expect(devGrant.heal).not.toHaveBeenCalled();
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(healCalls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 });
 
@@ -103,6 +120,9 @@ function fakeDevGrantService(input: { enabled?: boolean } = {}): {
   addLevel: ReturnType<typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantResult>>>;
   addXp: ReturnType<typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantResult>>>;
   addGold: ReturnType<typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantResult>>>;
+  heal: ReturnType<
+    typeof vi.fn<(telegramUserId: bigint, amount?: number) => Promise<DevGrantResult>>
+  >;
   addRandomItems: ReturnType<
     typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantItemsResult>>
   >;
@@ -148,6 +168,12 @@ function fakeDevGrantService(input: { enabled?: boolean } = {}): {
       state: "updated",
       kind: "gold",
       amount,
+      character
+    })),
+    heal: vi.fn((_telegramUserId, amount) => Promise.resolve({
+      state: "updated",
+      kind: "heal",
+      amount: amount ?? character.hpMax,
       character
     })),
     addRandomItems: vi.fn((_telegramUserId, amount) => Promise.resolve({

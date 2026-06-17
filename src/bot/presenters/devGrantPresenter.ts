@@ -9,6 +9,10 @@ export function presentDevGrantNoCharacter(): string {
 }
 
 export function presentDevGrantInvalidAmount(command: string): string {
+  if (command === "dev_heal") {
+    return "Формат: /dev_heal [додатне ціле число HP]. Без числа корчмар лікує до максимуму.";
+  }
+
   return `Формат: /${command} [додатне ціле число]. Без числа корчмар підставить 1.`;
 }
 
@@ -43,6 +47,14 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
       `🧪 Dev: додано ${result.amount} ${formatUnit(result.amount, ["золото", "золота", "золота"])}.`,
       "",
       `Золото: ${result.character.gold}`
+    ].join("\n");
+  }
+
+  if (result.kind === "heal") {
+    return [
+      "🧪 Dev: персонажа підлатано.",
+      "",
+      `HP: ${result.character.hpCurrent}/${result.character.hpMax}`
     ].join("\n");
   }
 
