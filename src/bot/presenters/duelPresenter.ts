@@ -60,9 +60,10 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
   if (result.state === "resource-warning") {
     return [
       "🥊 <b>Прийняти виклик?</b>",
-      presentCharacterHeader(result.target),
+      presentDuelParticipant("Запрошує", result.challenger),
+      presentDuelParticipant("Ви", result.target),
       "",
-      `Виклик від ${escapeHtml(result.challenger.name)} готовий, але ваш пригодник не зовсім відпочив.`,
+      "Виклик готовий, але ваш пригодник не зовсім відпочив.",
       "",
       presentResourceWarning(result.warning),
       "",
@@ -131,7 +132,7 @@ export function presentDuelView(result: DuelChallengeView, options: DuelPresente
 
   return [
     "🥊 <b>Корчемний виклик</b>",
-    presentCharacterHeader(result.challenger),
+    presentDuelParticipant("Запрошує", result.challenger),
     "",
     statusLine
   ].join("\n");
@@ -143,7 +144,7 @@ function presentPendingDuel(
 ): string {
   const lines = [
     "🥊 <b>Корчемний виклик</b>",
-    presentCharacterHeader(result.challenger),
+    presentDuelParticipant("Запрошує", result.challenger),
     "",
     "Виклик уже на столі. Погляд такий, ніби це стратегія.",
     "",
@@ -170,7 +171,7 @@ export function presentDuelInviteShare(character: CharacterSummary, inviteUrl: s
   return [
     "🥊 <b>Дружній корчемний виклик</b>",
     "",
-    `<b>${escapeHtml(character.name)}</b> лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто.`,
+    `<b>${escapeHtml(character.name)}</b> · рівень ${character.level} лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто.`,
     "Переходьте за посиланням, приймайте виклик, а Корчмар зробить вигляд, що все було за правилами.",
     "",
     escapeHtml(inviteUrl)
@@ -200,13 +201,17 @@ function presentResolvedDuel(result: Extract<DuelChallengeView, { state: "resolv
   return [
     "🥊 <b>Результат виклику</b>",
     "",
-    `${escapeHtml(result.challenger.name)} проти ${escapeHtml(result.target.name)}`,
+    `${escapeHtml(result.challenger.name)} · рівень ${result.challenger.level} проти ${escapeHtml(result.target.name)} · рівень ${result.target.level}`,
     headline,
     "",
     line,
     "",
     "Без XP, золота, манаток і рейтингу. Поки що це соціяльна картка, не фарм."
   ].join("\n");
+}
+
+function presentDuelParticipant(label: string, character: CharacterSummary): string {
+  return `${label}: <b>${escapeHtml(character.name)}</b> · ${escapeHtml(character.title)} · рівень ${character.level}`;
 }
 
 function presentDuelLevelGate(character: CharacterSummary, minLevel: number): string {

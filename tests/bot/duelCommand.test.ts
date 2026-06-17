@@ -32,12 +32,13 @@ describe("handleDuelCallback", () => {
 
     expect(messageText(editMessageText)).toContain("Окреме повідомлення з інвайтом можна переслати в приват або чат.");
     expect(messageText(editMessageText)).not.toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
+    expect(messageText(editMessageText)).toContain("Запрошує: <b>Автор Виклику</b> · Пересічні Пригодники · рівень 3");
     expect(messageText(editMessageText)).toContain("Виклик уже на столі. Погляд такий, ніби це стратегія.");
     expect(messageText(editMessageText)).not.toContain("Автор Виклику ставить виклик");
     expect(reply).toHaveBeenCalledTimes(1);
     expect(reply.mock.calls[0]?.[0]).toContain("🥊 <b>Дружній корчемний виклик</b>");
     expect(reply.mock.calls[0]?.[0]).toContain(
-      "<b>Автор Виклику</b> лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто."
+      "<b>Автор Виклику</b> · рівень 3 лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто."
     );
     expect(reply.mock.calls[0]?.[0]).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
     expect(reply.mock.calls[0]?.[1]).toEqual({ parse_mode: "HTML" });
@@ -185,7 +186,7 @@ describe("handleDuelCallback", () => {
   });
 
   it("lets a real accept resolve the card", async () => {
-    const target = makeCharacterSummary("Ціль Виклику");
+    const target = makeCharacterSummary("Ціль Виклику", { level: 5 });
     const markAction = vi.fn().mockResolvedValue(undefined);
     const presence = createPresence(markAction);
     const acceptForTelegramUser = vi.fn().mockResolvedValue({
@@ -218,6 +219,7 @@ describe("handleDuelCallback", () => {
     expect(markAction).toHaveBeenCalled();
     expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
     expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(messageText(editMessageText)).toContain("Автор Виклику · рівень 3 проти Ціль Виклику · рівень 5");
     expect(keyboardJson(editMessageText)).toContain("v1:duel:new");
   });
 
@@ -227,7 +229,7 @@ describe("handleDuelCallback", () => {
         state: "resource-warning",
         challenge: makeChallenge("pending"),
         challenger: makeCharacterSummary("Автор Виклику"),
-        target: makeCharacterSummary("Втомлена Ціль"),
+        target: makeCharacterSummary("Втомлена Ціль", { level: 4 }),
         warning: {
           hpBelowMax: true,
           manaBelowMax: true
@@ -242,6 +244,8 @@ describe("handleDuelCallback", () => {
 
     const keyboard = keyboardJson(editMessageText);
 
+    expect(messageText(editMessageText)).toContain("Запрошує: <b>Автор Виклику</b> · Пересічні Пригодники · рівень 3");
+    expect(messageText(editMessageText)).toContain("Ви: <b>Втомлена Ціль</b> · Пересічні Пригодники · рівень 4");
     expect(keyboard).toContain(`v1:duel:accept-risk:${TOKEN}`);
     expect(keyboard).toContain(`v1:duel:decline:${TOKEN}`);
     expect(keyboard).not.toContain("v1:duel:new");
@@ -394,7 +398,7 @@ function makeCharacter(telegramUserId: bigint, name: string): DuelCharacterSnaps
   };
 }
 
-function makeCharacterSummary(name: string): CharacterSummary {
+function makeCharacterSummary(name: string, overrides: Partial<Pick<CharacterSummary, "level">> = {}): CharacterSummary {
   return {
     name,
     pronoun: "they",
@@ -405,7 +409,7 @@ function makeCharacterSummary(name: string): CharacterSummary {
     classId: "class.warrior",
     className: "Воїн",
     title: "Пересічні Пригодники",
-    level: 3,
+    level: overrides.level ?? 3,
     xp: 25,
     nextLevelXp: 50,
     xpToNextLevel: 25,
