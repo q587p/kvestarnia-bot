@@ -7,6 +7,18 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.9] - 12026-06-17 - Doppelganger Learns Your Tricks
+
+### Added
+- Added a pure combat flavor intent module for future combat presentation: doppelganger counters, later monster signature moves and later duel result cards can share the same small intent/line shape.
+- Training doppelganger turn cards now show a short escaped italic counter-flavor line after the last turn when the copy answers with damage.
+- Added class-aware doppelganger counter lines for warrior, mage, varenyk-mancer, bureaucramancer, bard, rogue, ranger, priest and kharakternyk, plus small race fallback hooks.
+- Added focused domain and presenter tests for the combat flavor layer and `/spar` counter presentation.
+
+### Guardrails
+- No schema migration, reward/economy change, problem-chain rule change, quest counter change, `/spar` level-gate change, PvP runtime, duel ledger or group fight.
+- `/spar` remains XP-only: no gold, items, manatky or problem-chain progress.
+
 ## [0.1.8] - 12026-06-17 - Problem Quest Shynok Recovery Buttons
 
 ### Fixed

@@ -1,4 +1,7 @@
-import type { CombatTurnSummary } from "../../domain/combat";
+import {
+  buildDoppelgangerCounterFlavor,
+  type CombatTurnSummary
+} from "../../domain/combat";
 import type {
   TrainingDoppelgangerLookupResult,
   TrainingDoppelgangerTurnResult
@@ -143,6 +146,11 @@ function presentTrainingDoppelgangerState(input: {
 
   if (state?.lastTurn) {
     lines.push("", presentTrainingTurnSummary(state.lastTurn));
+    const flavor = presentTrainingCounterFlavor(input.character, state);
+
+    if (flavor) {
+      lines.push("", flavor);
+    }
   }
 
   if (input.reward) {
@@ -247,6 +255,38 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
         : "";
 
   return ["Останній хід", hit, response].filter(Boolean).join("\n");
+}
+
+function presentTrainingCounterFlavor(
+  character: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["character"],
+  state: NonNullable<Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["session"]["state"]>
+): string | null {
+  const lastTurn = state.lastTurn;
+
+  if (!lastTurn || lastTurn.monsterDamage <= 0) {
+    return null;
+  }
+
+  const flavor = buildDoppelgangerCounterFlavor({
+    actorKind: "doppelganger",
+    classId: character.classId,
+    raceId: character.raceId,
+    title: character.title,
+    heroHpRatio: ratio(state.hero.hp, state.hero.hpMax),
+    monsterHpRatio: ratio(state.monster.hp, state.monster.hpMax),
+    turn: state.turn,
+    action: lastTurn.action
+  });
+
+  return `<i>${escapeHtml(flavor.text)}</i>`;
+}
+
+function ratio(current: number, max: number): number {
+  if (max <= 0) {
+    return 0;
+  }
+
+  return current / max;
 }
 
 function formatTrainingCooldown(availableAt: Date, now: Date): string {
