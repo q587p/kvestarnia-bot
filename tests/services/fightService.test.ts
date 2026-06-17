@@ -1532,6 +1532,26 @@ describe("FightService", () => {
       dailyActions.records.filter((record) => record.key === PROBLEM_QUEST_STAGES[1].issueKey)
     ).toHaveLength(1);
     expect(dailyActions.createCount).toBe(2);
+
+    const progress = await service.getProblemQuestProgressForTelegramUser(telegramUserId);
+
+    expect(progress).toMatchObject({
+      state: "ready",
+      progress: {
+        stageId: "23",
+        wins: 0,
+        completed: false
+      },
+      archive: [
+        {
+          stageId: "13",
+          wins: 13,
+          target: 13,
+          completed: true,
+          rewardClaimed: true
+        }
+      ]
+    });
   });
 
   it("lets old thirteen-problem claims take the twenty-three stage without duplicating the old reward", async () => {

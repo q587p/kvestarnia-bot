@@ -117,6 +117,7 @@ async function buildQuestHubSnapshot(
     adventure,
     fight,
     problemQuest: problemQuest.progress,
+    problemQuestArchive: problemQuest.archive,
     yeger,
     cellar,
     ...(cellarGrownup && cellarGrownup.state !== "no-character" && cellarGrownup.state !== "too-young"

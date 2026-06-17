@@ -671,7 +671,8 @@ function questHubReadyServices(): Partial<BotServices> {
             rewardClaimed: false,
             issued: true,
             branchComplete: false
-          }
+          },
+          archive: []
         }),
       getFightOverviewForTelegramUser: () =>
         Promise.resolve({

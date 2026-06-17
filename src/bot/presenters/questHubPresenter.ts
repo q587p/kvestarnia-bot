@@ -12,6 +12,7 @@ export interface QuestHubSnapshot {
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
   problemQuest: ProblemQuestProgress;
+  problemQuestArchive: ProblemQuestProgress[];
   yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
@@ -64,7 +65,11 @@ function presentAdventureArchiveRow(
     return null;
   }
 
-  return presentAdventureRow(adventure);
+  if (adventure.state === "already-completed") {
+    return "🌯 <i>Підозріла шаурма</i> — виконано; шаурма дала свідчення й тепер удає лаваш.";
+  }
+
+  return `🌯 <i>Підозріла шаурма</i> — недоступно після ${adventure.maxLevel} рівня; у журналі немає позначки виконання.`;
 }
 
 function presentProblemQuestRow(
@@ -128,19 +133,18 @@ function presentActiveFightRow(fight: Exclude<FightLookupResult, { state: "no-ch
   return presentFightRow(fight);
 }
 
-function presentFightArchiveRow(
-  fight: Exclude<FightLookupResult, { state: "no-character" }>,
-  problemQuest: ProblemQuestProgress
-): string | null {
+function presentFightArchiveRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string | null {
   if (fight.state === "level-retired" || fight.state === "already-completed") {
     return presentFightRow(fight);
   }
 
-  if (problemQuest.completed) {
-    return `📋 <i>${problemQuest.title}</i> — ${presentProblemQuestStatus(problemQuest)}.`;
-  }
-
   return null;
+}
+
+function presentProblemQuestArchiveRows(progresses: ProblemQuestProgress[]): string[] {
+  return progresses.map(
+    (progress) => `📋 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}.`
+  );
 }
 
 function presentProblemQuestStatus(progress: {
@@ -271,7 +275,11 @@ function presentCellarArchiveRows(
     return [];
   }
 
-  const rows = [`🧹 <i>Льохова справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`];
+  const rows = [
+    cellar.completed
+      ? `🧹 <i>Льохова справа</i> — виконано; миша прийняла аргументи до ${cellar.maxLevel} рівня.`
+      : `🧹 <i>Льохова справа</i> — новачкова справа до ${cellar.maxLevel} рівня; у журналі немає сліду виконання.`
+  ];
 
   if (cellarGrownup?.state === "completed") {
     rows.push("🐭 <i>Справа не до миші</i> — дорослу льохову справу вже закрито; пляшка стоїть у журналі й тихо булькає.");
@@ -299,7 +307,8 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
 function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
   const rows = [
     presentAdventureArchiveRow(snapshot.adventure),
-    presentFightArchiveRow(snapshot.fight, snapshot.problemQuest),
+    ...presentProblemQuestArchiveRows(snapshot.problemQuestArchive),
+    presentFightArchiveRow(snapshot.fight),
     presentYegerArchiveRow(snapshot.yeger),
     ...presentCellarArchiveRows(snapshot.cellar, snapshot.cellarGrownup)
   ].filter(isPresent);

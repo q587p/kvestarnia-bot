@@ -989,7 +989,7 @@ describe("main menu and scene keyboards", () => {
         progress: { wins: 5, target: 5 },
         reward: { xp: 80, gold: 120, itemGrants: [] }
       },
-      cellar: { state: "level-retired", character, maxLevel: 3 },
+      cellar: { state: "level-retired", character, maxLevel: 3, completed: false },
       characterLevel: 13
     });
 
@@ -1033,7 +1033,7 @@ describe("main menu and scene keyboards", () => {
             progress: { wins: 5, target: 5 },
             reward: { xp: 80, gold: 120, itemGrants: [] }
           },
-          cellar: { state: "level-retired", character, maxLevel: 3 }
+          cellar: { state: "level-retired", character, maxLevel: 3, completed: false }
         })
       )
     ).toEqual([
@@ -1081,7 +1081,7 @@ describe("main menu and scene keyboards", () => {
             progress: { wins: 5, target: 5 },
             reward: { xp: 80, gold: 120, itemGrants: [] }
           },
-          cellar: { state: "level-retired", character, maxLevel: 3 }
+          cellar: { state: "level-retired", character, maxLevel: 3, completed: false }
         })
       )
     ).toEqual([
@@ -1140,7 +1140,8 @@ describe("main menu and scene keyboards", () => {
           cellar: {
             state: "level-retired",
             character,
-            maxLevel: 3
+            maxLevel: 3,
+            completed: false
           }
         })
       )
@@ -1175,7 +1176,8 @@ describe("main menu and scene keyboards", () => {
           cellar: {
             state: "level-retired",
             character,
-            maxLevel: 3
+            maxLevel: 3,
+            completed: false
           }
         })
       )
@@ -1210,7 +1212,8 @@ describe("main menu and scene keyboards", () => {
           cellar: {
             state: "level-retired",
             character,
-            maxLevel: 3
+            maxLevel: 3,
+            completed: false
           }
         })
       )

@@ -58,7 +58,7 @@ function makeInput(overrides: Partial<QuestHubKeyboardInput> = {}): QuestHubKeyb
         rewardClaimed: false
       }
     },
-    cellar: { state: "level-retired", character: character(), maxLevel: 3 },
+    cellar: { state: "level-retired", character: character(), maxLevel: 3, completed: false },
     ...overrides
   };
 }

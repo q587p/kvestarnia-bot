@@ -41,14 +41,14 @@ export const CELLAR_MOUSE_ERRAND_REWARDS = {
 export type CellarErrandLookupResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
-  | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
+  | { state: "level-retired"; character: CharacterSummary; maxLevel: number; completed: boolean }
   | { state: "ready"; character: CharacterSummary }
   | { state: "on-cooldown"; character: CharacterSummary; availableAt: Date; now: Date };
 
 export type CellarErrandResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
-  | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
+  | { state: "level-retired"; character: CharacterSummary; maxLevel: number; completed: boolean }
   | {
       state: "completed";
       action: CellarErrandAction;
@@ -102,7 +102,8 @@ export class CellarErrandService {
       return {
         state: "level-retired",
         character,
-        maxLevel: CELLAR_MAX_LEVEL
+        maxLevel: CELLAR_MAX_LEVEL,
+        completed: current.cooldown !== null
       };
     }
 
@@ -149,7 +150,8 @@ export class CellarErrandService {
       return {
         state: "level-retired",
         character,
-        maxLevel: CELLAR_MAX_LEVEL
+        maxLevel: CELLAR_MAX_LEVEL,
+        completed: current.cooldown !== null
       };
     }
 

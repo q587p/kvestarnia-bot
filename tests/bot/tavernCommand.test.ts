@@ -506,7 +506,8 @@ function unissuedProblemQuestFightService(): FightService {
       Promise.resolve({
         state: "ready",
         character,
-        progress: problemQuestProgress({ issued: false, completed: false, rewardClaimed: false })
+        progress: problemQuestProgress({ issued: false, completed: false, rewardClaimed: false }),
+        archive: []
       }),
     getFightOverviewForTelegramUser: () =>
       Promise.resolve({
@@ -526,7 +527,8 @@ function problemQuestFightService(progress: {
       Promise.resolve({
         state: "ready",
         character,
-        progress: problemQuestProgress({ issued: true, ...progress })
+        progress: problemQuestProgress({ issued: true, ...progress }),
+        archive: []
       }),
     getFightOverviewForTelegramUser: () =>
       Promise.resolve({
@@ -547,7 +549,8 @@ function trainingActiveProblemQuestFightService(progress: {
       Promise.resolve({
         state: "ready",
         character,
-        progress: problemQuestProgress(progress)
+        progress: problemQuestProgress(progress),
+        archive: []
       }),
     getFightOverviewForTelegramUser: () =>
       Promise.resolve({
