@@ -179,6 +179,7 @@ export function presentDuelInviteShare(character: CharacterSummary, inviteUrl: s
     "🥊 <b>Дружній корчемний виклик</b>",
     "",
     `<b>${escapeHtml(character.name)}</b> лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто.`,
+    "",
     "Переходьте за посиланням, приймайте виклик, а Корчмар зробить вигляд, що все було за правилами.",
     "",
     escapeHtml(inviteUrl)

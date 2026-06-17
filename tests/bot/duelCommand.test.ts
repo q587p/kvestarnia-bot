@@ -44,6 +44,9 @@ describe("handleDuelCallback", () => {
     expect(reply.mock.calls[0]?.[0]).toContain(
       "<b>Автор Виклику</b> лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто."
     );
+    expect(reply.mock.calls[0]?.[0]).toContain(
+      "підозріло урочисто.\n\nПереходьте за посиланням"
+    );
     expect(reply.mock.calls[0]?.[0]).not.toContain("рівень 3 лишає");
     expect(reply.mock.calls[0]?.[0]).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
     expect(reply.mock.calls[0]?.[1]).toEqual({ parse_mode: "HTML" });
