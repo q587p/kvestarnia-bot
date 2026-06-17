@@ -175,6 +175,33 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("<b>Дара</b>");
   });
 
+  it("omits the remort group prefix while only first remorts exist", () => {
+    const text = presentKorchmaMemorialBoard(
+      character,
+      { levels: [] },
+      {
+        remorts: [
+          {
+            remortNumber: 1,
+            entries: [
+              {
+                rank: 1,
+                characterId: "character-astery",
+                name: "Astery Tey",
+                remortNumber: 1,
+                reachedAt: new Date("2026-06-16T10:00:00.000Z")
+              }
+            ]
+          }
+        ]
+      }
+    );
+
+    expect(text).toContain("🕯️ Реморти Тринадцятки");
+    expect(text).toContain("🥇 Astery Tey");
+    expect(text).not.toContain("реморт 1:");
+  });
+
   it("shows the korchma hall as the hub", () => {
     const text = presentKorchmaHall(character);
 

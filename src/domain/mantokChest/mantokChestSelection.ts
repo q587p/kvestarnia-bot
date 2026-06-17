@@ -18,6 +18,7 @@ export interface MantokChestEligibleStack {
   quantity: number;
   content: ItemContent;
   score: number;
+  manualOnly: boolean;
 }
 
 export interface MantokChestUnit {
@@ -37,15 +38,23 @@ export function buildMantokChestEligibleStacks(input: {
   stacks: readonly MantokChestStackInput[];
   equippedItemIds?: ReadonlySet<string>;
   itemContents: readonly ItemContent[];
+  mode?: "auto" | "manual";
 }): MantokChestEligibleStack[] {
   const contentById = new Map(input.itemContents.map((item) => [item.id, item]));
   const equippedItemIds = input.equippedItemIds ?? new Set<string>();
+  const mode = input.mode ?? "auto";
 
   return input.stacks.flatMap((stack) => {
     const quantity = Math.max(0, Math.floor(stack.quantity));
     const content = contentById.get(stack.itemId);
 
-    if (!content || quantity <= 0 || equippedItemIds.has(stack.itemId) || isProtectedMantokChestItem(content)) {
+    if (!content || quantity <= 0 || equippedItemIds.has(stack.itemId)) {
+      return [];
+    }
+
+    const manualOnly = isProtectedMantokChestItem(content);
+
+    if (mode === "auto" && manualOnly) {
       return [];
     }
 
@@ -54,7 +63,8 @@ export function buildMantokChestEligibleStacks(input: {
         itemId: stack.itemId,
         quantity,
         content,
-        score: calculateMantokChestItemScore(content)
+        score: calculateMantokChestItemScore(content),
+        manualOnly
       }
     ];
   });

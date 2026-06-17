@@ -5,6 +5,7 @@ import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import type { FightService } from "../../src/services/fightService";
 import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
@@ -167,6 +168,46 @@ describe("fight command", () => {
     });
   });
 
+  it("keeps /fight cosmetic-safe while a training doppelganger session is active", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+    const fightService = {
+      getFightForTelegramUser: () =>
+        Promise.resolve({
+          state: "training-active",
+          character: {
+            ...character,
+            level: 3
+          },
+          session: persistentSession(TRAINING_DOPPELGANGER_MONSTER_ID),
+          questProgress: questProgress(0)
+        })
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply", {
+      presence,
+      requireKorchmaInterior: true
+    });
+
+    expect(replies[0]?.text).toContain("Тренування вже триває");
+    expect(replies[0]?.text).toContain("Завершіть /spar");
+    expect(replies[0]?.text).not.toContain("Павук дедлайнів");
+    expect(presence.marks).toEqual([]);
+    const options = replies[0]?.options as {
+      parse_mode: string;
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+
+    expect(options.parse_mode).toBe("HTML");
+    expect(options.reply_markup.inline_keyboard[0]?.[0]).toEqual({
+      text: "🗡️ Вдарити",
+      callback_data: "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:1:attack"
+    });
+  });
+
   it("offers recovery buttons when a persistent fight cannot start", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const fightService = {
@@ -296,11 +337,11 @@ const character: CharacterSummary = {
   }
 };
 
-function persistentSession(): SoloCombatSessionRecord {
+function persistentSession(monsterId = "monster.deadline-spider"): SoloCombatSessionRecord {
   return {
     id: "123e4567-e89b-12d3-a456-426614174000",
     characterId: "character-42",
-    monsterId: "monster.deadline-spider",
+    monsterId,
     status: "active",
     turn: 1,
     state: {
@@ -314,7 +355,7 @@ function persistentSession(): SoloCombatSessionRecord {
         manaMax: 12
       },
       monster: {
-        id: "monster.deadline-spider",
+        id: monsterId,
         hp: 18,
         hpMax: 18
       }

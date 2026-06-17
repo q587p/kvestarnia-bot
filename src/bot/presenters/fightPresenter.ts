@@ -81,6 +81,19 @@ export function presentFightNeedsRest(
   ].join("\n");
 }
 
+export function presentFightTrainingActive(
+  result: Extract<FightLookupResult, { state: "training-active" }>
+): string {
+  return [
+    "🥊 Тренування вже триває.",
+    presentCharacterHeader(result.character),
+    "",
+    "Сумлінний Допельґанґер тримає місце в Бійцівському кутку й дуже просить не відкривати паралельну проблему.",
+    "",
+    "Завершіть /spar, а тоді повертайтесь до звичайних сутичок."
+  ].join("\n");
+}
+
 export function presentFightResult(result: Exclude<FightResult, { state: "no-character" }>): string {
   if (result.state === "level-retired") {
     return presentFightLevelRetired(result);

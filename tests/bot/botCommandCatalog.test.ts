@@ -34,6 +34,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "raid")).toBe(false);
     expect(commands.some((entry) => entry.command === "adventure")).toBe(false);
     expect(commands.some((entry) => entry.command === "fight")).toBe(false);
+    expect(commands.some((entry) => entry.command === "spar")).toBe(false);
     expect(commands.some((entry) => entry.command === "hunt")).toBe(false);
     expect(commands.some((entry) => entry.command === "bestiary")).toBe(false);
     expect(commands.some((entry) => entry.command === "monsters")).toBe(false);

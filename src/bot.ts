@@ -43,6 +43,7 @@ import { PresenceService } from "./services/presenceService";
 import { RemortService } from "./services/remortService";
 import { RestartService } from "./services/restartService";
 import { TavernRaidService } from "./services/tavernRaidService";
+import { TrainingDoppelgangerService } from "./services/trainingDoppelgangerService";
 import { YegerQuestService } from "./services/yegerQuestService";
 
 const config = loadConfig();
@@ -84,7 +85,14 @@ const services = {
   remort: new RemortService(remorts),
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),
-  tavern: new TavernRaidService(characters, dailyActions, roundPurchases, cooldowns)
+  tavern: new TavernRaidService(characters, dailyActions, roundPurchases, cooldowns),
+  trainingDoppelganger: new TrainingDoppelgangerService(
+    characters,
+    cooldowns,
+    dailyActions,
+    soloCombatSessions,
+    equipment
+  )
 };
 const supportJarOptions = config.supportJarUrl
   ? {

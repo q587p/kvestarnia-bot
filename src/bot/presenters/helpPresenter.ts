@@ -39,9 +39,9 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     description: "пригода з шаурмою"
   },
   {
-    commands: ["fight"],
+    commands: ["fight", "spar"],
     icon: "⚔️",
-    description: "сутичка з монстром"
+    description: "сутичка й тренування"
   },
   {
     commands: ["hunt"],

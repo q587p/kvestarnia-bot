@@ -50,8 +50,38 @@ describe("Mantok Chest domain", () => {
         itemId: priced.id,
         quantity: 2,
         content: priced,
-        score: 28
+        score: 28,
+        manualOnly: false
       }
+    ]);
+  });
+
+  it("allows protected and priceless stacks only in manual mode while still excluding equipped items", () => {
+    const protectedItem = item({
+      id: "item.badge-of-thirteen-small-problems",
+      goldValue: 13,
+      slot: "cosmetic"
+    });
+    const priced = item({ id: "item.priced", goldValue: 3 });
+    const equipped = item({ id: "item.equipped", goldValue: 5 });
+    const priceless = item({ id: "item.priceless", priceless: true, goldValue: undefined });
+
+    const eligible = buildMantokChestEligibleStacks({
+      stacks: [
+        { itemId: protectedItem.id, quantity: 1 },
+        { itemId: priced.id, quantity: 2 },
+        { itemId: equipped.id, quantity: 2 },
+        { itemId: priceless.id, quantity: 2 }
+      ],
+      equippedItemIds: new Set([equipped.id]),
+      itemContents: [protectedItem, priced, equipped, priceless],
+      mode: "manual"
+    });
+
+    expect(eligible.map(({ itemId, manualOnly }) => ({ itemId, manualOnly }))).toEqual([
+      { itemId: protectedItem.id, manualOnly: true },
+      { itemId: priced.id, manualOnly: false },
+      { itemId: priceless.id, manualOnly: true }
     ]);
   });
 

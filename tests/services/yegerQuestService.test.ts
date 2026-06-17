@@ -565,8 +565,17 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     return Promise.resolve(this.sessions.filter((session) => session.createdAt >= since));
   }
 
-  countWonByTelegramUserId(): Promise<number> {
-    return Promise.resolve(this.sessions.filter((session) => session.status === "won").length);
+  countWonByTelegramUserId(
+    _telegramUserId: bigint,
+    options: { excludeMonsterIds?: readonly string[] } = {}
+  ): Promise<number> {
+    const excludedMonsterIds = new Set(options.excludeMonsterIds ?? []);
+
+    return Promise.resolve(
+      this.sessions.filter(
+        (session) => session.status === "won" && !excludedMonsterIds.has(session.monsterId)
+      ).length
+    );
   }
 
   findActiveByTelegramUserId() { return Promise.resolve(null); }
