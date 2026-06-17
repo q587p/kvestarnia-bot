@@ -43,6 +43,7 @@ import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard"
 import {
   buildKorchmaArrivalBoardKeyboard,
   buildKorchmaBarKeyboard,
+  buildKorchmaFightingCornerKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
   buildKorchmaMemorialBoardKeyboard,
@@ -95,38 +96,64 @@ describe("main menu and scene keyboards", () => {
       "⬅️ До дверей"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard())).toEqual([
+      "🥊 Бійцівський куток",
       "📋 Стіл зі справами",
       "🛢️ Бочка",
       "🍻 Шинок",
-      "📰 Дошка вістей",
+      "🕳️ Глибка",
       "🐭 Льох",
+      "📰 Дошка вістей",
       "🚪 Надвір"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard())).toEqual([
+      "v1:place:fighting-corner",
       "v1:place:quest-table",
       "v1:place:barrel",
       "v1:place:bar",
-      "v1:place:news-corner",
+      "v1:place:deep",
       "v1:place:cellar",
+      "v1:place:news-corner",
       "v1:place:front"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ characterLevel: 13 }))).toEqual([
       "🕯️ Реморт",
+      "🥊 Бійцівський куток",
       "📋 Стіл зі справами",
       "🛢️ Бочка",
       "🍻 Шинок",
-      "📰 Дошка вістей",
+      "🕳️ Глибка",
       "🐭 Льох",
+      "📰 Дошка вістей",
       "🚪 Надвір"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard({ characterLevel: 13 }))).toEqual([
       "v1:rm:open",
+      "v1:place:fighting-corner",
       "v1:place:quest-table",
       "v1:place:barrel",
       "v1:place:bar",
-      "v1:place:news-corner",
+      "v1:place:deep",
       "v1:place:cellar",
+      "v1:place:news-corner",
       "v1:place:front"
+    ]);
+    expect(inlineButtonRows(buildKorchmaHallKeyboard())).toEqual([
+      ["🥊 Бійцівський куток", "📋 Стіл зі справами"],
+      ["🛢️ Бочка", "🍻 Шинок"],
+      ["🕳️ Глибка", "🐭 Льох"],
+      ["📰 Дошка вістей", "🚪 Надвір"]
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard())).toEqual([
+      "🥊 Потренуватися",
+      "🤝 Кинути виклик",
+      "🏆 Переможці",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaFightingCornerKeyboard())).toEqual([
+      "v1:spar:open",
+      "v1:duel:new",
+      "v1:place:duel-winners",
+      "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard())).toEqual([
       "🍻 Всім пива",
@@ -956,8 +983,7 @@ describe("main menu and scene keyboards", () => {
         fullHubKeyboard
       )
     ).toEqual([
-      "🥊 Бійцівський куток",
-      "🤝 Корчемний виклик",
+      "🥊 До Бійцівського кутка",
       "🌯 До шаурми",
       "⚔️ До сутички",
       "🏹 До Єгеря",
@@ -996,8 +1022,7 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
       "🕯️ Реморт",
-      "🥊 Бійцівський куток",
-      "🤝 Корчемний виклик",
+      "🥊 До Бійцівського кутка",
       "🍻 До шинку",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
@@ -1039,8 +1064,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🥊 Бійцівський куток",
-      "🤝 Корчемний виклик",
+      "🥊 До Бійцівського кутка",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
       "📦 Архів",
@@ -1088,8 +1112,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🥊 Бійцівський куток",
-      "🤝 Корчемний виклик",
+      "🥊 До Бійцівського кутка",
       "⚔️ Продовжити бій",
       "🧹 У льох",
       "📦 Архів",
@@ -1120,8 +1143,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🥊 Бійцівський куток",
-      "🤝 Корчемний виклик",
+      "🥊 До Бійцівського кутка",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -1151,8 +1173,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🥊 Бійцівський куток",
-      "🤝 Корчемний виклик",
+      "🥊 До Бійцівського кутка",
       "🏹 До Єгеря",
       "🧹 У льох",
       "📦 Архів",
@@ -1188,8 +1209,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🥊 Бійцівський куток",
-      "🤝 Корчемний виклик",
+      "🥊 До Бійцівського кутка",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",

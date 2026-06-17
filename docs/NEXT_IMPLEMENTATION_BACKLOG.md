@@ -525,7 +525,7 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 
 **Scope**
 
-- Додати place/presence id для Глибки, орієнтовно `location.korchma.hlybka`, якщо runtime лишається в корчемній location-моделі.
+- Додати бойовий runtime для вже зарезервованого place/presence id Глибки: `location.korchma.deep`.
 - У залі або зі `Стіл зі справами` дати перехід до `Глибка`.
 - Korchmar problem chain може вести в Глибку: quest hub показує справу біля столу, але кнопка бойової дії переводить у dungeon screen і вже там стартує/показує persistent fight.
 - `0.1.6` уже переносить здачу готового problem-chain етапу до Корчмаря в `🍻 Шинку` і відкриває ланцюжок `13 -> 23 -> 42 -> 93`; future Глибка не має переробляти цю reward/idempotency модель без окремого balance/security рішення.

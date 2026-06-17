@@ -39,6 +39,13 @@ export interface DuelChallengeRecord {
   target: DuelCharacterSnapshot | null;
 }
 
+export interface ResolvedDuelChallengeRecord extends DuelChallengeRecord {
+  status: "resolved";
+  resolvedAt: Date;
+  result: DuelResultPayload;
+  target: DuelCharacterSnapshot;
+}
+
 export interface CreateDuelChallengeInput {
   inviteToken: string;
   contextChatId?: bigint | null;
@@ -77,4 +84,6 @@ export interface DuelChallengeRepository {
     now: Date,
     result: DuelResultPayload
   ): Promise<DuelChallengeRecord | null>;
+
+  listResolvedSince(since: Date): Promise<ResolvedDuelChallengeRecord[]>;
 }

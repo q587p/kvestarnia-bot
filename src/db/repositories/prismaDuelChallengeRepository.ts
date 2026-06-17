@@ -4,7 +4,8 @@ import type {
   DuelChallengeRepository,
   DuelChallengeStatus,
   DuelCharacterSnapshot,
-  DuelResultPayload
+  DuelResultPayload,
+  ResolvedDuelChallengeRecord
 } from "./duelChallengeRepository";
 import type { CharacterEquipmentRecord } from "./equipmentRepository";
 import { getIncludedRemortCount } from "./prismaRemortCount";
@@ -51,6 +52,32 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 
   async findByToken(inviteToken: string): Promise<DuelChallengeRecord | null> {
     return mapChallenge(await findChallengeByToken(this.prisma, inviteToken));
+  }
+
+  async listResolvedSince(since: Date): Promise<ResolvedDuelChallengeRecord[]> {
+    const records = await this.prisma.duelChallenge.findMany({
+      where: {
+        status: "resolved",
+        resolvedAt: {
+          gte: since
+        },
+        resultJson: {
+          not: Prisma.JsonNull
+        },
+        targetCharacterId: {
+          not: null
+        }
+      },
+      include: {
+        challenger: characterInclude,
+        target: characterInclude
+      },
+      orderBy: {
+        resolvedAt: "desc"
+      }
+    });
+
+    return records.map(mapChallenge).filter(isResolvedDuelChallengeRecord);
   }
 
   async findCharacterByTelegramUser(telegramUserId: bigint): Promise<DuelCharacterSnapshot | null> {
@@ -242,6 +269,17 @@ function mapChallenge(record: DuelChallengeWithCharacters): DuelChallengeRecord 
     challenger: mapCharacter(record.challenger),
     target: record.target ? mapCharacter(record.target) : null
   };
+}
+
+function isResolvedDuelChallengeRecord(
+  record: DuelChallengeRecord | null
+): record is ResolvedDuelChallengeRecord {
+  return (
+    record?.status === "resolved" &&
+    record.resolvedAt !== null &&
+    record.result !== null &&
+    record.target !== null
+  );
 }
 
 function mapCharacter(

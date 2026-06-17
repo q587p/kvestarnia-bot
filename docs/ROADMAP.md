@@ -68,7 +68,7 @@ Current tiny inventory slice:
 - `0.1.5` opens the first Phase 2 prep surface: level 3+ `🥊 Бійцівський куток` and `/spar` run a turn-based XP-only training fight against the `Сумлінний Допельґанґер`, with no real duel invites, PvP state, gold/items/manatky rewards, `Тринадцять дрібних проблем` progress or group raid.
 - `0.1.6` extends the Korchmar/Shynok problem wrapper into explicit `13 -> 23 -> 42 -> 93` stages: each new stage is accepted through the bar after the previous turn-in, counts only fresh ordinary won solo fights after its issue timestamp, and keeps doppelganger training out of quest progress.
 - `0.1.9` adds the first reusable combat flavor intent layer and uses it only for `/spar` presentation: the doppelganger now shows class-aware counter flavor without changing rewards, problem-chain counters, cooldowns, level gates or PvP scope.
-- `0.1.10` ships the first rewardless duel invite ledger: level 3+ `/duel`, deep-link invites, accept/decline/cancel/expire handling, replay-safe quick results, partial HP/mana warnings, missing-character onboarding copy and clearer filtered equipment slot context.
+- `0.1.10` ships the first rewardless duel invite ledger: level 3+ `/duel`, dedicated Fighting Corner entry point, deep-link invites, accept/decline/cancel/expire handling, replay-safe quick results, partial HP/mana warnings, missing-character onboarding copy, a rewardless day/week/month duel winners board, clearer filtered equipment slot context and a closed `Глибка` route stub for future Korchmar monster fights.
 - Phase 1 finish rule after `0.1.0`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки `0.1.x` playtest не покаже, що core loop стабільний. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
 - Detailed finish sequence lives in `docs/PHASE1_FINISH_PLAN.md`; the closeout cutline for `0.0.x` → `0.1.x` lives in `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`, the final smoke gate lives in `docs/PHASE1_CLOSEOUT_SMOKE.md`, and canonical release notes live in `docs/PHASE1_RELEASE_NOTES.md`. `docs/NEXT_IMPLEMENTATION_BACKLOG.md` tracks the next small PR order.
 - Tavern/adventure/fight first completions can grant fixed items.
@@ -120,7 +120,7 @@ Canonical docs:
 
 Deliverables:
 - Бійцівський куток із тренувальним `Сумлінним Допельґанґером`: копія поточного героя для level 3+ спарингу перед справжніми дуелями з гравцями. Майбутні дуелі також стартують з 3 рівня, якщо окремий балансний PR не змінить це явно.
-- First duel invite MVP shipped in `0.1.10`: challenge, accept/decline/cancel/expire, quick rewardless resolve, replay-safe result and generated deep links via `BOT_USERNAME`.
+- First duel invite MVP shipped in `0.1.10`: challenge, accept/decline/cancel/expire, quick rewardless resolve, replay-safe result, generated deep links via `BOT_USERNAME`, a dedicated Fighting Corner screen and a rewardless winners board.
 - Shareable result/rematch/tournament cards without exact hidden formulas or toxic pressure.
 - Trading/gifting MVP: transfer one eligible манатка or stack unit with explicit confirmation and audit row.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.

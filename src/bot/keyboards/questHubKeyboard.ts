@@ -10,8 +10,6 @@ import { makeMenuCallbackData } from "../callbacks/menuCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
-import { makeTrainingDoppelgangerCallbackData } from "../callbacks/trainingDoppelgangerCallbackData";
-import { makeDuelNewCallbackData } from "../callbacks/duelCallbackData";
 
 export interface QuestHubKeyboardInput {
   mode?: "active" | "archive";
@@ -46,8 +44,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.text("🕯️ Реморт", makeRemortOpenCallbackData()).row();
   }
 
-  keyboard.text("🥊 Бійцівський куток", makeTrainingDoppelgangerCallbackData()).row();
-  keyboard.text("🤝 Корчемний виклик", makeDuelNewCallbackData()).row();
+  keyboard.text("🥊 До Бійцівського кутка", makePlaceCallbackData("fighting-corner")).row();
 
   if (canOpenProblemQuestInBar(problemQuest)) {
     keyboard.text("🍻 До шинку", makePlaceCallbackData("bar")).row();

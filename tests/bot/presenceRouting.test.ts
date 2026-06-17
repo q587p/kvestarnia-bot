@@ -60,13 +60,16 @@ describe("presence routing", () => {
     ["v1:quest:list", {}],
     ["v1:place:hall", {}],
     ["v1:place:front", {}],
+    ["v1:place:fighting-corner", {}],
     ["v1:place:quest-table", {}],
     ["v1:place:bar", {}],
     ["v1:place:barrel", {}],
+    ["v1:place:deep", {}],
     ["v1:place:cellar", {}],
     ["v1:place:news-corner", {}],
     ["v1:place:arrivals", {}],
     ["v1:place:memorial", {}],
+    ["v1:place:duel-winners", {}],
     [
       "v1:onb:gender:he",
       {
@@ -111,11 +114,14 @@ describe("presence routing", () => {
   it.each([
     "v1:place:hall",
     "v1:place:front",
+    "v1:place:fighting-corner",
     "v1:place:quest-table",
     "v1:place:bar",
     "v1:place:barrel",
+    "v1:place:deep",
     "v1:place:cellar",
-    "v1:place:news-corner"
+    "v1:place:news-corner",
+    "v1:place:duel-winners"
   ])("keeps place callback %s neutral until handler gates pass", (data) => {
     expect(getCallbackPresenceContext(data)).toEqual({});
   });

@@ -4,6 +4,9 @@ import {
   presentTavernAlreadyRaided,
   presentKorchmaArrivalBoard,
   presentKorchmaBar,
+  presentDuelWinnersBoard,
+  presentKorchmaDeepClosed,
+  presentKorchmaFightingCorner,
   presentKorchmaFront,
   presentKorchmaHall,
   presentKorchmaMemorialBoard,
@@ -126,6 +129,39 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("<b>Дара</b>");
   });
 
+  it("shows the fighting corner as a choice screen instead of an immediate fight", () => {
+    const text = presentKorchmaFightingCorner(character);
+
+    expect(text).toContain("🥊 Бійцівський куток");
+    expect(text).toContain("Тут не бʼються одразу");
+    expect(text).toContain("Сумлінним Допельґанґером");
+    expect(text).toContain("дружній виклик");
+    expect(text).toContain("найпереконливіше махав честю");
+  });
+
+  it("shows the Deep as closed with a short monster hint", () => {
+    const text = presentKorchmaDeepClosed(character);
+
+    expect(text).toContain("🕳️ Глибка");
+    expect(text).toContain("гарчить");
+    expect(text).toContain("Скоро сюди переїдуть бої з монстрами");
+  });
+
+  it("shows duel winners for day week and month", () => {
+    const text = presentDuelWinnersBoard(character, {
+      day: [{ characterId: "character-1", name: "<b>Дара</b>", winCount: 2 }],
+      week: [],
+      month: [{ characterId: "character-2", name: "Нестор", winCount: 5 }]
+    });
+
+    expect(text).toContain("🏆 Переможці дуелей");
+    expect(text).toContain("<b>За добу</b>:");
+    expect(text).toContain("1. &lt;b&gt;Дара&lt;/b&gt; — 2 перемоги");
+    expect(text).toContain("<b>За тиждень</b>: ще ніхто не переміг");
+    expect(text).toContain("1. Нестор — 5 перемог");
+    expect(text).not.toContain("<b>Дара</b>");
+  });
+
   it("shows remort memorial board entries with escaped names", () => {
     const text = presentKorchmaMemorialBoard(
       character,
@@ -208,11 +244,11 @@ describe("tavern presenter", () => {
     expect(text).toContain("Зала корчми");
     expect(text).toContain("<b>Мандрівник</b> · <i>Пересічний Пригодник</i>");
     expect(text).toContain("Корчма Квестарні");
-    expect(text).toContain(
-      "без нагляду.\n\nПраворуч стоїть <i>стіл зі справами</i>"
-    );
-    expect(text).toContain("неподалік шумить <i>шинок</i>");
+    expect(text).toContain("Ліворуч гупає <i>Бійцівський куток</i>");
+    expect(text).toContain("праворуч терпить життя <i>стіл зі справами</i>");
+    expect(text).toContain("шумить <i>шинок</i>");
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
+    expect(text).toContain("<i>Глибка</i>");
     expect(text).toContain("<i>льох</i>");
     expect(text).toContain("<i>дошка вістей</i>");
     expect(text).toContain("Корчмар:\n<blockquote>");

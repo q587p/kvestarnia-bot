@@ -11,6 +11,7 @@ import type {
   KorchmaRoundLeaderboard,
   KorchmaRoundLeaderboardEntry
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
+import type { DuelLeaderboard, DuelLeaderboardEntry } from "../../services/duelChallengeService";
 import type { KorchmaArrivalBoard, PresenceGroup } from "../../services/presenceService";
 import type { LevelMilestoneBoard } from "../../db/repositories/levelMilestoneRepository";
 import type { RemortBoard } from "../../db/repositories/remortRepository";
@@ -86,7 +87,8 @@ export function presentKorchmaHall(
     "",
     "Корчма Квестарні тримає тепло, шум і кілька справ, які краще не залишати без нагляду.",
     "",
-    "Праворуч стоїть <i>стіл зі справами</i>, неподалік шумить <i>шинок</i>, у кутку піниться <i>Бочка Пінного Міражу</i>, під ногами бурчить <i>льох</i>, а біля дверей висить <i>дошка вістей</i>.",
+    "Ліворуч гупає <i>Бійцівський куток</i>, праворуч терпить життя <i>стіл зі справами</i>. Далі піниться <i>Бочка Пінного Міражу</i>, шумить <i>шинок</i>, під підлогою гарчить <i>Глибка</i>, а поруч скромно пахне <i>льох</i>.",
+    "Біля дверей висить <i>дошка вістей</i>, а самі двері роблять вигляд, що надвір теж варіянт.",
     ...presentRemortCandleHint(character),
     "",
     ...presentKorchmaGreeting(character, options.flavorSeed),
@@ -94,6 +96,48 @@ export function presentKorchmaHall(
     ...presentTavernPresence(presence, viewerTelegramUserId),
     "",
     "Куди йдемо?"
+  ].join("\n");
+}
+
+export function presentKorchmaFightingCorner(character: CharacterSummary): string {
+  return [
+    "🥊 Бійцівський куток",
+    presentCharacterHeader(character),
+    "",
+    "Тут не бʼються одразу. Спершу Корчмар показує пальцем на дошку правил, потім на ваші манатки, потім знову на дошку правил.",
+    "",
+    "Можна потренуватися з Сумлінним Допельґанґером, кинути дружній виклик іншому пригоднику або глянути, хто сьогодні найпереконливіше махав честю.",
+    "",
+    "Що обираємо?"
+  ].join("\n");
+}
+
+export function presentKorchmaDeepClosed(character: CharacterSummary): string {
+  return [
+    "🕳️ Глибка",
+    presentCharacterHeader(character),
+    "",
+    "Під люком коротко гарчить щось таке, що Корчмар називає «ще не готовим маршрутом».",
+    "",
+    "Скоро сюди переїдуть бої з монстрами за корчмарськими справами. Поки що люк чемно не пускає і дуже старається не дихати вам у чоботи."
+  ].join("\n");
+}
+
+export function presentDuelWinnersBoard(
+  character: CharacterSummary,
+  leaderboard: DuelLeaderboard
+): string {
+  return [
+    "🏆 Переможці дуелей",
+    presentCharacterHeader(character),
+    "",
+    "На дошці Бійцівського кутка Корчмар рахує тільки дружні перемоги. Нагород тут немає, зате є крейда й надмірна офіційність.",
+    "",
+    ...presentDuelLeaderboardSection("За добу", leaderboard.day),
+    "",
+    ...presentDuelLeaderboardSection("За тиждень", leaderboard.week),
+    "",
+    ...presentDuelLeaderboardSection("За місяць", leaderboard.month)
   ].join("\n");
 }
 
@@ -466,6 +510,43 @@ function presentKorchmaRoundLeaderboard(leaderboard: KorchmaRoundLeaderboard): s
     "",
     ...presentLeaderboardSection("За місяць", leaderboard.month)
   ];
+}
+
+function presentDuelLeaderboardSection(
+  title: string,
+  entries: DuelLeaderboardEntry[]
+): string[] {
+  if (entries.length === 0) {
+    return [`<b>${title}</b>: ще ніхто не переміг. Крейда лежить гостро, але безробітно.`];
+  }
+
+  return [
+    `<b>${title}</b>:`,
+    ...entries.map((entry, index) => presentDuelLeaderboardEntry(entry, index + 1))
+  ];
+}
+
+function presentDuelLeaderboardEntry(entry: DuelLeaderboardEntry, rank: number): string {
+  return `${rank}. ${escapeHtml(entry.name)} — ${entry.winCount} ${presentDuelWinCount(entry.winCount)}`;
+}
+
+function presentDuelWinCount(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+
+  if (lastTwo >= 11 && lastTwo <= 14) {
+    return "перемог";
+  }
+
+  if (last === 1) {
+    return "перемога";
+  }
+
+  if (last >= 2 && last <= 4) {
+    return "перемоги";
+  }
+
+  return "перемог";
 }
 
 function presentLeaderboardSection(

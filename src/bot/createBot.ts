@@ -34,6 +34,7 @@ import {
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
   type PresenceService
@@ -120,6 +121,9 @@ import {
   registerTavernCommand,
   sendKorchmaArrivalBoard,
   sendKorchmaBar,
+  sendDuelWinnersBoard,
+  sendKorchmaDeepClosed,
+  sendKorchmaFightingCorner,
   sendKorchmaFront,
   sendKorchmaMemorialBoard,
   sendTavern,
@@ -1248,12 +1252,32 @@ async function handlePlaceCallback(
     return;
   }
 
+  if (action === "fighting-corner") {
+    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "edit");
+    return;
+  }
+
+  if (action === "duel-winners") {
+    if (!services.duel) {
+      await safeEditMessageText(ctx, presentInvalidCallback(), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    await sendDuelWinnersBoard(ctx, services.tavern, services.presence, services.duel, "edit");
+    return;
+  }
+
   if (action === "quest-table") {
     await sendQuestHub(
       ctx,
       buildQuestHubCommandOptions(services),
       "edit"
     );
+    return;
+  }
+
+  if (action === "deep") {
+    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "edit");
     return;
   }
 
@@ -1470,7 +1494,7 @@ async function handleTrainingDoppelgangerCallback(
 
     if (result.state !== "not-found") {
       await markScenePresence(ctx, services.presence, {
-        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
         currentRaidId: null,
         currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
       });

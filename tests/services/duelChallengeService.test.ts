@@ -3,7 +3,8 @@ import type {
   DuelChallengeRecord,
   DuelChallengeRepository,
   DuelCharacterSnapshot,
-  DuelResultPayload
+  DuelResultPayload,
+  ResolvedDuelChallengeRecord
 } from "../../src/db/repositories/duelChallengeRepository";
 import type { CharacterRecord } from "../../src/db/repositories/characterRepository";
 import { DuelChallengeService } from "../../src/services/duelChallengeService";
@@ -101,6 +102,44 @@ describe("DuelChallengeService", () => {
 
     expect(accepted).toMatchObject({ state: "resolved" });
     expect(replay).toMatchObject({ state: "resolved" });
+  });
+
+  it("builds winner boards from resolved non-draw duels", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, { name: "Пані Сила" });
+    world.addCharacter(2n, { name: "Пан Обережний" });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n);
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      ignoreResourceWarning: true
+    });
+
+    const accepted = world.challenges.get(created.challenge.inviteToken);
+
+    if (!accepted?.result) {
+      throw new Error("Expected resolved duel");
+    }
+
+    world.challenges.set(created.challenge.inviteToken, {
+      ...accepted,
+      result: {
+        ...accepted.result,
+        outcome: "challenger",
+        winnerCharacterId: accepted.challengerCharacterId,
+        loserCharacterId: accepted.targetCharacterId
+      }
+    });
+
+    await expect(service.getLeaderboard()).resolves.toEqual({
+      day: [{ characterId: "character-1", name: "Пані Сила", winCount: 1 }],
+      week: [{ characterId: "character-1", name: "Пані Сила", winCount: 1 }],
+      month: [{ characterId: "character-1", name: "Пані Сила", winCount: 1 }]
+    });
   });
 });
 
@@ -246,5 +285,18 @@ class FakeDuelWorld implements DuelChallengeRepository {
     this.challenges.set(inviteToken, updated);
 
     return Promise.resolve(updated);
+  }
+
+  listResolvedSince(since: Date): Promise<ResolvedDuelChallengeRecord[]> {
+    return Promise.resolve(
+      [...this.challenges.values()].filter(
+        (challenge) =>
+          challenge.status === "resolved" &&
+          challenge.resolvedAt !== null &&
+          challenge.resolvedAt >= since &&
+          challenge.result !== null &&
+          challenge.target !== null
+      ) as ResolvedDuelChallengeRecord[]
+    );
   }
 }

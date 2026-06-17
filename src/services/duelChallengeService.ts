@@ -2,7 +2,8 @@ import { randomBytes } from "node:crypto";
 import type {
   DuelChallengeRecord,
   DuelChallengeRepository,
-  DuelCharacterSnapshot
+  DuelCharacterSnapshot,
+  ResolvedDuelChallengeRecord
 } from "../db/repositories/duelChallengeRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { resolveQuickDuel } from "../domain/duels/duelResolver";
@@ -12,10 +13,24 @@ import { getEquippedItemContents } from "./equipmentService";
 
 export const DUEL_INVITE_MIN_LEVEL = 3;
 const DUEL_INVITE_TTL_MS = 15 * 60 * 1000;
+const DUEL_LEADERBOARD_LIMIT = 5;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface DuelResourceWarning {
   hpBelowMax: boolean;
   manaBelowMax: boolean;
+}
+
+export interface DuelLeaderboardEntry {
+  characterId: string;
+  name: string;
+  winCount: number;
+}
+
+export interface DuelLeaderboard {
+  day: DuelLeaderboardEntry[];
+  week: DuelLeaderboardEntry[];
+  month: DuelLeaderboardEntry[];
 }
 
 export type DuelChallengeView =
@@ -235,6 +250,20 @@ export class DuelChallengeService {
     return challenge ? this.viewChallenge(challenge, now) : { state: "not-found" };
   }
 
+  async getLeaderboard(): Promise<DuelLeaderboard> {
+    const now = this.clock();
+    const daySince = new Date(now.getTime() - DAY_MS);
+    const weekSince = new Date(now.getTime() - 7 * DAY_MS);
+    const monthSince = new Date(now.getTime() - 31 * DAY_MS);
+    const records = await this.challenges.listResolvedSince(monthSince);
+
+    return {
+      day: buildLeaderboard(records, daySince),
+      week: buildLeaderboard(records, weekSince),
+      month: buildLeaderboard(records, monthSince)
+    };
+  }
+
   private async getFreshChallenge(
     inviteToken: string,
     now: Date
@@ -283,6 +312,53 @@ export class DuelChallengeService {
     };
   }
 
+}
+
+function buildLeaderboard(
+  records: ResolvedDuelChallengeRecord[],
+  since: Date
+): DuelLeaderboardEntry[] {
+  const entries = new Map<string, DuelLeaderboardEntry>();
+
+  for (const record of records) {
+    if (record.resolvedAt < since || !record.result.winnerCharacterId) {
+      continue;
+    }
+
+    const winner = getDuelWinner(record);
+    const current = entries.get(record.result.winnerCharacterId);
+
+    if (current) {
+      current.winCount += 1;
+      continue;
+    }
+
+    entries.set(record.result.winnerCharacterId, {
+      characterId: record.result.winnerCharacterId,
+      name: winner?.name ?? "Хтось дуже переможний",
+      winCount: 1
+    });
+  }
+
+  return [...entries.values()]
+    .sort((left, right) => {
+      const winDiff = right.winCount - left.winCount;
+
+      return winDiff === 0 ? left.name.localeCompare(right.name, "uk") : winDiff;
+    })
+    .slice(0, DUEL_LEADERBOARD_LIMIT);
+}
+
+function getDuelWinner(record: ResolvedDuelChallengeRecord): DuelCharacterSnapshot | null {
+  if (record.result.winnerCharacterId === record.challenger.id) {
+    return record.challenger;
+  }
+
+  if (record.result.winnerCharacterId === record.target.id) {
+    return record.target;
+  }
+
+  return null;
 }
 
 function summarizeDuelCharacter(character: DuelCharacterSnapshot): CharacterSummary {

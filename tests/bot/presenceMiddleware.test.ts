@@ -20,6 +20,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
@@ -146,7 +147,7 @@ describe("presence middleware", () => {
     expect(createCount).toBe(1);
     expect(presence.marks).toHaveLength(1);
     expect(presence.marks[0]).toMatchObject({
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_DUEL_CHALLENGE
     });

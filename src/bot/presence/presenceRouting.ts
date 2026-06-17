@@ -117,6 +117,10 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
+  if (data === "v1:place:fighting-corner") {
+    return {};
+  }
+
   if (data === "v1:place:quest-table") {
     return {};
   }
@@ -129,6 +133,10 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
+  if (data === "v1:place:deep") {
+    return {};
+  }
+
   if (data === "v1:place:cellar") {
     return {};
   }
@@ -137,7 +145,11 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
-  if (data === "v1:place:arrivals" || data === "v1:place:memorial") {
+  if (
+    data === "v1:place:arrivals" ||
+    data === "v1:place:memorial" ||
+    data === "v1:place:duel-winners"
+  ) {
     return {};
   }
 

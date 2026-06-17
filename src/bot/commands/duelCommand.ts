@@ -4,7 +4,7 @@ import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_ADVENTURE_DUEL_CHALLENGE,
-  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   type PresenceService
 } from "../../services/presenceService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
@@ -188,7 +188,7 @@ async function markDuelPresence(ctx: Context, presence: PresenceService): Promis
 
   await presence.markAction({
     user: player,
-    locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+    locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
     currentRaidId: null,
     currentAdventureId: PRESENCE_ADVENTURE_DUEL_CHALLENGE
   });

@@ -7,7 +7,7 @@
 Перед повноцінними дуелями з іншими гравцями варто зробити безпечний тренувальний крок у корчемному бійцівському кутку: `Сумлінний Допельґанґер`, який копіює поточного героя й дає відчути майбутній PvP-подібний бій без соціяльного тиску, ставок або ризику зачепити іншого гравця.
 
 Перший slice:
-- `0.1.5` додає `/spar` і кнопку `🥊 Бійцівський куток` у Столі зі справами для героїв з 3 рівня;
+- `0.1.5` додає `/spar` і перший `🥊 Бійцівський куток` для героїв з 3 рівня; `0.1.10` виносить його в окрему локацію Корчми поруч зі Столом зі справами;
 - допельґанґер копіює расу, клас, титул, рівень і effective stats/equipment summary героя;
 - тренування йде як покрокова combat session через `solo_combat_sessions`, але без duel ledger, target ownership або invite flow;
 - результат може дати малий XP: `1 XP` за програш і level-scaled XP за перемогу, приблизно від половини винагороди монстра подібного рівня з luck/random розкидом;
@@ -30,19 +30,20 @@
 ## Shipped first slice — 0.1.10
 
 `0.1.10` ships the first rewardless invite ledger:
-- `/duel` and Quest Hub `🤝 Корчемний виклик` create open level 3+ challenges;
+- `/duel` and Fighting Corner `🤝 Кинути виклик` create open level 3+ challenges;
 - optional `BOT_USERNAME` generates `https://t.me/<bot>?start=duel_<token>` links for dev/prod bot separation;
 - `/start duel_<token>` opens the invite flow;
 - accept, decline, cancel and expiry are idempotent;
 - repeated buttons replay the stored state/result instead of rerolling;
 - invite recipients without a character get polite onboarding copy;
-- partial HP or mana shows a warning before the player explicitly accepts.
+- partial HP or mana shows a warning before the player explicitly accepts;
+- `Переможці` in the Fighting Corner reads resolved duel results as a rewardless day/week/month board, with no rating, rewards or tournament state.
 
 Still future: rematches, tournaments, rating, rewards, wagers, item loss, target-specific player selection and full turn-based PvP.
 
 ## Flow
 
-1. Challenger натискає `🤝 Корчемний виклик` або запускає `/duel`.
+1. Challenger натискає `🤝 Кинути виклик` у Бійцівському кутку або запускає `/duel`.
 2. Bot створює `duel_challenge` з expiry, challenger, optional target and context.
 3. Target бачить короткий виклик із кнопками `Прийняти`, `Відмовитись`, `Не зараз`.
 4. Якщо target приймає, сервіс атомарно переводить challenge у `accepted/resolved`.

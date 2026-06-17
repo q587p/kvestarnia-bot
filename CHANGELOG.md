@@ -10,7 +10,9 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.1.10] - 12026-06-17 - First Duel Invite Ledger and Gear Slot Context
 
 ### Added
-- Added the first Phase 2 duel invite MVP: `/duel`, Quest Hub `🤝 Корчемний виклик`, `v1:duel:*` callbacks, open invite creation, accept, cancel, decline, expiry and replay-safe quick result cards.
+- Added the first Phase 2 duel invite MVP: `/duel`, `v1:duel:*` callbacks, open invite creation, accept, cancel, decline, expiry and replay-safe quick result cards.
+- Split `🥊 Бійцівський куток` out from the Quest Hub/table flow: Korchma hall now has a dedicated fighting-corner location for `/spar`, new duel challenges and a rewardless duel winners board for day/week/month.
+- Added the closed `🕳️ Глибка` Korchma location stub for the future move of Korchmar monster fights out of the table flow.
 - Added a persistent `duel_challenges` ledger with Prisma schema, migration, repository, service and pure resolver coverage.
 - Added `/start duel_<token>` deep-link routing so generated invites can be opened from a configured bot username.
 - Added optional `BOT_USERNAME` config for generated Telegram deep links, with validation and `.env.example` docs for dev/prod bot separation.
@@ -19,7 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added focused domain, service, callback, start-payload and config tests for the first duel path.
 
 ### Guardrails
-- Duel invites are level 3+, opt-in, rewardless and replay-safe: no gold, XP, items, rating, wagers, durability loss, quest progress, rematch automation or tournament state.
+- Duel invites and the winners board are level 3+, opt-in, rewardless and replay-safe: no gold, XP, items, rating, wagers, durability loss, quest progress, rematch automation or tournament state.
 - Invite recipients without a character get gentle onboarding copy instead of a hard failure, because duels need a few minutes of basic game context and some starter manatky.
 - Old invite buttons replay state or report the stable terminal state instead of resolving the same challenge twice.
 

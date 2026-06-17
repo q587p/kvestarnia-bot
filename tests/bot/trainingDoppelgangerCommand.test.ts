@@ -49,7 +49,7 @@ describe("training doppelganger command", () => {
     expect(JSON.stringify(replies[0]?.options)).toContain("v1:tavern:raid");
   });
 
-  it("marks active training at the quest table rather than a separate location", async () => {
+  it("marks active training at the fighting corner", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = capturingPresence();
     const service = new FakeTrainingDoppelgangerService({
@@ -72,7 +72,7 @@ describe("training doppelganger command", () => {
     expect(service.calls).toBe(1);
     expect(presence.marks).toEqual([
       {
-        locationId: "location.korchma.quest_table",
+        locationId: "location.korchma.fighting_corner",
         currentRaidId: null,
         currentAdventureId: "adventure.training-doppelganger"
       }
