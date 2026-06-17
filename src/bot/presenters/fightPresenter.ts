@@ -12,6 +12,14 @@ import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
+export interface QuestProgressAfterFightEntry {
+  title: string;
+  wins: number;
+  target: number;
+  completed?: boolean;
+  readyHint?: string;
+}
+
 export function presentFightStart(character: CharacterSummary): string {
   return [
     "⚔️ Сутичка з підозрілим монстром",
@@ -178,27 +186,60 @@ export function presentPersistentFightTurn(
 export function presentProblemQuestProgressAfterFight(
   progress: ThirteenSmallProblemsProgress | null
 ): string | null {
+  const entry = buildProblemQuestProgressAfterFightEntry(progress);
+
+  return presentQuestProgressAfterFight(entry ? [entry] : []);
+}
+
+export function buildProblemQuestProgressAfterFightEntry(
+  progress: ThirteenSmallProblemsProgress | null
+): QuestProgressAfterFightEntry | null {
   if (!progress || progress.branchComplete || progress.rewardClaimed) {
     return null;
   }
 
-  const countLine = `<i>${escapeHtml(progress.title)}</i>: <b>${progress.wins}/${progress.target}</b>.`;
+  return {
+    title: progress.title,
+    wins: progress.wins,
+    target: progress.target,
+    completed: progress.completed,
+    ...(progress.completed
+      ? { readyHint: "Корчмар чекає в Шинку." }
+      : {})
+  };
+}
 
-  if (progress.completed) {
-    return [
-      "📋 <b>Прогрес справи зрушив</b>",
-      "",
-      countLine,
-      "Проблем уже вистачило. Корчмар чекає в Шинку, щоб прийняти справу."
-    ].join("\n");
+export function presentQuestProgressAfterFight(
+  entries: readonly QuestProgressAfterFightEntry[]
+): string | null {
+  if (entries.length === 0) {
+    return null;
   }
 
-  return [
-    "📋 <b>Прогрес справи зрушив</b>",
+  const plural = entries.length > 1;
+  const lines = [
+    plural
+      ? "📋 <b>Прогрес справ зрушив</b>"
+      : "📋 <b>Прогрес справи зрушив</b>",
+    ""
+  ];
+
+  for (const entry of entries) {
+    const readyHint = entry.completed && entry.readyHint ? ` — ${escapeHtml(entry.readyHint)}` : "";
+
+    lines.push(
+      `<i>${escapeHtml(entry.title)}</i>: <b>${entry.wins}/${entry.target}</b>.${readyHint}`
+    );
+  }
+
+  lines.push(
     "",
-    countLine,
-    "Журнал задоволено хрумтить і вдає, що це була стратегія."
-  ].join("\n");
+    plural
+      ? "Журнал і дощечка задоволено хрумтять та вдають, що це була стратегія."
+      : "Журнал задоволено хрумтить і вдає, що це була стратегія."
+  );
+
+  return lines.join("\n");
 }
 
 function presentCharacterFlavor(

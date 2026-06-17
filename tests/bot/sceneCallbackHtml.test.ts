@@ -399,6 +399,103 @@ describe("scene callback HTML options", () => {
     );
   });
 
+  it("includes Yeger quest progress in the separate message when a matching won fight moved it", async () => {
+    const yegerLookup = vi
+      .fn()
+      .mockResolvedValueOnce({
+        state: "in-progress",
+        character,
+        progress: { wins: 2, target: 5 },
+        tracking: { state: "none" }
+      })
+      .mockResolvedValueOnce({
+        state: "in-progress",
+        character,
+        progress: { wins: 3, target: 5 },
+        tracking: { state: "none" }
+      });
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: "123e4567-e89b-42d3-a456-426614174111",
+        turn: 3,
+        action: "attack"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn: () =>
+            Promise.resolve({
+              state: "updated",
+              character,
+              session: {
+                ...persistentSession("monster.restless-auditor"),
+                id: "123e4567-e89b-42d3-a456-426614174111",
+                status: "won",
+                turn: 4,
+                state: {
+                  id: "123e4567-e89b-42d3-a456-426614174111",
+                  status: "won",
+                  turn: 4,
+                  hero: {
+                    hp: 17,
+                    hpMax: 20,
+                    mana: 7,
+                    manaMax: 10
+                  },
+                  monster: {
+                    id: "monster.restless-auditor",
+                    hp: 0,
+                    hpMax: 12
+                  },
+                  lastTurn: {
+                    action: "attack",
+                    heroOutcome: "hit",
+                    heroDamage: 12,
+                    monsterDamage: 0,
+                    manaSpent: 0,
+                    critical: false
+                  }
+                }
+              },
+              monster: {
+                id: "monster.restless-auditor",
+                name: "Неспокійний аудитор",
+                description: "Шурхотить формами навіть після смерті.",
+                level: 4,
+                tags: ["undead", "paperwork"]
+              },
+              questProgress: {
+                stageId: "13",
+                title: "Тринадцять дрібних проблем",
+                wins: 11,
+                target: 13,
+                completed: false,
+                rewardClaimed: false,
+                issued: true,
+                branchComplete: false
+              },
+              fightReward: null
+            })
+        },
+        yeger: {
+          getForTelegramUser: yegerLookup
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const progress = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("Прогрес справ зрушив")
+    );
+
+    expect(yegerLookup).toHaveBeenCalledTimes(2);
+    expect(String(edit?.payload.text)).not.toContain("Неспокійні справи");
+    expect(progress?.payload.parse_mode).toBe("HTML");
+    expect(String(progress?.payload.text)).toContain("📋 <b>Прогрес справ зрушив</b>");
+    expect(String(progress?.payload.text)).toContain(
+      "<i>Тринадцять дрібних проблем</i>: <b>11/13</b>."
+    );
+    expect(String(progress?.payload.text)).toContain("<i>Неспокійні справи</i>: <b>3/5</b>.");
+  });
+
   it("edits equip requirement denials as message text instead of popup text", async () => {
     const calls = await captureApiCalls(
       makeEquipItemCallbackData("item.loot-v1-borgomanta-token-plus-3"),

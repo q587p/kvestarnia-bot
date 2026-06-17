@@ -10,7 +10,7 @@ import type {
 } from "../services/cellarGrownupQuestService";
 import type { DevResetService } from "../services/devResetService";
 import type { DevGrantService } from "../services/devGrantService";
-import type { FightService } from "../services/fightService";
+import type { FightService, PersistentFightTurnResult } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
 import type { HuntService } from "../services/huntService";
 import type { YegerQuestService } from "../services/yegerQuestService";
@@ -192,8 +192,10 @@ import {
   presentFightNeedsRest,
   presentFightLevelRetired,
   presentFightNoCharacter,
+  buildProblemQuestProgressAfterFightEntry,
+  type QuestProgressAfterFightEntry,
   presentProblemQuestTurnIn,
-  presentProblemQuestProgressAfterFight,
+  presentQuestProgressAfterFight,
   presentFightResult,
   presentPersistentFight,
   presentPersistentFightTurn
@@ -1900,6 +1902,7 @@ async function handleFightCallback(
   }
 
   if (callback.type === "turn") {
+    const yegerBefore = await getYegerProgressSnapshot(services.yeger, telegramUserId);
     const result = await services.fight.resolvePersistentFightTurn(telegramUserId, {
       sessionId: callback.sessionId,
       turn: callback.turn,
@@ -1931,7 +1934,7 @@ async function handleFightCallback(
     });
     const progressText =
       result.state === "updated" && result.session.state?.status === "won"
-        ? presentProblemQuestProgressAfterFight(result.questProgress)
+        ? await presentWonFightQuestProgressAfterFight(result, services, telegramUserId, yegerBefore)
         : null;
 
     if (progressText) {
@@ -1968,6 +1971,57 @@ async function handleFightCallback(
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
   }
+}
+
+type YegerProgressSnapshot = { wins: number; target: number } | null;
+
+async function getYegerProgressSnapshot(
+  yeger: Pick<YegerQuestService, "getForTelegramUser"> | undefined,
+  telegramUserId: bigint
+): Promise<YegerProgressSnapshot> {
+  if (!yeger) {
+    return null;
+  }
+
+  const result = await yeger.getForTelegramUser(telegramUserId);
+
+  if (result.state !== "in-progress" && result.state !== "turn-in-ready") {
+    return null;
+  }
+
+  return result.progress;
+}
+
+async function presentWonFightQuestProgressAfterFight(
+  result: Extract<PersistentFightTurnResult, { state: "updated" }>,
+  services: BotServices,
+  telegramUserId: bigint,
+  yegerBefore: YegerProgressSnapshot
+): Promise<string | null> {
+  const entries: QuestProgressAfterFightEntry[] = [];
+  const problemEntry = buildProblemQuestProgressAfterFightEntry(result.questProgress);
+
+  if (problemEntry) {
+    entries.push(problemEntry);
+  }
+
+  if (result.monster && isYegerUnquietTarget(result.monster) && yegerBefore) {
+    const yegerAfter = await getYegerProgressSnapshot(services.yeger, telegramUserId);
+
+    if (yegerAfter && yegerAfter.wins > yegerBefore.wins) {
+      entries.push({
+        title: "Неспокійні справи",
+        wins: yegerAfter.wins,
+        target: yegerAfter.target,
+        completed: yegerAfter.wins >= yegerAfter.target,
+        ...(yegerAfter.wins >= yegerAfter.target
+          ? { readyHint: "Єгер чекає дощечку." }
+          : {})
+      });
+    }
+  }
+
+  return presentQuestProgressAfterFight(entries);
 }
 
 async function handleHuntCallback(
