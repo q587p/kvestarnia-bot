@@ -308,7 +308,7 @@ describe("fight presenter", () => {
     expect(text).not.toContain("критично дала");
   });
 
-  it("points completed problem quest stages to Korhmar instead of auto-claiming", () => {
+  it("points completed problem quest stages to Korchmar instead of auto-claiming", () => {
     const text = presentPersistentFightTurn({
       state: "updated",
       character,

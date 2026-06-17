@@ -19,7 +19,7 @@ describe("quest hub keyboard", () => {
     expect(json).not.toContain("v1:spar:open");
   });
 
-  it("offers Korhmar turn-in when the current problem quest stage is complete", () => {
+  it("routes ready Korchmar turn-ins to the Shynok", () => {
     const keyboard = buildQuestHubKeyboard(
       makeInput({
         fight: {
@@ -40,8 +40,9 @@ describe("quest hub keyboard", () => {
     );
     const json = JSON.stringify(keyboard);
 
-    expect(json).toContain("🍺 До Корчмаря");
-    expect(json).toContain("v1:quest:problem");
+    expect(json).toContain("🍻 До Шинку");
+    expect(json).toContain("v1:place:bar");
+    expect(json).not.toContain("v1:quest:problem");
   });
 });
 

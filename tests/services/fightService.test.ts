@@ -1309,7 +1309,7 @@ describe("FightService", () => {
     }
   });
 
-  it("turns in the first problem quest through Korhmar and issues twenty-three fresh problems", async () => {
+  it("turns in the first problem quest through Korchmar and waits for taking the next problem", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -1318,7 +1318,6 @@ describe("FightService", () => {
     const service = new FightService(characters, dailyActions, fixedClock, sessions);
 
     const first = await service.turnInProblemQuestForTelegramUser(telegramUserId);
-    const repeated = await service.turnInProblemQuestForTelegramUser(telegramUserId);
 
     expect(first.state).toBe("turned-in");
     if (first.state === "turned-in") {
@@ -1344,17 +1343,7 @@ describe("FightService", () => {
           id: "23",
           target: 23
         },
-        nextStageIssued: true
-      });
-    }
-    expect(repeated.state).toBe("not-ready");
-    if (repeated.state === "not-ready") {
-      expect(repeated.progress).toMatchObject({
-        stageId: "23",
-        wins: 0,
-        target: 23,
-        completed: false,
-        rewardClaimed: false
+        nextStageAvailable: true
       });
     }
     expect(
@@ -1362,11 +1351,33 @@ describe("FightService", () => {
     ).toHaveLength(1);
     expect(
       dailyActions.records.filter((record) => record.key === PROBLEM_QUEST_STAGES[1].issueKey)
+    ).toHaveLength(0);
+    expect(dailyActions.createCount).toBe(1);
+
+    const next = await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    expect(next.state).toBe("issued");
+    if (next.state === "issued") {
+      expect(next).toMatchObject({
+        stage: { id: "13" },
+        nextStage: { id: "23", target: 23 },
+        issued: "created",
+        progress: {
+          stageId: "23",
+          wins: 0,
+          target: 23,
+          completed: false,
+          rewardClaimed: false
+        }
+      });
+    }
+    expect(
+      dailyActions.records.filter((record) => record.key === PROBLEM_QUEST_STAGES[1].issueKey)
     ).toHaveLength(1);
     expect(dailyActions.createCount).toBe(2);
   });
 
-  it("lets old thirteen-problem claims issue the twenty-three stage without duplicating the old reward", async () => {
+  it("lets old thirteen-problem claims take the twenty-three stage without duplicating the old reward", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -1374,19 +1385,18 @@ describe("FightService", () => {
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const service = new FightService(characters, dailyActions, fixedClock, sessions);
 
-    const result = await service.turnInProblemQuestForTelegramUser(telegramUserId);
+    const result = await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
-    expect(result.state).toBe("turned-in");
-    if (result.state === "turned-in") {
-      expect(result.result).toMatchObject({
-        state: "already-claimed",
+    expect(result.state).toBe("issued");
+    if (result.state === "issued") {
+      expect(result).toMatchObject({
         stage: {
           id: "13"
         },
         nextStage: {
           id: "23"
         },
-        nextStageIssued: true
+        issued: "created"
       });
     }
     expect(
@@ -1407,19 +1417,18 @@ describe("FightService", () => {
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const service = new FightService(characters, dailyActions, fixedClock, sessions);
 
-    const result = await service.turnInProblemQuestForTelegramUser(telegramUserId);
+    const result = await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
-    expect(result.state).toBe("turned-in");
-    if (result.state === "turned-in") {
-      expect(result.result).toMatchObject({
-        state: "already-claimed",
+    expect(result.state).toBe("issued");
+    if (result.state === "issued") {
+      expect(result).toMatchObject({
         stage: {
           id: "23"
         },
         nextStage: {
           id: "42"
         },
-        nextStageIssued: true
+        issued: "created"
       });
     }
     expect(
@@ -1500,7 +1509,17 @@ describe("FightService", () => {
         nextStage: {
           id: "42"
         },
-        nextStageIssued: true
+        nextStageAvailable: true
+      });
+    }
+
+    const issueFortyTwo = await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+    expect(issueFortyTwo.state).toBe("issued");
+    if (issueFortyTwo.state === "issued") {
+      expect(issueFortyTwo).toMatchObject({
+        stage: { id: "23" },
+        nextStage: { id: "42" },
+        issued: "created"
       });
     }
 
@@ -1543,7 +1562,17 @@ describe("FightService", () => {
         nextStage: {
           id: "93"
         },
-        nextStageIssued: true
+        nextStageAvailable: true
+      });
+    }
+
+    const issueNinetyThree = await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+    expect(issueNinetyThree.state).toBe("issued");
+    if (issueNinetyThree.state === "issued") {
+      expect(issueNinetyThree).toMatchObject({
+        stage: { id: "42" },
+        nextStage: { id: "93" },
+        issued: "created"
       });
     }
 

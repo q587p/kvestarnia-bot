@@ -10,8 +10,8 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.1.6] - 12026-06-17 - Korchmar Problem Quest Chain
 
 ### Added
-- Extended the persistent fight wrapper into a Korhmar/Shynok quest chain: `13 -> 23 -> 42 -> 93` won ordinary solo fights, each with a separate one-time reward and cosmetic proof item.
-- Added explicit Quest Hub turn-in plumbing for ready problem stages through `🍺 До Корчмаря`, so stage completion and next-stage issuing happen at the bar instead of being auto-claimed inside the fight turn.
+- Extended the persistent fight wrapper into a Korchmar/Shynok quest chain: `13 -> 23 -> 42 -> 93` won ordinary solo fights, each with a separate one-time reward and cosmetic proof item.
+- Added explicit Shynok handoff for ready problem stages: the Quest Hub routes to `🍻 Шинок`, where stage turn-in and taking the next stage are separate player actions instead of automatic fight/turn-in side effects.
 - Added fresh per-stage counting based on the stage issue timestamp: new stages count only won ordinary solo fights created after that stage was issued.
 - Added a separate post-fight problem-chain progress ping after newly won ordinary solo fights, keeping the main combat result short while showing the current stage counter immediately.
 - Extended the post-fight progress ping to combine multiple moved quest counters, including active Yeger unquiet progress when the defeated monster qualifies.
@@ -20,10 +20,10 @@ This project follows a simple pre-1.0 versioning policy:
 - Added opt-in local `/dev_heal [HP]` for playtesting HP recovery without changing XP, gold or items.
 
 ### Guardrails
-- Training doppelganger sessions remain excluded from the problem chain and do not grant Korhmar quest progress.
+- Training doppelganger sessions remain excluded from the problem chain and do not grant Korchmar quest progress.
 - Lost, fled and expired fights still do not count toward problem stages.
 - `Крендель солоної обіцянки` is no longer tagged as `unquiet`, so it does not count toward the Yeger unquiet quest.
-- Existing `quest.thirteen-small-problems` completions remain compatible: players who already claimed the old 13-problem reward can turn in to receive the 23-problem stage without duplicating the old reward.
+- Existing `quest.thirteen-small-problems` completions remain compatible: players who already claimed the old 13-problem reward can take the 23-problem stage without duplicating the old reward.
 
 ### Not Included
 - No new schema migration, production dependency, duel invites, PvP ledger, donor/payment state, group raid, broad quest engine or repeatable reward farm.

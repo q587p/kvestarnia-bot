@@ -194,6 +194,7 @@ import {
   presentFightNoCharacter,
   buildProblemQuestProgressAfterFightEntry,
   type QuestProgressAfterFightEntry,
+  presentProblemQuestIssueNext,
   presentProblemQuestTurnIn,
   presentQuestProgressAfterFight,
   presentFightResult,
@@ -1198,7 +1199,7 @@ async function handlePlaceCallback(
   }
 
   if (action === "bar") {
-    await sendKorchmaBar(ctx, services.tavern, services.presence, "edit", services.cellarGrownup);
+    await sendKorchmaBar(ctx, services.tavern, services.presence, "edit", services.cellarGrownup, services.fight);
     return;
   }
 
@@ -1270,7 +1271,7 @@ async function handleQuestCallback(
     return;
   }
 
-  if (action === "problem") {
+  if (action === "problem" || action === "problem-next") {
     if (!telegramUserId) {
       await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
       return;
@@ -1291,6 +1292,31 @@ async function handleQuestCallback(
       return;
     }
 
+    if (place.locationId !== PRESENCE_LOCATION_KORCHMA_BAR) {
+      await sendKorchmaBar(ctx, services.tavern, services.presence, "edit", services.cellarGrownup, services.fight);
+      return;
+    }
+
+    if (action === "problem-next") {
+      const result = await services.fight.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+      if (result.state === "no-character") {
+        await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
+        return;
+      }
+
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+        currentRaidId: null,
+        currentAdventureId: null
+      });
+      await safeEditMessageText(ctx, presentProblemQuestIssueNext(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildKorchmaBarKeyboard()
+      });
+      return;
+    }
+
     const result = await services.fight.turnInProblemQuestForTelegramUser(telegramUserId);
 
     if (result.state === "no-character") {
@@ -1305,7 +1331,11 @@ async function handleQuestCallback(
     });
     await safeEditMessageText(ctx, presentProblemQuestTurnIn(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildKorchmaBarKeyboard()
+      reply_markup: buildKorchmaBarKeyboard({
+        ...(result.state === "turned-in" && result.result.nextStage
+          ? { problemQuestAction: "next" }
+          : {})
+      })
     });
     return;
   }

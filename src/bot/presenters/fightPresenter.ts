@@ -4,6 +4,7 @@ import type { CombatTurnSummary } from "../../domain/combat";
 import type {
   FightLookupResult,
   FightResult,
+  ProblemQuestIssueNextLookupResult,
   ProblemQuestTurnInLookupResult,
   PersistentFightTurnResult,
   ThirteenSmallProblemsProgress
@@ -471,9 +472,7 @@ export function presentProblemQuestTurnIn(result: Exclude<ProblemQuestTurnInLook
   if (result.result.nextStage) {
     lines.push(
       "",
-      result.result.nextStageIssued
-        ? `Нова справа відкрита: <i>${escapeHtml(result.result.nextStage.title)}</i>. Лічильник починається з нуля, без старих подвигів у кишені.`
-        : `Наступна справа вже лежить на столі: <i>${escapeHtml(result.result.nextStage.title)}</i>.`
+      `Корчмар дістає наступний папірець: <i>${escapeHtml(result.result.nextStage.title)}</i>. Якщо беретеся — скажіть йому в Шинку, хай відкриє новий лічильник.`
     );
   } else {
     lines.push(
@@ -483,6 +482,43 @@ export function presentProblemQuestTurnIn(result: Exclude<ProblemQuestTurnInLook
   }
 
   return lines.join("\n");
+}
+
+export function presentProblemQuestIssueNext(
+  result: Exclude<ProblemQuestIssueNextLookupResult, { state: "no-character" }>
+): string {
+  if (result.state === "branch-complete") {
+    return [
+      "🍺 <b>Корчмар ховає чисті бланки</b>",
+      presentCharacterHeader(result.character),
+      "",
+      "Ця гілка проблем поки закрита. Далі навіть журнал робить вигляд, що йому треба перерва."
+    ].join("\n");
+  }
+
+  if (result.state === "not-available") {
+    return [
+      "🍺 <b>Корчмар притримує папірець</b>",
+      presentCharacterHeader(result.character),
+      "",
+      `<i>${escapeHtml(result.progress.title)}</i>: ${result.progress.wins}/${result.progress.target}.`,
+      "",
+      result.progress.rewardClaimed
+        ? "Наступної справи тут не видно. Можливо, вона вже втекла в архів."
+        : "Спершу здайте поточну справу, тоді Корчмар дістане наступну."
+    ].join("\n");
+  }
+
+  return [
+    "🍺 <b>Корчмар відкриває нову справу</b>",
+    presentCharacterHeader(result.character),
+    "",
+    `<i>${escapeHtml(result.nextStage.title)}</i> видано. Лічильник починається з нуля, без старих подвигів у кишені.`,
+    "",
+    result.issued === "already-issued"
+      ? "Цей папірець уже лежав у журналі. Корчмар просто постукав по ньому для драматичного ефекту."
+      : "Корчмар ставить чисту риску й робить вигляд, що це оптимізм."
+  ].join("\n");
 }
 
 function presentTurnSummary(summary: CombatTurnSummary): string {

@@ -177,7 +177,7 @@ export interface ProblemQuestTurnInResult {
   reward: FightReward;
   levelChange: RewardLevelChange | null;
   nextStage: ProblemQuestStage | null;
-  nextStageIssued: boolean;
+  nextStageAvailable: boolean;
   branchComplete: boolean;
 }
 
@@ -200,6 +200,19 @@ export type ProblemQuestTurnInLookupResult =
       character: CharacterSummary;
       progress: ProblemQuestProgress;
       result: ProblemQuestTurnInResult;
+    };
+
+export type ProblemQuestIssueNextLookupResult =
+  | { state: "no-character" }
+  | { state: "not-available"; character: CharacterSummary; progress: ProblemQuestProgress }
+  | { state: "branch-complete"; character: CharacterSummary; progress: ProblemQuestProgress }
+  | {
+      state: "issued";
+      character: CharacterSummary;
+      progress: ProblemQuestProgress;
+      stage: ProblemQuestStage;
+      nextStage: ProblemQuestStage;
+      issued: "created" | "already-issued";
     };
 
 export type FightLookupResult =
@@ -972,18 +985,6 @@ export class FightService {
     }
 
     const nextStage = stage.nextStageId ? getProblemQuestStage(stage.nextStageId) : null;
-    let nextStageIssued = false;
-
-    if (nextStage) {
-      const issued = await this.dailyActions.claimForTelegramUser(telegramUserId, {
-        key: nextStage.issueKey,
-        localDate: PROBLEM_QUEST_BUCKET,
-        rewardXp: 0,
-        rewardGold: 0,
-        itemGrants: []
-      });
-      nextStageIssued = issued?.state === "created";
-    }
 
     return {
       state: "turned-in",
@@ -1000,9 +1001,58 @@ export class FightService {
         },
         levelChange: claim.levelChange,
         nextStage,
-        nextStageIssued,
+        nextStageAvailable: nextStage !== null,
         branchComplete: nextStage === null
       }
+    };
+  }
+
+  async issueNextProblemQuestForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<ProblemQuestIssueNextLookupResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+    const progress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+
+    if (progress.branchComplete) {
+      return { state: "branch-complete", character: characterSummary, progress };
+    }
+
+    if (!progress.rewardClaimed) {
+      return { state: "not-available", character: characterSummary, progress };
+    }
+
+    const stage = getProblemQuestStage(progress.stageId);
+    const nextStage = stage.nextStageId ? getProblemQuestStage(stage.nextStageId) : null;
+
+    if (!nextStage) {
+      return { state: "branch-complete", character: characterSummary, progress };
+    }
+
+    const issued = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+      key: nextStage.issueKey,
+      localDate: PROBLEM_QUEST_BUCKET,
+      rewardXp: 0,
+      rewardGold: 0,
+      itemGrants: []
+    });
+
+    if (!issued) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "issued",
+      character: summarizeCharacter(issued.character),
+      progress: await this.getThirteenSmallProblemsProgress(telegramUserId),
+      stage,
+      nextStage,
+      issued: issued.state === "created" ? "created" : "already-issued"
     };
   }
 

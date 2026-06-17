@@ -116,6 +116,22 @@ describe("scene callback HTML options", () => {
       name: "problem quest turn-in",
       callbackData: makeQuestCallbackData("problem"),
       services: servicesWith({
+        presence: {
+          markAction: () => Promise.resolve(),
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.bar",
+              locationName: "Шинок",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
         fight: {
           turnInProblemQuestForTelegramUser: () =>
             Promise.resolve({
@@ -172,7 +188,7 @@ describe("scene callback HTML options", () => {
                   rewardKey: "quest.problem-chain.23.reward",
                   nextStageId: "42"
                 },
-                nextStageIssued: true,
+                nextStageAvailable: true,
                 branchComplete: false
               }
             })

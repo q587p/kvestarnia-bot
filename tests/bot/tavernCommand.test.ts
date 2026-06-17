@@ -1,6 +1,7 @@
 ﻿import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
+import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import {
   sendKorchmaArrivalBoard,
   sendKorchmaBar,
@@ -10,6 +11,7 @@ import {
 } from "../../src/bot/commands/tavernCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
+import type { FightService } from "../../src/services/fightService";
 import type { PresenceService } from "../../src/services/presenceService";
 import type { LevelMilestoneService } from "../../src/services/levelMilestoneService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
@@ -137,6 +139,54 @@ describe("tavern command screens", () => {
               callback_data: makePlaceCallbackData("hall")
             }
           ]
+        ]
+      }
+    });
+  });
+
+  it("offers problem quest turn-in from the Шинок when a stage is ready", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      problemQuestFightService({ completed: true, rewardClaimed: false })
+    );
+
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🍻 Всім пива", callback_data: "v1:tavern:round" }],
+          [{ text: "📋 Здати справу", callback_data: makeQuestCallbackData("problem") }],
+          [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
+        ]
+      }
+    });
+  });
+
+  it("offers the next problem quest from the Шинок after turn-in", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      problemQuestFightService({ completed: true, rewardClaimed: true })
+    );
+
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🍻 Всім пива", callback_data: "v1:tavern:round" }],
+          [{ text: "📋 Взяти наступну справу", callback_data: makeQuestCallbackData("problem-next") }],
+          [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
       }
     });
@@ -345,6 +395,29 @@ function bottleObtainedGrownupQuest(bottleQuantity = 1): CellarGrownupQuestServi
         bottleQuantity
       })
   } as unknown as CellarGrownupQuestService;
+}
+
+function problemQuestFightService(progress: {
+  completed: boolean;
+  rewardClaimed: boolean;
+}): FightService {
+  return {
+    getFightOverviewForTelegramUser: () =>
+      Promise.resolve({
+        state: "persistent-ready",
+        character,
+        questProgress: {
+          stageId: "13",
+          title: "Тринадцять дрібних проблем",
+          wins: progress.completed ? 13 : 5,
+          target: 13,
+          completed: progress.completed,
+          rewardClaimed: progress.rewardClaimed,
+          issued: true,
+          branchComplete: false
+        }
+      })
+  } as unknown as FightService;
 }
 
 function levelMilestoneService(): LevelMilestoneService {

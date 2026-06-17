@@ -4,7 +4,7 @@ Created: 12026-06-17
 
 ## Runtime surface
 
-`0.1.6` extends the narrow persistent fight wrapper into a Korhmar/Shynok chain:
+`0.1.6` extends the narrow persistent fight wrapper into a Korchmar/Shynok chain:
 
 ```text
 13 -> 23 -> 42 -> 93
@@ -27,7 +27,7 @@ Each stage is still a small once-per-player contract over ordinary won solo figh
 - `42` can nod to the famous answer-number shape without copying specific scenes, phrasing or protected characters.
 - `93` can nod to will, ceremonial numerology and overconfident paperwork without turning into a real-world doctrine lesson.
 
-Keep references as flavor, not lecture. The player should mainly feel that Korhmar has found more papers than is healthy.
+Keep references as flavor, not lecture. The player should mainly feel that Korchmar has found more papers than is healthy.
 
 ## Guardrails
 
@@ -35,4 +35,4 @@ Keep references as flavor, not lecture. The player should mainly feel that Korhm
 - Do not make player news list exact reward XP/gold/items for each stage.
 - Do not let these stages become repeatable rewards without a separate economy review.
 - Do not route doppelganger training, duel prep or future PvP into this quest progress.
-- Keep turn-in through Korhmar/Shynok so stage issuing remains explicit and fresh counters stay understandable.
+- Keep turn-in and next-stage acceptance through Korchmar/Shynok as separate actions so stage issuing remains explicit and fresh counters stay understandable.

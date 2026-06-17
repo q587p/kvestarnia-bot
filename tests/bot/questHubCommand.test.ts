@@ -538,6 +538,7 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.text)).toContain("🍻 До Шинку");
     expect(buttons.map((button) => button.text)).toContain("📋 До запису бою");
   });
 

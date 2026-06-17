@@ -996,7 +996,7 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
       "🕯️ Реморт",
       "🥊 Бійцівський куток",
-      "🍺 До Корчмаря",
+      "🍻 До Шинку",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
       "📦 Архів",

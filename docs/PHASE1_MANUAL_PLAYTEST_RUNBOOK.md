@@ -54,7 +54,7 @@
 
 1. Підійми або підсій level 3 character.
 2. Відкрий `/quest`.
-3. Перевір, що поточний Korhmar problem-chain етап видно як quest/contract row, а не як просто «fight».
+3. Перевір, що поточний Korchmar problem-chain етап видно як quest/contract row, а не як просто «fight».
 4. Запусти `/fight` або зайди в persistent fight через quest table.
 5. Переконайся, що видно HP героя, HP монстра, mana, turn number і last turn/result.
 6. Натисни кілька turn buttons.
@@ -71,26 +71,29 @@
 
 | Step | Expected | Observed | Pass/Fail | Notes |
 |---|---|---|---|---|
-| 3 | Поточний Korhmar problem-chain етап видно як справу |  |  |  |
+| 3 | Поточний Korchmar problem-chain етап видно як справу |  |  |  |
 | 5 | Видно HP/mana/turn/last result |  |  |  |
 | 8 | Stale callback не дублює хід |  |  |  |
 | 10 | Loss/flee/expiry не рахуються як win |  |  |  |
 | 11 | Win increments quest counter |  |  |  |
 | 12 | Win reward shown once, replay does not duplicate |  |  |  |
 
-## Script C — Korhmar problem-chain turn-in
+## Script C — Korchmar problem-chain turn-in
 
 Цей сценарій перевіряє wrapper reward із `0.0.21+` / chain turn-in із `0.1.6+` і має відрізняти його від per-session fight reward із `0.0.23+`.
 
 1. Дійди до `12/13` через seeded або prior wins.
 2. Зроби ще одну перемогу в persistent fight.
 3. Переконайся, що бій позначає етап ready, але не auto-claim-ить fixed wrapper reward.
-4. Відкрий `/quest` і натисни `🍺 До Корчмаря`.
-5. Переконайся, що Корчмар видає рівно одну fixed wrapper reward і відкриває наступний етап зі свіжим лічильником.
-6. Повтори callback.
-7. Переконайся, що XP, золото або item не дублюються.
-8. Перевір, що старі зайві перемоги не закривають наступний етап автоматично.
-9. Перевір, що копірайт відрізняє wrapper reward від `Винагорода за бій`, якщо обидва блоки показані поруч у сценарії.
+4. Відкрий `/quest` і натисни `🍻 До Шинку`.
+5. У Шинку натисни `📋 Здати справу`.
+6. Переконайся, що Корчмар видає рівно одну fixed wrapper reward і лише пропонує наступний етап.
+7. Натисни `📋 Взяти наступну справу`.
+8. Переконайся, що наступний етап відкрився зі свіжим лічильником.
+9. Повтори старий callback здачі.
+10. Переконайся, що XP, золото або item не дублюються.
+11. Перевір, що старі зайві перемоги не закривають наступний етап автоматично.
+12. Перевір, що копірайт відрізняє wrapper reward від `Винагорода за бій`, якщо обидва блоки показані поруч у сценарії.
 
 ### Expected wrapper reward for `0.0.21+`
 

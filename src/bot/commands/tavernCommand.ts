@@ -11,6 +11,7 @@ import type { TavernRaidService } from "../../services/tavernRaidService";
 import type { LevelMilestoneService } from "../../services/levelMilestoneService";
 import type { RemortService } from "../../services/remortService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
+import type { FightLookupResult, FightService, ProblemQuestProgress } from "../../services/fightService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildKorchmaArrivalBoardKeyboard,
@@ -219,7 +220,8 @@ export async function sendKorchmaBar(
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
   mode: "reply" | "edit",
-  cellarGrownupQuestService?: CellarGrownupQuestService
+  cellarGrownupQuestService?: CellarGrownupQuestService,
+  fightService?: FightService
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -239,10 +241,15 @@ export async function sendKorchmaBar(
   const cellarGrownup = cellarGrownupQuestService
     ? await cellarGrownupQuestService.getForTelegramUser(telegramUserId)
     : null;
+  const fight = fightService
+    ? await fightService.getFightOverviewForTelegramUser(telegramUserId)
+    : null;
+  const problemQuestAction = getProblemQuestBarAction(fight);
   await sendText(ctx, mode, presentKorchmaBar(result.character), {
     state: "bar",
     includeBottleTurnIn:
-      cellarGrownup?.state === "bottle-obtained" && cellarGrownup.bottleQuantity > 0
+      cellarGrownup?.state === "bottle-obtained" && cellarGrownup.bottleQuantity > 0,
+    ...(problemQuestAction ? { problemQuestAction } : {})
   });
 }
 
@@ -322,7 +329,7 @@ async function sendText(
     | boolean
     | "hall"
     | { state: "hall"; characterLevel?: number }
-    | { state: "bar"; includeBottleTurnIn?: boolean }
+    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "next" }
     | "front"
     | "arrivals"
     | "memorial"
@@ -341,7 +348,8 @@ async function sendText(
                 )
             : isBarKeyboard(keyboard)
               ? buildKorchmaBarKeyboard({
-                  includeBottleTurnIn: Boolean(keyboard.includeBottleTurnIn)
+                  includeBottleTurnIn: Boolean(keyboard.includeBottleTurnIn),
+                  ...(keyboard.problemQuestAction ? { problemQuestAction: keyboard.problemQuestAction } : {})
                 })
             : keyboard === "front"
               ? buildKorchmaFrontKeyboard()
@@ -370,14 +378,14 @@ function isBarKeyboard(
     | boolean
     | "hall"
     | { state: "hall"; characterLevel?: number }
-    | { state: "bar"; includeBottleTurnIn?: boolean }
+    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "next" }
     | "front"
     | "arrivals"
     | "memorial"
     | "barrel-result"
     | "barrel-pending"
     | "barrel-participants"
-): keyboard is { state: "bar"; includeBottleTurnIn?: boolean } {
+): keyboard is { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "next" } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "bar";
 }
 
@@ -386,7 +394,7 @@ function isHallKeyboard(
     | boolean
     | "hall"
     | { state: "hall"; characterLevel?: number }
-    | { state: "bar"; includeBottleTurnIn?: boolean }
+    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "next" }
     | "front"
     | "arrivals"
     | "memorial"
@@ -395,4 +403,34 @@ function isHallKeyboard(
     | "barrel-participants"
 ): keyboard is { state: "hall"; characterLevel?: number } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "hall";
+}
+
+function getProblemQuestBarAction(fight: FightLookupResult | null): "turn-in" | "next" | undefined {
+  if (
+    fight?.state !== "persistent-ready" &&
+    fight?.state !== "persistent-active" &&
+    fight?.state !== "persistent-terminal"
+  ) {
+    return undefined;
+  }
+
+  return getProblemQuestBarActionFromProgress(fight.questProgress);
+}
+
+function getProblemQuestBarActionFromProgress(
+  progress: ProblemQuestProgress
+): "turn-in" | "next" | undefined {
+  if (progress.branchComplete) {
+    return undefined;
+  }
+
+  if (progress.completed && !progress.rewardClaimed) {
+    return "turn-in";
+  }
+
+  if (progress.rewardClaimed && progress.stageId !== "93") {
+    return "next";
+  }
+
+  return undefined;
 }
