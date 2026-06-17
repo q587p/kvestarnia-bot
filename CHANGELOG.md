@@ -7,6 +7,18 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.7] - 12026-06-17 - Problem Quest First Paper Recovery
+
+### Fixed
+- Restored legacy-compatible progress for the first Korchmar problem stage: old ordinary won solo fights toward `Тринадцять дрібних проблем` are visible again even before the first explicit Shynok paper is taken.
+- Taking the first Shynok paper no longer resets safe old `13`-stage progress, so over-complete players can recover the paper and then turn in the stage through the normal Korchmar flow.
+- Unissued first-stage progress cannot be turned in through a stale direct callback; the player must take the paper first, preserving the explicit issue/turn-in path.
+
+### Guardrails
+- Already-claimed `quest.thirteen-small-problems` rewards still do not duplicate; they only allow the player to take the next `23`-problem paper.
+- Stages `23`, `42` and `93` still use fresh counters from their own issue timestamps.
+- No schema migration, broad quest engine, duel/PvP behavior, donor/payment state or repeatable reward farm.
+
 ## [0.1.6] - 12026-06-17 - Korchmar Problem Quest Chain
 
 ### Added

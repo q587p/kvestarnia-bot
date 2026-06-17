@@ -591,7 +591,7 @@ describe("quest hub command", () => {
               state: "persistent-not-issued",
               character: grownCharacter,
               questProgress: {
-                ...questProgress(0),
+                ...questProgress(3),
                 issued: false
               }
             }),
@@ -604,7 +604,7 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain(
-      "📋 <i>Тринадцять дрібних проблем</i> — Корчмар має папірець у шинку. Спершу візьміть справу там."
+      "📋 <i>Тринадцять дрібних проблем</i> — 3/13 проблем у старому журналі; Корчмар має папірець у шинку, спершу візьміть справу там."
     );
     expect(replies[0]?.text).not.toContain("0/13 проблем у журналі");
     const buttons = (
