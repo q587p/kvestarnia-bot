@@ -11,7 +11,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Fixed
 - Clarified Quest Hub navigation around `Стіл зі справами`: active fights, terminal fight records, archive, hunt, cellar and hall routes now use more explicit button labels and return paths.
-- Tightened presence routing for quest-table list/archive callbacks while keeping place and quest/fight action callbacks neutral until their handlers pass Barrel, location and stale-button gates.
+- Kept Quest Hub list/archive callbacks neutral in middleware; successful Quest Hub handlers write quest-table presence only after Barrel, location and stale-button gates pass.
 - Aligned Hlybka/Глибка docs with current runtime scope: Глибка remains deferred, and this release does not add a dungeon route.
 
 ### Not Included

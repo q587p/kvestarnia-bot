@@ -9,7 +9,6 @@ import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
-  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../src/services/presenceService";
 
@@ -56,22 +55,8 @@ describe("presence routing", () => {
     ["v1:chest:open", {}],
     ["v1:lvlx:confirm:abc123", {}],
     ["v1:quest:fight", {}],
-    [
-      "v1:quest:archive",
-      {
-        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-        currentRaidId: null,
-        currentAdventureId: null
-      }
-    ],
-    [
-      "v1:quest:list",
-      {
-        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-        currentRaidId: null,
-        currentAdventureId: null
-      }
-    ],
+    ["v1:quest:archive", {}],
+    ["v1:quest:list", {}],
     ["v1:place:hall", {}],
     ["v1:place:front", {}],
     ["v1:place:quest-table", {}],
@@ -108,7 +93,14 @@ describe("presence routing", () => {
     expect(getCallbackPresenceContext("v1:unknown:thing")).toBeNull();
   });
 
-  it.each(["v1:quest:adventure", "v1:quest:fight", "v1:quest:hunt", "v1:quest:cellar"])(
+  it.each([
+    "v1:quest:adventure",
+    "v1:quest:fight",
+    "v1:quest:hunt",
+    "v1:quest:cellar",
+    "v1:quest:list",
+    "v1:quest:archive"
+  ])(
     "keeps quest action callback %s neutral until handler gates pass",
     (data) => {
       expect(getCallbackPresenceContext(data)).toEqual({});
