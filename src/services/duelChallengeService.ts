@@ -211,6 +211,10 @@ export class DuelChallengeService {
 
     const challenger = summarizeDuelCharacter(before.challenger);
 
+    if (before.status !== "pending") {
+      return this.viewChallenge(before, now);
+    }
+
     if (before.challenger.telegramUserId !== telegramUserId) {
       return { state: "not-owner", challenge: before, challenger };
     }
@@ -232,6 +236,10 @@ export class DuelChallengeService {
     }
 
     const challenger = summarizeDuelCharacter(before.challenger);
+
+    if (before.status !== "pending") {
+      return this.viewChallenge(before, now);
+    }
 
     if (!before.targetCharacterId) {
       void telegramUserId;

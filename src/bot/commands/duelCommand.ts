@@ -24,12 +24,14 @@ import {
   presentDuelView
 } from "../presenters/duelPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
+import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
 };
+type AnswerCallbackQueryOptions = Parameters<Context["answerCallbackQuery"]>[0];
 
 export interface DuelCommandOptions {
   presence: PresenceService;
@@ -92,13 +94,24 @@ export async function handleDuelCallback(
   options: DuelCommandOptions
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
+  let answered = false;
+  const answerCallback = async (options?: AnswerCallbackQueryOptions): Promise<void> => {
+    if (answered) {
+      return;
+    }
+
+    answered = true;
+    await safeAnswerCallbackQuery(ctx, options);
+  };
 
   if (!telegramUserId) {
+    await answerCallback();
     await sendText(ctx, "edit", "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
     return;
   }
 
   if (await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options.tavernRaid, "edit")) {
+    await answerCallback();
     return;
   }
 
@@ -106,11 +119,13 @@ export async function handleDuelCallback(
     const place = await options.presence.getCurrentPlaceForTelegramUser(telegramUserId);
 
     if (place.state === "no-character") {
+      await answerCallback();
       await sendText(ctx, "edit", presentDuelCreate({ state: "no-character" }), "entry");
       return;
     }
 
     if (!place.insideKorchma) {
+      await answerCallback();
       await sendText(ctx, "edit", presentKorchmaQuestGate(), "enter-korchma");
       return;
     }
@@ -119,6 +134,7 @@ export async function handleDuelCallback(
       contextChatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null
     });
     await markDuelPresence(ctx, options.presence);
+    await answerCallback();
     await sendText(
       ctx,
       "edit",
@@ -133,6 +149,7 @@ export async function handleDuelCallback(
       ignoreResourceWarning: callback.type === "accept-risk"
     });
     await markDuelPresence(ctx, options.presence);
+    await answerCallback();
     await sendText(
       ctx,
       "edit",
@@ -148,6 +165,13 @@ export async function handleDuelCallback(
 
   if (callback.type === "cancel") {
     const result = await service.cancelForTelegramUser(telegramUserId, callback.token);
+
+    if (result.state === "not-owner") {
+      await answerCallback({ text: "Це чужий виклик. Скасувати може тільки автор." });
+      return;
+    }
+
+    await answerCallback();
     await sendText(
       ctx,
       "edit",
@@ -159,6 +183,13 @@ export async function handleDuelCallback(
 
   if (callback.type === "decline") {
     const result = await service.declineForTelegramUser(telegramUserId, callback.token);
+
+    if (result.state === "open-invite") {
+      await answerCallback({ text: "Ви не прийняли виклик. Він лишається на столі для інших." });
+      return;
+    }
+
+    await answerCallback();
     await sendText(
       ctx,
       "edit",
@@ -169,6 +200,7 @@ export async function handleDuelCallback(
   }
 
   const result = await service.getByToken(callback.token);
+  await answerCallback();
   await sendText(
     ctx,
     "edit",

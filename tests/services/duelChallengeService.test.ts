@@ -104,6 +104,71 @@ describe("DuelChallengeService", () => {
     expect(replay).toMatchObject({ state: "resolved" });
   });
 
+  it("keeps open invites pending when bystanders cancel or decline", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n);
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    await expect(service.cancelForTelegramUser(2n, created.challenge.inviteToken)).resolves.toMatchObject({
+      state: "not-owner"
+    });
+    expect(world.challenges.get(created.challenge.inviteToken)?.status).toBe("pending");
+
+    await expect(service.declineForTelegramUser(2n, created.challenge.inviteToken)).resolves.toMatchObject({
+      state: "open-invite"
+    });
+    expect(world.challenges.get(created.challenge.inviteToken)?.status).toBe("pending");
+  });
+
+  it("replays terminal open invite state before owner or open-invite guards", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n);
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    await service.cancelForTelegramUser(1n, created.challenge.inviteToken);
+
+    await expect(service.cancelForTelegramUser(2n, created.challenge.inviteToken)).resolves.toMatchObject({
+      state: "cancelled"
+    });
+    await expect(service.declineForTelegramUser(2n, created.challenge.inviteToken)).resolves.toMatchObject({
+      state: "cancelled"
+    });
+  });
+
+  it("replays expired open invites before open-invite decline handling", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n);
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    world.challenges.set(created.challenge.inviteToken, {
+      ...created.challenge,
+      expiresAt: new Date("2026-06-17T17:59:00.000Z")
+    });
+
+    await expect(service.declineForTelegramUser(2n, created.challenge.inviteToken)).resolves.toMatchObject({
+      state: "expired"
+    });
+    expect(world.challenges.get(created.challenge.inviteToken)?.status).toBe("expired");
+  });
+
   it("builds winner boards from resolved non-draw duels", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n, { name: "Пані Сила" });

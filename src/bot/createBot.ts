@@ -536,7 +536,6 @@ export function createBot(token: string, services: BotServices, options: BotOpti
       return;
     }
 
-    await safeAnswerCallbackQuery(ctx);
     await handleDuelCallback(ctx, parsed.value, services.duel, {
       presence: services.presence,
       tavernRaid: services.tavern,
