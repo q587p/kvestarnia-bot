@@ -83,6 +83,12 @@ describe("equipment presenter", () => {
     const text = presentEquipItemResult({
       state: "requirements-not-met",
       reasons: ["min-level", "class", "race"],
+      requirements: {
+        minLevel: 10,
+        classes: ["Бюрокрамант"],
+        races: ["Людиноподібний"],
+        titles: []
+      },
       item: {
         itemId: "item.loot-v1-cloak-here-by-accident-plus-3",
         content: {
@@ -97,12 +103,40 @@ describe("equipment presenter", () => {
     } satisfies EquipItemResult);
 
     expect(text).toContain("Ще не екіпірується: Плащ «Я Тут Випадково» +3.");
-    expect(text).toContain("Потрібно: вищий рівень, сумісний клас, сумісне походження.");
+    expect(text).toContain("Потрібно: рівень 10+, клас: Бюрокрамант, походження: Людиноподібний.");
     expect(text).toContain("Це правило манатки, не помилка героя.");
     expect(text).not.toContain("<b>");
     expect(text).not.toContain("</b>");
     expect(text).not.toContain("&lt;");
     expect(text).not.toContain("іншу анкету");
+  });
+
+  it("names title requirements in denial callback text", () => {
+    const text = presentEquipItemResult({
+      state: "requirements-not-met",
+      reasons: ["title"],
+      requirements: {
+        minLevel: 6,
+        classes: [],
+        races: [],
+        titles: ["Боргомант"]
+      },
+      item: {
+        itemId: "item.loot-v1-x022-plus-2",
+        content: {
+          id: "item.loot-v1-x022-plus-2",
+          name: "Жетон Боргоманта +2",
+          description: "Маленька річ, великий привід сперечатися з балансом.",
+          rarity: "rare",
+          slot: "accessory",
+          goldValue: 613
+        }
+      }
+    } satisfies EquipItemResult);
+
+    expect(text).toContain("Ще не екіпірується: Жетон Боргоманта +2.");
+    expect(text).toContain("Потрібно: титул: Боргомант.");
+    expect(text).not.toContain("відповідний титул");
   });
 });
 

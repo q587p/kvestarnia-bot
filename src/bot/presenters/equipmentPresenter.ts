@@ -3,6 +3,7 @@ import type {
   EquipmentSlot,
   EquipmentSlotSummary,
   EquipItemResult,
+  ItemEquipPreviewResult,
   UnequipSlotResult
 } from "../../services/equipmentService";
 import { presentItemEffect } from "./itemEffectPresenter";
@@ -19,6 +20,10 @@ type EquipRequirementReason = Extract<
   EquipItemResult,
   { state: "requirements-not-met" }
 >["reasons"][number];
+type EquipRequirementDetails = Extract<
+  ItemEquipPreviewResult,
+  { state: "requirements-not-met" | "can-equip" }
+>["requirements"];
 
 const equipmentSlots: readonly SlotView[] = [
   { id: "weapon", icon: "🗡️", label: "Зброя", emptyText: "стійка чекає важкий аргумент." },
@@ -57,7 +62,7 @@ export function presentEquipItemResult(result: EquipItemResult): string {
 
   if (result.state === "requirements-not-met") {
     const itemName = plainTextForCallback(result.item.content.name);
-    const reasons = presentEquipRequirementReasons(result.reasons);
+    const reasons = presentEquipRequirementReasons(result.reasons, result.requirements);
 
     return [
       `Ще не екіпірується: ${itemName}.`,
@@ -113,23 +118,42 @@ function intersperseBlankLines(lines: string[]): string[] {
   return lines.flatMap((line, index) => (index === 0 ? [line] : ["", line]));
 }
 
-function presentEquipRequirementReasons(reasons: readonly EquipRequirementReason[]): string {
+function presentEquipRequirementReasons(
+  reasons: readonly EquipRequirementReason[],
+  requirements: EquipRequirementDetails
+): string {
   const labels = reasons.map((reason) => {
     switch (reason) {
       case "min-level":
-        return "вищий рівень";
+        return requirements ? `рівень ${requirements.minLevel}+` : "вищий рівень";
       case "class":
-        return "сумісний клас";
+        return requirements?.classes.length
+          ? `клас: ${joinRequirementList(requirements.classes)}`
+          : "сумісний клас";
       case "race":
-        return "сумісне походження";
+        return requirements?.races.length
+          ? `походження: ${joinRequirementList(requirements.races)}`
+          : "сумісне походження";
       case "title":
-        return "відповідний титул";
+        return requirements?.titles.length
+          ? `титул: ${joinRequirementList(requirements.titles)}`
+          : "відповідний титул";
       case "unknown-item":
         return "відомі правила предмета";
     }
   });
 
   return [...new Set(labels)].join(", ");
+}
+
+function joinRequirementList(values: readonly string[]): string {
+  const unique = [...new Set(values)];
+
+  if (unique.length <= 1) {
+    return unique[0] ?? "";
+  }
+
+  return unique.slice(0, -1).join(", ") + " або " + unique.at(-1);
 }
 
 function plainTextForCallback(value: string): string {

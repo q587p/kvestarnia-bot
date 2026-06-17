@@ -25,6 +25,9 @@ This project follows a simple pre-1.0 versioning policy:
 - `Крендель солоної обіцянки` is no longer tagged as `unquiet`, so it does not count toward the Yeger unquiet quest.
 - Existing `quest.thirteen-small-problems` completions remain compatible: players who already claimed the old 13-problem reward can take the 23-problem stage without duplicating the old reward.
 
+### Fixed
+- Item detail and equip denial copy now name concrete generated-loot requirements, such as `титул: Боргомант`, and no longer claim a blocked item can be equipped.
+
 ### Not Included
 - No new schema migration, production dependency, duel invites, PvP ledger, donor/payment state, group raid, broad quest engine or repeatable reward farm.
 

@@ -831,13 +831,17 @@ async function handleItemCallback(
 
   const result = await services.inventory.getItemForTelegramUser(telegramUserId, action.itemId);
   const equipment = await services.equipment.getEquipmentForTelegramUser(telegramUserId);
+  const equipPreview = await services.equipment.previewItemEquipForTelegramUser(
+    telegramUserId,
+    action.itemId
+  );
   const equippedSlot =
     equipment.state === "ready"
       ? (equipment.slots.find((slot) => slot.item?.itemId === action.itemId)?.slot ?? null)
       : null;
 
   await safeAnswerCallbackQuery(ctx);
-  await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot }), {
+  await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot, equipPreview }), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot)
   });

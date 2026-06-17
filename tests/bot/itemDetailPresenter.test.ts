@@ -141,6 +141,56 @@ describe("item detail presenter", () => {
     expect(text).not.toContain("Бонуси ще не рахуються");
   });
 
+  it("shows concrete blocked equipment requirements in item details", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        itemId: "item.loot-v1-x022-plus-2",
+        content: {
+          id: "item.loot-v1-x022-plus-2",
+          name: "Жетон Боргоманта +2",
+          description: "Маленька річ, великий привід сперечатися з балансом.",
+          rarity: "rare",
+          slot: "accessory",
+          goldValue: 613,
+          effect: {
+            luck: 2,
+            charisma: 3
+          }
+        }
+      }),
+      {
+        equipPreview: {
+          state: "requirements-not-met",
+          reasons: ["title"],
+          requirements: {
+            minLevel: 6,
+            classes: [],
+            races: [],
+            titles: ["Боргомант"]
+          },
+          item: {
+            itemId: "item.loot-v1-x022-plus-2",
+            content: {
+              id: "item.loot-v1-x022-plus-2",
+              name: "Жетон Боргоманта +2",
+              description: "Маленька річ, великий привід сперечатися з балансом.",
+              rarity: "rare",
+              slot: "accessory",
+              goldValue: 613
+            }
+          },
+          slot: "accessory"
+        }
+      }
+    );
+
+    expect(text).toContain("Екіпірування: <i>зараз не можна екіпірувати.");
+    expect(text).toContain("Потрібно: титул: Боргомант.");
+    expect(text).not.toContain("Екіпірування: <i>можна екіпірувати");
+    expect(text).not.toContain("Спорядження вже звільняє місце");
+    expect(text).not.toContain("відповідний титул");
+  });
+
   it("escapes unsafe item names and descriptions", () => {
     const text = presentOwnedItemDetail(
       itemSummary({

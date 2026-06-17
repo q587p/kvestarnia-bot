@@ -107,6 +107,53 @@ describe("EquipmentService", () => {
     });
   });
 
+  it("previews concrete title requirements for expansion equipment", async () => {
+    const service = createService({
+      inventoryRows: [buildItem({ itemId: "item.loot-v1-x022-plus-2" })],
+      character: buildCharacter({ level: 8, classId: "class.warrior" })
+    });
+
+    await expect(
+      service.previewItemEquipForTelegramUser(telegramUserId, "item.loot-v1-x022-plus-2")
+    ).resolves.toMatchObject({
+      state: "requirements-not-met",
+      reasons: ["title"],
+      requirements: {
+        minLevel: 6,
+        titles: ["Боргомант"]
+      },
+      slot: "accessory",
+      item: {
+        content: {
+          name: "Жетон Боргоманта +2"
+        }
+      }
+    });
+  });
+
+  it("includes concrete title requirements when equip is denied", async () => {
+    const service = createService({
+      inventoryRows: [buildItem({ itemId: "item.loot-v1-x022-plus-2" })],
+      character: buildCharacter({ level: 8, classId: "class.warrior" })
+    });
+
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, "item.loot-v1-x022-plus-2")
+    ).resolves.toMatchObject({
+      state: "requirements-not-met",
+      reasons: ["title"],
+      requirements: {
+        minLevel: 6,
+        titles: ["Боргомант"]
+      },
+      item: {
+        content: {
+          name: "Жетон Боргоманта +2"
+        }
+      }
+    });
+  });
+
   it("allows expansion equipment when hard requirements match the character", async () => {
     const service = createService({
       inventoryRows: [buildItem({ itemId: "item.loot-v1-w027" })],
