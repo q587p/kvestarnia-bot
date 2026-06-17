@@ -294,6 +294,61 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(0);
   });
 
+  it("requires taking the first problem quest before showing or starting progress", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters, {
+      autoIssueFirstProblemStage: false
+    });
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.addWonSessions("character-42", 3);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+    const startAttempt = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "persistent-not-issued",
+      questProgress: {
+        stageId: "13",
+        wins: 0,
+        target: 13,
+        completed: false,
+        rewardClaimed: false,
+        issued: false
+      }
+    });
+    expect(startAttempt).toMatchObject({
+      state: "persistent-not-issued",
+      questProgress: {
+        issued: false,
+        wins: 0
+      }
+    });
+    expect(sessions.createCount).toBe(0);
+
+    const issued = await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    expect(issued).toMatchObject({
+      state: "issued",
+      stage: { id: "13" },
+      nextStage: { id: "13" },
+      issued: "created",
+      progress: {
+        stageId: "13",
+        issued: true,
+        wins: 0,
+        target: 13
+      }
+    });
+  });
+
   it("uses record remort count for fight level gates", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { level: 2, xp: 25, remortCount: 1 });
@@ -804,8 +859,11 @@ describe("FightService", () => {
       });
     }
     expect(sessions.updateCount).toBe(1);
-    expect(dailyActions.records).toHaveLength(1);
-    expect(dailyActions.records[0]).toMatchObject({
+    const rewardRecords = dailyActions.records.filter(
+      (record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY
+    );
+    expect(rewardRecords).toHaveLength(1);
+    expect(rewardRecords[0]).toMatchObject({
       key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
       localDate: started.session.id
     });
@@ -835,7 +893,7 @@ describe("FightService", () => {
         }
       });
     }
-    expect(dailyActions.records).toHaveLength(1);
+    expect(rewardRecords).toHaveLength(1);
   });
 
   it("limits XP to a small amount for persistent fight wins against much weaker monsters", async () => {
@@ -882,8 +940,11 @@ describe("FightService", () => {
       expect(result.character.level - result.monster.level).toBeGreaterThan(2);
       expect(result.fightReward?.reward.xp).toBe(2);
     }
-    expect(dailyActions.records).toHaveLength(1);
-    expect(dailyActions.records[0]).toMatchObject({
+    const rewardRecords = dailyActions.records.filter(
+      (record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY
+    );
+    expect(rewardRecords).toHaveLength(1);
+    expect(rewardRecords[0]).toMatchObject({
       key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
       rewardXp: 2
     });
@@ -963,9 +1024,12 @@ describe("FightService", () => {
     });
 
     expect(result.state).toBe("updated");
-    expect(dailyActions.records).toHaveLength(1);
+    const rewardRecords = dailyActions.records.filter(
+      (record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY
+    );
+    expect(rewardRecords).toHaveLength(1);
     expect(sessions.getById(started.session.id)?.reward).toBeNull();
-    const action = dailyActions.records[0];
+    const action = rewardRecords[0];
 
     const repeated = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: started.session.id,
@@ -987,7 +1051,7 @@ describe("FightService", () => {
         itemReplayUnavailable: true
       });
     }
-    expect(dailyActions.records).toHaveLength(1);
+    expect(rewardRecords).toHaveLength(1);
   });
 
   it("recovers an unclaimed reward for a terminal won session", async () => {
@@ -1023,7 +1087,10 @@ describe("FightService", () => {
       expect(typeof recovered.fightReward?.reward.xp).toBe("number");
       expect(typeof recovered.fightReward?.reward.gold).toBe("number");
     }
-    expect(dailyActions.records).toHaveLength(1);
+    const rewardRecords = dailyActions.records.filter(
+      (record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY
+    );
+    expect(rewardRecords).toHaveLength(1);
     expect(sessions.getById(wonSession.id)?.reward).not.toBeNull();
 
     const repeated = await service.resolvePersistentFightTurn(telegramUserId, {
@@ -1044,7 +1111,7 @@ describe("FightService", () => {
         }
       });
     }
-    expect(dailyActions.records).toHaveLength(1);
+    expect(rewardRecords).toHaveLength(1);
   });
 
   it("counts a won persistent fight toward thirteen small problems", async () => {
@@ -1124,8 +1191,11 @@ describe("FightService", () => {
       });
       expect(result.questProgress).toMatchObject({ wins: 0 });
     }
-    expect(dailyActions.records).toHaveLength(1);
-    expect(dailyActions.records[0]).toMatchObject({
+    const rewardRecords = dailyActions.records.filter(
+      (record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY
+    );
+    expect(rewardRecords).toHaveLength(1);
+    expect(rewardRecords[0]).toMatchObject({
       key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
       localDate: started.session.id,
       rewardXp: 1,
@@ -1155,7 +1225,7 @@ describe("FightService", () => {
         }
       });
     }
-    expect(dailyActions.records).toHaveLength(1);
+    expect(rewardRecords).toHaveLength(1);
   });
 
   it("does not grant persistent fight rewards for flee or expired sessions", async () => {
@@ -1440,6 +1510,7 @@ describe("FightService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
+    dailyActions.addAction(telegramUserId, THIRTEEN_SMALL_PROBLEMS_QUEST_KEY, PROBLEM_QUEST_BUCKET);
     dailyActions.addAction(
       telegramUserId,
       PROBLEM_QUEST_STAGES[1].issueKey,
@@ -1477,6 +1548,7 @@ describe("FightService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
+    dailyActions.addAction(telegramUserId, THIRTEEN_SMALL_PROBLEMS_QUEST_KEY, PROBLEM_QUEST_BUCKET);
     dailyActions.addAction(
       telegramUserId,
       PROBLEM_QUEST_STAGES[1].issueKey,
@@ -1925,7 +1997,10 @@ class FakeDailyActionRepository implements DailyActionRepository {
   readonly grantedItems: Array<{ itemId: string; quantity: number }> = [];
   createCount = 0;
 
-  constructor(private readonly characters: FakeCharacterRepository) {}
+  constructor(
+    private readonly characters: FakeCharacterRepository,
+    private readonly options: { autoIssueFirstProblemStage?: boolean } = {}
+  ) {}
 
   get records(): DailyActionRecord[] {
     return [...this.actions.values()];
@@ -1940,6 +2015,8 @@ class FakeDailyActionRepository implements DailyActionRepository {
     if (!character) {
       return null;
     }
+
+    this.ensureDefaultFirstProblemStageIssue(character, input);
 
     return this.actions.get(`${character.id}:${input.key}:${input.localDate}`) ?? null;
   }
@@ -1973,6 +2050,8 @@ class FakeDailyActionRepository implements DailyActionRepository {
     if (!character) {
       return null;
     }
+
+    this.ensureDefaultFirstProblemStageIssue(character, input);
 
     const claimKey = `${character.id}:${input.key}:${input.localDate}`;
     const existing = this.actions.get(claimKey);
@@ -2021,6 +2100,35 @@ class FakeDailyActionRepository implements DailyActionRepository {
         leveledUp: updatedCharacter.level > getLevelForXp(character.xp)
       }
     };
+  }
+
+  private ensureDefaultFirstProblemStageIssue(
+    character: CharacterRecord,
+    input: { key: string; localDate: string }
+  ): void {
+    if (
+      this.options.autoIssueFirstProblemStage === false ||
+      input.key !== PROBLEM_QUEST_STAGES[0].issueKey ||
+      input.localDate !== PROBLEM_QUEST_BUCKET
+    ) {
+      return;
+    }
+
+    const key = `${character.id}:${input.key}:${input.localDate}`;
+
+    if (this.actions.has(key)) {
+      return;
+    }
+
+    this.actions.set(key, {
+      id: `daily-action-${this.actions.size + 1}`,
+      characterId: character.id,
+      key: input.key,
+      localDate: input.localDate,
+      rewardXp: 0,
+      rewardGold: 0,
+      createdAt: new Date("2026-06-12T00:00:00.000Z")
+    });
   }
 }
 

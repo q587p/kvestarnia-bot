@@ -155,11 +155,14 @@ describe("Yeger presenter", () => {
     const text = presentYegerTrackingStart({
       yegerProgress: { wins: 1, target: 5 },
       thirteenProgress: {
+        stageId: "13",
         title: "Тринадцять дрібних проблем",
         wins: 2,
         target: 13,
         completed: false,
-        rewardClaimed: false
+        rewardClaimed: false,
+        issued: true,
+        branchComplete: false
       }
     });
 
@@ -175,11 +178,14 @@ describe("Yeger presenter", () => {
     const text = presentYegerTrackingStart({
       yegerProgress: { wins: 0, target: 5 },
       thirteenProgress: {
+        stageId: "13",
         title: "Тринадцять дрібних проблем",
         wins: 13,
         target: 13,
         completed: true,
-        rewardClaimed: true
+        rewardClaimed: true,
+        issued: true,
+        branchComplete: false
       }
     });
 

@@ -245,6 +245,58 @@ describe("fight command", () => {
       }
     });
   });
+
+  it("routes unissued problem quests to the Шинок instead of starting a fight", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+    const fightService = {
+      getFightForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-not-issued",
+          character: {
+            ...character,
+            level: 3
+          },
+          questProgress: {
+            ...questProgress(0),
+            issued: false
+          }
+        })
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply", {
+      presence,
+      requireKorchmaInterior: true
+    });
+
+    expect(replies[0]?.text).toContain("Бій ще не відкрито");
+    expect(replies[0]?.text).toContain("Спершу візьміть справу");
+    expect(replies[0]?.text).toContain("Шинку");
+    expect(replies[0]?.text).not.toContain("0/13 проблем у журналі");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🍻 До Шинку",
+              callback_data: makePlaceCallbackData("bar")
+            }
+          ],
+          [
+            {
+              text: "📋 До справ",
+              callback_data: makePlaceCallbackData("quest-table")
+            }
+          ]
+        ]
+      }
+    });
+    expect(presence.marks).toEqual([]);
+  });
 });
 
 class CapturingPresenceService {
@@ -279,11 +331,14 @@ class CapturingPresenceService {
 
 function questProgress(wins: number, completed = false) {
   return {
+    stageId: "13" as const,
     title: "Тринадцять дрібних проблем" as const,
     wins,
     target: 13,
     completed,
-    rewardClaimed: completed
+    rewardClaimed: completed,
+    issued: true,
+    branchComplete: false
   };
 }
 

@@ -577,6 +577,53 @@ describe("quest hub command", () => {
     ]);
   });
 
+  it("routes an unissued first problem quest to the Шинок from the quest hub", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(3);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(grownCharacter),
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-not-issued",
+              character: grownCharacter,
+              questProgress: {
+                ...questProgress(0),
+                issued: false
+              }
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        } as unknown as FightService,
+        yeger: readyYegerService(grownCharacter),
+        cellarErrand: readyCellarService(grownCharacter)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain(
+      "📋 <i>Тринадцять дрібних проблем</i> — Корчмар має папірець у Шинку. Спершу візьміть справу там."
+    );
+    expect(replies[0]?.text).not.toContain("0/13 проблем у журналі");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.text)).toEqual([
+      "🥊 Бійцівський куток",
+      "🍻 До Шинку",
+      "🧹 У льох",
+      "📦 Архів",
+      "📖 Бестіарій",
+      "🍺 До зали"
+    ]);
+    expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("bar"));
+    expect(buttons.map((button) => button.text)).not.toContain("⚔️ Розвʼязати проблему");
+  });
+
   it("shows active spar from the quest hub without offering a normal fight", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
@@ -854,11 +901,14 @@ function readyFightService(summary: CharacterSummary): FightService {
 
 function questProgress(wins: number, completed = false) {
   return {
+    stageId: "13" as const,
     title: "Тринадцять дрібних проблем" as const,
     wins,
     target: 13,
     completed,
-    rewardClaimed: completed
+    rewardClaimed: completed,
+    issued: true,
+    branchComplete: false
   };
 }
 

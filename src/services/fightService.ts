@@ -220,6 +220,11 @@ export type FightLookupResult =
   | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
   | { state: "needs-rest"; character: CharacterSummary }
   | {
+      state: "persistent-not-issued";
+      character: CharacterSummary;
+      questProgress: ThirteenSmallProblemsProgress;
+    }
+  | {
       state: "persistent-ready";
       character: CharacterSummary;
       questProgress: ThirteenSmallProblemsProgress;
@@ -361,6 +366,14 @@ export class FightService {
     });
 
     if (!activeSession) {
+      if (!questProgress.issued) {
+        return {
+          state: "persistent-not-issued",
+          character: characterSummary,
+          questProgress
+        };
+      }
+
       return {
         state: "persistent-ready",
         character: characterSummary,
@@ -579,6 +592,14 @@ export class FightService {
       return {
         state: "needs-rest",
         character: characterSummary
+      };
+    }
+
+    if (!questProgress.issued) {
+      return {
+        state: "persistent-not-issued",
+        character: characterSummary,
+        questProgress
       };
     }
 
@@ -1023,6 +1044,30 @@ export class FightService {
       return { state: "branch-complete", character: characterSummary, progress };
     }
 
+    if (!progress.issued) {
+      const stage = getProblemQuestStage(progress.stageId);
+      const issued = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+        key: stage.issueKey,
+        localDate: PROBLEM_QUEST_BUCKET,
+        rewardXp: 0,
+        rewardGold: 0,
+        itemGrants: []
+      });
+
+      if (!issued) {
+        return { state: "no-character" };
+      }
+
+      return {
+        state: "issued",
+        character: summarizeCharacter(issued.character),
+        progress: await this.getThirteenSmallProblemsProgress(telegramUserId),
+        stage,
+        nextStage: stage,
+        issued: issued.state === "created" ? "created" : "already-issued"
+      };
+    }
+
     if (!progress.rewardClaimed) {
       return { state: "not-available", character: characterSummary, progress };
     }
@@ -1142,10 +1187,12 @@ export class FightService {
     }
 
     const wins = this.combatSessions
-      ? await this.combatSessions.countWonByTelegramUserId(telegramUserId, {
-          excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID],
-          ...(stageState.issuedAt ? { since: stageState.issuedAt } : {})
-        })
+      ? stageState.issuedAt
+        ? await this.combatSessions.countWonByTelegramUserId(telegramUserId, {
+            excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID],
+            since: stageState.issuedAt
+          })
+        : 0
       : 0;
     const rewardClaim = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: stageState.stage.rewardKey,
@@ -1159,7 +1206,7 @@ export class FightService {
       target: stageState.stage.target,
       completed: rewardClaim !== null || wins >= stageState.stage.target,
       rewardClaimed: rewardClaim !== null,
-      issued: stageState.stage.id === "13" || stageState.issuedAt !== null,
+      issued: stageState.issuedAt !== null || rewardClaim !== null,
       branchComplete: false
     };
   }
@@ -1217,13 +1264,10 @@ export class FightService {
     }> = [];
 
     for (const stage of PROBLEM_QUEST_STAGES) {
-      const issued =
-        stage.id === "13"
-          ? null
-          : await this.dailyActions.findForTelegramUser(telegramUserId, {
-              key: stage.issueKey,
-              localDate: PROBLEM_QUEST_BUCKET
-            });
+      const issued = await this.dailyActions.findForTelegramUser(telegramUserId, {
+        key: stage.issueKey,
+        localDate: PROBLEM_QUEST_BUCKET
+      });
       const reward = await this.dailyActions.findForTelegramUser(telegramUserId, {
         key: stage.rewardKey,
         localDate: PROBLEM_QUEST_BUCKET
@@ -1240,9 +1284,7 @@ export class FightService {
       return { branchComplete: true };
     }
 
-    const activeStage = stageRecords.find(
-      ({ stage, issuedAt, rewarded }) => stage.id !== "13" && issuedAt && !rewarded
-    );
+    const activeStage = stageRecords.find(({ issuedAt, rewarded }) => issuedAt && !rewarded);
 
     if (activeStage) {
       return {

@@ -168,6 +168,30 @@ describe("tavern command screens", () => {
     });
   });
 
+  it("offers taking the first problem quest from the Шинок before progress starts", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      unissuedProblemQuestFightService()
+    );
+
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🍻 Всім пива", callback_data: "v1:tavern:round" }],
+          [{ text: "📋 Взяти справу", callback_data: makeQuestCallbackData("problem-next") }],
+          [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
+        ]
+      }
+    });
+  });
+
   it("offers the next problem quest from the Шинок after turn-in", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
@@ -395,6 +419,26 @@ function bottleObtainedGrownupQuest(bottleQuantity = 1): CellarGrownupQuestServi
         bottleQuantity
       })
   } as unknown as CellarGrownupQuestService;
+}
+
+function unissuedProblemQuestFightService(): FightService {
+  return {
+    getFightOverviewForTelegramUser: () =>
+      Promise.resolve({
+        state: "persistent-not-issued",
+        character,
+        questProgress: {
+          stageId: "13",
+          title: "Тринадцять дрібних проблем",
+          wins: 0,
+          target: 13,
+          completed: false,
+          rewardClaimed: false,
+          issued: false,
+          branchComplete: false
+        }
+      })
+  } as unknown as FightService;
 }
 
 function problemQuestFightService(progress: {

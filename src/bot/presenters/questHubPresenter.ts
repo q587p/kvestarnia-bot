@@ -83,6 +83,10 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
     return "🥊 <i>Бійцівський куток</i> — тренування вже триває; звичайні проблеми почекають після /spar.";
   }
 
+  if (fight.state === "persistent-not-issued") {
+    return `📋 <i>${fight.questProgress.title}</i> — Корчмар має папірець у Шинку. Спершу візьміть справу там.`;
+  }
+
   if (fight.state === "persistent-ready" || fight.state === "persistent-terminal") {
     return `📋 <i>${fight.questProgress.title}</i> — ${presentProblemQuestStatus(fight.questProgress)}.`;
   }
@@ -107,6 +111,7 @@ function presentFightArchiveRow(fight: Exclude<FightLookupResult, { state: "no-c
 
   if (
     (fight.state === "persistent-active" ||
+      fight.state === "persistent-not-issued" ||
       fight.state === "persistent-ready" ||
       fight.state === "persistent-terminal") &&
     fight.questProgress.completed
@@ -320,6 +325,7 @@ function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
   return (
     snapshot.adventure.state === "ready" ||
     snapshot.fight.state === "ready" ||
+    snapshot.fight.state === "persistent-not-issued" ||
     snapshot.fight.state === "persistent-ready" ||
     snapshot.fight.state === "persistent-active" ||
     snapshot.fight.state === "persistent-terminal" ||

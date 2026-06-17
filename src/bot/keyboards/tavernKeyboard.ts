@@ -54,13 +54,17 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = 
 export function buildKorchmaBarKeyboard(
   options: {
     includeBottleTurnIn?: boolean;
-    problemQuestAction?: "turn-in" | "next";
+    problemQuestAction?: "turn-in" | "take" | "next";
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard().text("🍻 Всім пива", makeTavernCallbackData("round")).row();
 
   if (options.problemQuestAction === "turn-in") {
     keyboard.text("📋 Здати справу", makeQuestCallbackData("problem")).row();
+  }
+
+  if (options.problemQuestAction === "take") {
+    keyboard.text("📋 Взяти справу", makeQuestCallbackData("problem-next")).row();
   }
 
   if (options.problemQuestAction === "next") {

@@ -45,7 +45,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
 
   keyboard.text("🥊 Бійцівський куток", makeTrainingDoppelgangerCallbackData()).row();
 
-  if (canTurnInProblemQuest(input.fight)) {
+  if (canOpenProblemQuestInBar(input.fight)) {
     keyboard.text("🍻 До Шинку", makePlaceCallbackData("bar")).row();
   }
 
@@ -56,7 +56,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
 
   if (
     input.fight.state === "ready" ||
-    input.fight.state === "persistent-ready" ||
+    (input.fight.state === "persistent-ready" && input.fight.questProgress.issued) ||
     input.fight.state === "persistent-active" ||
     input.fight.state === "persistent-terminal"
   ) {
@@ -139,7 +139,11 @@ function getFightButtonLabel(fight: QuestHubKeyboardInput["fight"]): string {
   return "⚔️ До сутички";
 }
 
-function canTurnInProblemQuest(fight: QuestHubKeyboardInput["fight"]): boolean {
+function canOpenProblemQuestInBar(fight: QuestHubKeyboardInput["fight"]): boolean {
+  if (fight.state === "persistent-not-issued") {
+    return true;
+  }
+
   return (
     (fight.state === "persistent-ready" ||
       fight.state === "persistent-active" ||
@@ -153,7 +157,8 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
   return (
     input.adventure.state === "ready" ||
     input.fight.state === "ready" ||
-    input.fight.state === "persistent-ready" ||
+    input.fight.state === "persistent-not-issued" ||
+    (input.fight.state === "persistent-ready" && input.fight.questProgress.issued) ||
     input.fight.state === "persistent-active" ||
     input.fight.state === "persistent-terminal" ||
     input.fight.state === "training-active" ||

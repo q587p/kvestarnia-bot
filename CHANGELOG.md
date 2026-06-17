@@ -11,7 +11,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Added
 - Extended the persistent fight wrapper into a Korchmar/Shynok quest chain: `13 -> 23 -> 42 -> 93` won ordinary solo fights, each with a separate one-time reward and cosmetic proof item.
-- Added explicit Shynok handoff for ready problem stages: the Quest Hub routes to `🍻 Шинок`, where stage turn-in and taking the next stage are separate player actions instead of automatic fight/turn-in side effects.
+- Added explicit Shynok handoff for problem stages: the Quest Hub routes to `🍻 Шинок`, where taking the first stage, stage turn-in and taking the next stage are separate player actions instead of automatic fight/turn-in side effects.
 - Added fresh per-stage counting based on the stage issue timestamp: new stages count only won ordinary solo fights created after that stage was issued.
 - Added a separate post-fight problem-chain progress ping after newly won ordinary solo fights, keeping the main combat result short while showing the current stage counter immediately.
 - Extended the post-fight progress ping to combine multiple moved quest counters, including active Yeger unquiet progress when the defeated monster qualifies.

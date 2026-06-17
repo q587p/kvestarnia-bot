@@ -195,7 +195,7 @@ export function presentProblemQuestProgressAfterFight(
 export function buildProblemQuestProgressAfterFightEntry(
   progress: ThirteenSmallProblemsProgress | null
 ): QuestProgressAfterFightEntry | null {
-  if (!progress || progress.branchComplete || progress.rewardClaimed) {
+  if (!progress || !progress.issued || progress.branchComplete || progress.rewardClaimed) {
     return null;
   }
 

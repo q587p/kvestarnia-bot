@@ -329,7 +329,7 @@ async function sendText(
     | boolean
     | "hall"
     | { state: "hall"; characterLevel?: number }
-    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "next" }
+    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
     | "front"
     | "arrivals"
     | "memorial"
@@ -378,14 +378,14 @@ function isBarKeyboard(
     | boolean
     | "hall"
     | { state: "hall"; characterLevel?: number }
-    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "next" }
+    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
     | "front"
     | "arrivals"
     | "memorial"
     | "barrel-result"
     | "barrel-pending"
     | "barrel-participants"
-): keyboard is { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "next" } {
+): keyboard is { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "bar";
 }
 
@@ -394,7 +394,7 @@ function isHallKeyboard(
     | boolean
     | "hall"
     | { state: "hall"; characterLevel?: number }
-    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "next" }
+    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
     | "front"
     | "arrivals"
     | "memorial"
@@ -405,8 +405,9 @@ function isHallKeyboard(
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "hall";
 }
 
-function getProblemQuestBarAction(fight: FightLookupResult | null): "turn-in" | "next" | undefined {
+function getProblemQuestBarAction(fight: FightLookupResult | null): "turn-in" | "take" | "next" | undefined {
   if (
+    fight?.state !== "persistent-not-issued" &&
     fight?.state !== "persistent-ready" &&
     fight?.state !== "persistent-active" &&
     fight?.state !== "persistent-terminal"
@@ -419,9 +420,13 @@ function getProblemQuestBarAction(fight: FightLookupResult | null): "turn-in" | 
 
 function getProblemQuestBarActionFromProgress(
   progress: ProblemQuestProgress
-): "turn-in" | "next" | undefined {
+): "turn-in" | "take" | "next" | undefined {
   if (progress.branchComplete) {
     return undefined;
+  }
+
+  if (!progress.issued) {
+    return "take";
   }
 
   if (progress.completed && !progress.rewardClaimed) {
