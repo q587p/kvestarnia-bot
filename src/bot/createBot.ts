@@ -1,6 +1,7 @@
 import { Bot, type Context } from "grammy";
 import type { SupportJarStatus } from "../config/env";
 import type { AdventureService } from "../services/adventureService";
+import type { BarrelRaidNotificationRepository } from "../db/repositories/barrelRaidNotificationRepository";
 import type { CellarErrandService } from "../services/cellarErrandService";
 import type {
   CellarGrownupQuestAction,
@@ -246,6 +247,7 @@ import { getPresenceContext, type PresenceContext } from "./presence/presenceRou
 
 export interface BotServices {
   adventure: AdventureService;
+  barrelRaidNotifications?: BarrelRaidNotificationRepository;
   cellarErrand: CellarErrandService;
   cellarGrownup?: CellarGrownupQuestService;
   fight: FightService;
@@ -422,7 +424,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
       return;
     }
 
-    await handleTavernCallback(ctx, parsed.value, services.tavern, services.yeger, services.presence, bot);
+    await handleTavernCallback(ctx, parsed.value, services, bot);
   });
 
   bot.callbackQuery(/^v1:adv:/, async (ctx) => {
@@ -545,6 +547,17 @@ export function createBot(token: string, services: BotServices, options: BotOpti
 
     await handleRemortCallback(ctx, parsed.value, services.remort, services.tavern);
   });
+
+  if (services.barrelRaidNotifications) {
+    void barrelRaidCompletionScheduler.resumePending({
+      bot,
+      now: new Date(),
+      tavernRaidService: services.tavern,
+      notifications: services.barrelRaidNotifications
+    }).catch((error) => {
+      console.error("Квестарня: бочкові нотифікації після старту не відновились.", error);
+    });
+  }
 
   return bot;
 }
@@ -1012,7 +1025,12 @@ async function handleMantokChestCallback(
     ctx,
     result.state === "recycled"
       ? { text: "Скриня хрумкнула." }
-      : { show_alert: result.state === "invalid-token" || result.state === "stale-inputs" }
+      : {
+          show_alert:
+            result.state === "invalid-token" ||
+            result.state === "stale-inputs" ||
+            result.state === "expired"
+        }
   );
   const outputItem =
     result.state === "recycled" || result.state === "replayed" ? result.outputItem : null;
@@ -1273,11 +1291,12 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
 async function handleTavernCallback(
   ctx: Context,
   action: TavernCallback,
-  tavernRaidService: TavernRaidService,
-  yegerQuestService: YegerQuestService,
-  presenceService: PresenceService,
+  services: BotServices,
   bot: Bot
 ): Promise<void> {
+  const tavernRaidService = services.tavern;
+  const yegerQuestService = services.yeger;
+  const presenceService = services.presence;
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
@@ -1361,14 +1380,30 @@ async function handleTavernCallback(
   });
 
   if (result.state === "pending-started") {
+    const chatId = ctx.callbackQuery?.message?.chat.id ?? ctx.chat?.id;
+    const notification = services.barrelRaidNotifications && chatId !== undefined
+      ? await services.barrelRaidNotifications.upsertPendingForTelegramUser(telegramUserId, {
+          chatId: BigInt(chatId),
+          periodId: result.periodId,
+          availableAt: result.availableAt,
+          now: result.now
+        })
+      : null;
+
     barrelRaidCompletionScheduler.schedule({
       bot,
-      chatId: ctx.callbackQuery?.message?.chat.id ?? ctx.chat?.id,
+      chatId,
       telegramUserId,
       periodId: result.periodId,
       availableAt: result.availableAt,
       now: result.now,
-      tavernRaidService
+      tavernRaidService,
+      ...(services.barrelRaidNotifications && notification
+        ? {
+            notifications: services.barrelRaidNotifications,
+            notificationId: notification.id
+          }
+        : {})
     });
   }
 

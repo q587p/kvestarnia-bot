@@ -1,6 +1,6 @@
 import type { CharacterItemRecord } from "./inventoryRepository";
 
-export type MantokChestRunStatus = "pending" | "completed" | "cancelled";
+export type MantokChestRunStatus = "pending" | "completed" | "cancelled" | "expired";
 
 export interface MantokChestRunItem {
   itemId: string;
@@ -18,6 +18,7 @@ export interface MantokChestRunRecord {
   minimumOutputScore: number;
   outputScore: number | null;
   completedAt: Date | null;
+  expiredAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,6 +33,7 @@ export type MantokChestConfirmResult =
   | { state: "no-character" }
   | { state: "invalid-token" }
   | { state: "cancelled"; run: MantokChestRunRecord }
+  | { state: "expired"; run: MantokChestRunRecord }
   | { state: "stale-inputs"; run: MantokChestRunRecord }
   | { state: "no-output-candidate"; run: MantokChestRunRecord }
   | { state: "recycled"; run: MantokChestRunRecord }
@@ -68,6 +70,7 @@ export interface MantokChestRepository {
     token: string,
     now: Date
   ): Promise<MantokChestRunRecord | null>;
+  expirePendingRunsOlderThan(cutoff: Date, now: Date): Promise<number>;
   confirmRunForTelegramUser(
     telegramUserId: bigint,
     input: {

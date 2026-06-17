@@ -15,7 +15,7 @@
 
 1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, and smoke fallout.
 2. `0.1.2` — presence interior/routing cleanup plus first runtime `/remort` at level 13: treat `Шинок` as korchma interior, move bot presence routing rules out of `createBot.ts`, and add replay-safe remort drafts/history.
-3. `0.1.3` — choose one reliability/polish item based on real pain: durable Barrel completion notifications or Mantok Chest pending cleanup.
+3. `0.1.3` — reliability polish: durable Barrel completion notifications plus Mantok Chest pending cleanup.
 4. `0.1.4` — Hlybka routing or fight/quest navigation cleanup if playtest shows confusion around where fights happen.
 5. First Phase 2 prep/runtime slice only after smoke evidence: бійцівський куток із тренувальним `Сумлінним Допельґанґером`, не груповий рейд.
 6. Duel invite MVP після того, як допельґанґер доведе форму бою й картку результату.
@@ -28,7 +28,7 @@
 
 Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
 
-Deferred side tracks remain useful but should not steal the Phase 2 spine: durable Barrel notification reliability, Mantok Chest pending cleanup, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs, NPC rankings, the docs-planned Support Jar live status, and very-late alternate clients such as web play or non-Telegram messenger bots.
+Deferred side tracks remain useful but should not steal the Phase 2 spine: Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs, NPC rankings, the docs-planned Support Jar live status, and very-late alternate clients such as web play or non-Telegram messenger bots.
 
 Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
 
@@ -189,10 +189,13 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - описати shared adapter boundary: input command/callback → application service → presenter payload → platform renderer;
 - вибрати одну read-only або low-risk дію для proof-of-concept, наприклад `/hero` чи read-only корчемний hub, без reward mutation.
 
-## Later — Durable Barrel Raid Notifications
+## 0.1.3 — Durable Barrel Raid Notifications
 
 **Objective**
 Зробити автозавершення Бочки надійним після restart/deploy, не змінюючи економіку й не дублюючи винагороди.
+
+**Status**
+Implemented in `0.1.3` through durable `barrel_raid_notifications` rows and startup resume. Manual completion still uses the same reward fallback and skips the later notification instead of duplicating it.
 
 **Scope**
 
@@ -787,7 +790,7 @@ Implemented in `0.0.26`; retained here as archive context for the recovery/balan
 Доробити Дружню Скриню після runtime MVP: ручний вибір манаток, краща інвентарна ергономіка й підготовка до item-instance identity без магазинів, продажу або trading.
 
 **Status**
-Implemented in the `0.0.27` slice as manual stack-unit selection for the existing Дружня Скриня flow. Deeper item-instance identity remains deferred.
+Implemented in the `0.0.27` slice as manual stack-unit selection for the existing Дружня Скриня flow. `0.1.3` adds stale pending-run cleanup/expiration for abandoned previews. Deeper item-instance identity remains deferred.
 
 **Scope**
 

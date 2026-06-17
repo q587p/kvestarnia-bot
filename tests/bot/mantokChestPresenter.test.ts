@@ -77,6 +77,9 @@ describe("Mantok Chest presenter", () => {
     expect(presentMantokChestRecycleResult({ state: "stale-inputs", run: run() })).toContain(
       "манатка втекла з меню"
     );
+    expect(presentMantokChestRecycleResult({ state: "expired", run: run() })).toContain(
+      "прибрала старий бланк"
+    );
     expect(presentMantokChestPreview({ state: "selection-incomplete", selectedCount: 4 })).toContain(
       "обрано <b>4/5</b>"
     );
@@ -95,6 +98,7 @@ function run(): MantokChestRunRecord {
     minimumOutputScore: 31,
     outputScore: null,
     completedAt: null,
+    expiredAt: null,
     createdAt: now,
     updatedAt: now
   };
