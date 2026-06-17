@@ -48,6 +48,8 @@ MVP limits:
 
 `0.1.6` problem-chain issue/turn-in uses existing `daily_actions` idempotency rows instead of a new quest table. Each stage, including the first one, has a separate issue/reward key with `local_date = once`; `0.1.7` keeps stage `13` legacy-compatible by counting old ordinary won solo fights until `quest.thirteen-small-problems` is claimed, while stages `23`, `42` and `93` count only ordinary won solo fights after the stage issue timestamp. Repeated `v1:quest:problem` callbacks must either replay the already-issued next stage or report that the current stage is not ready, without duplicating XP, gold or item grants. Training doppelganger sessions, future duel sessions and group/raid sessions must stay excluded unless a later economy/security review explicitly changes that.
 
+`0.1.9` combat flavor intents are presentation-only for `/spar`: they may add escaped text lines and semantic tags, but they must not create reward state, change quest counters, mutate cooldowns, bypass callback ownership/turn checks or expose hidden formulas. Any later numeric tactics modifier needs a separate tested balance/security review.
+
 ## Callback validation
 Callback data має:
 - мати версію.

@@ -6,6 +6,7 @@ import {
   presentTrainingDoppelgangerNoCharacter,
   presentTrainingDoppelgangerTurn
 } from "../../src/bot/presenters/trainingDoppelgangerPresenter";
+import type { CombatTurnSummary } from "../../src/domain/combat";
 import { summarizeCharacter } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 
@@ -62,6 +63,31 @@ describe("training doppelganger presenter", () => {
     expect(text).not.toContain("Здобуто");
   });
 
+  it("renders class-aware counter flavor after a doppelganger response", () => {
+    const character = buildCharacter({ classId: "class.bureaucramancer" });
+    const text = presentTrainingDoppelgangerTurn({
+      state: "updated",
+      character,
+      doppelganger: buildDoppelganger(character),
+      session: buildSession({
+        lastTurn: {
+          action: "skill",
+          heroOutcome: "hit",
+          heroDamage: 4,
+          monsterDamage: 2,
+          manaSpent: 2,
+          critical: false,
+          skillId: "skill.form-thirteen-b",
+          damageKind: "spell"
+        }
+      }),
+      reward: null
+    });
+
+    expect(text).toContain("<i>Копія дістає форму 13-Б");
+    expect(text).toContain("просить ваш біль розписатися тут, тут і тут.</i>");
+  });
+
   it("keeps no-character and needs-rest copy short and Ukrainian", () => {
     expect(presentTrainingDoppelgangerNoCharacter()).toContain("/start");
 
@@ -86,13 +112,21 @@ describe("training doppelganger presenter", () => {
   });
 });
 
-function buildCharacter(overrides: { name?: string; hpCurrent?: number; level?: number; xp?: number } = {}) {
+function buildCharacter(
+  overrides: {
+    name?: string;
+    hpCurrent?: number;
+    level?: number;
+    xp?: number;
+    classId?: string;
+  } = {}
+) {
   return summarizeCharacter({
     name: overrides.name ?? "Мандрівник",
     pronoun: "they",
     path: "path.sun",
     raceId: "race.human-ish",
-    classId: "class.warrior",
+    classId: overrides.classId ?? "class.warrior",
     level: overrides.level ?? 3,
     xp: overrides.xp ?? 25,
     gold: 0,
@@ -120,7 +154,13 @@ function buildDoppelganger(character: ReturnType<typeof buildCharacter>) {
   };
 }
 
-function buildSession(overrides: { status?: "active" | "won"; monsterHp?: number } = {}) {
+function buildSession(
+  overrides: {
+    status?: "active" | "won";
+    monsterHp?: number;
+    lastTurn?: CombatTurnSummary;
+  } = {}
+) {
   const status = overrides.status ?? "active";
 
   return {
@@ -143,7 +183,8 @@ function buildSession(overrides: { status?: "active" | "won"; monsterHp?: number
         id: TRAINING_DOPPELGANGER_MONSTER_ID,
         hp: overrides.monsterHp ?? 22,
         hpMax: 22
-      }
+      },
+      ...(overrides.lastTurn ? { lastTurn: overrides.lastTurn } : {})
     },
     reward: null,
     createdAt: new Date("2026-06-17T09:30:00.000Z"),
