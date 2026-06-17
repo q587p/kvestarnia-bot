@@ -158,12 +158,23 @@ function presentPendingDuel(
   lines.push("");
 
   if (options.inviteUrl) {
-    lines.push("Скопіюйте посилання й киньте його в приват або чат:", escapeHtml(options.inviteUrl));
+    lines.push("Окреме повідомлення з інвайтом можна переслати в приват або чат.");
   } else {
     lines.push("⚠️ Посилання для копіювання ще не зібралося: Корчмар не знає username цього бота.");
   }
 
   return lines.join("\n");
+}
+
+export function presentDuelInviteShare(character: CharacterSummary, inviteUrl: string): string {
+  return [
+    "🥊 <b>Дружній корчемний виклик</b>",
+    "",
+    `<b>${escapeHtml(character.name)}</b> лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто.`,
+    "Переходьте за посиланням, приймайте виклик, а Корчмар зробить вигляд, що все було за правилами.",
+    "",
+    escapeHtml(inviteUrl)
+  ].join("\n");
 }
 
 function presentResolvedDuel(result: Extract<DuelChallengeView, { state: "resolved" }>): string {

@@ -21,6 +21,7 @@ import {
   presentDuelCancel,
   presentDuelCreate,
   presentDuelDecline,
+  presentDuelInviteShare,
   presentDuelEntry,
   presentDuelView
 } from "../presenters/duelPresenter";
@@ -134,18 +135,22 @@ export async function handleDuelCallback(
     const result = await service.createOpenChallengeForTelegramUser(telegramUserId, {
       contextChatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null
     });
+    const inviteUrl = getInviteUrl(options.botUsername, result);
     await markDuelPresence(ctx, options.presence);
     await answerCallback();
     await sendText(
       ctx,
       "edit",
-      presentDuelCreate(result, { inviteUrl: getInviteUrl(options.botUsername, result) }),
+      presentDuelCreate(result, { inviteUrl }),
       result.state === "pending"
         ? { state: "pending", result }
         : result.state === "level-gated"
           ? "navigation"
           : "result"
     );
+    if (result.state === "pending" && inviteUrl) {
+      await ctx.reply(presentDuelInviteShare(result.challenger, inviteUrl), HTML_MESSAGE_OPTIONS);
+    }
     return;
   }
 

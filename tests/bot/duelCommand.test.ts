@@ -11,7 +11,7 @@ const NOW = new Date("2026-06-17T18:00:00.000Z");
 const EXPIRES_AT = new Date("2026-06-17T18:15:00.000Z");
 
 describe("handleDuelCallback", () => {
-  it("shows a copyable invite link when a new open challenge is created with a bot username", async () => {
+  it("sends a forwardable invite message when a new open challenge is created with a bot username", async () => {
     const challenger = makeCharacterSummary("Автор Виклику");
     const createOpenChallengeForTelegramUser = vi.fn().mockResolvedValue({
       state: "pending",
@@ -23,17 +23,24 @@ describe("handleDuelCallback", () => {
     const service = serviceWith({
       createOpenChallengeForTelegramUser
     });
-    const { ctx, editMessageText } = createCallbackContext(42);
+    const { ctx, editMessageText, reply } = createCallbackContext(42);
 
     await handleDuelCallback(ctx, { type: "new" }, service, {
       presence: createPresence(),
       botUsername: "kvestarnia_dev_bot"
     });
 
-    expect(messageText(editMessageText)).toContain("Скопіюйте посилання й киньте його в приват або чат:");
-    expect(messageText(editMessageText)).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
+    expect(messageText(editMessageText)).toContain("Окреме повідомлення з інвайтом можна переслати в приват або чат.");
+    expect(messageText(editMessageText)).not.toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
     expect(messageText(editMessageText)).toContain("Виклик уже на столі. Погляд такий, ніби це стратегія.");
     expect(messageText(editMessageText)).not.toContain("Автор Виклику ставить виклик");
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(reply.mock.calls[0]?.[0]).toContain("🥊 <b>Дружній корчемний виклик</b>");
+    expect(reply.mock.calls[0]?.[0]).toContain(
+      "<b>Автор Виклику</b> лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто."
+    );
+    expect(reply.mock.calls[0]?.[0]).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
+    expect(reply.mock.calls[0]?.[1]).toEqual({ parse_mode: "HTML" });
   });
 
   it("explains missing bot username instead of silently hiding the invite link", async () => {
@@ -48,7 +55,7 @@ describe("handleDuelCallback", () => {
     const service = serviceWith({
       createOpenChallengeForTelegramUser
     });
-    const { ctx, editMessageText } = createCallbackContext(42);
+    const { ctx, editMessageText, reply } = createCallbackContext(42);
 
     await handleDuelCallback(ctx, { type: "new" }, service, {
       presence: createPresence()
@@ -57,6 +64,7 @@ describe("handleDuelCallback", () => {
     expect(messageText(editMessageText)).toContain(
       "⚠️ Посилання для копіювання ще не зібралося: Корчмар не знає username цього бота."
     );
+    expect(reply).not.toHaveBeenCalled();
   });
 
   it("hides the new challenge button after showing the level gate", async () => {
@@ -238,6 +246,7 @@ function createCallbackContext(userId: number): {
   ctx: Context;
   answerCallbackQuery: ReturnType<typeof vi.fn>;
   editMessageText: ReturnType<typeof vi.fn>;
+  reply: ReturnType<typeof vi.fn>;
 } {
   const answerCallbackQuery = vi.fn().mockResolvedValue(true);
   const editMessageText = vi.fn().mockResolvedValue(true);
@@ -267,7 +276,7 @@ function createCallbackContext(userId: number): {
     reply
   } as unknown as Context;
 
-  return { ctx, answerCallbackQuery, editMessageText };
+  return { ctx, answerCallbackQuery, editMessageText, reply };
 }
 
 function createPresence(markAction: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(undefined)): PresenceService {
