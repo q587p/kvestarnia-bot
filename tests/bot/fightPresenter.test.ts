@@ -5,7 +5,9 @@ import {
   presentFightNeedsRest,
   presentFightResult,
   presentFightStart,
+  presentProblemQuestIssueNext,
   presentProblemQuestProgressAfterFight,
+  presentProblemQuestTurnIn,
   presentQuestProgressAfterFight,
   presentPersistentFight,
   presentPersistentFightTurn
@@ -361,7 +363,7 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Тринадцята проблема впала");
     expect(text).not.toContain("Нагорода за справу:\n<b>+35 XP\n+10 золота</b>");
     expect(text).not.toContain("Здобуто: <i>Жетон тринадцяти дрібних проблем</i>");
-    expect(text).toContain("Корчмар уже чує, що проблем вистачило — занесіть це в Шинок.");
+    expect(text).toContain("Корчмар уже чує, що проблем вистачило — занесіть це в шинок.");
     expect(text).not.toContain("Після бою:");
     expect(text).not.toContain("список дрібних проблем теж не відвертівся");
   });
@@ -375,8 +377,44 @@ describe("fight presenter", () => {
     expect(moved).toContain("<i>Тринадцять дрібних проблем</i>: <b>5/13</b>.");
     expect(moved).not.toContain("Корчмар чекає");
     expect(ready).toContain("<i>Тринадцять дрібних проблем</i>: <b>13/13</b>.");
-    expect(ready).toContain("Корчмар чекає в Шинку");
+    expect(ready).toContain("Корчмар чекає в шинку");
     expect(claimed).toBeNull();
+  });
+
+  it("uses clean Shynok wording for problem-chain issue and next prompts", () => {
+    const issueText = presentProblemQuestIssueNext({
+      state: "issued",
+      character,
+      progress: questProgress(13, true, true),
+      stage: problemStage("13", "Тринадцять дрібних проблем", 13, "23"),
+      nextStage: problemStage("23", "Двадцять три підозрілі проблеми", 23, "42"),
+      issued: "created"
+    });
+    const turnInText = presentProblemQuestTurnIn({
+      state: "turned-in",
+      character,
+      progress: questProgress(13, true, false),
+      result: {
+        state: "claimed",
+        stage: problemStage("13", "Тринадцять дрібних проблем", 13, "23"),
+        reward: {
+          xp: 35,
+          gold: 10,
+          localDate: "once",
+          itemGrants: []
+        },
+        levelChange: null,
+        nextStage: problemStage("23", "Двадцять три підозрілі проблеми", 23, "42"),
+        nextStageAvailable: true,
+        branchComplete: false
+      }
+    });
+
+    expect(issueText).toContain("Справу «<i>Двадцять три підозрілі проблеми</i>» видано.");
+    expect(issueText).not.toContain("Двадцять три підозрілі проблеми видано");
+    expect(turnInText).toContain("Якщо беретеся — хай відкриє новий лічильник.");
+    expect(turnInText).not.toContain("скажіть йому");
+    expect(turnInText).not.toContain("в Шинку");
   });
 
   it("renders a plural progress ping when several quest counters moved", () => {
@@ -630,5 +668,26 @@ function questProgress(wins: number, completed = false, rewardClaimed = complete
     rewardClaimed,
     issued: true,
     branchComplete: false
+  };
+}
+
+function problemStage(
+  id: "13" | "23" | "42" | "93",
+  title: string,
+  target: number,
+  nextStageId: "13" | "23" | "42" | "93" | null
+) {
+  return {
+    id,
+    title,
+    target,
+    reward: {
+      xp: 1,
+      gold: 1,
+      itemId: `item.problem-${id}`
+    },
+    issueKey: `quest.problem-chain.${id}.issued`,
+    rewardKey: `quest.problem-chain.${id}.reward`,
+    nextStageId
   };
 }

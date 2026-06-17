@@ -20,7 +20,8 @@ type DevGrantCommand =
   | "dev_add_xp"
   | "dev_add_gold"
   | "dev_add_random_item"
-  | "dev_heal";
+  | "dev_heal"
+  | "dev_restore_mana";
 type DevGrantContext = Context & { match?: string };
 
 export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantService): void {
@@ -44,6 +45,10 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
 
   bot.command("dev_heal", async (ctx) => {
     await handleDevHealCommand(ctx, devGrantService);
+  });
+
+  bot.command("dev_restore_mana", async (ctx) => {
+    await handleDevRestoreManaCommand(ctx, devGrantService);
   });
 
   bot.command("dev_add_random_item", async (ctx) => {
@@ -113,6 +118,34 @@ async function handleDevHealCommand(
   }
 
   const result = await devGrantService.heal(telegramUserId, amount);
+
+  await ctx.reply(presentDevGrantResult(result));
+}
+
+async function handleDevRestoreManaCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const amount = parseDevHealAmount(ctx.match);
+
+  if (amount === null) {
+    await ctx.reply(presentDevGrantInvalidAmount("dev_restore_mana"));
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = await devGrantService.restoreMana(telegramUserId, amount);
 
   await ctx.reply(presentDevGrantResult(result));
 }

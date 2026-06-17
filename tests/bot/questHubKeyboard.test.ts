@@ -40,7 +40,7 @@ describe("quest hub keyboard", () => {
     );
     const json = JSON.stringify(keyboard);
 
-    expect(json).toContain("🍻 До Шинку");
+    expect(json).toContain("🍻 До шинку");
     expect(json).toContain("v1:place:bar");
     expect(json).not.toContain("v1:quest:problem");
   });

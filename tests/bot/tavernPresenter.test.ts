@@ -238,6 +238,18 @@ describe("tavern presenter", () => {
     expect(text).toContain("Що наливаємо?");
   });
 
+  it("mentions available Шинок actions in the location text", () => {
+    const take = presentKorchmaBar(character, { problemQuestAction: "take" });
+    const turnIn = presentKorchmaBar(character, { problemQuestAction: "turn-in" });
+    const next = presentKorchmaBar(character, { problemQuestAction: "next" });
+    const bottle = presentKorchmaBar(character, { includeBottleTurnIn: true });
+
+    expect(take).toContain("можна взяти як нову справу");
+    expect(turnIn).toContain("готову справу можна здати просто тут");
+    expect(next).toContain("Корчмар відкриє новий лічильник");
+    expect(bottle).toContain("є місце для пляшки з льоху");
+  });
+
   it("accepts a changing flavor seed for korchma hall greetings", () => {
     const text = presentKorchmaHall(character, null, undefined, {
       flavorSeed: "korchma-hall:test-seed"

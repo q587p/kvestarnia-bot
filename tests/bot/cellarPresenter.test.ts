@@ -172,9 +172,9 @@ describe("cellar presenter", () => {
       }
     });
 
-    expect(lookupText).toContain("Пляшку можна здати Корчмарю в Шинку.");
+    expect(lookupText).toContain("Пляшку можна здати Корчмарю в шинку.");
     expect(resultText).toContain("Заберіть її з собою");
-    expect(resultText).toContain("Корчмар приймає такі речі в Шинку");
+    expect(resultText).toContain("Корчмар приймає такі речі в шинку");
     expect(resultText).not.toContain("здати Корчмарю або лишити собі");
   });
 });

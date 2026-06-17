@@ -80,13 +80,14 @@ NODE_ENV=development
 DEV_GRANT_COMMANDS_ENABLED=true
 ```
 
-Вони працюють лише коли `NODE_ENV` не `production` **і** `DEV_GRANT_COMMANDS_ENABLED=true` / `1` / `yes` / `on`. Не вмикай `DEV_GRANT_COMMANDS_ENABLED` на hosted production: ці команди напряму змінюють рівень, XP, HP, золото й манатки.
+Вони працюють лише коли `NODE_ENV` не `production` **і** `DEV_GRANT_COMMANDS_ENABLED=true` / `1` / `yes` / `on`. Не вмикай `DEV_GRANT_COMMANDS_ENABLED` на hosted production: ці команди напряму змінюють рівень, XP, HP, ману, золото й манатки.
 
 - `/dev_reset_me` — скидає поточного персонажа.
 - `/dev_add_level` — додає 1 рівень поточному персонажу.
 - `/dev_add_xp [число]` — додає вказану кількість XP; без числа додає 1 XP.
 - `/dev_add_gold [число]` — додає вказану кількість золота; без числа додає 1 золото.
 - `/dev_heal [число]` — лікує поточного персонажа до максимуму; з числом додає стільки HP, але не вище максимуму.
+- `/dev_restore_mana [число]` — відновлює ману поточного персонажа до максимуму; з числом додає стільки мани, але не вище максимуму.
 - `/dev_add_random_item [число]` — додає випадкові манатки; без числа додає одну.
 
 Ці команди не потрапляють у бокове меню Telegram. `/help` показує value-granting dev-команди тільки тоді, коли вони реально enabled.

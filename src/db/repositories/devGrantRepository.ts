@@ -36,6 +36,11 @@ export interface DevGrantRepository {
     amount?: number
   ): Promise<DevGrantCharacterResult | null>;
 
+  restoreManaForTelegramUser(
+    telegramUserId: bigint,
+    amount?: number
+  ): Promise<DevGrantCharacterResult | null>;
+
   addItemsForTelegramUser(
     telegramUserId: bigint,
     itemGrants: ItemGrant[]

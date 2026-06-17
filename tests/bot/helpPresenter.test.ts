@@ -39,6 +39,7 @@ describe("help presenter", () => {
     expect(text).not.toContain("/dev_add_xp");
     expect(text).not.toContain("/dev_add_gold");
     expect(text).not.toContain("/dev_heal");
+    expect(text).not.toContain("/dev_restore_mana");
     expect(text).not.toContain("/dev_add_random_item");
     expect(text).toContain("👤 /hero, /profile, /me — персонаж і прогрес");
     expect(text).toContain("🍺 /tavern, /raid — корчма й рейд на бочку");
@@ -78,6 +79,7 @@ describe("help presenter", () => {
     expect(resetOnly).not.toContain("🔢 /dev_add_xp");
     expect(resetOnly).not.toContain("🪙 /dev_add_gold");
     expect(resetOnly).not.toContain("🩹 /dev_heal");
+    expect(resetOnly).not.toContain("🔮 /dev_restore_mana");
     expect(resetOnly).not.toContain("🎲 /dev_add_random_item");
     expect(resetOnly).toContain("допомога\n\n🧪");
 
@@ -86,6 +88,7 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("🔢 /dev_add_xp");
     expect(grantsEnabled).toContain("🪙 /dev_add_gold");
     expect(grantsEnabled).toContain("🩹 /dev_heal");
+    expect(grantsEnabled).toContain("🔮 /dev_restore_mana");
     expect(grantsEnabled).toContain("🎲 /dev_add_random_item");
   });
 });

@@ -19,6 +19,7 @@ export interface QuestProgressAfterFightEntry {
   target: number;
   completed?: boolean;
   readyHint?: string;
+  action?: "bar" | "yeger";
 }
 
 export function presentFightStart(character: CharacterSummary): string {
@@ -205,7 +206,7 @@ export function buildProblemQuestProgressAfterFightEntry(
     target: progress.target,
     completed: progress.completed,
     ...(progress.completed
-      ? { readyHint: "Корчмар чекає в Шинку." }
+      ? { readyHint: "Корчмар чекає в шинку.", action: "bar" as const }
       : {})
   };
 }
@@ -335,7 +336,7 @@ function presentPersistentFightState(input: {
   if (state?.status === "won") {
     const readyQuestLine =
       input.questProgress?.completed && !input.questProgress.rewardClaimed
-        ? "Корчмар уже чує, що проблем вистачило — занесіть це в Шинок."
+        ? "Корчмар уже чує, що проблем вистачило — занесіть це в шинок."
         : "Наступний крок: /hero або /quest.";
 
     lines.push(
@@ -472,7 +473,7 @@ export function presentProblemQuestTurnIn(result: Exclude<ProblemQuestTurnInLook
   if (result.result.nextStage) {
     lines.push(
       "",
-      `Корчмар дістає наступний папірець: <i>${escapeHtml(result.result.nextStage.title)}</i>. Якщо беретеся — скажіть йому в Шинку, хай відкриє новий лічильник.`
+      `Корчмар дістає наступний папірець: <i>${escapeHtml(result.result.nextStage.title)}</i>. Якщо беретеся — хай відкриє новий лічильник.`
     );
   } else {
     lines.push(
@@ -513,7 +514,7 @@ export function presentProblemQuestIssueNext(
     "🍺 <b>Корчмар відкриває нову справу</b>",
     presentCharacterHeader(result.character),
     "",
-    `<i>${escapeHtml(result.nextStage.title)}</i> видано. Лічильник починається з нуля, без старих подвигів у кишені.`,
+    `Справу «<i>${escapeHtml(result.nextStage.title)}</i>» видано. Лічильник починається з нуля, без старих подвигів у кишені.`,
     "",
     result.issued === "already-issued"
       ? "Цей папірець уже лежав у журналі. Корчмар просто постукав по ньому для драматичного ефекту."

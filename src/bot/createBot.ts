@@ -1,4 +1,4 @@
-import { Bot, type Context } from "grammy";
+import { Bot, InlineKeyboard, type Context } from "grammy";
 import type { SupportJarStatus } from "../config/env";
 import type { AdventureService } from "../services/adventureService";
 import type { BarrelRaidNotificationRepository } from "../db/repositories/barrelRaidNotificationRepository";
@@ -61,8 +61,8 @@ import {
 } from "./callbacks/mantokChestCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
-import { parsePlaceCallbackData, type PlaceCallback } from "./callbacks/placeCallbackData";
-import { parseQuestCallbackData, type QuestCallback } from "./callbacks/questCallbackData";
+import { makePlaceCallbackData, parsePlaceCallbackData, type PlaceCallback } from "./callbacks/placeCallbackData";
+import { makeQuestCallbackData, parseQuestCallbackData, type QuestCallback } from "./callbacks/questCallbackData";
 import {
   parseTrainingDoppelgangerCallbackData,
   type TrainingDoppelgangerCallback
@@ -1966,13 +1966,23 @@ async function handleFightCallback(
             reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
           })
     });
-    const progressText =
+    const progressMessage =
       result.state === "updated" && result.session.state?.status === "won"
         ? await presentWonFightQuestProgressAfterFight(result, services, telegramUserId, yegerBefore)
         : null;
 
-    if (progressText) {
-      await ctx.reply(progressText, HTML_MESSAGE_OPTIONS);
+    if (progressMessage) {
+      await ctx.reply(progressMessage.text, {
+        ...HTML_MESSAGE_OPTIONS,
+        ...(progressMessage.replyMarkup ? { reply_markup: progressMessage.replyMarkup } : {})
+      });
+    }
+
+    if (result.state === "updated" && result.fightReward?.levelChange) {
+      await sendLevelUpCelebration(ctx, {
+        levelChange: result.fightReward.levelChange,
+        character: result.character
+      });
     }
     return;
   }
@@ -2008,6 +2018,10 @@ async function handleFightCallback(
 }
 
 type YegerProgressSnapshot = { wins: number; target: number } | null;
+type FightQuestProgressAfterFightMessage = {
+  text: string;
+  replyMarkup?: InlineKeyboard;
+};
 
 async function getYegerProgressSnapshot(
   yeger: Pick<YegerQuestService, "getForTelegramUser"> | undefined,
@@ -2031,7 +2045,7 @@ async function presentWonFightQuestProgressAfterFight(
   services: BotServices,
   telegramUserId: bigint,
   yegerBefore: YegerProgressSnapshot
-): Promise<string | null> {
+): Promise<FightQuestProgressAfterFightMessage | null> {
   const entries: QuestProgressAfterFightEntry[] = [];
   const problemEntry = buildProblemQuestProgressAfterFightEntry(result.questProgress);
 
@@ -2049,13 +2063,50 @@ async function presentWonFightQuestProgressAfterFight(
         target: yegerAfter.target,
         completed: yegerAfter.wins >= yegerAfter.target,
         ...(yegerAfter.wins >= yegerAfter.target
-          ? { readyHint: "Єгер чекає дощечку." }
+          ? { readyHint: "Єгер чекає дощечку.", action: "yeger" as const }
           : {})
       });
     }
   }
 
-  return presentQuestProgressAfterFight(entries);
+  const text = presentQuestProgressAfterFight(entries);
+
+  if (!text) {
+    return null;
+  }
+
+  const replyMarkup = buildQuestProgressAfterFightKeyboard(entries);
+
+  return {
+    text,
+    ...(replyMarkup ? { replyMarkup } : {})
+  };
+}
+
+function buildQuestProgressAfterFightKeyboard(
+  entries: readonly QuestProgressAfterFightEntry[]
+): InlineKeyboard | null {
+  const actions = new Set(
+    entries
+      .filter((entry) => entry.completed && entry.action)
+      .map((entry) => entry.action)
+  );
+
+  if (actions.size === 0) {
+    return null;
+  }
+
+  const keyboard = new InlineKeyboard();
+
+  if (actions.has("bar")) {
+    keyboard.text("🍻 До шинку", makePlaceCallbackData("bar")).row();
+  }
+
+  if (actions.has("yeger")) {
+    keyboard.text("🏹 До Єгеря", makeQuestCallbackData("hunt")).row();
+  }
+
+  return keyboard;
 }
 
 async function handleHuntCallback(

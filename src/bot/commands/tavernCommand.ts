@@ -245,12 +245,14 @@ export async function sendKorchmaBar(
     ? await fightService.getFightOverviewForTelegramUser(telegramUserId)
     : null;
   const problemQuestAction = getProblemQuestBarAction(fight);
-  await sendText(ctx, mode, presentKorchmaBar(result.character), {
+  const barOptions = {
     state: "bar",
     includeBottleTurnIn:
       cellarGrownup?.state === "bottle-obtained" && cellarGrownup.bottleQuantity > 0,
     ...(problemQuestAction ? { problemQuestAction } : {})
-  });
+  } as const;
+
+  await sendText(ctx, mode, presentKorchmaBar(result.character, barOptions), barOptions);
 }
 
 export async function sendTavernBarrel(

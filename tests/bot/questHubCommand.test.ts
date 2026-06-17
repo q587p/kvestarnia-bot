@@ -344,7 +344,7 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).not.toContain("пляшка вже з вами; Корчмар чекає в Шинку");
+    expect(replies[0]?.text).not.toContain("пляшка вже з вами; Корчмар чекає в шинку");
     expect(replies[0]?.text).toContain(
       "🐭 <i>Справа не до миші</i> — у льосі є інша справа для старших пригодників."
     );
@@ -538,7 +538,7 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    expect(buttons.map((button) => button.text)).toContain("🍻 До Шинку");
+    expect(buttons.map((button) => button.text)).toContain("🍻 До шинку");
     expect(buttons.map((button) => button.text)).toContain("📋 До запису бою");
   });
 
@@ -604,7 +604,7 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain(
-      "📋 <i>Тринадцять дрібних проблем</i> — Корчмар має папірець у Шинку. Спершу візьміть справу там."
+      "📋 <i>Тринадцять дрібних проблем</i> — Корчмар має папірець у шинку. Спершу візьміть справу там."
     );
     expect(replies[0]?.text).not.toContain("0/13 проблем у журналі");
     const buttons = (
@@ -614,7 +614,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🥊 Бійцівський куток",
-      "🍻 До Шинку",
+      "🍻 До шинку",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",

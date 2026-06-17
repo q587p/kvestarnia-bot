@@ -118,7 +118,7 @@ export async function sendFight(
       [
         "📋 Бій ще не відкрито.",
         "",
-        "Корчмар тримає папірець у Шинку. Спершу візьміть справу там, тоді проблеми почнуть рахуватися чесно."
+        "Корчмар тримає папірець у шинку. Спершу візьміть справу там, тоді проблеми почнуть рахуватися чесно."
       ].join("\n"),
       "problem-not-issued"
     );
@@ -218,7 +218,7 @@ async function sendText(
               : keyboard === "problem-not-issued"
               ? {
                   inline_keyboard: [
-                    [{ text: "🍻 До Шинку", callback_data: makePlaceCallbackData("bar") }],
+                    [{ text: "🍻 До шинку", callback_data: makePlaceCallbackData("bar") }],
                     [{ text: "📋 До справ", callback_data: makePlaceCallbackData("quest-table") }]
                   ]
                 }

@@ -159,6 +159,43 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
     });
   }
 
+  async restoreManaForTelegramUser(
+    telegramUserId: bigint,
+    amount?: number
+  ): Promise<DevGrantCharacterResult | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacterByTelegramUserId(tx, telegramUserId);
+
+      if (!character) {
+        return null;
+      }
+
+      const manaCurrent = Math.max(0, Math.floor(character.manaCurrent));
+      const manaMax = await getEffectiveManaMax(tx, character);
+      const nextMana = amount === undefined
+        ? manaMax
+        : Math.min(manaMax, manaCurrent + Math.max(0, Math.floor(amount)));
+      const updated = await tx.character.update({
+        where: {
+          id: character.id
+        },
+        data: {
+          manaCurrent: nextMana,
+          manaRegenAt: null
+        },
+        include: currentLocationInclude
+      });
+
+      return {
+        character: {
+          ...toCharacterRecord(updated),
+          manaCurrent: Math.min(nextMana, manaMax),
+          manaMax
+        }
+      };
+    });
+  }
+
   async addItemsForTelegramUser(
     telegramUserId: bigint,
     itemGrants: ItemGrant[]
@@ -248,6 +285,33 @@ async function getEffectiveHpMax(
     equippedItems,
     remortCount
   }).hpMax;
+}
+
+async function getEffectiveManaMax(
+  tx: Prisma.TransactionClient,
+  character: Character & { user: { lastSeenLocationId: string | null } }
+): Promise<number> {
+  const [equipment, remortCount] = await Promise.all([
+    tx.characterEquipment.findMany({
+      where: {
+        characterId: character.id
+      },
+      select: {
+        itemId: true
+      }
+    }),
+    countCharacterRemorts(tx, character.id)
+  ]);
+  const equippedItems = equipment.flatMap((row) => {
+    const item = items.find((candidate) => candidate.id === row.itemId);
+
+    return item ? [item] : [];
+  });
+
+  return summarizeCharacter(toCharacterRecord(character), {
+    equippedItems,
+    remortCount
+  }).manaMax;
 }
 
 function mergeItemGrants(itemGrants: ItemGrant[]): ItemGrant[] {

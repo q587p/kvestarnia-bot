@@ -108,7 +108,15 @@ function presentRemortCandleHint(character: CharacterSummary): string[] {
   ];
 }
 
-export function presentKorchmaBar(character: CharacterSummary): string {
+export function presentKorchmaBar(
+  character: CharacterSummary,
+  options: {
+    includeBottleTurnIn?: boolean;
+    problemQuestAction?: "turn-in" | "take" | "next";
+  } = {}
+): string {
+  const actionLines = presentKorchmaBarActionLines(options);
+
   return [
     "🍻 Шинок",
     presentCharacterHeader(character),
@@ -116,9 +124,35 @@ export function presentKorchmaBar(character: CharacterSummary): string {
     "<i>Шинок</i> тримає кухлі, чеки й корчмаря в одному місці. Корчмар каже, що це не бардак, а логістика.",
     "",
     "Тут частують пивом, сперечаються з цінами й роблять вигляд, що золото саме просилося на добру справу.",
+    ...actionLines,
     "",
     "Що наливаємо?"
   ].join("\n");
+}
+
+function presentKorchmaBarActionLines(options: {
+  includeBottleTurnIn?: boolean;
+  problemQuestAction?: "turn-in" | "take" | "next";
+}): string[] {
+  const lines: string[] = [];
+
+  if (options.problemQuestAction === "take") {
+    lines.push("На краю стійки лежить чистий корчмарський папірець: його можна взяти як нову справу.");
+  }
+
+  if (options.problemQuestAction === "turn-in") {
+    lines.push("Корчмар уже тримає журнал відкритим: готову справу можна здати просто тут.");
+  }
+
+  if (options.problemQuestAction === "next") {
+    lines.push("Поруч шарудить наступна папка: якщо беретеся, Корчмар відкриє новий лічильник.");
+  }
+
+  if (options.includeBottleTurnIn) {
+    lines.push("За стійкою є місце для пляшки з льоху: Корчмар приймає такі речі не відходячи від журналу.");
+  }
+
+  return lines.length > 0 ? ["", ...lines] : [];
 }
 
 export function presentTavern(character: CharacterSummary): string {

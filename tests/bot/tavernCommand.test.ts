@@ -156,6 +156,7 @@ describe("tavern command screens", () => {
       problemQuestFightService({ completed: true, rewardClaimed: false })
     );
 
+    expect(replies[0]?.text).toContain("готову справу можна здати просто тут");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",
       reply_markup: {
@@ -180,6 +181,7 @@ describe("tavern command screens", () => {
       unissuedProblemQuestFightService()
     );
 
+    expect(replies[0]?.text).toContain("можна взяти як нову справу");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",
       reply_markup: {
@@ -204,6 +206,7 @@ describe("tavern command screens", () => {
       problemQuestFightService({ completed: true, rewardClaimed: true })
     );
 
+    expect(replies[0]?.text).toContain("Корчмар відкриє новий лічильник");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",
       reply_markup: {
@@ -266,6 +269,7 @@ describe("tavern command screens", () => {
       bottleObtainedGrownupQuest()
     );
 
+    expect(replies[0]?.text).toContain("є місце для пляшки з льоху");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",
       reply_markup: {

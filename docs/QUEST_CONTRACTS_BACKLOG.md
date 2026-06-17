@@ -40,7 +40,7 @@
 - **Reward concept:** невелика виплата XP і короткий запис у журналі або на дошці вістей.
 - **Non-goals:** жодного XP за кожен бій, жодного replay луту, жодного зміщення бойового балансу.
 - **Implementation notes:** завершення має читати ledger, а не довіряти повторному натисканню кнопки.
-- **Phase:** superseded. `0.1.6` реалізує ширший Korchmar problem chain `13 -> 23 -> 42 -> 93` зі здачею в Шинку й fresh counters; актуальні notes: [PROBLEM_QUEST_CHAIN_REFERENCES.md](PROBLEM_QUEST_CHAIN_REFERENCES.md).
+- **Phase:** superseded. `0.1.6` реалізує ширший Korchmar problem chain `13 -> 23 -> 42 -> 93` зі здачею в шинку й fresh counters; актуальні notes: [PROBLEM_QUEST_CHAIN_REFERENCES.md](PROBLEM_QUEST_CHAIN_REFERENCES.md).
 
 ### 2. `quest.contract.inventory.auditor`
 

@@ -12,29 +12,40 @@ describe("dev grant commands", () => {
     const itemCalls = await captureMessageCalls("/dev_add_random_item", devGrant);
     const fullHealCalls = await captureMessageCalls("/dev_heal", devGrant);
     const partialHealCalls = await captureMessageCalls("/dev_heal 7", devGrant);
+    const fullManaCalls = await captureMessageCalls("/dev_restore_mana", devGrant);
+    const partialManaCalls = await captureMessageCalls("/dev_restore_mana 4", devGrant);
 
     expect(devGrant.addXp).toHaveBeenCalledWith(42n, 7);
     expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 1);
     expect(devGrant.heal).toHaveBeenCalledWith(42n, undefined);
     expect(devGrant.heal).toHaveBeenCalledWith(42n, 7);
+    expect(devGrant.restoreMana).toHaveBeenCalledWith(42n, undefined);
+    expect(devGrant.restoreMana).toHaveBeenCalledWith(42n, 4);
     expect(String(xpCalls.at(-1)?.payload.text)).toContain("додано 7 XP");
     expect(String(itemCalls.at(-1)?.payload.text)).toContain("додано 1 манатку");
     expect(String(fullHealCalls.at(-1)?.payload.text)).toContain("HP: 20/20");
     expect(String(partialHealCalls.at(-1)?.payload.text)).toContain("HP: 20/20");
+    expect(String(fullManaCalls.at(-1)?.payload.text)).toContain("Мана: 10/10");
+    expect(String(partialManaCalls.at(-1)?.payload.text)).toContain("Мана: 10/10");
   });
 
   it("rejects invalid amounts before mutating", async () => {
     const devGrant = fakeDevGrantService();
     const calls = await captureMessageCalls("/dev_add_gold nope", devGrant);
     const healCalls = await captureMessageCalls("/dev_heal 0", devGrant);
+    const manaCalls = await captureMessageCalls("/dev_restore_mana 0", devGrant);
 
     expect(devGrant.addGold).not.toHaveBeenCalled();
     expect(devGrant.heal).not.toHaveBeenCalled();
+    expect(devGrant.restoreMana).not.toHaveBeenCalled();
     expect(String(calls.at(-1)?.payload.text)).toContain(
       "Формат: /dev_add_gold [додатне ціле число]."
     );
     expect(String(healCalls.at(-1)?.payload.text)).toContain(
       "Формат: /dev_heal [додатне ціле число HP]."
+    );
+    expect(String(manaCalls.at(-1)?.payload.text)).toContain(
+      "Формат: /dev_restore_mana [додатне ціле число мани]."
     );
   });
 
@@ -42,11 +53,14 @@ describe("dev grant commands", () => {
     const devGrant = fakeDevGrantService({ enabled: false });
     const calls = await captureMessageCalls("/dev_add_xp 7", devGrant);
     const healCalls = await captureMessageCalls("/dev_heal 7", devGrant);
+    const manaCalls = await captureMessageCalls("/dev_restore_mana 4", devGrant);
 
     expect(devGrant.addXp).not.toHaveBeenCalled();
     expect(devGrant.heal).not.toHaveBeenCalled();
+    expect(devGrant.restoreMana).not.toHaveBeenCalled();
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(healCalls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(manaCalls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 });
 
@@ -123,6 +137,9 @@ function fakeDevGrantService(input: { enabled?: boolean } = {}): {
   heal: ReturnType<
     typeof vi.fn<(telegramUserId: bigint, amount?: number) => Promise<DevGrantResult>>
   >;
+  restoreMana: ReturnType<
+    typeof vi.fn<(telegramUserId: bigint, amount?: number) => Promise<DevGrantResult>>
+  >;
   addRandomItems: ReturnType<
     typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantItemsResult>>
   >;
@@ -140,8 +157,10 @@ function fakeDevGrantService(input: { enabled?: boolean } = {}): {
     gold: 3,
     hpCurrent: 20,
     hpMax: 20,
+    hpRegenAt: null,
     manaCurrent: 10,
     manaMax: 10,
+    manaRegenAt: null,
     statsJson: {}
   };
 
@@ -174,6 +193,12 @@ function fakeDevGrantService(input: { enabled?: boolean } = {}): {
       state: "updated",
       kind: "heal",
       amount: amount ?? character.hpMax,
+      character
+    })),
+    restoreMana: vi.fn((_telegramUserId, amount) => Promise.resolve({
+      state: "updated",
+      kind: "mana",
+      amount: amount ?? character.manaMax,
       character
     })),
     addRandomItems: vi.fn((_telegramUserId, amount) => Promise.resolve({

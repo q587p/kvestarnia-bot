@@ -84,7 +84,7 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
   }
 
   if (fight.state === "persistent-not-issued") {
-    return `📋 <i>${fight.questProgress.title}</i> — Корчмар має папірець у Шинку. Спершу візьміть справу там.`;
+    return `📋 <i>${fight.questProgress.title}</i> — Корчмар має папірець у шинку. Спершу візьміть справу там.`;
   }
 
   if (fight.state === "persistent-ready" || fight.state === "persistent-terminal") {
@@ -136,7 +136,7 @@ function presentProblemQuestStatus(progress: {
   if (progress.completed) {
     return progress.rewardClaimed
       ? `${progress.wins}/${progress.target} проблем у журналі, справу здано; Корчмар має наступний папірець`
-      : `${progress.wins}/${progress.target} проблем у журналі, Корчмар чекає в Шинку`;
+      : `${progress.wins}/${progress.target} проблем у журналі, Корчмар чекає в шинку`;
   }
 
   return `${progress.wins}/${progress.target} проблем у журналі`;
@@ -221,7 +221,7 @@ function presentActiveCellarRow(
     }
 
     if (hasGrownupBottle(cellarGrownup)) {
-      return "🐭 <i>Справа не до миші</i> — пляшка вже з вами; Корчмар чекає в Шинку.";
+      return "🐭 <i>Справа не до миші</i> — пляшка вже з вами; Корчмар чекає в шинку.";
     }
 
     return "🐭 <i>Справа не до миші</i> — у льосі є інша справа для старших пригодників.";

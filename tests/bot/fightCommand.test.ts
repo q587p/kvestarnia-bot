@@ -274,7 +274,7 @@ describe("fight command", () => {
 
     expect(replies[0]?.text).toContain("Бій ще не відкрито");
     expect(replies[0]?.text).toContain("Спершу візьміть справу");
-    expect(replies[0]?.text).toContain("Шинку");
+    expect(replies[0]?.text).toContain("шинку");
     expect(replies[0]?.text).not.toContain("0/13 проблем у журналі");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",
@@ -282,7 +282,7 @@ describe("fight command", () => {
         inline_keyboard: [
           [
             {
-              text: "🍻 До Шинку",
+              text: "🍻 До шинку",
               callback_data: makePlaceCallbackData("bar")
             }
           ],

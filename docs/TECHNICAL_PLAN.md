@@ -435,7 +435,7 @@ Cooldown reward claim має бути transactional:
 - `daily_actions` із local bucket `once` є idempotency authority для seal purchase audit, bottle grant і permanent completion;
 - `character_items` тримає `item.cellar.cheese-seal` і `item.cellar.foamy-mirage-bottle`, а bottle grant має `maxOwnedQuantity: 1`;
 - failed roleplay bypass пише cooldown `cellar.grownup.roleplay` у `character_cooldowns`, але не створює completion і не блокує paid seal route;
-- видимий UX після bottle grant веде з льоху до `location.korchma.bar`; кнопка `Здати пляшку` живе в Шинку й викликає `turn-in`, який ставить permanent completion claim;
+- видимий UX після bottle grant веде з льоху до `location.korchma.bar`; кнопка `Здати пляшку` живе в шинку й викликає `turn-in`, який ставить permanent completion claim;
 - legacy `keep` callback може лишатися для старих повідомлень, але нові льохові екрани не мають закривати справу через `keep`. Repeated callback-и не дублюють XP, золото, items або cooldown/progress state.
 
 Цей slice не додає schema migration: використано існуючі `daily_actions`, `character_items` і `character_cooldowns`. Перед майбутнім broad quest/session model варто не переузагальнювати це як універсальний контракт: це лише безпечний pattern для маленьких once-per-player справ.
@@ -504,7 +504,7 @@ Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і 
 - leaderboard сортується за сумою витраченого золота, потім за кількістю частувань;
 - майбутній tie-breaker має бути детермінованим: earliest purchase in period, потім stable `character_id`, якщо потрібно, щоб привітання за перше місце не стрибали між рівними rows;
 - unlimited repeatable spending прийнятний для першого sink, бо кожна покупка вимагає явного підтвердження, але майбутній UX/anti-spam може додати soft cooldown або rate limit.
-У `0.0.28` ці callback-и вважаються діями Шинку: presence пишеться в `location.korchma.bar`, а зала веде туди через `v1:place:bar`.
+У `0.0.28` ці callback-и вважаються діями шинку: presence пишеться в `location.korchma.bar`, а зала веде туди через `v1:place:bar`.
 
 ## Telegram callback data
 Callback data коротка, версіонована.

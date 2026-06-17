@@ -46,7 +46,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   keyboard.text("🥊 Бійцівський куток", makeTrainingDoppelgangerCallbackData()).row();
 
   if (canOpenProblemQuestInBar(input.fight)) {
-    keyboard.text("🍻 До Шинку", makePlaceCallbackData("bar")).row();
+    keyboard.text("🍻 До шинку", makePlaceCallbackData("bar")).row();
   }
 
   if (input.adventure.state === "ready") {

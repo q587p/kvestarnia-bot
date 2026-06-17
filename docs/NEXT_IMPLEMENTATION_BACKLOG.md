@@ -131,7 +131,7 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - `Сила пригодника`: рівень, характеристики, effective stats і вдягнені манатки. Не використовувати сирий hidden/internal score без пояснення.
 - `Гаманець`: наявне золото персонажа.
 - `Скарб у манатках`: сумарний item score / оціночна вартість манаток, окремо від spendable gold.
-- Майбутні розширення: щедрість у Шинку, закриті справи, перемоги над проблемами, досягнення рівнів.
+- Майбутні розширення: щедрість у шинку, закриті справи, перемоги над проблемами, досягнення рівнів.
 
 **UI rules**
 
@@ -546,7 +546,7 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 
 - Стіл зі справами лишається списком справ і маршрутизатором;
 - старт/продовження problem-chain бою змінює presence на Глибку;
-- completion flow зберігає `0.1.6` правило: готовий етап здається Корчмарю в Шинку, а наступний етап отримує fresh counter;
+- completion flow зберігає `0.1.6` правило: готовий етап здається Корчмарю в шинку, а наступний етап отримує fresh counter;
 - active persistent fight screen має back path до Глибки або Столу, без відчуття, що бій відбувається на столі;
 - old quest/fight callbacks лишаються safe і не телепортують гравця надвір;
 - tests cover place callback, quest hub route, `/fight` route, presence location, and stale callback behavior.

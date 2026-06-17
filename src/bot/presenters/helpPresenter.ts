@@ -134,6 +134,12 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     devOnly: "grant"
   },
   {
+    commands: ["dev_restore_mana"],
+    icon: "🔮",
+    description: "відновити ману локально",
+    devOnly: "grant"
+  },
+  {
     commands: ["dev_add_random_item"],
     icon: "🎲",
     description: "додати випадкові манатки локально",

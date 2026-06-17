@@ -91,7 +91,7 @@ Non-goals closure PR:
 ## Не Тягнути В Phase 1
 
 - Achievements runtime.
-- Продаж манаток задля пива в Шинку.
+- Продаж манаток задля пива в шинку.
 - Bestiary browse filters за рівнями й типами.
 - Глибка як dungeon routing.
 - Durable Barrel Raid Notifications, якщо це не тривіальний patch.
