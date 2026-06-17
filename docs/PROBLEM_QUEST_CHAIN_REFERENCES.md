@@ -14,9 +14,9 @@ Each stage is still a small once-per-player contract over ordinary won solo figh
 
 ## Counting rule
 
-- Stage `13` keeps the old compatibility key `quest.thirteen-small-problems`.
+- Stage `13` keeps the old compatibility key `quest.thirteen-small-problems` and is legacy-compatible in `0.1.7`: old ordinary won solo fights can still count toward the first paper until that reward is claimed.
 - Stages `23`, `42` and `93` are issued through `daily_actions` with `local_date = once`.
-- A stage counts only won ordinary solo fights with `solo_combat_sessions.created_at > issued.created_at`.
+- Stages after `13` count only won ordinary solo fights with `solo_combat_sessions.created_at > issued.created_at`.
 - Training doppelganger fights, lost fights, fled fights and expired fights do not count.
 - Extra wins before the next stage is issued do not auto-complete that next stage.
 

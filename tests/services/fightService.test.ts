@@ -294,7 +294,7 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(0);
   });
 
-  it("requires taking the first problem quest before showing or starting progress", async () => {
+  it("keeps old first-problem progress visible until the first paper is taken", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters, {
@@ -317,7 +317,7 @@ describe("FightService", () => {
       state: "persistent-not-issued",
       questProgress: {
         stageId: "13",
-        wins: 0,
+        wins: 3,
         target: 13,
         completed: false,
         rewardClaimed: false,
@@ -328,7 +328,7 @@ describe("FightService", () => {
       state: "persistent-not-issued",
       questProgress: {
         issued: false,
-        wins: 0
+        wins: 3
       }
     });
     expect(sessions.createCount).toBe(0);
@@ -343,10 +343,89 @@ describe("FightService", () => {
       progress: {
         stageId: "13",
         issued: true,
-        wins: 0,
+        wins: 3,
         target: 13
       }
     });
+  });
+
+  it("recovers old completed first-problem progress only after the first paper is taken", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters, {
+      autoIssueFirstProblemStage: false
+    });
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.addWonSessions("character-42", 14);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const prematureTurnIn = await service.turnInProblemQuestForTelegramUser(telegramUserId);
+
+    expect(prematureTurnIn).toMatchObject({
+      state: "not-ready",
+      progress: {
+        stageId: "13",
+        wins: 14,
+        target: 13,
+        completed: true,
+        rewardClaimed: false,
+        issued: false
+      }
+    });
+    expect(
+      dailyActions.records.filter((record) => record.key === THIRTEEN_SMALL_PROBLEMS_QUEST_KEY)
+    ).toHaveLength(0);
+
+    const issued = await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    expect(issued).toMatchObject({
+      state: "issued",
+      stage: { id: "13" },
+      nextStage: { id: "13" },
+      issued: "created",
+      progress: {
+        stageId: "13",
+        issued: true,
+        wins: 14,
+        target: 13,
+        completed: true,
+        rewardClaimed: false
+      }
+    });
+
+    const turnIn = await service.turnInProblemQuestForTelegramUser(telegramUserId);
+
+    expect(turnIn.state).toBe("turned-in");
+    if (turnIn.state === "turned-in") {
+      expect(turnIn.result).toMatchObject({
+        state: "claimed",
+        stage: { id: "13" },
+        nextStage: { id: "23" },
+        nextStageAvailable: true
+      });
+    }
+    expect(
+      dailyActions.records.filter((record) => record.key === THIRTEEN_SMALL_PROBLEMS_QUEST_KEY)
+    ).toHaveLength(1);
+
+    const replay = await service.turnInProblemQuestForTelegramUser(telegramUserId);
+
+    expect(replay).toMatchObject({
+      state: "turned-in",
+      result: {
+        state: "already-claimed",
+        stage: { id: "13" }
+      }
+    });
+    expect(
+      dailyActions.records.filter((record) => record.key === THIRTEEN_SMALL_PROBLEMS_QUEST_KEY)
+    ).toHaveLength(1);
   });
 
   it("uses record remort count for fight level gates", async () => {

@@ -982,6 +982,10 @@ export class FightService {
       return { state: "branch-complete", character: characterSummary, progress };
     }
 
+    if (!progress.issued) {
+      return { state: "not-ready", character: characterSummary, progress };
+    }
+
     if (!progress.completed) {
       return { state: "not-ready", character: characterSummary, progress };
     }
@@ -1186,13 +1190,12 @@ export class FightService {
       };
     }
 
+    const countSinceIssue = stageState.stage.id !== "13";
     const wins = this.combatSessions
-      ? stageState.issuedAt
-        ? await this.combatSessions.countWonByTelegramUserId(telegramUserId, {
-            excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID],
-            since: stageState.issuedAt
-          })
-        : 0
+      ? await this.combatSessions.countWonByTelegramUserId(telegramUserId, {
+          excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID],
+          ...(countSinceIssue && stageState.issuedAt ? { since: stageState.issuedAt } : {})
+        })
       : 0;
     const rewardClaim = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: stageState.stage.rewardKey,

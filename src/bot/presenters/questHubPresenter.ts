@@ -84,6 +84,10 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
   }
 
   if (fight.state === "persistent-not-issued") {
+    if (fight.questProgress.wins > 0) {
+      return `📋 <i>${fight.questProgress.title}</i> — ${fight.questProgress.wins}/${fight.questProgress.target} проблем у старому журналі; Корчмар має папірець у шинку, спершу візьміть справу там.`;
+    }
+
     return `📋 <i>${fight.questProgress.title}</i> — Корчмар має папірець у шинку. Спершу візьміть справу там.`;
   }
 
