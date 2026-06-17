@@ -514,12 +514,28 @@ export function presentProblemQuestIssueNext(
     "🍺 <b>Корчмар відкриває нову справу</b>",
     presentCharacterHeader(result.character),
     "",
-    `Справу «<i>${escapeHtml(result.nextStage.title)}</i>» видано. Лічильник починається з нуля, без старих подвигів у кишені.`,
+    presentProblemQuestIssueLine(result),
     "",
     result.issued === "already-issued"
       ? "Цей папірець уже лежав у журналі. Корчмар просто постукав по ньому для драматичного ефекту."
       : "Корчмар ставить чисту риску й робить вигляд, що це оптимізм."
   ].join("\n");
+}
+
+function presentProblemQuestIssueLine(
+  result: Extract<ProblemQuestIssueNextLookupResult, { state: "issued" }>
+): string {
+  const title = escapeHtml(result.nextStage.title);
+
+  if (result.stage.id === result.nextStage.id && result.progress.wins > 0) {
+    const ready = result.progress.completed
+      ? " Список уже повний: можна здати справу Корчмарю."
+      : "";
+
+    return `Справу «<i>${title}</i>» видано. У старому журналі вже <b>${result.progress.wins}/${result.progress.target}</b> проблем.${ready}`;
+  }
+
+  return `Справу «<i>${title}</i>» видано. Лічильник починається з нуля, без старих подвигів у кишені.`;
 }
 
 function presentTurnSummary(summary: CombatTurnSummary): string {

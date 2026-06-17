@@ -183,6 +183,13 @@ describe("quest hub command", () => {
           completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
         } as unknown as AdventureService,
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character,
+              progress: questProgress(0),
+              archive: []
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "already-completed",
@@ -357,8 +364,15 @@ describe("quest hub command", () => {
     await sendQuestHub(
       makeContext(replies),
       servicesWith({
-        adventure: readyAdventureService(grownCharacter),
+        adventure: completedAdventureService(grownCharacter),
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: grownCharacter,
+              progress: questProgress(14, true),
+              archive: [questProgress(14, true)]
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "persistent-terminal",
@@ -382,7 +396,7 @@ describe("quest hub command", () => {
               }
             }),
         } as unknown as YegerQuestService,
-        cellarErrand: readyCellarService(grownCharacter),
+        cellarErrand: completedRetiredCellarService(grownCharacter),
         cellarGrownup: completedCellarGrownupService(grownCharacter)
       }),
       "reply",
@@ -390,12 +404,12 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain("📦 Архів справ");
-    expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
+    expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — виконано; шаурма дала свідчення й тепер удає лаваш.");
     expect(replies[0]?.text).toContain(
       "📋 <i>Тринадцять дрібних проблем</i> — 14/13 проблем у журналі, справу здано; Корчмар має наступний папірець."
     );
     expect(replies[0]?.text).toContain("🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.");
-    expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — новачкова справа до 3 рівня.");
+    expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — виконано; миша прийняла аргументи до 3 рівня.");
     expect(replies[0]?.text).toContain(
       "🐭 <i>Справа не до миші</i> — дорослу льохову справу вже закрито; пляшка стоїть у журналі й тихо булькає."
     );
@@ -408,6 +422,60 @@ describe("quest hub command", () => {
         ]
       }
     });
+  });
+
+  it("keeps completed problem-chain stages in the archive history", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+    const currentProblemQuest = {
+      stageId: "23" as const,
+      title: "Двадцять три підозрілі проблеми",
+      wins: 4,
+      target: 23,
+      completed: false,
+      rewardClaimed: false,
+      issued: true,
+      branchComplete: false
+    };
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(grownCharacter),
+        cellarErrand: readyCellarService(grownCharacter),
+        fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: grownCharacter,
+              progress: currentProblemQuest,
+              archive: [questProgress(13, true)]
+            }),
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-ready",
+              character: grownCharacter,
+              questProgress: currentProblemQuest
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        } as unknown as FightService
+      }),
+      "reply",
+      "archive"
+    );
+
+    expect(replies[0]?.text).toContain(
+      "📋 <i>Тринадцять дрібних проблем</i> — 13/13 проблем у журналі, справу здано; Корчмар має наступний папірець."
+    );
+    expect(replies[0]?.text).toContain(
+      "🌯 <i>Підозріла шаурма</i> — недоступно після 2 рівня; у журналі немає позначки виконання."
+    );
+    expect(replies[0]?.text).toContain(
+      "🧹 <i>Льохова справа</i> — новачкова справа до 3 рівня; у журналі немає сліду виконання."
+    );
+    expect(replies[0]?.text).not.toContain(
+      "📋 <i>Двадцять три підозрілі проблеми</i> — 4/23 проблем у журналі."
+    );
   });
 
   it("reminds exhausted heroes to rest before opening a new fight", async () => {
@@ -425,6 +493,13 @@ describe("quest hub command", () => {
         cellarErrand: readyCellarService(exhaustedCharacter),
         yeger: readyYegerService(exhaustedCharacter),
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: exhaustedCharacter,
+              progress: questProgress(0),
+              archive: []
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "needs-rest",
@@ -467,6 +542,13 @@ describe("quest hub command", () => {
         cellarErrand: readyCellarService(recoveredFightCharacter),
         yeger: readyYegerService(recoveredFightCharacter),
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: recoveredFightCharacter,
+              progress: questProgress(0),
+              archive: []
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "persistent-ready",
@@ -501,6 +583,13 @@ describe("quest hub command", () => {
       servicesWith({
         adventure: readyAdventureService(grownCharacter),
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: grownCharacter,
+              progress: questProgress(14, true),
+              archive: [questProgress(14, true)]
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "persistent-terminal",
@@ -586,6 +675,16 @@ describe("quest hub command", () => {
       servicesWith({
         adventure: readyAdventureService(grownCharacter),
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: grownCharacter,
+              progress: {
+                ...questProgress(3),
+                issued: false
+              },
+              archive: []
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "persistent-not-issued",
@@ -638,6 +737,16 @@ describe("quest hub command", () => {
         presence,
         adventure: readyAdventureService(grownCharacter),
         fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: grownCharacter,
+              progress: {
+                ...questProgress(0),
+                issued: false
+              },
+              archive: []
+            }),
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "training-active",
@@ -652,12 +761,14 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain("/spar");
+    expect(replies[0]?.text).toContain("Корчмар має папірець у шинку");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.callback_data)).toContain("v1:spar:open");
+    expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("bar"));
     expect(buttons.map((button) => button.callback_data)).not.toContain(makeQuestCallbackData("fight"));
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
@@ -867,8 +978,27 @@ function readyAdventureService(summary: CharacterSummary): AdventureService {
   } as unknown as AdventureService;
 }
 
+function completedAdventureService(summary: CharacterSummary): AdventureService {
+  return {
+    getMimicShawarmaForTelegramUser: () =>
+      Promise.resolve({
+        state: "already-completed",
+        character: summary,
+        fightAvailable: false
+      }),
+    completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+  } as unknown as AdventureService;
+}
+
 function readyFightService(summary: CharacterSummary): FightService {
   return {
+    getProblemQuestProgressForTelegramUser: () =>
+      Promise.resolve({
+        state: "ready",
+        character: summary,
+        progress: questProgress(0),
+        archive: []
+      }),
     getFightOverviewForTelegramUser: () =>
       Promise.resolve(
         summary.level >= 3
@@ -956,13 +1086,27 @@ function readyCellarService(summary: CharacterSummary): CellarErrandService {
             ? {
                 state: "level-retired",
                 character: summary,
-                maxLevel: 3
+                maxLevel: 3,
+                completed: false
               }
           : {
               state: "ready",
               character: summary
             }
       ),
+    complete: () => Promise.resolve({ state: "no-character" })
+  } as unknown as CellarErrandService;
+}
+
+function completedRetiredCellarService(summary: CharacterSummary): CellarErrandService {
+  return {
+    getForTelegramUser: () =>
+      Promise.resolve({
+        state: "level-retired",
+        character: summary,
+        maxLevel: 3,
+        completed: true
+      }),
     complete: () => Promise.resolve({ state: "no-character" })
   } as unknown as CellarErrandService;
 }

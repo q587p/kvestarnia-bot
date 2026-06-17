@@ -2,7 +2,7 @@ import type { CharacterSummary } from "../../domain/characters/characterSummary"
 import type { AdventureLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
-import type { FightLookupResult } from "../../services/fightService";
+import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
 import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
 import { BESTIARY_MIN_LEVEL, meetsActivityLevel } from "../../domain/progression/activityGates";
 import { presentCharacterHeader } from "./telegramHtml";
@@ -11,6 +11,8 @@ export interface QuestHubSnapshot {
   character: CharacterSummary;
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
+  problemQuest: ProblemQuestProgress;
+  problemQuestArchive: ProblemQuestProgress[];
   yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
@@ -63,10 +65,37 @@ function presentAdventureArchiveRow(
     return null;
   }
 
-  return presentAdventureRow(adventure);
+  if (adventure.state === "already-completed") {
+    return "🌯 <i>Підозріла шаурма</i> — виконано; шаурма дала свідчення й тепер удає лаваш.";
+  }
+
+  return `🌯 <i>Підозріла шаурма</i> — недоступно після ${adventure.maxLevel} рівня; у журналі немає позначки виконання.`;
 }
 
-function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string {
+function presentProblemQuestRow(
+  progress: ProblemQuestProgress,
+  fight: Exclude<FightLookupResult, { state: "no-character" }>
+): string {
+  if (progress.branchComplete) {
+    return `📋 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}.`;
+  }
+
+  if (!progress.issued) {
+    if (progress.wins > 0) {
+      return `📋 <i>${progress.title}</i> — ${progress.wins}/${progress.target} проблем у старому журналі; Корчмар має папірець у шинку, спершу візьміть справу там.`;
+    }
+
+    return `📋 <i>${progress.title}</i> — Корчмар має папірець у шинку. Спершу візьміть справу там.`;
+  }
+
+  if (fight.state === "persistent-active") {
+    return `📋 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}, бій уже триває.`;
+  }
+
+  return `📋 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}.`;
+}
+
+function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string | null {
   if (fight.state === "needs-rest") {
     return "⚔️ <i>Сутичка з невідомим монстром</i> — герой ще не тримається на ногах, спершу /hero.";
   }
@@ -76,7 +105,7 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
   }
 
   if (fight.state === "persistent-active") {
-    return `📋 <i>${fight.questProgress.title}</i> — ${presentProblemQuestStatus(fight.questProgress)}, бій уже триває.`;
+    return null;
   }
 
   if (fight.state === "training-active") {
@@ -84,15 +113,11 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
   }
 
   if (fight.state === "persistent-not-issued") {
-    if (fight.questProgress.wins > 0) {
-      return `📋 <i>${fight.questProgress.title}</i> — ${fight.questProgress.wins}/${fight.questProgress.target} проблем у старому журналі; Корчмар має папірець у шинку, спершу візьміть справу там.`;
-    }
-
-    return `📋 <i>${fight.questProgress.title}</i> — Корчмар має папірець у шинку. Спершу візьміть справу там.`;
+    return null;
   }
 
   if (fight.state === "persistent-ready" || fight.state === "persistent-terminal") {
-    return `📋 <i>${fight.questProgress.title}</i> — ${presentProblemQuestStatus(fight.questProgress)}.`;
+    return null;
   }
 
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
@@ -113,17 +138,13 @@ function presentFightArchiveRow(fight: Exclude<FightLookupResult, { state: "no-c
     return presentFightRow(fight);
   }
 
-  if (
-    (fight.state === "persistent-active" ||
-      fight.state === "persistent-not-issued" ||
-      fight.state === "persistent-ready" ||
-      fight.state === "persistent-terminal") &&
-    fight.questProgress.completed
-  ) {
-    return `📋 <i>${fight.questProgress.title}</i> — ${presentProblemQuestStatus(fight.questProgress)}.`;
-  }
-
   return null;
+}
+
+function presentProblemQuestArchiveRows(progresses: ProblemQuestProgress[]): string[] {
+  return progresses.map(
+    (progress) => `📋 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}.`
+  );
 }
 
 function presentProblemQuestStatus(progress: {
@@ -254,7 +275,11 @@ function presentCellarArchiveRows(
     return [];
   }
 
-  const rows = [`🧹 <i>Льохова справа</i> — новачкова справа до ${cellar.maxLevel} рівня.`];
+  const rows = [
+    cellar.completed
+      ? `🧹 <i>Льохова справа</i> — виконано; миша прийняла аргументи до ${cellar.maxLevel} рівня.`
+      : `🧹 <i>Льохова справа</i> — новачкова справа до ${cellar.maxLevel} рівня; у журналі немає сліду виконання.`
+  ];
 
   if (cellarGrownup?.state === "completed") {
     rows.push("🐭 <i>Справа не до миші</i> — дорослу льохову справу вже закрито; пляшка стоїть у журналі й тихо булькає.");
@@ -266,6 +291,7 @@ function presentCellarArchiveRows(
 function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
   const rows = [
     snapshot.adventure.state === "ready" ? presentAdventureRow(snapshot.adventure) : null,
+    presentProblemQuestRow(snapshot.problemQuest, snapshot.fight),
     presentActiveFightRow(snapshot.fight),
     presentActiveYegerRow(snapshot.yeger),
     presentActiveCellarRow(snapshot.cellar, snapshot.cellarGrownup)
@@ -281,6 +307,7 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
 function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
   const rows = [
     presentAdventureArchiveRow(snapshot.adventure),
+    ...presentProblemQuestArchiveRows(snapshot.problemQuestArchive),
     presentFightArchiveRow(snapshot.fight),
     presentYegerArchiveRow(snapshot.yeger),
     ...presentCellarArchiveRows(snapshot.cellar, snapshot.cellarGrownup)
@@ -329,10 +356,7 @@ function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
   return (
     snapshot.adventure.state === "ready" ||
     snapshot.fight.state === "ready" ||
-    snapshot.fight.state === "persistent-not-issued" ||
-    snapshot.fight.state === "persistent-ready" ||
-    snapshot.fight.state === "persistent-active" ||
-    snapshot.fight.state === "persistent-terminal" ||
+    !snapshot.problemQuest.branchComplete ||
     snapshot.fight.state === "training-active" ||
     snapshot.yeger.state === "offered" ||
     snapshot.yeger.state === "in-progress" ||

@@ -90,7 +90,8 @@ describe("cellar command", () => {
             nextLevelXp: 135,
             xpToNextLevel: 40
           },
-          maxLevel: 3
+          maxLevel: 3,
+          completed: false
         }),
       complete: () => Promise.resolve({ state: "no-character" })
     } as unknown as CellarErrandService;

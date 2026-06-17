@@ -25,17 +25,9 @@ describe("quest hub keyboard", () => {
         fight: {
           state: "persistent-ready",
           character: character(),
-          questProgress: {
-            stageId: "23",
-            title: "Двадцять три підозрілі проблеми",
-            wins: 23,
-            target: 23,
-            completed: true,
-            rewardClaimed: false,
-            issued: true,
-            branchComplete: false
-          }
-        }
+          questProgress: completedProblemQuestProgress()
+        },
+        problemQuest: completedProblemQuestProgress()
       })
     );
     const json = JSON.stringify(keyboard);
@@ -53,13 +45,9 @@ function makeInput(overrides: Partial<QuestHubKeyboardInput> = {}): QuestHubKeyb
     fight: {
       state: "persistent-ready",
       character: character(),
-      questProgress: {
-        wins: 0,
-        target: 13,
-        completed: false,
-        rewardClaimed: false
-      }
+      questProgress: problemQuestProgress()
     },
+    problemQuest: problemQuestProgress(),
     yeger: {
       state: "offered",
       character: character(),
@@ -70,8 +58,34 @@ function makeInput(overrides: Partial<QuestHubKeyboardInput> = {}): QuestHubKeyb
         rewardClaimed: false
       }
     },
-    cellar: { state: "level-retired", character: character(), maxLevel: 3 },
+    cellar: { state: "level-retired", character: character(), maxLevel: 3, completed: false },
     ...overrides
+  };
+}
+
+function problemQuestProgress() {
+  return {
+    stageId: "13" as const,
+    title: "Тринадцять дрібних проблем",
+    wins: 0,
+    target: 13,
+    completed: false,
+    rewardClaimed: false,
+    issued: true,
+    branchComplete: false
+  };
+}
+
+function completedProblemQuestProgress() {
+  return {
+    stageId: "23" as const,
+    title: "Двадцять три підозрілі проблеми",
+    wins: 23,
+    target: 23,
+    completed: true,
+    rewardClaimed: false,
+    issued: true,
+    branchComplete: false
   };
 }
 

@@ -417,6 +417,22 @@ describe("fight presenter", () => {
     expect(turnInText).not.toContain("в Шинку");
   });
 
+  it("shows recovered first-paper progress instead of claiming the counter starts from zero", () => {
+    const text = presentProblemQuestIssueNext({
+      state: "issued",
+      character,
+      progress: questProgress(14, true, false),
+      stage: problemStage("13", "Тринадцять дрібних проблем", 13, "23"),
+      nextStage: problemStage("13", "Тринадцять дрібних проблем", 13, "23"),
+      issued: "created"
+    });
+
+    expect(text).toContain("Справу «<i>Тринадцять дрібних проблем</i>» видано.");
+    expect(text).toContain("У старому журналі вже <b>14/13</b> проблем.");
+    expect(text).toContain("можна здати справу Корчмарю");
+    expect(text).not.toContain("Лічильник починається з нуля");
+  });
+
   it("renders a plural progress ping when several quest counters moved", () => {
     const text = presentQuestProgressAfterFight([
       {

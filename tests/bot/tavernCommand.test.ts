@@ -219,6 +219,81 @@ describe("tavern command screens", () => {
     });
   });
 
+  it("offers taking the first problem quest from the Шинок while training doppelganger is active", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      trainingActiveProblemQuestFightService({ issued: false, completed: false, rewardClaimed: false })
+    );
+
+    expect(replies[0]?.text).toContain("можна взяти як нову справу");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🍻 Всім пива", callback_data: "v1:tavern:round" }],
+          [{ text: "📋 Взяти справу", callback_data: makeQuestCallbackData("problem-next") }],
+          [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
+        ]
+      }
+    });
+  });
+
+  it("offers problem quest turn-in from the Шинок while training doppelganger is active", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      trainingActiveProblemQuestFightService({ issued: true, completed: true, rewardClaimed: false })
+    );
+
+    expect(replies[0]?.text).toContain("готову справу можна здати просто тут");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🍻 Всім пива", callback_data: "v1:tavern:round" }],
+          [{ text: "📋 Здати справу", callback_data: makeQuestCallbackData("problem") }],
+          [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
+        ]
+      }
+    });
+  });
+
+  it("offers the next problem quest from the Шинок after turn-in while training doppelganger is active", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      trainingActiveProblemQuestFightService({ issued: true, completed: true, rewardClaimed: true })
+    );
+
+    expect(replies[0]?.text).toContain("Корчмар відкриє новий лічильник");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🍻 Всім пива", callback_data: "v1:tavern:round" }],
+          [{ text: "📋 Взяти наступну справу", callback_data: makeQuestCallbackData("problem-next") }],
+          [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
+        ]
+      }
+    });
+  });
+
   it("shows a separate front-door memorial board for level firsts", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
@@ -427,20 +502,18 @@ function bottleObtainedGrownupQuest(bottleQuantity = 1): CellarGrownupQuestServi
 
 function unissuedProblemQuestFightService(): FightService {
   return {
+    getProblemQuestProgressForTelegramUser: () =>
+      Promise.resolve({
+        state: "ready",
+        character,
+        progress: problemQuestProgress({ issued: false, completed: false, rewardClaimed: false }),
+        archive: []
+      }),
     getFightOverviewForTelegramUser: () =>
       Promise.resolve({
         state: "persistent-not-issued",
         character,
-        questProgress: {
-          stageId: "13",
-          title: "Тринадцять дрібних проблем",
-          wins: 0,
-          target: 13,
-          completed: false,
-          rewardClaimed: false,
-          issued: false,
-          branchComplete: false
-        }
+        questProgress: problemQuestProgress({ issued: false, completed: false, rewardClaimed: false })
       })
   } as unknown as FightService;
 }
@@ -450,22 +523,77 @@ function problemQuestFightService(progress: {
   rewardClaimed: boolean;
 }): FightService {
   return {
+    getProblemQuestProgressForTelegramUser: () =>
+      Promise.resolve({
+        state: "ready",
+        character,
+        progress: problemQuestProgress({ issued: true, ...progress }),
+        archive: []
+      }),
     getFightOverviewForTelegramUser: () =>
       Promise.resolve({
         state: "persistent-ready",
         character,
-        questProgress: {
-          stageId: "13",
-          title: "Тринадцять дрібних проблем",
-          wins: progress.completed ? 13 : 5,
-          target: 13,
-          completed: progress.completed,
-          rewardClaimed: progress.rewardClaimed,
-          issued: true,
-          branchComplete: false
-        }
+        questProgress: problemQuestProgress({ issued: true, ...progress })
       })
   } as unknown as FightService;
+}
+
+function trainingActiveProblemQuestFightService(progress: {
+  issued: boolean;
+  completed: boolean;
+  rewardClaimed: boolean;
+}): FightService {
+  return {
+    getProblemQuestProgressForTelegramUser: () =>
+      Promise.resolve({
+        state: "ready",
+        character,
+        progress: problemQuestProgress(progress),
+        archive: []
+      }),
+    getFightOverviewForTelegramUser: () =>
+      Promise.resolve({
+        state: "training-active",
+        character,
+        session: {
+          id: "training-session-1",
+          characterId: "character-42",
+          monsterId: "monster.training-doppelganger",
+          status: "active",
+          turn: 1,
+          reward: null,
+          createdAt: new Date("2026-06-17T10:00:00.000Z"),
+          updatedAt: new Date("2026-06-17T10:00:00.000Z"),
+          expiresAt: new Date("2026-06-17T10:20:00.000Z"),
+          state: {
+            id: "training-session-1",
+            status: "active",
+            turn: 1,
+            hero: { hp: 20, hpMax: 20, mana: 10, manaMax: 10 },
+            monster: { id: "monster.training-doppelganger", hp: 20, hpMax: 20 }
+          }
+        },
+        questProgress: problemQuestProgress(progress)
+      })
+  } as unknown as FightService;
+}
+
+function problemQuestProgress(progress: {
+  issued: boolean;
+  completed: boolean;
+  rewardClaimed: boolean;
+}) {
+  return {
+    stageId: "13" as const,
+    title: "Тринадцять дрібних проблем" as const,
+    wins: progress.completed ? 13 : progress.issued ? 5 : 0,
+    target: 13,
+    completed: progress.completed,
+    rewardClaimed: progress.rewardClaimed,
+    issued: progress.issued,
+    branchComplete: false
+  };
 }
 
 function levelMilestoneService(): LevelMilestoneService {

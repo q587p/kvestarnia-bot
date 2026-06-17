@@ -161,12 +161,12 @@ describe("item detail presenter", () => {
       {
         equipPreview: {
           state: "requirements-not-met",
-          reasons: ["title"],
+          reasons: ["class"],
           requirements: {
             minLevel: 6,
-            classes: [],
+            classes: ["Бюрокромант"],
             races: [],
-            titles: ["Боргомант"]
+            titles: []
           },
           item: {
             itemId: "item.loot-v1-x022-plus-2",
@@ -185,7 +185,7 @@ describe("item detail presenter", () => {
     );
 
     expect(text).toContain("Екіпірування: <i>зараз не можна екіпірувати.");
-    expect(text).toContain("Потрібно: титул: Боргомант.");
+    expect(text).toContain("Потрібно: клас: Бюрокромант.");
     expect(text).not.toContain("Екіпірування: <i>можна екіпірувати");
     expect(text).not.toContain("Спорядження вже звільняє місце");
     expect(text).not.toContain("відповідний титул");

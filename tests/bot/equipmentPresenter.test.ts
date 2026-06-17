@@ -111,15 +111,15 @@ describe("equipment presenter", () => {
     expect(text).not.toContain("іншу анкету");
   });
 
-  it("names title requirements in denial callback text", () => {
+  it("names canonical class requirements in denial callback text", () => {
     const text = presentEquipItemResult({
       state: "requirements-not-met",
-      reasons: ["title"],
+      reasons: ["class"],
       requirements: {
         minLevel: 6,
-        classes: [],
+        classes: ["Бюрокромант"],
         races: [],
-        titles: ["Боргомант"]
+        titles: []
       },
       item: {
         itemId: "item.loot-v1-x022-plus-2",
@@ -135,7 +135,7 @@ describe("equipment presenter", () => {
     } satisfies EquipItemResult);
 
     expect(text).toContain("Ще не екіпірується: Жетон Боргоманта +2.");
-    expect(text).toContain("Потрібно: титул: Боргомант.");
+    expect(text).toContain("Потрібно: клас: Бюрокромант.");
     expect(text).not.toContain("відповідний титул");
   });
 });

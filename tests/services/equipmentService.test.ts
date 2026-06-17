@@ -107,7 +107,7 @@ describe("EquipmentService", () => {
     });
   });
 
-  it("previews concrete title requirements for expansion equipment", async () => {
+  it("previews canonical class requirements for former orphan title gates", async () => {
     const service = createService({
       inventoryRows: [buildItem({ itemId: "item.loot-v1-x022-plus-2" })],
       character: buildCharacter({ level: 8, classId: "class.warrior" })
@@ -117,10 +117,11 @@ describe("EquipmentService", () => {
       service.previewItemEquipForTelegramUser(telegramUserId, "item.loot-v1-x022-plus-2")
     ).resolves.toMatchObject({
       state: "requirements-not-met",
-      reasons: ["title"],
+      reasons: ["class"],
       requirements: {
         minLevel: 6,
-        titles: ["Боргомант"]
+        classes: ["Бюрокромант"],
+        titles: []
       },
       slot: "accessory",
       item: {
@@ -131,7 +132,7 @@ describe("EquipmentService", () => {
     });
   });
 
-  it("includes concrete title requirements when equip is denied", async () => {
+  it("includes canonical class requirements when equip is denied", async () => {
     const service = createService({
       inventoryRows: [buildItem({ itemId: "item.loot-v1-x022-plus-2" })],
       character: buildCharacter({ level: 8, classId: "class.warrior" })
@@ -141,10 +142,11 @@ describe("EquipmentService", () => {
       service.equipItemForTelegramUser(telegramUserId, "item.loot-v1-x022-plus-2")
     ).resolves.toMatchObject({
       state: "requirements-not-met",
-      reasons: ["title"],
+      reasons: ["class"],
       requirements: {
         minLevel: 6,
-        titles: ["Боргомант"]
+        classes: ["Бюрокромант"],
+        titles: []
       },
       item: {
         content: {

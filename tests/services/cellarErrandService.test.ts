@@ -97,11 +97,13 @@ describe("CellarErrandService", () => {
 
     await expect(service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "level-retired",
-      maxLevel: 3
+      maxLevel: 3,
+      completed: false
     });
     await expect(service.complete(telegramUserId, "negotiate")).resolves.toMatchObject({
       state: "level-retired",
-      maxLevel: 3
+      maxLevel: 3,
+      completed: false
     });
     expect(cooldowns.claimCount).toBe(0);
     expect(cooldowns.grantedItems).toEqual([]);
@@ -109,6 +111,21 @@ describe("CellarErrandService", () => {
       xp: 45,
       gold: 0,
       level: 4
+    });
+  });
+
+  it("marks retired cellar errands completed when a prior completion exists", async () => {
+    const cooldowns = new FakeCooldownRepository();
+    cooldowns.addCharacter(telegramUserId, { xp: 10 });
+    const service = new CellarErrandService(cooldowns, () => startedAt);
+
+    await service.complete(telegramUserId, "negotiate");
+    cooldowns.addCharacter(telegramUserId, { xp: 45 });
+
+    await expect(service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "level-retired",
+      maxLevel: 3,
+      completed: true
     });
   });
 

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { classes } from "../../src/content/classes";
+import { activeRaces } from "../../src/content/races";
 import {
   checkLootExpansionEquipRequirement,
   findLootExpansionBaseItem,
@@ -12,7 +14,10 @@ import {
   LOOT_EXPANSION_V1_EFFECT_COUNT,
   lootExpansionV1Data,
   lootExpansionV1ItemContents,
-  maxAllowedEnhancement
+  maxAllowedEnhancement,
+  normalizeLootExpansionClassId,
+  normalizeLootExpansionRaceId,
+  normalizeLootExpansionTitleIds
 } from "../../src/content/lootExpansionV1";
 import { itemSchema } from "../../src/content/schema";
 
@@ -77,6 +82,22 @@ describe("loot expansion v1 content adapter", () => {
     });
   });
 
+  it("normalizes package dictionaries to currently playable Kvestarnia ids", () => {
+    const liveClassIds = new Set(classes.map((entry) => entry.id.replace(/^class\./, "")));
+    const liveRaceIds = new Set(activeRaces.map((entry) => entry.id.replace(/^race\./, "")));
+    const packageClassIds = new Set(lootExpansionV1Data.classes.map((entry) => entry.id));
+    const packageRaceIds = new Set(lootExpansionV1Data.races.map((entry) => entry.id));
+
+    expect(packageClassIds).toEqual(liveClassIds);
+    expect(packageRaceIds).toEqual(liveRaceIds);
+    expect(packageClassIds.has("bureaucrat")).toBe(false);
+    expect(packageClassIds.has("cleric")).toBe(false);
+    expect(packageClassIds.has("merchant")).toBe(false);
+    expect(packageRaceIds.has("goblin")).toBe(false);
+    expect(packageRaceIds.has("dragonkin")).toBe(false);
+    expect(packageRaceIds.has("catfolk")).toBe(false);
+  });
+
   it("keeps all item effect references valid", () => {
     const effectIds = new Set(lootExpansionV1Data.effects.map((effect) => effect.id));
 
@@ -85,7 +106,7 @@ describe("loot expansion v1 content adapter", () => {
     }
   });
 
-  it("keeps all affinity references valid", () => {
+  it("keeps all affinity references valid and current", () => {
     const classIds = new Set(lootExpansionV1Data.classes.map((entry) => entry.id));
     const raceIds = new Set(lootExpansionV1Data.races.map((entry) => entry.id));
     const titleIds = new Set(lootExpansionV1Data.titles.map((entry) => entry.id));
@@ -95,6 +116,42 @@ describe("loot expansion v1 content adapter", () => {
       expect(item.affinity.races.every((entry) => raceIds.has(entry.id))).toBe(true);
       expect(item.affinity.titles.every((entry) => titleIds.has(entry.id))).toBe(true);
     }
+  });
+
+  it("removes orphan title requirements by replacing them with current class/race surrogates", () => {
+    const classIds = new Set(lootExpansionV1Data.classes.map((entry) => entry.id));
+    const raceIds = new Set(lootExpansionV1Data.races.map((entry) => entry.id));
+
+    for (const item of lootExpansionV1Data.items) {
+      expect(item.requirements.titles).toEqual([]);
+      expect(item.requirements.classes.every((classId) => classIds.has(classId))).toBe(true);
+      expect(item.requirements.races.every((raceId) => raceIds.has(raceId))).toBe(true);
+    }
+  });
+
+  it("keeps legacy aliases accepted but returns current ids", () => {
+    expect(normalizeLootExpansionClassId("bureaucrat")).toBe("bureaucramancer");
+    expect(normalizeLootExpansionClassId("cleric")).toBe("priest");
+    expect(normalizeLootExpansionClassId("cook")).toBe("varenyk-mancer");
+    expect(normalizeLootExpansionClassId("class.bureaucramancer")).toBe("bureaucramancer");
+
+    expect(normalizeLootExpansionRaceId("human")).toBe("human-ish");
+    expect(normalizeLootExpansionRaceId("orc")).toBe("intellectual-orc");
+    expect(normalizeLootExpansionRaceId("goblin")).toBe("bisyny");
+    expect(normalizeLootExpansionRaceId("dragonkin")).toBe("drantohor");
+    expect(normalizeLootExpansionRaceId("race.drantohor")).toBe("drantohor");
+  });
+
+  it("maps missing legacy title ids to current synthetic combo-title buckets", () => {
+    expect(normalizeLootExpansionTitleIds({ level: 1, titleIds: ["debt_collector"] })).toContain(
+      "paperwork_title"
+    );
+    expect(normalizeLootExpansionTitleIds({ level: 1, titleIds: ["lord_of_pan"] })).toContain(
+      "kitchen_title"
+    );
+    expect(
+      normalizeLootExpansionTitleIds({ level: 1, title: "Слідознавець Чужої Карти" })
+    ).toContain("ranger_title");
   });
 
   it("lets soft affinities increase weight without becoming hard bans", () => {
@@ -125,7 +182,8 @@ describe("loot expansion v1 content adapter", () => {
   it("marks hard requirements as canEquip=false when profile does not match", () => {
     const bureaucratStamp = findLootExpansionBaseItem("w027");
 
-    expect(bureaucratStamp?.requirements.classes).toContain("bureaucrat");
+    expect(bureaucratStamp?.requirements.classes).toContain("bureaucramancer");
+    expect(bureaucratStamp?.requirements.classes).not.toContain("bureaucrat");
 
     const itemId = getLootExpansionItemId("w027", 0);
 
@@ -152,20 +210,31 @@ describe("loot expansion v1 content adapter", () => {
     });
   });
 
-  it("names hard title requirements and recognizes Borgomant-like titles", () => {
+  it("maps Borgomant title gates to the current bureaucramancer class", () => {
     const itemId = getLootExpansionItemId("x022", 2);
 
     expect(getLootExpansionEquipRequirementDetails(itemId)).toMatchObject({
       minLevel: 6,
-      titles: ["Боргомант"]
+      classes: ["Бюрокромант"],
+      titles: []
     });
 
     expect(
       checkLootExpansionEquipRequirement(itemId, {
         level: 8,
         classId: "class.warrior",
-        raceId: "race.human-ish",
-        title: "Канцелярський Боргомант"
+        raceId: "race.human-ish"
+      })
+    ).toMatchObject({
+      canEquip: false,
+      reasons: ["class"]
+    });
+
+    expect(
+      checkLootExpansionEquipRequirement(itemId, {
+        level: 8,
+        classId: "class.bureaucramancer",
+        raceId: "race.human-ish"
       })
     ).toMatchObject({
       canEquip: true,

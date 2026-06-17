@@ -215,6 +215,15 @@ export type ProblemQuestIssueNextLookupResult =
       issued: "created" | "already-issued";
     };
 
+export type ProblemQuestProgressLookupResult =
+  | { state: "no-character" }
+  | {
+      state: "ready";
+      character: CharacterSummary;
+      progress: ProblemQuestProgress;
+      archive: ProblemQuestProgress[];
+    };
+
 export type FightLookupResult =
   | { state: "no-character" }
   | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
@@ -463,6 +472,25 @@ export class FightService {
       session: activeSession,
       monster,
       questProgress
+    };
+  }
+
+  async getProblemQuestProgressForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<ProblemQuestProgressLookupResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const progress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+
+    return {
+      state: "ready",
+      character: await this.summarizeCharacterWithEquipment(telegramUserId, character),
+      progress,
+      archive: await this.getProblemQuestArchiveProgress(telegramUserId, progress)
     };
   }
 
@@ -1212,6 +1240,49 @@ export class FightService {
       issued: stageState.issuedAt !== null || rewardClaim !== null,
       branchComplete: false
     };
+  }
+
+  private async getProblemQuestArchiveProgress(
+    telegramUserId: bigint,
+    currentProgress: ProblemQuestProgress
+  ): Promise<ProblemQuestProgress[]> {
+    const rows: ProblemQuestProgress[] = [];
+
+    for (const stage of PROBLEM_QUEST_STAGES) {
+      const rewardClaim = await this.dailyActions.findForTelegramUser(telegramUserId, {
+        key: stage.rewardKey,
+        localDate: PROBLEM_QUEST_BUCKET
+      });
+
+      if (!rewardClaim) {
+        continue;
+      }
+
+      if (currentProgress.stageId === stage.id) {
+        rows.push(currentProgress);
+        continue;
+      }
+
+      rows.push({
+        stageId: stage.id,
+        title: stage.title,
+        wins: stage.target,
+        target: stage.target,
+        completed: true,
+        rewardClaimed: true,
+        issued: true,
+        branchComplete: false
+      });
+    }
+
+    if (
+      currentProgress.completed &&
+      !rows.some((row) => row.stageId === currentProgress.stageId)
+    ) {
+      rows.push(currentProgress);
+    }
+
+    return rows;
   }
 
   private async getOrRecoverPersistentFightReward(

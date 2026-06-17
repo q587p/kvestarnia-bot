@@ -7,6 +7,19 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.8] - 12026-06-17 - Problem Quest Shynok Recovery Buttons
+
+### Fixed
+- After taking the first Korchmar problem paper with already recovered legacy progress, the Shynok message now shows the actual old journal counter instead of saying the counter starts from zero.
+- If the recovered first paper is already complete, the same Shynok screen now offers `📋 Здати справу` immediately, so players do not have to leave and re-enter the location to discover the next action.
+- Shynok and Quest Hub now read problem-chain progress through a separate FightService lookup, so an active training doppelganger can block ordinary `/fight` without hiding Korchmar paper actions.
+- Loot Expansion v1 now normalizes generated class/race/title ids to current playable Kvestarnia ids, so generated manatky no longer require orphan titles such as `Боргомант` or unreachable legacy ids.
+- Expansion loot generation now filters candidates through the same equip-requirement check used by item detail and `/equip`, so ordinary rolls should not offer generated gear the current character cannot equip.
+
+### Guardrails
+- Active training or ordinary fights can still block starting another fight; this patch only clarifies the recovered problem-paper handoff.
+- No reward formula, quest counter, doppelganger combat, schema migration or new loot table was added.
+
 ## [0.1.7] - 12026-06-17 - Problem Quest First Paper Recovery
 
 ### Fixed
@@ -38,7 +51,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Existing `quest.thirteen-small-problems` completions remain compatible: players who already claimed the old 13-problem reward can take the 23-problem stage without duplicating the old reward.
 
 ### Fixed
-- Item detail and equip denial copy now name concrete generated-loot requirements, such as `титул: Боргомант`, and no longer claim a blocked item can be equipped.
+- Item detail and equip denial copy now name concrete generated-loot requirements and no longer claim a blocked item can be equipped.
 
 ### Not Included
 - No new schema migration, production dependency, duel invites, PvP ledger, donor/payment state, group raid, broad quest engine or repeatable reward farm.

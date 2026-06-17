@@ -2,7 +2,7 @@ import { InlineKeyboard } from "grammy";
 import type { AdventureLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
-import type { FightLookupResult } from "../../services/fightService";
+import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
 import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
 import { BESTIARY_MIN_LEVEL, meetsActivityLevel } from "../../domain/progression/activityGates";
 import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData";
@@ -17,6 +17,7 @@ export interface QuestHubKeyboardInput {
   characterLevel?: number;
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
+  problemQuest?: ProblemQuestProgress;
   yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
@@ -24,6 +25,7 @@ export interface QuestHubKeyboardInput {
 
 export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+  const problemQuest = getProblemQuestProgress(input);
 
   if (input.mode === "archive") {
     keyboard.text("📋 До справ", makeQuestCallbackData("list")).row();
@@ -45,7 +47,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
 
   keyboard.text("🥊 Бійцівський куток", makeTrainingDoppelgangerCallbackData()).row();
 
-  if (canOpenProblemQuestInBar(input.fight)) {
+  if (canOpenProblemQuestInBar(problemQuest)) {
     keyboard.text("🍻 До шинку", makePlaceCallbackData("bar")).row();
   }
 
@@ -56,7 +58,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
 
   if (
     input.fight.state === "ready" ||
-    (input.fight.state === "persistent-ready" && input.fight.questProgress.issued) ||
+    (input.fight.state === "persistent-ready" && problemQuest.issued) ||
     input.fight.state === "persistent-active" ||
     input.fight.state === "persistent-terminal"
   ) {
@@ -139,26 +141,47 @@ function getFightButtonLabel(fight: QuestHubKeyboardInput["fight"]): string {
   return "⚔️ До сутички";
 }
 
-function canOpenProblemQuestInBar(fight: QuestHubKeyboardInput["fight"]): boolean {
-  if (fight.state === "persistent-not-issued") {
+function canOpenProblemQuestInBar(progress: ProblemQuestProgress): boolean {
+  if (progress.branchComplete) {
+    return false;
+  }
+
+  if (!progress.issued) {
     return true;
   }
 
-  return (
-    (fight.state === "persistent-ready" ||
-      fight.state === "persistent-active" ||
-      fight.state === "persistent-terminal") &&
-    fight.questProgress.completed &&
-    !fight.questProgress.branchComplete
-  );
+  return progress.completed;
+}
+
+function getProblemQuestProgress(input: QuestHubKeyboardInput): ProblemQuestProgress {
+  if (input.problemQuest) {
+    return input.problemQuest;
+  }
+
+  if ("questProgress" in input.fight) {
+    return input.fight.questProgress;
+  }
+
+  return {
+    stageId: "93",
+    title: "Девʼяносто три остаточно підозрілі проблеми",
+    wins: 93,
+    target: 93,
+    completed: true,
+    rewardClaimed: true,
+    issued: true,
+    branchComplete: true
+  };
 }
 
 function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
+  const problemQuest = getProblemQuestProgress(input);
+
   return (
     input.adventure.state === "ready" ||
     input.fight.state === "ready" ||
-    input.fight.state === "persistent-not-issued" ||
-    (input.fight.state === "persistent-ready" && input.fight.questProgress.issued) ||
+    !problemQuest.branchComplete ||
+    (input.fight.state === "persistent-ready" && problemQuest.issued) ||
     input.fight.state === "persistent-active" ||
     input.fight.state === "persistent-terminal" ||
     input.fight.state === "training-active" ||
