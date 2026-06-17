@@ -26,8 +26,10 @@ import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
   PRESENCE_ADVENTURE_SOLO_FIGHT,
+  PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
   type PresenceService
@@ -129,6 +131,7 @@ import {
   buildCellarResultKeyboard
 } from "./keyboards/cellarKeyboard";
 import { buildFightResultKeyboard, buildPersistentFightResultKeyboard } from "./keyboards/fightKeyboard";
+import { buildTrainingDoppelgangerKeyboard } from "./keyboards/trainingDoppelgangerKeyboard";
 import {
   buildEquipItemResultKeyboard,
   buildEquipmentKeyboard,
@@ -194,6 +197,10 @@ import {
   presentPersistentFight,
   presentPersistentFightTurn
 } from "./presenters/fightPresenter";
+import {
+  presentTrainingDoppelgangerNoCharacter,
+  presentTrainingDoppelgangerTurn
+} from "./presenters/trainingDoppelgangerPresenter";
 import { presentHelp } from "./presenters/helpPresenter";
 import {
   presentEquipment,
@@ -1285,7 +1292,6 @@ async function handleTrainingDoppelgangerCallback(
   callback: TrainingDoppelgangerCallback,
   services: BotServices
 ): Promise<void> {
-  void callback;
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId || !services.trainingDoppelganger) {
@@ -1294,6 +1300,39 @@ async function handleTrainingDoppelgangerCallback(
   }
 
   if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
+  }
+
+  if (callback.type === "turn") {
+    const result = await services.trainingDoppelganger.resolveTurn(telegramUserId, {
+      sessionId: callback.sessionId,
+      turn: callback.turn,
+      action: callback.action
+    });
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentTrainingDoppelgangerNoCharacter());
+      return;
+    }
+
+    if (result.state !== "not-found") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
+      });
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentTrainingDoppelgangerTurn(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      ...(result.state === "not-found"
+        ? {}
+        : {
+            reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
+          })
+    });
     return;
   }
 

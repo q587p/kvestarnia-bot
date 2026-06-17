@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   makeTrainingDoppelgangerCallbackData,
+  makeTrainingDoppelgangerTurnCallbackData,
   parseTrainingDoppelgangerCallbackData
 } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
 
@@ -12,6 +13,25 @@ describe("training doppelganger callback data", () => {
     expect(parseTrainingDoppelgangerCallbackData(data)).toEqual({
       ok: true,
       value: { type: "open" }
+    });
+  });
+
+  it("round-trips turn callbacks within Telegram limits", () => {
+    const data = makeTrainingDoppelgangerTurnCallbackData({
+      sessionId: "123e4567-e89b-12d3-a456-426614174000",
+      turn: 3,
+      action: "skill"
+    });
+
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(64);
+    expect(parseTrainingDoppelgangerCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "turn",
+        sessionId: "123e4567-e89b-12d3-a456-426614174000",
+        turn: 3,
+        action: "skill"
+      }
     });
   });
 

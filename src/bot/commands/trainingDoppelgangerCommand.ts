@@ -12,6 +12,8 @@ import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import {
   presentTrainingDoppelganger,
+  presentTrainingDoppelgangerAnotherFight,
+  presentTrainingDoppelgangerCooldown,
   presentTrainingDoppelgangerNeedsRest,
   presentTrainingDoppelgangerNoCharacter
 } from "../presenters/trainingDoppelgangerPresenter";
@@ -73,7 +75,7 @@ export async function sendTrainingDoppelganger(
     }
   }
 
-  const result = await service.getForTelegramUser(telegramUserId);
+  const result = await service.getOrStartForTelegramUser(telegramUserId);
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentTrainingDoppelgangerNoCharacter());
@@ -85,8 +87,21 @@ export async function sendTrainingDoppelganger(
     return;
   }
 
+  if (result.state === "on-cooldown") {
+    await sendText(ctx, mode, presentTrainingDoppelgangerCooldown(result), "training");
+    return;
+  }
+
+  if (result.state === "another-fight-active") {
+    await sendText(ctx, mode, presentTrainingDoppelgangerAnotherFight(result), "training");
+    return;
+  }
+
   await markTrainingPresence(ctx, options.presence);
-  await sendText(ctx, mode, presentTrainingDoppelganger(result), "training");
+  await sendText(ctx, mode, presentTrainingDoppelganger(result), {
+    session: result.session,
+    character: result.character
+  });
 }
 
 async function markTrainingPresence(ctx: Context, presence: PresenceService): Promise<void> {
@@ -108,7 +123,14 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  keyboard: false | "enter-korchma" | "training" = false
+  keyboard:
+    | false
+    | "enter-korchma"
+    | "training"
+    | {
+        session: Parameters<typeof buildTrainingDoppelgangerKeyboard>[0];
+        character: Parameters<typeof buildTrainingDoppelgangerKeyboard>[1];
+      } = false
 ): Promise<void> {
   const options = keyboard
     ? {
@@ -116,7 +138,9 @@ async function sendText(
         reply_markup:
           keyboard === "enter-korchma"
             ? buildKorchmaFrontKeyboard()
-            : buildTrainingDoppelgangerKeyboard()
+            : keyboard === "training"
+              ? buildTrainingDoppelgangerKeyboard()
+              : buildTrainingDoppelgangerKeyboard(keyboard.session, keyboard.character)
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
 

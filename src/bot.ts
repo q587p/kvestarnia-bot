@@ -86,7 +86,13 @@ const services = {
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),
   tavern: new TavernRaidService(characters, dailyActions, roundPurchases, cooldowns),
-  trainingDoppelganger: new TrainingDoppelgangerService(characters, equipment)
+  trainingDoppelganger: new TrainingDoppelgangerService(
+    characters,
+    cooldowns,
+    dailyActions,
+    soloCombatSessions,
+    equipment
+  )
 };
 const supportJarOptions = config.supportJarUrl
   ? {

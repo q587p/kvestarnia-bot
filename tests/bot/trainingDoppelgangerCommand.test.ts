@@ -10,7 +10,7 @@ import type {
 } from "../../src/services/trainingDoppelgangerService";
 
 describe("training doppelganger command", () => {
-  it("blocks pending Barrel raids before reading the training card", async () => {
+  it("blocks pending Barrel raids before starting the training fight", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const service = new FakeTrainingDoppelgangerService({ state: "no-character" });
 

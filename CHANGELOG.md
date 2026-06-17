@@ -10,16 +10,17 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.1.5] - 12026-06-17 - Pre-duel Training Doppelganger Prep
 
 ### Added
-- Added `/spar` and a Quest Hub `🥊 Бійцівський куток` entry for a rewardless training card against the `Сумлінний Допельґанґер`.
-- Added a deterministic, no-ledger training resolver that mirrors the current hero summary and equipment effects without creating PvP state, rewards, HP loss or inventory changes.
-- Added `v1:spar:open` callback parsing, presenter/keyboards and neutral-before-handler presence routing; successful training marks `location.korchma.fighting_corner` only after Barrel and interior gates pass.
+- Added `/spar` and a Quest Hub `🥊 Бійцівський куток` entry for a turn-based training fight against the `Сумлінний Допельґанґер`.
+- Added a training combat path that mirrors the current hero summary/equipment into a doppelganger enemy, uses `solo_combat_sessions` for turns and keeps PvP state out of scope.
+- Added `v1:spar:open` and `v1:spar:turn:{sessionId}:{turn}:{action}` callback parsing, presenter/keyboards and neutral-before-handler presence routing; successful training marks `location.korchma.fighting_corner` only after Barrel and interior gates pass.
 
 ### Guardrails
-- Pending Barrel raids block the training surface before any training card is built.
-- Training results explicitly say there are no rewards and do not expose hidden scores, exact formulas or seed data.
+- Pending Barrel raids block the training surface before any training fight starts.
+- Training can grant XP only: `1 XP` on loss, level-scaled win XP at roughly half of a similar-level monster reward with small luck/random upside, and no gold, items, manatky or quest progress.
+- Repeat training is gated by a doppelganger recovery cooldown derived from the copy's remaining HP after the fight, not by a once-per-day card.
 
 ### Not Included
-- No real duel invites, target player selection, wagers, rewards, combat formula changes, group raids, trading, shops, crafting, Mini App work, schema changes or durable PvP ledger.
+- No real duel invites, target player selection, wagers, gold/items/manatky rewards, new loot tables, group raids, trading, shops, crafting, Mini App work, schema changes or durable PvP ledger.
 
 ## [0.1.4] - 12026-06-17 - Hlybka Routing & Fight/Quest Navigation Cleanup
 

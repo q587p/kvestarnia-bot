@@ -9,9 +9,11 @@
 Перший slice:
 - `0.1.5` додає `/spar` і кнопку `🥊 Бійцівський куток` у Столі зі справами;
 - допельґанґер копіює расу, клас, титул, рівень і effective stats/equipment summary героя;
-- розвʼязання детерміноване для поточного тренувального seed і не потребує duel ledger, бо не має нагород або незворотних наслідків;
-- результат короткий: тренування, висновок корчмаря і явне `Нагород немає`;
-- pending Barrel raid і korchma interior guard-и проходять до побудови картки, а presence пишеться тільки після успішних guard-ів;
+- тренування йде як покрокова combat session через `solo_combat_sessions`, але без duel ledger, target ownership або invite flow;
+- результат може дати малий XP: `1 XP` за програш і level-scaled XP за перемогу, приблизно від половини винагороди монстра подібного рівня з luck/random розкидом;
+- золото, лут, манатки, PvP-рейтинг і quest progress не видаються;
+- після завершення допельґанґер отримує recovery cooldown від HP, яке лишилося копії після бою; це не once-per-day gate;
+- pending Barrel raid і korchma interior guard-и проходять до старту сесії, а presence пишеться тільки після успішних guard-ів;
 - не створювати player-vs-player state, target ownership або invite flow у цьому slice.
 
 Пізніші розширення:
