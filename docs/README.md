@@ -20,6 +20,13 @@
 - [PLAYTESTING.md](PLAYTESTING.md) — ручний smoke test поточного playable loop.
 - [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md) — правила постановки задач, PR і docs-only workflow.
 
+## Codex workflow assets
+
+- [tasks/README.md](tasks/README.md) — версійний task registry, шаблони й архів виконаних slice-ів.
+- [ai/context.md](ai/context.md) — стислий контекст для нових Codex-сесій.
+- [ai/prompts/](ai/prompts/) — готові prompts для основного агента, QA, review і release handoff.
+- [ai/CODEX_TOKEN_ECONOMY_APPLIED.md](ai/CODEX_TOKEN_ECONOMY_APPLIED.md) — коротка нотатка про практичну економію токенів у workflow.
+
 ## Phase 1 closeout
 
 - [PHASE1_RELEASE_NOTES.md](PHASE1_RELEASE_NOTES.md) — канонічний підсумок `0.1.0`.
