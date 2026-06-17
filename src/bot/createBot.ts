@@ -1,4 +1,4 @@
-import { Bot, type Context } from "grammy";
+import { Bot, InlineKeyboard, type Context } from "grammy";
 import type { SupportJarStatus } from "../config/env";
 import type { AdventureService } from "../services/adventureService";
 import type { BarrelRaidNotificationRepository } from "../db/repositories/barrelRaidNotificationRepository";
@@ -10,7 +10,7 @@ import type {
 } from "../services/cellarGrownupQuestService";
 import type { DevResetService } from "../services/devResetService";
 import type { DevGrantService } from "../services/devGrantService";
-import type { FightService } from "../services/fightService";
+import type { FightService, PersistentFightTurnResult } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
 import type { HuntService } from "../services/huntService";
 import type { YegerQuestService } from "../services/yegerQuestService";
@@ -61,8 +61,8 @@ import {
 } from "./callbacks/mantokChestCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
-import { parsePlaceCallbackData, type PlaceCallback } from "./callbacks/placeCallbackData";
-import { parseQuestCallbackData, type QuestCallback } from "./callbacks/questCallbackData";
+import { makePlaceCallbackData, parsePlaceCallbackData, type PlaceCallback } from "./callbacks/placeCallbackData";
+import { makeQuestCallbackData, parseQuestCallbackData, type QuestCallback } from "./callbacks/questCallbackData";
 import {
   parseTrainingDoppelgangerCallbackData,
   type TrainingDoppelgangerCallback
@@ -192,6 +192,11 @@ import {
   presentFightNeedsRest,
   presentFightLevelRetired,
   presentFightNoCharacter,
+  buildProblemQuestProgressAfterFightEntry,
+  type QuestProgressAfterFightEntry,
+  presentProblemQuestIssueNext,
+  presentProblemQuestTurnIn,
+  presentQuestProgressAfterFight,
   presentFightResult,
   presentPersistentFight,
   presentPersistentFightTurn
@@ -826,13 +831,17 @@ async function handleItemCallback(
 
   const result = await services.inventory.getItemForTelegramUser(telegramUserId, action.itemId);
   const equipment = await services.equipment.getEquipmentForTelegramUser(telegramUserId);
+  const equipPreview = await services.equipment.previewItemEquipForTelegramUser(
+    telegramUserId,
+    action.itemId
+  );
   const equippedSlot =
     equipment.state === "ready"
       ? (equipment.slots.find((slot) => slot.item?.itemId === action.itemId)?.slot ?? null)
       : null;
 
   await safeAnswerCallbackQuery(ctx);
-  await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot }), {
+  await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot, equipPreview }), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot)
   });
@@ -1194,7 +1203,7 @@ async function handlePlaceCallback(
   }
 
   if (action === "bar") {
-    await sendKorchmaBar(ctx, services.tavern, services.presence, "edit", services.cellarGrownup);
+    await sendKorchmaBar(ctx, services.tavern, services.presence, "edit", services.cellarGrownup, services.fight);
     return;
   }
 
@@ -1262,6 +1271,75 @@ async function handleQuestCallback(
       presence: services.presence,
       tavernRaid: services.tavern,
       requireKorchmaInterior: true
+    });
+    return;
+  }
+
+  if (action === "problem" || action === "problem-next") {
+    if (!telegramUserId) {
+      await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    const place = await services.presence.getCurrentPlaceForTelegramUser(telegramUserId);
+
+    if (place.state === "no-character") {
+      await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    if (!place.insideKorchma) {
+      await safeEditMessageText(ctx, presentKorchmaQuestGate(), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildKorchmaFrontKeyboard()
+      });
+      return;
+    }
+
+    if (place.locationId !== PRESENCE_LOCATION_KORCHMA_BAR) {
+      await sendKorchmaBar(ctx, services.tavern, services.presence, "edit", services.cellarGrownup, services.fight);
+      return;
+    }
+
+    if (action === "problem-next") {
+      const result = await services.fight.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+      if (result.state === "no-character") {
+        await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
+        return;
+      }
+
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+        currentRaidId: null,
+        currentAdventureId: null
+      });
+      await safeEditMessageText(ctx, presentProblemQuestIssueNext(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildKorchmaBarKeyboard()
+      });
+      return;
+    }
+
+    const result = await services.fight.turnInProblemQuestForTelegramUser(telegramUserId);
+
+    if (result.state === "no-character") {
+      await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+      currentRaidId: null,
+      currentAdventureId: null
+    });
+    await safeEditMessageText(ctx, presentProblemQuestTurnIn(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildKorchmaBarKeyboard({
+        ...(result.state === "turned-in" && result.result.nextStage
+          ? { problemQuestAction: "next" }
+          : {})
+      })
     });
     return;
   }
@@ -1858,6 +1936,7 @@ async function handleFightCallback(
   }
 
   if (callback.type === "turn") {
+    const yegerBefore = await getYegerProgressSnapshot(services.yeger, telegramUserId);
     const result = await services.fight.resolvePersistentFightTurn(telegramUserId, {
       sessionId: callback.sessionId,
       turn: callback.turn,
@@ -1887,6 +1966,24 @@ async function handleFightCallback(
             reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
           })
     });
+    const progressMessage =
+      result.state === "updated" && result.session.state?.status === "won"
+        ? await presentWonFightQuestProgressAfterFight(result, services, telegramUserId, yegerBefore)
+        : null;
+
+    if (progressMessage) {
+      await ctx.reply(progressMessage.text, {
+        ...HTML_MESSAGE_OPTIONS,
+        ...(progressMessage.replyMarkup ? { reply_markup: progressMessage.replyMarkup } : {})
+      });
+    }
+
+    if (result.state === "updated" && result.fightReward?.levelChange) {
+      await sendLevelUpCelebration(ctx, {
+        levelChange: result.fightReward.levelChange,
+        character: result.character
+      });
+    }
     return;
   }
 
@@ -1918,6 +2015,98 @@ async function handleFightCallback(
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
   }
+}
+
+type YegerProgressSnapshot = { wins: number; target: number } | null;
+type FightQuestProgressAfterFightMessage = {
+  text: string;
+  replyMarkup?: InlineKeyboard;
+};
+
+async function getYegerProgressSnapshot(
+  yeger: Pick<YegerQuestService, "getForTelegramUser"> | undefined,
+  telegramUserId: bigint
+): Promise<YegerProgressSnapshot> {
+  if (!yeger) {
+    return null;
+  }
+
+  const result = await yeger.getForTelegramUser(telegramUserId);
+
+  if (result.state !== "in-progress" && result.state !== "turn-in-ready") {
+    return null;
+  }
+
+  return result.progress;
+}
+
+async function presentWonFightQuestProgressAfterFight(
+  result: Extract<PersistentFightTurnResult, { state: "updated" }>,
+  services: BotServices,
+  telegramUserId: bigint,
+  yegerBefore: YegerProgressSnapshot
+): Promise<FightQuestProgressAfterFightMessage | null> {
+  const entries: QuestProgressAfterFightEntry[] = [];
+  const problemEntry = buildProblemQuestProgressAfterFightEntry(result.questProgress);
+
+  if (problemEntry) {
+    entries.push(problemEntry);
+  }
+
+  if (result.monster && isYegerUnquietTarget(result.monster) && yegerBefore) {
+    const yegerAfter = await getYegerProgressSnapshot(services.yeger, telegramUserId);
+
+    if (yegerAfter && yegerAfter.wins > yegerBefore.wins) {
+      entries.push({
+        title: "Неспокійні справи",
+        wins: yegerAfter.wins,
+        target: yegerAfter.target,
+        completed: yegerAfter.wins >= yegerAfter.target,
+        ...(yegerAfter.wins >= yegerAfter.target
+          ? { readyHint: "Єгер чекає дощечку.", action: "yeger" as const }
+          : {})
+      });
+    }
+  }
+
+  const text = presentQuestProgressAfterFight(entries);
+
+  if (!text) {
+    return null;
+  }
+
+  const replyMarkup = buildQuestProgressAfterFightKeyboard(entries);
+
+  return {
+    text,
+    ...(replyMarkup ? { replyMarkup } : {})
+  };
+}
+
+function buildQuestProgressAfterFightKeyboard(
+  entries: readonly QuestProgressAfterFightEntry[]
+): InlineKeyboard | null {
+  const actions = new Set(
+    entries
+      .filter((entry) => entry.completed && entry.action)
+      .map((entry) => entry.action)
+  );
+
+  if (actions.size === 0) {
+    return null;
+  }
+
+  const keyboard = new InlineKeyboard();
+
+  if (actions.has("bar")) {
+    keyboard.text("🍻 До шинку", makePlaceCallbackData("bar")).row();
+  }
+
+  if (actions.has("yeger")) {
+    keyboard.text("🏹 До Єгеря", makeQuestCallbackData("hunt")).row();
+  }
+
+  return keyboard;
 }
 
 async function handleHuntCallback(

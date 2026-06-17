@@ -160,7 +160,14 @@ export const monsters = [
     name: "Крендель солоної обіцянки",
     description: "Сухий, гнучкий і страшенно переконаний, що довіра — це теж начинка.",
     level: 6,
-    tags: ["food", "bread", "rules", "unquiet"]
+    tags: ["food", "bread", "rules"]
+  },
+  {
+    id: "monster.unclosed-closure-act",
+    name: "Акт закриття, який не закрився",
+    description: "Шурхотить правилами й просить ще один підпис після того, як справу вже поховали в архіві.",
+    level: 6,
+    tags: ["paperwork", "rules", "bureaucracy", "unquiet"]
   },
   {
     id: "monster.liar-corridor-map",

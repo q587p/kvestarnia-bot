@@ -1,8 +1,10 @@
 import { items } from "../content";
 import {
   checkLootExpansionEquipRequirement,
+  getLootExpansionEquipRequirementDetails,
   isLootExpansionItemId,
-  type LootExpansionEquipCheck
+  type LootExpansionEquipCheck,
+  type LootExpansionEquipRequirementDetails
 } from "../content/lootExpansionV1";
 import type { ItemContent } from "../content/schema";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
@@ -16,6 +18,7 @@ import type {
   CharacterItemRecord,
   InventoryRepository
 } from "../db/repositories/inventoryRepository";
+import { summarizeCharacter } from "../domain/characters/characterSummary";
 
 export type { EquipmentSlot };
 export { equipmentSlots };
@@ -24,6 +27,25 @@ export type EquipmentResult =
   | { state: "no-character" }
   | { state: "ready"; slots: EquipmentSlotSummary[] };
 
+export type ItemEquipPreviewResult =
+  | { state: "no-character" }
+  | { state: "not-owned" }
+  | { state: "not-equippable" }
+  | {
+      state: "requirements-not-met";
+      reasons: LootExpansionEquipCheck["reasons"];
+      requirements: LootExpansionEquipRequirementDetails | null;
+      item: EquipmentItemSummary;
+      slot: EquipmentSlot;
+    }
+  | { state: "unsupported-slot" }
+  | {
+      state: "can-equip";
+      item: EquipmentItemSummary;
+      slot: EquipmentSlot;
+      requirements: LootExpansionEquipRequirementDetails | null;
+    };
+
 export type EquipItemResult =
   | { state: "no-character" }
   | { state: "not-owned" }
@@ -31,6 +53,7 @@ export type EquipItemResult =
   | {
       state: "requirements-not-met";
       reasons: LootExpansionEquipCheck["reasons"];
+      requirements: LootExpansionEquipRequirementDetails | null;
       item: EquipmentItemSummary;
     }
   | { state: "unsupported-slot" }
@@ -71,6 +94,83 @@ export class EquipmentService {
     };
   }
 
+  async previewItemEquipForTelegramUser(
+    telegramUserId: bigint,
+    itemId: string
+  ): Promise<ItemEquipPreviewResult> {
+    const [snapshot, inventoryRows] = await Promise.all([
+      this.equipment.listByTelegramUserId(telegramUserId),
+      this.inventory.listByTelegramUserId(telegramUserId)
+    ]);
+
+    if (!snapshot || !inventoryRows) {
+      return { state: "no-character" };
+    }
+
+    const owned = inventoryRows.find((row) => row.itemId === itemId);
+
+    if (!owned) {
+      return { state: "not-owned" };
+    }
+
+    const content = findKnownItem(owned);
+
+    if (!content) {
+      return { state: "not-equippable" };
+    }
+
+    const slot = mapItemToEquipmentSlot(content);
+
+    if (!slot) {
+      return { state: "not-equippable" };
+    }
+
+    if (!equipmentSlots.includes(slot)) {
+      return { state: "unsupported-slot" };
+    }
+
+    const item = {
+      itemId,
+      content
+    };
+
+    if (isLootExpansionItemId(itemId)) {
+      const requirements = getLootExpansionEquipRequirementDetails(itemId);
+      const equipCheck = await this.checkLootExpansionEquipRequirementForTelegramUser(
+        telegramUserId,
+        itemId
+      );
+
+      if (!equipCheck) {
+        return { state: "no-character" };
+      }
+
+      if (!equipCheck.canEquip) {
+        return {
+          state: "requirements-not-met",
+          reasons: equipCheck.reasons,
+          requirements,
+          item,
+          slot
+        };
+      }
+
+      return {
+        state: "can-equip",
+        item,
+        slot,
+        requirements
+      };
+    }
+
+    return {
+      state: "can-equip",
+      item,
+      slot,
+      requirements: null
+    };
+  }
+
   async equipItemForTelegramUser(
     telegramUserId: bigint,
     itemId: string
@@ -106,23 +206,21 @@ export class EquipmentService {
       return { state: "unsupported-slot" };
     }
 
-    if (isLootExpansionItemId(itemId) && this.characters) {
-      const character = await this.characters.findByTelegramUserId(telegramUserId);
+    if (isLootExpansionItemId(itemId)) {
+      const equipCheck = await this.checkLootExpansionEquipRequirementForTelegramUser(
+        telegramUserId,
+        itemId
+      );
 
-      if (!character) {
+      if (!equipCheck) {
         return { state: "no-character" };
       }
-
-      const equipCheck = checkLootExpansionEquipRequirement(itemId, {
-        level: character.level,
-        classId: character.classId,
-        raceId: character.raceId
-      });
 
       if (!equipCheck.canEquip) {
         return {
           state: "requirements-not-met",
           reasons: equipCheck.reasons,
+          requirements: getLootExpansionEquipRequirementDetails(itemId),
           item: {
             itemId,
             content
@@ -175,6 +273,33 @@ export class EquipmentService {
       slot,
       slots: buildSlots(snapshot.equipment.filter((row) => row.slot !== slot))
     };
+  }
+
+  private async checkLootExpansionEquipRequirementForTelegramUser(
+    telegramUserId: bigint,
+    itemId: string
+  ): Promise<LootExpansionEquipCheck | null> {
+    if (!this.characters) {
+      return {
+        canEquip: true,
+        reasons: []
+      };
+    }
+
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return null;
+    }
+
+    const summary = summarizeCharacter(character);
+
+    return checkLootExpansionEquipRequirement(itemId, {
+      level: summary.level,
+      classId: summary.classId,
+      raceId: summary.raceId,
+      title: summary.title
+    });
   }
 }
 

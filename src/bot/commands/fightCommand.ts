@@ -16,6 +16,7 @@ import {
 } from "../keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
+import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
   presentFightAlreadyCompleted,
   presentFightLevelRetired,
@@ -110,6 +111,20 @@ export async function sendFight(
     return;
   }
 
+  if (result.state === "persistent-not-issued") {
+    await sendText(
+      ctx,
+      mode,
+      [
+        "📋 Бій ще не відкрито.",
+        "",
+        "Корчмар тримає папірець у шинку. Спершу візьміть справу там, тоді проблеми почнуть рахуватися чесно."
+      ].join("\n"),
+      "problem-not-issued"
+    );
+    return;
+  }
+
   if (options?.presence) {
     await markFightPresence(ctx, options.presence, {
       persistent: result.state === "persistent-active" || result.state === "persistent-terminal"
@@ -179,6 +194,7 @@ async function sendText(
     | false
     | "enter-korchma"
     | "persistent-ready"
+    | "problem-not-issued"
     | {
         type: "training-active";
         character: CharacterSummary;
@@ -199,6 +215,13 @@ async function sendText(
             ? buildKorchmaFrontKeyboard()
             : keyboard === "persistent-ready"
               ? buildPersistentFightReadyKeyboard()
+              : keyboard === "problem-not-issued"
+              ? {
+                  inline_keyboard: [
+                    [{ text: "🍻 До шинку", callback_data: makePlaceCallbackData("bar") }],
+                    [{ text: "📋 До справ", callback_data: makePlaceCallbackData("quest-table") }]
+                  ]
+                }
               : keyboard.type === "training-active"
               ? buildTrainingDoppelgangerKeyboard(keyboard.session, keyboard.character)
               : keyboard.type === "persistent-fight"

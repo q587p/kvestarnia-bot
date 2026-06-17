@@ -4,6 +4,7 @@ import {
   findLootExpansionBaseItem,
   findLootExpansionVariantByItemId,
   getEnhancementWeight,
+  getLootExpansionEquipRequirementDetails,
   getLootExpansionAffinityMultiplier,
   getLootExpansionItemId,
   getLootExpansionValidationReport,
@@ -144,6 +145,27 @@ describe("loot expansion v1 content adapter", () => {
         level: 8,
         classId: "class.bureaucramancer",
         raceId: "race.human-ish"
+      })
+    ).toMatchObject({
+      canEquip: true,
+      reasons: []
+    });
+  });
+
+  it("names hard title requirements and recognizes Borgomant-like titles", () => {
+    const itemId = getLootExpansionItemId("x022", 2);
+
+    expect(getLootExpansionEquipRequirementDetails(itemId)).toMatchObject({
+      minLevel: 6,
+      titles: ["Боргомант"]
+    });
+
+    expect(
+      checkLootExpansionEquipRequirement(itemId, {
+        level: 8,
+        classId: "class.warrior",
+        raceId: "race.human-ish",
+        title: "Канцелярський Боргомант"
       })
     ).toMatchObject({
       canEquip: true,

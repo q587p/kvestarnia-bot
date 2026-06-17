@@ -47,13 +47,16 @@ import {
   TRAINING_DOPPELGANGER_MONSTER_ID
 } from "../domain/trainingDoppelganger";
 import {
+  APOPHENIA_RECEIPT_OF_TWENTY_THREE_ITEM_ID,
   BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID,
   enrichRewardItemGrants,
   PAN_OF_PERSUASION_ITEM_ID,
+  POSTER_OF_NINETY_THREE_PROBLEM_WILLS_ITEM_ID,
   RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
   starterEquipmentGrant,
   STAMP_OF_MINOR_AUTHORITY_ITEM_ID,
   SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
+  TOWEL_OF_FORTY_TWO_ANSWERS_ITEM_ID,
   type RewardItemGrant
 } from "./itemGrant";
 import { getEquippedItemContents } from "./equipmentService";
@@ -85,19 +88,101 @@ export const THIRTEEN_SMALL_PROBLEMS_REWARD = {
   gold: 10
 };
 
-export interface ThirteenSmallProblemsProgress {
-  title: "Тринадцять дрібних проблем";
+export type ProblemQuestStageId = "13" | "23" | "42" | "93";
+
+export interface ProblemQuestStage {
+  id: ProblemQuestStageId;
+  title: string;
+  target: number;
+  reward: {
+    xp: number;
+    gold: number;
+    itemId: string;
+  };
+  issueKey: string;
+  rewardKey: string;
+  nextStageId: ProblemQuestStageId | null;
+}
+
+export const PROBLEM_QUEST_STAGES: ProblemQuestStage[] = [
+  {
+    id: "13",
+    title: "Тринадцять дрібних проблем",
+    target: THIRTEEN_SMALL_PROBLEMS_TARGET_WINS,
+    reward: {
+      ...THIRTEEN_SMALL_PROBLEMS_REWARD,
+      itemId: BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID
+    },
+    issueKey: "quest.problem-chain.13.issued",
+    rewardKey: THIRTEEN_SMALL_PROBLEMS_QUEST_KEY,
+    nextStageId: "23"
+  },
+  {
+    id: "23",
+    title: "Двадцять три підозрілі проблеми",
+    target: 23,
+    reward: {
+      xp: 55,
+      gold: 18,
+      itemId: APOPHENIA_RECEIPT_OF_TWENTY_THREE_ITEM_ID
+    },
+    issueKey: "quest.problem-chain.23.issued",
+    rewardKey: "quest.problem-chain.23.reward",
+    nextStageId: "42"
+  },
+  {
+    id: "42",
+    title: "Сорок дві відповіді на проблеми",
+    target: 42,
+    reward: {
+      xp: 90,
+      gold: 30,
+      itemId: TOWEL_OF_FORTY_TWO_ANSWERS_ITEM_ID
+    },
+    issueKey: "quest.problem-chain.42.issued",
+    rewardKey: "quest.problem-chain.42.reward",
+    nextStageId: "93"
+  },
+  {
+    id: "93",
+    title: "Девʼяносто три волі до проблем",
+    target: 93,
+    reward: {
+      xp: 140,
+      gold: 45,
+      itemId: POSTER_OF_NINETY_THREE_PROBLEM_WILLS_ITEM_ID
+    },
+    issueKey: "quest.problem-chain.93.issued",
+    rewardKey: "quest.problem-chain.93.reward",
+    nextStageId: null
+  }
+];
+
+export const PROBLEM_QUEST_BUCKET = "once";
+
+export interface ProblemQuestProgress {
+  stageId: ProblemQuestStageId;
+  title: string;
   wins: number;
   target: number;
   completed: boolean;
   rewardClaimed: boolean;
+  issued: boolean;
+  branchComplete: boolean;
 }
 
-export interface ThirteenSmallProblemsReward {
+export interface ProblemQuestTurnInResult {
   state: "claimed" | "already-claimed";
+  stage: ProblemQuestStage;
   reward: FightReward;
   levelChange: RewardLevelChange | null;
+  nextStage: ProblemQuestStage | null;
+  nextStageAvailable: boolean;
+  branchComplete: boolean;
 }
+
+export type ThirteenSmallProblemsProgress = ProblemQuestProgress;
+export type ThirteenSmallProblemsReward = ProblemQuestTurnInResult;
 
 export interface PersistentFightReward {
   state: "claimed" | "replayed" | "already-claimed";
@@ -106,10 +191,39 @@ export interface PersistentFightReward {
   itemReplayUnavailable?: boolean;
 }
 
+export type ProblemQuestTurnInLookupResult =
+  | { state: "no-character" }
+  | { state: "not-ready"; character: CharacterSummary; progress: ProblemQuestProgress }
+  | { state: "branch-complete"; character: CharacterSummary; progress: ProblemQuestProgress }
+  | {
+      state: "turned-in";
+      character: CharacterSummary;
+      progress: ProblemQuestProgress;
+      result: ProblemQuestTurnInResult;
+    };
+
+export type ProblemQuestIssueNextLookupResult =
+  | { state: "no-character" }
+  | { state: "not-available"; character: CharacterSummary; progress: ProblemQuestProgress }
+  | { state: "branch-complete"; character: CharacterSummary; progress: ProblemQuestProgress }
+  | {
+      state: "issued";
+      character: CharacterSummary;
+      progress: ProblemQuestProgress;
+      stage: ProblemQuestStage;
+      nextStage: ProblemQuestStage;
+      issued: "created" | "already-issued";
+    };
+
 export type FightLookupResult =
   | { state: "no-character" }
   | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
   | { state: "needs-rest"; character: CharacterSummary }
+  | {
+      state: "persistent-not-issued";
+      character: CharacterSummary;
+      questProgress: ThirteenSmallProblemsProgress;
+    }
   | {
       state: "persistent-ready";
       character: CharacterSummary;
@@ -180,7 +294,6 @@ export type PersistentFightTurnResult =
       monster: MonsterContent;
       questProgress: ThirteenSmallProblemsProgress;
       fightReward: PersistentFightReward | null;
-      questReward: ThirteenSmallProblemsReward | null;
     }
   | {
       state: "terminal";
@@ -253,6 +366,14 @@ export class FightService {
     });
 
     if (!activeSession) {
+      if (!questProgress.issued) {
+        return {
+          state: "persistent-not-issued",
+          character: characterSummary,
+          questProgress
+        };
+      }
+
       return {
         state: "persistent-ready",
         character: characterSummary,
@@ -471,6 +592,14 @@ export class FightService {
       return {
         state: "needs-rest",
         character: characterSummary
+      };
+    }
+
+    if (!questProgress.issued) {
+      return {
+        state: "persistent-not-issued",
+        character: characterSummary,
+        questProgress
       };
     }
 
@@ -821,23 +950,154 @@ export class FightService {
       updated.status === "won" || updated.status === "lost"
         ? await this.claimPersistentFightReward(telegramUserId, updated, monster, characterSummary)
         : null;
-    const questReward =
-      updated.status === "won"
-        ? await this.claimThirteenSmallProblemsRewardIfComplete(telegramUserId)
-        : null;
-
     if (updated.status !== "active") {
       await this.persistCharacterResourcesFromSession(telegramUserId, updated);
     }
+
+    const refreshedQuestProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
 
     return {
       state: "updated",
       character: characterSummary,
       session: updated,
       monster,
-      questProgress: await this.getThirteenSmallProblemsProgress(telegramUserId),
-      fightReward,
-      questReward
+      questProgress: refreshedQuestProgress,
+      fightReward
+    };
+  }
+
+  async turnInProblemQuestForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<ProblemQuestTurnInLookupResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+    const progress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+
+    if (progress.branchComplete) {
+      return { state: "branch-complete", character: characterSummary, progress };
+    }
+
+    if (!progress.completed) {
+      return { state: "not-ready", character: characterSummary, progress };
+    }
+
+    const stage = getProblemQuestStage(progress.stageId);
+    const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+      key: stage.rewardKey,
+      localDate: PROBLEM_QUEST_BUCKET,
+      rewardXp: stage.reward.xp,
+      rewardGold: stage.reward.gold,
+      itemGrants: [
+        {
+          itemId: stage.reward.itemId,
+          quantity: 1,
+          maxOwnedQuantity: 1
+        }
+      ]
+    });
+
+    if (!claim) {
+      return { state: "no-character" };
+    }
+
+    const nextStage = stage.nextStageId ? getProblemQuestStage(stage.nextStageId) : null;
+
+    return {
+      state: "turned-in",
+      character: summarizeCharacter(claim.character),
+      progress: await this.getThirteenSmallProblemsProgress(telegramUserId),
+      result: {
+        state: claim.state === "created" ? "claimed" : "already-claimed",
+        stage,
+        reward: {
+          xp: claim.action.rewardXp,
+          gold: claim.action.rewardGold,
+          localDate: claim.action.localDate,
+          itemGrants: claim.state === "created" ? enrichRewardItemGrants(claim.itemGrants) : []
+        },
+        levelChange: claim.levelChange,
+        nextStage,
+        nextStageAvailable: nextStage !== null,
+        branchComplete: nextStage === null
+      }
+    };
+  }
+
+  async issueNextProblemQuestForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<ProblemQuestIssueNextLookupResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+    const progress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+
+    if (progress.branchComplete) {
+      return { state: "branch-complete", character: characterSummary, progress };
+    }
+
+    if (!progress.issued) {
+      const stage = getProblemQuestStage(progress.stageId);
+      const issued = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+        key: stage.issueKey,
+        localDate: PROBLEM_QUEST_BUCKET,
+        rewardXp: 0,
+        rewardGold: 0,
+        itemGrants: []
+      });
+
+      if (!issued) {
+        return { state: "no-character" };
+      }
+
+      return {
+        state: "issued",
+        character: summarizeCharacter(issued.character),
+        progress: await this.getThirteenSmallProblemsProgress(telegramUserId),
+        stage,
+        nextStage: stage,
+        issued: issued.state === "created" ? "created" : "already-issued"
+      };
+    }
+
+    if (!progress.rewardClaimed) {
+      return { state: "not-available", character: characterSummary, progress };
+    }
+
+    const stage = getProblemQuestStage(progress.stageId);
+    const nextStage = stage.nextStageId ? getProblemQuestStage(stage.nextStageId) : null;
+
+    if (!nextStage) {
+      return { state: "branch-complete", character: characterSummary, progress };
+    }
+
+    const issued = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+      key: nextStage.issueKey,
+      localDate: PROBLEM_QUEST_BUCKET,
+      rewardXp: 0,
+      rewardGold: 0,
+      itemGrants: []
+    });
+
+    if (!issued) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "issued",
+      character: summarizeCharacter(issued.character),
+      progress: await this.getThirteenSmallProblemsProgress(telegramUserId),
+      stage,
+      nextStage,
+      issued: issued.state === "created" ? "created" : "already-issued"
     };
   }
 
@@ -909,22 +1169,45 @@ export class FightService {
   private async getThirteenSmallProblemsProgress(
     telegramUserId: bigint
   ): Promise<ThirteenSmallProblemsProgress> {
+    const stageState = await this.getCurrentProblemQuestStage(telegramUserId);
+
+    if (stageState.branchComplete) {
+      const finalStage = getProblemQuestStage("93");
+
+      return {
+        stageId: finalStage.id,
+        title: finalStage.title,
+        wins: finalStage.target,
+        target: finalStage.target,
+        completed: true,
+        rewardClaimed: true,
+        issued: true,
+        branchComplete: true
+      };
+    }
+
     const wins = this.combatSessions
-      ? await this.combatSessions.countWonByTelegramUserId(telegramUserId, {
-          excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID]
-        })
+      ? stageState.issuedAt
+        ? await this.combatSessions.countWonByTelegramUserId(telegramUserId, {
+            excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID],
+            since: stageState.issuedAt
+          })
+        : 0
       : 0;
     const rewardClaim = await this.dailyActions.findForTelegramUser(telegramUserId, {
-      key: THIRTEEN_SMALL_PROBLEMS_QUEST_KEY,
-      localDate: THIRTEEN_SMALL_PROBLEMS_QUEST_BUCKET
+      key: stageState.stage.rewardKey,
+      localDate: PROBLEM_QUEST_BUCKET
     });
 
     return {
-      title: "Тринадцять дрібних проблем",
+      stageId: stageState.stage.id,
+      title: stageState.stage.title,
       wins,
-      target: THIRTEEN_SMALL_PROBLEMS_TARGET_WINS,
-      completed: wins >= THIRTEEN_SMALL_PROBLEMS_TARGET_WINS,
-      rewardClaimed: rewardClaim !== null
+      target: stageState.stage.target,
+      completed: rewardClaim !== null || wins >= stageState.stage.target,
+      rewardClaimed: rewardClaim !== null,
+      issued: stageState.issuedAt !== null || rewardClaim !== null,
+      branchComplete: false
     };
   }
 
@@ -970,47 +1253,67 @@ export class FightService {
     };
   }
 
-  private async claimThirteenSmallProblemsRewardIfComplete(
-    telegramUserId: bigint
-  ): Promise<ThirteenSmallProblemsReward | null> {
-    const wins = this.combatSessions
-      ? await this.combatSessions.countWonByTelegramUserId(telegramUserId, {
-          excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID]
-        })
-      : 0;
+  private async getCurrentProblemQuestStage(telegramUserId: bigint): Promise<
+    | { branchComplete: true }
+    | { branchComplete: false; stage: ProblemQuestStage; issuedAt: Date | null }
+  > {
+    const stageRecords: Array<{
+      stage: ProblemQuestStage;
+      issuedAt: Date | null;
+      rewarded: boolean;
+    }> = [];
 
-    if (wins < THIRTEEN_SMALL_PROBLEMS_TARGET_WINS) {
-      return null;
+    for (const stage of PROBLEM_QUEST_STAGES) {
+      const issued = await this.dailyActions.findForTelegramUser(telegramUserId, {
+        key: stage.issueKey,
+        localDate: PROBLEM_QUEST_BUCKET
+      });
+      const reward = await this.dailyActions.findForTelegramUser(telegramUserId, {
+        key: stage.rewardKey,
+        localDate: PROBLEM_QUEST_BUCKET
+      });
+
+      stageRecords.push({
+        stage,
+        issuedAt: issued?.createdAt ?? null,
+        rewarded: reward !== null
+      });
     }
 
-    const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
-      key: THIRTEEN_SMALL_PROBLEMS_QUEST_KEY,
-      localDate: THIRTEEN_SMALL_PROBLEMS_QUEST_BUCKET,
-      rewardXp: THIRTEEN_SMALL_PROBLEMS_REWARD.xp,
-      rewardGold: THIRTEEN_SMALL_PROBLEMS_REWARD.gold,
-      itemGrants: [
-        {
-          itemId: BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID,
-          quantity: 1,
-          maxOwnedQuantity: 1
-        }
-      ]
-    });
-
-    if (!claim) {
-      return null;
+    if (stageRecords.at(-1)?.rewarded) {
+      return { branchComplete: true };
     }
 
-    return {
-      state: claim.state === "created" ? "claimed" : "already-claimed",
-      reward: {
-        xp: claim.action.rewardXp,
-        gold: claim.action.rewardGold,
-        localDate: claim.action.localDate,
-        itemGrants: claim.state === "created" ? enrichRewardItemGrants(claim.itemGrants) : []
-      },
-      levelChange: claim.levelChange
-    };
+    const activeStage = stageRecords.find(({ issuedAt, rewarded }) => issuedAt && !rewarded);
+
+    if (activeStage) {
+      return {
+        branchComplete: false,
+        stage: activeStage.stage,
+        issuedAt: activeStage.issuedAt
+      };
+    }
+
+    for (let index = stageRecords.length - 1; index >= 0; index -= 1) {
+      const record = stageRecords[index];
+      if (!record?.rewarded || !record.stage.nextStageId) {
+        continue;
+      }
+
+      const nextRecord = stageRecords.find(
+        (candidate) => candidate.stage.id === record.stage.nextStageId
+      );
+
+      if (!nextRecord?.issuedAt) {
+        return {
+          branchComplete: false,
+          stage: record.stage,
+          issuedAt: record.issuedAt
+        };
+      }
+    }
+
+    return { branchComplete: false, stage: getProblemQuestStage("13"), issuedAt: null };
   }
 
   private async summarizeCharacterWithEquipment(
@@ -1149,6 +1452,16 @@ function buildPersistentFightRewardReplay(
     },
     levelChange: null
   };
+}
+
+function getProblemQuestStage(stageId: ProblemQuestStageId): ProblemQuestStage {
+  const stage = PROBLEM_QUEST_STAGES.find((candidate) => candidate.id === stageId);
+
+  if (!stage) {
+    throw new Error(`Unknown problem quest stage: ${stageId}`);
+  }
+
+  return stage;
 }
 
 function buildFightItemGrants(action: FightAction): Array<{ itemId: string; quantity: number }> {

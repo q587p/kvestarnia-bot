@@ -76,15 +76,19 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
   }
 
   if (fight.state === "persistent-active") {
-    return `📋 <i>Тринадцять дрібних проблем</i> — ${presentThirteenProblemsStatus(fight.questProgress)}, бій уже триває.`;
+    return `📋 <i>${fight.questProgress.title}</i> — ${presentProblemQuestStatus(fight.questProgress)}, бій уже триває.`;
   }
 
   if (fight.state === "training-active") {
     return "🥊 <i>Бійцівський куток</i> — тренування вже триває; звичайні проблеми почекають після /spar.";
   }
 
+  if (fight.state === "persistent-not-issued") {
+    return `📋 <i>${fight.questProgress.title}</i> — Корчмар має папірець у шинку. Спершу візьміть справу там.`;
+  }
+
   if (fight.state === "persistent-ready" || fight.state === "persistent-terminal") {
-    return `📋 <i>Тринадцять дрібних проблем</i> — ${presentThirteenProblemsStatus(fight.questProgress)}.`;
+    return `📋 <i>${fight.questProgress.title}</i> — ${presentProblemQuestStatus(fight.questProgress)}.`;
   }
 
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
@@ -97,17 +101,6 @@ function presentActiveFightRow(fight: Exclude<FightLookupResult, { state: "no-ch
     return null;
   }
 
-  if (
-    (fight.state === "persistent-active" ||
-      fight.state === "persistent-ready" ||
-      fight.state === "persistent-terminal") &&
-    fight.questProgress.completed
-  ) {
-    const status = fight.state === "persistent-active" ? "бій уже триває" : "можна шукати нову проблему";
-
-    return `⚔️ <i>Сутичка з невідомим монстром</i> — ${status}.`;
-  }
-
   return presentFightRow(fight);
 }
 
@@ -118,23 +111,32 @@ function presentFightArchiveRow(fight: Exclude<FightLookupResult, { state: "no-c
 
   if (
     (fight.state === "persistent-active" ||
+      fight.state === "persistent-not-issued" ||
       fight.state === "persistent-ready" ||
       fight.state === "persistent-terminal") &&
     fight.questProgress.completed
   ) {
-    return `📋 <i>Тринадцять дрібних проблем</i> — ${presentThirteenProblemsStatus(fight.questProgress)}.`;
+    return `📋 <i>${fight.questProgress.title}</i> — ${presentProblemQuestStatus(fight.questProgress)}.`;
   }
 
   return null;
 }
 
-function presentThirteenProblemsStatus(progress: {
+function presentProblemQuestStatus(progress: {
   wins: number;
   target: number;
   completed: boolean;
+  rewardClaimed?: boolean;
+  branchComplete?: boolean;
 }): string {
+  if (progress.branchComplete) {
+    return "гілку закрито; Корчмар тимчасово робить вигляд, що не вміє рахувати далі";
+  }
+
   if (progress.completed) {
-    return `${progress.wins}/${progress.target} проблем у журналі, перший список закрито; далі практика`;
+    return progress.rewardClaimed
+      ? `${progress.wins}/${progress.target} проблем у журналі, справу здано; Корчмар має наступний папірець`
+      : `${progress.wins}/${progress.target} проблем у журналі, Корчмар чекає в шинку`;
   }
 
   return `${progress.wins}/${progress.target} проблем у журналі`;
@@ -219,7 +221,7 @@ function presentActiveCellarRow(
     }
 
     if (hasGrownupBottle(cellarGrownup)) {
-      return "🐭 <i>Справа не до миші</i> — пляшка вже з вами; Корчмар чекає в Шинку.";
+      return "🐭 <i>Справа не до миші</i> — пляшка вже з вами; Корчмар чекає в шинку.";
     }
 
     return "🐭 <i>Справа не до миші</i> — у льосі є інша справа для старших пригодників.";
@@ -323,6 +325,7 @@ function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
   return (
     snapshot.adventure.state === "ready" ||
     snapshot.fight.state === "ready" ||
+    snapshot.fight.state === "persistent-not-issued" ||
     snapshot.fight.state === "persistent-ready" ||
     snapshot.fight.state === "persistent-active" ||
     snapshot.fight.state === "persistent-terminal" ||

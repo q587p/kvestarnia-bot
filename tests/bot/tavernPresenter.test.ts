@@ -209,12 +209,12 @@ describe("tavern presenter", () => {
     expect(text).toContain("<b>Мандрівник</b> · <i>Пересічний Пригодник</i>");
     expect(text).toContain("Корчма Квестарні");
     expect(text).toContain(
-      "без нагляду.\n\nПраворуч стоїть <i>Стіл зі справами</i>"
+      "без нагляду.\n\nПраворуч стоїть <i>стіл зі справами</i>"
     );
-    expect(text).toContain("неподалік шумить <i>Шинок</i>");
+    expect(text).toContain("неподалік шумить <i>шинок</i>");
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
-    expect(text).toContain("<i>Льох</i>");
-    expect(text).toContain("<i>Дошка вістей</i>");
+    expect(text).toContain("<i>льох</i>");
+    expect(text).toContain("<i>дошка вістей</i>");
     expect(text).toContain("Корчмар:\n<blockquote>");
     expect(text).toContain("Куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
@@ -236,6 +236,18 @@ describe("tavern presenter", () => {
     expect(text).toContain("корчмаря");
     expect(text).toContain("частують пивом");
     expect(text).toContain("Що наливаємо?");
+  });
+
+  it("mentions available Шинок actions in the location text", () => {
+    const take = presentKorchmaBar(character, { problemQuestAction: "take" });
+    const turnIn = presentKorchmaBar(character, { problemQuestAction: "turn-in" });
+    const next = presentKorchmaBar(character, { problemQuestAction: "next" });
+    const bottle = presentKorchmaBar(character, { includeBottleTurnIn: true });
+
+    expect(take).toContain("можна взяти як нову справу");
+    expect(turnIn).toContain("готову справу можна здати просто тут");
+    expect(next).toContain("Корчмар відкриє новий лічильник");
+    expect(bottle).toContain("є місце для пляшки з льоху");
   });
 
   it("accepts a changing flavor seed for korchma hall greetings", () => {

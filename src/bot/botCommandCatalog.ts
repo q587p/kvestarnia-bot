@@ -210,6 +210,20 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_heal",
+    icon: "🩹",
+    description: "вилікувати HP локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_restore_mana",
+    icon: "🔮",
+    description: "відновити ману локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
     command: "dev_add_random_item",
     icon: "🎲",
     description: "додати випадкові манатки локально",

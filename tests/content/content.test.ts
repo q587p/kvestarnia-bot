@@ -22,6 +22,7 @@ const ordinaryMonsterLadderIds = [
   "monster.complaint-lantern",
   "monster.ledger-boar",
   "monster.salted-oath-pretzel",
+  "monster.unclosed-closure-act",
   "monster.liar-corridor-map",
   "monster.foam-auditor-boots",
   "monster.three-signature-chimera",

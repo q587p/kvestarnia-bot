@@ -132,6 +132,9 @@ describe("YegerQuestService", () => {
     expect(isYegerUnquietTarget({ tags: ["ghost"] })).toBe(true);
     expect(isYegerUnquietTarget({ tags: ["cursed"] })).toBe(true);
     expect(isYegerUnquietTarget({ tags: ["beast", "paperwork"] })).toBe(false);
+    expect(isYegerUnquietTarget({ tags: ["food", "bread", "rules"] })).toBe(false);
+    expect(isYegerUnquietTarget(monsters.find((monster) => monster.id === "monster.salted-oath-pretzel")!)).toBe(false);
+    expect(isYegerUnquietTarget(monsters.find((monster) => monster.id === "monster.unclosed-closure-act")!)).toBe(true);
   });
 
   it("keeps Yeger targets available across the ordinary level ladder", () => {

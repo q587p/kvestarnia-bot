@@ -331,9 +331,9 @@ function presentTrackingQuestLines(input?: {
 
   const thirteen = input?.thirteenProgress;
 
-  if (thirteen && !thirteen.completed) {
+  if (thirteen?.issued && !thirteen.completed) {
     lines.push(
-      `• <b>Тринадцять дрібних проблем</b>: <b>${thirteen.wins}/${thirteen.target}</b> проблем.`
+      `• <b>${escapeHtml(thirteen.title)}</b>: <b>${thirteen.wins}/${thirteen.target}</b> проблем.`
     );
   }
 

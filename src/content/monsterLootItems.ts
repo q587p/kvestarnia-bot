@@ -446,6 +446,17 @@ export const monsterLootItemAdditions = [
     }
   },
   {
+    id: "item.paperclip-of-unfinished-closure",
+    name: "Скріпка незакритого закриття",
+    description: "Тримає разом те, що давно мало розійтися по архіву.",
+    rarity: "common",
+    slot: "accessory",
+    goldValue: 3,
+    effect: {
+      intelligence: 1
+    }
+  },
+  {
     id: "item.folded-wrong-turn",
     name: "Складений хибний поворот",
     description: "Нібито карта, але більше схоже на дуже вперту помилку.",

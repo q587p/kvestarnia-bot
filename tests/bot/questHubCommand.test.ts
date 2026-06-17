@@ -344,7 +344,7 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).not.toContain("пляшка вже з вами; Корчмар чекає в Шинку");
+    expect(replies[0]?.text).not.toContain("пляшка вже з вами; Корчмар чекає в шинку");
     expect(replies[0]?.text).toContain(
       "🐭 <i>Справа не до миші</i> — у льосі є інша справа для старших пригодників."
     );
@@ -392,7 +392,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).toContain("📦 Архів справ");
     expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
-      "📋 <i>Тринадцять дрібних проблем</i> — 14/13 проблем у журналі, перший список закрито; далі практика."
+      "📋 <i>Тринадцять дрібних проблем</i> — 14/13 проблем у журналі, справу здано; Корчмар має наступний папірець."
     );
     expect(replies[0]?.text).toContain("🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.");
     expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — новачкова справа до 3 рівня.");
@@ -527,7 +527,9 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("⚔️ <i>Сутичка з невідомим монстром</i> — можна шукати нову проблему.");
+    expect(replies[0]?.text).toContain(
+      "📋 <i>Тринадцять дрібних проблем</i> — 14/13 проблем у журналі, справу здано; Корчмар має наступний папірець."
+    );
     expect(replies[0]?.text).not.toContain(
       "📋 <i>Тринадцять дрібних проблем</i> — 14/13 проблем у журналі, перший список закрито; далі практика."
     );
@@ -536,6 +538,7 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.text)).toContain("🍻 До шинку");
     expect(buttons.map((button) => button.text)).toContain("📋 До запису бою");
   });
 
@@ -572,6 +575,53 @@ describe("quest hub command", () => {
       "📖 Бестіарій",
       "🍺 До зали"
     ]);
+  });
+
+  it("routes an unissued first problem quest to the Шинок from the quest hub", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(3);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(grownCharacter),
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-not-issued",
+              character: grownCharacter,
+              questProgress: {
+                ...questProgress(0),
+                issued: false
+              }
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        } as unknown as FightService,
+        yeger: readyYegerService(grownCharacter),
+        cellarErrand: readyCellarService(grownCharacter)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain(
+      "📋 <i>Тринадцять дрібних проблем</i> — Корчмар має папірець у шинку. Спершу візьміть справу там."
+    );
+    expect(replies[0]?.text).not.toContain("0/13 проблем у журналі");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.text)).toEqual([
+      "🥊 Бійцівський куток",
+      "🍻 До шинку",
+      "🧹 У льох",
+      "📦 Архів",
+      "📖 Бестіарій",
+      "🍺 До зали"
+    ]);
+    expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("bar"));
+    expect(buttons.map((button) => button.text)).not.toContain("⚔️ Розвʼязати проблему");
   });
 
   it("shows active spar from the quest hub without offering a normal fight", async () => {
@@ -851,11 +901,14 @@ function readyFightService(summary: CharacterSummary): FightService {
 
 function questProgress(wins: number, completed = false) {
   return {
+    stageId: "13" as const,
     title: "Тринадцять дрібних проблем" as const,
     wins,
     target: 13,
     completed,
-    rewardClaimed: completed
+    rewardClaimed: completed,
+    issued: true,
+    branchComplete: false
   };
 }
 

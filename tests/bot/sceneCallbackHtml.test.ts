@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
-import { makeFightCallbackData } from "../../src/bot/callbacks/fightCallbackData";
+import {
+  makeFightCallbackData,
+  makeFightTurnCallbackData
+} from "../../src/bot/callbacks/fightCallbackData";
 import { makeEquipItemCallbackData } from "../../src/bot/callbacks/itemCallbackData";
 import { makeLevelBarterAutoCallbackData } from "../../src/bot/callbacks/levelBarterCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
@@ -106,6 +109,89 @@ describe("scene callback HTML options", () => {
             },
             levelChange: noLevelChange
           })
+        }
+      })
+    },
+    {
+      name: "problem quest turn-in",
+      callbackData: makeQuestCallbackData("problem"),
+      services: servicesWith({
+        presence: {
+          markAction: () => Promise.resolve(),
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.bar",
+              locationName: "Шинок",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
+        fight: {
+          turnInProblemQuestForTelegramUser: () =>
+            Promise.resolve({
+              state: "turned-in",
+              character,
+              progress: {
+                stageId: "23",
+                title: "Двадцять три підозрілі проблеми",
+                wins: 0,
+                target: 23,
+                completed: false,
+                rewardClaimed: false,
+                issued: true,
+                branchComplete: false
+              },
+              result: {
+                state: "claimed",
+                stage: {
+                  id: "13",
+                  title: "Тринадцять дрібних проблем",
+                  target: 13,
+                  reward: {
+                    xp: 35,
+                    gold: 10,
+                    itemId: "item.badge-of-thirteen-small-problems"
+                  },
+                  issueKey: "quest.problem-chain.13.issued",
+                  rewardKey: "quest.thirteen-small-problems",
+                  nextStageId: "23"
+                },
+                reward: {
+                  xp: 35,
+                  gold: 10,
+                  localDate: "once",
+                  itemGrants: [
+                    {
+                      itemId: "item.badge-of-thirteen-small-problems",
+                      name: "Жетон тринадцяти дрібних проблем",
+                      quantity: 1
+                    }
+                  ]
+                },
+                levelChange: noLevelChange,
+                nextStage: {
+                  id: "23",
+                  title: "Двадцять три підозрілі проблеми",
+                  target: 23,
+                  reward: {
+                    xp: 55,
+                    gold: 18,
+                    itemId: "item.apophenia-receipt-of-twenty-three"
+                  },
+                  issueKey: "quest.problem-chain.23.issued",
+                  rewardKey: "quest.problem-chain.23.reward",
+                  nextStageId: "42"
+                },
+                nextStageAvailable: true,
+                branchComplete: false
+              }
+            })
         }
       })
     }
@@ -249,6 +335,273 @@ describe("scene callback HTML options", () => {
     expect(String(celebration?.payload.text)).toContain(
       "📈 Стало краще: <b>+4 HP · +2 мани · +1 Спритності</b>"
     );
+  });
+
+  it("sends problem quest progress as a separate HTML message after a won fight turn", async () => {
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: "123e4567-e89b-42d3-a456-426614174000",
+        turn: 3,
+        action: "attack"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn: () =>
+            Promise.resolve({
+              state: "updated",
+              character,
+              session: {
+                ...persistentSession("monster.deadline-spider"),
+                id: "123e4567-e89b-42d3-a456-426614174000",
+                status: "won",
+                turn: 4,
+                state: {
+                  id: "123e4567-e89b-42d3-a456-426614174000",
+                  status: "won",
+                  turn: 4,
+                  hero: {
+                    hp: 17,
+                    hpMax: 20,
+                    mana: 7,
+                    manaMax: 10
+                  },
+                  monster: {
+                    id: "monster.deadline-spider",
+                    hp: 0,
+                    hpMax: 12
+                  },
+                  lastTurn: {
+                    action: "attack",
+                    heroOutcome: "hit",
+                    heroDamage: 12,
+                    monsterDamage: 0,
+                    manaSpent: 0,
+                    critical: false
+                  }
+                }
+              },
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: {
+                stageId: "23",
+                title: "Двадцять три підозрілі проблеми",
+                wins: 7,
+                target: 23,
+                completed: false,
+                rewardClaimed: false,
+                issued: true,
+                branchComplete: false
+              },
+              fightReward: {
+                state: "claimed",
+                reward: {
+                  xp: 20,
+                  gold: 0,
+                  localDate: "123e4567-e89b-42d3-a456-426614174000",
+                  itemGrants: []
+                },
+                levelChange
+              }
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const progress = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("Прогрес справи зрушив")
+    );
+
+    expect(String(edit?.payload.text)).toContain("🎉 Ви перемогли");
+    expect(String(edit?.payload.text)).not.toContain("Двадцять три підозрілі проблеми");
+    expect(progress?.payload.parse_mode).toBe("HTML");
+    expect(String(progress?.payload.text)).toContain(
+      "<i>Двадцять три підозрілі проблеми</i>: <b>7/23</b>."
+    );
+    const celebration = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("🎉 Рівень підріс!")
+    );
+
+    expect(celebration?.payload.parse_mode).toBe("HTML");
+    expect(String(celebration?.payload.text)).toContain("✨ <b>2 → 3</b>");
+  });
+
+  it("adds a Shynok route button to completed problem quest progress", async () => {
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: "123e4567-e89b-42d3-a456-426614174222",
+        turn: 3,
+        action: "attack"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn: () =>
+            Promise.resolve({
+              state: "updated",
+              character,
+              session: {
+                ...persistentSession("monster.deadline-spider"),
+                id: "123e4567-e89b-42d3-a456-426614174222",
+                status: "won",
+                turn: 4,
+                state: {
+                  id: "123e4567-e89b-42d3-a456-426614174222",
+                  status: "won",
+                  turn: 4,
+                  hero: {
+                    hp: 17,
+                    hpMax: 20,
+                    mana: 7,
+                    manaMax: 10
+                  },
+                  monster: {
+                    id: "monster.deadline-spider",
+                    hp: 0,
+                    hpMax: 12
+                  },
+                  lastTurn: {
+                    action: "attack",
+                    heroOutcome: "hit",
+                    heroDamage: 12,
+                    monsterDamage: 0,
+                    manaSpent: 0,
+                    critical: false
+                  }
+                }
+              },
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: {
+                stageId: "13",
+                title: "Тринадцять дрібних проблем",
+                wins: 13,
+                target: 13,
+                completed: true,
+                rewardClaimed: false,
+                issued: true,
+                branchComplete: false
+              },
+              fightReward: null
+            })
+        }
+      })
+    );
+    const progress = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("Прогрес справи зрушив")
+    );
+
+    expect(progress?.payload.parse_mode).toBe("HTML");
+    expect(String(progress?.payload.text)).toContain("Корчмар чекає в шинку.");
+    expect(JSON.stringify(progress?.payload.reply_markup)).toContain("🍻 До шинку");
+    expect(JSON.stringify(progress?.payload.reply_markup)).toContain(makePlaceCallbackData("bar"));
+  });
+
+  it("includes Yeger quest progress in the separate message when a matching won fight moved it", async () => {
+    const yegerLookup = vi
+      .fn()
+      .mockResolvedValueOnce({
+        state: "in-progress",
+        character,
+        progress: { wins: 4, target: 5 },
+        tracking: { state: "none" }
+      })
+      .mockResolvedValueOnce({
+        state: "turn-in-ready",
+        character,
+        progress: { wins: 5, target: 5 },
+        tracking: { state: "none" }
+      });
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: "123e4567-e89b-42d3-a456-426614174111",
+        turn: 3,
+        action: "attack"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn: () =>
+            Promise.resolve({
+              state: "updated",
+              character,
+              session: {
+                ...persistentSession("monster.restless-auditor"),
+                id: "123e4567-e89b-42d3-a456-426614174111",
+                status: "won",
+                turn: 4,
+                state: {
+                  id: "123e4567-e89b-42d3-a456-426614174111",
+                  status: "won",
+                  turn: 4,
+                  hero: {
+                    hp: 17,
+                    hpMax: 20,
+                    mana: 7,
+                    manaMax: 10
+                  },
+                  monster: {
+                    id: "monster.restless-auditor",
+                    hp: 0,
+                    hpMax: 12
+                  },
+                  lastTurn: {
+                    action: "attack",
+                    heroOutcome: "hit",
+                    heroDamage: 12,
+                    monsterDamage: 0,
+                    manaSpent: 0,
+                    critical: false
+                  }
+                }
+              },
+              monster: {
+                id: "monster.restless-auditor",
+                name: "Неспокійний аудитор",
+                description: "Шурхотить формами навіть після смерті.",
+                level: 4,
+                tags: ["undead", "paperwork"]
+              },
+              questProgress: {
+                stageId: "13",
+                title: "Тринадцять дрібних проблем",
+                wins: 13,
+                target: 13,
+                completed: true,
+                rewardClaimed: false,
+                issued: true,
+                branchComplete: false
+              },
+              fightReward: null
+            })
+        },
+        yeger: {
+          getForTelegramUser: yegerLookup
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const progress = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("Прогрес справ зрушив")
+    );
+
+    expect(yegerLookup).toHaveBeenCalledTimes(2);
+    expect(String(edit?.payload.text)).not.toContain("Неспокійні справи");
+    expect(progress?.payload.parse_mode).toBe("HTML");
+    expect(String(progress?.payload.text)).toContain("📋 <b>Прогрес справ зрушив</b>");
+    expect(String(progress?.payload.text)).toContain(
+      "<i>Тринадцять дрібних проблем</i>: <b>13/13</b>. — Корчмар чекає в шинку."
+    );
+    expect(String(progress?.payload.text)).toContain("<i>Неспокійні справи</i>: <b>5/5</b>. — Єгер чекає дощечку.");
+    expect(JSON.stringify(progress?.payload.reply_markup)).toContain("🍻 До шинку");
+    expect(JSON.stringify(progress?.payload.reply_markup)).toContain("🏹 До Єгеря");
   });
 
   it("edits equip requirement denials as message text instead of popup text", async () => {

@@ -34,6 +34,13 @@ export interface LootExpansionEquipCheck {
   reasons: Array<"min-level" | "class" | "race" | "title" | "unknown-item">;
 }
 
+export interface LootExpansionEquipRequirementDetails {
+  minLevel: number;
+  classes: readonly string[];
+  races: readonly string[];
+  titles: readonly string[];
+}
+
 export const LOOT_EXPANSION_V1_BASE_ITEM_COUNT = lootExpansionV1Data.items.length;
 export const LOOT_EXPANSION_V1_EFFECT_COUNT = lootExpansionV1Data.effects.length;
 
@@ -242,6 +249,31 @@ export function checkLootExpansionEquipRequirement(
   };
 }
 
+export function getLootExpansionEquipRequirementDetails(
+  itemId: string
+): LootExpansionEquipRequirementDetails | null {
+  const variant = findLootExpansionVariantByItemId(itemId);
+
+  if (!variant) {
+    return null;
+  }
+
+  const base = findLootExpansionBaseItem(variant.baseId);
+
+  if (!base) {
+    return null;
+  }
+
+  const requirement = base.requirements;
+
+  return {
+    minLevel: Math.max(requirement.min_level, variant.minLevel),
+    classes: requirement.classes.map((id) => findLootExpansionClassName(id)),
+    races: requirement.races.map((id) => findLootExpansionRaceName(id)),
+    titles: requirement.titles.map((id) => findLootExpansionTitleName(id))
+  };
+}
+
 export function normalizeLootExpansionClassId(classId: string | undefined): string | undefined {
   if (!classId) {
     return undefined;
@@ -299,6 +331,10 @@ export function normalizeLootExpansionTitleIds(profile: LootExpansionProfile): S
 
   if (title.includes("книш") || title.includes("начинк") || title.includes("сметан")) {
     ids.add("soup_knight");
+  }
+
+  if (title.includes("борг")) {
+    ids.add("debt_collector");
   }
 
   return ids;
@@ -607,6 +643,18 @@ function maxAffinityBonus(
 
 function stripContentPrefix(id: string): string {
   return id.includes(".") ? id.split(".").at(-1) ?? id : id;
+}
+
+function findLootExpansionClassName(id: string): string {
+  return lootExpansionV1Data.classes.find((entry) => entry.id === id)?.name_uk ?? id;
+}
+
+function findLootExpansionRaceName(id: string): string {
+  return lootExpansionV1Data.races.find((entry) => entry.id === id)?.name_uk ?? id;
+}
+
+function findLootExpansionTitleName(id: string): string {
+  return lootExpansionV1Data.titles.find((entry) => entry.id === id)?.name_uk ?? id;
 }
 
 function clampInt(value: number, min: number, max: number): number {

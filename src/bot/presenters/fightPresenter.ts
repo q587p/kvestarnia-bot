@@ -4,13 +4,23 @@ import type { CombatTurnSummary } from "../../domain/combat";
 import type {
   FightLookupResult,
   FightResult,
+  ProblemQuestIssueNextLookupResult,
+  ProblemQuestTurnInLookupResult,
   PersistentFightTurnResult,
-  ThirteenSmallProblemsProgress,
-  ThirteenSmallProblemsReward
+  ThirteenSmallProblemsProgress
 } from "../../services/fightService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
+
+export interface QuestProgressAfterFightEntry {
+  title: string;
+  wins: number;
+  target: number;
+  completed?: boolean;
+  readyHint?: string;
+  action?: "bar" | "yeger";
+}
 
 export function presentFightStart(character: CharacterSummary): string {
   return [
@@ -171,9 +181,67 @@ export function presentPersistentFightTurn(
     monsterLevel: result.monster?.level ?? null,
     questProgress: result.questProgress,
     fightReward: result.state === "updated" || result.state === "terminal" ? result.fightReward : null,
-    questReward: result.state === "updated" ? result.questReward : null,
     intro
   });
+}
+
+export function presentProblemQuestProgressAfterFight(
+  progress: ThirteenSmallProblemsProgress | null
+): string | null {
+  const entry = buildProblemQuestProgressAfterFightEntry(progress);
+
+  return presentQuestProgressAfterFight(entry ? [entry] : []);
+}
+
+export function buildProblemQuestProgressAfterFightEntry(
+  progress: ThirteenSmallProblemsProgress | null
+): QuestProgressAfterFightEntry | null {
+  if (!progress || !progress.issued || progress.branchComplete || progress.rewardClaimed) {
+    return null;
+  }
+
+  return {
+    title: progress.title,
+    wins: progress.wins,
+    target: progress.target,
+    completed: progress.completed,
+    ...(progress.completed
+      ? { readyHint: "Корчмар чекає в шинку.", action: "bar" as const }
+      : {})
+  };
+}
+
+export function presentQuestProgressAfterFight(
+  entries: readonly QuestProgressAfterFightEntry[]
+): string | null {
+  if (entries.length === 0) {
+    return null;
+  }
+
+  const plural = entries.length > 1;
+  const lines = [
+    plural
+      ? "📋 <b>Прогрес справ зрушив</b>"
+      : "📋 <b>Прогрес справи зрушив</b>",
+    ""
+  ];
+
+  for (const entry of entries) {
+    const readyHint = entry.completed && entry.readyHint ? ` — ${escapeHtml(entry.readyHint)}` : "";
+
+    lines.push(
+      `<i>${escapeHtml(entry.title)}</i>: <b>${entry.wins}/${entry.target}</b>.${readyHint}`
+    );
+  }
+
+  lines.push(
+    "",
+    plural
+      ? "Журнал і дощечка задоволено хрумтять та вдають, що це була стратегія."
+      : "Журнал задоволено хрумтить і вдає, що це була стратегія."
+  );
+
+  return lines.join("\n");
 }
 
 function presentCharacterFlavor(
@@ -240,7 +308,6 @@ function presentPersistentFightState(input: {
   monsterLevel: number | null;
   questProgress: ThirteenSmallProblemsProgress | null;
   fightReward?: Extract<PersistentFightTurnResult, { state: "updated" }>["fightReward"];
-  questReward?: ThirteenSmallProblemsReward | null;
   intro: string;
 }): string {
   const state = input.session.state;
@@ -262,21 +329,20 @@ function presentPersistentFightState(input: {
     lines.push("", presentTurnSummary(state.lastTurn));
   }
 
-  if (input.questReward) {
-    lines.push("", ...presentThirteenSmallProblemsReward(input.questReward));
-  }
-
   if (input.fightReward) {
     lines.push("", ...presentPersistentFightReward(input.fightReward));
   }
 
   if (state?.status === "won") {
+    const readyQuestLine =
+      input.questProgress?.completed && !input.questProgress.rewardClaimed
+        ? "Корчмар уже чує, що проблем вистачило — занесіть це в шинок."
+        : "Наступний крок: /hero або /quest.";
+
     lines.push(
       "",
-      input.questReward
-        ? "🎉 Ви перемогли. У корчмі стало на одну проблему тихіше."
-        : "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою.",
-      "Наступний крок: /hero або /quest."
+      "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою.",
+      readyQuestLine
     );
   } else if (state?.status === "lost") {
     const questLines = presentLostFightQuestLines(input.questProgress);
@@ -367,20 +433,93 @@ function presentDuration(seconds: number): string {
   return `${Math.max(1, minutes)} хв`;
 }
 
-function presentThirteenSmallProblemsReward(reward: ThirteenSmallProblemsReward): string[] {
-  if (reward.state === "already-claimed") {
+export function presentProblemQuestTurnIn(result: Exclude<ProblemQuestTurnInLookupResult, { state: "no-character" }>): string {
+  if (result.state === "branch-complete") {
     return [
-      "📋 Список уже закритий.",
-      "Тринадцята проблема тихо лежить на полиці й не просить повтору."
-    ];
+      "🍺 <b>Корчмар перегортає останню сторінку</b>",
+      presentCharacterHeader(result.character),
+      "",
+      "Ця гілка проблем поки закрита. Девʼяносто три проблеми — це вже не список, а меблі.",
+      "",
+      "Далі Корчмар радить шукати інші справи й інших підозрілих людей. Не все ж йому одному рахувати."
+    ].join("\n");
+  }
+
+  if (result.state === "not-ready") {
+    return [
+      "🍺 <b>Корчмар звіряє журнал</b>",
+      presentCharacterHeader(result.character),
+      "",
+      `<i>${escapeHtml(result.progress.title)}</i>: ${result.progress.wins}/${result.progress.target}.`,
+      "",
+      "Проблем ще замало для офіційного шуму. Корчмар радить розвʼязати ще кілька через /fight."
+    ].join("\n");
+  }
+
+  const lines = [
+    "🍺 <b>Корчмар приймає справу</b>",
+    presentCharacterHeader(result.character),
+    "",
+    `<i>${escapeHtml(result.result.stage.title)}</i> закрито. Корчмар ставить печатку так, ніби вона сама просила.`,
+    "",
+    presentRewardAmount({ ...result.result.reward, label: "Нагорода за справу" }),
+    ...presentItemGrantBlock(result.result.reward.itemGrants)
+  ];
+
+  if (result.result.state === "already-claimed") {
+    lines.push("", "Цю винагороду вже видали. Корчмар показує запис, а не відкриває касу вдруге.");
+  }
+
+  if (result.result.nextStage) {
+    lines.push(
+      "",
+      `Корчмар дістає наступний папірець: <i>${escapeHtml(result.result.nextStage.title)}</i>. Якщо беретеся — хай відкриє новий лічильник.`
+    );
+  } else {
+    lines.push(
+      "",
+      "На цьому Корчмарський список поки закінчується. Далі проблему має підхопити хтось інший, бо навіть Корчмарю іноді треба мовчки дивитися в кухоль."
+    );
+  }
+
+  return lines.join("\n");
+}
+
+export function presentProblemQuestIssueNext(
+  result: Exclude<ProblemQuestIssueNextLookupResult, { state: "no-character" }>
+): string {
+  if (result.state === "branch-complete") {
+    return [
+      "🍺 <b>Корчмар ховає чисті бланки</b>",
+      presentCharacterHeader(result.character),
+      "",
+      "Ця гілка проблем поки закрита. Далі навіть журнал робить вигляд, що йому треба перерва."
+    ].join("\n");
+  }
+
+  if (result.state === "not-available") {
+    return [
+      "🍺 <b>Корчмар притримує папірець</b>",
+      presentCharacterHeader(result.character),
+      "",
+      `<i>${escapeHtml(result.progress.title)}</i>: ${result.progress.wins}/${result.progress.target}.`,
+      "",
+      result.progress.rewardClaimed
+        ? "Наступної справи тут не видно. Можливо, вона вже втекла в архів."
+        : "Спершу здайте поточну справу, тоді Корчмар дістане наступну."
+    ].join("\n");
   }
 
   return [
-    "📋 Тринадцята проблема впала. Список нарешті видихнув.",
+    "🍺 <b>Корчмар відкриває нову справу</b>",
+    presentCharacterHeader(result.character),
     "",
-    presentRewardAmount({ ...reward.reward, label: "Нагорода за справу" }),
-    ...presentItemGrantBlock(reward.reward.itemGrants)
-  ];
+    `Справу «<i>${escapeHtml(result.nextStage.title)}</i>» видано. Лічильник починається з нуля, без старих подвигів у кишені.`,
+    "",
+    result.issued === "already-issued"
+      ? "Цей папірець уже лежав у журналі. Корчмар просто постукав по ньому для драматичного ефекту."
+      : "Корчмар ставить чисту риску й робить вигляд, що це оптимізм."
+  ].join("\n");
 }
 
 function presentTurnSummary(summary: CombatTurnSummary): string {

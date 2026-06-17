@@ -7,6 +7,30 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.6] - 12026-06-17 - Korchmar Problem Quest Chain
+
+### Added
+- Extended the persistent fight wrapper into a Korchmar/Shynok quest chain: `13 -> 23 -> 42 -> 93` won ordinary solo fights, each with a separate one-time reward and cosmetic proof item.
+- Added explicit Shynok handoff for problem stages: the Quest Hub routes to `🍻 Шинок`, where taking the first stage, stage turn-in and taking the next stage are separate player actions instead of automatic fight/turn-in side effects.
+- Added fresh per-stage counting based on the stage issue timestamp: new stages count only won ordinary solo fights created after that stage was issued.
+- Added a separate post-fight problem-chain progress ping after newly won ordinary solo fights, keeping the main combat result short while showing the current stage counter immediately.
+- Extended the post-fight progress ping to combine multiple moved quest counters, including active Yeger unquiet progress when the defeated monster qualifies.
+- Added a level 6 Yeger-eligible ordinary monster, `Акт закриття, який не закрився`, so the unquiet target ladder stays covered without making the salted pretzel count as undead paperwork.
+- Added `docs/PROBLEM_QUEST_CHAIN_REFERENCES.md` to document the safe allusion layer for 13, 23, 42 and 93 without making player news spell out every reward.
+- Added opt-in local `/dev_heal [HP]` for playtesting HP recovery without changing XP, gold or items.
+
+### Guardrails
+- Training doppelganger sessions remain excluded from the problem chain and do not grant Korchmar quest progress.
+- Lost, fled and expired fights still do not count toward problem stages.
+- `Крендель солоної обіцянки` is no longer tagged as `unquiet`, so it does not count toward the Yeger unquiet quest.
+- Existing `quest.thirteen-small-problems` completions remain compatible: players who already claimed the old 13-problem reward can take the 23-problem stage without duplicating the old reward.
+
+### Fixed
+- Item detail and equip denial copy now name concrete generated-loot requirements, such as `титул: Боргомант`, and no longer claim a blocked item can be equipped.
+
+### Not Included
+- No new schema migration, production dependency, duel invites, PvP ledger, donor/payment state, group raid, broad quest engine or repeatable reward farm.
+
 ## [0.1.5] - 12026-06-17 - Pre-duel Training Doppelganger Prep
 
 ### Added

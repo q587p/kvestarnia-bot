@@ -1,5 +1,5 @@
 import type { ItemContent } from "../../content/schema";
-import type { EquipmentSlot } from "../../services/equipmentService";
+import type { EquipmentSlot, ItemEquipPreviewResult } from "../../services/equipmentService";
 import { isEquippableItem } from "../../services/equipmentService";
 import type {
   InventoryItemDetailResult,
@@ -11,6 +11,7 @@ import { escapeHtml } from "./telegramHtml";
 
 export interface ItemDetailOptions {
   equippedSlot?: EquipmentSlot | null;
+  equipPreview?: ItemEquipPreviewResult | null;
 }
 
 export function presentItemDetail(
@@ -47,7 +48,7 @@ export function presentOwnedItemDetail(
     "",
     `<i>${escapeHtml(content.description)}</i>`,
     "",
-    presentEquipmentLine(content, options.equippedSlot ?? null),
+    presentEquipmentLine(content, options.equippedSlot ?? null, options.equipPreview ?? null),
     "",
     presentItemFlavor(content)
   ].join("\n");
@@ -64,7 +65,11 @@ export function presentRarity(rarity: ItemContent["rarity"]): string {
   return labels[rarity];
 }
 
-function presentEquipmentLine(item: ItemContent, equippedSlot: EquipmentSlot | null): string {
+function presentEquipmentLine(
+  item: ItemContent,
+  equippedSlot: EquipmentSlot | null,
+  equipPreview: ItemEquipPreviewResult | null
+): string {
   if (!isEquippableItem(item)) {
     return "Екіпірування: <i>не вдягається. Корчма визнала це смішним трофеєм.</i>";
   }
@@ -73,7 +78,69 @@ function presentEquipmentLine(item: ItemContent, equippedSlot: EquipmentSlot | n
     return `Екіпірування: <b>вдягнено — ${presentEquipmentSlotLabel(equippedSlot)}</b>.`;
   }
 
+  if (equipPreview?.state === "requirements-not-met") {
+    const requirements = presentHtmlRequirementReasons(
+      equipPreview.reasons,
+      equipPreview.requirements
+    );
+
+    return requirements
+      ? `Екіпірування: <i>зараз не можна екіпірувати. Потрібно: ${requirements}.</i>`
+      : "Екіпірування: <i>зараз не можна екіпірувати. Корчмар ще звіряє правила цієї манатки.</i>";
+  }
+
+  if (equipPreview?.state === "not-equippable") {
+    return "Екіпірування: <i>не вдягається. Корчма визнала це смішним трофеєм.</i>";
+  }
+
+  if (equipPreview?.state === "unsupported-slot") {
+    return "Екіпірування: <i>зараз не можна екіпірувати. Для цієї манатки ще немає місця.</i>";
+  }
+
   return "Екіпірування: <i>можна екіпірувати. Спорядження вже звільняє місце.</i>";
+}
+
+function presentHtmlRequirementReasons(
+  reasons: readonly string[],
+  requirements: Extract<
+    ItemEquipPreviewResult,
+    { state: "requirements-not-met" | "can-equip" }
+  >["requirements"]
+): string {
+  const labels = reasons.map((reason) => {
+    switch (reason) {
+      case "min-level":
+        return requirements ? `рівень ${requirements.minLevel}+` : "вищий рівень";
+      case "class":
+        return requirements?.classes.length
+          ? `клас: ${joinHtmlRequirementList(requirements.classes)}`
+          : "сумісний клас";
+      case "race":
+        return requirements?.races.length
+          ? `походження: ${joinHtmlRequirementList(requirements.races)}`
+          : "сумісне походження";
+      case "title":
+        return requirements?.titles.length
+          ? `титул: ${joinHtmlRequirementList(requirements.titles)}`
+          : "відповідний титул";
+      case "unknown-item":
+        return "відомі правила предмета";
+      default:
+        return null;
+    }
+  });
+
+  return [...new Set(labels.filter((label): label is string => Boolean(label)))].join(", ");
+}
+
+function joinHtmlRequirementList(values: readonly string[]): string {
+  const unique = [...new Set(values.map(escapeHtml))];
+
+  if (unique.length <= 1) {
+    return unique[0] ?? "";
+  }
+
+  return unique.slice(0, -1).join(", ") + " або " + unique.at(-1);
 }
 
 function presentItemEffectLine(item: ItemContent): string | null {

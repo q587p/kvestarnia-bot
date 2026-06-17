@@ -9,6 +9,14 @@ export function presentDevGrantNoCharacter(): string {
 }
 
 export function presentDevGrantInvalidAmount(command: string): string {
+  if (command === "dev_heal") {
+    return "Формат: /dev_heal [додатне ціле число HP]. Без числа корчмар лікує до максимуму.";
+  }
+
+  if (command === "dev_restore_mana") {
+    return "Формат: /dev_restore_mana [додатне ціле число мани]. Без числа корчмар відновлює ману до максимуму.";
+  }
+
   return `Формат: /${command} [додатне ціле число]. Без числа корчмар підставить 1.`;
 }
 
@@ -43,6 +51,22 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
       `🧪 Dev: додано ${result.amount} ${formatUnit(result.amount, ["золото", "золота", "золота"])}.`,
       "",
       `Золото: ${result.character.gold}`
+    ].join("\n");
+  }
+
+  if (result.kind === "heal") {
+    return [
+      "🧪 Dev: персонажа підлатано.",
+      "",
+      `HP: ${result.character.hpCurrent}/${result.character.hpMax}`
+    ].join("\n");
+  }
+
+  if (result.kind === "mana") {
+    return [
+      "🧪 Dev: ману повернуто в робочий стан.",
+      "",
+      `Мана: ${result.character.manaCurrent}/${result.character.manaMax}`
     ].join("\n");
   }
 

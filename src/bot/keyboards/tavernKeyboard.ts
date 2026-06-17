@@ -2,6 +2,7 @@ import { InlineKeyboard } from "grammy";
 import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
 import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
@@ -50,8 +51,25 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = 
     .text("🚪 Надвір", makePlaceCallbackData("front"));
 }
 
-export function buildKorchmaBarKeyboard(options: { includeBottleTurnIn?: boolean } = {}): InlineKeyboard {
+export function buildKorchmaBarKeyboard(
+  options: {
+    includeBottleTurnIn?: boolean;
+    problemQuestAction?: "turn-in" | "take" | "next";
+  } = {}
+): InlineKeyboard {
   const keyboard = new InlineKeyboard().text("🍻 Всім пива", makeTavernCallbackData("round")).row();
+
+  if (options.problemQuestAction === "turn-in") {
+    keyboard.text("📋 Здати справу", makeQuestCallbackData("problem")).row();
+  }
+
+  if (options.problemQuestAction === "take") {
+    keyboard.text("📋 Взяти справу", makeQuestCallbackData("problem-next")).row();
+  }
+
+  if (options.problemQuestAction === "next") {
+    keyboard.text("📋 Взяти наступну справу", makeQuestCallbackData("problem-next")).row();
+  }
 
   if (options.includeBottleTurnIn) {
     keyboard.text("🍾 Здати пляшку", makeCellarCallbackData("grownup-turn-in")).row();

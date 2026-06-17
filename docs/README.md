@@ -10,6 +10,7 @@
 - [CONTENT_STYLE_GUIDE.md](CONTENT_STYLE_GUIDE.md) — український тон, гумор, лапки й формат Telegram-повідомлень.
 - [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md) — архітектура, дані, callbacks, deployment і технічні борги.
 - [BALANCE_NOTES.md](BALANCE_NOTES.md) — формули, економіка, RNG і балансні guardrails.
+- [PROBLEM_QUEST_CHAIN_REFERENCES.md](PROBLEM_QUEST_CHAIN_REFERENCES.md) — внутрішні reference notes для корчмарського ланцюжка `13 -> 23 -> 42 -> 93`.
 - [ROADMAP.md](ROADMAP.md) — фази розвитку й Definition of Done.
 - [SECURITY_AND_FAIR_PLAY.md](SECURITY_AND_FAIR_PLAY.md) — приватність, антиаб’юз, idempotency і чесна гра.
 - [SUPPORT_JAR_BACKLOG.md](SUPPORT_JAR_BACKLOG.md) — добровільна «Банка підтримки», `/support`, deep link подяки й no-advantage guardrails.

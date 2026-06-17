@@ -18,6 +18,32 @@ describe("quest hub keyboard", () => {
     expect(json).not.toContain("🥊 Бійцівський куток");
     expect(json).not.toContain("v1:spar:open");
   });
+
+  it("routes ready Korchmar turn-ins to the Shynok", () => {
+    const keyboard = buildQuestHubKeyboard(
+      makeInput({
+        fight: {
+          state: "persistent-ready",
+          character: character(),
+          questProgress: {
+            stageId: "23",
+            title: "Двадцять три підозрілі проблеми",
+            wins: 23,
+            target: 23,
+            completed: true,
+            rewardClaimed: false,
+            issued: true,
+            branchComplete: false
+          }
+        }
+      })
+    );
+    const json = JSON.stringify(keyboard);
+
+    expect(json).toContain("🍻 До шинку");
+    expect(json).toContain("v1:place:bar");
+    expect(json).not.toContain("v1:quest:problem");
+  });
 });
 
 function makeInput(overrides: Partial<QuestHubKeyboardInput> = {}): QuestHubKeyboardInput {
