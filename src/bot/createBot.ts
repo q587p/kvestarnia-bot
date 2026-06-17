@@ -192,6 +192,7 @@ import {
   presentFightNeedsRest,
   presentFightLevelRetired,
   presentFightNoCharacter,
+  presentProblemQuestTurnIn,
   presentFightResult,
   presentPersistentFight,
   presentPersistentFightTurn
@@ -1262,6 +1263,46 @@ async function handleQuestCallback(
       presence: services.presence,
       tavernRaid: services.tavern,
       requireKorchmaInterior: true
+    });
+    return;
+  }
+
+  if (action === "problem") {
+    if (!telegramUserId) {
+      await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    const place = await services.presence.getCurrentPlaceForTelegramUser(telegramUserId);
+
+    if (place.state === "no-character") {
+      await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    if (!place.insideKorchma) {
+      await safeEditMessageText(ctx, presentKorchmaQuestGate(), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildKorchmaFrontKeyboard()
+      });
+      return;
+    }
+
+    const result = await services.fight.turnInProblemQuestForTelegramUser(telegramUserId);
+
+    if (result.state === "no-character") {
+      await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+      currentRaidId: null,
+      currentAdventureId: null
+    });
+    await safeEditMessageText(ctx, presentProblemQuestTurnIn(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildKorchmaBarKeyboard()
     });
     return;
   }

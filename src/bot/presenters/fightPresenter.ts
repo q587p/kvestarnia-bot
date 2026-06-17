@@ -4,9 +4,9 @@ import type { CombatTurnSummary } from "../../domain/combat";
 import type {
   FightLookupResult,
   FightResult,
+  ProblemQuestTurnInLookupResult,
   PersistentFightTurnResult,
-  ThirteenSmallProblemsProgress,
-  ThirteenSmallProblemsReward
+  ThirteenSmallProblemsProgress
 } from "../../services/fightService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
@@ -171,7 +171,6 @@ export function presentPersistentFightTurn(
     monsterLevel: result.monster?.level ?? null,
     questProgress: result.questProgress,
     fightReward: result.state === "updated" || result.state === "terminal" ? result.fightReward : null,
-    questReward: result.state === "updated" ? result.questReward : null,
     intro
   });
 }
@@ -240,7 +239,6 @@ function presentPersistentFightState(input: {
   monsterLevel: number | null;
   questProgress: ThirteenSmallProblemsProgress | null;
   fightReward?: Extract<PersistentFightTurnResult, { state: "updated" }>["fightReward"];
-  questReward?: ThirteenSmallProblemsReward | null;
   intro: string;
 }): string {
   const state = input.session.state;
@@ -262,21 +260,20 @@ function presentPersistentFightState(input: {
     lines.push("", presentTurnSummary(state.lastTurn));
   }
 
-  if (input.questReward) {
-    lines.push("", ...presentThirteenSmallProblemsReward(input.questReward));
-  }
-
   if (input.fightReward) {
     lines.push("", ...presentPersistentFightReward(input.fightReward));
   }
 
   if (state?.status === "won") {
+    const readyQuestLine =
+      input.questProgress?.completed && !input.questProgress.rewardClaimed
+        ? "Корчмар уже чує, що проблем вистачило — занесіть це в Шинок."
+        : "Наступний крок: /hero або /quest.";
+
     lines.push(
       "",
-      input.questReward
-        ? "🎉 Ви перемогли. У корчмі стало на одну проблему тихіше."
-        : "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою.",
-      "Наступний крок: /hero або /quest."
+      "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою.",
+      readyQuestLine
     );
   } else if (state?.status === "lost") {
     const questLines = presentLostFightQuestLines(input.questProgress);
@@ -367,20 +364,58 @@ function presentDuration(seconds: number): string {
   return `${Math.max(1, minutes)} хв`;
 }
 
-function presentThirteenSmallProblemsReward(reward: ThirteenSmallProblemsReward): string[] {
-  if (reward.state === "already-claimed") {
+export function presentProblemQuestTurnIn(result: Exclude<ProblemQuestTurnInLookupResult, { state: "no-character" }>): string {
+  if (result.state === "branch-complete") {
     return [
-      "📋 Список уже закритий.",
-      "Тринадцята проблема тихо лежить на полиці й не просить повтору."
-    ];
+      "🍺 <b>Корчмар перегортає останню сторінку</b>",
+      presentCharacterHeader(result.character),
+      "",
+      "Ця гілка проблем поки закрита. Девʼяносто три проблеми — це вже не список, а меблі.",
+      "",
+      "Далі Корчмар радить шукати інші справи й інших підозрілих людей. Не все ж йому одному рахувати."
+    ].join("\n");
   }
 
-  return [
-    "📋 Тринадцята проблема впала. Список нарешті видихнув.",
+  if (result.state === "not-ready") {
+    return [
+      "🍺 <b>Корчмар звіряє журнал</b>",
+      presentCharacterHeader(result.character),
+      "",
+      `<i>${escapeHtml(result.progress.title)}</i>: ${result.progress.wins}/${result.progress.target}.`,
+      "",
+      "Проблем ще замало для офіційного шуму. Корчмар радить розвʼязати ще кілька через /fight."
+    ].join("\n");
+  }
+
+  const lines = [
+    "🍺 <b>Корчмар приймає справу</b>",
+    presentCharacterHeader(result.character),
     "",
-    presentRewardAmount({ ...reward.reward, label: "Нагорода за справу" }),
-    ...presentItemGrantBlock(reward.reward.itemGrants)
+    `<i>${escapeHtml(result.result.stage.title)}</i> закрито. Корчмар ставить печатку так, ніби вона сама просила.`,
+    "",
+    presentRewardAmount({ ...result.result.reward, label: "Нагорода за справу" }),
+    ...presentItemGrantBlock(result.result.reward.itemGrants)
   ];
+
+  if (result.result.state === "already-claimed") {
+    lines.push("", "Цю винагороду вже видали. Корчмар показує запис, а не відкриває касу вдруге.");
+  }
+
+  if (result.result.nextStage) {
+    lines.push(
+      "",
+      result.result.nextStageIssued
+        ? `Нова справа відкрита: <i>${escapeHtml(result.result.nextStage.title)}</i>. Лічильник починається з нуля, без старих подвигів у кишені.`
+        : `Наступна справа вже лежить на столі: <i>${escapeHtml(result.result.nextStage.title)}</i>.`
+    );
+  } else {
+    lines.push(
+      "",
+      "На цьому Корчмарський список поки закінчується. Далі проблему має підхопити хтось інший, бо навіть Корчмарю іноді треба мовчки дивитися в кухоль."
+    );
+  }
+
+  return lines.join("\n");
 }
 
 function presentTurnSummary(summary: CombatTurnSummary): string {

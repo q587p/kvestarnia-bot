@@ -31,7 +31,7 @@
 
 ## Seed backlog
 
-### 1. `quest.contract.thirteen-small-problems.followup`
+### 1. `quest.contract.thirteen-small-problems.followup` — superseded by `0.1.6`
 
 - **Title:** `Тринадцять дрібних проблем: друга папка`
 - **Flavor:** Корчмар зітхає, бо перша папка вже закінчилась, а дрібні проблеми, як завжди, прийшли з друзями.
@@ -40,7 +40,7 @@
 - **Reward concept:** невелика виплата XP і короткий запис у журналі або на дошці вістей.
 - **Non-goals:** жодного XP за кожен бій, жодного replay луту, жодного зміщення бойового балансу.
 - **Implementation notes:** завершення має читати ledger, а не довіряти повторному натисканню кнопки.
-- **Phase:** `Phase 1 finish`.
+- **Phase:** superseded. `0.1.6` реалізує ширший Korhmar problem chain `13 -> 23 -> 42 -> 93` зі здачею в Шинку й fresh counters; актуальні notes: [PROBLEM_QUEST_CHAIN_REFERENCES.md](PROBLEM_QUEST_CHAIN_REFERENCES.md).
 
 ### 2. `quest.contract.inventory.auditor`
 

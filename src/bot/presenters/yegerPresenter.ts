@@ -333,7 +333,7 @@ function presentTrackingQuestLines(input?: {
 
   if (thirteen && !thirteen.completed) {
     lines.push(
-      `• <b>Тринадцять дрібних проблем</b>: <b>${thirteen.wins}/${thirteen.target}</b> проблем.`
+      `• <b>${escapeHtml(thirteen.title)}</b>: <b>${thirteen.wins}/${thirteen.target}</b> проблем.`
     );
   }
 

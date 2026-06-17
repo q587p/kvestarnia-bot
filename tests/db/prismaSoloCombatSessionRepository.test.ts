@@ -24,6 +24,43 @@ describe("PrismaSoloCombatSessionRepository", () => {
 
     await expect(repository.markStatusById("missing-session", "expired")).resolves.toBeNull();
   });
+
+  it("counts won sessions after the issue timestamp while excluding training monsters", async () => {
+    const calls: unknown[] = [];
+    const repository = new PrismaSoloCombatSessionRepository({
+      soloCombatSession: {
+        count: (input: unknown) => {
+          calls.push(input);
+          return Promise.resolve(23);
+        }
+      }
+    } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
+    const since = new Date("2026-06-12T10:00:00.000Z");
+
+    await expect(
+      repository.countWonByTelegramUserId(42n, {
+        excludeMonsterIds: ["monster.training-doppelganger"],
+        since
+      })
+    ).resolves.toBe(23);
+
+    expect(calls[0]).toEqual({
+      where: {
+        status: "won",
+        createdAt: {
+          gt: since
+        },
+        monsterId: {
+          notIn: ["monster.training-doppelganger"]
+        },
+        character: {
+          user: {
+            telegramUserId: 42n
+          }
+        }
+      }
+    });
+  });
 });
 
 function fakePrismaThatCannotFindSoloCombatRows(): ConstructorParameters<

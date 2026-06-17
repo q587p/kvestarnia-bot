@@ -292,8 +292,7 @@ describe("fight presenter", () => {
         tags: ["test"]
       },
       questProgress: questProgress(4),
-      fightReward: null,
-      questReward: null
+      fightReward: null
     });
 
     expect(text).toContain(
@@ -307,7 +306,7 @@ describe("fight presenter", () => {
     expect(text).not.toContain("критично дала");
   });
 
-  it("shows the thirteen small problems completion reward once", () => {
+  it("points completed problem quest stages to Korhmar instead of auto-claiming", () => {
     const text = presentPersistentFightTurn({
       state: "updated",
       character,
@@ -335,7 +334,7 @@ describe("fight presenter", () => {
         level: 3,
         tags: ["test"]
       },
-      questProgress: questProgress(14, true),
+      questProgress: questProgress(14, true, false),
       fightReward: {
         state: "claimed",
         reward: {
@@ -351,32 +350,16 @@ describe("fight presenter", () => {
           ]
         },
         levelChange: null
-      },
-      questReward: {
-        state: "claimed",
-        reward: {
-          xp: 35,
-          gold: 10,
-          localDate: "once",
-          itemGrants: [
-            {
-              itemId: "item.badge-of-thirteen-small-problems",
-              name: "Жетон тринадцяти дрібних проблем",
-              quantity: 1
-            }
-          ]
-        },
-        levelChange: null
       }
     });
 
     expect(text).toContain("Винагорода за бій:\n<b>+9 XP\n+2 золота</b>");
     expect(text).not.toContain("Корчмар підсунув малу оплату за закриту проблему");
     expect(text).toContain("Здобуто: <i>Павутинка обіцянки «завтра»</i>");
-    expect(text).toContain("Тринадцята проблема впала");
-    expect(text).toContain("Нагорода за справу:\n<b>+35 XP\n+10 золота</b>");
-    expect(text).toContain("Здобуто: <i>Жетон тринадцяти дрібних проблем</i>");
-    expect(text).toContain("У корчмі стало на одну проблему тихіше");
+    expect(text).not.toContain("Тринадцята проблема впала");
+    expect(text).not.toContain("Нагорода за справу:\n<b>+35 XP\n+10 золота</b>");
+    expect(text).not.toContain("Здобуто: <i>Жетон тринадцяти дрібних проблем</i>");
+    expect(text).toContain("Корчмар уже чує, що проблем вистачило — занесіть це в Шинок.");
     expect(text).not.toContain("Після бою:");
     expect(text).not.toContain("список дрібних проблем теж не відвертівся");
   });
@@ -459,8 +442,7 @@ describe("fight presenter", () => {
           itemGrants: []
         },
         levelChange: null
-      },
-      questReward: null
+      }
     });
 
     expect(text).toContain("🎒 За спробу:\n<b>+1 XP</b>");
@@ -502,7 +484,7 @@ describe("fight presenter", () => {
         level: 3,
         tags: ["test"]
       },
-      questProgress: questProgress(14, true),
+      questProgress: questProgress(14, true, false),
       fightReward: {
         state: "claimed",
         reward: {
@@ -512,8 +494,7 @@ describe("fight presenter", () => {
           itemGrants: []
         },
         levelChange: null
-      },
-      questReward: null
+      }
     });
 
     expect(text).toContain("Ви програли");
@@ -603,12 +584,15 @@ function persistentSession(overrides: Partial<NonNullable<SoloCombatSessionRecor
   };
 }
 
-function questProgress(wins: number, completed = false) {
+function questProgress(wins: number, completed = false, rewardClaimed = completed) {
   return {
+    stageId: "13" as const,
     title: "Тринадцять дрібних проблем" as const,
     wins,
     target: 13,
     completed,
-    rewardClaimed: completed
+    rewardClaimed,
+    issued: true,
+    branchComplete: false
   };
 }

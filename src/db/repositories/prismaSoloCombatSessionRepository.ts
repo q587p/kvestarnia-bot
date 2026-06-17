@@ -40,11 +40,12 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
   async countWonByTelegramUserId(
     telegramUserId: bigint,
-    options: { excludeMonsterIds?: readonly string[] } = {}
+    options: { excludeMonsterIds?: readonly string[]; since?: Date } = {}
   ): Promise<number> {
     return this.prisma.soloCombatSession.count({
       where: {
         status: "won",
+        ...(options.since ? { createdAt: { gt: options.since } } : {}),
         ...(options.excludeMonsterIds && options.excludeMonsterIds.length > 0
           ? { monsterId: { notIn: [...options.excludeMonsterIds] } }
           : {}),

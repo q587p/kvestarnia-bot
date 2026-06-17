@@ -7,6 +7,22 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.6] - 12026-06-17 - Korchmar Problem Quest Chain
+
+### Added
+- Extended the persistent fight wrapper into a Korhmar/Shynok quest chain: `13 -> 23 -> 42 -> 93` won ordinary solo fights, each with a separate one-time reward and cosmetic proof item.
+- Added explicit Quest Hub turn-in plumbing for ready problem stages through `🍺 До Корчмаря`, so stage completion and next-stage issuing happen at the bar instead of being auto-claimed inside the fight turn.
+- Added fresh per-stage counting based on the stage issue timestamp: new stages count only won ordinary solo fights created after that stage was issued.
+- Added `docs/PROBLEM_QUEST_CHAIN_REFERENCES.md` to document the safe allusion layer for 13, 23, 42 and 93 without making player news spell out every reward.
+
+### Guardrails
+- Training doppelganger sessions remain excluded from the problem chain and do not grant Korhmar quest progress.
+- Lost, fled and expired fights still do not count toward problem stages.
+- Existing `quest.thirteen-small-problems` completions remain compatible: players who already claimed the old 13-problem reward can turn in to receive the 23-problem stage without duplicating the old reward.
+
+### Not Included
+- No new schema migration, production dependency, duel invites, PvP ledger, donor/payment state, group raid, broad quest engine or repeatable reward farm.
+
 ## [0.1.5] - 12026-06-17 - Pre-duel Training Doppelganger Prep
 
 ### Added

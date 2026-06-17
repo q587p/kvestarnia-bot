@@ -208,7 +208,7 @@ Hand-authored `monsterLoot` trophies still matter alongside the broad pool. The 
 
 У `0.0.24` вибір монстра для persistent solo fight став ближчим до рівня героя: сервіс спершу шукає звичайних небосів у вікні `рівень героя - 2 ... рівень героя`, а якщо такого контенту ще бракує, бере найвищий доступний нижчий рівень замість випадкової дрібноти. Якщо монстр нижчий за героя більше ніж на 2 рівні, XP за перемогу стискається до `3` при різниці рівно 3 рівні й до `2` при більшій різниці; золото й контрольований item roll поки лишаються за чинною малою reward formula.
 
-Loss отримує тільки малий consolation reward `1 XP` за спробу, без золота, луту або прогресу в `Тринадцять дрібних проблем`. Flee і expired fights не отримують reward. Repeated callback replay-ить persisted reward summary з `solo_combat_sessions` і не reroll-ить item.
+Loss отримує тільки малий consolation reward `1 XP` за спробу, без золота, луту або progress у Korhmar problem chain. Flee і expired fights не отримують reward. Repeated callback replay-ить persisted reward summary з `solo_combat_sessions` і не reroll-ить item. `0.1.6` додає stage chain `13 -> 23 -> 42 -> 93`; кожен новий етап рахує тільки звичайні won solo fights після часу видачі етапу, а training doppelganger не рахується.
 
 Модифікатори LUCK не мають ламати таблицю. Наприклад, LUCK додає не «+10% epic», а маленький бонус до upgrade roll.
 

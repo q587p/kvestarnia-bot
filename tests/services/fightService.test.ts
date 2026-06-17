@@ -34,7 +34,8 @@ import {
   FightService,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
   PERSISTENT_SOLO_FIGHT_REWARD_KEY,
-  THIRTEEN_SMALL_PROBLEMS_QUEST_BUCKET,
+  PROBLEM_QUEST_BUCKET,
+  PROBLEM_QUEST_STAGES,
   THIRTEEN_SMALL_PROBLEMS_QUEST_KEY
 } from "../../src/services/fightService";
 
@@ -801,7 +802,6 @@ describe("FightService", () => {
         target: 13,
         completed: false
       });
-      expect(result.questReward).toBeNull();
     }
     expect(sessions.updateCount).toBe(1);
     expect(dailyActions.records).toHaveLength(1);
@@ -1080,7 +1080,6 @@ describe("FightService", () => {
         target: 13,
         completed: false
       });
-      expect(result.questReward).toBeNull();
     }
     expect(dailyActions.createCount).toBe(1);
   });
@@ -1124,7 +1123,6 @@ describe("FightService", () => {
         }
       });
       expect(result.questProgress).toMatchObject({ wins: 0 });
-      expect(result.questReward).toBeNull();
     }
     expect(dailyActions.records).toHaveLength(1);
     expect(dailyActions.records[0]).toMatchObject({
@@ -1244,7 +1242,7 @@ describe("FightService", () => {
     });
   });
 
-  it("claims the thirteen small problems reward once on the thirteenth win", async () => {
+  it("marks the first problem quest ready on the thirteenth win without auto-claiming", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -1280,22 +1278,7 @@ describe("FightService", () => {
       expect(result.questProgress).toMatchObject({
         wins: 13,
         completed: true,
-        rewardClaimed: true
-      });
-      expect(result.questReward).toMatchObject({
-        state: "claimed",
-        reward: {
-          xp: 35,
-          gold: 10,
-          localDate: THIRTEEN_SMALL_PROBLEMS_QUEST_BUCKET,
-          itemGrants: [
-            {
-              itemId: "item.badge-of-thirteen-small-problems",
-              name: "Жетон тринадцяти дрібних проблем",
-              quantity: 1
-            }
-          ]
-        }
+        rewardClaimed: false
       });
     }
     expect(repeated.state).toBe("terminal");
@@ -1303,31 +1286,309 @@ describe("FightService", () => {
       expect(repeated.questProgress).toMatchObject({
         wins: 13,
         completed: true,
-        rewardClaimed: true
+        rewardClaimed: false
+      });
+    }
+    expect(
+      dailyActions.records.filter((record) => record.key === THIRTEEN_SMALL_PROBLEMS_QUEST_KEY)
+    ).toHaveLength(0);
+    expect(
+      dailyActions.records.filter((record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY)
+    ).toHaveLength(1);
+    expect(dailyActions.createCount).toBe(1);
+    expect(dailyActions.grantedItems).not.toContainEqual({
+      itemId: "item.badge-of-thirteen-small-problems",
+      quantity: 1
+    });
+    if (result.state === "updated") {
+      await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+        xp: 25 + (result.fightReward?.reward.xp ?? 0),
+        gold: result.fightReward?.reward.gold ?? 0,
+        level: getLevelForXp(25 + (result.fightReward?.reward.xp ?? 0))
+      });
+    }
+  });
+
+  it("turns in the first problem quest through Korhmar and issues twenty-three fresh problems", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.addWonSessions("character-42", 13);
+    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+
+    const first = await service.turnInProblemQuestForTelegramUser(telegramUserId);
+    const repeated = await service.turnInProblemQuestForTelegramUser(telegramUserId);
+
+    expect(first.state).toBe("turned-in");
+    if (first.state === "turned-in") {
+      expect(first.result).toMatchObject({
+        state: "claimed",
+        stage: {
+          id: "13",
+          target: 13
+        },
+        reward: {
+          xp: 35,
+          gold: 10,
+          localDate: PROBLEM_QUEST_BUCKET,
+          itemGrants: [
+            {
+              itemId: "item.badge-of-thirteen-small-problems",
+              name: "Жетон тринадцяти дрібних проблем",
+              quantity: 1
+            }
+          ]
+        },
+        nextStage: {
+          id: "23",
+          target: 23
+        },
+        nextStageIssued: true
+      });
+    }
+    expect(repeated.state).toBe("not-ready");
+    if (repeated.state === "not-ready") {
+      expect(repeated.progress).toMatchObject({
+        stageId: "23",
+        wins: 0,
+        target: 23,
+        completed: false,
+        rewardClaimed: false
       });
     }
     expect(
       dailyActions.records.filter((record) => record.key === THIRTEEN_SMALL_PROBLEMS_QUEST_KEY)
     ).toHaveLength(1);
     expect(
-      dailyActions.records.filter((record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY)
+      dailyActions.records.filter((record) => record.key === PROBLEM_QUEST_STAGES[1].issueKey)
     ).toHaveLength(1);
     expect(dailyActions.createCount).toBe(2);
-    expect(dailyActions.grantedItems).toEqual(
-      expect.arrayContaining([
-        {
-          itemId: "item.badge-of-thirteen-small-problems",
-          quantity: 1
-        }
-      ])
-    );
-    if (result.state === "updated") {
-      await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-        xp: 25 + 35 + (result.fightReward?.reward.xp ?? 0),
-        gold: 10 + (result.fightReward?.reward.gold ?? 0),
-        level: getLevelForXp(25 + 35 + (result.fightReward?.reward.xp ?? 0))
+  });
+
+  it("lets old thirteen-problem claims issue the twenty-three stage without duplicating the old reward", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    dailyActions.addAction(telegramUserId, THIRTEEN_SMALL_PROBLEMS_QUEST_KEY, PROBLEM_QUEST_BUCKET);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+
+    const result = await service.turnInProblemQuestForTelegramUser(telegramUserId);
+
+    expect(result.state).toBe("turned-in");
+    if (result.state === "turned-in") {
+      expect(result.result).toMatchObject({
+        state: "already-claimed",
+        stage: {
+          id: "13"
+        },
+        nextStage: {
+          id: "23"
+        },
+        nextStageIssued: true
       });
     }
+    expect(
+      dailyActions.records.filter((record) => record.key === THIRTEEN_SMALL_PROBLEMS_QUEST_KEY)
+    ).toHaveLength(1);
+    expect(
+      dailyActions.records.filter((record) => record.key === PROBLEM_QUEST_STAGES[1].issueKey)
+    ).toHaveLength(1);
+  });
+
+  it("recovers the next problem stage issue after an already-claimed intermediate reward", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    dailyActions.addAction(telegramUserId, THIRTEEN_SMALL_PROBLEMS_QUEST_KEY, PROBLEM_QUEST_BUCKET);
+    dailyActions.addAction(telegramUserId, PROBLEM_QUEST_STAGES[1].issueKey, PROBLEM_QUEST_BUCKET);
+    dailyActions.addAction(telegramUserId, PROBLEM_QUEST_STAGES[1].rewardKey, PROBLEM_QUEST_BUCKET);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+
+    const result = await service.turnInProblemQuestForTelegramUser(telegramUserId);
+
+    expect(result.state).toBe("turned-in");
+    if (result.state === "turned-in") {
+      expect(result.result).toMatchObject({
+        state: "already-claimed",
+        stage: {
+          id: "23"
+        },
+        nextStage: {
+          id: "42"
+        },
+        nextStageIssued: true
+      });
+    }
+    expect(
+      dailyActions.records.filter((record) => record.key === PROBLEM_QUEST_STAGES[2].issueKey)
+    ).toHaveLength(1);
+  });
+
+  it("counts only wins after the current problem stage was issued", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    dailyActions.addAction(
+      telegramUserId,
+      PROBLEM_QUEST_STAGES[1].issueKey,
+      PROBLEM_QUEST_BUCKET,
+      new Date("2026-06-12T10:00:00.000Z")
+    );
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.addWonSessions("character-42", 30, "monster.deadline-spider", {
+      createdAt: new Date("2026-06-12T09:00:00.000Z")
+    });
+    sessions.addWonSessions("character-42", 22, "monster.deadline-spider", {
+      createdAt: new Date("2026-06-12T10:00:01.000Z")
+    });
+    sessions.addWonSessions("character-42", 5, TRAINING_DOPPELGANGER_MONSTER_ID, {
+      createdAt: new Date("2026-06-12T11:30:00.000Z")
+    });
+    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "persistent-ready",
+      questProgress: {
+        stageId: "23",
+        wins: 22,
+        target: 23,
+        completed: false,
+        rewardClaimed: false,
+        issued: true
+      }
+    });
+  });
+
+  it("advances problem quest stages through forty-two and ninety-three with fresh counters", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    dailyActions.addAction(
+      telegramUserId,
+      PROBLEM_QUEST_STAGES[1].issueKey,
+      PROBLEM_QUEST_BUCKET,
+      new Date("2026-06-12T10:00:00.000Z")
+    );
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.addWonSessions("character-42", 23, "monster.deadline-spider", {
+      createdAt: new Date("2026-06-12T10:10:00.000Z")
+    });
+    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+
+    const twentyThree = await service.turnInProblemQuestForTelegramUser(telegramUserId);
+    expect(twentyThree.state).toBe("turned-in");
+    if (twentyThree.state === "turned-in") {
+      expect(twentyThree.result).toMatchObject({
+        stage: {
+          id: "23"
+        },
+        reward: {
+          xp: 55,
+          gold: 18,
+          itemGrants: [
+            {
+              itemId: "item.apophenia-receipt-of-twenty-three",
+              quantity: 1
+            }
+          ]
+        },
+        nextStage: {
+          id: "42"
+        },
+        nextStageIssued: true
+      });
+    }
+
+    const afterTwentyThree = await service.getFightOverviewForTelegramUser(telegramUserId);
+    expect(afterTwentyThree).toMatchObject({
+      state: "persistent-ready",
+      questProgress: {
+        stageId: "42",
+        wins: 0,
+        target: 42,
+        completed: false
+      }
+    });
+
+    const fortyTwoIssue = dailyActions.records.find(
+      (record) => record.key === PROBLEM_QUEST_STAGES[2].issueKey
+    );
+    expect(fortyTwoIssue).toBeDefined();
+    sessions.addWonSessions("character-42", 42, "monster.paperwork-ooze", {
+      createdAt: addSeconds(fortyTwoIssue?.createdAt ?? fixedClock(), 1)
+    });
+
+    const fortyTwo = await service.turnInProblemQuestForTelegramUser(telegramUserId);
+    expect(fortyTwo.state).toBe("turned-in");
+    if (fortyTwo.state === "turned-in") {
+      expect(fortyTwo.result).toMatchObject({
+        stage: {
+          id: "42"
+        },
+        reward: {
+          xp: 90,
+          gold: 30,
+          itemGrants: [
+            {
+              itemId: "item.towel-of-forty-two-answers",
+              quantity: 1
+            }
+          ]
+        },
+        nextStage: {
+          id: "93"
+        },
+        nextStageIssued: true
+      });
+    }
+
+    const ninetyThreeIssue = dailyActions.records.find(
+      (record) => record.key === PROBLEM_QUEST_STAGES[3].issueKey
+    );
+    expect(ninetyThreeIssue).toBeDefined();
+    sessions.addWonSessions("character-42", 93, "monster.archival-knysh-eater", {
+      createdAt: addSeconds(ninetyThreeIssue?.createdAt ?? fixedClock(), 1)
+    });
+
+    const ninetyThree = await service.turnInProblemQuestForTelegramUser(telegramUserId);
+    expect(ninetyThree.state).toBe("turned-in");
+    if (ninetyThree.state === "turned-in") {
+      expect(ninetyThree.result).toMatchObject({
+        stage: {
+          id: "93"
+        },
+        reward: {
+          xp: 140,
+          gold: 45,
+          itemGrants: [
+            {
+              itemId: "item.poster-of-ninety-three-problem-wills",
+              quantity: 1
+            }
+          ]
+        },
+        nextStage: null,
+        branchComplete: true
+      });
+    }
+
+    const complete = await service.getFightOverviewForTelegramUser(telegramUserId);
+    expect(complete).toMatchObject({
+      state: "persistent-ready",
+      questProgress: {
+        stageId: "93",
+        wins: 93,
+        target: 93,
+        completed: true,
+        rewardClaimed: true,
+        branchComplete: true
+      }
+    });
   });
 
   it("does not mutate a stale persistent fight turn", async () => {
@@ -1501,6 +1762,10 @@ function fixedClock(): Date {
   return new Date("2026-06-12T10:30:00.000Z");
 }
 
+function addSeconds(date: Date, seconds: number): Date {
+  return new Date(date.getTime() + seconds * 1000);
+}
+
 function buildEquipment(overrides: Partial<CharacterEquipmentRecord>): CharacterEquipmentRecord {
   return {
     id: "equipment-1",
@@ -1650,7 +1915,12 @@ class FakeDailyActionRepository implements DailyActionRepository {
     return this.actions.get(`${character.id}:${input.key}:${input.localDate}`) ?? null;
   }
 
-  addAction(userTelegramId: bigint, key: string, localDate = "2026-06-12"): void {
+  addAction(
+    userTelegramId: bigint,
+    key: string,
+    localDate = "2026-06-12",
+    createdAt = fixedClock()
+  ): void {
     const characterId = `character-${userTelegramId.toString()}`;
     const action = {
       id: `daily-action-${this.actions.size + 1}`,
@@ -1659,7 +1929,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
       localDate,
       rewardXp: 0,
       rewardGold: 0,
-      createdAt: fixedClock()
+      createdAt
     };
 
     this.actions.set(`${characterId}:${key}:${localDate}`, action);
@@ -1755,7 +2025,7 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
 
   async countWonByTelegramUserId(
     telegramUserId: bigint,
-    options: { excludeMonsterIds?: readonly string[] } = {}
+    options: { excludeMonsterIds?: readonly string[]; since?: Date } = {}
   ): Promise<number> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -1769,6 +2039,7 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
       (candidate) =>
         candidate.characterId === character.id &&
         candidate.status === "won" &&
+        (!options.since || candidate.createdAt > options.since) &&
         !excludedMonsterIds.has(candidate.monsterId)
     ).length;
   }
@@ -2020,7 +2291,8 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   addWonSessions(
     characterId: string,
     count: number,
-    monsterId = "monster.deadline-spider"
+    monsterId = "monster.deadline-spider",
+    options: { createdAt?: Date } = {}
   ): void {
     for (let index = 0; index < count; index += 1) {
       this.addSession(
@@ -2028,7 +2300,8 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
           "won",
           `session-won-${monsterId.replace(/[^a-z0-9]+/g, "-")}-${index + 1}`,
           characterId,
-          monsterId
+          monsterId,
+          options
         )
       );
     }
@@ -2039,8 +2312,11 @@ function makeTerminalSession(
   status: Exclude<SoloCombatSessionStatus, "active">,
   id = `session-${status}`,
   characterId = "character-42",
-  monsterId = "monster.deadline-spider"
+  monsterId = "monster.deadline-spider",
+  options: { createdAt?: Date } = {}
 ): SoloCombatSessionRecord {
+  const createdAt = options.createdAt ?? fixedClock();
+
   return {
     id,
     characterId,
@@ -2064,14 +2340,15 @@ function makeTerminalSession(
       }
     },
     reward: null,
-    createdAt: fixedClock(),
-    updatedAt: fixedClock(),
+    createdAt,
+    updatedAt: createdAt,
     expiresAt: new Date("2026-06-12T11:00:00.000Z")
   };
 }
 
 function makeActiveTrainingSession(characterId = "character-42"): SoloCombatSessionRecord {
   const id = "training-session-1";
+  const createdAt = fixedClock();
 
   return {
     id,
@@ -2096,8 +2373,8 @@ function makeActiveTrainingSession(characterId = "character-42"): SoloCombatSess
       }
     },
     reward: null,
-    createdAt: fixedClock(),
-    updatedAt: fixedClock(),
+    createdAt,
+    updatedAt: createdAt,
     expiresAt: new Date("2026-06-12T11:00:00.000Z")
   };
 }

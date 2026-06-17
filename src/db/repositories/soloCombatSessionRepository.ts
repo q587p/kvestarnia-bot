@@ -46,7 +46,7 @@ export interface SoloCombatSessionRepository {
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<SoloCombatSessionRecord | null>;
   countWonByTelegramUserId(
     telegramUserId: bigint,
-    options?: { excludeMonsterIds?: readonly string[] }
+    options?: { excludeMonsterIds?: readonly string[]; since?: Date }
   ): Promise<number>;
   listByTelegramUserIdSince(
     telegramUserId: bigint,

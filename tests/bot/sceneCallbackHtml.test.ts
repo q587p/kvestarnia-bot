@@ -108,6 +108,73 @@ describe("scene callback HTML options", () => {
           })
         }
       })
+    },
+    {
+      name: "problem quest turn-in",
+      callbackData: makeQuestCallbackData("problem"),
+      services: servicesWith({
+        fight: {
+          turnInProblemQuestForTelegramUser: () =>
+            Promise.resolve({
+              state: "turned-in",
+              character,
+              progress: {
+                stageId: "23",
+                title: "Двадцять три підозрілі проблеми",
+                wins: 0,
+                target: 23,
+                completed: false,
+                rewardClaimed: false,
+                issued: true,
+                branchComplete: false
+              },
+              result: {
+                state: "claimed",
+                stage: {
+                  id: "13",
+                  title: "Тринадцять дрібних проблем",
+                  target: 13,
+                  reward: {
+                    xp: 35,
+                    gold: 10,
+                    itemId: "item.badge-of-thirteen-small-problems"
+                  },
+                  issueKey: "quest.problem-chain.13.issued",
+                  rewardKey: "quest.thirteen-small-problems",
+                  nextStageId: "23"
+                },
+                reward: {
+                  xp: 35,
+                  gold: 10,
+                  localDate: "once",
+                  itemGrants: [
+                    {
+                      itemId: "item.badge-of-thirteen-small-problems",
+                      name: "Жетон тринадцяти дрібних проблем",
+                      quantity: 1
+                    }
+                  ]
+                },
+                levelChange: noLevelChange,
+                nextStage: {
+                  id: "23",
+                  title: "Двадцять три підозрілі проблеми",
+                  target: 23,
+                  reward: {
+                    xp: 55,
+                    gold: 18,
+                    itemId: "item.apophenia-receipt-of-twenty-three"
+                  },
+                  issueKey: "quest.problem-chain.23.issued",
+                  rewardKey: "quest.problem-chain.23.reward",
+                  nextStageId: "42"
+                },
+                nextStageIssued: true,
+                branchComplete: false
+              }
+            })
+        }
+      })
     }
   ])("edits $name callback results with Telegram HTML parse mode", async ({ callbackData, services }) => {
     const calls = await captureApiCalls(callbackData, services);

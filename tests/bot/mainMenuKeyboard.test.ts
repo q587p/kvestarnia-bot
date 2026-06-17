@@ -973,11 +973,14 @@ describe("main menu and scene keyboards", () => {
         state: "persistent-ready",
         character,
         questProgress: {
+          stageId: "13",
           title: "Тринадцять дрібних проблем",
           wins: 13,
           target: 13,
           completed: true,
-          rewardClaimed: true
+          rewardClaimed: true,
+          issued: true,
+          branchComplete: false
         }
       },
       yeger: {
@@ -993,6 +996,7 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
       "🕯️ Реморт",
       "🥊 Бійцівський куток",
+      "🍺 До Корчмаря",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
       "📦 Архів",

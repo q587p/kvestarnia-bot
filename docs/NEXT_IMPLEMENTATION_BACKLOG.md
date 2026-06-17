@@ -18,13 +18,14 @@
 3. `0.1.3` — reliability polish: durable Barrel completion notifications plus Mantok Chest pending cleanup.
 4. `0.1.4` — fight/quest navigation cleanup: clearer Quest Hub fight labels, return paths and presence routing; Глибка remains deferred runtime.
 5. `0.1.5` — first Phase 2 prep/runtime slice: level 3+ бійцівський куток із покроковим тренувальним `Сумлінним Допельґанґером`, XP-only reward, recovery cooldown, no PvP state, no group raid.
-6. Duel invite MVP після того, як допельґанґер доведе форму бою й картку результату.
-7. Duel result/rematch/tournament card support.
-8. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
-9. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
-10. Remort follow-ups: remort-only advanced options, richer legacy flavor and social/cosmetic records; the base `/remort` loop is already runtime in `0.1.2`.
-11. Multi-enemy combat.
-12. Party combat / real raid MVP with capped contribution-aware rewards.
+6. `0.1.6` — Korhmar/Shynok problem quest chain: `13 -> 23 -> 42 -> 93`, explicit bar turn-in, fresh per-stage counters and no training doppelganger progress.
+7. Duel invite MVP після того, як допельґанґер доведе форму бою й картку результату.
+8. Duel result/rematch/tournament card support.
+9. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
+10. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
+11. Remort follow-ups: remort-only advanced options, richer legacy flavor and social/cosmetic records; the base `/remort` loop is already runtime in `0.1.2`.
+12. Multi-enemy combat.
+13. Party combat / real raid MVP with capped contribution-aware rewards.
 
 Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
 
@@ -526,9 +527,8 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 
 - Додати place/presence id для Глибки, орієнтовно `location.korchma.hlybka`, якщо runtime лишається в корчемній location-моделі.
 - У залі або зі `Стіл зі справами` дати перехід до `Глибка`.
-- `Тринадцять дрібних проблем` має вести в Глибку: quest hub показує справу біля столу, але кнопка бойової дії переводить у dungeon screen і вже там стартує/показує persistent fight.
-- Здача `Тринадцяти дрібних проблем` має відбуватися у Корчмаря в `🍻 Шинку`, не автоматично на бойовому екрані й не біля Столу зі справами.
-- Після здачі `13` проблем у `🍻 Шинку` Корчмар може видати наступну аналогічну справу на `42` проблеми. `42` — гарне число; нагорода має бути більшою, але це окремий balance pass, не частина першого routing slice.
+- Korhmar problem chain може вести в Глибку: quest hub показує справу біля столу, але кнопка бойової дії переводить у dungeon screen і вже там стартує/показує persistent fight.
+- `0.1.6` уже переносить здачу готового problem-chain етапу до Корчмаря в `🍻 Шинку` і відкриває ланцюжок `13 -> 23 -> 42 -> 93`; future Глибка не має переробляти цю reward/idempotency модель без окремого balance/security рішення.
 - `/fight` для level 3+ має або вести в Глибку після interior gate, або пояснювати, що проблеми чекають унизу, не біля столу.
 - `👀 Хто поруч` у Глибці показує персонажів саме в цій місцині, не всіх біля Столу зі справами.
 - Пізніші бойові/підземельні справи зможуть теж вести в Глибку, щоб не плодити окремі «кімнати бою» для кожного квесту.
@@ -545,8 +545,8 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 **Acceptance criteria**
 
 - Стіл зі справами лишається списком справ і маршрутизатором;
-- старт/продовження `Тринадцяти дрібних проблем` змінює presence на Глибку;
-- completion flow веде до Корчмаря в Шинку для здачі `13` проблем і відкриття наступної справи на `42`;
+- старт/продовження problem-chain бою змінює presence на Глибку;
+- completion flow зберігає `0.1.6` правило: готовий етап здається Корчмарю в Шинку, а наступний етап отримує fresh counter;
 - active persistent fight screen має back path до Глибки або Столу, без відчуття, що бій відбувається на столі;
 - old quest/fight callbacks лишаються safe і не телепортують гравця надвір;
 - tests cover place callback, quest hub route, `/fight` route, presence location, and stale callback behavior.

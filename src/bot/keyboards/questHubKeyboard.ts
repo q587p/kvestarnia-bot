@@ -45,6 +45,10 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
 
   keyboard.text("🥊 Бійцівський куток", makeTrainingDoppelgangerCallbackData()).row();
 
+  if (canTurnInProblemQuest(input.fight)) {
+    keyboard.text("🍺 До Корчмаря", makeQuestCallbackData("problem")).row();
+  }
+
   if (input.adventure.state === "ready") {
     keyboard.text("🌯 До шаурми", makeQuestCallbackData("adventure"));
     hasAction = true;
@@ -133,6 +137,16 @@ function getFightButtonLabel(fight: QuestHubKeyboardInput["fight"]): string {
   }
 
   return "⚔️ До сутички";
+}
+
+function canTurnInProblemQuest(fight: QuestHubKeyboardInput["fight"]): boolean {
+  return (
+    (fight.state === "persistent-ready" ||
+      fight.state === "persistent-active" ||
+      fight.state === "persistent-terminal") &&
+    fight.questProgress.completed &&
+    !fight.questProgress.branchComplete
+  );
 }
 
 function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {

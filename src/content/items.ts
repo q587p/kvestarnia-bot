@@ -141,6 +141,30 @@ export const items = [
     goldValue: 13
   },
   {
+    id: "item.apophenia-receipt-of-twenty-three",
+    name: "Квитанція двадцяти трьох підозрілих збігів",
+    description: "Корчмар каже, що це просто облік. Квитанція підморгує кожною другою-третьою цифрою.",
+    rarity: "uncommon",
+    slot: "cosmetic",
+    goldValue: 23
+  },
+  {
+    id: "item.towel-of-forty-two-answers",
+    name: "Рушничок сорока двох відповідей",
+    description: "Офіційно серветка. Неофіційно — відповідь, яку Корчмар радить не губити під час проблем.",
+    rarity: "rare",
+    slot: "cosmetic",
+    goldValue: 42
+  },
+  {
+    id: "item.poster-of-ninety-three-problem-wills",
+    name: "Плакат волі до девʼяноста трьох проблем",
+    description: "Мотивує любити процедуру рівно настільки, щоб вона нарешті відчепилася.",
+    rarity: "rare",
+    slot: "cosmetic",
+    goldValue: 93
+  },
+  {
     id: "item.cellar.cheese-seal",
     name: "Сирна пломба Корчмаря",
     description: "Восково-сирна печатка, яка переконує мишу, що це вже не її відділ.",
