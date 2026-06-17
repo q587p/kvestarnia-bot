@@ -37,3 +37,16 @@ Output format:
 - Integration test ideas
 - Regression risks
 - Smoke test after deploy
+
+When used during PR review:
+1. Compare the changed behavior against the QA scenarios.
+2. Mark which scenarios appear covered by automated tests.
+3. Mark which scenarios require manual Telegram verification.
+4. Flag any missing regression scenario.
+5. Do not add or modify tests unless another active instruction explicitly allows edits.
+
+PR QA output add-on:
+- Covered by automated tests
+- Missing automated tests
+- Manual Telegram checks required
+- High-risk regression scenarios
