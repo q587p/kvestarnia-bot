@@ -11,7 +11,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Added
 - Added the first Phase 2 duel invite MVP: `/duel`, Quest Hub `🤝 Корчемний виклик`, `v1:duel:*` callbacks, open invite creation, accept, cancel, decline, expiry and replay-safe quick result cards.
-- Added `duel_challenges` as the narrow server-side ledger for invite tokens, challenger/target ids, status, expiry, resolved time and result replay payload.
+- Added a persistent `duel_challenges` ledger with Prisma schema, migration, repository, service and pure resolver coverage.
 - Added `/start duel_<token>` deep-link routing so generated invites can be opened from a configured bot username.
 - Added optional `BOT_USERNAME` config for generated Telegram deep links, with validation and `.env.example` docs for dev/prod bot separation.
 - Added resource-state warnings for duel accepts: partial HP or mana shows a warning first, and the player can still explicitly accept.
@@ -19,10 +19,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Added focused domain, service, callback, start-payload and config tests for the first duel path.
 
 ### Guardrails
-- No duel XP, gold, loot, manatky, item loss, wagers, ranking, pair caps, rematch/tournament cards, full turn-based PvP, group combat or raid rewards yet.
-- Missing-character invite opens explain that creating an adventurer takes a few minutes and teaches enough game basics before duels.
-- Level 1-2 characters cannot create or accept duel challenges; level 3 remains the first duel gate.
-- Repeated accepts replay the stored result instead of rerolling or mutating again.
+- Duel invites are level 3+, opt-in, rewardless and replay-safe: no gold, XP, items, rating, wagers, durability loss, quest progress, rematch automation or tournament state.
+- Invite recipients without a character get gentle onboarding copy instead of a hard failure, because duels need a few minutes of basic game context and some starter manatky.
+- Old invite buttons replay state or report the stable terminal state instead of resolving the same challenge twice.
 
 ## [0.1.9] - 12026-06-17 - Doppelganger Learns Your Tricks
 

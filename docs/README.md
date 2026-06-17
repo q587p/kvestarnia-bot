@@ -2,6 +2,15 @@
 
 Цей індекс допомагає швидко знайти актуальне джерело правди в документації Квестарні. README лишається public-facing вітриною; докладні runbook-и, дизайн-рішення й плани живуть тут.
 
+
+## AI / Codex workflow
+
+- [ai/context.md](ai/context.md) — compact context pack for Codex; keep it under 250 lines.
+- [ai/rules-for-future.md](ai/rules-for-future.md) — durable token-economy workflow rules.
+- [ai/prompts/main-new-version-thread.md](ai/prompts/main-new-version-thread.md) — short startup prompt for a fresh main Codex thread.
+- [ai/prompts/second-codex-pr-review.md](ai/prompts/second-codex-pr-review.md) — read-only second Codex PR review prompt; changed files only by default.
+- [tasks/README.md](tasks/README.md) — version task doc convention and templates.
+
 ## Canonical project docs
 
 - [BRAND.md](BRAND.md) — назва, voice, tone, public wording і заборонені варіанти неймінґу.

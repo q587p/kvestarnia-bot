@@ -26,7 +26,7 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 
 `0.1.9` adds `src/domain/combat/combatFlavor.ts` as a pure deterministic presentation helper. The first runtime use is `/spar` counter flavor after a doppelganger response. It does not alter `CombatState`, reward claims, problem-chain progress or schema; later monster tactics or duel cards can reuse the same intent shape only after their own scoped runtime PRs.
 
-`0.1.10` adds the first duel invite ledger without reward economy. `duel_challenges` stores open invite tokens, challenger/target character ids, status, expiry, resolved time and a replay result payload. `/duel` and `/start duel_<token>` can create/accept/cancel/decline/expire a quick opt-in result, gated at level 3. `BOT_USERNAME` is optional config for generated Telegram deep links and must match the deployed dev/prod bot username. Missing-character accepts route to onboarding copy; partial HP/mana shows a warning before an explicit accept. This slice does not add XP/gold/items, rankings, pair caps, rematch cards, wagers or turn-based PvP.
+`0.1.10` adds the first rewardless duel invite ledger: `duel_challenges`, `/duel`, `v1:duel:*` callbacks, `/start duel_<token>` routing, generated Telegram links through optional `BOT_USERNAME`, accept/decline/cancel/expire transitions and replay-safe quick result cards. It deliberately adds no rewards, rating, wagers, item transfer, rematch automation or tournament state.
 
 Future Support Jar live status is documented in [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md). It should be a separate read-only integration with Monobank `client-info`, server-side token handling, TTL cache, no DB donor state, no payment confirmation and no gameplay rewards. Do not treat manual `SUPPORT_JAR_CURRENT_UAH`/`SUPPORT_JAR_GOAL_UAH` values as the long-term status path after that slice lands.
 
@@ -219,7 +219,7 @@ Rules:
 - Lazy expiry happens when `/fight` or a fight callback touches an old active session; no Redis/job worker is required for this slice.
 
 ### duel_challenges
-Added in `0.1.10` for the first Phase 2 social-combat invite slice.
+Shipped in `0.1.10` for the first rewardless Phase 2 social-combat slice.
 
 - `id` UUID
 - `challenger_character_id` FK
@@ -234,11 +234,10 @@ Added in `0.1.10` for the first Phase 2 social-combat invite slice.
 - `updated_at`
 
 Rules:
-- Accept/decline/expire must be transactional and idempotent.
-- Result replay is stored server-side; Telegram callbacks never recompute rewards from button text.
+- Accept/decline/cancel/expire must be transactional and idempotent.
+- Result replay is stored server-side; Telegram callbacks never recompute the result from button text.
 - Quick resolve may use level bracket, race, class, current title/earned identity, effective stats, equipment/item tags and a bounded seed.
-- Current `0.1.10` quick resolve has no XP, gold, items, rankings or reward caps because no rewards exist yet.
-- Pair/day caps and abuse logging should be designed with the first reward-bearing duel slice, not bolted on after tournaments.
+- Pair/day caps, ranking and abuse logging should be designed with the first reward-bearing duel slice, not bolted on after tournaments.
 
 ### future item_transfers
 Planned for Phase 2 trading/gifting after duel invite primitives are proven; not present in `0.1.0`.
@@ -534,15 +533,16 @@ Callback data коротка, версіонована.
 - `v1:quest:hunt`
 - `v1:quest:cellar`
 - planned `v1:ach:list:{category}:{page}` or shorter equivalent for a later rewardless achievements slice; generated achievement callbacks must stay <=64 bytes.
-- `v1:duel:new`
-- `v1:duel:accept:{token}`
-- `v1:duel:accept-risk:{token}`
-- `v1:duel:decline:{token}`
-- `v1:duel:cancel:{token}`
-- `v1:duel:view:{token}`
 - `v1:news:list:{page}`
 - `v1:news:entry:{entryIndex}:{listPage}`
 - `v1:tavern:raid`
+- `v1:duel:new`
+- `v1:duel:open:{token}`
+- `v1:duel:warn:{token}`
+- `v1:duel:accept:{token}`
+- `v1:duel:decline:{token}`
+- `v1:duel:cancel:{token}`
+- `v1:duel:expire:{token}`
 - `v1:tavern:participants`
 - `v1:tavern:ranger`
 - `v1:tavern:round`
@@ -591,7 +591,7 @@ Callback data коротка, версіонована.
 - `v1:restart:cancel`
 
 Заплановані приклади для майбутніх persistent systems:
-- `v1:duel:rematch:{duelId}` or shorter equivalents for later Phase 2 result/rematch cards;
+- `v1:duel:rematch:{duelId}` or shorter equivalents for later duel result/rematch cards;
 - `v1:gift:offer:{token}` / `v1:gift:accept:{token}` / `v1:trade:confirm:{token}` or shorter equivalents for narrow item transfer flows;
 - `v1:remort:view` / `v1:remort:confirm:{token}` for explicit level-13 remort confirmation;
 - `v1:combat:*` або коротший equivalent для майбутніх group/PvP combats, якщо solo `v1:fight:turn:*` стане затісним;

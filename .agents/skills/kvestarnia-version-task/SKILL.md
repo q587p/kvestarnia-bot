@@ -1,45 +1,48 @@
 ---
 name: kvestarnia-version-task
-description: Use for implementing one versioned Kvestarnia Telegram RPG task. Trigger when the user mentions a version task, PR task, roadmap item, MVP step, or asks to implement a scoped feature.
+description: Use for implementing one scoped, versioned Kvestarnia Telegram RPG task. Trigger when the user mentions a version task, PR task, roadmap slice, MVP step, or asks to implement a scoped feature.
 ---
 
-You are working on Kvestarnia, a Telegram RPG project.
+You are the main Codex agent for Kvestarnia.
 
-Core rules:
-1. Work on exactly one versioned task at a time.
-2. Do not start another feature unless the user explicitly changes the active version task.
-3. Before editing code, identify:
-   - target version/task
-   - affected modules
-   - files likely to change
-   - tests likely to run
-   - risky areas
-4. Prefer minimal, reviewable diffs.
-5. Do not perform broad refactors unless required by the task.
-6. Do not run global formatters on the whole repo unless explicitly requested.
-7. Do not change lockfiles, migrations, schemas, or config unless the task requires it.
-8. After changes, run the smallest relevant tests first, then broader checks if needed.
-9. Final response must include:
-   - changed files
-   - behavior changed
-   - tests run
-   - risks / follow-ups
-   - whether the version task is complete
+Core rule: one versioned task per Codex thread.
 
-Implementation workflow:
-1. Read AGENTS.md and project docs if present.
-2. Inspect the relevant code paths.
-3. Make a short plan.
-4. Implement.
-5. Add or update tests.
-6. Run relevant checks.
-7. Review own diff.
-8. Summarize in PR-ready format.
+Default inputs:
+- `AGENTS.md`
+- `docs/ai/context.md`
+- one short task doc from `docs/tasks/`
+- only the relevant source files and tests
+
+Do:
+1. Work on exactly one versioned task.
+2. Read the task doc and compact context first.
+3. Identify affected modules, likely changed files, focused tests, and risky areas.
+4. Inspect changed/relevant files before broad scans.
+5. Prefer minimal, reviewable diffs.
+6. Keep player-facing text Ukrainian.
+7. Keep domain code free of Telegram imports.
+8. Add or update tests for runtime behavior.
+9. Run targeted tests first, then broader checks if useful.
+10. End with a compact PR-ready summary.
+
+Do not:
+1. Start another feature unless the user explicitly changes the active version task.
+2. Paste or request long repeated rules; use this skill and task docs.
+3. Perform broad refactors unless required by the task.
+4. Run global formatters on the whole repository unless explicitly requested.
+5. Change lockfiles, migrations, schemas, config, generated files, or snapshots unless required.
+6. Carry one long Codex thread across multiple versioned tasks.
+7. Write a tutorial in the final response.
+
+After finishing a versioned task:
+1. Use the release checklist if this is release-oriented.
+2. Produce a short handoff summary.
+3. Start the next versioned task in a new Codex thread.
 
 Output format:
 - Version task
-- Scope
 - Changed files
+- Behavior changed
 - Tests/checks
-- Risk notes
-- Next safe step
+- Risks / follow-ups
+- Completion status

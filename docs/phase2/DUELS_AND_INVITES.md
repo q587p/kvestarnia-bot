@@ -27,21 +27,22 @@
 
 Гравець бачить іншого пригодника або має invite link/card, кидає виклик, а інший пригодник явно приймає. Квестарня швидко рахує результат і показує коротку картку: хто кого переміг, як саме це звучало й чому корчмар заніс це в журнал.
 
-## First runtime slice — `0.1.10`
+## Shipped first slice — 0.1.10
 
-`0.1.10` реалізує перший вузький Duel Invite MVP:
-- `/duel` і `🤝 Корчемний виклик` у Столі зі справами створюють відкритий invite token;
-- якщо заданий `BOT_USERNAME`, картка показує deep link `/start duel_<token>` для правильного dev/prod бота;
-- `/start duel_<token>` веде новачка до onboarding copy, а наявного пригодника — до accept/result flow;
-- рівень 3 лишається мінімумом для створення й прийняття;
-- якщо HP або мана не повні, accept спершу показує попередження й окрему кнопку `Прийняти все одно`;
-- quick resolve записує result payload у `duel_challenges`, тож повторні callback-и replay-ять той самий результат.
+`0.1.10` ships the first rewardless invite ledger:
+- `/duel` and Quest Hub `🤝 Корчемний виклик` create open level 3+ challenges;
+- optional `BOT_USERNAME` generates `https://t.me/<bot>?start=duel_<token>` links for dev/prod bot separation;
+- `/start duel_<token>` opens the invite flow;
+- accept, decline, cancel and expiry are idempotent;
+- repeated buttons replay the stored state/result instead of rerolling;
+- invite recipients without a character get polite onboarding copy;
+- partial HP or mana shows a warning before the player explicitly accepts.
 
-Не включено в `0.1.10`: XP, золото, манатки, рейтинги, pair caps, targeted invite UI, rematch cards, tournament cards, turn-based PvP, ставки, item loss або групові бійки.
+Still future: rematches, tournaments, rating, rewards, wagers, item loss, target-specific player selection and full turn-based PvP.
 
 ## Flow
 
-1. Challenger натискає `🥊 Викликати`.
+1. Challenger натискає `🤝 Корчемний виклик` або запускає `/duel`.
 2. Bot створює `duel_challenge` з expiry, challenger, optional target and context.
 3. Target бачить короткий виклик із кнопками `Прийняти`, `Відмовитись`, `Не зараз`.
 4. Якщо target приймає, сервіс атомарно переводить challenge у `accepted/resolved`.
@@ -117,6 +118,6 @@ duel_actions
 - Pending challenge expires safely.
 - Accept is idempotent and cannot resolve twice.
 - Old buttons replay state instead of mutating it again.
-- Target ownership is checked server-side.
+- Target ownership or open-invite eligibility is checked server-side.
 - Result card is short enough for a mobile screen.
-- Tests cover create, accept, decline, expire, stale callback, repeated accept, pair caps and no reward duplication.
+- Tests cover create, accept, decline, cancel, expire, stale callback, repeated accept and no reward duplication.

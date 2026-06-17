@@ -68,7 +68,7 @@ Current tiny inventory slice:
 - `0.1.5` opens the first Phase 2 prep surface: level 3+ `🥊 Бійцівський куток` and `/spar` run a turn-based XP-only training fight against the `Сумлінний Допельґанґер`, with no real duel invites, PvP state, gold/items/manatky rewards, `Тринадцять дрібних проблем` progress or group raid.
 - `0.1.6` extends the Korchmar/Shynok problem wrapper into explicit `13 -> 23 -> 42 -> 93` stages: each new stage is accepted through the bar after the previous turn-in, counts only fresh ordinary won solo fights after its issue timestamp, and keeps doppelganger training out of quest progress.
 - `0.1.9` adds the first reusable combat flavor intent layer and uses it only for `/spar` presentation: the doppelganger now shows class-aware counter flavor without changing rewards, problem-chain counters, cooldowns, level gates or PvP scope.
-- `0.1.10` adds the first real opt-in social-combat ledger: `/duel`, Quest Hub `🤝 Корчемний виклик`, open invite tokens, `/start duel_<token>` deep links from configured `BOT_USERNAME`, accept/cancel/decline/expire, quick replay-safe result cards, level 3+ gates, missing-character onboarding copy and partial-resource warnings without blocking explicit accept.
+- `0.1.10` ships the first rewardless duel invite ledger: level 3+ `/duel`, deep-link invites, accept/decline/cancel/expire handling, replay-safe quick results, partial HP/mana warnings, missing-character onboarding copy and clearer filtered equipment slot context.
 - Phase 1 finish rule after `0.1.0`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки `0.1.x` playtest не покаже, що core loop стабільний. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
 - Detailed finish sequence lives in `docs/PHASE1_FINISH_PLAN.md`; the closeout cutline for `0.0.x` → `0.1.x` lives in `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`, the final smoke gate lives in `docs/PHASE1_CLOSEOUT_SMOKE.md`, and canonical release notes live in `docs/PHASE1_RELEASE_NOTES.md`. `docs/NEXT_IMPLEMENTATION_BACKLOG.md` tracks the next small PR order.
 - Tavern/adventure/fight first completions can grant fixed items.
@@ -100,8 +100,7 @@ Current order:
 5. `0.1.5` — перший вузький Phase 2 runtime prep з 3 рівня: Бійцівський куток і тренувальний Сумлінний Допельґанґер з малим XP-only результатом, без золота/items/манаток, `Тринадцять дрібних проблем` progress і реального PvP.
 6. `0.1.6` — Корчмарський problem-chain follow-up: `13 -> 23 -> 42 -> 93`, bar turn-in, fresh counters from issue time, no training/PvP/group-raid progress.
 7. `0.1.9` — combat flavor intent foundation: class-aware `/spar` counter flavor as a presentation-only step toward monster signature moves and duel result cards.
-8. `0.1.10` — first Duel Invite MVP: `/duel`, open invite, `/start duel_<token>`, accept/cancel/decline/expire, quick replay-safe result, no rewards or rankings.
-9. Later `0.1.x` — result/rematch cards, Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation and other small scoped expansions only if they do not steal the Phase 2 spine.
+8. Later `0.1.x` — Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation and other small scoped expansions only if they do not steal the Phase 2 spine.
 
 Guardrails:
 - No new large gameplay system in `0.1.0`.
@@ -121,7 +120,7 @@ Canonical docs:
 
 Deliverables:
 - Бійцівський куток із тренувальним `Сумлінним Допельґанґером`: копія поточного героя для level 3+ спарингу перед справжніми дуелями з гравцями. Майбутні дуелі також стартують з 3 рівня, якщо окремий балансний PR не змінить це явно.
-- Duel invite MVP: challenge, accept/decline/expire, quick resolve, replay-safe result.
+- First duel invite MVP shipped in `0.1.10`: challenge, accept/decline/cancel/expire, quick rewardless resolve, replay-safe result and generated deep links via `BOT_USERNAME`.
 - Shareable result/rematch/tournament cards without exact hidden formulas or toxic pressure.
 - Trading/gifting MVP: transfer one eligible манатка or stack unit with explicit confirmation and audit row.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.

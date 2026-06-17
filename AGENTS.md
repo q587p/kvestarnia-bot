@@ -1,206 +1,245 @@
-# AGENTS.md — інструкції для Codex
+# AGENTS.md — Codex instructions for Kvestarnia
 
-## Ідентичність проєкту і неймінґ
+## Project identity and naming
 
-Канонічні назви:
+Canonical names:
 
-- Назва для гравців і всіх україномовних текстів: `Квестарня`.
-- Технічний slug, package/namespace, repo/env/config prefix: `kvestarnia`.
-- Цільовий Telegram bot username: `@kvestarnia_bot`.
-- Назва репозиторію: `kvestarnia-bot`.
+- Player-facing name and all Ukrainian game copy: `Квестарня`.
+- Technical slug, package/namespace, repo/env/config prefix: `kvestarnia`.
+- Target Telegram bot username: `@kvestarnia_bot`.
+- Repository name: `kvestarnia-bot`.
 
-Не використовувати без окремого рішення:
+Do not use without an explicit product decision:
 
 - `Questarnia`
 - `Квестарнія`
 - `Kvestarnya`
-- випадкові варіанти транслітерації на кшталт `kvestarnya`, `questarnya`, `kvestarnya-bot`
+- random transliterations such as `kvestarnya`, `questarnya`, or `kvestarnya-bot`
 
-Правило: якщо текст бачить гравець — пиши `Квестарня`; якщо це машинний ідентифікатор — пиши `kvestarnia`. Не вигадуй нові написання бренду.
+Rule: if the text is visible to players, write `Квестарня`; if it is a machine identifier, write `kvestarnia`.
+Do not invent new brand spellings.
 
-## Мета проєкту
+## Project goal
 
-Будуємо гумористичну фентезі-РПҐ у Telegram з емоджі та легкими ілюстраціями: просту на вході, смішну в тоні, написану українською з нуля, але глибоку в прогресії. Натхнення: настільні RPG, Munchkin, книжкова серія MythAdventures Роберта Аспріна, фільм «Монті Пайтон і Священний Ґрааль», YouTube-серіал Epic NPC Man від VLDL, класичні MMORPG, гумор Террі Пратчетта, метамодернізм, українські меми та фольклор без кальки з російського контенту.
+Kvestarnia is a humorous fantasy RPG in Telegram: easy to enter, Ukrainian-first in player-facing copy, silly in tone, and deep enough to support progression. Inspiration includes tabletop RPGs, Munchkin, Robert Asprin's MythAdventures, Monty Python and the Holy Grail, Viva La Dirt League / Epic NPC Man, classic MMORPGs, Terry Pratchett-style systemic absurdity, metamodern warmth, Ukrainian memes, and folklore. Use inspiration as flavor, allusion, or parody spice; do not copy protected scenes, characters, unique places, or long quotes.
 
-Коротко: гравець заходить у Telegram, створює пригодника, обирає расу/клас, бере короткі квести, б’є дурнуватих монстрів, збирає манатки, качає цифри й отримує смішні текстові наслідки своїх героїчних дурниць. Ґільдії, справжні групові рейди й ширші соціяльні режими — roadmap, а не готова public promise.
+Player loop summary: a player opens Telegram, creates an adventurer, chooses race/class/path flavor, takes short quests, fights ridiculous monsters, collects manatky, grows numbers, and receives funny consequences. Guilds, real group raids, broad social modes, markets, crafting, monetization, and Mini App UI are roadmap unless the current code and task explicitly say they are shipped.
 
-## Джерела правди в репозиторії
+## Language policy
 
-Перед змінами прочитай релевантні документи:
+Use English for Codex-facing workflow materials:
 
-- `README.md` — public-facing вітрина проєкту; не перетворювати на dev runbook.
-- `docs/BRAND.md` — канонічний неймінґ, voice, tone, public wording.
-- `docs/PRODUCT_BRIEF.md` — позиціонування, аудиторія, USP, MVP scope.
-- `docs/GAME_DESIGN.md` — core loop, механіки, прогресія.
-- `docs/CONTENT_STYLE_GUIDE.md` — тон, українська мова, гумор, формат повідомлень.
-- `docs/INSPIRATION_CONTENT_BACKLOG.md` — очищений backlog джерел натхнення, контентних заготовок і безпечних алюзій без копіювання чужого IP.
-- `docs/TECHNICAL_PLAN.md` — архітектура, модулі, дані, API.
-- `docs/ROADMAP.md` — етапи, Definition of Done.
-- `docs/BALANCE_NOTES.md` — формули, економіка, RNG.
-- `docs/SECURITY_AND_FAIR_PLAY.md` — антиаб’юз, приватність, чесна гра.
-- `docs/DEVELOPER_SETUP.md` — локальний запуск, Prisma, Render, scripts, troubleshooting.
-- `docs/PLAYTESTING.md` — ручний smoke test поточного playable loop.
-- `docs/CODEX_WORKFLOW.md` — правила постановки задач, PR і docs-only workflow.
+- version task docs in `docs/tasks/`
+- Codex prompts in `docs/ai/prompts/`
+- `.agents/skills/*/SKILL.md`
+- internal implementation notes intended mainly for Codex
+- PR titles/bodies, commit messages, and test names when practical
 
-Якщо документ суперечить коду, не мовчи: зафіксуй розбіжність у відповіді/PR і запропонуй мінімальний патч.
+Use Ukrainian for:
 
-## Робочі правила для Codex
+- all player-facing Telegram text
+- lore, flavor, names, item descriptions, monster jokes, release/news copy for players
+- examples of player messages
 
-1. Спочатку плануй зміни, потім редагуй код.
-2. Робити маленькі, перевірювані кроки. Не переписувати архітектуру без потреби.
-3. Не додавати production-залежності без явного пояснення навіщо.
-4. Усі user-facing рядки — українською. Жодних росіянізмів, кальки або випадкових англіцизмів у грі, крім технічних команд.
-5. В українських текстах використовувати лапки `«»`, а не англійські типографські чи прямі подвійні лапки; прямі лапки лишати тільки як синтаксис коду/JSON або в технічних прикладах.
-6. Для `міт`, `мітичний`, `мітологія`, `мітологічний` використовувати написання через `т`, не `міф*`, якщо це не незмінна зовнішня цитата або назва.
-7. Для `соціяльний`, `соціяльна`, `соціяльне`, `соціяльні`, `соціяльність` використовувати написання через `я`, не `соціальн*`, якщо це не незмінна зовнішня цитата або назва.
-8. У видимих датах для документації, changelog/news і гравецьких текстів використовувати Holocene calendar: `12026`, а не `2026`. Для release/news/changelog заголовків день і час рахувати за київським часом (`Europe/Kyiv`), не за UTC чи локальною часовою зоною машини. Машинні timestamp-и, назви міграцій і технічні id не переписувати.
+## Sources of truth
 
-Public-facing позиціонування: перший гачок — гумористична / іронічна / абсурдно-фентезійна РПҐ у Telegram. Не продавати гру як «українська РПГ» першим гачком, не називати її `пародійною` як головний жанр і не писати `корчемна RPG`. Корчма, корчмар, корчмарська логіка, `з-за стійки` і `у корчмі` — core flavor і дозволені, коли звучать природно. Не продавати `ґільдії`, `справжні групові рейди`, `PvP`, `market`, `crafting`, `monetization` або Mini App UI як готові фічі; їх можна згадувати лише як roadmap / майбутній напрям, якщо це правда для поточного PR.
+Before changing code, read only the relevant sources of truth. Avoid broad reading unless the task is unclear.
 
-9. Заголовки версій у `CHANGELOG.md` і `news.md` мають містити номер, дату й короткий опис зміни, а не лише номер версії з датою.
-   `news.md` лишається гравецькою новиною без спойлерів: не розкривати точні XP/золото/items/сувеніри/титули за проходження, фінальні punchline-и або приховані умови. Такі деталі лишати в `CHANGELOG.md`, тестах чи внутрішніх docs.
-10. Назви PR для версійних gameplay/runtime змін мають починатися з номера версії й короткого опису з `CHANGELOG.md`, наприклад `0.0.4 — First Mimic Shawarma Adventure`.
-11. Docs-only / presentation зміни не є номерним релізом: не bump-ати `package.json`, не оновлювати `CHANGELOG.md`/`news.md`, не створювати git tag або GitHub Release, якщо користувач прямо не попросив.
-12. Після готового коміту відкривати pull request за замовчуванням, якщо користувач прямо не сказав не відкривати PR. Якщо check зелений і PR mergeable, PR має бути ready for review, не draft. Draft PR використовувати тільки коли робота ще чернеткова, перевірки не пройшли, є явний блокер або користувач прямо попросив draft.
-13. Після відкриття або оновлення PR перевіряти base branch, mergeability і конфлікти. Готовий/ready PR має цілитись у `main`; non-main base допустима тільки якщо користувач прямо попросив stacked PR або є ще не змерджена залежність. У такому разі PR body має явно казати `Stacked on ...`, а перед фінальним ready/merge-ready статусом потрібно ретаргетнути на `main`, щойно залежність змерджена.
-14. За замовчуванням орієнтуватися на `main`: читати актуальний стан, рахувати diff, rebase/retarget і перевіряти PR саме проти `main`. Якщо після retarget GitHub показує conflict або `mergeable: false`, не залишати це мовчки: одразу підтягнути `main`, виправити конфлікти або чітко пояснити блокер.
-15. Якщо вже йде активна робота над поточним PR, наступні дрібні правки та follow-up задачі додавати в цю ж гілку і цей же PR. Не створювати нову гілку або новий PR, доки користувач прямо не попросив окрему гілку, stacked PR або незалежний docs-only/parallel slice.
-16. Якщо до PR додається нова фіча, суттєва поведінка, окремий gameplay/economy track або помітний docs scope, це має бути чесно відображено в PR title/body і, для release-oriented змін, у релевантних docs/`CHANGELOG.md`/`news.md`. Не лишати PR із назвою вузького slice, якщо diff уже став ширшим.
-17. Дотримуватись канонічного неймінґу: `Квестарня` для гравців, `kvestarnia` для технічних ідентифікаторів. Не використовувати `Questarnia`, `Квестарнія`, `Kvestarnya`.
-18. Не вставляти секрети, токени, приватні chat_id або реальні ключі в код/доки.
-19. Не ламати існуючі міграції. Нові зміни схеми — через нову міграцію.
-20. Усі ігрові розрахунки мають бути детермінованими та тестованими: бойова логіка не повинна залежати від Telegram API.
-21. Повідомлення Telegram тримати короткими: 1 екран на мобільному, кнопки для дій, деталі — за запитом.
-22. У межах одного повідомлення або клавіатури бажано використовувати різні іконки для різних дій/місць/станів. Однакові іконки допустимі для приблизно однакового функціоналу, наприклад різних кнопок `Назад`, `До зали` або однотипної пагінації.
-23. Не робити pay-to-win механіки. Монетизація може давати косметику, комфорт або підтримку сервера, але не безчесну бойову перевагу.
-24. Після зміни логіки запускати тести або пояснити, чому не вдалося. Для docs-only змін прийнятно писати `Not run — docs-only change`.
+High-level docs:
 
-## Очікуваний стек
+- `README.md` — public-facing project window; do not turn it into a dev runbook.
+- `docs/BRAND.md` — canonical naming, voice, tone, public wording.
+- `docs/PRODUCT_BRIEF.md` — positioning, audience, USP, MVP scope.
+- `docs/GAME_DESIGN.md` — core loop, mechanics, progression.
+- `docs/CONTENT_STYLE_GUIDE.md` — Ukrainian tone, humor, Telegram message format.
+- `docs/TECHNICAL_PLAN.md` — architecture, modules, data, callbacks, deployment.
+- `docs/ROADMAP.md` — phases and Definition of Done.
+- `docs/BALANCE_NOTES.md` — formulas, economy, RNG.
+- `docs/SECURITY_AND_FAIR_PLAY.md` — anti-abuse, privacy, fair play.
+- `docs/DEVELOPER_SETUP.md` — local run, Prisma, Render, scripts, troubleshooting.
+- `docs/PLAYTESTING.md` — manual smoke test for the current playable loop.
+- `docs/CODEX_WORKFLOW.md` — task, PR, review, docs-only, and token-economy workflow.
+- `docs/ai/context.md` — compact Codex context pack; keep it under 250 lines.
+- `docs/tasks/README.md` — version task doc convention.
 
-Якщо репозиторій ще порожній, пропонований стек:
+If documentation contradicts code, say so in the final response and propose the smallest safe correction.
 
-- TypeScript + Node.js.
-- Telegram bot framework: `grammY`.
-- SQLite для локального MVP; PostgreSQL можна повернути для hosted deployment, коли це стане потрібно.
-- Prisma або Drizzle для схеми та міграцій.
-- Redis + BullMQ для кулдаунів, черг, scheduled jobs, рейдів.
-- Zod для runtime-валидації конфігів і payload-ів.
-- Vitest для unit/integration tests.
-- Локальна SQLite БД через `DATABASE_URL=file:./dev.db`.
+## Token-efficient Codex workflow
 
-Якщо в репозиторії вже інший стек, дотримуйся наявного стеку та не мігруй без окремого завдання.
+Default rule: one versioned task equals one Codex thread.
 
-## Команди
+For implementation work:
 
-Використовуй наявні скрипти з `package.json`. Типовий набір:
+1. Start a fresh Codex thread for each versioned task.
+2. Use one short prompt from `docs/ai/prompts/main-new-version-thread.md`.
+3. Activate one main skill: `$kvestarnia-version-task`.
+4. Point Codex to a short task doc in `docs/tasks/` and the compact context in `docs/ai/context.md`.
+5. Do not paste long repeated rules into prompts; rely on `AGENTS.md` and `$skill`.
+6. Inspect changed/relevant files first; avoid repository-wide scans unless necessary.
+7. Prefer `medium` reasoning for ordinary scoped work; reserve `high` for state, routing, concurrency, persistence, or difficult debugging.
+8. Final output must be short: changed files, behavior changed, tests run, risks, completion status. No tutorial.
+
+For second Codex review:
+
+1. Use `$kvestarnia-second-codex-readonly`.
+2. Default to changed files only: review the PR diff, changed files, and direct dependencies.
+3. Do not edit files, commit, push, auto-fix, format, codemod, or create an alternative implementation.
+4. Provide actionable findings only; no exhaustive tutorial.
+5. Escalate to `$kvestarnia-telegram-qa` only for full QA plans or high-risk Telegram flow changes.
+
+After closing a versioned task:
+
+1. Run `$kvestarnia-release-checklist` if the task is release-oriented.
+2. Write a compact handoff summary.
+3. Start the next versioned task in a new Codex thread.
+4. Do not carry a long thread across several versioned tasks.
+
+## Working rules for Codex
+
+1. Plan briefly before editing code.
+2. Make small, reviewable diffs.
+3. Do not rewrite architecture unless the task requires it.
+4. Do not add production dependencies without a clear reason.
+5. Do not run global formatters on the whole repo unless explicitly requested.
+6. Do not change lockfiles, migrations, schemas, config, generated files, or snapshots unless the task requires it.
+7. Keep all player-facing strings Ukrainian. No accidental Russian, rough calques, or random English in game copy except technical commands.
+8. In Ukrainian text, use `«»` quotes, not English curly quotes or straight double quotes; straight quotes are allowed only for code/JSON/technical examples.
+9. Use `міт`, `мітичний`, `мітологія`, `мітологічний` with `т`, not `міф*`, unless it is an immutable external quote or name.
+10. Use `соціяльний`, `соціяльна`, `соціяльне`, `соціяльні`, `соціяльність` with `я`, not `соціальн*`, unless it is an immutable external quote or name.
+11. In visible docs/changelog/news/player dates, use the Holocene calendar: `12026`, not `2026`. Release/news/changelog date headings use Kyiv time (`Europe/Kyiv`). Do not rewrite machine timestamps, migration names, or technical IDs.
+12. Do not insert secrets, tokens, private chat IDs, or real keys into code or docs.
+13. Do not break existing migrations. Schema changes require a new migration.
+14. Game calculations must be deterministic and testable; combat/domain logic must not depend on Telegram API.
+15. Telegram messages should stay short: one mobile screen, buttons for actions, details on demand.
+16. Within one message or keyboard, prefer distinct icons for distinct actions/places/states. Reusing icons is acceptable for similar navigation such as back buttons or pagination.
+17. No pay-to-win. Monetization may support cosmetics, comfort, or server support, but not unfair combat power.
+18. After runtime logic changes, run tests or explain the blocker. For docs-only changes, `Not run — docs-only change` is acceptable.
+
+## Release and PR rules
+
+Versioned gameplay/runtime changes affect bot behavior, data, migrations, balance, runtime player messages, or production deployment.
+
+For release-oriented versioned changes:
+
+- Update `package.json` version only when the task includes a version bump.
+- If version moves, keep `package.json`, `package-lock.json`, `CHANGELOG.md`, and `news.md` in lockstep unless the user narrows scope.
+- Release note headings in `CHANGELOG.md` and `news.md` must include version, Holocene date, and short change description.
+- `CHANGELOG.md` may include technical details, exact mechanics, edge cases, and rewards.
+- `news.md` is player-facing and spoiler-light: do not reveal exact XP/gold/items/souvenirs/titles, final punchlines, hidden conditions, scheduler/restart/deploy debt, Redis/BullMQ, Mini App UI, migrations, scaling, or similar platform backlog.
+- PR title for release-oriented changes starts with the version and short changelog description, e.g. `0.0.4 — First Mimic Shawarma Adventure`.
+
+Docs-only / presentation changes are not numbered releases:
+
+- Do not bump `package.json`.
+- Do not update `CHANGELOG.md` or `news.md` unless explicitly requested.
+- Do not create git tags or GitHub Releases.
+- Do not change runtime code, Prisma schema, migrations, lockfiles, or generated files.
+- PR body should say `Tests: Not run — docs-only change` if checks were not run.
+
+PR defaults:
+
+- Target `main` unless the user explicitly asks for stacked PRs or another base.
+- Ready PRs should not remain on a non-main base unless they are intentionally stacked and named as such.
+- If an active PR already exists for the current work, add small follow-ups to the same branch and PR unless the user asks for a separate branch.
+- If scope expands, update PR title/body and relevant release/docs surfaces honestly.
+- After opening/updating a PR, check base branch, mergeability, and conflicts.
+
+## Architecture boundaries
+
+Current stack: TypeScript, Node.js, grammY, Prisma, Vitest, ESLint, strict TypeScript, SQLite/PostgreSQL via Prisma depending on environment.
+
+Layer map:
+
+- `src/bot/` — Telegram adapters: commands, callbacks, keyboards, middleware, presenters.
+- `src/domain/` — pure game logic: combat, loot, progression, resources, remort, etc.
+- `src/content/` — monsters, items, classes, races, flavor, validation data.
+- `src/db/` — Prisma client, repositories, transaction-facing persistence.
+- `src/services/` — application layer connecting bot/domain/db.
+- `src/jobs/` — scheduled/background jobs.
+- `tests/` — unit and integration tests matching the source layout.
+
+Telegram must not leak into `src/domain/`. Domain functions receive ordinary objects and return ordinary results; bot/presenter layers turn them into Telegram messages and buttons.
+
+## Gameplay scope guard
+
+MVP/core loop:
+
+1. `/start` creates a character.
+2. Race/class/path flavor shapes early identity.
+3. Short quests and fights move progression.
+4. Turn-based fights support attacks, class action, items, flee, HP/mana, rewards.
+5. Loot grants gold, XP, and manatky.
+6. Equipment and item views explain what changed.
+7. Level growth unlocks new actions.
+8. Social/combat systems grow in small, opt-in slices.
+
+Do not implement huge MMO systems in one PR. Shops, trading, guild wars, real raids, PvP, crafting, markets, and Mini App UI must remain scoped future work unless the current task explicitly targets a small safe slice.
+
+## Text style and content safety
+
+Tone: Ukrainian tavern + absurd fantasy + ironic systems.
+
+Good examples:
+
+- «Ви знайшли шолом. Він трохи пахне попереднім героєм, але бонус +2 до впевненості переконує.»
+- «Мімік прикинувся скринею. Невдало: скриня не повинна облизуватись.»
+- «Ваш бард заграв соло. Монстр отримав 3 шкоди й бажання поговорити з менеджером.»
+
+Avoid:
+
+- Russianisms and accidental surzhyk unless a specific character voice intentionally uses it.
+- Real tragedies as punchlines.
+- Jokes targeting protected groups.
+- Wall-of-text Telegram messages.
+- Promising not-yet-shipped roadmap features as shipped.
+- Bringing unrelated project layers such as Chornolis, Twin Peaks, Dante, Shakespeare, Amber/LARP, or other personal/project material into Kvestarnia.
+
+## Tests and quality
+
+For significant runtime changes, add or update:
+
+- Unit tests for formulas, combat, loot, level-up, resources, idempotency helpers.
+- Presenter tests for stable critical text surfaces.
+- Integration tests for command/callback flows when Telegram handlers change.
+- Repository/service tests for transactions, rewards, inventory, remort, fights, and idempotency.
+- Duplicate/stale callback tests when callbacks mutate state.
+
+For docs-only changes, check links and make sure README stays public-facing while setup/runbook material lives in docs.
+
+Use available scripts from `package.json`:
 
 ```bash
 npm install
 npm run lint
 npm run typecheck
 npm test
-npm run dev
+npm run build
+npm run check
 ```
 
-Якщо скриптів немає, спочатку додай мінімальні `lint`, `typecheck`, `test`, `dev` або запропонуй їх у плані.
-
-## Архітектурні принципи
-
-- `bot/` — Telegram адаптери: команди, callback-и, клавіатури, middleware.
-- `domain/` — чиста ігрова логіка: combat, loot, progression, quests, guilds.
-- `content/` — монстри, предмети, раси, класи, жарти, локалізація.
-- `db/` — схема, репозиторії, транзакції.
-- `jobs/` — scheduled events, рейди, сезонні підрахунки.
-- `services/` — application layer, що зв’язує bot/domain/db.
-- `tests/` — unit tests для domain, integration tests для services.
-
-Telegram не має проникати в domain: домен приймає звичайні об’єкти, повертає результат, а bot-шар перетворює його в повідомлення.
-
-## Модель ігрового дизайну
-
-Core loop MVP:
-
-1. `/start` → створення персонажа.
-2. Вибір раси й класу.
-3. Коротка PvE-пригода з кулдауном.
-4. Покроковий бій: атака, вміння, предмет, втеча.
-5. Loot roll: золото, досвід, предмет.
-6. Екіпірування предмета.
-7. Рівень росте, відкриває нову дію.
-8. Раз на день — групова активність або подія в чаті.
-
-Не робити в MVP: повний маркет, складний крафт, масові ґільдійні війни, PvP з втратою цінного луту, крипту, NFT, реальні гроші за силу.
-
-## Стиль текстів
-
-Тон: українська таверна + абсурдне фентезі + іронічна системність.
-
-Добре:
-
-- «Ви знайшли шолом. Він трохи пахне попереднім героєм, але бонус +2 до впевненості переконує.»
-- «Мімік прикинувся скринею. Невдало: скриня не повинна облизуватись.»
-- «Ваш бард заграв соло. Монстр отримав 3 шкоди й бажання поговорити з менеджером.»
-
-Погано:
-
-- Русизми й суржик не як свідомий жарт персонажа.
-- Реальні трагедії як punchline.
-- Образи захищених груп.
-- Перевантажені простирадла тексту.
-
-Сучасні джерела під авторським правом використовувати як смак, алюзію або пародійну спецію, не як копію сцен, персонажів, унікальних топонімів чи довгих цитат. Public-domain і фольклор можна використовувати сміливіше, але голос має лишатися голосом Квестарні. Не тягнути сюди Чорноліс / Порубіжжя Чорнолісу, Twin Peaks, Данте, Шекспіра або Amber/LARP: це інші проєктні чи особисті шари, не джерела Квестарні.
-
-## Тести та якість
-
-Для кожної значної runtime-зміни:
-
-- Unit tests для формул, бою, loot tables, level-up.
-- Snapshot/golden tests для критичних текстових шаблонів, якщо вони стабільні.
-- Integration test для callback flow, якщо змінено Telegram handlers.
-- Перевірка транзакцій для нагород, інвентаря, PvP, ґільдій.
-- Перевірка ідемпотентності: повторний callback не має дублювати нагороду.
-
-Для docs-only змін перевірити, що посилання валідні, README не дублює dev runbook, а технічні інструкції лежать у `docs/DEVELOPER_SETUP.md` або іншому релевантному документі.
-
-## Баланс і економіка
-
-- RNG має бути веселим, але не каральним.
-- Рідкість луту повинна бути контрольованою таблицями, а не магічними числами у коді.
-- Уникати runaway snowball: сильні гравці не мають назавжди блокувати новачків.
-- Кожна валюта має sink: ремонт, косметика, крафт, ґільдійні внески, reroll.
-- Для PvP використовувати рейтингові діапазони, protection для новачків і кулдауни.
-
-## Безпека і чесна гра
-
-- Валідувати всі callback data.
-- Rate limit на команди й бойові дії.
-- Унікальні idempotency keys для нагород.
-- Не довіряти client-side state.
-- Логувати підозрілі повтори callback-ів, а не банити автоматично без доказів.
-- Мінімізувати персональні дані: telegram_user_id, username/display_name, language_code; не зберігати зайвого.
+Prefer targeted tests first, then broader checks if needed.
 
 ## Definition of Done
 
-Зміна готова, коли:
+A change is done when:
 
-- Вона відповідає roadmap або чітко пояснює відхилення.
-- Додані/оновлені тести для runtime-логіки або зазначено `Not run — docs-only change`.
-- `lint`, `typecheck`, `test` проходять або зазначено, що саме не вдалося запустити.
-- Немає секретів у diff.
-- User-facing текст українською і відповідає style guide.
-- Українські цитати оформлені лапками `«»`, не англійськими типографськими чи прямими подвійними лапками.
-- Видимі дати оформлені за Holocene calendar (`12026` замість `2026`), крім машинних timestamp-ів і технічних id.
-- Заголовки релізних записів у `CHANGELOG.md` і `news.md` містять короткий опис зміни поруч із версією та датою.
-- Неймінґ не дрейфує: `Квестарня` / `kvestarnia`, без неканонічних варіантів.
-- Для нової механіки є коротка нотатка в релевантному `docs/*.md`.
-- Для docs-only presentation зміни не створено штучний номерний реліз.
+- It matches the requested version task or clearly explains a deviation.
+- Runtime logic has relevant tests, or missing tests are explained.
+- Commands/checks were run or blockers are stated.
+- No secrets are in the diff.
+- Player-facing text is Ukrainian and follows the style guide.
+- Holocene visible dates and Kyiv-time release/news headings are respected.
+- Brand naming stays `Квестарня` / `kvestarnia`.
+- Relevant docs are updated for new mechanics.
+- Docs-only work did not create a fake numbered release.
+- The final response is concise and PR-ready.
 
-## Формат відповіді Codex після роботи
+## Final response format
 
-У фінальному повідомленні вказуй:
+Use a short format. No tutorial unless the user asks.
 
-- Що змінено.
-- Які файли зачеплено.
-- Які команди запускались і результат.
-- Ризики/борги.
-- Наступний найменший корисний крок.
+- Changed files
+- Behavior changed
+- Tests run
+- Risks / follow-ups
+- Completion status
