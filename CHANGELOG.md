@@ -7,6 +7,22 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.10] - 12026-06-17 - First Duel Invite Ledger
+
+### Added
+- Added the first Phase 2 duel invite MVP: `/duel`, Quest Hub `🤝 Корчемний виклик`, `v1:duel:*` callbacks, open invite creation, accept, cancel, decline, expiry and replay-safe quick result cards.
+- Added `duel_challenges` as the narrow server-side ledger for invite tokens, challenger/target ids, status, expiry, resolved time and result replay payload.
+- Added `/start duel_<token>` deep-link routing so generated invites can be opened from a configured bot username.
+- Added optional `BOT_USERNAME` config for generated Telegram deep links, with validation and `.env.example` docs for dev/prod bot separation.
+- Added resource-state warnings for duel accepts: partial HP or mana shows a warning first, and the player can still explicitly accept.
+- Added focused domain, service, callback, start-payload and config tests for the first duel path.
+
+### Guardrails
+- No duel XP, gold, loot, manatky, item loss, wagers, ranking, pair caps, rematch/tournament cards, full turn-based PvP, group combat or raid rewards yet.
+- Missing-character invite opens explain that creating an adventurer takes a few minutes and teaches enough game basics before duels.
+- Level 1-2 characters cannot create or accept duel challenges; level 3 remains the first duel gate.
+- Repeated accepts replay the stored result instead of rerolling or mutating again.
+
 ## [0.1.9] - 12026-06-17 - Doppelganger Learns Your Tricks
 
 ### Added

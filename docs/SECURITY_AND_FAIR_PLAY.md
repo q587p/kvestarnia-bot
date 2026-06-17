@@ -50,6 +50,8 @@ MVP limits:
 
 `0.1.9` combat flavor intents are presentation-only for `/spar`: they may add escaped text lines and semantic tags, but they must not create reward state, change quest counters, mutate cooldowns, bypass callback ownership/turn checks or expose hidden formulas. Any later numeric tactics modifier needs a separate tested balance/security review.
 
+`0.1.10` duel invites add the first player-to-player consent ledger without rewards. Open invite tokens live server-side in `duel_challenges`; `/start duel_<token>` and `v1:duel:*` callbacks only read or mutate that ledger. Level 1-2 and missing-character accepts do not create duel results; missing players are routed to onboarding copy first. Partial HP/mana does not block a duel, but the first accept shows a warning and requires a second explicit `accept-risk` callback. Repeated accepts replay the stored result and must not reroll, grant XP/gold/items, create ranking state or move inventory. `BOT_USERNAME` is public config for deep links, not a secret; it must not be inferred from `BOT_TOKEN` or hardcoded for the wrong dev/prod bot.
+
 ## Callback validation
 Callback data має:
 - мати версію.

@@ -31,6 +31,18 @@ describe("loadConfig", () => {
     expect(config.botToken).toBeUndefined();
   });
 
+  it("accepts a Telegram bot username for generated deep links", () => {
+    const config = loadConfig({ ...validEnv, BOT_USERNAME: "@kvestarnia_dev_bot" });
+
+    expect(config.botUsername).toBe("kvestarnia_dev_bot");
+  });
+
+  it("rejects a Telegram bot URL as BOT_USERNAME", () => {
+    expect(() =>
+      loadConfig({ ...validEnv, BOT_USERNAME: "https://t.me/kvestarnia_bot" })
+    ).toThrow();
+  });
+
   it("accepts a PostgreSQL DATABASE_URL for future hosted deployments", () => {
     const config = loadConfig({
       ...validEnv,

@@ -19,7 +19,7 @@
 4. `0.1.4` — fight/quest navigation cleanup: clearer Quest Hub fight labels, return paths and presence routing; Глибка remains deferred runtime.
 5. `0.1.5` — first Phase 2 prep/runtime slice: level 3+ бійцівський куток із покроковим тренувальним `Сумлінним Допельґанґером`, XP-only reward, recovery cooldown, no PvP state, no group raid.
 6. `0.1.6` — Korchmar/Shynok problem quest chain: `13 -> 23 -> 42 -> 93`, explicit bar turn-in plus next-stage acceptance, fresh per-stage counters and no training doppelganger progress.
-7. Duel invite MVP після того, як допельґанґер доведе форму бою й картку результату.
+7. `0.1.10` — Duel invite MVP: `/duel`, open invite, `/start duel_<token>`, accept/cancel/decline/expire, quick replay-safe result, no XP/gold/items/ranking.
 8. Duel result/rematch/tournament card support.
 9. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
 10. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
@@ -32,6 +32,27 @@ Feature tracks start only after smoke and stabilization. Docs-only ideas added a
 Deferred side tracks remain useful but should not steal the Phase 2 spine: Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, rewardless achievements, food/coffee buffs, NPC rankings, the docs-planned Support Jar live status, and very-late alternate clients such as web play or non-Telegram messenger bots.
 
 Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
+
+## Implemented in `0.1.10` — Duel Invite MVP
+
+**Objective**
+Відкрити перший справжній opt-in соціяльний бойовий запис: один пригодник створює дружній виклик, інший явно приймає, а Квестарня показує короткий replay-safe результат без нагород і без економічного ризику.
+
+**Status**
+Implemented in `0.1.10`: `/duel`, Quest Hub `🤝 Корчемний виклик`, open invite tokens, optional `BOT_USERNAME` deep links as `/start duel_<token>`, accept/cancel/decline/expire, quick result replay and no reward path.
+
+**Guardrails shipped**
+- level 3+ gate for create and accept;
+- missing-character invite copy sends new players to `/start` and explains that a few minutes of onboarding and starter manatky come first;
+- partial HP/mana accept shows a warning and requires explicit «Прийняти все одно»;
+- repeated accepts replay stored result;
+- no XP, gold, items, manatky, item loss, wagers, rankings, pair caps, rematch cards, tournament cards, turn-based PvP, group combat or raids yet.
+
+**Follow-ups**
+- targeted invites instead of only open invite cards;
+- share/result/rematch card polish;
+- pair caps and reward caps before any reward-bearing duels;
+- abuse logging and telemetry before tournament/ranking work.
 
 ## Later — Старший Брат Бочки
 

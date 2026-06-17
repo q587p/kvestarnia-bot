@@ -87,6 +87,7 @@ describe("quest hub command", () => {
       reply_markup: {
         inline_keyboard: [
           [{ text: "🥊 Бійцівський куток", callback_data: "v1:spar:open" }],
+          [{ text: "🤝 Корчемний виклик", callback_data: "v1:duel:new" }],
           [{ text: "⚔️ Розвʼязати проблему", callback_data: makeQuestCallbackData("fight") }],
           [{ text: "🧹 У льох", callback_data: makeQuestCallbackData("cellar") }],
           [
@@ -128,6 +129,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🥊 Бійцівський куток",
+      "🤝 Корчемний виклик",
       "🌯 До шаурми",
       "⚔️ До сутички",
       "📦 Архів",
@@ -159,6 +161,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🥊 Бійцівський куток",
+      "🤝 Корчемний виклик",
       "🌯 До шаурми",
       "⚔️ До сутички",
       "🧹 У льох",
@@ -213,6 +216,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🥊 Бійцівський куток",
+      "🤝 Корчемний виклик",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -264,6 +268,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🥊 Бійцівський куток",
+      "🤝 Корчемний виклик",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
       "📦 Архів",
@@ -327,6 +332,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🥊 Бійцівський куток",
+      "🤝 Корчемний виклик",
       "⚔️ Розвʼязати проблему",
       "🏹 До Єгеря",
       "📦 Архів",
@@ -658,6 +664,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🥊 Бійцівський куток",
+      "🤝 Корчемний виклик",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
       "📦 Архів",
@@ -713,6 +720,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🥊 Бійцівський куток",
+      "🤝 Корчемний виклик",
       "🍻 До шинку",
       "🧹 У льох",
       "📦 Архів",

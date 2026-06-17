@@ -42,6 +42,7 @@ export const PRESENCE_ADVENTURE_SOLO_FIGHT = "adventure.solo-fight";
 export const PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND = "adventure.cellar.mouse-errand";
 export const PRESENCE_ADVENTURE_HUNT_BOARD = "adventure.hunt-board.contract";
 export const PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER = "adventure.training-doppelganger";
+export const PRESENCE_ADVENTURE_DUEL_CHALLENGE = "adventure.duel-challenge";
 
 export type PresenceStatus = "active" | "idle" | "inactive";
 export type PresenceActivityKind = "raid" | "adventure";
@@ -728,6 +729,10 @@ function getAdventureName(id: string): string {
     return "Сумлінний Допельґанґер";
   }
 
+  if (id === PRESENCE_ADVENTURE_DUEL_CHALLENGE) {
+    return "Корчемний виклик";
+  }
+
   return "Підозріла шаурма";
 }
 
@@ -741,6 +746,10 @@ function getActivityLocationName(id: string): string {
   }
 
   if (id === PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER) {
+    return getLocationName(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+  }
+
+  if (id === PRESENCE_ADVENTURE_DUEL_CHALLENGE) {
     return getLocationName(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
   }
 

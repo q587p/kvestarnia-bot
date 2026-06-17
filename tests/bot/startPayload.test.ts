@@ -20,6 +20,10 @@ describe("start payload parser", () => {
       raw: "duel_abc123",
       safe: true
     });
+    expect(parseStartPayload("duel_abc_DEF12")).toEqual({
+      type: "duel",
+      token: "abc_DEF12"
+    });
   });
 
   it("marks long or invalid payloads unsafe without throwing", () => {
