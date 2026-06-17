@@ -47,7 +47,7 @@ import {
   TRAINING_DOPPELGANGER_MONSTER_ID
 } from "../domain/trainingDoppelganger";
 import {
-  APHOPHENIA_RECEIPT_OF_TWENTY_THREE_ITEM_ID,
+  APOPHENIA_RECEIPT_OF_TWENTY_THREE_ITEM_ID,
   BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID,
   enrichRewardItemGrants,
   PAN_OF_PERSUASION_ITEM_ID,
@@ -124,7 +124,7 @@ export const PROBLEM_QUEST_STAGES: ProblemQuestStage[] = [
     reward: {
       xp: 55,
       gold: 18,
-      itemId: APHOPHENIA_RECEIPT_OF_TWENTY_THREE_ITEM_ID
+      itemId: APOPHENIA_RECEIPT_OF_TWENTY_THREE_ITEM_ID
     },
     issueKey: "quest.problem-chain.23.issued",
     rewardKey: "quest.problem-chain.23.reward",

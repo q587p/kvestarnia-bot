@@ -15,7 +15,7 @@ export const SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID = "item.suspicious-shawarma-wra
 export const RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID = "item.receipt-of-formal-suspicion";
 export const BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID =
   "item.badge-of-thirteen-small-problems";
-export const APHOPHENIA_RECEIPT_OF_TWENTY_THREE_ITEM_ID =
+export const APOPHENIA_RECEIPT_OF_TWENTY_THREE_ITEM_ID =
   "item.apophenia-receipt-of-twenty-three";
 export const TOWEL_OF_FORTY_TWO_ANSWERS_ITEM_ID =
   "item.towel-of-forty-two-answers";
