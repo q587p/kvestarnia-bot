@@ -292,8 +292,11 @@ describe("handleDuelCallback", () => {
     );
     expect(text).toContain("<b>Автор Виклику</b> · рівень 9 (реморт: 3) ⚔️ <b>Ціль Виклику</b> · рівень 3");
     expect(text).toContain("Перший і останній хід:");
-    expect(text.indexOf("Перший і останній хід:")).toBeLessThan(text.indexOf("Ціль Виклику зупиняє сутичку"));
-    expect(text.indexOf("Ціль Виклику зупиняє сутичку")).toBeLessThan(
+    expect(text).toContain(
+      "<b>Ціль Виклику</b> зупиняє сутичку папірцем такого вигляду, що <b>Автор Виклику</b> на мить визнає силу документа."
+    );
+    expect(text.indexOf("Перший і останній хід:")).toBeLessThan(text.indexOf("<b>Ціль Виклику</b> зупиняє"));
+    expect(text.indexOf("<b>Ціль Виклику</b> зупиняє")).toBeLessThan(
       text.indexOf("🏁 <b>Ціль Виклику</b> перемагає у корчемному виклику")
     );
     expect(text).toContain("<i>Без XP, золота й манаток. Це корчемний запис для слави, не фарм.</i>");

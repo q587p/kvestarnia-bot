@@ -283,19 +283,26 @@ function presentResourceWarning(warning: { hpBelowMax: boolean; manaBelowMax: bo
 }
 
 function presentDuelFlavor(key: string, winner: CharacterSummary, loser: CharacterSummary): string {
+  const winnerName = presentDuelFlavorName(winner);
+  const loserName = presentDuelFlavorName(loser);
+
   if (key === "lucky-upset") {
-    return `${escapeHtml(winner.name)} перемагає не тому, що так мало бути, а тому що удача теж любить сидіти біля стійки. ${escapeHtml(loser.name)} просить переглянути кухоль як доказ.`;
+    return `${winnerName} перемагає не тому, що так мало бути, а тому що удача теж любить сидіти біля стійки. ${loserName} просить переглянути кухоль як доказ.`;
   }
 
   if (key === "paperwork-stall") {
-    return `${escapeHtml(winner.name)} зупиняє сутичку папірцем такого вигляду, що ${escapeHtml(loser.name)} на мить визнає силу документа.`;
+    return `${winnerName} зупиняє сутичку папірцем такого вигляду, що ${loserName} на мить визнає силу документа.`;
   }
 
   if (key === "clever-trick") {
-    return `${escapeHtml(winner.name)} виграє трюком, жестом і виразом обличчя «це було за планом». ${escapeHtml(loser.name)} не певен, але Корчмар уже записав.`;
+    return `${winnerName} виграє трюком, жестом і виразом обличчя «це було за планом». ${loserName} не певен, але Корчмар уже записав.`;
   }
 
-  return `${escapeHtml(winner.name)} проходить прямо крізь план суперника. ${escapeHtml(loser.name)} лишається при честі, але без головного рядка в протоколі.`;
+  return `${winnerName} проходить прямо крізь план суперника. ${loserName} лишається при честі, але без головного рядка в протоколі.`;
+}
+
+function presentDuelFlavorName(character: CharacterSummary): string {
+  return `<b>${escapeHtml(character.name)}</b>`;
 }
 
 function formatRemaining(expiresAt: Date, now: Date): string {
