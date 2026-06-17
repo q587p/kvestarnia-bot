@@ -268,7 +268,7 @@ describe("MantokChestService", () => {
     });
   });
 
-  it("does not consume equipped, protected, priceless, or stale items", async () => {
+  it("does not auto-consume equipped, protected, priceless, or stale items", async () => {
     const repository = new FakeMantokChestRepository(snapshot(
       [
         item("item.pan-of-persuasion", 5),
@@ -334,13 +334,14 @@ describe("MantokChestService", () => {
     expect(repository.getQuantities()["item.suspicious-shawarma-wrapper"]).toBe(4);
   });
 
-  it("keeps equipped, protected, priceless, story, and apology items out of manual selection", async () => {
+  it("offers protected, priceless, story, and apology items only through manual selection", async () => {
     const repository = new FakeMantokChestRepository(snapshot(
       [
         item("item.pan-of-persuasion", 5),
         item("item.badge-of-thirteen-small-problems", 5),
         item("item.cellar.foamy-mirage-bottle", 5),
         item("item.apology.rollback-receipt", 5),
+        item("item.wet-hero-ticket", 5),
         item("item.bristle-of-basement-order", 2)
       ],
       ["item.pan-of-persuasion"]
@@ -351,9 +352,84 @@ describe("MantokChestService", () => {
 
     expect(selection.state).toBe("selection");
     if (selection.state === "selection") {
-      expect(selection.eligibleCount).toBe(2);
-      expect(selection.items.map((entry) => entry.itemId)).toEqual(["item.bristle-of-basement-order"]);
+      expect(selection.eligibleCount).toBe(22);
+      expect(selection.items.map((entry) => entry.itemId)).not.toContain("item.pan-of-persuasion");
+      expect(selection.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            itemId: "item.badge-of-thirteen-small-problems",
+            manualOnly: true
+          }),
+          expect.objectContaining({
+            itemId: "item.cellar.foamy-mirage-bottle",
+            manualOnly: true
+          }),
+          expect.objectContaining({
+            itemId: "item.apology.rollback-receipt",
+            manualOnly: true
+          }),
+          expect.objectContaining({
+            itemId: "item.wet-hero-ticket",
+            manualOnly: true
+          }),
+          expect.objectContaining({
+            itemId: "item.bristle-of-basement-order",
+            manualOnly: false
+          })
+        ])
+      );
     }
+  });
+
+  it("can recycle manual-only priceless items after explicit manual selection", async () => {
+    const repository = new FakeMantokChestRepository(snapshot([
+      item("item.wet-hero-ticket", 5),
+      item("item.suspicious-shawarma-wrapper", 4)
+    ]));
+    const service = new MantokChestService(repository, () => fixedNow, new FakeRandomSource([0]));
+
+    await expect(service.createAutoPickPreviewForTelegramUser(telegramUserId)).resolves.toEqual({
+      state: "not-enough-items",
+      eligibleCount: 4
+    });
+
+    const started = await service.startManualSelectionForTelegramUser(telegramUserId);
+    expect(started.state).toBe("selection");
+    if (started.state !== "selection") {
+      return;
+    }
+
+    const manualOnlyIndex = started.items.find((entry) => entry.itemId === "item.wet-hero-ticket")?.index;
+    expect(manualOnlyIndex).toBeTypeOf("number");
+    if (manualOnlyIndex === undefined) {
+      return;
+    }
+
+    for (let count = 0; count < 5; count += 1) {
+      await service.addManualSelectionUnitForTelegramUser(telegramUserId, {
+        token: started.run.token,
+        page: 0,
+        index: manualOnlyIndex
+      });
+    }
+
+    const preview = await service.getManualPreviewForTelegramUser(telegramUserId, started.run.token);
+    expect(preview.state).toBe("preview-created");
+    if (preview.state === "preview-created") {
+      expect(preview.inputItems).toEqual([
+        expect.objectContaining({
+          itemId: "item.wet-hero-ticket",
+          quantity: 5,
+          manualOnly: true
+        })
+      ]);
+    }
+
+    const result = await service.confirmRecycleForTelegramUser(telegramUserId, started.run.token);
+
+    expect(result.state).toBe("recycled");
+    expect(repository.getQuantities()["item.wet-hero-ticket"]).toBeUndefined();
+    expect(repository.getQuantities()["item.suspicious-shawarma-wrapper"]).toBe(4);
   });
 
   it("leaves inputs untouched when there is no output candidate", async () => {

@@ -32,9 +32,11 @@ export function presentMantokChestHelp(): string {
     "",
     "Вона бере рівно 5 доступних манаток і повертає 1 нову.",
     "",
-    "Екіпіровані, безцінні й сюжетні речі не чіпає. Бо має манери. Або юриста.",
+    "Екіпіровані речі не чіпає. Бо має манери. Або юриста.",
     "",
-    "Можна згодувати 5 найдешевших автоматично або обрати вручну. Ручний вибір Скриня рахує не ніжками, а дуже серйозним поглядом."
+    "Автоматично вона бере тільки безпечний мотлох. У ручному виборі Скриню можна переконати зʼїсти безцінну чи сюжетну манатку, якщо ви дуже впевнені.",
+    "",
+    "Екіпіроване все одно не їсть: спершу зніміть річ, а тоді вже ведіть із меблями переговори."
   ].join("\n");
 }
 
@@ -59,15 +61,16 @@ export function presentMantokChestManualSelection(result: MantokChestManualSelec
   ];
 
   if (result.items.length === 0) {
-    lines.push("Скриня не бачить нічого їстівного. Екіпіроване, безцінне й сюжетне вона чемно не чіпає.");
+    lines.push("Скриня не бачить нічого їстівного. Екіпіроване вона чемно не чіпає, навіть якщо дуже дивитися.");
   } else {
     lines.push(
       ...result.items.map((item) => {
         const selected = item.selectedQuantity > 0
           ? ` · на виделці <b>${item.selectedQuantity}</b>`
           : "";
+        const manualOnly = item.manualOnly ? " · ручне переконання" : "";
 
-        return `• <b>${escapeHtml(item.content.name)}</b> ×${item.availableQuantity}${selected}`;
+        return `• <b>${escapeHtml(item.content.name)}</b> ×${item.availableQuantity}${selected}${manualOnly}`;
       })
     );
   }
@@ -100,10 +103,18 @@ export function presentMantokChestPreview(result: MantokChestPreviewResult): str
     ].join("\n");
   }
 
+  const manualOnlyWarning = result.inputItems.some((item) => item.manualOnly)
+    ? [
+        "",
+        "⚠️ У меню є памʼятна/безцінна/сюжетна манатка. Автоматично Скриня б таке не брала; це ручне переконання."
+      ]
+    : [];
+
   return [
     "🧰 <b>Скриня обрала меню</b>",
     "",
     "⚠️ Скриня зʼїсть ці 5 манаток назавжди й поверне 1 нову. Вкладені речі не повернуться.",
+    ...manualOnlyWarning,
     "",
     ...result.inputItems.map(presentMantokChestItemLine),
     "",

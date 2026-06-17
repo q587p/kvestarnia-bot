@@ -19,7 +19,7 @@ Player-facing назви:
 
 ## MVP
 
-Runtime MVP увійшов у `0.0.24`: entry point із `/inventory`, auto-pick `Згодувати 5 найдешевших`, confirmation, transactional confirm, idempotent replay і friendly stale/error states. `0.0.27` додає ручний вибір 5 eligible stack-units без item-instance identity.
+Runtime MVP увійшов у `0.0.24`: entry point із `/inventory`, auto-pick `Згодувати 5 найдешевших`, confirmation, transactional confirm, idempotent replay і friendly stale/error states. `0.0.27` додає ручний вибір 5 stack-units без item-instance identity; `0.1.5` розводить auto/manual eligibility так, щоб автоматичний режим лишався обережним, а ручний міг явно переконати Скриню зʼїсти protected/priceless/story речі.
 
 Гравець віддає рівно `5` eligible манаток і отримує `1` нову манатку, яка краща за середнє вкладених речей за контрольованою score-функцією.
 
@@ -33,13 +33,13 @@ Runtime MVP увійшов у `0.0.24`: entry point із `/inventory`, auto-pick
 ## Базові правила
 
 - batch size: `5`;
-- `0.0.24` реалізує `Згодувати 5 найдешевших`; `0.0.27` додає manual selection з пагінацією і counter `x/5`;
+- `0.0.24` реалізує `Згодувати 5 найдешевших`; `0.0.27` додає manual selection з пагінацією і counter `x/5`; `0.1.5` дозволяє ручному режиму брати manual-only памʼятні/безцінні/сюжетні речі з окремим попередженням;
 - перед переробкою обовʼязковий confirmation screen;
 - preview не мутує стан;
 - recycle має бути транзакційним та idempotent-safe для повторного Telegram callback;
 - якщо output item не вдалося створити, input items не зникають.
 
-Eligible манатки:
+Auto-eligible манатки:
 
 - належать поточному гравцю;
 - не екіпіровані;
@@ -47,6 +47,8 @@ Eligible манатки:
 - не locked/favorite, якщо такі прапорці вже існують або будуть додані;
 - не pending у trade/mail/auction/future state;
 - не дублюються в одному batch.
+
+Manual-only виняток: у ручному режимі гравець може явно обрати protected/priceless/story речі, які автоматичний режим Скрині та Манчкін-скупник не беруть. Такі рядки позначаються як `ручне переконання`, а preview повторно попереджає, що це безповоротне годування. Екіпіровані речі лишаються захищеними навіть у manual mode, доки гравець їх не зніме.
 
 Поточна важлива реалізаційна межа: inventory stack-based (`CharacterItem.itemId + quantity`), без item-instance identity. Тому Скриня споживає 5 одиниць зі stack-ів, а не 5 окремих rows; ручний вибір додає або знімає по одній одиниці з eligible stack. Якщо `itemId` екіпірований, увесь stack цього `itemId` захищений від Скрині, навіть якщо `quantity > 1`. Locked/favorite/trade/mail/auction прапорців ще немає, тому вони не застосовуються.
 
@@ -109,7 +111,7 @@ Entry point із inventory:
 - score calculation;
 - average score і minimum output score;
 - invalid batch sizes: `4`, `6`, stale callbacks і repeated confirm;
-- equipped/protected/foreign/missing items not eligible;
+- equipped/foreign/missing items not eligible; protected/priceless/story items auto-excluded but manual-only with explicit warning;
 - successful recycle consumes `5` and creates `1`;
 - output score strictly greater than average input score;
 - rollback when output generation fails;

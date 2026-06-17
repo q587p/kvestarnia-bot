@@ -71,6 +71,7 @@ export interface MantokChestPresentedItem {
   quantity: number;
   content: ItemContent;
   score: number;
+  manualOnly: boolean;
 }
 
 export interface MantokChestSelectableItem extends MantokChestPresentedItem {
@@ -203,7 +204,7 @@ export class MantokChestService {
     return {
       state: "preview-created",
       run,
-      inputItems: presentRunItems(run.inputItems),
+      inputItems: presentRunItems(run.inputItems, getManualEligibleStacks(snapshot)),
       averageInputScore: run.averageInputScore,
       minimumOutputScore: run.minimumOutputScore
     };
@@ -245,7 +246,7 @@ export class MantokChestService {
     return {
       state: "preview-created",
       run,
-      inputItems: presentRunItems(run.inputItems),
+      inputItems: presentRunItems(run.inputItems, eligibleStacks),
       averageInputScore: selection.averageInputScore,
       minimumOutputScore: selection.minimumOutputScore
     };
@@ -330,7 +331,7 @@ export class MantokChestService {
       return { state: "invalid-token" };
     }
 
-    const eligibleStacks = sortEligibleStacks(getEligibleStacks(snapshot));
+    const eligibleStacks = sortEligibleStacks(getManualEligibleStacks(snapshot));
     const stack = eligibleStacks[input.index];
 
     if (!stack) {
@@ -369,7 +370,7 @@ export class MantokChestService {
     snapshot: MantokChestSnapshot,
     run: MantokChestRunRecord
   ): { state: "ok"; itemId: string; score: number } | { state: "stale-inputs" } | { state: "no-output-candidate" } {
-    const eligibleStacks = getEligibleStacks(snapshot);
+    const eligibleStacks = getManualEligibleStacks(snapshot);
     const selectedUnits = expandStoredRunItems(run.inputItems, eligibleStacks);
 
     if (selectedUnits.length !== MANTOK_CHEST_BATCH_SIZE) {
@@ -406,7 +407,17 @@ function getEligibleStacks(snapshot: MantokChestSnapshot) {
   return buildMantokChestEligibleStacks({
     stacks: snapshot.items,
     equippedItemIds: new Set(snapshot.equippedItemIds),
-    itemContents: items
+    itemContents: items,
+    mode: "auto"
+  });
+}
+
+function getManualEligibleStacks(snapshot: MantokChestSnapshot) {
+  return buildMantokChestEligibleStacks({
+    stacks: snapshot.items,
+    equippedItemIds: new Set(snapshot.equippedItemIds),
+    itemContents: items,
+    mode: "manual"
   });
 }
 
@@ -415,7 +426,7 @@ function buildManualSelectionResult(
   run: MantokChestRunRecord,
   requestedPage: number
 ): MantokChestManualSelectionResult {
-  const stacks = sortEligibleStacks(getEligibleStacks(snapshot));
+  const stacks = sortEligibleStacks(getManualEligibleStacks(snapshot));
   const selectedById = new Map(run.inputItems.map((item) => [item.itemId, item.quantity]));
   const eligibleCount = countMantokChestEligibleUnits(stacks);
   const selectedCount = run.inputItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -429,6 +440,7 @@ function buildManualSelectionResult(
       quantity: stack.quantity,
       content: stack.content,
       score: stack.score,
+      manualOnly: stack.manualOnly,
       index: start + offset,
       selectedQuantity: selectedById.get(stack.itemId) ?? 0,
       availableQuantity: stack.quantity
@@ -466,7 +478,8 @@ function expandStoredRunItems(
     return Array.from({ length: item.quantity }, () => ({
       itemId: stack.itemId,
       content: stack.content,
-      score: stack.score
+      score: stack.score,
+      manualOnly: stack.manualOnly
     }));
   });
 }
@@ -495,9 +508,15 @@ function clampPage(page: number, pageCount: number): number {
   return Math.min(page, pageCount - 1);
 }
 
-function presentRunItems(runItems: readonly MantokChestRunItem[]): MantokChestPresentedItem[] {
+function presentRunItems(
+  runItems: readonly MantokChestRunItem[],
+  eligibleStacks: readonly ReturnType<typeof getEligibleStacks>[number][] = []
+): MantokChestPresentedItem[] {
+  const eligibleById = new Map(eligibleStacks.map((stack) => [stack.itemId, stack]));
+
   return runItems.map((item) => {
-    const content = items.find((candidate) => candidate.id === item.itemId) ?? {
+    const eligible = eligibleById.get(item.itemId);
+    const content = eligible?.content ?? items.find((candidate) => candidate.id === item.itemId) ?? {
       id: item.itemId,
       name: "Невідома манатка",
       description: "Скриня щось виплюнула, але ярлик пішов окремо.",
@@ -510,7 +529,8 @@ function presentRunItems(runItems: readonly MantokChestRunItem[]): MantokChestPr
       itemId: item.itemId,
       quantity: item.quantity,
       content,
-      score: calculateMantokChestItemScore(content)
+      score: eligible?.score ?? calculateMantokChestItemScore(content),
+      manualOnly: eligible?.manualOnly ?? false
     };
   });
 }
@@ -529,6 +549,7 @@ function unknownOutputItem(): MantokChestPresentedItem {
     itemId: content.id,
     quantity: 1,
     content,
-    score: calculateMantokChestItemScore(content)
+    score: calculateMantokChestItemScore(content),
+    manualOnly: false
   };
 }

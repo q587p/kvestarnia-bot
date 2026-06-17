@@ -853,6 +853,7 @@ describe("main menu and scene keyboards", () => {
           itemId: "item.generated-very-long-loot-id-that-must-not-enter-callback",
           quantity: 2,
           score: 30,
+          manualOnly: false,
           index: 12,
           selectedQuantity: 1,
           availableQuantity: 2,

@@ -19,6 +19,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Training can grant XP only: `1 XP` on loss, level-scaled win XP at roughly half of a similar-level monster reward with small luck/random upside, and no gold, items, manatky or quest progress.
 - Repeat training is gated by a doppelganger recovery cooldown derived from the copy's remaining HP after the fight, not by a once-per-day card.
 
+### Changed
+- Mantok Chest auto-pick remains conservative, but manual selection can now explicitly include protected/priceless/story manatky with a visible `ручне переконання` warning and final confirmation; equipped stacks remain protected.
+
 ### Not Included
 - No real duel invites, target player selection, wagers, gold/items/manatky rewards, new loot tables, group raids, trading, shops, crafting, Mini App work, schema changes or durable PvP ledger.
 

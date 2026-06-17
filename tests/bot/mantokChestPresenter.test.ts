@@ -31,14 +31,15 @@ describe("Mantok Chest presenter", () => {
           ...item("item.cheese", "Сир", 2),
           index: 5,
           selectedQuantity: 1,
-          availableQuantity: 2
+          availableQuantity: 2,
+          manualOnly: true
         }
       ]
     });
 
     expect(text).toContain("Обрано: <b>3/5</b>");
     expect(text).toContain("Сторінка <b>2/2</b>");
-    expect(text).toContain("<b>Сир</b> ×2 · на виделці <b>1</b>");
+    expect(text).toContain("<b>Сир</b> ×2 · на виделці <b>1</b> · ручне переконання");
   });
 
   it("shows confirmation warning and selected input list", () => {
@@ -57,6 +58,24 @@ describe("Mantok Chest presenter", () => {
     expect(text).toContain("<b>&lt;b&gt;Пательня&lt;/b&gt;</b> ×2");
     expect(text).toContain("щонайменше на <b>31</b> умовних скринячих одиниць");
     expect(text).not.toContain("score");
+  });
+
+  it("warns when preview contains manual-only inputs", () => {
+    const text = presentMantokChestPreview({
+      state: "preview-created",
+      run: run(),
+      inputItems: [
+        {
+          ...item("item.ticket", "Квиток мокрого пригодника", 5),
+          manualOnly: true
+        }
+      ],
+      averageInputScore: 25,
+      minimumOutputScore: 26
+    });
+
+    expect(text).toContain("Автоматично Скриня б таке не брала");
+    expect(text).toContain("ручне переконання");
   });
 
   it("shows success output card and escapes item text", () => {
@@ -108,6 +127,7 @@ function item(itemId: string, name: string, quantity: number): MantokChestPresen
   return {
     itemId,
     quantity,
+    manualOnly: false,
     score: 30,
     content: {
       id: itemId,
