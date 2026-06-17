@@ -117,7 +117,6 @@ function presentTrainingDoppelgangerState(input: {
     input.intro,
     "",
     `Проти вас: <b>${escapeHtml(input.doppelganger.name)}</b> · ${escapeHtml(input.doppelganger.raceName)} · ${escapeHtml(input.doppelganger.className)} · рівень ${input.doppelganger.level}`,
-    `Титул копії: <i>${escapeHtml(input.doppelganger.title)}</i>`,
     "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
     `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,

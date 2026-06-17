@@ -21,6 +21,7 @@ describe("training doppelganger presenter", () => {
     expect(text).toContain("🥊 <b>Бійцівський куток</b>");
     expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
     expect(text).toContain("Сумлінний Допельґанґер");
+    expect(text).not.toContain("Титул копії");
     expect(text).toContain("❤️ Ви: 18/22 · мана 7/10");
     expect(text).toContain("🪞 Копія: 22/22");
     expect(text).toContain("Що робимо?");
