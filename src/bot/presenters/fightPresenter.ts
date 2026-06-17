@@ -175,6 +175,32 @@ export function presentPersistentFightTurn(
   });
 }
 
+export function presentProblemQuestProgressAfterFight(
+  progress: ThirteenSmallProblemsProgress | null
+): string | null {
+  if (!progress || progress.branchComplete || progress.rewardClaimed) {
+    return null;
+  }
+
+  const countLine = `<i>${escapeHtml(progress.title)}</i>: <b>${progress.wins}/${progress.target}</b>.`;
+
+  if (progress.completed) {
+    return [
+      "📋 <b>Прогрес справи зрушив</b>",
+      "",
+      countLine,
+      "Проблем уже вистачило. Корчмар чекає в Шинку, щоб прийняти справу."
+    ].join("\n");
+  }
+
+  return [
+    "📋 <b>Прогрес справи зрушив</b>",
+    "",
+    countLine,
+    "Журнал задоволено хрумтить і вдає, що це була стратегія."
+  ].join("\n");
+}
+
 function presentCharacterFlavor(
   character: CharacterSummary,
   placement: "quest.start" | "quest.outcome",

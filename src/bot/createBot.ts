@@ -193,6 +193,7 @@ import {
   presentFightLevelRetired,
   presentFightNoCharacter,
   presentProblemQuestTurnIn,
+  presentProblemQuestProgressAfterFight,
   presentFightResult,
   presentPersistentFight,
   presentPersistentFightTurn
@@ -1928,6 +1929,14 @@ async function handleFightCallback(
             reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
           })
     });
+    const progressText =
+      result.state === "updated" && result.session.state?.status === "won"
+        ? presentProblemQuestProgressAfterFight(result.questProgress)
+        : null;
+
+    if (progressText) {
+      await ctx.reply(progressText, HTML_MESSAGE_OPTIONS);
+    }
     return;
   }
 

@@ -13,6 +13,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Extended the persistent fight wrapper into a Korhmar/Shynok quest chain: `13 -> 23 -> 42 -> 93` won ordinary solo fights, each with a separate one-time reward and cosmetic proof item.
 - Added explicit Quest Hub turn-in plumbing for ready problem stages through `🍺 До Корчмаря`, so stage completion and next-stage issuing happen at the bar instead of being auto-claimed inside the fight turn.
 - Added fresh per-stage counting based on the stage issue timestamp: new stages count only won ordinary solo fights created after that stage was issued.
+- Added a separate post-fight problem-chain progress ping after newly won ordinary solo fights, keeping the main combat result short while showing the current stage counter immediately.
 - Added `docs/PROBLEM_QUEST_CHAIN_REFERENCES.md` to document the safe allusion layer for 13, 23, 42 and 93 without making player news spell out every reward.
 - Added opt-in local `/dev_heal [HP]` for playtesting HP recovery without changing XP, gold or items.
 

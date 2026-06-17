@@ -5,6 +5,7 @@ import {
   presentFightNeedsRest,
   presentFightResult,
   presentFightStart,
+  presentProblemQuestProgressAfterFight,
   presentPersistentFight,
   presentPersistentFightTurn
 } from "../../src/bot/presenters/fightPresenter";
@@ -362,6 +363,19 @@ describe("fight presenter", () => {
     expect(text).toContain("Корчмар уже чує, що проблем вистачило — занесіть це в Шинок.");
     expect(text).not.toContain("Після бою:");
     expect(text).not.toContain("список дрібних проблем теж не відвертівся");
+  });
+
+  it("renders a separate progress ping for won problem fights", () => {
+    const moved = presentProblemQuestProgressAfterFight(questProgress(5));
+    const ready = presentProblemQuestProgressAfterFight(questProgress(13, true, false));
+    const claimed = presentProblemQuestProgressAfterFight(questProgress(13, true, true));
+
+    expect(moved).toContain("📋 <b>Прогрес справи зрушив</b>");
+    expect(moved).toContain("<i>Тринадцять дрібних проблем</i>: <b>5/13</b>.");
+    expect(moved).not.toContain("Корчмар чекає");
+    expect(ready).toContain("<i>Тринадцять дрібних проблем</i>: <b>13/13</b>.");
+    expect(ready).toContain("Корчмар чекає в Шинку");
+    expect(claimed).toBeNull();
   });
 
   it("replays persistent fight rewards without implying duplicate payment", () => {
