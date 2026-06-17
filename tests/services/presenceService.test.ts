@@ -8,10 +8,13 @@ import {
   getPublicPresenceLocation,
   getPresenceStatus,
   isKorchmaInteriorLocation,
+  normalizePresenceLocationId,
+  PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
@@ -55,6 +58,37 @@ describe("PresenceService", () => {
       locationId: PRESENCE_LOCATION_KORCHMA_BAR,
       locationName: "Шинок",
       insideKorchma: true
+    });
+  });
+
+  it("keeps the training doppelganger at the quest table until the corner becomes a real location", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER, {
+        currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
+      })
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    const online = await service.getOnlineForTelegramUser(1n);
+
+    expect(normalizePresenceLocationId(PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER)).toBe(
+      PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+    );
+    expect(getPublicPresenceLocation(PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER)).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      title: "Стіл зі справами"
+    });
+    expect(isKorchmaInteriorLocation(PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER)).toBe(true);
+    expect(online).toMatchObject({
+      state: "ready",
+      location: {
+        id: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        name: "Стіл зі справами"
+      },
+      activity: {
+        id: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
+        locationName: "Стіл зі справами"
+      }
     });
   });
 

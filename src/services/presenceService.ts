@@ -615,6 +615,10 @@ export function normalizePresenceLocationId(locationId: string | null | undefine
     return PRESENCE_LOCATION_KORCHMA_CELLAR;
   }
 
+  if (locationId === PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER) {
+    return PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
+  }
+
   return locationId;
 }
 
@@ -641,7 +645,7 @@ function getLocationQueryIds(locationId: string): string[] {
   }
 
   if (id === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE) {
-    return [id, PRESENCE_LOCATION_SHAWARMA];
+    return [id, PRESENCE_LOCATION_SHAWARMA, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER];
   }
 
   if (id === PRESENCE_LOCATION_KORCHMA_CELLAR) {
@@ -737,7 +741,7 @@ function getActivityLocationName(id: string): string {
   }
 
   if (id === PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER) {
-    return getLocationName(PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
+    return getLocationName(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
   }
 
   return getLocationName(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);

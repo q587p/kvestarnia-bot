@@ -104,6 +104,16 @@ describe("presence presenter", () => {
     expect(online).not.toContain("🌯 У пригоді «Єгерська справа»");
   });
 
+  it("uses fighting corner icon for doppelganger training and a neutral fallback for unknown adventures", () => {
+    const doppelgangerOnline = presentOnline(doppelgangerOnlineSnapshot);
+    const unknownOnline = presentOnline(unknownAdventureOnlineSnapshot);
+
+    expect(doppelgangerOnline).toContain("🥊 У пригоді «Сумлінний Допельґанґер»: 1");
+    expect(doppelgangerOnline).not.toContain("🌯 У пригоді «Сумлінний Допельґанґер»");
+    expect(unknownOnline).toContain("🧩 У пригоді «Невідома пригода»: 1");
+    expect(unknownOnline).not.toContain("🌯 У пригоді «Невідома пригода»");
+  });
+
   it("limits long Telegram people lists and truncates oversized names", () => {
     const crowdedSnapshot: ParticipantsSnapshot = {
       state: "ready",
@@ -246,6 +256,45 @@ const yegerOnlineSnapshot: OnlineSnapshot = {
     id: "adventure.hunt-board.contract",
     name: "Єгерська справа",
     locationName: "Єгерський куток",
+    people: {
+      active: [{ telegramUserId: 1n, name: "Shannar de Kassal", status: "active" }],
+      idle: [],
+      total: 1
+    }
+  }
+};
+
+const doppelgangerOnlineSnapshot: OnlineSnapshot = {
+  ...onlineSnapshot,
+  location: {
+    id: "location.korchma.quest_table",
+    name: "Стіл зі справами",
+    people: {
+      active: [{ telegramUserId: 1n, name: "Shannar de Kassal", status: "active" }],
+      idle: [],
+      total: 1
+    }
+  },
+  activity: {
+    kind: "adventure",
+    id: "adventure.training-doppelganger",
+    name: "Сумлінний Допельґанґер",
+    locationName: "Стіл зі справами",
+    people: {
+      active: [{ telegramUserId: 1n, name: "Shannar de Kassal", status: "active" }],
+      idle: [],
+      total: 1
+    }
+  }
+};
+
+const unknownAdventureOnlineSnapshot: OnlineSnapshot = {
+  ...onlineSnapshot,
+  activity: {
+    kind: "adventure",
+    id: "adventure.future-mystery",
+    name: "Невідома пригода",
+    locationName: "Стіл зі справами",
     people: {
       active: [{ telegramUserId: 1n, name: "Shannar de Kassal", status: "active" }],
       idle: [],

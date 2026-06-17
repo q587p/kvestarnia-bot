@@ -11,6 +11,7 @@ import {
   PRESENCE_ADVENTURE_HUNT_BOARD,
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_ADVENTURE_SOLO_FIGHT,
+  PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_BARREL
 } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
@@ -136,7 +137,11 @@ function presentAdventureIcon(activity: PresenceActivitySnapshot): string {
     return "⚔️";
   }
 
-  return "🌯";
+  if (activity.id === PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER) {
+    return "🥊";
+  }
+
+  return "🧩";
 }
 
 function presentStatusSection(title: string, people: PresencePerson[]): string[] {

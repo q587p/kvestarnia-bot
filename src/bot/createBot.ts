@@ -29,7 +29,6 @@ import {
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
-  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
   type PresenceService
@@ -1318,7 +1317,7 @@ async function handleTrainingDoppelgangerCallback(
 
     if (result.state !== "not-found") {
       await markScenePresence(ctx, services.presence, {
-        locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
         currentRaidId: null,
         currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
       });

@@ -73,6 +73,8 @@ describe("quest hub command", () => {
     await sendQuestHub(makeContext(replies), servicesWith({ presence }), "reply");
 
     expect(replies[0]?.text).toContain("📋 Стіл зі справами");
+    expect(replies[0]?.text).toContain("Бійцівський куток");
+    expect(replies[0]?.text).toContain("/spar");
     expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
     expect(replies[0]?.text).not.toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
