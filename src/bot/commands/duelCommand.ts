@@ -158,6 +158,14 @@ export async function handleDuelCallback(
     const result = await service.acceptForTelegramUser(telegramUserId, callback.token, {
       ignoreResourceWarning: callback.type === "accept-risk"
     });
+
+    if (result.state === "self-challenge") {
+      await answerCallback({
+        text: "Самодуель не записуємо. Виклик лишається відкритим; для внутрішніх конфліктів є Допельґанґер."
+      });
+      return;
+    }
+
     await markDuelPresence(ctx, options.presence);
     await answerCallback();
     await sendText(

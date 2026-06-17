@@ -136,6 +136,33 @@ describe("handleDuelCallback", () => {
     expect(editMessageText).not.toHaveBeenCalled();
   });
 
+  it("keeps a pending open invite card stable when the challenger accepts their own invite", async () => {
+    const challenger = makeCharacterSummary("Автор Виклику");
+    const acceptForTelegramUser = vi.fn().mockResolvedValue({
+      state: "self-challenge",
+      challenge: makeChallenge("pending"),
+      challenger
+    });
+    const markAction = vi.fn().mockResolvedValue(undefined);
+    const service = serviceWith({
+      acceptForTelegramUser
+    });
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "accept", token: TOKEN }, service, {
+      presence: createPresence(markAction)
+    });
+
+    expect(acceptForTelegramUser).toHaveBeenCalledWith(42n, TOKEN, {
+      ignoreResourceWarning: false
+    });
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Самодуель не записуємо. Виклик лишається відкритим; для внутрішніх конфліктів є Допельґанґер."
+    });
+    expect(editMessageText).not.toHaveBeenCalled();
+    expect(markAction).not.toHaveBeenCalled();
+  });
+
   it("lets the challenger cancel and replaces the card with stable cancelled state", async () => {
     const challenger = makeCharacterSummary("Автор Виклику");
     const service = serviceWith({
