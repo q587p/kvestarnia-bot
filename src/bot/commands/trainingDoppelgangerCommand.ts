@@ -14,6 +14,7 @@ import {
   presentTrainingDoppelganger,
   presentTrainingDoppelgangerAnotherFight,
   presentTrainingDoppelgangerCooldown,
+  presentTrainingDoppelgangerIntro,
   presentTrainingDoppelgangerLevelGate,
   presentTrainingDoppelgangerNeedsRest,
   presentTrainingDoppelgangerNoCharacter
@@ -104,6 +105,15 @@ export async function sendTrainingDoppelganger(
   }
 
   await markTrainingPresence(ctx, options.presence);
+  if (result.state === "active") {
+    await sendText(ctx, mode, presentTrainingDoppelgangerIntro(result));
+    await sendText(ctx, "reply", presentTrainingDoppelganger(result), {
+      session: result.session,
+      character: result.character
+    });
+    return;
+  }
+
   await sendText(ctx, mode, presentTrainingDoppelganger(result), {
     session: result.session,
     character: result.character

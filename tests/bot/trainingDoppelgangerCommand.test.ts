@@ -78,6 +78,11 @@ describe("training doppelganger command", () => {
       }
     ]);
     expect(replies[0]?.text).toContain("Бійцівський куток");
+    expect(replies[0]?.text).toContain("Проти вас:");
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:spar:turn");
+    expect(replies[1]?.text).toContain("❤️ Ви:");
+    expect(replies[1]?.text).toContain("що робимо?");
+    expect(JSON.stringify(replies[1]?.options)).toContain("v1:spar:turn");
   });
 
   it("shows a level gate without turn buttons or presence marks", async () => {

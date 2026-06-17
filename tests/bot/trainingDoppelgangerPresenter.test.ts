@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   presentTrainingDoppelganger,
+  presentTrainingDoppelgangerIntro,
   presentTrainingDoppelgangerLevelGate,
   presentTrainingDoppelgangerNeedsRest,
   presentTrainingDoppelgangerNoCharacter,
@@ -11,6 +12,23 @@ import { summarizeCharacter } from "../../src/domain/characters/characterSummary
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 
 describe("training doppelganger presenter", () => {
+  it("renders the separate training fight intro", () => {
+    const character = buildCharacter({ name: "<b>Мандрівник</b>" });
+    const text = presentTrainingDoppelgangerIntro({
+      state: "active",
+      character,
+      doppelganger: buildDoppelganger(character),
+      session: buildSession()
+    });
+
+    expect(text).toContain("🥊 <b>Бійцівський куток</b>");
+    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
+    expect(text).toContain("У кутку корчми стає ваша копія");
+    expect(text).toContain("Проти вас: <b>Сумлінний Допельґанґер</b>");
+    expect(text).not.toContain("❤️ Ви:");
+    expect(text).not.toContain("що робимо?");
+  });
+
   it("renders an active turn-based training fight", () => {
     const character = buildCharacter({ name: "<b>Мандрівник</b>" });
     const text = presentTrainingDoppelganger({
@@ -20,13 +38,13 @@ describe("training doppelganger presenter", () => {
       session: buildSession()
     });
 
-    expect(text).toContain("🥊 <b>Бійцівський куток</b>");
+    expect(text).not.toContain("🥊 <b>Бійцівський куток</b>");
     expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
-    expect(text).toContain("Сумлінний Допельґанґер");
+    expect(text).not.toContain("Сумлінний Допельґанґер");
     expect(text).not.toContain("Титул копії");
     expect(text).toContain("❤️ Ви: 18/22 · мана 7/10");
     expect(text).toContain("🪞 Копія: 22/22");
-    expect(text).toContain("Що робимо?");
+    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("Нагород немає");
     expect(text).not.toContain("<b>Мандрівник</b>");
   });
@@ -86,6 +104,7 @@ describe("training doppelganger presenter", () => {
 
     expect(text).toContain("<i>Копія дістає форму 13-Б");
     expect(text).toContain("просить ваш біль розписатися тут, тут і тут.</i>");
+    expect(text).not.toContain("Останній хід");
   });
 
   it("keeps no-character and needs-rest copy short and Ukrainian", () => {

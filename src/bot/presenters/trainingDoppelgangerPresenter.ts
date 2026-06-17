@@ -77,10 +77,23 @@ export function presentTrainingDoppelganger(
     session: result.session,
     reward: result.state === "terminal" ? result.reward : null,
     intro:
-      result.state === "active"
-        ? "У кутку корчми стає ваша копія. Не метафорично: Корчмар уже просить не сперечатися з власним відображенням."
-        : "Це тренування вже завершилось. Корчма показує запис без повторного нарахування."
+      result.state === "terminal"
+        ? "Це тренування вже завершилось. Корчма показує запис без повторного нарахування."
+        : null
   });
+}
+
+export function presentTrainingDoppelgangerIntro(
+  result: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>
+): string {
+  return [
+    "🥊 <b>Бійцівський куток</b>",
+    presentCharacterHeader(result.character),
+    "",
+    "У кутку корчми стає ваша копія. Не метафорично: Корчмар уже просить не сперечатися з власним відображенням.",
+    "",
+    `Проти вас: <b>${escapeHtml(result.doppelganger.name)}</b> · ${escapeHtml(result.doppelganger.raceName)} · ${escapeHtml(result.doppelganger.className)} · рівень ${result.doppelganger.level}`
+  ].join("\n");
 }
 
 export function presentTrainingDoppelgangerTurn(
@@ -111,7 +124,7 @@ export function presentTrainingDoppelgangerTurn(
       return "Це тренування вже завершилось. Повторні натискання не переписують протокол.";
     }
 
-    return "Хід записано. Допельґанґер уточнює, чи це було навчально, чи вже особисто.";
+    return null;
   })();
 
   return presentTrainingDoppelgangerState({
@@ -128,21 +141,18 @@ function presentTrainingDoppelgangerState(input: {
   doppelganger: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["doppelganger"];
   session: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["session"];
   reward?: Extract<TrainingDoppelgangerTurnResult, { state: "updated" }>["reward"];
-  intro: string;
+  intro?: string | null;
 }): string {
   const state = input.session.state;
   const lines = [
-    "🥊 <b>Бійцівський куток</b>",
-    presentCharacterHeader(input.character),
-    "",
-    input.intro,
-    "",
-    `Проти вас: <b>${escapeHtml(input.doppelganger.name)}</b> · ${escapeHtml(input.doppelganger.raceName)} · ${escapeHtml(input.doppelganger.className)} · рівень ${input.doppelganger.level}`,
-    "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
     `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
     `Хід: ${state?.turn ?? "?"}`
   ];
+
+  if (input.intro) {
+    lines.push("", input.intro);
+  }
 
   if (state?.lastTurn) {
     lines.push("", presentTrainingTurnSummary(state.lastTurn));
@@ -182,7 +192,7 @@ function presentTrainingDoppelgangerState(input: {
       "XP за прострочене тренування немає."
     );
   } else {
-    lines.push("", "Що робимо?");
+    lines.push("", `<b>${escapeHtml(input.character.name)}</b>, що робимо?`);
   }
 
   return lines.join("\n");
@@ -218,23 +228,22 @@ function presentTrainingReward(
 
 function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
   if (summary.heroOutcome === "not-enough-mana") {
-    return ["Останній хід", "Мани не вистачило."].join("\n");
+    return "Мани не вистачило.";
   }
 
   if (summary.heroOutcome === "fled") {
-    return ["Останній хід", "Ви вийшли з тренування без переможного фанфарства."].join("\n");
+    return "Ви вийшли з тренування без переможного фанфарства.";
   }
 
   if (summary.heroOutcome === "flee-failed") {
     return [
-      "Останній хід",
       "Втеча не вдалася.",
       `Копія відповіла на ${summary.monsterDamage} шкоди.`
     ].join("\n");
   }
 
   if (summary.heroOutcome === "inactive") {
-    return ["Останній хід", "Тренування прострочилось без героїчного підпису."].join("\n");
+    return "Тренування прострочилось без героїчного підпису.";
   }
 
   const action =
@@ -254,7 +263,7 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
         ? "Копія промахнулась і дуже професійно вдала, що це була демонстрація."
         : "";
 
-  return ["Останній хід", hit, response].filter(Boolean).join("\n");
+  return [hit, response].filter(Boolean).join("\n");
 }
 
 function presentTrainingCounterFlavor(
