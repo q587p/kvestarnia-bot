@@ -618,6 +618,34 @@ Implemented in `0.0.21` as the first Telegram runtime wiring for the combat doma
 - stale callback не дублює damage/rewards;
 - terminal states are stable and do not reopen automatically.
 
+## Later — Shared Combat Turn Timeout
+
+**Objective**
+Додати короткий per-turn timeout для всіх покрокових боїв, щоб зниклий гравець або майбутній PvP-учасник не підвішував бій до довгого session expiry.
+
+**Scope**
+
+- ordinary monster fights, `/spar` against `Сумлінний Допельґанґер` and future turn-based duels use the same timeout model;
+- each active turn gets roughly `23` seconds;
+- after deadline, a background/job path applies a deterministic auto-attack or explicit skip for the active actor;
+- monster/copy/opponent response is resolved through the same combat rules as manual turns;
+- the dynamic battle message is edited to the next state or terminal result;
+- updates are guarded by `sessionId + turn` or equivalent duel/session actor-turn identity so manual clicks racing the job cannot double-resolve a turn;
+- long session expiry remains only cleanup/replay fallback, not the normal wait model.
+
+**Non-goals**
+
+- no reward/economy rebalance;
+- no schema change unless the implementation needs a durable `turn_deadline_at` / job ledger;
+- no full PvP action catalog in the same slice;
+- no hidden consumable use or item durability loss.
+
+**Acceptance criteria**
+
+- tests cover manual click before deadline, timeout after deadline, racing manual/timeout resolution, stale timeout job, terminal replay and no duplicate rewards;
+- `/fight` and `/spar` both advance or close within one timeout cycle when the player disappears;
+- future turn-based duel design can reuse the same actor-turn timeout contract without treating duel invites as combat state.
+
 ## Later — Achievements Phase 1
 
 **Objective**

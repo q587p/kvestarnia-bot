@@ -101,6 +101,8 @@ duel_actions
 - unique (duel_id, character_id, turn)
 ```
 
+Future turn-based duels should reuse the same combat turn timeout model planned for ordinary monster fights and `/spar`: each active turn gets roughly `23` seconds, then a job applies an idempotent auto-attack or skip for the silent actor, edits the shared battle card and advances or closes the fight. The first duel invite slice stays quick-resolve and rewardless; this timeout rule belongs to the later full combat runtime, not to the invite ledger itself.
+
 ## Guardrails
 
 - Consent first: target must opt in.
