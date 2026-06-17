@@ -68,6 +68,10 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
+  if (data.startsWith("v1:spar:")) {
+    return {};
+  }
+
   if (data.startsWith("v1:hunt:")) {
     return {};
   }
@@ -207,6 +211,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
 
   if (
     command === "fight" ||
+    command === "spar" ||
     command === "hunt" ||
     command === "bestiary" ||
     command === "monsters"

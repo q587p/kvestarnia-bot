@@ -955,6 +955,7 @@ describe("main menu and scene keyboards", () => {
         fullHubKeyboard
       )
     ).toEqual([
+      "🥊 Бійцівський куток",
       "🌯 До шаурми",
       "⚔️ До сутички",
       "🏹 До Єгеря",
@@ -990,6 +991,7 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
       "🕯️ Реморт",
+      "🥊 Бійцівський куток",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
       "📦 Архів",
@@ -1026,7 +1028,14 @@ describe("main menu and scene keyboards", () => {
           cellar: { state: "level-retired", character, maxLevel: 3 }
         })
       )
-    ).toEqual(["⚔️ Розвʼязати проблему", "🧹 У льох", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual([
+      "🥊 Бійцівський куток",
+      "⚔️ Розвʼязати проблему",
+      "🧹 У льох",
+      "📦 Архів",
+      "📖 Бестіарій",
+      "🍺 До зали"
+    ]);
 
     expect(
       flatInlineButtonTexts(
@@ -1064,7 +1073,14 @@ describe("main menu and scene keyboards", () => {
           cellar: { state: "level-retired", character, maxLevel: 3 }
         })
       )
-    ).toEqual(["⚔️ Продовжити бій", "🧹 У льох", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual([
+      "🥊 Бійцівський куток",
+      "⚔️ Продовжити бій",
+      "🧹 У льох",
+      "📦 Архів",
+      "📖 Бестіарій",
+      "🍺 До зали"
+    ]);
 
     expect(
       flatInlineButtonTexts(
@@ -1088,7 +1104,13 @@ describe("main menu and scene keyboards", () => {
           cellar: { state: "ready", character }
         })
       )
-    ).toEqual(["🧹 У льох", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual([
+      "🥊 Бійцівський куток",
+      "🧹 У льох",
+      "📦 Архів",
+      "📖 Бестіарій",
+      "🍺 До зали"
+    ]);
 
     expect(
       flatInlineButtonTexts(
@@ -1111,7 +1133,14 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["🏹 До Єгеря", "🧹 У льох", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual([
+      "🥊 Бійцівський куток",
+      "🏹 До Єгеря",
+      "🧹 У льох",
+      "📦 Архів",
+      "📖 Бестіарій",
+      "🍺 До зали"
+    ]);
 
     expect(
       flatInlineButtonTexts(
@@ -1139,7 +1168,13 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["🧹 У льох", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual([
+      "🥊 Бійцівський куток",
+      "🧹 У льох",
+      "📦 Архів",
+      "📖 Бестіарій",
+      "🍺 До зали"
+    ]);
 
     expect(
       flatInlineButtonTexts(

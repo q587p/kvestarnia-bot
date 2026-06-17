@@ -10,6 +10,7 @@ import { makeMenuCallbackData } from "../callbacks/menuCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
+import { makeTrainingDoppelgangerCallbackData } from "../callbacks/trainingDoppelgangerCallbackData";
 
 export interface QuestHubKeyboardInput {
   mode?: "active" | "archive";
@@ -41,6 +42,8 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   if (canOpenRemort(input)) {
     keyboard.text("🕯️ Реморт", makeRemortOpenCallbackData()).row();
   }
+
+  keyboard.text("🥊 Бійцівський куток", makeTrainingDoppelgangerCallbackData()).row();
 
   if (input.adventure.state === "ready") {
     keyboard.text("🌯 До шаурми", makeQuestCallbackData("adventure"));

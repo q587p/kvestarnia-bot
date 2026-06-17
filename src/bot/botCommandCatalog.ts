@@ -62,6 +62,12 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     includeInMenu: false
   },
   {
+    command: "spar",
+    icon: "🥊",
+    description: "тренування з допельґанґером",
+    includeInMenu: false
+  },
+  {
     command: "hunt",
     icon: "🏹",
     description: "дошка полювання",

@@ -14,6 +14,7 @@ describe("help presenter", () => {
     expect(text).toContain("/adventure");
     expect(text).toContain("/quest");
     expect(text).toContain("/fight");
+    expect(text).toContain("/spar");
     expect(text).toContain("/hunt");
     expect(text).toContain("/bestiary");
     expect(text).toContain("/monsters");
@@ -42,7 +43,7 @@ describe("help presenter", () => {
     expect(text).toContain("🍺 /tavern, /raid — корчма й рейд на бочку");
     expect(text).toContain("🗺️ /quest — стіл зі справами");
     expect(text).toContain("🌯 /adventure — пригода з шаурмою");
-    expect(text).toContain("⚔️ /fight — сутичка з монстром");
+    expect(text).toContain("⚔️ /fight, /spar — сутичка й тренування");
     expect(text).toContain("🏹 /hunt — дошка полювання");
     expect(text).toContain("📚 /bestiary, /monsters — бестіарій із 3 рівня");
     expect(text).toContain("🧹 /cellar — льохова справа");

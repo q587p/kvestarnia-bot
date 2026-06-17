@@ -544,6 +544,15 @@ function presentRemortBoardEntries(remorts: RemortBoard | undefined): string[] {
     ];
   }
 
+  if (remorts.remorts.length === 1 && remorts.remorts[0]?.remortNumber === 1) {
+    const entries = remorts.remorts[0].entries
+      .slice(0, 3)
+      .map((entry) => `${presentMilestoneRank(entry.rank)} ${escapeHtml(entry.name)}`)
+      .join(" · ");
+
+    return ["<b>🕯️ Реморти Тринадцятки</b>", entries];
+  }
+
   return [
     "<b>🕯️ Реморти Тринадцятки</b>",
     ...remorts.remorts.map((group) => {

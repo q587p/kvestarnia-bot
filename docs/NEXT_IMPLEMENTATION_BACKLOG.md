@@ -17,7 +17,7 @@
 2. `0.1.2` — presence interior/routing cleanup plus first runtime `/remort` at level 13: treat `Шинок` as korchma interior, move bot presence routing rules out of `createBot.ts`, and add replay-safe remort drafts/history.
 3. `0.1.3` — reliability polish: durable Barrel completion notifications plus Mantok Chest pending cleanup.
 4. `0.1.4` — fight/quest navigation cleanup: clearer Quest Hub fight labels, return paths and presence routing; Глибка remains deferred runtime.
-5. First Phase 2 prep/runtime slice only after smoke evidence: бійцівський куток із тренувальним `Сумлінним Допельґанґером`, не груповий рейд.
+5. `0.1.5` — first Phase 2 prep/runtime slice: бійцівський куток із тренувальним `Сумлінним Допельґанґером`, no rewards, no PvP state, no group raid.
 6. Duel invite MVP після того, як допельґанґер доведе форму бою й картку результату.
 7. Duel result/rematch/tournament card support.
 8. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.

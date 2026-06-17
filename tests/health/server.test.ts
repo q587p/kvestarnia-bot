@@ -78,9 +78,9 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Стіл зі справами навчився показувати стрілки");
-    expect(text).toContain("Бойові справи мають зрозуміліші кнопки");
-    expect(text).toContain("Глибка ще не відчинена");
+    expect(text).toContain("У кутку зʼявилась дуже сумлінна копія");
+    expect(text).toContain("Бійцівський куток");
+    expect(text).toContain("не PvP");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

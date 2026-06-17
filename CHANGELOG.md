@@ -7,6 +7,20 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.5] - 12026-06-17 - Pre-duel Training Doppelganger Prep
+
+### Added
+- Added `/spar` and a Quest Hub `🥊 Бійцівський куток` entry for a rewardless training card against the `Сумлінний Допельґанґер`.
+- Added a deterministic, no-ledger training resolver that mirrors the current hero summary and equipment effects without creating PvP state, rewards, HP loss or inventory changes.
+- Added `v1:spar:open` callback parsing, presenter/keyboards and neutral-before-handler presence routing; successful training marks `location.korchma.fighting_corner` only after Barrel and interior gates pass.
+
+### Guardrails
+- Pending Barrel raids block the training surface before any training card is built.
+- Training results explicitly say there are no rewards and do not expose hidden scores, exact formulas or seed data.
+
+### Not Included
+- No real duel invites, target player selection, wagers, rewards, combat formula changes, group raids, trading, shops, crafting, Mini App work, schema changes or durable PvP ledger.
+
 ## [0.1.4] - 12026-06-17 - Hlybka Routing & Fight/Quest Navigation Cleanup
 
 ### Fixed

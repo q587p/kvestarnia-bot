@@ -82,6 +82,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.options).toMatchObject({
       reply_markup: {
         inline_keyboard: [
+          [{ text: "🥊 Бійцівський куток", callback_data: "v1:spar:open" }],
           [{ text: "⚔️ Розвʼязати проблему", callback_data: makeQuestCallbackData("fight") }],
           [{ text: "🧹 У льох", callback_data: makeQuestCallbackData("cellar") }],
           [
@@ -122,6 +123,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
+      "🥊 Бійцівський куток",
       "🌯 До шаурми",
       "⚔️ До сутички",
       "📦 Архів",
@@ -152,6 +154,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
+      "🥊 Бійцівський куток",
       "🌯 До шаурми",
       "⚔️ До сутички",
       "🧹 У льох",
@@ -198,6 +201,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
+      "🥊 Бійцівський куток",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -248,6 +252,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
+      "🥊 Бійцівський куток",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
       "📦 Архів",
@@ -310,6 +315,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
+      "🥊 Бійцівський куток",
       "⚔️ Розвʼязати проблему",
       "🏹 До Єгеря",
       "📦 Архів",
@@ -555,6 +561,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
+      "🥊 Бійцівський куток",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
       "📦 Архів",

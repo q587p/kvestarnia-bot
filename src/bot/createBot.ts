@@ -35,6 +35,7 @@ import {
 import type { RestartService } from "../services/restartService";
 import type { RemortService } from "../services/remortService";
 import type { TavernRaidService } from "../services/tavernRaidService";
+import type { TrainingDoppelgangerService } from "../services/trainingDoppelgangerService";
 import { createBarrelRaidCompletionScheduler } from "./barrelRaidCompletionNotifier";
 import { parseAdventureCallbackData, type AdventureCallback } from "./callbacks/adventureCallbackData";
 import { parseBestiaryCallbackData, type BestiaryCallback } from "./callbacks/bestiaryCallbackData";
@@ -61,6 +62,10 @@ import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
 import { parsePlaceCallbackData, type PlaceCallback } from "./callbacks/placeCallbackData";
 import { parseQuestCallbackData, type QuestCallback } from "./callbacks/questCallbackData";
+import {
+  parseTrainingDoppelgangerCallbackData,
+  type TrainingDoppelgangerCallback
+} from "./callbacks/trainingDoppelgangerCallbackData";
 import {
   parseOnboardingCallbackData,
   type OnboardingCallback
@@ -99,6 +104,10 @@ import { registerRestartCommand } from "./commands/restartCommand";
 import { registerRemortCommand } from "./commands/remortCommand";
 import { registerStartCommand } from "./commands/startCommand";
 import { registerSupportCommand } from "./commands/supportCommand";
+import {
+  registerTrainingDoppelgangerCommand,
+  sendTrainingDoppelganger
+} from "./commands/trainingDoppelgangerCommand";
 import {
   registerTavernCommand,
   sendKorchmaArrivalBoard,
@@ -266,6 +275,7 @@ export interface BotServices {
   restart: RestartService;
   remort?: RemortService;
   tavern: TavernRaidService;
+  trainingDoppelganger?: TrainingDoppelgangerService;
 }
 
 export interface BotOptions {
@@ -301,6 +311,12 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     presence: services.presence,
     tavernRaid: services.tavern
   });
+  if (services.trainingDoppelganger) {
+    registerTrainingDoppelgangerCommand(bot, services.trainingDoppelganger, {
+      presence: services.presence,
+      tavernRaid: services.tavern
+    });
+  }
   registerBestiaryCommand(bot, services.hero);
   registerCellarCommand(
     bot,
@@ -458,6 +474,17 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     }
 
     await handleQuestCallback(ctx, parsed.value, services);
+  });
+
+  bot.callbackQuery(/^v1:spar:/, async (ctx) => {
+    const parsed = parseTrainingDoppelgangerCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok || !services.trainingDoppelganger) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleTrainingDoppelgangerCallback(ctx, parsed.value, services);
   });
 
   bot.callbackQuery(/^v1:cellar:/, async (ctx) => {
@@ -1251,6 +1278,31 @@ async function handleQuestCallback(
       ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {})
     }
   );
+}
+
+async function handleTrainingDoppelgangerCallback(
+  ctx: Context,
+  callback: TrainingDoppelgangerCallback,
+  services: BotServices
+): Promise<void> {
+  void callback;
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId || !services.trainingDoppelganger) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
+  }
+
+  await safeAnswerCallbackQuery(ctx);
+  await sendTrainingDoppelganger(ctx, services.trainingDoppelganger, "edit", {
+    presence: services.presence,
+    tavernRaid: services.tavern,
+    requireKorchmaInterior: true
+  });
 }
 
 function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
