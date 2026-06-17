@@ -293,7 +293,7 @@ describe("handleDuelCallback", () => {
     expect(text.indexOf("Ціль Виклику зупиняє сутичку")).toBeLessThan(
       text.indexOf("🏁 <b>Ціль Виклику</b> перемагає у корчемному виклику")
     );
-    expect(text).toContain("Без XP, золота й манаток. Це корчемний запис для слави, не фарм.");
+    expect(text).toContain("<i>Без XP, золота й манаток. Це корчемний запис для слави, не фарм.</i>");
     expect(text).not.toContain("рейтингу");
     expect(keyboardJson(editMessageText)).toContain("v1:duel:new");
   });

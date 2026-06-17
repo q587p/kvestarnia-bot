@@ -218,7 +218,7 @@ function presentResolvedDuel(result: Extract<DuelChallengeView, { state: "resolv
     "",
     headline,
     "",
-    "Без XP, золота й манаток. Це корчемний запис для слави, не фарм."
+    "<i>Без XP, золота й манаток. Це корчемний запис для слави, не фарм.</i>"
   ].join("\n");
 }
 
