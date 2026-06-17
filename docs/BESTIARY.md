@@ -431,7 +431,7 @@ Tags: `beast`, `paperwork`, `audit`, `unquiet`
 ## 23. Крендель солоної обіцянки — `monster.salted-oath-pretzel`
 
 Level: `6`
-Tags: `food`, `bread`, `rules`, `unquiet`
+Tags: `food`, `bread`, `rules`
 
 **Опис:** Сухий, гнучкий і страшенно переконаний, що довіра — це теж начинка.
 

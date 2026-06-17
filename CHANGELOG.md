@@ -21,6 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Guardrails
 - Training doppelganger sessions remain excluded from the problem chain and do not grant Korhmar quest progress.
 - Lost, fled and expired fights still do not count toward problem stages.
+- `Крендель солоної обіцянки` is no longer tagged as `unquiet`, so it does not count toward the Yeger unquiet quest.
 - Existing `quest.thirteen-small-problems` completions remain compatible: players who already claimed the old 13-problem reward can turn in to receive the 23-problem stage without duplicating the old reward.
 
 ### Not Included

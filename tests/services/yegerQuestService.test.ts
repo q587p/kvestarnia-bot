@@ -132,6 +132,8 @@ describe("YegerQuestService", () => {
     expect(isYegerUnquietTarget({ tags: ["ghost"] })).toBe(true);
     expect(isYegerUnquietTarget({ tags: ["cursed"] })).toBe(true);
     expect(isYegerUnquietTarget({ tags: ["beast", "paperwork"] })).toBe(false);
+    expect(isYegerUnquietTarget({ tags: ["food", "bread", "rules"] })).toBe(false);
+    expect(isYegerUnquietTarget(monsters.find((monster) => monster.id === "monster.salted-oath-pretzel")!)).toBe(false);
   });
 
   it("keeps Yeger targets available across the ordinary level ladder", () => {
@@ -153,8 +155,8 @@ describe("YegerQuestService", () => {
         .map((monster) => monster.level)
     );
 
-    expect([...targetLevels].sort((left, right) => left - right)).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
-    expect(targetLevels.size).toBeGreaterThanOrEqual(10);
+    expect([...targetLevels].sort((left, right) => left - right)).toEqual([4, 5, 7, 8, 9, 10, 11, 12, 13]);
+    expect(targetLevels.size).toBeGreaterThanOrEqual(9);
   });
 
   it("starts tracking as a cooldown without rewards", async () => {

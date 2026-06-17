@@ -160,7 +160,7 @@ export const monsters = [
     name: "Крендель солоної обіцянки",
     description: "Сухий, гнучкий і страшенно переконаний, що довіра — це теж начинка.",
     level: 6,
-    tags: ["food", "bread", "rules", "unquiet"]
+    tags: ["food", "bread", "rules"]
   },
   {
     id: "monster.liar-corridor-map",
