@@ -366,8 +366,17 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
     );
   }
 
-  countWonByTelegramUserId(): Promise<number> {
-    return Promise.resolve([...this.sessions.values()].filter((session) => session.status === "won").length);
+  countWonByTelegramUserId(
+    _telegramUserId: bigint,
+    options: { excludeMonsterIds?: readonly string[] } = {}
+  ): Promise<number> {
+    const excludedMonsterIds = new Set(options.excludeMonsterIds ?? []);
+
+    return Promise.resolve(
+      [...this.sessions.values()].filter(
+        (session) => session.status === "won" && !excludedMonsterIds.has(session.monsterId)
+      ).length
+    );
   }
 
   listByTelegramUserIdSince(): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt">>> {

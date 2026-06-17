@@ -79,6 +79,10 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
     return `📋 <i>Тринадцять дрібних проблем</i> — ${presentThirteenProblemsStatus(fight.questProgress)}, бій уже триває.`;
   }
 
+  if (fight.state === "training-active") {
+    return "🥊 <i>Бійцівський куток</i> — тренування вже триває; звичайні проблеми почекають після /spar.";
+  }
+
   if (fight.state === "persistent-ready" || fight.state === "persistent-terminal") {
     return `📋 <i>Тринадцять дрібних проблем</i> — ${presentThirteenProblemsStatus(fight.questProgress)}.`;
   }
@@ -322,6 +326,7 @@ function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
     snapshot.fight.state === "persistent-ready" ||
     snapshot.fight.state === "persistent-active" ||
     snapshot.fight.state === "persistent-terminal" ||
+    snapshot.fight.state === "training-active" ||
     snapshot.yeger.state === "offered" ||
     snapshot.yeger.state === "in-progress" ||
     snapshot.yeger.state === "turn-in-ready" ||

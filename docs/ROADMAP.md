@@ -65,7 +65,7 @@ Current tiny inventory slice:
 - `0.1.2` fixes the first post-closeout presence/routing papercut and opens the first explicit level-13 `/remort` loop: `Шинок` is now a korchma interior location for routing gates, presence routing rules are tested outside `createBot.ts`, and remort drafts/history are replay-safe.
 - `0.1.3` adds reliability polish for already-shipped loops: durable Barrel completion notifications survive restart/retry, and stale pending Дружня Скриня runs expire without touching inventory.
 - `0.1.4` clarifies Quest Hub/fight navigation: fight buttons distinguish ready, active and terminal states; return paths consistently point back to `Стіл зі справами`; Quest Hub list/archive callbacks stay neutral in middleware and only successful handlers write quest-table presence after gates pass. Глибка remains deferred runtime.
-- `0.1.5` opens the first Phase 2 prep surface: `🥊 Бійцівський куток` and `/spar` run a turn-based XP-only training fight against the `Сумлінний Допельґанґер`, with no real duel invites, PvP state, gold/items/manatky rewards or group raid.
+- `0.1.5` opens the first Phase 2 prep surface: `🥊 Бійцівський куток` and `/spar` run a turn-based XP-only training fight against the `Сумлінний Допельґанґер`, with no real duel invites, PvP state, gold/items/manatky rewards, `Тринадцять дрібних проблем` progress or group raid.
 - Phase 1 finish rule after `0.1.0`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки `0.1.x` playtest не покаже, що core loop стабільний. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
 - Detailed finish sequence lives in `docs/PHASE1_FINISH_PLAN.md`; the closeout cutline for `0.0.x` → `0.1.x` lives in `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`, the final smoke gate lives in `docs/PHASE1_CLOSEOUT_SMOKE.md`, and canonical release notes live in `docs/PHASE1_RELEASE_NOTES.md`. `docs/NEXT_IMPLEMENTATION_BACKLOG.md` tracks the next small PR order.
 - Tavern/adventure/fight first completions can grant fixed items.
@@ -94,7 +94,7 @@ Current order:
 2. `0.1.2` — presence interior/routing cleanup plus first runtime `/remort` at level 13, because playtest reached the cap sooner than the old Phase 2 plan expected.
 3. `0.1.3` — reliability polish за реальним болем: durable Barrel completion notifications плюс Mantok Chest pending cleanup.
 4. `0.1.4` — fight/quest navigation cleanup; Глибка лишається відкладеною runtime-локацією, доки core navigation не перестане хитатися.
-5. `0.1.5` — перший вузький Phase 2 runtime prep: Бійцівський куток і тренувальний Сумлінний Допельґанґер без нагород і без реального PvP.
+5. `0.1.5` — перший вузький Phase 2 runtime prep: Бійцівський куток і тренувальний Сумлінний Допельґанґер з малим XP-only результатом, без золота/items/манаток, `Тринадцять дрібних проблем` progress і реального PvP.
 6. Later `0.1.x` — Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation, Munchkin manual selection and other small scoped expansions only if they do not steal the Phase 2 spine.
 
 Guardrails:

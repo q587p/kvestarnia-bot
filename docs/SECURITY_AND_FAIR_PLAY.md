@@ -44,7 +44,7 @@ MVP limits:
 
 `0.1.3` додає reliability rows без нових нагород: `barrel_raid_notifications` тільки відновлює/надсилає завершальні повідомлення навколо наявного idempotent Barrel reward claim, а старі pending `mantok_chest_runs` переходять у `expired` без списання манаток або створення output.
 
-`0.1.5` додає rewardless `/spar` проти `Сумлінного Допельґанґера` без PvP state і без незворотних наслідків. Через це MVP може бути deterministic/no-ledger: повторний показ картки не видає XP, золото, items, не списує ресурси й не змінює HP/ману. Перший reward-bearing або player-vs-player duel slice має перейти на server-side ledger/replay boundary, ownership checks і consent flow до будь-якої мутації.
+`0.1.5` додає `/spar` проти `Сумлінного Допельґанґера` як XP-only тренувальний бій без PvP state, target-player state, duel ledger, ставки або donor/pay state. Завершення тренування може видати тільки малий idempotent XP через session-scoped reward key і може оновити HP/ману персонажа та cooldown відновлення; воно не видає золото, items, манатки, титули, ранги, quest progress або доступ до фіч. Повторний callback має replay-нути вже записаний результат без додаткового XP, resource drain або нагород. Перший player-vs-player duel slice має перейти на server-side ledger/replay boundary, ownership checks і consent flow до будь-якої мутації.
 
 ## Callback validation
 Callback data має:

@@ -5,7 +5,7 @@ import { summarizeCharacter } from "../../src/domain/characters/characterSummary
 import type { PresenceService } from "../../src/services/presenceService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 import type {
-  TrainingDoppelgangerResult,
+  TrainingDoppelgangerLookupResult,
   TrainingDoppelgangerService
 } from "../../src/services/trainingDoppelgangerService";
 
@@ -87,9 +87,9 @@ function character() {
 class FakeTrainingDoppelgangerService {
   calls = 0;
 
-  constructor(private readonly result: TrainingDoppelgangerResult) {}
+  constructor(private readonly result: TrainingDoppelgangerLookupResult) {}
 
-  getForTelegramUser(): Promise<TrainingDoppelgangerResult> {
+  getOrStartForTelegramUser(): Promise<TrainingDoppelgangerLookupResult> {
     this.calls += 1;
     return Promise.resolve(this.result);
   }

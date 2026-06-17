@@ -14,6 +14,7 @@ import {
   buildPersistentFightReadyKeyboard,
   buildPersistentFightResultKeyboard
 } from "../keyboards/fightKeyboard";
+import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentFightAlreadyCompleted,
@@ -21,6 +22,7 @@ import {
   presentFightNeedsRest,
   presentFightNoCharacter,
   presentFightStart,
+  presentFightTrainingActive,
   presentPersistentFight
 } from "../presenters/fightPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
@@ -99,6 +101,15 @@ export async function sendFight(
     return;
   }
 
+  if (result.state === "training-active") {
+    await sendText(ctx, mode, presentFightTrainingActive(result), {
+      type: "training-active",
+      character: result.character,
+      session: result.session
+    });
+    return;
+  }
+
   if (options?.presence) {
     await markFightPresence(ctx, options.presence, {
       persistent: result.state === "persistent-active" || result.state === "persistent-terminal"
@@ -168,6 +179,11 @@ async function sendText(
     | false
     | "enter-korchma"
     | "persistent-ready"
+    | {
+        type: "training-active";
+        character: CharacterSummary;
+        session: Parameters<typeof buildTrainingDoppelgangerKeyboard>[0];
+      }
     | { type: "fight"; character: CharacterSummary }
     | {
         type: "persistent-fight";
@@ -183,6 +199,8 @@ async function sendText(
             ? buildKorchmaFrontKeyboard()
             : keyboard === "persistent-ready"
               ? buildPersistentFightReadyKeyboard()
+              : keyboard.type === "training-active"
+              ? buildTrainingDoppelgangerKeyboard(keyboard.session, keyboard.character)
               : keyboard.type === "persistent-fight"
               ? buildPersistentFightResultKeyboard(keyboard.session, keyboard.character)
               : buildFightKeyboard(keyboard.character)

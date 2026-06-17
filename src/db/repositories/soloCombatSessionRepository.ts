@@ -44,7 +44,10 @@ export interface RecordSoloCombatRewardInput {
 
 export interface SoloCombatSessionRepository {
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<SoloCombatSessionRecord | null>;
-  countWonByTelegramUserId(telegramUserId: bigint): Promise<number>;
+  countWonByTelegramUserId(
+    telegramUserId: bigint,
+    options?: { excludeMonsterIds?: readonly string[] }
+  ): Promise<number>;
   listByTelegramUserIdSince(
     telegramUserId: bigint,
     since: Date

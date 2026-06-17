@@ -142,6 +142,7 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
     input.fight.state === "persistent-ready" ||
     input.fight.state === "persistent-active" ||
     input.fight.state === "persistent-terminal" ||
+    input.fight.state === "training-active" ||
     input.yeger.state === "offered" ||
     input.yeger.state === "in-progress" ||
     input.yeger.state === "turn-in-ready" ||

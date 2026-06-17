@@ -4,7 +4,9 @@ import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeBestiaryListCallbackData } from "../../src/bot/callbacks/bestiaryCallbackData";
 import { sendQuestHub } from "../../src/bot/commands/questHubCommand";
+import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import type { AdventureService } from "../../src/services/adventureService";
 import type { CellarErrandService } from "../../src/services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
@@ -570,6 +572,48 @@ describe("quest hub command", () => {
     ]);
   });
 
+  it("shows active spar from the quest hub without offering a normal fight", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+    const grownCharacter = characterAtLevel(3);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        presence,
+        adventure: readyAdventureService(grownCharacter),
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "training-active",
+              character: grownCharacter,
+              session: trainingSession(),
+              questProgress: questProgress(0)
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        } as unknown as FightService
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("/spar");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.callback_data)).toContain("v1:spar:open");
+    expect(buttons.map((button) => button.callback_data)).not.toContain(makeQuestCallbackData("fight"));
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: null
+    });
+  });
+
   it("blocks the quest hub while a barrel raid is pending", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
@@ -810,6 +854,36 @@ function questProgress(wins: number, completed = false) {
     target: 13,
     completed,
     rewardClaimed: completed
+  };
+}
+
+function trainingSession(): SoloCombatSessionRecord {
+  return {
+    id: "123e4567-e89b-12d3-a456-426614174000",
+    characterId: "character-42",
+    monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
+    status: "active",
+    turn: 1,
+    state: {
+      id: "123e4567-e89b-12d3-a456-426614174000",
+      turn: 1,
+      status: "active",
+      hero: {
+        hp: 24,
+        hpMax: 24,
+        mana: 12,
+        manaMax: 12
+      },
+      monster: {
+        id: TRAINING_DOPPELGANGER_MONSTER_ID,
+        hp: 18,
+        hpMax: 18
+      }
+    },
+    reward: null,
+    createdAt: new Date("2026-06-12T10:30:00.000Z"),
+    updatedAt: new Date("2026-06-12T10:30:00.000Z"),
+    expiresAt: new Date("2026-06-12T11:00:00.000Z")
   };
 }
 

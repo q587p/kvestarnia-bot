@@ -43,6 +43,10 @@ import {
   PERSISTENT_SOLO_FIGHT_REWARD_KEY
 } from "./dailyActionKeys";
 import {
+  isTrainingDoppelgangerMonsterId,
+  TRAINING_DOPPELGANGER_MONSTER_ID
+} from "../domain/trainingDoppelganger";
+import {
   BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID,
   enrichRewardItemGrants,
   PAN_OF_PERSUASION_ITEM_ID,
@@ -125,6 +129,12 @@ export type FightLookupResult =
       monster: MonsterContent | null;
       questProgress: ThirteenSmallProblemsProgress;
       fightReward: PersistentFightReward | null;
+    }
+  | {
+      state: "training-active";
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      questProgress: ThirteenSmallProblemsProgress;
     }
   | { state: "ready"; character: CharacterSummary }
   | { state: "already-completed"; character: CharacterSummary; questAvailable: boolean };
@@ -250,6 +260,15 @@ export class FightService {
       };
     }
 
+    if (isTrainingDoppelgangerMonsterId(activeSession.monsterId)) {
+      return {
+        state: "training-active",
+        character: characterSummary,
+        session: activeSession,
+        questProgress
+      };
+    }
+
     if (!activeSession.state) {
       const expiredSession = await this.combatSessions.markStatusById(activeSession.id, "expired");
 
@@ -359,6 +378,15 @@ export class FightService {
       const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character, {
         syncResources: false
       });
+
+      if (isTrainingDoppelgangerMonsterId(activeSession.monsterId)) {
+        return {
+          state: "training-active",
+          character: characterSummary,
+          session: activeSession,
+          questProgress
+        };
+      }
 
       if (!activeSession.state) {
         await this.combatSessions.markStatusById(activeSession.id, "expired");
@@ -611,6 +639,13 @@ export class FightService {
     );
 
     if (!session) {
+      return {
+        state: "not-found",
+        character: characterSummary
+      };
+    }
+
+    if (isTrainingDoppelgangerMonsterId(session.monsterId)) {
       return {
         state: "not-found",
         character: characterSummary
@@ -875,7 +910,9 @@ export class FightService {
     telegramUserId: bigint
   ): Promise<ThirteenSmallProblemsProgress> {
     const wins = this.combatSessions
-      ? await this.combatSessions.countWonByTelegramUserId(telegramUserId)
+      ? await this.combatSessions.countWonByTelegramUserId(telegramUserId, {
+          excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID]
+        })
       : 0;
     const rewardClaim = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: THIRTEEN_SMALL_PROBLEMS_QUEST_KEY,
@@ -937,7 +974,9 @@ export class FightService {
     telegramUserId: bigint
   ): Promise<ThirteenSmallProblemsReward | null> {
     const wins = this.combatSessions
-      ? await this.combatSessions.countWonByTelegramUserId(telegramUserId)
+      ? await this.combatSessions.countWonByTelegramUserId(telegramUserId, {
+          excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID]
+        })
       : 0;
 
     if (wins < THIRTEEN_SMALL_PROBLEMS_TARGET_WINS) {

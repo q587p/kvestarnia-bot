@@ -27,6 +27,7 @@ import type {
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import type { CombatState } from "../../src/domain/combat";
 import { getLevelForXp } from "../../src/domain/progression/level";
+import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { FakeRandomSource } from "../../src/shared/random";
 import { MIMIC_SHAWARMA_ADVENTURE_KEY } from "../../src/services/adventureService";
 import {
@@ -343,6 +344,126 @@ describe("FightService", () => {
       }
     });
     expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("keeps an active training doppelganger session out of quest overview expiry", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const trainingSession = sessions.addSession(makeActiveTrainingSession());
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "training-active",
+      session: {
+        id: trainingSession.id,
+        monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
+        status: "active"
+      },
+      questProgress: {
+        wins: 0,
+        completed: false
+      }
+    });
+    expect(sessions.updateCount).toBe(0);
+    expect(sessions.getById(trainingSession.id)).toMatchObject({
+      status: "active",
+      monsterId: TRAINING_DOPPELGANGER_MONSTER_ID
+    });
+  });
+
+  it("keeps an active training doppelganger session out of normal fight start", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const trainingSession = sessions.addSession(makeActiveTrainingSession());
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const result = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "training-active",
+      session: {
+        id: trainingSession.id,
+        monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
+        status: "active"
+      }
+    });
+    expect(sessions.createCount).toBe(0);
+    expect(sessions.updateCount).toBe(0);
+  });
+
+  it("excludes won training doppelganger sessions from thirteen small problems", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.addWonSessions("character-42", 12);
+    sessions.addWonSessions("character-42", 3, TRAINING_DOPPELGANGER_MONSTER_ID);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "persistent-ready",
+      questProgress: {
+        wins: 12,
+        target: 13,
+        completed: false,
+        rewardClaimed: false
+      }
+    });
+    expect(dailyActions.records.filter((record) => record.key === THIRTEEN_SMALL_PROBLEMS_QUEST_KEY)).toHaveLength(0);
+  });
+
+  it("does not let training doppelganger wins trigger the thirteen small problems reward", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.addWonSessions("character-42", 13, TRAINING_DOPPELGANGER_MONSTER_ID);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "persistent-ready",
+      questProgress: {
+        wins: 0,
+        completed: false,
+        rewardClaimed: false
+      }
+    });
+    expect(dailyActions.createCount).toBe(0);
+    expect(dailyActions.grantedItems).toEqual([]);
   });
 
   it("starts and resumes one persistent fight session for level three characters", async () => {
@@ -1632,15 +1753,23 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
 
   constructor(private readonly characters: FakeCharacterRepository) {}
 
-  async countWonByTelegramUserId(telegramUserId: bigint): Promise<number> {
+  async countWonByTelegramUserId(
+    telegramUserId: bigint,
+    options: { excludeMonsterIds?: readonly string[] } = {}
+  ): Promise<number> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
       return 0;
     }
 
+    const excludedMonsterIds = new Set(options.excludeMonsterIds ?? []);
+
     return [...this.sessions.values()].filter(
-      (candidate) => candidate.characterId === character.id && candidate.status === "won"
+      (candidate) =>
+        candidate.characterId === character.id &&
+        candidate.status === "won" &&
+        !excludedMonsterIds.has(candidate.monsterId)
     ).length;
   }
 
@@ -1888,9 +2017,20 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     return cloneSession(cloned);
   }
 
-  addWonSessions(characterId: string, count: number): void {
+  addWonSessions(
+    characterId: string,
+    count: number,
+    monsterId = "monster.deadline-spider"
+  ): void {
     for (let index = 0; index < count; index += 1) {
-      this.addSession(makeTerminalSession("won", `session-won-${index + 1}`, characterId));
+      this.addSession(
+        makeTerminalSession(
+          "won",
+          `session-won-${monsterId.replace(/[^a-z0-9]+/g, "-")}-${index + 1}`,
+          characterId,
+          monsterId
+        )
+      );
     }
   }
 }
@@ -1898,12 +2038,13 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
 function makeTerminalSession(
   status: Exclude<SoloCombatSessionStatus, "active">,
   id = `session-${status}`,
-  characterId = "character-42"
+  characterId = "character-42",
+  monsterId = "monster.deadline-spider"
 ): SoloCombatSessionRecord {
   return {
     id,
     characterId,
-    monsterId: "monster.deadline-spider",
+    monsterId,
     status,
     turn: 2,
     state: {
@@ -1917,9 +2058,41 @@ function makeTerminalSession(
         manaMax: 12
       },
       monster: {
-        id: "monster.deadline-spider",
+        id: monsterId,
         hp: status === "won" ? 0 : 5,
         hpMax: 18
+      }
+    },
+    reward: null,
+    createdAt: fixedClock(),
+    updatedAt: fixedClock(),
+    expiresAt: new Date("2026-06-12T11:00:00.000Z")
+  };
+}
+
+function makeActiveTrainingSession(characterId = "character-42"): SoloCombatSessionRecord {
+  const id = "training-session-1";
+
+  return {
+    id,
+    characterId,
+    monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
+    status: "active",
+    turn: 1,
+    state: {
+      id,
+      turn: 1,
+      status: "active",
+      hero: {
+        hp: 20,
+        hpMax: 24,
+        mana: 10,
+        manaMax: 12
+      },
+      monster: {
+        id: TRAINING_DOPPELGANGER_MONSTER_ID,
+        hp: 20,
+        hpMax: 24
       }
     },
     reward: null,
