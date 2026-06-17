@@ -32,6 +32,8 @@ describe("handleDuelCallback", () => {
 
     expect(messageText(editMessageText)).toContain("Скопіюйте посилання й киньте його в приват або чат:");
     expect(messageText(editMessageText)).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
+    expect(messageText(editMessageText)).toContain("Виклик уже на столі. Погляд такий, ніби це стратегія.");
+    expect(messageText(editMessageText)).not.toContain("Автор Виклику ставить виклик");
   });
 
   it("explains missing bot username instead of silently hiding the invite link", async () => {
@@ -53,7 +55,7 @@ describe("handleDuelCallback", () => {
     });
 
     expect(messageText(editMessageText)).toContain(
-      "Посилання для копіювання ще не зібралося: Корчмар не знає username цього бота."
+      "⚠️ Посилання для копіювання ще не зібралося: Корчмар не знає username цього бота."
     );
   });
 

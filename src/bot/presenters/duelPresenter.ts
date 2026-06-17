@@ -145,7 +145,7 @@ function presentPendingDuel(
     "🥊 <b>Корчемний виклик</b>",
     presentCharacterHeader(result.challenger),
     "",
-    `${escapeHtml(result.challenger.name)} ставить виклик на стіл і дивиться так, ніби це стратегія.`,
+    "Виклик уже на столі. Погляд такий, ніби це стратегія.",
     "",
     `Виклик відкритий ще <b>${formatRemaining(result.expiresAt, result.now)}</b>. Інший пригодник має натиснути «Прийняти».`,
     "Нагород, ставок і втрат немає: це перший безпечний запис бійцівського кутка."
@@ -160,7 +160,7 @@ function presentPendingDuel(
   if (options.inviteUrl) {
     lines.push("Скопіюйте посилання й киньте його в приват або чат:", escapeHtml(options.inviteUrl));
   } else {
-    lines.push("Посилання для копіювання ще не зібралося: Корчмар не знає username цього бота.");
+    lines.push("⚠️ Посилання для копіювання ще не зібралося: Корчмар не знає username цього бота.");
   }
 
   return lines.join("\n");
