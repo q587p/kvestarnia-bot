@@ -18,7 +18,7 @@ export function buildFightKeyboard(character?: CharacterSummary): InlineKeyboard
     .row()
     .text(labels.flee, makeFightCallbackData("flee"))
     .row()
-    .text("⬅️ До столу", makePlaceCallbackData("quest-table"));
+    .text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
 
 export function buildFightResultKeyboard(
@@ -26,7 +26,7 @@ export function buildFightResultKeyboard(
   character?: CharacterSummary
 ): InlineKeyboard {
   if (state === "already-completed") {
-    return new InlineKeyboard().text("⬅️ До столу", makePlaceCallbackData("quest-table"));
+    return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
   }
 
   return buildFightKeyboard(character);
@@ -48,7 +48,7 @@ export function buildPersistentFightKeyboard(
     .row()
     .text("🏃 Відступити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" }))
     .row()
-    .text("⬅️ До столу", makePlaceCallbackData("quest-table"));
+    .text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
 
 export function buildPersistentFightResultKeyboard(

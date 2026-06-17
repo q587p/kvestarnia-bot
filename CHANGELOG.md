@@ -7,6 +7,16 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.4] - 12026-06-17 - Hlybka Routing & Fight/Quest Navigation Cleanup
+
+### Fixed
+- Clarified Quest Hub navigation around `Стіл зі справами`: active fights, terminal fight records, archive, hunt, cellar and hall routes now use more explicit button labels and return paths.
+- Tightened presence routing for quest-table list/archive callbacks while keeping place and quest/fight action callbacks neutral until their handlers pass Barrel, location and stale-button gates.
+- Aligned Hlybka/Глибка docs with current runtime scope: Глибка remains deferred, and this release does not add a dungeon route.
+
+### Not Included
+- No new rewards, combat formulas, loot tables, item effects, shops, trading, crafting, duels, doppelganger runtime, group raids, web client, non-Telegram adapters, schema changes, remort rules or Phase 2 runtime.
+
 ## [0.1.3] - 12026-06-17 - Durable Barrel Notifications & Chest Cleanup
 
 ### Added

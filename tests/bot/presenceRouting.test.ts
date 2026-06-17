@@ -9,6 +9,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../src/services/presenceService";
 
@@ -55,7 +56,31 @@ describe("presence routing", () => {
     ["v1:chest:open", {}],
     ["v1:lvlx:confirm:abc123", {}],
     ["v1:quest:fight", {}],
+    [
+      "v1:quest:archive",
+      {
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: null
+      }
+    ],
+    [
+      "v1:quest:list",
+      {
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: null
+      }
+    ],
+    ["v1:place:hall", {}],
+    ["v1:place:front", {}],
+    ["v1:place:quest-table", {}],
     ["v1:place:bar", {}],
+    ["v1:place:barrel", {}],
+    ["v1:place:cellar", {}],
+    ["v1:place:news-corner", {}],
+    ["v1:place:arrivals", {}],
+    ["v1:place:memorial", {}],
     [
       "v1:onb:gender:he",
       {
@@ -82,6 +107,32 @@ describe("presence routing", () => {
   it("ignores unknown callbacks", () => {
     expect(getCallbackPresenceContext("v1:unknown:thing")).toBeNull();
   });
+
+  it.each(["v1:quest:adventure", "v1:quest:fight", "v1:quest:hunt", "v1:quest:cellar"])(
+    "keeps quest action callback %s neutral until handler gates pass",
+    (data) => {
+      expect(getCallbackPresenceContext(data)).toEqual({});
+    }
+  );
+
+  it.each([
+    "v1:place:hall",
+    "v1:place:front",
+    "v1:place:quest-table",
+    "v1:place:bar",
+    "v1:place:barrel",
+    "v1:place:cellar",
+    "v1:place:news-corner"
+  ])("keeps place callback %s neutral until handler gates pass", (data) => {
+    expect(getCallbackPresenceContext(data)).toEqual({});
+  });
+
+  it.each(["v1:fight:mimic:attack", "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:1:attack"])(
+    "keeps fight action callback %s neutral until handler gates pass",
+    (data) => {
+      expect(getCallbackPresenceContext(data)).toEqual({});
+    }
+  );
 
   it.each([
     [

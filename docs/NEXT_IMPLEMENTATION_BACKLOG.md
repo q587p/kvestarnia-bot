@@ -16,7 +16,7 @@
 1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, and smoke fallout.
 2. `0.1.2` — presence interior/routing cleanup plus first runtime `/remort` at level 13: treat `Шинок` as korchma interior, move bot presence routing rules out of `createBot.ts`, and add replay-safe remort drafts/history.
 3. `0.1.3` — reliability polish: durable Barrel completion notifications plus Mantok Chest pending cleanup.
-4. `0.1.4` — Hlybka routing or fight/quest navigation cleanup if playtest shows confusion around where fights happen.
+4. `0.1.4` — fight/quest navigation cleanup: clearer Quest Hub fight labels, return paths and presence routing; Глибка remains deferred runtime.
 5. First Phase 2 prep/runtime slice only after smoke evidence: бійцівський куток із тренувальним `Сумлінним Допельґанґером`, не груповий рейд.
 6. Duel invite MVP після того, як допельґанґер доведе форму бою й картку результату.
 7. Duel result/rematch/tournament card support.
@@ -519,6 +519,8 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 
 **Objective**
 Додати нову локацію `Глибка` як першу dungeon-місцину для бойових справ, щоб Стіл зі справами був орієнтиром і журналом, а не місцем, де проблеми бʼються прямо між паперами.
+
+`0.1.4` свідомо не відкриває runtime-маршрут до Глибки. Цей slice лише прибирає плутанину в поточній навігації: Стіл зі справами лишається hub-ом, place/action callbacks проходять свої guard-и, а player-facing кнопки краще пояснюють «продовжити бій», «розвʼязати проблему», «до запису бою» і «до справ».
 
 **Scope**
 

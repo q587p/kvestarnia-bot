@@ -5,6 +5,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import { mainMenuButtons } from "../keyboards/mainMenuKeyboard";
@@ -80,6 +81,14 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
+  if (data === "v1:quest:list" || data === "v1:quest:archive") {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
   if (data.startsWith("v1:quest:")) {
     return {};
   }
@@ -130,6 +139,10 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
   }
 
   if (data === "v1:place:news-corner") {
+    return {};
+  }
+
+  if (data === "v1:place:arrivals" || data === "v1:place:memorial") {
     return {};
   }
 
