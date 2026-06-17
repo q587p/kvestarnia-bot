@@ -221,6 +221,9 @@ describe("handleDuelCallback", () => {
     expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
     expect(editMessageText).toHaveBeenCalledTimes(1);
     const text = messageText(editMessageText);
+    expect(text).toContain(
+      "Це збережений результат цього виклику. Повторний перехід за посиланням покаже його знову, а не почне нову дуель."
+    );
     expect(text).toContain("<b>Автор Виклику</b> · рівень 9 (реморт: 3) проти <b>Ціль Виклику</b> · рівень 3");
     expect(text).toContain("Перший і останній хід:");
     expect(text.indexOf("Перший і останній хід:")).toBeLessThan(text.indexOf("Ціль Виклику зупиняє сутичку"));
@@ -277,6 +280,9 @@ describe("handleDuelCallback", () => {
 
     expect(getByToken).toHaveBeenCalledWith(TOKEN);
     expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(messageText(editMessageText)).toContain(
+      "Це старий запис цього виклику. Повторний перехід за посиланням не створить нову дуель."
+    );
     expect(keyboardJson(editMessageText)).toContain("v1:duel:new");
     expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:accept:${TOKEN}`);
   });

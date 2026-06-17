@@ -134,7 +134,9 @@ export function presentDuelView(result: DuelChallengeView, options: DuelPresente
     "🥊 <b>Корчемний виклик</b>",
     presentDuelParticipant("Запрошує", result.challenger),
     "",
-    statusLine
+    statusLine,
+    "",
+    "Це старий запис цього виклику. Повторний перехід за посиланням не створить нову дуель."
   ].join("\n");
 }
 
@@ -200,6 +202,8 @@ function presentResolvedDuel(result: Extract<DuelChallengeView, { state: "resolv
 
   return [
     "🥊 <b>Результат виклику</b>",
+    "",
+    "Це збережений результат цього виклику. Повторний перехід за посиланням покаже його знову, а не почне нову дуель.",
     "",
     `${presentDuelParticipantInline(result.challenger)} проти ${presentDuelParticipantInline(result.target)}`,
     "",
