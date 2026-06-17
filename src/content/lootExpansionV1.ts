@@ -1,7 +1,272 @@
+import { classes } from "./classes";
+import { activeRaces } from "./races";
 import type { ItemContent, ItemEffectContent } from "./schema";
 import { lootExpansionV1Data as lootExpansionV1RawData } from "./lootExpansionV1Data";
 
-export const lootExpansionV1Data = lootExpansionV1RawData;
+type RawLootExpansionData = typeof lootExpansionV1RawData;
+
+type RawLootExpansionMetadata = Omit<RawLootExpansionData["metadata"], "counts" | "notes_uk"> & {
+  counts: {
+    classes: number;
+    races: number;
+    titles: number;
+    base_items: number;
+    expanded_variants: number;
+    effects: number;
+  };
+  notes_uk: string;
+};
+
+type RawLootExpansionRequirement = Readonly<{
+  min_level: number;
+  classes: readonly string[];
+  races: readonly string[];
+  titles: readonly string[];
+}>;
+
+type RawLootExpansionAffinityEntry = Readonly<{
+  id: string;
+  drop_weight_bonus_pct: number;
+  equip_note_uk: string;
+}>;
+
+type RawLootExpansionBaseItem = Omit<RawLootExpansionData["items"][number], "requirements" | "affinity"> &
+  Readonly<{
+    requirements: RawLootExpansionRequirement;
+    affinity: {
+      classes: readonly RawLootExpansionAffinityEntry[];
+      races: readonly RawLootExpansionAffinityEntry[];
+      titles: readonly RawLootExpansionAffinityEntry[];
+    };
+  }>;
+
+type LootExpansionDictionaryEntry = Readonly<{
+  id: string;
+  name_uk: string;
+  description_uk: string;
+}>;
+
+interface NormalizedLootExpansionData {
+  metadata: RawLootExpansionMetadata;
+  classes: LootExpansionDictionaryEntry[];
+  races: LootExpansionDictionaryEntry[];
+  titles: LootExpansionDictionaryEntry[];
+  rarity_tiers: RawLootExpansionData["rarity_tiers"];
+  roll_rules: RawLootExpansionData["roll_rules"];
+  effects: RawLootExpansionData["effects"];
+  items: RawLootExpansionBaseItem[];
+}
+
+const LIVE_CLASS_ENTRIES = classes.map((heroClass) => ({
+  id: stripContentPrefix(heroClass.id),
+  name_uk: heroClass.name,
+  description_uk: heroClass.description
+})) satisfies LootExpansionDictionaryEntry[];
+
+const LIVE_RACE_ENTRIES = activeRaces.map((race) => ({
+  id: stripContentPrefix(race.id),
+  name_uk: race.name,
+  description_uk: race.description
+})) satisfies LootExpansionDictionaryEntry[];
+
+const LIVE_CLASS_IDS = new Set(LIVE_CLASS_ENTRIES.map((entry) => entry.id));
+const LIVE_RACE_IDS = new Set(LIVE_RACE_ENTRIES.map((entry) => entry.id));
+
+const CANONICAL_TITLE_ENTRIES = [
+  {
+    id: "common_title",
+    name_uk: "Пригодник місцевого значення",
+    description_uk: "Загальний корчемний титул без додаткової бюрократії."
+  },
+  {
+    id: "paperwork_title",
+    name_uk: "Канцелярський титул",
+    description_uk: "Усі титули, від яких форми самі шукають печатку."
+  },
+  {
+    id: "archive_title",
+    name_uk: "Архівний титул",
+    description_uk: "Для тих, кого шафи й довідки визнають майже родиною."
+  },
+  {
+    id: "kitchen_title",
+    name_uk: "Начинковий титул",
+    description_uk: "Вареники, сметана, чайники й інша стратегічна кухня."
+  },
+  {
+    id: "fighter_title",
+    name_uk: "Бойовий аргумент",
+    description_uk: "Коли титул звучить так, ніби його можна покласти на стіл."
+  },
+  {
+    id: "bard_title",
+    name_uk: "Куплетний титул",
+    description_uk: "Після нього навіть бочка питає, чи буде приспів."
+  },
+  {
+    id: "rogue_title",
+    name_uk: "Зникальницький титул",
+    description_uk: "Він ніби є, але чек уже зник."
+  },
+  {
+    id: "mist_title",
+    name_uk: "Туманний титул",
+    description_uk: "Для тих, хто носить оберіг, туман і ще один оберіг."
+  },
+  {
+    id: "tea_title",
+    name_uk: "Чайниковий титул",
+    description_uk: "Парує, але юридично не є морем."
+  },
+  {
+    id: "bisyny_title",
+    name_uk: "Бісовий титул",
+    description_uk: "Не стільки бісівський, скільки бісить локалізацію."
+  },
+  {
+    id: "ranger_title",
+    name_uk: "Слідознавчий титул",
+    description_uk: "Сліди ведуть до бару, але тепер це хоча б валідний id."
+  },
+  {
+    id: "boundary_title",
+    name_uk: "Межовий титул",
+    description_uk: "Прийшов з Остромагу, підписався заднім числом."
+  },
+  {
+    id: "orc_scholar_title",
+    name_uk: "Науково-ударний титул",
+    description_uk: "Рецензує проблему обома руками."
+  },
+  {
+    id: "elf_title",
+    name_uk: "Довговухий титул",
+    description_uk: "Драматичний, але тепер не сирітський."
+  },
+  {
+    id: "dwarf_title",
+    name_uk: "Глибинний титул",
+    description_uk: "Міцний, низький і недосяжний для верхньої полиці."
+  }
+] satisfies LootExpansionDictionaryEntry[];
+
+const LIVE_TITLE_IDS = new Set(CANONICAL_TITLE_ENTRIES.map((entry) => entry.id));
+
+const CLASS_ID_ALIASES: Record<string, string> = {
+  warrior: "warrior",
+  mage: "mage",
+  rogue: "rogue",
+  bard: "bard",
+  cleric: "priest",
+  priest: "priest",
+  ranger: "ranger",
+  alchemist: "mage",
+  blacksmith: "warrior",
+  cook: "varenyk-mancer",
+  "varenyk-mancer": "varenyk-mancer",
+  necromancer: "mage",
+  druid: "kharakternyk",
+  bureaucrat: "bureaucramancer",
+  bureaucramancer: "bureaucramancer",
+  tank: "warrior",
+  summoner: "mage",
+  merchant: "bureaucramancer",
+  kharakternyk: "kharakternyk"
+};
+
+const RACE_ID_ALIASES: Record<string, string> = {
+  human: "human-ish",
+  "human-ish": "human-ish",
+  elf: "elf",
+  dwarf: "dwarf",
+  orc: "intellectual-orc",
+  "intellectual-orc": "intellectual-orc",
+  gnome: "domovyk",
+  domovyk: "domovyk",
+  halfling: "human-ish",
+  catfolk: "bisyny",
+  goblin: "bisyny",
+  bisyny: "bisyny",
+  skeleton: "molfar-soul",
+  "molfar-soul": "molfar-soul",
+  frogfolk: "dryland-rusalka",
+  "dryland-rusalka": "dryland-rusalka",
+  construct: "dwarf",
+  dragonkin: "drantohor",
+  drantohor: "drantohor",
+  kharakternyk: "human-ish"
+};
+
+const TITLE_ID_ALIASES: Record<string, string> = {
+  novice_of_queue: "paperwork_title",
+  queue_marshall: "paperwork_title",
+  hero_without_hat: "common_title",
+  lord_of_pan: "kitchen_title",
+  archive_rat: "archive_title",
+  soup_knight: "kitchen_title",
+  not_dead_first: "fighter_title",
+  guild_meme: "bard_title",
+  debt_collector: "paperwork_title",
+  sleepy_champion: "mist_title",
+  master_of_teapot: "tea_title",
+  honorary_goblin: "bisyny_title",
+  carpet_slayer: "fighter_title",
+  boss_arguer: "fighter_title",
+  loot_whisperer: "rogue_title",
+  common_title: "common_title",
+  paperwork_title: "paperwork_title",
+  archive_title: "archive_title",
+  kitchen_title: "kitchen_title",
+  fighter_title: "fighter_title",
+  bard_title: "bard_title",
+  rogue_title: "rogue_title",
+  mist_title: "mist_title",
+  tea_title: "tea_title",
+  bisyny_title: "bisyny_title",
+  ranger_title: "ranger_title",
+  boundary_title: "boundary_title",
+  orc_scholar_title: "orc_scholar_title",
+  elf_title: "elf_title",
+  dwarf_title: "dwarf_title"
+};
+
+const TITLE_REQUIREMENT_SURROGATES: Record<
+  string,
+  { classes?: readonly string[]; races?: readonly string[] }
+> = {
+  novice_of_queue: { classes: ["bureaucramancer"] },
+  queue_marshall: { classes: ["bureaucramancer"] },
+  hero_without_hat: { races: ["human-ish"] },
+  lord_of_pan: { classes: ["varenyk-mancer"] },
+  archive_rat: { classes: ["bureaucramancer"] },
+  soup_knight: { classes: ["varenyk-mancer"] },
+  not_dead_first: { classes: ["warrior"] },
+  guild_meme: { classes: ["bard"] },
+  debt_collector: { classes: ["bureaucramancer"] },
+  sleepy_champion: { races: ["molfar-soul"] },
+  master_of_teapot: { races: ["dryland-rusalka"] },
+  honorary_goblin: { races: ["bisyny"] },
+  carpet_slayer: { classes: ["warrior"] },
+  boss_arguer: { classes: ["kharakternyk"] },
+  loot_whisperer: { classes: ["rogue"] },
+  paperwork_title: { classes: ["bureaucramancer"] },
+  archive_title: { classes: ["bureaucramancer"] },
+  kitchen_title: { classes: ["varenyk-mancer"] },
+  fighter_title: { classes: ["warrior"] },
+  bard_title: { classes: ["bard"] },
+  rogue_title: { classes: ["rogue"] },
+  mist_title: { races: ["molfar-soul"] },
+  tea_title: { races: ["dryland-rusalka"] },
+  bisyny_title: { races: ["bisyny"] },
+  ranger_title: { classes: ["ranger"] },
+  boundary_title: { races: ["drantohor"] },
+  orc_scholar_title: { races: ["intellectual-orc"] },
+  elf_title: { races: ["elf"] },
+  dwarf_title: { races: ["dwarf"] },
+  common_title: {}
+};
+
+export const lootExpansionV1Data = normalizeLootExpansionV1Data(lootExpansionV1RawData);
 
 export type LootExpansionBaseItem = (typeof lootExpansionV1Data.items)[number];
 export type LootExpansionEffect = (typeof lootExpansionV1Data.effects)[number];
@@ -221,7 +486,7 @@ export function checkLootExpansionEquipRequirement(
   } else if (
     requirement.classes.length > 0 &&
     profileClass &&
-    !(requirement.classes as readonly string[]).includes(profileClass)
+    !requirement.classes.includes(profileClass)
   ) {
     reasons.push("class");
   }
@@ -231,14 +496,14 @@ export function checkLootExpansionEquipRequirement(
   } else if (
     requirement.races.length > 0 &&
     profileRace &&
-    !(requirement.races as readonly string[]).includes(profileRace)
+    !requirement.races.includes(profileRace)
   ) {
     reasons.push("race");
   }
 
   if (
     requirement.titles.length > 0 &&
-    !(requirement.titles as readonly string[]).some((titleId) => titleIds.has(titleId))
+    !requirement.titles.some((titleId) => titleIds.has(titleId))
   ) {
     reasons.push("title");
   }
@@ -279,15 +544,7 @@ export function normalizeLootExpansionClassId(classId: string | undefined): stri
     return undefined;
   }
 
-  const key = stripContentPrefix(classId);
-  const mapped: Record<string, string> = {
-    "bureaucramancer": "bureaucrat",
-    "priest": "cleric",
-    "varenyk-mancer": "cook",
-    "kharakternyk": "warrior"
-  };
-
-  return mapped[key] ?? key;
+  return canonicalizeClassId(classId);
 }
 
 export function normalizeLootExpansionRaceId(raceId: string | undefined): string | undefined {
@@ -295,46 +552,84 @@ export function normalizeLootExpansionRaceId(raceId: string | undefined): string
     return undefined;
   }
 
-  const key = stripContentPrefix(raceId);
-  const mapped: Record<string, string> = {
-    "human-ish": "human",
-    "intellectual-orc": "orc",
-    "domovyk": "gnome",
-    "dryland-rusalka": "frogfolk",
-    "molfar-soul": "human",
-    "bisyny": "goblin",
-    "drantohor": "dragonkin"
-  };
-
-  return mapped[key] ?? key;
+  return canonicalizeRaceId(raceId);
 }
 
 export function normalizeLootExpansionTitleIds(profile: LootExpansionProfile): Set<string> {
-  const ids = new Set((profile.titleIds ?? []).map(stripContentPrefix));
+  const ids = new Set<string>();
+
+  for (const titleId of profile.titleIds ?? []) {
+    const canonical = canonicalizeTitleId(titleId);
+
+    if (canonical) {
+      ids.add(canonical);
+    }
+  }
+
   const title = profile.title?.toLocaleLowerCase("uk-UA") ?? "";
 
-  if (title.includes("патель")) {
-    ids.add("lord_of_pan");
+  if (!title) {
+    return ids;
+  }
+
+  if (title.includes("папер") || title.includes("печат") || title.includes("канцел") || title.includes("форм")) {
+    ids.add("paperwork_title");
   }
 
   if (title.includes("архів")) {
-    ids.add("archive_rat");
+    ids.add("archive_title");
   }
 
-  if (title.includes("черг")) {
-    ids.add("queue_marshall");
+  if (title.includes("начин") || title.includes("сметан") || title.includes("сирен") || title.includes("чайник")) {
+    ids.add("kitchen_title");
   }
 
-  if (title.includes("капелюх") || title.includes("шапк")) {
-    ids.add("hero_without_hat");
+  if (title.includes("аргумент") || title.includes("бит") || title.includes("боє") || title.includes("кулак")) {
+    ids.add("fighter_title");
   }
 
-  if (title.includes("книш") || title.includes("начинк") || title.includes("сметан")) {
-    ids.add("soup_knight");
+  if (title.includes("куплет") || title.includes("спів") || title.includes("лютн")) {
+    ids.add("bard_title");
   }
 
-  if (title.includes("борг")) {
-    ids.add("debt_collector");
+  if (title.includes("зник") || title.includes("тінь") || title.includes("полиц")) {
+    ids.add("rogue_title");
+  }
+
+  if (title.includes("туман") || title.includes("оберег")) {
+    ids.add("mist_title");
+  }
+
+  if (title.includes("калюж") || title.includes("приплив") || title.includes("чайников")) {
+    ids.add("tea_title");
+  }
+
+  if (title.includes("біс") || title.includes("редактор") || title.includes("оселед")) {
+    ids.add("bisyny_title");
+  }
+
+  if (title.includes("слід") || title.includes("карт") || title.includes("підпіч")) {
+    ids.add("ranger_title");
+  }
+
+  if (title.includes("меж") || title.includes("остром") || title.includes("заблук") || title.includes("гост")) {
+    ids.add("boundary_title");
+  }
+
+  if (title.includes("доцент") || title.includes("кандидат") || title.includes("етичн")) {
+    ids.add("orc_scholar_title");
+  }
+
+  if (title.includes("довговух") || title.includes("довгож")) {
+    ids.add("elf_title");
+  }
+
+  if (title.includes("глибин") || title.includes("молот")) {
+    ids.add("dwarf_title");
+  }
+
+  if (title.includes("пригод") || title.includes("місцев")) {
+    ids.add("common_title");
   }
 
   return ids;
@@ -421,6 +716,89 @@ export function getLootExpansionValidationReport(): {
     affinityIdsResolve,
     variantCount: lootExpansionV1ItemContents.length
   };
+}
+
+function normalizeLootExpansionV1Data(raw: RawLootExpansionData): NormalizedLootExpansionData {
+  return {
+    ...raw,
+    metadata: {
+      ...raw.metadata,
+      counts: {
+        ...raw.metadata.counts,
+        classes: LIVE_CLASS_ENTRIES.length,
+        races: LIVE_RACE_ENTRIES.length,
+        titles: CANONICAL_TITLE_ENTRIES.length
+      },
+      notes_uk:
+        `${raw.metadata.notes_uk} Нормалізовано під поточні раси/класи/титули Квестарні, щоб манатки не вимагали сирітських id.`
+    },
+    classes: LIVE_CLASS_ENTRIES,
+    races: LIVE_RACE_ENTRIES,
+    titles: CANONICAL_TITLE_ENTRIES,
+    items: raw.items.map(normalizeBaseItem)
+  };
+}
+
+function normalizeBaseItem(base: RawLootExpansionBaseItem): RawLootExpansionBaseItem {
+  return {
+    ...base,
+    requirements: normalizeRequirements(base.requirements),
+    affinity: {
+      ...base.affinity,
+      classes: normalizeAffinityEntries(base.affinity.classes, canonicalizeClassId),
+      races: normalizeAffinityEntries(base.affinity.races, canonicalizeRaceId),
+      titles: normalizeAffinityEntries(base.affinity.titles, canonicalizeTitleId)
+    }
+  };
+}
+
+function normalizeRequirements(requirement: RawLootExpansionRequirement): RawLootExpansionRequirement {
+  const classIds = [...requirement.classes.flatMap((id) => maybeOne(canonicalizeClassId(id)))];
+  const raceIds = [...requirement.races.flatMap((id) => maybeOne(canonicalizeRaceId(id)))];
+
+  for (const titleId of requirement.titles) {
+    const surrogate = TITLE_REQUIREMENT_SURROGATES[stripContentPrefix(titleId)];
+
+    if (!surrogate) {
+      continue;
+    }
+
+    classIds.push(...(surrogate.classes ?? []).flatMap((id) => maybeOne(canonicalizeClassId(id))));
+    raceIds.push(...(surrogate.races ?? []).flatMap((id) => maybeOne(canonicalizeRaceId(id))));
+  }
+
+  return {
+    ...requirement,
+    classes: uniqueKnownIds(classIds, LIVE_CLASS_IDS),
+    races: uniqueKnownIds(raceIds, LIVE_RACE_IDS),
+    titles: []
+  };
+}
+
+function normalizeAffinityEntries(
+  entries: readonly RawLootExpansionAffinityEntry[],
+  canonicalize: (id: string) => string | undefined
+): RawLootExpansionAffinityEntry[] {
+  const byId = new Map<string, RawLootExpansionAffinityEntry>();
+
+  for (const entry of entries) {
+    const id = canonicalize(entry.id);
+
+    if (!id) {
+      continue;
+    }
+
+    const previous = byId.get(id);
+
+    if (!previous || entry.drop_weight_bonus_pct > previous.drop_weight_bonus_pct) {
+      byId.set(id, {
+        ...entry,
+        id
+      });
+    }
+  }
+
+  return [...byId.values()];
 }
 
 function buildAllLootExpansionItemContents(): ItemContent[] {
@@ -643,6 +1021,35 @@ function maxAffinityBonus(
 
 function stripContentPrefix(id: string): string {
   return id.includes(".") ? id.split(".").at(-1) ?? id : id;
+}
+
+function maybeOne(value: string | undefined): string[] {
+  return value ? [value] : [];
+}
+
+function canonicalizeClassId(id: string): string | undefined {
+  const key = stripContentPrefix(id);
+  const mapped = CLASS_ID_ALIASES[key] ?? key;
+
+  return LIVE_CLASS_IDS.has(mapped) ? mapped : undefined;
+}
+
+function canonicalizeRaceId(id: string): string | undefined {
+  const key = stripContentPrefix(id);
+  const mapped = RACE_ID_ALIASES[key] ?? key;
+
+  return LIVE_RACE_IDS.has(mapped) ? mapped : undefined;
+}
+
+function canonicalizeTitleId(id: string): string | undefined {
+  const key = stripContentPrefix(id);
+  const mapped = TITLE_ID_ALIASES[key] ?? key;
+
+  return LIVE_TITLE_IDS.has(mapped) ? mapped : undefined;
+}
+
+function uniqueKnownIds(ids: readonly string[], knownIds: ReadonlySet<string>): string[] {
+  return [...new Set(ids)].filter((id) => knownIds.has(id));
 }
 
 function findLootExpansionClassName(id: string): string {

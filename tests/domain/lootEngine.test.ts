@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { checkLootExpansionEquipRequirement } from "../../src/content/lootExpansionV1";
 import type { ItemContent } from "../../src/content/schema";
 import {
   getItemDropChance,
@@ -129,6 +130,23 @@ describe("loot engine", () => {
     expect(levelEighteenCandidates.some((candidate) => candidate.item.name.endsWith("+5"))).toBe(
       true
     );
+  });
+
+  it("does not generate loot that the current character cannot equip", () => {
+    const profile = { level: 18, classId: "class.warrior", raceId: "race.human-ish" };
+    const candidates = getLootExpansionCandidates({
+      profile,
+      sourceId: "boss_chest"
+    });
+
+    expect(candidates.length).toBeGreaterThan(0);
+
+    for (const candidate of candidates) {
+      expect(checkLootExpansionEquipRequirement(candidate.item.id, profile)).toMatchObject({
+        canEquip: true,
+        reasons: []
+      });
+    }
   });
 
   it("uses expansion candidates only when a character profile is supplied", () => {

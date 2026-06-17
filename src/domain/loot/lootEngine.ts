@@ -1,6 +1,7 @@
 import type { ItemContent } from "../../content/schema";
 import {
   buildLootExpansionVariant,
+  checkLootExpansionEquipRequirement,
   getEnhancementWeight,
   getLootExpansionAffinityMultiplier,
   getLootExpansionSourceWeightMultiplier,
@@ -140,6 +141,10 @@ export function getLootExpansionCandidates(input: {
       const variant = buildLootExpansionVariant(base, enhancement);
 
       if (variant.minLevel > playerLevel) {
+        return [];
+      }
+
+      if (!checkLootExpansionEquipRequirement(variant.item.id, input.profile).canEquip) {
         return [];
       }
 
