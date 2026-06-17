@@ -155,8 +155,12 @@ function presentPendingDuel(
     lines.push("", presentResourceWarning(result.challengerResourceWarning));
   }
 
+  lines.push("");
+
   if (options.inviteUrl) {
-    lines.push("", `Посилання для інвайта: ${escapeHtml(options.inviteUrl)}`);
+    lines.push("Скопіюйте посилання й киньте його в приват або чат:", escapeHtml(options.inviteUrl));
+  } else {
+    lines.push("Посилання для копіювання ще не зібралося: Корчмар не знає username цього бота.");
   }
 
   return lines.join("\n");

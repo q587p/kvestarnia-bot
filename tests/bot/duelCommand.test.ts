@@ -11,6 +11,52 @@ const NOW = new Date("2026-06-17T18:00:00.000Z");
 const EXPIRES_AT = new Date("2026-06-17T18:15:00.000Z");
 
 describe("handleDuelCallback", () => {
+  it("shows a copyable invite link when a new open challenge is created with a bot username", async () => {
+    const challenger = makeCharacterSummary("Автор Виклику");
+    const createOpenChallengeForTelegramUser = vi.fn().mockResolvedValue({
+      state: "pending",
+      challenge: makeChallenge("pending"),
+      challenger,
+      expiresAt: EXPIRES_AT,
+      now: NOW
+    });
+    const service = serviceWith({
+      createOpenChallengeForTelegramUser
+    });
+    const { ctx, editMessageText } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "new" }, service, {
+      presence: createPresence(),
+      botUsername: "kvestarnia_dev_bot"
+    });
+
+    expect(messageText(editMessageText)).toContain("Скопіюйте посилання й киньте його в приват або чат:");
+    expect(messageText(editMessageText)).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
+  });
+
+  it("explains missing bot username instead of silently hiding the invite link", async () => {
+    const challenger = makeCharacterSummary("Автор Виклику");
+    const createOpenChallengeForTelegramUser = vi.fn().mockResolvedValue({
+      state: "pending",
+      challenge: makeChallenge("pending"),
+      challenger,
+      expiresAt: EXPIRES_AT,
+      now: NOW
+    });
+    const service = serviceWith({
+      createOpenChallengeForTelegramUser
+    });
+    const { ctx, editMessageText } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "new" }, service, {
+      presence: createPresence()
+    });
+
+    expect(messageText(editMessageText)).toContain(
+      "Посилання для копіювання ще не зібралося: Корчмар не знає username цього бота."
+    );
+  });
+
   it("keeps a pending open invite card stable when a non-owner presses cancel", async () => {
     const challenger = makeCharacterSummary("Автор Виклику");
     const challenge = makeChallenge("pending");
@@ -221,6 +267,12 @@ function keyboardJson(editMessageText: ReturnType<typeof vi.fn>): string {
   const call = editMessageText.mock.calls[0] as [string, { reply_markup?: unknown }?] | undefined;
 
   return JSON.stringify(call?.[1]?.reply_markup);
+}
+
+function messageText(editMessageText: ReturnType<typeof vi.fn>): string {
+  const call = editMessageText.mock.calls[0] as [string, { reply_markup?: unknown }?] | undefined;
+
+  return call?.[0] ?? "";
 }
 
 function makeChallenge(

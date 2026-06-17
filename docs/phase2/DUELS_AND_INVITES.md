@@ -31,7 +31,7 @@
 
 `0.1.10` ships the first rewardless invite ledger:
 - `/duel` and Fighting Corner `🤝 Кинути виклик` create open level 3+ challenges;
-- optional `BOT_USERNAME` generates `https://t.me/<bot>?start=duel_<token>` links for dev/prod bot separation;
+- optional `BOT_USERNAME` generates copyable `https://t.me/<bot>?start=duel_<token>` links for dev/prod bot separation, shown directly on the pending invite card;
 - `/start duel_<token>` opens the invite flow;
 - accept, decline, cancel and expiry are idempotent;
 - repeated buttons replay the stored state/result instead of rerolling;
