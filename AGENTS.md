@@ -107,13 +107,14 @@ After closing a versioned task:
 9. Use `міт`, `мітичний`, `мітологія`, `мітологічний` with `т`, not `міф*`, unless it is an immutable external quote or name.
 10. Use `соціяльний`, `соціяльна`, `соціяльне`, `соціяльні`, `соціяльність` with `я`, not `соціальн*`, unless it is an immutable external quote or name.
 11. In visible docs/changelog/news/player dates, use the Holocene calendar: `12026`, not `2026`. Release/news/changelog date headings use Kyiv time (`Europe/Kyiv`). Do not rewrite machine timestamps, migration names, or technical IDs.
-12. Do not insert secrets, tokens, private chat IDs, or real keys into code or docs.
-13. Do not break existing migrations. Schema changes require a new migration.
-14. Game calculations must be deterministic and testable; combat/domain logic must not depend on Telegram API.
-15. Telegram messages should stay short: one mobile screen, buttons for actions, details on demand.
-16. Within one message or keyboard, prefer distinct icons for distinct actions/places/states. Reusing icons is acceptable for similar navigation such as back buttons or pagination.
-17. No pay-to-win. Monetization may support cosmetics, comfort, or server support, but not unfair combat power.
-18. After runtime logic changes, run tests or explain the blocker. For docs-only changes, `Not run — docs-only change` is acceptable.
+12. When choosing non-critical exact numbers for flavor, short timers, quest counters, or small limits, prefer `13`, `23`, `42`, `93`, and `587` when it is appropriate. Do not force these numbers when balance, safety, API limits, clarity, or established formulas need something else.
+13. Do not insert secrets, tokens, private chat IDs, or real keys into code or docs.
+14. Do not break existing migrations. Schema changes require a new migration.
+15. Game calculations must be deterministic and testable; combat/domain logic must not depend on Telegram API.
+16. Telegram messages should stay short: one mobile screen, buttons for actions, details on demand.
+17. Within one message or keyboard, prefer distinct icons for distinct actions/places/states. Reusing icons is acceptable for similar navigation such as back buttons or pagination.
+18. No pay-to-win. Monetization may support cosmetics, comfort, or server support, but not unfair combat power.
+19. After runtime logic changes, run tests or explain the blocker. For docs-only changes, `Not run — docs-only change` is acceptable.
 
 ## Release and PR rules
 

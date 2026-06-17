@@ -10,6 +10,9 @@ import {
   makeDuelDeclineCallbackData,
   makeDuelNewCallbackData,
   makeDuelNewRiskCallbackData,
+  makeDuelRematchCallbackData,
+  makeDuelRematchRiskCallbackData,
+  makeDuelShareCallbackData,
   makeDuelViewCallbackData
 } from "../callbacks/duelCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
@@ -39,9 +42,18 @@ export function buildDuelChallengeKeyboard(
     .text("🔎 Оновити", makeDuelViewCallbackData(token));
 }
 
-export function buildDuelResultKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
-    .text("🥊 Новий виклик", makeDuelNewCallbackData())
+export function buildDuelResultKeyboard(token?: string): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (token) {
+    keyboard
+      .text("🔁 Реванш", makeDuelRematchCallbackData(token))
+      .text("📣 Картка", makeDuelShareCallbackData(token))
+      .row();
+  }
+
+  return keyboard
+    .text("🥊 Покликати ще когось", makeDuelNewCallbackData())
     .row()
     .text("📋 До справ", makeQuestCallbackData("list"))
     .row()
@@ -64,6 +76,15 @@ export function buildDuelNavigationKeyboard(): InlineKeyboard {
     .text("🍺 До зали", makePlaceCallbackData("hall"));
 }
 
+export function buildDuelAcceptConfirmationKeyboard(token: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🤝 Так, прийняти", makeDuelAcceptRiskCallbackData(token))
+    .row()
+    .text("🙅 Ні, не зараз", makeDuelDeclineCallbackData(token))
+    .row()
+    .text("🔎 Оновити", makeDuelViewCallbackData(token));
+}
+
 export function buildDuelResourceWarningKeyboard(token: string): InlineKeyboard {
   return new InlineKeyboard()
     .text("🤝 Прийняти все одно", makeDuelAcceptRiskCallbackData(token))
@@ -71,4 +92,13 @@ export function buildDuelResourceWarningKeyboard(token: string): InlineKeyboard 
     .text("🙅 Не зараз", makeDuelDeclineCallbackData(token))
     .row()
     .text("🔎 Оновити", makeDuelViewCallbackData(token));
+}
+
+export function buildDuelRematchResourceWarningKeyboard(token: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🔁 Реванш усе одно", makeDuelRematchRiskCallbackData(token))
+    .row()
+    .text("📣 Картка", makeDuelShareCallbackData(token))
+    .row()
+    .text("📋 До справ", makeQuestCallbackData("list"));
 }

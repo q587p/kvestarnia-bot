@@ -40,7 +40,14 @@
 - partial HP or mana shows a warning before the player explicitly accepts;
 - `Переможці` in the Fighting Corner reads resolved duel results as a rewardless day/week/month board, with no economy rewards or tournament state.
 
-Still future: rematches, tournaments, economy rewards, wagers, item loss, target-specific player selection and full turn-based PvP.
+`0.1.11` adds the first manual result follow-up layer:
+- resolved result cards offer `🔁 Реванш` and `📣 Картка`;
+- rematches create a fresh targeted rewardless invite between the original participants only;
+- bystanders cannot accept targeted rematches server-side;
+- partial HP or mana still warns before the rematch invite is created;
+- shareable result cards send a separate forwardable message from the stored result and do not reroll or mutate the duel ledger.
+
+Still future: tournaments, economy rewards, wagers, item loss, nearby target-specific player selection, other-side result notifications and full turn-based PvP.
 
 ## Flow
 

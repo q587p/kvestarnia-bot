@@ -50,6 +50,53 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     return this.findByToken(challenge.inviteToken);
   }
 
+  async createTargetedForTelegramUser(
+    telegramUserId: bigint,
+    targetCharacterId: string,
+    input: {
+      inviteToken: string;
+      contextChatId?: bigint | null;
+      expiresAt: Date;
+    }
+  ): Promise<DuelChallengeRecord | null> {
+    const [challenger, target] = await Promise.all([
+      this.prisma.character.findFirst({
+        where: {
+          user: {
+            telegramUserId
+          }
+        },
+        select: {
+          id: true
+        }
+      }),
+      this.prisma.character.findUnique({
+        where: {
+          id: targetCharacterId
+        },
+        select: {
+          id: true
+        }
+      })
+    ]);
+
+    if (!challenger || !target || challenger.id === target.id) {
+      return null;
+    }
+
+    const challenge = await this.prisma.duelChallenge.create({
+      data: {
+        challengerCharacterId: challenger.id,
+        targetCharacterId: target.id,
+        contextChatId: input.contextChatId ?? null,
+        inviteToken: input.inviteToken,
+        expiresAt: input.expiresAt
+      }
+    });
+
+    return this.findByToken(challenge.inviteToken);
+  }
+
   async findByToken(inviteToken: string): Promise<DuelChallengeRecord | null> {
     return mapChallenge(await findChallengeByToken(this.prisma, inviteToken));
   }
@@ -78,6 +125,34 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     });
 
     return records.map(mapChallenge).filter(isResolvedDuelChallengeRecord);
+  }
+
+  async countResolvedBetweenCharacterPairSince(
+    characterAId: string,
+    characterBId: string,
+    since: Date
+  ): Promise<number> {
+    return this.prisma.duelChallenge.count({
+      where: {
+        status: "resolved",
+        resolvedAt: {
+          gte: since
+        },
+        resultJson: {
+          not: Prisma.JsonNull
+        },
+        OR: [
+          {
+            challengerCharacterId: characterAId,
+            targetCharacterId: characterBId
+          },
+          {
+            challengerCharacterId: characterBId,
+            targetCharacterId: characterAId
+          }
+        ]
+      }
+    });
   }
 
   async findCharacterByTelegramUser(telegramUserId: bigint): Promise<DuelCharacterSnapshot | null> {
@@ -191,7 +266,14 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         challengerCharacterId: {
           not: target.id
         },
-        targetCharacterId: null
+        OR: [
+          {
+            targetCharacterId: null
+          },
+          {
+            targetCharacterId: target.id
+          }
+        ]
       },
       data: {
         targetCharacterId: target.id,

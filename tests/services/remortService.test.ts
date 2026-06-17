@@ -10,6 +10,7 @@ import type {
   RemortSnapshot
 } from "../../src/db/repositories/remortRepository";
 import { buildRemortKeyboard } from "../../src/bot/keyboards/remortKeyboard";
+import { REMORT_RESET_DAILY_ACTION_KEYS } from "../../src/services/dailyActionKeys";
 import { makeRemortItemSelectionKey, RemortService } from "../../src/services/remortService";
 
 const telegramUserId = 42n;
@@ -106,6 +107,7 @@ describe("RemortService", () => {
 
     expect(first.state).toBe("completed");
     expect(second.state).toBe("replayed");
+    expect(repository.lastResetDailyActionKeys).toEqual([...REMORT_RESET_DAILY_ACTION_KEYS]);
     if (first.state === "completed") {
       expect(first.character.level).toBe(1);
       expect(first.character.xp).toBe(0);
@@ -333,6 +335,7 @@ describe("RemortService", () => {
 class FakeRemortRepository implements RemortRepository {
   draft: RemortDraftRecord | null = null;
   completedCount = 0;
+  lastResetDailyActionKeys: string[] = [];
   private remort: RemortCompletionResult | null = null;
 
   constructor(private snapshotValue: RemortSnapshot | null) {}
@@ -391,6 +394,7 @@ class FakeRemortRepository implements RemortRepository {
       return Promise.resolve({ state: "no-character" });
     }
 
+    this.lastResetDailyActionKeys = [...(input.resetDailyActionKeys ?? [])];
     const validation = input.validate({
       ...this.snapshotValue,
       draft: this.draft

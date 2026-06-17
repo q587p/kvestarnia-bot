@@ -8,6 +8,9 @@ export type DuelCallback =
   | { type: "accept-risk"; token: string }
   | { type: "cancel"; token: string }
   | { type: "decline"; token: string }
+  | { type: "rematch"; token: string }
+  | { type: "rematch-risk"; token: string }
+  | { type: "share"; token: string }
   | { type: "view"; token: string };
 
 export type DuelCallbackError =
@@ -42,6 +45,18 @@ export function makeDuelCancelCallbackData(token: string): string {
 
 export function makeDuelDeclineCallbackData(token: string): string {
   return `${PREFIX}:decline:${token}`;
+}
+
+export function makeDuelRematchCallbackData(token: string): string {
+  return `${PREFIX}:rematch:${token}`;
+}
+
+export function makeDuelRematchRiskCallbackData(token: string): string {
+  return `${PREFIX}:rematch-risk:${token}`;
+}
+
+export function makeDuelShareCallbackData(token: string): string {
+  return `${PREFIX}:share:${token}`;
 }
 
 export function makeDuelViewCallbackData(token: string): string {
@@ -82,6 +97,9 @@ export function parseDuelCallbackData(
     action !== "accept-risk" &&
     action !== "cancel" &&
     action !== "decline" &&
+    action !== "rematch" &&
+    action !== "rematch-risk" &&
+    action !== "share" &&
     action !== "view"
   ) {
     return err("invalid-action");

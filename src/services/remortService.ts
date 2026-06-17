@@ -35,6 +35,7 @@ import {
   validateRemortIdentity
 } from "../domain/remort";
 import { systemClock, type Clock } from "../shared/time";
+import { REMORT_RESET_DAILY_ACTION_KEYS } from "./dailyActionKeys";
 
 export type RemortViewResult =
   | { state: "no-character" }
@@ -275,6 +276,7 @@ export class RemortService {
     const result = await this.remorts.completeDraftForTelegramUser(telegramUserId, {
       token,
       now,
+      resetDailyActionKeys: REMORT_RESET_DAILY_ACTION_KEYS,
       validate: (snapshot) => {
         if (snapshot.character.level < REMORT_REQUIRED_LEVEL) {
           return { state: "locked", level: snapshot.character.level };

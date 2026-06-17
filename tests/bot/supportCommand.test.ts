@@ -88,18 +88,79 @@ describe("support command and start deep links", () => {
     expect(String(message?.payload.text)).not.toContain("У Банці зараз");
   });
 
+  it("opens duel deep links as saved result cards with rematch actions", async () => {
+    const onboardingStart = vi.fn();
+    const acceptForTelegramUser = vi.fn().mockResolvedValue({
+      state: "resolved",
+      challenge: makeDuelChallenge("abc_DEF12"),
+      challenger: makeCharacterSummary("Kyjivan BooksDragon"),
+      target: makeCharacterSummary("Shannar de Kassal", { remortCount: 1 }),
+      result: {
+        outcome: "target",
+        winnerCharacterId: "character-99",
+        loserCharacterId: "character-42",
+        challengerScore: 7,
+        targetScore: 9,
+        swing: 0,
+        flavorKey: "paperwork-stall"
+      }
+    });
+    const calls = await captureMessageCalls(
+      "/start duel_abc_DEF12",
+      servicesWith({
+        onboarding: {
+          start: onboardingStart
+        },
+        duel: {
+          acceptForTelegramUser
+        }
+      } as Partial<BotServices>),
+      {
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+    const message = calls.find((call) => call.method === "sendMessage");
+    const keyboard = JSON.stringify(message?.payload.reply_markup);
+
+    expect(onboardingStart).not.toHaveBeenCalled();
+    expect(acceptForTelegramUser).toHaveBeenCalledWith(42n, "abc_DEF12");
+    expect(String(message?.payload.text)).toContain("🥊 <b>Результат виклику</b>");
+    expect(keyboard).toContain("v1:duel:rematch:abc_DEF12");
+    expect(keyboard).toContain("v1:duel:share:abc_DEF12");
+    expect(keyboard).toContain("v1:duel:new");
+  });
+
+  it("explains that self-duel links should be forwarded to another adventurer", async () => {
+    const onboardingStart = vi.fn();
+    const acceptForTelegramUser = vi.fn().mockResolvedValue({
+      state: "self-challenge",
+      challenge: makeDuelChallenge("abc_DEF12"),
+      challenger: makeCharacterSummary("Kyjivan BooksDragon")
+    });
+    const calls = await captureMessageCalls(
+      "/start duel_abc_DEF12",
+      servicesWith({
+        onboarding: {
+          start: onboardingStart
+        },
+        duel: {
+          acceptForTelegramUser
+        }
+      } as Partial<BotServices>)
+    );
+    const message = calls.find((call) => call.method === "sendMessage");
+    const text = String(message?.payload.text);
+
+    expect(onboardingStart).not.toHaveBeenCalled();
+    expect(text).toContain("🥊 <b>Самодуель відхилено</b>");
+    expect(text).toContain("Для цього вже є Сумлінний Допельґанґер.\n\nПерешліть це повідомлення іншому пригоднику.");
+    expect(text).toContain("дві різні чашки й одна спільна згода");
+  });
+
   it("keeps regular /start and unknown payloads on the onboarding path", async () => {
     const onboardingStart = vi.fn().mockResolvedValue({ state: "new-character" });
     await captureMessageCalls(
       "/start",
-      servicesWith({
-        onboarding: {
-          start: onboardingStart
-        }
-      } as Partial<BotServices>)
-    );
-    await captureMessageCalls(
-      "/start duel_future_token",
       servicesWith({
         onboarding: {
           start: onboardingStart
@@ -115,7 +176,7 @@ describe("support command and start deep links", () => {
       } as Partial<BotServices>)
     );
 
-    expect(onboardingStart).toHaveBeenCalledTimes(3);
+    expect(onboardingStart).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -130,6 +191,7 @@ async function captureMessageCalls(
   options: {
     supportJarUrl?: string;
     supportJarStatus?: { currentUah?: number; goalUah?: number; updatedAt?: string };
+    botUsername?: string;
   } = {}
 ): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services, options);
@@ -239,4 +301,69 @@ function expectNoOldSupportNaming(text: string): void {
   for (const term of oldTerms) {
     expect(text).not.toContain(term);
   }
+}
+
+function makeDuelChallenge(inviteToken: string) {
+  return {
+    id: "duel-1",
+    challengerCharacterId: "character-42",
+    targetCharacterId: "character-99",
+    contextChatId: null,
+    inviteToken,
+    status: "resolved",
+    expiresAt: new Date("2026-06-17T18:13:00.000Z"),
+    resolvedAt: new Date("2026-06-17T18:00:00.000Z"),
+    result: {
+      outcome: "target",
+      winnerCharacterId: "character-99",
+      loserCharacterId: "character-42",
+      challengerScore: 7,
+      targetScore: 9,
+      swing: 0,
+      flavorKey: "paperwork-stall"
+    },
+    createdAt: new Date("2026-06-17T17:55:00.000Z"),
+    updatedAt: new Date("2026-06-17T18:00:00.000Z"),
+    challenger: null,
+    target: null
+  };
+}
+
+function makeCharacterSummary(name: string, overrides: { remortCount?: number } = {}) {
+  return {
+    name,
+    pronoun: "they",
+    pronounLabel: "Вони",
+    path: "boundary",
+    raceId: "race.human-ish",
+    raceName: "Людисько",
+    classId: "class.warrior",
+    className: "Воїн",
+    title: "Пригодник місцевого значення",
+    level: 3,
+    remortCount: overrides.remortCount,
+    xp: 25,
+    nextLevelXp: 50,
+    xpToNextLevel: 25,
+    gold: 0,
+    hpCurrent: 24,
+    hpMax: 24,
+    manaCurrent: 12,
+    manaMax: 12,
+    stats: {
+      strength: 7,
+      dexterity: 7,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6
+    },
+    levelBonus: {
+      hpMax: 0,
+      manaMax: 0,
+      primaryStat: {
+        stat: "strength",
+        bonus: 0
+      }
+    }
+  };
 }

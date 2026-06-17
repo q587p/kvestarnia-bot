@@ -231,6 +231,21 @@ describe("presence middleware", () => {
     });
   });
 
+  it("keeps duel start deep links at the current location", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence);
+    await bot.init();
+
+    await bot.handleUpdate(messageUpdate("/start duel_abc_DEF12"));
+
+    expect(presence.marks[0]).toEqual({
+      user: {
+        telegramUserId: 42n,
+        displayName: "Тест"
+      }
+    });
+  });
+
   it("marks the korchma menu button as the hall", async () => {
     const presence = new CapturingPresenceService();
     const bot = createTestBot(presence, {

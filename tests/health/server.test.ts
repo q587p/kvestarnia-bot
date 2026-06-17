@@ -78,10 +78,11 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Перший корчемний виклик");
-    expect(text).toContain("Бійцівський куток перестав дивитися тільки в дзеркало");
-    expect(text).toContain("Зʼявився");
-    expect(text).toContain("/duel");
+    expect(text).toContain("Реванш і картка після дуелі");
+    expect(text).toContain("Корчмар подивився на результати дуелей");
+    expect(text).toContain("Після завершеної корчемної дуелі");
+    expect(text).toContain("Реванш");
+    expect(text).toContain("Картка");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");
@@ -176,7 +177,7 @@ describe("health server", () => {
     const text = await response.text();
 
     expect(response.status).toBe(200);
-    expect(text).toContain("Допельґанґер підгледів ваші трюки");
+    expect(text).toContain("Перший корчемний виклик і ясніші гачки");
     expect(text).toContain("Новіша");
   });
 
@@ -187,7 +188,7 @@ describe("health server", () => {
     const text = await response.text();
 
     expect(response.status).toBe(200);
-    expect(text).toContain("Перший корчемний виклик");
+    expect(text).toContain("Реванш і картка після дуелі");
   });
 
   it("returns 404 for other paths", async () => {

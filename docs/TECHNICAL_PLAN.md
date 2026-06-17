@@ -28,6 +28,8 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 
 `0.1.10` adds the first rewardless duel invite ledger: `duel_challenges`, `/duel`, `v1:duel:*` callbacks, `/start duel_<token>` routing, generated Telegram links through optional `BOT_USERNAME`, accept/decline/cancel/expire transitions and replay-safe quick result cards. It deliberately adds no rewards, rating, wagers, item transfer, rematch automation or tournament state.
 
+`0.1.11` adds manual duel result follow-ups on top of the same ledger: resolved cards can create a targeted rewardless rematch between the original participants or send a separate shareable result card. Rematch and share callbacks reuse stored server-side state and do not reroll results, grant rewards, notify other participants automatically or create tournament/rating state.
+
 Future Support Jar live status is documented in [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md). It should be a separate read-only integration with Monobank `client-info`, server-side token handling, TTL cache, no DB donor state, no payment confirmation and no gameplay rewards. Do not treat manual `SUPPORT_JAR_CURRENT_UAH`/`SUPPORT_JAR_GOAL_UAH` values as the long-term status path after that slice lands.
 
 Phase 2 planning now starts with social session primitives: duel invites, result/rematch cards, trading/gifting, item tags, remort-only advanced options, multi-enemy combat and later party/raid sessions. The first runtime implementation should add only the narrow tables/state it needs and must not treat the sketches below as already migrated schema.
@@ -237,6 +239,8 @@ Shipped in `0.1.10` for the first rewardless Phase 2 social-combat slice.
 Rules:
 - Accept/decline/cancel/expire must be transactional and idempotent.
 - Result replay is stored server-side; Telegram callbacks never recompute the result from button text.
+- Targeted rematch invites must keep `target_character_id` set and accept only from that target; bystanders can view stable state but cannot hijack the rematch.
+- Shareable result cards are presentation-only replies based on `result_json`; they must not create new ledger rows or reroll outcomes.
 - Quick resolve may use level bracket, race, class, current title/earned identity, effective stats, equipment/item tags and a bounded seed.
 - Pair/day caps, ranking and abuse logging should be designed with the first reward-bearing duel slice, not bolted on after tournaments.
 
@@ -274,7 +278,7 @@ Rules:
 - Confirm re-reads the character, draft, inventory and equipment in one transaction; repeated confirm for a completed token replays the remort instead of resetting twice.
 - Current MVP preserves selected owned manatky at max 1 per item id. Equipped, effect-bearing, protected, story, quest and priceless items are selectable on purpose: remort is allowed to carry a few memorable or powerful things forward. Unknown item ids appear as visible fallback choices and count toward the same 5 selected item id limit; no hidden inventory preservation is allowed. If balance breaks, future patches should add explicit item tags, level gates, attunement or remort-only restrictions with player-facing preview.
 - Remort confirm revalidates selected item ids against the current inventory snapshot. If a selected item disappeared or has zero quantity before confirm, the service returns `invalid-draft` and asks the player to reopen `/remort`; completed tokens still replay.
-- Completed remort resets level/XP/gold/resources, clears equipment, expires active solo fights, cancels pending Mantok Chest / level-barter / remort previews and clears stale adventure/raid ids.
+- Completed remort resets level/XP/gold/resources, clears equipment, expires active solo fights, cancels pending Mantok Chest / level-barter / remort previews, clears stale adventure/raid ids and clears only the explicit per-life daily-action keys needed for starter shawarma/fight and Korchmar problem-chain issue/reward rows.
 - Legacy power is capped: memory rank is `min(remortNumber, 5)` and grants only small starting HP/mana bonuses.
 
 ### future groups, parties and raids
@@ -538,12 +542,15 @@ Callback data коротка, версіонована.
 - `v1:news:entry:{entryIndex}:{listPage}`
 - `v1:tavern:raid`
 - `v1:duel:new`
-- `v1:duel:open:{token}`
-- `v1:duel:warn:{token}`
+- `v1:duel:new-risk`
 - `v1:duel:accept:{token}`
+- `v1:duel:accept-risk:{token}`
 - `v1:duel:decline:{token}`
 - `v1:duel:cancel:{token}`
-- `v1:duel:expire:{token}`
+- `v1:duel:rematch:{token}`
+- `v1:duel:rematch-risk:{token}`
+- `v1:duel:share:{token}`
+- `v1:duel:view:{token}`
 - `v1:tavern:participants`
 - `v1:tavern:ranger`
 - `v1:tavern:round`
@@ -592,7 +599,7 @@ Callback data коротка, версіонована.
 - `v1:restart:cancel`
 
 Заплановані приклади для майбутніх persistent systems:
-- `v1:duel:rematch:{duelId}` or shorter equivalents for later duel result/rematch cards;
+- future shorter duel action callbacks only if result/rematch cards outgrow the current token payload shape;
 - `v1:gift:offer:{token}` / `v1:gift:accept:{token}` / `v1:trade:confirm:{token}` or shorter equivalents for narrow item transfer flows;
 - `v1:remort:view` / `v1:remort:confirm:{token}` for explicit level-13 remort confirmation;
 - `v1:combat:*` або коротший equivalent для майбутніх group/PvP combats, якщо solo `v1:fight:turn:*` стане затісним;

@@ -57,6 +57,7 @@ describe("DuelChallengeService", () => {
       }
     });
     expect(confirmed.state === "pending" && confirmed.challenge.contextChatId).toBe(-100n);
+    expect(confirmed.state === "pending" && confirmed.expiresAt).toEqual(new Date("2026-06-17T18:13:00.000Z"));
   });
 
   it("shows a resource warning before accepting with partial resources", async () => {
@@ -82,6 +83,7 @@ describe("DuelChallengeService", () => {
     expect(world.challenges.get(created.challenge.inviteToken)?.status).toBe("pending");
 
     const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
       ignoreResourceWarning: true
     });
 
@@ -97,7 +99,7 @@ describe("DuelChallengeService", () => {
   it("prevents self-accept and replays resolved challenges", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n);
-    world.addCharacter(2n);
+    world.addCharacter(2n, { hpCurrent: 32, manaCurrent: 16 });
     const service = buildService(world);
     const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
 
@@ -109,13 +111,29 @@ describe("DuelChallengeService", () => {
       state: "self-challenge"
     });
 
+    const prompt = await service.acceptForTelegramUser(2n, created.challenge.inviteToken);
+
+    expect(prompt).toMatchObject({
+      state: "confirmation",
+      challenger: {
+        name: "Пригодник 1"
+      },
+      target: {
+        name: "Пригодник 2"
+      }
+    });
+    expect(world.challenges.get(created.challenge.inviteToken)?.status).toBe("pending");
+
     const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
       ignoreResourceWarning: true
     });
     const replay = await service.acceptForTelegramUser(2n, created.challenge.inviteToken);
+    const challengerReplay = await service.acceptForTelegramUser(1n, created.challenge.inviteToken);
 
     expect(accepted).toMatchObject({ state: "resolved" });
     expect(replay).toMatchObject({ state: "resolved" });
+    expect(challengerReplay).toMatchObject({ state: "resolved" });
   });
 
   it("keeps open invites pending when bystanders cancel or decline", async () => {
@@ -183,7 +201,298 @@ describe("DuelChallengeService", () => {
     expect(world.challenges.get(created.challenge.inviteToken)?.status).toBe("expired");
   });
 
-  it("builds winner boards from resolved non-draw duels", async () => {
+  it("creates a targeted rematch from a resolved duel for either participant", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    const rematch = await service.createRematchForTelegramUser(2n, created.challenge.inviteToken, {
+      contextChatId: -200n,
+      ignoreResourceWarning: true
+    });
+
+    expect(rematch).toMatchObject({
+      state: "pending"
+    });
+
+    if (rematch.state !== "pending") {
+      throw new Error(`Expected pending rematch, got ${rematch.state}`);
+    }
+
+    expect(rematch.challenge.challengerCharacterId).toBe("character-2");
+    expect(rematch.challenge.targetCharacterId).toBe("character-1");
+    expect(rematch.challenge.target?.telegramUserId).toBe(1n);
+    expect(rematch.challenge.contextChatId).toBe(-200n);
+    expect(rematch.expiresAt).toEqual(new Date("2026-06-17T18:13:00.000Z"));
+    expect(rematch.challenge.inviteToken).not.toBe(created.challenge.inviteToken);
+  });
+
+  it("allows another rematch from a resolved rematch result", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    const rematch = await service.createRematchForTelegramUser(2n, created.challenge.inviteToken, {
+      ignoreResourceWarning: true
+    });
+
+    if (rematch.state !== "pending") {
+      throw new Error(`Expected pending rematch, got ${rematch.state}`);
+    }
+
+    await service.acceptForTelegramUser(1n, rematch.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    const secondRematch = await service.createRematchForTelegramUser(1n, rematch.challenge.inviteToken, {
+      ignoreResourceWarning: true
+    });
+
+    expect(secondRematch).toMatchObject({
+      state: "pending"
+    });
+
+    if (secondRematch.state !== "pending") {
+      throw new Error(`Expected second pending rematch, got ${secondRematch.state}`);
+    }
+
+    expect(secondRematch.challenge.challengerCharacterId).toBe("character-1");
+    expect(secondRematch.challenge.targetCharacterId).toBe("character-2");
+    expect(secondRematch.challenge.inviteToken).not.toBe(created.challenge.inviteToken);
+    expect(secondRematch.challenge.inviteToken).not.toBe(rematch.challenge.inviteToken);
+  });
+
+  it("limits the same pair to three resolved duels until the next :23 reset", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+
+    for (let index = 0; index < 3; index += 1) {
+      const created = await service.createOpenChallengeForTelegramUser(1n, {
+        ignoreResourceWarning: true
+      });
+
+      if (created.state !== "pending") {
+        throw new Error(`Expected pending invite, got ${created.state}`);
+      }
+
+      await expect(
+        service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+          confirmed: true,
+          ignoreResourceWarning: true
+        })
+      ).resolves.toMatchObject({
+        state: "resolved"
+      });
+    }
+
+    const fourth = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true
+    });
+
+    if (fourth.state !== "pending") {
+      throw new Error(`Expected pending fourth invite, got ${fourth.state}`);
+    }
+
+    await expect(
+      service.acceptForTelegramUser(2n, fourth.challenge.inviteToken, {
+        confirmed: true,
+        ignoreResourceWarning: true
+      })
+    ).resolves.toMatchObject({
+      state: "pair-limited",
+      count: 3,
+      limit: 3,
+      resetAt: new Date("2026-06-17T18:23:00.000Z")
+    });
+    expect(world.challenges.get(fourth.challenge.inviteToken)?.status).toBe("pending");
+  });
+
+  it("lets the same pair duel again after the next :23 reset", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const earlyService = buildService(world);
+
+    for (let index = 0; index < 3; index += 1) {
+      const created = await earlyService.createOpenChallengeForTelegramUser(1n, {
+        ignoreResourceWarning: true
+      });
+
+      if (created.state !== "pending") {
+        throw new Error(`Expected pending invite, got ${created.state}`);
+      }
+
+      await earlyService.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+        confirmed: true,
+        ignoreResourceWarning: true
+      });
+    }
+
+    const afterResetService = buildService(
+      world,
+      () => new Date("2026-06-17T18:24:00.000Z")
+    );
+    const created = await afterResetService.createOpenChallengeForTelegramUser(2n, {
+      ignoreResourceWarning: true
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending after-reset invite, got ${created.state}`);
+    }
+
+    await expect(
+      afterResetService.acceptForTelegramUser(1n, created.challenge.inviteToken, {
+        confirmed: true,
+        ignoreResourceWarning: true
+      })
+    ).resolves.toMatchObject({
+      state: "resolved"
+    });
+  });
+
+  it("blocks rematch creation when the pair already reached the current limit", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+    let firstToken: string | null = null;
+
+    for (let index = 0; index < 3; index += 1) {
+      const created = await service.createOpenChallengeForTelegramUser(1n, {
+        ignoreResourceWarning: true
+      });
+
+      if (created.state !== "pending") {
+        throw new Error(`Expected pending invite, got ${created.state}`);
+      }
+
+      firstToken ??= created.challenge.inviteToken;
+      await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+        confirmed: true,
+        ignoreResourceWarning: true
+      });
+    }
+
+    if (!firstToken) {
+      throw new Error("Expected a resolved duel token");
+    }
+
+    await expect(
+      service.createRematchForTelegramUser(1n, firstToken, {
+        ignoreResourceWarning: true
+      })
+    ).resolves.toMatchObject({
+      state: "pair-limited",
+      count: 3,
+      limit: 3
+    });
+    expect(world.challenges.size).toBe(3);
+  });
+
+  it("does not let bystanders accept a targeted rematch", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    world.addCharacter(3n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    const rematch = await service.createRematchForTelegramUser(1n, created.challenge.inviteToken, {
+      ignoreResourceWarning: true
+    });
+
+    if (rematch.state !== "pending") {
+      throw new Error(`Expected pending rematch, got ${rematch.state}`);
+    }
+
+    await expect(service.acceptForTelegramUser(3n, rematch.challenge.inviteToken)).resolves.toMatchObject({
+      state: "not-target"
+    });
+    expect(world.challenges.get(rematch.challenge.inviteToken)?.status).toBe("pending");
+
+    await expect(
+      service.acceptForTelegramUser(2n, rematch.challenge.inviteToken, {
+        confirmed: true,
+        ignoreResourceWarning: true
+      })
+    ).resolves.toMatchObject({
+      state: "resolved"
+    });
+  });
+
+  it("asks for confirmation before creating a rematch with partial resources", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, { hpCurrent: 10, hpMax: 24 });
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    const warning = await service.createRematchForTelegramUser(1n, created.challenge.inviteToken);
+
+    expect(warning).toMatchObject({
+      state: "resource-warning",
+      warning: {
+        hpBelowMax: true,
+        manaBelowMax: true
+      }
+    });
+    expect(world.challenges.size).toBe(1);
+
+    await expect(
+      service.createRematchForTelegramUser(1n, created.challenge.inviteToken, {
+        ignoreResourceWarning: true
+      })
+    ).resolves.toMatchObject({
+      state: "pending"
+    });
+  });
+
+  it("builds duel boards with wins draws and losses", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n, { name: "Пані Сила" });
     world.addCharacter(2n, { name: "Пан Обережний" });
@@ -195,6 +504,7 @@ describe("DuelChallengeService", () => {
     }
 
     await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
       ignoreResourceWarning: true
     });
 
@@ -214,16 +524,88 @@ describe("DuelChallengeService", () => {
       }
     });
 
+    const draw = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
+
+    if (draw.state !== "pending") {
+      throw new Error(`Expected pending draw invite, got ${draw.state}`);
+    }
+
+    await service.acceptForTelegramUser(2n, draw.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    const acceptedDraw = world.challenges.get(draw.challenge.inviteToken);
+
+    if (!acceptedDraw?.result) {
+      throw new Error("Expected resolved draw duel");
+    }
+
+    world.challenges.set(draw.challenge.inviteToken, {
+      ...acceptedDraw,
+      result: {
+        ...acceptedDraw.result,
+        outcome: "draw",
+        winnerCharacterId: null,
+        loserCharacterId: null
+      }
+    });
+
     await expect(service.getLeaderboard()).resolves.toEqual({
-      day: [{ characterId: "character-1", name: "Пані Сила", winCount: 1 }],
-      week: [{ characterId: "character-1", name: "Пані Сила", winCount: 1 }],
-      month: [{ characterId: "character-1", name: "Пані Сила", winCount: 1 }]
+      day: [
+        {
+          characterId: "character-1",
+          name: "Пані Сила",
+          winCount: 1,
+          drawCount: 1,
+          lossCount: 0
+        },
+        {
+          characterId: "character-2",
+          name: "Пан Обережний",
+          winCount: 0,
+          drawCount: 1,
+          lossCount: 1
+        }
+      ],
+      week: [
+        {
+          characterId: "character-1",
+          name: "Пані Сила",
+          winCount: 1,
+          drawCount: 1,
+          lossCount: 0
+        },
+        {
+          characterId: "character-2",
+          name: "Пан Обережний",
+          winCount: 0,
+          drawCount: 1,
+          lossCount: 1
+        }
+      ],
+      month: [
+        {
+          characterId: "character-1",
+          name: "Пані Сила",
+          winCount: 1,
+          drawCount: 1,
+          lossCount: 0
+        },
+        {
+          characterId: "character-2",
+          name: "Пан Обережний",
+          winCount: 0,
+          drawCount: 1,
+          lossCount: 1
+        }
+      ]
     });
   });
 });
 
-function buildService(world: FakeDuelWorld): DuelChallengeService {
-  return new DuelChallengeService(world, fixedNow, new FakeRandomSource([0.5]));
+function buildService(world: FakeDuelWorld, clock = fixedNow): DuelChallengeService {
+  return new DuelChallengeService(world, clock, new FakeRandomSource([0.5]));
 }
 
 class FakeDuelWorld implements DuelChallengeRepository {
@@ -291,6 +673,38 @@ class FakeDuelWorld implements DuelChallengeRepository {
     return Promise.resolve(challenge);
   }
 
+  createTargetedForTelegramUser(
+    telegramUserId: bigint,
+    targetCharacterId: string,
+    input: { inviteToken: string; contextChatId?: bigint | null; expiresAt: Date }
+  ): Promise<DuelChallengeRecord | null> {
+    const challenger = this.characters.get(telegramUserId);
+    const target = [...this.characters.values()].find((character) => character.id === targetCharacterId);
+
+    if (!challenger || !target || challenger.id === target.id) {
+      return Promise.resolve(null);
+    }
+
+    const challenge: DuelChallengeRecord = {
+      id: `duel-${this.challenges.size + 1}`,
+      challengerCharacterId: challenger.id,
+      targetCharacterId: target.id,
+      contextChatId: input.contextChatId ?? null,
+      inviteToken: input.inviteToken,
+      status: "pending",
+      expiresAt: input.expiresAt,
+      resolvedAt: null,
+      result: null,
+      createdAt: fixedNow(),
+      updatedAt: fixedNow(),
+      challenger,
+      target
+    };
+    this.challenges.set(input.inviteToken, challenge);
+
+    return Promise.resolve(challenge);
+  }
+
   findCharacterByTelegramUser(telegramUserId: bigint): Promise<DuelCharacterSnapshot | null> {
     return Promise.resolve(this.characters.get(telegramUserId) ?? null);
   }
@@ -347,7 +761,8 @@ class FakeDuelWorld implements DuelChallengeRepository {
       !target ||
       challenge.status !== "pending" ||
       challenge.expiresAt <= now ||
-      challenge.challengerCharacterId === target.id
+      challenge.challengerCharacterId === target.id ||
+      (challenge.targetCharacterId !== null && challenge.targetCharacterId !== target.id)
     ) {
       return Promise.resolve(challenge ?? null);
     }
@@ -364,6 +779,26 @@ class FakeDuelWorld implements DuelChallengeRepository {
     this.challenges.set(inviteToken, updated);
 
     return Promise.resolve(updated);
+  }
+
+  countResolvedBetweenCharacterPairSince(
+    characterAId: string,
+    characterBId: string,
+    since: Date
+  ): Promise<number> {
+    return Promise.resolve(
+      [...this.challenges.values()].filter(
+        (challenge) =>
+          challenge.status === "resolved" &&
+          challenge.resolvedAt !== null &&
+          challenge.resolvedAt >= since &&
+          challenge.result !== null &&
+          ((challenge.challengerCharacterId === characterAId &&
+            challenge.targetCharacterId === characterBId) ||
+            (challenge.challengerCharacterId === characterBId &&
+              challenge.targetCharacterId === characterAId))
+      ).length
+    );
   }
 
   listResolvedSince(since: Date): Promise<ResolvedDuelChallengeRecord[]> {

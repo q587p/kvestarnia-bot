@@ -8,6 +8,7 @@ import {
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import { mainMenuButtons } from "../keyboards/mainMenuKeyboard";
+import { parseStartPayload } from "../startPayload";
 
 export type PresenceContext = Omit<MarkPlayerPresenceInput, "user">;
 
@@ -174,9 +175,14 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
 }
 
 export function getTextPresenceContext(text: string): PresenceContext | null {
-  const command = text.match(/^\/([a-z_]+)(?:@\w+)?(?:\s|$)/i)?.[1]?.toLowerCase();
+  const commandMatch = text.match(/^\/([a-z_]+)(?:@\w+)?(?:\s+(.*))?$/i);
+  const command = commandMatch?.[1]?.toLowerCase();
 
   if (command) {
+    if (command === "start" && parseStartPayload(commandMatch?.[2]).type === "duel") {
+      return {};
+    }
+
     return getCommandPresenceContext(command);
   }
 

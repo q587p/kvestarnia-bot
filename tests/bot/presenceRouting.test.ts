@@ -181,6 +181,11 @@ describe("presence routing", () => {
     });
   });
 
+  it("keeps duel start deep links neutral so they do not move the player outside", () => {
+    expect(getTextPresenceContext("/start duel_abc_DEF12")).toEqual({});
+    expect(getTextPresenceContext("/start@kvestarnia_test_bot duel_abc_DEF12")).toEqual({});
+  });
+
   it.each(["🍺 Корчма", "🗺️ Квести", "👤 Персонаж", "🎒 Манатки", "👀 Хто поруч", "📖 Допомога"])(
     "routes main menu text %s without moving place",
     (text) => {
