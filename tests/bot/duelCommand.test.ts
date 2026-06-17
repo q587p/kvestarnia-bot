@@ -57,6 +57,27 @@ describe("handleDuelCallback", () => {
     );
   });
 
+  it("hides the new challenge button after showing the level gate", async () => {
+    const createOpenChallengeForTelegramUser = vi.fn().mockResolvedValue({
+      state: "level-gated",
+      character: makeCharacterSummary("Ігровий Майстер"),
+      minLevel: 3
+    });
+    const service = serviceWith({
+      createOpenChallengeForTelegramUser
+    });
+    const { ctx, editMessageText } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "new" }, service, {
+      presence: createPresence()
+    });
+
+    expect(messageText(editMessageText)).toContain("Бійцівський куток ще не видає рукавиць");
+    expect(keyboardJson(editMessageText)).not.toContain("v1:duel:new");
+    expect(keyboardJson(editMessageText)).toContain("v1:quest:list");
+    expect(keyboardJson(editMessageText)).toContain("v1:place:hall");
+  });
+
   it("keeps a pending open invite card stable when a non-owner presses cancel", async () => {
     const challenger = makeCharacterSummary("Автор Виклику");
     const challenge = makeChallenge("pending");

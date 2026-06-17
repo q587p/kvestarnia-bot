@@ -47,6 +47,13 @@ export function buildDuelResultKeyboard(): InlineKeyboard {
     .text("🍺 До зали", makePlaceCallbackData("hall"));
 }
 
+export function buildDuelNavigationKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("📋 До справ", makeQuestCallbackData("list"))
+    .row()
+    .text("🍺 До зали", makePlaceCallbackData("hall"));
+}
+
 export function buildDuelResourceWarningKeyboard(token: string): InlineKeyboard {
   return new InlineKeyboard()
     .text("🤝 Прийняти все одно", makeDuelAcceptRiskCallbackData(token))

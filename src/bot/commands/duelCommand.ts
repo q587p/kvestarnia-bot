@@ -11,6 +11,7 @@ import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildDuelChallengeKeyboard,
   buildDuelEntryKeyboard,
+  buildDuelNavigationKeyboard,
   buildDuelResourceWarningKeyboard,
   buildDuelResultKeyboard
 } from "../keyboards/duelKeyboard";
@@ -139,7 +140,11 @@ export async function handleDuelCallback(
       ctx,
       "edit",
       presentDuelCreate(result, { inviteUrl: getInviteUrl(options.botUsername, result) }),
-      result.state === "pending" ? { state: "pending", result } : "result"
+      result.state === "pending"
+        ? { state: "pending", result }
+        : result.state === "level-gated"
+          ? "navigation"
+          : "result"
     );
     return;
   }
@@ -158,6 +163,8 @@ export async function handleDuelCallback(
         ? { state: "pending", result }
         : result.state === "resource-warning"
           ? { state: "resource-warning", token: result.challenge.inviteToken }
+          : result.state === "level-gated"
+            ? "navigation"
           : "result"
     );
     return;
@@ -233,6 +240,7 @@ async function sendText(
   keyboard:
     | "entry"
     | "enter-korchma"
+    | "navigation"
     | "result"
     | { state: "resource-warning"; token: string }
     | { state: "pending"; result: Parameters<typeof buildDuelChallengeKeyboard>[0] }
@@ -247,6 +255,8 @@ async function sendText(
               ? buildDuelEntryKeyboard()
               : keyboard === "enter-korchma"
                 ? buildKorchmaFrontKeyboard()
+                : keyboard === "navigation"
+                  ? buildDuelNavigationKeyboard()
                 : keyboard === "result"
                   ? buildDuelResultKeyboard()
                   : keyboard.state === "resource-warning"
