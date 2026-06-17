@@ -7,6 +7,8 @@ CREATE TABLE "barrel_raid_notifications" (
     "period_id" TEXT NOT NULL,
     "available_at" DATETIME NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'pending',
+    "processing_started_at" DATETIME,
+    "reward_claimed_at" DATETIME,
     "sent_at" DATETIME,
     "skipped_at" DATETIME,
     "last_error" TEXT,
@@ -50,3 +52,6 @@ CREATE INDEX "barrel_raid_notifications_character_id_status_idx" ON "barrel_raid
 
 -- CreateIndex
 CREATE INDEX "barrel_raid_notifications_status_available_at_idx" ON "barrel_raid_notifications"("status", "available_at");
+
+-- CreateIndex
+CREATE INDEX "barrel_raid_notifications_status_processing_started_at_idx" ON "barrel_raid_notifications"("status", "processing_started_at");

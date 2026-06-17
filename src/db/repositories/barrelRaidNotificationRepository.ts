@@ -8,6 +8,8 @@ export interface BarrelRaidNotificationRecord {
   periodId: string;
   availableAt: Date;
   status: BarrelRaidNotificationStatus;
+  processingStartedAt: Date | null;
+  rewardClaimedAt: Date | null;
   sentAt: Date | null;
   skippedAt: Date | null;
   lastError: string | null;
@@ -25,11 +27,18 @@ export interface BarrelRaidNotificationRepository {
       now: Date;
     }
   ): Promise<BarrelRaidNotificationRecord | null>;
-  listPending(): Promise<BarrelRaidNotificationRecord[]>;
-  claimPending(
+  listResumable(input: {
+    now: Date;
+    processingStaleBefore: Date;
+  }): Promise<BarrelRaidNotificationRecord[]>;
+  claimForProcessing(
     id: string,
-    now: Date
+    input: {
+      now: Date;
+      processingStaleBefore: Date;
+    }
   ): Promise<BarrelRaidNotificationRecord | null>;
+  markRewardClaimed(id: string, now: Date): Promise<BarrelRaidNotificationRecord | null>;
   markSent(id: string, now: Date): Promise<BarrelRaidNotificationRecord | null>;
   markSkipped(id: string, now: Date, reason?: string): Promise<BarrelRaidNotificationRecord | null>;
   markPendingAfterFailure(

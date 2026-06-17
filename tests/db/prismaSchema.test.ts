@@ -284,15 +284,23 @@ describe("Prisma schema", () => {
     expect(schema).toContain("@map(\"chat_id\")");
     expect(schema).toContain("@map(\"period_id\")");
     expect(schema).toContain("@map(\"available_at\")");
+    expect(schema).toContain("@map(\"processing_started_at\")");
+    expect(schema).toContain("@map(\"reward_claimed_at\")");
     expect(schema).toContain("@map(\"last_error\")");
     expect(schema).toContain("@@unique([telegramUserId, periodId])");
     expect(schema).toContain("@@index([status, availableAt])");
+    expect(schema).toContain("@@index([status, processingStartedAt])");
     expect(schema).toContain("@@map(\"barrel_raid_notifications\")");
     expect(migration).toContain("CREATE TABLE \"barrel_raid_notifications\"");
+    expect(migration).toContain("\"processing_started_at\" DATETIME");
+    expect(migration).toContain("\"reward_claimed_at\" DATETIME");
     expect(migration).toContain(
       "CREATE UNIQUE INDEX \"barrel_raid_notifications_telegram_user_id_period_id_key\""
     );
     expect(migration).toContain("CREATE INDEX \"barrel_raid_notifications_status_available_at_idx\"");
+    expect(migration).toContain(
+      "CREATE INDEX \"barrel_raid_notifications_status_processing_started_at_idx\""
+    );
   });
 
   it("stores level barter exchanges for retry-safe irreversible spending", () => {

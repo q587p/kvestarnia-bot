@@ -20,6 +20,7 @@ type TimerState = {
 
 const DEFAULT_RETRY_DELAY_MS = 60_000;
 const DEFAULT_MAX_ATTEMPTS = 3;
+const DEFAULT_PROCESSING_LEASE_MS = 10 * 60_000;
 
 export interface BarrelRaidCompletionScheduleInput {
   bot: Bot;
@@ -49,6 +50,7 @@ interface BarrelRaidCompletionSchedulerOptions {
   setTimeout?: TimerFactory;
   retryDelayMs?: number;
   maxAttempts?: number;
+  processingLeaseMs?: number;
   logger?: Pick<Console, "error">;
 }
 
@@ -59,6 +61,7 @@ export function createBarrelRaidCompletionScheduler(
   const setTimer = options.setTimeout;
   const retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
   const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+  const processingLeaseMs = options.processingLeaseMs ?? DEFAULT_PROCESSING_LEASE_MS;
   const logger = options.logger ?? console;
 
   async function sendCompletion(
@@ -70,7 +73,10 @@ export function createBarrelRaidCompletionScheduler(
     const now = new Date();
     const notification =
       input.notifications && input.notificationId
-        ? await input.notifications.claimPending(input.notificationId, now)
+        ? await input.notifications.claimForProcessing(input.notificationId, {
+            now,
+            processingStaleBefore: getProcessingStaleBefore(now)
+          })
         : null;
 
     if (input.notifications && input.notificationId && !notification) {
@@ -84,6 +90,11 @@ export function createBarrelRaidCompletionScheduler(
         input.periodId
       );
 
+      if (completed.state === "already-completed" && notification?.rewardClaimedAt) {
+        await sendCompletedResult(input, key, chatId, asNotificationCompletedResult(completed), 1, notification);
+        return;
+      }
+
       if (completed.state !== "completed") {
         if (notification && input.notifications) {
           await input.notifications.markSkipped(notification.id, new Date(), completed.state);
@@ -92,7 +103,17 @@ export function createBarrelRaidCompletionScheduler(
         return;
       }
 
-      await sendCompletedResult(input, key, chatId, completed, 1, notification);
+      const rewardClaimedNotification =
+        notification && input.notifications
+          ? await input.notifications.markRewardClaimed(notification.id, new Date())
+          : notification;
+
+      if (notification && input.notifications && !rewardClaimedNotification) {
+        timers.delete(key);
+        return;
+      }
+
+      await sendCompletedResult(input, key, chatId, completed, 1, rewardClaimedNotification);
     } catch (error) {
       logger.error("Квестарня: не вдалося надіслати завершення рейду.", error);
       if (attempt >= maxAttempts) {
@@ -187,7 +208,10 @@ export function createBarrelRaidCompletionScheduler(
       return true;
     },
     async resumePending(input) {
-      const pending = await input.notifications.listPending();
+      const pending = await input.notifications.listResumable({
+        now: input.now,
+        processingStaleBefore: getProcessingStaleBefore(input.now)
+      });
       let scheduled = 0;
 
       for (const notification of pending) {
@@ -221,6 +245,10 @@ export function createBarrelRaidCompletionScheduler(
       return timers.has(buildBarrelRaidCompletionKey(input));
     }
   };
+
+  function getProcessingStaleBefore(now: Date): Date {
+    return new Date(now.getTime() - processingLeaseMs);
+  }
 }
 
 export function buildBarrelRaidCompletionKey(
@@ -251,4 +279,19 @@ function bigIntToSafeNumber(value: bigint): number | undefined {
   const numberValue = Number(value);
 
   return Number.isSafeInteger(numberValue) ? numberValue : undefined;
+}
+
+function asNotificationCompletedResult(
+  result: Extract<TavernRaidResult, { state: "already-completed" }>
+): Extract<TavernRaidResult, { state: "completed" }> {
+  return {
+    state: "completed",
+    character: result.character,
+    reward: result.reward,
+    levelChange: {
+      oldLevel: result.character.level,
+      newLevel: result.character.level,
+      leveledUp: false
+    }
+  };
 }

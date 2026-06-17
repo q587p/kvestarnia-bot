@@ -12,9 +12,11 @@ This project follows a simple pre-1.0 versioning policy:
 ### Added
 - Added `barrel_raid_notifications` as a durable notification ledger for pending `Бочка Пінного Міражу` raid completion messages.
 - Added startup resume for pending Barrel completion notifications: future rows are rescheduled and due rows run through the existing idempotent Barrel reward path.
+- Added processing lease recovery and `reward_claimed_at` tracking so crashed or failed notification delivery can resume after the reward claim without suppressing the completion message.
 
 ### Fixed
 - Manual Barrel completion remains the fallback; later durable notifications now skip already-completed raids instead of sending a confusing duplicate completion message.
+- Telegram send failure after a notification-owned reward claim now leaves the row retryable and can resend the existing reward summary instead of turning into a skipped notification.
 - `Дружня Скриня` pending runs older than the cleanup TTL now expire safely and old confirm callbacks ask the player to reopen the chest instead of touching inventory.
 
 ### Not Included

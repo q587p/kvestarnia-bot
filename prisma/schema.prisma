@@ -161,6 +161,8 @@ model BarrelRaidNotification {
   periodId       String    @map("period_id")
   availableAt    DateTime  @map("available_at")
   status         String    @default("pending")
+  processingStartedAt DateTime? @map("processing_started_at")
+  rewardClaimedAt DateTime? @map("reward_claimed_at")
   sentAt         DateTime? @map("sent_at")
   skippedAt      DateTime? @map("skipped_at")
   lastError      String?   @map("last_error")
@@ -170,6 +172,7 @@ model BarrelRaidNotification {
   @@unique([telegramUserId, periodId])
   @@index([characterId, status])
   @@index([status, availableAt])
+  @@index([status, processingStartedAt])
   @@map("barrel_raid_notifications")
 }
 

@@ -252,6 +252,139 @@ describe("barrel raid completion notifier", () => {
     expect(sendMessage).toHaveBeenCalledTimes(1);
   });
 
+  it("recovers stale processing notifications on startup", async () => {
+    vi.useFakeTimers();
+    const sendMessage = vi.fn(() => Promise.resolve(true));
+    const completeFridayBarrelRaid = vi.fn(() => Promise.resolve(completedResult()));
+    const notifications = new FakeBarrelRaidNotificationRepository([
+      notificationRecord({
+        status: "processing",
+        processingStartedAt: new Date("2026-06-13T10:00:00.000Z"),
+        availableAt: new Date("2026-06-13T10:30:00.000Z")
+      })
+    ]);
+    const scheduler = createBarrelRaidCompletionScheduler({
+      processingLeaseMs: 10 * 60_000
+    });
+
+    await expect(scheduler.resumePending({
+      bot: botWithSendMessage(sendMessage),
+      now: new Date("2026-06-13T10:30:00.000Z"),
+      tavernRaidService: {
+        completeFridayBarrelRaid
+      },
+      notifications
+    })).resolves.toBe(1);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(completeFridayBarrelRaid).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(notifications.get("notification-1")?.status).toBe("sent");
+  });
+
+  it("recovers stale processing delivery after notification-owned reward claim", async () => {
+    vi.useFakeTimers();
+    const sendMessage = vi.fn(() => Promise.resolve(true));
+    const completeFridayBarrelRaid = vi.fn(() =>
+      Promise.resolve({
+        state: "already-completed",
+        character,
+        reward: {
+          xp: 7,
+          gold: 5,
+          localDate: "2026-06-13T10:23",
+          itemGrants: []
+        },
+        levelChange: null
+      } satisfies TavernRaidResult)
+    );
+    const notifications = new FakeBarrelRaidNotificationRepository([
+      notificationRecord({
+        status: "processing",
+        processingStartedAt: new Date("2026-06-13T10:00:00.000Z"),
+        rewardClaimedAt: new Date("2026-06-13T10:01:00.000Z"),
+        availableAt: new Date("2026-06-13T10:30:00.000Z")
+      })
+    ]);
+    const scheduler = createBarrelRaidCompletionScheduler({
+      processingLeaseMs: 10 * 60_000
+    });
+
+    await scheduler.resumePending({
+      bot: botWithSendMessage(sendMessage),
+      now: new Date("2026-06-13T10:30:00.000Z"),
+      tavernRaidService: {
+        completeFridayBarrelRaid
+      },
+      notifications
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(completeFridayBarrelRaid).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Рейд завершено");
+    expect(notifications.get("notification-1")?.status).toBe("sent");
+  });
+
+  it("does not steal fresh processing notifications on startup", async () => {
+    vi.useFakeTimers();
+    const sendMessage = vi.fn(() => Promise.resolve(true));
+    const completeFridayBarrelRaid = vi.fn(() => Promise.resolve(completedResult()));
+    const notifications = new FakeBarrelRaidNotificationRepository([
+      notificationRecord({
+        status: "processing",
+        processingStartedAt: new Date("2026-06-13T10:29:00.000Z"),
+        availableAt: new Date("2026-06-13T10:30:00.000Z")
+      })
+    ]);
+    const scheduler = createBarrelRaidCompletionScheduler({
+      processingLeaseMs: 10 * 60_000
+    });
+
+    await expect(scheduler.resumePending({
+      bot: botWithSendMessage(sendMessage),
+      now: new Date("2026-06-13T10:30:00.000Z"),
+      tavernRaidService: {
+        completeFridayBarrelRaid
+      },
+      notifications
+    })).resolves.toBe(0);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(completeFridayBarrelRaid).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(notifications.get("notification-1")?.status).toBe("processing");
+  });
+
+  it("does not let duplicate schedulers send the same durable notification twice", async () => {
+    vi.useFakeTimers();
+    const sendMessage = vi.fn(() => Promise.resolve(true));
+    const completeFridayBarrelRaid = vi.fn(() => Promise.resolve(completedResult()));
+    const notifications = new FakeBarrelRaidNotificationRepository([
+      notificationRecord({
+        availableAt: new Date("2026-06-13T10:30:00.000Z")
+      })
+    ]);
+    const first = createBarrelRaidCompletionScheduler();
+    const second = createBarrelRaidCompletionScheduler();
+    const resumeInput = {
+      bot: botWithSendMessage(sendMessage),
+      now: new Date("2026-06-13T10:30:00.000Z"),
+      tavernRaidService: {
+        completeFridayBarrelRaid
+      },
+      notifications
+    };
+
+    await expect(first.resumePending(resumeInput)).resolves.toBe(1);
+    await expect(second.resumePending(resumeInput)).resolves.toBe(1);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(completeFridayBarrelRaid).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(notifications.get("notification-1")?.status).toBe("sent");
+  });
+
   it("skips durable notification when manual completion already claimed the raid", async () => {
     vi.useFakeTimers();
     const sendMessage = vi.fn(() => Promise.resolve(true));
@@ -287,10 +420,27 @@ describe("barrel raid completion notifier", () => {
     expect(notifications.get("notification-1")?.status).toBe("skipped");
   });
 
-  it("does not mark a durable notification as sent when Telegram send fails", async () => {
+  it("retries delivery after Telegram send fails following a fresh reward claim", async () => {
     vi.useFakeTimers();
-    const sendMessage = vi.fn(() => Promise.reject(new Error("telegram down")));
-    const completeFridayBarrelRaid = vi.fn(() => Promise.resolve(completedResult()));
+    vi.setSystemTime(new Date("2026-06-13T10:30:00.000Z"));
+    const sendMessage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("telegram down"))
+      .mockResolvedValueOnce(true);
+    const completeFridayBarrelRaid = vi
+      .fn()
+      .mockResolvedValueOnce(completedResult())
+      .mockResolvedValueOnce({
+        state: "already-completed",
+        character,
+        reward: {
+          xp: 7,
+          gold: 5,
+          localDate: "2026-06-13T10:23",
+          itemGrants: []
+        },
+        levelChange: null
+      } satisfies TavernRaidResult);
     const notifications = new FakeBarrelRaidNotificationRepository([
       notificationRecord({
         availableAt: new Date("2026-06-13T10:30:00.000Z")
@@ -313,7 +463,68 @@ describe("barrel raid completion notifier", () => {
 
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(notifications.get("notification-1")?.status).toBe("pending");
+    expect(notifications.get("notification-1")?.rewardClaimedAt).toEqual(
+      new Date("2026-06-13T10:30:00.000Z")
+    );
     expect(notifications.get("notification-1")?.lastError).toBe("telegram down");
+
+    const retryScheduler = createBarrelRaidCompletionScheduler({
+      maxAttempts: 1,
+      logger: { error: vi.fn() }
+    });
+    await retryScheduler.resumePending({
+      bot: botWithSendMessage(sendMessage),
+      now: new Date("2026-06-13T10:31:00.000Z"),
+      tavernRaidService: {
+        completeFridayBarrelRaid
+      },
+      notifications
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(completeFridayBarrelRaid).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage.mock.calls[1]?.[1]).toContain("Рейд завершено");
+    expect(notifications.get("notification-1")?.status).toBe("sent");
+  });
+
+  it("keeps level-up celebration failure non-blocking for durable notification delivery", async () => {
+    vi.useFakeTimers();
+    const sendMessage = vi
+      .fn()
+      .mockResolvedValueOnce(true)
+      .mockRejectedValueOnce(new Error("celebration down"));
+    const completeFridayBarrelRaid = vi.fn(() =>
+      Promise.resolve({
+        ...completedResult(),
+        levelChange: {
+          oldLevel: 1,
+          newLevel: 2,
+          leveledUp: true
+        }
+      } satisfies Extract<TavernRaidResult, { state: "completed" }>)
+    );
+    const notifications = new FakeBarrelRaidNotificationRepository([
+      notificationRecord({
+        availableAt: new Date("2026-06-13T10:30:00.000Z")
+      })
+    ]);
+    const scheduler = createBarrelRaidCompletionScheduler({
+      logger: { error: vi.fn() }
+    });
+
+    await scheduler.resumePending({
+      bot: botWithSendMessage(sendMessage),
+      now: new Date("2026-06-13T10:30:00.000Z"),
+      tavernRaidService: {
+        completeFridayBarrelRaid
+      },
+      notifications
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(notifications.get("notification-1")?.status).toBe("sent");
   });
 });
 
@@ -413,6 +624,8 @@ function notificationRecord(
     periodId: "2026-06-13T10:23",
     availableAt: now,
     status: "pending",
+    processingStartedAt: null,
+    rewardClaimedAt: null,
     sentAt: null,
     skippedAt: null,
     lastError: null,
@@ -435,35 +648,66 @@ class FakeBarrelRaidNotificationRepository implements BarrelRaidNotificationRepo
     throw new Error("Not used by these tests.");
   }
 
-  listPending(): Promise<BarrelRaidNotificationRecord[]> {
+  listResumable(input: {
+    now: Date;
+    processingStaleBefore: Date;
+  }): Promise<BarrelRaidNotificationRecord[]> {
     return Promise.resolve(
       Array.from(this.records.values())
-        .filter((record) => record.status === "pending")
+        .filter(
+          (record) =>
+            record.status === "pending" ||
+            (record.status === "processing" &&
+              record.processingStartedAt !== null &&
+              record.processingStartedAt <= input.processingStaleBefore)
+        )
         .map(structuredCloneNotification)
     );
   }
 
-  claimPending(id: string, now: Date): Promise<BarrelRaidNotificationRecord | null> {
+  claimForProcessing(
+    id: string,
+    input: {
+      now: Date;
+      processingStaleBefore: Date;
+    }
+  ): Promise<BarrelRaidNotificationRecord | null> {
     const record = this.records.get(id);
 
-    if (!record || record.status !== "pending" || record.availableAt > now) {
+    const canClaimPending =
+      record?.status === "pending" && record.availableAt <= input.now;
+    const canClaimStaleProcessing =
+      record?.status === "processing" &&
+      record.processingStartedAt !== null &&
+      record.processingStartedAt <= input.processingStaleBefore;
+
+    if (!record || (!canClaimPending && !canClaimStaleProcessing)) {
       return Promise.resolve(null);
     }
 
     const claimed = {
       ...record,
       status: "processing" as const,
-      updatedAt: now
+      processingStartedAt: input.now,
+      updatedAt: input.now
     };
     this.records.set(id, claimed);
 
     return Promise.resolve(structuredCloneNotification(claimed));
   }
 
+  markRewardClaimed(id: string, now: Date): Promise<BarrelRaidNotificationRecord | null> {
+    return this.update(id, now, {
+      rewardClaimedAt: now,
+      lastError: null
+    });
+  }
+
   markSent(id: string, now: Date): Promise<BarrelRaidNotificationRecord | null> {
     return this.update(id, now, {
       status: "sent",
       sentAt: now,
+      processingStartedAt: null,
       lastError: null
     });
   }
@@ -472,6 +716,7 @@ class FakeBarrelRaidNotificationRepository implements BarrelRaidNotificationRepo
     return this.update(id, now, {
       status: "skipped",
       skippedAt: now,
+      processingStartedAt: null,
       lastError: reason ?? null
     });
   }
@@ -483,6 +728,7 @@ class FakeBarrelRaidNotificationRepository implements BarrelRaidNotificationRepo
   ): Promise<BarrelRaidNotificationRecord | null> {
     return this.update(id, now, {
       status: "pending",
+      processingStartedAt: null,
       lastError: error
     });
   }

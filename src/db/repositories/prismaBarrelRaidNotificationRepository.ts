@@ -59,6 +59,8 @@ export class PrismaBarrelRaidNotificationRepository implements BarrelRaidNotific
         ...(await this.shouldResetToPending(telegramUserId, input.periodId)
           ? {
               status: "pending",
+              processingStartedAt: null,
+              rewardClaimedAt: null,
               sentAt: null,
               skippedAt: null,
               lastError: null
@@ -71,10 +73,23 @@ export class PrismaBarrelRaidNotificationRepository implements BarrelRaidNotific
     return mapNotification(record);
   }
 
-  async listPending(): Promise<BarrelRaidNotificationRecord[]> {
+  async listResumable(input: {
+    now: Date;
+    processingStaleBefore: Date;
+  }): Promise<BarrelRaidNotificationRecord[]> {
     const records = await this.prisma.barrelRaidNotification.findMany({
       where: {
-        status: "pending"
+        OR: [
+          {
+            status: "pending"
+          },
+          {
+            status: "processing",
+            processingStartedAt: {
+              lte: input.processingStaleBefore
+            }
+          }
+        ]
       },
       orderBy: [
         {
@@ -93,22 +108,59 @@ export class PrismaBarrelRaidNotificationRepository implements BarrelRaidNotific
     });
   }
 
-  async claimPending(id: string, now: Date): Promise<BarrelRaidNotificationRecord | null> {
+  async claimForProcessing(
+    id: string,
+    input: {
+      now: Date;
+      processingStaleBefore: Date;
+    }
+  ): Promise<BarrelRaidNotificationRecord | null> {
     const claimed = await this.prisma.barrelRaidNotification.updateMany({
       where: {
         id,
-        status: "pending",
-        availableAt: {
-          lte: now
-        }
+        OR: [
+          {
+            status: "pending",
+            availableAt: {
+              lte: input.now
+            }
+          },
+          {
+            status: "processing",
+            processingStartedAt: {
+              lte: input.processingStaleBefore
+            }
+          }
+        ]
       },
       data: {
         status: "processing",
-        updatedAt: now
+        processingStartedAt: input.now,
+        updatedAt: input.now
       }
     });
 
     if (claimed.count !== 1) {
+      return null;
+    }
+
+    return this.findById(id);
+  }
+
+  async markRewardClaimed(id: string, now: Date): Promise<BarrelRaidNotificationRecord | null> {
+    const updated = await this.prisma.barrelRaidNotification.updateMany({
+      where: {
+        id,
+        status: "processing"
+      },
+      data: {
+        rewardClaimedAt: now,
+        lastError: null,
+        updatedAt: now
+      }
+    });
+
+    if (updated.count !== 1) {
       return null;
     }
 
@@ -124,6 +176,7 @@ export class PrismaBarrelRaidNotificationRepository implements BarrelRaidNotific
       data: {
         status: "sent",
         sentAt: now,
+        processingStartedAt: null,
         lastError: null,
         updatedAt: now
       }
@@ -147,6 +200,7 @@ export class PrismaBarrelRaidNotificationRepository implements BarrelRaidNotific
       data: {
         status: "skipped",
         skippedAt: now,
+        processingStartedAt: null,
         lastError: reason ?? null,
         updatedAt: now
       }
@@ -171,6 +225,7 @@ export class PrismaBarrelRaidNotificationRepository implements BarrelRaidNotific
       },
       data: {
         status: "pending",
+        processingStartedAt: null,
         lastError: error,
         updatedAt: now
       }
@@ -225,6 +280,8 @@ function mapNotification(
     periodId: record.periodId,
     availableAt: record.availableAt,
     status: parseStatus(record.status),
+    processingStartedAt: record.processingStartedAt,
+    rewardClaimedAt: record.rewardClaimedAt,
     sentAt: record.sentAt,
     skippedAt: record.skippedAt,
     lastError: record.lastError,
