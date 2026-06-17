@@ -279,6 +279,17 @@ export class PrismaRemortRepository implements RemortRepository {
         }
       });
 
+      if (input.resetDailyActionKeys?.length) {
+        await tx.dailyAction.deleteMany({
+          where: {
+            characterId: character.id,
+            key: {
+              in: [...input.resetDailyActionKeys]
+            }
+          }
+        });
+      }
+
       for (const item of validation.keptItems) {
         await tx.characterItem.create({
           data: {

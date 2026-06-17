@@ -8,7 +8,7 @@ import type { PresenceService } from "../../src/services/presenceService";
 
 const TOKEN = "abcDEF12";
 const NOW = new Date("2026-06-17T18:00:00.000Z");
-const EXPIRES_AT = new Date("2026-06-17T18:15:00.000Z");
+const EXPIRES_AT = new Date("2026-06-17T18:13:00.000Z");
 
 describe("handleDuelCallback", () => {
   it("sends a forwardable invite message when a new open challenge is created with a bot username", async () => {
@@ -73,6 +73,31 @@ describe("handleDuelCallback", () => {
     expect(messageText(editMessageText)).toContain(
       "⚠️ Посилання для копіювання ще не зібралося: Корчмар не знає username цього бота."
     );
+    expect(reply).not.toHaveBeenCalled();
+  });
+
+  it("uses a duel-specific gate when a new challenge starts outside the korchma", async () => {
+    const createOpenChallengeForTelegramUser = vi.fn();
+    const markAction = vi.fn().mockResolvedValue(undefined);
+    const service = serviceWith({
+      createOpenChallengeForTelegramUser
+    });
+    const { ctx, editMessageText, reply } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "new" }, service, {
+      presence: createPresence(markAction, {
+        locationId: "location.korchma.front",
+        locationName: "Надвір",
+        insideKorchma: false
+      }),
+      botUsername: "kvestarnia_dev_bot"
+    });
+
+    expect(createOpenChallengeForTelegramUser).not.toHaveBeenCalled();
+    expect(markAction).not.toHaveBeenCalled();
+    expect(messageText(editMessageText)).toContain("Дружні виклики кидають у Бійцівському кутку Корчми.");
+    expect(messageText(editMessageText)).not.toContain("Квести видають усередині.");
+    expect(keyboardJson(editMessageText)).toContain("v1:place:hall");
     expect(reply).not.toHaveBeenCalled();
   });
 
@@ -221,6 +246,7 @@ describe("handleDuelCallback", () => {
     });
 
     expect(acceptForTelegramUser).toHaveBeenCalledWith(42n, TOKEN, {
+      confirmed: false,
       ignoreResourceWarning: false
     });
     expect(answerCallbackQuery).toHaveBeenCalledWith({
@@ -251,7 +277,42 @@ describe("handleDuelCallback", () => {
     expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:cancel:${TOKEN}`);
   });
 
-  it("lets a real accept resolve the card", async () => {
+  it("asks for confirmation before accepting with full resources", async () => {
+    const acceptForTelegramUser = vi.fn().mockResolvedValue({
+      state: "confirmation",
+      challenge: makeChallenge("pending", makeCharacter(99n, "Ціль Виклику")),
+      challenger: makeCharacterSummary("Автор Виклику", { level: 9 }),
+      target: makeCharacterSummary("Ціль Виклику", { level: 3 })
+    });
+    const service = serviceWith({
+      acceptForTelegramUser
+    });
+    const { ctx, editMessageText } = createCallbackContext(99);
+
+    await handleDuelCallback(ctx, { type: "accept", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(acceptForTelegramUser).toHaveBeenCalledWith(99n, TOKEN, {
+      confirmed: false,
+      ignoreResourceWarning: false
+    });
+    expect(messageText(editMessageText)).toContain("🥊 <b>Прийняти виклик?</b>\n\nЗапрошує:");
+    expect(messageText(editMessageText)).toContain(
+      "Запрошує: <b>Автор Виклику</b> · <i>Пересічні Пригодники</i> · рівень 9"
+    );
+    expect(messageText(editMessageText)).toContain(
+      "Ви: <b>Ціль Виклику</b> · <i>Пересічні Пригодники</i> · рівень 3"
+    );
+    expect(messageText(editMessageText)).toContain(
+      "у безпечному корчемному порядку.\n\nКорчмар тримає перо над протоколом"
+    );
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:accept-risk:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:decline:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:rematch:${TOKEN}`);
+  });
+
+  it("lets a confirmed accept resolve the card", async () => {
     const challenger = makeCharacterSummary("Автор Виклику", { level: 9, remortCount: 3 });
     const target = makeCharacterSummary("Ціль Виклику", { level: 3 });
     const markAction = vi.fn().mockResolvedValue(undefined);
@@ -276,31 +337,37 @@ describe("handleDuelCallback", () => {
     });
     const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(99);
 
-    await handleDuelCallback(ctx, { type: "accept", token: TOKEN }, service, {
+    await handleDuelCallback(ctx, { type: "accept-risk", token: TOKEN }, service, {
       presence
     });
 
     expect(acceptForTelegramUser).toHaveBeenCalledWith(99n, TOKEN, {
-      ignoreResourceWarning: false
+      confirmed: true,
+      ignoreResourceWarning: true
     });
     expect(markAction).toHaveBeenCalled();
     expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
     expect(editMessageText).toHaveBeenCalledTimes(1);
     const text = messageText(editMessageText);
-    expect(text).toContain(
-      "Це збережений результат цього виклику. Повторний перехід за посиланням покаже його знову, а не почне нову дуель."
-    );
+    expect(text).not.toContain("Прийняти виклик?");
+    expect(text).not.toContain("Повторний перехід");
+    expect(text).not.toContain("це той самий результат");
     expect(text).toContain("<b>Автор Виклику</b> · рівень 9 (реморт: 3) ⚔️ <b>Ціль Виклику</b> · рівень 3");
     expect(text).toContain("Перший і останній хід:");
-    expect(text).toContain(
-      "<b>Ціль Виклику</b> зупиняє сутичку папірцем такого вигляду, що <b>Автор Виклику</b> на мить визнає силу документа."
-    );
-    expect(text.indexOf("Перший і останній хід:")).toBeLessThan(text.indexOf("<b>Ціль Виклику</b> зупиняє"));
-    expect(text.indexOf("<b>Ціль Виклику</b> зупиняє")).toBeLessThan(
+    const lines = text.split("\n");
+    const moveHeaderIndex = lines.indexOf("Перший і останній хід:");
+    const flavorLine = lines[moveHeaderIndex + 2] ?? "";
+
+    expect(flavorLine).toContain("<b>Ціль Виклику</b>");
+    expect(flavorLine).toContain("<b>Автор Виклику</b>");
+    expect(moveHeaderIndex).toBeGreaterThan(-1);
+    expect(text.indexOf(flavorLine)).toBeLessThan(
       text.indexOf("🏁 <b>Ціль Виклику</b> перемагає у корчемному виклику")
     );
     expect(text).toContain("<i>Без XP, золота й манаток. Це корчемний запис для слави, не фарм.</i>");
     expect(text).not.toContain("рейтингу");
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:rematch:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:share:${TOKEN}`);
     expect(keyboardJson(editMessageText)).toContain("v1:duel:new");
   });
 
@@ -330,6 +397,172 @@ describe("handleDuelCallback", () => {
     expect(keyboard).toContain(`v1:duel:accept-risk:${TOKEN}`);
     expect(keyboard).toContain(`v1:duel:decline:${TOKEN}`);
     expect(keyboard).not.toContain("v1:duel:new");
+  });
+
+  it("shows a game-style pair limit instead of resolving a fourth same-pair duel", async () => {
+    const acceptForTelegramUser = vi.fn().mockResolvedValue({
+      state: "pair-limited",
+      challenge: makeChallenge("pending", makeCharacter(99n, "Ціль Виклику")),
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      count: 3,
+      limit: 3,
+      resetAt: new Date("2026-06-17T18:23:00.000Z")
+    });
+    const service = serviceWith({
+      acceptForTelegramUser
+    });
+    const { ctx, editMessageText } = createCallbackContext(99);
+
+    await handleDuelCallback(ctx, { type: "accept", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    const text = messageText(editMessageText);
+
+    expect(acceptForTelegramUser).toHaveBeenCalledWith(99n, TOKEN, {
+      confirmed: false,
+      ignoreResourceWarning: false
+    });
+    expect(text).toContain("🥊 <b>Ця пара вже нагримілася</b>\n\nПерший кухоль:");
+    expect(text).toContain(
+      "Перший кухоль: <b>Автор Виклику</b> · <i>Пересічні Пригодники</i> · рівень 3"
+    );
+    expect(text).toContain(
+      "Другий кухоль: <b>Ціль Виклику</b> · <i>Пересічні Пригодники</i> · рівень 3"
+    );
+    expect(text).toContain("у цієї пари вже <b>3</b> дуелі");
+    expect(text).toContain("поточний корчемний відтинок.\n\nНовий рядок");
+    expect(text).toContain("о <b>18:23</b>");
+    expect(text).toContain("запросіть когось іншого");
+    expect(keyboardJson(editMessageText)).toContain("v1:duel:new");
+    expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:accept:${TOKEN}`);
+  });
+
+  it("does not let bystanders accept a targeted rematch card", async () => {
+    const challenger = makeCharacterSummary("Автор Реваншу");
+    const target = makeCharacterSummary("Ціль Реваншу");
+    const markAction = vi.fn().mockResolvedValue(undefined);
+    const acceptForTelegramUser = vi.fn().mockResolvedValue({
+      state: "not-target",
+      challenge: makeChallenge("pending", makeCharacter(99n, "Ціль Реваншу")),
+      challenger,
+      target
+    });
+    const service = serviceWith({
+      acceptForTelegramUser
+    });
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(77);
+
+    await handleDuelCallback(ctx, { type: "accept", token: TOKEN }, service, {
+      presence: createPresence(markAction)
+    });
+
+    expect(acceptForTelegramUser).toHaveBeenCalledWith(77n, TOKEN, {
+      confirmed: false,
+      ignoreResourceWarning: false
+    });
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Це адресний реванш. Корчмар чекає саме того пригодника, чиє імʼя в записі."
+    });
+    expect(editMessageText).not.toHaveBeenCalled();
+    expect(markAction).not.toHaveBeenCalled();
+  });
+
+  it("creates a rematch invite from a resolved result card", async () => {
+    const challenger = makeCharacterSummary("Автор Реваншу");
+    const createRematchForTelegramUser = vi.fn().mockResolvedValue({
+      state: "pending",
+      challenge: makeChallenge("pending", makeCharacter(99n, "Ціль Реваншу")),
+      challenger,
+      challengerResourceWarning: null,
+      expiresAt: EXPIRES_AT,
+      now: NOW
+    });
+    const markAction = vi.fn().mockResolvedValue(undefined);
+    const service = serviceWith({
+      createRematchForTelegramUser
+    });
+    const { ctx, editMessageText, reply } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "rematch", token: TOKEN }, service, {
+      presence: createPresence(markAction),
+      botUsername: "kvestarnia_dev_bot"
+    });
+
+    expect(createRematchForTelegramUser).toHaveBeenCalledWith(42n, TOKEN, {
+      contextChatId: -100n,
+      ignoreResourceWarning: false
+    });
+    expect(markAction).toHaveBeenCalled();
+    expect(messageText(editMessageText)).toContain("Виклик уже на столі");
+    expect(messageText(editMessageText)).toContain("Окреме повідомлення з інвайтом можна переслати в приват або чат.");
+    expect(messageText(editMessageText)).not.toContain("Посилання для копіювання ще не зібралося");
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:accept:${TOKEN}`);
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(reply.mock.calls[0]?.[0]).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
+  });
+
+  it("keeps a resolved result card stable when a bystander presses rematch", async () => {
+    const createRematchForTelegramUser = vi.fn().mockResolvedValue({
+      state: "not-participant",
+      challenge: makeChallenge("resolved", makeCharacter(99n, "Ціль Виклику")),
+      challenger: makeCharacterSummary("Автор Виклику")
+    });
+    const markAction = vi.fn().mockResolvedValue(undefined);
+    const service = serviceWith({
+      createRematchForTelegramUser
+    });
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(77);
+
+    await handleDuelCallback(ctx, { type: "rematch", token: TOKEN }, service, {
+      presence: createPresence(markAction)
+    });
+
+    expect(createRematchForTelegramUser).toHaveBeenCalledWith(77n, TOKEN, {
+      contextChatId: -100n,
+      ignoreResourceWarning: false
+    });
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Реванш можуть кинути тільки учасники цієї дуелі."
+    });
+    expect(editMessageText).not.toHaveBeenCalled();
+    expect(markAction).not.toHaveBeenCalled();
+  });
+
+  it("sends a shareable saved result card without rerolling the duel", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const getByToken = vi.fn().mockResolvedValue({
+      state: "resolved",
+      challenge: makeChallenge("resolved", target),
+      challenger: makeCharacterSummary("Автор Виклику", { level: 9 }),
+      target: makeCharacterSummary("Ціль Виклику", { level: 3 }),
+      result: {
+        outcome: "target",
+        winnerCharacterId: "character-99",
+        loserCharacterId: "character-42",
+        challengerScore: 7,
+        targetScore: 9,
+        swing: 0,
+        flavorKey: "paperwork-stall"
+      }
+    });
+    const service = serviceWith({
+      getByToken
+    });
+    const { ctx, answerCallbackQuery, editMessageText, reply } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "share", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(getByToken).toHaveBeenCalledWith(TOKEN);
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(editMessageText).not.toHaveBeenCalled();
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(reply.mock.calls[0]?.[0]).toContain("📣 <b>Картка корчемної дуелі</b>");
+    expect(reply.mock.calls[0]?.[0]).toContain("<i>Без XP, золота й манаток.");
+    expect(reply.mock.calls[0]?.[1]).toEqual({ parse_mode: "HTML" });
   });
 
   it("replays expired cards as terminal result cards", async () => {
@@ -394,14 +627,23 @@ function createCallbackContext(userId: number): {
   return { ctx, answerCallbackQuery, editMessageText, reply };
 }
 
-function createPresence(markAction: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(undefined)): PresenceService {
+function createPresence(
+  markAction: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(undefined),
+  place: {
+    locationId: string;
+    locationName: string;
+    insideKorchma: boolean;
+  } = {
+    locationId: "location.korchma.fighting_corner",
+    locationName: "Бійцівський куток",
+    insideKorchma: true
+  }
+): PresenceService {
   return {
     markAction,
     getCurrentPlaceForTelegramUser: vi.fn().mockResolvedValue({
       state: "ready",
-      locationId: "location.korchma.fighting_corner",
-      locationName: "Бійцівський куток",
-      insideKorchma: true
+      ...place
     })
   } as unknown as PresenceService;
 }

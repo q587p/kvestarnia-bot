@@ -58,6 +58,12 @@ export interface DuelChallengeRepository {
     input: CreateDuelChallengeInput
   ): Promise<DuelChallengeRecord | null>;
 
+  createTargetedForTelegramUser(
+    telegramUserId: bigint,
+    targetCharacterId: string,
+    input: CreateDuelChallengeInput
+  ): Promise<DuelChallengeRecord | null>;
+
   findByToken(inviteToken: string): Promise<DuelChallengeRecord | null>;
 
   findCharacterByTelegramUser(
@@ -84,6 +90,12 @@ export interface DuelChallengeRepository {
     now: Date,
     result: DuelResultPayload
   ): Promise<DuelChallengeRecord | null>;
+
+  countResolvedBetweenCharacterPairSince(
+    characterAId: string,
+    characterBId: string,
+    since: Date
+  ): Promise<number>;
 
   listResolvedSince(since: Date): Promise<ResolvedDuelChallengeRecord[]>;
 }

@@ -4,9 +4,12 @@ import type {
   DuelChallengeView,
   DuelCreateResult,
   DuelDeclineResult,
+  DuelPairLimit,
+  DuelRematchResult,
   DuelResourceWarning
 } from "../../services/duelChallengeService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import { pickDuelDrawFlavor, pickDuelResultFlavor } from "../../content/duelResultFlavor";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export function presentDuelEntry(): string {
@@ -19,8 +22,13 @@ export function presentDuelEntry(): string {
   ].join("\n");
 }
 
+export function presentDuelKorchmaGate(): string {
+  return "Дружні виклики кидають у Бійцівському кутку Корчми. Зайдіть усередину, і Корчмар знайде чистий рядок у протоколі.";
+}
+
 export interface DuelPresenterOptions {
   inviteUrl?: string | null;
+  replayNotice?: boolean;
 }
 
 export function presentDuelCreate(result: DuelCreateResult, options: DuelPresenterOptions = {}): string {
@@ -52,13 +60,42 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
     return presentDuelLevelGate(result.character, result.minLevel);
   }
 
+  if (result.state === "pair-limited") {
+    return presentDuelPairLimit(result);
+  }
+
   if (result.state === "self-challenge") {
     return [
       "🥊 <b>Самодуель відхилено</b>",
       presentCharacterHeader(result.challenger),
       "",
       "Корчмар дозволяє внутрішні конфлікти, але не записує їх як соціяльний бій.",
-      "Для цього вже є Сумлінний Допельґанґер."
+      "Для цього вже є Сумлінний Допельґанґер.",
+      "",
+      "Перешліть це повідомлення іншому пригоднику. Корчмару для дуелі потрібні дві різні чашки й одна спільна згода."
+    ].join("\n");
+  }
+
+  if (result.state === "not-target") {
+    return [
+      "🥊 <b>Адресний реванш</b>",
+      presentDuelParticipant("Запрошує", result.challenger),
+      presentDuelParticipant("Чекає", result.target),
+      "",
+      "Цей виклик підписаний під конкретного пригодника. Корчмар не дає забирати чужу драму зі столу."
+    ].join("\n");
+  }
+
+  if (result.state === "confirmation") {
+    return [
+      "🥊 <b>Прийняти виклик?</b>",
+      "",
+      presentDuelParticipantWithItalicTitle("Запрошує", result.challenger),
+      presentDuelParticipantWithItalicTitle("Ви", result.target),
+      "",
+      `${presentDuelFlavorName(result.challenger)} виходить проти вас у безпечному корчемному порядку.`,
+      "",
+      "Корчмар тримає перо над протоколом і питає: приймаємо?"
     ].join("\n");
   }
 
@@ -74,6 +111,10 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
       "",
       "Можна прийняти все одно. Корчмар тільки просить не казати потім, що кухоль не попереджав."
     ].join("\n");
+  }
+
+  if (result.state === "resolved") {
+    return presentResolvedDuel(result, { replayNotice: false });
   }
 
   return presentDuelView(result);
@@ -117,6 +158,60 @@ export function presentDuelDecline(result: DuelDeclineResult): string {
   }
 
   return presentDuelView(result);
+}
+
+export function presentDuelRematch(
+  result: DuelRematchResult,
+  options: DuelPresenterOptions = {}
+): string {
+  if (result.state === "no-character") {
+    return presentDuelNoCharacterInvite();
+  }
+
+  if (result.state === "not-found") {
+    return "Запис дуелі не знайшовся. Можливо, Корчмар уже використав його як підставку під кухоль.";
+  }
+
+  if (result.state === "not-resolved") {
+    return [
+      "🔁 <b>Реванш ще не готовий</b>",
+      presentDuelParticipant("Запрошував", result.challenger),
+      "",
+      "Реванш можна кинути тільки після збереженого результату. Спершу треба, щоб хтось чесно натиснув «Прийняти»."
+    ].join("\n");
+  }
+
+  if (result.state === "not-participant") {
+    return [
+      "🔁 <b>Чужий реванш</b>",
+      "",
+      "Реванш можуть кинути тільки учасники цієї дуелі. Підглядати можна, привласнювати образу — ні."
+    ].join("\n");
+  }
+
+  if (result.state === "level-gated") {
+    return presentDuelLevelGate(result.character, result.minLevel);
+  }
+
+  if (result.state === "pair-limited") {
+    return presentDuelPairLimit(result);
+  }
+
+  if (result.state === "resource-warning") {
+    return [
+      "🔁 <b>Кинути реванш зараз?</b>",
+      presentDuelParticipant("Було", result.original.challenger),
+      presentDuelParticipant("Проти", result.original.target),
+      "",
+      "Реванш готовий, але ваш пригодник не зовсім віддихався.",
+      "",
+      presentResourceWarning(result.warning),
+      "",
+      "Можна кинути реванш усе одно. Корчмар лише занотує, що ви самі попросили драму з недосипом."
+    ].join("\n");
+  }
+
+  return presentPendingDuel(result, options);
 }
 
 export function presentDuelView(result: DuelChallengeView, options: DuelPresenterOptions = {}): string {
@@ -186,7 +281,43 @@ export function presentDuelInviteShare(character: CharacterSummary, inviteUrl: s
   ].join("\n");
 }
 
-function presentResolvedDuel(result: Extract<DuelChallengeView, { state: "resolved" }>): string {
+export function presentDuelResultShare(result: Extract<DuelChallengeView, { state: "resolved" }>): string {
+  const winner =
+    result.result.outcome === "draw"
+      ? null
+      : result.result.outcome === "challenger"
+        ? result.challenger
+        : result.target;
+  const loser =
+    result.result.outcome === "draw"
+      ? null
+      : result.result.outcome === "challenger"
+        ? result.target
+        : result.challenger;
+  const headline = winner
+    ? `🏁 <b>${escapeHtml(winner.name)}</b> переміг у корчемній дуелі`
+    : "🏁 <b>Корчемна нічия</b>";
+  const line = winner && loser
+    ? presentDuelFlavor(result.result, winner, loser)
+    : presentDuelDrawFlavor(result.result, result.challenger, result.target);
+
+  return [
+    "📣 <b>Картка корчемної дуелі</b>",
+    "",
+    `${presentDuelParticipantInline(result.challenger)} ⚔️ ${presentDuelParticipantInline(result.target)}`,
+    "",
+    line,
+    "",
+    headline,
+    "",
+    "<i>Без XP, золота й манаток. Тільки слава, кухоль і трохи підозрілий запис у журналі.</i>"
+  ].join("\n");
+}
+
+function presentResolvedDuel(
+  result: Extract<DuelChallengeView, { state: "resolved" }>,
+  options: Pick<DuelPresenterOptions, "replayNotice"> = {}
+): string {
   const winner =
     result.result.outcome === "draw"
       ? null
@@ -203,13 +334,11 @@ function presentResolvedDuel(result: Extract<DuelChallengeView, { state: "resolv
     ? `🏁 <b>${escapeHtml(winner.name)}</b> перемагає у корчемному виклику`
     : "🏁 <b>Корчемна нічия</b>";
   const line = winner && loser
-    ? presentDuelFlavor(result.result.flavorKey, winner, loser)
-    : "Обидва пригодники зробили щось настільки переконливе, що Корчмар записав: «перевірити правила пізніше»";
+    ? presentDuelFlavor(result.result, winner, loser)
+    : presentDuelDrawFlavor(result.result, result.challenger, result.target);
 
-  return [
+  const lines = [
     "🥊 <b>Результат виклику</b>",
-    "",
-    "Це збережений результат цього виклику. Повторний перехід за посиланням покаже його знову, а не почне нову дуель.",
     "",
     `${presentDuelParticipantInline(result.challenger)} ⚔️ ${presentDuelParticipantInline(result.target)}`,
     "",
@@ -220,11 +349,21 @@ function presentResolvedDuel(result: Extract<DuelChallengeView, { state: "resolv
     headline,
     "",
     "<i>Без XP, золота й манаток. Це корчемний запис для слави, не фарм.</i>"
-  ].join("\n");
+  ];
+
+  if (options.replayNotice !== false) {
+    lines.push("", "<i>Запис збережено: це той самий результат, без повторного кидка.</i>");
+  }
+
+  return lines.join("\n");
 }
 
 function presentDuelParticipant(label: string, character: CharacterSummary): string {
   return `${label}: <b>${escapeHtml(character.name)}</b> · ${escapeHtml(character.title)} · ${presentCharacterLevel(character)}`;
+}
+
+function presentDuelParticipantWithItalicTitle(label: string, character: CharacterSummary): string {
+  return `${label}: <b>${escapeHtml(character.name)}</b> · <i>${escapeHtml(character.title)}</i> · ${presentCharacterLevel(character)}`;
 }
 
 function presentDuelParticipantInline(character: CharacterSummary): string {
@@ -244,6 +383,21 @@ function presentDuelLevelGate(character: CharacterSummary, minLevel: number): st
     "",
     `Корчмар допускає до дружніх викликів із <b>${minLevel} рівня</b>.`,
     "До того краще потренуватися на шаурмі, льохові й власній самовпевненості."
+  ].join("\n");
+}
+
+function presentDuelPairLimit(result: DuelPairLimit): string {
+  return [
+    "🥊 <b>Ця пара вже нагримілася</b>",
+    "",
+    presentDuelParticipantWithItalicTitle("Перший кухоль", result.challenger),
+    presentDuelParticipantWithItalicTitle("Другий кухоль", result.target),
+    "",
+    `Корчмар кладе крейду впоперек столу: у цієї пари вже <b>${result.count}</b> ${pluralDuel(result.count)} за поточний корчемний відтинок.`,
+    "",
+    `Новий рядок для них відкриється о <b>${formatHourMinute(result.resetAt)}</b>.`,
+    "",
+    "Порада Корчмаря: запросіть когось іншого, поки ця образа охолоджується."
   ].join("\n");
 }
 
@@ -282,23 +436,35 @@ function presentResourceWarning(warning: { hpBelowMax: boolean; manaBelowMax: bo
   return "Попередження: мана не повна.";
 }
 
-function presentDuelFlavor(key: string, winner: CharacterSummary, loser: CharacterSummary): string {
+function presentDuelFlavor(
+  result: Extract<DuelChallengeView, { state: "resolved" }>["result"],
+  winner: CharacterSummary,
+  loser: CharacterSummary
+): string {
   const winnerName = presentDuelFlavorName(winner);
   const loserName = presentDuelFlavorName(loser);
 
-  if (key === "lucky-upset") {
-    return `${winnerName} перемагає не тому, що так мало бути, а тому що удача теж любить сидіти біля стійки. ${loserName} просить переглянути кухоль як доказ.`;
-  }
+  return pickDuelResultFlavor({
+    result,
+    winner,
+    loser,
+    winnerName,
+    loserName
+  });
+}
 
-  if (key === "paperwork-stall") {
-    return `${winnerName} зупиняє сутичку папірцем такого вигляду, що ${loserName} на мить визнає силу документа.`;
-  }
-
-  if (key === "clever-trick") {
-    return `${winnerName} виграє трюком, жестом і виразом обличчя «це було за планом». ${loserName} не певен, але Корчмар уже записав.`;
-  }
-
-  return `${winnerName} проходить прямо крізь план суперника. ${loserName} лишається при честі, але без головного рядка в протоколі.`;
+function presentDuelDrawFlavor(
+  result: Extract<DuelChallengeView, { state: "resolved" }>["result"],
+  challenger: CharacterSummary,
+  target: CharacterSummary
+): string {
+  return pickDuelDrawFlavor({
+    result,
+    challenger,
+    target,
+    challengerName: presentDuelFlavorName(challenger),
+    targetName: presentDuelFlavorName(target)
+  });
 }
 
 function presentDuelFlavorName(character: CharacterSummary): string {
@@ -319,4 +485,26 @@ function formatRemaining(expiresAt: Date, now: Date): string {
   }
 
   return `${minutes} хв ${seconds} с`;
+}
+
+function formatHourMinute(date: Date): string {
+  return `${date.getUTCHours().toString().padStart(2, "0")}:${date
+    .getUTCMinutes()
+    .toString()
+    .padStart(2, "0")}`;
+}
+
+function pluralDuel(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return "дуель";
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return "дуелі";
+  }
+
+  return "дуелей";
 }

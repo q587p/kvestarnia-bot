@@ -527,26 +527,36 @@ function presentDuelLeaderboardSection(
 }
 
 function presentDuelLeaderboardEntry(entry: DuelLeaderboardEntry, rank: number): string {
-  return `${rank}. ${escapeHtml(entry.name)} — ${entry.winCount} ${presentDuelWinCount(entry.winCount)}`;
+  return [
+    `${rank}. ${escapeHtml(entry.name)} — `,
+    `${entry.winCount} ${presentUkrainianCount(entry.winCount, "перемога", "перемоги", "перемог")}`,
+    `, ${entry.drawCount} ${presentUkrainianCount(entry.drawCount, "нічия", "нічиї", "нічиїх")}`,
+    `, ${entry.lossCount} ${presentUkrainianCount(entry.lossCount, "поразка", "поразки", "поразок")}`
+  ].join("");
 }
 
-function presentDuelWinCount(count: number): string {
+function presentUkrainianCount(
+  count: number,
+  one: string,
+  few: string,
+  many: string
+): string {
   const lastTwo = count % 100;
   const last = count % 10;
 
   if (lastTwo >= 11 && lastTwo <= 14) {
-    return "перемог";
+    return many;
   }
 
   if (last === 1) {
-    return "перемога";
+    return one;
   }
 
   if (last >= 2 && last <= 4) {
-    return "перемоги";
+    return few;
   }
 
-  return "перемог";
+  return many;
 }
 
 function presentLeaderboardSection(

@@ -40,7 +40,15 @@ import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import {
   MIMIC_SHAWARMA_ADVENTURE_KEY,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
-  PERSISTENT_SOLO_FIGHT_REWARD_KEY
+  PERSISTENT_SOLO_FIGHT_REWARD_KEY,
+  PROBLEM_QUEST_13_ISSUED_KEY,
+  PROBLEM_QUEST_13_REWARD_KEY,
+  PROBLEM_QUEST_23_ISSUED_KEY,
+  PROBLEM_QUEST_23_REWARD_KEY,
+  PROBLEM_QUEST_42_ISSUED_KEY,
+  PROBLEM_QUEST_42_REWARD_KEY,
+  PROBLEM_QUEST_93_ISSUED_KEY,
+  PROBLEM_QUEST_93_REWARD_KEY
 } from "./dailyActionKeys";
 import {
   isTrainingDoppelgangerMonsterId,
@@ -80,7 +88,7 @@ export const MIMIC_SHAWARMA_COMBAT_REWARDS = {
   }
 } satisfies Record<FightAction, { xp: number; gold: number }>;
 
-export const THIRTEEN_SMALL_PROBLEMS_QUEST_KEY = "quest.thirteen-small-problems";
+export const THIRTEEN_SMALL_PROBLEMS_QUEST_KEY = PROBLEM_QUEST_13_REWARD_KEY;
 export const THIRTEEN_SMALL_PROBLEMS_QUEST_BUCKET = "once";
 export const THIRTEEN_SMALL_PROBLEMS_TARGET_WINS = 13;
 export const THIRTEEN_SMALL_PROBLEMS_REWARD = {
@@ -113,8 +121,8 @@ export const PROBLEM_QUEST_STAGES: ProblemQuestStage[] = [
       ...THIRTEEN_SMALL_PROBLEMS_REWARD,
       itemId: BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID
     },
-    issueKey: "quest.problem-chain.13.issued",
-    rewardKey: THIRTEEN_SMALL_PROBLEMS_QUEST_KEY,
+    issueKey: PROBLEM_QUEST_13_ISSUED_KEY,
+    rewardKey: PROBLEM_QUEST_13_REWARD_KEY,
     nextStageId: "23"
   },
   {
@@ -126,8 +134,8 @@ export const PROBLEM_QUEST_STAGES: ProblemQuestStage[] = [
       gold: 18,
       itemId: APOPHENIA_RECEIPT_OF_TWENTY_THREE_ITEM_ID
     },
-    issueKey: "quest.problem-chain.23.issued",
-    rewardKey: "quest.problem-chain.23.reward",
+    issueKey: PROBLEM_QUEST_23_ISSUED_KEY,
+    rewardKey: PROBLEM_QUEST_23_REWARD_KEY,
     nextStageId: "42"
   },
   {
@@ -139,8 +147,8 @@ export const PROBLEM_QUEST_STAGES: ProblemQuestStage[] = [
       gold: 30,
       itemId: TOWEL_OF_FORTY_TWO_ANSWERS_ITEM_ID
     },
-    issueKey: "quest.problem-chain.42.issued",
-    rewardKey: "quest.problem-chain.42.reward",
+    issueKey: PROBLEM_QUEST_42_ISSUED_KEY,
+    rewardKey: PROBLEM_QUEST_42_REWARD_KEY,
     nextStageId: "93"
   },
   {
@@ -152,8 +160,8 @@ export const PROBLEM_QUEST_STAGES: ProblemQuestStage[] = [
       gold: 45,
       itemId: POSTER_OF_NINETY_THREE_PROBLEM_WILLS_ITEM_ID
     },
-    issueKey: "quest.problem-chain.93.issued",
-    rewardKey: "quest.problem-chain.93.reward",
+    issueKey: PROBLEM_QUEST_93_ISSUED_KEY,
+    rewardKey: PROBLEM_QUEST_93_REWARD_KEY,
     nextStageId: null
   }
 ];

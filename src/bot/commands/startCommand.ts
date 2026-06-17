@@ -2,7 +2,12 @@ import type { Bot } from "grammy";
 import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { OnboardingService } from "../../services/onboardingService";
 import { playerFromContext } from "../context";
-import { buildDuelChallengeKeyboard, buildDuelResourceWarningKeyboard, buildDuelResultKeyboard } from "../keyboards/duelKeyboard";
+import {
+  buildDuelAcceptConfirmationKeyboard,
+  buildDuelChallengeKeyboard,
+  buildDuelResourceWarningKeyboard,
+  buildDuelResultKeyboard
+} from "../keyboards/duelKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { buildGenderKeyboard } from "../keyboards/onboardingKeyboard";
 import { presentDuelAccept, presentDuelView } from "../presenters/duelPresenter";
@@ -66,11 +71,21 @@ export function registerStartCommand(
         return;
       }
 
+      if (result.state === "confirmation") {
+        await ctx.reply(presentDuelAccept(result), {
+          parse_mode: "HTML",
+          reply_markup: buildDuelAcceptConfirmationKeyboard(result.challenge.inviteToken)
+        });
+        return;
+      }
+
       await ctx.reply(
         result.state === "not-found" ? "Виклик не знайшовся." : presentDuelAccept(result),
         {
           parse_mode: "HTML",
-          reply_markup: buildDuelResultKeyboard()
+          reply_markup: buildDuelResultKeyboard(
+            result.state === "resolved" ? result.challenge.inviteToken : undefined
+          )
         }
       );
       return;

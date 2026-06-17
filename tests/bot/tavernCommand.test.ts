@@ -199,7 +199,7 @@ describe("tavern command screens", () => {
       {
         getLeaderboard: () =>
           Promise.resolve({
-            day: [{ characterId: "character-1", name: "Дара", winCount: 2 }],
+            day: [{ characterId: "character-1", name: "Дара", winCount: 2, drawCount: 1, lossCount: 5 }],
             week: [],
             month: []
           })
@@ -208,7 +208,7 @@ describe("tavern command screens", () => {
     );
 
     expect(replies[0]?.text).toContain("🏆 Переможці дуелей");
-    expect(replies[0]?.text).toContain("1. Дара — 2 перемоги");
+    expect(replies[0]?.text).toContain("1. Дара — 2 перемоги, 1 нічия, 5 поразок");
     expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("duel-winners"));
   });
 

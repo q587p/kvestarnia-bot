@@ -6,6 +6,9 @@ import {
   makeDuelDeclineCallbackData,
   makeDuelNewCallbackData,
   makeDuelNewRiskCallbackData,
+  makeDuelRematchCallbackData,
+  makeDuelRematchRiskCallbackData,
+  makeDuelShareCallbackData,
   makeDuelViewCallbackData,
   parseDuelCallbackData
 } from "../../src/bot/callbacks/duelCallbackData";
@@ -35,6 +38,18 @@ describe("duel callback data", () => {
     expect(parseDuelCallbackData(makeDuelDeclineCallbackData("abc_DEF12"))).toEqual({
       ok: true,
       value: { type: "decline", token: "abc_DEF12" }
+    });
+    expect(parseDuelCallbackData(makeDuelRematchCallbackData("abc_DEF12"))).toEqual({
+      ok: true,
+      value: { type: "rematch", token: "abc_DEF12" }
+    });
+    expect(parseDuelCallbackData(makeDuelRematchRiskCallbackData("abc_DEF12"))).toEqual({
+      ok: true,
+      value: { type: "rematch-risk", token: "abc_DEF12" }
+    });
+    expect(parseDuelCallbackData(makeDuelShareCallbackData("abc_DEF12"))).toEqual({
+      ok: true,
+      value: { type: "share", token: "abc_DEF12" }
     });
     expect(parseDuelCallbackData(makeDuelViewCallbackData("abc_DEF12"))).toEqual({
       ok: true,

@@ -9,10 +9,12 @@ import {
 } from "../../services/presenceService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
+  buildDuelAcceptConfirmationKeyboard,
   buildDuelChallengeKeyboard,
   buildDuelCreateResourceWarningKeyboard,
   buildDuelEntryKeyboard,
   buildDuelNavigationKeyboard,
+  buildDuelRematchResourceWarningKeyboard,
   buildDuelResourceWarningKeyboard,
   buildDuelResultKeyboard
 } from "../keyboards/duelKeyboard";
@@ -24,9 +26,11 @@ import {
   presentDuelDecline,
   presentDuelInviteShare,
   presentDuelEntry,
+  presentDuelKorchmaGate,
+  presentDuelRematch,
+  presentDuelResultShare,
   presentDuelView
 } from "../presenters/duelPresenter";
-import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
@@ -81,7 +85,7 @@ export async function sendDuelEntry(
     }
 
     if (!place.insideKorchma) {
-      await sendText(ctx, mode, presentKorchmaQuestGate(), "enter-korchma");
+      await sendText(ctx, mode, presentDuelKorchmaGate(), "enter-korchma");
       return;
     }
   }
@@ -129,7 +133,7 @@ export async function handleDuelCallback(
 
     if (!place.insideKorchma) {
       await answerCallback();
-      await sendText(ctx, "edit", presentKorchmaQuestGate(), "enter-korchma");
+      await sendText(ctx, "edit", presentDuelKorchmaGate(), "enter-korchma");
       return;
     }
 
@@ -162,12 +166,20 @@ export async function handleDuelCallback(
 
   if (callback.type === "accept" || callback.type === "accept-risk") {
     const result = await service.acceptForTelegramUser(telegramUserId, callback.token, {
+      confirmed: callback.type === "accept-risk",
       ignoreResourceWarning: callback.type === "accept-risk"
     });
 
     if (result.state === "self-challenge") {
       await answerCallback({
         text: "Самодуель не записуємо. Виклик лишається відкритим; для внутрішніх конфліктів є Допельґанґер."
+      });
+      return;
+    }
+
+    if (result.state === "not-target") {
+      await answerCallback({
+        text: "Це адресний реванш. Корчмар чекає саме того пригодника, чиє імʼя в записі."
       });
       return;
     }
@@ -182,9 +194,13 @@ export async function handleDuelCallback(
         ? { state: "pending", result }
         : result.state === "resource-warning"
           ? { state: "resource-warning", token: result.challenge.inviteToken }
-          : result.state === "level-gated"
-            ? "navigation"
-          : "result"
+          : result.state === "confirmation"
+            ? { state: "accept-confirmation", token: result.challenge.inviteToken }
+            : result.state === "level-gated"
+              ? "navigation"
+              : result.state === "resolved"
+                ? { state: "result", token: result.challenge.inviteToken }
+                : "result"
     );
     return;
   }
@@ -225,6 +241,56 @@ export async function handleDuelCallback(
     return;
   }
 
+  if (callback.type === "rematch" || callback.type === "rematch-risk") {
+    const result = await service.createRematchForTelegramUser(telegramUserId, callback.token, {
+      contextChatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
+      ignoreResourceWarning: callback.type === "rematch-risk"
+    });
+
+    if (result.state === "not-participant") {
+      await answerCallback({ text: "Реванш можуть кинути тільки учасники цієї дуелі." });
+      return;
+    }
+
+    const inviteUrl = getInviteUrl(options.botUsername, result);
+
+    if (result.state === "pending") {
+      await markDuelPresence(ctx, options.presence);
+    }
+
+    await answerCallback();
+    await sendText(
+      ctx,
+      "edit",
+      presentDuelRematch(result, { inviteUrl }),
+      result.state === "pending"
+        ? { state: "pending", result }
+        : result.state === "resource-warning"
+          ? { state: "rematch-resource-warning", token: callback.token }
+          : result.state === "level-gated"
+            ? "navigation"
+            : "result"
+    );
+
+    if (result.state === "pending" && inviteUrl) {
+      await ctx.reply(presentDuelInviteShare(result.challenger, inviteUrl), HTML_MESSAGE_OPTIONS);
+    }
+    return;
+  }
+
+  if (callback.type === "share") {
+    const result = await service.getByToken(callback.token);
+
+    if (result.state !== "resolved") {
+      await answerCallback({ text: "Картка доступна тільки для збереженого результату." });
+      return;
+    }
+
+    await answerCallback();
+    await ctx.reply(presentDuelResultShare(result), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
   const result = await service.getByToken(callback.token);
   await answerCallback();
   await sendText(
@@ -233,7 +299,11 @@ export async function handleDuelCallback(
     result.state === "not-found"
       ? "Виклик не знайшовся."
       : presentDuelView(result, { inviteUrl: getInviteUrl(options.botUsername, result) }),
-    result.state === "pending" ? { state: "pending", result } : "result"
+    result.state === "pending"
+      ? { state: "pending", result }
+      : result.state === "resolved"
+        ? { state: "result", token: result.challenge.inviteToken }
+        : "result"
   );
 }
 
@@ -262,7 +332,10 @@ async function sendText(
     | "create-resource-warning"
     | "navigation"
     | "result"
+    | { state: "accept-confirmation"; token: string }
     | { state: "resource-warning"; token: string }
+    | { state: "rematch-resource-warning"; token: string }
+    | { state: "result"; token?: string }
     | { state: "pending"; result: Parameters<typeof buildDuelChallengeKeyboard>[0] }
     | false = false
 ): Promise<void> {
@@ -281,9 +354,15 @@ async function sendText(
                   ? buildDuelNavigationKeyboard()
                 : keyboard === "result"
                   ? buildDuelResultKeyboard()
-                  : keyboard.state === "resource-warning"
-                    ? buildDuelResourceWarningKeyboard(keyboard.token)
-                    : buildDuelChallengeKeyboard(keyboard.result)
+                : keyboard.state === "resource-warning"
+                  ? buildDuelResourceWarningKeyboard(keyboard.token)
+                  : keyboard.state === "accept-confirmation"
+                    ? buildDuelAcceptConfirmationKeyboard(keyboard.token)
+                    : keyboard.state === "rematch-resource-warning"
+                      ? buildDuelRematchResourceWarningKeyboard(keyboard.token)
+                      : keyboard.state === "result"
+                        ? buildDuelResultKeyboard(keyboard.token)
+                        : buildDuelChallengeKeyboard(keyboard.result)
         }
       : {})
   };

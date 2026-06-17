@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.11] - 12026-06-18 - Duel Rematch and Shareable Result Cards
+
+### Added
+- Resolved duel result cards now offer `🔁 Реванш` and `📣 Картка`.
+- Rematches create a fresh targeted duel invite between the original participants only, with the same level 3+ and resource-warning gates as ordinary duel invites.
+- Shareable result cards send a separate forwardable Telegram message that reuses the stored duel payload instead of rerolling or mutating the original challenge.
+- Duel result final lines now use a larger stable flavor pool: universal lines plus winner and loser class/race variants.
+- Fresh duel and rematch invites now stay open for 13 minutes, matching Kvestarnia's preferred odd little tavern numbers.
+- Added server-side targeted invite creation for the duel repository and callback coverage for `v1:duel:rematch:{token}`, `v1:duel:rematch-risk:{token}` and `v1:duel:share:{token}`.
+- Added `npm run maintenance:cleanup-remort-daily-actions` as a dry-run-first production cleanup for stale pre-remort starter/problem-chain `daily_actions` rows.
+
+### Fixed
+- Remort confirm now clears the per-life daily-action keys for starter shawarma, starter fights and the Korchmar problem-chain issue/reward rows, so a new life can see the correct early quests again.
+- The cleanup script only matches rows created before the character's latest remort, so legitimate new-life rows created after a deploy are not removed.
+
+### Guardrails
+- Duel rematches remain opt-in, rewardless, replay-safe and level 3+; no XP, gold, manatky, rating points, wagers, item loss, quest progress, tournaments or automatic rematch spam were added.
+- Targeted rematch accepts are checked server-side: bystanders cannot take over a rematch meant for another participant.
+- Shareable result cards are presentation-only and do not notify the other participant or create extra duel ledger rows.
+
 ## [0.1.10] - 12026-06-18 - First Duel Invite Ledger and Gear Slot Context
 
 ### Added

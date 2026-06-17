@@ -12,7 +12,9 @@ import { systemClock, type Clock } from "../shared/time";
 import { getEquippedItemContents } from "./equipmentService";
 
 export const DUEL_INVITE_MIN_LEVEL = 3;
-const DUEL_INVITE_TTL_MS = 15 * 60 * 1000;
+const DUEL_INVITE_TTL_MS = 13 * 60 * 1000;
+const DUEL_PAIR_HOURLY_LIMIT = 3;
+const DUEL_PAIR_RESET_MINUTE = 23;
 const DUEL_LEADERBOARD_LIMIT = 5;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -21,10 +23,20 @@ export interface DuelResourceWarning {
   manaBelowMax: boolean;
 }
 
+export interface DuelPairLimit {
+  challenger: CharacterSummary;
+  target: CharacterSummary;
+  limit: number;
+  count: number;
+  resetAt: Date;
+}
+
 export interface DuelLeaderboardEntry {
   characterId: string;
   name: string;
   winCount: number;
+  drawCount: number;
+  lossCount: number;
 }
 
 export interface DuelLeaderboard {
@@ -61,11 +73,39 @@ export type DuelCreateResult =
   | { state: "resource-warning"; character: CharacterSummary; warning: DuelResourceWarning }
   | Extract<DuelChallengeView, { state: "pending" }>;
 
+export type DuelRematchResult =
+  | { state: "no-character" }
+  | { state: "not-found" }
+  | { state: "not-resolved"; challenge: DuelChallengeRecord; challenger: CharacterSummary }
+  | { state: "not-participant"; challenge: DuelChallengeRecord; challenger: CharacterSummary }
+  | { state: "level-gated"; character: CharacterSummary; minLevel: number }
+  | ({ state: "pair-limited"; challenge: DuelChallengeRecord } & DuelPairLimit)
+  | {
+      state: "resource-warning";
+      character: CharacterSummary;
+      warning: DuelResourceWarning;
+      original: Extract<DuelChallengeView, { state: "resolved" }>;
+    }
+  | Extract<DuelChallengeView, { state: "pending" }>;
+
 export type DuelAcceptResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | { state: "self-challenge"; challenge: DuelChallengeRecord; challenger: CharacterSummary }
+  | {
+      state: "not-target";
+      challenge: DuelChallengeRecord;
+      challenger: CharacterSummary;
+      target: CharacterSummary;
+    }
   | { state: "level-gated"; character: CharacterSummary; minLevel: number }
+  | ({ state: "pair-limited"; challenge: DuelChallengeRecord } & DuelPairLimit)
+  | {
+      state: "confirmation";
+      challenge: DuelChallengeRecord;
+      challenger: CharacterSummary;
+      target: CharacterSummary;
+    }
   | {
       state: "resource-warning";
       challenge: DuelChallengeRecord;
@@ -145,10 +185,108 @@ export class DuelChallengeService {
     };
   }
 
+  async createRematchForTelegramUser(
+    telegramUserId: bigint,
+    inviteToken: string,
+    input: { contextChatId?: bigint | null; ignoreResourceWarning?: boolean } = {}
+  ): Promise<DuelRematchResult> {
+    const now = this.clock();
+    const original = await this.getFreshChallenge(inviteToken, now);
+
+    if (!original) {
+      return { state: "not-found" };
+    }
+
+    const challenger = summarizeDuelCharacter(original.challenger);
+
+    if (original.status !== "resolved" || !original.target || !original.result) {
+      return { state: "not-resolved", challenge: original, challenger };
+    }
+
+    const currentCharacter = await this.challenges.findCharacterByTelegramUser(telegramUserId);
+
+    if (!currentCharacter) {
+      return { state: "no-character" };
+    }
+
+    const rematchTarget =
+      currentCharacter.id === original.challengerCharacterId
+        ? original.target
+        : currentCharacter.id === original.targetCharacterId
+          ? original.challenger
+          : null;
+
+    if (!rematchTarget) {
+      return { state: "not-participant", challenge: original, challenger };
+    }
+
+    const current = summarizeDuelCharacter(currentCharacter);
+
+    if (current.level < DUEL_INVITE_MIN_LEVEL) {
+      return {
+        state: "level-gated",
+        character: current,
+        minLevel: DUEL_INVITE_MIN_LEVEL
+      };
+    }
+
+    const originalView = this.viewChallenge(original, now);
+
+    if (originalView.state !== "resolved") {
+      return { state: "not-resolved", challenge: original, challenger };
+    }
+
+    const pairLimit = await this.getPairLimit(currentCharacter.id, rematchTarget.id, now);
+
+    if (pairLimit) {
+      return {
+        state: "pair-limited",
+        challenge: original,
+        challenger: current,
+        target: summarizeDuelCharacter(rematchTarget),
+        ...pairLimit
+      };
+    }
+
+    const warning = getResourceWarning(current);
+
+    if (warning && input.ignoreResourceWarning !== true) {
+      return {
+        state: "resource-warning",
+        character: current,
+        warning,
+        original: originalView
+      };
+    }
+
+    const challenge = await this.challenges.createTargetedForTelegramUser(
+      telegramUserId,
+      rematchTarget.id,
+      {
+        inviteToken: createInviteToken(),
+        contextChatId: input.contextChatId ?? null,
+        expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
+      }
+    );
+
+    if (!challenge) {
+      return { state: "not-found" };
+    }
+
+    return {
+      state: "pending",
+      challenge,
+      challenger: current,
+      challengerResourceWarning: warning,
+      expiresAt: challenge.expiresAt,
+      now
+    };
+  }
+
   async acceptForTelegramUser(
     telegramUserId: bigint,
     inviteToken: string,
-    options: { ignoreResourceWarning?: boolean } = {}
+    options: { confirmed?: boolean; ignoreResourceWarning?: boolean } = {}
   ): Promise<DuelAcceptResult> {
     const now = this.clock();
     const challenge = await this.getFreshChallenge(inviteToken, now);
@@ -159,12 +297,25 @@ export class DuelChallengeService {
 
     const challenger = summarizeDuelCharacter(challenge.challenger);
 
+    if (challenge.status !== "pending") {
+      return this.viewChallenge(challenge, now);
+    }
+
     if (challenge.challenger.telegramUserId === telegramUserId) {
       return { state: "self-challenge", challenge, challenger };
     }
 
-    if (challenge.status !== "pending") {
-      return this.viewChallenge(challenge, now);
+    if (
+      challenge.target &&
+      challenge.targetCharacterId &&
+      challenge.target.telegramUserId !== telegramUserId
+    ) {
+      return {
+        state: "not-target",
+        challenge,
+        challenger,
+        target: summarizeDuelCharacter(challenge.target)
+      };
     }
 
     const targetCharacter = await this.challenges.findCharacterByTelegramUser(telegramUserId);
@@ -183,6 +334,18 @@ export class DuelChallengeService {
       };
     }
 
+    const pairLimit = await this.getPairLimit(challenge.challenger.id, targetCharacter.id, now);
+
+    if (pairLimit) {
+      return {
+        state: "pair-limited",
+        challenge,
+        challenger,
+        target: currentTarget,
+        ...pairLimit
+      };
+    }
+
     const warning = getResourceWarning(currentTarget);
 
     if (warning && options.ignoreResourceWarning !== true) {
@@ -192,6 +355,15 @@ export class DuelChallengeService {
         challenger,
         target: currentTarget,
         warning
+      };
+    }
+
+    if (options.confirmed !== true) {
+      return {
+        state: "confirmation",
+        challenge,
+        challenger,
+        target: currentTarget
       };
     }
 
@@ -300,6 +472,27 @@ export class DuelChallengeService {
     return challenge;
   }
 
+  private async getPairLimit(
+    characterAId: string,
+    characterBId: string,
+    now: Date
+  ): Promise<Pick<DuelPairLimit, "limit" | "count" | "resetAt"> | null> {
+    const window = getPairLimitWindow(now);
+    const count = await this.challenges.countResolvedBetweenCharacterPairSince(
+      characterAId,
+      characterBId,
+      window.since
+    );
+
+    return count >= DUEL_PAIR_HOURLY_LIMIT
+      ? {
+          limit: DUEL_PAIR_HOURLY_LIMIT,
+          count,
+          resetAt: window.resetAt
+        }
+      : null;
+  }
+
   private viewChallenge(challenge: DuelChallengeRecord, now: Date): DuelChallengeView {
     const challenger = summarizeDuelCharacter(challenge.challenger);
 
@@ -340,44 +533,65 @@ function buildLeaderboard(
   const entries = new Map<string, DuelLeaderboardEntry>();
 
   for (const record of records) {
-    if (record.resolvedAt < since || !record.result.winnerCharacterId) {
+    if (record.resolvedAt < since) {
       continue;
     }
 
-    const winner = getDuelWinner(record);
-    const current = entries.get(record.result.winnerCharacterId);
+    const challenger = getOrCreateLeaderboardEntry(entries, record.challenger);
+    const target = getOrCreateLeaderboardEntry(entries, record.target);
 
-    if (current) {
-      current.winCount += 1;
-      continue;
+    if (record.result.outcome === "draw") {
+      challenger.drawCount += 1;
+      target.drawCount += 1;
+    } else if (record.result.outcome === "challenger") {
+      challenger.winCount += 1;
+      target.lossCount += 1;
+    } else {
+      target.winCount += 1;
+      challenger.lossCount += 1;
     }
-
-    entries.set(record.result.winnerCharacterId, {
-      characterId: record.result.winnerCharacterId,
-      name: winner?.name ?? "Хтось дуже переможний",
-      winCount: 1
-    });
   }
 
   return [...entries.values()]
     .sort((left, right) => {
       const winDiff = right.winCount - left.winCount;
+      const drawDiff = right.drawCount - left.drawCount;
+      const lossDiff = left.lossCount - right.lossCount;
 
-      return winDiff === 0 ? left.name.localeCompare(right.name, "uk") : winDiff;
+      if (winDiff !== 0) {
+        return winDiff;
+      }
+
+      if (drawDiff !== 0) {
+        return drawDiff;
+      }
+
+      return lossDiff === 0 ? left.name.localeCompare(right.name, "uk") : lossDiff;
     })
     .slice(0, DUEL_LEADERBOARD_LIMIT);
 }
 
-function getDuelWinner(record: ResolvedDuelChallengeRecord): DuelCharacterSnapshot | null {
-  if (record.result.winnerCharacterId === record.challenger.id) {
-    return record.challenger;
+function getOrCreateLeaderboardEntry(
+  entries: Map<string, DuelLeaderboardEntry>,
+  character: DuelCharacterSnapshot
+): DuelLeaderboardEntry {
+  const current = entries.get(character.id);
+
+  if (current) {
+    return current;
   }
 
-  if (record.result.winnerCharacterId === record.target.id) {
-    return record.target;
-  }
+  const next = {
+    characterId: character.id,
+    name: character.name,
+    winCount: 0,
+    drawCount: 0,
+    lossCount: 0
+  };
 
-  return null;
+  entries.set(character.id, next);
+
+  return next;
 }
 
 function summarizeDuelCharacter(character: DuelCharacterSnapshot): CharacterSummary {
@@ -388,6 +602,23 @@ function summarizeDuelCharacter(character: DuelCharacterSnapshot): CharacterSumm
 
 function createInviteToken(): string {
   return randomBytes(8).toString("base64url");
+}
+
+function getPairLimitWindow(now: Date): { since: Date; resetAt: Date } {
+  const since = new Date(now);
+
+  since.setUTCSeconds(0, 0);
+
+  if (now.getUTCMinutes() >= DUEL_PAIR_RESET_MINUTE) {
+    since.setUTCMinutes(DUEL_PAIR_RESET_MINUTE, 0, 0);
+  } else {
+    since.setUTCHours(since.getUTCHours() - 1, DUEL_PAIR_RESET_MINUTE, 0, 0);
+  }
+
+  const resetAt = new Date(since);
+  resetAt.setUTCHours(resetAt.getUTCHours() + 1);
+
+  return { since, resetAt };
 }
 
 function getResourceWarning(character: CharacterSummary): DuelResourceWarning | null {
