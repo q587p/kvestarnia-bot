@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.10] - 12026-06-17 - First Duel Invite Ledger and Gear Slot Context
+## [0.1.10] - 12026-06-18 - First Duel Invite Ledger and Gear Slot Context
 
 ### Added
 - Added the first Phase 2 duel invite MVP: `/duel`, `v1:duel:*` callbacks, open invite creation, accept, cancel, decline, expiry and replay-safe quick result cards.
