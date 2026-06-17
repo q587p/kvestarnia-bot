@@ -1,4 +1,4 @@
-# Bestiary Roster V1 — 30 монстрів
+# Bestiary Roster V1 — 31 монстр
 
 Runtime note: since `0.0.18`, `/bestiary` and `/monsters` expose this roster as read-only Telegram field notes. Detail screens may show level, description, a short note, and possible trophy hints, but this is not a full combat runtime, monster collection, or guaranteed loot table.
 
@@ -441,7 +441,20 @@ Tags: `food`, `bread`, `rules`
 
 **Лут:** Поки без підтверджених трофеїв.
 
-## 24. Мапа коридору, яка бреше — `monster.liar-corridor-map`
+## 24. Акт закриття, який не закрився — `monster.unclosed-closure-act`
+
+Level: `6`
+Tags: `paperwork`, `rules`, `bureaucracy`, `unquiet`
+
+**Опис:** Шурхотить правилами й просить ще один підпис після того, як справу вже поховали в архіві.
+
+**Роль у грі:** Чесна Єгерська ціль середнього рівня: службова проблема, яка буквально не прийняла власне закриття.
+
+**Польова нотатка:** Акт лишив скріпку. Вона досі тримає справу відкритою з принципу.
+
+**Лут:** `item.paperclip-of-unfinished-closure`
+
+## 25. Мапа коридору, яка бреше — `monster.liar-corridor-map`
 
 Level: `7`
 Tags: `paper`, `rules`, `trickster`, `unquiet`
@@ -454,7 +467,7 @@ Tags: `paper`, `rules`, `trickster`, `unquiet`
 
 **Лут:** Поки без підтверджених трофеїв.
 
-## 25. Пінний ревізор у чоботях — `monster.foam-auditor-boots`
+## 26. Пінний ревізор у чоботях — `monster.foam-auditor-boots`
 
 Level: `8`
 Tags: `audit`, `queue`, `sound`, `unquiet`
@@ -467,7 +480,7 @@ Tags: `audit`, `queue`, `sound`, `unquiet`
 
 **Лут:** Поки без підтверджених трофеїв.
 
-## 26. Химера трьох підписів — `monster.three-signature-chimera`
+## 27. Химера трьох підписів — `monster.three-signature-chimera`
 
 Level: `9`
 Tags: `bureaucracy`, `construct`, `cursed`
@@ -480,7 +493,7 @@ Tags: `bureaucracy`, `construct`, `cursed`
 
 **Лут:** Поки без підтверджених трофеїв.
 
-## 27. Наглядач сирного сховку — `monster.cheese-vault-warden`
+## 28. Наглядач сирного сховку — `monster.cheese-vault-warden`
 
 Level: `10`
 Tags: `food`, `stone`, `gatekeeper`, `unquiet`
@@ -493,7 +506,7 @@ Tags: `food`, `stone`, `gatekeeper`, `unquiet`
 
 **Лут:** Поки без підтверджених трофеїв.
 
-## 28. Гідра календарних переносів — `monster.calendar-hydra`
+## 29. Гідра календарних переносів — `monster.calendar-hydra`
 
 Level: `11`
 Tags: `time`, `paperwork`, `water`, `unquiet`
@@ -506,7 +519,7 @@ Tags: `time`, `paperwork`, `water`, `unquiet`
 
 **Лут:** Поки без підтверджених трофеїв.
 
-## 29. Пророк інвентарної недостачі — `monster.inventory-prophet`
+## 30. Пророк інвентарної недостачі — `monster.inventory-prophet`
 
 Level: `12`
 Tags: `gold`, `paperwork`, `mind`, `unquiet`
@@ -519,7 +532,7 @@ Tags: `gold`, `paperwork`, `mind`, `unquiet`
 
 **Лут:** Поки без підтверджених трофеїв.
 
-## 30. Писар тихої катастрофи — `monster.quiet-catastrophe-clerk`
+## 31. Писар тихої катастрофи — `monster.quiet-catastrophe-clerk`
 
 Level: `13`
 Tags: `paperwork`, `cursed`, `soft`

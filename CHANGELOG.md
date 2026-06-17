@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added fresh per-stage counting based on the stage issue timestamp: new stages count only won ordinary solo fights created after that stage was issued.
 - Added a separate post-fight problem-chain progress ping after newly won ordinary solo fights, keeping the main combat result short while showing the current stage counter immediately.
 - Extended the post-fight progress ping to combine multiple moved quest counters, including active Yeger unquiet progress when the defeated monster qualifies.
+- Added a level 6 Yeger-eligible ordinary monster, `Акт закриття, який не закрився`, so the unquiet target ladder stays covered without making the salted pretzel count as undead paperwork.
 - Added `docs/PROBLEM_QUEST_CHAIN_REFERENCES.md` to document the safe allusion layer for 13, 23, 42 and 93 without making player news spell out every reward.
 - Added opt-in local `/dev_heal [HP]` for playtesting HP recovery without changing XP, gold or items.
 

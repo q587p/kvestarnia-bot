@@ -123,6 +123,11 @@
 - Loot ids: `item.salt-knot-of-oath`
 - Note: Крендель ламається, але офіційно це називає компромісом.
 
+## Акт закриття, який не закрився — `monster.unclosed-closure-act`
+
+- Loot ids: `item.paperclip-of-unfinished-closure`
+- Note: Акт просить ще один підпис після закриття. Скріпка каже, що це нормально.
+
 ## Мапа коридору, яка бреше — `monster.liar-corridor-map`
 
 - Loot ids: `item.folded-wrong-turn`
@@ -205,6 +210,7 @@ Stable ids in this pack:
 - `item.wick-of-complaint-light`
 - `item.hoofprint-ledger-scrap`
 - `item.salt-knot-of-oath`
+- `item.paperclip-of-unfinished-closure`
 - `item.folded-wrong-turn`
 - `item.foam-stained-checklist`
 - `item.third-signature-scale`

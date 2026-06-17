@@ -226,6 +226,9 @@ export const monsterLoot = {
   "monster.salted-oath-pretzel": [
     "item.salt-knot-of-oath"
   ],
+  "monster.unclosed-closure-act": [
+    "item.paperclip-of-unfinished-closure"
+  ],
   "monster.liar-corridor-map": [
     "item.folded-wrong-turn"
   ],
@@ -1465,6 +1468,18 @@ export const monsterFlavorLines: MonsterFlavorLine[] = [
     "monsterId": "monster.salted-oath-pretzel",
     "placement": "monster.loot-note",
     "text": "Крендель тримає обіцянку тільки поки не проголодніє."
+  },
+  {
+    "id": "monster-flavor.unclosed-closure-act.fallback.start",
+    "monsterId": "monster.unclosed-closure-act",
+    "placement": "monster.start",
+    "text": "Акт закриття, який не закрився, виповзає з архіву й просить підписати, що його тут немає."
+  },
+  {
+    "id": "monster-flavor.unclosed-closure-act.loot-note",
+    "monsterId": "monster.unclosed-closure-act",
+    "placement": "monster.loot-note",
+    "text": "Акт лишив скріпку. Вона досі тримає справу відкритою з принципу."
   },
   {
     "id": "monster-flavor.liar-corridor-map.fallback.start",

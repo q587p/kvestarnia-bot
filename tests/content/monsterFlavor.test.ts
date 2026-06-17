@@ -28,6 +28,7 @@ const ordinaryMonsterLadderIds = [
   "monster.complaint-lantern",
   "monster.ledger-boar",
   "monster.salted-oath-pretzel",
+  "monster.unclosed-closure-act",
   "monster.liar-corridor-map",
   "monster.foam-auditor-boots",
   "monster.three-signature-chimera",
@@ -61,8 +62,8 @@ const legacyMonsterLootIds = [
 ] as const;
 
 describe("monster flavor content", () => {
-  it("keeps the first bestiary at exactly 30 monsters", () => {
-    expect(monsters).toHaveLength(30);
+  it("keeps the first bestiary roster stable", () => {
+    expect(monsters).toHaveLength(31);
     expect(monsters.map((monster) => monster.id)).toContain("monster.mimic-shawarma");
   });
 
@@ -203,7 +204,7 @@ describe("monster flavor content", () => {
       }
     }
 
-    expect(Object.keys(monsterLoot)).toHaveLength(30);
+    expect(Object.keys(monsterLoot)).toHaveLength(31);
   });
 
   it("covers the ordinary monster ladder with at least one loot item each", () => {

@@ -163,6 +163,13 @@ export const monsters = [
     tags: ["food", "bread", "rules"]
   },
   {
+    id: "monster.unclosed-closure-act",
+    name: "Акт закриття, який не закрився",
+    description: "Шурхотить правилами й просить ще один підпис після того, як справу вже поховали в архіві.",
+    level: 6,
+    tags: ["paperwork", "rules", "bureaucracy", "unquiet"]
+  },
+  {
     id: "monster.liar-corridor-map",
     name: "Мапа коридору, яка бреше",
     description: "Показує вихід там, де насправді тільки ще один коридор і трохи сорому.",
