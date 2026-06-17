@@ -117,15 +117,19 @@ function canOpenRemort(input: QuestHubKeyboardInput): boolean {
 }
 
 function getFightButtonLabel(fight: QuestHubKeyboardInput["fight"]): string {
-  return isPersistentFightState(fight.state) ? "🧾 До проблем" : "⚔️ До сутички";
-}
+  if (fight.state === "persistent-active") {
+    return "⚔️ Продовжити бій";
+  }
 
-function isPersistentFightState(state: QuestHubKeyboardInput["fight"]["state"]): boolean {
-  return (
-    state === "persistent-ready" ||
-    state === "persistent-active" ||
-    state === "persistent-terminal"
-  );
+  if (fight.state === "persistent-terminal") {
+    return "📋 До запису бою";
+  }
+
+  if (fight.state === "persistent-ready") {
+    return "⚔️ Розвʼязати проблему";
+  }
+
+  return "⚔️ До сутички";
 }
 
 function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {

@@ -45,10 +45,10 @@ export function buildYegerKeyboard(
     return keyboard
       .text("📖 Бестіарій", makeBestiaryListCallbackData(0))
       .row()
-      .text("⬅️ До столу", makePlaceCallbackData("quest-table"));
+      .text("📋 До справ", makePlaceCallbackData("quest-table"));
   }
 
-  return new InlineKeyboard().text("⬅️ До столу", makePlaceCallbackData("quest-table"));
+  return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
 
 export function buildYegerCornerKeyboard(

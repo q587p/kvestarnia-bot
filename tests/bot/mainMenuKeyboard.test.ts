@@ -279,15 +279,15 @@ describe("main menu and scene keyboards", () => {
       "🌯 Тицьнути шаурму",
       "📋 Попросити чек",
       "🏃 Обережно відступити",
-      "⬅️ До столу"
+      "📋 До справ"
     ];
 
     expect(flatInlineButtonTexts(buildAdventureKeyboard())).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildAdventureResultKeyboard("completed"))).toEqual([
-      "⬅️ До столу"
+      "📋 До справ"
     ]);
     expect(flatInlineButtonTexts(buildAdventureResultKeyboard("already-completed"))).toEqual([
-      "⬅️ До столу"
+      "📋 До справ"
     ]);
     expect(flatInlineButtonTexts(buildAdventureParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
     expect(flatInlineButtonCallbacks(buildAdventureParticipantsKeyboard())).toEqual([
@@ -300,7 +300,7 @@ describe("main menu and scene keyboards", () => {
       "🗝️ Перевірити кишені",
       "📋 Виманити чек",
       "🏃 Зникнути за серветкою",
-      "⬅️ До столу"
+      "📋 До справ"
     ]);
     expect(flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
       "v1:adv:mimic:poke",
@@ -358,13 +358,13 @@ describe("main menu and scene keyboards", () => {
       "🗡️ Вдарити",
       "📋 Збити з пантелику чеком",
       "🏃 Відступити красиво",
-      "⬅️ До столу"
+      "📋 До справ"
     ];
 
     expect(flatInlineButtonTexts(buildFightKeyboard())).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildFightResultKeyboard("completed"))).toEqual(actionButtons);
     expect(flatInlineButtonTexts(buildFightResultKeyboard("already-completed"))).toEqual([
-      "⬅️ До столу"
+      "📋 До справ"
     ]);
   });
 
@@ -373,7 +373,7 @@ describe("main menu and scene keyboards", () => {
       "🎵 Вдарити приспівом",
       "📋 Заспівати про чек",
       "🏃 Піти на біс",
-      "⬅️ До столу"
+      "📋 До справ"
     ]);
     expect(flatInlineButtonCallbacks(buildFightKeyboard({ ...character, classId: "class.bard" }))).toEqual([
       "v1:fight:mimic:attack",
@@ -385,7 +385,7 @@ describe("main menu and scene keyboards", () => {
       "🎵 Вдарити приспівом",
       "📋 Заспівати про чек",
       "🏃 Піти на біс",
-      "⬅️ До столу"
+      "📋 До справ"
     ]);
   });
 
@@ -396,7 +396,7 @@ describe("main menu and scene keyboards", () => {
       "🗡️ Вдарити",
       "🗡️ Силовий удар",
       "🏃 Відступити",
-      "⬅️ До столу"
+      "📋 До справ"
     ]);
     expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toEqual([
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
@@ -428,7 +428,7 @@ describe("main menu and scene keyboards", () => {
       "🎭 Обдурити проблему",
       "📋 Закрити актом",
       "📖 Запис у бестіарії",
-      "⬅️ До столу"
+      "📋 До справ"
     ]);
     expect(flatInlineButtonCallbacks(buildHuntBoardKeyboard(readyHunt()))).toEqual([
       "v1:hunt:act:2026-06-14T08:abc1234:strike",
@@ -990,7 +990,7 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
       "🕯️ Реморт",
-      "🧾 До проблем",
+      "⚔️ Розвʼязати проблему",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -1026,7 +1026,45 @@ describe("main menu and scene keyboards", () => {
           cellar: { state: "level-retired", character, maxLevel: 3 }
         })
       )
-    ).toEqual(["🧾 До проблем", "🧹 У льох", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
+    ).toEqual(["⚔️ Розвʼязати проблему", "🧹 У льох", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
+
+    expect(
+      flatInlineButtonTexts(
+        buildQuestHubKeyboard({
+          adventure: {
+            state: "level-retired",
+            character,
+            maxLevel: 2
+          },
+          fight: {
+            state: "persistent-active",
+            character,
+            session: persistentFightSession(),
+            monster: {
+              id: "monster.test",
+              name: "Проблема з тестами",
+              description: "Стоїть, чекає.",
+              level: 3,
+              tags: []
+            },
+            questProgress: {
+              title: "Тринадцять дрібних проблем",
+              wins: 4,
+              target: 13,
+              completed: false,
+              rewardClaimed: false
+            }
+          },
+          yeger: {
+            state: "completed",
+            character,
+            progress: { wins: 5, target: 5 },
+            reward: { xp: 80, gold: 120, itemGrants: [] }
+          },
+          cellar: { state: "level-retired", character, maxLevel: 3 }
+        })
+      )
+    ).toEqual(["⚔️ Продовжити бій", "🧹 У льох", "📦 Архів", "📖 Бестіарій", "🍺 До зали"]);
 
     expect(
       flatInlineButtonTexts(

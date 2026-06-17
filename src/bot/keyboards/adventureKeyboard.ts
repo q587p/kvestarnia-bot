@@ -16,7 +16,7 @@ export function buildAdventureKeyboard(character?: CharacterSummary): InlineKeyb
     .row()
     .text(labels.flee, makeAdventureCallbackData("flee"))
     .row()
-    .text("⬅️ До столу", makePlaceCallbackData("quest-table"));
+    .text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
 
 export function buildAdventureResultKeyboard(
@@ -24,7 +24,7 @@ export function buildAdventureResultKeyboard(
   character?: CharacterSummary
 ): InlineKeyboard {
   if (state === "completed" || state === "already-completed") {
-    return new InlineKeyboard().text("⬅️ До столу", makePlaceCallbackData("quest-table"));
+    return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
   }
 
   return buildAdventureKeyboard(character);

@@ -9,6 +9,7 @@ import {
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeHuntActionCallbackData } from "../../src/bot/callbacks/huntCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
+import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeRemortConfirmCallbackData } from "../../src/bot/callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -57,6 +58,55 @@ describe("presence middleware", () => {
       }
     });
   });
+
+  it.each(["list", "archive"] as const)(
+    "does not pre-mark quest table for outside quest %s callbacks",
+    async (action) => {
+      const presence = new CapturingPresenceService();
+      const bot = createTestBot(presence, questHubReadyServices());
+      await bot.init();
+
+      await bot.handleUpdate(callbackUpdate(makeQuestCallbackData(action)));
+
+      expect(presence.marks).toEqual([
+        {
+          user: {
+            telegramUserId: 42n,
+            displayName: "Тест"
+          }
+        }
+      ]);
+    }
+  );
+
+  it.each(["list", "archive"] as const)(
+    "marks quest table for inside quest %s callbacks only after handler gates",
+    async (action) => {
+      const presence = new CapturingPresenceService();
+      presence.currentPlace = {
+        state: "ready",
+        locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+        locationName: "Зала корчми",
+        insideKorchma: true
+      };
+      const bot = createTestBot(presence, questHubReadyServices());
+      await bot.init();
+
+      await bot.handleUpdate(callbackUpdate(makeQuestCallbackData(action)));
+
+      expect(presence.marks[0]).toEqual({
+        user: {
+          telegramUserId: 42n,
+          displayName: "Тест"
+        }
+      });
+      expect(presence.marks[1]).toMatchObject({
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: null
+      });
+    }
+  );
 
   it("marks handled callbacks with raid context", async () => {
     const presence = new CapturingPresenceService();
@@ -594,6 +644,54 @@ function pendingTavernService() {
     getRoundOfferForTelegramUser: () => Promise.resolve({ state: "no-character" }),
     buyRoundForTelegramUser: () => Promise.resolve({ state: "no-character" })
   };
+}
+
+function questHubReadyServices(): Partial<BotServices> {
+  return {
+    adventure: {
+      getMimicShawarmaForTelegramUser: () =>
+        Promise.resolve({
+          state: "level-retired",
+          maxLevel: 2,
+          character
+        }),
+      completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+    },
+    fight: {
+      getFightOverviewForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-ready",
+          character,
+          questProgress: {
+            wins: 4,
+            target: 13,
+            completed: false
+          }
+        }),
+      getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+    },
+    yeger: {
+      getForTelegramUser: () =>
+        Promise.resolve({
+          state: "level-locked",
+          character,
+          requiredLevel: 4
+        }),
+      startForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      trackForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      turnInForTelegramUser: () => Promise.resolve({ state: "no-character" })
+    },
+    cellarErrand: {
+      getForTelegramUser: () =>
+        Promise.resolve({
+          state: "level-locked",
+          character,
+          requiredLevel: 2
+        }),
+      complete: () => Promise.resolve({ state: "no-character" })
+    }
+  } as unknown as Partial<BotServices>;
 }
 
 function servicesWith(overrides: Partial<BotServices>): BotServices {

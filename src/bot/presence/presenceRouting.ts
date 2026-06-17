@@ -133,6 +133,10 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
+  if (data === "v1:place:arrivals" || data === "v1:place:memorial") {
+    return {};
+  }
+
   if (data.startsWith("v1:news:")) {
     return {
       locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,

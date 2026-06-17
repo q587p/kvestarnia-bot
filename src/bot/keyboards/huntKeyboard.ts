@@ -26,7 +26,7 @@ export function buildHuntBoardKeyboard(
     .row()
     .text("📖 Запис у бестіарії", makeBestiaryMonsterCallbackData(result.contract.monster.id, 0))
     .row()
-    .text("⬅️ До столу", makePlaceCallbackData("quest-table"));
+    .text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
 
 export function buildHuntResultKeyboard(result: Exclude<HuntResult, { state: "no-character" }>): InlineKeyboard {
@@ -34,7 +34,7 @@ export function buildHuntResultKeyboard(result: Exclude<HuntResult, { state: "no
     return new InlineKeyboard()
       .text("🏹 Оновити дошку", makeQuestCallbackData("hunt"))
       .row()
-      .text("⬅️ До столу", makePlaceCallbackData("quest-table"));
+      .text("📋 До справ", makePlaceCallbackData("quest-table"));
   }
 
   if (result.state === "stale-contract") {
@@ -47,8 +47,8 @@ export function buildHuntResultKeyboard(result: Exclude<HuntResult, { state: "no
         )
       )
       .row()
-      .text("⬅️ До столу", makePlaceCallbackData("quest-table"));
+      .text("📋 До справ", makePlaceCallbackData("quest-table"));
   }
 
-  return new InlineKeyboard().text("⬅️ До столу", makePlaceCallbackData("quest-table"));
+  return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
