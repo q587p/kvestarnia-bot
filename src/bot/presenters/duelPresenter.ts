@@ -201,17 +201,30 @@ function presentResolvedDuel(result: Extract<DuelChallengeView, { state: "resolv
   return [
     "🥊 <b>Результат виклику</b>",
     "",
-    `${escapeHtml(result.challenger.name)} · рівень ${result.challenger.level} проти ${escapeHtml(result.target.name)} · рівень ${result.target.level}`,
-    headline,
+    `${presentDuelParticipantInline(result.challenger)} проти ${presentDuelParticipantInline(result.target)}`,
+    "",
+    "Перший і останній хід:",
     "",
     line,
     "",
-    "Без XP, золота, манаток і рейтингу. Поки що це соціяльна картка, не фарм."
+    headline,
+    "",
+    "Без XP, золота й манаток. Це корчемний запис для слави, не фарм."
   ].join("\n");
 }
 
 function presentDuelParticipant(label: string, character: CharacterSummary): string {
-  return `${label}: <b>${escapeHtml(character.name)}</b> · ${escapeHtml(character.title)} · рівень ${character.level}`;
+  return `${label}: <b>${escapeHtml(character.name)}</b> · ${escapeHtml(character.title)} · ${presentCharacterLevel(character)}`;
+}
+
+function presentDuelParticipantInline(character: CharacterSummary): string {
+  return `<b>${escapeHtml(character.name)}</b> · ${presentCharacterLevel(character)}`;
+}
+
+function presentCharacterLevel(character: CharacterSummary): string {
+  const remort = character.remortCount && character.remortCount > 0 ? ` (реморт: ${character.remortCount})` : "";
+
+  return `рівень ${character.level}${remort}`;
 }
 
 function presentDuelLevelGate(character: CharacterSummary, minLevel: number): string {

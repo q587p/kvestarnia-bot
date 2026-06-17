@@ -927,6 +927,7 @@ Closed by `0.1.0`; remaining polish belongs to the explicit `0.1.x` order at the
 **Small copy/UX debts**
 
 - Fight turn wording cleanup: якщо callback answer каже `Хід записано`, а fight screen уже показує `Хід: N`, не називати log section `Останній хід` поруч із цим. Звести до одного терміна (`Раунд`, `Журнал`, `Остання дія` або без заголовка), щоб бойовий екран не звучав як три службові журнали один на одному. Tests should cover the player-facing flow text, not only individual presenter snippets.
+- Split persistent monster fight UX into two messages, matching the Допельґанґер training shape: one static intro card with `⚔️ Бій`, character header and `Проти вас`, then one edited state/action card with HP/mana, turn number, action log, no `Останній хід` label and a named `що робимо?` prompt before the keyboard.
 - Active fight keyboard cleanup: коли persistent fight уже активний, не показувати `⬅️ До столу` поруч із бойовими діями. У бою гравець має або діяти (`Вдарити`, уміння, майбутній `Захист`), або пробувати `Відступити`; вихід до Столу має зʼявлятися тільки в terminal/non-active states або як окрема safe navigation після завершення. Tests should assert active fight keyboards do not include quest-table navigation.
 
 ## Later — Battle Interventions / Витівка Прилавка
@@ -1104,6 +1105,7 @@ Closed by `0.1.0`; remaining polish belongs to the explicit `0.1.x` order at the
 
 - group hunts/raids;
 - social player interactions: виклик на дуель у корчемний бійцівський куток, пропозиція всліпу помінятися манатками, маленька інтерактивна міні-гра між гравцями;
+- targeted nearby duel invites: під `👥 У грі зараз` додати `Кинути виклик`, вибір видимого пригодника в поточній локації, opt-in сповіщення для цілі, безпечний ignore flow і перехід обох у Бійцівський куток тільки після accept та combat/raid guard-ів;
 - корчемні ігри з `docs/SOCIAL_ACTIONS_BACKLOG.md`: дуже прості карти/шашки на 2–4 кроки з opt-in викликом nearby пригодника, легким випадковим розвʼязанням, presence flavor і косметичним/соціяльним результатом без бойової переваги;
 - player influence on hunts: допомогти іншому гравцю закрити полювання або, якщо дуже хочеться бути проблемою, допомогти монстру в межах безпечних anti-abuse rules;
 - activity presence: зберігати й показувати coarse тип поточної дії персонажа, наприклад «чекає бочку», «спілкується з єгерем», «бʼється з монстром», «отримує нагороду»;

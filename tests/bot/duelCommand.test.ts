@@ -186,13 +186,14 @@ describe("handleDuelCallback", () => {
   });
 
   it("lets a real accept resolve the card", async () => {
-    const target = makeCharacterSummary("Ціль Виклику", { level: 5 });
+    const challenger = makeCharacterSummary("Автор Виклику", { level: 9, remortCount: 3 });
+    const target = makeCharacterSummary("Ціль Виклику", { level: 3 });
     const markAction = vi.fn().mockResolvedValue(undefined);
     const presence = createPresence(markAction);
     const acceptForTelegramUser = vi.fn().mockResolvedValue({
       state: "resolved",
       challenge: makeChallenge("resolved", makeCharacter(99n, "Ціль Виклику")),
-      challenger: makeCharacterSummary("Автор Виклику"),
+      challenger,
       target,
       result: {
         outcome: "target",
@@ -219,7 +220,15 @@ describe("handleDuelCallback", () => {
     expect(markAction).toHaveBeenCalled();
     expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
     expect(editMessageText).toHaveBeenCalledTimes(1);
-    expect(messageText(editMessageText)).toContain("Автор Виклику · рівень 3 проти Ціль Виклику · рівень 5");
+    const text = messageText(editMessageText);
+    expect(text).toContain("<b>Автор Виклику</b> · рівень 9 (реморт: 3) проти <b>Ціль Виклику</b> · рівень 3");
+    expect(text).toContain("Перший і останній хід:");
+    expect(text.indexOf("Перший і останній хід:")).toBeLessThan(text.indexOf("Ціль Виклику зупиняє сутичку"));
+    expect(text.indexOf("Ціль Виклику зупиняє сутичку")).toBeLessThan(
+      text.indexOf("🏁 <b>Ціль Виклику</b> перемагає у корчемному виклику")
+    );
+    expect(text).toContain("Без XP, золота й манаток. Це корчемний запис для слави, не фарм.");
+    expect(text).not.toContain("рейтингу");
     expect(keyboardJson(editMessageText)).toContain("v1:duel:new");
   });
 
@@ -398,7 +407,10 @@ function makeCharacter(telegramUserId: bigint, name: string): DuelCharacterSnaps
   };
 }
 
-function makeCharacterSummary(name: string, overrides: Partial<Pick<CharacterSummary, "level">> = {}): CharacterSummary {
+function makeCharacterSummary(
+  name: string,
+  overrides: Partial<Pick<CharacterSummary, "level" | "remortCount">> = {}
+): CharacterSummary {
   return {
     name,
     pronoun: "they",
@@ -410,6 +422,7 @@ function makeCharacterSummary(name: string, overrides: Partial<Pick<CharacterSum
     className: "Воїн",
     title: "Пересічні Пригодники",
     level: overrides.level ?? 3,
+    remortCount: overrides.remortCount,
     xp: 25,
     nextLevelXp: 50,
     xpToNextLevel: 25,

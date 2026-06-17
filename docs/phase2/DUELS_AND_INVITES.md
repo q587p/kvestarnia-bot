@@ -31,15 +31,16 @@
 
 `0.1.10` ships the first rewardless invite ledger:
 - `/duel` and Fighting Corner `🤝 Кинути виклик` create open level 3+ challenges;
-- optional `BOT_USERNAME` generates copyable `https://t.me/<bot>?start=duel_<token>` links for dev/prod bot separation, shown directly on the pending invite card;
+- optional `BOT_USERNAME` generates copyable `https://t.me/<bot>?start=duel_<token>` links for dev/prod bot separation and sends them as a separate forwardable invite message;
 - `/start duel_<token>` opens the invite flow;
 - accept, decline, cancel and expiry are idempotent;
 - repeated buttons replay the stored state/result instead of rerolling;
+- result cards show both participant levels, remorts when present, the first-and-last quick-resolve beat and the stored winner without granting farmable combat rewards;
 - invite recipients without a character get polite onboarding copy;
 - partial HP or mana shows a warning before the player explicitly accepts;
-- `Переможці` in the Fighting Corner reads resolved duel results as a rewardless day/week/month board, with no rating, rewards or tournament state.
+- `Переможці` in the Fighting Corner reads resolved duel results as a rewardless day/week/month board, with no economy rewards or tournament state.
 
-Still future: rematches, tournaments, rating, rewards, wagers, item loss, target-specific player selection and full turn-based PvP.
+Still future: rematches, tournaments, economy rewards, wagers, item loss, target-specific player selection and full turn-based PvP.
 
 ## Flow
 
@@ -102,6 +103,10 @@ duel_actions
 ```
 
 Future turn-based duels should reuse the same combat turn timeout model planned for ordinary monster fights and `/spar`: each active turn gets roughly `23` seconds, then a job applies an idempotent auto-attack or skip for the silent actor, edits the shared battle card and advances or closes the fight. The first duel invite slice stays quick-resolve and rewardless; this timeout rule belongs to the later full combat runtime, not to the invite ledger itself.
+
+Nearby-targeted invites are the next social UX step after open share links: a location presence list can offer `Кинути виклик`, let the challenger pick a visible nearby player, send that player an opt-in notification and only move both characters to `location.korchma.fighting_corner` after the target accepts and combat/raid guards pass. Open invite links remain useful for приватні й групові чати.
+
+Duel result notifications should eventually update or notify the other side without requiring `Оновити`. That path needs replay protection, for example a stored message id or notification idempotency key, so repeated callbacks do not spam duplicate result cards.
 
 ## Guardrails
 
