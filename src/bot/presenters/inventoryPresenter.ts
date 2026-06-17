@@ -1,15 +1,25 @@
 import type { InventoryResult } from "../../services/inventoryService";
-import { mapItemToEquipmentSlot, type EquipmentSlot } from "../../services/equipmentService";
+import {
+  mapItemToEquipmentSlot,
+  type EquipmentItemSummary,
+  type EquipmentSlot
+} from "../../services/equipmentService";
+import { presentItemEffect } from "./itemEffectPresenter";
 import { presentItemStackLine } from "./itemStackPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export const INVENTORY_PAGE_SIZE = 8;
 export type InventorySlotFilter = EquipmentSlot | null;
 
+export interface InventoryPresenterOptions {
+  currentSlotItem?: EquipmentItemSummary | null;
+}
+
 export function presentInventory(
   result: InventoryResult,
   page = 0,
-  slotFilter: InventorySlotFilter = null
+  slotFilter: InventorySlotFilter = null,
+  options: InventoryPresenterOptions = {}
 ): string {
   if (result.state === "no-character") {
     return "Спершу створіть пригодника через /start. Манатки не люблять порожніх біографій.";
@@ -33,6 +43,10 @@ export function presentInventory(
     return [
       `${presentSlotFilterIcon(slotFilter)} <b>${presentSlotFilterTitle(slotFilter)}</b>`,
       "",
+      "Показано лише те, що можна спробувати вдягнути в цей слот.",
+      "",
+      ...presentCurrentSlotItem(options.currentSlotItem ?? null),
+      "",
       "У торбі поки немає манаток для цього гачка.",
       "Корчмар каже: «Це не вирок. Це привід вибити щось дивніше»."
     ].join("\n");
@@ -46,6 +60,7 @@ export function presentInventory(
       ? "Показано лише те, що можна спробувати вдягнути в цей слот."
       : "Пригодник розклав здобич на столі. Стіл попросив надбавку.",
     "",
+    ...(slotFilter ? [...presentCurrentSlotItem(options.currentSlotItem ?? null), ""] : []),
     slotFilter
       ? `Знайдено підхожих манаток: <b>${filteredItems.length}</b>. Правила екіпірування все одно перевірить Корчмар.`
       : `Оціночна вартість столу: <b>${result.totalGoldValue} золота</b>. Стіл уже поводиться як фінансовий радник.`,
@@ -131,4 +146,20 @@ function presentSlotFilterIcon(slot: EquipmentSlot): string {
   };
 
   return icons[slot];
+}
+
+function presentCurrentSlotItem(item: EquipmentItemSummary | null): string[] {
+  if (!item) {
+    return [
+      "Вдягнено: <i>нічого</i>",
+      "Ефект: <i>гачок тримає паузу й не дає бонусів</i>"
+    ];
+  }
+
+  const effect = presentItemEffect(item.content.effect);
+
+  return [
+    `Вдягнено: <b>${escapeHtml(item.content.name)}</b>`,
+    `Ефект: <i>${escapeHtml(effect ?? "бойового ефекту не виявлено")}</i>`
+  ];
 }

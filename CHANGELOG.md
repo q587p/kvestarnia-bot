@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.10] - 12026-06-17 - First Duel Invite Ledger
+## [0.1.10] - 12026-06-17 - First Duel Invite Ledger and Gear Slot Context
 
 ### Added
 - Added the first Phase 2 duel invite MVP: `/duel`, Quest Hub `🤝 Корчемний виклик`, `v1:duel:*` callbacks, open invite creation, accept, cancel, decline, expiry and replay-safe quick result cards.
@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `/start duel_<token>` deep-link routing so generated invites can be opened from a configured bot username.
 - Added optional `BOT_USERNAME` config for generated Telegram deep links, with validation and `.env.example` docs for dev/prod bot separation.
 - Added resource-state warnings for duel accepts: partial HP or mana shows a warning first, and the player can still explicitly accept.
+- Added current-slot context to filtered equipment inventory views: weapon, chest and accessory lists now show what is currently equipped and its effect before replacement candidates.
 - Added focused domain, service, callback, start-payload and config tests for the first duel path.
 
 ### Guardrails

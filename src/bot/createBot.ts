@@ -859,7 +859,7 @@ async function handleItemCallback(
 ): Promise<void> {
   if (action.type === "inventory") {
     await safeAnswerCallbackQuery(ctx);
-    await sendInventory(ctx, services.inventory, "edit", action.page, action.slot);
+    await sendInventory(ctx, services.inventory, "edit", action.page, action.slot, services.equipment);
     return;
   }
 
