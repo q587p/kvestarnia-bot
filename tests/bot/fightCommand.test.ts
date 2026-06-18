@@ -223,13 +223,13 @@ describe("fight command", () => {
         inline_keyboard: [
           [
             {
-              text: "Спуститися",
+              text: "⬇️ Спуститися",
               callback_data: makePlaceCallbackData("deep-level1")
             }
           ],
           [
             {
-              text: "Повернутися до зали",
+              text: "⬅️ Повернутися до зали",
               callback_data: makePlaceCallbackData("hall")
             }
           ]
@@ -336,7 +336,7 @@ describe("fight command", () => {
 
     expect(options.parse_mode).toBe("HTML");
     expect(options.reply_markup.inline_keyboard[0]?.[0]).toEqual({
-      text: "Спуститися",
+      text: "⬇️ Спуститися",
       callback_data: makePlaceCallbackData("deep-level1")
     });
   });

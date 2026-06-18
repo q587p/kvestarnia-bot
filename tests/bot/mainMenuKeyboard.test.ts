@@ -455,8 +455,8 @@ describe("main menu and scene keyboards", () => {
       "🏃 Відступити"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard())).toEqual([
-      "Спуститися",
-      "Повернутися до зали"
+      "⬇️ Спуститися",
+      "⬅️ Повернутися до зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard())).toEqual([
       "v1:place:deep-level1",
