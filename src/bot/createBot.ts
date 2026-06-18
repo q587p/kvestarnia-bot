@@ -349,8 +349,8 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   });
 
   installMessageFreshnessTracking(bot);
-  registerPresenceMiddleware(bot, services.presence);
   registerCombatLockMiddleware(bot, services);
+  registerPresenceMiddleware(bot, services.presence);
   registerAdventureCommand(bot, services.adventure, {
     cellarErrand: services.cellarErrand,
     presence: services.presence,
@@ -734,16 +734,32 @@ function shouldCheckCombatLock(ctx: Context): boolean {
   const data = ctx.callbackQuery?.data;
 
   if (data) {
-    return !data.startsWith("v1:fight:turn:") && !data.startsWith("v1:spar:turn:");
+    return (
+      !data.startsWith("v1:fight:turn:") &&
+      !data.startsWith("v1:spar:turn:") &&
+      !data.startsWith("v1:fight:mimic:")
+    );
   }
 
-  const command = ctx.message?.text?.trim().match(/^\/([a-z_]+)(?:@\w+)?(?:\s+.*)?$/i)?.[1]?.toLowerCase();
+  const text = ctx.message?.text?.trim();
+  const command = text?.match(/^\/([a-z_]+)(?:@\w+)?(?:\s+.*)?$/i)?.[1]?.toLowerCase();
 
-  if (!command) {
-    return false;
+  if (command) {
+    return command !== "help" && command !== "version";
   }
 
-  return command !== "help" && command !== "version";
+  return isLockedMainMenuText(text);
+}
+
+function isLockedMainMenuText(text: string | undefined): boolean {
+  return (
+    text === mainMenuButtons.tavern ||
+    text === mainMenuButtons.quest ||
+    text === "🗺️ Квест" ||
+    text === mainMenuButtons.hero ||
+    text === mainMenuButtons.inventory ||
+    text === mainMenuButtons.participants
+  );
 }
 
 async function redirectCombatLockIfNeeded(
@@ -759,6 +775,11 @@ async function redirectCombatLockIfNeeded(
 
   if (lock.state === "persistent-active") {
     await answerCombatLockCallback(ctx);
+    await refreshCombatLockPresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+    });
     await sendCombatLockText(ctx, presentCombatLockRedirect(presentPersistentFight(lock)), {
       reply_markup: buildPersistentFightResultKeyboard(lock.session, lock.character)
     });
@@ -771,6 +792,11 @@ async function redirectCombatLockIfNeeded(
       : null;
 
     await answerCombatLockCallback(ctx);
+    await refreshCombatLockPresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
+    });
 
     if (training?.state === "active") {
       await sendCombatLockText(ctx, presentCombatLockRedirect(presentTrainingDoppelganger(training)), {
@@ -794,6 +820,11 @@ async function redirectCombatLockIfNeeded(
     (await isStarterFightPresenceActive(services.presence, telegramUserId))
   ) {
     await answerCombatLockCallback(ctx);
+    await refreshCombatLockPresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
+    });
     await sendCombatLockText(ctx, presentCombatLockRedirect(presentFightStart(lock.character)), {
       reply_markup: buildFightKeyboard(lock.character)
     });
@@ -801,6 +832,27 @@ async function redirectCombatLockIfNeeded(
   }
 
   return false;
+}
+
+async function refreshCombatLockPresence(
+  ctx: Context,
+  presence: PresenceService,
+  input: {
+    locationId: string;
+    currentRaidId: string | null;
+    currentAdventureId: string | null;
+  }
+): Promise<void> {
+  const player = playerFromContext(ctx.from);
+
+  if (!player) {
+    return;
+  }
+
+  await presence.markAction({
+    user: player,
+    ...input
+  });
 }
 
 async function isStarterFightPresenceActive(

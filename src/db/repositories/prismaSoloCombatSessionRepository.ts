@@ -61,10 +61,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
   async listByTelegramUserIdSince(
     telegramUserId: bigint,
     since: Date
-  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "state">>> {
+  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "updatedAt" | "state">>> {
     const records = await this.prisma.soloCombatSession.findMany({
       where: {
-        createdAt: {
+        updatedAt: {
           gte: since
         },
         character: {
@@ -74,13 +74,14 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         }
       },
       orderBy: {
-        createdAt: "asc"
+        updatedAt: "asc"
       },
       select: {
         monsterId: true,
         status: true,
         stateJson: true,
-        createdAt: true
+        createdAt: true,
+        updatedAt: true
       }
     });
 
@@ -88,7 +89,8 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       monsterId: record.monsterId,
       status: parseStatus(record.status),
       state: parseCombatState(record.stateJson),
-      createdAt: record.createdAt
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt
     }));
   }
 

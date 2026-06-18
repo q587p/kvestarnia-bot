@@ -161,6 +161,79 @@ describe("fight command", () => {
     });
   });
 
+  it("restores a terminal persistent fight through the canonical reward screen", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const terminalSession = {
+      ...persistentSession(),
+      status: "won" as const,
+      turn: 4,
+      state: {
+        ...persistentSession().state!,
+        status: "won" as const,
+        turn: 4,
+        monster: {
+          id: "monster.deadline-spider",
+          hp: 0,
+          hpMax: 18
+        },
+        lastTurn: {
+          action: "attack" as const,
+          heroOutcome: "won" as const,
+          heroDamage: 18,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false
+        }
+      }
+    };
+    const fightService = {
+      getFightOverviewForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-terminal" as const,
+          character: {
+            ...character,
+            level: 3
+          },
+          session: terminalSession,
+          monster: {
+            id: "monster.deadline-spider",
+            name: "Павук дедлайнів",
+            description: "Плете павутину з «сьогодні швиденько».",
+            level: 2,
+            tags: ["beast", "time", "web"]
+          },
+          questProgress: questProgress(3),
+          fightReward: {
+            state: "already-claimed" as const,
+            reward: {
+              xp: 20,
+              gold: 3,
+              localDate: terminalSession.id,
+              itemGrants: []
+            },
+            levelChange: null
+          }
+        })
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply");
+
+    expect(replies[0]?.text).toContain("Цей бій уже завершився");
+    expect(replies[0]?.text).toContain("Павук дедлайнів");
+    expect(replies[0]?.text).toContain("Винагорода за бій");
+    expect(replies[0]?.text).not.toContain("За бочками в коморі є сходи");
+    const options = replies[0]?.options as {
+      parse_mode: string;
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+
+    expect(options.parse_mode).toBe("HTML");
+    expect(options.reply_markup.inline_keyboard.flat()).toEqual([
+      { text: "⚔️ Новий бій", callback_data: makePlaceCallbackData("deep") },
+      { text: "🪜 До Низу", callback_data: makePlaceCallbackData("deep") }
+    ]);
+  });
+
   it("keeps /fight cosmetic-safe while a training doppelganger session is active", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({

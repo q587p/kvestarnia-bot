@@ -1569,31 +1569,31 @@ export class FightService {
     }
 
     const now = this.clock();
-    const since = new Date(now.getTime() - MONSTER_REST_COOLDOWN_MS);
+    const since = new Date(now.getTime() - MONSTER_REST_COOLDOWN_MS * MONSTER_REST_ELIGIBLE_FIGHT_COUNT);
     const recent = await this.combatSessions.listByTelegramUserIdSince(telegramUserId, since);
     const eligible = recent
       .filter((session) => isMonsterRestEligibleSession(session))
-      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+      .sort((left, right) => left.updatedAt.getTime() - right.updatedAt.getTime());
 
     if (eligible.length < MONSTER_REST_ELIGIBLE_FIGHT_COUNT) {
       return null;
     }
 
     const streak = eligible.slice(-MONSTER_REST_ELIGIBLE_FIGHT_COUNT);
-    const first = streak[0];
+    const third = streak.at(-1);
 
-    if (!first) {
+    if (!third) {
       return null;
     }
 
-    const availableAt = new Date(first.createdAt.getTime() + MONSTER_REST_COOLDOWN_MS);
+    const availableAt = new Date(third.updatedAt.getTime() + MONSTER_REST_COOLDOWN_MS);
 
     return availableAt > now ? { availableAt, now } : null;
   }
 }
 
 function isMonsterRestEligibleSession(
-  session: Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "state">
+  session: Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "updatedAt" | "state">
 ): boolean {
   if (
     session.status === "active" ||

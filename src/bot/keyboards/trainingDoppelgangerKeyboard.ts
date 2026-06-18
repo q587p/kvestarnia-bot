@@ -46,12 +46,10 @@ export function buildTrainingDoppelgangerKeyboard(
       ).row();
     }
 
-    return keyboard
-      .text("🏃 Відступити", makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "flee" }))
-      .row()
-      .text("📋 До справ", makeQuestCallbackData("list"))
-      .row()
-      .text("🍺 До зали", makePlaceCallbackData("hall"));
+    return keyboard.text(
+      "🏃 Відступити",
+      makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "flee" })
+    );
   }
 
   return new InlineKeyboard()

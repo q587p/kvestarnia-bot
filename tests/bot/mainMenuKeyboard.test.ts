@@ -56,6 +56,8 @@ import {
   buildTavernKeyboard,
   buildTavernResultKeyboard
 } from "../../src/bot/keyboards/tavernKeyboard";
+import { buildTrainingDoppelgangerKeyboard } from "../../src/bot/keyboards/trainingDoppelgangerKeyboard";
+import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 
 describe("main menu and scene keyboards", () => {
   it("builds the universal menu as a persistent reply keyboard", () => {
@@ -486,6 +488,33 @@ describe("main menu and scene keyboards", () => {
         status: "won"
       }
     }, character))).toEqual(["v1:place:deep", "v1:place:deep"]);
+  });
+
+  it("keeps active training doppelganger buttons scoped to turn callbacks", () => {
+    const session: SoloCombatSessionRecord = {
+      ...persistentFightSession(),
+      monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
+      state: {
+        ...persistentFightSession().state!,
+        source: "training",
+        monster: {
+          id: TRAINING_DOPPELGANGER_MONSTER_ID,
+          hp: 18,
+          hpMax: 18
+        }
+      }
+    };
+
+    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
+      "🗡️ Вдарити",
+      "💪 Силовий удар",
+      "🏃 Відступити"
+    ]);
+    expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
+      "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
+      "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:skill",
+      "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:flee"
+    ]);
   });
 
   it("keeps persistent fight skill icons unique and away from common action icons", () => {

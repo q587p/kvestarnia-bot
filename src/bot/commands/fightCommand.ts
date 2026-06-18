@@ -189,7 +189,11 @@ export async function sendFight(
   }
 
   if (result.state === "persistent-terminal") {
-    await sendResultText(presentKorchmaDeepClosed(result.character), "deep");
+    await sendResultText(presentPersistentFight(result), {
+      type: "persistent-fight",
+      character: result.character,
+      session: result.session
+    });
     return;
   }
 

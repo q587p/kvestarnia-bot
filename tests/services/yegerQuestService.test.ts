@@ -565,7 +565,9 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
   }
 
   listByTelegramUserIdSince(_telegramUserId: bigint, since: Date) {
-    return Promise.resolve(this.sessions.filter((session) => session.createdAt >= since));
+    return Promise.resolve(
+      this.sessions.filter((session) => (session.updatedAt ?? session.createdAt) >= since)
+    );
   }
 
   countWonByTelegramUserId(

@@ -11,9 +11,10 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Added
 - Added a central active-combat lock that redirects normal commands and callbacks back to unfinished persistent or training fights until they reach terminal state.
+- Hardened the lock for registered reply-keyboard main-menu text (`Корчма`, `Квести`, `Персонаж`, `Манатки`, `Хто поруч`) while keeping Help, `/help`, `/version`, and real persistent/training/starter combat callbacks allowed.
 - Newly started persistent battles now show the existing `Порада дня` line once at battle intro.
 - Added deterministic `3..5` hero-turn cooldowns for successful zero-mana class skills, based on the relevant skill stat with a small luck effect.
-- Added a three-minute monster-rest block after three recent eligible ordinary `Низ` fights.
+- Added a three-minute monster-rest block after three consecutive eligible ordinary `Низ` fights, measured from the terminal completion time of the third fight.
 - Level 3+ ordinary/problem fight entry moved to `Низ`; fight routes now open `Спуск до Низу`, then `Спуститися` moves to the first tier, `Ярус I: Сутерени Корчми`, where the passage/difficulty choice lives.
 - Added a short HP recovery notice when passive out-of-combat regeneration first brings a character back to full health during `/hero` or `/fight` flow.
 
@@ -22,6 +23,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Current-turn hidden/forged non-mana skill callbacks while on cooldown use the same failed-turn semantics.
 - Combat-lock redirects now show a visible explanation before the active fight or training screen, so blocked navigation is clear even when a callback toast is missed.
 - Persistent and training fight keyboards recompute action availability every render, hiding magic without enough current mana and hiding non-mana skills while on cooldown.
+- Combat and pending-raid guards now run before destination presence writes; blocked routes refresh combat-appropriate presence instead of stamping tavern/news/Yeger destinations first.
+- Terminal and lazily expired persistent `/fight` restores now render the canonical terminal/reward replay screen before normal navigation returns.
+- Active training doppelganger keyboards now show only combat actions and no normal-navigation escape buttons.
 - Stale old quest-table fight callbacks open a fresh `Спуск до Низу` surface instead of starting from the old table message; passage selection and active fights use the separate `location.korchma.deep.level1` presence location.
 - `Спуск до Низу` now shows `⬆️ Повернутися до зали` above `⬇️ Спуститися`, matching the upward navigation icon used deeper in `Низ`.
 - The three-adventure offer screen now shows each problem as a compact title plus italic short line; full problem hooks stay on the selected-problem screen.
