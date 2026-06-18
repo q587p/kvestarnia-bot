@@ -217,17 +217,24 @@ describe("presence middleware", () => {
     });
   });
 
-  it("marks /start at the front of the korchma", async () => {
+  it("marks /start as activity without moving the saved location", async () => {
     const presence = new CapturingPresenceService();
+    presence.currentPlace = {
+      state: "ready",
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      locationName: "Зала корчми",
+      insideKorchma: true
+    };
     const bot = createTestBot(presence);
     await bot.init();
 
     await bot.handleUpdate(messageUpdate("/start"));
 
-    expect(presence.marks[0]).toMatchObject({
-      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
-      currentRaidId: null,
-      currentAdventureId: null
+    expect(presence.marks[0]).toEqual({
+      user: {
+        telegramUserId: 42n,
+        displayName: "Тест"
+      }
     });
   });
 

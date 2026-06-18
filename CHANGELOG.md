@@ -25,6 +25,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Existing `/spar` reward rules remain XP-only: no gold, manatky, drops, wagers, ratings, quest progress or PvP ledger changes.
 - Active equipment abilities are not faked; this release uses the existing passive item-effect pipeline only.
 
+### Fixed
+- `/start` now keeps existing characters at their saved presence location instead of moving them back to the front of the korchma.
+
 ## [0.1.11] - 12026-06-18 - Duel Rematch and Shareable Result Cards
 
 ### Added

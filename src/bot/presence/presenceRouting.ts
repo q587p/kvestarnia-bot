@@ -208,11 +208,7 @@ export function getTextPresenceContext(text: string): PresenceContext | null {
 
 export function getCommandPresenceContext(command: string): PresenceContext | null {
   if (command === "start") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (command === "tavern") {

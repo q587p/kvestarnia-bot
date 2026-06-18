@@ -134,14 +134,7 @@ describe("presence routing", () => {
   );
 
   it.each([
-    [
-      "start",
-      {
-        locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
-        currentRaidId: null,
-        currentAdventureId: null
-      }
-    ],
+    ["start", {}],
     ["tavern", {}],
     ["raid", {}],
     ["adventure", {}],
@@ -184,6 +177,11 @@ describe("presence routing", () => {
   it("keeps duel start deep links neutral so they do not move the player outside", () => {
     expect(getTextPresenceContext("/start duel_abc_DEF12")).toEqual({});
     expect(getTextPresenceContext("/start@kvestarnia_test_bot duel_abc_DEF12")).toEqual({});
+  });
+
+  it("keeps regular start neutral so it does not move existing characters", () => {
+    expect(getTextPresenceContext("/start")).toEqual({});
+    expect(getTextPresenceContext("/start@kvestarnia_test_bot")).toEqual({});
   });
 
   it.each(["🍺 Корчма", "🗺️ Квести", "👤 Персонаж", "🎒 Манатки", "👀 Хто поруч", "📖 Допомога"])(
