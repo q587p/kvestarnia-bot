@@ -269,7 +269,7 @@ describe("fight presenter", () => {
     expect(stale).toContain("поточний стан");
     expect(stale).toContain("Невідомий монстр");
     expect(stale).not.toContain("Невідомий монстр</b> · рівень");
-    expect(noMana).toContain("Мани не вистачило");
+    expect(noMana).toContain("Мани не стало навіть на драматичний жест");
     expect(noMana).not.toContain("Нагорода");
   });
 
@@ -300,7 +300,7 @@ describe("fight presenter", () => {
     });
 
     expect(text).toContain(
-      ["Останній хід", "Вміння влучає критично на 17 шкоди.", "Монстр відповів на 8 шкоди."].join(
+      ["Остання дія", "Вміння влучає критично на 17 шкоди.", "Монстр відповів на 8 шкоди."].join(
         "\n"
       )
     );

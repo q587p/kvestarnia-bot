@@ -1,6 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { SoloCombatSessionRecord } from "../../db/repositories/soloCombatSessionRepository";
+import { getCombatActionAvailability } from "../../domain/combat";
 import { getPersistentFightSkillLabel } from "../../services/fightService";
 import { makeFightCallbackData, makeFightTurnCallbackData } from "../callbacks/fightCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
@@ -37,18 +38,24 @@ export function buildPersistentFightKeyboard(
   character: CharacterSummary
 ): InlineKeyboard {
   const turn = session.state?.turn ?? 1;
-
-  return new InlineKeyboard()
+  const availability = session.state
+    ? getCombatActionAvailability(session.state, { classId: character.classId }).skill
+    : null;
+  const keyboard = new InlineKeyboard()
     .text("🗡️ Вдарити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "attack" }))
-    .row()
-    .text(
+    .row();
+
+  if (availability?.available !== false) {
+    keyboard.text(
       getPersistentFightSkillLabel(character),
       makeFightTurnCallbackData({ sessionId: session.id, turn, action: "skill" })
-    )
-    .row()
+    ).row();
+  }
+
+  return keyboard
     .text("🏃 Відступити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" }))
     .row()
-    .text("📋 До справ", makePlaceCallbackData("quest-table"));
+    .text("🌘 До глибки", makePlaceCallbackData("deep"));
 }
 
 export function buildPersistentFightResultKeyboard(
@@ -57,7 +64,7 @@ export function buildPersistentFightResultKeyboard(
 ): InlineKeyboard {
   if (session.state?.status !== "active") {
     return new InlineKeyboard()
-      .text("⚔️ Новий бій", makeQuestCallbackData("fight"))
+      .text("🌘 До глибки", makePlaceCallbackData("deep"))
       .row()
       .text("📋 До справ", makePlaceCallbackData("quest-table"))
       .row()
@@ -69,7 +76,7 @@ export function buildPersistentFightResultKeyboard(
 
 export function buildPersistentFightReadyKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
-    .text("⚔️ Новий бій", makeQuestCallbackData("fight"))
+    .text("🌘 До глибки", makePlaceCallbackData("deep"))
     .row()
     .text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
@@ -82,7 +89,7 @@ export function buildPersistentFightDifficultyKeyboard(): InlineKeyboard {
     .row()
     .text("🌶 Важче: +2 рів.", makeQuestCallbackData("fight-hard"))
     .row()
-    .text("📋 До справ", makePlaceCallbackData("quest-table"));
+    .text("🌘 До глибки", makePlaceCallbackData("deep"));
 }
 
 function getFightActionLabels(character?: CharacterSummary): {

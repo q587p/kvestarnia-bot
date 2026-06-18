@@ -1,6 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { SoloCombatSessionRecord } from "../../db/repositories/soloCombatSessionRepository";
+import { getCombatActionAvailability } from "../../domain/combat";
 import type { TrainingDoppelgangerStartChoice } from "../../services/trainingDoppelgangerService";
 import { getPersistentFightSkillLabel } from "../../services/fightService";
 import {
@@ -31,15 +32,21 @@ export function buildTrainingDoppelgangerKeyboard(
 ): InlineKeyboard {
   if (session?.state?.status === "active" && character) {
     const turn = session.state.turn;
-
-    return new InlineKeyboard()
+    const availability = getCombatActionAvailability(session.state, {
+      classId: character.classId
+    }).skill;
+    const keyboard = new InlineKeyboard()
       .text("🗡️ Вдарити", makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "attack" }))
-      .row()
-      .text(
+      .row();
+
+    if (availability.available) {
+      keyboard.text(
         getPersistentFightSkillLabel(character),
         makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "skill" })
-      )
-      .row()
+      ).row();
+    }
+
+    return keyboard
       .text("🏃 Відступити", makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "flee" }))
       .row()
       .text("📋 До справ", makeQuestCallbackData("list"))

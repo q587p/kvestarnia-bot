@@ -449,13 +449,13 @@ describe("main menu and scene keyboards", () => {
       "🗡️ Вдарити",
       "🗡️ Силовий удар",
       "🏃 Відступити",
-      "📋 До справ"
+      "🌘 До глибки"
     ]);
     expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toEqual([
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:skill",
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:flee",
-      "v1:place:quest-table"
+      "v1:place:deep"
     ]);
     expect(flatInlineButtonTexts(buildPersistentFightResultKeyboard({
       ...session,
@@ -464,7 +464,7 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["⚔️ Новий бій", "📋 До справ", "🍺 До зали"]);
+    }, character))).toEqual(["🌘 До глибки", "📋 До справ", "🍺 До зали"]);
     expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
       ...session,
       status: "won",
@@ -472,7 +472,7 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["v1:quest:fight", "v1:place:quest-table", "v1:place:hall"]);
+    }, character))).toEqual(["v1:place:deep", "v1:place:quest-table", "v1:place:hall"]);
   });
 
   it("keeps hunt board inline buttons scoped to hunt actions", () => {
@@ -1048,7 +1048,7 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
       "🕯️ Реморт",
       "🍻 До шинку",
-      "⚔️ Розвʼязати проблему",
+      "До глибки",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -1088,7 +1088,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "⚔️ Розвʼязати проблему",
+      "До глибки",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -1135,7 +1135,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "⚔️ Продовжити бій",
+      "До глибки",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",

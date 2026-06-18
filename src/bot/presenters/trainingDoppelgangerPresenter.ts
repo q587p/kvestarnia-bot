@@ -145,7 +145,7 @@ export function presentTrainingDoppelgangerTurn(
     }
 
     if (result.state === "not-enough-mana") {
-      return "Мани не вистачило. Дія не витрачена, копія не отримала безкоштовного шансу.";
+      return "Мани не стало навіть на драматичний жест. Копія записала це як навчальний матеріял.";
     }
 
     if (result.state === "terminal") {
@@ -177,6 +177,10 @@ function presentTrainingDoppelgangerState(input: {
     `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
     `Хід: ${state?.turn ?? "?"}`
   ];
+
+  if (state?.status === "active" && state.cooldowns?.skill?.remainingTurns) {
+    lines.push(`🫁 Вміння відсапується: ще ${formatTurns(state.cooldowns.skill.remainingTurns)}.`);
+  }
 
   if (input.intro) {
     lines.push("", input.intro);
@@ -256,7 +260,21 @@ function presentTrainingReward(
 
 function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
   if (summary.heroOutcome === "not-enough-mana") {
-    return "Мани не вистачило.";
+    return [
+      "Мани не стало навіть на драматичний жест.",
+      summary.monsterDamage > 0
+        ? `Копія використала паузу на ${summary.monsterDamage} шкоди.`
+        : "Копія використала паузу для промаху з педагогічною впевненістю."
+    ].join("\n");
+  }
+
+  if (summary.heroOutcome === "skill-on-cooldown") {
+    return [
+      "Навичка ще відсапується. Пригодник зробив вигляд, що це методика.",
+      summary.monsterDamage > 0
+        ? `Копія відповіла на ${summary.monsterDamage} шкоди.`
+        : "Копія промахнулась і теж назвала це тренуванням."
+    ].join("\n");
   }
 
   if (summary.heroOutcome === "fled") {
@@ -437,4 +455,23 @@ function formatTrainingCooldown(availableAt: Date, now: Date): string {
   }
 
   return `${minutes} хв ${seconds} с`;
+}
+
+function formatTurns(count: number): string {
+  return `${count} ${pluralize(count, "хід", "ходи", "ходів")}`;
+}
+
+function pluralize(count: number, one: string, few: string, many: string): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return one;
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return few;
+  }
+
+  return many;
 }

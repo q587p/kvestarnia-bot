@@ -35,6 +35,7 @@ import {
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_DEEP,
   PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
@@ -211,6 +212,7 @@ import {
 import {
   presentFightNeedsRest,
   presentFightLevelRetired,
+  presentFightMonsterRest,
   presentFightNoCharacter,
   buildProblemQuestProgressAfterFightEntry,
   type QuestProgressAfterFightEntry,
@@ -224,6 +226,7 @@ import {
 import {
   presentTrainingDoppelgangerNoCharacter,
   presentTrainingDoppelgangerLevelGate,
+  presentTrainingDoppelganger,
   presentTrainingDoppelgangerTurn
 } from "./presenters/trainingDoppelgangerPresenter";
 import { presentHelp } from "./presenters/helpPresenter";
@@ -332,6 +335,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
 
   installMessageFreshnessTracking(bot);
   registerPresenceMiddleware(bot, services.presence);
+  registerCombatLockMiddleware(bot, services);
   registerAdventureCommand(bot, services.adventure, {
     cellarErrand: services.cellarErrand,
     presence: services.presence,
@@ -684,6 +688,122 @@ function registerPresenceMiddleware(bot: Bot, presenceService: PresenceService):
 
     await next();
   });
+}
+
+function registerCombatLockMiddleware(bot: Bot, services: BotServices): void {
+  bot.use(async (ctx, next) => {
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+    if (!telegramUserId || !shouldCheckCombatLock(ctx)) {
+      await next();
+      return;
+    }
+
+    if (
+      ctx.callbackQuery &&
+      typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
+      (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
+    ) {
+      return;
+    }
+
+    if (await redirectCombatLockIfNeeded(ctx, telegramUserId, services)) {
+      return;
+    }
+
+    await next();
+  });
+}
+
+function shouldCheckCombatLock(ctx: Context): boolean {
+  const data = ctx.callbackQuery?.data;
+
+  if (data) {
+    return !data.startsWith("v1:fight:turn:") && !data.startsWith("v1:spar:turn:");
+  }
+
+  const command = ctx.message?.text?.trim().match(/^\/([a-z_]+)(?:@\w+)?(?:\s+.*)?$/i)?.[1]?.toLowerCase();
+
+  if (!command) {
+    return false;
+  }
+
+  return command !== "help" && command !== "version";
+}
+
+async function redirectCombatLockIfNeeded(
+  ctx: Context,
+  telegramUserId: bigint,
+  services: BotServices
+): Promise<boolean> {
+  if (typeof services.fight.getFightOverviewForTelegramUser !== "function") {
+    return false;
+  }
+
+  const lock = await services.fight.getFightOverviewForTelegramUser(telegramUserId);
+
+  if (lock.state === "persistent-active") {
+    await answerCombatLockCallback(ctx);
+    await sendCombatLockText(ctx, presentPersistentFight(lock), {
+      reply_markup: buildPersistentFightResultKeyboard(lock.session, lock.character)
+    });
+    return true;
+  }
+
+  if (lock.state === "training-active") {
+    const training = services.trainingDoppelganger
+      ? await services.trainingDoppelganger.getStartOptionsForTelegramUser(telegramUserId)
+      : null;
+
+    await answerCombatLockCallback(ctx);
+
+    if (training?.state === "active") {
+      await sendCombatLockText(ctx, presentTrainingDoppelganger(training), {
+        reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character)
+      });
+      return true;
+    }
+
+    await sendCombatLockText(
+      ctx,
+      "🥊 Тренування вже триває.\n\nСпершу завершіть цей бій, тоді корчма знову відпустить вас до інших справ.",
+      {
+      reply_markup: buildTrainingDoppelgangerKeyboard(lock.session, lock.character)
+      }
+    );
+    return true;
+  }
+
+  return false;
+}
+
+async function answerCombatLockCallback(ctx: Context): Promise<void> {
+  if (!ctx.callbackQuery) {
+    return;
+  }
+
+  await safeAnswerCallbackQuery(ctx, {
+    text: "Спершу завершіть бій.",
+    show_alert: false
+  });
+}
+
+async function sendCombatLockText(
+  ctx: Context,
+  text: string,
+  options: { reply_markup: InlineKeyboard }
+): Promise<void> {
+  const messageOptions = {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: options.reply_markup
+  };
+
+  if (ctx.callbackQuery) {
+    await safeEditMessageText(ctx, text, messageOptions);
+    return;
+  }
+
+  await ctx.reply(text, messageOptions);
 }
 
 async function handleOnboardingCallback(
@@ -1285,7 +1405,7 @@ async function handlePlaceCallback(
   }
 
   if (action === "deep") {
-    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "edit");
+    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "edit", services.fight);
     return;
   }
 
@@ -1342,6 +1462,39 @@ async function handleQuestCallback(
   const fightDifficulty = questCallbackToPersistentFightDifficulty(action);
 
   if (action === "fight" || fightDifficulty) {
+    if (!telegramUserId) {
+      await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    const place = await services.presence.getCurrentPlaceForTelegramUser(telegramUserId);
+
+    if (place.state === "no-character") {
+      await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    if (!place.insideKorchma) {
+      await safeEditMessageText(ctx, presentKorchmaQuestGate(), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildKorchmaFrontKeyboard()
+      });
+      return;
+    }
+
+    if (place.locationId !== PRESENCE_LOCATION_KORCHMA_DEEP) {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_DEEP,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
+      await sendFight(ctx, services.fight, "reply", {
+        presence: services.presence,
+        requireKorchmaInterior: false
+      });
+      return;
+    }
+
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
@@ -1421,10 +1574,10 @@ async function handleQuestCallback(
   }
 
   if (action === "hunt") {
-    await sendHuntBoard(ctx, services.yeger, "reply", {
+    await sendYegerCorner(ctx, services.yeger, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
-      requireKorchmaInterior: true
+      requireKorchmaInterior: false
     });
     return;
   }
@@ -1602,7 +1755,7 @@ async function handleTavernCallback(
     await sendYegerCorner(ctx, yegerQuestService, "edit", {
       presence: presenceService,
       tavernRaid: tavernRaidService,
-      requireKorchmaInterior: true
+      requireKorchmaInterior: false
     });
     return;
   }
@@ -1839,6 +1992,7 @@ async function handleAdventureCallback(
 
       if (
         complicationFight.state === "needs-rest" ||
+        complicationFight.state === "monster-rest" ||
         complicationFight.state === "level-retired" ||
         complicationFight.state === "no-character"
       ) {
@@ -1849,6 +2003,15 @@ async function handleAdventureCallback(
           await safeEditMessageText(
             ctx,
             presentFightNeedsRest(complicationFight),
+            HTML_MESSAGE_OPTIONS
+          );
+          return;
+        }
+
+        if (complicationFight.state === "monster-rest") {
+          await safeEditMessageText(
+            ctx,
+            presentFightMonsterRest(complicationFight),
             HTML_MESSAGE_OPTIONS
           );
           return;
@@ -2350,7 +2513,7 @@ async function handleHuntCallback(
   await sendHuntBoard(ctx, services.yeger, "edit", {
     presence: services.presence,
     tavernRaid: services.tavern,
-    requireKorchmaInterior: true
+    requireKorchmaInterior: false
   });
 }
 
@@ -2392,7 +2555,7 @@ async function handleYegerCallback(
     await sendYegerCorner(ctx, services.yeger, "edit", {
       presence: services.presence,
       tavernRaid: services.tavern,
-      requireKorchmaInterior: true
+      requireKorchmaInterior: false
     });
     return;
   }
@@ -2402,7 +2565,7 @@ async function handleYegerCallback(
     await sendHuntBoard(ctx, services.yeger, "edit", {
       presence: services.presence,
       tavernRaid: services.tavern,
-      requireKorchmaInterior: true
+      requireKorchmaInterior: false
     });
     return;
   }
@@ -2510,6 +2673,11 @@ async function handleYegerCallback(
       return;
     }
 
+    if (result.state === "tracking-blocked-by-monster-rest") {
+      await safeEditMessageText(ctx, presentFightMonsterRest(result.fight), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
     if (result.state !== "tracking-resolved-success") {
       await safeEditMessageText(ctx, "Слід охолов.\n\nЄгер мовчить так переконливо, що навіть мапа перестала шарудіти.", {
         ...HTML_MESSAGE_OPTIONS,
@@ -2527,6 +2695,11 @@ async function handleYegerCallback(
 
     if (fight.state === "needs-rest") {
       await safeEditMessageText(ctx, presentFightNeedsRest(fight), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    if (fight.state === "monster-rest") {
+      await safeEditMessageText(ctx, presentFightMonsterRest(fight), HTML_MESSAGE_OPTIONS);
       return;
     }
 

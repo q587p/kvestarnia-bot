@@ -96,6 +96,8 @@ export const THIRTEEN_SMALL_PROBLEMS_REWARD = {
   xp: 35,
   gold: 10
 };
+export const MONSTER_REST_ELIGIBLE_FIGHT_COUNT = 3;
+export const MONSTER_REST_COOLDOWN_MS = 3 * 60 * 1000;
 
 export type ProblemQuestStageId = "13" | "23" | "42" | "93";
 
@@ -248,11 +250,19 @@ export type FightLookupResult =
       questProgress: ThirteenSmallProblemsProgress;
     }
   | {
+      state: "monster-rest";
+      character: CharacterSummary;
+      questProgress: ThirteenSmallProblemsProgress;
+      availableAt: Date;
+      now: Date;
+    }
+  | {
       state: "persistent-active";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
       questProgress: ThirteenSmallProblemsProgress;
+      started?: boolean;
     }
   | {
       state: "persistent-terminal";
@@ -433,6 +443,16 @@ export class FightService {
           state: "persistent-not-issued",
           character: characterSummary,
           questProgress
+        };
+      }
+
+      const rest = await this.getMonsterRestCooldown(telegramUserId, "normal");
+      if (rest) {
+        return {
+          state: "monster-rest",
+          character: characterSummary,
+          questProgress,
+          ...rest
         };
       }
 
@@ -690,6 +710,16 @@ export class FightService {
       };
     }
 
+    const monsterRest = await this.getMonsterRestCooldown(telegramUserId, options.source ?? "normal");
+    if (monsterRest) {
+      return {
+        state: "monster-rest",
+        character: characterSummary,
+        questProgress,
+        ...monsterRest
+      };
+    }
+
     const difficulty = options.target
       ? PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
       : getPersistentFightDifficultyConfig(options.difficulty);
@@ -703,6 +733,7 @@ export class FightService {
       hero: buildHeroCombatStats(characterSummary),
       monster: deriveMonsterCombatStats(monster)
     });
+    state.source = options.source ?? "normal";
     state.monster.debugTrace = buildPersistentFightInterventionTrace(
       baseMonster,
       monster,
@@ -724,7 +755,8 @@ export class FightService {
       character: characterSummary,
       session,
       monster,
-      questProgress
+      questProgress,
+      started: true
     };
   }
 
@@ -979,16 +1011,6 @@ export class FightService {
       monster: deriveMonsterCombatStats(monster),
       rng: this.rng
     });
-
-    if (!resolved.ok && resolved.reason === "not-enough-mana") {
-      return {
-        state: "not-enough-mana",
-        character: characterSummary,
-        session,
-        monster,
-        questProgress
-      };
-    }
 
     if (!resolved.ok) {
       return {
@@ -1502,6 +1524,53 @@ export class FightService {
       manaRegenAt: this.clock()
     });
   }
+
+  private async getMonsterRestCooldown(
+    telegramUserId: bigint,
+    source: NonNullable<PersistentFightStartOptions["source"]>
+  ): Promise<{ availableAt: Date; now: Date } | null> {
+    if (!this.combatSessions || source === "adventure") {
+      return null;
+    }
+
+    const now = this.clock();
+    const since = new Date(now.getTime() - MONSTER_REST_COOLDOWN_MS);
+    const recent = await this.combatSessions.listByTelegramUserIdSince(telegramUserId, since);
+    const eligible = recent
+      .filter((session) => isMonsterRestEligibleSession(session))
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+
+    if (eligible.length < MONSTER_REST_ELIGIBLE_FIGHT_COUNT) {
+      return null;
+    }
+
+    const streak = eligible.slice(-MONSTER_REST_ELIGIBLE_FIGHT_COUNT);
+    const first = streak[0];
+
+    if (!first) {
+      return null;
+    }
+
+    const availableAt = new Date(first.createdAt.getTime() + MONSTER_REST_COOLDOWN_MS);
+
+    return availableAt > now ? { availableAt, now } : null;
+  }
+}
+
+function isMonsterRestEligibleSession(
+  session: Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "state">
+): boolean {
+  if (
+    session.status === "active" ||
+    session.state?.source !== "normal" ||
+    isTrainingDoppelgangerMonsterId(session.monsterId)
+  ) {
+    return false;
+  }
+
+  const monster = findMonster(session.monsterId);
+
+  return monster ? isSoloFightMonsterEligible(monster, Number.POSITIVE_INFINITY) : false;
 }
 
 function buildPersistentFightReward(

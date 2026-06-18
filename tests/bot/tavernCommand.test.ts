@@ -46,6 +46,12 @@ describe("tavern command screens", () => {
           ],
           [
             {
+              text: "🧥 Єгер",
+              callback_data: "v1:tavern:ranger"
+            }
+          ],
+          [
+            {
               text: "📜 Табличка прибулих",
               callback_data: makePlaceCallbackData("arrivals")
             },

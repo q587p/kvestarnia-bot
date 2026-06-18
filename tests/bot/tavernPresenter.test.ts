@@ -144,7 +144,7 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("🕳️ Глибка");
     expect(text).toContain("гарчить");
-    expect(text).toContain("Скоро сюди переїдуть бої з монстрами");
+    expect(text).toContain("Тут починаються сутички за корчмарськими справами");
   });
 
   it("shows duel winners for day week and month", () => {
@@ -362,13 +362,11 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Біля Бочки Пінного Міражу");
     expect(text).toContain("Бочка Пінного Міражу");
-    expect(text).toContain(
-      "У кутку героїчно піниться Бочка Пінного Міражу.\n\nПоруч із нею сидить людисько-єгер у капюшоні"
-    );
+    expect(text).toContain("У кутку героїчно піниться Бочка Пінного Міражу.");
     expect(text).toContain(
       "Корчмар:\n<blockquote>Це не проблема. Дві-три хвилини. Максимум.</blockquote>"
     );
-    expect(text).toContain("людисько-єгер у капюшоні");
+    expect(text).not.toContain("людисько-єгер у капюшоні");
     expect(text).not.toContain("<i>Порада дня:");
     expect(text).not.toContain("За столами:");
     expect(text).toContain("Що робимо?");

@@ -24,10 +24,16 @@ export function buildTavernKeyboard(): InlineKeyboard {
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
-export function buildKorchmaFrontKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
+export function buildKorchmaFrontKeyboard(options: { includeYeger?: boolean } = {}): InlineKeyboard {
+  const keyboard = new InlineKeyboard()
     .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
-    .row()
+    .row();
+
+  if (options.includeYeger) {
+    keyboard.text("🧥 Єгер", makeTavernCallbackData("ranger")).row();
+  }
+
+  return keyboard
     .text("📜 Табличка прибулих", makePlaceCallbackData("arrivals"))
     .text("🏅 Пропамʼятна дошка", makePlaceCallbackData("memorial"))
     .row()

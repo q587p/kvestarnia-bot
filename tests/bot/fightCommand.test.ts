@@ -256,8 +256,8 @@ describe("fight command", () => {
           ],
           [
             {
-              text: "📋 До справ",
-              callback_data: makePlaceCallbackData("quest-table")
+              text: "🌘 До глибки",
+              callback_data: makePlaceCallbackData("deep")
             }
           ]
         ]

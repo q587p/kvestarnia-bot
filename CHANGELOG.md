@@ -7,6 +7,30 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.15] - 12026-06-18 - Combat Lock and Battle Flow Polish
+
+### Added
+- Added a central active-combat lock that redirects normal commands and callbacks back to unfinished persistent or training fights until they reach terminal state.
+- Newly started persistent battles now show the existing `Порада дня` line once at battle intro.
+- Added deterministic `3..5` hero-turn cooldowns for successful zero-mana class skills, based on the relevant skill stat with a small luck effect.
+- Added a three-minute monster-rest block after three recent eligible ordinary `Глибка` fights.
+- Level 3+ ordinary/problem fight entry moved to `Глибка`; Quest Hub now routes fights through the exact `До глибки` button.
+
+### Changed
+- Current-turn hidden/forged magic callbacks without enough mana now waste the hero turn, run the monster phase, advance the turn and persist the updated combat state.
+- Current-turn hidden/forged non-mana skill callbacks while on cooldown use the same failed-turn semantics.
+- Persistent and training fight keyboards recompute action availability every render, hiding magic without enough current mana and hiding non-mana skills while on cooldown.
+- Stale old quest-table fight callbacks open a fresh `Глибка` fight surface instead of starting from the old table message.
+- Yeger business moved to the front-door/courtyard Yeger screen while Yeger progress still matches eligible monster type/tag source-agnostically.
+- The existing `raid.prep-hint` tip pool was expanded and reused for battle intros instead of adding a second combat-only tip system.
+
+### Guardrails
+- Adventure Choice MVP stays intact: three-problem offers, level 1-2 starter mimic-shawarma, adventure complication handoff through persistent combat, `/dev_adventure_reset`, qualitative pre-choice copy and stable icons remain in place.
+- Adventure complication handoff rollback still avoids consuming the period if persistent combat cannot start, including monster-rest blocks.
+- Completed starter mimic-shawarma lookups still do not create actionable starter presence/buttons.
+- Monster rest excludes adventure handoffs, training doppelganger fights and legacy/unmarked sessions.
+- No threat streaks, multi-enemy fights, mana-restoring manatky/items, combat items, duel-combat runtime, migrations, schema changes or new production dependencies were added.
+
 ## [0.1.14] - 12026-06-18 - Adventure Choice MVP
 
 ### Added

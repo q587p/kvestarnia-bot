@@ -5,6 +5,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import { mainMenuButtons } from "../keyboards/mainMenuKeyboard";
@@ -47,7 +48,7 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
 
   if (data === "v1:tavern:ranger") {
     return {
-      locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+      locationId: PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
       currentRaidId: null,
       currentAdventureId: null
     };

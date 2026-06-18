@@ -44,6 +44,7 @@ import {
   presentTavernRaidReadyToComplete
 } from "../presenters/tavernPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { sendFight } from "./fightCommand";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 
@@ -263,7 +264,8 @@ export async function sendKorchmaDeepClosed(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  fightService?: FightService
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -292,6 +294,15 @@ export async function sendKorchmaDeepClosed(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_DEEP);
+
+  if (fightService) {
+    await sendFight(ctx, fightService, mode, {
+      presence: presenceService,
+      requireKorchmaInterior: false
+    });
+    return;
+  }
+
   await sendText(ctx, mode, presentKorchmaDeepClosed(result.character), "back-to-hall");
 }
 
@@ -484,7 +495,7 @@ async function sendText(
             : keyboard === "back-to-hall"
               ? buildBackToKorchmaHallKeyboard()
             : keyboard === "front"
-              ? buildKorchmaFrontKeyboard()
+              ? buildKorchmaFrontKeyboard({ includeYeger: true })
             : keyboard === "arrivals"
               ? buildKorchmaArrivalBoardKeyboard()
               : keyboard === "memorial"

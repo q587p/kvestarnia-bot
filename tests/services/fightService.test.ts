@@ -1589,6 +1589,50 @@ describe("FightService", () => {
     });
   });
 
+  it("blocks a new ordinary monster fight for three minutes after three recent eligible fights", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (const [index, createdAt] of [
+      new Date("2026-06-12T10:28:00.000Z"),
+      new Date("2026-06-12T10:29:00.000Z"),
+      new Date("2026-06-12T10:29:30.000Z")
+    ].entries()) {
+      sessions.addSession({
+        ...makeTerminalSession(
+          "won",
+          `ordinary-rest-${index + 1}`,
+          `character-${telegramUserId.toString()}`,
+          "monster.deadline-spider",
+          { createdAt }
+        ),
+        state: {
+          ...makeTerminalSession(
+            "won",
+            `ordinary-rest-${index + 1}`,
+            `character-${telegramUserId.toString()}`,
+            "monster.deadline-spider",
+            { createdAt }
+          ).state!,
+          source: "normal"
+        }
+      });
+    }
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "monster-rest",
+      availableAt: new Date("2026-06-12T10:31:00.000Z"),
+      now: fixedClock()
+    });
+  });
+
   it("marks the first problem quest ready on the thirteenth win without auto-claiming", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -2094,7 +2138,7 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
-  it("does not mutate when a persistent skill lacks mana", async () => {
+  it("wastes the persistent turn when a current skill action lacks mana", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25, classId: "class.mage", manaCurrent: 0, manaMax: 0 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -2119,8 +2163,12 @@ describe("FightService", () => {
       action: "skill"
     });
 
-    expect(result.state).toBe("not-enough-mana");
-    expect(sessions.updateCount).toBe(0);
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.state?.turn).toBe(2);
+      expect(result.session.state?.lastTurn?.heroOutcome).toBe("not-enough-mana");
+    }
+    expect(sessions.updateCount).toBe(1);
   });
 
   it("expires a stale persistent fight lazily without rewards", async () => {
@@ -2481,7 +2529,7 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   async listByTelegramUserIdSince(
     telegramUserId: bigint,
     since: Date
-  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt">>> {
+  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "state">>> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
@@ -2493,6 +2541,7 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
       .map((candidate) => ({
         monsterId: candidate.monsterId,
         status: candidate.status,
+        state: candidate.state,
         createdAt: candidate.createdAt
       }));
   }

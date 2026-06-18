@@ -5,6 +5,7 @@ import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_ADVENTURE_SOLO_FIGHT,
+  PRESENCE_LOCATION_KORCHMA_DEEP,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type PresenceService
 } from "../../services/presenceService";
@@ -21,6 +22,7 @@ import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
   presentFightAlreadyCompleted,
   presentFightLevelRetired,
+  presentFightMonsterRest,
   presentFightNeedsRest,
   presentFightNoCharacter,
   presentFightStart,
@@ -112,6 +114,11 @@ export async function sendFight(
     return;
   }
 
+  if (result.state === "monster-rest") {
+    await sendText(ctx, mode, presentFightMonsterRest(result), "persistent-ready");
+    return;
+  }
+
   if (result.state === "training-active") {
     await sendText(ctx, mode, presentFightTrainingActive(result), {
       type: "training-active",
@@ -184,7 +191,7 @@ async function markFightPresence(
 
   await presence.markAction({
     user: player,
-    locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+    locationId: options?.persistent ? PRESENCE_LOCATION_KORCHMA_DEEP : PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
     currentRaidId: null,
     currentAdventureId: options?.persistent
       ? PRESENCE_ADVENTURE_SOLO_FIGHT

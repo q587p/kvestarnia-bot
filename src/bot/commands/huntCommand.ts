@@ -33,7 +33,7 @@ export function registerHuntCommand(
   bot.command("hunt", async (ctx) => {
     await sendHuntBoard(ctx, yegerQuestService, "reply", {
       ...options,
-      requireKorchmaInterior: true
+      requireKorchmaInterior: false
     });
   });
 }

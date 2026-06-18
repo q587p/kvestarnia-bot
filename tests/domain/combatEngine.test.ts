@@ -5,6 +5,7 @@ import {
   deriveMonsterCombatStats,
   expireCombat,
   getCombatSkillProfile,
+  getCombatActionAvailability,
   rollBasicAttack,
   rollFleeSuccess,
   rollMonsterDamage,
@@ -362,7 +363,7 @@ describe("combat domain engine", () => {
     });
   });
 
-  it("returns not-enough-mana without mutating state", () => {
+  it("wastes the turn when a current skill action lacks mana", () => {
     const state = startCombat({
       hero: {
         ...unarmedMage,
@@ -370,6 +371,7 @@ describe("combat domain engine", () => {
       },
       monster
     });
+    const before = structuredClone(state);
 
     const result = resolveCombatTurn({
       state,
@@ -379,11 +381,79 @@ describe("combat domain engine", () => {
       rng: new FakeRandomSource([0])
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.reason).toBe("not-enough-mana");
-    expect(result.state).toEqual(state);
+    expect(result.ok).toBe(true);
+    expect(state).toEqual(before);
+    expect(result.state.turn).toBe(2);
     expect(result.summary).toMatchObject({
       heroOutcome: "not-enough-mana",
+      heroDamage: 0,
+      manaSpent: 0
+    });
+  });
+
+  it("hides unavailable skill actions from current combat state", () => {
+    const noMana = startCombat({
+      hero: {
+        ...unarmedMage,
+        manaCurrent: 1
+      },
+      monster
+    });
+
+    expect(getCombatActionAvailability(noMana, unarmedMage).skill).toMatchObject({
+      available: false,
+      reason: "not-enough-mana"
+    });
+
+    const onCooldown: CombatState = {
+      ...startCombat({ hero: warrior, monster }),
+      cooldowns: {
+        skill: {
+          id: "skill.forceful-strike",
+          remainingTurns: 3
+        }
+      }
+    };
+
+    expect(getCombatActionAvailability(onCooldown, warrior).skill).toMatchObject({
+      available: false,
+      reason: "cooldown",
+      cooldownRemainingTurns: 3
+    });
+  });
+
+  it("puts zero-mana class skills on deterministic cooldown and treats cooldown presses as failed turns", () => {
+    const first = resolveCombatTurn({
+      state: startCombat({ hero: warrior, monster }),
+      action: "skill",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
+    });
+
+    expect(first.ok).toBe(true);
+    expect(first.state.cooldowns?.skill).toEqual({
+      id: "skill.forceful-strike",
+      remainingTurns: 3
+    });
+
+    const second = resolveCombatTurn({
+      state: first.state,
+      action: "skill",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(second.ok).toBe(true);
+    expect(second.state.turn).toBe(first.state.turn + 1);
+    expect(second.state.cooldowns?.skill).toEqual({
+      id: "skill.forceful-strike",
+      remainingTurns: 2
+    });
+    expect(second.summary).toMatchObject({
+      heroOutcome: "skill-on-cooldown",
+      heroDamage: 0,
       manaSpent: 0
     });
   });

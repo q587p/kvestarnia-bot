@@ -61,7 +61,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
   async listByTelegramUserIdSince(
     telegramUserId: bigint,
     since: Date
-  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt">>> {
+  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "state">>> {
     const records = await this.prisma.soloCombatSession.findMany({
       where: {
         createdAt: {
@@ -79,6 +79,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       select: {
         monsterId: true,
         status: true,
+        stateJson: true,
         createdAt: true
       }
     });
@@ -86,6 +87,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     return records.map((record) => ({
       monsterId: record.monsterId,
       status: parseStatus(record.status),
+      state: parseCombatState(record.stateJson),
       createdAt: record.createdAt
     }));
   }
@@ -323,6 +325,7 @@ function parseCombatState(value: unknown): CombatState | null {
 
   const turn = intOrNull(value.turn);
   const status = parseStateStatus(value.status);
+  const source = parseCombatSource(value.source);
   const hero = parseResourceBlock(value.hero);
   const monster = parseMonsterBlock(value.monster);
 
@@ -330,13 +333,44 @@ function parseCombatState(value: unknown): CombatState | null {
     return null;
   }
 
+  const cooldowns = parseCooldowns(value.cooldowns);
+
   return {
     ...(typeof value.id === "string" ? { id: value.id } : {}),
+    ...(source ? { source } : {}),
     turn,
     status,
     hero,
     monster,
+    ...(cooldowns ? { cooldowns } : {}),
     ...(isTurnSummary(value.lastTurn) ? { lastTurn: value.lastTurn } : {})
+  };
+}
+
+function parseCombatSource(value: unknown): CombatState["source"] | null {
+  if (value === "normal" || value === "yeger" || value === "adventure" || value === "training") {
+    return value;
+  }
+
+  return null;
+}
+
+function parseCooldowns(value: unknown): CombatState["cooldowns"] | null {
+  if (!isRecord(value) || !isRecord(value.skill)) {
+    return null;
+  }
+
+  const remainingTurns = intOrNull(value.skill.remainingTurns);
+
+  if (typeof value.skill.id !== "string" || remainingTurns === null || remainingTurns <= 0) {
+    return null;
+  }
+
+  return {
+    skill: {
+      id: value.skill.id,
+      remainingTurns
+    }
   };
 }
 

@@ -1,4 +1,4 @@
-import type { Context } from "grammy";
+﻿import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
@@ -90,7 +90,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "⚔️ Розвʼязати проблему",
+      "До глибки",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -98,7 +98,7 @@ describe("quest hub command", () => {
     ]);
     expect(buttons).toEqual(expect.arrayContaining([
       { text: "🪧 Обрати пригоду", callback_data: makeQuestCallbackData("adventure") },
-      { text: "⚔️ Розвʼязати проблему", callback_data: makeQuestCallbackData("fight") },
+      { text: "До глибки", callback_data: makePlaceCallbackData("deep") },
       { text: "🧹 У льох", callback_data: makeQuestCallbackData("cellar") }
     ]));
     expect(presence.marks[0]).toMatchObject({
@@ -292,7 +292,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "⚔️ Розвʼязати проблему",
+      "До глибки",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -355,7 +355,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "⚔️ Розвʼязати проблему",
+      "До глибки",
       "🏹 До Єгеря",
       "📦 Архів",
       "📖 Бестіарій",
@@ -544,7 +544,7 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain(
-      "⚔️ <i>Сутичка з невідомим монстром</i> — герой ще не тримається на ногах, спершу /hero."
+      "🌘 <i>Глибка</i> — герой ще не тримається на ногах, спершу /hero."
     );
     expect(replies[0]?.text).toContain("HP 0? Спершу /hero, тоді /fight. Справи почекають.");
   });
@@ -597,7 +597,7 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    expect(buttons.map((button) => button.text)).toContain("⚔️ Розвʼязати проблему");
+    expect(buttons.map((button) => button.text)).toContain("До глибки");
   });
 
   it("keeps terminal persistent fights recoverable from the quest hub", async () => {
@@ -654,7 +654,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toContain("🍻 До шинку");
-    expect(buttons.map((button) => button.text)).toContain("📋 До запису бою");
+    expect(buttons.map((button) => button.text)).toContain("До глибки");
   });
 
   it("hides starter shawarma and offers persistent fight at level three", async () => {
@@ -684,7 +684,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "⚔️ Розвʼязати проблему",
+      "До глибки",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -721,7 +721,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
 
     expect(startCount).toBe(0);
-    expect(buttons.map((button) => button.callback_data)).toContain(makeQuestCallbackData("fight"));
+    expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("deep"));
     expect(buttons.map((button) => button.callback_data)).not.toContain(
       makeQuestCallbackData("fight-normal")
     );
@@ -781,7 +781,7 @@ describe("quest hub command", () => {
       "🍺 До зали"
     ]);
     expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("bar"));
-    expect(buttons.map((button) => button.text)).not.toContain("⚔️ Розвʼязати проблему");
+    expect(buttons.map((button) => button.text)).not.toContain("До глибки");
   });
 
   it("shows active spar from the quest hub without offering a normal fight", async () => {

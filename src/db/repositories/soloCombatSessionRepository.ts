@@ -51,7 +51,7 @@ export interface SoloCombatSessionRepository {
   listByTelegramUserIdSince(
     telegramUserId: bigint,
     since: Date
-  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt">>>;
+  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "state">>>;
   findByIdForTelegramUserId(
     telegramUserId: bigint,
     sessionId: string
