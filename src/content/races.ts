@@ -4,7 +4,7 @@ export const races = [
   {
     id: "race.human-ish",
     name: "Людисько",
-    description: "Трохи до всього, бо якось воно буде.",
+    description: "Практичне в усьому, що вдалося вписати в корчмарську анкету.",
     statBonus: {
       strength: 1,
       dexterity: 1,

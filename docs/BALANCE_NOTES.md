@@ -204,6 +204,8 @@ gold: clamp(1 + floor(monster.level / 2), 1, 7)
 item: максимум 1 controlled monsterLoot item
 ```
 
+Для `Низ` passage-втручань `monster.level` у цій формулі означає ефективний рівень після вибору проходу: правий прохід платить скромніше, прямий лишає базову ставку, лівий піднімає ризик і винагороду. Антифарм XP перевіряє окремо збережений `baseMonsterLevel` до втручання: якщо базовий монстр уже був надто слабким для героя, лишаються старі стиснуті bands `3 XP` / `2 XP`; якщо розрив зʼявився тільки через легший правий прохід, це не farming.
+
 `0.0.25` додає Loot Expansion v1 як широкий content-backed pool для persistent fight loot: `120` базових сімей манаток і `500` generated variants. Runtime зберігає тільки звичайні `item.*` ids, без нової міграції: базові pack ids перетворюються на `item.loot-v1-*`, а `+1...+5` мають level gates `3/6/10/14/18`. Affinity за класом, расою і титулом є м’якою вагою дропу, не hard-ban для випадіння. Hard requirements застосовуються тільки при екіпіруванні. `legendary` з pack поки мапиться у чинну `epic` rarity, бо поточна публічна item schema ще не має окремої легендарної категорії.
 
 Hand-authored `monsterLoot` trophies still matter alongside the broad pool. The ordinary level `4-13` ladder now has at least one stable small trophy per monster, so specific higher-level problems can leave recognizable evidence without creating a full random loot table. In `0.0.26`, most of those handcrafted trophies also become modest supported equipment when they occupy weapon, armor, or accessory slots; only intentional keepsakes stay pure `junk`/`cosmetic`.

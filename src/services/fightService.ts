@@ -1627,6 +1627,7 @@ function buildPersistentFightReward(
   }
 
   const difficulty = getPersistentFightSessionDifficulty(session);
+  const baseMonsterLevel = getPersistentFightSessionBaseMonsterLevel(session, monster.level);
   const effectiveMonsterLevel = getPersistentFightSessionMonsterLevel(session, monster.level);
   const lootProfileLevel = Math.max(1, effectiveMonsterLevel + difficulty.lootPowerOffset);
   const loot = rollMonsterLoot({
@@ -1647,19 +1648,36 @@ function buildPersistentFightReward(
   });
 
   return {
-    xp: buildPersistentFightWinXp(effectiveMonsterLevel, difficulty),
+    xp: buildPersistentFightWinXp({
+      characterLevel: character.level,
+      baseMonsterLevel,
+      effectiveMonsterLevel,
+      difficulty
+    }),
     gold: buildPersistentFightWinGold(effectiveMonsterLevel, difficulty),
     itemGrants: loot.state === "dropped" ? [{ itemId: loot.item.id, quantity: 1 }] : []
   };
 }
 
-function buildPersistentFightWinXp(
-  monsterLevel: number,
-  difficulty: PersistentFightDifficultyConfig = PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
-): number {
-  const baseXp = Math.min(14, Math.max(5, 3 + monsterLevel * 2));
+function buildPersistentFightWinXp(input: {
+  characterLevel: number;
+  baseMonsterLevel: number;
+  effectiveMonsterLevel: number;
+  difficulty: PersistentFightDifficultyConfig;
+}): number {
+  const antiFarmGap = input.characterLevel - input.baseMonsterLevel;
 
-  return Math.max(1, Math.round(baseXp * difficulty.xpMultiplier));
+  if (antiFarmGap > 3) {
+    return Math.max(1, Math.round(2 * input.difficulty.xpMultiplier));
+  }
+
+  if (antiFarmGap > 2) {
+    return Math.max(1, Math.round(3 * input.difficulty.xpMultiplier));
+  }
+
+  const baseXp = Math.min(14, Math.max(5, 3 + input.effectiveMonsterLevel * 2));
+
+  return Math.max(1, Math.round(baseXp * input.difficulty.xpMultiplier));
 }
 
 function buildPersistentFightWinGold(
@@ -1876,6 +1894,15 @@ function getPersistentFightSessionMonsterLevel(
 ): number {
   const storedLevel =
     session?.state?.monster.debugTrace?.effectiveMonsterLevel ?? session?.state?.monster.level;
+
+  return Math.max(1, Math.floor(storedLevel ?? fallbackLevel));
+}
+
+function getPersistentFightSessionBaseMonsterLevel(
+  session: Pick<SoloCombatSessionRecord, "state"> | undefined,
+  fallbackLevel: number
+): number {
+  const storedLevel = session?.state?.monster.debugTrace?.baseMonsterLevel;
 
   return Math.max(1, Math.floor(storedLevel ?? fallbackLevel));
 }

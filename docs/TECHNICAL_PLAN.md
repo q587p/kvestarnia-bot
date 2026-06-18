@@ -601,7 +601,7 @@ Callback data коротка, версіонована.
 Заплановані приклади для майбутніх persistent systems:
 - future shorter duel action callbacks only if result/rematch cards outgrow the current token payload shape;
 - `v1:gift:offer:{token}` / `v1:gift:accept:{token}` / `v1:trade:confirm:{token}` or shorter equivalents for narrow item transfer flows;
-- `v1:remort:view` / `v1:remort:confirm:{token}` for explicit level-13 remort confirmation;
+- current remort callbacks use the compact `v1:rm:*` namespace (`v1:rm:open`, `v1:rm:pr:*`, `v1:rm:ra:*`, `v1:rm:cl:*`, `v1:rm:it:*`, `v1:rm:go:*`) for explicit level-13 remort confirmation;
 - `v1:combat:*` або коротший equivalent для майбутніх group/PvP combats, якщо solo `v1:fight:turn:*` стане затісним;
 - `v1:equip:wear:{itemId}` або коротший equivalent — future richer equipment mutation after the `0.0.14` shell, if slots, restrictions, or item instances need more data than content ids.
 

@@ -710,7 +710,20 @@ function registerCombatLockMiddleware(bot: Bot, services: BotServices): void {
   bot.use(async (ctx, next) => {
     const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
-    if (!telegramUserId || !shouldCheckCombatLock(ctx)) {
+    if (!telegramUserId) {
+      await next();
+      return;
+    }
+
+    if (
+      ctx.callbackQuery?.data.startsWith("v1:rm:") &&
+      typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
+      (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
+    ) {
+      return;
+    }
+
+    if (!shouldCheckCombatLock(ctx)) {
       await next();
       return;
     }
@@ -761,7 +774,7 @@ function isCombatLockSafeCallback(data: string): boolean {
     data.startsWith("v1:item:") ||
     data.startsWith("v1:equip:") ||
     data.startsWith("v1:restart:") ||
-    data.startsWith("v1:remort:")
+    data.startsWith("v1:rm:")
   );
 }
 

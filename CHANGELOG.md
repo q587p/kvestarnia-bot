@@ -16,11 +16,11 @@ This project follows a simple pre-1.0 versioning policy:
 - Added local `/dev_raid_stop` to finish an active pending Barrel raid through the normal completion path for manual QA.
 
 ### Changed
-- Normalized `Людисько` to the active `+3` race budget: `+1 STR`, `+1 DEX`, `+1 CHA`.
+- Normalized `Людисько` to the active `+3` race budget (`+1 STR`, `+1 DEX`, `+1 CHA`) and refreshed its flavor so it no longer promises “a bit of everything.”
 - `/hero` now shows `Зміна:` as a next-level forecast instead of showing cumulative current level growth as `Ріст:`.
 - Level-up and remort presentation can render multiple stat deltas when growth or memory spans more than one stat.
 - Reward level-up celebrations now use the same race/path-aware next-level delta as `/hero`, including Barrel raid, training and fight reward paths.
-- Fixed `Низ` passage rewards so persistent fight XP, gold and broad loot profile power follow the effective monster level selected by the passage, not the hero level gap.
+- Fixed `Низ` passage rewards so persistent fight XP, gold and broad loot profile power follow the effective monster level selected by the passage; XP anti-farm compression still checks the stored pre-intervention base monster level, so genuinely weak targets remain compressed without penalizing the deliberately easier right passage.
 - Combat simulation tooling now accepts the hidden path and applies the same race/path-aware effective stat math as live character summaries.
 - `/help` now points to future shops, crafting and guilds instead of implying loot and combat bookkeeping are still missing.
 - Active combat now allows safe side surfaces again, including `/inventory`, item detail/equipment callbacks, hero/profile, nearby-player views, restart/remort and support, so manatky can be inspected during a fight.

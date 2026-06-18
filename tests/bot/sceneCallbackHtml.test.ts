@@ -14,7 +14,10 @@ import { makeEquipItemCallbackData } from "../../src/bot/callbacks/itemCallbackD
 import { makeLevelBarterAutoCallbackData } from "../../src/bot/callbacks/levelBarterCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
-import { makeRemortConfirmCallbackData } from "../../src/bot/callbacks/remortCallbackData";
+import {
+  makeRemortConfirmCallbackData,
+  makeRemortOpenCallbackData
+} from "../../src/bot/callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import { makeYegerTrackCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -976,6 +979,48 @@ describe("scene callback HTML options", () => {
 
     expect(itemCalls).toBe(1);
     expect(String(edit?.payload.text)).toContain("Такої манатки в торбі не знайшлося");
+    expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
+  });
+
+  it("lets remort callbacks through during an active persistent fight", async () => {
+    const getFightOverviewForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-active" as const,
+        character,
+        session: persistentSession("monster.deadline-spider"),
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null
+      })
+    );
+    const openForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "locked" as const,
+        character,
+        requiredLevel: 13
+      })
+    );
+    const calls = await captureApiCalls(
+      makeRemortOpenCallbackData(),
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser
+        },
+        remort: {
+          openForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(openForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(getFightOverviewForTelegramUser).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("🕯️ Реморт ще не кличе");
     expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
   });
 
