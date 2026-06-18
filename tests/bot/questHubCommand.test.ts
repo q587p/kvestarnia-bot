@@ -666,6 +666,41 @@ describe("quest hub command", () => {
     ]);
   });
 
+  it("keeps the quest table problem button on the difficulty route without starting combat", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(3);
+    let startCount = 0;
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(grownCharacter),
+        fight: {
+          ...readyFightService(grownCharacter),
+          getOrStartPersistentFightForTelegramUser: () => {
+            startCount += 1;
+            return Promise.resolve({ state: "no-character" });
+          }
+        } as unknown as FightService,
+        yeger: readyYegerService(grownCharacter),
+        cellarErrand: readyCellarService(grownCharacter)
+      }),
+      "reply"
+    );
+
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+
+    expect(startCount).toBe(0);
+    expect(buttons.map((button) => button.callback_data)).toContain(makeQuestCallbackData("fight"));
+    expect(buttons.map((button) => button.callback_data)).not.toContain(
+      makeQuestCallbackData("fight-normal")
+    );
+  });
+
   it("routes an unissued first problem quest to the Шинок from the quest hub", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const grownCharacter = characterAtLevel(3);

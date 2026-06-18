@@ -11,6 +11,7 @@ import {
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildFightKeyboard,
+  buildPersistentFightDifficultyKeyboard,
   buildPersistentFightReadyKeyboard,
   buildPersistentFightResultKeyboard
 } from "../keyboards/fightKeyboard";
@@ -24,11 +25,13 @@ import {
   presentFightNoCharacter,
   presentFightStart,
   presentFightTrainingActive,
+  presentPersistentFightDifficultyChoice,
   presentPersistentFight
 } from "../presenters/fightPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
+import type { PersistentFightDifficultyId } from "../../services/fightService";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 
@@ -56,6 +59,7 @@ export async function sendFight(
   mode: "reply" | "edit",
   options?: FightCommandOptions & {
     requireKorchmaInterior?: boolean;
+    difficulty?: PersistentFightDifficultyId;
   }
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
@@ -85,7 +89,13 @@ export async function sendFight(
     }
   }
 
-  const result = await fightService.getFightForTelegramUser(telegramUserId);
+  const result = options?.difficulty
+    ? await fightService.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+        difficulty: options.difficulty
+      })
+    : typeof fightService.getFightOverviewForTelegramUser === "function"
+      ? await fightService.getFightOverviewForTelegramUser(telegramUserId)
+      : await fightService.getFightForTelegramUser(telegramUserId);
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentFightNoCharacter());
@@ -149,12 +159,8 @@ export async function sendFight(
     await sendText(
       ctx,
       mode,
-      [
-        "⚔️ Бій не стартував.",
-        "",
-        "Корчмар загубив монстра між рядками, але лишив вам дорогу назад до справ."
-      ].join("\n"),
-      "persistent-ready"
+      presentPersistentFightDifficultyChoice(result),
+      "persistent-difficulty"
     );
     return;
   }
@@ -193,6 +199,7 @@ async function sendText(
   keyboard:
     | false
     | "enter-korchma"
+    | "persistent-difficulty"
     | "persistent-ready"
     | "problem-not-issued"
     | {
@@ -213,6 +220,8 @@ async function sendText(
         reply_markup:
           keyboard === "enter-korchma"
             ? buildKorchmaFrontKeyboard()
+            : keyboard === "persistent-difficulty"
+              ? buildPersistentFightDifficultyKeyboard()
             : keyboard === "persistent-ready"
               ? buildPersistentFightReadyKeyboard()
               : keyboard === "problem-not-issued"

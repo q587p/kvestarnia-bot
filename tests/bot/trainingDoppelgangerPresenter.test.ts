@@ -77,6 +77,8 @@ describe("training doppelganger presenter", () => {
     expect(text).toContain("Тренувальний досвід:");
     expect(text).toContain("+6 XP");
     expect(text).toContain("Золота й манаток немає");
+    expect(text).toContain("корчемний запис для слави, а не спосіб заробітку");
+    expect(text).not.toContain("фарм");
     expect(text).toContain("Допельґанґер буде готовий знову за <b>6 хв</b>");
     expect(text).not.toContain("+0 золота");
     expect(text).not.toContain("Здобуто");
@@ -266,7 +268,8 @@ describe("training doppelganger presenter", () => {
 
     expect(randomText).not.toContain("власну копію");
     expect(championText).not.toContain("власну копію");
-    expect(randomText).toContain("дзеркального пригодника");
+    expect(randomText).toContain("випадкового дзеркального пригодника");
+    expect(randomText).not.toContain("внутрішні конфлікти");
     expect(championText).toContain("чемпіонську подобу");
   });
 

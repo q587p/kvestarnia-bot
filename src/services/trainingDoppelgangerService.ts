@@ -737,7 +737,8 @@ function buildDoppelgangerCopy(
   character: CharacterSummary,
   state?: SoloCombatSessionRecord["state"]
 ): TrainingDoppelgangerCopy {
-  const trace = state?.monster.debugTrace;
+  const trace = state?.monster.debugTrace ?? state?.lastTurn?.debugTrace;
+  const source = getDoppelgangerCopySource(trace);
 
   return {
     name: state?.monster.name ?? "Сумлінний Допельґанґер",
@@ -746,16 +747,27 @@ function buildDoppelgangerCopy(
     title: state?.monster.title ?? character.title,
     level: state?.monster.level ?? character.level,
     spawnMode: trace?.spawnMode === "RANDOM_BUILD" ? "RANDOM_BUILD" : "COPY_TARGET",
-    source:
-      trace?.source === "random-build" || trace?.source === "champion-fallback"
-        ? trace.source
-        : "target",
+    source,
     ...(isChampionPeriod(trace?.championPeriod)
       ? { championPeriod: trace.championPeriod }
       : {}),
     ...(trace?.championName?.trim() ? { championName: trace.championName.trim() } : {}),
     copiedEquipmentCount: trace?.copiedEquipmentCount ?? 0
   };
+}
+
+function getDoppelgangerCopySource(
+  trace: NonNullable<SoloCombatSessionRecord["state"]>["monster"]["debugTrace"] | undefined
+): TrainingDoppelgangerCopy["source"] {
+  if (trace?.source === "random-build" || trace?.spawnMode === "RANDOM_BUILD") {
+    return "random-build";
+  }
+
+  if (trace?.source === "champion-fallback" || trace?.spawnMode?.startsWith("COPY_CHAMPION")) {
+    return "champion-fallback";
+  }
+
+  return "target";
 }
 
 function isChampionPeriod(

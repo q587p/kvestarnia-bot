@@ -215,6 +215,57 @@ describe("TrainingDoppelgangerService", () => {
     );
     expect(world.resourceMutations).toBe(1);
   });
+
+  it("keeps random-build source for terminal replay copy text", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world, new FakeRandomSource([0.2, 0.4, 0.6]));
+    const started = await service.getOrStartForTelegramUser(telegramUserId, {
+      mode: "random-build"
+    });
+
+    if (started.state !== "active" || !started.session.state) {
+      throw new Error(`Expected active training, got ${started.state}`);
+    }
+
+    const trace = started.session.state.monster.debugTrace;
+    const monsterWithoutTrace = { ...started.session.state.monster };
+    delete monsterWithoutTrace.debugTrace;
+    const wonState = {
+      ...started.session.state,
+      status: "won" as const,
+      monster: {
+        ...monsterWithoutTrace,
+        hp: 0
+      },
+      lastTurn: {
+        action: "attack" as const,
+        heroOutcome: "won" as const,
+        heroDamage: 93,
+        monsterDamage: 0,
+        manaSpent: 0,
+        critical: false,
+        ...(trace ? { debugTrace: trace } : {})
+      }
+    };
+    world.sessions.set(started.session.id, {
+      ...started.session,
+      status: "won",
+      state: wonState
+    });
+
+    const replay = await service.resolveTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: started.session.state.turn,
+      action: "attack"
+    });
+
+    expect(replay.state).toBe("terminal");
+    if (replay.state === "terminal") {
+      expect(replay.doppelganger.source).toBe("random-build");
+      expect(replay.doppelganger.spawnMode).toBe("RANDOM_BUILD");
+    }
+  });
 });
 
 function buildService(

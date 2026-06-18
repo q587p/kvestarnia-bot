@@ -199,13 +199,13 @@ function presentTrainingDoppelgangerState(input: {
     lines.push(
       "",
       presentTrainingWonLine(input.doppelganger),
-      "Золота й манаток немає: це тренування, не фарм."
+      "Золота й манаток немає: це корчемний запис для слави, а не спосіб заробітку."
     );
   } else if (state?.status === "lost") {
     lines.push(
       "",
       presentTrainingLostLine(input.doppelganger),
-      "Золота й манаток немає: це тренування, не фарм."
+      "Золота й манаток немає: це корчемний запис для слави, а не спосіб заробітку."
     );
   } else if (state?.status === "fled") {
     lines.push(
@@ -353,7 +353,7 @@ function presentTrainingWonLine(
   }
 
   if (doppelganger.source === "random-build") {
-    return "🎉 Ви перемогли дзеркального пригодника. Це не вирішує внутрішні конфлікти, але добре тренує зовнішні.";
+    return "🎉 Ви перемогли випадкового дзеркального пригодника. Це не впорядковує чужу біографію, зате добре тренує ваші рефлекси.";
   }
 
   return "🎉 Ви перемогли власну копію. Це не вирішує внутрішні конфлікти, але добре тренує зовнішні.";

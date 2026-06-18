@@ -25,6 +25,7 @@ export interface LootRollInput {
   monsterLoot: Readonly<Record<string, readonly string[]>>;
   items: readonly ItemContent[];
   luck: number;
+  dropChanceMultiplier?: number;
   rng: RandomSource;
   character?: LootExpansionProfile;
   sourceId?: LootExpansionSourceId;
@@ -70,7 +71,7 @@ export function rollMonsterLoot(input: LootRollInput): LootRollResult {
     return { state: "none", reason: "no-eligible-loot" };
   }
 
-  if (input.rng.nextFloat() >= getItemDropChance(input.luck)) {
+  if (input.rng.nextFloat() >= getItemDropChance(input.luck) * (input.dropChanceMultiplier ?? 1)) {
     return { state: "none", reason: "no-drop" };
   }
 

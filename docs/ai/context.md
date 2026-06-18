@@ -8,7 +8,7 @@ Keep this file compact. Target: under 250 lines.
 - Player-facing name: `Квестарня`.
 - Technical slug/package/repo prefix: `kvestarnia`.
 - Bot username target: `@kvestarnia_bot`.
-- Current package version in this repository snapshot: `0.1.12`.
+- Current package version in this repository snapshot: `0.1.13`.
 
 ## Language split
 

@@ -208,10 +208,11 @@ describe("fight command", () => {
     });
   });
 
-  it("offers recovery buttons when a persistent fight cannot start", async () => {
+  it("offers problem fight difficulty choices before starting a persistent fight", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
+    let startCount = 0;
     const fightService = {
-      getFightForTelegramUser: () =>
+      getFightOverviewForTelegramUser: () =>
         Promise.resolve({
           state: "persistent-ready",
           character: {
@@ -219,20 +220,38 @@ describe("fight command", () => {
             level: 3
           },
           questProgress: questProgress(0)
-        })
+        }),
+      getOrStartPersistentFightForTelegramUser: () => {
+        startCount += 1;
+        return Promise.resolve({ state: "no-character" });
+      }
     } as unknown as FightService;
 
     await sendFight(makeContext(replies), fightService, "reply");
 
-    expect(replies[0]?.text).toContain("Бій не стартував");
+    expect(startCount).toBe(0);
+    expect(replies[0]?.text).toContain("Розв’язати проблему");
+    expect(replies[0]?.text).toContain("Припічник");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
           [
             {
-              text: "⚔️ Новий бій",
-              callback_data: makeQuestCallbackData("fight")
+              text: "🕯 Легше: -3 рів.",
+              callback_data: makeQuestCallbackData("fight-easy")
+            }
+          ],
+          [
+            {
+              text: "🍺 Як є",
+              callback_data: makeQuestCallbackData("fight-normal")
+            }
+          ],
+          [
+            {
+              text: "🌶 Важче: +2 рів.",
+              callback_data: makeQuestCallbackData("fight-hard")
             }
           ],
           [
@@ -244,6 +263,46 @@ describe("fight command", () => {
         ]
       }
     });
+  });
+
+  it("starts the selected persistent fight difficulty through the existing session path", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const startedDifficulties: string[] = [];
+    const fightService = {
+      getOrStartPersistentFightForTelegramUser: (
+        _telegramUserId: bigint,
+        options: { difficulty?: string }
+      ) => {
+        startedDifficulties.push(options.difficulty ?? "none");
+        return Promise.resolve({
+          state: "persistent-active",
+          character: {
+            ...character,
+            level: 3
+          },
+          session: persistentSession(),
+          monster: {
+            id: "monster.deadline-spider",
+            name: "Павук дедлайнів",
+            description: "Плете павутину з «сьогодні швиденько».",
+            level: 1,
+            tags: ["beast", "time", "web"]
+          },
+          questProgress: questProgress(0)
+        });
+      }
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply", {
+      presence: new CapturingPresenceService({
+        locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+        insideKorchma: true
+      }),
+      difficulty: "easy"
+    });
+
+    expect(startedDifficulties).toEqual(["easy"]);
+    expect(replies[0]?.text).toContain("Павук дедлайнів");
   });
 
   it("routes unissued problem quests to the Шинок instead of starting a fight", async () => {

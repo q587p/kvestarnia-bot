@@ -257,10 +257,15 @@ function selectMonsterSkill(
   }
 
   const skill = getCombatSkillProfile(monster.classId);
-  const forceByTurn = state.turn >= 3;
-  const useSkill = forceByTurn || rng.nextFloat() < 0.35;
+  if (state.turn === 1) {
+    return rng.nextFloat() < 0.5 ? skill : null;
+  }
 
-  return useSkill ? skill : null;
+  if (state.turn === 2 && !state.lastTurn?.monsterSkillId) {
+    return skill;
+  }
+
+  return rng.nextFloat() < 0.35 ? skill : null;
 }
 
 function buildTurnDebugTrace(

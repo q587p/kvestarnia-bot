@@ -4,6 +4,9 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 export type QuestCallback =
   | "adventure"
   | "fight"
+  | "fight-easy"
+  | "fight-normal"
+  | "fight-hard"
   | "hunt"
   | "cellar"
   | "problem"
@@ -16,6 +19,9 @@ const PREFIX = "v1:quest";
 const questCallbacks = new Set<QuestCallback>([
   "adventure",
   "fight",
+  "fight-easy",
+  "fight-normal",
+  "fight-hard",
   "hunt",
   "cellar",
   "problem",
@@ -26,6 +32,24 @@ const questCallbacks = new Set<QuestCallback>([
 
 export function makeQuestCallbackData(action: QuestCallback): string {
   return `${PREFIX}:${action}`;
+}
+
+export function questCallbackToPersistentFightDifficulty(
+  action: QuestCallback
+): "easy" | "normal" | "hard" | null {
+  if (action === "fight-easy") {
+    return "easy";
+  }
+
+  if (action === "fight-normal") {
+    return "normal";
+  }
+
+  if (action === "fight-hard") {
+    return "hard";
+  }
+
+  return null;
 }
 
 export function parseQuestCallbackData(

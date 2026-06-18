@@ -69,7 +69,12 @@ import {
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
 import { makePlaceCallbackData, parsePlaceCallbackData, type PlaceCallback } from "./callbacks/placeCallbackData";
-import { makeQuestCallbackData, parseQuestCallbackData, type QuestCallback } from "./callbacks/questCallbackData";
+import {
+  makeQuestCallbackData,
+  parseQuestCallbackData,
+  questCallbackToPersistentFightDifficulty,
+  type QuestCallback
+} from "./callbacks/questCallbackData";
 import {
   parseTrainingDoppelgangerCallbackData,
   type TrainingDoppelgangerCallback
@@ -1330,11 +1335,14 @@ async function handleQuestCallback(
     return;
   }
 
-  if (action === "fight") {
+  const fightDifficulty = questCallbackToPersistentFightDifficulty(action);
+
+  if (action === "fight" || fightDifficulty) {
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
-      requireKorchmaInterior: true
+      requireKorchmaInterior: true,
+      ...(fightDifficulty ? { difficulty: fightDifficulty } : {})
     });
     return;
   }

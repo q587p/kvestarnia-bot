@@ -63,6 +63,10 @@ export interface CombatDebugTrace {
   chosenAbilityId?: string;
   lineId?: string;
   lineCategory?: string;
+  interventionKind?: "help" | "none" | "hinder";
+  interventionSourceKey?: string;
+  baseMonsterLevel?: number;
+  effectiveMonsterLevel?: number;
 }
 
 export interface CombatState {
