@@ -110,7 +110,7 @@ async function main(): Promise<void> {
     const summary = await runRemortDailyActionCleanup({
       store: new PrismaRemortDailyActionCleanupStore(prisma),
       apply,
-      keys
+      ...(keys ? { keys } : {})
     });
 
     printSummary(summary, yegerOnly ? "Yeger remort daily-action cleanup" : "remort daily-action cleanup");
