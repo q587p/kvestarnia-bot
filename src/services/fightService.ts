@@ -505,7 +505,7 @@ export class FightService {
     }
 
     if (isExpired(activeSession, this.clock())) {
-      const expiredState = expireCombat(activeSession.state);
+      const expiredState = stampCombatCompletedAt(expireCombat(activeSession.state), this.clock());
       const expiredSession = await this.combatSessions.updateById(activeSession.id, {
         state: expiredState,
         status: expiredState.status
@@ -532,8 +532,10 @@ export class FightService {
     const monster = findPersistentFightMonster(activeSession);
 
     if (!monster || activeSession.state.status !== "active") {
-      const expiredState =
-        activeSession.state.status === "active" ? expireCombat(activeSession.state) : activeSession.state;
+      const expiredState = stampCombatCompletedAt(
+        activeSession.state.status === "active" ? expireCombat(activeSession.state) : activeSession.state,
+        this.clock()
+      );
       const expiredSession = await this.combatSessions.updateById(activeSession.id, {
         state: expiredState,
         status: expiredState.status
@@ -629,7 +631,7 @@ export class FightService {
       if (!activeSession.state) {
         await this.combatSessions.markStatusById(activeSession.id, "expired");
       } else if (isExpired(activeSession, this.clock())) {
-        const expiredState = expireCombat(activeSession.state);
+        const expiredState = stampCombatCompletedAt(expireCombat(activeSession.state), this.clock());
         const expiredSession = await this.combatSessions.updateById(activeSession.id, {
           state: expiredState,
           status: expiredState.status
@@ -655,7 +657,7 @@ export class FightService {
         const monster = findPersistentFightMonster(activeSession);
 
         if (!monster) {
-          const expiredState = expireCombat(activeSession.state);
+          const expiredState = stampCombatCompletedAt(expireCombat(activeSession.state), this.clock());
           const expiredSession = await this.combatSessions.updateById(activeSession.id, {
             state: expiredState,
             status: expiredState.status
@@ -974,7 +976,7 @@ export class FightService {
     const monster = findPersistentFightMonster(session);
 
     if (isExpired(session, this.clock())) {
-      const expiredState = expireCombat(session.state);
+      const expiredState = stampCombatCompletedAt(expireCombat(session.state), this.clock());
       const updated = await this.combatSessions.updateById(session.id, {
         state: expiredState,
         status: expiredState.status
@@ -1046,9 +1048,10 @@ export class FightService {
       };
     }
 
+    const resolvedState = stampCombatCompletedAt(resolved.state, this.clock());
     const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, input.turn, {
-      state: resolved.state,
-      status: resolved.state.status,
+      state: resolvedState,
+      status: resolvedState.status,
       expiresAt: getSessionExpiry(this.clock())
     });
 
@@ -1570,10 +1573,10 @@ export class FightService {
 
     const now = this.clock();
     const since = new Date(now.getTime() - MONSTER_REST_COOLDOWN_MS * MONSTER_REST_ELIGIBLE_FIGHT_COUNT);
-    const recent = await this.combatSessions.listByTelegramUserIdSince(telegramUserId, since);
+    const recent = await this.combatSessions.listCompletedByTelegramUserIdSince(telegramUserId, since);
     const eligible = recent
       .filter((session) => isMonsterRestEligibleSession(session))
-      .sort((left, right) => left.updatedAt.getTime() - right.updatedAt.getTime());
+      .sort((left, right) => left.completedAt.getTime() - right.completedAt.getTime());
 
     if (eligible.length < MONSTER_REST_ELIGIBLE_FIGHT_COUNT) {
       return null;
@@ -1586,14 +1589,14 @@ export class FightService {
       return null;
     }
 
-    const availableAt = new Date(third.updatedAt.getTime() + MONSTER_REST_COOLDOWN_MS);
+    const availableAt = new Date(third.completedAt.getTime() + MONSTER_REST_COOLDOWN_MS);
 
     return availableAt > now ? { availableAt, now } : null;
   }
 }
 
 function isMonsterRestEligibleSession(
-  session: Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "updatedAt" | "state">
+  session: Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "state">
 ): boolean {
   if (
     session.status === "active" ||
@@ -1786,6 +1789,17 @@ function getSessionExpiry(now: Date): Date {
 
 function isExpired(session: SoloCombatSessionRecord, now: Date): boolean {
   return session.expiresAt.getTime() <= now.getTime();
+}
+
+function stampCombatCompletedAt(state: CombatState, now: Date): CombatState {
+  if (state.status === "active" || state.completedAt) {
+    return state;
+  }
+
+  return {
+    ...state,
+    completedAt: now.toISOString()
+  };
 }
 
 function findMonster(monsterId: string): MonsterContent | null {

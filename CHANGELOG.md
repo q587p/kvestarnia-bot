@@ -14,7 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Hardened the lock for registered reply-keyboard main-menu text (`Корчма`, `Квести`, `Персонаж`, `Манатки`, `Хто поруч`) while keeping Help, `/help`, `/version`, and real persistent/training/starter combat callbacks allowed.
 - Newly started persistent battles now show the existing `Порада дня` line once at battle intro.
 - Added deterministic `3..5` hero-turn cooldowns for successful zero-mana class skills, based on the relevant skill stat with a small luck effect.
-- Added a three-minute monster-rest block after three consecutive eligible ordinary `Низ` fights, measured from the terminal completion time of the third fight.
+- Added a three-minute monster-rest block after three consecutive eligible ordinary `Низ` fights, measured from the stored terminal completion time of the third fight so later reward/replay writes do not extend the rest.
 - Level 3+ ordinary/problem fight entry moved to `Низ`; fight routes now open `Спуск до Низу`, then `Спуститися` moves to the first tier, `Ярус I: Сутерени Корчми`, where the passage/difficulty choice lives.
 - Added a short HP recovery notice when passive out-of-combat regeneration first brings a character back to full health during `/hero` or `/fight` flow.
 
@@ -32,6 +32,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Selected problem-fight passage callbacks now preserve the selected difficulty when moving the player into `Низ`, so the fight starts instead of redisplaying the passage choice.
 - Outside direct activity gates now show only the `Зайти в корчму` button instead of the full front-door action keyboard.
 - Yeger quest selection, target help, and turn-in stay at the Barrel-side Yeger corner, while active trail taking/checking moves to the outdoor hunt surface; front-door routing now shows `До полювання` for active Yeger quests and Yeger progress still matches eligible monster type/tag source-agnostically.
+- Yeger progress now uses fight completion time rather than mutable session update time, so late reward/replay updates on older wins cannot jump a newly started trail forward.
 - On the front-door surface, active Yeger `До полювання` now renders as the final row below the Munchkin barter entry.
 - Outdoor Yeger trail screens now return to the base `Надворі біля корчми` surface instead of showing an indoor-only `До Єгеря` button.
 - The existing `raid.prep-hint` tip pool was expanded and reused for battle intros instead of adding a second combat-only tip system.

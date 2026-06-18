@@ -3,6 +3,7 @@ import type { CombatState, CombatStatus, CombatTurnSummary } from "../../domain/
 import type {
   CreateSoloCombatSessionInput,
   RecordSoloCombatRewardInput,
+  SoloCombatSessionCompletionRecord,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository,
   SoloCombatSessionStatus,
@@ -58,15 +59,13 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     });
   }
 
-  async listByTelegramUserIdSince(
+  async listCompletedByTelegramUserIdSince(
     telegramUserId: bigint,
     since: Date
-  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "updatedAt" | "state">>> {
+  ): Promise<SoloCombatSessionCompletionRecord[]> {
     const records = await this.prisma.soloCombatSession.findMany({
       where: {
-        updatedAt: {
-          gte: since
-        },
+        OR: [{ updatedAt: { gte: since } }, { createdAt: { gte: since } }],
         character: {
           user: {
             telegramUserId
@@ -85,13 +84,28 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       }
     });
 
-    return records.map((record) => ({
-      monsterId: record.monsterId,
-      status: parseStatus(record.status),
-      state: parseCombatState(record.stateJson),
-      createdAt: record.createdAt,
-      updatedAt: record.updatedAt
-    }));
+    return records.flatMap((record) => {
+      const status = parseStatus(record.status);
+      const state = parseCombatState(record.stateJson);
+      const completedAt = getSessionCompletionTime({
+        status,
+        state,
+        createdAt: record.createdAt
+      });
+
+      if (!completedAt || completedAt < since) {
+        return [];
+      }
+
+      return [{
+        monsterId: record.monsterId,
+        status,
+        state,
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+        completedAt
+      }];
+    });
   }
 
   async findByIdForTelegramUserId(
@@ -330,6 +344,7 @@ function parseCombatState(value: unknown): CombatState | null {
   const source = parseCombatSource(value.source);
   const hero = parseResourceBlock(value.hero);
   const monster = parseMonsterBlock(value.monster);
+  const completedAt = parseIsoDate(value.completedAt);
 
   if (turn === null || !status || !hero || !monster) {
     return null;
@@ -340,6 +355,7 @@ function parseCombatState(value: unknown): CombatState | null {
   return {
     ...(typeof value.id === "string" ? { id: value.id } : {}),
     ...(source ? { source } : {}),
+    ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
     turn,
     status,
     hero,
@@ -347,6 +363,28 @@ function parseCombatState(value: unknown): CombatState | null {
     ...(cooldowns ? { cooldowns } : {}),
     ...(isTurnSummary(value.lastTurn) ? { lastTurn: value.lastTurn } : {})
   };
+}
+
+function getSessionCompletionTime(input: {
+  status: SoloCombatSessionStatus;
+  state: CombatState | null;
+  createdAt: Date;
+}): Date | null {
+  if (input.status === "active" || input.state?.status === "active") {
+    return null;
+  }
+
+  return parseIsoDate(input.state?.completedAt) ?? input.createdAt;
+}
+
+function parseIsoDate(value: unknown): Date | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function parseCombatSource(value: unknown): CombatState["source"] | null {

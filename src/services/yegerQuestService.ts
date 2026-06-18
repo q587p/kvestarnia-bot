@@ -391,7 +391,7 @@ export class YegerQuestService {
     telegramUserId: bigint,
     startedAt: Date
   ): Promise<YegerQuestProgress> {
-    const sessions = await this.combatSessions.listByTelegramUserIdSince(telegramUserId, startedAt);
+    const sessions = await this.combatSessions.listCompletedByTelegramUserIdSince(telegramUserId, startedAt);
     const wins = sessions.filter((session) => {
       const monster = monsters.find((candidate) => candidate.id === session.monsterId);
 

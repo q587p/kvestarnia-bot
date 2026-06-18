@@ -1714,6 +1714,51 @@ describe("FightService", () => {
     });
   });
 
+  it("does not extend monster rest when a terminal fight is reward-recorded later", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      () => new Date("2026-06-12T10:32:59.999Z"),
+      sessions
+    );
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:00.000Z"),
+      new Date("2026-06-12T10:29:30.000Z"),
+      new Date("2026-06-12T10:30:00.000Z")
+    ].entries()) {
+      const session = makeTerminalSession(
+        "won",
+        `ordinary-reward-later-${index + 1}`,
+        `character-${telegramUserId.toString()}`,
+        "monster.deadline-spider",
+        {
+          createdAt: new Date("2026-06-12T10:28:00.000Z"),
+          completedAt,
+          updatedAt: index === 2 ? new Date("2026-06-12T10:31:00.000Z") : completedAt
+        }
+      );
+      sessions.addSession({
+        ...session,
+        state: {
+          ...session.state!,
+          source: "normal"
+        }
+      });
+    }
+
+    await expect(service.getFightOverviewForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "monster-rest",
+      availableAt: new Date("2026-06-12T10:33:00.000Z")
+    });
+  });
+
   it("does not start monster rest while the long-running third eligible fight is still active", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -2730,10 +2775,10 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     ).length;
   }
 
-  async listByTelegramUserIdSince(
+  async listCompletedByTelegramUserIdSince(
     telegramUserId: bigint,
     since: Date
-  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "updatedAt" | "state">>> {
+  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "updatedAt" | "state"> & { completedAt: Date }>> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
@@ -2741,14 +2786,22 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     }
 
     return [...this.sessions.values()]
-      .filter((candidate) => candidate.characterId === character.id && candidate.updatedAt >= since)
-      .map((candidate) => ({
-        monsterId: candidate.monsterId,
-        status: candidate.status,
-        state: candidate.state,
-        createdAt: candidate.createdAt,
-        updatedAt: candidate.updatedAt
-      }));
+      .flatMap((candidate) => {
+        const completedAt = getSessionCompletionTime(candidate);
+
+        if (candidate.characterId !== character.id || !completedAt || completedAt < since) {
+          return [];
+        }
+
+        return [{
+          monsterId: candidate.monsterId,
+          status: candidate.status,
+          state: candidate.state,
+          createdAt: candidate.createdAt,
+          updatedAt: candidate.updatedAt,
+          completedAt
+        }];
+      });
   }
 
   async findActiveByTelegramUserId(
@@ -3001,10 +3054,11 @@ function makeTerminalSession(
   id = `session-${status}`,
   characterId = "character-42",
   monsterId = "monster.deadline-spider",
-  options: { createdAt?: Date; updatedAt?: Date } = {}
+  options: { createdAt?: Date; updatedAt?: Date; completedAt?: Date | null } = {}
 ): SoloCombatSessionRecord {
   const createdAt = options.createdAt ?? fixedClock();
-  const updatedAt = options.updatedAt ?? createdAt;
+  const completedAt = options.completedAt === undefined ? (options.updatedAt ?? createdAt) : options.completedAt;
+  const updatedAt = options.updatedAt ?? completedAt ?? createdAt;
 
   return {
     id,
@@ -3014,6 +3068,7 @@ function makeTerminalSession(
     turn: 2,
     state: {
       id,
+      ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
       turn: 2,
       status,
       hero: {
@@ -3033,6 +3088,22 @@ function makeTerminalSession(
     updatedAt,
     expiresAt: new Date("2026-06-12T11:00:00.000Z")
   };
+}
+
+function getSessionCompletionTime(session: SoloCombatSessionRecord): Date | null {
+  if (session.status === "active" || session.state?.status === "active") {
+    return null;
+  }
+
+  if (session.state?.completedAt) {
+    const completedAt = new Date(session.state.completedAt);
+
+    if (!Number.isNaN(completedAt.getTime())) {
+      return completedAt;
+    }
+  }
+
+  return session.createdAt;
 }
 
 function makeActiveTrainingSession(characterId = "character-42"): SoloCombatSessionRecord {

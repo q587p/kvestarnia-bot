@@ -73,6 +73,7 @@ export interface CombatDebugTrace {
 export interface CombatState {
   id?: string;
   source?: "normal" | "yeger" | "adventure" | "training";
+  completedAt?: string;
   turn: number;
   status: CombatStatus;
   hero: {
@@ -175,6 +176,7 @@ export function cloneCombatState(state: CombatState): CombatState {
   return {
     ...(state.id ? { id: state.id } : {}),
     ...(state.source ? { source: state.source } : {}),
+    ...(state.completedAt ? { completedAt: state.completedAt } : {}),
     turn: state.turn,
     status: state.status,
     hero: { ...state.hero },
