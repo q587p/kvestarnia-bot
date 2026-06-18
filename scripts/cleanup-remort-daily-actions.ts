@@ -1,5 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import {
+  YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_STARTED_KEY
+} from "../src/services/dailyActionKeys";
+import {
   runRemortDailyActionCleanup,
   type RemortCleanupCharacter,
   type RemortDailyActionCleanupStore,
@@ -94,23 +98,29 @@ class PrismaRemortDailyActionCleanupStore implements RemortDailyActionCleanupSto
 }
 
 async function main(): Promise<void> {
-  const apply = process.argv.slice(2).includes("--apply");
+  const args = process.argv.slice(2);
+  const apply = args.includes("--apply");
+  const yegerOnly = args.includes("--yeger-only");
+  const keys = yegerOnly
+    ? [YEGER_UNQUIET_TRIAL_STARTED_KEY, YEGER_UNQUIET_TRIAL_COMPLETED_KEY]
+    : undefined;
   const prisma = new PrismaClient();
 
   try {
     const summary = await runRemortDailyActionCleanup({
       store: new PrismaRemortDailyActionCleanupStore(prisma),
-      apply
+      apply,
+      keys
     });
 
-    printSummary(summary);
+    printSummary(summary, yegerOnly ? "Yeger remort daily-action cleanup" : "remort daily-action cleanup");
   } finally {
     await prisma.$disconnect();
   }
 }
 
-function printSummary(summary: RemortDailyActionCleanupSummary): void {
-  console.log(summary.dryRun ? "Dry run: remort daily-action cleanup" : "Applied: remort daily-action cleanup");
+function printSummary(summary: RemortDailyActionCleanupSummary, label: string): void {
+  console.log(summary.dryRun ? `Dry run: ${label}` : `Applied: ${label}`);
   console.log(`Characters scanned: ${summary.charactersScanned}`);
   console.log(`Characters affected: ${summary.charactersAffected}`);
   console.log(`Daily actions matched: ${summary.actionsMatched}`);

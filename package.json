@@ -20,6 +20,7 @@
     "sample:loot": "ts-node scripts/sample-loot.ts",
     "grant:gift": "ts-node scripts/grant-gift-campaign.ts",
     "maintenance:cleanup-remort-daily-actions": "ts-node scripts/cleanup-remort-daily-actions.ts",
+    "maintenance:cleanup-remort-yeger-actions": "ts-node scripts/cleanup-remort-daily-actions.ts --yeger-only",
     "check": "npm run lint && npm run typecheck && npm run build && npm test"
   },
   "dependencies": {

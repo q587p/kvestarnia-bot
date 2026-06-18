@@ -32,7 +32,8 @@ This project follows a simple pre-1.0 versioning policy:
 - No-character, level-gate, active-fight, stale-callback and legacy shawarma callbacks now land on safe adventure states; active fights take priority over stale adventure callback checks, and starter shawarma callback replays remain idempotent.
 - Failed complication handoffs no longer consume the current adventure claim if the persistent fight path says the character must rest or cannot start combat.
 - Completed starter shawarma lookups no longer stamp the player as being on an actionable starter adventure.
-- Remort reset clears the new adventure claim/reroll keys alongside other per-life daily action keys.
+- Remort reset clears the new adventure claim/reroll keys, Yeger once-per-life quest keys, and other per-life daily action keys.
+- Added a Yeger-only maintenance mode for the remort daily-action cleanup script to repair stale pre-remort Yeger rows for already affected characters.
 
 ## [0.1.13] - 12026-06-18 - Problem Fight Difficulty Choice
 
