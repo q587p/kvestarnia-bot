@@ -1,5 +1,5 @@
 import { InlineKeyboard } from "grammy";
-import type { AdventureLookupResult } from "../../services/adventureService";
+import type { AdventureLookupResult, MimicShawarmaLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
@@ -7,7 +7,8 @@ import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
 import {
   BESTIARY_MIN_LEVEL,
   FIGHTING_CORNER_MIN_LEVEL,
-  meetsActivityLevel
+  meetsActivityLevel,
+  STARTER_ACTIVITY_MAX_LEVEL
 } from "../../domain/progression/activityGates";
 import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData";
 import { makeMenuCallbackData } from "../callbacks/menuCallbackData";
@@ -19,6 +20,7 @@ export interface QuestHubKeyboardInput {
   mode?: "active" | "archive";
   characterLevel?: number;
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
+  starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
   problemQuest?: ProblemQuestProgress;
   yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
@@ -48,16 +50,15 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.text("🕯️ Реморт", makeRemortOpenCallbackData()).row();
   }
 
-  if (canOpenFightingCorner(input)) {
-    keyboard.text("🥊 До Бійцівського кутка", makePlaceCallbackData("fighting-corner")).row();
-  }
-
   if (canOpenProblemQuestInBar(input, problemQuest)) {
     keyboard.text("🍻 До шинку", makePlaceCallbackData("bar")).row();
   }
 
-  if (input.adventure.state === "ready") {
-    keyboard.text("🌯 До шаурми", makeQuestCallbackData("adventure"));
+  if (canOpenAdventure(input)) {
+    keyboard.text(
+      input.adventure.state === "level-locked" ? "🌯 До підозрілої шаурми" : "🪧 Обрати пригоду",
+      makeQuestCallbackData("adventure")
+    );
     hasAction = true;
   }
 
@@ -134,6 +135,15 @@ function canOpenFightingCorner(input: QuestHubKeyboardInput): boolean {
   return input.characterLevel === undefined || meetsActivityLevel(input.characterLevel, FIGHTING_CORNER_MIN_LEVEL);
 }
 
+function canOpenAdventure(input: QuestHubKeyboardInput): boolean {
+  return (
+    input.adventure.state === "ready" ||
+    (input.adventure.state === "level-locked" &&
+      (input.characterLevel ?? 0) <= STARTER_ACTIVITY_MAX_LEVEL &&
+      input.starterAdventure?.state === "ready")
+  );
+}
+
 function getFightButtonLabel(fight: QuestHubKeyboardInput["fight"]): string {
   if (fight.state === "persistent-active") {
     return "⚔️ Продовжити бій";
@@ -192,6 +202,8 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
 
   return (
     input.adventure.state === "ready" ||
+    canOpenAdventure(input) ||
+    input.adventure.state === "active-fight" ||
     input.fight.state === "ready" ||
     (canOpenFightingCorner(input) && !problemQuest.branchComplete) ||
     (input.fight.state === "persistent-ready" && problemQuest.issued) ||

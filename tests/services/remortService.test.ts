@@ -10,7 +10,11 @@ import type {
   RemortSnapshot
 } from "../../src/db/repositories/remortRepository";
 import { buildRemortKeyboard } from "../../src/bot/keyboards/remortKeyboard";
-import { REMORT_RESET_DAILY_ACTION_KEYS } from "../../src/services/dailyActionKeys";
+import {
+  REMORT_RESET_DAILY_ACTION_KEYS,
+  YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_STARTED_KEY
+} from "../../src/services/dailyActionKeys";
 import { makeRemortItemSelectionKey, RemortService } from "../../src/services/remortService";
 
 const telegramUserId = 42n;
@@ -124,6 +128,15 @@ describe("RemortService", () => {
       expect(first.preservedItems.map((row) => row.itemId)).not.toContain("item.archived-old-ladle");
     }
     expect(repository.completedCount).toBe(1);
+  });
+
+  it("resets the Yeger once-per-life quest keys on remort", () => {
+    expect(REMORT_RESET_DAILY_ACTION_KEYS).toEqual(
+      expect.arrayContaining([
+        YEGER_UNQUIET_TRIAL_STARTED_KEY,
+        YEGER_UNQUIET_TRIAL_COMPLETED_KEY
+      ])
+    );
   });
 
   it("fails confirm when a selected item disappeared before confirmation", async () => {

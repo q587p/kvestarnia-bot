@@ -7,6 +7,34 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.14] - 12026-06-18 - Adventure Choice MVP
+
+### Added
+- `/adventure` now opens a compact level 3+ tavern problem offer instead of the old one-scene adventure.
+- Each 93-minute adventure period generates three deterministic, distinct choices per character until the period is resolved or locally reset.
+- Each problem has three resolution approaches: safe, class-flavored clever/social/magical, and risky, with conservative ascending XP/gold rewards and complication chances.
+- The tavern problem pool now combines the 24 general tavern problems with personalized race, class and current-title problems; matching offers guarantee at least one personalized candidate when available.
+- The starter mimic-shawarma adventure remains available for levels 1-2 from `/adventure` and Quest Hub before the level 3 choice loop opens.
+- Complications record the adventure claim with no reward and hand the player into the existing persistent solo fight path instead of creating a second combat engine.
+- Added `v1:adv:p:{period}:{problem}` and `v1:adv:a:{period}:{problem}:{approach}` callbacks with stale-token handling and callback-length coverage.
+- Added `/dev_adventure_reset` for non-production QA to clear the current 93-minute adventure claim for the current player and reroll the current-period offer seed.
+
+### Guardrails
+- Adventure claims use the existing daily-action reward ledger under `adventure.choice-mvp`, so duplicate presses and replay reads do not grant a second reward.
+- Pre-choice adventure copy now uses qualitative risk/reward labels instead of showing exact XP, gold or complication percentages before the player commits.
+- Quest Hub checks the starter mimic-shawarma claim directly, so a completed starter shawarma no longer stays visible as an active adventure row or button.
+- Quest Hub Korchmar problem rows now use a distinct paperwork icon from the table surface, and selected adventure approaches/results have clearer paragraph spacing.
+- Adventure offer rows and problem-choice buttons now show stable per-problem icons while keeping callback data compact.
+- Quest Hub no longer advertises the separate Fighting Corner in the quest-table intro or offers a direct Fighting Corner shortcut from the table.
+- Local adventure resets store zero-reward reroll markers in the existing daily-action ledger, so reset offers change immediately and old callbacks become stale without a migration.
+- Personalized adventure copy now declines race and class names in generated problem titles/hooks, avoiding nominative quoted-name insertions like `для «Злодій»`.
+- No migrations, schema changes, new production dependencies, shops, crafting, trading or broad loot economy changes were added.
+- No-character, level-gate, active-fight, stale-callback and legacy shawarma callbacks now land on safe adventure states; active fights take priority over stale adventure callback checks, and starter shawarma callback replays remain idempotent.
+- Failed complication handoffs no longer consume the current adventure claim if the persistent fight path says the character must rest or cannot start combat.
+- Completed starter shawarma lookups no longer stamp the player as being on an actionable starter adventure.
+- Remort reset clears the new adventure claim/reroll keys, Yeger once-per-life quest keys, and other per-life daily action keys.
+- Added a Yeger-only maintenance mode for the remort daily-action cleanup script to repair stale pre-remort Yeger rows for already affected characters.
+
 ## [0.1.13] - 12026-06-18 - Problem Fight Difficulty Choice
 
 ### Added

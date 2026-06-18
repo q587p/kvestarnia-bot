@@ -1,9 +1,10 @@
 import type { Bot, Context } from "grammy";
+import type { AdventureLookupResult, AdventureService } from "../../services/adventureService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import type { AdventureService } from "../../services/adventureService";
 import type { CellarErrandService } from "../../services/cellarErrandService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
+  PRESENCE_ADVENTURE_CHOICE,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type PresenceService
@@ -11,14 +12,18 @@ import {
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildAdventureKeyboard,
+  buildAdventureOfferKeyboard,
   buildAdventureResultKeyboard
 } from "../keyboards/adventureKeyboard";
 import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import {
+  presentAdventureActiveFight,
   presentAdventureAlreadyCompleted,
-  presentAdventureLevelRetired,
   presentAdventureNoCharacter,
-  presentAdventureStart
+  presentAdventureOffer,
+  presentMimicShawarmaAlreadyCompleted,
+  presentMimicShawarmaLevelRetired,
+  presentMimicShawarmaStart
 } from "../presenters/adventurePresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { sendCellarErrand } from "./cellarCommand";
@@ -77,39 +82,82 @@ export async function sendAdventure(
     }
   }
 
-  const result = await adventureService.getMimicShawarmaForTelegramUser(telegramUserId);
+  const result = await adventureService.getAdventureOfferForTelegramUser(telegramUserId);
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentAdventureNoCharacter());
     return;
   }
 
-  if (result.state === "level-retired") {
-    await sendText(ctx, mode, presentAdventureLevelRetired(result));
+  if (result.state === "level-locked") {
+    const starter = await adventureService.getMimicShawarmaForTelegramUser(telegramUserId);
+
+    if (starter.state === "no-character") {
+      await sendText(ctx, mode, presentAdventureNoCharacter());
+      return;
+    }
+
+    if (starter.state === "level-retired") {
+      await sendText(ctx, mode, presentMimicShawarmaLevelRetired(starter));
+      return;
+    }
+
+    if (starter.state === "already-completed") {
+      if (options?.fallbackToCellar === true && !starter.fightAvailable) {
+        await sendCellarErrand(ctx, options.cellarErrand, options.presence, mode);
+        return;
+      }
+
+      await sendText(
+        ctx,
+        mode,
+        presentMimicShawarmaAlreadyCompleted(starter),
+        "adventure-result"
+      );
+      return;
+    }
+
+    if (options?.presence) {
+      await markQuestTablePresence(ctx, options.presence, PRESENCE_ADVENTURE_MIMIC_SHAWARMA);
+    }
+
+    await sendText(ctx, mode, presentMimicShawarmaStart(starter.character), {
+      type: "starter-adventure",
+      character: starter.character
+    });
+    return;
+  }
+
+  if (result.state === "active-fight") {
+    await sendText(ctx, mode, presentAdventureActiveFight(), "active-fight");
     return;
   }
 
   if (options?.presence) {
-    await markQuestTablePresence(ctx, options.presence);
+    await markQuestTablePresence(ctx, options.presence, PRESENCE_ADVENTURE_CHOICE);
   }
 
   if (result.state === "already-completed") {
-    if (options?.fallbackToCellar === true && !result.fightAvailable) {
+    if (options?.fallbackToCellar === true) {
       await sendCellarErrand(ctx, options.cellarErrand, options.presence, mode);
       return;
     }
 
-    await sendText(ctx, mode, presentAdventureAlreadyCompleted(result), "adventure-result");
+    await sendText(ctx, mode, presentAdventureAlreadyCompleted(), "adventure-result");
     return;
   }
 
-  await sendText(ctx, mode, presentAdventureStart(result.character), {
+  await sendText(ctx, mode, presentAdventureOffer(result), {
     type: "adventure",
-    character: result.character
+    result
   });
 }
 
-async function markQuestTablePresence(ctx: Context, presence: PresenceService): Promise<void> {
+async function markQuestTablePresence(
+  ctx: Context,
+  presence: PresenceService,
+  currentAdventureId: string
+): Promise<void> {
   const player = playerFromContext(ctx.from);
 
   if (!player) {
@@ -120,7 +168,7 @@ async function markQuestTablePresence(ctx: Context, presence: PresenceService): 
     user: player,
     locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
     currentRaidId: null,
-    currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+    currentAdventureId
   });
 }
 
@@ -132,17 +180,23 @@ async function sendText(
     | false
     | "adventure-result"
     | "enter-korchma"
-    | { type: "adventure"; character: CharacterSummary } = false
+    | "active-fight"
+    | { type: "starter-adventure"; character: CharacterSummary }
+    | { type: "adventure"; result: Extract<AdventureLookupResult, { state: "ready" }> } = false
 ): Promise<void> {
   const options = keyboard
     ? {
         parse_mode: "HTML" as const,
         reply_markup:
           keyboard === "adventure-result"
-            ? buildAdventureResultKeyboard("already-completed")
+            ? buildAdventureResultKeyboard({ state: "already-completed" })
             : keyboard === "enter-korchma"
               ? buildKorchmaFrontKeyboard()
-            : buildAdventureKeyboard(keyboard.character)
+              : keyboard === "active-fight"
+                ? buildAdventureResultKeyboard({ state: "active-fight" })
+                : keyboard.type === "starter-adventure"
+                  ? buildAdventureKeyboard(keyboard.character)
+                  : buildAdventureOfferKeyboard(keyboard.result.offer)
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
 

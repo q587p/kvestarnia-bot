@@ -743,13 +743,15 @@ function duelServiceWithCreateCounter(
 function questHubReadyServices(): Partial<BotServices> {
   return {
     adventure: {
-      getMimicShawarmaForTelegramUser: () =>
+      getAdventureOfferForTelegramUser: () =>
         Promise.resolve({
-          state: "level-retired",
-          maxLevel: 2,
+          state: "level-locked",
+          requiredLevel: 3,
           character
         }),
-      completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+      getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      selectAdventureProblem: () => Promise.resolve({ state: "no-character" }),
+      completeAdventureApproach: () => Promise.resolve({ state: "no-character" })
     },
     fight: {
       getProblemQuestProgressForTelegramUser: () =>
@@ -812,8 +814,11 @@ function questHubReadyServices(): Partial<BotServices> {
 function servicesWith(overrides: Partial<BotServices>): BotServices {
   return {
     adventure: {
+      getAdventureOfferForTelegramUser: () => Promise.resolve({ state: "no-character" }),
       getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
-      completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+      selectAdventureProblem: () => Promise.resolve({ state: "no-character" }),
+      completeAdventureApproach: () => Promise.resolve({ state: "no-character" }),
+      resetCurrentPeriodForTelegramUser: () => Promise.resolve({ state: "no-character" })
     },
     cellarErrand: {
       getForTelegramUser: () => Promise.resolve({ state: "no-character" }),

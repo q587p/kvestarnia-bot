@@ -1,73 +1,115 @@
 import { InlineKeyboard } from "grammy";
-import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import { makeAdventureCallbackData } from "../callbacks/adventureCallbackData";
+import type {
+  AdventureOffer,
+  AdventureProblemResult
+} from "../../services/adventureService";
+import { getAdventureProblemIcon } from "../../services/adventureService";
+import {
+  makeAdventureApproachCallbackData,
+  makeAdventureParticipantsCallbackData,
+  makeAdventureProblemCallbackData
+} from "../callbacks/adventureCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 
-export type AdventureResultKeyboardState = "completed" | "already-completed";
+export function buildAdventureOfferKeyboard(offer: AdventureOffer): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
 
-export function buildAdventureKeyboard(character?: CharacterSummary): InlineKeyboard {
-  const labels = getAdventureActionLabels(character);
+  for (const choice of offer.choices) {
+    keyboard
+      .text(`${getAdventureProblemIcon(choice.id)} ${choice.title}`, makeAdventureProblemCallbackData({
+        periodToken: offer.periodToken,
+        problemId: choice.id
+      }))
+      .row();
+  }
+
+  keyboard.text("📋 До справ", makePlaceCallbackData("quest-table"));
+
+  return keyboard;
+}
+
+export function buildAdventureKeyboard(offer?: AdventureOffer | { classId?: string; raceId?: string }): InlineKeyboard {
+  if (offer && "choices" in offer) {
+    return buildAdventureOfferKeyboard(offer);
+  }
+
+  const labels = getLegacyAdventureActionLabels(offer);
 
   return new InlineKeyboard()
-    .text(labels.poke, makeAdventureCallbackData("poke"))
+    .text(labels.poke, "v1:adv:mimic:poke")
     .row()
-    .text(labels.receipt, makeAdventureCallbackData("receipt"))
+    .text(labels.receipt, "v1:adv:mimic:receipt")
     .row()
-    .text(labels.flee, makeAdventureCallbackData("flee"))
+    .text(labels.flee, "v1:adv:mimic:flee")
     .row()
     .text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
 
-export function buildAdventureResultKeyboard(
-  state: AdventureResultKeyboardState,
-  character?: CharacterSummary
+export function buildAdventureApproachKeyboard(
+  result: Extract<AdventureProblemResult, { state: "selected" }>
 ): InlineKeyboard {
-  if (state === "completed" || state === "already-completed") {
+  const keyboard = new InlineKeyboard();
+
+  for (const approach of result.approaches) {
+    keyboard
+      .text(approach.label, makeAdventureApproachCallbackData({
+        periodToken: result.offer.periodToken,
+        problemId: result.choice.id,
+        approach: approach.id
+      }))
+      .row();
+  }
+
+  keyboard.text("⬅️ Інші справи", makeQuestCallbackData("adventure"));
+
+  return keyboard;
+}
+
+export function buildAdventureResultKeyboard(
+  result:
+    | { state: "stale"; offer: AdventureOffer }
+    | { state: "active-fight" }
+    | { state: "completed" | "already-completed" | "level-locked" | "level-retired" }
+    | "completed"
+    | "already-completed"
+): InlineKeyboard {
+  if (typeof result === "string") {
     return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
   }
 
-  return buildAdventureKeyboard(character);
+  if (result.state === "stale") {
+    return buildAdventureOfferKeyboard(result.offer);
+  }
+
+  if (result.state === "active-fight") {
+    return new InlineKeyboard().text("⚔️ До бою", makeQuestCallbackData("fight"));
+  }
+
+  return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
 
 export function buildAdventureParticipantsKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text("⬅️ Назад", makeQuestCallbackData("adventure"));
 }
 
-function getAdventureActionLabels(character?: CharacterSummary): {
+export function buildAdventureParticipantsButton(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("👀 Хто біля столу", makeAdventureParticipantsCallbackData())
+    .row()
+    .text("📋 До справ", makePlaceCallbackData("quest-table"));
+}
+
+function getLegacyAdventureActionLabels(character?: { classId?: string; raceId?: string }): {
   poke: string;
   receipt: string;
   flee: string;
 } {
-  if (character?.classId === "class.bureaucramancer") {
-    return {
-      poke: "🖋️ Звірити лаваш",
-      receipt: "📋 Оформити чек",
-      flee: "🏃 Взяти паузу на погодження"
-    };
-  }
-
   if (character?.classId === "class.rogue") {
     return {
       poke: "🗝️ Перевірити кишені",
       receipt: "📋 Виманити чек",
       flee: "🏃 Зникнути за серветкою"
-    };
-  }
-
-  if (character?.raceId === "race.domovyk") {
-    return {
-      poke: "🏠 Стягнути оренду",
-      receipt: "📋 Перевірити рахунок",
-      flee: "🏃 Відійти за піч"
-    };
-  }
-
-  if (character?.classId === "class.varenyk-mancer") {
-    return {
-      poke: "🥟 Порівняти з тістом",
-      receipt: "📋 Попросити чек",
-      flee: "🏃 Врятувати начинку"
     };
   }
 

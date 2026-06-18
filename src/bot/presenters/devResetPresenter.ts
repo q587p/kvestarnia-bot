@@ -17,3 +17,21 @@ export function presentDevResetNoCharacter(): string {
 export function presentDevResetCancelled(): string {
   return "Скидання скасовано. Персонаж лишається при манатках.";
 }
+
+export function presentDevAdventureResetResult(
+  result: "reset" | "rerolled" | "no-character" | "unavailable"
+): string {
+  if (result === "reset") {
+    return "Поточний вибір пригоди скинуто. Стіл зі справами вже перетасував папірці.";
+  }
+
+  if (result === "rerolled") {
+    return "Закритої пригоди ще не було, але стіл зі справами все одно перетасував папірці.";
+  }
+
+  if (result === "unavailable") {
+    return "Скидання пригоди недоступне: сховище не має потрібного гачка.";
+  }
+
+  return "Скидати нічого: пригодника ще не створено. /start чекає біля дверей.";
+}

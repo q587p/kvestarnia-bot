@@ -1,12 +1,18 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   presentAdventureAlreadyCompleted,
-  presentAdventureNoCharacter,
-  presentAdventureResult,
-  presentAdventureStart
+  presentAdventureLevelLocked,
+  presentAdventureOffer,
+  presentAdventureProblem,
+  presentAdventureResult
 } from "../../src/bot/presenters/adventurePresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
-import type { AdventureResult } from "../../src/services/adventureService";
+import {
+  buildApproachOptions,
+  type AdventureChoice,
+  type AdventureProblemResult,
+  type AdventureResult
+} from "../../src/services/adventureService";
 
 const character: CharacterSummary = {
   name: "Мандрівник",
@@ -18,15 +24,15 @@ const character: CharacterSummary = {
   classId: "class.warrior",
   className: "Воїн",
   title: "Пересічний Пригодник",
-  level: 2,
-  xp: 15,
-  nextLevelXp: 25,
-  xpToNextLevel: 10,
+  level: 3,
+  xp: 25,
+  nextLevelXp: 50,
+  xpToNextLevel: 25,
   gold: 9,
-  hpCurrent: 24,
-  hpMax: 24,
-  manaCurrent: 12,
-  manaMax: 12,
+  hpCurrent: 28,
+  hpMax: 28,
+  manaCurrent: 14,
+  manaMax: 14,
   stats: {
     strength: 9,
     dexterity: 6,
@@ -35,163 +41,180 @@ const character: CharacterSummary = {
     luck: 6
   },
   levelBonus: {
-    hpMax: 4,
-    manaMax: 2,
+    hpMax: 8,
+    manaMax: 4,
     primaryStat: {
       stat: "strength",
-      bonus: 1
+      bonus: 2
     }
   }
 };
 
+const choice: AdventureChoice = {
+  id: "stew",
+  title: "Казанок <репетирує>",
+  hook: "Юшка вимагає «райдер» і ложку.",
+  client: "Кухар & свідок"
+};
+
 describe("adventure presenter", () => {
-  it("shows a short Ukrainian start scene", () => {
-    const text = presentAdventureStart(character);
-
-    expect(text).toContain("Підозріла шаурма");
-    expect(text).toContain("Вона дихає");
-    expect(text).toContain("🌯 Підозріла шаурма\n\nНа столі лежить шаурма. Вона дихає.");
-    expect(text).toContain("Вона дихає.\n\nКорчмар:\n<blockquote>То не моя.</blockquote>");
-    expect(text.length).toBeLessThan(420);
-  });
-
-  it("adds character-aware flavor when race or class content exists", () => {
-    const mage = {
-      ...character,
-      raceId: "race.unknown",
-      classId: "class.mage",
-      className: "Маг"
-    };
-    const text = presentAdventureStart(mage);
-
-    expect(text).toContain("дуже амбітний часник");
-  });
-
-  it("escapes character names in adventure start text", () => {
-    const text = presentAdventureStart({
-      ...character,
-      name: "<b>Мандрівник</b>"
-    });
-
-    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
-    expect(text).not.toContain("<b><b>Мандрівник</b></b>, що робимо?");
-  });
-
-  it("prompts /start when no character exists", () => {
-    expect(presentAdventureNoCharacter()).toContain("/start");
-  });
-
-  it("shows a spent quest screen with an optional fight suggestion", () => {
-    const withFight = presentAdventureAlreadyCompleted({
-      state: "already-completed",
-      character,
-      fightAvailable: true
-    });
-    const withoutFight = presentAdventureAlreadyCompleted({
-      state: "already-completed",
-      character,
-      fightAvailable: false
-    });
-
-    expect(withFight).toContain("вже дала свідчення");
-    expect(withFight).toContain("/fight");
-    expect(withFight).not.toContain("що робимо");
-    expect(withoutFight).not.toContain("/fight");
-    expect(withoutFight).toContain("/hero");
-  });
-
-
-  it("shows rewards for each action", () => {
-    const poke = presentAdventureResult(completed("poke", 8, 4));
-
-    expect(poke).toContain(
-      [
-        "🏆 Шаурму викрито!",
-        "",
-        "Мімік визнав, що був не вечерею, а життєвим уроком.",
-        "",
-        "Воїн після сміливого тицяння пояснює лавашу головне правило пригод: якщо дихаєш на стіл, тримай удар.",
-        "",
-        "<b>+8 XP",
-        "+4 золота</b>",
-        "Здобуто: <i>Підозрілий лавашний доказ</i>"
-      ].join("\n")
-    );
-    expect(poke).not.toContain("×1");
-    expect(presentAdventureResult(completed("receipt", 6, 6))).toContain(
-      "<b>+6 XP\n+6 золота</b>"
-    );
-    expect(presentAdventureResult(completed("flee", 2, 0))).toContain("<b>+2 XP</b>");
-    expect(presentAdventureResult(completed("flee", 2, 0))).not.toContain("золота");
-    expect(presentAdventureResult(completed("flee", 2, 0))).not.toContain("Здобуто:");
-  });
-
-  it("adds action-aware flavor to completed adventure outcomes", () => {
-    const text = presentAdventureResult({
-      ...completed("receipt", 6, 6),
+  it("shows three offered choices and escapes player/content HTML", () => {
+    const text = presentAdventureOffer({
+      state: "ready",
       character: {
         ...character,
-        classId: "class.bureaucramancer",
-        className: "Бюрокромант"
+        name: "<b>Мандрівник</b>"
+      },
+      offer: {
+        localDate: "2026-06-12",
+        periodToken: "period93",
+        expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+        choices: [
+          choice,
+          { id: "barrel", title: "Бочка", hook: "Вимагає угоду.", client: "Корчмар" },
+          { id: "helmet", title: "Шолом", hook: "Просить овацій.", client: "Зброяр" }
+        ]
       }
     });
 
-    expect(text).toContain("Форма на лаваш");
+    expect(text).toContain("🪧 Три справи на найближчий час");
+    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>");
+    expect(text).toContain("1. 🍲 <b>Казанок &lt;репетирує&gt;</b>");
+    expect(text).toContain("Кухар &amp; свідок");
+    expect(text).toContain("3. 🪖 <b>");
+    expect(text).toContain("<i>Кухар &amp; свідок</i>\n\n2. 🛢️ <b>Бочка</b>");
   });
 
-  it("keeps level-up out of the result message", () => {
-    expect(presentAdventureResult(completed("poke", 8, 4, true))).not.toContain("Рівень підріс");
-    expect(presentAdventureResult(completed("poke", 8, 4, true))).not.toContain("Стало краще");
-    expect(presentAdventureResult(completed("poke", 8, 4, false))).not.toContain("Рівень підріс");
-    expect(presentAdventureResult(completed("poke", 8, 4, false))).not.toContain("Стало краще");
+  it("presents selected problem approaches without exact reward or risk spoilers", () => {
+    const result: Extract<AdventureProblemResult, { state: "selected" }> = {
+      state: "selected",
+      character,
+      offer: {
+        localDate: "2026-06-12",
+        periodToken: "period93",
+        expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+        choices: [choice]
+      },
+      choice,
+      approaches: [
+        {
+          id: "safe",
+          label: "🛡️ Обережно",
+          hint: "Майже без драматичних зубів.",
+          reward: { xp: 4, gold: 2 },
+          complicationChance: 13
+        },
+        {
+          id: "flair",
+          label: "🧠 Хитро",
+          hint: "Середній ризик.",
+          reward: { xp: 7, gold: 4 },
+          complicationChance: 23
+        },
+        {
+          id: "risky",
+          label: "🔥 Небезпечно",
+          hint: "Проблема може образитись.",
+          reward: { xp: 10, gold: 7 },
+          complicationChance: 42
+        }
+      ]
+    };
+    const text = presentAdventureProblem(result);
+
+    expect(text).toContain("Казанок &lt;репетирує&gt;");
+    expect(text).toContain("Майже без драматичних зубів.");
+    expect(text).toContain("Майже без драматичних зубів.\n\n🧠 Хитро");
+    expect(text).toContain("Проблема може образитись.");
+    expect(text).not.toContain("+4 XP");
+    expect(text).not.toContain("+10 XP");
+    expect(text).not.toContain("ризик 13%");
+    expect(text).not.toContain("ризик 42%");
+  });
+
+  it("keeps approach hints lowercase after the dash", () => {
+    const result: Extract<AdventureProblemResult, { state: "selected" }> = {
+      state: "selected",
+      character,
+      offer: {
+        localDate: "2026-06-12",
+        periodToken: "period93",
+        expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+        choices: [choice]
+      },
+      choice,
+      approaches: buildApproachOptions(character)
+    };
+    const text = presentAdventureProblem(result);
+
+    expect(text).toContain("🛡️ Обережно розібратись — менше винагороди");
+    expect(text).toContain("🧠 Знайти хитрий кут — середня винагорода");
+    expect(text).toContain("🔥 Зробити красиво й небезпечно — більша винагорода");
+    expect(text).not.toContain("— Менше винагороди");
+    expect(text).not.toContain("— Середня винагорода");
+    expect(text).not.toContain("— Більша винагорода");
+  });
+
+  it("shows non-complicated reward without level-up text", () => {
+    const text = presentAdventureResult(completed(false));
+
+    expect(text).toContain("✅ Справу закрито");
+    expect(text).toContain("<b>+7 XP\n+4 золота</b>");
+    expect(text).not.toContain("Рівень підріс");
+  });
+
+  it("shows complication-to-fight copy without granting reward", () => {
+    const text = presentAdventureResult(completed(true));
+
+    expect(text).toContain("Справа вкусила у відповідь");
+    expect(text).toContain("метод <i>🧠 Хитро</i>");
+    expect(text).not.toContain("метод «");
+    expect(text).toContain("Нагорода не видана");
+    expect(text).toContain("без заперечень.\n\nНагорода не видана");
+    expect(text).not.toContain("+7 XP");
   });
 
   it("does not imply duplicate rewards for already-completed adventure", () => {
-    const text = presentAdventureResult({
-      state: "already-completed",
-      character
-    });
+    const text = presentAdventureAlreadyCompleted();
 
-    expect(text).toContain("вже допитано");
-    expect(text).not.toContain("+8 XP");
+    expect(text).toContain("уже закрито");
+    expect(text).not.toContain("+7 XP");
+  });
+
+  it("keeps level gate copy short", () => {
+    expect(
+      presentAdventureLevelLocked({
+        state: "level-locked",
+        character,
+        requiredLevel: 3
+      })
+    ).toContain("відкриється з 3 рівня");
   });
 });
 
-function completed(
-  action: "poke" | "receipt" | "flee",
-  xp: number,
-  gold: number,
-  leveledUp = false
-): Exclude<AdventureResult, { state: "no-character" | "already-completed" }> {
+function completed(complication: boolean): Extract<AdventureResult, { state: "completed" }> {
   return {
     state: "completed",
-    action,
     character,
+    choice,
+    approach: {
+      id: "flair",
+      label: "🧠 Хитро",
+      hint: "Середній ризик.",
+      reward: { xp: 7, gold: 4 },
+      complicationChance: 23
+    },
+    complication,
     reward: {
-      xp,
-      gold,
-      localDate: "12026-06-12",
-      itemGrants:
-        action === "flee"
-          ? []
-          : [
-              {
-                itemId:
-                  action === "receipt"
-                    ? "item.receipt-of-formal-suspicion"
-                    : "item.suspicious-shawarma-wrapper",
-                name:
-                  action === "receipt"
-                    ? "Чек формальної підозри"
-                    : "Підозрілий лавашний доказ",
-                quantity: 1
-              }
-            ]
+      xp: complication ? 0 : 7,
+      gold: complication ? 0 : 4,
+      localDate: "2026-06-12",
+      itemGrants: []
     },
     levelChange: {
-      oldLevel: 1,
-      newLevel: leveledUp ? 2 : 1,
-      leveledUp
+      oldLevel: 3,
+      newLevel: 3,
+      leveledUp: false
     }
   };
 }

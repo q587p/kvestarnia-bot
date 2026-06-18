@@ -38,6 +38,7 @@ const KORCHMA_INTERIOR_LOCATION_IDS = [
 ];
 
 export const PRESENCE_RAID_FRIDAY_BARREL = "raid.friday-barrel";
+export const PRESENCE_ADVENTURE_CHOICE = "adventure.choice";
 export const PRESENCE_ADVENTURE_MIMIC_SHAWARMA = "adventure.mimic-shawarma";
 export const PRESENCE_ADVENTURE_MIMIC_FIGHT = "adventure.mimic-shawarma-fight";
 export const PRESENCE_ADVENTURE_SOLO_FIGHT = "adventure.solo-fight";
@@ -718,6 +719,10 @@ function getRaidName(id: string): string {
 }
 
 function getAdventureName(id: string): string {
+  if (id === PRESENCE_ADVENTURE_CHOICE) {
+    return "Корчемний вибір пригоди";
+  }
+
   if (id === PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND) {
     return "Льохова справа";
   }

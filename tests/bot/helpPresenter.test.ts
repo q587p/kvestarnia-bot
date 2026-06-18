@@ -15,6 +15,7 @@ describe("help presenter", () => {
     expect(text).toContain("/quest");
     expect(text).toContain("/fight");
     expect(text).toContain("/spar");
+    expect(text).toContain("/duel");
     expect(text).toContain("/hunt");
     expect(text).toContain("/bestiary");
     expect(text).toContain("/monsters");
@@ -35,6 +36,7 @@ describe("help presenter", () => {
     expect(text).toContain("/support");
     expect(text).toContain("/help");
     expect(text).not.toContain("/dev_reset_me");
+    expect(text).not.toContain("/dev_adventure_reset");
     expect(text).not.toContain("/dev_add_level");
     expect(text).not.toContain("/dev_add_xp");
     expect(text).not.toContain("/dev_add_gold");
@@ -44,8 +46,8 @@ describe("help presenter", () => {
     expect(text).toContain("👤 /hero, /profile, /me — персонаж і прогрес");
     expect(text).toContain("🍺 /tavern, /raid — корчма й рейд на бочку");
     expect(text).toContain("🗺️ /quest — стіл зі справами");
-    expect(text).toContain("🌯 /adventure — пригода з шаурмою");
-    expect(text).toContain("⚔️ /fight, /spar — сутичка й тренування");
+    expect(text).toContain("🪧 /adventure — вибір пригоди");
+    expect(text).toContain("⚔️ /fight, /spar, /duel — сутичка, тренування й виклик");
     expect(text).toContain("🏹 /hunt — дошка полювання");
     expect(text).toContain("📚 /bestiary, /monsters — бестіарій із 3 рівня");
     expect(text).toContain("🧹 /cellar — льохова справа");
@@ -75,6 +77,7 @@ describe("help presenter", () => {
     const grantsEnabled = presentHelp({ includeDevReset: true, includeDevGrant: true });
 
     expect(resetOnly).toContain("🧪 /dev_reset_me");
+    expect(resetOnly).toContain("/dev_adventure_reset");
     expect(resetOnly).not.toContain("🪜 /dev_add_level");
     expect(resetOnly).not.toContain("🔢 /dev_add_xp");
     expect(resetOnly).not.toContain("🪙 /dev_add_gold");
@@ -84,6 +87,7 @@ describe("help presenter", () => {
     expect(resetOnly).toContain("допомога\n\n🧪");
 
     expect(grantsEnabled).toContain("🧪 /dev_reset_me");
+    expect(grantsEnabled).toContain("/dev_adventure_reset");
     expect(grantsEnabled).toContain("🪜 /dev_add_level");
     expect(grantsEnabled).toContain("🔢 /dev_add_xp");
     expect(grantsEnabled).toContain("🪙 /dev_add_gold");

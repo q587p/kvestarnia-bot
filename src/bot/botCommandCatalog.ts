@@ -45,8 +45,8 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   },
   {
     command: "adventure",
-    icon: "🌯",
-    description: "пригода з шаурмою",
+    icon: "🪧",
+    description: "вибір пригоди",
     includeInMenu: false
   },
   {
@@ -191,6 +191,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "dev_reset_me",
     icon: "🧪",
     description: "скинути персонажа локально",
+    includeInMenu: false,
+    devOnly: "reset"
+  },
+  {
+    command: "dev_adventure_reset",
+    icon: "⏱️",
+    description: "скинути вибір пригоди локально",
     includeInMenu: false,
     devOnly: "reset"
   },

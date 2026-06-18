@@ -296,6 +296,10 @@ export function getComboTitle(raceId: string, classId: string, pronoun: Pronoun 
   return comboTitles.get(comboKey(raceId, classId))?.[pronoun] ?? fallbackTitles[pronoun];
 }
 
+export function getKnownComboTitleValues(): string[] {
+  return [...new Set([...comboTitles.values()].flatMap((titles) => Object.values(titles)))];
+}
+
 function comboKey(raceId: string, classId: string): string {
   return `${raceId}:${classId}`;
 }
