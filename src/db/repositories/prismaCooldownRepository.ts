@@ -5,7 +5,8 @@ import type {
   CharacterCooldownRecord,
   ClaimCooldownRewardInput,
   ClaimCooldownRewardResult,
-  CooldownRepository
+  CooldownRepository,
+  SetCooldownAvailableAtResult
 } from "./cooldownRepository";
 import type { ItemGrant } from "./dailyActionRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
@@ -139,6 +140,56 @@ export class PrismaCooldownRepository implements CooldownRepository {
 
       throw error;
     }
+  }
+
+  async setAvailableAtForTelegramUser(
+    telegramUserId: bigint,
+    input: { key: string; availableAt: Date }
+  ): Promise<SetCooldownAvailableAtResult | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await tx.character.findFirst({
+        where: {
+          user: {
+            telegramUserId
+          }
+        },
+        include: remortCountInclude
+      });
+
+      if (!character) {
+        return null;
+      }
+
+      const where = {
+        characterId_key: {
+          characterId: character.id,
+          key: input.key
+        }
+      };
+      const existing = await tx.characterCooldown.findUnique({
+        where
+      });
+
+      if (!existing) {
+        return {
+          state: "not-found",
+          character: toCharacterRecord(character)
+        };
+      }
+
+      const cooldown = await tx.characterCooldown.update({
+        where,
+        data: {
+          availableAt: input.availableAt
+        }
+      });
+
+      return {
+        state: "updated",
+        cooldown,
+        character: toCharacterRecord(character)
+      };
+    });
   }
 
   private async rewardCharacter(

@@ -13,6 +13,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added fixed hidden-path stat bonuses through the shared effective-stats pipeline, so existing characters inherit the derived layer without a schema migration or `statsJson` backfill.
 - Added deterministic distributed level stat growth: the level budget remains `level - 1`, HP remains `+4` per gained level and mana remains `+2`, while class profile, race bonus and hidden path bias which stat receives each level point.
 - Added per-stat remort memory for previous distributed level growth, preserving 23% of the previous level-growth contribution per stat while excluding old race/class/path identity bonuses.
+- Added local `/dev_raid_stop` to finish an active pending Barrel raid through the normal completion path for manual QA.
 
 ### Changed
 - Normalized `Людисько` to the active `+3` race budget: `+1 STR`, `+1 DEX`, `+1 CHA`.

@@ -29,6 +29,8 @@ import {
   buildBarrelRaidItemGrants,
   buildBarrelRaidRewardAmounts,
   FRIDAY_BARREL_RAID_KEY,
+  FRIDAY_BARREL_RAID_REWARD_GOLD_MIN,
+  FRIDAY_BARREL_RAID_REWARD_XP_MIN,
   FRIDAY_BARREL_RAID_PENDING_KEY,
   getBarrelRaidPeriod,
   getBarrelRaidWaitBounds,
@@ -342,6 +344,63 @@ describe("TavernRaidService", () => {
     expect(repeated).toMatchObject({
       state: "pending",
       availableAt: new Date("2026-06-12T10:38:00.000Z")
+    });
+    expect(dailyActions.records).toHaveLength(0);
+  });
+
+  it("stops a pending barrel raid for dev testing and completes through the normal reward path", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const service = createTavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      new FakeRandomSource([0.999])
+    );
+
+    await service.advanceFridayBarrelRaid(telegramUserId);
+    const stopped = await service.stopPendingFridayBarrelRaidForDev(telegramUserId);
+    const repeated = await service.stopPendingFridayBarrelRaidForDev(telegramUserId);
+
+    expect(stopped).toMatchObject({
+      state: "completed",
+      result: {
+        reward: {
+          xp: FRIDAY_BARREL_RAID_REWARD_XP_MIN,
+          gold: FRIDAY_BARREL_RAID_REWARD_GOLD_MIN
+        }
+      }
+    });
+    expect(repeated).toMatchObject({
+      state: "no-pending"
+    });
+    expect(pendingRaids.records[0]).toMatchObject({
+      availableAt: fixedClock()
+    });
+    expect(dailyActions.records).toHaveLength(1);
+    expect(dailyActions.records[0]).toMatchObject({
+      rewardXp: FRIDAY_BARREL_RAID_REWARD_XP_MIN,
+      rewardGold: FRIDAY_BARREL_RAID_REWARD_GOLD_MIN
+    });
+  });
+
+  it("reports no pending raid when dev stop has nothing to finish", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const service = createTavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids
+    );
+
+    await expect(service.stopPendingFridayBarrelRaidForDev(telegramUserId)).resolves.toMatchObject({
+      state: "no-pending"
     });
     expect(dailyActions.records).toHaveLength(0);
   });
@@ -1167,6 +1226,43 @@ class FakeCooldownRepository implements CooldownRepository {
         leveledUp:
           getLevelForXp(character.xp + input.rewardXp) > getLevelForXp(character.xp)
       }
+    };
+  }
+
+  async setAvailableAtForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string; availableAt: Date }
+  ): Promise<
+    | { state: "updated"; cooldown: CharacterCooldownRecord; character: CharacterRecord }
+    | { state: "not-found"; character: CharacterRecord }
+    | null
+  > {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return null;
+    }
+
+    const key = `${character.id}:${input.key}`;
+    const existing = this.cooldowns.get(key);
+
+    if (!existing) {
+      return {
+        state: "not-found",
+        character
+      };
+    }
+
+    const cooldown = {
+      ...existing,
+      availableAt: input.availableAt
+    };
+    this.cooldowns.set(key, cooldown);
+
+    return {
+      state: "updated",
+      cooldown,
+      character
     };
   }
 }

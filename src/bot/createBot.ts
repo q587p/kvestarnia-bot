@@ -408,7 +408,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   if (services.devGrant?.isEnabled()) {
     registerDevGrantCommands(bot, services.devGrant);
   }
-  registerDevResetCommand(bot, services.devReset, services.adventure);
+  registerDevResetCommand(bot, services.devReset, services.adventure, services.tavern);
   registerRestartCommand(bot);
   if (services.remort) {
     registerRemortCommand(bot, services.remort, services.tavern);

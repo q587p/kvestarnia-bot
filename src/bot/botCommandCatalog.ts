@@ -202,6 +202,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "reset"
   },
   {
+    command: "dev_raid_stop",
+    icon: "⏹️",
+    description: "завершити pending рейд локально",
+    includeInMenu: false,
+    devOnly: "reset"
+  },
+  {
     command: "dev_add_level",
     icon: "🪜",
     description: "додати рівень локально",
