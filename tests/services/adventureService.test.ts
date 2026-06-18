@@ -359,6 +359,11 @@ describe("AdventureService", () => {
     expect(options.map((option) => option.reward.xp)).toEqual([4, 7, 10]);
     expect(options.map((option) => option.reward.gold)).toEqual([2, 4, 7]);
     expect(options.map((option) => option.complicationChance)).toEqual([13, 23, 42]);
+    expect(options.map((option) => option.hint)).toEqual([
+      "менше винагороди, майже без драматичних зубів.",
+      "середня винагорода, шанс ускладнення теж вивчив середину.",
+      "більша винагорода, але проблема може образитись у відповідь."
+    ]);
   });
 });
 

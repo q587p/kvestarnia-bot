@@ -7,10 +7,11 @@ import {
   presentAdventureResult
 } from "../../src/bot/presenters/adventurePresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
-import type {
-  AdventureChoice,
-  AdventureProblemResult,
-  AdventureResult
+import {
+  buildApproachOptions,
+  type AdventureChoice,
+  type AdventureProblemResult,
+  type AdventureResult
 } from "../../src/services/adventureService";
 
 const character: CharacterSummary = {
@@ -129,6 +130,29 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("+10 XP");
     expect(text).not.toContain("ризик 13%");
     expect(text).not.toContain("ризик 42%");
+  });
+
+  it("keeps approach hints lowercase after the dash", () => {
+    const result: Extract<AdventureProblemResult, { state: "selected" }> = {
+      state: "selected",
+      character,
+      offer: {
+        localDate: "2026-06-12",
+        periodToken: "period93",
+        expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+        choices: [choice]
+      },
+      choice,
+      approaches: buildApproachOptions(character)
+    };
+    const text = presentAdventureProblem(result);
+
+    expect(text).toContain("🛡️ Обережно розібратись — менше винагороди");
+    expect(text).toContain("🧠 Знайти хитрий кут — середня винагорода");
+    expect(text).toContain("🔥 Зробити красиво й небезпечно — більша винагорода");
+    expect(text).not.toContain("— Менше винагороди");
+    expect(text).not.toContain("— Середня винагорода");
+    expect(text).not.toContain("— Більша винагорода");
   });
 
   it("shows non-complicated reward without level-up text", () => {

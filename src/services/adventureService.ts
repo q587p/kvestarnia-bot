@@ -797,7 +797,7 @@ export function buildApproachOptions(character: CharacterSummary): AdventureAppr
     {
       id: "safe",
       label: "🛡️ Обережно розібратись",
-      hint: "Менше винагороди, майже без драматичних зубів.",
+      hint: "менше винагороди, майже без драматичних зубів.",
       reward: {
         xp: 4,
         gold: 2
@@ -807,7 +807,7 @@ export function buildApproachOptions(character: CharacterSummary): AdventureAppr
     {
       id: "flair",
       label: getFlairApproachLabel(character),
-      hint: "Середня винагорода, шанс ускладнення теж вивчив середину.",
+      hint: "середня винагорода, шанс ускладнення теж вивчив середину.",
       reward: {
         xp: 7,
         gold: 4
@@ -817,7 +817,7 @@ export function buildApproachOptions(character: CharacterSummary): AdventureAppr
     {
       id: "risky",
       label: "🔥 Зробити красиво й небезпечно",
-      hint: "Більша винагорода, але проблема може образитись у відповідь.",
+      hint: "більша винагорода, але проблема може образитись у відповідь.",
       reward: {
         xp: 10,
         gold: 7
