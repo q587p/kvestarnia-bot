@@ -44,6 +44,23 @@ describe("adventure callback data", () => {
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
+  it("parses rerolled period tokens within Telegram limits", () => {
+    const data = makeAdventureProblemCallbackData({
+      periodToken: "20260612r1",
+      problemId: "calendar"
+    });
+
+    expect(parseAdventureCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "problem",
+        periodToken: "20260612r1",
+        problemId: "calendar"
+      }
+    });
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
+
   it("parses personalized problem ids within Telegram limits", () => {
     const problemId = ADVENTURE_PROBLEM_IDS.find((id) => id.startsWith("class-bureaucramancer-"));
 

@@ -19,14 +19,14 @@ export function presentDevResetCancelled(): string {
 }
 
 export function presentDevAdventureResetResult(
-  result: "reset" | "not-claimed" | "no-character" | "unavailable"
+  result: "reset" | "rerolled" | "no-character" | "unavailable"
 ): string {
   if (result === "reset") {
-    return "Поточний вибір пригоди скинуто. Стіл зі справами вже робить вигляд, що нічого не памʼятає.";
+    return "Поточний вибір пригоди скинуто. Стіл зі справами вже перетасував папірці.";
   }
 
-  if (result === "not-claimed") {
-    return "Скидати нічого: у цьому 93-хвилинному вікні пригоду ще не закрито.";
+  if (result === "rerolled") {
+    return "Закритої пригоди ще не було, але стіл зі справами все одно перетасував папірці.";
   }
 
   if (result === "unavailable") {

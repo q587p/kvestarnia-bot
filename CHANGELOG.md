@@ -17,7 +17,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The starter mimic-shawarma adventure remains available for levels 1-2 from `/adventure` and Quest Hub before the level 3 choice loop opens.
 - Complications record the adventure claim with no reward and hand the player into the existing persistent solo fight path instead of creating a second combat engine.
 - Added `v1:adv:p:{period}:{problem}` and `v1:adv:a:{period}:{problem}:{approach}` callbacks with stale-token handling and callback-length coverage.
-- Added `/dev_adventure_reset` for non-production QA to clear the current 93-minute adventure claim for the current player.
+- Added `/dev_adventure_reset` for non-production QA to clear the current 93-minute adventure claim for the current player and reroll the current-period offer seed.
 
 ### Guardrails
 - Adventure claims use the existing daily-action reward ledger under `adventure.choice-mvp`, so duplicate presses and replay reads do not grant a second reward.
@@ -26,9 +26,10 @@ This project follows a simple pre-1.0 versioning policy:
 - Quest Hub Korchmar problem rows now use a distinct paperwork icon from the table surface, and selected adventure approaches/results have clearer paragraph spacing.
 - Adventure offer rows and problem-choice buttons now show stable per-problem icons while keeping callback data compact.
 - Quest Hub no longer advertises the separate Fighting Corner in the quest-table intro or offers a direct Fighting Corner shortcut from the table.
+- Local adventure resets store zero-reward reroll markers in the existing daily-action ledger, so reset offers change immediately and old callbacks become stale without a migration.
 - No migrations, schema changes, new production dependencies, shops, crafting, trading or broad loot economy changes were added.
 - No-character, level-gate, active-fight, stale-callback and legacy shawarma callbacks now land on safe adventure states; active fights take priority over stale adventure callback checks, and starter shawarma callback replays remain idempotent.
-- Remort reset clears the new adventure claim key alongside other per-life daily action keys.
+- Remort reset clears the new adventure claim/reroll keys alongside other per-life daily action keys.
 
 ## [0.1.13] - 12026-06-18 - Problem Fight Difficulty Choice
 

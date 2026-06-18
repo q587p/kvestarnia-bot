@@ -21,6 +21,7 @@ import { SeededRandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
   ADVENTURE_CHOICE_KEY,
+  ADVENTURE_CHOICE_REROLL_KEY,
   MIMIC_SHAWARMA_ADVENTURE_KEY,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY
 } from "./dailyActionKeys";
@@ -32,6 +33,7 @@ import {
 } from "./itemGrant";
 
 export { ADVENTURE_CHOICE_KEY } from "./dailyActionKeys";
+export { ADVENTURE_CHOICE_REROLL_KEY } from "./dailyActionKeys";
 export { MIMIC_SHAWARMA_ADVENTURE_KEY } from "./dailyActionKeys";
 
 export const ADVENTURE_CHOICE_MIN_LEVEL = FIGHTING_CORNER_MIN_LEVEL;
@@ -191,7 +193,7 @@ export type MimicShawarmaResult =
 
 export type AdventureResetResult =
   | { state: "reset"; periodToken: string }
-  | { state: "not-claimed"; periodToken: string }
+  | { state: "rerolled"; periodToken: string }
   | { state: "no-character" }
   | { state: "unavailable" };
 
@@ -301,7 +303,10 @@ export class AdventureService {
       };
     }
 
-    const offer = buildAdventureOffer(toAdventureOfferProfile(character.id, characterSummary), period);
+    const rerollIndex = await this.getAdventureRerollIndex(telegramUserId, period);
+    const offer = buildAdventureOffer(toAdventureOfferProfile(character.id, characterSummary), period, {
+      rerollIndex
+    });
 
     if (input.periodToken !== offer.periodToken) {
       return {
@@ -490,9 +495,15 @@ export class AdventureService {
       return { state: "no-character" };
     }
 
+    const rerollIndex = await this.recordAdventureReroll(telegramUserId, period);
+
+    if (rerollIndex === null) {
+      return { state: "no-character" };
+    }
+
     return {
-      state: result === "deleted" ? "reset" : "not-claimed",
-      periodToken: period.token
+      state: result === "deleted" ? "reset" : "rerolled",
+      periodToken: buildAdventureOfferToken(period.token, rerollIndex)
     };
   }
 
@@ -539,7 +550,9 @@ export class AdventureService {
     return {
       state: "ready",
       character: characterSummary,
-      offer: buildAdventureOffer(toAdventureOfferProfile(character.id, characterSummary), period)
+      offer: buildAdventureOffer(toAdventureOfferProfile(character.id, characterSummary), period, {
+        rerollIndex: await this.getAdventureRerollIndex(telegramUserId, period)
+      })
     };
   }
 
@@ -553,6 +566,39 @@ export class AdventureService {
     }
 
     return session;
+  }
+
+  private async getAdventureRerollIndex(
+    telegramUserId: bigint,
+    period: AdventurePeriod
+  ): Promise<number> {
+    const count = await this.dailyActions.countForTelegramUser?.(telegramUserId, {
+      key: ADVENTURE_CHOICE_REROLL_KEY,
+      localDatePrefix: getAdventureRerollStoragePrefix(period)
+    });
+
+    return count ?? 0;
+  }
+
+  private async recordAdventureReroll(
+    telegramUserId: bigint,
+    period: AdventurePeriod
+  ): Promise<number | null> {
+    const currentIndex = await this.getAdventureRerollIndex(telegramUserId, period);
+    const nextIndex = currentIndex + 1;
+    const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+      key: ADVENTURE_CHOICE_REROLL_KEY,
+      localDate: buildAdventureRerollStorageKey(period, nextIndex),
+      rewardXp: 0,
+      rewardGold: 0,
+      itemGrants: []
+    });
+
+    if (!claim) {
+      return null;
+    }
+
+    return nextIndex;
   }
 }
 
@@ -601,7 +647,8 @@ export function buildAdventurePeriod(now: Date): AdventurePeriod {
 
 export function buildAdventureOffer(
   character: string | AdventureOfferProfile,
-  period: AdventurePeriod | string
+  period: AdventurePeriod | string,
+  options: { rerollIndex?: number } = {}
 ): AdventureOffer {
   const normalized =
     typeof period === "string"
@@ -613,7 +660,8 @@ export function buildAdventureOffer(
         }
       : period;
   const profile = normalizeAdventureOfferProfile(character);
-  const rng = new SeededRandomSource(`adventure-choice:${profile.id}:${normalized.token}`);
+  const periodToken = buildAdventureOfferToken(normalized.token, options.rerollIndex ?? 0);
+  const rng = new SeededRandomSource(`adventure-choice:${profile.id}:${periodToken}`);
   const pool = getAdventureProblemPoolForProfile(profile);
   const personalizedPool = pool.filter((problem) => Boolean(problem.audience));
   const choices: AdventureChoice[] = [];
@@ -641,10 +689,29 @@ export function buildAdventureOffer(
 
   return {
     localDate: normalized.localDate,
-    periodToken: normalized.token,
+    periodToken,
     expiresAt: normalized.expiresAt,
     choices
   };
+}
+
+function buildAdventureOfferToken(periodToken: string, rerollIndex: number): string {
+  if (rerollIndex <= 0) {
+    return periodToken;
+  }
+
+  const suffix = `r${rerollIndex.toString(36)}`;
+  const maxBaseLength = Math.max(1, 10 - suffix.length);
+
+  return `${periodToken.slice(0, maxBaseLength)}${suffix}`;
+}
+
+function getAdventureRerollStoragePrefix(period: AdventurePeriod): string {
+  return `${period.storageKey}:reroll:`;
+}
+
+function buildAdventureRerollStorageKey(period: AdventurePeriod, rerollIndex: number): string {
+  return `${getAdventureRerollStoragePrefix(period)}${rerollIndex.toString(36)}`;
 }
 
 export function getAdventureProblemPoolForProfile(

@@ -17,7 +17,7 @@ describe("dev adventure reset command", () => {
     await bot.handleUpdate(commandUpdate("/dev_adventure_reset"));
 
     expect(replies).toEqual([
-      "Поточний вибір пригоди скинуто. Стіл зі справами вже робить вигляд, що нічого не памʼятає."
+      "Поточний вибір пригоди скинуто. Стіл зі справами вже перетасував папірці."
     ]);
   });
 

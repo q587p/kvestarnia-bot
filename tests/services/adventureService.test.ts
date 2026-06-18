@@ -19,6 +19,7 @@ import type { TelegramUserProfile } from "../../src/db/repositories/userReposito
 import { getLevelForXp } from "../../src/domain/progression/level";
 import {
   ADVENTURE_CHOICE_KEY,
+  ADVENTURE_CHOICE_REROLL_KEY,
   ADVENTURE_PROBLEM_IDS,
   AdventureService,
   MIMIC_SHAWARMA_ADVENTURE_KEY,
@@ -197,17 +198,32 @@ describe("AdventureService", () => {
 
   it("resets the current 93-minute adventure claim for dev testing", async () => {
     const found = await findResolvedAdventure("safe", false);
+    const oldOffer = found.offer;
 
+    const reset = await found.service.resetCurrentPeriodForTelegramUser(found.userId);
+    expect(reset).toMatchObject({ state: "reset" });
+    const rerolledOffer = await readyOffer(found.service, found.userId);
+
+    expect(rerolledOffer.periodToken).not.toBe(oldOffer.periodToken);
+    expect(rerolledOffer.choices.map((choice) => choice.id)).not.toEqual(
+      oldOffer.choices.map((choice) => choice.id)
+    );
     await expect(found.service.resetCurrentPeriodForTelegramUser(found.userId)).resolves.toMatchObject({
-      state: "reset"
-    });
-    await expect(found.service.resetCurrentPeriodForTelegramUser(found.userId)).resolves.toMatchObject({
-      state: "not-claimed"
+      state: "rerolled"
     });
     const replay = await found.service.completeAdventureApproach(found.userId, found.input);
 
-    expect(replay.state).toBe("completed");
-    expect(found.dailyActions.createCount).toBe(2);
+    expect(replay.state).toBe("stale");
+    const nextOffer = await readyOffer(found.service, found.userId);
+    const completed = await found.service.completeAdventureApproach(found.userId, {
+      periodToken: nextOffer.periodToken,
+      problemId: nextOffer.choices[0].id,
+      approach: "safe"
+    });
+
+    expect(completed.state).toBe("completed");
+    expect(found.dailyActions.records.filter((record) => record.key === ADVENTURE_CHOICE_KEY)).toHaveLength(1);
+    expect(found.dailyActions.records.filter((record) => record.key === ADVENTURE_CHOICE_REROLL_KEY)).toHaveLength(2);
   });
 
   it("rejects stale period and stale problem callbacks without claiming", async () => {
@@ -368,8 +384,8 @@ function setup(activeFight: SoloCombatSessionRecord | null = null): {
   };
 }
 
-async function readyOffer(service: AdventureService) {
-  const result = await service.getAdventureOfferForTelegramUser(telegramUserId);
+async function readyOffer(service: AdventureService, userId = telegramUserId) {
+  const result = await service.getAdventureOfferForTelegramUser(userId);
 
   if (result.state !== "ready") {
     throw new Error(`Expected ready offer, got ${result.state}.`);
@@ -396,7 +412,7 @@ async function findResolvedAdventure(approach: AdventureApproach, complication: 
     const result = await service.completeAdventureApproach(user, input);
 
     if (result.state === "completed" && result.complication === complication) {
-      return { service, dailyActions, result, input, userId: user };
+      return { service, dailyActions, result, input, userId: user, offer: lookup.offer };
     }
   }
 
@@ -648,5 +664,23 @@ class FakeDailyActionRepository implements DailyActionRepository {
     return this.actions.delete(`${character.id}:${input.key}:${input.localDate}`)
       ? "deleted"
       : "missing";
+  }
+
+  async countForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string; localDatePrefix: string }
+  ): Promise<number | null> {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return null;
+    }
+
+    return [...this.actions.values()].filter(
+      (action) =>
+        action.characterId === character.id &&
+        action.key === input.key &&
+        action.localDate.startsWith(input.localDatePrefix)
+    ).length;
   }
 }

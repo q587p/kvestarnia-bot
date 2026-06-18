@@ -213,6 +213,36 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     return deleted.count > 0 ? "deleted" : "missing";
   }
 
+  async countForTelegramUser(
+    telegramUserId: bigint,
+    input: { key: string; localDatePrefix: string }
+  ): Promise<number | null> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!character) {
+      return null;
+    }
+
+    return this.prisma.dailyAction.count({
+      where: {
+        characterId: character.id,
+        key: input.key,
+        localDate: {
+          startsWith: input.localDatePrefix
+        }
+      }
+    });
+  }
+
   private async findExistingClaim(
     telegramUserId: bigint,
     input: ClaimDailyActionInput
