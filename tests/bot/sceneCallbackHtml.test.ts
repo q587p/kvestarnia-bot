@@ -426,7 +426,7 @@ describe("scene callback HTML options", () => {
     expect(celebration?.payload.parse_mode).toBe("HTML");
     expect(String(celebration?.payload.text)).toContain("✨ <b>2 → 3</b>");
     expect(String(celebration?.payload.text)).toContain(
-      "📈 Стало краще: <b>+4 HP · +2 мани · +1 Спритності</b>"
+      "📈 Стало краще: <b>+4 HP · +2 мани · +1 Вдачі</b>"
     );
   });
 

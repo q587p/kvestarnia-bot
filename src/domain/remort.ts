@@ -9,7 +9,7 @@ import {
 } from "../content/characterOptions";
 import { activeRaces } from "../content/races";
 import type { ItemContent, Pronoun } from "../content/schema";
-import { buildStarterStats, type StatKey } from "./characters/starterStats";
+import { buildStarterStats, type CharacterStats, type StatKey } from "./characters/starterStats";
 import { buildLevelGrowthBonus } from "./progression/effectiveStats";
 
 export const REMORT_REQUIRED_LEVEL = 13;
@@ -129,16 +129,15 @@ export function buildRemortStarterStats(input: {
   const previousGrowth = buildLevelGrowthBonus(1, input.previousLevel, input.previousClassId);
   const hpBonus = buildRemortMemoryBonus(previousGrowth.hpMax, memoryRank);
   const manaBonus = buildRemortMemoryBonus(previousGrowth.manaMax, memoryRank);
-  const statBonus = previousGrowth.primaryStat
-    ? {
-        stat: previousGrowth.primaryStat.stat,
-        bonus: buildRemortMemoryBonus(previousGrowth.primaryStat.bonus, memoryRank)
-      }
-    : null;
+  const statBonuses = buildRemortStatBonuses(previousGrowth.stats, memoryRank);
+  const statBonus = statBonuses.reduce<RemortStatBonus | null>(
+    (best, bonus) => (!best || bonus.bonus > best.bonus ? bonus : best),
+    null
+  );
   const stats = { ...starter.stats };
 
-  if (statBonus && statBonus.bonus > 0) {
-    stats[statBonus.stat] += statBonus.bonus;
+  for (const bonus of statBonuses) {
+    stats[bonus.stat] += bonus.bonus;
   }
 
   return {
@@ -150,8 +149,27 @@ export function buildRemortStarterStats(input: {
     memoryRank,
     hpBonus,
     manaBonus,
+    statBonuses,
     statBonus
   };
+}
+
+function buildRemortStatBonuses(
+  previousStats: CharacterStats,
+  memoryRank: number
+): RemortStatBonus[] {
+  const statKeys: readonly StatKey[] = [
+    "strength",
+    "dexterity",
+    "intelligence",
+    "charisma",
+    "luck"
+  ];
+
+  return statKeys.flatMap((stat) => {
+    const bonus = buildRemortMemoryBonus(previousStats[stat], memoryRank);
+    return bonus > 0 ? [{ stat, bonus }] : [];
+  });
 }
 
 function buildRemortMemoryBonus(previousBonus: number, remortNumber: number): number {

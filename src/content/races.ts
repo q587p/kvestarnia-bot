@@ -8,9 +8,7 @@ export const races = [
     statBonus: {
       strength: 1,
       dexterity: 1,
-      intelligence: 1,
-      charisma: 1,
-      luck: 1
+      charisma: 1
     },
     allowedPronouns: ["he", "she", "they"]
   },

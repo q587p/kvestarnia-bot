@@ -104,7 +104,9 @@ level 13: 1300
 ## Вага рівня
 Рівень має бути одним із головних важелів, бо Квестарня також про приємний ріст циферок. Якщо персонаж отримав новий рівень, це має відчуватися не тільки в `/hero`, а й у формулах.
 
-Майбутній балансний прохід має перевірити:
+`0.1.16` залишає той самий бюджет stat points (`level - 1`), але замість одного primary-stat тунелю розподіляє їх deterministic weighted allocator-ом. Class profile лишається головним bias-ом, race stat bonus і hidden path fixed bonus тільки зміщують розподіл; вони не додають extra level points. HP росте на `+4`, мана на `+2` за gained level.
+
+Наступний балансний прохід має перевірити:
 - HP і мана ростуть достатньо помітно, щоб рівень здавався справжнім посиленням.
 - Бій використовує рівень як окремий коефіцієнт у шкоді, виживанні, доступних діях або порогах монстрів.
 - Події й пригоди можуть мати перевірки, варіанти відповіді, обмеження доступу або малі бонуси, залежні від рівня, але без глухої стіни для новачків там, де це не потрібно.
@@ -325,7 +327,7 @@ Hunt Board лишається простим для входу: один кон�
 - It is not `/restart`: reset/preserve rules must be visible before confirmation and covered by tests.
 - First remort slice preserves memory and up to 5 selected owned manatky, including powerful or sentimental ones. If this bends balance too much, fix it with explicit tags, level gates, attunement or remort-only rules rather than silent deletion.
 - Remort preserves one unit per selected item id in this MVP. Unknown/archived item ids may be selectable with a fallback label, but they must not be carried invisibly outside the 5-item promise.
-- Legacy bonus uses `ceil(previous_level_growth_bonus * 0.23 * remort_number)` for HP, mana and the previous class’s primary stat. It is visible as `Памʼять минулих пригод`, not a public `x/5` cap; if it snowballs, tune through explicit gates/tags/attunement.
+- Legacy bonus uses `ceil(previous_level_growth_bonus * 0.23 * remort_number)` for HP, mana and each stat that previous distributed level growth raised. It is visible as `Памʼять минулих пригод`, not a public `x/5` cap; if it snowballs, tune through explicit gates/tags/attunement.
 - No paid remort, hidden wipe, automatic prestige, 14+ levels or remort-only power track in this slice.
 
 ## Combat simulation harness

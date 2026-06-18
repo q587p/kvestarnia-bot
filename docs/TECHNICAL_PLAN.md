@@ -668,14 +668,15 @@ Resource-state note: effective max calculation must stay separate from persisted
 Формули alpha slice:
 - HP max: `stored hpMax + (level - 1) * 4`.
 - Mana max: `stored manaMax + (level - 1) * 2`.
-- Primary stat: `stored primary stat + (level - 1)`.
+- Stats: `stored statsJson + fixed derived path bonus + distributed level stats + equipment effects`.
+- Distributed level stats keep the `level - 1` budget and allocate deterministically from class profile + race bonus + fixed path bonus weights.
 
-`0.0.22` layers equipment effects on top of this helper instead of rewriting stored starter values. The stored `hpMax`/`manaMax`/`statsJson` remain the base; equipped item content contributes additional summary values at read time.
+`0.0.22` layers equipment effects on top of this helper instead of rewriting stored starter values. `0.1.16` also layers fixed path bonus and distributed level stats at read time. The stored `hpMax`/`manaMax`/`statsJson` remain the base; equipped item content contributes additional summary values at read time.
 
 `0.0.25` adds `hp_regen_at` and `mana_regen_at` to `characters` and syncs passive resource recovery lazily on `/hero` and new persistent fight entry. Active fight turns do not naturally regenerate. Terminal persistent fights save actual remaining HP/mana back to `characters`; repeated terminal callbacks replay reward state without spending or restoring resources again.
 
 Future progression pass:
-- Revisit the alpha formulas so level has a stronger, visible impact on HP, mana, combat coefficients, event checks, and activity/content gates.
+- Revisit combat coefficients, event checks, and activity/content gates after distributed stats have playtest data.
 - Keep the source of truth centralized in progression/effective-stat helpers; presenters, services, and combat/event logic should not each invent their own level math.
 - Add tests around level breakpoints so raising level changes real outcomes, not only displayed summary numbers.
 - Model levels `14-23` as an epic bracket with milestone unlocks for race/class abilities, inspired by Munchkin-style extra class/race tricks. Keep unlock definitions data-driven enough for tests and presenters to answer «what changed at this level?» without hard-coded string checks.

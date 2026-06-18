@@ -36,6 +36,7 @@ export interface RemortRecord {
     memoryRank: number;
     hpBonus: number;
     manaBonus: number;
+    statBonuses: RemortStatBonus[];
     statBonus: RemortStatBonus | null;
   };
   createdAt: Date;
@@ -63,6 +64,7 @@ export interface RemortCompletionInput {
         memoryRank: number;
         hpBonus: number;
         manaBonus: number;
+        statBonuses: RemortStatBonus[];
         statBonus: RemortStatBonus | null;
         hpCurrent: number;
         hpMax: number;

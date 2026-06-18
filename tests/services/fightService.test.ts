@@ -969,8 +969,8 @@ describe("FightService", () => {
       expect(equippedTurn.session.state?.lastTurn?.heroDamage).toBeGreaterThan(
         baselineTurn.session.state?.lastTurn?.heroDamage ?? 0
       );
-      expect(equippedTurn.session.state?.lastTurn?.heroDamage).toBe(11);
-      expect(baselineTurn.session.state?.lastTurn?.heroDamage).toBe(9);
+      expect(equippedTurn.session.state?.lastTurn?.heroDamage).toBe(10);
+      expect(baselineTurn.session.state?.lastTurn?.heroDamage).toBe(8);
     }
   });
 

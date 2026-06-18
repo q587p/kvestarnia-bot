@@ -21,15 +21,18 @@ describe("buildEffectiveCharacterStats", () => {
       levelBonus: {
         hpMax: 0,
         manaMax: 0,
-        primaryStat: {
-          stat: "strength",
-          bonus: 0
+        stats: {
+          strength: 0,
+          dexterity: 0,
+          intelligence: 0,
+          charisma: 0,
+          luck: 0
         }
       }
     });
   });
 
-  it("adds HP, mana, and one primary stat point at level 2", () => {
+  it("adds HP, mana, and one distributed stat point at level 2", () => {
     expect(buildEffectiveCharacterStats(input({ level: 2 }))).toMatchObject({
       hpCurrent: 11,
       hpMax: 24,
@@ -45,44 +48,100 @@ describe("buildEffectiveCharacterStats", () => {
       levelBonus: {
         hpMax: 4,
         manaMax: 2,
-        primaryStat: {
-          stat: "strength",
-          bonus: 1
+        stats: {
+          strength: 1,
+          dexterity: 0,
+          intelligence: 0,
+          charisma: 0,
+          luck: 0
         }
       }
     });
   });
 
-  it("adds cumulative level growth at level 3", () => {
+  it("distributes cumulative level growth at level 3", () => {
     expect(buildEffectiveCharacterStats(input({ level: 3 }))).toMatchObject({
       hpCurrent: 11,
       hpMax: 28,
       manaCurrent: 3,
       manaMax: 14,
       stats: {
-        strength: 10
+        strength: 9,
+        dexterity: 7
       },
       levelBonus: {
         hpMax: 8,
         manaMax: 4,
-        primaryStat: {
-          stat: "strength",
-          bonus: 2
+        stats: {
+          strength: 1,
+          dexterity: 1,
+          intelligence: 0,
+          charisma: 0,
+          luck: 0
         }
       }
     });
   });
 
-  it("scales HP and mana for unknown classes without crashing", () => {
+  it("uses deterministic fallback stat growth for unknown classes", () => {
     expect(buildEffectiveCharacterStats(input({ classId: "class.mystery", level: 2 }))).toMatchObject({
       hpCurrent: 11,
       hpMax: 24,
       manaCurrent: 3,
       manaMax: 12,
-      stats: storedStats,
+      stats: {
+        strength: 9,
+        dexterity: 6,
+        intelligence: 6,
+        charisma: 6,
+        luck: 6
+      },
       levelBonus: {
         hpMax: 4,
-        manaMax: 2
+        manaMax: 2,
+        stats: {
+          strength: 1,
+          dexterity: 0,
+          intelligence: 0,
+          charisma: 0,
+          luck: 0
+        }
+      }
+    });
+  });
+
+  it("applies fixed path bonuses as a derived layer", () => {
+    expect(buildEffectiveCharacterStats(input({ level: 1, path: "moon" }))).toMatchObject({
+      stats: {
+        strength: 8,
+        dexterity: 7,
+        intelligence: 7,
+        charisma: 6,
+        luck: 6
+      }
+    });
+  });
+
+  it("uses race and path as level-growth bias without adding extra level points", () => {
+    expect(
+      buildEffectiveCharacterStats(
+        input({
+          level: 12,
+          raceId: "race.human-ish",
+          path: "boundary"
+        })
+      )
+    ).toMatchObject({
+      levelBonus: {
+        hpMax: 44,
+        manaMax: 22,
+        stats: {
+          strength: 4,
+          dexterity: 2,
+          intelligence: 1,
+          charisma: 2,
+          luck: 2
+        }
       }
     });
   });

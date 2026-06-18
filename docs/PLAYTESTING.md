@@ -262,7 +262,7 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 11. Повторно натисни стару confirm-кнопку.
 12. Очікування: бот replay-ить той самий реморт і не додає другий remort count, bonus або duplicate items.
 13. Відкрий `/hero`.
-14. Очікування: видно `Памʼять минулих пригод`, якщо реморт уже був, без дублювання кількости ремортів і без публічної шкали `x/5`; результат реморту показує HP/ману й одну характеристику, які прийшли зі спомином.
+14. Очікування: видно `Памʼять минулих пригод`, якщо реморт уже був, без дублювання кількости ремортів і без публічної шкали `x/5`; результат реморту показує HP/ману й характеристики, які прийшли зі спомином.
 15. Відкрий надвірну дошку памʼяті біля корчми.
 16. Очікування: блок `Реморти Тринадцятки` показує перші реморти без технічних id і точних timestamp-ів.
 
@@ -280,7 +280,7 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 Це поточний короткий Definition of Done для закритої Phase 1 петлі. Детальний ручний маршрут живе в [`docs/PHASE1_CLOSEOUT_SMOKE.md`](PHASE1_CLOSEOUT_SMOKE.md):
 
 1. `/start` створює персонажа без дублювання.
-2. `/hero` показує level, XP, gold, HP, mana, stats і equipment summary.
+2. `/hero` показує level, XP, gold, HP, mana, stats, next-level forecast і equipment summary.
 3. `/fight` стартує active combat, а не старий one-click probe.
 4. Fight screen має HP/mana героя й HP ворога.
 5. Attack змінює monster HP.
@@ -293,7 +293,7 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 12. `/equipment` дозволяє екіпірувати owned equippable item.
 13. `/hero` змінює effective stats після equip.
 14. Наступний fight показує або використовує змінені values.
-15. Level-up text показується при перетині threshold.
+15. Level-up text показується при перетині threshold і перелічує distributed stat delta.
 16. Level 13 cap / alpha behavior зрозумілий.
 17. Mantok Chest auto/manual працює як перший item-volume sink.
 18. Yeger tracking і turn-in не дублюють прогрес або reward.

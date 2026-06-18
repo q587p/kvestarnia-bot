@@ -239,6 +239,7 @@ export class PrismaRemortRepository implements RemortRepository {
             memoryRank: validation.memoryRank,
             hpBonus: validation.hpBonus,
             manaBonus: validation.manaBonus,
+            statBonuses: validation.statBonuses,
             statBonus: validation.statBonus
           } as unknown as Prisma.InputJsonValue,
           createdAt: input.now
@@ -616,9 +617,13 @@ function parsePreservedPayload(value: unknown): RemortRecord["preservedPayload"]
       memoryRank: 0,
       hpBonus: 0,
       manaBonus: 0,
+      statBonuses: [],
       statBonus: null
     };
   }
+
+  const statBonus = parseStatBonus(value.statBonus);
+  const statBonuses = parseStatBonuses(value.statBonuses);
 
   return {
     identity: parseIdentity(value.identity),
@@ -626,7 +631,8 @@ function parsePreservedPayload(value: unknown): RemortRecord["preservedPayload"]
     memoryRank: intOrZero(value.memoryRank),
     hpBonus: intOrZero(value.hpBonus),
     manaBonus: intOrZero(value.manaBonus),
-    statBonus: parseStatBonus(value.statBonus)
+    statBonuses: statBonuses.length > 0 ? statBonuses : statBonus ? [statBonus] : [],
+    statBonus
   };
 }
 
@@ -637,6 +643,17 @@ function parseStatBonus(value: unknown): { stat: StatKey; bonus: number } | null
 
   const bonus = intOrZero(value.bonus);
   return bonus > 0 ? { stat: value.stat, bonus } : null;
+}
+
+function parseStatBonuses(value: unknown): Array<{ stat: StatKey; bonus: number }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    const parsed = parseStatBonus(entry);
+    return parsed ? [parsed] : [];
+  });
 }
 
 function parseKeptItems(value: unknown): Array<{ itemId: string; quantity: number }> {

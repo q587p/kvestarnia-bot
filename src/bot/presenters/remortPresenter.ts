@@ -102,18 +102,24 @@ export function presentRemortConfirm(result: RemortConfirmResult): string {
 function presentRemortMemoryBonus(input: {
   hpBonus?: number;
   manaBonus?: number;
+  statBonuses?: Array<{ stat: StatKey; bonus: number }>;
   statBonus?: { stat: StatKey; bonus: number } | null;
   hpBonusAfter?: number;
   manaBonusAfter?: number;
+  statBonusesAfter?: Array<{ stat: StatKey; bonus: number }>;
   statBonusAfter?: { stat: StatKey; bonus: number } | null;
 }): string {
   const hpBonus = input.hpBonus ?? input.hpBonusAfter ?? 0;
   const manaBonus = input.manaBonus ?? input.manaBonusAfter ?? 0;
-  const statBonus = input.statBonus ?? input.statBonusAfter ?? null;
+  const fallbackStatBonus = input.statBonus ?? input.statBonusAfter ?? null;
+  const statBonuses =
+    input.statBonuses ??
+    input.statBonusesAfter ??
+    (fallbackStatBonus ? [fallbackStatBonus] : []);
   const parts = [
     hpBonus > 0 ? `+${hpBonus} HP` : null,
     manaBonus > 0 ? `+${manaBonus} мани` : null,
-    statBonus && statBonus.bonus > 0 ? `+${statBonus.bonus} ${statLabelGenitive(statBonus.stat)}` : null
+    ...statBonuses.map((bonus) => `+${bonus.bonus} ${statLabelGenitive(bonus.stat)}`)
   ].filter((part): part is string => Boolean(part));
 
   return parts.length > 0 ? parts.join(" · ") : "поки без чисел, але з важливим виглядом";

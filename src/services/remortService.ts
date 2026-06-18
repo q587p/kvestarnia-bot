@@ -47,6 +47,7 @@ export type RemortViewResult =
       memoryRankAfter: number;
       hpBonusAfter: number;
       manaBonusAfter: number;
+      statBonusesAfter: RemortStatBonus[];
       statBonusAfter: RemortStatBonus | null;
       draft: RemortDraftRecord;
       identity: RemortIdentityView;
@@ -71,6 +72,7 @@ export type RemortConfirmResult =
       memoryRank: number;
       hpBonus: number;
       manaBonus: number;
+      statBonuses: RemortStatBonus[];
       statBonus: RemortStatBonus | null;
       preservedItems: Array<{ itemId: string; name: string; quantity: number }>;
       previousLevel: number;
@@ -320,6 +322,7 @@ export class RemortService {
           memoryRank: starter.memoryRank,
           hpBonus: starter.hpBonus,
           manaBonus: starter.manaBonus,
+          statBonuses: starter.statBonuses,
           statBonus: starter.statBonus,
           hpCurrent: starter.hpCurrent,
           hpMax: starter.hpMax,
@@ -339,6 +342,7 @@ export class RemortService {
         memoryRank: result.remort.preservedPayload.memoryRank,
         hpBonus: result.remort.preservedPayload.hpBonus,
         manaBonus: result.remort.preservedPayload.manaBonus,
+        statBonuses: result.remort.preservedPayload.statBonuses,
         statBonus: result.remort.preservedPayload.statBonus,
         preservedItems: result.remort.preservedPayload.items.map((item) => ({
           ...item,
@@ -444,6 +448,7 @@ export class RemortService {
       memoryRankAfter: getRemortMemoryRank(snapshot.remortCount + 1),
       hpBonusAfter: remortPreview.hpBonus,
       manaBonusAfter: remortPreview.manaBonus,
+      statBonusesAfter: remortPreview.statBonuses,
       statBonusAfter: remortPreview.statBonus,
       draft: snapshot.draft,
       identity: toIdentityView(identity),
