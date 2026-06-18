@@ -469,7 +469,7 @@ async function sendText(
     | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
     | "front"
-    | { state: "front"; yegerAction: "corner" | "hunt" }
+    | { state: "front"; yegerAction: "hidden" | "hunt" }
     | "fighting-corner"
     | "deep"
     | "back-to-fighting-corner"
@@ -505,7 +505,7 @@ async function sendText(
             : isFrontKeyboard(keyboard)
               ? buildKorchmaFrontKeyboard({ yegerAction: keyboard.yegerAction })
             : keyboard === "front"
-              ? buildKorchmaFrontKeyboard({ yegerAction: "corner" })
+              ? buildKorchmaFrontKeyboard()
             : keyboard === "arrivals"
               ? buildKorchmaArrivalBoardKeyboard()
               : keyboard === "memorial"
@@ -533,7 +533,7 @@ function isFrontKeyboard(
     | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
     | "front"
-    | { state: "front"; yegerAction: "corner" | "hunt" }
+    | { state: "front"; yegerAction: "hidden" | "hunt" }
     | "fighting-corner"
     | "deep"
     | "back-to-fighting-corner"
@@ -543,7 +543,7 @@ function isFrontKeyboard(
     | "barrel-result"
     | "barrel-pending"
     | "barrel-participants"
-): keyboard is { state: "front"; yegerAction: "corner" | "hunt" } {
+): keyboard is { state: "front"; yegerAction: "hidden" | "hunt" } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "front";
 }
 
@@ -554,7 +554,7 @@ function isBarKeyboard(
     | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
     | "front"
-    | { state: "front"; yegerAction: "corner" | "hunt" }
+    | { state: "front"; yegerAction: "hidden" | "hunt" }
     | "fighting-corner"
     | "deep"
     | "back-to-fighting-corner"
@@ -575,7 +575,7 @@ function isHallKeyboard(
     | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
     | "front"
-    | { state: "front"; yegerAction: "corner" | "hunt" }
+    | { state: "front"; yegerAction: "hidden" | "hunt" }
     | "fighting-corner"
     | "deep"
     | "back-to-fighting-corner"
@@ -592,14 +592,14 @@ function isHallKeyboard(
 async function getFrontYegerAction(
   yegerQuestService: Pick<YegerQuestService, "getForTelegramUser"> | undefined,
   telegramUserId: bigint
-): Promise<"corner" | "hunt"> {
+): Promise<"hidden" | "hunt"> {
   if (!yegerQuestService) {
-    return "corner";
+    return "hidden";
   }
 
   const yeger = await yegerQuestService.getForTelegramUser(telegramUserId);
 
-  return yeger.state === "in-progress" ? "hunt" : "corner";
+  return yeger.state === "in-progress" ? "hunt" : "hidden";
 }
 
 function getProblemQuestBarActionFromProgress(

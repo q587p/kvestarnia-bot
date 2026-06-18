@@ -92,6 +92,13 @@ describe("main menu and scene keyboards", () => {
       "v1:place:memorial",
       "v1:lvlx:open"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard({ yegerAction: "hunt" }))).toEqual([
+      "🚪 Зайти в корчму",
+      "📜 Табличка прибулих",
+      "🏅 Пропамʼятна дошка",
+      "🎒 Манчкін-скупник",
+      "🏹 До полювання"
+    ]);
     expect(inlineButtonRows(buildEnterKorchmaKeyboard())).toEqual([["🚪 Зайти в корчму"]]);
     expect(flatInlineButtonCallbacks(buildEnterKorchmaKeyboard())).toEqual(["v1:place:hall"]);
     expect(flatInlineButtonTexts(buildKorchmaArrivalBoardKeyboard())).toEqual([

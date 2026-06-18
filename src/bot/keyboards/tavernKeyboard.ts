@@ -26,15 +26,11 @@ export function buildTavernKeyboard(): InlineKeyboard {
 }
 
 export function buildKorchmaFrontKeyboard(
-  options: { yegerAction?: "hidden" | "corner" | "hunt" } = {}
+  options: { yegerAction?: "hidden" | "hunt" } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
     .row();
-
-  if (options.yegerAction === "corner") {
-    keyboard.text("🧥 До Єгеря", makeTavernCallbackData("ranger")).row();
-  }
 
   keyboard
     .text("📜 Табличка прибулих", makePlaceCallbackData("arrivals"))
