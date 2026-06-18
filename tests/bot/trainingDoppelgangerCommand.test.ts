@@ -209,7 +209,9 @@ function doppelganger() {
     raceName: "Людисько",
     className: "Воїн",
     title: "Пересічні Пригодники",
-    level: 3
+    level: 3,
+    spawnMode: "COPY_TARGET" as const,
+    copiedEquipmentCount: 0
   };
 }
 

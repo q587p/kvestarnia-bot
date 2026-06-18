@@ -15,12 +15,14 @@ import {
   type CombatActionType
 } from "../domain/combat";
 import {
-  buildTrainingDoppelgangerCombatStats,
+  buildTrainingDoppelgangerCombatStatsFromState,
+  buildTrainingDoppelgangerSpawn,
   getTrainingDoppelgangerRecoveryMs,
   isTrainingDoppelgangerMonsterId,
   rollTrainingDoppelgangerXpReward,
   TRAINING_DOPPELGANGER_MIN_LEVEL,
   TRAINING_DOPPELGANGER_MONSTER_ID,
+  type TrainingDoppelgangerSpawnConfig,
   type TrainingDoppelgangerXpReward
 } from "../domain/trainingDoppelganger";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
@@ -82,11 +84,13 @@ export type TrainingDoppelgangerTurnResult =
     };
 
 export interface TrainingDoppelgangerCopy {
-  name: "Сумлінний Допельґанґер";
+  name: string;
   raceName: string;
   className: string;
   title: string;
   level: number;
+  spawnMode: "COPY_TARGET" | "RANDOM_BUILD";
+  copiedEquipmentCount: number;
 }
 
 export interface TrainingDoppelgangerRewardClaim {
@@ -105,7 +109,8 @@ export class TrainingDoppelgangerService {
     private readonly combatSessions: SoloCombatSessionRepository,
     private readonly equipment?: EquipmentRepository,
     private readonly clock: Clock = systemClock,
-    private readonly rng: RandomSource = new CryptoRandomSource()
+    private readonly rng: RandomSource = new CryptoRandomSource(),
+    private readonly spawnConfig: TrainingDoppelgangerSpawnConfig = {}
   ) {}
 
   async getOrStartForTelegramUser(
@@ -152,11 +157,15 @@ export class TrainingDoppelgangerService {
     }
 
     const sessionId = randomUUID();
-    const doppelgangerStats = buildTrainingDoppelgangerCombatStats(character);
+    const spawn = buildTrainingDoppelgangerSpawn(character, {
+      equippedItems,
+      rng: this.rng,
+      spawnConfig: this.spawnConfig
+    });
     const state = startCombat({
       id: sessionId,
       hero: buildHeroCombatStats(character),
-      monster: doppelgangerStats
+      monster: spawn.monster
     });
     const session = await this.combatSessions.createForTelegramUser(telegramUserId, {
       id: sessionId,
@@ -172,7 +181,7 @@ export class TrainingDoppelgangerService {
     return {
       state: "active",
       character,
-      doppelganger: buildDoppelgangerCopy(character),
+      doppelganger: buildDoppelgangerCopy(spawn.character, session.state),
       session
     };
   }
@@ -206,7 +215,7 @@ export class TrainingDoppelgangerService {
       return { state: "not-found", character };
     }
 
-    const doppelganger = buildDoppelgangerCopy(character);
+    const doppelganger = buildDoppelgangerCopy(character, session.state);
 
     if (session.status !== "active") {
       return {
@@ -258,7 +267,7 @@ export class TrainingDoppelgangerService {
       state: session.state,
       action: input.action,
       hero: buildHeroCombatStats(character),
-      monster: buildTrainingDoppelgangerCombatStats(character),
+      monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
       rng: this.rng
     });
 
@@ -341,7 +350,7 @@ export class TrainingDoppelgangerService {
       return {
         state: "terminal",
         character,
-        doppelganger: buildDoppelgangerCopy(character),
+        doppelganger: buildDoppelgangerCopy(character, session.state),
         session: expired ?? { ...session, status: "expired" },
         reward: null
       };
@@ -358,7 +367,7 @@ export class TrainingDoppelgangerService {
       return {
         state: "terminal",
         character,
-        doppelganger: buildDoppelgangerCopy(character),
+        doppelganger: buildDoppelgangerCopy(character, session.state),
         session: terminalSession,
         reward: null
       };
@@ -368,7 +377,7 @@ export class TrainingDoppelgangerService {
       return {
         state: "terminal",
         character,
-        doppelganger: buildDoppelgangerCopy(character),
+        doppelganger: buildDoppelgangerCopy(character, session.state),
         session,
         reward: await this.getOrRecoverReward(telegramUserId, session)
       };
@@ -377,7 +386,7 @@ export class TrainingDoppelgangerService {
     return {
       state: "active",
       character,
-      doppelganger: buildDoppelgangerCopy(character),
+      doppelganger: buildDoppelgangerCopy(character, session.state),
       session
     };
   }
@@ -519,13 +528,20 @@ export class TrainingDoppelgangerService {
   }
 }
 
-function buildDoppelgangerCopy(character: CharacterSummary): TrainingDoppelgangerCopy {
+function buildDoppelgangerCopy(
+  character: CharacterSummary,
+  state?: SoloCombatSessionRecord["state"]
+): TrainingDoppelgangerCopy {
+  const trace = state?.monster.debugTrace;
+
   return {
-    name: "Сумлінний Допельґанґер",
-    raceName: character.raceName,
-    className: character.className,
-    title: character.title,
-    level: character.level
+    name: state?.monster.name ?? "Сумлінний Допельґанґер",
+    raceName: state?.monster.raceName ?? character.raceName,
+    className: state?.monster.className ?? character.className,
+    title: state?.monster.title ?? character.title,
+    level: state?.monster.level ?? character.level,
+    spawnMode: trace?.spawnMode === "RANDOM_BUILD" ? "RANDOM_BUILD" : "COPY_TARGET",
+    copiedEquipmentCount: trace?.copiedEquipmentCount ?? 0
   };
 }
 

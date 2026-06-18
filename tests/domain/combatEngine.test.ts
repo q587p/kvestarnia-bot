@@ -152,8 +152,13 @@ describe("combat domain engine", () => {
       },
       monster: {
         id: "monster.test-problem",
+        level: 2,
         hp: 18,
-        hpMax: 18
+        hpMax: 18,
+        attack: 4,
+        armor: 1,
+        resist: 1,
+        dexterity: 6
       }
     });
   });
@@ -227,6 +232,36 @@ describe("combat domain engine", () => {
     expect(result.state.status).toBe("lost");
     expect(result.state.hero.hp).toBe(0);
     expect(result.summary.monsterOutcome).toBe("lost");
+  });
+
+  it("lets doppelganger monsters answer with a class skill and debug trace", () => {
+    const result = resolveCombatTurn({
+      state: {
+        ...startCombat({ hero: warrior, monster }),
+        turn: 3
+      },
+      action: "attack",
+      hero: warrior,
+      monster: {
+        ...monster,
+        tags: ["training", "doppelganger"],
+        classId: "class.bureaucramancer",
+        debugTrace: {
+          spawnMode: "COPY_TARGET",
+          copiedEquipmentCount: 1
+        }
+      },
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.2])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary.monsterAction).toBe("skill");
+    expect(result.summary.monsterSkillId).toBe("skill.form-thirteen-b");
+    expect(result.summary.debugTrace).toMatchObject({
+      spawnMode: "COPY_TARGET",
+      copiedEquipmentCount: 1,
+      chosenAbilityId: "skill.form-thirteen-b"
+    });
   });
 
   it("can flee without marking combat as a win", () => {

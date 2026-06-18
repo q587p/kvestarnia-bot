@@ -1,5 +1,6 @@
 import {
   buildDoppelgangerCounterFlavor,
+  selectDoppelgangerLine,
   type CombatTurnSummary
 } from "../../domain/combat";
 import type {
@@ -86,11 +87,22 @@ export function presentTrainingDoppelganger(
 export function presentTrainingDoppelgangerIntro(
   result: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>
 ): string {
+  const spawnLine = selectDoppelgangerLine({
+    category: result.doppelganger.spawnMode === "RANDOM_BUILD" ? "spawn.random" : "spawn.copy",
+    seed: result.session.id,
+    targetName: result.character.name,
+    doppelName: result.doppelganger.name,
+    raceName: result.doppelganger.raceName,
+    className: result.doppelganger.className,
+    title: result.doppelganger.title,
+    turn: result.session.state?.turn
+  });
+
   return [
     "🥊 <b>Бійцівський куток</b>",
     presentCharacterHeader(result.character),
     "",
-    "У кутку корчми стає ваша копія. Не метафорично: Корчмар уже просить не сперечатися з власним відображенням.",
+    escapeHtml(spawnLine.text),
     "",
     `Проти вас: <b>${escapeHtml(result.doppelganger.name)}</b> · ${escapeHtml(result.doppelganger.raceName)} · ${escapeHtml(result.doppelganger.className)} · рівень ${result.doppelganger.level}`
   ].join("\n");
@@ -156,7 +168,7 @@ function presentTrainingDoppelgangerState(input: {
 
   if (state?.lastTurn) {
     lines.push("", presentTrainingTurnSummary(state.lastTurn));
-    const flavor = presentTrainingCounterFlavor(input.character, state);
+    const flavor = presentTrainingCounterFlavor(input.character, input.doppelganger, state);
 
     if (flavor) {
       lines.push("", flavor);
@@ -258,7 +270,9 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
       : `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
   const response =
     summary.monsterDamage > 0
-      ? `Копія відповіла на ${summary.monsterDamage} шкоди.`
+      ? summary.monsterAction === "skill" && summary.monsterSkillId
+        ? `Копія відповіла прийомом «${escapeHtml(presentCombatSkillName(summary.monsterSkillId))}» на ${summary.monsterDamage} шкоди.`
+        : `Копія відповіла на ${summary.monsterDamage} шкоди.`
       : summary.monsterOutcome === "miss"
         ? "Копія промахнулась і дуже професійно вдала, що це була демонстрація."
         : "";
@@ -268,6 +282,7 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
 
 function presentTrainingCounterFlavor(
   character: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["character"],
+  doppelganger: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["doppelganger"],
   state: NonNullable<Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["session"]["state"]>
 ): string | null {
   const lastTurn = state.lastTurn;
@@ -279,8 +294,14 @@ function presentTrainingCounterFlavor(
   const flavor = buildDoppelgangerCounterFlavor({
     actorKind: "doppelganger",
     classId: character.classId,
+    className: character.className,
     raceId: character.raceId,
+    raceName: character.raceName,
     title: character.title,
+    targetName: character.name,
+    doppelName: doppelganger.name,
+    seed: state.id,
+    abilityName: lastTurn.monsterSkillId ? presentCombatSkillName(lastTurn.monsterSkillId) : null,
     heroHpRatio: ratio(state.hero.hp, state.hero.hpMax),
     monsterHpRatio: ratio(state.monster.hp, state.monster.hpMax),
     turn: state.turn,
@@ -296,6 +317,27 @@ function ratio(current: number, max: number): number {
   }
 
   return current / max;
+}
+
+function presentCombatSkillName(skillId: string): string {
+  switch (skillId) {
+    case "skill.forceful-strike":
+      return "переконливий удар";
+    case "skill.hot-spell":
+      return "гаряче закляття";
+    case "skill.form-thirteen-b":
+      return "форма 13-Б";
+    case "skill.dangerous-couplet":
+      return "небезпечний куплет";
+    case "skill.trick-shot":
+      return "хитрий постріл";
+    case "skill.strict-blessing":
+      return "суворе благословення";
+    case "skill.steppe-side-eye":
+      return "степовий косий погляд";
+    default:
+      return "обережний прийом";
+  }
 }
 
 function formatTrainingCooldown(availableAt: Date, now: Date): string {

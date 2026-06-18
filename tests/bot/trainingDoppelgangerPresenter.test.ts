@@ -23,8 +23,9 @@ describe("training doppelganger presenter", () => {
 
     expect(text).toContain("🥊 <b>Бійцівський куток</b>");
     expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
-    expect(text).toContain("У кутку корчми стає ваша копія");
     expect(text).toContain("Проти вас: <b>Сумлінний Допельґанґер</b>");
+    expect(text).not.toContain("{targetName}");
+    expect(text).not.toContain("undefined");
     expect(text).not.toContain("❤️ Ви:");
     expect(text).not.toContain("що робимо?");
   });
@@ -102,8 +103,9 @@ describe("training doppelganger presenter", () => {
       reward: null
     });
 
-    expect(text).toContain("<i>Копія дістає форму 13-Б");
-    expect(text).toContain("просить ваш біль розписатися тут, тут і тут.</i>");
+    expect(text).toContain("<i>");
+    expect(text).toContain("</i>");
+    expect(text).not.toContain("undefined");
     expect(text).not.toContain("Останній хід");
   });
 
@@ -169,7 +171,9 @@ function buildDoppelganger(character: ReturnType<typeof buildCharacter>) {
     raceName: character.raceName,
     className: character.className,
     title: character.title,
-    level: character.level
+    level: character.level,
+    spawnMode: "COPY_TARGET" as const,
+    copiedEquipmentCount: 0
   };
 }
 

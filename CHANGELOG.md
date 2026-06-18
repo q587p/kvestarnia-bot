@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.12] - 12026-06-18 - Doppelganger Variation, Spawn Factory and Skill Replies
+
+### Added
+- Added a categorized Ukrainian doppelganger line pool with deterministic selection, placeholder interpolation and recent-line anti-repeat.
+- `/spar` intro and counter flavor now use the doppelganger line pool instead of one fixed intro/counter text path.
+- Added doppelganger spawn plumbing for `COPY_TARGET`, `RANDOM_BUILD`, champion-mode fallback and `WEIGHTED_RANDOM`; `/spar` still defaults to `COPY_TARGET`.
+- Added random-build generation for valid pronoun/race/class/level combos with combat-only passive gear selected from current item content.
+- Training doppelganger combat state now stores the copy's combat identity, passive copied-equipment summary, applied effect keys and debug trace.
+- Doppelganger monsters can answer with class-shaped skill replies and record the selected ability in turn debug trace.
+- Added focused tests for doppelganger lines, spawn modes, passive equipment copy summaries, random builds, state restoration, monster skill replies and presenter output.
+
+### Guardrails
+- No champion snapshot table, migration or persistence was added; champion spawn modes currently fall back through the configured safe mode.
+- No persistent inventory items are created for copied or random doppelganger equipment, and source player inventory is not mutated.
+- Existing `/spar` reward rules remain XP-only: no gold, manatky, drops, wagers, ratings, quest progress or PvP ledger changes.
+- Active equipment abilities are not faked; this release uses the existing passive item-effect pipeline only.
+
 ## [0.1.11] - 12026-06-18 - Duel Rematch and Shareable Result Cards
 
 ### Added

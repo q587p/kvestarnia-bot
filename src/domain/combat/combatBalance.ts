@@ -64,6 +64,33 @@ export function rollMonsterDamage(
   return Math.max(1, rawDamage);
 }
 
+export function rollMonsterSkillDamage(
+  hero: CombatActorStats,
+  monster: MonsterCombatStats,
+  skill: CombatSkillProfile,
+  rng: RandomSource,
+  damageReduction = 0
+): number {
+  const targetDefense = skill.damageKind === "spell" ? hero.resist ?? 0 : hero.armor ?? 0;
+  const hitChance = clamp(0.8 + skill.accuracyBonus + (monster.dexterity - hero.dexterity) * 0.01, 0.65, 0.97);
+
+  if (rng.nextFloat() >= hitChance) {
+    return 0;
+  }
+
+  const variance = rng.nextInt(0, 2);
+  const powerBonus = skill.damageKind === "spell" ? monster.spellPower ?? 0 : Math.floor(monster.attack / 3);
+  const rawDamage =
+    monster.attack +
+    Math.ceil(skill.baseDamage / 2) +
+    powerBonus +
+    variance -
+    Math.floor(targetDefense * 0.8) -
+    damageReduction;
+
+  return Math.max(1, rawDamage);
+}
+
 export function rollFleeSuccess(
   hero: CombatActorStats,
   monster: MonsterCombatStats,
