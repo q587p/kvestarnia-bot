@@ -232,14 +232,14 @@ describe("fight command", () => {
         inline_keyboard: [
           [
             {
-              text: "⬇️ Спуститися",
-              callback_data: makePlaceCallbackData("deep-level1")
+              text: "⬆️ Повернутися до зали",
+              callback_data: makePlaceCallbackData("hall")
             }
           ],
           [
             {
-              text: "⬅️ Повернутися до зали",
-              callback_data: makePlaceCallbackData("hall")
+              text: "⬇️ Спуститися",
+              callback_data: makePlaceCallbackData("deep-level1")
             }
           ]
         ]
@@ -344,10 +344,10 @@ describe("fight command", () => {
     };
 
     expect(options.parse_mode).toBe("HTML");
-    expect(options.reply_markup.inline_keyboard[0]?.[0]).toEqual({
-      text: "⬇️ Спуститися",
-      callback_data: makePlaceCallbackData("deep-level1")
-    });
+    expect(options.reply_markup.inline_keyboard).toEqual([
+      [{ text: "⬆️ Повернутися до зали", callback_data: makePlaceCallbackData("hall") }],
+      [{ text: "⬇️ Спуститися", callback_data: makePlaceCallbackData("deep-level1") }]
+    ]);
   });
 
   it("starts the selected persistent fight difficulty through the existing session path", async () => {

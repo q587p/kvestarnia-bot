@@ -23,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Combat-lock redirects now show a visible explanation before the active fight or training screen, so blocked navigation is clear even when a callback toast is missed.
 - Persistent and training fight keyboards recompute action availability every render, hiding magic without enough current mana and hiding non-mana skills while on cooldown.
 - Stale old quest-table fight callbacks open a fresh `Спуск до Низу` surface instead of starting from the old table message; passage selection and active fights use the separate `location.korchma.deep.level1` presence location.
+- `Спуск до Низу` now shows `⬆️ Повернутися до зали` above `⬇️ Спуститися`, matching the upward navigation icon used deeper in `Низ`.
 - The three-adventure offer screen now shows each problem as a compact title plus italic short line; full problem hooks stay on the selected-problem screen.
 - Selected problem-fight passage callbacks now preserve the selected difficulty when moving the player into `Низ`, so the fight starts instead of redisplaying the passage choice.
 - Outside direct activity gates now show only the `Зайти в корчму` button instead of the full front-door action keyboard.

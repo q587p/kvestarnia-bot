@@ -126,9 +126,9 @@ export function buildBackToKorchmaHallKeyboard(): InlineKeyboard {
 
 export function buildKorchmaDeepKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
-    .text("⬇️ Спуститися", makePlaceCallbackData("deep-level1"))
+    .text("⬆️ Повернутися до зали", makePlaceCallbackData("hall"))
     .row()
-    .text("⬅️ Повернутися до зали", makePlaceCallbackData("hall"));
+    .text("⬇️ Спуститися", makePlaceCallbackData("deep-level1"));
 }
 
 export function buildKorchmaArrivalBoardKeyboard(): InlineKeyboard {

@@ -458,12 +458,12 @@ describe("main menu and scene keyboards", () => {
       "🏃 Відступити"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard())).toEqual([
-      "⬇️ Спуститися",
-      "⬅️ Повернутися до зали"
+      "⬆️ Повернутися до зали",
+      "⬇️ Спуститися"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard())).toEqual([
-      "v1:place:deep-level1",
-      "v1:place:hall"
+      "v1:place:hall",
+      "v1:place:deep-level1"
     ]);
     expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toEqual([
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
