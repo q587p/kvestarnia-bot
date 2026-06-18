@@ -737,7 +737,8 @@ function shouldCheckCombatLock(ctx: Context): boolean {
     return (
       !data.startsWith("v1:fight:turn:") &&
       !data.startsWith("v1:spar:turn:") &&
-      !data.startsWith("v1:fight:mimic:")
+      !data.startsWith("v1:fight:mimic:") &&
+      !isCombatLockSafeCallback(data)
     );
   }
 
@@ -745,20 +746,50 @@ function shouldCheckCombatLock(ctx: Context): boolean {
   const command = text?.match(/^\/([a-z_]+)(?:@\w+)?(?:\s+.*)?$/i)?.[1]?.toLowerCase();
 
   if (command) {
-    return command !== "help" && command !== "version";
+    return !isCombatLockSafeCommand(command);
   }
 
   return isLockedMainMenuText(text);
+}
+
+function isCombatLockSafeCallback(data: string): boolean {
+  return (
+    data === "v1:menu:hero" ||
+    data === "v1:menu:help" ||
+    data === "v1:menu:inventory" ||
+    data.startsWith("v1:item:") ||
+    data.startsWith("v1:equip:") ||
+    data.startsWith("v1:restart:") ||
+    data.startsWith("v1:remort:")
+  );
+}
+
+function isCombatLockSafeCommand(command: string): boolean {
+  return (
+    command === "help" ||
+    command === "version" ||
+    command === "hero" ||
+    command === "profile" ||
+    command === "me" ||
+    command === "inventory" ||
+    command === "items" ||
+    command === "bag" ||
+    command === "equipment" ||
+    command === "gear" ||
+    command === "equip" ||
+    command === "online" ||
+    command === "look" ||
+    command === "restart" ||
+    command === "remort" ||
+    command === "support"
+  );
 }
 
 function isLockedMainMenuText(text: string | undefined): boolean {
   return (
     text === mainMenuButtons.tavern ||
     text === mainMenuButtons.quest ||
-    text === "🗺️ Квест" ||
-    text === mainMenuButtons.hero ||
-    text === mainMenuButtons.inventory ||
-    text === mainMenuButtons.participants
+    text === "🗺️ Квест"
   );
 }
 

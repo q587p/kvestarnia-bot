@@ -261,6 +261,7 @@ Achievements Phase 1 лишається rewardless later slice після осн
 - У `0.0.13` кожна манатка має `goldValue` або `priceless`; це тільки metadata для огляду й майбутніх sinks, не продаж і не обмін.
 - У `0.0.14` `/inventory` показує сумарну оціночну вартість priced манаток, а `/hero` показує це число поруч із живим золотом персонажа. Це display-only: золото не додається, предмети не списуються.
 - У `0.0.19` `/inventory` пагінується по 8 манаток на сторінку, щоб торба не ставала простирадлом після кількох рейдів, льохів і полювань.
+- Inventory and item/equipment callbacks remain safe side surfaces during active combat. Combat locks adventure/navigation routes, but must not block inspecting manatky because future one-use combat items will live on this surface.
 - Спорядження у `0.0.14` persistent: можна екіпірувати owned weapon у `weapon`, armor у `chest`, accessory у `accessory`, а також зняти зайнятий слот.
 - Видимий equipment UI у `0.0.14` показує тільки чесно підтримані слоти: зброя, тулуб, аксесуар. Head і legs лишаються future vocabulary, доки content/schema не матимуть реальних речей для них.
 - `0.0.22` додає перший малий stat-effect шар: currently equipped items можуть додати HP/ману, core stats, armor/resist, weapon damage або spell power через один effective-stats helper. `/hero`, `/equipment`, item detail і persistent solo combat читають цей самий summary.
