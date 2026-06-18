@@ -14,6 +14,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
   PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
@@ -57,6 +58,30 @@ describe("PresenceService", () => {
       state: "ready",
       locationId: PRESENCE_LOCATION_KORCHMA_BAR,
       locationName: "Шинок",
+      insideKorchma: true
+    });
+  });
+
+  it("names the first Niz tier as a specific korchma interior location", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1)
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    const place = await service.getCurrentPlaceForTelegramUser(1n);
+
+    expect(getPublicPresenceLocation(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1)).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+      title: "Сутерени Корчми",
+      regionName: "Низ",
+      showNames: true,
+      isSpecific: true
+    });
+    expect(isKorchmaInteriorLocation(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1)).toBe(true);
+    expect(place).toMatchObject({
+      state: "ready",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+      locationName: "Сутерени Корчми",
       insideKorchma: true
     });
   });

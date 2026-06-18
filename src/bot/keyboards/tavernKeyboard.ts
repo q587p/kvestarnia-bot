@@ -118,7 +118,7 @@ export function buildBackToKorchmaHallKeyboard(): InlineKeyboard {
 
 export function buildKorchmaDeepKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
-    .text("Спуститися", makeQuestCallbackData("fight-descend"))
+    .text("Спуститися", makePlaceCallbackData("deep-level1"))
     .row()
     .text("Повернутися до зали", makePlaceCallbackData("hall"));
 }

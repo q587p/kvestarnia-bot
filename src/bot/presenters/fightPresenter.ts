@@ -121,7 +121,7 @@ export function presentPersistentFightDifficultyChoice(
   result: Extract<FightLookupResult, { state: "persistent-ready" }>
 ): string {
   return [
-    "⚔️ <b>Розв’язати проблему</b>",
+    "🧱 <b>Ярус I: Сутерени Корчми</b>",
     presentCharacterHeader(result.character),
     "",
     "Підсходник сидить на нижній сходинці й крейдою малює три проходи на стіні. Каже, що Низ любить, коли вибір здається простим.",

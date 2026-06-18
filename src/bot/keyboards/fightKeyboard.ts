@@ -89,7 +89,7 @@ export function buildPersistentFightDifficultyKeyboard(): InlineKeyboard {
     .row()
     .text("➡️ Правий прохід", makeQuestCallbackData("fight-easy"))
     .row()
-    .text("🪜 Спуск до Низу", makePlaceCallbackData("deep"));
+    .text("🪜 До спуску", makePlaceCallbackData("deep"));
 }
 
 function getFightActionLabels(character?: CharacterSummary): {

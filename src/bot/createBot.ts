@@ -36,6 +36,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_DEEP,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
   PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
@@ -1425,6 +1426,16 @@ async function handlePlaceCallback(
     return;
   }
 
+  if (action === "deep-level1") {
+    await sendFight(ctx, services.fight, "reply", {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      requireKorchmaInterior: true,
+      openDifficulty: true
+    });
+    return;
+  }
+
   if (action === "cellar") {
     await sendCellarErrandRouted(
       ctx,
@@ -1498,9 +1509,14 @@ async function handleQuestCallback(
       return;
     }
 
-    if (place.locationId !== PRESENCE_LOCATION_KORCHMA_DEEP) {
+    const targetLocationId =
+      action === "fight-descend" || fightDifficulty
+        ? PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1
+        : PRESENCE_LOCATION_KORCHMA_DEEP;
+
+    if (place.locationId !== targetLocationId) {
       await markScenePresence(ctx, services.presence, {
-        locationId: PRESENCE_LOCATION_KORCHMA_DEEP,
+        locationId: targetLocationId,
         currentRaidId: null,
         currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
       });

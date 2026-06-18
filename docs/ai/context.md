@@ -34,11 +34,10 @@ Repo-specific skills in `.agents/skills/`:
 - `$kvestarnia-second-codex-readonly` — second Codex read-only review, changed-files default.
 - `$kvestarnia-telegram-qa` — compact/full Telegram QA plans.
 - `$kvestarnia-release-checklist` — release readiness and handoff.
+- `$balance-review` — combat, loot, progression, and economy risks.
+- `$ukrainian-rpg-content` — Ukrainian player-facing battle/tip/location/news/content copy.
 
-Shared/root skills in `skills/`:
-
-- `$balance-review` — combat, loot, progression, economy risks.
-- `$ukrainian-rpg-content` — Ukrainian player-facing RPG content review/generation.
+Compatibility/reference copies in `skills/` may exist, but default workflow should rely on `.agents/skills/` so `$skill` activation is predictable.
 
 Use one main skill by default. Add another skill only when it materially helps.
 
@@ -111,7 +110,7 @@ For Telegram/gameplay changes, always consider:
 - distinct icons for distinct rows/actions in the same message; do not reuse a location/surface icon for a separate quest row.
 - starter/onboarding paths when replacing older flows; level 1-2 starter mimic-shawarma must remain reachable before level 3 adventure choice.
 - `0.1.14` adventure choice loop: level 3+, deterministic offers from a broad general + race + class + current-title problem pool with at least one personalized candidate when available, declined personalized race/class names in generated copy, stable per-problem offer/button icons, qualitative pre-choice risk/reward copy, readable choice spacing, daily-action idempotency, active-fight guard, preserved level 1-2 starter shawarma that hides from Quest Hub after completion, completed starter lookups do not stamp actionable starter presence, no direct Fighting Corner promo/button from the quest table, complication-to-persistent-fight path that does not spend the claim if combat cannot start, remort resets Yeger once-per-life quest keys, and `/dev_adventure_reset` for local QA that rerolls the same-period offer seed.
-- `0.1.15` combat lock and battle flow polish: unfinished persistent or training fights centrally redirect normal commands/callbacks back to battle until terminal state; current-turn hidden magic without mana and hidden non-mana skills on cooldown waste the hero turn and let the monster act; zero-mana class skills get deterministic `3..5` turn cooldowns; fight keyboards recompute action availability every render; ordinary level 3+ problem fights route first to `Спуск до Низу`, then `Спуститися` opens three passage buttons (`⬅️ Лівий прохід` hard, `⬇️ Прямий прохід` normal, `➡️ Правий прохід` easy); adventure three-choice lists show only title plus italic short line before selection; outside direct activity gates show only `Зайти в корчму`; three recent eligible ordinary `Низ` fights trigger a short monster-rest block; new battle intros reuse existing `Порада дня`; lazy HP recovery can show a one-shot full-health notice during `/hero` or `/fight`; Yeger quest selection/help/turn-in stay at the Barrel-side corner, while active trail taking/checking happens outside via `Надвір` / final-row `До полювання`, and progress still matches eligible monster type/tag source-agnostically.
+- `0.1.15` combat lock and battle flow polish: unfinished persistent or training fights centrally redirect normal commands/callbacks back to battle until terminal state; current-turn hidden magic without mana and hidden non-mana skills on cooldown waste the hero turn and let the monster act; zero-mana class skills get deterministic `3..5` turn cooldowns; fight keyboards recompute action availability every render; ordinary level 3+ problem fights route first to `Спуск до Низу`, then `Спуститися` enters the separate first-tier surface/location `Ярус I: Сутерени Корчми` (`location.korchma.deep.level1`) with three passage buttons (`⬅️ Лівий прохід` hard, `⬇️ Прямий прохід` normal, `➡️ Правий прохід` easy); adventure three-choice lists show only title plus italic short line before selection; outside direct activity gates show only `Зайти в корчму`; three recent eligible ordinary `Низ` fights trigger a short monster-rest block; new battle intros reuse existing `Порада дня`; lazy HP recovery can show a one-shot full-health notice during `/hero` or `/fight`; Yeger quest selection/help/turn-in stay at the Barrel-side corner, while active trail taking/checking happens outside via `Надвір` / final-row `До полювання`, and progress still matches eligible monster type/tag source-agnostically.
 
 ## Current product direction
 

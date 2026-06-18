@@ -135,7 +135,7 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
-  if (data === "v1:place:deep") {
+  if (data === "v1:place:deep" || data === "v1:place:deep-level1") {
     return {};
   }
 

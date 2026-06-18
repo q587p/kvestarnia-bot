@@ -460,7 +460,7 @@ describe("main menu and scene keyboards", () => {
       "Повернутися до зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard())).toEqual([
-      "v1:quest:fight-descend",
+      "v1:place:deep-level1",
       "v1:place:hall"
     ]);
     expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toEqual([

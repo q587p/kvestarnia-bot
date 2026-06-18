@@ -910,6 +910,50 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(descent?.payload.reply_markup)).toContain("Спуститися");
   });
 
+  it("opens the first Niz tier from the descent place callback", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getOrStartPersistentFightForTelegramUser = vi.fn();
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("deep-level1"),
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-ready" as const,
+              character: {
+                ...character,
+                level: 3
+              },
+              questProgress: null
+            }),
+          getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.deep",
+              locationName: "Низ",
+              insideKorchma: true
+            })
+        }
+      })
+    );
+    const tier = calls.find((call) => call.method === "sendMessage");
+
+    expect(getOrStartPersistentFightForTelegramUser).not.toHaveBeenCalled();
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep.level1",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(String(tier?.payload.text)).toContain("Ярус I: Сутерени Корчми");
+    expect(String(tier?.payload.text)).toContain("Підсходник");
+    expect(JSON.stringify(tier?.payload.reply_markup)).toContain("⬇️ Прямий прохід");
+  });
+
   it("starts selected problem fight difficulty after moving from the hall to the Niz", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
@@ -955,7 +999,7 @@ describe("scene callback HTML options", () => {
     });
     expect(markAction).toHaveBeenCalledWith(
       expect.objectContaining({
-        locationId: "location.korchma.deep",
+        locationId: "location.korchma.deep.level1",
         currentAdventureId: "adventure.solo-fight"
       })
     );

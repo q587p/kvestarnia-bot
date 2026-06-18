@@ -6,6 +6,7 @@ import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_LOCATION_KORCHMA_DEEP,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type PresenceService
 } from "../../services/presenceService";
@@ -151,8 +152,12 @@ export async function sendFight(
       persistent:
         result.state === "persistent-ready" ||
         result.state === "persistent-active" ||
-        result.state === "persistent-terminal" ||
-        result.state === "monster-rest"
+        result.state === "persistent-terminal",
+      deepLevel1: Boolean(
+        options.openDifficulty ||
+        options.difficulty ||
+        result.state === "persistent-active"
+      )
     });
   }
 
@@ -215,7 +220,7 @@ export async function sendFight(
 async function markFightPresence(
   ctx: Context,
   presence: PresenceService,
-  options?: { persistent?: boolean }
+  options?: { persistent?: boolean; deepLevel1?: boolean }
 ): Promise<void> {
   const player = playerFromContext(ctx.from);
 
@@ -225,7 +230,11 @@ async function markFightPresence(
 
   await presence.markAction({
     user: player,
-    locationId: options?.persistent ? PRESENCE_LOCATION_KORCHMA_DEEP : PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+    locationId: options?.persistent
+      ? options.deepLevel1
+        ? PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1
+        : PRESENCE_LOCATION_KORCHMA_DEEP
+      : PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
     currentRaidId: null,
     currentAdventureId: options?.persistent
       ? PRESENCE_ADVENTURE_SOLO_FIGHT

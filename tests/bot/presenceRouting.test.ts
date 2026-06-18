@@ -66,6 +66,7 @@ describe("presence routing", () => {
     ["v1:place:bar", {}],
     ["v1:place:barrel", {}],
     ["v1:place:deep", {}],
+    ["v1:place:deep-level1", {}],
     ["v1:place:cellar", {}],
     ["v1:place:news-corner", {}],
     ["v1:place:arrivals", {}],
@@ -120,6 +121,7 @@ describe("presence routing", () => {
     "v1:place:bar",
     "v1:place:barrel",
     "v1:place:deep",
+    "v1:place:deep-level1",
     "v1:place:cellar",
     "v1:place:news-corner",
     "v1:place:duel-winners"

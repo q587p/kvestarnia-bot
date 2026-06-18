@@ -146,7 +146,7 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("🪜 Спуск до Низу");
     expect(text).toContain("За бочками в коморі є сходи.");
-    expect(text).toContain("Ярус I: Сутерени Корчми");
+    expect(text).not.toContain("Ярус I: Сутерени Корчми");
   });
 
   it("shows duel winners for day week and month", () => {

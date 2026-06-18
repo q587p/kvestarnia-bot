@@ -216,7 +216,7 @@ describe("fight command", () => {
     expect(startCount).toBe(0);
     expect(replies[0]?.text).toContain("🪜 Спуск до Низу");
     expect(replies[0]?.text).toContain("За бочками в коморі є сходи.");
-    expect(replies[0]?.text).toContain("Ярус I: Сутерени Корчми");
+    expect(replies[0]?.text).not.toContain("Ярус I: Сутерени Корчми");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",
       reply_markup: {
@@ -224,7 +224,7 @@ describe("fight command", () => {
           [
             {
               text: "Спуститися",
-              callback_data: makeQuestCallbackData("fight-descend")
+              callback_data: makePlaceCallbackData("deep-level1")
             }
           ],
           [
@@ -260,7 +260,7 @@ describe("fight command", () => {
     await sendFight(makeContext(replies), fightService, "reply", { openDifficulty: true });
 
     expect(startCount).toBe(0);
-    expect(replies[0]?.text).toContain("Розв’язати проблему");
+    expect(replies[0]?.text).toContain("Ярус I: Сутерени Корчми");
     expect(replies[0]?.text).toContain("Підсходник");
     expect(replies[0]?.text).toContain("⬅️ Лівий прохід");
     expect(replies[0]?.text).toContain("⬇️ Прямий прохід");
@@ -290,7 +290,7 @@ describe("fight command", () => {
           ],
           [
             {
-              text: "🪜 Спуск до Низу",
+              text: "🪜 До спуску",
               callback_data: makePlaceCallbackData("deep")
             }
           ]
@@ -337,7 +337,7 @@ describe("fight command", () => {
     expect(options.parse_mode).toBe("HTML");
     expect(options.reply_markup.inline_keyboard[0]?.[0]).toEqual({
       text: "Спуститися",
-      callback_data: makeQuestCallbackData("fight-descend")
+      callback_data: makePlaceCallbackData("deep-level1")
     });
   });
 

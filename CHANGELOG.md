@@ -14,7 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Newly started persistent battles now show the existing `Порада дня` line once at battle intro.
 - Added deterministic `3..5` hero-turn cooldowns for successful zero-mana class skills, based on the relevant skill stat with a small luck effect.
 - Added a three-minute monster-rest block after three recent eligible ordinary `Низ` fights.
-- Level 3+ ordinary/problem fight entry moved to `Низ`; fight routes now open `Спуск до Низу`, then `Спуститися` opens the passage/difficulty choice.
+- Level 3+ ordinary/problem fight entry moved to `Низ`; fight routes now open `Спуск до Низу`, then `Спуститися` moves to the first tier, `Ярус I: Сутерени Корчми`, where the passage/difficulty choice lives.
 - Added a short HP recovery notice when passive out-of-combat regeneration first brings a character back to full health during `/hero` or `/fight` flow.
 
 ### Changed
@@ -22,7 +22,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Current-turn hidden/forged non-mana skill callbacks while on cooldown use the same failed-turn semantics.
 - Combat-lock redirects now show a visible explanation before the active fight or training screen, so blocked navigation is clear even when a callback toast is missed.
 - Persistent and training fight keyboards recompute action availability every render, hiding magic without enough current mana and hiding non-mana skills while on cooldown.
-- Stale old quest-table fight callbacks open a fresh `Спуск до Низу` surface instead of starting from the old table message.
+- Stale old quest-table fight callbacks open a fresh `Спуск до Низу` surface instead of starting from the old table message; passage selection and active fights use the separate `location.korchma.deep.level1` presence location.
 - The three-adventure offer screen now shows each problem as a compact title plus italic short line; full problem hooks stay on the selected-problem screen.
 - Selected problem-fight passage callbacks now preserve the selected difficulty when moving the player into `Низ`, so the fight starts instead of redisplaying the passage choice.
 - Outside direct activity gates now show only the `Зайти в корчму` button instead of the full front-door action keyboard.
