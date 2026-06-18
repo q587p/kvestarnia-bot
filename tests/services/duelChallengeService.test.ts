@@ -60,6 +60,27 @@ describe("DuelChallengeService", () => {
     expect(confirmed.state === "pending" && confirmed.expiresAt).toEqual(new Date("2026-06-17T18:13:00.000Z"));
   });
 
+  it("uses passively restored resources before warning on open invite creation", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      hpCurrent: 1,
+      hpMax: 24,
+      manaCurrent: 1,
+      manaMax: 12,
+      hpRegenAt: new Date("2026-06-17T17:00:00.000Z"),
+      manaRegenAt: new Date("2026-06-17T17:00:00.000Z")
+    });
+    const service = buildService(world);
+
+    const result = await service.createOpenChallengeForTelegramUser(1n, { contextChatId: -100n });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      challengerResourceWarning: null
+    });
+    expect(world.challenges.size).toBe(1);
+  });
+
   it("shows a resource warning before accepting with partial resources", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n);
@@ -94,6 +115,61 @@ describe("DuelChallengeService", () => {
       }
     });
     expect(world.challenges.get(created.challenge.inviteToken)?.status).toBe("resolved");
+  });
+
+  it("checks accept resource warnings against the accepting hero, not the challenger", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, { hpCurrent: 1, hpMax: 24, manaCurrent: 1, manaMax: 12 });
+    world.addCharacter(2n, { hpCurrent: 99, hpMax: 24, manaCurrent: 99, manaMax: 12 });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const prompt = await service.acceptForTelegramUser(2n, created.challenge.inviteToken);
+
+    expect(prompt).toMatchObject({
+      state: "confirmation"
+    });
+    if (prompt.state === "confirmation") {
+      expect(prompt.target.hpCurrent).toBe(prompt.target.hpMax);
+      expect(prompt.target.manaCurrent).toBe(prompt.target.manaMax);
+    }
+  });
+
+  it("uses passively restored resources before warning on invite acceptance", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n, {
+      hpCurrent: 1,
+      hpMax: 24,
+      manaCurrent: 1,
+      manaMax: 12,
+      hpRegenAt: new Date("2026-06-17T17:00:00.000Z"),
+      manaRegenAt: new Date("2026-06-17T17:00:00.000Z")
+    });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const prompt = await service.acceptForTelegramUser(2n, created.challenge.inviteToken);
+
+    expect(prompt).toMatchObject({
+      state: "confirmation"
+    });
+    if (prompt.state === "confirmation") {
+      expect(prompt.target.hpCurrent).toBe(prompt.target.hpMax);
+      expect(prompt.target.manaCurrent).toBe(prompt.target.manaMax);
+    }
   });
 
   it("prevents self-accept and replays resolved challenges", async () => {

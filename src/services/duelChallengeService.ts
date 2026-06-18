@@ -7,6 +7,7 @@ import type {
 } from "../db/repositories/duelChallengeRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { resolveQuickDuel } from "../domain/duels/duelResolver";
+import { applyPassiveResourceRegeneration } from "../domain/resources/resourceRegeneration";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { getEquippedItemContents } from "./equipmentService";
@@ -145,7 +146,7 @@ export class DuelChallengeService {
       return { state: "no-character" };
     }
 
-    const challenger = summarizeDuelCharacter(challengerSnapshot);
+    const challenger = summarizeDuelCharacter(challengerSnapshot, { now });
 
     if (challenger.level < DUEL_INVITE_MIN_LEVEL) {
       return {
@@ -220,7 +221,7 @@ export class DuelChallengeService {
       return { state: "not-participant", challenge: original, challenger };
     }
 
-    const current = summarizeDuelCharacter(currentCharacter);
+    const current = summarizeDuelCharacter(currentCharacter, { now });
 
     if (current.level < DUEL_INVITE_MIN_LEVEL) {
       return {
@@ -324,7 +325,7 @@ export class DuelChallengeService {
       return { state: "no-character" };
     }
 
-    const currentTarget = summarizeDuelCharacter(targetCharacter);
+    const currentTarget = summarizeDuelCharacter(targetCharacter, { now });
 
     if (currentTarget.level < DUEL_INVITE_MIN_LEVEL) {
       return {
@@ -518,7 +519,7 @@ export class DuelChallengeService {
       state: "pending",
       challenge,
       challenger,
-      challengerResourceWarning: getResourceWarning(challenger),
+      challengerResourceWarning: null,
       expiresAt: challenge.expiresAt,
       now
     };
@@ -594,10 +595,44 @@ function getOrCreateLeaderboardEntry(
   return next;
 }
 
-function summarizeDuelCharacter(character: DuelCharacterSnapshot): CharacterSummary {
-  return summarizeCharacter(character, {
+function summarizeDuelCharacter(
+  character: DuelCharacterSnapshot,
+  options: { now?: Date } = {}
+): CharacterSummary {
+  const summary = summarizeCharacter(character, {
     equippedItems: getEquippedItemContents(character.equipment)
   });
+
+  if (!options.now) {
+    return summary;
+  }
+
+  const regeneration = applyPassiveResourceRegeneration({
+    resources: {
+      hpCurrent: summary.hpCurrent,
+      hpMax: summary.hpMax,
+      manaCurrent: summary.manaCurrent,
+      manaMax: summary.manaMax,
+      hpRegenAt: character.hpRegenAt ?? null,
+      manaRegenAt: character.manaRegenAt ?? null
+    },
+    profile: {
+      raceId: summary.raceId,
+      classId: summary.classId,
+      title: summary.title,
+      stats: summary.stats
+    },
+    now: options.now
+  });
+
+  return {
+    ...summary,
+    hpCurrent: regeneration.resources.hpCurrent,
+    hpMax: regeneration.resources.hpMax,
+    manaCurrent: regeneration.resources.manaCurrent,
+    manaMax: regeneration.resources.manaMax,
+    resourceRecovery: regeneration.recovery
+  };
 }
 
 function createInviteToken(): string {
