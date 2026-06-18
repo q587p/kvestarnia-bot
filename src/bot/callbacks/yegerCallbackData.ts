@@ -4,6 +4,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 export type YegerCallback =
   | { type: "open" }
   | { type: "quest"; questId: "u1" }
+  | { type: "outside"; questId: "u1" }
   | { type: "start"; questId: "u1" }
   | { type: "track"; questId: "u1" }
   | { type: "turn-in"; questId: "u1" }
@@ -25,6 +26,10 @@ export function makeYegerOpenCallbackData(): string {
 
 export function makeYegerQuestCallbackData(): string {
   return assertYegerCallbackData(`${PREFIX}:quest:${UNQUIET_TRIAL_ID}`);
+}
+
+export function makeYegerOutsideCallbackData(): string {
+  return assertYegerCallbackData(`${PREFIX}:outside:${UNQUIET_TRIAL_ID}`);
 }
 
 export function makeYegerStartCallbackData(): string {
@@ -82,6 +87,10 @@ export function parseYegerCallbackData(
 
   if (action === "quest") {
     return ok({ type: "quest", questId: UNQUIET_TRIAL_ID });
+  }
+
+  if (action === "outside") {
+    return ok({ type: "outside", questId: UNQUIET_TRIAL_ID });
   }
 
   if (action === "track") {

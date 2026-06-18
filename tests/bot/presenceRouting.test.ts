@@ -9,6 +9,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../src/services/presenceService";
 
@@ -41,7 +42,7 @@ describe("presence routing", () => {
     [
       "v1:tavern:ranger",
       {
-        locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+        locationId: PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
         currentRaidId: null,
         currentAdventureId: null
       }
@@ -65,6 +66,7 @@ describe("presence routing", () => {
     ["v1:place:bar", {}],
     ["v1:place:barrel", {}],
     ["v1:place:deep", {}],
+    ["v1:place:deep-level1", {}],
     ["v1:place:cellar", {}],
     ["v1:place:news-corner", {}],
     ["v1:place:arrivals", {}],
@@ -119,6 +121,7 @@ describe("presence routing", () => {
     "v1:place:bar",
     "v1:place:barrel",
     "v1:place:deep",
+    "v1:place:deep-level1",
     "v1:place:cellar",
     "v1:place:news-corner",
     "v1:place:duel-winners"

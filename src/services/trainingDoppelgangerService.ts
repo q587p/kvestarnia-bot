@@ -308,15 +308,6 @@ export class TrainingDoppelgangerService {
       rng: this.rng
     });
 
-    if (!resolved.ok && resolved.reason === "not-enough-mana") {
-      return {
-        state: "not-enough-mana",
-        character,
-        doppelganger,
-        session
-      };
-    }
-
     if (!resolved.ok) {
       return {
         state: "terminal",

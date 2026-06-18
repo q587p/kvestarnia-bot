@@ -1,4 +1,4 @@
-import type { Context } from "grammy";
+﻿import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
@@ -40,22 +40,6 @@ describe("quest hub command", () => {
               text: "🚪 Зайти в корчму",
               callback_data: makePlaceCallbackData("hall")
             }
-          ],
-          [
-            {
-              text: "📜 Табличка прибулих",
-              callback_data: makePlaceCallbackData("arrivals")
-            },
-            {
-              text: "🏅 Пропамʼятна дошка",
-              callback_data: makePlaceCallbackData("memorial")
-            }
-          ],
-          [
-            {
-              text: "🎒 Манчкін-скупник",
-              callback_data: "v1:lvlx:open"
-            }
           ]
         ]
       }
@@ -90,7 +74,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "⚔️ Розвʼязати проблему",
+      "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -98,7 +82,7 @@ describe("quest hub command", () => {
     ]);
     expect(buttons).toEqual(expect.arrayContaining([
       { text: "🪧 Обрати пригоду", callback_data: makeQuestCallbackData("adventure") },
-      { text: "⚔️ Розвʼязати проблему", callback_data: makeQuestCallbackData("fight") },
+      { text: "🪜 До Низу", callback_data: makePlaceCallbackData("deep") },
       { text: "🧹 У льох", callback_data: makeQuestCallbackData("cellar") }
     ]));
     expect(presence.marks[0]).toMatchObject({
@@ -126,7 +110,9 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).not.toContain("🧹 <i>Льохова справа</i> — відкриється з 2 рівня.");
     expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — новачкова підозра чекає на столі.");
-    expect(replies[0]?.text).toContain("🧾 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).toContain("⚔️ <i>Новачкова сутичка</i> — підозріла шаурма ще не дала свідчень.");
+    expect(replies[0]?.text).not.toContain("🧾 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).not.toContain("🪜 <i>Низ</i> — можна починати.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
@@ -157,8 +143,10 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — новачкова підозра чекає на столі.");
+    expect(replies[0]?.text).toContain("⚔️ <i>Новачкова сутичка</i> — підозріла шаурма ще не дала свідчень.");
     expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — миша приймає аргументи.");
-    expect(replies[0]?.text).toContain("🧾 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).not.toContain("🧾 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).not.toContain("🪜 <i>Низ</i> — можна починати.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
@@ -171,6 +159,64 @@ describe("quest hub command", () => {
       "📦 Архів",
       "🍺 До зали"
     ]);
+  });
+
+  it("moves locked problem quests to the archive for starter levels", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const levelOneCharacter = characterAtLevel(1);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(levelOneCharacter),
+        fight: readyFightService(levelOneCharacter),
+        yeger: readyYegerService(levelOneCharacter),
+        cellarErrand: readyCellarService(levelOneCharacter)
+      }),
+      "reply",
+      "archive"
+    );
+
+    expect(replies[0]?.text).toContain("📦 Архів справ");
+    expect(replies[0]?.text).toContain("🧾 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).not.toContain("⚔️ <i>Новачкова сутичка</i>");
+    expect(replies[0]?.text).not.toContain("🪜 <i>Низ</i> — можна починати.");
+  });
+
+  it("keeps a completed starter fight separate from Nyz in the archive", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const levelOneCharacter = characterAtLevel(1);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(levelOneCharacter),
+        fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: levelOneCharacter,
+              progress: questProgress(0),
+              archive: []
+            }),
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "already-completed",
+              character: levelOneCharacter,
+              questAvailable: false
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        } as unknown as FightService,
+        yeger: readyYegerService(levelOneCharacter),
+        cellarErrand: readyCellarService(levelOneCharacter)
+      }),
+      "reply",
+      "archive"
+    );
+
+    expect(replies[0]?.text).toContain("📦 Архів справ");
+    expect(replies[0]?.text).toContain("⚔️ <i>Новачкова сутичка</i> — сьогодні вже зараховано.");
+    expect(replies[0]?.text).not.toContain("🪜 <i>Низ</i> — сьогодні вже зараховано.");
   });
 
   it("does not offer starter shawarma from the quest hub after it is completed", async () => {
@@ -292,7 +338,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "⚔️ Розвʼязати проблему",
+      "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -355,7 +401,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "⚔️ Розвʼязати проблему",
+      "🪜 До Низу",
       "🏹 До Єгеря",
       "📦 Архів",
       "📖 Бестіарій",
@@ -544,7 +590,7 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain(
-      "⚔️ <i>Сутичка з невідомим монстром</i> — герой ще не тримається на ногах, спершу /hero."
+      "🪜 <i>Низ</i> — герой ще не тримається на ногах, спершу /hero."
     );
     expect(replies[0]?.text).toContain("HP 0? Спершу /hero, тоді /fight. Справи почекають.");
   });
@@ -597,7 +643,7 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    expect(buttons.map((button) => button.text)).toContain("⚔️ Розвʼязати проблему");
+    expect(buttons.map((button) => button.text)).toContain("🪜 До Низу");
   });
 
   it("keeps terminal persistent fights recoverable from the quest hub", async () => {
@@ -654,7 +700,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toContain("🍻 До шинку");
-    expect(buttons.map((button) => button.text)).toContain("📋 До запису бою");
+    expect(buttons.map((button) => button.text)).toContain("🪜 До Низу");
   });
 
   it("hides starter shawarma and offers persistent fight at level three", async () => {
@@ -684,7 +730,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "⚔️ Розвʼязати проблему",
+      "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -721,7 +767,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
 
     expect(startCount).toBe(0);
-    expect(buttons.map((button) => button.callback_data)).toContain(makeQuestCallbackData("fight"));
+    expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("deep"));
     expect(buttons.map((button) => button.callback_data)).not.toContain(
       makeQuestCallbackData("fight-normal")
     );
@@ -781,7 +827,7 @@ describe("quest hub command", () => {
       "🍺 До зали"
     ]);
     expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("bar"));
-    expect(buttons.map((button) => button.text)).not.toContain("⚔️ Розвʼязати проблему");
+    expect(buttons.map((button) => button.text)).not.toContain("До Низу");
   });
 
   it("shows active spar from the quest hub without offering a normal fight", async () => {

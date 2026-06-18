@@ -6,6 +6,7 @@ import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
   makeYegerHelpCallbackData,
   makeYegerOpenCallbackData,
+  makeYegerOutsideCallbackData,
   makeYegerQuestCallbackData,
   makeYegerStartCallbackData,
   makeYegerTrackCallbackData,
@@ -25,7 +26,12 @@ export function buildYegerKeyboard(
   }
 
   if (result.state === "in-progress") {
-    return inProgressKeyboard(result.tracking.state);
+    return baseYegerKeyboard()
+      .text("🚪 Надвір", makeYegerOutsideCallbackData())
+      .row()
+      .text("📖 Кого шукати?", makeYegerHelpCallbackData())
+      .row()
+      .text("🍺 До зали", makePlaceCallbackData("hall"));
   }
 
   if (result.state === "turn-in-ready") {
@@ -49,6 +55,12 @@ export function buildYegerKeyboard(
   }
 
   return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
+}
+
+export function buildYegerHuntKeyboard(
+  result: Extract<YegerQuestLookupResult, { state: "in-progress" }>
+): InlineKeyboard {
+  return inProgressKeyboard(result.tracking.state);
 }
 
 export function buildYegerCornerKeyboard(
@@ -108,14 +120,12 @@ function inProgressKeyboard(
     ? "🔎 Перевірити слід"
     : trackingState === "tracking-pending"
       ? "⏳ Чекати слід"
-      : "👣 Вийти на слід";
+      : "👣 Взяти слід";
 
   return baseYegerKeyboard()
     .text(trackButtonText, makeYegerTrackCallbackData())
     .row()
-    .text("📖 Кого шукати?", makeYegerHelpCallbackData())
-    .row()
-    .text("🍺 До зали", makePlaceCallbackData("hall"));
+    .text("⬅️ Надвір", makePlaceCallbackData("front"));
 }
 
 function baseYegerKeyboard(): InlineKeyboard {

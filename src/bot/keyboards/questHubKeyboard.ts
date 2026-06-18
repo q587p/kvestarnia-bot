@@ -15,6 +15,7 @@ import { makeMenuCallbackData } from "../callbacks/menuCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
+import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 
 export interface QuestHubKeyboardInput {
   mode?: "active" | "archive";
@@ -72,7 +73,11 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
       keyboard.row();
     }
 
-    keyboard.text(getFightButtonLabel(input.fight), makeQuestCallbackData("fight"));
+    if (input.fight.state === "ready") {
+      keyboard.text("⚔️ До сутички", makeQuestCallbackData("fight"));
+    } else {
+      keyboard.text("🪜 До Низу", makePlaceCallbackData("deep"));
+    }
     hasAction = true;
   }
 
@@ -85,7 +90,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     input.yeger.state === "in-progress" ||
     input.yeger.state === "turn-in-ready"
   ) {
-    keyboard.text("🏹 До Єгеря", makeQuestCallbackData("hunt"));
+    keyboard.text("🏹 До Єгеря", makeTavernCallbackData("ranger"));
     keyboard.row();
   }
 
@@ -142,22 +147,6 @@ function canOpenAdventure(input: QuestHubKeyboardInput): boolean {
       (input.characterLevel ?? 0) <= STARTER_ACTIVITY_MAX_LEVEL &&
       input.starterAdventure?.state === "ready")
   );
-}
-
-function getFightButtonLabel(fight: QuestHubKeyboardInput["fight"]): string {
-  if (fight.state === "persistent-active") {
-    return "⚔️ Продовжити бій";
-  }
-
-  if (fight.state === "persistent-terminal") {
-    return "📋 До запису бою";
-  }
-
-  if (fight.state === "persistent-ready") {
-    return "⚔️ Розвʼязати проблему";
-  }
-
-  return "⚔️ До сутички";
 }
 
 function canOpenProblemQuestInBar(input: QuestHubKeyboardInput, progress: ProblemQuestProgress): boolean {

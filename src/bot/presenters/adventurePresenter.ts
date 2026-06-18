@@ -16,7 +16,6 @@ export function presentAdventureOffer(
 ): string {
   const choiceLines = result.offer.choices.flatMap((choice, index) => [
     `${index + 1}. ${getAdventureProblemIcon(choice.id)} <b>${escapeHtml(choice.title)}</b>`,
-    escapeHtml(choice.hook),
     `<i>${escapeHtml(choice.client)}</i>`,
     ...(index < result.offer.choices.length - 1 ? [""] : [])
   ]);
@@ -25,11 +24,7 @@ export function presentAdventureOffer(
     "🪧 Три справи на найближчий час",
     presentCharacterHeader(result.character),
     "",
-    "Корчмар виклав на стіл три проблеми. Кожна робить вигляд, що вона «маленька».",
-    "",
-    ...choiceLines,
-    "",
-    "Оберіть одну справу. Потім вирішите, наскільки героїчно псувати статистику."
+    ...choiceLines
   ].join("\n");
 }
 

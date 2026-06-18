@@ -5,6 +5,8 @@ import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_ADVENTURE_SOLO_FIGHT,
+  PRESENCE_LOCATION_KORCHMA_DEEP,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type PresenceService
 } from "../../services/presenceService";
@@ -16,11 +18,12 @@ import {
   buildPersistentFightResultKeyboard
 } from "../keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
-import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
+import { buildEnterKorchmaKeyboard, buildKorchmaDeepKeyboard } from "../keyboards/tavernKeyboard";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
   presentFightAlreadyCompleted,
   presentFightLevelRetired,
+  presentFightMonsterRest,
   presentFightNeedsRest,
   presentFightNoCharacter,
   presentFightStart,
@@ -28,6 +31,11 @@ import {
   presentPersistentFightDifficultyChoice,
   presentPersistentFight
 } from "../presenters/fightPresenter";
+import { presentKorchmaDeepClosed } from "../presenters/tavernPresenter";
+import {
+  prefixResourceRecoveryNotice,
+  presentResourceRecoveryNotice
+} from "../presenters/resourceRecoveryPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
@@ -59,6 +67,7 @@ export async function sendFight(
   mode: "reply" | "edit",
   options?: FightCommandOptions & {
     requireKorchmaInterior?: boolean;
+    openDifficulty?: boolean;
     difficulty?: PersistentFightDifficultyId;
   }
 ): Promise<void> {
@@ -103,17 +112,22 @@ export async function sendFight(
   }
 
   if (result.state === "level-retired") {
-    await sendText(ctx, mode, presentFightLevelRetired(result));
+    await sendResultText(presentFightLevelRetired(result));
     return;
   }
 
   if (result.state === "needs-rest") {
-    await sendText(ctx, mode, presentFightNeedsRest(result));
+    await sendResultText(presentFightNeedsRest(result));
+    return;
+  }
+
+  if (result.state === "monster-rest") {
+    await sendResultText(presentFightMonsterRest(result), "persistent-ready");
     return;
   }
 
   if (result.state === "training-active") {
-    await sendText(ctx, mode, presentFightTrainingActive(result), {
+    await sendResultText(presentFightTrainingActive(result), {
       type: "training-active",
       character: result.character,
       session: result.session
@@ -122,9 +136,7 @@ export async function sendFight(
   }
 
   if (result.state === "persistent-not-issued") {
-    await sendText(
-      ctx,
-      mode,
+    await sendResultText(
       [
         "📋 Бій ще не відкрито.",
         "",
@@ -137,17 +149,25 @@ export async function sendFight(
 
   if (options?.presence) {
     await markFightPresence(ctx, options.presence, {
-      persistent: result.state === "persistent-active" || result.state === "persistent-terminal"
+      persistent:
+        result.state === "persistent-ready" ||
+        result.state === "persistent-active" ||
+        result.state === "persistent-terminal",
+      deepLevel1: Boolean(
+        options.openDifficulty ||
+        options.difficulty ||
+        result.state === "persistent-active"
+      )
     });
   }
 
   if (result.state === "already-completed") {
-    await sendText(ctx, mode, presentFightAlreadyCompleted(result));
+    await sendResultText(presentFightAlreadyCompleted(result));
     return;
   }
 
-  if (result.state === "persistent-active" || result.state === "persistent-terminal") {
-    await sendText(ctx, mode, presentPersistentFight(result), {
+  if (result.state === "persistent-active") {
+    await sendResultText(presentPersistentFight(result), {
       type: "persistent-fight",
       character: result.character,
       session: result.session
@@ -156,25 +176,55 @@ export async function sendFight(
   }
 
   if (result.state === "persistent-ready") {
-    await sendText(
-      ctx,
-      mode,
+    if (!options?.openDifficulty) {
+      await sendResultText(presentKorchmaDeepClosed(result.character), "deep");
+      return;
+    }
+
+    await sendResultText(
       presentPersistentFightDifficultyChoice(result),
       "persistent-difficulty"
     );
     return;
   }
 
-  await sendText(ctx, mode, presentFightStart(result.character), {
+  if (result.state === "persistent-terminal") {
+    await sendResultText(presentPersistentFight(result), {
+      type: "persistent-fight",
+      character: result.character,
+      session: result.session
+    });
+    return;
+  }
+
+  await sendResultText(presentFightStart(result.character), {
     type: "fight",
     character: result.character
   });
+
+  async function sendResultText(
+    text: string,
+    keyboard: Parameters<typeof sendText>[3] = false
+  ): Promise<void> {
+    if (result.state !== "no-character" && result.recoveryNotice && mode === "reply") {
+      await sendText(ctx, "reply", presentResourceRecoveryNotice(result.recoveryNotice));
+    }
+
+    await sendText(
+      ctx,
+      mode,
+      result.state !== "no-character" && mode === "edit"
+        ? prefixResourceRecoveryNotice(text, result.recoveryNotice)
+        : text,
+      keyboard
+    );
+  }
 }
 
 async function markFightPresence(
   ctx: Context,
   presence: PresenceService,
-  options?: { persistent?: boolean }
+  options?: { persistent?: boolean; deepLevel1?: boolean }
 ): Promise<void> {
   const player = playerFromContext(ctx.from);
 
@@ -184,7 +234,11 @@ async function markFightPresence(
 
   await presence.markAction({
     user: player,
-    locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+    locationId: options?.persistent
+      ? options.deepLevel1
+        ? PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1
+        : PRESENCE_LOCATION_KORCHMA_DEEP
+      : PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
     currentRaidId: null,
     currentAdventureId: options?.persistent
       ? PRESENCE_ADVENTURE_SOLO_FIGHT
@@ -199,6 +253,7 @@ async function sendText(
   keyboard:
     | false
     | "enter-korchma"
+    | "deep"
     | "persistent-difficulty"
     | "persistent-ready"
     | "problem-not-issued"
@@ -219,7 +274,9 @@ async function sendText(
         parse_mode: "HTML" as const,
         reply_markup:
           keyboard === "enter-korchma"
-            ? buildKorchmaFrontKeyboard()
+            ? buildEnterKorchmaKeyboard()
+            : keyboard === "deep"
+              ? buildKorchmaDeepKeyboard()
             : keyboard === "persistent-difficulty"
               ? buildPersistentFightDifficultyKeyboard()
             : keyboard === "persistent-ready"

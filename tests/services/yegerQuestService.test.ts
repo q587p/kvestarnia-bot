@@ -88,6 +88,33 @@ describe("YegerQuestService", () => {
     });
   });
 
+  it("does not count an old unquiet win that was updated after the trail started", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 5, xp: 110 });
+    world.addAction(YEGER_UNQUIET_TRIAL_STARTED_KEY, startedAt);
+    world.sessions.push(
+      {
+        monsterId: "monster.stamp-doorkeeper-skeleton",
+        status: "won",
+        createdAt: new Date(startedAt.getTime() - 60_000),
+        completedAt: new Date(startedAt.getTime() - 60_000),
+        updatedAt: new Date(startedAt.getTime() + 60_000)
+      },
+      {
+        monsterId: "monster.unread-rules-ghost",
+        status: "won",
+        createdAt: new Date(startedAt.getTime() + 1),
+        completedAt: new Date(startedAt.getTime() + 1),
+        updatedAt: new Date(startedAt.getTime() + 2)
+      }
+    );
+
+    await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "in-progress",
+      progress: { wins: 1, target: 5 }
+    });
+  });
+
   it("claims the completion reward once", async () => {
     const world = new FakeWorld();
     world.addCharacter({ level: 5, xp: 110 });
@@ -343,7 +370,14 @@ describe("YegerQuestService", () => {
 class FakeWorld implements CharacterRepository, DailyActionRepository, SoloCombatSessionRepository, CooldownRepository {
   character: CharacterRecord | null = null;
   readonly actions: DailyActionRecord[] = [];
-  readonly sessions: Array<{ monsterId: string; status: "won" | "lost" | "fled" | "expired"; createdAt: Date }> = [];
+  readonly sessions: Array<{
+    monsterId: string;
+    status: "won" | "lost" | "fled" | "expired";
+    createdAt: Date;
+    completedAt?: Date;
+    updatedAt?: Date;
+    state?: { completedAt?: string } | null;
+  }> = [];
   readonly itemGrants: Array<{ itemId: string; quantity: number }> = [];
   readonly cooldowns: CharacterCooldownRecord[] = [];
   randomValues: number[] = [0];
@@ -564,8 +598,25 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     });
   }
 
-  listByTelegramUserIdSince(_telegramUserId: bigint, since: Date) {
-    return Promise.resolve(this.sessions.filter((session) => session.createdAt >= since));
+  listCompletedByTelegramUserIdSince(_telegramUserId: bigint, since: Date) {
+    return Promise.resolve(
+      this.sessions.flatMap((session) => {
+        const completedAt = session.completedAt ?? (
+          session.state?.completedAt ? new Date(session.state.completedAt) : session.createdAt
+        );
+
+        if (completedAt < since) {
+          return [];
+        }
+
+        return [{
+          ...session,
+          updatedAt: session.updatedAt ?? completedAt,
+          completedAt,
+          state: session.state ?? null
+        }];
+      })
+    );
   }
 
   countWonByTelegramUserId(

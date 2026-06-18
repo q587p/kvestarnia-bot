@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   makeYegerHelpCallbackData,
   makeYegerOpenCallbackData,
+  makeYegerOutsideCallbackData,
   makeYegerQuestCallbackData,
   makeYegerStartCallbackData,
   makeYegerTrackCallbackData,
@@ -24,6 +25,10 @@ describe("Yeger callback data", () => {
       ok: true,
       value: { type: "quest", questId: "u1" }
     });
+    expect(parseYegerCallbackData(makeYegerOutsideCallbackData())).toEqual({
+      ok: true,
+      value: { type: "outside", questId: "u1" }
+    });
     expect(parseYegerCallbackData(makeYegerTrackCallbackData())).toEqual({
       ok: true,
       value: { type: "track", questId: "u1" }
@@ -42,6 +47,7 @@ describe("Yeger callback data", () => {
     for (const callback of [
       makeYegerOpenCallbackData(),
       makeYegerQuestCallbackData(),
+      makeYegerOutsideCallbackData(),
       makeYegerStartCallbackData(),
       makeYegerTrackCallbackData(),
       makeYegerTurnInCallbackData(),

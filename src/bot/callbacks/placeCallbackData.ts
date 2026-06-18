@@ -8,6 +8,7 @@ export type PlaceCallback =
   | "bar"
   | "barrel"
   | "deep"
+  | "deep-level1"
   | "news-corner"
   | "cellar"
   | "front"
@@ -24,6 +25,7 @@ const placeCallbacks = new Set<PlaceCallback>([
   "bar",
   "barrel",
   "deep",
+  "deep-level1",
   "news-corner",
   "cellar",
   "front",

@@ -7,6 +7,7 @@ import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import { makeDuelNewCallbackData } from "../callbacks/duelCallbackData";
 import { makeTrainingDoppelgangerCallbackData } from "../callbacks/trainingDoppelgangerCallbackData";
+import { makeYegerOutsideCallbackData } from "../callbacks/yegerCallbackData";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
 
 export type TavernResultKeyboardState =
@@ -24,35 +25,61 @@ export function buildTavernKeyboard(): InlineKeyboard {
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
-export function buildKorchmaFrontKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
+export function buildKorchmaFrontKeyboard(
+  options: { yegerAction?: "hidden" | "corner" | "hunt" } = {}
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard()
     .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
-    .row()
+    .row();
+
+  if (options.yegerAction === "corner") {
+    keyboard.text("🧥 До Єгеря", makeTavernCallbackData("ranger")).row();
+  }
+
+  keyboard
     .text("📜 Табличка прибулих", makePlaceCallbackData("arrivals"))
     .text("🏅 Пропамʼятна дошка", makePlaceCallbackData("memorial"))
     .row()
     .text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData());
+
+  if (options.yegerAction === "hunt") {
+    keyboard.row().text("🏹 До полювання", makeYegerOutsideCallbackData());
+  }
+
+  return keyboard;
+}
+
+export function buildEnterKorchmaKeyboard(): InlineKeyboard {
+  return new InlineKeyboard().text("🚪 Зайти в корчму", makePlaceCallbackData("hall"));
 }
 
 export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = {}): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+  const showNyz = options.characterLevel === undefined || options.characterLevel >= 3;
 
   if ((options.characterLevel ?? 0) >= 13) {
     keyboard.text("🕯️ Реморт", makeRemortOpenCallbackData()).row();
   }
 
-  return keyboard
+  keyboard
     .text("🥊 Бійцівський куток", makePlaceCallbackData("fighting-corner"))
     .text("📋 Стіл зі справами", makePlaceCallbackData("quest-table"))
     .row()
     .text("🛢️ Бочка", makePlaceCallbackData("barrel"))
     .text("🍻 Шинок", makePlaceCallbackData("bar"))
-    .row()
-    .text("🕳️ Глибка", makePlaceCallbackData("deep"))
+    .row();
+
+  if (showNyz) {
+    keyboard.text("🪜 Спуск до Низу", makePlaceCallbackData("deep"));
+  }
+
+  keyboard
     .text("🐭 Льох", makePlaceCallbackData("cellar"))
     .row()
     .text("📰 Дошка вістей", makePlaceCallbackData("news-corner"))
     .text("🚪 Надвір", makePlaceCallbackData("front"));
+
+  return keyboard;
 }
 
 export function buildKorchmaFightingCornerKeyboard(): InlineKeyboard {
@@ -95,6 +122,13 @@ export function buildKorchmaBarKeyboard(
 
 export function buildBackToKorchmaHallKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text("⬅️ До зали", makePlaceCallbackData("hall"));
+}
+
+export function buildKorchmaDeepKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("⬆️ Повернутися до зали", makePlaceCallbackData("hall"))
+    .row()
+    .text("⬇️ Спуститися", makePlaceCallbackData("deep-level1"));
 }
 
 export function buildKorchmaArrivalBoardKeyboard(): InlineKeyboard {

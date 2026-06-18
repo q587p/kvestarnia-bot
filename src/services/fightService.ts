@@ -37,7 +37,10 @@ import {
 import { createEmptyEquipmentEffectSummary } from "../domain/progression/effectiveStats";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
-import { summarizeAndSyncCharacterResources } from "./characterResourceService";
+import {
+  summarizeAndSyncCharacterResources,
+  type ResourceRecoveryNotice
+} from "./characterResourceService";
 import {
   MIMIC_SHAWARMA_ADVENTURE_KEY,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
@@ -74,6 +77,10 @@ export { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./dailyActionKeys";
 export { PERSISTENT_SOLO_FIGHT_REWARD_KEY } from "./dailyActionKeys";
 export type FightAction = CombatProbeAction;
 
+interface RecoveryNoticeField {
+  recoveryNotice?: ResourceRecoveryNotice;
+}
+
 export const MIMIC_SHAWARMA_COMBAT_REWARDS = {
   attack: {
     xp: 9,
@@ -96,6 +103,8 @@ export const THIRTEEN_SMALL_PROBLEMS_REWARD = {
   xp: 35,
   gold: 10
 };
+export const MONSTER_REST_ELIGIBLE_FIGHT_COUNT = 3;
+export const MONSTER_REST_COOLDOWN_MS = 3 * 60 * 1000;
 
 export type ProblemQuestStageId = "13" | "23" | "42" | "93";
 
@@ -235,41 +244,49 @@ export type ProblemQuestProgressLookupResult =
 
 export type FightLookupResult =
   | { state: "no-character" }
-  | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
-  | { state: "needs-rest"; character: CharacterSummary }
-  | {
+  | ({ state: "level-retired"; character: CharacterSummary; maxLevel: number } & RecoveryNoticeField)
+  | ({ state: "needs-rest"; character: CharacterSummary } & RecoveryNoticeField)
+  | ({
       state: "persistent-not-issued";
       character: CharacterSummary;
       questProgress: ThirteenSmallProblemsProgress;
-    }
-  | {
+    } & RecoveryNoticeField)
+  | ({
       state: "persistent-ready";
       character: CharacterSummary;
       questProgress: ThirteenSmallProblemsProgress;
-    }
-  | {
+    } & RecoveryNoticeField)
+  | ({
+      state: "monster-rest";
+      character: CharacterSummary;
+      questProgress: ThirteenSmallProblemsProgress;
+      availableAt: Date;
+      now: Date;
+    } & RecoveryNoticeField)
+  | ({
       state: "persistent-active";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
       questProgress: ThirteenSmallProblemsProgress;
-    }
-  | {
+      started?: boolean;
+    } & RecoveryNoticeField)
+  | ({
       state: "persistent-terminal";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent | null;
       questProgress: ThirteenSmallProblemsProgress;
       fightReward: PersistentFightReward | null;
-    }
-  | {
+    } & RecoveryNoticeField)
+  | ({
       state: "training-active";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       questProgress: ThirteenSmallProblemsProgress;
-    }
-  | { state: "ready"; character: CharacterSummary }
-  | { state: "already-completed"; character: CharacterSummary; questAvailable: boolean };
+    } & RecoveryNoticeField)
+  | ({ state: "ready"; character: CharacterSummary } & RecoveryNoticeField)
+  | ({ state: "already-completed"; character: CharacterSummary; questAvailable: boolean } & RecoveryNoticeField);
 
 export type FightResult =
   | { state: "no-character" }
@@ -423,23 +440,38 @@ export class FightService {
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
     const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
-    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character, {
+    const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
       syncResources: !activeSession
     });
+    const characterSummary = resourceAware.character;
+    const recoveryNotice = resourceAware.recoveryNotice;
 
     if (!activeSession) {
       if (!questProgress.issued) {
         return {
           state: "persistent-not-issued",
           character: characterSummary,
-          questProgress
+          questProgress,
+          ...(recoveryNotice ? { recoveryNotice } : {})
+        };
+      }
+
+      const rest = await this.getMonsterRestCooldown(telegramUserId, "normal");
+      if (rest) {
+        return {
+          state: "monster-rest",
+          character: characterSummary,
+          questProgress,
+          ...(recoveryNotice ? { recoveryNotice } : {}),
+          ...rest
         };
       }
 
       return {
         state: "persistent-ready",
         character: characterSummary,
-        questProgress
+        questProgress,
+        ...(recoveryNotice ? { recoveryNotice } : {})
       };
     }
 
@@ -473,7 +505,7 @@ export class FightService {
     }
 
     if (isExpired(activeSession, this.clock())) {
-      const expiredState = expireCombat(activeSession.state);
+      const expiredState = stampCombatCompletedAt(expireCombat(activeSession.state), this.clock());
       const expiredSession = await this.combatSessions.updateById(activeSession.id, {
         state: expiredState,
         status: expiredState.status
@@ -500,8 +532,10 @@ export class FightService {
     const monster = findPersistentFightMonster(activeSession);
 
     if (!monster || activeSession.state.status !== "active") {
-      const expiredState =
-        activeSession.state.status === "active" ? expireCombat(activeSession.state) : activeSession.state;
+      const expiredState = stampCombatCompletedAt(
+        activeSession.state.status === "active" ? expireCombat(activeSession.state) : activeSession.state,
+        this.clock()
+      );
       const expiredSession = await this.combatSessions.updateById(activeSession.id, {
         state: expiredState,
         status: expiredState.status
@@ -597,7 +631,7 @@ export class FightService {
       if (!activeSession.state) {
         await this.combatSessions.markStatusById(activeSession.id, "expired");
       } else if (isExpired(activeSession, this.clock())) {
-        const expiredState = expireCombat(activeSession.state);
+        const expiredState = stampCombatCompletedAt(expireCombat(activeSession.state), this.clock());
         const expiredSession = await this.combatSessions.updateById(activeSession.id, {
           state: expiredState,
           status: expiredState.status
@@ -623,7 +657,7 @@ export class FightService {
         const monster = findPersistentFightMonster(activeSession);
 
         if (!monster) {
-          const expiredState = expireCombat(activeSession.state);
+          const expiredState = stampCombatCompletedAt(expireCombat(activeSession.state), this.clock());
           const expiredSession = await this.combatSessions.updateById(activeSession.id, {
             state: expiredState,
             status: expiredState.status
@@ -671,14 +705,17 @@ export class FightService {
       }
     }
 
-    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character, {
+    const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
       syncResources: true
     });
+    const characterSummary = resourceAware.character;
+    const recoveryNotice = resourceAware.recoveryNotice;
 
     if (characterSummary.hpCurrent <= 0) {
       return {
         state: "needs-rest",
-        character: characterSummary
+        character: characterSummary,
+        ...(recoveryNotice ? { recoveryNotice } : {})
       };
     }
 
@@ -686,7 +723,19 @@ export class FightService {
       return {
         state: "persistent-not-issued",
         character: characterSummary,
-        questProgress
+        questProgress,
+        ...(recoveryNotice ? { recoveryNotice } : {})
+      };
+    }
+
+    const monsterRest = await this.getMonsterRestCooldown(telegramUserId, options.source ?? "normal");
+    if (monsterRest) {
+      return {
+        state: "monster-rest",
+        character: characterSummary,
+        questProgress,
+        ...(recoveryNotice ? { recoveryNotice } : {}),
+        ...monsterRest
       };
     }
 
@@ -703,6 +752,7 @@ export class FightService {
       hero: buildHeroCombatStats(characterSummary),
       monster: deriveMonsterCombatStats(monster)
     });
+    state.source = options.source ?? "normal";
     state.monster.debugTrace = buildPersistentFightInterventionTrace(
       baseMonster,
       monster,
@@ -724,7 +774,9 @@ export class FightService {
       character: characterSummary,
       session,
       monster,
-      questProgress
+      questProgress,
+      started: true,
+      ...(recoveryNotice ? { recoveryNotice } : {})
     };
   }
 
@@ -924,7 +976,7 @@ export class FightService {
     const monster = findPersistentFightMonster(session);
 
     if (isExpired(session, this.clock())) {
-      const expiredState = expireCombat(session.state);
+      const expiredState = stampCombatCompletedAt(expireCombat(session.state), this.clock());
       const updated = await this.combatSessions.updateById(session.id, {
         state: expiredState,
         status: expiredState.status
@@ -980,16 +1032,6 @@ export class FightService {
       rng: this.rng
     });
 
-    if (!resolved.ok && resolved.reason === "not-enough-mana") {
-      return {
-        state: "not-enough-mana",
-        character: characterSummary,
-        session,
-        monster,
-        questProgress
-      };
-    }
-
     if (!resolved.ok) {
       return {
         state: "terminal",
@@ -1006,9 +1048,10 @@ export class FightService {
       };
     }
 
+    const resolvedState = stampCombatCompletedAt(resolved.state, this.clock());
     const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, input.turn, {
-      state: resolved.state,
-      status: resolved.state.status,
+      state: resolvedState,
+      status: resolvedState.status,
       expiresAt: getSessionExpiry(this.clock())
     });
 
@@ -1467,6 +1510,16 @@ export class FightService {
     character: CharacterRecord,
     options: { syncResources?: boolean } = {}
   ): Promise<CharacterSummary> {
+    const result = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, options);
+
+    return result.character;
+  }
+
+  private async summarizeCharacterWithEquipmentResult(
+    telegramUserId: bigint,
+    character: CharacterRecord,
+    options: { syncResources?: boolean } = {}
+  ): Promise<{ character: CharacterSummary; recoveryNotice?: ResourceRecoveryNotice }> {
     const equipmentSnapshot = await this.equipment?.listByTelegramUserId(telegramUserId);
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
 
@@ -1479,12 +1532,19 @@ export class FightService {
         now: this.clock()
       });
 
-      return resourceAware.character;
+      return {
+        character: resourceAware.character,
+        ...(resourceAware.recoveryNotice
+          ? { recoveryNotice: resourceAware.recoveryNotice }
+          : {})
+      };
     }
 
-    return summarizeCharacter(character, {
-      equippedItems
-    });
+    return {
+      character: summarizeCharacter(character, {
+        equippedItems
+      })
+    };
   }
 
   private async persistCharacterResourcesFromSession(
@@ -1502,6 +1562,53 @@ export class FightService {
       manaRegenAt: this.clock()
     });
   }
+
+  private async getMonsterRestCooldown(
+    telegramUserId: bigint,
+    source: NonNullable<PersistentFightStartOptions["source"]>
+  ): Promise<{ availableAt: Date; now: Date } | null> {
+    if (!this.combatSessions || source === "adventure") {
+      return null;
+    }
+
+    const now = this.clock();
+    const since = new Date(now.getTime() - MONSTER_REST_COOLDOWN_MS * MONSTER_REST_ELIGIBLE_FIGHT_COUNT);
+    const recent = await this.combatSessions.listCompletedByTelegramUserIdSince(telegramUserId, since);
+    const eligible = recent
+      .filter((session) => isMonsterRestEligibleSession(session))
+      .sort((left, right) => left.completedAt.getTime() - right.completedAt.getTime());
+
+    if (eligible.length < MONSTER_REST_ELIGIBLE_FIGHT_COUNT) {
+      return null;
+    }
+
+    const streak = eligible.slice(-MONSTER_REST_ELIGIBLE_FIGHT_COUNT);
+    const third = streak.at(-1);
+
+    if (!third) {
+      return null;
+    }
+
+    const availableAt = new Date(third.completedAt.getTime() + MONSTER_REST_COOLDOWN_MS);
+
+    return availableAt > now ? { availableAt, now } : null;
+  }
+}
+
+function isMonsterRestEligibleSession(
+  session: Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "state">
+): boolean {
+  if (
+    session.status === "active" ||
+    session.state?.source !== "normal" ||
+    isTrainingDoppelgangerMonsterId(session.monsterId)
+  ) {
+    return false;
+  }
+
+  const monster = findMonster(session.monsterId);
+
+  return monster ? isSoloFightMonsterEligible(monster, Number.POSITIVE_INFINITY) : false;
 }
 
 function buildPersistentFightReward(
@@ -1684,6 +1791,17 @@ function isExpired(session: SoloCombatSessionRecord, now: Date): boolean {
   return session.expiresAt.getTime() <= now.getTime();
 }
 
+function stampCombatCompletedAt(state: CombatState, now: Date): CombatState {
+  if (state.status === "active" || state.completedAt) {
+    return state;
+  }
+
+  return {
+    ...state,
+    completedAt: now.toISOString()
+  };
+}
+
 function findMonster(monsterId: string): MonsterContent | null {
   return monsters.find((monster) => monster.id === monsterId) ?? null;
 }
@@ -1851,32 +1969,40 @@ function selectHighestAvailableMonsterLevel(monstersByLevel: MonsterContent[]): 
 
 export function getPersistentFightSkillLabel(character: CharacterSummary): string {
   const skill = getCombatSkillProfile(character.classId);
-  const label = (() => {
-    switch (skill.id) {
-      case "skill.forceful-strike":
-        return "🗡️ Силовий удар";
-      case "skill.hot-spell":
-        return "🔥 Гаряче закляття";
-      case "skill.form-thirteen-b":
-        return "📎 Форма 13-Б";
-      case "skill.dangerous-couplet":
-        return "🎵 Небезпечний куплет";
-      case "skill.trick-shot":
-        return "🎯 Хитрий постріл";
-      case "skill.strict-blessing":
-        return "🕯️ Суворе благословення";
-      case "skill.steppe-side-eye":
-        return "🌾 Степовий погляд";
-      default:
-        return "🗡️ Обережний удар";
-    }
-  })();
+  const display = getCombatSkillDisplay(skill.id);
+  const label = `${display.icon} ${display.name}`;
 
   if (skill.manaCost === 0) {
     return label;
   }
 
   return `${label} · ${skill.manaCost} ${pluralize(skill.manaCost, "мана", "мани", "мани")}`;
+}
+
+export interface CombatSkillDisplay {
+  icon: string;
+  name: string;
+}
+
+export function getCombatSkillDisplay(skillId: string | undefined): CombatSkillDisplay {
+  switch (skillId) {
+    case "skill.forceful-strike":
+      return { icon: "💪", name: "Силовий удар" };
+    case "skill.hot-spell":
+      return { icon: "🪄", name: "Гаряче закляття" };
+    case "skill.form-thirteen-b":
+      return { icon: "📎", name: "Форма 13-Б" };
+    case "skill.dangerous-couplet":
+      return { icon: "🎼", name: "Небезпечний куплет" };
+    case "skill.trick-shot":
+      return { icon: "🎯", name: "Хитрий постріл" };
+    case "skill.strict-blessing":
+      return { icon: "🙏", name: "Суворе благословення" };
+    case "skill.steppe-side-eye":
+      return { icon: "🧿", name: "Степовий погляд" };
+    default:
+      return { icon: "🪓", name: "Обережний удар" };
+  }
 }
 
 function pluralize(count: number, one: string, few: string, many: string): string {

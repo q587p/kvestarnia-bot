@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
+import { makeYegerOutsideCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import {
   sendKorchmaArrivalBoard,
   sendKorchmaBar,
@@ -46,6 +47,12 @@ describe("tavern command screens", () => {
           ],
           [
             {
+              text: "🧥 До Єгеря",
+              callback_data: "v1:tavern:ranger"
+            }
+          ],
+          [
+            {
               text: "📜 Табличка прибулих",
               callback_data: makePlaceCallbackData("arrivals")
             },
@@ -63,6 +70,43 @@ describe("tavern command screens", () => {
         ]
       }
     });
+  });
+
+  it("sends active Yeger quests to outdoor hunting from the front door", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaFront(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      {
+        getForTelegramUser: () =>
+          Promise.resolve({
+            state: "in-progress",
+            character,
+            progress: { wins: 1, target: 5 },
+            tracking: { state: "none" }
+          })
+      }
+    );
+
+    const options = replies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+
+    expect(options.reply_markup.inline_keyboard).toContainEqual([
+      {
+        text: "🏹 До полювання",
+        callback_data: makeYegerOutsideCallbackData()
+      }
+    ]);
+    expect(options.reply_markup.inline_keyboard.at(-1)).toEqual([
+      {
+        text: "🏹 До полювання",
+        callback_data: makeYegerOutsideCallbackData()
+      }
+    ]);
   });
 
   it("shows a front-door arrivals plaque from known korchma visitors", async () => {
@@ -174,18 +218,35 @@ describe("tavern command screens", () => {
     });
   });
 
-  it("shows the Deep as a closed location", async () => {
+  it("shows the Nyz descent surface", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
     await sendKorchmaDeepClosed(
       makeContext(replies),
-      readyTavernService(),
+      readyTavernService({ ...character, level: 3 }),
       capturingPresenceService(),
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🕳️ Глибка");
-    expect(replies[0]?.text).toContain("гарчить");
+    expect(replies[0]?.text).toContain("🪜 Спуск до Низу");
+    expect(replies[0]?.text).toContain("За бочками в коморі є сходи.");
+    expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("deep-level1"));
+    expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
+  });
+
+  it("keeps lower-level characters out of the Nyz descent surface", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaDeepClosed(
+      makeContext(replies),
+      readyTavernService({ ...character, level: 1 }),
+      capturingPresenceService(),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🪜 Низ відкриється з 3 рівня");
+    expect(replies[0]?.text).not.toContain("Перші тринадцять сходинок");
+    expect(JSON.stringify(replies[0]?.options)).not.toContain(makePlaceCallbackData("deep-level1"));
     expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
   });
 
@@ -509,12 +570,12 @@ const character: CharacterSummary = {
   }
 };
 
-function readyTavernService(): TavernRaidService {
+function readyTavernService(tavernCharacter: CharacterSummary = character): TavernRaidService {
   return {
     getTavernForTelegramUser: () =>
       Promise.resolve({
         state: "ready",
-        character
+        character: tavernCharacter
       })
   } as unknown as TavernRaidService;
 }

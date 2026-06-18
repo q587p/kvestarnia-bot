@@ -17,6 +17,7 @@ import {
   buildPersistentFightKeyboard,
   buildPersistentFightResultKeyboard
 } from "../../src/bot/keyboards/fightKeyboard";
+import { getCombatSkillDisplay, getPersistentFightSkillLabel } from "../../src/services/fightService";
 import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
   buildEquipmentKeyboard,
@@ -41,8 +42,10 @@ import {
 } from "../../src/bot/keyboards/levelBarterKeyboard";
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
 import {
+  buildEnterKorchmaKeyboard,
   buildKorchmaArrivalBoardKeyboard,
   buildKorchmaBarKeyboard,
+  buildKorchmaDeepKeyboard,
   buildKorchmaFightingCornerKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
@@ -53,6 +56,8 @@ import {
   buildTavernKeyboard,
   buildTavernResultKeyboard
 } from "../../src/bot/keyboards/tavernKeyboard";
+import { buildTrainingDoppelgangerKeyboard } from "../../src/bot/keyboards/trainingDoppelgangerKeyboard";
+import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 
 describe("main menu and scene keyboards", () => {
   it("builds the universal menu as a persistent reply keyboard", () => {
@@ -87,6 +92,8 @@ describe("main menu and scene keyboards", () => {
       "v1:place:memorial",
       "v1:lvlx:open"
     ]);
+    expect(inlineButtonRows(buildEnterKorchmaKeyboard())).toEqual([["🚪 Зайти в корчму"]]);
+    expect(flatInlineButtonCallbacks(buildEnterKorchmaKeyboard())).toEqual(["v1:place:hall"]);
     expect(flatInlineButtonTexts(buildKorchmaArrivalBoardKeyboard())).toEqual([
       "🚪 Зайти в корчму",
       "⬅️ До дверей"
@@ -100,7 +107,7 @@ describe("main menu and scene keyboards", () => {
       "📋 Стіл зі справами",
       "🛢️ Бочка",
       "🍻 Шинок",
-      "🕳️ Глибка",
+      "🪜 Спуск до Низу",
       "🐭 Льох",
       "📰 Дошка вістей",
       "🚪 Надвір"
@@ -121,7 +128,7 @@ describe("main menu and scene keyboards", () => {
       "📋 Стіл зі справами",
       "🛢️ Бочка",
       "🍻 Шинок",
-      "🕳️ Глибка",
+      "🪜 Спуск до Низу",
       "🐭 Льох",
       "📰 Дошка вістей",
       "🚪 Надвір"
@@ -137,10 +144,16 @@ describe("main menu and scene keyboards", () => {
       "v1:place:news-corner",
       "v1:place:front"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ characterLevel: 1 }))).not.toContain(
+      "🪜 Спуск до Низу"
+    );
+    expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard({ characterLevel: 1 }))).not.toContain(
+      "v1:place:deep"
+    );
     expect(inlineButtonRows(buildKorchmaHallKeyboard())).toEqual([
       ["🥊 Бійцівський куток", "📋 Стіл зі справами"],
       ["🛢️ Бочка", "🍻 Шинок"],
-      ["🕳️ Глибка", "🐭 Льох"],
+      ["🪜 Спуск до Низу", "🐭 Льох"],
       ["📰 Дошка вістей", "🚪 Надвір"]
     ]);
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard())).toEqual([
@@ -410,8 +423,7 @@ describe("main menu and scene keyboards", () => {
     const actionButtons = [
       "🗡️ Вдарити",
       "📋 Збити з пантелику чеком",
-      "🏃 Відступити красиво",
-      "📋 До справ"
+      "🏃 Відступити красиво"
     ];
 
     expect(flatInlineButtonTexts(buildFightKeyboard())).toEqual(actionButtons);
@@ -425,20 +437,17 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildFightKeyboard({ ...character, classId: "class.bard" }))).toEqual([
       "🎵 Вдарити приспівом",
       "📋 Заспівати про чек",
-      "🏃 Піти на біс",
-      "📋 До справ"
+      "🏃 Піти на біс"
     ]);
     expect(flatInlineButtonCallbacks(buildFightKeyboard({ ...character, classId: "class.bard" }))).toEqual([
       "v1:fight:mimic:attack",
       "v1:fight:mimic:receipt",
-      "v1:fight:mimic:flee",
-      "v1:place:quest-table"
+      "v1:fight:mimic:flee"
     ]);
     expect(flatInlineButtonTexts(buildFightResultKeyboard("completed", { ...character, classId: "class.bard" }))).toEqual([
       "🎵 Вдарити приспівом",
       "📋 Заспівати про чек",
-      "🏃 Піти на біс",
-      "📋 До справ"
+      "🏃 Піти на біс"
     ]);
   });
 
@@ -447,15 +456,21 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, character))).toEqual([
       "🗡️ Вдарити",
-      "🗡️ Силовий удар",
-      "🏃 Відступити",
-      "📋 До справ"
+      "💪 Силовий удар",
+      "🏃 Відступити"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard())).toEqual([
+      "⬆️ Повернутися до зали",
+      "⬇️ Спуститися"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard())).toEqual([
+      "v1:place:hall",
+      "v1:place:deep-level1"
     ]);
     expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toEqual([
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:skill",
-      "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:flee",
-      "v1:place:quest-table"
+      "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:flee"
     ]);
     expect(flatInlineButtonTexts(buildPersistentFightResultKeyboard({
       ...session,
@@ -464,7 +479,7 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["⚔️ Новий бій", "📋 До справ", "🍺 До зали"]);
+    }, character))).toEqual(["⚔️ Новий бій", "🪜 До Низу"]);
     expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
       ...session,
       status: "won",
@@ -472,7 +487,55 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["v1:quest:fight", "v1:place:quest-table", "v1:place:hall"]);
+    }, character))).toEqual(["v1:place:deep-level1", "v1:place:deep"]);
+  });
+
+  it("keeps active training doppelganger buttons scoped to turn callbacks", () => {
+    const session: SoloCombatSessionRecord = {
+      ...persistentFightSession(),
+      monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
+      state: {
+        ...persistentFightSession().state!,
+        source: "training",
+        monster: {
+          id: TRAINING_DOPPELGANGER_MONSTER_ID,
+          hp: 18,
+          hpMax: 18
+        }
+      }
+    };
+
+    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
+      "🗡️ Вдарити",
+      "💪 Силовий удар",
+      "🏃 Відступити"
+    ]);
+    expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
+      "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
+      "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:skill",
+      "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:flee"
+    ]);
+  });
+
+  it("keeps persistent fight skill icons unique and away from common action icons", () => {
+    const skillIds = [
+      "skill.forceful-strike",
+      "skill.hot-spell",
+      "skill.form-thirteen-b",
+      "skill.dangerous-couplet",
+      "skill.trick-shot",
+      "skill.strict-blessing",
+      "skill.steppe-side-eye",
+      "skill.careful-strike"
+    ];
+    const displays = skillIds.map(getCombatSkillDisplay);
+    const reservedActionIcons = new Set(["🗡️", "🏃", "🕯️", "🎵", "🔥", "🏹", "🧾"]);
+
+    expect(new Set(displays.map((display) => display.icon)).size).toBe(displays.length);
+    expect(displays.filter((display) => reservedActionIcons.has(display.icon))).toEqual([]);
+    expect(getPersistentFightSkillLabel({ ...character, classId: "class.priest" })).toBe(
+      "🙏 Суворе благословення · 2 мани"
+    );
   });
 
   it("keeps hunt board inline buttons scoped to hunt actions", () => {
@@ -1048,7 +1111,7 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
       "🕯️ Реморт",
       "🍻 До шинку",
-      "⚔️ Розвʼязати проблему",
+      "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -1088,7 +1151,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "⚔️ Розвʼязати проблему",
+      "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -1135,7 +1198,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "⚔️ Продовжити бій",
+      "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",

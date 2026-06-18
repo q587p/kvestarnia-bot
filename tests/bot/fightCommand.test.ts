@@ -45,22 +45,6 @@ describe("fight command", () => {
               text: "🚪 Зайти в корчму",
               callback_data: makePlaceCallbackData("hall")
             }
-          ],
-          [
-            {
-              text: "📜 Табличка прибулих",
-              callback_data: makePlaceCallbackData("arrivals")
-            },
-            {
-              text: "🏅 Пропамʼятна дошка",
-              callback_data: makePlaceCallbackData("memorial")
-            }
-          ],
-          [
-            {
-              text: "🎒 Манчкін-скупник",
-              callback_data: "v1:lvlx:open"
-            }
           ]
         ]
       }
@@ -90,6 +74,15 @@ describe("fight command", () => {
     expect(replies[0]?.text).toContain("⚔️ Сутичка з підозрілим монстром");
     expect(replies[0]?.text).toContain("🌯 Монстр: 14/14");
     expect(replies[0]?.text).not.toContain("Це Мімік-шаурма");
+    const options = replies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
+    };
+
+    expect(options.reply_markup.inline_keyboard.flat().map((button) => button.text)).toEqual([
+      "🗡️ Вдарити",
+      "📋 Збити з пантелику чеком",
+      "🏃 Відступити красиво"
+    ]);
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,
@@ -168,6 +161,79 @@ describe("fight command", () => {
     });
   });
 
+  it("restores a terminal persistent fight through the canonical reward screen", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const terminalSession = {
+      ...persistentSession(),
+      status: "won" as const,
+      turn: 4,
+      state: {
+        ...persistentSession().state!,
+        status: "won" as const,
+        turn: 4,
+        monster: {
+          id: "monster.deadline-spider",
+          hp: 0,
+          hpMax: 18
+        },
+        lastTurn: {
+          action: "attack" as const,
+          heroOutcome: "won" as const,
+          heroDamage: 18,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false
+        }
+      }
+    };
+    const fightService = {
+      getFightOverviewForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-terminal" as const,
+          character: {
+            ...character,
+            level: 3
+          },
+          session: terminalSession,
+          monster: {
+            id: "monster.deadline-spider",
+            name: "Павук дедлайнів",
+            description: "Плете павутину з «сьогодні швиденько».",
+            level: 2,
+            tags: ["beast", "time", "web"]
+          },
+          questProgress: questProgress(3),
+          fightReward: {
+            state: "already-claimed" as const,
+            reward: {
+              xp: 20,
+              gold: 3,
+              localDate: terminalSession.id,
+              itemGrants: []
+            },
+            levelChange: null
+          }
+        })
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply");
+
+    expect(replies[0]?.text).toContain("Цей бій уже завершився");
+    expect(replies[0]?.text).toContain("Павук дедлайнів");
+    expect(replies[0]?.text).toContain("Винагорода за бій");
+    expect(replies[0]?.text).not.toContain("За бочками в коморі є сходи");
+    const options = replies[0]?.options as {
+      parse_mode: string;
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+
+    expect(options.parse_mode).toBe("HTML");
+    expect(options.reply_markup.inline_keyboard.flat()).toEqual([
+      { text: "⚔️ Новий бій", callback_data: makePlaceCallbackData("deep-level1") },
+      { text: "🪜 До Низу", callback_data: makePlaceCallbackData("deep") }
+    ]);
+  });
+
   it("keeps /fight cosmetic-safe while a training doppelganger session is active", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
@@ -208,7 +274,7 @@ describe("fight command", () => {
     });
   });
 
-  it("offers problem fight difficulty choices before starting a persistent fight", async () => {
+  it("opens the Nyz descent before problem fight difficulty choices", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     let startCount = 0;
     const fightService = {
@@ -230,39 +296,131 @@ describe("fight command", () => {
     await sendFight(makeContext(replies), fightService, "reply");
 
     expect(startCount).toBe(0);
-    expect(replies[0]?.text).toContain("Розв’язати проблему");
-    expect(replies[0]?.text).toContain("Припічник");
+    expect(replies[0]?.text).toContain("🪜 Спуск до Низу");
+    expect(replies[0]?.text).toContain("За бочками в коморі є сходи.");
+    expect(replies[0]?.text).not.toContain("Ярус I: Сутерени Корчми");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
           [
             {
-              text: "🕯 Легше: -3 рів.",
-              callback_data: makeQuestCallbackData("fight-easy")
+              text: "⬆️ Повернутися до зали",
+              callback_data: makePlaceCallbackData("hall")
             }
           ],
           [
             {
-              text: "🍺 Як є",
-              callback_data: makeQuestCallbackData("fight-normal")
-            }
-          ],
-          [
-            {
-              text: "🌶 Важче: +2 рів.",
-              callback_data: makeQuestCallbackData("fight-hard")
-            }
-          ],
-          [
-            {
-              text: "📋 До справ",
-              callback_data: makePlaceCallbackData("quest-table")
+              text: "⬇️ Спуститися",
+              callback_data: makePlaceCallbackData("deep-level1")
             }
           ]
         ]
       }
     });
+  });
+
+  it("offers three Nyz passages after descending", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    let startCount = 0;
+    const fightService = {
+      getFightOverviewForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-ready",
+          character: {
+            ...character,
+            level: 3
+          },
+          questProgress: questProgress(0)
+        }),
+      getOrStartPersistentFightForTelegramUser: () => {
+        startCount += 1;
+        return Promise.resolve({ state: "no-character" });
+      }
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply", { openDifficulty: true });
+
+    expect(startCount).toBe(0);
+    expect(replies[0]?.text).toContain("Ярус I: Сутерени Корчми");
+    expect(replies[0]?.text).toContain("Підсходник");
+    expect(replies[0]?.text).toContain("⬅️ Лівий прохід");
+    expect(replies[0]?.text).toContain("🚪 Прямий прохід");
+    expect(replies[0]?.text).toContain("➡️ Правий прохід");
+    expect(replies[0]?.text).not.toContain("Припічник");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "⬅️ Лівий прохід",
+              callback_data: makeQuestCallbackData("fight-hard")
+            }
+          ],
+          [
+            {
+              text: "🚪 Прямий прохід",
+              callback_data: makeQuestCallbackData("fight-normal")
+            }
+          ],
+          [
+            {
+              text: "➡️ Правий прохід",
+              callback_data: makeQuestCallbackData("fight-easy")
+            }
+          ],
+          [
+            {
+              text: "⬆️ Піднятися назад",
+              callback_data: makePlaceCallbackData("deep")
+            }
+          ]
+        ]
+      }
+    });
+  });
+
+  it("sends a recovery notice before fight options when HP just refilled", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const fightService = {
+      getFightOverviewForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-ready",
+          character: {
+            ...character,
+            level: 3,
+            hpCurrent: 24,
+            hpMax: 24
+          },
+          questProgress: questProgress(0),
+          recoveryNotice: {
+            type: "hp-full",
+            hpCurrent: 24,
+            hpMax: 24
+          }
+        })
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply");
+
+    expect(replies).toHaveLength(2);
+    expect(replies[0]?.text).toContain("Здоров’я знову повне: 24/24");
+    expect(replies[0]?.text).toContain("бій, дуель або інше сумнівне рішення");
+    expect(replies[0]?.options).toEqual({
+      parse_mode: "HTML"
+    });
+    expect(replies[1]?.text).toContain("🪜 Спуск до Низу");
+    const options = replies[1]?.options as {
+      parse_mode: string;
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+
+    expect(options.parse_mode).toBe("HTML");
+    expect(options.reply_markup.inline_keyboard).toEqual([
+      [{ text: "⬆️ Повернутися до зали", callback_data: makePlaceCallbackData("hall") }],
+      [{ text: "⬇️ Спуститися", callback_data: makePlaceCallbackData("deep-level1") }]
+    ]);
   });
 
   it("starts the selected persistent fight difficulty through the existing session path", async () => {

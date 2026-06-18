@@ -22,6 +22,15 @@ export interface SoloCombatSessionRecord {
   expiresAt: Date;
 }
 
+export interface SoloCombatSessionCompletionRecord {
+  monsterId: string;
+  status: SoloCombatSessionStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  completedAt: Date;
+  state: CombatState | null;
+}
+
 export interface CreateSoloCombatSessionInput {
   id?: string;
   monsterId: string;
@@ -48,10 +57,10 @@ export interface SoloCombatSessionRepository {
     telegramUserId: bigint,
     options?: { excludeMonsterIds?: readonly string[]; since?: Date }
   ): Promise<number>;
-  listByTelegramUserIdSince(
+  listCompletedByTelegramUserIdSince(
     telegramUserId: bigint,
     since: Date
-  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt">>>;
+  ): Promise<SoloCombatSessionCompletionRecord[]>;
   findByIdForTelegramUserId(
     telegramUserId: bigint,
     sessionId: string

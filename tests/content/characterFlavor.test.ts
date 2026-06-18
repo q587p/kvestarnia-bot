@@ -51,6 +51,38 @@ describe("character flavor content", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it("keeps the existing raid tip pool expanded and non-duplicated", () => {
+    const raidTips = characterFlavorLines.filter(
+      (line) => line.placement === "raid.prep-hint" && line.scene === "barrel"
+    );
+    const uniqueTipTexts = new Set(raidTips.map((line) => line.text));
+
+    expect(uniqueTipTexts.size).toBe(raidTips.length);
+    expect(uniqueTipTexts.size).toBeGreaterThanOrEqual(20);
+    expect(
+      raidTips.filter(
+        (line) =>
+          line.text === "{title} не фальшивить. Фальшивить Бочка, і це треба використати проти неї."
+      )
+    ).toHaveLength(1);
+
+    const selectedLine = selectCharacterFlavorLine(
+      {
+        ...baseCharacter,
+        raceId: "race.elf",
+        raceName: "Ельф",
+        classId: "class.bard",
+        className: "Бард",
+        title: "Лютнева Довгожителька"
+      },
+      fixed("raid.prep-hint", "barrel")
+    );
+
+    expect(selectedLine?.text).toBe(
+      "Лютнева Довгожителька не фальшивить. Фальшивить Бочка, і це треба використати проти неї."
+    );
+  });
+
   it("does not expose hidden path ids, path labels, or raw HTML markers", () => {
     const forbiddenPatterns = [
       /\bsun\b/i,

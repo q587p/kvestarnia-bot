@@ -93,6 +93,13 @@ export type YegerTrackingResult =
       fight: Extract<FightLookupResult, { state: "persistent-active" }>;
     }
   | {
+      state: "tracking-blocked-by-monster-rest";
+      character: CharacterSummary;
+      progress: YegerQuestProgress;
+      tracking: Extract<YegerTrackingSummary, { state: "tracking-ready" }>;
+      fight: Extract<FightLookupResult, { state: "monster-rest" }>;
+    }
+  | {
       state: "tracking-resolved-success";
       character: CharacterSummary;
       progress: YegerQuestProgress;
@@ -238,6 +245,16 @@ export class YegerQuestService {
     if (current.tracking.state === "tracking-ready") {
       const activeFight = await this.fight.getFightOverviewForTelegramUser(telegramUserId);
 
+      if (activeFight.state === "monster-rest") {
+        return {
+          state: "tracking-blocked-by-monster-rest",
+          character: current.character,
+          progress: current.progress,
+          tracking: current.tracking,
+          fight: activeFight
+        };
+      }
+
       if (activeFight.state === "persistent-active" && !isYegerUnquietTarget(activeFight.monster)) {
         return {
           state: "tracking-blocked-by-other-fight",
@@ -374,7 +391,7 @@ export class YegerQuestService {
     telegramUserId: bigint,
     startedAt: Date
   ): Promise<YegerQuestProgress> {
-    const sessions = await this.combatSessions.listByTelegramUserIdSince(telegramUserId, startedAt);
+    const sessions = await this.combatSessions.listCompletedByTelegramUserIdSince(telegramUserId, startedAt);
     const wins = sessions.filter((session) => {
       const monster = monsters.find((candidate) => candidate.id === session.monsterId);
 

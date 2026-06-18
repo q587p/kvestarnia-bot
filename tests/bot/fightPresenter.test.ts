@@ -269,7 +269,7 @@ describe("fight presenter", () => {
     expect(stale).toContain("поточний стан");
     expect(stale).toContain("Невідомий монстр");
     expect(stale).not.toContain("Невідомий монстр</b> · рівень");
-    expect(noMana).toContain("Мани не вистачило");
+    expect(noMana).toContain("Мани не стало навіть на драматичний жест");
     expect(noMana).not.toContain("Нагорода");
   });
 
@@ -285,7 +285,8 @@ describe("fight presenter", () => {
           heroDamage: 17,
           monsterDamage: 8,
           manaSpent: 3,
-          critical: true
+          critical: true,
+          skillId: "skill.strict-blessing"
         }
       }),
       monster: {
@@ -300,9 +301,11 @@ describe("fight presenter", () => {
     });
 
     expect(text).toContain(
-      ["Останній хід", "Вміння влучає критично на 17 шкоди.", "Монстр відповів на 8 шкоди."].join(
-        "\n"
-      )
+      [
+        "Остання дія",
+        "Вміння 🙏 <i>Суворе благословення</i> влучає критично на 17 шкоди.",
+        "Монстр відповів на 8 шкоди."
+      ].join("\n")
     );
     expect(text).not.toContain("Останній хід: вміння");
     expect(text).not.toContain("критично:");

@@ -72,6 +72,8 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("<i>Дошка вістей</i>");
     expect(text).toContain("<i>табличка прибулих</i>");
     expect(text).toContain("<i>пропамʼятна дошка</i>");
+    expect(text).toContain("За дверима біля Бочки сидить <i>Єгер</i>");
+    expect(text).toContain("сліди просить перевіряти надворі");
   });
 
   it("shows a front-door arrivals plaque with escaped visitor names", () => {
@@ -139,12 +141,12 @@ describe("tavern presenter", () => {
     expect(text).toContain("найпереконливіше махав честю");
   });
 
-  it("shows the Deep as closed with a short monster hint", () => {
+  it("shows the Nyz descent with its first surface copy", () => {
     const text = presentKorchmaDeepClosed(character);
 
-    expect(text).toContain("🕳️ Глибка");
-    expect(text).toContain("гарчить");
-    expect(text).toContain("Скоро сюди переїдуть бої з монстрами");
+    expect(text).toContain("🪜 Спуск до Низу");
+    expect(text).toContain("За бочками в коморі є сходи.");
+    expect(text).not.toContain("Ярус I: Сутерени Корчми");
   });
 
   it("shows duel winners for day week and month", () => {
@@ -258,8 +260,9 @@ describe("tavern presenter", () => {
     expect(text).toContain("праворуч терпить життя <i>стіл зі справами</i>");
     expect(text).toContain("шумить <i>шинок</i>");
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
-    expect(text).toContain("<i>глибка</i>");
+    expect(text).toContain("<i>спуск до Низу</i>");
     expect(text).toContain("<i>льох</i>");
+    expect(text).toContain("<i>льох</i>.\n\nБіля дверей висить <i>дошка вістей</i>");
     expect(text).toContain("<i>дошка вістей</i>");
     expect(text).toContain("<i>надвір</i>");
     expect(text).toContain("Корчмар:\n<blockquote>");
@@ -362,13 +365,11 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Біля Бочки Пінного Міражу");
     expect(text).toContain("Бочка Пінного Міражу");
-    expect(text).toContain(
-      "У кутку героїчно піниться Бочка Пінного Міражу.\n\nПоруч із нею сидить людисько-єгер у капюшоні"
-    );
+    expect(text).toContain("У кутку героїчно піниться Бочка Пінного Міражу.");
     expect(text).toContain(
       "Корчмар:\n<blockquote>Це не проблема. Дві-три хвилини. Максимум.</blockquote>"
     );
-    expect(text).toContain("людисько-єгер у капюшоні");
+    expect(text).not.toContain("людисько-єгер у капюшоні");
     expect(text).not.toContain("<i>Порада дня:");
     expect(text).not.toContain("За столами:");
     expect(text).toContain("Що робимо?");

@@ -15,7 +15,7 @@ import {
   buildAdventureOfferKeyboard,
   buildAdventureResultKeyboard
 } from "../keyboards/adventureKeyboard";
-import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
+import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentAdventureActiveFight,
   presentAdventureAlreadyCompleted,
@@ -191,7 +191,7 @@ async function sendText(
           keyboard === "adventure-result"
             ? buildAdventureResultKeyboard({ state: "already-completed" })
             : keyboard === "enter-korchma"
-              ? buildKorchmaFrontKeyboard()
+              ? buildEnterKorchmaKeyboard()
               : keyboard === "active-fight"
                 ? buildAdventureResultKeyboard({ state: "active-fight" })
                 : keyboard.type === "starter-adventure"

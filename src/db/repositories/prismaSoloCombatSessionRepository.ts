@@ -3,6 +3,7 @@ import type { CombatState, CombatStatus, CombatTurnSummary } from "../../domain/
 import type {
   CreateSoloCombatSessionInput,
   RecordSoloCombatRewardInput,
+  SoloCombatSessionCompletionRecord,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository,
   SoloCombatSessionStatus,
@@ -58,15 +59,13 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     });
   }
 
-  async listByTelegramUserIdSince(
+  async listCompletedByTelegramUserIdSince(
     telegramUserId: bigint,
     since: Date
-  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt">>> {
+  ): Promise<SoloCombatSessionCompletionRecord[]> {
     const records = await this.prisma.soloCombatSession.findMany({
       where: {
-        createdAt: {
-          gte: since
-        },
+        OR: [{ updatedAt: { gte: since } }, { createdAt: { gte: since } }],
         character: {
           user: {
             telegramUserId
@@ -74,20 +73,39 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         }
       },
       orderBy: {
-        createdAt: "asc"
+        updatedAt: "asc"
       },
       select: {
         monsterId: true,
         status: true,
-        createdAt: true
+        stateJson: true,
+        createdAt: true,
+        updatedAt: true
       }
     });
 
-    return records.map((record) => ({
-      monsterId: record.monsterId,
-      status: parseStatus(record.status),
-      createdAt: record.createdAt
-    }));
+    return records.flatMap((record) => {
+      const status = parseStatus(record.status);
+      const state = parseCombatState(record.stateJson);
+      const completedAt = getSessionCompletionTime({
+        status,
+        state,
+        createdAt: record.createdAt
+      });
+
+      if (!completedAt || completedAt < since) {
+        return [];
+      }
+
+      return [{
+        monsterId: record.monsterId,
+        status,
+        state,
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+        completedAt
+      }];
+    });
   }
 
   async findByIdForTelegramUserId(
@@ -323,20 +341,76 @@ function parseCombatState(value: unknown): CombatState | null {
 
   const turn = intOrNull(value.turn);
   const status = parseStateStatus(value.status);
+  const source = parseCombatSource(value.source);
   const hero = parseResourceBlock(value.hero);
   const monster = parseMonsterBlock(value.monster);
+  const completedAt = parseIsoDate(value.completedAt);
 
   if (turn === null || !status || !hero || !monster) {
     return null;
   }
 
+  const cooldowns = parseCooldowns(value.cooldowns);
+
   return {
     ...(typeof value.id === "string" ? { id: value.id } : {}),
+    ...(source ? { source } : {}),
+    ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
     turn,
     status,
     hero,
     monster,
+    ...(cooldowns ? { cooldowns } : {}),
     ...(isTurnSummary(value.lastTurn) ? { lastTurn: value.lastTurn } : {})
+  };
+}
+
+function getSessionCompletionTime(input: {
+  status: SoloCombatSessionStatus;
+  state: CombatState | null;
+  createdAt: Date;
+}): Date | null {
+  if (input.status === "active" || input.state?.status === "active") {
+    return null;
+  }
+
+  return parseIsoDate(input.state?.completedAt) ?? input.createdAt;
+}
+
+function parseIsoDate(value: unknown): Date | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseCombatSource(value: unknown): CombatState["source"] | null {
+  if (value === "normal" || value === "yeger" || value === "adventure" || value === "training") {
+    return value;
+  }
+
+  return null;
+}
+
+function parseCooldowns(value: unknown): CombatState["cooldowns"] | null {
+  if (!isRecord(value) || !isRecord(value.skill)) {
+    return null;
+  }
+
+  const remainingTurns = intOrNull(value.skill.remainingTurns);
+
+  if (typeof value.skill.id !== "string" || remainingTurns === null || remainingTurns <= 0) {
+    return null;
+  }
+
+  return {
+    skill: {
+      id: value.skill.id,
+      remainingTurns
+    }
   };
 }
 

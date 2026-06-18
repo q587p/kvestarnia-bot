@@ -8,6 +8,7 @@ export type CombatTurnOutcome =
   | "critical-hit"
   | "miss"
   | "not-enough-mana"
+  | "skill-on-cooldown"
   | "inactive"
   | "fled"
   | "flee-failed"
@@ -71,6 +72,8 @@ export interface CombatDebugTrace {
 
 export interface CombatState {
   id?: string;
+  source?: "normal" | "yeger" | "adventure" | "training";
+  completedAt?: string;
   turn: number;
   status: CombatStatus;
   hero: {
@@ -97,6 +100,12 @@ export interface CombatState {
     spellPower?: number;
     copiedEquipment?: CombatCopiedEquipment[];
     debugTrace?: CombatDebugTrace;
+  };
+  cooldowns?: {
+    skill?: {
+      id: string;
+      remainingTurns: number;
+    };
   };
   lastTurn?: CombatTurnSummary;
 }
@@ -166,6 +175,8 @@ export function startCombat(input: StartCombatInput): CombatState {
 export function cloneCombatState(state: CombatState): CombatState {
   return {
     ...(state.id ? { id: state.id } : {}),
+    ...(state.source ? { source: state.source } : {}),
+    ...(state.completedAt ? { completedAt: state.completedAt } : {}),
     turn: state.turn,
     status: state.status,
     hero: { ...state.hero },
@@ -176,6 +187,13 @@ export function cloneCombatState(state: CombatState): CombatState {
         : {}),
       ...(state.monster.debugTrace ? { debugTrace: { ...state.monster.debugTrace } } : {})
     },
+    ...(state.cooldowns?.skill
+      ? {
+          cooldowns: {
+            skill: { ...state.cooldowns.skill }
+          }
+        }
+      : {}),
     ...(state.lastTurn
       ? {
           lastTurn: {

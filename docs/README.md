@@ -17,6 +17,7 @@
 - [PRODUCT_BRIEF.md](PRODUCT_BRIEF.md) — позиціонування, аудиторія, USP і MVP scope.
 - [GAME_DESIGN.md](GAME_DESIGN.md) — core loop, персонаж, бій, прогресія й майбутні соціяльні механіки.
 - [CONTENT_STYLE_GUIDE.md](CONTENT_STYLE_GUIDE.md) — український тон, гумор, лапки й формат Telegram-повідомлень.
+- [TERMINOLOGY.md](TERMINOLOGY.md) — канонічні назви сутностей і місць: пригодник/персонаж/герой, Низ, Сутерени Корчми, Спуск і Зіґурат.
 - [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md) — архітектура, дані, callbacks, deployment і технічні борги.
 - [BALANCE_NOTES.md](BALANCE_NOTES.md) — формули, економіка, RNG і балансні guardrails.
 - [LOOT_EXPANSION_CANONICAL_IDS.md](LOOT_EXPANSION_CANONICAL_IDS.md) — adapter boundary для generated loot: canonical class/race ids, title-gate surrogates і equipability filtering.

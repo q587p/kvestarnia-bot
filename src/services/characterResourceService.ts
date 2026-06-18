@@ -15,6 +15,13 @@ import {
 export interface CharacterResourceSyncResult {
   character: CharacterSummary;
   regeneration: ResourceRegenerationResult;
+  recoveryNotice?: ResourceRecoveryNotice;
+}
+
+export interface ResourceRecoveryNotice {
+  type: "hp-full";
+  hpCurrent: number;
+  hpMax: number;
 }
 
 export async function summarizeAndSyncCharacterResources(input: {
@@ -49,6 +56,15 @@ export async function summarizeAndSyncCharacterResources(input: {
     },
     now: input.now
   });
+  const recoveryNotice =
+    baseSummary.hpCurrent < baseSummary.hpMax &&
+    regeneration.resources.hpCurrent >= regeneration.resources.hpMax
+      ? {
+          type: "hp-full" as const,
+          hpCurrent: regeneration.resources.hpCurrent,
+          hpMax: regeneration.resources.hpMax
+        }
+      : undefined;
 
   if (input.persist !== false && regeneration.changed) {
     const updated = await input.characters.updateResourcesForTelegramUser?.(input.telegramUserId, {
@@ -89,6 +105,7 @@ export async function summarizeAndSyncCharacterResources(input: {
       manaMax: regeneration.resources.manaMax,
       resourceRecovery: regeneration.recovery
     },
-    regeneration
+    regeneration,
+    ...(recoveryNotice ? { recoveryNotice } : {})
   };
 }

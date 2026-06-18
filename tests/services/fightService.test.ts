@@ -296,6 +296,40 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(0);
   });
 
+  it("reports a recovery notice when fight overview fills HP", async () => {
+    const marker = new Date("2026-06-12T10:10:00.000Z");
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, {
+      xp: 25,
+      hpCurrent: 1,
+      hpMax: 22,
+      hpRegenAt: marker,
+      manaRegenAt: marker
+    });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+    const repeated = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "persistent-ready",
+      recoveryNotice: {
+        type: "hp-full",
+        hpCurrent: 30,
+        hpMax: 30
+      }
+    });
+    expect(repeated).not.toHaveProperty("recoveryNotice");
+  });
+
   it("keeps old first-problem progress visible until the first paper is taken", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -1589,6 +1623,265 @@ describe("FightService", () => {
     });
   });
 
+  it("blocks a new ordinary monster fight for three minutes after the third eligible fight completes", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (const [index, createdAt] of [
+      new Date("2026-06-12T10:28:00.000Z"),
+      new Date("2026-06-12T10:29:00.000Z"),
+      new Date("2026-06-12T10:29:30.000Z")
+    ].entries()) {
+      const completedAt = new Date(`2026-06-12T10:29:${40 + index}.000Z`);
+      sessions.addSession({
+        ...makeTerminalSession(
+          "won",
+          `ordinary-rest-${index + 1}`,
+          `character-${telegramUserId.toString()}`,
+          "monster.deadline-spider",
+          { createdAt, updatedAt: completedAt }
+        ),
+        state: {
+          ...makeTerminalSession(
+            "won",
+            `ordinary-rest-${index + 1}`,
+            `character-${telegramUserId.toString()}`,
+            "monster.deadline-spider",
+            { createdAt, updatedAt: completedAt }
+          ).state!,
+          source: "normal"
+        }
+      });
+    }
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "monster-rest",
+      availableAt: new Date("2026-06-12T10:32:42.000Z"),
+      now: fixedClock()
+    });
+  });
+
+  it("keeps monster rest active until the exact third-completion boundary", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    let now = new Date("2026-06-12T10:32:59.999Z");
+    const service = new FightService(characters, dailyActions, () => now, sessions);
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:00.000Z"),
+      new Date("2026-06-12T10:29:30.000Z"),
+      new Date("2026-06-12T10:30:00.000Z")
+    ].entries()) {
+      const session = makeTerminalSession(
+        "won",
+        `ordinary-boundary-${index + 1}`,
+        `character-${telegramUserId.toString()}`,
+        "monster.deadline-spider",
+        {
+          createdAt: new Date("2026-06-12T09:00:00.000Z"),
+          updatedAt: completedAt
+        }
+      );
+      sessions.addSession({
+        ...session,
+        state: {
+          ...session.state!,
+          source: "normal"
+        }
+      });
+    }
+
+    await expect(service.getFightOverviewForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "monster-rest",
+      availableAt: new Date("2026-06-12T10:33:00.000Z")
+    });
+
+    now = new Date("2026-06-12T10:33:00.000Z");
+
+    await expect(service.getFightOverviewForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "persistent-ready"
+    });
+  });
+
+  it("does not extend monster rest when a terminal fight is reward-recorded later", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      () => new Date("2026-06-12T10:32:59.999Z"),
+      sessions
+    );
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:00.000Z"),
+      new Date("2026-06-12T10:29:30.000Z"),
+      new Date("2026-06-12T10:30:00.000Z")
+    ].entries()) {
+      const session = makeTerminalSession(
+        "won",
+        `ordinary-reward-later-${index + 1}`,
+        `character-${telegramUserId.toString()}`,
+        "monster.deadline-spider",
+        {
+          createdAt: new Date("2026-06-12T10:28:00.000Z"),
+          completedAt,
+          updatedAt: index === 2 ? new Date("2026-06-12T10:31:00.000Z") : completedAt
+        }
+      );
+      sessions.addSession({
+        ...session,
+        state: {
+          ...session.state!,
+          source: "normal"
+        }
+      });
+    }
+
+    await expect(service.getFightOverviewForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "monster-rest",
+      availableAt: new Date("2026-06-12T10:33:00.000Z")
+    });
+  });
+
+  it("does not start monster rest while the long-running third eligible fight is still active", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (const index of [1, 2]) {
+      const session = makeTerminalSession(
+        "won",
+        `ordinary-long-${index}`,
+        `character-${telegramUserId.toString()}`,
+        "monster.deadline-spider",
+        {
+          createdAt: new Date("2026-06-12T09:00:00.000Z"),
+          updatedAt: new Date(`2026-06-12T10:2${index}:00.000Z`)
+        }
+      );
+      sessions.addSession({
+        ...session,
+        state: {
+          ...session.state!,
+          source: "normal"
+        }
+      });
+    }
+
+    sessions.addSession({
+      id: "ordinary-long-active-third",
+      characterId: `character-${telegramUserId.toString()}`,
+      monsterId: "monster.deadline-spider",
+      status: "active",
+      turn: 9,
+      reward: null,
+      createdAt: new Date("2026-06-12T09:00:00.000Z"),
+      updatedAt: fixedClock(),
+      expiresAt: new Date("2026-06-12T10:40:00.000Z"),
+      state: {
+        id: "ordinary-long-active-third",
+        source: "normal",
+        turn: 9,
+        status: "active",
+        hero: { hp: 20, hpMax: 24, mana: 10, manaMax: 12 },
+        monster: { id: "monster.deadline-spider", hp: 5, hpMax: 18 }
+      }
+    });
+
+    await expect(service.getFightOverviewForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "persistent-active"
+    });
+  });
+
+  it("excludes adventure, training, and legacy sessions from monster rest", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    const normal = makeTerminalSession(
+      "won",
+      "ordinary-excluded-normal",
+      `character-${telegramUserId.toString()}`,
+      "monster.deadline-spider",
+      { updatedAt: new Date("2026-06-12T10:29:00.000Z") }
+    );
+    sessions.addSession({
+      ...normal,
+      state: {
+        ...normal.state!,
+        source: "normal"
+      }
+    });
+
+    const adventure = makeTerminalSession(
+      "won",
+      "ordinary-excluded-adventure",
+      `character-${telegramUserId.toString()}`,
+      "monster.deadline-spider",
+      { updatedAt: new Date("2026-06-12T10:29:30.000Z") }
+    );
+    sessions.addSession({
+      ...adventure,
+      state: {
+        ...adventure.state!,
+        source: "adventure"
+      }
+    });
+
+    const training = makeTerminalSession(
+      "won",
+      "ordinary-excluded-training",
+      `character-${telegramUserId.toString()}`,
+      TRAINING_DOPPELGANGER_MONSTER_ID,
+      { updatedAt: new Date("2026-06-12T10:29:40.000Z") }
+    );
+    sessions.addSession({
+      ...training,
+      state: {
+        ...training.state!,
+        source: "training"
+      }
+    });
+
+    sessions.addSession(
+      makeTerminalSession(
+        "won",
+        "ordinary-excluded-legacy",
+        `character-${telegramUserId.toString()}`,
+        "monster.deadline-spider",
+        { updatedAt: new Date("2026-06-12T10:29:50.000Z") }
+      )
+    );
+
+    await expect(service.getFightOverviewForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "persistent-ready"
+    });
+  });
+
   it("marks the first problem quest ready on the thirteenth win without auto-claiming", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -2094,7 +2387,7 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
-  it("does not mutate when a persistent skill lacks mana", async () => {
+  it("wastes the persistent turn when a current skill action lacks mana", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25, classId: "class.mage", manaCurrent: 0, manaMax: 0 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -2119,8 +2412,12 @@ describe("FightService", () => {
       action: "skill"
     });
 
-    expect(result.state).toBe("not-enough-mana");
-    expect(sessions.updateCount).toBe(0);
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.state?.turn).toBe(2);
+      expect(result.session.state?.lastTurn?.heroOutcome).toBe("not-enough-mana");
+    }
+    expect(sessions.updateCount).toBe(1);
   });
 
   it("expires a stale persistent fight lazily without rewards", async () => {
@@ -2478,10 +2775,10 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     ).length;
   }
 
-  async listByTelegramUserIdSince(
+  async listCompletedByTelegramUserIdSince(
     telegramUserId: bigint,
     since: Date
-  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt">>> {
+  ): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "updatedAt" | "state"> & { completedAt: Date }>> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
@@ -2489,12 +2786,22 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     }
 
     return [...this.sessions.values()]
-      .filter((candidate) => candidate.characterId === character.id && candidate.createdAt >= since)
-      .map((candidate) => ({
-        monsterId: candidate.monsterId,
-        status: candidate.status,
-        createdAt: candidate.createdAt
-      }));
+      .flatMap((candidate) => {
+        const completedAt = getSessionCompletionTime(candidate);
+
+        if (candidate.characterId !== character.id || !completedAt || completedAt < since) {
+          return [];
+        }
+
+        return [{
+          monsterId: candidate.monsterId,
+          status: candidate.status,
+          state: candidate.state,
+          createdAt: candidate.createdAt,
+          updatedAt: candidate.updatedAt,
+          completedAt
+        }];
+      });
   }
 
   async findActiveByTelegramUserId(
@@ -2747,9 +3054,11 @@ function makeTerminalSession(
   id = `session-${status}`,
   characterId = "character-42",
   monsterId = "monster.deadline-spider",
-  options: { createdAt?: Date } = {}
+  options: { createdAt?: Date; updatedAt?: Date; completedAt?: Date | null } = {}
 ): SoloCombatSessionRecord {
   const createdAt = options.createdAt ?? fixedClock();
+  const completedAt = options.completedAt === undefined ? (options.updatedAt ?? createdAt) : options.completedAt;
+  const updatedAt = options.updatedAt ?? completedAt ?? createdAt;
 
   return {
     id,
@@ -2759,6 +3068,7 @@ function makeTerminalSession(
     turn: 2,
     state: {
       id,
+      ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
       turn: 2,
       status,
       hero: {
@@ -2775,9 +3085,25 @@ function makeTerminalSession(
     },
     reward: null,
     createdAt,
-    updatedAt: createdAt,
+    updatedAt,
     expiresAt: new Date("2026-06-12T11:00:00.000Z")
   };
+}
+
+function getSessionCompletionTime(session: SoloCombatSessionRecord): Date | null {
+  if (session.status === "active" || session.state?.status === "active") {
+    return null;
+  }
+
+  if (session.state?.completedAt) {
+    const completedAt = new Date(session.state.completedAt);
+
+    if (!Number.isNaN(completedAt.getTime())) {
+      return completedAt;
+    }
+  }
+
+  return session.createdAt;
 }
 
 function makeActiveTrainingSession(characterId = "character-42"): SoloCombatSessionRecord {

@@ -14,12 +14,16 @@ import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData
 import { makeRemortConfirmCallbackData } from "../../src/bot/callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
   PRESENCE_ADVENTURE_DUEL_CHALLENGE,
+  PRESENCE_ADVENTURE_SOLO_FIGHT,
+  PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
   PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
@@ -193,6 +197,97 @@ describe("presence middleware", () => {
       currentRaidId: null,
       currentAdventureId: null
     });
+  });
+
+  it.each([
+    ["ranger", "v1:tavern:ranger"],
+    ["round", makeTavernCallbackData("round")],
+    ["news", "v1:news:latest"]
+  ])("keeps active combat presence instead of stamping blocked %s destination", async (_name, callbackData) => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence, {
+      fight: activePersistentFightService()
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(callbackData));
+
+    expect(presence.marks).toHaveLength(1);
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+    });
+  });
+
+  it("keeps active training combat presence instead of stamping blocked tavern destination", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence, {
+      fight: {
+        getFightOverviewForTelegramUser: () =>
+          Promise.resolve({
+            state: "training-active",
+            character,
+            session: activeTrainingSession(),
+            questProgress: null
+          })
+      },
+      trainingDoppelganger: {
+        getStartOptionsForTelegramUser: () =>
+          Promise.resolve({
+            state: "active",
+            character,
+            session: activeTrainingSession(),
+            monster: {
+              id: TRAINING_DOPPELGANGER_MONSTER_ID,
+              name: "Сумлінний Допельґанґер",
+              raceName: "Людисько",
+              className: "Воїн",
+              title: "Пересічні Пригодники",
+              level: 3,
+              spawnMode: "COPY_TARGET",
+              source: "target",
+              copiedEquipmentCount: 0
+            }
+          })
+      }
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makePlaceCallbackData("hall")));
+
+    expect(presence.marks).toHaveLength(1);
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
+    });
+  });
+
+  it("keeps pending raid guard before combat lock without stamping blocked destination", async () => {
+    const presence = new CapturingPresenceService();
+    let fightOverviewCalls = 0;
+    const bot = createTestBot(presence, {
+      tavern: pendingTavernService(),
+      fight: {
+        getFightOverviewForTelegramUser: () => {
+          fightOverviewCalls += 1;
+          return Promise.resolve({
+            state: "persistent-active",
+            character,
+            session: activePersistentSession(),
+            monster: null,
+            questProgress: null
+          });
+        }
+      }
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makePlaceCallbackData("hall")));
+
+    expect(fightOverviewCalls).toBe(0);
+    expect(presence.marks).toEqual([]);
   });
 
   it("marks korchma place callbacks only after handler gates pass", async () => {
@@ -374,18 +469,6 @@ describe("presence middleware", () => {
       callbackData: makeAdventureCallbackData("poke")
     },
     {
-      name: "fight",
-      callbackData: makeFightCallbackData("attack")
-    },
-    {
-      name: "persistent fight",
-      callbackData: makeFightTurnCallbackData({
-        sessionId: "123e4567-e89b-12d3-a456-426614174000",
-        turn: 1,
-        action: "attack"
-      })
-    },
-    {
       name: "hunt",
       callbackData: makeHuntActionCallbackData("2026-06-14T08", "abc1234", "strike")
     },
@@ -434,6 +517,31 @@ describe("presence middleware", () => {
         getRoundOfferForTelegramUser: () => Promise.resolve({ state: "no-character" }),
         buyRoundForTelegramUser: () => Promise.resolve({ state: "no-character" })
       }
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(callbackData));
+
+    expect(presence.marks).toEqual([]);
+  });
+
+  it.each([
+    {
+      name: "starter mimic",
+      callbackData: makeFightCallbackData("attack")
+    },
+    {
+      name: "persistent turn",
+      callbackData: makeFightTurnCallbackData({
+        sessionId: "123e4567-e89b-12d3-a456-426614174000",
+        turn: 1,
+        action: "attack"
+      })
+    }
+  ])("lets $name combat callbacks keep their neutral heartbeat during pending raid", async ({ callbackData }) => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence, {
+      tavern: pendingTavernService()
     });
     await bot.init();
 
@@ -624,6 +732,18 @@ class CapturingPresenceService {
   }> {
     return Promise.resolve(this.currentPlace);
   }
+
+  getCurrentActivityForTelegramUser(): Promise<{
+    state: "ready";
+    currentRaidId: string | null;
+    currentAdventureId: string | null;
+  }> {
+    return Promise.resolve({
+      state: "ready",
+      currentRaidId: null,
+      currentAdventureId: null
+    });
+  }
 }
 
 function createTestBot(presence: CapturingPresenceService, overrides: Partial<BotServices> = {}) {
@@ -809,6 +929,74 @@ function questHubReadyServices(): Partial<BotServices> {
       complete: () => Promise.resolve({ state: "no-character" })
     }
   } as unknown as Partial<BotServices>;
+}
+
+function activePersistentFightService(): Partial<BotServices>["fight"] {
+  return {
+    getFightOverviewForTelegramUser: () =>
+      Promise.resolve({
+        state: "persistent-active",
+        character,
+        session: activePersistentSession(),
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null
+      }),
+    getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+    completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+  } as Partial<BotServices>["fight"];
+}
+
+function activePersistentSession() {
+  return {
+    id: "123e4567-e89b-42d3-a456-426614174000",
+    characterId: "character-42",
+    monsterId: "monster.deadline-spider",
+    status: "active" as const,
+    turn: 1,
+    reward: null,
+    createdAt: new Date("2026-06-15T10:00:00.000Z"),
+    updatedAt: new Date("2026-06-15T10:00:00.000Z"),
+    expiresAt: new Date("2026-06-15T10:20:00.000Z"),
+    state: {
+      id: "123e4567-e89b-42d3-a456-426614174000",
+      source: "normal" as const,
+      status: "active" as const,
+      turn: 1,
+      hero: {
+        hp: 20,
+        hpMax: 20,
+        mana: 10,
+        manaMax: 10
+      },
+      monster: {
+        id: "monster.deadline-spider",
+        hp: 12,
+        hpMax: 12
+      }
+    }
+  };
+}
+
+function activeTrainingSession() {
+  return {
+    ...activePersistentSession(),
+    monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
+    state: {
+      ...activePersistentSession().state,
+      source: "training" as const,
+      monster: {
+        id: TRAINING_DOPPELGANGER_MONSTER_ID,
+        hp: 12,
+        hpMax: 12
+      }
+    }
+  };
 }
 
 function servicesWith(overrides: Partial<BotServices>): BotServices {

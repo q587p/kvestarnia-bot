@@ -13,6 +13,7 @@ describe("place callback data", () => {
     "bar",
     "barrel",
     "deep",
+    "deep-level1",
     "news-corner",
     "cellar",
     "front",

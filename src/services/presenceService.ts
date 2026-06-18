@@ -19,6 +19,7 @@ export const PRESENCE_LOCATION_KORCHMA_NEWS_CORNER = "location.korchma.news_corn
 export const PRESENCE_LOCATION_KORCHMA_RANGER_CORNER = "location.korchma.ranger_corner";
 export const PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER = "location.korchma.fighting_corner";
 export const PRESENCE_LOCATION_KORCHMA_DEEP = "location.korchma.deep";
+export const PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1 = "location.korchma.deep.level1";
 export const PRESENCE_LOCATION_UNKNOWN = "location.unknown";
 
 export const PRESENCE_LOCATION_TAVERN = "location.tavern";
@@ -34,7 +35,8 @@ const KORCHMA_INTERIOR_LOCATION_IDS = [
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
-  PRESENCE_LOCATION_KORCHMA_DEEP
+  PRESENCE_LOCATION_KORCHMA_DEEP,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1
 ];
 
 export const PRESENCE_RAID_FRIDAY_BARREL = "raid.friday-barrel";
@@ -132,6 +134,14 @@ export type CurrentPlaceSnapshot =
       locationId: string;
       locationName: string;
       insideKorchma: boolean;
+    };
+
+export type CurrentPresenceActivitySnapshot =
+  | { state: "no-character" }
+  | {
+      state: "ready";
+      currentRaidId: string | null;
+      currentAdventureId: string | null;
     };
 
 export type PresenceActivitySnapshot =
@@ -268,6 +278,22 @@ export class PresenceService {
       locationId,
       locationName: getLocationName(locationId),
       insideKorchma: isKorchmaInteriorLocation(locationId)
+    };
+  }
+
+  async getCurrentActivityForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<CurrentPresenceActivitySnapshot> {
+    const current = await this.presence.findByTelegramUserId(telegramUserId);
+
+    if (!current?.characterName) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "ready",
+      currentRaidId: current.currentRaidId ?? null,
+      currentAdventureId: current.currentAdventureId ?? null
     };
   }
 
@@ -596,8 +622,18 @@ export function getPublicPresenceLocation(
   if (id === PRESENCE_LOCATION_KORCHMA_DEEP) {
     return {
       locationId: id,
-      title: "Глибка",
+      title: "Низ",
       regionName: "Корчма Квестарні",
+      showNames: true,
+      isSpecific: true
+    };
+  }
+
+  if (id === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1) {
+    return {
+      locationId: id,
+      title: "Сутерени Корчми",
+      regionName: "Низ",
       showNames: true,
       isSpecific: true
     };
@@ -644,7 +680,8 @@ export function isKorchmaInteriorLocation(locationId: string | null | undefined)
     id === PRESENCE_LOCATION_KORCHMA_NEWS_CORNER ||
     id === PRESENCE_LOCATION_KORCHMA_RANGER_CORNER ||
     id === PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER ||
-    id === PRESENCE_LOCATION_KORCHMA_DEEP
+    id === PRESENCE_LOCATION_KORCHMA_DEEP ||
+    id === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1
   );
 }
 

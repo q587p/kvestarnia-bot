@@ -10,10 +10,12 @@ import {
   isKorchmaInteriorLocation,
   normalizePresenceLocationId,
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
+  PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
   PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
@@ -61,6 +63,30 @@ describe("PresenceService", () => {
     });
   });
 
+  it("names the first Nyz tier as a specific korchma interior location", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1)
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    const place = await service.getCurrentPlaceForTelegramUser(1n);
+
+    expect(getPublicPresenceLocation(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1)).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+      title: "Сутерени Корчми",
+      regionName: "Низ",
+      showNames: true,
+      isSpecific: true
+    });
+    expect(isKorchmaInteriorLocation(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1)).toBe(true);
+    expect(place).toMatchObject({
+      state: "ready",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+      locationName: "Сутерени Корчми",
+      insideKorchma: true
+    });
+  });
+
   it("keeps the training doppelganger in the fighting corner as a real location", async () => {
     const repository = new FakePresenceRepository([
       player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER, {
@@ -89,6 +115,21 @@ describe("PresenceService", () => {
         id: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
         locationName: "Бійцівський куток"
       }
+    });
+  });
+
+  it("reports the current activity marker without expanding participant lists", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_QUEST_TABLE, {
+        currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
+      })
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    await expect(service.getCurrentActivityForTelegramUser(1n)).resolves.toEqual({
+      state: "ready",
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
     });
   });
 

@@ -35,22 +35,6 @@ describe("hunt command", () => {
               text: "🚪 Зайти в корчму",
               callback_data: makePlaceCallbackData("hall")
             }
-          ],
-          [
-            {
-              text: "📜 Табличка прибулих",
-              callback_data: makePlaceCallbackData("arrivals")
-            },
-            {
-              text: "🏅 Пропамʼятна дошка",
-              callback_data: makePlaceCallbackData("memorial")
-            }
-          ],
-          [
-            {
-              text: "🎒 Манчкін-скупник",
-              callback_data: "v1:lvlx:open"
-            }
           ]
         ]
       }
@@ -58,7 +42,7 @@ describe("hunt command", () => {
     expect(presence.marks).toEqual([]);
   });
 
-  it("marks the quest table when /hunt opens inside the korchma", async () => {
+  it("marks the Yeger corner when /hunt opens before a quest is active", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
       locationId: PRESENCE_LOCATION_KORCHMA_HALL,
@@ -72,9 +56,40 @@ describe("hunt command", () => {
 
     expect(replies[0]?.text).toContain("🧥 Єгерський куток");
     expect(replies[0]?.text).toContain("У темному кутку сидить людисько-єгер у капюшоні");
-    expect(replies[0]?.text).toContain("Неспокійні справи");
+    expect(replies[0]?.text).toContain("На краю стола лежить справа");
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_HUNT_BOARD
+    });
+  });
+
+  it("marks the front yard when /hunt opens an active Yeger trail", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+    const yegerQuestService = {
+      getForTelegramUser: () =>
+        Promise.resolve({
+          state: "in-progress",
+          character,
+          progress: { wins: 1, target: 5 },
+          tracking: { state: "none" }
+        })
+    } as unknown as YegerQuestService;
+
+    await sendHuntBoard(makeContext(replies), yegerQuestService, "reply", {
+      presence,
+      requireKorchmaInterior: true
+    });
+
+    expect(replies[0]?.text).toContain("🚪 Надворі біля корчми");
+    expect(replies[0]?.text).toContain("Єгер лишився біля Бочки");
+    expect(JSON.stringify(replies[0]?.options)).toContain("👣 Взяти слід");
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_HUNT_BOARD
     });

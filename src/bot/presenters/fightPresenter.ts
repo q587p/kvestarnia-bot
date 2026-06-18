@@ -9,6 +9,7 @@ import type {
   PersistentFightTurnResult,
   ThirteenSmallProblemsProgress
 } from "../../services/fightService";
+import { getCombatSkillDisplay } from "../../services/fightService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
@@ -91,6 +92,19 @@ export function presentFightNeedsRest(
   ].join("\n");
 }
 
+export function presentFightMonsterRest(
+  result: Extract<FightLookupResult, { state: "monster-rest" }>
+): string {
+  return [
+    "🪜 <b>Низ просить тихіше</b>",
+    presentCharacterHeader(result.character),
+    "",
+    "Монстри щойно взяли коротку корчемну перерву. Кажуть, без неї вони починають випадати з ролі й просити профспілку.",
+    "",
+    `Поверніться за <b>${presentDuration(Math.ceil((result.availableAt.getTime() - result.now.getTime()) / 1000))}</b>.`
+  ].join("\n");
+}
+
 export function presentFightTrainingActive(
   result: Extract<FightLookupResult, { state: "training-active" }>
 ): string {
@@ -108,14 +122,14 @@ export function presentPersistentFightDifficultyChoice(
   result: Extract<FightLookupResult, { state: "persistent-ready" }>
 ): string {
   return [
-    "⚔️ <b>Розв’язати проблему</b>",
+    "🧱 <b>Ярус I: Сутерени Корчми</b>",
     presentCharacterHeader(result.character),
     "",
-    "Припічник визирає з-за печі й питає, скільки перцю сипати в монстра.",
+    "Підсходник сидить на нижній сходинці й крейдою малює три проходи на стіні. Каже, що Низ любить, коли вибір здається простим.",
     "",
-    "🕯 Легше — нижчий рівень, скромніша винагорода.",
-    "🍺 Як є — чесний корчмарський хаос.",
-    "🌶 Важче — сильніший монстр, трохи щедріша здобич."
+    "⬅️ Лівий прохід — глибше й небезпечніше: сильніший монстр, трохи щедріша здобич.",
+    "🚪 Прямий прохід — як є: чесний корчмарський хаос.",
+    "➡️ Правий прохід — обережніше: нижчий рівень і скромніша винагорода."
   ].join("\n");
 }
 
@@ -150,6 +164,9 @@ export function presentPersistentFight(
     result.state === "persistent-active"
       ? "Бій триває. Корчма тримає рахунок ходів, але поки не видає нагород."
       : "Цей бій уже завершився. Корчма записала стан і не чіпає нагороди.";
+  const startTip = result.state === "persistent-active" && result.started
+    ? presentBattleStartTip(result.character, result.session.id)
+    : null;
 
   return presentPersistentFightState({
     character: result.character,
@@ -158,7 +175,8 @@ export function presentPersistentFight(
     monsterLevel: result.monster?.level ?? null,
     questProgress: result.questProgress,
     fightReward: result.state === "persistent-terminal" ? result.fightReward : null,
-    intro
+    intro,
+    startTip
   });
 }
 
@@ -179,7 +197,7 @@ export function presentPersistentFightTurn(
     }
 
     if (result.state === "not-enough-mana") {
-      return "Мани не вистачило. Дія не витрачена, монстр теж не отримав права на додаткову драму.";
+      return "Мани не стало навіть на драматичний жест. Монстр помітив це першим.";
     }
 
     if (result.state === "terminal") {
@@ -324,6 +342,7 @@ function presentPersistentFightState(input: {
   questProgress: ThirteenSmallProblemsProgress | null;
   fightReward?: Extract<PersistentFightTurnResult, { state: "updated" }>["fightReward"];
   intro: string;
+  startTip?: string | null;
 }): string {
   const state = input.session.state;
   const monsterLevel = input.monsterLevel ? ` · рівень ${input.monsterLevel}` : "";
@@ -332,6 +351,7 @@ function presentPersistentFightState(input: {
     presentCharacterHeader(input.character),
     "",
     input.intro,
+    ...(input.startTip ? ["", input.startTip] : []),
     "",
     `Проти вас: <b>${escapeHtml(input.monsterName)}</b>${monsterLevel}`,
     "",
@@ -339,6 +359,10 @@ function presentPersistentFightState(input: {
     `👹 Монстр: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
     `Хід: ${state?.turn ?? "?"}`
   ];
+
+  if (state?.status === "active" && state.cooldowns?.skill?.remainingTurns) {
+    lines.push(`🫁 Вміння відсапується: ще ${formatTurns(state.cooldowns.skill.remainingTurns)}.`);
+  }
 
   if (state?.lastTurn) {
     lines.push("", presentTurnSummary(state.lastTurn));
@@ -555,7 +579,23 @@ function presentProblemQuestIssueLine(
 
 function presentTurnSummary(summary: CombatTurnSummary): string {
   if (summary.heroOutcome === "not-enough-mana") {
-    return ["Останній хід", "Мани не вистачило."].join("\n");
+    return [
+      "Остання дія",
+      "Мани не стало навіть на драматичний жест.",
+      summary.monsterDamage > 0
+        ? `Монстр скористався паузою на ${summary.monsterDamage} шкоди.`
+        : "Монстр скористався паузою, але перечепився об власну впевненість."
+    ].join("\n");
+  }
+
+  if (summary.heroOutcome === "skill-on-cooldown") {
+    return [
+      "Остання дія",
+      "Навичка ще відсапується. Пригодник зробив вигляд, що так і планував.",
+      summary.monsterDamage > 0
+        ? `Монстр відповів на ${summary.monsterDamage} шкоди.`
+        : "Монстр промахнувся й теж назвав це планом."
+    ].join("\n");
   }
 
   if (summary.heroOutcome === "fled") {
@@ -576,7 +616,7 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
 
   const action =
     summary.action === "skill"
-      ? "Вміння"
+      ? presentSkillAction(summary.skillId)
       : summary.action === "attack"
         ? "Атака"
         : "Відступ";
@@ -591,5 +631,40 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
         ? "Монстр промахнувся й зробив вигляд, що так і планував."
         : "";
 
-  return ["Останній хід", hit, response].filter(Boolean).join("\n");
+  return ["Остання дія", hit, response].filter(Boolean).join("\n");
+}
+
+function presentSkillAction(skillId: string | undefined): string {
+  const skill = getCombatSkillDisplay(skillId);
+
+  return `Вміння ${skill.icon} <i>${escapeHtml(skill.name)}</i>`;
+}
+
+function presentBattleStartTip(character: CharacterSummary, seed: string): string | null {
+  const flavor = selectCharacterFlavorLine(character, {
+    placement: "raid.prep-hint",
+    scene: "barrel",
+    seed: `battle-start:${seed}`
+  });
+
+  return flavor ? `<i>Порада дня: ${escapeHtml(flavor.text)}</i>` : null;
+}
+
+function formatTurns(count: number): string {
+  return `${count} ${pluralize(count, "хід", "ходи", "ходів")}`;
+}
+
+function pluralize(count: number, one: string, few: string, many: string): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return one;
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return few;
+  }
+
+  return many;
 }

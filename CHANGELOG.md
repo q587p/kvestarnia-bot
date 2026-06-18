@@ -7,6 +7,44 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.15] - 12026-06-18 - Combat Lock and Battle Flow Polish
+
+### Added
+- Added a central active-combat lock that redirects normal commands and callbacks back to unfinished persistent or training fights until they reach terminal state.
+- Hardened the lock for registered reply-keyboard main-menu text (`Корчма`, `Квести`, `Персонаж`, `Манатки`, `Хто поруч`) while keeping Help, `/help`, `/version`, and real persistent/training/starter combat callbacks allowed.
+- Newly started persistent battles now show the existing `Порада дня` line once at battle intro.
+- Added deterministic `3..5` hero-turn cooldowns for successful zero-mana class skills, based on the relevant skill stat with a small luck effect.
+- Added a three-minute monster-rest block after three consecutive eligible ordinary `Низ` fights, measured from the stored terminal completion time of the third fight so later reward/replay writes do not extend the rest.
+- Level 3+ ordinary/problem fight entry moved to `Низ`; fight routes now open `Спуск до Низу`, then `Спуститися` moves to the first tier, `Ярус I: Сутерени Корчми`, where the passage/difficulty choice lives.
+- Added a short HP recovery notice when passive out-of-combat regeneration first brings a character back to full health during `/hero` or `/fight` flow.
+
+### Changed
+- Current-turn hidden/forged magic callbacks without enough mana now waste the hero turn, run the monster phase, advance the turn and persist the updated combat state.
+- Current-turn hidden/forged non-mana skill callbacks while on cooldown use the same failed-turn semantics.
+- Combat-lock redirects now show a visible explanation before the active fight or training screen, so blocked navigation is clear even when a callback toast is missed.
+- Persistent and training fight keyboards recompute action availability every render, hiding magic without enough current mana and hiding non-mana skills while on cooldown.
+- Combat and pending-raid guards now run before destination presence writes; blocked routes refresh combat-appropriate presence instead of stamping tavern/news/Yeger destinations first.
+- Terminal and lazily expired persistent `/fight` restores now render the canonical terminal/reward replay screen before normal navigation returns.
+- Active training doppelganger keyboards now show only combat actions and no normal-navigation escape buttons.
+- Stale old quest-table fight callbacks open a fresh `Спуск до Низу` surface instead of starting from the old table message; passage selection and active fights use the separate `location.korchma.deep.level1` presence location.
+- `Спуск до Низу` now shows `⬆️ Повернутися до зали` above `⬇️ Спуститися`, matching the upward navigation icon used deeper in `Низ`.
+- The three-adventure offer screen now shows each problem as a compact title plus italic short line; full problem hooks stay on the selected-problem screen.
+- Selected problem-fight passage callbacks now preserve the selected difficulty when moving the player into `Низ`, so the fight starts instead of redisplaying the passage choice.
+- Outside direct activity gates now show only the `Зайти в корчму` button instead of the full front-door action keyboard.
+- Yeger quest selection, target help, and turn-in stay at the Barrel-side Yeger corner, while active trail taking/checking moves to the outdoor hunt surface; front-door routing now shows `До полювання` for active Yeger quests and Yeger progress still matches eligible monster type/tag source-agnostically.
+- Yeger progress now uses fight completion time rather than mutable session update time, so late reward/replay updates on older wins cannot jump a newly started trail forward.
+- On the front-door surface, active Yeger `До полювання` now renders as the final row below the Munchkin barter entry.
+- Outdoor Yeger trail screens now return to the base `Надворі біля корчми` surface instead of showing an indoor-only `До Єгеря` button.
+- The existing `raid.prep-hint` tip pool was expanded and reused for battle intros instead of adding a second combat-only tip system.
+
+### Guardrails
+- Adventure Choice MVP stays intact: three-problem offers, level 1-2 starter mimic-shawarma, adventure complication handoff through persistent combat, `/dev_adventure_reset`, qualitative pre-choice copy and stable icons remain in place.
+- Adventure complication handoff rollback still avoids consuming the period if persistent combat cannot start, including monster-rest blocks.
+- Completed starter mimic-shawarma lookups still do not create actionable starter presence/buttons.
+- Monster rest excludes adventure handoffs, training doppelganger fights and legacy/unmarked sessions.
+- HP recovery notices use the existing lazy resource regeneration path; no durable background scheduler or proactive chat notification table was added.
+- No threat streaks, multi-enemy fights, mana-restoring manatky/items, combat items, duel-combat runtime, migrations, schema changes or new production dependencies were added.
+
 ## [0.1.14] - 12026-06-18 - Adventure Choice MVP
 
 ### Added

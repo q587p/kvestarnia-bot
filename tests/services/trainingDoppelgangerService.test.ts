@@ -603,7 +603,7 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
     );
   }
 
-  listByTelegramUserIdSince(): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt">>> {
+  listCompletedByTelegramUserIdSince(): Promise<Array<Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "updatedAt"> & { completedAt: Date }>> {
     return Promise.resolve([]);
   }
 

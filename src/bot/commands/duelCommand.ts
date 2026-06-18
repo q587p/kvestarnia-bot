@@ -18,7 +18,7 @@ import {
   buildDuelResourceWarningKeyboard,
   buildDuelResultKeyboard
 } from "../keyboards/duelKeyboard";
-import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
+import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentDuelAccept,
   presentDuelCancel,
@@ -347,7 +347,7 @@ async function sendText(
             keyboard === "entry"
               ? buildDuelEntryKeyboard()
               : keyboard === "enter-korchma"
-                ? buildKorchmaFrontKeyboard()
+                ? buildEnterKorchmaKeyboard()
                 : keyboard === "create-resource-warning"
                   ? buildDuelCreateResourceWarningKeyboard()
                 : keyboard === "navigation"

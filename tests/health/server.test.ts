@@ -78,11 +78,13 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("На столі три проблеми");
-    expect(text).toContain("Корчмар прибрав");
-    expect(text).toContain("У пригоді тепер зʼявляються три корчемні справи");
-    expect(text).toContain("<code>/adventure</code>");
-    expect(text).toContain("Нагороди лишаються скромними");
+    expect(text).toContain("Низ не відпускає");
+    expect(text).toContain("Корчмар подивився на пригодників");
+    expect(text).toContain("Незавершений бій тепер тримає пригодника");
+    expect(text).toContain("<code>Низ</code>");
+    expect(text).toContain("Припічник передав крейду Підсходнику");
+    expect(text).toContain("<code>Сутерени Корчми</code>");
+    expect(text).toContain("монстри можуть взяти коротку корчемну перерву");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

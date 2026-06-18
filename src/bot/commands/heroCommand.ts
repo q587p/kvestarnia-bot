@@ -3,6 +3,10 @@ import type { HeroService } from "../../services/heroService";
 import { telegramUserIdFromContext } from "../context";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { presentHero, presentHeroMissing } from "../presenters/heroPresenter";
+import {
+  prefixResourceRecoveryNotice,
+  presentResourceRecoveryNotice
+} from "../presenters/resourceRecoveryPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
 export function registerHeroCommand(bot: Bot, heroService: HeroService): void {
@@ -26,10 +30,18 @@ export async function sendHero(
   const result = await heroService.findByTelegramUserId(telegramUserId);
 
   if (result.state === "existing-character") {
+    const heroText = presentHero(result.character, { inventoryGoldValue: result.inventoryGoldValue });
+
+    if (result.recoveryNotice && mode === "reply") {
+      await sendText(ctx, "reply", presentResourceRecoveryNotice(result.recoveryNotice));
+    }
+
     await sendText(
       ctx,
       mode,
-      presentHero(result.character, { inventoryGoldValue: result.inventoryGoldValue }),
+      mode === "edit"
+        ? prefixResourceRecoveryNotice(heroText, result.recoveryNotice)
+        : heroText,
       true
     );
     return;
