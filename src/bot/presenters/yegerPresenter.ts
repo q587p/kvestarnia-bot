@@ -78,7 +78,7 @@ export function presentYegerHuntOutside(
     "🚪 Надворі біля корчми",
     presentCharacterHeader(result.character),
     "",
-    "Єгер лишився біля Бочки, а вас відправив туди, де сліди не можуть сховатися під піною.",
+    "Єгер лишився біля Бочки, а вас відправив сюди, де сліди не можуть сховатися під піною.",
     "",
     presentProgressLine(result.progress)
   ];
