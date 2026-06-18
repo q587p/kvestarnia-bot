@@ -474,7 +474,7 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["⚔️ Новий бій", "📋 До справ", "🍺 До зали"]);
+    }, character))).toEqual(["⚔️ Новий бій", "🪜 До Низу"]);
     expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
       ...session,
       status: "won",
@@ -482,7 +482,7 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["v1:place:deep", "v1:place:quest-table", "v1:place:hall"]);
+    }, character))).toEqual(["v1:place:deep", "v1:place:deep"]);
   });
 
   it("keeps hunt board inline buttons scoped to hunt actions", () => {

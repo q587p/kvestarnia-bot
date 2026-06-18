@@ -64,9 +64,7 @@ export function buildPersistentFightResultKeyboard(
     return new InlineKeyboard()
       .text("⚔️ Новий бій", makePlaceCallbackData("deep"))
       .row()
-      .text("📋 До справ", makePlaceCallbackData("quest-table"))
-      .row()
-      .text("🍺 До зали", makePlaceCallbackData("hall"));
+      .text("🪜 До Низу", makePlaceCallbackData("deep"));
   }
 
   return buildPersistentFightKeyboard(session, character);
