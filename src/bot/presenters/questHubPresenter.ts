@@ -156,8 +156,15 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
   return `🪜 <i>Низ</i> — ${status}.`;
 }
 
-function presentActiveFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string | null {
+function presentActiveFightRow(
+  character: CharacterSummary,
+  fight: Exclude<FightLookupResult, { state: "no-character" }>
+): string | null {
   if (fight.state === "level-retired" || fight.state === "already-completed") {
+    return null;
+  }
+
+  if (fight.state === "ready" && character.level <= STARTER_ACTIVITY_MAX_LEVEL) {
     return null;
   }
 
@@ -328,7 +335,7 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
       ? presentAdventureRow(snapshot.character, snapshot.adventure, snapshot.starterAdventure)
       : null,
     presentProblemQuestRow(snapshot.character, snapshot.problemQuest, snapshot.fight),
-    presentActiveFightRow(snapshot.fight),
+    presentActiveFightRow(snapshot.character, snapshot.fight),
     presentActiveYegerRow(snapshot.yeger),
     presentActiveCellarRow(snapshot.cellar, snapshot.cellarGrownup)
   ].filter(isPresent);
