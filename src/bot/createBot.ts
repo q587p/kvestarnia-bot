@@ -1497,7 +1497,8 @@ async function handleQuestCallback(
       });
       await sendFight(ctx, services.fight, "reply", {
         presence: services.presence,
-        requireKorchmaInterior: false
+        requireKorchmaInterior: false,
+        ...(fightDifficulty ? { difficulty: fightDifficulty } : {})
       });
       return;
     }

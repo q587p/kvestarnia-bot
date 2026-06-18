@@ -22,6 +22,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Current-turn hidden/forged non-mana skill callbacks while on cooldown use the same failed-turn semantics.
 - Persistent and training fight keyboards recompute action availability every render, hiding magic without enough current mana and hiding non-mana skills while on cooldown.
 - Stale old quest-table fight callbacks open a fresh `Глибка` fight surface instead of starting from the old table message.
+- Selected problem-fight difficulty callbacks now preserve the selected difficulty when moving the player into `Глибка`, so the fight starts instead of redisplaying the difficulty choice.
 - Yeger quest selection, target help, and turn-in stay at the Barrel-side Yeger corner, while active trail taking/checking moves to the outdoor hunt surface; front-door routing now shows `До полювання` for active Yeger quests and Yeger progress still matches eligible monster type/tag source-agnostically.
 - The existing `raid.prep-hint` tip pool was expanded and reused for battle intros instead of adding a second combat-only tip system.
 

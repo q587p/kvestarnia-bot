@@ -837,6 +837,58 @@ describe("scene callback HTML options", () => {
     ).toBe(false);
   });
 
+  it("starts selected problem fight difficulty after moving from the hall to the Deep", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-active" as const,
+        character: {
+          ...character,
+          level: 3
+        },
+        session: persistentSession("monster.deadline-spider"),
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null
+      })
+    );
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("fight-normal"),
+      servicesWith({
+        fight: {
+          getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.hall",
+              locationName: "Зала корчми",
+              insideKorchma: true
+            })
+        }
+      })
+    );
+    const fight = calls.find((call) => call.method === "sendMessage");
+
+    expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
+      difficulty: "normal"
+    });
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(String(fight?.payload.text)).toContain("Павук дедлайнів");
+  });
+
   it("rolls back a complication claim when the follow-up fight needs rest", async () => {
     const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
       Promise.resolve("deleted" as const)
