@@ -81,6 +81,9 @@ describe("adventure presenter", () => {
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>");
     expect(text).toContain("1. 🍲 <b>Казанок &lt;репетирує&gt;</b>");
     expect(text).toContain("Кухар &amp; свідок");
+    expect(text).not.toContain("Юшка вимагає");
+    expect(text).not.toContain("Корчмар виклав");
+    expect(text).not.toContain("Оберіть одну справу");
     expect(text).toContain("3. 🪖 <b>");
     expect(text).toContain("<i>Кухар &amp; свідок</i>\n\n2. 🛢️ <b>Бочка</b>");
   });

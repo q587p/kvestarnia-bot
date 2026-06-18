@@ -23,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Combat-lock redirects now show a visible explanation before the active fight or training screen, so blocked navigation is clear even when a callback toast is missed.
 - Persistent and training fight keyboards recompute action availability every render, hiding magic without enough current mana and hiding non-mana skills while on cooldown.
 - Stale old quest-table fight callbacks open a fresh `Глибка` fight surface instead of starting from the old table message.
+- The three-adventure offer screen now shows each problem as a compact title plus italic short line; full problem hooks stay on the selected-problem screen.
 - Selected problem-fight difficulty callbacks now preserve the selected difficulty when moving the player into `Глибка`, so the fight starts instead of redisplaying the difficulty choice.
 - Outside direct activity gates now show only the `Зайти в корчму` button instead of the full front-door action keyboard.
 - Yeger quest selection, target help, and turn-in stay at the Barrel-side Yeger corner, while active trail taking/checking moves to the outdoor hunt surface; front-door routing now shows `До полювання` for active Yeger quests and Yeger progress still matches eligible monster type/tag source-agnostically.
