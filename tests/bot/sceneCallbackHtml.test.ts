@@ -866,7 +866,7 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
   });
 
-  it("opens the Niz descent for old quest-table fight callbacks", async () => {
+  it("opens the Nyz descent for old quest-table fight callbacks", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn();
     const calls = await captureApiCalls(
@@ -910,7 +910,7 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(descent?.payload.reply_markup)).toContain("Спуститися");
   });
 
-  it("opens the first Niz tier from the descent place callback", async () => {
+  it("opens the first Nyz tier from the descent place callback", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn();
     const calls = await captureApiCalls(
@@ -954,7 +954,7 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(tier?.payload.reply_markup)).toContain("⬇️ Прямий прохід");
   });
 
-  it("starts selected problem fight difficulty after moving from the hall to the Niz", async () => {
+  it("starts selected problem fight difficulty after moving from the hall to the Nyz", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
       Promise.resolve({

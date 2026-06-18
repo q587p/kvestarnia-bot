@@ -218,7 +218,7 @@ describe("tavern command screens", () => {
     });
   });
 
-  it("shows the Niz descent surface", async () => {
+  it("shows the Nyz descent surface", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
     await sendKorchmaDeepClosed(

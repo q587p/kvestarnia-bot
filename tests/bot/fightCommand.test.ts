@@ -192,7 +192,7 @@ describe("fight command", () => {
     });
   });
 
-  it("opens the Niz descent before problem fight difficulty choices", async () => {
+  it("opens the Nyz descent before problem fight difficulty choices", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     let startCount = 0;
     const fightService = {
@@ -238,7 +238,7 @@ describe("fight command", () => {
     });
   });
 
-  it("offers three Niz passages after descending", async () => {
+  it("offers three Nyz passages after descending", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     let startCount = 0;
     const fightService = {

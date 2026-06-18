@@ -62,7 +62,7 @@ describe("PresenceService", () => {
     });
   });
 
-  it("names the first Niz tier as a specific korchma interior location", async () => {
+  it("names the first Nyz tier as a specific korchma interior location", async () => {
     const repository = new FakePresenceRepository([
       player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1)
     ]);

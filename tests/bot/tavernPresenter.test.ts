@@ -141,7 +141,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("найпереконливіше махав честю");
   });
 
-  it("shows the Niz descent with its first surface copy", () => {
+  it("shows the Nyz descent with its first surface copy", () => {
     const text = presentKorchmaDeepClosed(character);
 
     expect(text).toContain("🪜 Спуск до Низу");
