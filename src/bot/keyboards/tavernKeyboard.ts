@@ -67,7 +67,7 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = 
     .text("🛢️ Бочка", makePlaceCallbackData("barrel"))
     .text("🍻 Шинок", makePlaceCallbackData("bar"))
     .row()
-    .text("🕳️ Глибка", makePlaceCallbackData("deep"))
+    .text("🪜 Спуск до Низу", makePlaceCallbackData("deep"))
     .text("🐭 Льох", makePlaceCallbackData("cellar"))
     .row()
     .text("📰 Дошка вістей", makePlaceCallbackData("news-corner"))
@@ -114,6 +114,13 @@ export function buildKorchmaBarKeyboard(
 
 export function buildBackToKorchmaHallKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text("⬅️ До зали", makePlaceCallbackData("hall"));
+}
+
+export function buildKorchmaDeepKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("Спуститися", makeQuestCallbackData("fight-descend"))
+    .row()
+    .text("Повернутися до зали", makePlaceCallbackData("hall"));
 }
 
 export function buildKorchmaArrivalBoardKeyboard(): InlineKeyboard {

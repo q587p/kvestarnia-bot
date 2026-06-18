@@ -44,6 +44,7 @@ import {
   buildEnterKorchmaKeyboard,
   buildKorchmaArrivalBoardKeyboard,
   buildKorchmaBarKeyboard,
+  buildKorchmaDeepKeyboard,
   buildKorchmaFightingCornerKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
@@ -103,7 +104,7 @@ describe("main menu and scene keyboards", () => {
       "📋 Стіл зі справами",
       "🛢️ Бочка",
       "🍻 Шинок",
-      "🕳️ Глибка",
+      "🪜 Спуск до Низу",
       "🐭 Льох",
       "📰 Дошка вістей",
       "🚪 Надвір"
@@ -124,7 +125,7 @@ describe("main menu and scene keyboards", () => {
       "📋 Стіл зі справами",
       "🛢️ Бочка",
       "🍻 Шинок",
-      "🕳️ Глибка",
+      "🪜 Спуск до Низу",
       "🐭 Льох",
       "📰 Дошка вістей",
       "🚪 Надвір"
@@ -143,7 +144,7 @@ describe("main menu and scene keyboards", () => {
     expect(inlineButtonRows(buildKorchmaHallKeyboard())).toEqual([
       ["🥊 Бійцівський куток", "📋 Стіл зі справами"],
       ["🛢️ Бочка", "🍻 Шинок"],
-      ["🕳️ Глибка", "🐭 Льох"],
+      ["🪜 Спуск до Низу", "🐭 Льох"],
       ["📰 Дошка вістей", "🚪 Надвір"]
     ]);
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard())).toEqual([
@@ -452,7 +453,15 @@ describe("main menu and scene keyboards", () => {
       "🗡️ Вдарити",
       "🗡️ Силовий удар",
       "🏃 Відступити",
-      "🌘 До глибки"
+      "🪜 Спуск до Низу"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard())).toEqual([
+      "Спуститися",
+      "Повернутися до зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard())).toEqual([
+      "v1:quest:fight-descend",
+      "v1:place:hall"
     ]);
     expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toEqual([
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
@@ -467,7 +476,7 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["🌘 До глибки", "📋 До справ", "🍺 До зали"]);
+    }, character))).toEqual(["⚔️ Новий бій", "📋 До справ", "🍺 До зали"]);
     expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
       ...session,
       status: "won",
@@ -1051,7 +1060,7 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
       "🕯️ Реморт",
       "🍻 До шинку",
-      "До глибки",
+      "До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -1091,7 +1100,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "До глибки",
+      "До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -1138,7 +1147,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "До глибки",
+      "До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",

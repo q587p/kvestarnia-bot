@@ -74,7 +74,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "До глибки",
+      "До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -82,7 +82,7 @@ describe("quest hub command", () => {
     ]);
     expect(buttons).toEqual(expect.arrayContaining([
       { text: "🪧 Обрати пригоду", callback_data: makeQuestCallbackData("adventure") },
-      { text: "До глибки", callback_data: makePlaceCallbackData("deep") },
+      { text: "До Низу", callback_data: makePlaceCallbackData("deep") },
       { text: "🧹 У льох", callback_data: makeQuestCallbackData("cellar") }
     ]));
     expect(presence.marks[0]).toMatchObject({
@@ -276,7 +276,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "До глибки",
+      "До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -339,7 +339,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "До глибки",
+      "До Низу",
       "🏹 До Єгеря",
       "📦 Архів",
       "📖 Бестіарій",
@@ -528,7 +528,7 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain(
-      "🌘 <i>Глибка</i> — герой ще не тримається на ногах, спершу /hero."
+      "🪜 <i>Низ</i> — герой ще не тримається на ногах, спершу /hero."
     );
     expect(replies[0]?.text).toContain("HP 0? Спершу /hero, тоді /fight. Справи почекають.");
   });
@@ -581,7 +581,7 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    expect(buttons.map((button) => button.text)).toContain("До глибки");
+    expect(buttons.map((button) => button.text)).toContain("До Низу");
   });
 
   it("keeps terminal persistent fights recoverable from the quest hub", async () => {
@@ -638,7 +638,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toContain("🍻 До шинку");
-    expect(buttons.map((button) => button.text)).toContain("До глибки");
+    expect(buttons.map((button) => button.text)).toContain("До Низу");
   });
 
   it("hides starter shawarma and offers persistent fight at level three", async () => {
@@ -668,7 +668,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "До глибки",
+      "До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -765,7 +765,7 @@ describe("quest hub command", () => {
       "🍺 До зали"
     ]);
     expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("bar"));
-    expect(buttons.map((button) => button.text)).not.toContain("До глибки");
+    expect(buttons.map((button) => button.text)).not.toContain("До Низу");
   });
 
   it("shows active spar from the quest hub without offering a normal fight", async () => {

@@ -184,7 +184,6 @@ import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyb
 import {
   buildEnterKorchmaKeyboard,
   buildKorchmaBarKeyboard,
-  buildKorchmaFrontKeyboard,
   buildKorchmaRoundOfferKeyboard,
   buildKorchmaRoundResultKeyboard,
   buildTavernParticipantsKeyboard,
@@ -1422,7 +1421,7 @@ async function handlePlaceCallback(
   }
 
   if (action === "deep") {
-    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "edit", services.fight);
+    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "edit");
     return;
   }
 
@@ -1478,7 +1477,7 @@ async function handleQuestCallback(
 
   const fightDifficulty = questCallbackToPersistentFightDifficulty(action);
 
-  if (action === "fight" || fightDifficulty) {
+  if (action === "fight" || action === "fight-descend" || fightDifficulty) {
     if (!telegramUserId) {
       await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
       return;
@@ -1508,6 +1507,7 @@ async function handleQuestCallback(
       await sendFight(ctx, services.fight, "reply", {
         presence: services.presence,
         requireKorchmaInterior: false,
+        ...(action === "fight-descend" ? { openDifficulty: true } : {}),
         ...(fightDifficulty ? { difficulty: fightDifficulty } : {})
       });
       return;
@@ -1517,6 +1517,7 @@ async function handleQuestCallback(
       presence: services.presence,
       tavernRaid: services.tavern,
       requireKorchmaInterior: true,
+      ...(action === "fight-descend" ? { openDifficulty: true } : {}),
       ...(fightDifficulty ? { difficulty: fightDifficulty } : {})
     });
     return;

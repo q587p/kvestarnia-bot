@@ -218,7 +218,7 @@ describe("tavern command screens", () => {
     });
   });
 
-  it("shows the Deep as a closed location", async () => {
+  it("shows the Niz descent surface", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
     await sendKorchmaDeepClosed(
@@ -228,8 +228,9 @@ describe("tavern command screens", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("🕳️ Глибка");
-    expect(replies[0]?.text).toContain("гарчить");
+    expect(replies[0]?.text).toContain("🪜 Спуск до Низу");
+    expect(replies[0]?.text).toContain("За бочками в коморі є сходи.");
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeQuestCallbackData("fight-descend"));
     expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
   });
 

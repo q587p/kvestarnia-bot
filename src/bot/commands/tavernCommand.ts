@@ -21,6 +21,7 @@ import {
   buildKorchmaArrivalBoardKeyboard,
   buildKorchmaBarKeyboard,
   buildBackToKorchmaHallKeyboard,
+  buildKorchmaDeepKeyboard,
   buildKorchmaFightingCornerKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
@@ -45,7 +46,6 @@ import {
   presentTavernRaidReadyToComplete
 } from "../presenters/tavernPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
-import { sendFight } from "./fightCommand";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 
@@ -271,8 +271,7 @@ export async function sendKorchmaDeepClosed(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
-  mode: "reply" | "edit",
-  fightService?: FightService
+  mode: "reply" | "edit"
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -302,15 +301,7 @@ export async function sendKorchmaDeepClosed(
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_DEEP);
 
-  if (fightService) {
-    await sendFight(ctx, fightService, mode, {
-      presence: presenceService,
-      requireKorchmaInterior: false
-    });
-    return;
-  }
-
-  await sendText(ctx, mode, presentKorchmaDeepClosed(result.character), "back-to-hall");
+  await sendText(ctx, mode, presentKorchmaDeepClosed(result.character), "deep");
 }
 
 export async function sendDuelWinnersBoard(
@@ -474,6 +465,7 @@ async function sendText(
     | "front"
     | { state: "front"; yegerAction: "corner" | "hunt" }
     | "fighting-corner"
+    | "deep"
     | "back-to-fighting-corner"
     | "back-to-hall"
     | "arrivals"
@@ -498,6 +490,8 @@ async function sendText(
                 })
             : keyboard === "fighting-corner"
               ? buildKorchmaFightingCornerKeyboard()
+            : keyboard === "deep"
+              ? buildKorchmaDeepKeyboard()
             : keyboard === "back-to-fighting-corner"
               ? buildKorchmaFightingCornerKeyboard()
             : keyboard === "back-to-hall"
@@ -535,6 +529,7 @@ function isFrontKeyboard(
     | "front"
     | { state: "front"; yegerAction: "corner" | "hunt" }
     | "fighting-corner"
+    | "deep"
     | "back-to-fighting-corner"
     | "back-to-hall"
     | "arrivals"
@@ -555,6 +550,7 @@ function isBarKeyboard(
     | "front"
     | { state: "front"; yegerAction: "corner" | "hunt" }
     | "fighting-corner"
+    | "deep"
     | "back-to-fighting-corner"
     | "back-to-hall"
     | "arrivals"
@@ -575,6 +571,7 @@ function isHallKeyboard(
     | "front"
     | { state: "front"; yegerAction: "corner" | "hunt" }
     | "fighting-corner"
+    | "deep"
     | "back-to-fighting-corner"
     | "back-to-hall"
     | "arrivals"

@@ -76,7 +76,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     if (input.fight.state === "ready") {
       keyboard.text("⚔️ До сутички", makeQuestCallbackData("fight"));
     } else {
-      keyboard.text("До глибки", makePlaceCallbackData("deep"));
+      keyboard.text("До Низу", makePlaceCallbackData("deep"));
     }
     hasAction = true;
   }

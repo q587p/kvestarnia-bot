@@ -10,6 +10,7 @@ describe("quest callback data", () => {
   it.each([
     "adventure",
     "fight",
+    "fight-descend",
     "fight-easy",
     "fight-normal",
     "fight-hard",
@@ -34,6 +35,7 @@ describe("quest callback data", () => {
     expect(questCallbackToPersistentFightDifficulty("fight-normal")).toBe("normal");
     expect(questCallbackToPersistentFightDifficulty("fight-hard")).toBe("hard");
     expect(questCallbackToPersistentFightDifficulty("fight")).toBeNull();
+    expect(questCallbackToPersistentFightDifficulty("fight-descend")).toBeNull();
   });
 
   it("rejects invalid quest callback data", () => {

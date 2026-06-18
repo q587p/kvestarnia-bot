@@ -866,7 +866,51 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
   });
 
-  it("starts selected problem fight difficulty after moving from the hall to the Deep", async () => {
+  it("opens the Niz descent for old quest-table fight callbacks", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getOrStartPersistentFightForTelegramUser = vi.fn();
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("fight"),
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-ready" as const,
+              character: {
+                ...character,
+                level: 3
+              },
+              questProgress: null
+            }),
+          getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.hall",
+              locationName: "Зала корчми",
+              insideKorchma: true
+            })
+        }
+      })
+    );
+    const descent = calls.find((call) => call.method === "sendMessage");
+
+    expect(getOrStartPersistentFightForTelegramUser).not.toHaveBeenCalled();
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(String(descent?.payload.text)).toContain("🪜 Спуск до Низу");
+    expect(String(descent?.payload.text)).toContain("За бочками в коморі є сходи.");
+    expect(JSON.stringify(descent?.payload.reply_markup)).toContain("Спуститися");
+  });
+
+  it("starts selected problem fight difficulty after moving from the hall to the Niz", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
       Promise.resolve({

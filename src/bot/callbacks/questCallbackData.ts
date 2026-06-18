@@ -4,6 +4,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 export type QuestCallback =
   | "adventure"
   | "fight"
+  | "fight-descend"
   | "fight-easy"
   | "fight-normal"
   | "fight-hard"
@@ -19,6 +20,7 @@ const PREFIX = "v1:quest";
 const questCallbacks = new Set<QuestCallback>([
   "adventure",
   "fight",
+  "fight-descend",
   "fight-easy",
   "fight-normal",
   "fight-hard",

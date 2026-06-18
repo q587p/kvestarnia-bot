@@ -116,7 +116,7 @@ function presentProblemQuestRow(
   }
 
   if (fight.state === "persistent-active") {
-    return `🧾 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}, бій уже триває в глибці.`;
+    return `🧾 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}, бій уже триває в Низу.`;
   }
 
   return `🧾 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}.`;
@@ -124,11 +124,11 @@ function presentProblemQuestRow(
 
 function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string | null {
   if (fight.state === "needs-rest") {
-    return "🌘 <i>Глибка</i> — герой ще не тримається на ногах, спершу /hero.";
+    return "🪜 <i>Низ</i> — герой ще не тримається на ногах, спершу /hero.";
   }
 
   if (fight.state === "level-retired") {
-    return `🌘 <i>Глибка</i> — тренувальний бій для 1-${fight.maxLevel} рівнів.`;
+    return `🪜 <i>Низ</i> — тренувальний бій для 1-${fight.maxLevel} рівнів.`;
   }
 
   if (fight.state === "persistent-active") {
@@ -140,7 +140,7 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
   }
 
   if (fight.state === "monster-rest") {
-    return "🌘 <i>Глибка</i> — монстри взяли коротку перерву й дуже пишаються профспілковою дисципліною.";
+    return "🪜 <i>Низ</i> — монстри взяли коротку перерву й дуже пишаються профспілковою дисципліною.";
   }
 
   if (fight.state === "persistent-not-issued") {
@@ -153,7 +153,7 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
 
   const status = fight.state === "ready" ? "можна починати" : "сьогодні вже зараховано";
 
-  return `🌘 <i>Глибка</i> — ${status}.`;
+  return `🪜 <i>Низ</i> — ${status}.`;
 }
 
 function presentActiveFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string | null {

@@ -108,17 +108,18 @@ After closing a versioned task:
 10. Use `міт`, `мітичний`, `мітологія`, `мітологічний` with `т`, not `міф*`, unless it is an immutable external quote or name.
 11. Use `соціяльний`, `соціяльна`, `соціяльне`, `соціяльні`, `соціяльність` with `я`, not `соціальн*`, unless it is an immutable external quote or name.
 12. In visible docs/changelog/news/player dates, use the Holocene calendar: `12026`, not `2026`. Release/news/changelog date headings use Kyiv time (`Europe/Kyiv`). Do not rewrite machine timestamps, migration names, or technical IDs.
-13. When choosing non-critical exact numbers for flavor, short timers, quest counters, or small limits, prefer `13`, `23`, `42`, `93`, and `587` when it is appropriate. Do not force these numbers when balance, safety, API limits, clarity, or established formulas need something else.
-14. Do not insert secrets, tokens, private chat IDs, or real keys into code or docs.
-15. Do not break existing migrations. Schema changes require a new migration.
-16. Game calculations must be deterministic and testable; combat/domain logic must not depend on Telegram API.
-17. Telegram messages should stay short: one mobile screen, buttons for actions, details on demand.
-18. Within one message or keyboard, prefer distinct icons for distinct actions/places/states. Do not reuse a location/surface icon for a quest row or action shown in the same UI; for example, the quest table and Korchmar quest rows need different icons. Reusing icons is acceptable for similar navigation such as back buttons or pagination.
-19. Do not show exact future reward amounts, drop names, manatky, hidden odds, or percentage chances in player-facing pre-commit choices. Before the player commits, use qualitative risk/reward language; exact values may appear after resolution, in tests, in `CHANGELOG.md`, or in internal docs.
-20. No pay-to-win. Monetization may support cosmetics, comfort, or server support, but not unfair combat power.
-21. When adding new runtime gameplay loops with timers, cooldowns, random offers, pending sessions, or once-per-period gates, consider adding a narrow non-production `/dev_*` command that makes local/manual QA faster without weakening production rules.
-22. When replacing or retiring an older player-facing flow, explicitly preserve or deliberately retire starter/onboarding fallback paths in code, tests, task docs, changelog/news, compact context, and PR body. Do not let level gates for new functionality hide existing newbie content by accident.
-23. After runtime logic changes, run tests or explain the blocker. For docs-only changes, `Not run — docs-only change` is acceptable.
+13. Player-facing under-Korchma combat terminology: ordinary/problem fights route to `Низ`, not `Глибка` or generic `підземелля`; use `Спуск` as the action, `Спуск до Низу` as the first surface, `Ярус I: Сутерени Корчми` as the first layer, and `Зіґурат` only as later lore/reveal. Spell it exactly `Зіґурат`; do not write `Зикурат` in new player-facing copy.
+14. When choosing non-critical exact numbers for flavor, short timers, quest counters, or small limits, prefer `13`, `23`, `42`, `93`, and `587` when it is appropriate. Do not force these numbers when balance, safety, API limits, clarity, or established formulas need something else.
+15. Do not insert secrets, tokens, private chat IDs, or real keys into code or docs.
+16. Do not break existing migrations. Schema changes require a new migration.
+17. Game calculations must be deterministic and testable; combat/domain logic must not depend on Telegram API.
+18. Telegram messages should stay short: one mobile screen, buttons for actions, details on demand.
+19. Within one message or keyboard, prefer distinct icons for distinct actions/places/states. Do not reuse a location/surface icon for a quest row or action shown in the same UI; for example, the quest table and Korchmar quest rows need different icons. Reusing icons is acceptable for similar navigation such as back buttons or pagination.
+20. Do not show exact future reward amounts, drop names, manatky, hidden odds, or percentage chances in player-facing pre-commit choices. Before the player commits, use qualitative risk/reward language; exact values may appear after resolution, in tests, in `CHANGELOG.md`, or in internal docs.
+21. No pay-to-win. Monetization may support cosmetics, comfort, or server support, but not unfair combat power.
+22. When adding new runtime gameplay loops with timers, cooldowns, random offers, pending sessions, or once-per-period gates, consider adding a narrow non-production `/dev_*` command that makes local/manual QA faster without weakening production rules.
+23. When replacing or retiring an older player-facing flow, explicitly preserve or deliberately retire starter/onboarding fallback paths in code, tests, task docs, changelog/news, compact context, and PR body. Do not let level gates for new functionality hide existing newbie content by accident.
+24. After runtime logic changes, run tests or explain the blocker. For docs-only changes, `Not run — docs-only change` is acceptable.
 
 ## Release and PR rules
 

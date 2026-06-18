@@ -596,7 +596,7 @@ export function getPublicPresenceLocation(
   if (id === PRESENCE_LOCATION_KORCHMA_DEEP) {
     return {
       locationId: id,
-      title: "Глибка",
+      title: "Низ",
       regionName: "Корчма Квестарні",
       showNames: true,
       isSpecific: true

@@ -17,7 +17,7 @@ import {
   buildPersistentFightResultKeyboard
 } from "../keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
-import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
+import { buildEnterKorchmaKeyboard, buildKorchmaDeepKeyboard } from "../keyboards/tavernKeyboard";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
   presentFightAlreadyCompleted,
@@ -30,6 +30,7 @@ import {
   presentPersistentFightDifficultyChoice,
   presentPersistentFight
 } from "../presenters/fightPresenter";
+import { presentKorchmaDeepClosed } from "../presenters/tavernPresenter";
 import {
   prefixResourceRecoveryNotice,
   presentResourceRecoveryNotice
@@ -65,6 +66,7 @@ export async function sendFight(
   mode: "reply" | "edit",
   options?: FightCommandOptions & {
     requireKorchmaInterior?: boolean;
+    openDifficulty?: boolean;
     difficulty?: PersistentFightDifficultyId;
   }
 ): Promise<void> {
@@ -146,7 +148,11 @@ export async function sendFight(
 
   if (options?.presence) {
     await markFightPresence(ctx, options.presence, {
-      persistent: result.state === "persistent-active" || result.state === "persistent-terminal"
+      persistent:
+        result.state === "persistent-ready" ||
+        result.state === "persistent-active" ||
+        result.state === "persistent-terminal" ||
+        result.state === "monster-rest"
     });
   }
 
@@ -155,7 +161,7 @@ export async function sendFight(
     return;
   }
 
-  if (result.state === "persistent-active" || result.state === "persistent-terminal") {
+  if (result.state === "persistent-active") {
     await sendResultText(presentPersistentFight(result), {
       type: "persistent-fight",
       character: result.character,
@@ -165,10 +171,20 @@ export async function sendFight(
   }
 
   if (result.state === "persistent-ready") {
+    if (!options?.openDifficulty) {
+      await sendResultText(presentKorchmaDeepClosed(result.character), "deep");
+      return;
+    }
+
     await sendResultText(
       presentPersistentFightDifficultyChoice(result),
       "persistent-difficulty"
     );
+    return;
+  }
+
+  if (result.state === "persistent-terminal") {
+    await sendResultText(presentKorchmaDeepClosed(result.character), "deep");
     return;
   }
 
@@ -224,6 +240,7 @@ async function sendText(
   keyboard:
     | false
     | "enter-korchma"
+    | "deep"
     | "persistent-difficulty"
     | "persistent-ready"
     | "problem-not-issued"
@@ -245,6 +262,8 @@ async function sendText(
         reply_markup:
           keyboard === "enter-korchma"
             ? buildEnterKorchmaKeyboard()
+            : keyboard === "deep"
+              ? buildKorchmaDeepKeyboard()
             : keyboard === "persistent-difficulty"
               ? buildPersistentFightDifficultyKeyboard()
             : keyboard === "persistent-ready"

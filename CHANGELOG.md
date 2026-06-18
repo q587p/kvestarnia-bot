@@ -13,8 +13,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a central active-combat lock that redirects normal commands and callbacks back to unfinished persistent or training fights until they reach terminal state.
 - Newly started persistent battles now show the existing `Порада дня` line once at battle intro.
 - Added deterministic `3..5` hero-turn cooldowns for successful zero-mana class skills, based on the relevant skill stat with a small luck effect.
-- Added a three-minute monster-rest block after three recent eligible ordinary `Глибка` fights.
-- Level 3+ ordinary/problem fight entry moved to `Глибка`; Quest Hub now routes fights through the exact `До глибки` button.
+- Added a three-minute monster-rest block after three recent eligible ordinary `Низ` fights.
+- Level 3+ ordinary/problem fight entry moved to `Низ`; fight routes now open `Спуск до Низу`, then `Спуститися` opens the passage/difficulty choice.
 - Added a short HP recovery notice when passive out-of-combat regeneration first brings a character back to full health during `/hero` or `/fight` flow.
 
 ### Changed
@@ -22,9 +22,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Current-turn hidden/forged non-mana skill callbacks while on cooldown use the same failed-turn semantics.
 - Combat-lock redirects now show a visible explanation before the active fight or training screen, so blocked navigation is clear even when a callback toast is missed.
 - Persistent and training fight keyboards recompute action availability every render, hiding magic without enough current mana and hiding non-mana skills while on cooldown.
-- Stale old quest-table fight callbacks open a fresh `Глибка` fight surface instead of starting from the old table message.
+- Stale old quest-table fight callbacks open a fresh `Спуск до Низу` surface instead of starting from the old table message.
 - The three-adventure offer screen now shows each problem as a compact title plus italic short line; full problem hooks stay on the selected-problem screen.
-- Selected problem-fight difficulty callbacks now preserve the selected difficulty when moving the player into `Глибка`, so the fight starts instead of redisplaying the difficulty choice.
+- Selected problem-fight passage callbacks now preserve the selected difficulty when moving the player into `Низ`, so the fight starts instead of redisplaying the passage choice.
 - Outside direct activity gates now show only the `Зайти в корчму` button instead of the full front-door action keyboard.
 - Yeger quest selection, target help, and turn-in stay at the Barrel-side Yeger corner, while active trail taking/checking moves to the outdoor hunt surface; front-door routing now shows `До полювання` for active Yeger quests and Yeger progress still matches eligible monster type/tag source-agnostically.
 - On the front-door surface, active Yeger `До полювання` now renders as the final row below the Munchkin barter entry.

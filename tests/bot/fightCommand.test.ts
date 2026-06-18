@@ -192,7 +192,7 @@ describe("fight command", () => {
     });
   });
 
-  it("offers problem fight difficulty choices before starting a persistent fight", async () => {
+  it("opens the Niz descent before problem fight difficulty choices", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     let startCount = 0;
     const fightService = {
@@ -214,33 +214,83 @@ describe("fight command", () => {
     await sendFight(makeContext(replies), fightService, "reply");
 
     expect(startCount).toBe(0);
-    expect(replies[0]?.text).toContain("Розв’язати проблему");
-    expect(replies[0]?.text).toContain("Припічник");
+    expect(replies[0]?.text).toContain("🪜 Спуск до Низу");
+    expect(replies[0]?.text).toContain("За бочками в коморі є сходи.");
+    expect(replies[0]?.text).toContain("Ярус I: Сутерени Корчми");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
           [
             {
-              text: "🕯 Легше: -3 рів.",
-              callback_data: makeQuestCallbackData("fight-easy")
+              text: "Спуститися",
+              callback_data: makeQuestCallbackData("fight-descend")
             }
           ],
           [
             {
-              text: "🍺 Як є",
-              callback_data: makeQuestCallbackData("fight-normal")
+              text: "Повернутися до зали",
+              callback_data: makePlaceCallbackData("hall")
             }
-          ],
+          ]
+        ]
+      }
+    });
+  });
+
+  it("offers three Niz passages after descending", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    let startCount = 0;
+    const fightService = {
+      getFightOverviewForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-ready",
+          character: {
+            ...character,
+            level: 3
+          },
+          questProgress: questProgress(0)
+        }),
+      getOrStartPersistentFightForTelegramUser: () => {
+        startCount += 1;
+        return Promise.resolve({ state: "no-character" });
+      }
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply", { openDifficulty: true });
+
+    expect(startCount).toBe(0);
+    expect(replies[0]?.text).toContain("Розв’язати проблему");
+    expect(replies[0]?.text).toContain("Підсходник");
+    expect(replies[0]?.text).toContain("⬅️ Лівий прохід");
+    expect(replies[0]?.text).toContain("⬇️ Прямий прохід");
+    expect(replies[0]?.text).toContain("➡️ Правий прохід");
+    expect(replies[0]?.text).not.toContain("Припічник");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
           [
             {
-              text: "🌶 Важче: +2 рів.",
+              text: "⬅️ Лівий прохід",
               callback_data: makeQuestCallbackData("fight-hard")
             }
           ],
           [
             {
-              text: "🌘 До глибки",
+              text: "⬇️ Прямий прохід",
+              callback_data: makeQuestCallbackData("fight-normal")
+            }
+          ],
+          [
+            {
+              text: "➡️ Правий прохід",
+              callback_data: makeQuestCallbackData("fight-easy")
+            }
+          ],
+          [
+            {
+              text: "🪜 Спуск до Низу",
               callback_data: makePlaceCallbackData("deep")
             }
           ]
@@ -278,7 +328,7 @@ describe("fight command", () => {
     expect(replies[0]?.options).toEqual({
       parse_mode: "HTML"
     });
-    expect(replies[1]?.text).toContain("Розв’язати проблему");
+    expect(replies[1]?.text).toContain("🪜 Спуск до Низу");
     const options = replies[1]?.options as {
       parse_mode: string;
       reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
@@ -286,8 +336,8 @@ describe("fight command", () => {
 
     expect(options.parse_mode).toBe("HTML");
     expect(options.reply_markup.inline_keyboard[0]?.[0]).toEqual({
-      text: "🕯 Легше: -3 рів.",
-      callback_data: makeQuestCallbackData("fight-easy")
+      text: "Спуститися",
+      callback_data: makeQuestCallbackData("fight-descend")
     });
   });
 

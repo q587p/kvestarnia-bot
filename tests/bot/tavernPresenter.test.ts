@@ -141,12 +141,12 @@ describe("tavern presenter", () => {
     expect(text).toContain("найпереконливіше махав честю");
   });
 
-  it("shows the Deep as closed with a short monster hint", () => {
+  it("shows the Niz descent with its first surface copy", () => {
     const text = presentKorchmaDeepClosed(character);
 
-    expect(text).toContain("🕳️ Глибка");
-    expect(text).toContain("гарчить");
-    expect(text).toContain("Тут починаються сутички за корчмарськими справами");
+    expect(text).toContain("🪜 Спуск до Низу");
+    expect(text).toContain("За бочками в коморі є сходи.");
+    expect(text).toContain("Ярус I: Сутерени Корчми");
   });
 
   it("shows duel winners for day week and month", () => {
@@ -260,7 +260,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("праворуч терпить життя <i>стіл зі справами</i>");
     expect(text).toContain("шумить <i>шинок</i>");
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
-    expect(text).toContain("<i>глибка</i>");
+    expect(text).toContain("<i>Спуск до Низу</i>");
     expect(text).toContain("<i>льох</i>");
     expect(text).toContain("<i>дошка вістей</i>");
     expect(text).toContain("<i>надвір</i>");
