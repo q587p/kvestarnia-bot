@@ -866,6 +866,65 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
   });
 
+  it("keeps starter mimic fight routes inside the active starter battle", async () => {
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("hall"),
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character
+            })
+        },
+        presence: {
+          markAction: () => Promise.resolve(),
+          getCurrentActivityForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              currentRaidId: null,
+              currentAdventureId: "adventure.mimic-shawarma-fight"
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
+    expect(String(edit?.payload.text)).toContain("Сутичка з підозрілим монстром");
+    expect(String(edit?.payload.text)).toContain("Що робимо?");
+    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("До справ");
+  });
+
+  it("does not keep starter mimic fight locked after completion", async () => {
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("hall"),
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "already-completed" as const,
+              character,
+              questAvailable: true
+            })
+        },
+        presence: {
+          markAction: () => Promise.resolve(),
+          getCurrentActivityForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              currentRaidId: null,
+              currentAdventureId: "adventure.mimic-shawarma-fight"
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
+    expect(String(edit?.payload.text)).not.toContain("Сутичка з підозрілим монстром");
+  });
+
   it("opens the Nyz descent for old quest-table fight callbacks", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn();

@@ -74,6 +74,15 @@ describe("fight command", () => {
     expect(replies[0]?.text).toContain("⚔️ Сутичка з підозрілим монстром");
     expect(replies[0]?.text).toContain("🌯 Монстр: 14/14");
     expect(replies[0]?.text).not.toContain("Це Мімік-шаурма");
+    const options = replies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
+    };
+
+    expect(options.reply_markup.inline_keyboard.flat().map((button) => button.text)).toEqual([
+      "🗡️ Вдарити",
+      "📋 Збити з пантелику чеком",
+      "🏃 Відступити красиво"
+    ]);
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,

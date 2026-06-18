@@ -10,6 +10,7 @@ import {
   isKorchmaInteriorLocation,
   normalizePresenceLocationId,
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
+  PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
@@ -114,6 +115,21 @@ describe("PresenceService", () => {
         id: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
         locationName: "Бійцівський куток"
       }
+    });
+  });
+
+  it("reports the current activity marker without expanding participant lists", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_QUEST_TABLE, {
+        currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
+      })
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    await expect(service.getCurrentActivityForTelegramUser(1n)).resolves.toEqual({
+      state: "ready",
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
     });
   });
 

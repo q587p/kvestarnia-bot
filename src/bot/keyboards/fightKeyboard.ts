@@ -17,9 +17,7 @@ export function buildFightKeyboard(character?: CharacterSummary): InlineKeyboard
     .row()
     .text(labels.receipt, makeFightCallbackData("receipt"))
     .row()
-    .text(labels.flee, makeFightCallbackData("flee"))
-    .row()
-    .text("📋 До справ", makePlaceCallbackData("quest-table"));
+    .text(labels.flee, makeFightCallbackData("flee"));
 }
 
 export function buildFightResultKeyboard(

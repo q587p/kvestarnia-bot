@@ -136,6 +136,14 @@ export type CurrentPlaceSnapshot =
       insideKorchma: boolean;
     };
 
+export type CurrentPresenceActivitySnapshot =
+  | { state: "no-character" }
+  | {
+      state: "ready";
+      currentRaidId: string | null;
+      currentAdventureId: string | null;
+    };
+
 export type PresenceActivitySnapshot =
   | {
       kind: "raid";
@@ -270,6 +278,22 @@ export class PresenceService {
       locationId,
       locationName: getLocationName(locationId),
       insideKorchma: isKorchmaInteriorLocation(locationId)
+    };
+  }
+
+  async getCurrentActivityForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<CurrentPresenceActivitySnapshot> {
+    const current = await this.presence.findByTelegramUserId(telegramUserId);
+
+    if (!current?.characterName) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "ready",
+      currentRaidId: current.currentRaidId ?? null,
+      currentAdventureId: current.currentAdventureId ?? null
     };
   }
 

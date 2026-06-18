@@ -414,8 +414,7 @@ describe("main menu and scene keyboards", () => {
     const actionButtons = [
       "🗡️ Вдарити",
       "📋 Збити з пантелику чеком",
-      "🏃 Відступити красиво",
-      "📋 До справ"
+      "🏃 Відступити красиво"
     ];
 
     expect(flatInlineButtonTexts(buildFightKeyboard())).toEqual(actionButtons);
@@ -429,20 +428,17 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildFightKeyboard({ ...character, classId: "class.bard" }))).toEqual([
       "🎵 Вдарити приспівом",
       "📋 Заспівати про чек",
-      "🏃 Піти на біс",
-      "📋 До справ"
+      "🏃 Піти на біс"
     ]);
     expect(flatInlineButtonCallbacks(buildFightKeyboard({ ...character, classId: "class.bard" }))).toEqual([
       "v1:fight:mimic:attack",
       "v1:fight:mimic:receipt",
-      "v1:fight:mimic:flee",
-      "v1:place:quest-table"
+      "v1:fight:mimic:flee"
     ]);
     expect(flatInlineButtonTexts(buildFightResultKeyboard("completed", { ...character, classId: "class.bard" }))).toEqual([
       "🎵 Вдарити приспівом",
       "📋 Заспівати про чек",
-      "🏃 Піти на біс",
-      "📋 До справ"
+      "🏃 Піти на біс"
     ]);
   });
 

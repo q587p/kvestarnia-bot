@@ -156,7 +156,11 @@ import {
   buildCellarGrownupKeyboard,
   buildCellarResultKeyboard
 } from "./keyboards/cellarKeyboard";
-import { buildFightResultKeyboard, buildPersistentFightResultKeyboard } from "./keyboards/fightKeyboard";
+import {
+  buildFightKeyboard,
+  buildFightResultKeyboard,
+  buildPersistentFightResultKeyboard
+} from "./keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "./keyboards/trainingDoppelgangerKeyboard";
 import {
   buildEquipItemResultKeyboard,
@@ -228,6 +232,7 @@ import {
   presentProblemQuestTurnIn,
   presentQuestProgressAfterFight,
   presentFightResult,
+  presentFightStart,
   presentPersistentFight,
   presentPersistentFightTurn
 } from "./presenters/fightPresenter";
@@ -782,7 +787,34 @@ async function redirectCombatLockIfNeeded(
     return true;
   }
 
+  if (
+    lock.state === "ready" &&
+    (await isStarterFightPresenceActive(services.presence, telegramUserId))
+  ) {
+    await answerCombatLockCallback(ctx);
+    await sendCombatLockText(ctx, presentCombatLockRedirect(presentFightStart(lock.character)), {
+      reply_markup: buildFightKeyboard(lock.character)
+    });
+    return true;
+  }
+
   return false;
+}
+
+async function isStarterFightPresenceActive(
+  presence: PresenceService,
+  telegramUserId: bigint
+): Promise<boolean> {
+  if (typeof presence.getCurrentActivityForTelegramUser !== "function") {
+    return false;
+  }
+
+  const activity = await presence.getCurrentActivityForTelegramUser(telegramUserId);
+
+  return (
+    activity.state === "ready" &&
+    activity.currentAdventureId === PRESENCE_ADVENTURE_MIMIC_FIGHT
+  );
 }
 
 function presentCombatLockRedirect(text: string): string {
