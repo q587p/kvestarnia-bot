@@ -1,6 +1,6 @@
 {
   "name": "kvestarnia-bot",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": true,
   "description": "Квестарня — гумористична фентезі-РПҐ у Telegram.",
   "main": "dist/bot.js",

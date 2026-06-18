@@ -8,7 +8,7 @@ Keep this file compact. Target: under 250 lines.
 - Player-facing name: `Квестарня`.
 - Technical slug/package/repo prefix: `kvestarnia`.
 - Bot username target: `@kvestarnia_bot`.
-- Current package version in this repository snapshot: `0.1.13`.
+- Current package version in this repository snapshot: `0.1.14`.
 
 ## Language split
 
@@ -108,6 +108,9 @@ For Telegram/gameplay changes, always consider:
 - DB transactions and replay safety
 - restart/redeploy behavior
 - short Ukrainian Telegram messages
+- distinct icons for distinct rows/actions in the same message; do not reuse a location/surface icon for a separate quest row.
+- starter/onboarding paths when replacing older flows; level 1-2 starter mimic-shawarma must remain reachable before level 3 adventure choice.
+- `0.1.14` adventure choice loop: level 3+, deterministic 93-minute offers from a 24-problem pool, stable per-problem offer/button icons, qualitative pre-choice risk/reward copy, readable choice spacing, daily-action idempotency, active-fight guard, preserved level 1-2 starter shawarma that hides from Quest Hub after completion, complication-to-persistent-fight path, and `/dev_adventure_reset` for local QA.
 
 ## Current product direction
 

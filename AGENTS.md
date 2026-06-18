@@ -112,9 +112,12 @@ After closing a versioned task:
 14. Do not break existing migrations. Schema changes require a new migration.
 15. Game calculations must be deterministic and testable; combat/domain logic must not depend on Telegram API.
 16. Telegram messages should stay short: one mobile screen, buttons for actions, details on demand.
-17. Within one message or keyboard, prefer distinct icons for distinct actions/places/states. Reusing icons is acceptable for similar navigation such as back buttons or pagination.
-18. No pay-to-win. Monetization may support cosmetics, comfort, or server support, but not unfair combat power.
-19. After runtime logic changes, run tests or explain the blocker. For docs-only changes, `Not run — docs-only change` is acceptable.
+17. Within one message or keyboard, prefer distinct icons for distinct actions/places/states. Do not reuse a location/surface icon for a quest row or action shown in the same UI; for example, the quest table and Korchmar quest rows need different icons. Reusing icons is acceptable for similar navigation such as back buttons or pagination.
+18. Do not show exact future reward amounts, drop names, manatky, hidden odds, or percentage chances in player-facing pre-commit choices. Before the player commits, use qualitative risk/reward language; exact values may appear after resolution, in tests, in `CHANGELOG.md`, or in internal docs.
+19. No pay-to-win. Monetization may support cosmetics, comfort, or server support, but not unfair combat power.
+20. When adding new runtime gameplay loops with timers, cooldowns, random offers, pending sessions, or once-per-period gates, consider adding a narrow non-production `/dev_*` command that makes local/manual QA faster without weakening production rules.
+21. When replacing or retiring an older player-facing flow, explicitly preserve or deliberately retire starter/onboarding fallback paths in code, tests, task docs, changelog/news, compact context, and PR body. Do not let level gates for new functionality hide existing newbie content by accident.
+22. After runtime logic changes, run tests or explain the blocker. For docs-only changes, `Not run — docs-only change` is acceptable.
 
 ## Release and PR rules
 
@@ -126,7 +129,7 @@ For release-oriented versioned changes:
 - If version moves, keep `package.json`, `package-lock.json`, `CHANGELOG.md`, and `news.md` in lockstep unless the user narrows scope.
 - Release note headings in `CHANGELOG.md` and `news.md` must include version, Holocene date, and short change description.
 - `CHANGELOG.md` may include technical details, exact mechanics, edge cases, and rewards.
-- `news.md` is player-facing and spoiler-light: do not reveal exact XP/gold/items/souvenirs/titles, final punchlines, hidden conditions, scheduler/restart/deploy debt, Redis/BullMQ, Mini App UI, migrations, scaling, or similar platform backlog.
+- `news.md` is player-facing and spoiler-light: do not reveal exact XP/gold/items/souvenirs/titles, cooldown or period lengths, final punchlines, hidden conditions, scheduler/restart/deploy debt, Redis/BullMQ, Mini App UI, migrations, scaling, or similar platform backlog.
 - PR title for release-oriented changes starts with the version and short changelog description, e.g. `0.0.4 — First Mimic Shawarma Adventure`.
 
 Docs-only / presentation changes are not numbered releases:
@@ -143,9 +146,11 @@ PR defaults:
 - Ready PRs must target `main` by default and be merge-ready against `main`. If a branch started from another feature branch, rebase or merge it onto current `origin/main` and resolve conflicts before calling the work complete.
 - Stacked PRs are allowed only when the user explicitly asks for a stacked PR or approves a non-main base; mark that clearly in the PR body.
 - For implementation work, "done", "complete", or "PR-ready" means the branch has been committed, pushed to the remote, and a GitHub PR has been opened unless the user explicitly asked to stop before publishing.
+- Do not give a final implementation summary after only local edits/checks unless the user explicitly asked for local-only work. The final response must include the `main` PR link, or a concrete blocker that prevented creating/updating that PR.
 - Prefer ready-for-review PRs; create a draft PR only when the user explicitly asks for draft state or the work is knowingly incomplete.
 - If an active PR already exists for the current work, add small follow-ups to the same branch and PR unless the user asks for a separate branch.
 - If scope expands, update PR title/body and relevant release/docs surfaces honestly.
+- Follow-up fixes that change player-visible behavior must update the task doc, `CHANGELOG.md`, `news.md`, `docs/ai/context.md`, and PR body before the work is called PR-ready.
 - After opening/updating a PR, check that the base is `main` unless explicitly stacked, then check mergeability and conflicts.
 
 ## Architecture boundaries

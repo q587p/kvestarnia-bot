@@ -35,13 +35,13 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
   },
   {
     commands: ["adventure"],
-    icon: "🌯",
-    description: "пригода з шаурмою"
+    icon: "🪧",
+    description: "вибір пригоди"
   },
   {
-    commands: ["fight", "spar"],
+    commands: ["fight", "spar", "duel"],
     icon: "⚔️",
-    description: "сутичка й тренування"
+    description: "сутичка, тренування й виклик"
   },
   {
     commands: ["hunt"],
@@ -104,9 +104,9 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     description: "допомога"
   },
   {
-    commands: ["dev_reset_me"],
+    commands: ["dev_reset_me", "dev_adventure_reset"],
     icon: "🧪",
-    description: "скинути персонажа локально",
+    description: "локальні скидання для тестів",
     devOnly: "reset"
   },
   {

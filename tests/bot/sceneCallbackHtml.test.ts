@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
-import { makeAdventureCallbackData } from "../../src/bot/callbacks/adventureCallbackData";
+import {
+  makeAdventureApproachCallbackData,
+  makeAdventureProblemCallbackData
+} from "../../src/bot/callbacks/adventureCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
 import {
   makeFightCallbackData,
@@ -42,20 +45,26 @@ describe("scene callback HTML options", () => {
     },
     {
       name: "adventure",
-      callbackData: makeAdventureCallbackData("poke"),
+      callbackData: makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        approach: "flair"
+      }),
       services: servicesWith({
         adventure: {
-          completeMimicShawarma: () => Promise.resolve({
+          completeAdventureApproach: () => Promise.resolve({
             state: "completed",
-            action: "poke",
             character,
+            choice: adventureChoice,
+            approach: adventureApproach,
             reward: {
-              xp: 8,
+              xp: 7,
               gold: 4,
               localDate: "12026-06-12",
-              itemGrants: [{ name: "Підозрілий лавашний доказ", quantity: 1 }]
+              itemGrants: []
             },
-            levelChange: noLevelChange
+            levelChange: noLevelChange,
+            complication: false
           })
         }
       })
@@ -320,11 +329,12 @@ describe("scene callback HTML options", () => {
       callbackData: makeQuestCallbackData("adventure"),
       services: servicesWith({
         adventure: {
-          getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "ready", character }),
-          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+          getAdventureOfferForTelegramUser: () =>
+            Promise.resolve({ state: "ready", character, offer: adventureOffer }),
+          completeAdventureApproach: () => Promise.resolve({ state: "no-character" })
         }
       }),
-      expectedText: "Підозріла шаурма"
+      expectedText: "Три справи на найближчий час"
     },
     {
       name: "quest fight route",
@@ -376,24 +386,30 @@ describe("scene callback HTML options", () => {
 
   it("sends level-up celebration as a separate HTML message after the result edit", async () => {
     const calls = await captureApiCalls(
-      makeAdventureCallbackData("poke"),
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        approach: "flair"
+      }),
       servicesWith({
         adventure: {
-          completeMimicShawarma: () =>
+          completeAdventureApproach: () =>
             Promise.resolve({
               state: "completed",
-              action: "poke",
               character: {
                 ...character,
                 classId: "class.rogue"
               },
+              choice: adventureChoice,
+              approach: adventureApproach,
               reward: {
-                xp: 8,
+                xp: 7,
                 gold: 4,
                 localDate: "12026-06-12",
-                itemGrants: [{ name: "Підозрілий лавашний доказ", quantity: 1 }]
+                itemGrants: []
               },
-              levelChange
+              levelChange,
+              complication: false
             })
         }
       })
@@ -765,6 +781,62 @@ describe("scene callback HTML options", () => {
     expect(String(fight?.payload.text)).toContain("Павук дедлайнів");
   });
 
+  it.each([
+    {
+      name: "problem",
+      callbackData: makeAdventureProblemCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      }),
+      adventure: {
+        selectAdventureProblem: () =>
+          Promise.resolve({
+            state: "active-fight" as const,
+            character,
+            session: persistentSession("monster.deadline-spider")
+          }),
+        completeAdventureApproach: () => Promise.resolve({ state: "no-character" as const })
+      }
+    },
+    {
+      name: "approach",
+      callbackData: makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        approach: "risky"
+      }),
+      adventure: {
+        selectAdventureProblem: () => Promise.resolve({ state: "no-character" as const }),
+        completeAdventureApproach: () =>
+          Promise.resolve({
+            state: "active-fight" as const,
+            character,
+            session: persistentSession("monster.deadline-spider")
+          })
+      }
+    }
+  ])("does not stamp quest-table presence for active-fight adventure $name callbacks", async ({
+    callbackData,
+    adventure
+  }) => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        adventure,
+        presence: {
+          markAction
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("Спершу завершіть поточний бій.");
+    expect(
+      markAction.mock.calls.some(([input]) => "locationId" in input)
+    ).toBe(false);
+  });
+
   it("blocks level barter callbacks while the Barrel raid is pending", async () => {
     const calls = await captureApiCalls(
       makeLevelBarterAutoCallbackData(),
@@ -1034,6 +1106,45 @@ const levelChange = {
   newLevel: 3
 };
 
+const adventureChoice = {
+  id: "stew" as const,
+  title: "Казанок репетирує оперу",
+  hook: "Юшка вимагає райдер.",
+  client: "Кухар"
+};
+
+const adventureApproach = {
+  id: "flair" as const,
+  label: "🧠 Знайти хитрий кут",
+  hint: "Середня винагорода.",
+  reward: {
+    xp: 7,
+    gold: 4
+  },
+  complicationChance: 23
+};
+
+const adventureOffer = {
+  localDate: "2026-06-12",
+  periodToken: "period93",
+  expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+  choices: [
+    adventureChoice,
+    {
+      id: "barrel" as const,
+      title: "Бочка вимагає орендну угоду",
+      hook: "Бочка стала юридичною.",
+      client: "Корчмар"
+    },
+    {
+      id: "helmet" as const,
+      title: "Шолом памʼятає чужу славу",
+      hook: "Шолом просить овацій.",
+      client: "Зброяр"
+    }
+  ]
+};
+
 function persistentSession(monsterId: string) {
   return {
     id: "session-1",
@@ -1066,8 +1177,8 @@ function persistentSession(monsterId: string) {
 function servicesWith(overrides: Partial<BotServices>): BotServices {
   return {
     adventure: {
-      getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
-      completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+      getAdventureOfferForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      completeAdventureApproach: () => Promise.resolve({ state: "no-character" })
     },
     cellarErrand: {
       getForTelegramUser: () => Promise.resolve({ state: "no-character" }),

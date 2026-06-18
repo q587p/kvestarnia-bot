@@ -30,6 +30,7 @@ import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
+  PRESENCE_ADVENTURE_CHOICE,
   PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_BAR,
@@ -137,7 +138,9 @@ import {
 import { registerVersionCommand } from "./commands/versionCommand";
 import { playerFromContext } from "./context";
 import {
+  buildAdventureApproachKeyboard,
   buildAdventureParticipantsKeyboard,
+  buildAdventureOfferKeyboard,
   buildAdventureResultKeyboard
 } from "./keyboards/adventureKeyboard";
 import {
@@ -186,9 +189,10 @@ import {
   buildYegerTurnInKeyboard
 } from "./keyboards/yegerKeyboard";
 import {
-  presentAdventureLevelRetired,
   presentAdventureNoCharacter,
-  presentAdventureResult
+  presentAdventureProblem,
+  presentAdventureResult,
+  presentMimicShawarmaResult
 } from "./presenters/adventurePresenter";
 import {
   presentCellarGrownupQuest,
@@ -385,7 +389,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   if (services.devGrant?.isEnabled()) {
     registerDevGrantCommands(bot, services.devGrant);
   }
-  registerDevResetCommand(bot, services.devReset);
+  registerDevResetCommand(bot, services.devReset, services.adventure);
   registerRestartCommand(bot);
   if (services.remort) {
     registerRemortCommand(bot, services.remort, services.tavern);
@@ -1710,7 +1714,7 @@ async function editPendingRaidBlockIfNeeded(
 
 async function handleAdventureCallback(
   ctx: Context,
-  action: AdventureCallback,
+  callback: AdventureCallback,
   services: BotServices
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
@@ -1724,17 +1728,17 @@ async function handleAdventureCallback(
     return;
   }
 
-  if (action === "participants") {
+  if (callback.type === "participants") {
     const snapshot = await services.presence.getAdventureParticipantsForTelegramUser(
       telegramUserId,
-      PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+      PRESENCE_ADVENTURE_CHOICE
     );
 
     if (snapshot.state !== "no-character") {
       await markScenePresence(ctx, services.presence, {
         locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
         currentRaidId: null,
-        currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+        currentAdventureId: PRESENCE_ADVENTURE_CHOICE
       });
     }
 
@@ -1746,7 +1750,64 @@ async function handleAdventureCallback(
     return;
   }
 
-  const result = await services.adventure.completeMimicShawarma(telegramUserId, action);
+  if (callback.type === "legacy") {
+    const result = await services.adventure.completeMimicShawarma(telegramUserId, callback.action);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentAdventureNoCharacter());
+      return;
+    }
+
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+    });
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentMimicShawarmaResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildAdventureResultKeyboard(result)
+    });
+
+    if (result.state === "completed") {
+      await sendLevelUpCelebration(ctx, result);
+    }
+    return;
+  }
+
+  if (callback.type === "problem") {
+    const result = await services.adventure.selectAdventureProblem(telegramUserId, callback);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentAdventureNoCharacter());
+      return;
+    }
+
+    if (result.state !== "active-fight") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_CHOICE
+      });
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentAdventureProblem(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        result.state === "selected"
+          ? buildAdventureApproachKeyboard(result)
+          : result.state === "stale"
+            ? buildAdventureOfferKeyboard(result.offer)
+            : buildAdventureResultKeyboard(result)
+    });
+    return;
+  }
+
+  const result = await services.adventure.completeAdventureApproach(telegramUserId, callback);
 
   if (result.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
@@ -1754,25 +1815,39 @@ async function handleAdventureCallback(
     return;
   }
 
-  if (result.state === "level-retired") {
-    await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentAdventureLevelRetired(result), HTML_MESSAGE_OPTIONS);
-    return;
+  if (result.state !== "active-fight") {
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_CHOICE
+    });
   }
-
-  await markScenePresence(ctx, services.presence, {
-    locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-    currentRaidId: null,
-    currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
-  });
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentAdventureResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildAdventureResultKeyboard(result.state, result.character)
+    reply_markup: buildAdventureResultKeyboard(result)
   });
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
+
+    if (result.complication) {
+      const fight = await services.fight.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+        source: "adventure",
+        difficulty: "normal"
+      });
+
+      if (fight.state === "persistent-active" || fight.state === "persistent-terminal") {
+        await ctx.reply(presentPersistentFight(fight), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPersistentFightResultKeyboard(fight.session, fight.character)
+        });
+      } else if (fight.state === "needs-rest") {
+        await ctx.reply(presentFightNeedsRest(fight), HTML_MESSAGE_OPTIONS);
+      } else if (fight.state === "level-retired") {
+        await ctx.reply(presentFightLevelRetired(fight), HTML_MESSAGE_OPTIONS);
+      }
+    }
   }
 }
 

@@ -69,7 +69,7 @@ const remorts = new PrismaRemortRepository(prisma);
 const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
 const fight = new FightService(characters, dailyActions, undefined, soloCombatSessions, undefined, equipment);
 const services = {
-  adventure: new AdventureService(characters, dailyActions),
+  adventure: new AdventureService(characters, dailyActions, undefined, soloCombatSessions),
   barrelRaidNotifications,
   cellarErrand: new CellarErrandService(cooldowns),
   cellarGrownup: new CellarGrownupQuestService(cellarGrownupQuests, dailyActions, cooldowns),

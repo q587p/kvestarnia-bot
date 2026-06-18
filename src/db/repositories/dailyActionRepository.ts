@@ -56,4 +56,9 @@ export interface DailyActionRepository {
     telegramUserId: bigint,
     input: ClaimDailyActionInput
   ): Promise<ClaimDailyActionResult | null>;
+
+  deleteForTelegramUser?(
+    telegramUserId: bigint,
+    input: { key: string; localDate: string }
+  ): Promise<"deleted" | "missing" | "no-character">;
 }

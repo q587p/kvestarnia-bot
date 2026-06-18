@@ -138,6 +138,8 @@ Defaults:
 - Prefer ready-for-review PRs; use draft PRs only when the user asks for draft state or the change is intentionally incomplete.
 - If an active PR exists for the same work, add small follow-ups to the same branch/PR.
 - If follow-up work expands the scope, update the PR title/body and release/docs surfaces.
+- If a follow-up changes player-visible behavior inside a release task, update the task doc, `CHANGELOG.md`, `news.md`, `docs/ai/context.md`, and PR body before calling the PR ready.
+- When replacing an older gameplay flow, check starter/onboarding fallback paths explicitly so new level gates do not accidentally hide newbie content.
 - After opening/updating a PR, check base branch, mergeability, and conflicts; fix non-main bases unless the PR is intentionally stacked.
 
 Suggested branch names:

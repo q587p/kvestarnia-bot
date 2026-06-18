@@ -53,7 +53,7 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     };
   }
 
-  if (data.startsWith("v1:adv:mimic:")) {
+  if (data.startsWith("v1:adv:")) {
     return {};
   }
 
@@ -260,6 +260,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "restart" ||
     command === "remort" ||
     command === "dev_reset_me" ||
+    command === "dev_adventure_reset" ||
     command === "dev_add_level" ||
     command === "dev_add_xp" ||
     command === "dev_add_gold" ||

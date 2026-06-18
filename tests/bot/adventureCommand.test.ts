@@ -6,6 +6,7 @@ import type { CharacterSummary } from "../../src/domain/characters/characterSumm
 import type { AdventureService } from "../../src/services/adventureService";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
+  PRESENCE_ADVENTURE_CHOICE,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_FRONT,
@@ -33,12 +34,13 @@ describe("adventure command", () => {
       }
     } as unknown as Context;
     const adventureService = {
-      getMimicShawarmaForTelegramUser: () =>
+      getAdventureOfferForTelegramUser: () =>
         Promise.resolve({
           state: "ready",
-          character
+          character,
+          offer
         }),
-      completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+      completeAdventureApproach: () => Promise.resolve({ state: "no-character" })
     } as unknown as AdventureService;
 
     await sendAdventure(ctx, adventureService, "reply", {
@@ -47,7 +49,7 @@ describe("adventure command", () => {
         complete: () => Promise.resolve({ state: "no-character" })
       },
       presence,
-      fallbackToCellar: true,
+      fallbackToCellar: false,
       requireKorchmaInterior: true
     });
 
@@ -102,12 +104,13 @@ describe("adventure command", () => {
       }
     } as unknown as Context;
     const adventureService = {
-      getMimicShawarmaForTelegramUser: () =>
+      getAdventureOfferForTelegramUser: () =>
         Promise.resolve({
           state: "ready",
-          character
+          character,
+          offer
         }),
-      completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+      completeAdventureApproach: () => Promise.resolve({ state: "no-character" })
     } as unknown as AdventureService;
 
     await sendAdventure(ctx, adventureService, "reply", {
@@ -116,14 +119,74 @@ describe("adventure command", () => {
         complete: () => Promise.resolve({ state: "no-character" })
       },
       presence,
-      fallbackToCellar: true,
+      fallbackToCellar: false,
       requireKorchmaInterior: true
     });
 
-    expect(replies[0]?.text).toContain("🌯 Підозріла шаурма");
+    expect(replies[0]?.text).toContain("🪧 Три справи на найближчий час");
+    expect(replies[0]?.text).toContain("Казанок репетирує оперу");
     expect(replies[0]?.options).toHaveProperty("reply_markup");
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+    });
+  });
+
+  it("shows the starter shawarma adventure while the choice loop is level-locked", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+    const ctx = {
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const adventureService = {
+      getAdventureOfferForTelegramUser: () =>
+        Promise.resolve({
+          state: "level-locked",
+          character,
+          requiredLevel: 3
+        }),
+      getMimicShawarmaForTelegramUser: () =>
+        Promise.resolve({
+          state: "ready",
+          character
+        }),
+      completeAdventureApproach: () => Promise.resolve({ state: "no-character" })
+    } as unknown as AdventureService;
+
+    await sendAdventure(ctx, adventureService, "reply", {
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        complete: () => Promise.resolve({ state: "no-character" })
+      },
+      presence,
+      fallbackToCellar: false,
+      requireKorchmaInterior: true
+    });
+
+    expect(replies[0]?.text).toContain("Підозріла шаурма");
+    expect(replies[0]?.text).toContain("Вона дихає");
+    expect(replies[0]?.text).not.toContain("відкриється з 3 рівня");
+    expect(replies[0]?.options).toMatchObject({ parse_mode: "HTML" });
+    expect(getReplyCallbacks(replies[0]?.options)).toEqual([
+      "v1:adv:mimic:poke",
+      "v1:adv:mimic:receipt",
+      "v1:adv:mimic:flee",
+      "v1:place:quest-table"
+    ]);
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
     });
   });
 
@@ -141,19 +204,18 @@ describe("adventure command", () => {
       }
     } as unknown as Context;
     const adventureService = {
-      getMimicShawarmaForTelegramUser: () =>
+      getAdventureOfferForTelegramUser: () =>
         Promise.resolve({
           state: "already-completed",
-          character,
-          fightAvailable: true
+          character
         })
     } as unknown as AdventureService;
 
     await sendAdventure(ctx, adventureService, "reply");
 
     expect(replies).toHaveLength(1);
-    expect(replies[0]?.text).toContain("Шаурма вже дала свідчення");
-    expect(replies[0]?.text).toContain("/fight");
+    expect(replies[0]?.text).toContain("Справу на найближчий час уже закрито");
+    expect(replies[0]?.text).toContain("/hero");
     expect(replies[0]?.text).not.toContain("що робимо");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML"
@@ -179,11 +241,10 @@ describe("adventure command", () => {
       }
     } as unknown as Context;
     const adventureService = {
-      getMimicShawarmaForTelegramUser: () =>
+      getAdventureOfferForTelegramUser: () =>
         Promise.resolve({
           state: "already-completed",
-          character,
-          fightAvailable: true
+          character
         })
     } as unknown as AdventureService;
 
@@ -193,16 +254,16 @@ describe("adventure command", () => {
         complete: () => Promise.resolve({ state: "no-character" })
       },
       presence,
-      fallbackToCellar: true,
+      fallbackToCellar: false,
       requireKorchmaInterior: true
     });
 
-    expect(replies[0]?.text).toContain("Шаурма вже дала свідчення");
+    expect(replies[0]?.text).toContain("Справу на найближчий час уже закрито");
     expect(presence.marks).toHaveLength(1);
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+      currentAdventureId: PRESENCE_ADVENTURE_CHOICE
     });
   });
 
@@ -221,11 +282,10 @@ describe("adventure command", () => {
       }
     } as unknown as Context;
     const adventureService = {
-      getMimicShawarmaForTelegramUser: () =>
+      getAdventureOfferForTelegramUser: () =>
         Promise.resolve({
           state: "already-completed",
-          character,
-          fightAvailable: false
+          character
         })
     } as unknown as AdventureService;
     const cellarErrand = {
@@ -249,7 +309,7 @@ describe("adventure command", () => {
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+      currentAdventureId: PRESENCE_ADVENTURE_CHOICE
     });
     expect(presence.marks[presence.marks.length - 1]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
@@ -295,6 +355,32 @@ const character: CharacterSummary = {
   }
 };
 
+const offer = {
+  localDate: "2026-06-12",
+  periodToken: "period93",
+  expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+  choices: [
+    {
+      id: "stew" as const,
+      title: "Казанок репетирує оперу",
+      hook: "Юшка вимагає райдер.",
+      client: "Кухар"
+    },
+    {
+      id: "barrel" as const,
+      title: "Бочка вимагає орендну угоду",
+      hook: "Бочка стала юридичною.",
+      client: "Корчмар"
+    },
+    {
+      id: "helmet" as const,
+      title: "Шолом памʼятає чужу славу",
+      hook: "Шолом просить овацій.",
+      client: "Зброяр"
+    }
+  ]
+};
+
 class CapturingPresenceService {
   readonly marks: MarkPlayerPresenceInput[] = [];
 
@@ -326,4 +412,11 @@ class CapturingPresenceService {
       insideKorchma: this.place.insideKorchma
     });
   }
+}
+
+function getReplyCallbacks(options: unknown): string[] {
+  return ((options as { reply_markup?: { inline_keyboard?: Array<Array<{ callback_data: string }>> } })
+    .reply_markup?.inline_keyboard ?? [])
+    .flat()
+    .map((button) => button.callback_data);
 }

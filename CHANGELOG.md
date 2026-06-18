@@ -7,6 +7,28 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.14] - 12026-06-18 - Adventure Choice MVP
+
+### Added
+- `/adventure` now opens a compact level 3+ tavern problem offer instead of the old one-scene adventure.
+- Each 93-minute adventure period generates three deterministic, distinct choices per character until the period is resolved or locally reset.
+- Each problem has three resolution approaches: safe, class-flavored clever/social/magical, and risky, with conservative ascending XP/gold rewards and complication chances.
+- The tavern problem pool now has 24 deterministic problems, so consecutive 93-minute periods vary more often while still staying stable until resolved or reset.
+- The starter mimic-shawarma adventure remains available for levels 1-2 from `/adventure` and Quest Hub before the level 3 choice loop opens.
+- Complications record the adventure claim with no reward and hand the player into the existing persistent solo fight path instead of creating a second combat engine.
+- Added `v1:adv:p:{period}:{problem}` and `v1:adv:a:{period}:{problem}:{approach}` callbacks with stale-token handling and callback-length coverage.
+- Added `/dev_adventure_reset` for non-production QA to clear the current 93-minute adventure claim for the current player.
+
+### Guardrails
+- Adventure claims use the existing daily-action reward ledger under `adventure.choice-mvp`, so duplicate presses and replay reads do not grant a second reward.
+- Pre-choice adventure copy now uses qualitative risk/reward labels instead of showing exact XP, gold or complication percentages before the player commits.
+- Quest Hub checks the starter mimic-shawarma claim directly, so a completed starter shawarma no longer stays visible as an active adventure row or button.
+- Quest Hub Korchmar problem rows now use a distinct paperwork icon from the table surface, and selected adventure approaches/results have clearer paragraph spacing.
+- Adventure offer rows and problem-choice buttons now show stable per-problem icons while keeping callback data compact.
+- No migrations, schema changes, new production dependencies, shops, crafting, trading or broad loot economy changes were added.
+- No-character, level-gate, active-fight, stale-callback and legacy shawarma callbacks now land on safe adventure states; starter shawarma callback replays remain idempotent.
+- Remort reset clears the new adventure claim key alongside other per-life daily action keys.
+
 ## [0.1.13] - 12026-06-18 - Problem Fight Difficulty Choice
 
 ### Added

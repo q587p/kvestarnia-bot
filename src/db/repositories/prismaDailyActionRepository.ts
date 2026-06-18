@@ -183,6 +183,36 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     }
   }
 
+  async deleteForTelegramUser(
+    telegramUserId: bigint,
+    input: { key: string; localDate: string }
+  ): Promise<"deleted" | "missing" | "no-character"> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!character) {
+      return "no-character";
+    }
+
+    const deleted = await this.prisma.dailyAction.deleteMany({
+      where: {
+        characterId: character.id,
+        key: input.key,
+        localDate: input.localDate
+      }
+    });
+
+    return deleted.count > 0 ? "deleted" : "missing";
+  }
+
   private async findExistingClaim(
     telegramUserId: bigint,
     input: ClaimDailyActionInput

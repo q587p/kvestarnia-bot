@@ -373,7 +373,7 @@ export const PERSISTENT_FIGHT_DIFFICULTY_CONFIG = {
 } as const satisfies Record<PersistentFightDifficultyId, PersistentFightDifficultyConfig>;
 
 export interface PersistentFightStartOptions {
-  source?: "normal" | "yeger";
+  source?: "normal" | "yeger" | "adventure";
   difficulty?: PersistentFightDifficultyId;
   target?: {
     tagsAny?: string[];
@@ -682,7 +682,7 @@ export class FightService {
       };
     }
 
-    if (!questProgress.issued) {
+    if (!questProgress.issued && options.source !== "adventure") {
       return {
         state: "persistent-not-issued",
         character: characterSummary,

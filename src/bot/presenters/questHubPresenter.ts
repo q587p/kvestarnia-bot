@@ -1,5 +1,5 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import type { AdventureLookupResult } from "../../services/adventureService";
+import type { AdventureLookupResult, MimicShawarmaLookupResult } from "../../services/adventureService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
@@ -7,13 +7,15 @@ import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
 import {
   BESTIARY_MIN_LEVEL,
   FIGHTING_CORNER_MIN_LEVEL,
-  meetsActivityLevel
+  meetsActivityLevel,
+  STARTER_ACTIVITY_MAX_LEVEL
 } from "../../domain/progression/activityGates";
 import { presentCharacterHeader } from "./telegramHtml";
 
 export interface QuestHubSnapshot {
   character: CharacterSummary;
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
+  starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
   problemQuest: ProblemQuestProgress;
   problemQuestArchive: ProblemQuestProgress[];
@@ -51,15 +53,27 @@ export function presentQuestHubNoCharacter(): string {
 }
 
 function presentAdventureRow(
-  adventure: Exclude<AdventureLookupResult, { state: "no-character" }>
+  character: CharacterSummary,
+  adventure: Exclude<AdventureLookupResult, { state: "no-character" }>,
+  starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>
 ): string {
-  if (adventure.state === "level-retired") {
-    return `🌯 <i>Підозріла шаурма</i> — перша підозра для 1-${adventure.maxLevel} рівнів.`;
+  const title = "🪧 <i>Три справи на найближчий час</i>";
+
+  if (adventure.state === "level-locked") {
+    if (character.level <= STARTER_ACTIVITY_MAX_LEVEL && starterAdventure?.state === "ready") {
+      return "🌯 <i>Підозріла шаурма</i> — новачкова підозра чекає на столі.";
+    }
+
+    return `${title} — відкриється з ${adventure.requiredLevel} рівня.`;
   }
 
-  const status = adventure.state === "ready" ? "готова до допиту" : "сьогодні вже дала свідчення";
+  if (adventure.state === "active-fight") {
+    return `${title} — спершу завершіть поточний бій.`;
+  }
 
-  return `🌯 <i>Підозріла шаурма</i> — ${status}.`;
+  const status = adventure.state === "ready" ? "три проблеми чекають вибору" : "цей відтинок уже закрито";
+
+  return `${title} — ${status}.`;
 }
 
 function presentAdventureArchiveRow(
@@ -70,10 +84,14 @@ function presentAdventureArchiveRow(
   }
 
   if (adventure.state === "already-completed") {
-    return "🌯 <i>Підозріла шаурма</i> — виконано; шаурма дала свідчення й тепер удає лаваш.";
+    return "🪧 <i>Три справи на найближчий час</i> — виконано; Корчмар поставив галочку і не визнає повторів.";
   }
 
-  return `🌯 <i>Підозріла шаурма</i> — недоступно після ${adventure.maxLevel} рівня; у журналі немає позначки виконання.`;
+  if (adventure.state === "active-fight") {
+    return null;
+  }
+
+  return `🪧 <i>Три справи на найближчий час</i> — відкриється з ${adventure.requiredLevel} рівня; у журналі немає позначки виконання.`;
 }
 
 function presentProblemQuestRow(
@@ -82,26 +100,26 @@ function presentProblemQuestRow(
   fight: Exclude<FightLookupResult, { state: "no-character" }>
 ): string {
   if (!meetsActivityLevel(character.level, FIGHTING_CORNER_MIN_LEVEL)) {
-    return `📋 <i>${progress.title}</i> — відкриється з ${FIGHTING_CORNER_MIN_LEVEL} рівня.`;
+    return `🧾 <i>${progress.title}</i> — відкриється з ${FIGHTING_CORNER_MIN_LEVEL} рівня.`;
   }
 
   if (progress.branchComplete) {
-    return `📋 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}.`;
+    return `🧾 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}.`;
   }
 
   if (!progress.issued) {
     if (progress.wins > 0) {
-      return `📋 <i>${progress.title}</i> — ${progress.wins}/${progress.target} проблем у старому журналі; Корчмар має папірець у шинку, спершу візьміть справу там.`;
+      return `🧾 <i>${progress.title}</i> — ${progress.wins}/${progress.target} проблем у старому журналі; Корчмар має папірець у шинку, спершу візьміть справу там.`;
     }
 
-    return `📋 <i>${progress.title}</i> — Корчмар має папірець у шинку. Спершу візьміть справу там.`;
+    return `🧾 <i>${progress.title}</i> — Корчмар має папірець у шинку. Спершу візьміть справу там.`;
   }
 
   if (fight.state === "persistent-active") {
-    return `📋 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}, бій уже триває.`;
+    return `🧾 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}, бій уже триває.`;
   }
 
-  return `📋 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}.`;
+  return `🧾 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}.`;
 }
 
 function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string | null {
@@ -152,7 +170,7 @@ function presentFightArchiveRow(fight: Exclude<FightLookupResult, { state: "no-c
 
 function presentProblemQuestArchiveRows(progresses: ProblemQuestProgress[]): string[] {
   return progresses.map(
-    (progress) => `📋 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}.`
+    (progress) => `🧾 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}.`
   );
 }
 
@@ -299,7 +317,12 @@ function presentCellarArchiveRows(
 
 function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
   const rows = [
-    snapshot.adventure.state === "ready" ? presentAdventureRow(snapshot.adventure) : null,
+    snapshot.adventure.state === "ready" ||
+    (snapshot.adventure.state === "level-locked" &&
+      snapshot.character.level <= STARTER_ACTIVITY_MAX_LEVEL &&
+      snapshot.starterAdventure?.state === "ready")
+      ? presentAdventureRow(snapshot.character, snapshot.adventure, snapshot.starterAdventure)
+      : null,
     presentProblemQuestRow(snapshot.character, snapshot.problemQuest, snapshot.fight),
     presentActiveFightRow(snapshot.fight),
     presentActiveYegerRow(snapshot.yeger),
@@ -364,6 +387,9 @@ function presentQuestHubFooter(snapshot: QuestHubSnapshot): string {
 function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
   return (
     snapshot.adventure.state === "ready" ||
+    (snapshot.adventure.state === "level-locked" &&
+      snapshot.character.level <= STARTER_ACTIVITY_MAX_LEVEL &&
+      snapshot.starterAdventure?.state === "ready") ||
     snapshot.fight.state === "ready" ||
     (meetsActivityLevel(snapshot.character.level, FIGHTING_CORNER_MIN_LEVEL) &&
       !snapshot.problemQuest.branchComplete) ||

@@ -322,6 +322,32 @@ describe("main menu and scene keyboards", () => {
     ]);
   });
 
+  it("adds adventure problem icons without changing problem callbacks", () => {
+    const keyboard = buildAdventureKeyboard({
+      localDate: "2026-06-12",
+      periodToken: "period93",
+      expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+      choices: [
+        { id: "key", title: "Ключ забув, що він відкриває", hook: "Ключ пишається.", client: "Комірник" },
+        { id: "door", title: "Двері беруть плату за вихід", hook: "Двері чекають.", client: "Гості" },
+        { id: "cloak", title: "Плащ став у чергу замість власника", hook: "Плащ штовхається.", client: "Власник" }
+      ]
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "🗝️ Ключ забув, що він відкриває",
+      "🚪 Двері беруть плату за вихід",
+      "🧥 Плащ став у чергу замість власника",
+      "📋 До справ"
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:adv:p:period93:key",
+      "v1:adv:p:period93:door",
+      "v1:adv:p:period93:cloak",
+      "v1:place:quest-table"
+    ]);
+  });
+
   it("keeps character-aware adventure labels on the same callback actions", () => {
     expect(flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
       "🗝️ Перевірити кишені",
@@ -984,7 +1010,7 @@ describe("main menu and scene keyboards", () => {
       )
     ).toEqual([
       "🥊 До Бійцівського кутка",
-      "🌯 До шаурми",
+      "🪧 Обрати пригоду",
       "⚔️ До сутички",
       "🏹 До Єгеря",
       "🧹 У льох",
