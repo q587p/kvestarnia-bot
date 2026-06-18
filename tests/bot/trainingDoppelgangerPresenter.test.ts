@@ -266,7 +266,8 @@ describe("training doppelganger presenter", () => {
 
     expect(randomText).not.toContain("власну копію");
     expect(championText).not.toContain("власну копію");
-    expect(randomText).toContain("дзеркального пригодника");
+    expect(randomText).toContain("випадкового дзеркального пригодника");
+    expect(randomText).not.toContain("внутрішні конфлікти");
     expect(championText).toContain("чемпіонську подобу");
   });
 

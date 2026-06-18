@@ -238,7 +238,16 @@ describe("combat domain engine", () => {
     const result = resolveCombatTurn({
       state: {
         ...startCombat({ hero: warrior, monster }),
-        turn: 3
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 3,
+          monsterDamage: 2,
+          manaSpent: 0,
+          critical: false,
+          monsterAction: "attack"
+        }
       },
       action: "attack",
       hero: warrior,
@@ -262,6 +271,56 @@ describe("combat domain engine", () => {
       copiedEquipmentCount: 1,
       chosenAbilityId: "skill.form-thirteen-b"
     });
+  });
+
+  it("can open a doppelganger fight with a class skill on the first turn", () => {
+    const result = resolveCombatTurn({
+      state: startCombat({ hero: warrior, monster }),
+      action: "attack",
+      hero: warrior,
+      monster: {
+        ...monster,
+        tags: ["training", "doppelganger"],
+        classId: "class.mage"
+      },
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.1, 0.2])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary.monsterAction).toBe("skill");
+    expect(result.summary.monsterSkillId).toBe("skill.hot-spell");
+  });
+
+  it("lets doppelganger monsters go back to random skills after the opening", () => {
+    const result = resolveCombatTurn({
+      state: {
+        ...startCombat({ hero: warrior, monster }),
+        turn: 3,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 3,
+          monsterDamage: 4,
+          manaSpent: 0,
+          critical: false,
+          monsterAction: "skill",
+          monsterSkillId: "skill.form-thirteen-b",
+          monsterDamageKind: "physical"
+        }
+      },
+      action: "attack",
+      hero: warrior,
+      monster: {
+        ...monster,
+        tags: ["training", "doppelganger"],
+        classId: "class.bureaucramancer"
+      },
+      rng: new FakeRandomSource([0.1, 0.9, 0.9, 0.1, 0.2])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary.monsterAction).toBe("attack");
+    expect(result.summary.monsterSkillId).toBeUndefined();
   });
 
   it("can flee without marking combat as a win", () => {
