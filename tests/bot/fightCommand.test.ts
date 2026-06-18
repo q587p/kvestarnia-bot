@@ -290,7 +290,7 @@ describe("fight command", () => {
           ],
           [
             {
-              text: "🪜 До спуску",
+              text: "⬆️ Піднятися назад",
               callback_data: makePlaceCallbackData("deep")
             }
           ]
