@@ -104,6 +104,21 @@ export function presentFightTrainingActive(
   ].join("\n");
 }
 
+export function presentPersistentFightDifficultyChoice(
+  result: Extract<FightLookupResult, { state: "persistent-ready" }>
+): string {
+  return [
+    "⚔️ <b>Розв’язати проблему</b>",
+    presentCharacterHeader(result.character),
+    "",
+    "Припічник визирає з-за печі й питає, скільки перцю сипати в монстра.",
+    "",
+    "🕯 Легше — нижчий рівень, скромніша винагорода.",
+    "🍺 Як є — чесний корчмарський хаос.",
+    "🌶 Важче — сильніший монстр, трохи щедріша здобич."
+  ].join("\n");
+}
+
 export function presentFightResult(result: Exclude<FightResult, { state: "no-character" }>): string {
   if (result.state === "level-retired") {
     return presentFightLevelRetired(result);

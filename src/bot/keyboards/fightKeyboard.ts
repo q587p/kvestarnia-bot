@@ -74,6 +74,17 @@ export function buildPersistentFightReadyKeyboard(): InlineKeyboard {
     .text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
 
+export function buildPersistentFightDifficultyKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🕯 Легше: -3 рів.", makeQuestCallbackData("fight-easy"))
+    .row()
+    .text("🍺 Як є", makeQuestCallbackData("fight-normal"))
+    .row()
+    .text("🌶 Важче: +2 рів.", makeQuestCallbackData("fight-hard"))
+    .row()
+    .text("📋 До справ", makePlaceCallbackData("quest-table"));
+}
+
 function getFightActionLabels(character?: CharacterSummary): {
   attack: string;
   receipt: string;

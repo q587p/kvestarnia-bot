@@ -7,6 +7,20 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.13] - 12026-06-18 - Problem Fight Difficulty Choice
+
+### Added
+- Level 3+ ordinary problem fights now show a compact difficulty choice before starting when no active persistent fight exists.
+- Added `v1:quest:fight-easy`, `v1:quest:fight-normal` and `v1:quest:fight-hard` callbacks with Telegram callback-length coverage.
+- The Quest Hub `Розвʼязати проблему`, `/fight`, and post-fight `Новий бій` routes now open the same difficulty choice instead of surprise-starting a fresh persistent fight.
+- Easy fights lower the effective monster level around character level -3 with reduced XP, gold and drop opportunity; ordinary fights keep current behavior; hard fights raise the effective level around character level +2 with conservative reward boosts.
+- Selected difficulty is stored in combat state debug trace so turn resolution, terminal recovery and reward replay keep the effective monster level without a migration.
+
+### Guardrails
+- Active fight, stale turn, pending-raid, no-character, level-gate, rest-gate and training-doppelganger protections remain on the existing paths.
+- Rewards still flow through the persistent solo combat session reward key and remain idempotent on duplicate terminal/replay reads.
+- No shops, selling, crafting, trading, migrations, broad economy changes, problem quest counter changes or cooldown changes were added.
+
 ## [0.1.12] - 12026-06-18 - Doppelganger Variation, Spawn Factory and Skill Replies
 
 ### Added

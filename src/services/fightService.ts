@@ -26,7 +26,8 @@ import {
   resolveCombatTurn,
   startCombat,
   type CombatActionType,
-  type CombatActorStats
+  type CombatActorStats,
+  type CombatState
 } from "../domain/combat";
 import { rollMonsterLoot } from "../domain/loot";
 import {
@@ -328,8 +329,52 @@ export interface FightReward {
   itemGrants: RewardItemGrant[];
 }
 
+export type PersistentFightDifficultyId = "easy" | "normal" | "hard";
+export type BattleInterventionKind = "help" | "none" | "hinder";
+
+export interface PersistentFightDifficultyConfig {
+  id: PersistentFightDifficultyId;
+  interventionKind: BattleInterventionKind;
+  levelDelta: -3 | 0 | 2;
+  xpMultiplier: number;
+  goldMultiplier: number;
+  dropChanceMultiplier: number;
+  lootPowerOffset: number;
+}
+
+export const PERSISTENT_FIGHT_DIFFICULTY_CONFIG = {
+  easy: {
+    id: "easy",
+    interventionKind: "help",
+    levelDelta: -3,
+    xpMultiplier: 0.75,
+    goldMultiplier: 0.85,
+    dropChanceMultiplier: 0.65,
+    lootPowerOffset: -1
+  },
+  normal: {
+    id: "normal",
+    interventionKind: "none",
+    levelDelta: 0,
+    xpMultiplier: 1,
+    goldMultiplier: 1,
+    dropChanceMultiplier: 1,
+    lootPowerOffset: 0
+  },
+  hard: {
+    id: "hard",
+    interventionKind: "hinder",
+    levelDelta: 2,
+    xpMultiplier: 1.2,
+    goldMultiplier: 1.05,
+    dropChanceMultiplier: 1.35,
+    lootPowerOffset: 1
+  }
+} as const satisfies Record<PersistentFightDifficultyId, PersistentFightDifficultyConfig>;
+
 export interface PersistentFightStartOptions {
   source?: "normal" | "yeger";
+  difficulty?: PersistentFightDifficultyId;
   target?: {
     tagsAny?: string[];
     monsterIds?: string[];
@@ -409,17 +454,19 @@ export class FightService {
 
     if (!activeSession.state) {
       const expiredSession = await this.combatSessions.markStatusById(activeSession.id, "expired");
+      const fallbackSession = expiredSession ?? activeSession;
+      const monster = findPersistentFightMonster(fallbackSession);
 
       return {
         state: "persistent-terminal",
         character: characterSummary,
-        session: expiredSession ?? { ...activeSession, status: "expired" },
-        monster: findMonster(activeSession.monsterId),
+        session: fallbackSession,
+        monster,
         questProgress,
         fightReward: await this.getOrRecoverPersistentFightReward(
           telegramUserId,
-          expiredSession ?? activeSession,
-          findMonster(activeSession.monsterId),
+          fallbackSession,
+          monster,
           characterSummary
         )
       };
@@ -432,23 +479,25 @@ export class FightService {
         status: expiredState.status
       });
       await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
+      const fallbackSession = expiredSession ?? activeSession;
+      const monster = findPersistentFightMonster(fallbackSession);
 
       return {
         state: "persistent-terminal",
         character: characterSummary,
         session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
-        monster: findMonster(activeSession.monsterId),
+        monster,
         questProgress,
         fightReward: await this.getOrRecoverPersistentFightReward(
           telegramUserId,
-          expiredSession ?? activeSession,
-          findMonster(activeSession.monsterId),
+          fallbackSession,
+          monster,
           characterSummary
         )
       };
     }
 
-    const monster = findMonster(activeSession.monsterId);
+    const monster = findPersistentFightMonster(activeSession);
 
     if (!monster || activeSession.state.status !== "active") {
       const expiredState =
@@ -554,22 +603,24 @@ export class FightService {
           status: expiredState.status
         });
         await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
+        const fallbackSession = expiredSession ?? activeSession;
+        const monster = findPersistentFightMonster(fallbackSession);
 
         return {
           state: "persistent-terminal",
           character: characterSummary,
           session: expiredSession ?? { ...activeSession, state: expiredState, status: "expired" },
-          monster: findMonster(activeSession.monsterId),
+          monster,
           questProgress,
           fightReward: await this.getOrRecoverPersistentFightReward(
             telegramUserId,
-            expiredSession ?? activeSession,
-            findMonster(activeSession.monsterId),
+            fallbackSession,
+            monster,
             characterSummary
           )
         };
       } else {
-        const monster = findMonster(activeSession.monsterId);
+        const monster = findPersistentFightMonster(activeSession);
 
         if (!monster) {
           const expiredState = expireCombat(activeSession.state);
@@ -639,15 +690,24 @@ export class FightService {
       };
     }
 
-    const monster = options.target
+    const difficulty = options.target
+      ? PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
+      : getPersistentFightDifficultyConfig(options.difficulty);
+    const baseMonster = options.target
       ? selectTargetedSoloFightMonster(characterSummary, this.rng, options.target)
       : selectSoloFightMonster(characterSummary, this.rng);
+    const monster = applyPersistentFightDifficulty(baseMonster, characterSummary, difficulty);
     const sessionId = randomUUID();
     const state = startCombat({
       id: sessionId,
       hero: buildHeroCombatStats(characterSummary),
       monster: deriveMonsterCombatStats(monster)
     });
+    state.monster.debugTrace = buildPersistentFightInterventionTrace(
+      baseMonster,
+      monster,
+      difficulty
+    );
     const session = await this.combatSessions.createForTelegramUser(telegramUserId, {
       id: sessionId,
       monsterId: monster.id,
@@ -825,23 +885,25 @@ export class FightService {
           state: "stale-turn",
           character: characterSummary,
           session: activeSession,
-          monster: findMonster(activeSession.monsterId),
+          monster: findPersistentFightMonster(activeSession),
           questProgress
         };
       }
     }
 
     if (session.status !== "active") {
+      const monster = findPersistentFightMonster(session);
+
       return {
         state: "terminal",
         character: characterSummary,
         session,
-        monster: findMonster(session.monsterId),
+        monster,
         questProgress,
         fightReward: await this.getOrRecoverPersistentFightReward(
           telegramUserId,
           session,
-          findMonster(session.monsterId),
+          monster,
           characterSummary
         )
       };
@@ -853,13 +915,13 @@ export class FightService {
         state: "terminal",
         character: characterSummary,
         session: { ...session, status: "expired" },
-        monster: findMonster(session.monsterId),
+        monster: findPersistentFightMonster(session),
         questProgress,
         fightReward: null
       };
     }
 
-    const monster = findMonster(session.monsterId);
+    const monster = findPersistentFightMonster(session);
 
     if (isExpired(session, this.clock())) {
       const expiredState = expireCombat(session.state);
@@ -962,21 +1024,22 @@ export class FightService {
           state: "stale-turn",
           character: characterSummary,
           session: fallbackSession,
-          monster: findMonster(fallbackSession.monsterId),
+          monster: findPersistentFightMonster(fallbackSession),
           questProgress
         };
       }
+      const fallbackMonster = findPersistentFightMonster(fallbackSession);
 
       return {
         state: "terminal",
         character: characterSummary,
         session: fallbackSession,
-        monster: findMonster(fallbackSession.monsterId),
+        monster: fallbackMonster,
         questProgress,
         fightReward: await this.getOrRecoverPersistentFightReward(
           telegramUserId,
           fallbackSession,
-          findMonster(fallbackSession.monsterId),
+          fallbackMonster,
           characterSummary
         )
       };
@@ -1157,7 +1220,8 @@ export class FightService {
       monster,
       character,
       this.rng,
-      session.state?.status ?? session.status
+      session.state?.status ?? session.status,
+      session
     );
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
@@ -1444,7 +1508,8 @@ function buildPersistentFightReward(
   monster: MonsterContent,
   character: CharacterSummary,
   rng: RandomSource,
-  status: SoloCombatSessionRecord["status"] = "won"
+  status: SoloCombatSessionRecord["status"] = "won",
+  session?: SoloCombatSessionRecord
 ): { xp: number; gold: number; itemGrants: Array<{ itemId: string; quantity: number }> } {
   if (status === "lost") {
     return {
@@ -1454,14 +1519,18 @@ function buildPersistentFightReward(
     };
   }
 
+  const difficulty = getPersistentFightSessionDifficulty(session);
+  const effectiveMonsterLevel = getPersistentFightSessionMonsterLevel(session, monster.level);
+  const lootProfileLevel = Math.max(1, character.level + difficulty.lootPowerOffset);
   const loot = rollMonsterLoot({
     monsterId: monster.id,
     monsterLoot,
     items,
     luck: character.stats.luck,
+    dropChanceMultiplier: difficulty.dropChanceMultiplier,
     rng,
     character: {
-      level: character.level,
+      level: lootProfileLevel,
       classId: character.classId,
       raceId: character.raceId,
       title: character.title
@@ -1471,24 +1540,41 @@ function buildPersistentFightReward(
   });
 
   return {
-    xp: buildPersistentFightWinXp(character.level, monster.level),
-    gold: Math.min(7, Math.max(1, 1 + Math.floor(monster.level / 2))),
+    xp: buildPersistentFightWinXp(character.level, effectiveMonsterLevel, difficulty),
+    gold: buildPersistentFightWinGold(effectiveMonsterLevel, difficulty),
     itemGrants: loot.state === "dropped" ? [{ itemId: loot.item.id, quantity: 1 }] : []
   };
 }
 
-function buildPersistentFightWinXp(characterLevel: number, monsterLevel: number): number {
+function buildPersistentFightWinXp(
+  characterLevel: number,
+  monsterLevel: number,
+  difficulty: PersistentFightDifficultyConfig = PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
+): number {
   const levelGap = characterLevel - monsterLevel;
 
   if (levelGap > 3) {
-    return 2;
+    return Math.max(1, Math.round(2 * difficulty.xpMultiplier));
   }
 
   if (levelGap > 2) {
-    return 3;
+    return Math.max(1, Math.round(3 * difficulty.xpMultiplier));
   }
 
-  return Math.min(14, Math.max(5, 3 + monsterLevel * 2));
+  const overlevel = Math.max(0, monsterLevel - characterLevel);
+  const overlevelMultiplier = clamp(1 + overlevel * 0.06, 1, 1.36);
+  const baseXp = Math.min(14, Math.max(5, 3 + monsterLevel * 2));
+
+  return Math.max(1, Math.round(baseXp * difficulty.xpMultiplier * overlevelMultiplier));
+}
+
+function buildPersistentFightWinGold(
+  monsterLevel: number,
+  difficulty: PersistentFightDifficultyConfig = PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
+): number {
+  const baseGold = Math.min(7, Math.max(1, 1 + Math.floor(monsterLevel / 2)));
+
+  return Math.max(1, Math.round(baseGold * difficulty.goldMultiplier));
 }
 
 function getLootExpansionSourceForMonster(monster: MonsterContent): LootExpansionSourceId {
@@ -1600,6 +1686,93 @@ function isExpired(session: SoloCombatSessionRecord, now: Date): boolean {
 
 function findMonster(monsterId: string): MonsterContent | null {
   return monsters.find((monster) => monster.id === monsterId) ?? null;
+}
+
+function findPersistentFightMonster(
+  session: Pick<SoloCombatSessionRecord, "monsterId" | "state">
+): MonsterContent | null {
+  const monster = findMonster(session.monsterId);
+
+  if (!monster) {
+    return null;
+  }
+
+  const effectiveLevel = getPersistentFightSessionMonsterLevel(session, monster.level);
+
+  return effectiveLevel === monster.level ? monster : { ...monster, level: effectiveLevel };
+}
+
+export function getPersistentFightDifficultyConfig(
+  difficulty: PersistentFightDifficultyId = "normal"
+): PersistentFightDifficultyConfig {
+  return PERSISTENT_FIGHT_DIFFICULTY_CONFIG[difficulty] ?? PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal;
+}
+
+export function selectPersistentFightMonsterLevel(input: {
+  characterLevel: number;
+  baseMonsterLevel: number;
+  difficulty?: PersistentFightDifficultyId;
+}): number {
+  const difficulty = getPersistentFightDifficultyConfig(input.difficulty);
+
+  if (difficulty.id === "normal") {
+    return Math.max(1, Math.floor(input.baseMonsterLevel));
+  }
+
+  return Math.max(1, Math.floor(input.characterLevel + difficulty.levelDelta));
+}
+
+function applyPersistentFightDifficulty(
+  baseMonster: MonsterContent,
+  character: CharacterSummary,
+  difficulty: PersistentFightDifficultyConfig
+): MonsterContent {
+  const level = selectPersistentFightMonsterLevel({
+    characterLevel: character.level,
+    baseMonsterLevel: baseMonster.level,
+    difficulty: difficulty.id
+  });
+
+  return level === baseMonster.level ? baseMonster : { ...baseMonster, level };
+}
+
+function buildPersistentFightInterventionTrace(
+  baseMonster: MonsterContent,
+  monster: MonsterContent,
+  difficulty: PersistentFightDifficultyConfig
+): NonNullable<CombatState["monster"]["debugTrace"]> {
+  return {
+    interventionKind: difficulty.interventionKind,
+    interventionSourceKey: "prypichnyk",
+    baseMonsterLevel: baseMonster.level,
+    effectiveMonsterLevel: monster.level
+  };
+}
+
+function getPersistentFightSessionDifficulty(
+  session?: Pick<SoloCombatSessionRecord, "state">
+): PersistentFightDifficultyConfig {
+  const interventionKind = session?.state?.monster.debugTrace?.interventionKind;
+
+  if (interventionKind === "help") {
+    return PERSISTENT_FIGHT_DIFFICULTY_CONFIG.easy;
+  }
+
+  if (interventionKind === "hinder") {
+    return PERSISTENT_FIGHT_DIFFICULTY_CONFIG.hard;
+  }
+
+  return PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal;
+}
+
+function getPersistentFightSessionMonsterLevel(
+  session: Pick<SoloCombatSessionRecord, "state"> | undefined,
+  fallbackLevel: number
+): number {
+  const storedLevel =
+    session?.state?.monster.debugTrace?.effectiveMonsterLevel ?? session?.state?.monster.level;
+
+  return Math.max(1, Math.floor(storedLevel ?? fallbackLevel));
 }
 
 function selectSoloFightMonster(
@@ -1719,4 +1892,8 @@ function pluralize(count: number, one: string, few: string, many: string): strin
   }
 
   return many;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }

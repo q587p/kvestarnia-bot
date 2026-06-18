@@ -32,10 +32,12 @@ import { FakeRandomSource } from "../../src/shared/random";
 import { MIMIC_SHAWARMA_ADVENTURE_KEY } from "../../src/services/adventureService";
 import {
   FightService,
+  getPersistentFightDifficultyConfig,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
   PERSISTENT_SOLO_FIGHT_REWARD_KEY,
   PROBLEM_QUEST_BUCKET,
   PROBLEM_QUEST_STAGES,
+  selectPersistentFightMonsterLevel,
   THIRTEEN_SMALL_PROBLEMS_QUEST_KEY
 } from "../../src/services/fightService";
 
@@ -753,6 +755,115 @@ describe("FightService", () => {
     }
   });
 
+  it("selects persistent fight monster levels by difficulty", () => {
+    expect(
+      selectPersistentFightMonsterLevel({
+        characterLevel: 6,
+        baseMonsterLevel: 5,
+        difficulty: "easy"
+      })
+    ).toBe(3);
+    expect(
+      selectPersistentFightMonsterLevel({
+        characterLevel: 6,
+        baseMonsterLevel: 5,
+        difficulty: "normal"
+      })
+    ).toBe(5);
+    expect(
+      selectPersistentFightMonsterLevel({
+        characterLevel: 6,
+        baseMonsterLevel: 5,
+        difficulty: "hard"
+      })
+    ).toBe(8);
+    expect(
+      selectPersistentFightMonsterLevel({
+        characterLevel: 2,
+        baseMonsterLevel: 3,
+        difficulty: "easy"
+      })
+    ).toBe(1);
+  });
+
+  it("keeps difficulty reward scaling conservative", () => {
+    expect(getPersistentFightDifficultyConfig("easy")).toMatchObject({
+      xpMultiplier: 0.75,
+      goldMultiplier: 0.85,
+      dropChanceMultiplier: 0.65
+    });
+    expect(getPersistentFightDifficultyConfig("normal")).toMatchObject({
+      xpMultiplier: 1,
+      goldMultiplier: 1,
+      dropChanceMultiplier: 1
+    });
+    expect(getPersistentFightDifficultyConfig("hard")).toMatchObject({
+      xpMultiplier: 1.2,
+      goldMultiplier: 1.05,
+      dropChanceMultiplier: 1.35
+    });
+  });
+
+  it("stores selected persistent fight difficulty in combat state", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "easy"
+    });
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.character.level).toBe(6);
+      expect(started.monster.level).toBe(3);
+      expect(started.session.state?.monster.debugTrace).toMatchObject({
+        interventionKind: "help",
+        interventionSourceKey: "prypichnyk",
+        baseMonsterLevel: started.session.state.monster.debugTrace?.baseMonsterLevel,
+        effectiveMonsterLevel: 3
+      });
+    }
+  });
+
+  it("does not replace an active persistent fight when another difficulty is clicked", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const first = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "easy"
+    });
+    const second = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "hard"
+    });
+
+    expect(first.state).toBe("persistent-active");
+    expect(second.state).toBe("persistent-active");
+    if (first.state === "persistent-active" && second.state === "persistent-active") {
+      expect(second.session.id).toBe(first.session.id);
+      expect(second.monster.level).toBe(3);
+      expect(second.session.state?.monster.debugTrace?.interventionKind).toBe("help");
+    }
+    expect(sessions.createCount).toBe(1);
+  });
+
   it("uses live equipped weapon bonuses during persistent fight turns", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -1082,6 +1193,85 @@ describe("FightService", () => {
       expect(result.monster.level).toBe(3);
       expect(result.fightReward?.reward.xp).toBe(3);
     }
+  });
+
+  it("scales recovered persistent fight rewards by stored difficulty", async () => {
+    async function recoverReward(
+      difficulty: "easy" | "normal" | "hard",
+      effectiveMonsterLevel: number
+    ): Promise<{ xp: number; gold: number; replayXp: number; replayGold: number }> {
+      const characters = new FakeCharacterRepository();
+      characters.add(telegramUserId, { xp: 25 });
+      const dailyActions = new FakeDailyActionRepository(characters);
+      const sessions = new FakeSoloCombatSessionRepository(characters);
+      const baseSession = makeTerminalSession(
+        "won",
+        `session-${difficulty}`,
+        `character-${telegramUserId.toString()}`
+      );
+      const interventionKind =
+        difficulty === "easy" ? "help" : difficulty === "hard" ? "hinder" : "none";
+      const wonSession = sessions.addSession({
+        ...baseSession,
+        state: baseSession.state
+          ? {
+              ...baseSession.state,
+              monster: {
+                ...baseSession.state.monster,
+                level: effectiveMonsterLevel,
+                debugTrace: {
+                  interventionKind,
+                  interventionSourceKey: "prypichnyk",
+                  baseMonsterLevel: 3,
+                  effectiveMonsterLevel
+                }
+              }
+            }
+          : baseSession.state
+      });
+      const service = new FightService(
+        characters,
+        dailyActions,
+        fixedClock,
+        sessions,
+        new FakeRandomSource([0.99])
+      );
+
+      const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
+        sessionId: wonSession.id,
+        turn: wonSession.turn,
+        action: "attack"
+      });
+      const replayed = await service.resolvePersistentFightTurn(telegramUserId, {
+        sessionId: wonSession.id,
+        turn: wonSession.turn,
+        action: "attack"
+      });
+
+      expect(recovered.state).toBe("terminal");
+      expect(replayed.state).toBe("terminal");
+      if (recovered.state !== "terminal" || replayed.state !== "terminal") {
+        throw new Error("Expected terminal reward recovery.");
+      }
+
+      return {
+        xp: recovered.fightReward?.reward.xp ?? 0,
+        gold: recovered.fightReward?.reward.gold ?? 0,
+        replayXp: replayed.fightReward?.reward.xp ?? 0,
+        replayGold: replayed.fightReward?.reward.gold ?? 0
+      };
+    }
+
+    const easy = await recoverReward("easy", 1);
+    const normal = await recoverReward("normal", 3);
+    const hard = await recoverReward("hard", 5);
+
+    expect(easy.xp).toBeLessThan(normal.xp);
+    expect(normal.xp).toBeLessThan(hard.xp);
+    expect(easy.gold).toBeLessThanOrEqual(normal.gold);
+    expect(normal.gold).toBeLessThanOrEqual(hard.gold);
+    expect(easy.replayXp).toBe(easy.xp);
+    expect(hard.replayGold).toBe(hard.gold);
   });
 
   it("falls back to the authoritative reward claim when session replay storage is missing", async () => {
