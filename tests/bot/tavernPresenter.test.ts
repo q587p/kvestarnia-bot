@@ -262,6 +262,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
     expect(text).toContain("<i>спуск до Низу</i>");
     expect(text).toContain("<i>льох</i>");
+    expect(text).toContain("<i>льох</i>.\n\nБіля дверей висить <i>дошка вістей</i>");
     expect(text).toContain("<i>дошка вістей</i>");
     expect(text).toContain("<i>надвір</i>");
     expect(text).toContain("Корчмар:\n<blockquote>");
