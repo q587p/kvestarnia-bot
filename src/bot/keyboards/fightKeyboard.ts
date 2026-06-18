@@ -81,7 +81,7 @@ export function buildPersistentFightDifficultyKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("⬅️ Лівий прохід", makeQuestCallbackData("fight-hard"))
     .row()
-    .text("⬇️ Прямий прохід", makeQuestCallbackData("fight-normal"))
+    .text("🚪 Прямий прохід", makeQuestCallbackData("fight-normal"))
     .row()
     .text("➡️ Правий прохід", makeQuestCallbackData("fight-easy"))
     .row()

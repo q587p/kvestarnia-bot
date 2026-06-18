@@ -951,7 +951,7 @@ describe("scene callback HTML options", () => {
     );
     expect(String(tier?.payload.text)).toContain("Ярус I: Сутерени Корчми");
     expect(String(tier?.payload.text)).toContain("Підсходник");
-    expect(JSON.stringify(tier?.payload.reply_markup)).toContain("⬇️ Прямий прохід");
+    expect(JSON.stringify(tier?.payload.reply_markup)).toContain("🚪 Прямий прохід");
   });
 
   it("starts selected problem fight difficulty after moving from the hall to the Nyz", async () => {

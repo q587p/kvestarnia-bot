@@ -263,7 +263,7 @@ describe("fight command", () => {
     expect(replies[0]?.text).toContain("Ярус I: Сутерени Корчми");
     expect(replies[0]?.text).toContain("Підсходник");
     expect(replies[0]?.text).toContain("⬅️ Лівий прохід");
-    expect(replies[0]?.text).toContain("⬇️ Прямий прохід");
+    expect(replies[0]?.text).toContain("🚪 Прямий прохід");
     expect(replies[0]?.text).toContain("➡️ Правий прохід");
     expect(replies[0]?.text).not.toContain("Припічник");
     expect(replies[0]?.options).toMatchObject({
@@ -278,7 +278,7 @@ describe("fight command", () => {
           ],
           [
             {
-              text: "⬇️ Прямий прохід",
+              text: "🚪 Прямий прохід",
               callback_data: makeQuestCallbackData("fight-normal")
             }
           ],
