@@ -197,7 +197,7 @@ function presentTrainingDoppelgangerState(input: {
   }
 
   if (input.reward) {
-    lines.push("", ...presentTrainingReward(input.reward, input.character.classId));
+    lines.push("", ...presentTrainingReward(input.reward, input.character));
   }
 
   if (state?.status === "won") {
@@ -233,13 +233,16 @@ function presentTrainingDoppelgangerState(input: {
 
 function presentTrainingReward(
   reward: NonNullable<Extract<TrainingDoppelgangerTurnResult, { state: "updated" }>["reward"]>,
-  classId: string
+  character: Extract<TrainingDoppelgangerTurnResult, { state: "updated" }>["character"]
 ): string[] {
   const lines = [
     presentRewardAmount({ ...reward.reward, label: "Тренувальний досвід" })
   ];
   const levelUp = reward.levelChange
-    ? presentLevelUpCelebration(reward.levelChange, classId)
+    ? presentLevelUpCelebration(reward.levelChange, character.classId, {
+        raceId: character.raceId,
+        path: character.path
+      })
     : null;
 
   if (reward.state !== "claimed") {

@@ -23,6 +23,7 @@ import type {
   RemortSnapshot
 } from "../db/repositories/remortRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
+import { getCharacterPath } from "../domain/characters/path";
 import {
   buildRemortStarterStats,
   getDefaultRemortIdentity,
@@ -310,7 +311,9 @@ export class RemortService {
           classId: identity.identity.classId,
           remortNumber,
           previousLevel: snapshot.character.level,
-          previousClassId: snapshot.character.classId
+          previousClassId: snapshot.character.classId,
+          previousRaceId: snapshot.character.raceId,
+          previousPath: getCharacterPath(snapshot.character)
         });
 
         return {
@@ -438,7 +441,9 @@ export class RemortService {
       classId: identity.classId,
       remortNumber: snapshot.remortCount + 1,
       previousLevel: snapshot.character.level,
-      previousClassId: snapshot.character.classId
+      previousClassId: snapshot.character.classId,
+      previousRaceId: snapshot.character.raceId,
+      previousPath: getCharacterPath(snapshot.character)
     });
 
     return {

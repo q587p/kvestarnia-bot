@@ -46,6 +46,7 @@ import type { RestartService } from "../services/restartService";
 import type { RemortService } from "../services/remortService";
 import type { TavernRaidService } from "../services/tavernRaidService";
 import type { TrainingDoppelgangerService } from "../services/trainingDoppelgangerService";
+import type { CharacterPath } from "../domain/characters/path";
 import { createBarrelRaidCompletionScheduler } from "./barrelRaidCompletionNotifier";
 import { parseAdventureCallbackData, type AdventureCallback } from "./callbacks/adventureCallbackData";
 import { parseBestiaryCallbackData, type BestiaryCallback } from "./callbacks/bestiaryCallbackData";
@@ -2947,10 +2948,14 @@ async function sendLevelUpCelebration(
   ctx: Context,
   result: {
     levelChange: Parameters<typeof presentLevelUpCelebration>[0];
-    character: { classId: string };
+    character: { classId: string; raceId?: string; path?: CharacterPath };
   }
 ): Promise<void> {
-  const text = presentLevelUpCelebration(result.levelChange, result.character.classId);
+  const identity = {
+    ...(result.character.raceId ? { raceId: result.character.raceId } : {}),
+    ...(result.character.path ? { path: result.character.path } : {})
+  };
+  const text = presentLevelUpCelebration(result.levelChange, result.character.classId, identity);
 
   if (!text) {
     return;

@@ -9,6 +9,7 @@ import {
 } from "../content/characterOptions";
 import { activeRaces } from "../content/races";
 import type { ItemContent, Pronoun } from "../content/schema";
+import type { CharacterPath } from "./characters/path";
 import { buildStarterStats, type CharacterStats, type StatKey } from "./characters/starterStats";
 import { buildLevelGrowthBonus } from "./progression/effectiveStats";
 
@@ -123,10 +124,18 @@ export function buildRemortStarterStats(input: {
   remortNumber: number;
   previousLevel: number;
   previousClassId: string;
+  previousRaceId: string;
+  previousPath: CharacterPath;
 }) {
   const starter = buildStarterStats(input.raceId, input.classId);
   const memoryRank = getRemortMemoryRank(input.remortNumber);
-  const previousGrowth = buildLevelGrowthBonus(1, input.previousLevel, input.previousClassId);
+  const previousGrowth = buildLevelGrowthBonus(
+    1,
+    input.previousLevel,
+    input.previousClassId,
+    input.previousRaceId,
+    input.previousPath
+  );
   const hpBonus = buildRemortMemoryBonus(previousGrowth.hpMax, memoryRank);
   const manaBonus = buildRemortMemoryBonus(previousGrowth.manaMax, memoryRank);
   const statBonuses = buildRemortStatBonuses(previousGrowth.stats, memoryRank);

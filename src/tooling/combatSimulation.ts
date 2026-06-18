@@ -1,6 +1,7 @@
 import { classes } from "../content/classes";
 import { races } from "../content/races";
 import { monsters } from "../content/monsters";
+import type { CharacterPath } from "../domain/characters/path";
 import { buildStarterStats } from "../domain/characters/starterStats";
 import { buildEffectiveCharacterStats } from "../domain/progression/effectiveStats";
 import {
@@ -26,6 +27,7 @@ export interface CombatSimulationOptions {
   seed: string;
   classIds: readonly string[];
   raceId: string;
+  path: CharacterPath;
   policy: CombatSimulationPolicy;
   maxTurns: number;
 }
@@ -35,6 +37,7 @@ export interface CombatSimulationReport {
   policy: CombatSimulationPolicy;
   raceId: string;
   raceName: string;
+  path: CharacterPath;
   levels: readonly number[];
   monsterLevels: readonly number[] | "same";
   runsPerMatchup: number;
@@ -105,6 +108,7 @@ export function runCombatSimulation(options: Partial<CombatSimulationOptions> = 
         const raceContent = getRaceContent(raceId);
         const hero = buildSimulationHero({
           raceId,
+          path: normalized.path,
           classId,
           level: heroLevel
         });
@@ -162,6 +166,7 @@ export function runCombatSimulation(options: Partial<CombatSimulationOptions> = 
     policy: normalized.policy,
     raceId: normalized.raceId,
     raceName: getRaceContent(normalized.raceId).name,
+    path: normalized.path,
     levels: normalized.levels,
     monsterLevels: normalized.monsterLevels,
     runsPerMatchup: normalized.runsPerMatchup,
@@ -401,6 +406,7 @@ function chooseAction(
 
 function buildSimulationHero(input: {
   raceId: string;
+  path: CharacterPath;
   classId: string;
   level: number;
 }): CombatSimulationHero {
@@ -408,6 +414,8 @@ function buildSimulationHero(input: {
   const effective = buildEffectiveCharacterStats({
     level: input.level,
     classId: input.classId,
+    raceId: input.raceId,
+    path: input.path,
     hpCurrent: starter.hpCurrent,
     hpMax: starter.hpMax,
     manaCurrent: starter.manaCurrent,
@@ -431,6 +439,7 @@ function normalizeOptions(options: Partial<CombatSimulationOptions>): CombatSimu
   const levels = normalizeNumberList(options.levels ?? defaultLevels, defaultLevels);
   const classIds = normalizeClassIds(options.classIds ?? classes.map((characterClass) => characterClass.id));
   const raceId = resolveDefaultRaceId(options.raceId);
+  const path = normalizePath(options.path);
 
   return {
     levels,
@@ -439,9 +448,18 @@ function normalizeOptions(options: Partial<CombatSimulationOptions>): CombatSimu
     seed: String(options.seed ?? "12345"),
     classIds,
     raceId,
+    path,
     policy: options.policy ?? DEFAULT_POLICY,
     maxTurns: normalizePositiveInteger(options.maxTurns ?? DEFAULT_MAX_TURNS)
   };
+}
+
+function normalizePath(path: CharacterPath | undefined): CharacterPath {
+  if (path === "sun" || path === "moon" || path === "boundary") {
+    return path;
+  }
+
+  return "boundary";
 }
 
 function normalizePositiveInteger(value: number): number {

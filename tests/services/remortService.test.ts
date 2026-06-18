@@ -257,20 +257,20 @@ describe("RemortService", () => {
       expect(result.hpBonus).toBe(34);
       expect(result.manaBonus).toBe(17);
       expect(result.statBonuses).toEqual([
-        { stat: "strength", bonus: 5 },
+        { stat: "strength", bonus: 4 },
         { stat: "dexterity", bonus: 2 },
         { stat: "intelligence", bonus: 1 },
-        { stat: "charisma", bonus: 1 },
+        { stat: "charisma", bonus: 2 },
         { stat: "luck", bonus: 2 }
       ]);
-      expect(result.statBonus).toEqual({ stat: "strength", bonus: 5 });
+      expect(result.statBonus).toEqual({ stat: "strength", bonus: 4 });
       expect(result.character.hpCurrent).toBe(result.character.hpMax);
       expect(result.character.manaCurrent).toBe(result.character.manaMax);
       expect(result.character.stats).toMatchObject({
-        strength: 10,
+        strength: 9,
         dexterity: 10,
         intelligence: 10,
-        charisma: 6,
+        charisma: 7,
         luck: 7
       });
     }

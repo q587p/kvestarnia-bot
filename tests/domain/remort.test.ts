@@ -8,7 +8,9 @@ describe("remort memory bonuses", () => {
       classId: "class.warrior",
       remortNumber: 1,
       previousLevel: 13,
-      previousClassId: "class.mage"
+      previousClassId: "class.mage",
+      previousRaceId: "race.human-ish",
+      previousPath: "boundary"
     });
 
     expect(stats.memoryRank).toBe(1);
@@ -30,6 +32,33 @@ describe("remort memory bonuses", () => {
       intelligence: 7,
       charisma: 7,
       luck: 6
+    });
+  });
+
+  it("uses previous race and path when preserving distributed growth memory", () => {
+    const stats = buildRemortStarterStats({
+      raceId: "race.human-ish",
+      classId: "class.warrior",
+      remortNumber: 3,
+      previousLevel: 13,
+      previousClassId: "class.warrior",
+      previousRaceId: "race.human-ish",
+      previousPath: "sun"
+    });
+
+    expect(stats.statBonuses).toEqual([
+      { stat: "strength", bonus: 4 },
+      { stat: "dexterity", bonus: 3 },
+      { stat: "intelligence", bonus: 1 },
+      { stat: "charisma", bonus: 1 },
+      { stat: "luck", bonus: 2 }
+    ]);
+    expect(stats.stats).toMatchObject({
+      strength: 12,
+      dexterity: 9,
+      intelligence: 6,
+      charisma: 7,
+      luck: 7
     });
   });
 
