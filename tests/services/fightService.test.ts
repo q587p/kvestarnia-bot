@@ -1128,7 +1128,7 @@ describe("FightService", () => {
     expect(rewardRecords).toHaveLength(1);
   });
 
-  it("limits XP to a small amount for persistent fight wins against much weaker monsters", async () => {
+  it("bases persistent fight XP on monster level instead of hero overlevel", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 1300 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -1170,7 +1170,7 @@ describe("FightService", () => {
     if (result.state === "updated") {
       expect(result.session.status).toBe("won");
       expect(result.character.level - result.monster.level).toBeGreaterThan(2);
-      expect(result.fightReward?.reward.xp).toBe(2);
+      expect(result.fightReward?.reward.xp).toBe(7);
     }
     const rewardRecords = dailyActions.records.filter(
       (record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY
@@ -1178,11 +1178,11 @@ describe("FightService", () => {
     expect(rewardRecords).toHaveLength(1);
     expect(rewardRecords[0]).toMatchObject({
       key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
-      rewardXp: 2
+      rewardXp: 7
     });
   });
 
-  it("gives three XP for a win against a monster exactly three levels below", async () => {
+  it("keeps a level-three monster reward tied to the monster level", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 110 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -1225,7 +1225,7 @@ describe("FightService", () => {
       expect(result.session.status).toBe("won");
       expect(result.character.level).toBe(6);
       expect(result.monster.level).toBe(3);
-      expect(result.fightReward?.reward.xp).toBe(3);
+      expect(result.fightReward?.reward.xp).toBe(9);
     }
   });
 
@@ -1302,8 +1302,8 @@ describe("FightService", () => {
 
     expect(easy.xp).toBeLessThan(normal.xp);
     expect(normal.xp).toBeLessThan(hard.xp);
-    expect(easy.gold).toBeLessThanOrEqual(normal.gold);
-    expect(normal.gold).toBeLessThanOrEqual(hard.gold);
+    expect(easy.gold).toBeLessThan(normal.gold);
+    expect(normal.gold).toBeLessThan(hard.gold);
     expect(easy.replayXp).toBe(easy.xp);
     expect(hard.replayGold).toBe(hard.gold);
   });

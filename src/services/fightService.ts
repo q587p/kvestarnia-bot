@@ -1628,7 +1628,7 @@ function buildPersistentFightReward(
 
   const difficulty = getPersistentFightSessionDifficulty(session);
   const effectiveMonsterLevel = getPersistentFightSessionMonsterLevel(session, monster.level);
-  const lootProfileLevel = Math.max(1, character.level + difficulty.lootPowerOffset);
+  const lootProfileLevel = Math.max(1, effectiveMonsterLevel + difficulty.lootPowerOffset);
   const loot = rollMonsterLoot({
     monsterId: monster.id,
     monsterLoot,
@@ -1647,32 +1647,19 @@ function buildPersistentFightReward(
   });
 
   return {
-    xp: buildPersistentFightWinXp(character.level, effectiveMonsterLevel, difficulty),
+    xp: buildPersistentFightWinXp(effectiveMonsterLevel, difficulty),
     gold: buildPersistentFightWinGold(effectiveMonsterLevel, difficulty),
     itemGrants: loot.state === "dropped" ? [{ itemId: loot.item.id, quantity: 1 }] : []
   };
 }
 
 function buildPersistentFightWinXp(
-  characterLevel: number,
   monsterLevel: number,
   difficulty: PersistentFightDifficultyConfig = PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
 ): number {
-  const levelGap = characterLevel - monsterLevel;
-
-  if (levelGap > 3) {
-    return Math.max(1, Math.round(2 * difficulty.xpMultiplier));
-  }
-
-  if (levelGap > 2) {
-    return Math.max(1, Math.round(3 * difficulty.xpMultiplier));
-  }
-
-  const overlevel = Math.max(0, monsterLevel - characterLevel);
-  const overlevelMultiplier = clamp(1 + overlevel * 0.06, 1, 1.36);
   const baseXp = Math.min(14, Math.max(5, 3 + monsterLevel * 2));
 
-  return Math.max(1, Math.round(baseXp * difficulty.xpMultiplier * overlevelMultiplier));
+  return Math.max(1, Math.round(baseXp * difficulty.xpMultiplier));
 }
 
 function buildPersistentFightWinGold(
@@ -2018,8 +2005,4 @@ function pluralize(count: number, one: string, few: string, many: string): strin
   }
 
   return many;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }

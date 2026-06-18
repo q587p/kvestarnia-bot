@@ -18,9 +18,10 @@ This project follows a simple pre-1.0 versioning policy:
 - Normalized `Людисько` to the active `+3` race budget: `+1 STR`, `+1 DEX`, `+1 CHA`.
 - `/hero` now shows `Зміна на наступному рівні:` as a next-level forecast instead of showing cumulative current level growth as `Ріст:`.
 - Level-up and remort presentation can render multiple stat deltas when growth or memory spans more than one stat.
+- Fixed `Низ` passage rewards so persistent fight XP, gold and broad loot profile power follow the effective monster level selected by the passage, not the hero level gap.
 
 ### Guardrails
-- No XP curve, combat formula, loot table, economy, schema, migration, production dependency or onboarding/remort mechanical preview was added.
+- No XP curve, schema, migration, production dependency or onboarding/remort mechanical preview was added.
 - Hidden path ids remain internal and are not shown in player-facing copy.
 
 ## [0.1.15] - 12026-06-18 - Combat Lock and Battle Flow Polish
