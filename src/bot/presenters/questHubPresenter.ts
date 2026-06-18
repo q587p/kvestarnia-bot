@@ -128,7 +128,7 @@ function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-characte
   }
 
   if (fight.state === "level-retired") {
-    return `🪜 <i>Низ</i> — тренувальний бій для 1-${fight.maxLevel} рівнів.`;
+    return `⚔️ <i>Новачкова сутичка</i> — навчальний бій для 1-${fight.maxLevel} рівнів.`;
   }
 
   if (fight.state === "persistent-active") {
@@ -171,7 +171,14 @@ function presentActiveFightRow(
   return presentFightRow(fight);
 }
 
-function presentFightArchiveRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string | null {
+function presentFightArchiveRow(
+  character: CharacterSummary,
+  fight: Exclude<FightLookupResult, { state: "no-character" }>
+): string | null {
+  if (fight.state === "already-completed" && character.level <= STARTER_ACTIVITY_MAX_LEVEL) {
+    return "⚔️ <i>Новачкова сутичка</i> — сьогодні вже зараховано.";
+  }
+
   if (fight.state === "level-retired" || fight.state === "already-completed") {
     return presentFightRow(fight);
   }
@@ -356,7 +363,7 @@ function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
       ? presentProblemQuestRow(snapshot.character, snapshot.problemQuest, snapshot.fight)
       : null,
     ...presentProblemQuestArchiveRows(snapshot.problemQuestArchive),
-    presentFightArchiveRow(snapshot.fight),
+    presentFightArchiveRow(snapshot.character, snapshot.fight),
     presentYegerArchiveRow(snapshot.yeger),
     ...presentCellarArchiveRows(snapshot.cellar, snapshot.cellarGrownup)
   ].filter(isPresent);

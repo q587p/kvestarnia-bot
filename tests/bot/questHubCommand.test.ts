@@ -183,6 +183,42 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).not.toContain("🪜 <i>Низ</i> — можна починати.");
   });
 
+  it("keeps a completed starter fight separate from Nyz in the archive", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const levelOneCharacter = characterAtLevel(1);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(levelOneCharacter),
+        fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: levelOneCharacter,
+              progress: questProgress(0),
+              archive: []
+            }),
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "already-completed",
+              character: levelOneCharacter,
+              questAvailable: false
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        } as unknown as FightService,
+        yeger: readyYegerService(levelOneCharacter),
+        cellarErrand: readyCellarService(levelOneCharacter)
+      }),
+      "reply",
+      "archive"
+    );
+
+    expect(replies[0]?.text).toContain("📦 Архів справ");
+    expect(replies[0]?.text).toContain("⚔️ <i>Новачкова сутичка</i> — сьогодні вже зараховано.");
+    expect(replies[0]?.text).not.toContain("🪜 <i>Низ</i> — сьогодні вже зараховано.");
+  });
+
   it("does not offer starter shawarma from the quest hub after it is completed", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const levelTwoCharacter = characterAtLevel(2);
