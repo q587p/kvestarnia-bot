@@ -364,7 +364,7 @@ describe("handleDuelCallback", () => {
     expect(text.indexOf(flavorLine)).toBeLessThan(
       text.indexOf("🏁 <b>Ціль Виклику</b> перемагає у корчемному виклику")
     );
-    expect(text).toContain("<i>Без XP, золота й манаток. Це корчемний запис для слави, не фарм.</i>");
+    expect(text).toContain("<i>Без XP, золота й манаток. Це корчемний запис для слави, а не спосіб заробітку.</i>");
     expect(text).not.toContain("рейтингу");
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:rematch:${TOKEN}`);
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:share:${TOKEN}`);

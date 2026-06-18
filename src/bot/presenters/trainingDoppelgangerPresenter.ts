@@ -199,13 +199,13 @@ function presentTrainingDoppelgangerState(input: {
     lines.push(
       "",
       presentTrainingWonLine(input.doppelganger),
-      "Золота й манаток немає: це тренування, не фарм."
+      "Золота й манаток немає: це корчемний запис для слави, а не спосіб заробітку."
     );
   } else if (state?.status === "lost") {
     lines.push(
       "",
       presentTrainingLostLine(input.doppelganger),
-      "Золота й манаток немає: це тренування, не фарм."
+      "Золота й манаток немає: це корчемний запис для слави, а не спосіб заробітку."
     );
   } else if (state?.status === "fled") {
     lines.push(
