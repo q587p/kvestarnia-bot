@@ -76,12 +76,7 @@ export function presentAdventureProblem(
     "",
     escapeHtml(result.choice.hook),
     "",
-    npcQuote("Корчмар", "Метод оберіть самі. Потім не кажіть, що метод обрав вас."),
-    "",
-    ...result.approaches.flatMap((approach, index) => [
-      `${escapeHtml(approach.label)} — ${escapeHtml(approach.hint)}`,
-      ...(index < result.approaches.length - 1 ? [""] : [])
-    ])
+    npcQuote("Корчмар", "Метод оберіть самі. Потім не кажіть, що метод обрав вас.")
   ].join("\n");
 }
 

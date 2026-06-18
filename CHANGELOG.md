@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `/help` now points to future shops, crafting and guilds instead of implying loot and combat bookkeeping are still missing.
 - Active combat now allows safe side surfaces again, including `/inventory`, item detail/equipment callbacks, hero/profile, nearby-player views, restart/remort and support, so manatky can be inspected during a fight.
 - The front-door outdoor surface no longer shows a completed/inactive Yeger shortcut or a Barrel-side Yeger explainer; active trails still use the outdoor `До полювання` action.
+- Selected Adventure Choice problem messages no longer print the safe/medium/risky reward ladder; the approach buttons stay available without the extra body copy.
 
 ### Guardrails
 - No XP curve, schema, migration, production dependency or onboarding/remort mechanical preview was added.
