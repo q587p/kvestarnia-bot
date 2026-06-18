@@ -197,6 +197,12 @@ export type AdventureResetResult =
   | { state: "no-character" }
   | { state: "unavailable" };
 
+export type AdventureClaimRollbackResult =
+  | "deleted"
+  | "missing"
+  | "no-character"
+  | "unavailable";
+
 export class AdventureService {
   constructor(
     private readonly characters: CharacterRepository,
@@ -505,6 +511,21 @@ export class AdventureService {
       state: result === "deleted" ? "reset" : "rerolled",
       periodToken: buildAdventureOfferToken(period.token, rerollIndex)
     };
+  }
+
+  async rollbackCurrentAdventureClaimForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<AdventureClaimRollbackResult> {
+    if (!this.dailyActions.deleteForTelegramUser) {
+      return "unavailable";
+    }
+
+    const period = buildAdventurePeriod(this.clock());
+
+    return this.dailyActions.deleteForTelegramUser(telegramUserId, {
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: period.storageKey
+    });
   }
 
   private async getAdventureContext(telegramUserId: bigint): Promise<AdventureLookupResult> {

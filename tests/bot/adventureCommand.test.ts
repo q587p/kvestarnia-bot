@@ -190,6 +190,54 @@ describe("adventure command", () => {
     });
   });
 
+  it("does not mark completed starter shawarma as actionable starter presence", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+    const ctx = {
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const adventureService = {
+      getAdventureOfferForTelegramUser: () =>
+        Promise.resolve({
+          state: "level-locked",
+          character,
+          requiredLevel: 3
+        }),
+      getMimicShawarmaForTelegramUser: () =>
+        Promise.resolve({
+          state: "already-completed",
+          character,
+          fightAvailable: true
+        }),
+      completeAdventureApproach: () => Promise.resolve({ state: "no-character" })
+    } as unknown as AdventureService;
+
+    await sendAdventure(ctx, adventureService, "reply", {
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        complete: () => Promise.resolve({ state: "no-character" })
+      },
+      presence,
+      fallbackToCellar: false,
+      requireKorchmaInterior: true
+    });
+
+    expect(replies).toHaveLength(1);
+    expect(replies[0]?.text).toContain("Шаурма вже дала свідчення");
+    expect(presence.marks).toEqual([]);
+  });
+
   it("does not show quest action buttons after today's quest is already completed", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const ctx = {
@@ -223,7 +271,7 @@ describe("adventure command", () => {
     expect(replies[0]?.options).toHaveProperty("reply_markup");
   });
 
-  it("marks the quest table before showing already-completed shawarma with fight available", async () => {
+  it("marks the quest table before showing already-completed adventure choice", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
       locationId: PRESENCE_LOCATION_KORCHMA_HALL,

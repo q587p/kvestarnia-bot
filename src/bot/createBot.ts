@@ -1823,32 +1823,80 @@ async function handleAdventureCallback(
     });
   }
 
+  if (result.state === "completed") {
+    let complicationFight:
+      | Awaited<ReturnType<FightService["getOrStartPersistentFightForTelegramUser"]>>
+      | null = null;
+
+    if (result.complication) {
+      complicationFight = await services.fight.getOrStartPersistentFightForTelegramUser(
+        telegramUserId,
+        {
+          source: "adventure",
+          difficulty: "normal"
+        }
+      );
+
+      if (
+        complicationFight.state === "needs-rest" ||
+        complicationFight.state === "level-retired" ||
+        complicationFight.state === "no-character"
+      ) {
+        await services.adventure.rollbackCurrentAdventureClaimForTelegramUser(telegramUserId);
+        await safeAnswerCallbackQuery(ctx);
+
+        if (complicationFight.state === "needs-rest") {
+          await safeEditMessageText(
+            ctx,
+            presentFightNeedsRest(complicationFight),
+            HTML_MESSAGE_OPTIONS
+          );
+          return;
+        }
+
+        if (complicationFight.state === "level-retired") {
+          await safeEditMessageText(
+            ctx,
+            presentFightLevelRetired(complicationFight),
+            HTML_MESSAGE_OPTIONS
+          );
+          return;
+        }
+
+        await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
+        return;
+      }
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentAdventureResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildAdventureResultKeyboard(result)
+    });
+    await sendLevelUpCelebration(ctx, result);
+
+    if (complicationFight) {
+      if (
+        complicationFight.state === "persistent-active" ||
+        complicationFight.state === "persistent-terminal"
+      ) {
+        await ctx.reply(presentPersistentFight(complicationFight), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPersistentFightResultKeyboard(
+            complicationFight.session,
+            complicationFight.character
+          )
+        });
+      }
+    }
+    return;
+  }
+
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentAdventureResult(result), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildAdventureResultKeyboard(result)
   });
-  if (result.state === "completed") {
-    await sendLevelUpCelebration(ctx, result);
-
-    if (result.complication) {
-      const fight = await services.fight.getOrStartPersistentFightForTelegramUser(telegramUserId, {
-        source: "adventure",
-        difficulty: "normal"
-      });
-
-      if (fight.state === "persistent-active" || fight.state === "persistent-terminal") {
-        await ctx.reply(presentPersistentFight(fight), {
-          ...HTML_MESSAGE_OPTIONS,
-          reply_markup: buildPersistentFightResultKeyboard(fight.session, fight.character)
-        });
-      } else if (fight.state === "needs-rest") {
-        await ctx.reply(presentFightNeedsRest(fight), HTML_MESSAGE_OPTIONS);
-      } else if (fight.state === "level-retired") {
-        await ctx.reply(presentFightLevelRetired(fight), HTML_MESSAGE_OPTIONS);
-      }
-    }
-  }
 }
 
 async function handleCellarCallback(

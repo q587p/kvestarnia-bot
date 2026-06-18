@@ -30,6 +30,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Personalized adventure copy now declines race and class names in generated problem titles/hooks, avoiding nominative quoted-name insertions like `для «Злодій»`.
 - No migrations, schema changes, new production dependencies, shops, crafting, trading or broad loot economy changes were added.
 - No-character, level-gate, active-fight, stale-callback and legacy shawarma callbacks now land on safe adventure states; active fights take priority over stale adventure callback checks, and starter shawarma callback replays remain idempotent.
+- Failed complication handoffs no longer consume the current adventure claim if the persistent fight path says the character must rest or cannot start combat.
+- Completed starter shawarma lookups no longer stamp the player as being on an actionable starter adventure.
 - Remort reset clears the new adventure claim/reroll keys alongside other per-life daily action keys.
 
 ## [0.1.13] - 12026-06-18 - Problem Fight Difficulty Choice

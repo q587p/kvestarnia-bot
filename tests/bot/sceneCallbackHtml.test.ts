@@ -837,6 +837,61 @@ describe("scene callback HTML options", () => {
     ).toBe(false);
   });
 
+  it("rolls back a complication claim when the follow-up fight needs rest", async () => {
+    const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
+      Promise.resolve("deleted" as const)
+    );
+    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "needs-rest" as const,
+        character: {
+          ...character,
+          hpCurrent: 0
+        }
+      })
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        approach: "risky"
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              choice: adventureChoice,
+              approach: adventureApproach,
+              reward: {
+                xp: 0,
+                gold: 0,
+                localDate: "12026-06-12",
+                itemGrants: []
+              },
+              levelChange: noLevelChange,
+              complication: true
+            }),
+          rollbackCurrentAdventureClaimForTelegramUser
+        },
+        fight: {
+          getOrStartPersistentFightForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
+      source: "adventure",
+      difficulty: "normal"
+    });
+    expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(String(edit?.payload.text)).toContain("HP 0/20");
+    expect(String(edit?.payload.text)).not.toContain("Нагорода не видана");
+    expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+  });
+
   it("blocks level barter callbacks while the Barrel raid is pending", async () => {
     const calls = await captureApiCalls(
       makeLevelBarterAutoCallbackData(),

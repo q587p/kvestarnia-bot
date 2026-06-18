@@ -102,10 +102,6 @@ export async function sendAdventure(
       return;
     }
 
-    if (options?.presence) {
-      await markQuestTablePresence(ctx, options.presence, PRESENCE_ADVENTURE_MIMIC_SHAWARMA);
-    }
-
     if (starter.state === "already-completed") {
       if (options?.fallbackToCellar === true && !starter.fightAvailable) {
         await sendCellarErrand(ctx, options.cellarErrand, options.presence, mode);
@@ -119,6 +115,10 @@ export async function sendAdventure(
         "adventure-result"
       );
       return;
+    }
+
+    if (options?.presence) {
+      await markQuestTablePresence(ctx, options.presence, PRESENCE_ADVENTURE_MIMIC_SHAWARMA);
     }
 
     await sendText(ctx, mode, presentMimicShawarmaStart(starter.character), {
