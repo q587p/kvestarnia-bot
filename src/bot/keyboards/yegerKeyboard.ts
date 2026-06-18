@@ -125,7 +125,7 @@ function inProgressKeyboard(
   return baseYegerKeyboard()
     .text(trackButtonText, makeYegerTrackCallbackData())
     .row()
-    .text("⬅️ До Єгеря", makeYegerOpenCallbackData());
+    .text("⬅️ Надвір", makePlaceCallbackData("front"));
 }
 
 function baseYegerKeyboard(): InlineKeyboard {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeItemDetailCallbackData } from "../../src/bot/callbacks/itemCallbackData";
+import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import {
   buildYegerCornerKeyboard,
   buildYegerHuntKeyboard,
@@ -106,6 +107,10 @@ describe("Yeger keyboard", () => {
     expect(flatButtons(pending)[0]?.text).toBe("⏳ Чекати слід");
     expect(flatButtons(ready)[0]?.text).toBe("🔎 Перевірити слід");
     expect(flatButtons(none)[0]?.text).toBe("👣 Взяти слід");
+    expect(flatButtons(ready)[1]).toEqual({
+      text: "⬅️ Надвір",
+      callback_data: makePlaceCallbackData("front")
+    });
   });
 });
 
