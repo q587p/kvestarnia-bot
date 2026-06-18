@@ -7,6 +7,7 @@ import {
   parseAdventureCallbackData
 } from "../../src/bot/callbacks/adventureCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
+import { ADVENTURE_PROBLEM_IDS } from "../../src/services/adventureService";
 
 describe("adventure callback data", () => {
   it("parses problem callbacks within Telegram limits", () => {
@@ -38,6 +39,26 @@ describe("adventure callback data", () => {
         type: "problem",
         periodToken: "20260612",
         problemId: "portrait"
+      }
+    });
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
+
+  it("parses personalized problem ids within Telegram limits", () => {
+    const problemId = ADVENTURE_PROBLEM_IDS.find((id) => id.startsWith("class-bureaucramancer-"));
+
+    expect(problemId).toBeDefined();
+    const data = makeAdventureProblemCallbackData({
+      periodToken: "20260612",
+      problemId: problemId ?? "class-bureaucramancer-manual"
+    });
+
+    expect(parseAdventureCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "problem",
+        periodToken: "20260612",
+        problemId
       }
     });
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);

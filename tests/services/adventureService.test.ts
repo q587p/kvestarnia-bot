@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { classes } from "../../src/content/classes";
+import { getKnownComboTitleValues } from "../../src/content/characterOptions";
+import { activeRaces } from "../../src/content/races";
 import type {
   CharacterRecord,
   CharacterRepository,
@@ -22,6 +25,7 @@ import {
   buildApproachOptions,
   buildAdventureOffer,
   buildAdventurePeriod,
+  getAdventureProblemPoolForProfile,
   getAdventureProblemIcon,
   type AdventureApproach
 } from "../../src/services/adventureService";
@@ -64,7 +68,10 @@ describe("AdventureService", () => {
     expect(first.periodToken).toBe(period.token);
     expect(first.choices).toHaveLength(3);
     expect(new Set(first.choices.map((choice) => choice.id)).size).toBe(3);
-    expect(ADVENTURE_PROBLEM_IDS.length).toBeGreaterThanOrEqual(24);
+    expect(ADVENTURE_PROBLEM_IDS.length).toBeGreaterThanOrEqual(
+      24 + activeRaces.length * 3 + classes.length * 3 + getKnownComboTitleValues().length
+    );
+    expect(new Set(ADVENTURE_PROBLEM_IDS).size).toBe(ADVENTURE_PROBLEM_IDS.length);
     expect(nextPeriod.choices.map((choice) => choice.id)).not.toEqual(
       first.choices.map((choice) => choice.id)
     );
@@ -73,6 +80,46 @@ describe("AdventureService", () => {
     ).toBe(0);
     expect(first.choices.every((choice) => getAdventureProblemIcon(choice.id).length > 0)).toBe(true);
     expect(ADVENTURE_PROBLEM_IDS.every((problemId) => getAdventureProblemIcon(problemId).length > 0)).toBe(true);
+  });
+
+  it("adds race, class, and title-specific problems to matching offers", async () => {
+    const { service, characters } = setup();
+    characters.add(telegramUserId, {
+      xp: 25,
+      raceId: "race.human-ish",
+      classId: "class.warrior",
+      pronoun: "he"
+    });
+    const offer = await readyOffer(service);
+
+    expect(
+      offer.choices.some(
+        (choice) =>
+          choice.id.startsWith("race-human-ish-") ||
+          choice.id.startsWith("class-warrior-") ||
+          choice.id.startsWith("title-")
+      )
+    ).toBe(true);
+  });
+
+  it("keeps personalized adventure coverage for every active race, class, and title", () => {
+    for (const race of activeRaces) {
+      const pool = getAdventureProblemPoolForProfile({ raceId: race.id });
+
+      expect(pool.filter((problem) => problem.audience?.raceId === race.id)).toHaveLength(3);
+    }
+
+    for (const characterClass of classes) {
+      const pool = getAdventureProblemPoolForProfile({ classId: characterClass.id });
+
+      expect(pool.filter((problem) => problem.audience?.classId === characterClass.id)).toHaveLength(3);
+    }
+
+    for (const title of getKnownComboTitleValues()) {
+      const pool = getAdventureProblemPoolForProfile({ title });
+
+      expect(pool.filter((problem) => problem.audience?.title === title)).toHaveLength(1);
+    }
   });
 
   it("selects a problem and exposes safe, flavored, and risky approaches", async () => {

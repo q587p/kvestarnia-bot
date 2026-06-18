@@ -1,4 +1,7 @@
 import type { CharacterRepository } from "../db/repositories/characterRepository";
+import { classes } from "../content/classes";
+import { classIdToKey, getKnownComboTitleValues, raceIdToKey } from "../content/characterOptions";
+import { activeRaces } from "../content/races";
 import type {
   DailyActionRepository,
   RewardLevelChange
@@ -37,7 +40,7 @@ export const ADVENTURE_CHOICE_PERIOD_MINUTES = 93;
 
 export type AdventureApproach = "safe" | "flair" | "risky";
 export type MimicShawarmaAction = "poke" | "receipt" | "flee";
-export const ADVENTURE_PROBLEM_IDS = [
+const GENERAL_ADVENTURE_PROBLEM_IDS = [
   "stew",
   "barrel",
   "helmet",
@@ -63,13 +66,29 @@ export const ADVENTURE_PROBLEM_IDS = [
   "rug",
   "bell"
 ] as const;
-export type AdventureProblemId = (typeof ADVENTURE_PROBLEM_IDS)[number];
+type GeneralAdventureProblemId = (typeof GENERAL_ADVENTURE_PROBLEM_IDS)[number];
+export type AdventureProblemId = string;
 
 export interface AdventureChoice {
   id: AdventureProblemId;
   title: string;
   hook: string;
   client: string;
+}
+
+export interface AdventureProblem extends AdventureChoice {
+  audience?: {
+    raceId?: string;
+    classId?: string;
+    title?: string;
+  };
+}
+
+export interface AdventureOfferProfile {
+  id: string;
+  raceId?: string;
+  classId?: string;
+  title?: string;
 }
 
 export interface AdventureOffer {
@@ -259,6 +278,16 @@ export class AdventureService {
       };
     }
 
+    const activeFight = await this.findLiveActiveFight(telegramUserId);
+
+    if (activeFight) {
+      return {
+        state: "active-fight",
+        character: characterSummary,
+        session: activeFight
+      };
+    }
+
     const period = buildAdventurePeriod(this.clock());
     const existing = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: ADVENTURE_CHOICE_KEY,
@@ -272,7 +301,7 @@ export class AdventureService {
       };
     }
 
-    const offer = buildAdventureOffer(character.id, period);
+    const offer = buildAdventureOffer(toAdventureOfferProfile(character.id, characterSummary), period);
 
     if (input.periodToken !== offer.periodToken) {
       return {
@@ -289,16 +318,6 @@ export class AdventureService {
         state: "stale",
         character: characterSummary,
         offer
-      };
-    }
-
-    const activeFight = await this.findLiveActiveFight(telegramUserId);
-
-    if (activeFight) {
-      return {
-        state: "active-fight",
-        character: characterSummary,
-        session: activeFight
       };
     }
 
@@ -520,7 +539,7 @@ export class AdventureService {
     return {
       state: "ready",
       character: characterSummary,
-      offer: buildAdventureOffer(character.id, period)
+      offer: buildAdventureOffer(toAdventureOfferProfile(character.id, characterSummary), period)
     };
   }
 
@@ -580,7 +599,10 @@ export function buildAdventurePeriod(now: Date): AdventurePeriod {
   };
 }
 
-export function buildAdventureOffer(characterId: string, period: AdventurePeriod | string): AdventureOffer {
+export function buildAdventureOffer(
+  character: string | AdventureOfferProfile,
+  period: AdventurePeriod | string
+): AdventureOffer {
   const normalized =
     typeof period === "string"
       ? {
@@ -590,9 +612,21 @@ export function buildAdventureOffer(characterId: string, period: AdventurePeriod
           expiresAt: new Date(0)
         }
       : period;
-  const rng = new SeededRandomSource(`adventure-choice:${characterId}:${normalized.token}`);
-  const pool = [...ADVENTURE_PROBLEMS];
+  const profile = normalizeAdventureOfferProfile(character);
+  const rng = new SeededRandomSource(`adventure-choice:${profile.id}:${normalized.token}`);
+  const pool = getAdventureProblemPoolForProfile(profile);
+  const personalizedPool = pool.filter((problem) => Boolean(problem.audience));
   const choices: AdventureChoice[] = [];
+
+  if (personalizedPool.length > 0) {
+    const index = rng.nextInt(0, personalizedPool.length - 1);
+    const choice = personalizedPool[index];
+
+    if (choice) {
+      choices.push(choice);
+      pool.splice(pool.findIndex((candidate) => candidate.id === choice.id), 1);
+    }
+  }
 
   while (choices.length < ADVENTURE_CHOICE_COUNT && pool.length > 0) {
     const index = rng.nextInt(0, pool.length - 1);
@@ -603,6 +637,8 @@ export function buildAdventureOffer(characterId: string, period: AdventurePeriod
     }
   }
 
+  shuffleAdventureChoices(choices, rng);
+
   return {
     localDate: normalized.localDate,
     periodToken: normalized.token,
@@ -611,8 +647,82 @@ export function buildAdventureOffer(characterId: string, period: AdventurePeriod
   };
 }
 
+export function getAdventureProblemPoolForProfile(
+  profile?: Pick<AdventureOfferProfile, "raceId" | "classId" | "title">
+): AdventureProblem[] {
+  return ADVENTURE_PROBLEMS.filter((problem) => matchesAdventureProblemAudience(problem, profile));
+}
+
 export function getAdventureProblemIcon(problemId: AdventureProblemId): string {
-  return ADVENTURE_PROBLEM_ICONS[problemId];
+  if (problemId.startsWith("race-")) {
+    return "🧬";
+  }
+
+  if (problemId.startsWith("class-")) {
+    return "🎭";
+  }
+
+  if (problemId.startsWith("title-")) {
+    return "🏷️";
+  }
+
+  if (GENERAL_ADVENTURE_PROBLEM_IDS.includes(problemId as GeneralAdventureProblemId)) {
+    return ADVENTURE_PROBLEM_ICONS[problemId as GeneralAdventureProblemId];
+  }
+
+  return "🪧";
+}
+
+function normalizeAdventureOfferProfile(character: string | AdventureOfferProfile): AdventureOfferProfile {
+  return typeof character === "string" ? { id: character } : character;
+}
+
+function toAdventureOfferProfile(
+  characterId: string,
+  character: CharacterSummary
+): AdventureOfferProfile {
+  return {
+    id: characterId,
+    raceId: character.raceId,
+    classId: character.classId,
+    title: character.title
+  };
+}
+
+function matchesAdventureProblemAudience(
+  problem: AdventureProblem,
+  profile?: Pick<AdventureOfferProfile, "raceId" | "classId" | "title">
+): boolean {
+  if (!problem.audience) {
+    return true;
+  }
+
+  if (problem.audience.raceId && profile?.raceId !== problem.audience.raceId) {
+    return false;
+  }
+
+  if (problem.audience.classId && profile?.classId !== problem.audience.classId) {
+    return false;
+  }
+
+  if (problem.audience.title && profile?.title !== problem.audience.title) {
+    return false;
+  }
+
+  return true;
+}
+
+function shuffleAdventureChoices(choices: AdventureChoice[], rng: SeededRandomSource): void {
+  for (let index = choices.length - 1; index > 0; index -= 1) {
+    const swapIndex = rng.nextInt(0, index);
+    const current = choices[index];
+    const swap = choices[swapIndex];
+
+    if (current && swap) {
+      choices[index] = swap;
+      choices[swapIndex] = current;
+    }
+  }
 }
 
 export function buildApproachOptions(character: CharacterSummary): AdventureApproachOption[] {
@@ -712,9 +822,9 @@ const ADVENTURE_PROBLEM_ICONS = {
   ledger: "📒",
   rug: "🧶",
   bell: "🔔"
-} satisfies Record<AdventureProblemId, string>;
+} satisfies Record<GeneralAdventureProblemId, string>;
 
-const ADVENTURE_PROBLEMS = [
+const GENERAL_ADVENTURE_PROBLEMS = [
   {
     id: "stew",
     title: "Казанок репетирує оперу",
@@ -859,4 +969,101 @@ const ADVENTURE_PROBLEMS = [
     hook: "Кожен дзвінок кличе або офіціянта, або дрібну проблему з блокнотом. Відрізнити важко.",
     client: "Офіціянт, який просить не дзвонити в реальність"
   }
-] as const satisfies AdventureChoice[];
+] as const satisfies AdventureProblem[];
+
+const RACE_ADVENTURE_TEMPLATES = [
+  {
+    suffix: "survey",
+    title: (raceName: string) => `Анкета раси «${raceName}» втекла з графи`,
+    hook: (raceName: string) =>
+      `У реєстрі біля «${raceName}» зʼявився підпис: «не вмістилось, пішло думати». Корчмар просить повернути папір, поки він не отримав громадянство.`,
+    client: "Писар, який тримає чорнило обома руками"
+  },
+  {
+    suffix: "mug",
+    title: (raceName: string) => `Кухоль для «${raceName}» не проходить інструктаж`,
+    hook: (raceName: string) =>
+      `Особливий кухоль для гостей раси «${raceName}» вимагає окремого звертання, підставку й маленьку церемонію наливу.`,
+    client: "Корчмар, який уже шкодує про персоналізацію"
+  },
+  {
+    suffix: "portrait",
+    title: (raceName: string) => `Портрет раси «${raceName}» сперечається з рамою`,
+    hook: (raceName: string) =>
+      `Портрет у кутку наполягає, що «${raceName}» треба малювати героїчніше, а рама каже, що в неї теж є межі.`,
+    client: "Маляр із пензлем і дипломатичною втомою"
+  }
+] as const;
+
+const CLASS_ADVENTURE_TEMPLATES = [
+  {
+    suffix: "manual",
+    title: (className: string) => `Підручник класу «${className}» почав практику`,
+    hook: (className: string) =>
+      `Підручник для «${className}» відкрився сам і тепер оцінює відвідувачів за шкалою від «ще живий» до «потребує додатку».`,
+    client: "Учень, який хотів лише закладку"
+  },
+  {
+    suffix: "uniform",
+    title: (className: string) => `Форма «${className}» не влазить у клітинку`,
+    hook: (className: string) =>
+      `У бланку професій для «${className}» лишилася надто мала клітинка. Клітинка вже подала скаргу на розширення обовʼязків.`,
+    client: "Канцелярія персонажів із лінійкою напереваги"
+  },
+  {
+    suffix: "exam",
+    title: (className: string) => `Іспит для «${className}» здає викладача`,
+    hook: (className: string) =>
+      `Тест для «${className}» так довго чекав героя, що сам почав ставити питання викладачеві й вимагати перездачу.`,
+    client: "Наставник, який не готувався до взаємності"
+  }
+] as const;
+
+function buildRaceAdventureProblems(): AdventureProblem[] {
+  return activeRaces.flatMap((race) =>
+    RACE_ADVENTURE_TEMPLATES.map((template) => ({
+      id: `race-${raceIdToKey(race.id)}-${template.suffix}`,
+      title: template.title(race.name),
+      hook: template.hook(race.name),
+      client: template.client,
+      audience: {
+        raceId: race.id
+      }
+    }))
+  );
+}
+
+function buildClassAdventureProblems(): AdventureProblem[] {
+  return classes.flatMap((characterClass) =>
+    CLASS_ADVENTURE_TEMPLATES.map((template) => ({
+      id: `class-${classIdToKey(characterClass.id)}-${template.suffix}`,
+      title: template.title(characterClass.name),
+      hook: template.hook(characterClass.name),
+      client: template.client,
+      audience: {
+        classId: characterClass.id
+      }
+    }))
+  );
+}
+
+function buildTitleAdventureProblems(): AdventureProblem[] {
+  return getKnownComboTitleValues().map((title, index) => ({
+    id: `title-${index.toString(36)}`,
+    title: "Титул просить окрему чергу",
+    hook: `Ваш титул «${title}» записали у журнал дрібних справ. Журнал тепер ходить корчмою й питає, чи слава має печатку.`,
+    client: "Сусідній стіл, якому заважає чужа репутація",
+    audience: {
+      title
+    }
+  }));
+}
+
+const ADVENTURE_PROBLEMS = [
+  ...GENERAL_ADVENTURE_PROBLEMS,
+  ...buildRaceAdventureProblems(),
+  ...buildClassAdventureProblems(),
+  ...buildTitleAdventureProblems()
+] satisfies AdventureProblem[];
+
+export const ADVENTURE_PROBLEM_IDS = ADVENTURE_PROBLEMS.map((problem) => problem.id);

@@ -13,7 +13,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `/adventure` now opens a compact level 3+ tavern problem offer instead of the old one-scene adventure.
 - Each 93-minute adventure period generates three deterministic, distinct choices per character until the period is resolved or locally reset.
 - Each problem has three resolution approaches: safe, class-flavored clever/social/magical, and risky, with conservative ascending XP/gold rewards and complication chances.
-- The tavern problem pool now has 24 deterministic problems, so consecutive 93-minute periods vary more often while still staying stable until resolved or reset.
+- The tavern problem pool now combines the 24 general tavern problems with personalized race, class and current-title problems; matching offers guarantee at least one personalized candidate when available.
 - The starter mimic-shawarma adventure remains available for levels 1-2 from `/adventure` and Quest Hub before the level 3 choice loop opens.
 - Complications record the adventure claim with no reward and hand the player into the existing persistent solo fight path instead of creating a second combat engine.
 - Added `v1:adv:p:{period}:{problem}` and `v1:adv:a:{period}:{problem}:{approach}` callbacks with stale-token handling and callback-length coverage.
@@ -26,7 +26,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Quest Hub Korchmar problem rows now use a distinct paperwork icon from the table surface, and selected adventure approaches/results have clearer paragraph spacing.
 - Adventure offer rows and problem-choice buttons now show stable per-problem icons while keeping callback data compact.
 - No migrations, schema changes, new production dependencies, shops, crafting, trading or broad loot economy changes were added.
-- No-character, level-gate, active-fight, stale-callback and legacy shawarma callbacks now land on safe adventure states; starter shawarma callback replays remain idempotent.
+- No-character, level-gate, active-fight, stale-callback and legacy shawarma callbacks now land on safe adventure states; active fights take priority over stale adventure callback checks, and starter shawarma callback replays remain idempotent.
 - Remort reset clears the new adventure claim key alongside other per-life daily action keys.
 
 ## [0.1.13] - 12026-06-18 - Problem Fight Difficulty Choice
