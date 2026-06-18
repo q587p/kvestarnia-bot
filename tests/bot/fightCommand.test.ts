@@ -229,7 +229,7 @@ describe("fight command", () => {
 
     expect(options.parse_mode).toBe("HTML");
     expect(options.reply_markup.inline_keyboard.flat()).toEqual([
-      { text: "⚔️ Новий бій", callback_data: makePlaceCallbackData("deep") },
+      { text: "⚔️ Новий бій", callback_data: makePlaceCallbackData("deep-level1") },
       { text: "🪜 До Низу", callback_data: makePlaceCallbackData("deep") }
     ]);
   });

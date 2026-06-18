@@ -487,7 +487,7 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["v1:place:deep", "v1:place:deep"]);
+    }, character))).toEqual(["v1:place:deep-level1", "v1:place:deep"]);
   });
 
   it("keeps active training doppelganger buttons scoped to turn callbacks", () => {

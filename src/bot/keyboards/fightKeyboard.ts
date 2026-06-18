@@ -60,7 +60,7 @@ export function buildPersistentFightResultKeyboard(
 ): InlineKeyboard {
   if (session.state?.status !== "active") {
     return new InlineKeyboard()
-      .text("⚔️ Новий бій", makePlaceCallbackData("deep"))
+      .text("⚔️ Новий бій", makePlaceCallbackData("deep-level1"))
       .row()
       .text("🪜 До Низу", makePlaceCallbackData("deep"));
   }
