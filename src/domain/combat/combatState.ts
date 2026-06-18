@@ -55,6 +55,8 @@ export interface CombatCopiedEquipment {
 export interface CombatDebugTrace {
   spawnMode?: string;
   source?: "target" | "random-build" | "champion-fallback";
+  championPeriod?: string;
+  championName?: string;
   copiedEquipmentCount?: number;
   appliedEffectKeys?: string[];
   legalAbilityIds?: string[];

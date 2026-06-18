@@ -63,6 +63,7 @@ export function buildTrainingDoppelgangerSpawn(
 ): TrainingDoppelgangerSpawn {
   const mode = resolveTrainingDoppelgangerSpawnMode(options.spawnConfig, options.rng);
   const sourceKind = mode.startsWith("COPY_CHAMPION") ? "champion-fallback" : undefined;
+  const championPeriod = getChampionPeriodFromSpawnMode(mode);
   const effectiveMode =
     mode === "RANDOM_BUILD" || (mode.startsWith("COPY_CHAMPION") && options.spawnConfig?.championFallbackMode === "RANDOM_BUILD")
       ? "RANDOM_BUILD"
@@ -77,8 +78,9 @@ export function buildTrainingDoppelgangerSpawn(
       : source;
   const monster = buildTrainingDoppelgangerMonsterStats(character, {
     equippedItems,
-    spawnMode: effectiveMode,
-    source: sourceKind ?? (effectiveMode === "RANDOM_BUILD" ? "random-build" : "target")
+    spawnMode: mode,
+    source: sourceKind ?? (effectiveMode === "RANDOM_BUILD" ? "random-build" : "target"),
+    ...(championPeriod ? { championPeriod, championName: source.name } : {})
   });
 
   return {
@@ -120,8 +122,10 @@ function buildTrainingDoppelgangerMonsterStats(
   character: CharacterSummary,
   options: {
     equippedItems: readonly ItemContent[];
-    spawnMode: "COPY_TARGET" | "RANDOM_BUILD";
+    spawnMode: TrainingDoppelgangerSpawnMode;
     source: "target" | "random-build" | "champion-fallback";
+    championPeriod?: "day" | "week" | "month";
+    championName?: string;
   }
 ): MonsterCombatStats {
   const effects = character.equipmentEffects;
@@ -151,6 +155,8 @@ function buildTrainingDoppelgangerMonsterStats(
     debugTrace: {
       spawnMode: options.spawnMode,
       source: options.source,
+      ...(options.championPeriod ? { championPeriod: options.championPeriod } : {}),
+      ...(options.championName ? { championName: options.championName } : {}),
       copiedEquipmentCount: copiedEquipment.length,
       appliedEffectKeys,
       legalAbilityIds: [getCombatSkillProfile(character.classId).id]
@@ -233,6 +239,24 @@ function resolveTrainingDoppelgangerSpawnMode(
   const roll = rng ? rng.nextInt(1, totalWeight) : 1;
 
   return roll <= copyWeight ? "COPY_TARGET" : "RANDOM_BUILD";
+}
+
+function getChampionPeriodFromSpawnMode(
+  mode: TrainingDoppelgangerSpawnMode
+): "day" | "week" | "month" | null {
+  if (mode === "COPY_CHAMPION_DAY") {
+    return "day";
+  }
+
+  if (mode === "COPY_CHAMPION_WEEK") {
+    return "week";
+  }
+
+  if (mode === "COPY_CHAMPION_MONTH") {
+    return "month";
+  }
+
+  return null;
 }
 
 function buildRandomDoppelgangerCharacter(

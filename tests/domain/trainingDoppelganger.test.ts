@@ -81,6 +81,22 @@ describe("training doppelganger domain", () => {
     expect(spawn.monster.copiedEquipment?.length ?? 0).toBeGreaterThan(0);
   });
 
+  it("preserves ephemeral champion source metadata in combat state", () => {
+    const champion = buildCharacter({ name: "Боривітер", classId: "class.bard" });
+    const spawn = buildTrainingDoppelgangerSpawn(champion, {
+      spawnConfig: { mode: "COPY_CHAMPION_WEEK" }
+    });
+
+    expect(spawn.mode).toBe("COPY_TARGET");
+    expect(spawn.monster.classId).toBe("class.bard");
+    expect(spawn.monster.debugTrace).toMatchObject({
+      spawnMode: "COPY_CHAMPION_WEEK",
+      source: "champion-fallback",
+      championPeriod: "week",
+      championName: "Боривітер"
+    });
+  });
+
   it("restores combat stats from the stored doppelganger state snapshot", () => {
     const source = buildCharacter();
     const spawn = buildTrainingDoppelgangerSpawn(source, {
@@ -143,16 +159,18 @@ function buildCharacter(
     level?: number;
     xp?: number;
     luck?: number;
+    name?: string;
+    classId?: string;
     equippedItems?: ItemContent[];
   } = {}
 ) {
   return summarizeCharacter(
     {
-      name: "Мандрівник",
+      name: overrides.name ?? "Мандрівник",
       pronoun: "they",
       path: "path.sun",
       raceId: "race.human-ish",
-      classId: "class.warrior",
+      classId: overrides.classId ?? "class.warrior",
       level: overrides.level ?? 3,
       xp: overrides.xp ?? 25,
       gold: 0,

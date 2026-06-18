@@ -124,9 +124,13 @@ describe("TrainingDoppelgangerService", () => {
     expect(started.state).toBe("active");
     if (started.state === "active") {
       expect(started.doppelganger.className).toBe("Бард");
+      expect(started.doppelganger.championPeriod).toBe("week");
+      expect(started.doppelganger.championName).toBe("Боривітер");
       expect(started.session.state?.monster.debugTrace).toMatchObject({
-        spawnMode: "COPY_TARGET",
-        source: "champion-fallback"
+        spawnMode: "COPY_CHAMPION_WEEK",
+        source: "champion-fallback",
+        championPeriod: "week",
+        championName: "Боривітер"
       });
     }
     expect(world.sessions.size).toBe(1);

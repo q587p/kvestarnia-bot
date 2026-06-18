@@ -126,6 +126,8 @@ export interface TrainingDoppelgangerCopy {
   level: number;
   spawnMode: "COPY_TARGET" | "RANDOM_BUILD";
   source: "target" | "random-build" | "champion-fallback";
+  championPeriod?: TrainingDoppelgangerChampionPeriod;
+  championName?: string;
   copiedEquipmentCount: number;
 }
 
@@ -748,8 +750,18 @@ function buildDoppelgangerCopy(
       trace?.source === "random-build" || trace?.source === "champion-fallback"
         ? trace.source
         : "target",
+    ...(isChampionPeriod(trace?.championPeriod)
+      ? { championPeriod: trace.championPeriod }
+      : {}),
+    ...(trace?.championName?.trim() ? { championName: trace.championName.trim() } : {}),
     copiedEquipmentCount: trace?.copiedEquipmentCount ?? 0
   };
+}
+
+function isChampionPeriod(
+  period: string | undefined
+): period is TrainingDoppelgangerChampionPeriod {
+  return period === "day" || period === "week" || period === "month";
 }
 
 function buildHeroCombatStats(character: CharacterSummary) {

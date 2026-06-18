@@ -27,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Fixed
 - `/start` now keeps existing characters at their saved presence location instead of moving them back to the front of the korchma.
+- Training doppelganger counter flavor, champion intro copy and terminal wording now use the stored selected copy identity instead of leaking the current hero's class/action into random or champion mirrors.
 
 ## [0.1.11] - 12026-06-18 - Duel Rematch and Shareable Result Cards
 
