@@ -27,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Adventure offer rows and problem-choice buttons now show stable per-problem icons while keeping callback data compact.
 - Quest Hub no longer advertises the separate Fighting Corner in the quest-table intro or offers a direct Fighting Corner shortcut from the table.
 - Local adventure resets store zero-reward reroll markers in the existing daily-action ledger, so reset offers change immediately and old callbacks become stale without a migration.
+- Personalized adventure copy now declines race and class names in generated problem titles/hooks, avoiding nominative quoted-name insertions like `для «Злодій»`.
 - No migrations, schema changes, new production dependencies, shops, crafting, trading or broad loot economy changes were added.
 - No-character, level-gate, active-fight, stale-callback and legacy shawarma callbacks now land on safe adventure states; active fights take priority over stale adventure callback checks, and starter shawarma callback replays remain idempotent.
 - Remort reset clears the new adventure claim/reroll keys alongside other per-life daily action keys.

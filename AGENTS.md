@@ -103,21 +103,22 @@ After closing a versioned task:
 5. Do not run global formatters on the whole repo unless explicitly requested.
 6. Do not change lockfiles, migrations, schemas, config, generated files, or snapshots unless the task requires it.
 7. Keep all player-facing strings Ukrainian. No accidental Russian, rough calques, or random English in game copy except technical commands.
-8. In Ukrainian text, use `«»` quotes, not English curly quotes or straight double quotes; straight quotes are allowed only for code/JSON/technical examples.
-9. Use `міт`, `мітичний`, `мітологія`, `мітологічний` with `т`, not `міф*`, unless it is an immutable external quote or name.
-10. Use `соціяльний`, `соціяльна`, `соціяльне`, `соціяльні`, `соціяльність` with `я`, not `соціальн*`, unless it is an immutable external quote or name.
-11. In visible docs/changelog/news/player dates, use the Holocene calendar: `12026`, not `2026`. Release/news/changelog date headings use Kyiv time (`Europe/Kyiv`). Do not rewrite machine timestamps, migration names, or technical IDs.
-12. When choosing non-critical exact numbers for flavor, short timers, quest counters, or small limits, prefer `13`, `23`, `42`, `93`, and `587` when it is appropriate. Do not force these numbers when balance, safety, API limits, clarity, or established formulas need something else.
-13. Do not insert secrets, tokens, private chat IDs, or real keys into code or docs.
-14. Do not break existing migrations. Schema changes require a new migration.
-15. Game calculations must be deterministic and testable; combat/domain logic must not depend on Telegram API.
-16. Telegram messages should stay short: one mobile screen, buttons for actions, details on demand.
-17. Within one message or keyboard, prefer distinct icons for distinct actions/places/states. Do not reuse a location/surface icon for a quest row or action shown in the same UI; for example, the quest table and Korchmar quest rows need different icons. Reusing icons is acceptable for similar navigation such as back buttons or pagination.
-18. Do not show exact future reward amounts, drop names, manatky, hidden odds, or percentage chances in player-facing pre-commit choices. Before the player commits, use qualitative risk/reward language; exact values may appear after resolution, in tests, in `CHANGELOG.md`, or in internal docs.
-19. No pay-to-win. Monetization may support cosmetics, comfort, or server support, but not unfair combat power.
-20. When adding new runtime gameplay loops with timers, cooldowns, random offers, pending sessions, or once-per-period gates, consider adding a narrow non-production `/dev_*` command that makes local/manual QA faster without weakening production rules.
-21. When replacing or retiring an older player-facing flow, explicitly preserve or deliberately retire starter/onboarding fallback paths in code, tests, task docs, changelog/news, compact context, and PR body. Do not let level gates for new functionality hide existing newbie content by accident.
-22. After runtime logic changes, run tests or explain the blocker. For docs-only changes, `Not run — docs-only change` is acceptable.
+8. Decline dynamic race, class, title, item, monster and place names when Ukrainian grammar requires it, or rewrite the sentence neutrally. Before publishing player-facing Ukrainian copy, check generated examples for cases, gender, number and awkward quoted-name insertions.
+9. In Ukrainian text, use `«»` quotes, not English curly quotes or straight double quotes; straight quotes are allowed only for code/JSON/technical examples.
+10. Use `міт`, `мітичний`, `мітологія`, `мітологічний` with `т`, not `міф*`, unless it is an immutable external quote or name.
+11. Use `соціяльний`, `соціяльна`, `соціяльне`, `соціяльні`, `соціяльність` with `я`, not `соціальн*`, unless it is an immutable external quote or name.
+12. In visible docs/changelog/news/player dates, use the Holocene calendar: `12026`, not `2026`. Release/news/changelog date headings use Kyiv time (`Europe/Kyiv`). Do not rewrite machine timestamps, migration names, or technical IDs.
+13. When choosing non-critical exact numbers for flavor, short timers, quest counters, or small limits, prefer `13`, `23`, `42`, `93`, and `587` when it is appropriate. Do not force these numbers when balance, safety, API limits, clarity, or established formulas need something else.
+14. Do not insert secrets, tokens, private chat IDs, or real keys into code or docs.
+15. Do not break existing migrations. Schema changes require a new migration.
+16. Game calculations must be deterministic and testable; combat/domain logic must not depend on Telegram API.
+17. Telegram messages should stay short: one mobile screen, buttons for actions, details on demand.
+18. Within one message or keyboard, prefer distinct icons for distinct actions/places/states. Do not reuse a location/surface icon for a quest row or action shown in the same UI; for example, the quest table and Korchmar quest rows need different icons. Reusing icons is acceptable for similar navigation such as back buttons or pagination.
+19. Do not show exact future reward amounts, drop names, manatky, hidden odds, or percentage chances in player-facing pre-commit choices. Before the player commits, use qualitative risk/reward language; exact values may appear after resolution, in tests, in `CHANGELOG.md`, or in internal docs.
+20. No pay-to-win. Monetization may support cosmetics, comfort, or server support, but not unfair combat power.
+21. When adding new runtime gameplay loops with timers, cooldowns, random offers, pending sessions, or once-per-period gates, consider adding a narrow non-production `/dev_*` command that makes local/manual QA faster without weakening production rules.
+22. When replacing or retiring an older player-facing flow, explicitly preserve or deliberately retire starter/onboarding fallback paths in code, tests, task docs, changelog/news, compact context, and PR body. Do not let level gates for new functionality hide existing newbie content by accident.
+23. After runtime logic changes, run tests or explain the blocker. For docs-only changes, `Not run — docs-only change` is acceptable.
 
 ## Release and PR rules
 

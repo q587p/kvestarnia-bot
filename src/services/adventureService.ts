@@ -1038,26 +1038,54 @@ const GENERAL_ADVENTURE_PROBLEMS = [
   }
 ] as const satisfies AdventureProblem[];
 
+interface AdventureNameForms {
+  genitive: string;
+}
+
+const ADVENTURE_RACE_GENITIVE_NAMES: Record<string, string> = {
+  "race.human-ish": "Людиська",
+  "race.dwarf": "Гнома",
+  "race.elf": "Ельфа",
+  "race.bisyny": "Бісин",
+  "race.drantohor": "Дрантогора",
+  "race.domovyk": "Домовика",
+  "race.dryland-rusalka": "Русалки сухопутної",
+  "race.intellectual-orc": "Орка-інтелігента",
+  "race.molfar-soul": "Мольфарської душі"
+};
+
+const ADVENTURE_CLASS_GENITIVE_NAMES: Record<string, string> = {
+  "class.warrior": "Воїна",
+  "class.mage": "Мага",
+  "class.bard": "Барда",
+  "class.rogue": "Злодія",
+  "class.priest": "Жерця",
+  "class.varenyk-mancer": "Вареник-манта",
+  "class.bureaucramancer": "Бюрокроманта",
+  "class.ranger": "Єгеря",
+  "class.kharakternyk": "Козака-характерника"
+};
+
 const RACE_ADVENTURE_TEMPLATES = [
   {
     suffix: "survey",
-    title: (raceName: string) => `Анкета раси «${raceName}» втекла з графи`,
-    hook: (raceName: string) =>
-      `У реєстрі біля «${raceName}» зʼявився підпис: «не вмістилось, пішло думати». Корчмар просить повернути папір, поки він не отримав громадянство.`,
+    title: (race: AdventureNameForms) => `Анкета раси «${race.genitive}» втекла з графи`,
+    hook: (race: AdventureNameForms) =>
+      `У реєстрі біля «${race.genitive}» зʼявився підпис: «не вмістилось, пішло думати». Корчмар просить повернути папір, поки він не отримав громадянство.`,
     client: "Писар, який тримає чорнило обома руками"
   },
   {
     suffix: "mug",
-    title: (raceName: string) => `Кухоль для «${raceName}» не проходить інструктаж`,
-    hook: (raceName: string) =>
-      `Особливий кухоль для гостей раси «${raceName}» вимагає окремого звертання, підставку й маленьку церемонію наливу.`,
+    title: (race: AdventureNameForms) => `Кухоль для «${race.genitive}» не проходить інструктаж`,
+    hook: (race: AdventureNameForms) =>
+      `Особливий кухоль для гостей раси «${race.genitive}» вимагає окремого звертання, підставку й маленьку церемонію наливу.`,
     client: "Корчмар, який уже шкодує про персоналізацію"
   },
   {
     suffix: "portrait",
-    title: (raceName: string) => `Портрет раси «${raceName}» сперечається з рамою`,
-    hook: (raceName: string) =>
-      `Портрет у кутку наполягає, що «${raceName}» треба малювати героїчніше, а рама каже, що в неї теж є межі.`,
+    title: (race: AdventureNameForms) => `Портрет раси «${race.genitive}» сперечається з рамою`,
+    hook: (race: AdventureNameForms) =>
+      `Портрет у кутку наполягає, що «${race.genitive}» треба малювати героїчніше, а рама каже, що в неї теж є межі.`,
     client: "Маляр із пензлем і дипломатичною втомою"
   }
 ] as const;
@@ -1065,23 +1093,23 @@ const RACE_ADVENTURE_TEMPLATES = [
 const CLASS_ADVENTURE_TEMPLATES = [
   {
     suffix: "manual",
-    title: (className: string) => `Підручник класу «${className}» почав практику`,
-    hook: (className: string) =>
-      `Підручник для «${className}» відкрився сам і тепер оцінює відвідувачів за шкалою від «ще живий» до «потребує додатку».`,
+    title: (characterClass: AdventureNameForms) => `Підручник для «${characterClass.genitive}» почав практику`,
+    hook: (characterClass: AdventureNameForms) =>
+      `Підручник для «${characterClass.genitive}» відкрився сам і тепер оцінює відвідувачів за шкалою від «ще живий» до «потребує додатку».`,
     client: "Учень, який хотів лише закладку"
   },
   {
     suffix: "uniform",
-    title: (className: string) => `Форма «${className}» не влазить у клітинку`,
-    hook: (className: string) =>
-      `У бланку професій для «${className}» лишилася надто мала клітинка. Клітинка вже подала скаргу на розширення обовʼязків.`,
+    title: (characterClass: AdventureNameForms) => `Форма для «${characterClass.genitive}» не влазить у клітинку`,
+    hook: (characterClass: AdventureNameForms) =>
+      `У бланку професій для «${characterClass.genitive}» лишилася надто мала клітинка. Клітинка вже подала скаргу на розширення обовʼязків.`,
     client: "Канцелярія персонажів із лінійкою напереваги"
   },
   {
     suffix: "exam",
-    title: (className: string) => `Іспит для «${className}» здає викладача`,
-    hook: (className: string) =>
-      `Тест для «${className}» так довго чекав героя, що сам почав ставити питання викладачеві й вимагати перездачу.`,
+    title: (characterClass: AdventureNameForms) => `Іспит для «${characterClass.genitive}» здає викладача`,
+    hook: (characterClass: AdventureNameForms) =>
+      `Тест для «${characterClass.genitive}» так довго чекав героя, що сам почав ставити питання викладачеві й вимагати перездачу.`,
     client: "Наставник, який не готувався до взаємності"
   }
 ] as const;
@@ -1090,8 +1118,8 @@ function buildRaceAdventureProblems(): AdventureProblem[] {
   return activeRaces.flatMap((race) =>
     RACE_ADVENTURE_TEMPLATES.map((template) => ({
       id: `race-${raceIdToKey(race.id)}-${template.suffix}`,
-      title: template.title(race.name),
-      hook: template.hook(race.name),
+      title: template.title(getAdventureRaceNameForms(race.id, race.name)),
+      hook: template.hook(getAdventureRaceNameForms(race.id, race.name)),
       client: template.client,
       audience: {
         raceId: race.id
@@ -1104,8 +1132,8 @@ function buildClassAdventureProblems(): AdventureProblem[] {
   return classes.flatMap((characterClass) =>
     CLASS_ADVENTURE_TEMPLATES.map((template) => ({
       id: `class-${classIdToKey(characterClass.id)}-${template.suffix}`,
-      title: template.title(characterClass.name),
-      hook: template.hook(characterClass.name),
+      title: template.title(getAdventureClassNameForms(characterClass.id, characterClass.name)),
+      hook: template.hook(getAdventureClassNameForms(characterClass.id, characterClass.name)),
       client: template.client,
       audience: {
         classId: characterClass.id
@@ -1124,6 +1152,18 @@ function buildTitleAdventureProblems(): AdventureProblem[] {
       title
     }
   }));
+}
+
+function getAdventureRaceNameForms(raceId: string, raceName: string): AdventureNameForms {
+  return {
+    genitive: ADVENTURE_RACE_GENITIVE_NAMES[raceId] ?? raceName
+  };
+}
+
+function getAdventureClassNameForms(classId: string, className: string): AdventureNameForms {
+  return {
+    genitive: ADVENTURE_CLASS_GENITIVE_NAMES[classId] ?? className
+  };
 }
 
 const ADVENTURE_PROBLEMS = [
