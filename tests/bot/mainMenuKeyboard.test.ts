@@ -141,6 +141,12 @@ describe("main menu and scene keyboards", () => {
       "v1:place:news-corner",
       "v1:place:front"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ characterLevel: 1 }))).not.toContain(
+      "🪜 Спуск до Низу"
+    );
+    expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard({ characterLevel: 1 }))).not.toContain(
+      "v1:place:deep"
+    );
     expect(inlineButtonRows(buildKorchmaHallKeyboard())).toEqual([
       ["🥊 Бійцівський куток", "📋 Стіл зі справами"],
       ["🛢️ Бочка", "🍻 Шинок"],

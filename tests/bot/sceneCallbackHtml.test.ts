@@ -1013,6 +1013,67 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(tier?.payload.reply_markup)).toContain("🚪 Прямий прохід");
   });
 
+  it("blocks lower-level stale Nyz descent place callbacks", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("deep"),
+      servicesWith({
+        tavern: {
+          getTavernForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: {
+                ...character,
+                level: 1
+              }
+            }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({ state: "none" as const })
+        },
+        presence: {
+          markAction
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.hall"
+      })
+    );
+    expect(String(edit?.payload.text)).toContain("Низ відкриється з 3 рівня");
+    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("deep-level1");
+  });
+
+  it("blocks lower-level stale Nyz tier callbacks before fight difficulty", async () => {
+    const getOrStartPersistentFightForTelegramUser = vi.fn();
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("deep-level1"),
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: {
+                ...character,
+                level: 1
+              }
+            }),
+          getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction: () => Promise.resolve()
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(getOrStartPersistentFightForTelegramUser).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("Низ відкриється з 3 рівня");
+    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("fight-normal");
+  });
+
   it("starts selected problem fight difficulty after moving from the hall to the Nyz", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn(() =>

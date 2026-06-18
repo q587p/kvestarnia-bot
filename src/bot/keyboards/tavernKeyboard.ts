@@ -55,23 +55,31 @@ export function buildEnterKorchmaKeyboard(): InlineKeyboard {
 
 export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = {}): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+  const showNyz = options.characterLevel === undefined || options.characterLevel >= 3;
 
   if ((options.characterLevel ?? 0) >= 13) {
     keyboard.text("🕯️ Реморт", makeRemortOpenCallbackData()).row();
   }
 
-  return keyboard
+  keyboard
     .text("🥊 Бійцівський куток", makePlaceCallbackData("fighting-corner"))
     .text("📋 Стіл зі справами", makePlaceCallbackData("quest-table"))
     .row()
     .text("🛢️ Бочка", makePlaceCallbackData("barrel"))
     .text("🍻 Шинок", makePlaceCallbackData("bar"))
-    .row()
-    .text("🪜 Спуск до Низу", makePlaceCallbackData("deep"))
+    .row();
+
+  if (showNyz) {
+    keyboard.text("🪜 Спуск до Низу", makePlaceCallbackData("deep"));
+  }
+
+  keyboard
     .text("🐭 Льох", makePlaceCallbackData("cellar"))
     .row()
     .text("📰 Дошка вістей", makePlaceCallbackData("news-corner"))
     .text("🚪 Надвір", makePlaceCallbackData("front"));
+
+  return keyboard;
 }
 
 export function buildKorchmaFightingCornerKeyboard(): InlineKeyboard {

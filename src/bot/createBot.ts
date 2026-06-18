@@ -187,6 +187,7 @@ import {
 } from "./keyboards/onboardingKeyboard";
 import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
 import {
+  buildBackToKorchmaHallKeyboard,
   buildEnterKorchmaKeyboard,
   buildKorchmaBarKeyboard,
   buildKorchmaRoundOfferKeyboard,
@@ -292,6 +293,7 @@ import {
 import { presentParticipants } from "./presenters/presencePresenter";
 import {
   presentTavernNoCharacter,
+  presentKorchmaDeepLevelLocked,
   presentPendingRaidActionBlock,
   presentTavernRaidResult,
   presentTavernRoundOffer,
@@ -1459,6 +1461,19 @@ async function handlePlaceCallback(
   }
 
   if (action === "deep-level1") {
+    const gate =
+      typeof services.fight.getFightOverviewForTelegramUser === "function"
+        ? await services.fight.getFightOverviewForTelegramUser(telegramUserId)
+        : await services.fight.getFightForTelegramUser(telegramUserId);
+
+    if ("character" in gate && gate.character.level < 3) {
+      await safeEditMessageText(ctx, presentKorchmaDeepLevelLocked(gate.character), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildBackToKorchmaHallKeyboard()
+      });
+      return;
+    }
+
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,

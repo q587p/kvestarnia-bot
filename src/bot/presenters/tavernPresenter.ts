@@ -124,6 +124,20 @@ export function presentKorchmaDeepClosed(character: CharacterSummary): string {
   ].join("\n");
 }
 
+export function presentKorchmaDeepLevelLocked(
+  character: CharacterSummary,
+  requiredLevel = 3
+): string {
+  return [
+    `🪜 Низ відкриється з ${requiredLevel} рівня`,
+    presentCharacterHeader(character),
+    "",
+    "Сходи за бочками чемно скриплять і роблять вигляд, що їх ще не вигадали.",
+    "",
+    "Корчмар радить спершу розібратися з підозрілою шаурмою та новачковими справами."
+  ].join("\n");
+}
+
 export function presentDuelWinnersBoard(
   character: CharacterSummary,
   leaderboard: DuelLeaderboard

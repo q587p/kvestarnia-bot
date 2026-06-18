@@ -34,6 +34,7 @@ import {
   presentKorchmaBar,
   presentDuelWinnersBoard,
   presentKorchmaDeepClosed,
+  presentKorchmaDeepLevelLocked,
   presentKorchmaFightingCorner,
   presentKorchmaFront,
   presentKorchmaHall,
@@ -299,8 +300,13 @@ export async function sendKorchmaDeepClosed(
     return;
   }
 
-  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_DEEP);
+  if (result.character.level < 3) {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_HALL);
+    await sendText(ctx, mode, presentKorchmaDeepLevelLocked(result.character), "back-to-hall");
+    return;
+  }
 
+  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_DEEP);
   await sendText(ctx, mode, presentKorchmaDeepClosed(result.character), "deep");
 }
 

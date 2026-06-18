@@ -223,7 +223,7 @@ describe("tavern command screens", () => {
 
     await sendKorchmaDeepClosed(
       makeContext(replies),
-      readyTavernService(),
+      readyTavernService({ ...character, level: 3 }),
       capturingPresenceService(),
       "reply"
     );
@@ -231,6 +231,22 @@ describe("tavern command screens", () => {
     expect(replies[0]?.text).toContain("🪜 Спуск до Низу");
     expect(replies[0]?.text).toContain("За бочками в коморі є сходи.");
     expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("deep-level1"));
+    expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
+  });
+
+  it("keeps lower-level characters out of the Nyz descent surface", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaDeepClosed(
+      makeContext(replies),
+      readyTavernService({ ...character, level: 1 }),
+      capturingPresenceService(),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🪜 Низ відкриється з 3 рівня");
+    expect(replies[0]?.text).not.toContain("Перші тринадцять сходинок");
+    expect(JSON.stringify(replies[0]?.options)).not.toContain(makePlaceCallbackData("deep-level1"));
     expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
   });
 
@@ -554,12 +570,12 @@ const character: CharacterSummary = {
   }
 };
 
-function readyTavernService(): TavernRaidService {
+function readyTavernService(tavernCharacter: CharacterSummary = character): TavernRaidService {
   return {
     getTavernForTelegramUser: () =>
       Promise.resolve({
         state: "ready",
-        character
+        character: tavernCharacter
       })
   } as unknown as TavernRaidService;
 }
