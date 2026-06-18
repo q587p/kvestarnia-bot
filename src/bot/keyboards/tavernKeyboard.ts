@@ -32,17 +32,21 @@ export function buildKorchmaFrontKeyboard(
     .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
     .row();
 
-  if (options.yegerAction === "hunt") {
-    keyboard.text("🏹 До полювання", makeYegerOutsideCallbackData()).row();
-  } else if (options.yegerAction === "corner") {
+  if (options.yegerAction === "corner") {
     keyboard.text("🧥 До Єгеря", makeTavernCallbackData("ranger")).row();
   }
 
-  return keyboard
+  keyboard
     .text("📜 Табличка прибулих", makePlaceCallbackData("arrivals"))
     .text("🏅 Пропамʼятна дошка", makePlaceCallbackData("memorial"))
     .row()
     .text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData());
+
+  if (options.yegerAction === "hunt") {
+    keyboard.row().text("🏹 До полювання", makeYegerOutsideCallbackData());
+  }
+
+  return keyboard;
 }
 
 export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = {}): InlineKeyboard {

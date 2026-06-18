@@ -101,6 +101,12 @@ describe("tavern command screens", () => {
         callback_data: makeYegerOutsideCallbackData()
       }
     ]);
+    expect(options.reply_markup.inline_keyboard.at(-1)).toEqual([
+      {
+        text: "🏹 До полювання",
+        callback_data: makeYegerOutsideCallbackData()
+      }
+    ]);
   });
 
   it("shows a front-door arrivals plaque from known korchma visitors", async () => {
