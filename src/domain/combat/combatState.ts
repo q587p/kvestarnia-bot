@@ -27,13 +27,42 @@ export interface CombatActorStats extends CharacterStats {
 
 export interface MonsterCombatStats {
   monsterId: string;
+  name?: string;
   level: number;
   hpMax: number;
   attack: number;
   armor: number;
   resist: number;
   dexterity: number;
+  classId?: string;
+  className?: string;
+  raceId?: string;
+  raceName?: string;
+  title?: string;
+  spellPower?: number;
+  copiedEquipment?: CombatCopiedEquipment[];
+  debugTrace?: CombatDebugTrace;
   tags: string[];
+}
+
+export interface CombatCopiedEquipment {
+  sourceItemId: string;
+  name: string;
+  slot: string;
+  effectKeys: string[];
+}
+
+export interface CombatDebugTrace {
+  spawnMode?: string;
+  source?: "target" | "random-build" | "champion-fallback";
+  championPeriod?: string;
+  championName?: string;
+  copiedEquipmentCount?: number;
+  appliedEffectKeys?: string[];
+  legalAbilityIds?: string[];
+  chosenAbilityId?: string;
+  lineId?: string;
+  lineCategory?: string;
 }
 
 export interface CombatState {
@@ -48,8 +77,22 @@ export interface CombatState {
   };
   monster: {
     id: string;
+    name?: string;
+    level?: number;
     hp: number;
     hpMax: number;
+    attack?: number;
+    armor?: number;
+    resist?: number;
+    dexterity?: number;
+    classId?: string;
+    className?: string;
+    raceId?: string;
+    raceName?: string;
+    title?: string;
+    spellPower?: number;
+    copiedEquipment?: CombatCopiedEquipment[];
+    debugTrace?: CombatDebugTrace;
   };
   lastTurn?: CombatTurnSummary;
 }
@@ -64,6 +107,10 @@ export interface CombatTurnSummary {
   critical: boolean;
   skillId?: string;
   damageKind?: CombatDamageKind;
+  monsterAction?: "attack" | "skill";
+  monsterSkillId?: string;
+  monsterDamageKind?: CombatDamageKind;
+  debugTrace?: CombatDebugTrace;
 }
 
 export interface StartCombatInput {
@@ -92,8 +139,22 @@ export function startCombat(input: StartCombatInput): CombatState {
     },
     monster: {
       id: input.monster.monsterId,
+      ...(input.monster.name ? { name: input.monster.name } : {}),
+      level: input.monster.level,
       hp: monsterHpMax,
-      hpMax: monsterHpMax
+      hpMax: monsterHpMax,
+      attack: input.monster.attack,
+      armor: input.monster.armor,
+      resist: input.monster.resist,
+      dexterity: input.monster.dexterity,
+      ...(input.monster.classId ? { classId: input.monster.classId } : {}),
+      ...(input.monster.className ? { className: input.monster.className } : {}),
+      ...(input.monster.raceId ? { raceId: input.monster.raceId } : {}),
+      ...(input.monster.raceName ? { raceName: input.monster.raceName } : {}),
+      ...(input.monster.title ? { title: input.monster.title } : {}),
+      ...(input.monster.spellPower ? { spellPower: input.monster.spellPower } : {}),
+      ...(input.monster.copiedEquipment ? { copiedEquipment: input.monster.copiedEquipment } : {}),
+      ...(input.monster.debugTrace ? { debugTrace: { ...input.monster.debugTrace } } : {})
     }
   };
 }
@@ -104,8 +165,21 @@ export function cloneCombatState(state: CombatState): CombatState {
     turn: state.turn,
     status: state.status,
     hero: { ...state.hero },
-    monster: { ...state.monster },
-    ...(state.lastTurn ? { lastTurn: { ...state.lastTurn } } : {})
+    monster: {
+      ...state.monster,
+      ...(state.monster.copiedEquipment
+        ? { copiedEquipment: state.monster.copiedEquipment.map((item) => ({ ...item })) }
+        : {}),
+      ...(state.monster.debugTrace ? { debugTrace: { ...state.monster.debugTrace } } : {})
+    },
+    ...(state.lastTurn
+      ? {
+          lastTurn: {
+            ...state.lastTurn,
+            ...(state.lastTurn.debugTrace ? { debugTrace: { ...state.lastTurn.debugTrace } } : {})
+          }
+        }
+      : {})
   };
 }
 

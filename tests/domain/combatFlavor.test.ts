@@ -16,15 +16,22 @@ describe("combat flavor intents", () => {
     const flavor = buildDoppelgangerCounterFlavor({
       actorKind: "doppelganger",
       classId,
+      className: "Тестовий клас",
       raceId: "race.human-ish",
+      raceName: "Людисько",
+      targetName: "Мандрівник",
+      seed: "session-1",
       turn: 2,
       action: "skill"
     });
 
     expect(flavor.intentId).toBe(intentId);
+    expect(flavor.category).toBe("turn.before_ability");
+    expect(flavor.lineId).toMatch(/^dg\.turn\.before_ability\./);
     expect(flavor.tags).toContain(`class:${classId}`);
     expect(flavor.tags).toContain("turn:2");
     expect(flavor.text.length).toBeGreaterThan(20);
+    expect(flavor.text).not.toContain("undefined");
   });
 
   it("falls back to race flavor when class is unknown", () => {
@@ -32,32 +39,40 @@ describe("combat flavor intents", () => {
       actorKind: "doppelganger",
       classId: "class.unfiled-maybe",
       raceId: "race.domovyk",
+      raceName: "Домовик",
+      targetName: "Мандрівник",
+      seed: "session-2",
       action: "attack"
     });
 
     expect(flavor.intentId).toBe("race-flavor");
-    expect(flavor.text).toContain("порога");
+    expect(flavor.lineId).toMatch(/^dg\.turn\./);
+    expect(flavor.text).not.toContain("undefined");
   });
 
   it("falls back to generic mirror mockery without known class or race", () => {
     const flavor = buildDoppelgangerCounterFlavor({
       actorKind: "doppelganger",
+      seed: "session-3",
       action: "attack"
     });
 
     expect(flavor.intentId).toBe("mirror-mockery");
     expect(flavor.tags).toContain("doppelganger");
+    expect(flavor.lineId).toMatch(/^dg\.turn\./);
   });
 
-  it("uses a safe mirror line for failed escape attempts", () => {
+  it("uses a safe mirror category for failed escape attempts", () => {
     const flavor = buildDoppelgangerCounterFlavor({
       actorKind: "doppelganger",
       classId: "class.warrior",
       raceId: "race.dwarf",
+      seed: "session-4",
       action: "flee"
     });
 
     expect(flavor.intentId).toBe("mirror-mockery");
-    expect(flavor.text).toContain("тактичне віддзеркалення");
+    expect(flavor.category).toBe("turn.copying");
+    expect(flavor.lineId).toMatch(/^dg\.turn\.copying\./);
   });
 });

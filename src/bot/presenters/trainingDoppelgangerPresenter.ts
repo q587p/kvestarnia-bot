@@ -1,5 +1,6 @@
 import {
   buildDoppelgangerCounterFlavor,
+  selectDoppelgangerLine,
   type CombatTurnSummary
 } from "../../domain/combat";
 import type {
@@ -55,6 +56,21 @@ export function presentTrainingDoppelgangerCooldown(
   ].join("\n");
 }
 
+export function presentTrainingDoppelgangerStartChoice(
+  result: Extract<TrainingDoppelgangerLookupResult, { state: "ready" }>
+): string {
+  return [
+    "🥊 <b>Бійцівський куток</b>",
+    presentCharacterHeader(result.character),
+    "",
+    "Сумлінний Допельґанґер тримає дзеркало під таким кутом, що воно вже має власну думку.",
+    "",
+    "Оберіть, кого сьогодні копіювати:",
+    "",
+    ...result.choices.map((choice) => `• <b>${escapeHtml(choice.title)}</b> — ${escapeHtml(choice.description)}`)
+  ].join("\n");
+}
+
 export function presentTrainingDoppelgangerAnotherFight(
   result: Extract<TrainingDoppelgangerLookupResult, { state: "another-fight-active" }>
 ): string {
@@ -86,11 +102,23 @@ export function presentTrainingDoppelganger(
 export function presentTrainingDoppelgangerIntro(
   result: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>
 ): string {
+  const spawnLine = selectDoppelgangerLine({
+    category: getDoppelgangerSpawnLineCategory(result.doppelganger),
+    seed: result.session.id,
+    targetName: result.character.name,
+    doppelName: result.doppelganger.name,
+    raceName: result.doppelganger.raceName,
+    className: result.doppelganger.className,
+    title: result.doppelganger.title,
+    championPeriod: getChampionPeriodLabel(result.doppelganger.championPeriod),
+    turn: result.session.state?.turn
+  });
+
   return [
     "🥊 <b>Бійцівський куток</b>",
     presentCharacterHeader(result.character),
     "",
-    "У кутку корчми стає ваша копія. Не метафорично: Корчмар уже просить не сперечатися з власним відображенням.",
+    escapeHtml(spawnLine.text),
     "",
     `Проти вас: <b>${escapeHtml(result.doppelganger.name)}</b> · ${escapeHtml(result.doppelganger.raceName)} · ${escapeHtml(result.doppelganger.className)} · рівень ${result.doppelganger.level}`
   ].join("\n");
@@ -156,7 +184,7 @@ function presentTrainingDoppelgangerState(input: {
 
   if (state?.lastTurn) {
     lines.push("", presentTrainingTurnSummary(state.lastTurn));
-    const flavor = presentTrainingCounterFlavor(input.character, state);
+    const flavor = presentTrainingCounterFlavor(input.character, input.doppelganger, state);
 
     if (flavor) {
       lines.push("", flavor);
@@ -170,13 +198,13 @@ function presentTrainingDoppelgangerState(input: {
   if (state?.status === "won") {
     lines.push(
       "",
-      "🎉 Ви перемогли власну копію. Це не вирішує внутрішні конфлікти, але добре тренує зовнішні.",
+      presentTrainingWonLine(input.doppelganger),
       "Золота й манаток немає: це тренування, не фарм."
     );
   } else if (state?.status === "lost") {
     lines.push(
       "",
-      "💤 Копія перемогла. Неприємно, зате дуже інформативно.",
+      presentTrainingLostLine(input.doppelganger),
       "Золота й манаток немає: це тренування, не фарм."
     );
   } else if (state?.status === "fled") {
@@ -258,7 +286,9 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
       : `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
   const response =
     summary.monsterDamage > 0
-      ? `Копія відповіла на ${summary.monsterDamage} шкоди.`
+      ? summary.monsterAction === "skill" && summary.monsterSkillId
+        ? `Копія відповіла прийомом «${escapeHtml(presentCombatSkillName(summary.monsterSkillId))}» на ${summary.monsterDamage} шкоди.`
+        : `Копія відповіла на ${summary.monsterDamage} шкоди.`
       : summary.monsterOutcome === "miss"
         ? "Копія промахнулась і дуже професійно вдала, що це була демонстрація."
         : "";
@@ -268,6 +298,7 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
 
 function presentTrainingCounterFlavor(
   character: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["character"],
+  doppelganger: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["doppelganger"],
   state: NonNullable<Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["session"]["state"]>
 ): string | null {
   const lastTurn = state.lastTurn;
@@ -278,13 +309,19 @@ function presentTrainingCounterFlavor(
 
   const flavor = buildDoppelgangerCounterFlavor({
     actorKind: "doppelganger",
-    classId: character.classId,
-    raceId: character.raceId,
-    title: character.title,
+    classId: state.monster.classId ?? character.classId,
+    className: state.monster.className ?? doppelganger.className ?? character.className,
+    raceId: state.monster.raceId ?? character.raceId,
+    raceName: state.monster.raceName ?? doppelganger.raceName ?? character.raceName,
+    title: state.monster.title ?? doppelganger.title ?? character.title,
+    targetName: character.name,
+    doppelName: state.monster.name ?? doppelganger.name,
+    seed: state.id,
+    abilityName: lastTurn.monsterSkillId ? presentCombatSkillName(lastTurn.monsterSkillId) : null,
     heroHpRatio: ratio(state.hero.hp, state.hero.hpMax),
     monsterHpRatio: ratio(state.monster.hp, state.monster.hpMax),
     turn: state.turn,
-    action: lastTurn.action
+    action: getMonsterCounterAction(lastTurn)
   });
 
   return `<i>${escapeHtml(flavor.text)}</i>`;
@@ -296,6 +333,93 @@ function ratio(current: number, max: number): number {
   }
 
   return current / max;
+}
+
+function getDoppelgangerSpawnLineCategory(
+  doppelganger: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["doppelganger"]
+) {
+  if (doppelganger.source === "champion-fallback") {
+    return "spawn.champion" as const;
+  }
+
+  return doppelganger.spawnMode === "RANDOM_BUILD" ? "spawn.random" : "spawn.copy";
+}
+
+function presentTrainingWonLine(
+  doppelganger: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["doppelganger"]
+): string {
+  if (doppelganger.source === "champion-fallback") {
+    return "🎉 Ви перемогли чемпіонську подобу. Дзеркало робить вигляд, що саме так і планувало.";
+  }
+
+  if (doppelganger.source === "random-build") {
+    return "🎉 Ви перемогли дзеркального пригодника. Це не вирішує внутрішні конфлікти, але добре тренує зовнішні.";
+  }
+
+  return "🎉 Ви перемогли власну копію. Це не вирішує внутрішні конфлікти, але добре тренує зовнішні.";
+}
+
+function presentTrainingLostLine(
+  doppelganger: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["doppelganger"]
+): string {
+  if (doppelganger.source === "champion-fallback") {
+    return "💤 Чемпіонська подоба перемогла. Неприємно, зате дошка переможців тепер виглядає переконливіше.";
+  }
+
+  if (doppelganger.source === "random-build") {
+    return "💤 Дзеркальний пригодник переміг. Неприємно, зате дуже інформативно.";
+  }
+
+  return "💤 Копія перемогла. Неприємно, зате дуже інформативно.";
+}
+
+function getChampionPeriodLabel(period: "day" | "week" | "month" | undefined): string | null {
+  if (period === "day") {
+    return "дня";
+  }
+
+  if (period === "week") {
+    return "тижня";
+  }
+
+  if (period === "month") {
+    return "місяця";
+  }
+
+  return null;
+}
+
+function getMonsterCounterAction(summary: CombatTurnSummary): "attack" | "skill" | "flee" {
+  if (summary.monsterSkillId || summary.monsterAction === "skill") {
+    return "skill";
+  }
+
+  if (summary.monsterAction === "attack") {
+    return "attack";
+  }
+
+  return summary.action === "flee" ? "flee" : "attack";
+}
+
+function presentCombatSkillName(skillId: string): string {
+  switch (skillId) {
+    case "skill.forceful-strike":
+      return "переконливий удар";
+    case "skill.hot-spell":
+      return "гаряче закляття";
+    case "skill.form-thirteen-b":
+      return "форма 13-Б";
+    case "skill.dangerous-couplet":
+      return "небезпечний куплет";
+    case "skill.trick-shot":
+      return "хитрий постріл";
+    case "skill.strict-blessing":
+      return "суворе благословення";
+    case "skill.steppe-side-eye":
+      return "степовий косий погляд";
+    default:
+      return "обережний прийом";
+  }
 }
 
 function formatTrainingCooldown(availableAt: Date, now: Date): string {

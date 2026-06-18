@@ -131,10 +131,14 @@ Check:
 Defaults:
 
 - Target `main` unless the user explicitly asks for a stacked PR or another base.
-- Ready/merge-ready PRs should not remain on non-main bases unless intentionally stacked.
+- Ready/merge-ready PRs target `main` by default and must be mergeable against current `origin/main`.
+- If a branch started from another feature branch, rebase or merge it onto current `origin/main` and resolve conflicts before calling it complete.
+- Use a non-main base only when the user explicitly asks for a stacked PR or approves that base; state the stacked base clearly in the PR body.
+- Implementation work is not actually done until the branch is committed, pushed to the remote, and represented by a GitHub PR.
+- Prefer ready-for-review PRs; use draft PRs only when the user asks for draft state or the change is intentionally incomplete.
 - If an active PR exists for the same work, add small follow-ups to the same branch/PR.
 - If follow-up work expands the scope, update the PR title/body and release/docs surfaces.
-- After opening/updating a PR, check base branch, mergeability, and conflicts.
+- After opening/updating a PR, check base branch, mergeability, and conflicts; fix non-main bases unless the PR is intentionally stacked.
 
 Suggested branch names:
 

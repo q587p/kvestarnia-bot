@@ -1,3 +1,8 @@
+import {
+  selectDoppelgangerLine,
+  type DoppelgangerLineCategory
+} from "./doppelgangerLines";
+
 export type CombatActorKind = "hero" | "monster" | "doppelganger";
 
 export type CombatIntentId =
@@ -18,8 +23,17 @@ export type CombatIntentId =
 export interface CombatFlavorContext {
   actorKind: CombatActorKind;
   classId?: string | null;
+  className?: string | null;
   raceId?: string | null;
+  raceName?: string | null;
   title?: string | null;
+  targetName?: string | null;
+  doppelName?: string | null;
+  abilityName?: string | null;
+  itemName?: string | null;
+  seed?: string | undefined;
+  recentLineIds?: readonly string[] | undefined;
+  recentLineMemorySize?: number | undefined;
   heroHpRatio?: number;
   monsterHpRatio?: number;
   turn?: number;
@@ -28,6 +42,8 @@ export interface CombatFlavorContext {
 
 export interface CombatFlavorLine {
   intentId: CombatIntentId;
+  lineId?: string;
+  category?: DoppelgangerLineCategory;
   tags: string[];
   text: string;
 }
@@ -46,140 +62,108 @@ export function buildDoppelgangerCounterFlavor(
   ];
 
   if (context.action === "flee") {
-    return {
-      intentId: "mirror-mockery",
-      tags,
-      text: "Допельґанґер теж робить крок назад і занотовує: «тактичне віддзеркалення, дуже зручне слово»."
-    };
+    return buildFlavorLine("mirror-mockery", tags, "turn.copying", context);
   }
 
-  const classLine = getClassFlavor(context.classId);
+  const classIntent = getClassIntent(context.classId);
 
-  if (classLine) {
-    return {
-      ...classLine,
-      tags
-    };
+  if (classIntent) {
+    return buildFlavorLine(classIntent, tags, getCounterCategory(context), context);
   }
 
-  const raceLine = getRaceFlavor(context.raceId);
+  const raceIntent = getRaceIntent(context.raceId);
 
-  if (raceLine) {
-    return {
-      ...raceLine,
-      tags
-    };
+  if (raceIntent) {
+    return buildFlavorLine(raceIntent, tags, getCounterCategory(context), context);
   }
 
   if (isLowRatio(context.monsterHpRatio)) {
-    return {
-      intentId: "low-hp-desperation",
-      tags,
-      text: "Копія тримається на впертості, дзеркальному принципі й одному дуже сумнівному вдиху."
-    };
+    return buildFlavorLine("low-hp-desperation", tags, "turn.low_hp", context);
   }
 
+  return buildFlavorLine("mirror-mockery", tags, getCounterCategory(context), context);
+}
+
+function buildFlavorLine(
+  intentId: CombatIntentId,
+  tags: string[],
+  category: DoppelgangerLineCategory,
+  context: CombatFlavorContext
+): CombatFlavorLine {
+  const line = selectDoppelgangerLine({
+    category,
+    seed: context.seed,
+    targetName: context.targetName,
+    doppelName: context.doppelName,
+    raceName: context.raceName,
+    className: context.className,
+    title: context.title,
+    abilityName: context.abilityName,
+    itemName: context.itemName,
+    turn: context.turn,
+    recentLineIds: context.recentLineIds,
+    recentLineMemorySize: context.recentLineMemorySize
+  });
+
   return {
-    intentId: "mirror-mockery",
-    tags,
-    text: "Копія повторює ваші рухи з такою сумлінністю, що Корчмар уже шукає, кому виставити рахунок за авторство."
+    intentId,
+    lineId: line.id,
+    category: line.category,
+    tags: [...tags, `category:${line.category}`, `line:${line.id}`],
+    text: line.text
   };
 }
 
-function getClassFlavor(classId: string | null | undefined): Omit<CombatFlavorLine, "tags"> | null {
+function getCounterCategory(context: CombatFlavorContext): DoppelgangerLineCategory {
+  if (isLowRatio(context.monsterHpRatio)) {
+    return "turn.low_hp";
+  }
+
+  if (context.action === "skill") {
+    return "turn.before_ability";
+  }
+
+  return typeof context.turn === "number" && context.turn % 2 === 0
+    ? "turn.copying"
+    : "turn.idle";
+}
+
+function getClassIntent(classId: string | null | undefined): CombatIntentId | null {
   switch (classId) {
     case "class.warrior":
-      return {
-        intentId: "warrior-pressure",
-        text: "Допельґанґер повторює ваш бойовий аргумент, але ставить кому в болюче місце."
-      };
+      return "warrior-pressure";
     case "class.mage":
-      return {
-        intentId: "mage-spell",
-        text: "Копія шепоче закляття, дуже схоже на ваше, але з гіршою дикцією."
-      };
+      return "mage-spell";
     case "class.varenyk-mancer":
-      return {
-        intentId: "varenyk-mancer-filling",
-        text: "Допельґанґер викликає вареничний аргумент. Начинка на його боці, тимчасово."
-      };
+      return "varenyk-mancer-filling";
     case "class.bureaucramancer":
-      return {
-        intentId: "bureaucramancer-form",
-        text: "Копія дістає форму 13-Б і просить ваш біль розписатися тут, тут і тут."
-      };
+      return "bureaucramancer-form";
     case "class.bard":
-      return {
-        intentId: "bard-verse",
-        text: "Він бере ваш куплет і додає приспів, за який соромно обом."
-      };
+      return "bard-verse";
     case "class.rogue":
-      return {
-        intentId: "rogue-feint",
-        text: "Допельґанґер зникає рівно настільки, щоб удар виглядав юридично несподіваним."
-      };
+      return "rogue-feint";
     case "class.ranger":
-      return {
-        intentId: "ranger-shot",
-        text: "Копія знаходить ваш слід там, де ви його ще не лишали."
-      };
+      return "ranger-shot";
     case "class.priest":
-      return {
-        intentId: "priest-blessing",
-        text: "Допельґанґер благословляє ситуацію. Ситуація не опирається."
-      };
+      return "priest-blessing";
     case "class.kharakternyk":
-      return {
-        intentId: "kharakternyk-omen",
-        text: "Копія підморгує прикметі. Прикмета підморгує у відповідь і бʼє вас по плану."
-      };
+      return "kharakternyk-omen";
     default:
       return null;
   }
 }
 
-function getRaceFlavor(raceId: string | null | undefined): Omit<CombatFlavorLine, "tags"> | null {
+function getRaceIntent(raceId: string | null | undefined): CombatIntentId | null {
   switch (raceId) {
     case "race.bisyny":
-      return {
-        intentId: "race-flavor",
-        text: "Копія дрібно редактує ваш задум, і тепер він бісить уже обидві сторони."
-      };
     case "race.intellectual-orc":
-      return {
-        intentId: "race-flavor",
-        text: "Допельґанґер підкріплює удар короткою тезою. Теза важча за вигляд."
-      };
     case "race.domovyk":
-      return {
-        intentId: "race-flavor",
-        text: "Копія бʼє з-за уявного порога, ніби це її хата і ваші правила тут зайві."
-      };
     case "race.molfar-soul":
-      return {
-        intentId: "race-flavor",
-        text: "Навколо копії збирається туман. Туман удає, що все це давно передбачав."
-      };
     case "race.dryland-rusalka":
-      return {
-        intentId: "race-flavor",
-        text: "Копія дивиться на чайник так переконливо, що пара стає бойовою позицією."
-      };
     case "race.dwarf":
-      return {
-        intentId: "race-flavor",
-        text: "Допельґанґер стоїть низько, вперто й так, ніби підлога винна йому вибачення."
-      };
     case "race.elf":
-      return {
-        intentId: "race-flavor",
-        text: "Копія атакує з ельфійською точністю і виразом обличчя, який уже подав скаргу на пил."
-      };
     case "race.drantohor":
-      return {
-        intentId: "race-flavor",
-        text: "Копія заходить із боку, який на мапі не позначили з міркувань безпеки."
-      };
+      return "race-flavor";
     default:
       return null;
   }

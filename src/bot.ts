@@ -95,7 +95,11 @@ const services = {
     cooldowns,
     dailyActions,
     soloCombatSessions,
-    equipment
+    equipment,
+    undefined,
+    undefined,
+    {},
+    duelChallenges
   )
 };
 const supportJarOptions = config.supportJarUrl

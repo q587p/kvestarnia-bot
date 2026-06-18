@@ -1,5 +1,8 @@
 import type { Bot, Context } from "grammy";
-import type { TrainingDoppelgangerService } from "../../services/trainingDoppelgangerService";
+import type {
+  TrainingDoppelgangerService,
+  TrainingDoppelgangerStartMode
+} from "../../services/trainingDoppelgangerService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
@@ -7,13 +10,17 @@ import {
   type PresenceService
 } from "../../services/presenceService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
-import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
+import {
+  buildTrainingDoppelgangerKeyboard,
+  buildTrainingDoppelgangerStartKeyboard
+} from "../keyboards/trainingDoppelgangerKeyboard";
 import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import {
   presentTrainingDoppelganger,
   presentTrainingDoppelgangerAnotherFight,
   presentTrainingDoppelgangerCooldown,
+  presentTrainingDoppelgangerStartChoice,
   presentTrainingDoppelgangerIntro,
   presentTrainingDoppelgangerLevelGate,
   presentTrainingDoppelgangerNeedsRest,
@@ -48,6 +55,7 @@ export async function sendTrainingDoppelganger(
   mode: "reply" | "edit",
   options: TrainingDoppelgangerCommandOptions & {
     requireKorchmaInterior?: boolean;
+    startMode?: TrainingDoppelgangerStartMode;
   }
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
@@ -77,7 +85,9 @@ export async function sendTrainingDoppelganger(
     }
   }
 
-  const result = await service.getOrStartForTelegramUser(telegramUserId);
+  const result = options.startMode
+    ? await service.getOrStartForTelegramUser(telegramUserId, { mode: options.startMode })
+    : await service.getStartOptionsForTelegramUser(telegramUserId);
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentTrainingDoppelgangerNoCharacter());
@@ -104,10 +114,19 @@ export async function sendTrainingDoppelganger(
     return;
   }
 
+  if (result.state === "ready") {
+    await sendText(ctx, mode, presentTrainingDoppelgangerStartChoice(result), {
+      type: "start-choice",
+      choices: result.choices
+    });
+    return;
+  }
+
   await markTrainingPresence(ctx, options.presence);
   if (result.state === "active") {
     await sendText(ctx, mode, presentTrainingDoppelgangerIntro(result));
     await sendText(ctx, "reply", presentTrainingDoppelganger(result), {
+      type: "session",
       session: result.session,
       character: result.character
     });
@@ -115,6 +134,7 @@ export async function sendTrainingDoppelganger(
   }
 
   await sendText(ctx, mode, presentTrainingDoppelganger(result), {
+    type: "session",
     session: result.session,
     character: result.character
   });
@@ -144,6 +164,11 @@ async function sendText(
     | "enter-korchma"
     | "training"
     | {
+        type: "start-choice";
+        choices: Parameters<typeof buildTrainingDoppelgangerStartKeyboard>[0];
+      }
+    | {
+        type: "session";
         session: Parameters<typeof buildTrainingDoppelgangerKeyboard>[0];
         character: Parameters<typeof buildTrainingDoppelgangerKeyboard>[1];
       } = false
@@ -156,6 +181,8 @@ async function sendText(
             ? buildKorchmaFrontKeyboard()
             : keyboard === "training"
               ? buildTrainingDoppelgangerKeyboard()
+              : keyboard.type === "start-choice"
+              ? buildTrainingDoppelgangerStartKeyboard(keyboard.choices)
               : buildTrainingDoppelgangerKeyboard(keyboard.session, keyboard.character)
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);

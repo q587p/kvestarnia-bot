@@ -4,6 +4,7 @@ import {
   rollBasicAttack,
   rollFleeSuccess,
   rollMonsterDamage,
+  rollMonsterSkillDamage,
   rollSkillAttack
 } from "./combatBalance";
 import {
@@ -104,6 +105,7 @@ function resolveHeroAttack(
   nextState.monster.hp = monsterHp;
 
   let monsterDamage = 0;
+  let monsterSkill: ReturnType<typeof getCombatSkillProfile> | null = null;
 
   if (monsterHp <= 0) {
     nextState.status = "won";
@@ -126,17 +128,27 @@ function resolveHeroAttack(
     };
   }
 
-  monsterDamage = rollMonsterDamage(
-    input.hero,
-    input.monster,
-    input.rng,
-    skill?.monsterDamageReduction ?? 0
-  );
+  monsterSkill = selectMonsterSkill(input.state, input.monster, input.rng);
+  monsterDamage = monsterSkill
+    ? rollMonsterSkillDamage(
+        input.hero,
+        input.monster,
+        monsterSkill,
+        input.rng,
+        skill?.monsterDamageReduction ?? 0
+      )
+    : rollMonsterDamage(
+        input.hero,
+        input.monster,
+        input.rng,
+        skill?.monsterDamageReduction ?? 0
+      );
   nextState.hero.hp = Math.max(0, nextState.hero.hp - monsterDamage);
   const monsterOutcome = monsterDamage > 0 ? "hit" : "miss";
   nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
   nextState.turn += 1;
 
+  const debugTrace = buildTurnDebugTrace(input.monster, monsterSkill);
   const summary = buildSummary({
     action: input.action,
     heroOutcome: attack.hit ? (attack.critical ? "critical-hit" : "hit") : "miss",
@@ -145,7 +157,9 @@ function resolveHeroAttack(
     monsterDamage,
     manaSpent,
     critical: attack.critical,
-    ...(skill ? { skill } : {})
+    ...(skill ? { skill } : {}),
+    ...(monsterSkill ? { monsterSkill } : {}),
+    ...(debugTrace ? { debugTrace } : {})
   });
   nextState.lastTurn = summary;
 
@@ -201,6 +215,8 @@ function buildSummary(input: {
   manaSpent: number;
   critical: boolean;
   skill?: ReturnType<typeof getCombatSkillProfile>;
+  monsterSkill?: ReturnType<typeof getCombatSkillProfile>;
+  debugTrace?: ReturnType<typeof buildTurnDebugTrace>;
 }): CombatTurnSummary {
   return {
     action: input.action,
@@ -215,6 +231,51 @@ function buildSummary(input: {
           skillId: input.skill.id,
           damageKind: input.skill.damageKind
         }
-      : {})
+      : {}),
+    ...(input.monsterSkill
+      ? { monsterAction: "skill" as const }
+      : input.monsterOutcome
+        ? { monsterAction: "attack" as const }
+        : {}),
+    ...(input.monsterSkill
+      ? {
+          monsterSkillId: input.monsterSkill.id,
+          monsterDamageKind: input.monsterSkill.damageKind
+        }
+      : {}),
+    ...(input.debugTrace ? { debugTrace: input.debugTrace } : {})
+  };
+}
+
+function selectMonsterSkill(
+  state: CombatState,
+  monster: MonsterCombatStats,
+  rng: RandomSource
+): ReturnType<typeof getCombatSkillProfile> | null {
+  if (!monster.tags.includes("doppelganger") || !monster.classId) {
+    return null;
+  }
+
+  const skill = getCombatSkillProfile(monster.classId);
+  const forceByTurn = state.turn >= 3;
+  const useSkill = forceByTurn || rng.nextFloat() < 0.35;
+
+  return useSkill ? skill : null;
+}
+
+function buildTurnDebugTrace(
+  monster: MonsterCombatStats,
+  monsterSkill: ReturnType<typeof getCombatSkillProfile> | null
+) {
+  const legalAbilityIds = monster.classId ? [getCombatSkillProfile(monster.classId).id] : [];
+
+  if (!monster.debugTrace && legalAbilityIds.length === 0 && !monsterSkill) {
+    return undefined;
+  }
+
+  return {
+    ...monster.debugTrace,
+    legalAbilityIds,
+    ...(monsterSkill ? { chosenAbilityId: monsterSkill.id } : {})
   };
 }

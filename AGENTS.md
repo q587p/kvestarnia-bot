@@ -140,10 +140,13 @@ Docs-only / presentation changes are not numbered releases:
 PR defaults:
 
 - Target `main` unless the user explicitly asks for stacked PRs or another base.
-- Ready PRs should not remain on a non-main base unless they are intentionally stacked and named as such.
+- Ready PRs must target `main` by default and be merge-ready against `main`. If a branch started from another feature branch, rebase or merge it onto current `origin/main` and resolve conflicts before calling the work complete.
+- Stacked PRs are allowed only when the user explicitly asks for a stacked PR or approves a non-main base; mark that clearly in the PR body.
+- For implementation work, "done", "complete", or "PR-ready" means the branch has been committed, pushed to the remote, and a GitHub PR has been opened unless the user explicitly asked to stop before publishing.
+- Prefer ready-for-review PRs; create a draft PR only when the user explicitly asks for draft state or the work is knowingly incomplete.
 - If an active PR already exists for the current work, add small follow-ups to the same branch and PR unless the user asks for a separate branch.
 - If scope expands, update PR title/body and relevant release/docs surfaces honestly.
-- After opening/updating a PR, check base branch, mergeability, and conflicts.
+- After opening/updating a PR, check that the base is `main` unless explicitly stacked, then check mergeability and conflicts.
 
 ## Architecture boundaries
 
@@ -233,6 +236,8 @@ A change is done when:
 - Brand naming stays `Квестарня` / `kvestarnia`.
 - Relevant docs are updated for new mechanics.
 - Docs-only work did not create a fake numbered release.
+- Implementation work is committed, pushed to the remote, and represented by a ready GitHub PR unless explicitly scoped as local-only or draft-only.
+- Ready PRs target `main` and are mergeable, unless the user explicitly requested a stacked/non-main PR.
 - The final response is concise and PR-ready.
 
 ## Final response format
