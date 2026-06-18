@@ -16,7 +16,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - Normalized `Людисько` to the active `+3` race budget: `+1 STR`, `+1 DEX`, `+1 CHA`.
-- `/hero` now shows `Зміна на наступному рівні:` as a next-level forecast instead of showing cumulative current level growth as `Ріст:`.
+- `/hero` now shows `Зміна:` as a next-level forecast instead of showing cumulative current level growth as `Ріст:`.
 - Level-up and remort presentation can render multiple stat deltas when growth or memory spans more than one stat.
 - Fixed `Низ` passage rewards so persistent fight XP, gold and broad loot profile power follow the effective monster level selected by the passage, not the hero level gap.
 

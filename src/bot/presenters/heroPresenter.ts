@@ -44,7 +44,7 @@ export function presentHero(
     ...presentRemortLines(summary),
     "",
     progressLine,
-    ...(nextLevelGrowthLine ? [`Зміна на наступному рівні: ${nextLevelGrowthLine}`] : []),
+    ...(nextLevelGrowthLine ? [`Зміна: ${nextLevelGrowthLine}`] : []),
     "",
     `❤️ HP ${summary.hpCurrent}/${summary.hpMax} · 🔮 мана ${summary.manaCurrent}/${summary.manaMax}`,
     ...resourceRecoveryLines,

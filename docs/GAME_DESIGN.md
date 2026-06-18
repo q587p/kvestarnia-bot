@@ -328,7 +328,7 @@ Alpha scaling рахується як derived effective values від збере
 - Рівневий stat budget лишається `max(0, level - 1)`, але deterministic smooth weighted allocator розкидає ці points між характеристиками.
 - Combined growth weight = class growth profile + race stat bonus + fixed hidden-path bonus. Race/path впливають на розподіл, але не додають extra level points.
 
-Наприклад, герой 5 рівня має cumulative level bonus `+16 HP`, `+8 мани` і 4 stat points, розкидані allocator-ом. У `/hero` поруч із XP показується не cumulative рядок, а forecast наступного рівня: `Зміна на наступному рівні: +4 HP · +2 мани · +1 ...`.
+Наприклад, герой 5 рівня має cumulative level bonus `+16 HP`, `+8 мани` і 4 stat points, розкидані allocator-ом. У `/hero` поруч із XP показується не cumulative рядок, а forecast наступного рівня: `Зміна: +4 HP · +2 мани · +1 ...`.
 
 Це не XP-curve change і не нова економіка. Бонуси предметів із `0.0.22` нашаровуються поверх цього helper-а, а майбутні розширення мають зберегти той самий шлях. Малий 0.1.16 combat follow-up лишає криву рівнів як є, але виправляє винагороди Низу: XP, золото й broad loot profile для трьох проходів рахуються від effective monster level, а не від різниці між рівнем героя й монстра.
 
