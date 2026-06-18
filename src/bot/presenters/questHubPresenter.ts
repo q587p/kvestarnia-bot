@@ -165,7 +165,7 @@ function presentActiveFightRow(
   }
 
   if (fight.state === "ready" && character.level <= STARTER_ACTIVITY_MAX_LEVEL) {
-    return null;
+    return "⚔️ <i>Новачкова сутичка</i> — підозріла шаурма ще не дала свідчень.";
   }
 
   return presentFightRow(fight);
@@ -334,7 +334,9 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
       snapshot.starterAdventure?.state === "ready")
       ? presentAdventureRow(snapshot.character, snapshot.adventure, snapshot.starterAdventure)
       : null,
-    presentProblemQuestRow(snapshot.character, snapshot.problemQuest, snapshot.fight),
+    meetsActivityLevel(snapshot.character.level, FIGHTING_CORNER_MIN_LEVEL)
+      ? presentProblemQuestRow(snapshot.character, snapshot.problemQuest, snapshot.fight)
+      : null,
     presentActiveFightRow(snapshot.character, snapshot.fight),
     presentActiveYegerRow(snapshot.yeger),
     presentActiveCellarRow(snapshot.cellar, snapshot.cellarGrownup)
@@ -350,6 +352,9 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
 function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
   const rows = [
     presentAdventureArchiveRow(snapshot.adventure),
+    !meetsActivityLevel(snapshot.character.level, FIGHTING_CORNER_MIN_LEVEL)
+      ? presentProblemQuestRow(snapshot.character, snapshot.problemQuest, snapshot.fight)
+      : null,
     ...presentProblemQuestArchiveRows(snapshot.problemQuestArchive),
     presentFightArchiveRow(snapshot.fight),
     presentYegerArchiveRow(snapshot.yeger),

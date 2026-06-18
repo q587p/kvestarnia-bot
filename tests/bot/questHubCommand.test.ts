@@ -110,7 +110,8 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).not.toContain("🧹 <i>Льохова справа</i> — відкриється з 2 рівня.");
     expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — новачкова підозра чекає на столі.");
-    expect(replies[0]?.text).toContain("🧾 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).toContain("⚔️ <i>Новачкова сутичка</i> — підозріла шаурма ще не дала свідчень.");
+    expect(replies[0]?.text).not.toContain("🧾 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
     expect(replies[0]?.text).not.toContain("🪜 <i>Низ</i> — можна починати.");
     const buttons = (
       replies[0]?.options as {
@@ -142,8 +143,9 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).not.toContain("🏹 <i>Єгерська справа</i> — відкриється з 4 рівня.");
     expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — новачкова підозра чекає на столі.");
+    expect(replies[0]?.text).toContain("⚔️ <i>Новачкова сутичка</i> — підозріла шаурма ще не дала свідчень.");
     expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — миша приймає аргументи.");
-    expect(replies[0]?.text).toContain("🧾 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).not.toContain("🧾 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
     expect(replies[0]?.text).not.toContain("🪜 <i>Низ</i> — можна починати.");
     const buttons = (
       replies[0]?.options as {
@@ -157,6 +159,28 @@ describe("quest hub command", () => {
       "📦 Архів",
       "🍺 До зали"
     ]);
+  });
+
+  it("moves locked problem quests to the archive for starter levels", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const levelOneCharacter = characterAtLevel(1);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(levelOneCharacter),
+        fight: readyFightService(levelOneCharacter),
+        yeger: readyYegerService(levelOneCharacter),
+        cellarErrand: readyCellarService(levelOneCharacter)
+      }),
+      "reply",
+      "archive"
+    );
+
+    expect(replies[0]?.text).toContain("📦 Архів справ");
+    expect(replies[0]?.text).toContain("🧾 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).not.toContain("⚔️ <i>Новачкова сутичка</i>");
+    expect(replies[0]?.text).not.toContain("🪜 <i>Низ</i> — можна починати.");
   });
 
   it("does not offer starter shawarma from the quest hub after it is completed", async () => {
