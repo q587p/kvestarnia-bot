@@ -3,16 +3,17 @@ import type { TavernRaidService } from "../../services/tavernRaidService";
 import type { YegerQuestService } from "../../services/yegerQuestService";
 import {
   PRESENCE_ADVENTURE_HUNT_BOARD,
+  PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   type PresenceService
 } from "../../services/presenceService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
-import { buildYegerCornerKeyboard, buildYegerKeyboard } from "../keyboards/yegerKeyboard";
+import { buildYegerCornerKeyboard, buildYegerHuntKeyboard, buildYegerKeyboard } from "../keyboards/yegerKeyboard";
 import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentYegerCorner,
-  presentYegerNoCharacter,
-  presentYegerQuest
+  presentYegerHuntOutside,
+  presentYegerNoCharacter
 } from "../presenters/yegerPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
@@ -80,8 +81,20 @@ export async function sendHuntBoard(
     return;
   }
 
+  if (result.state !== "in-progress") {
+    await markYegerCornerPresence(ctx, options?.presence);
+    await sendText(ctx, mode, presentYegerCorner(result), {
+      kind: "corner",
+      result
+    });
+    return;
+  }
+
   await markHuntPresence(ctx, options?.presence);
-  await sendText(ctx, mode, presentYegerQuest(result), result);
+  await sendText(ctx, mode, presentYegerHuntOutside(result), {
+    kind: "hunt",
+    result
+  });
 }
 
 export async function sendYegerCorner(
@@ -126,7 +139,7 @@ export async function sendYegerCorner(
     return;
   }
 
-  await markHuntPresence(ctx, options?.presence);
+  await markYegerCornerPresence(ctx, options?.presence);
   await sendText(ctx, mode, presentYegerCorner(result), {
     kind: "corner",
     result
@@ -134,6 +147,24 @@ export async function sendYegerCorner(
 }
 
 export async function markHuntPresence(
+  ctx: Context,
+  presence: PresenceService | undefined
+): Promise<void> {
+  const player = playerFromContext(ctx.from);
+
+  if (!player || !presence) {
+    return;
+  }
+
+  await presence.markAction({
+    user: player,
+      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_HUNT_BOARD
+    });
+}
+
+export async function markYegerCornerPresence(
   ctx: Context,
   presence: PresenceService | undefined
 ): Promise<void> {
@@ -158,6 +189,7 @@ async function sendText(
   keyboard:
     | Parameters<typeof buildYegerKeyboard>[0]
     | { kind: "corner"; result: Parameters<typeof buildYegerCornerKeyboard>[0] }
+    | { kind: "hunt"; result: Parameters<typeof buildYegerHuntKeyboard>[0] }
     | "enter-korchma"
     | false = false
 ): Promise<void> {
@@ -180,6 +212,7 @@ function buildReplyMarkup(
   keyboard:
     | Parameters<typeof buildYegerKeyboard>[0]
     | { kind: "corner"; result: Parameters<typeof buildYegerCornerKeyboard>[0] }
+    | { kind: "hunt"; result: Parameters<typeof buildYegerHuntKeyboard>[0] }
     | "enter-korchma"
 ) {
   if (keyboard === "enter-korchma") {
@@ -187,6 +220,10 @@ function buildReplyMarkup(
   }
 
   if ("kind" in keyboard) {
+    if (keyboard.kind === "hunt") {
+      return buildYegerHuntKeyboard(keyboard.result);
+    }
+
     return buildYegerCornerKeyboard(keyboard.result);
   }
 

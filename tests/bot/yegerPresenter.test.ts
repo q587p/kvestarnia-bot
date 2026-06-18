@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   presentYegerCorner,
   presentYegerHelp,
+  presentYegerHuntOutside,
   presentYegerQuest,
   presentYegerStart,
   presentYegerTrackingNone,
@@ -220,6 +221,21 @@ describe("Yeger presenter", () => {
     expect(pendingQuest).toContain("приблизно за 3 хв.");
     expect(readyQuest).toContain("Слід уже чекає перевірки.");
     expect(pendingQuest).not.toContain("65%");
+  });
+
+  it("renders the outdoor hunt surface without Yeger-corner actions", () => {
+    const text = presentYegerHuntOutside({
+      state: "in-progress",
+      character,
+      progress: { wins: 1, target: 5 },
+      tracking: { state: "none" }
+    });
+
+    expect(text).toContain("🚪 Надворі біля корчми");
+    expect(text).toContain("Єгер лишився біля Бочки");
+    expect(text).toContain("Можна взяти новий слід");
+    expect(text).not.toContain("Кого шукати?");
+    expect(text).not.toContain("Здати Єгерю");
   });
 
   it("renders tracking start and empty resolution messages", () => {

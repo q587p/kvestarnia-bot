@@ -15,6 +15,7 @@ import type { LevelMilestoneService } from "../../services/levelMilestoneService
 import type { RemortService } from "../../services/remortService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import type { FightService, ProblemQuestProgress } from "../../services/fightService";
+import type { YegerQuestService } from "../../services/yegerQuestService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildKorchmaArrivalBoardKeyboard,
@@ -111,7 +112,8 @@ export async function sendKorchmaFront(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  yegerQuestService?: Pick<YegerQuestService, "getForTelegramUser">
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -140,7 +142,12 @@ export async function sendKorchmaFront(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FRONT);
-  await sendText(ctx, mode, presentKorchmaFront(result.character), "front");
+  const yegerAction = await getFrontYegerAction(yegerQuestService, telegramUserId);
+
+  await sendText(ctx, mode, presentKorchmaFront(result.character), {
+    state: "front",
+    yegerAction
+  });
 }
 
 export async function sendKorchmaArrivalBoard(
@@ -465,6 +472,7 @@ async function sendText(
     | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
     | "front"
+    | { state: "front"; yegerAction: "corner" | "hunt" }
     | "fighting-corner"
     | "back-to-fighting-corner"
     | "back-to-hall"
@@ -494,8 +502,10 @@ async function sendText(
               ? buildKorchmaFightingCornerKeyboard()
             : keyboard === "back-to-hall"
               ? buildBackToKorchmaHallKeyboard()
+            : isFrontKeyboard(keyboard)
+              ? buildKorchmaFrontKeyboard({ yegerAction: keyboard.yegerAction })
             : keyboard === "front"
-              ? buildKorchmaFrontKeyboard({ includeYeger: true })
+              ? buildKorchmaFrontKeyboard({ yegerAction: "corner" })
             : keyboard === "arrivals"
               ? buildKorchmaArrivalBoardKeyboard()
               : keyboard === "memorial"
@@ -516,6 +526,26 @@ async function sendText(
   await ctx.reply(text, options);
 }
 
+function isFrontKeyboard(
+  keyboard:
+    | boolean
+    | "hall"
+    | { state: "hall"; characterLevel?: number }
+    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
+    | "front"
+    | { state: "front"; yegerAction: "corner" | "hunt" }
+    | "fighting-corner"
+    | "back-to-fighting-corner"
+    | "back-to-hall"
+    | "arrivals"
+    | "memorial"
+    | "barrel-result"
+    | "barrel-pending"
+    | "barrel-participants"
+): keyboard is { state: "front"; yegerAction: "corner" | "hunt" } {
+  return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "front";
+}
+
 function isBarKeyboard(
   keyboard:
     | boolean
@@ -523,6 +553,7 @@ function isBarKeyboard(
     | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
     | "front"
+    | { state: "front"; yegerAction: "corner" | "hunt" }
     | "fighting-corner"
     | "back-to-fighting-corner"
     | "back-to-hall"
@@ -542,6 +573,7 @@ function isHallKeyboard(
     | { state: "hall"; characterLevel?: number }
     | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
     | "front"
+    | { state: "front"; yegerAction: "corner" | "hunt" }
     | "fighting-corner"
     | "back-to-fighting-corner"
     | "back-to-hall"
@@ -552,6 +584,19 @@ function isHallKeyboard(
     | "barrel-participants"
 ): keyboard is { state: "hall"; characterLevel?: number } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "hall";
+}
+
+async function getFrontYegerAction(
+  yegerQuestService: Pick<YegerQuestService, "getForTelegramUser"> | undefined,
+  telegramUserId: bigint
+): Promise<"corner" | "hunt"> {
+  if (!yegerQuestService) {
+    return "corner";
+  }
+
+  const yeger = await yegerQuestService.getForTelegramUser(telegramUserId);
+
+  return yeger.state === "in-progress" ? "hunt" : "corner";
 }
 
 function getProblemQuestBarActionFromProgress(

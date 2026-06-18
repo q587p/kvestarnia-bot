@@ -71,6 +71,26 @@ export function presentYegerQuest(
   return lines.join("\n");
 }
 
+export function presentYegerHuntOutside(
+  result: Extract<YegerQuestLookupResult, { state: "in-progress" }>
+): string {
+  const lines = [
+    "🚪 Надворі біля корчми",
+    presentCharacterHeader(result.character),
+    "",
+    "Єгер лишився біля Бочки, а вас відправив туди, де сліди не можуть сховатися під піною.",
+    "",
+    presentProgressLine(result.progress)
+  ];
+  const trackingLine = presentOutdoorTrackingStatusLine(result.tracking);
+
+  if (trackingLine) {
+    lines.push("", trackingLine);
+  }
+
+  return lines.join("\n");
+}
+
 export function presentYegerCorner(
   result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
 ): string {
@@ -303,6 +323,20 @@ function presentTrackingStatusLine(tracking: { state: string; availableAt?: Date
   }
 
   return null;
+}
+
+function presentOutdoorTrackingStatusLine(
+  tracking: { state: string; availableAt?: Date; now?: Date }
+): string | null {
+  if (tracking.state === "tracking-pending" && tracking.availableAt && tracking.now) {
+    return `Слід уже взято. Перевірити можна ${formatTrackingWait(tracking.availableAt, tracking.now)}.`;
+  }
+
+  if (tracking.state === "tracking-ready") {
+    return "Слід чекає перевірки. Це підозріло чемно з його боку.";
+  }
+
+  return "Можна взяти новий слід. Двір робить вигляд, що нічого не знає.";
 }
 
 function formatTrackingWait(availableAt: Date, now: Date): string {

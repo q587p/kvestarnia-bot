@@ -7,6 +7,7 @@ import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import { makeDuelNewCallbackData } from "../callbacks/duelCallbackData";
 import { makeTrainingDoppelgangerCallbackData } from "../callbacks/trainingDoppelgangerCallbackData";
+import { makeYegerOutsideCallbackData } from "../callbacks/yegerCallbackData";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
 
 export type TavernResultKeyboardState =
@@ -24,13 +25,17 @@ export function buildTavernKeyboard(): InlineKeyboard {
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
-export function buildKorchmaFrontKeyboard(options: { includeYeger?: boolean } = {}): InlineKeyboard {
+export function buildKorchmaFrontKeyboard(
+  options: { yegerAction?: "hidden" | "corner" | "hunt" } = {}
+): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
     .row();
 
-  if (options.includeYeger) {
-    keyboard.text("🧥 Єгер", makeTavernCallbackData("ranger")).row();
+  if (options.yegerAction === "hunt") {
+    keyboard.text("🏹 До полювання", makeYegerOutsideCallbackData()).row();
+  } else if (options.yegerAction === "corner") {
+    keyboard.text("🧥 До Єгеря", makeTavernCallbackData("ranger")).row();
   }
 
   return keyboard

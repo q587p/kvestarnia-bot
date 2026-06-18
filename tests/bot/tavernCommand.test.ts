@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
+import { makeYegerOutsideCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import {
   sendKorchmaArrivalBoard,
   sendKorchmaBar,
@@ -46,7 +47,7 @@ describe("tavern command screens", () => {
           ],
           [
             {
-              text: "🧥 Єгер",
+              text: "🧥 До Єгеря",
               callback_data: "v1:tavern:ranger"
             }
           ],
@@ -69,6 +70,37 @@ describe("tavern command screens", () => {
         ]
       }
     });
+  });
+
+  it("sends active Yeger quests to outdoor hunting from the front door", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaFront(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      {
+        getForTelegramUser: () =>
+          Promise.resolve({
+            state: "in-progress",
+            character,
+            progress: { wins: 1, target: 5 },
+            tracking: { state: "none" }
+          })
+      }
+    );
+
+    const options = replies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+
+    expect(options.reply_markup.inline_keyboard).toContainEqual([
+      {
+        text: "🏹 До полювання",
+        callback_data: makeYegerOutsideCallbackData()
+      }
+    ]);
   });
 
   it("shows a front-door arrivals plaque from known korchma visitors", async () => {

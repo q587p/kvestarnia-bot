@@ -105,7 +105,13 @@ import { registerEquipmentCommand, sendEquipment } from "./commands/equipmentCom
 import { registerFightCommand, sendFight } from "./commands/fightCommand";
 import { registerHelpCommand } from "./commands/helpCommand";
 import { registerHeroCommand, sendHero } from "./commands/heroCommand";
-import { registerHuntCommand, markHuntPresence, sendHuntBoard, sendYegerCorner } from "./commands/huntCommand";
+import {
+  registerHuntCommand,
+  markHuntPresence,
+  markYegerCornerPresence,
+  sendHuntBoard,
+  sendYegerCorner
+} from "./commands/huntCommand";
 import { registerInventoryCommand, sendInventory } from "./commands/inventoryCommand";
 import { registerLookCommand } from "./commands/lookCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
@@ -186,6 +192,7 @@ import {
 import { buildRemortKeyboard, buildRemortResultKeyboard } from "./keyboards/remortKeyboard";
 import {
   buildYegerHelpKeyboard,
+  buildYegerHuntKeyboard,
   buildYegerKeyboard,
   buildYegerTurnInKeyboard
 } from "./keyboards/yegerKeyboard";
@@ -1344,7 +1351,7 @@ async function handlePlaceCallback(
   }
 
   if (action === "front") {
-    await sendKorchmaFront(ctx, services.tavern, services.presence, "edit");
+    await sendKorchmaFront(ctx, services.tavern, services.presence, "edit", services.yeger);
     return;
   }
 
@@ -2541,7 +2548,7 @@ async function handleYegerCallback(
     return;
   }
 
-  if (!place.insideKorchma) {
+  if (!place.insideKorchma && callback.type !== "outside" && callback.type !== "track") {
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentKorchmaQuestGate(), {
       ...HTML_MESSAGE_OPTIONS,
@@ -2561,6 +2568,23 @@ async function handleYegerCallback(
   }
 
   if (callback.type === "quest") {
+    await safeAnswerCallbackQuery(ctx);
+    const quest = await services.yeger.getForTelegramUser(telegramUserId);
+
+    if (quest.state === "no-character") {
+      await safeEditMessageText(ctx, presentYegerNoCharacter());
+      return;
+    }
+
+    await markYegerCornerPresence(ctx, services.presence);
+    await safeEditMessageText(ctx, presentYegerQuest(quest), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildYegerKeyboard(quest)
+    });
+    return;
+  }
+
+  if (callback.type === "outside") {
     await safeAnswerCallbackQuery(ctx);
     await sendHuntBoard(ctx, services.yeger, "edit", {
       presence: services.presence,
@@ -2582,7 +2606,7 @@ async function handleYegerCallback(
   if (callback.type === "start") {
     const result = await services.yeger.startForTelegramUser(telegramUserId);
     await safeAnswerCallbackQuery(ctx);
-    await markHuntPresence(ctx, services.presence);
+    await markYegerCornerPresence(ctx, services.presence);
     if (result.state === "no-character") {
       await safeEditMessageText(ctx, presentYegerStart(result), HTML_MESSAGE_OPTIONS);
       return;
@@ -2633,7 +2657,7 @@ async function handleYegerCallback(
     if (result.state === "tracking-started" || result.state === "tracking-pending") {
       await safeEditMessageText(ctx, presentYegerTrackingPending(result), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildYegerKeyboard({
+        reply_markup: buildYegerHuntKeyboard({
           state: "in-progress",
           character: result.character,
           progress: result.progress,
@@ -2646,7 +2670,7 @@ async function handleYegerCallback(
     if (result.state === "tracking-resolved-none") {
       await safeEditMessageText(ctx, presentYegerTrackingNone(result), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildYegerKeyboard({
+        reply_markup: buildYegerHuntKeyboard({
           state: "in-progress",
           character: result.character,
           progress: result.progress,
@@ -2659,7 +2683,7 @@ async function handleYegerCallback(
     if (result.state === "tracking-blocked-by-other-fight") {
       await safeEditMessageText(ctx, presentYegerTrackingBlockedByOtherFight(), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildYegerKeyboard({
+        reply_markup: buildYegerHuntKeyboard({
           state: "in-progress",
           character: result.character,
           progress: result.progress,
@@ -2728,7 +2752,7 @@ async function handleYegerCallback(
 
   const result = await services.yeger.turnInForTelegramUser(telegramUserId);
   await safeAnswerCallbackQuery(ctx);
-  await markHuntPresence(ctx, services.presence);
+  await markYegerCornerPresence(ctx, services.presence);
   if (result.state === "no-character") {
     await safeEditMessageText(ctx, presentYegerTurnIn(result), HTML_MESSAGE_OPTIONS);
     return;

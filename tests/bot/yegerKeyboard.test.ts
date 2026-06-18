@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { makeItemDetailCallbackData } from "../../src/bot/callbacks/itemCallbackData";
 import {
   buildYegerCornerKeyboard,
+  buildYegerHuntKeyboard,
   buildYegerKeyboard,
   buildYegerTurnInKeyboard
 } from "../../src/bot/keyboards/yegerKeyboard";
-import { makeYegerQuestCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
+import { makeYegerOutsideCallbackData, makeYegerQuestCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("Yeger keyboard", () => {
@@ -52,18 +53,8 @@ describe("Yeger keyboard", () => {
     });
   });
 
-  it("shows tracking state actions for active Yeger quest", () => {
-    const pending = buildYegerKeyboard({
-      state: "in-progress",
-      character,
-      progress: { wins: 1, target: 5 },
-      tracking: {
-        state: "tracking-pending",
-        availableAt: new Date("2026-06-15T10:08:00.000Z"),
-        now: new Date("2026-06-15T10:05:00.000Z")
-      }
-    });
-    const ready = buildYegerKeyboard({
+  it("sends active Yeger quests outside from the Yeger corner", () => {
+    const keyboard = buildYegerKeyboard({
       state: "in-progress",
       character,
       progress: { wins: 1, target: 5 },
@@ -74,8 +65,47 @@ describe("Yeger keyboard", () => {
       }
     });
 
+    expect(flatButtons(keyboard)[0]).toEqual({
+      text: "🚪 Надвір",
+      callback_data: makeYegerOutsideCallbackData()
+    });
+    expect(flatButtons(keyboard).map((button) => button.text)).toContain("📖 Кого шукати?");
+  });
+
+  it("shows tracking state actions on the outdoor hunt surface", () => {
+    const pending = buildYegerHuntKeyboard({
+      state: "in-progress",
+      character,
+      progress: { wins: 1, target: 5 },
+      tracking: {
+        state: "tracking-pending",
+        availableAt: new Date("2026-06-15T10:08:00.000Z"),
+        now: new Date("2026-06-15T10:05:00.000Z")
+      }
+    });
+    const ready = buildYegerHuntKeyboard({
+      state: "in-progress",
+      character,
+      progress: { wins: 1, target: 5 },
+      tracking: {
+        state: "tracking-ready",
+        availableAt: new Date("2026-06-15T10:04:00.000Z"),
+        now: new Date("2026-06-15T10:05:00.000Z")
+      }
+    });
+
+    const none = buildYegerHuntKeyboard({
+      state: "in-progress",
+      character,
+      progress: { wins: 1, target: 5 },
+      tracking: {
+        state: "none"
+      }
+    });
+
     expect(flatButtons(pending)[0]?.text).toBe("⏳ Чекати слід");
     expect(flatButtons(ready)[0]?.text).toBe("🔎 Перевірити слід");
+    expect(flatButtons(none)[0]?.text).toBe("👣 Взяти слід");
   });
 });
 
