@@ -709,6 +709,7 @@ function registerPresenceMiddleware(bot: Bot, presenceService: PresenceService):
 function registerCombatLockMiddleware(bot: Bot, services: BotServices): void {
   bot.use(async (ctx, next) => {
     const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    const callbackData = ctx.callbackQuery?.data;
 
     if (!telegramUserId) {
       await next();
@@ -716,7 +717,7 @@ function registerCombatLockMiddleware(bot: Bot, services: BotServices): void {
     }
 
     if (
-      ctx.callbackQuery?.data.startsWith("v1:rm:") &&
+      callbackData?.startsWith("v1:rm:") &&
       typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
       (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
     ) {
