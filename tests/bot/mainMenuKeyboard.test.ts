@@ -41,6 +41,7 @@ import {
 } from "../../src/bot/keyboards/levelBarterKeyboard";
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
 import {
+  buildEnterKorchmaKeyboard,
   buildKorchmaArrivalBoardKeyboard,
   buildKorchmaBarKeyboard,
   buildKorchmaFightingCornerKeyboard,
@@ -87,6 +88,8 @@ describe("main menu and scene keyboards", () => {
       "v1:place:memorial",
       "v1:lvlx:open"
     ]);
+    expect(inlineButtonRows(buildEnterKorchmaKeyboard())).toEqual([["🚪 Зайти в корчму"]]);
+    expect(flatInlineButtonCallbacks(buildEnterKorchmaKeyboard())).toEqual(["v1:place:hall"]);
     expect(flatInlineButtonTexts(buildKorchmaArrivalBoardKeyboard())).toEqual([
       "🚪 Зайти в корчму",
       "⬅️ До дверей"

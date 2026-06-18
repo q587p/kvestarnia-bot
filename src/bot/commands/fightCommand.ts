@@ -17,7 +17,7 @@ import {
   buildPersistentFightResultKeyboard
 } from "../keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
-import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
+import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
   presentFightAlreadyCompleted,
@@ -244,7 +244,7 @@ async function sendText(
         parse_mode: "HTML" as const,
         reply_markup:
           keyboard === "enter-korchma"
-            ? buildKorchmaFrontKeyboard()
+            ? buildEnterKorchmaKeyboard()
             : keyboard === "persistent-difficulty"
               ? buildPersistentFightDifficultyKeyboard()
             : keyboard === "persistent-ready"

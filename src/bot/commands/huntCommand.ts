@@ -9,7 +9,7 @@ import {
 } from "../../services/presenceService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import { buildYegerCornerKeyboard, buildYegerHuntKeyboard, buildYegerKeyboard } from "../keyboards/yegerKeyboard";
-import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
+import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentYegerCorner,
   presentYegerHuntOutside,
@@ -216,7 +216,7 @@ function buildReplyMarkup(
     | "enter-korchma"
 ) {
   if (keyboard === "enter-korchma") {
-    return buildKorchmaFrontKeyboard();
+    return buildEnterKorchmaKeyboard();
   }
 
   if ("kind" in keyboard) {

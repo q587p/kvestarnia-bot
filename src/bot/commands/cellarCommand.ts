@@ -19,7 +19,7 @@ import {
   presentCellarStart
 } from "../presenters/cellarPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
-import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
+import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 
@@ -195,7 +195,7 @@ async function sendText(
         parse_mode: "HTML" as const,
         reply_markup:
           keyboard === "enter-korchma"
-            ? buildKorchmaFrontKeyboard()
+            ? buildEnterKorchmaKeyboard()
             : isGrownupKeyboard(keyboard)
               ? buildCellarGrownupKeyboard(keyboard.state, {
                   includeKeptBottle: Boolean(keyboard.includeKeptBottle)

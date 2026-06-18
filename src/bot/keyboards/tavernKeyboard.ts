@@ -49,6 +49,10 @@ export function buildKorchmaFrontKeyboard(
   return keyboard;
 }
 
+export function buildEnterKorchmaKeyboard(): InlineKeyboard {
+  return new InlineKeyboard().text("🚪 Зайти в корчму", makePlaceCallbackData("hall"));
+}
+
 export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = {}): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 

@@ -12,7 +12,7 @@ import {
 } from "../../services/presenceService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import { buildQuestHubKeyboard } from "../keyboards/questHubKeyboard";
-import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
+import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentKorchmaQuestGate,
   presentQuestHub,
@@ -159,7 +159,7 @@ async function sendText(
         parse_mode: "HTML" as const,
         reply_markup:
           keyboard === "enter-korchma"
-            ? buildKorchmaFrontKeyboard()
+            ? buildEnterKorchmaKeyboard()
             : buildQuestHubKeyboard({
                 ...keyboard.snapshot,
                 characterLevel: keyboard.snapshot.character.level,

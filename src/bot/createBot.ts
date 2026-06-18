@@ -182,6 +182,7 @@ import {
 } from "./keyboards/onboardingKeyboard";
 import { buildMainMenuKeyboard, mainMenuButtons } from "./keyboards/mainMenuKeyboard";
 import {
+  buildEnterKorchmaKeyboard,
   buildKorchmaBarKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaRoundOfferKeyboard,
@@ -1493,7 +1494,7 @@ async function handleQuestCallback(
     if (!place.insideKorchma) {
       await safeEditMessageText(ctx, presentKorchmaQuestGate(), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildKorchmaFrontKeyboard()
+        reply_markup: buildEnterKorchmaKeyboard()
       });
       return;
     }
@@ -1537,7 +1538,7 @@ async function handleQuestCallback(
     if (!place.insideKorchma) {
       await safeEditMessageText(ctx, presentKorchmaQuestGate(), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildKorchmaFrontKeyboard()
+        reply_markup: buildEnterKorchmaKeyboard()
       });
       return;
     }
@@ -2562,7 +2563,7 @@ async function handleYegerCallback(
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentKorchmaQuestGate(), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildKorchmaFrontKeyboard()
+      reply_markup: buildEnterKorchmaKeyboard()
     });
     return;
   }

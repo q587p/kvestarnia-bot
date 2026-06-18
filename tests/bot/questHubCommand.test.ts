@@ -40,22 +40,6 @@ describe("quest hub command", () => {
               text: "🚪 Зайти в корчму",
               callback_data: makePlaceCallbackData("hall")
             }
-          ],
-          [
-            {
-              text: "📜 Табличка прибулих",
-              callback_data: makePlaceCallbackData("arrivals")
-            },
-            {
-              text: "🏅 Пропамʼятна дошка",
-              callback_data: makePlaceCallbackData("memorial")
-            }
-          ],
-          [
-            {
-              text: "🎒 Манчкін-скупник",
-              callback_data: "v1:lvlx:open"
-            }
           ]
         ]
       }

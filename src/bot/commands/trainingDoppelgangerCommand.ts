@@ -14,7 +14,7 @@ import {
   buildTrainingDoppelgangerKeyboard,
   buildTrainingDoppelgangerStartKeyboard
 } from "../keyboards/trainingDoppelgangerKeyboard";
-import { buildKorchmaFrontKeyboard } from "../keyboards/tavernKeyboard";
+import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import {
   presentTrainingDoppelganger,
@@ -178,7 +178,7 @@ async function sendText(
         parse_mode: "HTML" as const,
         reply_markup:
           keyboard === "enter-korchma"
-            ? buildKorchmaFrontKeyboard()
+            ? buildEnterKorchmaKeyboard()
             : keyboard === "training"
               ? buildTrainingDoppelgangerKeyboard()
               : keyboard.type === "start-choice"
