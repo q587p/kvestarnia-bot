@@ -53,9 +53,7 @@ export function buildPersistentFightKeyboard(
   }
 
   return keyboard
-    .text("🏃 Відступити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" }))
-    .row()
-    .text("🪜 Спуск до Низу", makePlaceCallbackData("deep"));
+    .text("🏃 Відступити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" }));
 }
 
 export function buildPersistentFightResultKeyboard(
