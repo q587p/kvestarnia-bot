@@ -69,6 +69,37 @@ describe("HeroService", () => {
     });
     expect(inventory.listCount).toBe(0);
   });
+
+  it("reports a recovery notice when hero lookup fills HP", async () => {
+    const marker = new Date("2026-06-13T11:40:00.000Z");
+    const characters = new FakeCharacterRepository(
+      buildCharacter({
+        hpCurrent: 1,
+        hpMax: 22,
+        hpRegenAt: marker,
+        manaRegenAt: marker
+      })
+    );
+    const service = new HeroService(
+      characters,
+      new FakeInventoryRepository([]),
+      undefined,
+      undefined,
+      () => new Date("2026-06-13T12:00:00.000Z")
+    );
+
+    const result = await service.findByTelegramUserId(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "existing-character",
+      recoveryNotice: {
+        type: "hp-full",
+        hpCurrent: 22,
+        hpMax: 22
+      }
+    });
+    expect(characters.resourceUpdateCount).toBe(1);
+  });
 });
 
 function buildCharacter(overrides: Partial<CharacterRecord> = {}): CharacterRecord {
@@ -123,6 +154,8 @@ function buildItem(overrides: Partial<CharacterItemRecord>): CharacterItemRecord
 }
 
 class FakeCharacterRepository implements CharacterRepository {
+  resourceUpdateCount = 0;
+
   constructor(private readonly character: CharacterRecord | null) {}
 
   findByTelegramUserId(): Promise<CharacterRecord | null> {
@@ -135,6 +168,30 @@ class FakeCharacterRepository implements CharacterRepository {
 
   deleteByTelegramUserId(): Promise<boolean> {
     return Promise.resolve(false);
+  }
+
+  updateResourcesForTelegramUser(
+    _telegramUserId: bigint,
+    input: {
+      hpCurrent: number;
+      manaCurrent: number;
+      hpRegenAt: Date;
+      manaRegenAt: Date;
+    }
+  ): Promise<CharacterRecord | null> {
+    if (!this.character) {
+      return Promise.resolve(null);
+    }
+
+    this.resourceUpdateCount += 1;
+    Object.assign(this.character, {
+      hpCurrent: input.hpCurrent,
+      manaCurrent: input.manaCurrent,
+      hpRegenAt: input.hpRegenAt,
+      manaRegenAt: input.manaRegenAt
+    });
+
+    return Promise.resolve(this.character);
   }
 
   updateReward(): CharacterRecord {

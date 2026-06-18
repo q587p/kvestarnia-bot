@@ -30,6 +30,10 @@ import {
   presentPersistentFightDifficultyChoice,
   presentPersistentFight
 } from "../presenters/fightPresenter";
+import {
+  prefixResourceRecoveryNotice,
+  presentResourceRecoveryNotice
+} from "../presenters/resourceRecoveryPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
@@ -105,22 +109,22 @@ export async function sendFight(
   }
 
   if (result.state === "level-retired") {
-    await sendText(ctx, mode, presentFightLevelRetired(result));
+    await sendResultText(presentFightLevelRetired(result));
     return;
   }
 
   if (result.state === "needs-rest") {
-    await sendText(ctx, mode, presentFightNeedsRest(result));
+    await sendResultText(presentFightNeedsRest(result));
     return;
   }
 
   if (result.state === "monster-rest") {
-    await sendText(ctx, mode, presentFightMonsterRest(result), "persistent-ready");
+    await sendResultText(presentFightMonsterRest(result), "persistent-ready");
     return;
   }
 
   if (result.state === "training-active") {
-    await sendText(ctx, mode, presentFightTrainingActive(result), {
+    await sendResultText(presentFightTrainingActive(result), {
       type: "training-active",
       character: result.character,
       session: result.session
@@ -129,9 +133,7 @@ export async function sendFight(
   }
 
   if (result.state === "persistent-not-issued") {
-    await sendText(
-      ctx,
-      mode,
+    await sendResultText(
       [
         "📋 Бій ще не відкрито.",
         "",
@@ -149,12 +151,12 @@ export async function sendFight(
   }
 
   if (result.state === "already-completed") {
-    await sendText(ctx, mode, presentFightAlreadyCompleted(result));
+    await sendResultText(presentFightAlreadyCompleted(result));
     return;
   }
 
   if (result.state === "persistent-active" || result.state === "persistent-terminal") {
-    await sendText(ctx, mode, presentPersistentFight(result), {
+    await sendResultText(presentPersistentFight(result), {
       type: "persistent-fight",
       character: result.character,
       session: result.session
@@ -163,19 +165,35 @@ export async function sendFight(
   }
 
   if (result.state === "persistent-ready") {
-    await sendText(
-      ctx,
-      mode,
+    await sendResultText(
       presentPersistentFightDifficultyChoice(result),
       "persistent-difficulty"
     );
     return;
   }
 
-  await sendText(ctx, mode, presentFightStart(result.character), {
+  await sendResultText(presentFightStart(result.character), {
     type: "fight",
     character: result.character
   });
+
+  async function sendResultText(
+    text: string,
+    keyboard: Parameters<typeof sendText>[3] = false
+  ): Promise<void> {
+    if (result.state !== "no-character" && result.recoveryNotice && mode === "reply") {
+      await sendText(ctx, "reply", presentResourceRecoveryNotice(result.recoveryNotice));
+    }
+
+    await sendText(
+      ctx,
+      mode,
+      result.state !== "no-character" && mode === "edit"
+        ? prefixResourceRecoveryNotice(text, result.recoveryNotice)
+        : text,
+      keyboard
+    );
+  }
 }
 
 async function markFightPresence(

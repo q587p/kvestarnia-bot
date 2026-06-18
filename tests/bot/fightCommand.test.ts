@@ -265,6 +265,48 @@ describe("fight command", () => {
     });
   });
 
+  it("sends a recovery notice before fight options when HP just refilled", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const fightService = {
+      getFightOverviewForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-ready",
+          character: {
+            ...character,
+            level: 3,
+            hpCurrent: 24,
+            hpMax: 24
+          },
+          questProgress: questProgress(0),
+          recoveryNotice: {
+            type: "hp-full",
+            hpCurrent: 24,
+            hpMax: 24
+          }
+        })
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply");
+
+    expect(replies).toHaveLength(2);
+    expect(replies[0]?.text).toContain("Здоров’я знову повне: 24/24");
+    expect(replies[0]?.text).toContain("бій, дуель або інше сумнівне рішення");
+    expect(replies[0]?.options).toEqual({
+      parse_mode: "HTML"
+    });
+    expect(replies[1]?.text).toContain("Розв’язати проблему");
+    const options = replies[1]?.options as {
+      parse_mode: string;
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+
+    expect(options.parse_mode).toBe("HTML");
+    expect(options.reply_markup.inline_keyboard[0]?.[0]).toEqual({
+      text: "🕯 Легше: -3 рів.",
+      callback_data: makeQuestCallbackData("fight-easy")
+    });
+  });
+
   it("starts the selected persistent fight difficulty through the existing session path", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const startedDifficulties: string[] = [];

@@ -37,7 +37,10 @@ import {
 import { createEmptyEquipmentEffectSummary } from "../domain/progression/effectiveStats";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
-import { summarizeAndSyncCharacterResources } from "./characterResourceService";
+import {
+  summarizeAndSyncCharacterResources,
+  type ResourceRecoveryNotice
+} from "./characterResourceService";
 import {
   MIMIC_SHAWARMA_ADVENTURE_KEY,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
@@ -73,6 +76,10 @@ import { getEquippedItemContents } from "./equipmentService";
 export { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./dailyActionKeys";
 export { PERSISTENT_SOLO_FIGHT_REWARD_KEY } from "./dailyActionKeys";
 export type FightAction = CombatProbeAction;
+
+interface RecoveryNoticeField {
+  recoveryNotice?: ResourceRecoveryNotice;
+}
 
 export const MIMIC_SHAWARMA_COMBAT_REWARDS = {
   attack: {
@@ -237,49 +244,49 @@ export type ProblemQuestProgressLookupResult =
 
 export type FightLookupResult =
   | { state: "no-character" }
-  | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
-  | { state: "needs-rest"; character: CharacterSummary }
-  | {
+  | ({ state: "level-retired"; character: CharacterSummary; maxLevel: number } & RecoveryNoticeField)
+  | ({ state: "needs-rest"; character: CharacterSummary } & RecoveryNoticeField)
+  | ({
       state: "persistent-not-issued";
       character: CharacterSummary;
       questProgress: ThirteenSmallProblemsProgress;
-    }
-  | {
+    } & RecoveryNoticeField)
+  | ({
       state: "persistent-ready";
       character: CharacterSummary;
       questProgress: ThirteenSmallProblemsProgress;
-    }
-  | {
+    } & RecoveryNoticeField)
+  | ({
       state: "monster-rest";
       character: CharacterSummary;
       questProgress: ThirteenSmallProblemsProgress;
       availableAt: Date;
       now: Date;
-    }
-  | {
+    } & RecoveryNoticeField)
+  | ({
       state: "persistent-active";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
       questProgress: ThirteenSmallProblemsProgress;
       started?: boolean;
-    }
-  | {
+    } & RecoveryNoticeField)
+  | ({
       state: "persistent-terminal";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent | null;
       questProgress: ThirteenSmallProblemsProgress;
       fightReward: PersistentFightReward | null;
-    }
-  | {
+    } & RecoveryNoticeField)
+  | ({
       state: "training-active";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       questProgress: ThirteenSmallProblemsProgress;
-    }
-  | { state: "ready"; character: CharacterSummary }
-  | { state: "already-completed"; character: CharacterSummary; questAvailable: boolean };
+    } & RecoveryNoticeField)
+  | ({ state: "ready"; character: CharacterSummary } & RecoveryNoticeField)
+  | ({ state: "already-completed"; character: CharacterSummary; questAvailable: boolean } & RecoveryNoticeField);
 
 export type FightResult =
   | { state: "no-character" }
@@ -433,16 +440,19 @@ export class FightService {
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
     const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
-    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character, {
+    const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
       syncResources: !activeSession
     });
+    const characterSummary = resourceAware.character;
+    const recoveryNotice = resourceAware.recoveryNotice;
 
     if (!activeSession) {
       if (!questProgress.issued) {
         return {
           state: "persistent-not-issued",
           character: characterSummary,
-          questProgress
+          questProgress,
+          ...(recoveryNotice ? { recoveryNotice } : {})
         };
       }
 
@@ -452,6 +462,7 @@ export class FightService {
           state: "monster-rest",
           character: characterSummary,
           questProgress,
+          ...(recoveryNotice ? { recoveryNotice } : {}),
           ...rest
         };
       }
@@ -459,7 +470,8 @@ export class FightService {
       return {
         state: "persistent-ready",
         character: characterSummary,
-        questProgress
+        questProgress,
+        ...(recoveryNotice ? { recoveryNotice } : {})
       };
     }
 
@@ -691,14 +703,17 @@ export class FightService {
       }
     }
 
-    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character, {
+    const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
       syncResources: true
     });
+    const characterSummary = resourceAware.character;
+    const recoveryNotice = resourceAware.recoveryNotice;
 
     if (characterSummary.hpCurrent <= 0) {
       return {
         state: "needs-rest",
-        character: characterSummary
+        character: characterSummary,
+        ...(recoveryNotice ? { recoveryNotice } : {})
       };
     }
 
@@ -706,7 +721,8 @@ export class FightService {
       return {
         state: "persistent-not-issued",
         character: characterSummary,
-        questProgress
+        questProgress,
+        ...(recoveryNotice ? { recoveryNotice } : {})
       };
     }
 
@@ -716,6 +732,7 @@ export class FightService {
         state: "monster-rest",
         character: characterSummary,
         questProgress,
+        ...(recoveryNotice ? { recoveryNotice } : {}),
         ...monsterRest
       };
     }
@@ -756,7 +773,8 @@ export class FightService {
       session,
       monster,
       questProgress,
-      started: true
+      started: true,
+      ...(recoveryNotice ? { recoveryNotice } : {})
     };
   }
 
@@ -1489,6 +1507,16 @@ export class FightService {
     character: CharacterRecord,
     options: { syncResources?: boolean } = {}
   ): Promise<CharacterSummary> {
+    const result = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, options);
+
+    return result.character;
+  }
+
+  private async summarizeCharacterWithEquipmentResult(
+    telegramUserId: bigint,
+    character: CharacterRecord,
+    options: { syncResources?: boolean } = {}
+  ): Promise<{ character: CharacterSummary; recoveryNotice?: ResourceRecoveryNotice }> {
     const equipmentSnapshot = await this.equipment?.listByTelegramUserId(telegramUserId);
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
 
@@ -1501,12 +1529,19 @@ export class FightService {
         now: this.clock()
       });
 
-      return resourceAware.character;
+      return {
+        character: resourceAware.character,
+        ...(resourceAware.recoveryNotice
+          ? { recoveryNotice: resourceAware.recoveryNotice }
+          : {})
+      };
     }
 
-    return summarizeCharacter(character, {
-      equippedItems
-    });
+    return {
+      character: summarizeCharacter(character, {
+        equippedItems
+      })
+    };
   }
 
   private async persistCharacterResourcesFromSession(

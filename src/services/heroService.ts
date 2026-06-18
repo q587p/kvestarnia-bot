@@ -5,12 +5,18 @@ import type { RemortRepository } from "../db/repositories/remortRepository";
 import type { CharacterSummary } from "../domain/characters/characterSummary";
 import { systemClock, type Clock } from "../shared/time";
 import { summarizeAndSyncCharacterResources } from "./characterResourceService";
+import type { ResourceRecoveryNotice } from "./characterResourceService";
 import { getEquippedItemContents } from "./equipmentService";
 import { calculateInventoryRowsGoldValue } from "./inventoryService";
 
 export type HeroLookupResult =
   | { state: "no-character" }
-  | { state: "existing-character"; character: CharacterSummary; inventoryGoldValue: number };
+  | {
+      state: "existing-character";
+      character: CharacterSummary;
+      inventoryGoldValue: number;
+      recoveryNotice?: ResourceRecoveryNotice;
+    };
 
 export class HeroService {
   constructor(
@@ -47,7 +53,10 @@ export class HeroService {
     return {
       state: "existing-character",
       character: resourceAware.character,
-      inventoryGoldValue: inventoryRows ? calculateInventoryRowsGoldValue(inventoryRows) : 0
+      inventoryGoldValue: inventoryRows ? calculateInventoryRowsGoldValue(inventoryRows) : 0,
+      ...(resourceAware.recoveryNotice
+        ? { recoveryNotice: resourceAware.recoveryNotice }
+        : {})
     };
   }
 }

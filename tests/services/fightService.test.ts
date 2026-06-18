@@ -296,6 +296,40 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(0);
   });
 
+  it("reports a recovery notice when fight overview fills HP", async () => {
+    const marker = new Date("2026-06-12T10:10:00.000Z");
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, {
+      xp: 25,
+      hpCurrent: 1,
+      hpMax: 22,
+      hpRegenAt: marker,
+      manaRegenAt: marker
+    });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+    const repeated = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "persistent-ready",
+      recoveryNotice: {
+        type: "hp-full",
+        hpCurrent: 30,
+        hpMax: 30
+      }
+    });
+    expect(repeated).not.toHaveProperty("recoveryNotice");
+  });
+
   it("keeps old first-problem progress visible until the first paper is taken", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });

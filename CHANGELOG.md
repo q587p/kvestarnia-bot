@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added deterministic `3..5` hero-turn cooldowns for successful zero-mana class skills, based on the relevant skill stat with a small luck effect.
 - Added a three-minute monster-rest block after three recent eligible ordinary `Глибка` fights.
 - Level 3+ ordinary/problem fight entry moved to `Глибка`; Quest Hub now routes fights through the exact `До глибки` button.
+- Added a short HP recovery notice when passive out-of-combat regeneration first brings a character back to full health during `/hero` or `/fight` flow.
 
 ### Changed
 - Current-turn hidden/forged magic callbacks without enough mana now waste the hero turn, run the monster phase, advance the turn and persist the updated combat state.
@@ -29,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Adventure complication handoff rollback still avoids consuming the period if persistent combat cannot start, including monster-rest blocks.
 - Completed starter mimic-shawarma lookups still do not create actionable starter presence/buttons.
 - Monster rest excludes adventure handoffs, training doppelganger fights and legacy/unmarked sessions.
+- HP recovery notices use the existing lazy resource regeneration path; no durable background scheduler or proactive chat notification table was added.
 - No threat streaks, multi-enemy fights, mana-restoring manatky/items, combat items, duel-combat runtime, migrations, schema changes or new production dependencies were added.
 
 ## [0.1.14] - 12026-06-18 - Adventure Choice MVP
