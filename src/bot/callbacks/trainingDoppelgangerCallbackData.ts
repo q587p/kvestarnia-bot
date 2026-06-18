@@ -1,9 +1,11 @@
 import type { CombatActionType } from "../../domain/combat";
+import type { TrainingDoppelgangerStartMode } from "../../services/trainingDoppelgangerService";
 import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type TrainingDoppelgangerCallback =
   | { type: "open" }
+  | { type: "mode"; mode: TrainingDoppelgangerStartMode }
   | { type: "turn"; sessionId: string; turn: number; action: CombatActionType };
 export type TrainingDoppelgangerCallbackError =
   | "invalid-version"
@@ -13,12 +15,26 @@ export type TrainingDoppelgangerCallbackError =
   | "too-long";
 
 const PREFIX = "v1:spar";
+const MODE_PREFIX = "v1:spar:mode";
 const TURN_PREFIX = "v1:spar:turn";
 const turnActions = new Set<CombatActionType>(["attack", "skill", "flee"]);
+const startModes = new Set<TrainingDoppelgangerStartMode>([
+  "copy-target",
+  "random-build",
+  "champion-day",
+  "champion-week",
+  "champion-month"
+]);
 const sessionIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function makeTrainingDoppelgangerCallbackData(): string {
   return `${PREFIX}:open`;
+}
+
+export function makeTrainingDoppelgangerModeCallbackData(
+  mode: TrainingDoppelgangerStartMode
+): string {
+  return `${MODE_PREFIX}:${mode}`;
 }
 
 export function makeTrainingDoppelgangerTurnCallbackData(input: {
@@ -42,6 +58,20 @@ export function parseTrainingDoppelgangerCallbackData(
 
   if (data === `${PREFIX}:open`) {
     return ok({ type: "open" });
+  }
+
+  if (data.startsWith(`${MODE_PREFIX}:`)) {
+    const [, section, scene, mode, ...rest] = data.split(":");
+
+    if (section !== "spar" || scene !== "mode" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (!startModes.has(mode as TrainingDoppelgangerStartMode)) {
+      return err("invalid-action");
+    }
+
+    return ok({ type: "mode", mode: mode as TrainingDoppelgangerStartMode });
   }
 
   if (data.startsWith(`${TURN_PREFIX}:`)) {

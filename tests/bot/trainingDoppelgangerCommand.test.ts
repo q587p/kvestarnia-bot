@@ -8,7 +8,8 @@ import type { PresenceService } from "../../src/services/presenceService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 import type {
   TrainingDoppelgangerLookupResult,
-  TrainingDoppelgangerService
+  TrainingDoppelgangerService,
+  TrainingDoppelgangerStartMode
 } from "../../src/services/trainingDoppelgangerService";
 
 describe("training doppelganger command", () => {
@@ -65,7 +66,8 @@ describe("training doppelganger command", () => {
       "reply",
       {
         presence,
-        requireKorchmaInterior: true
+        requireKorchmaInterior: true,
+        startMode: "copy-target"
       }
     );
 
@@ -83,6 +85,47 @@ describe("training doppelganger command", () => {
     expect(replies[1]?.text).toContain("❤️ Ви:");
     expect(replies[1]?.text).toContain("що робимо?");
     expect(JSON.stringify(replies[1]?.options)).toContain("v1:spar:turn");
+  });
+
+  it("shows a doppelganger target choice before starting /spar", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = capturingPresence();
+    const service = new FakeTrainingDoppelgangerService({
+      state: "ready",
+      character: character(),
+      choices: [
+        {
+          mode: "copy-target",
+          buttonLabel: "🪞 Копія поточного",
+          title: "Копія поточного",
+          description: "Допельґанґер бере поточний образ."
+        },
+        {
+          mode: "random-build",
+          buttonLabel: "🎲 Випадковий пригодник",
+          title: "Випадковий пригодник",
+          description: "Дзеркало збирає випадковий образ."
+        }
+      ]
+    });
+
+    await sendTrainingDoppelganger(
+      makeContext(replies),
+      service as unknown as TrainingDoppelgangerService,
+      "reply",
+      {
+        presence,
+        requireKorchmaInterior: true
+      }
+    );
+
+    expect(service.calls).toBe(1);
+    expect(presence.marks).toEqual([]);
+    expect(replies).toHaveLength(1);
+    expect(replies[0]?.text).toContain("Оберіть, кого сьогодні копіювати");
+    expect(JSON.stringify(replies[0]?.options)).toContain("v1:spar:mode:copy-target");
+    expect(JSON.stringify(replies[0]?.options)).toContain("v1:spar:mode:random-build");
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:spar:turn");
   });
 
   it("shows a level gate without turn buttons or presence marks", async () => {
@@ -211,6 +254,7 @@ function doppelganger() {
     title: "Пересічні Пригодники",
     level: 3,
     spawnMode: "COPY_TARGET" as const,
+    source: "target" as const,
     copiedEquipmentCount: 0
   };
 }
@@ -250,7 +294,17 @@ class FakeTrainingDoppelgangerService {
 
   constructor(private readonly result: TrainingDoppelgangerLookupResult) {}
 
-  getOrStartForTelegramUser(): Promise<TrainingDoppelgangerLookupResult> {
+  getStartOptionsForTelegramUser(): Promise<TrainingDoppelgangerLookupResult> {
+    this.calls += 1;
+    return Promise.resolve(this.result);
+  }
+
+  getOrStartForTelegramUser(
+    _telegramUserId: bigint,
+    _options?: { mode?: TrainingDoppelgangerStartMode }
+  ): Promise<TrainingDoppelgangerLookupResult> {
+    void _telegramUserId;
+    void _options;
     this.calls += 1;
     return Promise.resolve(this.result);
   }

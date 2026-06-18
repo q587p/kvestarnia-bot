@@ -1515,7 +1515,8 @@ async function handleTrainingDoppelgangerCallback(
   await sendTrainingDoppelganger(ctx, services.trainingDoppelganger, "edit", {
     presence: services.presence,
     tavernRaid: services.tavern,
-    requireKorchmaInterior: true
+    requireKorchmaInterior: true,
+    ...(callback.type === "mode" ? { startMode: callback.mode } : {})
   });
 }
 

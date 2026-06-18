@@ -12,14 +12,15 @@ This project follows a simple pre-1.0 versioning policy:
 ### Added
 - Added a categorized Ukrainian doppelganger line pool with deterministic selection, placeholder interpolation and recent-line anti-repeat.
 - `/spar` intro and counter flavor now use the doppelganger line pool instead of one fixed intro/counter text path.
-- Added doppelganger spawn plumbing for `COPY_TARGET`, `RANDOM_BUILD`, champion-mode fallback and `WEIGHTED_RANDOM`; `/spar` still defaults to `COPY_TARGET`.
+- `/spar` now opens with a target choice before training starts: copy the current hero, mirror a random adventurer build, or copy an available distinct duel champion for day/week/month boards.
+- Added doppelganger spawn plumbing for `COPY_TARGET`, `RANDOM_BUILD`, champion fallback and `WEIGHTED_RANDOM`; service-level callers still default to `COPY_TARGET` when no explicit mode is provided.
 - Added random-build generation for valid pronoun/race/class/level combos with combat-only passive gear selected from current item content.
 - Training doppelganger combat state now stores the copy's combat identity, passive copied-equipment summary, applied effect keys and debug trace.
 - Doppelganger monsters can answer with class-shaped skill replies and record the selected ability in turn debug trace.
-- Added focused tests for doppelganger lines, spawn modes, passive equipment copy summaries, random builds, state restoration, monster skill replies and presenter output.
+- Added focused tests for doppelganger lines, spawn modes, start choices, passive equipment copy summaries, random builds, champion options, state restoration, monster skill replies and presenter output.
 
 ### Guardrails
-- No champion snapshot table, migration or persistence was added; champion spawn modes currently fall back through the configured safe mode.
+- No champion snapshot table, migration or new persistence was added; champion options reuse already available resolved duel character/equipment records and appear only when they differ from the current hero and already listed champion choices.
 - No persistent inventory items are created for copied or random doppelganger equipment, and source player inventory is not mutated.
 - Existing `/spar` reward rules remain XP-only: no gold, manatky, drops, wagers, ratings, quest progress or PvP ledger changes.
 - Active equipment abilities are not faked; this release uses the existing passive item-effect pipeline only.

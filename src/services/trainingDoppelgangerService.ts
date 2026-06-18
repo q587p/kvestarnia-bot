@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type { CooldownRepository } from "../db/repositories/cooldownRepository";
 import type { DailyActionRepository, RewardLevelChange } from "../db/repositories/dailyActionRepository";
+import type {
+  DuelCharacterSnapshot,
+  ResolvedDuelChallengeRecord
+} from "../db/repositories/duelChallengeRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import type {
   SoloCombatSessionRecord,
@@ -23,6 +27,7 @@ import {
   TRAINING_DOPPELGANGER_MIN_LEVEL,
   TRAINING_DOPPELGANGER_MONSTER_ID,
   type TrainingDoppelgangerSpawnConfig,
+  type TrainingDoppelgangerSpawnMode,
   type TrainingDoppelgangerXpReward
 } from "../domain/trainingDoppelganger";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
@@ -32,12 +37,42 @@ import { getEquippedItemContents } from "./equipmentService";
 export const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
 export const TRAINING_DOPPELGANGER_REWARD_KEY = "training.doppelganger.reward";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export type TrainingDoppelgangerStartMode =
+  | "copy-target"
+  | "random-build"
+  | "champion-day"
+  | "champion-week"
+  | "champion-month";
+export type TrainingDoppelgangerChampionPeriod = "day" | "week" | "month";
+
+export interface TrainingDoppelgangerStartChoice {
+  mode: TrainingDoppelgangerStartMode;
+  buttonLabel: string;
+  title: string;
+  description: string;
+  championName?: string;
+}
+
+export interface TrainingDoppelgangerChampionSource {
+  listResolvedSince(since: Date): Promise<ResolvedDuelChallengeRecord[]>;
+}
+
+interface TrainingDoppelgangerChampionChoice {
+  period: TrainingDoppelgangerChampionPeriod;
+  name: string;
+  character: CharacterSummary;
+  equippedItems: Awaited<ReturnType<typeof getEquippedItemContents>>;
+}
+
 export type TrainingDoppelgangerLookupResult =
   | { state: "no-character" }
   | { state: "level-gated"; character: CharacterSummary; minLevel: number }
   | { state: "needs-rest"; character: CharacterSummary }
   | { state: "on-cooldown"; character: CharacterSummary; availableAt: Date; now: Date }
   | { state: "another-fight-active"; character: CharacterSummary }
+  | { state: "ready"; character: CharacterSummary; choices: TrainingDoppelgangerStartChoice[] }
   | {
       state: "active";
       character: CharacterSummary;
@@ -90,6 +125,7 @@ export interface TrainingDoppelgangerCopy {
   title: string;
   level: number;
   spawnMode: "COPY_TARGET" | "RANDOM_BUILD";
+  source: "target" | "random-build" | "champion-fallback";
   copiedEquipmentCount: number;
 }
 
@@ -110,57 +146,56 @@ export class TrainingDoppelgangerService {
     private readonly equipment?: EquipmentRepository,
     private readonly clock: Clock = systemClock,
     private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly spawnConfig: TrainingDoppelgangerSpawnConfig = {}
+    private readonly spawnConfig: TrainingDoppelgangerSpawnConfig = {},
+    private readonly championSource?: TrainingDoppelgangerChampionSource
   ) {}
 
-  async getOrStartForTelegramUser(
+  async getStartOptionsForTelegramUser(
     telegramUserId: bigint
   ): Promise<TrainingDoppelgangerLookupResult> {
+    const base = await this.getStartBaseForTelegramUser(telegramUserId);
+
+    if (base.state !== "startable") {
+      return base.result;
+    }
+
+    return {
+      state: "ready",
+      character: base.character,
+      choices: await this.buildStartChoices(base.character)
+    };
+  }
+
+  async getOrStartForTelegramUser(
+    telegramUserId: bigint,
+    options: { mode?: TrainingDoppelgangerStartMode } = {}
+  ): Promise<TrainingDoppelgangerLookupResult> {
+    const base = await this.getStartBaseForTelegramUser(telegramUserId);
+
+    if (base.state !== "startable") {
+      return base.result;
+    }
+
     const now = this.clock();
-    const current = await this.cooldowns.findForTelegramUser(
-      telegramUserId,
-      TRAINING_DOPPELGANGER_COOLDOWN_KEY
-    );
+    const character = base.character;
+    const spawnInput = await this.resolveSpawnInput(character, base.equippedItems, options.mode ?? "copy-target");
 
-    if (!current) {
-      return { state: "no-character" };
-    }
-
-    const equippedItems = await this.getEquippedItemContents(telegramUserId);
-    const character = summarizeCharacter(current.character, { equippedItems });
-
-    if (character.level < TRAINING_DOPPELGANGER_MIN_LEVEL) {
-      return { state: "level-gated", character, minLevel: TRAINING_DOPPELGANGER_MIN_LEVEL };
-    }
-
-    const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
-
-    if (activeSession) {
-      if (!isTrainingDoppelgangerMonsterId(activeSession.monsterId)) {
-        return { state: "another-fight-active", character };
-      }
-
-      return this.getExistingTrainingSession(telegramUserId, character, activeSession);
-    }
-
-    if (current.cooldown && current.cooldown.availableAt > now) {
+    if (!spawnInput) {
       return {
-        state: "on-cooldown",
+        state: "ready",
         character,
-        availableAt: current.cooldown.availableAt,
-        now
+        choices: await this.buildStartChoices(character)
       };
     }
 
-    if (character.hpCurrent <= 0) {
-      return { state: "needs-rest", character };
-    }
-
     const sessionId = randomUUID();
-    const spawn = buildTrainingDoppelgangerSpawn(character, {
-      equippedItems,
+    const spawn = buildTrainingDoppelgangerSpawn(spawnInput.character, {
+      equippedItems: spawnInput.equippedItems,
       rng: this.rng,
-      spawnConfig: this.spawnConfig
+      spawnConfig: {
+        ...this.spawnConfig,
+        mode: spawnInput.spawnMode
+      }
     });
     const state = startCombat({
       id: sessionId,
@@ -337,6 +372,174 @@ export class TrainingDoppelgangerService {
       session: updated,
       reward
     };
+  }
+
+  private async getStartBaseForTelegramUser(telegramUserId: bigint): Promise<
+    | {
+        state: "startable";
+        character: CharacterSummary;
+        equippedItems: Awaited<ReturnType<TrainingDoppelgangerService["getEquippedItemContents"]>>;
+      }
+    | { state: "blocked"; result: TrainingDoppelgangerLookupResult }
+  > {
+    const now = this.clock();
+    const current = await this.cooldowns.findForTelegramUser(
+      telegramUserId,
+      TRAINING_DOPPELGANGER_COOLDOWN_KEY
+    );
+
+    if (!current) {
+      return { state: "blocked", result: { state: "no-character" } };
+    }
+
+    const equippedItems = await this.getEquippedItemContents(telegramUserId);
+    const character = summarizeCharacter(current.character, { equippedItems });
+
+    if (character.level < TRAINING_DOPPELGANGER_MIN_LEVEL) {
+      return {
+        state: "blocked",
+        result: { state: "level-gated", character, minLevel: TRAINING_DOPPELGANGER_MIN_LEVEL }
+      };
+    }
+
+    const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+
+    if (activeSession) {
+      if (!isTrainingDoppelgangerMonsterId(activeSession.monsterId)) {
+        return { state: "blocked", result: { state: "another-fight-active", character } };
+      }
+
+      return {
+        state: "blocked",
+        result: await this.getExistingTrainingSession(telegramUserId, character, activeSession)
+      };
+    }
+
+    if (current.cooldown && current.cooldown.availableAt > now) {
+      return {
+        state: "blocked",
+        result: {
+          state: "on-cooldown",
+          character,
+          availableAt: current.cooldown.availableAt,
+          now
+        }
+      };
+    }
+
+    if (character.hpCurrent <= 0) {
+      return { state: "blocked", result: { state: "needs-rest", character } };
+    }
+
+    return { state: "startable", character, equippedItems };
+  }
+
+  private async buildStartChoices(
+    character: CharacterSummary
+  ): Promise<TrainingDoppelgangerStartChoice[]> {
+    const choices: TrainingDoppelgangerStartChoice[] = [
+      {
+        mode: "copy-target",
+        buttonLabel: "🪞 Копія поточного",
+        title: "Копія поточного",
+        description: "Допельґанґер бере ваші теперішні расу, клас і пасивне спорядження."
+      },
+      {
+        mode: "random-build",
+        buttonLabel: "🎲 Випадковий пригодник",
+        title: "Випадковий пригодник",
+        description: "Корчемне дзеркало збирає випадкову расу, клас і тренувальні манатки."
+      }
+    ];
+    const champions = await this.getChampionChoices(character);
+
+    for (const period of ["day", "week", "month"] as const) {
+      const champion = champions[period];
+
+      if (!champion) {
+        continue;
+      }
+
+      choices.push({
+        mode: `champion-${period}`,
+        buttonLabel: `${getChampionPeriodIcon(period)} Чемпіон ${getChampionPeriodShortLabel(period)}`,
+        title: `Копія чемпіона ${getChampionPeriodTitle(period)}`,
+        description: `Дзеркало бере ${champion.name} з дуельної дошки й не вдає, що це просто ви з іншою зачіскою.`,
+        championName: champion.name
+      });
+    }
+
+    return choices;
+  }
+
+  private async resolveSpawnInput(
+    character: CharacterSummary,
+    equippedItems: Awaited<ReturnType<TrainingDoppelgangerService["getEquippedItemContents"]>>,
+    mode: TrainingDoppelgangerStartMode
+  ): Promise<{
+    character: CharacterSummary;
+    equippedItems: Awaited<ReturnType<TrainingDoppelgangerService["getEquippedItemContents"]>>;
+    spawnMode: TrainingDoppelgangerSpawnMode;
+  } | null> {
+    if (mode === "copy-target") {
+      return { character, equippedItems, spawnMode: "COPY_TARGET" };
+    }
+
+    if (mode === "random-build") {
+      return { character, equippedItems: [], spawnMode: "RANDOM_BUILD" };
+    }
+
+    const period = mode.replace("champion-", "") as TrainingDoppelgangerChampionPeriod;
+    const champion = (await this.getChampionChoices(character))[period];
+
+    if (!champion) {
+      return null;
+    }
+
+    return {
+      character: champion.character,
+      equippedItems: champion.equippedItems,
+      spawnMode: getChampionSpawnMode(period)
+    };
+  }
+
+  private async getChampionChoices(
+    character: CharacterSummary
+  ): Promise<Partial<Record<TrainingDoppelgangerChampionPeriod, TrainingDoppelgangerChampionChoice>>> {
+    if (!this.championSource) {
+      return {};
+    }
+
+    const now = this.clock();
+    const records = await this.championSource.listResolvedSince(new Date(now.getTime() - 31 * DAY_MS));
+    const result: Partial<Record<TrainingDoppelgangerChampionPeriod, TrainingDoppelgangerChampionChoice>> = {};
+    const seenFingerprints = new Set([buildCharacterFingerprint(character)]);
+
+    for (const period of ["day", "week", "month"] as const) {
+      const champion = selectDuelChampion(records, getChampionSince(now, period));
+
+      if (!champion) {
+        continue;
+      }
+
+      const equippedItems = getEquippedItemContents(champion.equipment);
+      const championSummary = summarizeCharacter(champion, { equippedItems });
+      const fingerprint = buildCharacterFingerprint(championSummary);
+
+      if (seenFingerprints.has(fingerprint)) {
+        continue;
+      }
+
+      seenFingerprints.add(fingerprint);
+      result[period] = {
+        period,
+        name: championSummary.name,
+        character: championSummary,
+        equippedItems
+      };
+    }
+
+    return result;
   }
 
   private async getExistingTrainingSession(
@@ -541,6 +744,10 @@ function buildDoppelgangerCopy(
     title: state?.monster.title ?? character.title,
     level: state?.monster.level ?? character.level,
     spawnMode: trace?.spawnMode === "RANDOM_BUILD" ? "RANDOM_BUILD" : "COPY_TARGET",
+    source:
+      trace?.source === "random-build" || trace?.source === "champion-fallback"
+        ? trace.source
+        : "target",
     copiedEquipmentCount: trace?.copiedEquipmentCount ?? 0
   };
 }
@@ -585,4 +792,141 @@ function buildRewardReplay(
 
 function getTrainingSessionExpiry(now: Date): Date {
   return new Date(now.getTime() + 30 * 60 * 1000);
+}
+
+function getChampionSince(now: Date, period: TrainingDoppelgangerChampionPeriod): Date {
+  if (period === "day") {
+    return new Date(now.getTime() - DAY_MS);
+  }
+
+  if (period === "week") {
+    return new Date(now.getTime() - 7 * DAY_MS);
+  }
+
+  return new Date(now.getTime() - 31 * DAY_MS);
+}
+
+function getChampionSpawnMode(
+  period: TrainingDoppelgangerChampionPeriod
+): Extract<TrainingDoppelgangerSpawnMode, "COPY_CHAMPION_DAY" | "COPY_CHAMPION_WEEK" | "COPY_CHAMPION_MONTH"> {
+  if (period === "day") {
+    return "COPY_CHAMPION_DAY";
+  }
+
+  if (period === "week") {
+    return "COPY_CHAMPION_WEEK";
+  }
+
+  return "COPY_CHAMPION_MONTH";
+}
+
+function getChampionPeriodIcon(period: TrainingDoppelgangerChampionPeriod): string {
+  if (period === "day") {
+    return "☀️";
+  }
+
+  if (period === "week") {
+    return "📅";
+  }
+
+  return "🌙";
+}
+
+function getChampionPeriodShortLabel(period: TrainingDoppelgangerChampionPeriod): string {
+  if (period === "day") {
+    return "дня";
+  }
+
+  if (period === "week") {
+    return "тижня";
+  }
+
+  return "місяця";
+}
+
+function getChampionPeriodTitle(period: TrainingDoppelgangerChampionPeriod): string {
+  return getChampionPeriodShortLabel(period);
+}
+
+function selectDuelChampion(
+  records: readonly ResolvedDuelChallengeRecord[],
+  since: Date
+): DuelCharacterSnapshot | null {
+  const entries = new Map<
+    string,
+    { character: DuelCharacterSnapshot; winCount: number; drawCount: number; lossCount: number }
+  >();
+
+  for (const record of records) {
+    if (record.resolvedAt < since) {
+      continue;
+    }
+
+    const challenger = getOrCreateDuelChampionEntry(entries, record.challenger);
+    const target = getOrCreateDuelChampionEntry(entries, record.target);
+
+    if (record.result.outcome === "draw") {
+      challenger.drawCount += 1;
+      target.drawCount += 1;
+    } else if (record.result.outcome === "challenger") {
+      challenger.winCount += 1;
+      target.lossCount += 1;
+    } else {
+      target.winCount += 1;
+      challenger.lossCount += 1;
+    }
+  }
+
+  return [...entries.values()]
+    .filter((entry) => entry.winCount > 0)
+    .sort((left, right) => {
+      const winDiff = right.winCount - left.winCount;
+      const drawDiff = right.drawCount - left.drawCount;
+      const lossDiff = left.lossCount - right.lossCount;
+
+      if (winDiff !== 0) {
+        return winDiff;
+      }
+
+      if (drawDiff !== 0) {
+        return drawDiff;
+      }
+
+      return lossDiff === 0 ? left.character.name.localeCompare(right.character.name, "uk") : lossDiff;
+    })[0]?.character ?? null;
+}
+
+function getOrCreateDuelChampionEntry(
+  entries: Map<
+    string,
+    { character: DuelCharacterSnapshot; winCount: number; drawCount: number; lossCount: number }
+  >,
+  character: DuelCharacterSnapshot
+) {
+  const current = entries.get(character.id);
+
+  if (current) {
+    return current;
+  }
+
+  const entry = {
+    character,
+    winCount: 0,
+    drawCount: 0,
+    lossCount: 0
+  };
+  entries.set(character.id, entry);
+
+  return entry;
+}
+
+function buildCharacterFingerprint(character: CharacterSummary): string {
+  return JSON.stringify({
+    name: character.name,
+    raceId: character.raceId,
+    classId: character.classId,
+    level: character.level,
+    stats: character.stats,
+    equipmentEffects: character.equipmentEffects ?? null
+  });
 }

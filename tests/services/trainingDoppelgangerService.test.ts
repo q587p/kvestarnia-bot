@@ -18,6 +18,10 @@ import type {
   DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
 import type {
+  DuelCharacterSnapshot,
+  ResolvedDuelChallengeRecord
+} from "../../src/db/repositories/duelChallengeRepository";
+import type {
   CreateSoloCombatSessionInput,
   RecordSoloCombatRewardInput,
   SoloCombatSessionRecord,
@@ -32,6 +36,7 @@ import {
 import { FakeRandomSource } from "../../src/shared/random";
 import {
   TrainingDoppelgangerService,
+  type TrainingDoppelgangerChampionSource,
   TRAINING_DOPPELGANGER_COOLDOWN_KEY,
   TRAINING_DOPPELGANGER_REWARD_KEY
 } from "../../src/services/trainingDoppelgangerService";
@@ -67,6 +72,64 @@ describe("TrainingDoppelgangerService", () => {
     });
     expect(world.actions.size).toBe(0);
     expect(world.cooldowns.size).toBe(0);
+  });
+
+  it("shows start choices without creating a training session", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world);
+
+    const result = await service.getStartOptionsForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "ready",
+      choices: [
+        { mode: "copy-target" },
+        { mode: "random-build" }
+      ]
+    });
+    expect(world.sessions.size).toBe(0);
+  });
+
+  it("offers distinct duel champions and starts the selected champion copy", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const championSource = new FakeChampionSource([
+      resolvedDuel("day-a", duelSnapshot("character-a", "Ада", "class.rogue"), new Date("2026-06-17T03:30:00.000Z")),
+      resolvedDuel("week-b-1", duelSnapshot("character-b", "Боривітер", "class.bard"), new Date("2026-06-15T09:30:00.000Z")),
+      resolvedDuel("week-b-2", duelSnapshot("character-b", "Боривітер", "class.bard"), new Date("2026-06-15T10:30:00.000Z")),
+      resolvedDuel("month-c-1", duelSnapshot("character-c", "Варта", "class.mage"), new Date("2026-06-07T09:30:00.000Z")),
+      resolvedDuel("month-c-2", duelSnapshot("character-c", "Варта", "class.mage"), new Date("2026-06-07T10:30:00.000Z")),
+      resolvedDuel("month-c-3", duelSnapshot("character-c", "Варта", "class.mage"), new Date("2026-06-07T11:30:00.000Z"))
+    ]);
+    const service = buildService(world, new FakeRandomSource([0.5]), championSource);
+
+    const preview = await service.getStartOptionsForTelegramUser(telegramUserId);
+
+    expect(preview.state).toBe("ready");
+    if (preview.state === "ready") {
+      expect(preview.choices.map((choice) => choice.mode)).toEqual([
+        "copy-target",
+        "random-build",
+        "champion-day",
+        "champion-week",
+        "champion-month"
+      ]);
+    }
+
+    const started = await service.getOrStartForTelegramUser(telegramUserId, {
+      mode: "champion-week"
+    });
+
+    expect(started.state).toBe("active");
+    if (started.state === "active") {
+      expect(started.doppelganger.className).toBe("Бард");
+      expect(started.session.state?.monster.debugTrace).toMatchObject({
+        spawnMode: "COPY_TARGET",
+        source: "champion-fallback"
+      });
+    }
+    expect(world.sessions.size).toBe(1);
   });
 
   it("gates level 1-2 heroes before sessions, cooldowns, rewards or resource mutations", async () => {
@@ -150,8 +213,94 @@ describe("TrainingDoppelgangerService", () => {
   });
 });
 
-function buildService(world: FakeWorld, rng = new FakeRandomSource([0.5])): TrainingDoppelgangerService {
-  return new TrainingDoppelgangerService(world, world, world, world, undefined, fixedNow, rng);
+function buildService(
+  world: FakeWorld,
+  rng = new FakeRandomSource([0.5]),
+  championSource?: TrainingDoppelgangerChampionSource
+): TrainingDoppelgangerService {
+  return new TrainingDoppelgangerService(
+    world,
+    world,
+    world,
+    world,
+    undefined,
+    fixedNow,
+    rng,
+    {},
+    championSource
+  );
+}
+
+class FakeChampionSource implements TrainingDoppelgangerChampionSource {
+  constructor(private readonly records: ResolvedDuelChallengeRecord[]) {}
+
+  listResolvedSince(since: Date): Promise<ResolvedDuelChallengeRecord[]> {
+    return Promise.resolve(this.records.filter((record) => record.resolvedAt >= since));
+  }
+}
+
+function resolvedDuel(
+  id: string,
+  winner: DuelCharacterSnapshot,
+  resolvedAt: Date
+): ResolvedDuelChallengeRecord {
+  const loser = duelSnapshot(`${id}-loser`, `${winner.name} тінь`, "class.warrior");
+
+  return {
+    id,
+    challengerCharacterId: loser.id,
+    targetCharacterId: winner.id,
+    contextChatId: null,
+    inviteToken: `token-${id}`,
+    status: "resolved",
+    expiresAt: resolvedAt,
+    resolvedAt,
+    result: {
+      outcome: "target",
+      winnerCharacterId: winner.id,
+      loserCharacterId: loser.id,
+      challengerScore: 3,
+      targetScore: 13,
+      swing: 2,
+      flavorKey: "direct-hit"
+    },
+    createdAt: resolvedAt,
+    updatedAt: resolvedAt,
+    challenger: loser,
+    target: winner
+  };
+}
+
+function duelSnapshot(
+  id: string,
+  name: string,
+  classId: string
+): DuelCharacterSnapshot {
+  return {
+    id,
+    userId: `user-${id}`,
+    telegramUserId: BigInt(1000 + id.length),
+    name,
+    pronoun: "they",
+    path: "path.sun",
+    raceId: "race.human-ish",
+    classId,
+    level: 5,
+    xp: 90,
+    gold: 0,
+    hpCurrent: 24,
+    hpMax: 24,
+    manaCurrent: 12,
+    manaMax: 12,
+    statsJson: {
+      strength: 8,
+      dexterity: 8,
+      intelligence: 8,
+      charisma: 8,
+      luck: 8
+    },
+    equipment: []
+  };
 }
 
 class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionRepository, SoloCombatSessionRepository {

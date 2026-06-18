@@ -173,6 +173,7 @@ function buildDoppelganger(character: ReturnType<typeof buildCharacter>) {
     title: character.title,
     level: character.level,
     spawnMode: "COPY_TARGET" as const,
+    source: "target" as const,
     copiedEquipmentCount: 0
   };
 }

@@ -56,6 +56,21 @@ export function presentTrainingDoppelgangerCooldown(
   ].join("\n");
 }
 
+export function presentTrainingDoppelgangerStartChoice(
+  result: Extract<TrainingDoppelgangerLookupResult, { state: "ready" }>
+): string {
+  return [
+    "🥊 <b>Бійцівський куток</b>",
+    presentCharacterHeader(result.character),
+    "",
+    "Сумлінний Допельґанґер тримає дзеркало під таким кутом, що воно вже має власну думку.",
+    "",
+    "Оберіть, кого сьогодні копіювати:",
+    "",
+    ...result.choices.map((choice) => `• <b>${escapeHtml(choice.title)}</b> — ${escapeHtml(choice.description)}`)
+  ].join("\n");
+}
+
 export function presentTrainingDoppelgangerAnotherFight(
   result: Extract<TrainingDoppelgangerLookupResult, { state: "another-fight-active" }>
 ): string {
