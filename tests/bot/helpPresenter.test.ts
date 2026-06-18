@@ -66,7 +66,8 @@ describe("help presenter", () => {
     expect(text).toContain("прогрес\n\n🍺");
     expect(text).not.toContain("те саме, що");
     expect(text).not.toContain("/hunt — ще");
-    expect(text).toContain("Лут, ґільдії й повна бойова бухгалтерія");
+    expect(text).toContain("Крамниці, ремесло й ґільдії ще готуються.");
+    expect(text).not.toContain("Лут, ґільдії й повна бойова бухгалтерія");
     expect(text).toContain(
       "Квестарню розробляє @q587p — розробник і корчмар за стійкою."
     );

@@ -20,6 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `/hero` now shows `Зміна:` as a next-level forecast instead of showing cumulative current level growth as `Ріст:`.
 - Level-up and remort presentation can render multiple stat deltas when growth or memory spans more than one stat.
 - Fixed `Низ` passage rewards so persistent fight XP, gold and broad loot profile power follow the effective monster level selected by the passage, not the hero level gap.
+- `/help` now points to future shops, crafting and guilds instead of implying loot and combat bookkeeping are still missing.
 
 ### Guardrails
 - No XP curve, schema, migration, production dependency or onboarding/remort mechanical preview was added.
