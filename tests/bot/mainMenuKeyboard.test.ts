@@ -17,6 +17,7 @@ import {
   buildPersistentFightKeyboard,
   buildPersistentFightResultKeyboard
 } from "../../src/bot/keyboards/fightKeyboard";
+import { getCombatSkillDisplay, getPersistentFightSkillLabel } from "../../src/services/fightService";
 import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
   buildEquipmentKeyboard,
@@ -453,7 +454,7 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, character))).toEqual([
       "🗡️ Вдарити",
-      "🗡️ Силовий удар",
+      "💪 Силовий удар",
       "🏃 Відступити"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard())).toEqual([
@@ -485,6 +486,27 @@ describe("main menu and scene keyboards", () => {
         status: "won"
       }
     }, character))).toEqual(["v1:place:deep", "v1:place:deep"]);
+  });
+
+  it("keeps persistent fight skill icons unique and away from common action icons", () => {
+    const skillIds = [
+      "skill.forceful-strike",
+      "skill.hot-spell",
+      "skill.form-thirteen-b",
+      "skill.dangerous-couplet",
+      "skill.trick-shot",
+      "skill.strict-blessing",
+      "skill.steppe-side-eye",
+      "skill.careful-strike"
+    ];
+    const displays = skillIds.map(getCombatSkillDisplay);
+    const reservedActionIcons = new Set(["🗡️", "🏃", "🕯️", "🎵", "🔥", "🏹", "🧾"]);
+
+    expect(new Set(displays.map((display) => display.icon)).size).toBe(displays.length);
+    expect(displays.filter((display) => reservedActionIcons.has(display.icon))).toEqual([]);
+    expect(getPersistentFightSkillLabel({ ...character, classId: "class.priest" })).toBe(
+      "🙏 Суворе благословення · 2 мани"
+    );
   });
 
   it("keeps hunt board inline buttons scoped to hunt actions", () => {

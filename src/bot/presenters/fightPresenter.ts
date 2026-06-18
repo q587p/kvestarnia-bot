@@ -9,6 +9,7 @@ import type {
   PersistentFightTurnResult,
   ThirteenSmallProblemsProgress
 } from "../../services/fightService";
+import { getCombatSkillDisplay } from "../../services/fightService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
@@ -615,7 +616,7 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
 
   const action =
     summary.action === "skill"
-      ? "Вміння"
+      ? presentSkillAction(summary.skillId)
       : summary.action === "attack"
         ? "Атака"
         : "Відступ";
@@ -631,6 +632,12 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
         : "";
 
   return ["Остання дія", hit, response].filter(Boolean).join("\n");
+}
+
+function presentSkillAction(skillId: string | undefined): string {
+  const skill = getCombatSkillDisplay(skillId);
+
+  return `Вміння ${skill.icon} <i>${escapeHtml(skill.name)}</i>`;
 }
 
 function presentBattleStartTip(character: CharacterSummary, seed: string): string | null {

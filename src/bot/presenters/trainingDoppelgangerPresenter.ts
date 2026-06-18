@@ -7,6 +7,7 @@ import type {
   TrainingDoppelgangerLookupResult,
   TrainingDoppelgangerTurnResult
 } from "../../services/trainingDoppelgangerService";
+import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentLevelUpCelebration } from "./levelGrowthPresenter";
 import { presentRewardAmount } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
@@ -294,7 +295,7 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
 
   const action =
     summary.action === "skill"
-      ? "Вміння"
+      ? presentSkillAction(summary.skillId)
       : summary.action === "attack"
         ? "Атака"
         : "Відступ";
@@ -420,24 +421,13 @@ function getMonsterCounterAction(summary: CombatTurnSummary): "attack" | "skill"
 }
 
 function presentCombatSkillName(skillId: string): string {
-  switch (skillId) {
-    case "skill.forceful-strike":
-      return "переконливий удар";
-    case "skill.hot-spell":
-      return "гаряче закляття";
-    case "skill.form-thirteen-b":
-      return "форма 13-Б";
-    case "skill.dangerous-couplet":
-      return "небезпечний куплет";
-    case "skill.trick-shot":
-      return "хитрий постріл";
-    case "skill.strict-blessing":
-      return "суворе благословення";
-    case "skill.steppe-side-eye":
-      return "степовий косий погляд";
-    default:
-      return "обережний прийом";
-  }
+  return getCombatSkillDisplay(skillId).name.toLocaleLowerCase("uk-UA");
+}
+
+function presentSkillAction(skillId: string | undefined): string {
+  const skill = getCombatSkillDisplay(skillId);
+
+  return `Вміння ${skill.icon} <i>${escapeHtml(skill.name)}</i>`;
 }
 
 function formatTrainingCooldown(availableAt: Date, now: Date): string {

@@ -1955,32 +1955,40 @@ function selectHighestAvailableMonsterLevel(monstersByLevel: MonsterContent[]): 
 
 export function getPersistentFightSkillLabel(character: CharacterSummary): string {
   const skill = getCombatSkillProfile(character.classId);
-  const label = (() => {
-    switch (skill.id) {
-      case "skill.forceful-strike":
-        return "🗡️ Силовий удар";
-      case "skill.hot-spell":
-        return "🔥 Гаряче закляття";
-      case "skill.form-thirteen-b":
-        return "📎 Форма 13-Б";
-      case "skill.dangerous-couplet":
-        return "🎵 Небезпечний куплет";
-      case "skill.trick-shot":
-        return "🎯 Хитрий постріл";
-      case "skill.strict-blessing":
-        return "🕯️ Суворе благословення";
-      case "skill.steppe-side-eye":
-        return "🌾 Степовий погляд";
-      default:
-        return "🗡️ Обережний удар";
-    }
-  })();
+  const display = getCombatSkillDisplay(skill.id);
+  const label = `${display.icon} ${display.name}`;
 
   if (skill.manaCost === 0) {
     return label;
   }
 
   return `${label} · ${skill.manaCost} ${pluralize(skill.manaCost, "мана", "мани", "мани")}`;
+}
+
+export interface CombatSkillDisplay {
+  icon: string;
+  name: string;
+}
+
+export function getCombatSkillDisplay(skillId: string | undefined): CombatSkillDisplay {
+  switch (skillId) {
+    case "skill.forceful-strike":
+      return { icon: "💪", name: "Силовий удар" };
+    case "skill.hot-spell":
+      return { icon: "🪄", name: "Гаряче закляття" };
+    case "skill.form-thirteen-b":
+      return { icon: "📎", name: "Форма 13-Б" };
+    case "skill.dangerous-couplet":
+      return { icon: "🎼", name: "Небезпечний куплет" };
+    case "skill.trick-shot":
+      return { icon: "🎯", name: "Хитрий постріл" };
+    case "skill.strict-blessing":
+      return { icon: "🙏", name: "Суворе благословення" };
+    case "skill.steppe-side-eye":
+      return { icon: "🧿", name: "Степовий погляд" };
+    default:
+      return { icon: "🪓", name: "Обережний удар" };
+  }
 }
 
 function pluralize(count: number, one: string, few: string, many: string): string {

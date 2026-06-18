@@ -285,7 +285,8 @@ describe("fight presenter", () => {
           heroDamage: 17,
           monsterDamage: 8,
           manaSpent: 3,
-          critical: true
+          critical: true,
+          skillId: "skill.strict-blessing"
         }
       }),
       monster: {
@@ -300,9 +301,11 @@ describe("fight presenter", () => {
     });
 
     expect(text).toContain(
-      ["Остання дія", "Вміння влучає критично на 17 шкоди.", "Монстр відповів на 8 шкоди."].join(
-        "\n"
-      )
+      [
+        "Остання дія",
+        "Вміння 🙏 <i>Суворе благословення</i> влучає критично на 17 шкоди.",
+        "Монстр відповів на 8 шкоди."
+      ].join("\n")
     );
     expect(text).not.toContain("Останній хід: вміння");
     expect(text).not.toContain("критично:");
