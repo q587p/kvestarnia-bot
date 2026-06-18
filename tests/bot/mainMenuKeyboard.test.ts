@@ -1058,7 +1058,7 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
       "🕯️ Реморт",
       "🍻 До шинку",
-      "До Низу",
+      "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -1098,7 +1098,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "До Низу",
+      "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -1145,7 +1145,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "До Низу",
+      "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",

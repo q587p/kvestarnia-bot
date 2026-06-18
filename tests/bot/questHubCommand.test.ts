@@ -74,7 +74,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "До Низу",
+      "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -82,7 +82,7 @@ describe("quest hub command", () => {
     ]);
     expect(buttons).toEqual(expect.arrayContaining([
       { text: "🪧 Обрати пригоду", callback_data: makeQuestCallbackData("adventure") },
-      { text: "До Низу", callback_data: makePlaceCallbackData("deep") },
+      { text: "🪜 До Низу", callback_data: makePlaceCallbackData("deep") },
       { text: "🧹 У льох", callback_data: makeQuestCallbackData("cellar") }
     ]));
     expect(presence.marks[0]).toMatchObject({
@@ -276,7 +276,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "До Низу",
+      "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -339,7 +339,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "До Низу",
+      "🪜 До Низу",
       "🏹 До Єгеря",
       "📦 Архів",
       "📖 Бестіарій",
@@ -581,7 +581,7 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    expect(buttons.map((button) => button.text)).toContain("До Низу");
+    expect(buttons.map((button) => button.text)).toContain("🪜 До Низу");
   });
 
   it("keeps terminal persistent fights recoverable from the quest hub", async () => {
@@ -638,7 +638,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toContain("🍻 До шинку");
-    expect(buttons.map((button) => button.text)).toContain("До Низу");
+    expect(buttons.map((button) => button.text)).toContain("🪜 До Низу");
   });
 
   it("hides starter shawarma and offers persistent fight at level three", async () => {
@@ -668,7 +668,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🪧 Обрати пригоду",
-      "До Низу",
+      "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
