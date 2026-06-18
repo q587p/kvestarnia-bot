@@ -751,7 +751,7 @@ async function redirectCombatLockIfNeeded(
 
   if (lock.state === "persistent-active") {
     await answerCombatLockCallback(ctx);
-    await sendCombatLockText(ctx, presentPersistentFight(lock), {
+    await sendCombatLockText(ctx, presentCombatLockRedirect(presentPersistentFight(lock)), {
       reply_markup: buildPersistentFightResultKeyboard(lock.session, lock.character)
     });
     return true;
@@ -765,7 +765,7 @@ async function redirectCombatLockIfNeeded(
     await answerCombatLockCallback(ctx);
 
     if (training?.state === "active") {
-      await sendCombatLockText(ctx, presentTrainingDoppelganger(training), {
+      await sendCombatLockText(ctx, presentCombatLockRedirect(presentTrainingDoppelganger(training)), {
         reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character)
       });
       return true;
@@ -782,6 +782,15 @@ async function redirectCombatLockIfNeeded(
   }
 
   return false;
+}
+
+function presentCombatLockRedirect(text: string): string {
+  return [
+    "⚔️ <b>Бій тримає вас за рукав</b>.",
+    "Спершу завершіть цю сутичку, тоді корчма знову відкриє двері до інших справ.",
+    "",
+    text
+  ].join("\n");
 }
 
 async function answerCombatLockCallback(ctx: Context): Promise<void> {

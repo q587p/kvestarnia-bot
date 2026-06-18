@@ -20,6 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Current-turn hidden/forged magic callbacks without enough mana now waste the hero turn, run the monster phase, advance the turn and persist the updated combat state.
 - Current-turn hidden/forged non-mana skill callbacks while on cooldown use the same failed-turn semantics.
+- Combat-lock redirects now show a visible explanation before the active fight or training screen, so blocked navigation is clear even when a callback toast is missed.
 - Persistent and training fight keyboards recompute action availability every render, hiding magic without enough current mana and hiding non-mana skills while on cooldown.
 - Stale old quest-table fight callbacks open a fresh `Глибка` fight surface instead of starting from the old table message.
 - Selected problem-fight difficulty callbacks now preserve the selected difficulty when moving the player into `Глибка`, so the fight starts instead of redisplaying the difficulty choice.

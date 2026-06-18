@@ -837,6 +837,35 @@ describe("scene callback HTML options", () => {
     ).toBe(false);
   });
 
+  it("shows a visible combat-lock explanation when a place button is pressed during a fight", async () => {
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("hall"),
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-active" as const,
+              character,
+              session: persistentSession("monster.deadline-spider"),
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
+    expect(String(edit?.payload.text)).toContain("Спершу завершіть цю сутичку");
+    expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
+  });
+
   it("starts selected problem fight difficulty after moving from the hall to the Deep", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
