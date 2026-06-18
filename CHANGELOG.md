@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Quest Hub checks the starter mimic-shawarma claim directly, so a completed starter shawarma no longer stays visible as an active adventure row or button.
 - Quest Hub Korchmar problem rows now use a distinct paperwork icon from the table surface, and selected adventure approaches/results have clearer paragraph spacing.
 - Adventure offer rows and problem-choice buttons now show stable per-problem icons while keeping callback data compact.
+- Quest Hub no longer advertises the separate Fighting Corner in the quest-table intro or offers a direct Fighting Corner shortcut from the table.
 - No migrations, schema changes, new production dependencies, shops, crafting, trading or broad loot economy changes were added.
 - No-character, level-gate, active-fight, stale-callback and legacy shawarma callbacks now land on safe adventure states; active fights take priority over stale adventure callback checks, and starter shawarma callback replays remain idempotent.
 - Remort reset clears the new adventure claim key alongside other per-life daily action keys.

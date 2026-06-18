@@ -3,12 +3,12 @@ import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard"
 import type { QuestHubKeyboardInput } from "../../src/bot/keyboards/questHubKeyboard";
 
 describe("quest hub keyboard", () => {
-  it("offers the fighting corner location from the active quest hub", () => {
+  it("does not offer the fighting corner shortcut from the active quest hub", () => {
     const keyboard = buildQuestHubKeyboard(makeInput());
     const json = JSON.stringify(keyboard);
 
-    expect(json).toContain("🥊 До Бійцівського кутка");
-    expect(json).toContain("v1:place:fighting-corner");
+    expect(json).not.toContain("🥊 До Бійцівського кутка");
+    expect(json).not.toContain("v1:place:fighting-corner");
     expect(json).not.toContain("v1:spar:open");
     expect(json).not.toContain("v1:duel:new");
   });

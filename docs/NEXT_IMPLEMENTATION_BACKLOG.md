@@ -33,21 +33,6 @@ Deferred side tracks remain useful but should not steal the Phase 2 spine: Shyno
 
 Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
 
-## Later — Quest Hub Transitional Copy Cleanup
-
-**Objective**
-Remove the temporary Quest Hub sentence that points players to the newly separated Fighting Corner after players have had time to learn the new Korchma layout.
-
-**Current temporary copy**
-
-`Бійцівський куток тепер окремо гупає збоку: там тренування, дружні виклики й дошка переможців.`
-
-**Scope**
-
-- simplify the active Quest Hub intro copy once the Fighting Corner split is no longer new;
-- keep actual Fighting Corner routes, buttons and presence rules unchanged;
-- update any presenter tests that assert the transitional sentence.
-
 **Non-goals**
 
 - no Korchma layout rewrite;

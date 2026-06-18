@@ -1009,7 +1009,6 @@ describe("main menu and scene keyboards", () => {
         fullHubKeyboard
       )
     ).toEqual([
-      "🥊 До Бійцівського кутка",
       "🪧 Обрати пригоду",
       "⚔️ До сутички",
       "🏹 До Єгеря",
@@ -1048,7 +1047,6 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
       "🕯️ Реморт",
-      "🥊 До Бійцівського кутка",
       "🍻 До шинку",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
@@ -1090,7 +1088,6 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🥊 До Бійцівського кутка",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
       "📦 Архів",
@@ -1138,7 +1135,6 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🥊 До Бійцівського кутка",
       "⚔️ Продовжити бій",
       "🧹 У льох",
       "📦 Архів",
@@ -1169,7 +1165,6 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🥊 До Бійцівського кутка",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -1199,7 +1194,6 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🥊 До Бійцівського кутка",
       "🏹 До Єгеря",
       "🧹 У льох",
       "📦 Архів",
@@ -1235,7 +1229,6 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🥊 До Бійцівського кутка",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",

@@ -50,10 +50,6 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.text("🕯️ Реморт", makeRemortOpenCallbackData()).row();
   }
 
-  if (canOpenFightingCorner(input)) {
-    keyboard.text("🥊 До Бійцівського кутка", makePlaceCallbackData("fighting-corner")).row();
-  }
-
   if (canOpenProblemQuestInBar(input, problemQuest)) {
     keyboard.text("🍻 До шинку", makePlaceCallbackData("bar")).row();
   }

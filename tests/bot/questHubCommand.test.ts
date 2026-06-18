@@ -73,8 +73,8 @@ describe("quest hub command", () => {
     await sendQuestHub(makeContext(replies), servicesWith({ presence }), "reply");
 
     expect(replies[0]?.text).toContain("📋 Стіл зі справами");
-    expect(replies[0]?.text).toContain("Бійцівський куток");
-    expect(replies[0]?.text).toContain("тренування, дружні виклики й дошка переможців");
+    expect(replies[0]?.text).not.toContain("Бійцівський куток тепер окремо гупає збоку");
+    expect(replies[0]?.text).not.toContain("тренування, дружні виклики й дошка переможців");
     expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
     expect(replies[0]?.text).not.toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
@@ -89,7 +89,6 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 До Бійцівського кутка",
       "🪧 Обрати пригоду",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
@@ -98,7 +97,6 @@ describe("quest hub command", () => {
       "🍺 До зали"
     ]);
     expect(buttons).toEqual(expect.arrayContaining([
-      { text: "🥊 До Бійцівського кутка", callback_data: makePlaceCallbackData("fighting-corner") },
       { text: "🪧 Обрати пригоду", callback_data: makeQuestCallbackData("adventure") },
       { text: "⚔️ Розвʼязати проблему", callback_data: makeQuestCallbackData("fight") },
       { text: "🧹 У льох", callback_data: makeQuestCallbackData("cellar") }
@@ -243,7 +241,6 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 До Бійцівського кутка",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
@@ -294,7 +291,6 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 До Бійцівського кутка",
       "🪧 Обрати пригоду",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
@@ -358,7 +354,6 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 До Бійцівського кутка",
       "🪧 Обрати пригоду",
       "⚔️ Розвʼязати проблему",
       "🏹 До Єгеря",
@@ -688,7 +683,6 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 До Бійцівського кутка",
       "🪧 Обрати пригоду",
       "⚔️ Розвʼязати проблему",
       "🧹 У льох",
@@ -779,7 +773,6 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🥊 До Бійцівського кутка",
       "🍻 До шинку",
       "🪧 Обрати пригоду",
       "🧹 У льох",
@@ -835,7 +828,7 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    expect(buttons.map((button) => button.callback_data)).toContain(
+    expect(buttons.map((button) => button.callback_data)).not.toContain(
       makePlaceCallbackData("fighting-corner")
     );
     expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("bar"));
