@@ -1,5 +1,8 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import { createEmptyEquipmentEffectSummary } from "../../domain/progression/effectiveStats";
+import {
+  buildLevelGrowthBonus,
+  createEmptyEquipmentEffectSummary
+} from "../../domain/progression/effectiveStats";
 import { getLocationName } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 import { presentLevelBonus } from "./levelGrowthPresenter";
@@ -13,7 +16,18 @@ export function presentHero(
     summary.nextLevelXp === null
       ? `Рівень <b>${summary.level}</b> · XP ${summary.xp} · ви дійшли до краю поточної гри`
       : `Рівень <b>${summary.level}</b> · XP ${summary.xp} · до наступного: ${summary.xpToNextLevel} XP`;
-  const growthLine = presentLevelBonus(summary.levelBonus);
+  const nextLevelGrowthLine =
+    summary.nextLevelXp === null
+      ? null
+      : presentLevelBonus(
+          buildLevelGrowthBonus(
+            summary.level,
+            summary.level + 1,
+            summary.classId,
+            summary.raceId,
+            summary.path
+          )
+        );
   const inventoryGoldValue = options.inventoryGoldValue ?? 0;
   const starterHint =
     summary.level < 3 ? ["", "<i>Далі: /tavern, /quest або /fight.</i>"] : [];
@@ -30,7 +44,7 @@ export function presentHero(
     ...presentRemortLines(summary),
     "",
     progressLine,
-    ...(growthLine ? [`Ріст: ${growthLine}`] : []),
+    ...(nextLevelGrowthLine ? [`Зміна: ${nextLevelGrowthLine}`] : []),
     "",
     `❤️ HP ${summary.hpCurrent}/${summary.hpMax} · 🔮 мана ${summary.manaCurrent}/${summary.manaMax}`,
     ...resourceRecoveryLines,

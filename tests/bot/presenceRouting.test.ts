@@ -160,7 +160,8 @@ describe("presence routing", () => {
     ["online", {}],
     ["look", {}],
     ["support", {}],
-    ["restart", {}]
+    ["restart", {}],
+    ["dev_raid_stop", {}]
   ])("routes command /%s", (command, expected) => {
     expect(getCommandPresenceContext(command)).toEqual(expected);
   });

@@ -37,6 +37,7 @@ describe("help presenter", () => {
     expect(text).toContain("/help");
     expect(text).not.toContain("/dev_reset_me");
     expect(text).not.toContain("/dev_adventure_reset");
+    expect(text).not.toContain("/dev_raid_stop");
     expect(text).not.toContain("/dev_add_level");
     expect(text).not.toContain("/dev_add_xp");
     expect(text).not.toContain("/dev_add_gold");
@@ -65,7 +66,8 @@ describe("help presenter", () => {
     expect(text).toContain("прогрес\n\n🍺");
     expect(text).not.toContain("те саме, що");
     expect(text).not.toContain("/hunt — ще");
-    expect(text).toContain("Лут, ґільдії й повна бойова бухгалтерія");
+    expect(text).toContain("Крамниці, ремесло й ґільдії ще готуються.");
+    expect(text).not.toContain("Лут, ґільдії й повна бойова бухгалтерія");
     expect(text).toContain(
       "Квестарню розробляє @q587p — розробник і корчмар за стійкою."
     );
@@ -78,6 +80,7 @@ describe("help presenter", () => {
 
     expect(resetOnly).toContain("🧪 /dev_reset_me");
     expect(resetOnly).toContain("/dev_adventure_reset");
+    expect(resetOnly).toContain("/dev_raid_stop");
     expect(resetOnly).not.toContain("🪜 /dev_add_level");
     expect(resetOnly).not.toContain("🔢 /dev_add_xp");
     expect(resetOnly).not.toContain("🪙 /dev_add_gold");
@@ -88,6 +91,7 @@ describe("help presenter", () => {
 
     expect(grantsEnabled).toContain("🧪 /dev_reset_me");
     expect(grantsEnabled).toContain("/dev_adventure_reset");
+    expect(grantsEnabled).toContain("/dev_raid_stop");
     expect(grantsEnabled).toContain("🪜 /dev_add_level");
     expect(grantsEnabled).toContain("🔢 /dev_add_xp");
     expect(grantsEnabled).toContain("🪙 /dev_add_gold");

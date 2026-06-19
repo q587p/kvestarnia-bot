@@ -1,4 +1,4 @@
-# 0.1.16 — Threat Streak Multi-Enemy Fights
+# Queued — Threat Streak Multi-Enemy Fights
 
 Queued combat-variety candidate after `0.1.15 — Combat Lock and Battle Flow Polish`. Final version/order may still change before implementation.
 

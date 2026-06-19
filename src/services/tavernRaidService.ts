@@ -122,6 +122,13 @@ export type TavernPendingRaidResult =
   | { state: "none" }
   | { state: "pending"; character: CharacterSummary; availableAt: Date; now: Date; periodId: string };
 
+export type TavernDevRaidStopResult =
+  | { state: "no-character" }
+  | { state: "unavailable" }
+  | { state: "no-pending"; character: CharacterSummary }
+  | { state: "completed"; result: Extract<TavernRaidResult, { state: "completed" }> }
+  | { state: "already-completed"; result: Extract<TavernRaidResult, { state: "already-completed" }> };
+
 interface PendingFridayBarrelRaid {
   availableAt: Date | null;
   startedAt: Date | null;
@@ -315,6 +322,61 @@ export class TavernRaidService {
       reward: buildReward(claim.action, claim.itemGrants),
       levelChange: claim.levelChange
     };
+  }
+
+  async stopPendingFridayBarrelRaidForDev(
+    telegramUserId: bigint
+  ): Promise<TavernDevRaidStopResult> {
+    if (!this.pendingRaids?.setAvailableAtForTelegramUser) {
+      return { state: "unavailable" };
+    }
+
+    const now = this.clock();
+    const pending = await this.findRelevantPendingFridayBarrelRaid(
+      telegramUserId,
+      getBarrelRaidPeriod(now)
+    );
+
+    if (!pending) {
+      return { state: "no-character" };
+    }
+
+    if (!pending.availableAt) {
+      return {
+        state: "no-pending",
+        character: summarizeCharacter(pending.character)
+      };
+    }
+
+    if (pending.availableAt > now) {
+      const stopped = await this.pendingRaids.setAvailableAtForTelegramUser(telegramUserId, {
+        key: buildFridayBarrelRaidPendingKey(pending.periodId),
+        availableAt: now
+      });
+
+      if (!stopped) {
+        return { state: "no-character" };
+      }
+
+      if (stopped.state === "not-found") {
+        return {
+          state: "no-pending",
+          character: summarizeCharacter(stopped.character)
+        };
+      }
+    }
+
+    const result = await this.completeFridayBarrelRaid(telegramUserId, pending.periodId);
+
+    if (result.state === "completed") {
+      return { state: "completed", result };
+    }
+
+    if (result.state === "already-completed") {
+      return { state: "already-completed", result };
+    }
+
+    return { state: "no-character" };
   }
 
   private async startFridayBarrelRaid(

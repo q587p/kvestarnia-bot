@@ -119,7 +119,14 @@ describe("RemortService", () => {
       expect(first.memoryRank).toBe(2);
       expect(first.hpBonus).toBe(23);
       expect(first.manaBonus).toBe(12);
-      expect(first.statBonus).toEqual({ stat: "strength", bonus: 6 });
+      expect(first.statBonuses).toEqual([
+        { stat: "strength", bonus: 3 },
+        { stat: "dexterity", bonus: 1 },
+        { stat: "intelligence", bonus: 1 },
+        { stat: "charisma", bonus: 1 },
+        { stat: "luck", bonus: 1 }
+      ]);
+      expect(first.statBonus).toEqual({ stat: "strength", bonus: 3 });
       expect(first.preservedItems).toEqual([
         expect.objectContaining({ itemId: "item.foam-cork-of-accounting", quantity: 1 }),
         expect.objectContaining({ itemId: "item.pan-of-persuasion", quantity: 1 }),
@@ -249,11 +256,22 @@ describe("RemortService", () => {
       expect(result.memoryRank).toBe(3);
       expect(result.hpBonus).toBe(34);
       expect(result.manaBonus).toBe(17);
-      expect(result.statBonus).toEqual({ stat: "strength", bonus: 9 });
+      expect(result.statBonuses).toEqual([
+        { stat: "strength", bonus: 4 },
+        { stat: "dexterity", bonus: 2 },
+        { stat: "intelligence", bonus: 1 },
+        { stat: "charisma", bonus: 2 },
+        { stat: "luck", bonus: 2 }
+      ]);
+      expect(result.statBonus).toEqual({ stat: "strength", bonus: 4 });
       expect(result.character.hpCurrent).toBe(result.character.hpMax);
       expect(result.character.manaCurrent).toBe(result.character.manaMax);
       expect(result.character.stats).toMatchObject({
-        strength: 14
+        strength: 9,
+        dexterity: 10,
+        intelligence: 10,
+        charisma: 7,
+        luck: 7
       });
     }
   });
@@ -456,6 +474,7 @@ class FakeRemortRepository implements RemortRepository {
           memoryRank: validation.memoryRank,
           hpBonus: validation.hpBonus,
           manaBonus: validation.manaBonus,
+          statBonuses: validation.statBonuses,
           statBonus: validation.statBonus
         },
         createdAt: fixedNow

@@ -34,6 +34,7 @@ describe("tavern command screens", () => {
     expect(replies[0]?.text).toContain("За дверима гуде <b>Корчма Квестарні</b>");
     expect(replies[0]?.text).not.toContain("Усередині вже чекають:");
     expect(replies[0]?.text).not.toContain("Стіл зі справами</i>: квести");
+    expect(replies[0]?.text).not.toContain("За дверима біля Бочки сидить");
     expect(replies[0]?.text).toContain("/tavern");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",
@@ -43,12 +44,6 @@ describe("tavern command screens", () => {
             {
               text: "🚪 Зайти в корчму",
               callback_data: makePlaceCallbackData("hall")
-            }
-          ],
-          [
-            {
-              text: "🧥 До Єгеря",
-              callback_data: "v1:tavern:ranger"
             }
           ],
           [
@@ -107,6 +102,30 @@ describe("tavern command screens", () => {
         callback_data: makeYegerOutsideCallbackData()
       }
     ]);
+  });
+
+  it("does not offer a Yeger teleport from the front door after the quest is completed", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaFront(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      {
+        getForTelegramUser: () =>
+          Promise.resolve({
+            state: "completed",
+            character,
+            progress: { wins: 5, target: 5 },
+            reward: { xp: 80, gold: 120, itemGrants: [] }
+          })
+      }
+    );
+
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("До Єгеря");
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:tavern:ranger");
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("До полювання");
   });
 
   it("shows a front-door arrivals plaque from known korchma visitors", async () => {

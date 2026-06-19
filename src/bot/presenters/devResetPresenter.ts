@@ -1,3 +1,5 @@
+import type { TavernDevRaidStopResult } from "../../services/tavernRaidService";
+
 export function presentDevResetDisabled(): string {
   return "Ця команда доступна лише в локальній майстерні.";
 }
@@ -34,4 +36,27 @@ export function presentDevAdventureResetResult(
   }
 
   return "Скидати нічого: пригодника ще не створено. /start чекає біля дверей.";
+}
+
+export function presentDevRaidStopResult(result: TavernDevRaidStopResult): string {
+  if (result.state === "completed") {
+    return [
+      "Рейд на Бочку завершено достроково.",
+      `Зараховано: +${result.result.reward.xp} XP, +${result.result.reward.gold} золота.`
+    ].join("\n");
+  }
+
+  if (result.state === "already-completed") {
+    return "Рейд на Бочку в цьому відтинку вже було завершено. Бочка робить вигляд, що так і планувала.";
+  }
+
+  if (result.state === "no-pending") {
+    return "Немає активного рейду на Бочку, який можна зупинити. Спершу почніть рейд у корчмі.";
+  }
+
+  if (result.state === "unavailable") {
+    return "Зупинка рейду недоступна: сховище не має потрібного гачка.";
+  }
+
+  return "Зупиняти нічого: пригодника ще не створено. /start чекає біля дверей.";
 }

@@ -244,11 +244,11 @@ Milestone має бути data-driven, щоб presenter міг сказати «
 
 ## Hidden path
 
-`path` (`sun`, `moon`, `boundary`) лишається внутрішнім selector-ом корчмарської анкети. Не показувати ці назви гравцю і не давати прямі stat bonuses.
+`path` (`sun`, `moon`, `boundary`) лишається внутрішнім selector-ом корчмарської анкети. `0.1.16` дає йому small derived effective-stat bonus, але не показувати ці назви або exact bonus breakdown гравцю.
 
 Дозволені застосування: flavor рядки, rare item restrictions із in-world поясненням, NPC reactions, dreams/omens, seasonal selectors, відмова ворога від бою через «папери не так лежать», але без згадки internal path name.
 
-Заборонено: `+10% damage because sun path`, player-facing «Ваш шлях: boundary», біологічні або essentialist пояснення.
+Заборонено: `+10% damage because sun path`, player-facing «Ваш шлях: boundary», onboarding/remort preview exact path mechanics, біологічні або essentialist пояснення.
 
 ## Вороги й AI
 

@@ -104,7 +104,9 @@ level 13: 1300
 ## Вага рівня
 Рівень має бути одним із головних важелів, бо Квестарня також про приємний ріст циферок. Якщо персонаж отримав новий рівень, це має відчуватися не тільки в `/hero`, а й у формулах.
 
-Майбутній балансний прохід має перевірити:
+`0.1.16` залишає той самий бюджет stat points (`level - 1`), але замість одного primary-stat тунелю розподіляє їх deterministic weighted allocator-ом. Class profile лишається головним bias-ом, race stat bonus і hidden path fixed bonus тільки зміщують розподіл; вони не додають extra level points. HP росте на `+4`, мана на `+2` за gained level.
+
+Наступний балансний прохід має перевірити:
 - HP і мана ростуть достатньо помітно, щоб рівень здавався справжнім посиленням.
 - Бій використовує рівень як окремий коефіцієнт у шкоді, виживанні, доступних діях або порогах монстрів.
 - Події й пригоди можуть мати перевірки, варіанти відповіді, обмеження доступу або малі бонуси, залежні від рівня, але без глухої стіни для новачків там, де це не потрібно.
@@ -202,11 +204,13 @@ gold: clamp(1 + floor(monster.level / 2), 1, 7)
 item: максимум 1 controlled monsterLoot item
 ```
 
+Для `Низ` passage-втручань `monster.level` у цій формулі означає ефективний рівень після вибору проходу: правий прохід платить скромніше, прямий лишає базову ставку, лівий піднімає ризик і винагороду. Антифарм XP перевіряє окремо збережений `baseMonsterLevel` до втручання: якщо базовий монстр уже був надто слабким для героя, лишаються старі стиснуті bands `3 XP` / `2 XP`; якщо розрив зʼявився тільки через легший правий прохід, це не farming.
+
 `0.0.25` додає Loot Expansion v1 як широкий content-backed pool для persistent fight loot: `120` базових сімей манаток і `500` generated variants. Runtime зберігає тільки звичайні `item.*` ids, без нової міграції: базові pack ids перетворюються на `item.loot-v1-*`, а `+1...+5` мають level gates `3/6/10/14/18`. Affinity за класом, расою і титулом є м’якою вагою дропу, не hard-ban для випадіння. Hard requirements застосовуються тільки при екіпіруванні. `legendary` з pack поки мапиться у чинну `epic` rarity, бо поточна публічна item schema ще не має окремої легендарної категорії.
 
 Hand-authored `monsterLoot` trophies still matter alongside the broad pool. The ordinary level `4-13` ladder now has at least one stable small trophy per monster, so specific higher-level problems can leave recognizable evidence without creating a full random loot table. In `0.0.26`, most of those handcrafted trophies also become modest supported equipment when they occupy weapon, armor, or accessory slots; only intentional keepsakes stay pure `junk`/`cosmetic`.
 
-У `0.0.24` вибір монстра для persistent solo fight став ближчим до рівня героя: сервіс спершу шукає звичайних небосів у вікні `рівень героя - 2 ... рівень героя`, а якщо такого контенту ще бракує, бере найвищий доступний нижчий рівень замість випадкової дрібноти. Якщо монстр нижчий за героя більше ніж на 2 рівні, XP за перемогу стискається до `3` при різниці рівно 3 рівні й до `2` при більшій різниці; золото й контрольований item roll поки лишаються за чинною малою reward formula.
+У `0.0.24` вибір монстра для persistent solo fight став ближчим до рівня героя: сервіс спершу шукає звичайних небосів у вікні `рівень героя - 2 ... рівень героя`, а якщо такого контенту ще бракує, бере найвищий доступний нижчий рівень замість випадкової дрібноти. `0.1.16` прибирає старе XP-стискання за різницю між героєм і монстром: перемога рахує XP, золото і broad loot profile від effective monster level. Це потрібно для трьох проходів Низу, де правий шлях знижує рівень і нагороду, прямий лишає нормальний рівень, а лівий піднімає ризик і винагороду.
 
 Loss отримує тільки малий consolation reward `1 XP` за спробу, без золота, луту або progress у Korchmar problem chain. Flee і expired fights не отримують reward. Repeated callback replay-ить persisted reward summary з `solo_combat_sessions` і не reroll-ить item. `0.1.6` додає stage chain `13 -> 23 -> 42 -> 93`; кожен новий етап рахує тільки звичайні won solo fights після часу видачі етапу, а training doppelganger не рахується.
 
@@ -325,7 +329,7 @@ Hunt Board лишається простим для входу: один кон�
 - It is not `/restart`: reset/preserve rules must be visible before confirmation and covered by tests.
 - First remort slice preserves memory and up to 5 selected owned manatky, including powerful or sentimental ones. If this bends balance too much, fix it with explicit tags, level gates, attunement or remort-only rules rather than silent deletion.
 - Remort preserves one unit per selected item id in this MVP. Unknown/archived item ids may be selectable with a fallback label, but they must not be carried invisibly outside the 5-item promise.
-- Legacy bonus uses `ceil(previous_level_growth_bonus * 0.23 * remort_number)` for HP, mana and the previous class’s primary stat. It is visible as `Памʼять минулих пригод`, not a public `x/5` cap; if it snowballs, tune through explicit gates/tags/attunement.
+- Legacy bonus uses `ceil(previous_level_growth_bonus * 0.23 * remort_number)` for HP, mana and each stat that previous distributed level growth raised. It is visible as `Памʼять минулих пригод`, not a public `x/5` cap; if it snowballs, tune through explicit gates/tags/attunement.
 - No paid remort, hidden wipe, automatic prestige, 14+ levels or remort-only power track in this slice.
 
 ## Combat simulation harness

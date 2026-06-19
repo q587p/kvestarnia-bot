@@ -198,6 +198,27 @@ describe("combatSimulation", () => {
       ])
     );
   });
+
+  it("uses the configured hidden path in hero stat math", () => {
+    const baseOptions = {
+      levels: [2],
+      monsterLevels: "same" as const,
+      runsPerMatchup: 20,
+      seed: "path-sensitive",
+      classIds: ["class.rogue"],
+      raceId: "race.human-ish",
+      policy: "aggressive" as const,
+      maxTurns: 20
+    };
+    const boundary = runCombatSimulation({ ...baseOptions, path: "boundary" });
+    const sun = runCombatSimulation({ ...baseOptions, path: "sun" });
+
+    expect(boundary.path).toBe("boundary");
+    expect(sun.path).toBe("sun");
+    expect(sun.rows[0]?.summary.averageEndingHp).toBeGreaterThan(
+      boundary.rows[0]?.summary.averageEndingHp ?? 0
+    );
+  });
 });
 
 function makeRow(

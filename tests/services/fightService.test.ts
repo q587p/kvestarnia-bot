@@ -969,8 +969,8 @@ describe("FightService", () => {
       expect(equippedTurn.session.state?.lastTurn?.heroDamage).toBeGreaterThan(
         baselineTurn.session.state?.lastTurn?.heroDamage ?? 0
       );
-      expect(equippedTurn.session.state?.lastTurn?.heroDamage).toBe(11);
-      expect(baselineTurn.session.state?.lastTurn?.heroDamage).toBe(9);
+      expect(equippedTurn.session.state?.lastTurn?.heroDamage).toBe(10);
+      expect(baselineTurn.session.state?.lastTurn?.heroDamage).toBe(8);
     }
   });
 
@@ -1128,7 +1128,7 @@ describe("FightService", () => {
     expect(rewardRecords).toHaveLength(1);
   });
 
-  it("limits XP to a small amount for persistent fight wins against much weaker monsters", async () => {
+  it("compresses XP for a level-thirteen hero farming a genuinely weak base monster", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 1300 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -1182,7 +1182,7 @@ describe("FightService", () => {
     });
   });
 
-  it("gives three XP for a win against a monster exactly three levels below", async () => {
+  it("compresses XP for a level-six hero fighting a genuinely weak level-three base monster", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 110 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -1229,19 +1229,74 @@ describe("FightService", () => {
     }
   });
 
+  it("does not treat an easy passage level reduction as weak-target farming", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.addSession({
+      ...started.session,
+      monsterId: "monster.salted-oath-pretzel",
+      state: started.session.state
+        ? {
+            ...started.session.state,
+            monster: {
+              ...started.session.state.monster,
+              id: "monster.salted-oath-pretzel",
+              hp: 1,
+              hpMax: 24,
+              level: 3,
+              debugTrace: {
+                interventionKind: "help",
+                interventionSourceKey: "prypichnyk",
+                baseMonsterLevel: 6,
+                effectiveMonsterLevel: 3
+              }
+            }
+          }
+        : started.session.state
+    });
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.character.level).toBe(6);
+      expect(result.monster.level).toBe(3);
+      expect(result.fightReward?.reward.xp).toBe(7);
+    }
+  });
+
   it("scales recovered persistent fight rewards by stored difficulty", async () => {
     async function recoverReward(
       difficulty: "easy" | "normal" | "hard",
       effectiveMonsterLevel: number
     ): Promise<{ xp: number; gold: number; replayXp: number; replayGold: number }> {
       const characters = new FakeCharacterRepository();
-      characters.add(telegramUserId, { xp: 25 });
+      characters.add(telegramUserId, { xp: 110 });
       const dailyActions = new FakeDailyActionRepository(characters);
       const sessions = new FakeSoloCombatSessionRepository(characters);
       const baseSession = makeTerminalSession(
         "won",
         `session-${difficulty}`,
-        `character-${telegramUserId.toString()}`
+        `character-${telegramUserId.toString()}`,
+        "monster.salted-oath-pretzel"
       );
       const interventionKind =
         difficulty === "easy" ? "help" : difficulty === "hard" ? "hinder" : "none";
@@ -1256,7 +1311,7 @@ describe("FightService", () => {
                 debugTrace: {
                   interventionKind,
                   interventionSourceKey: "prypichnyk",
-                  baseMonsterLevel: 3,
+                  baseMonsterLevel: 6,
                   effectiveMonsterLevel
                 }
               }
@@ -1297,15 +1352,52 @@ describe("FightService", () => {
     }
 
     const easy = await recoverReward("easy", 1);
-    const normal = await recoverReward("normal", 3);
-    const hard = await recoverReward("hard", 5);
+    const normal = await recoverReward("normal", 6);
+    const hard = await recoverReward("hard", 8);
 
     expect(easy.xp).toBeLessThan(normal.xp);
     expect(normal.xp).toBeLessThan(hard.xp);
-    expect(easy.gold).toBeLessThanOrEqual(normal.gold);
-    expect(normal.gold).toBeLessThanOrEqual(hard.gold);
+    expect(easy.gold).toBeLessThan(normal.gold);
+    expect(normal.gold).toBeLessThan(hard.gold);
     expect(easy.replayXp).toBe(easy.xp);
+    expect(easy.replayGold).toBe(easy.gold);
+    expect(normal.replayXp).toBe(normal.xp);
+    expect(normal.replayGold).toBe(normal.gold);
+    expect(hard.replayXp).toBe(hard.xp);
     expect(hard.replayGold).toBe(hard.gold);
+  });
+
+  it("falls back to authored monster level when legacy reward recovery lacks base trace", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const wonSession = sessions.addSession(
+      makeTerminalSession(
+        "won",
+        "session-legacy-no-base-level",
+        `character-${telegramUserId.toString()}`,
+        "monster.preapproval-dragonling"
+      )
+    );
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0])
+    );
+
+    const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: wonSession.id,
+      turn: wonSession.turn,
+      action: "attack"
+    });
+
+    expect(recovered.state).toBe("terminal");
+    if (recovered.state === "terminal") {
+      expect(recovered.fightReward?.reward.xp).toBe(3);
+    }
   });
 
   it("falls back to the authoritative reward claim when session replay storage is missing", async () => {

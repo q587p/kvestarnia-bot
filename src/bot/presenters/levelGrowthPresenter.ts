@@ -3,6 +3,7 @@ import { buildLevelGrowthBonus } from "../../domain/progression/effectiveStats";
 import { LEVEL_XP_THRESHOLDS } from "../../domain/progression/level";
 import type { RewardLevelChange } from "../../db/repositories/dailyActionRepository";
 import type { StatKey } from "../../domain/characters/starterStats";
+import type { CharacterPath } from "../../domain/characters/path";
 
 const STAT_LABELS: Record<StatKey, string> = {
   strength: "Сили",
@@ -14,8 +15,15 @@ const STAT_LABELS: Record<StatKey, string> = {
 
 export function presentLevelBonus(bonus: LevelBonus): string | null {
   const parts = [`+${bonus.hpMax} HP`, `+${bonus.manaMax} мани`];
+  const stats = bonus.stats ?? emptyStats();
 
-  if (bonus.primaryStat && bonus.primaryStat.bonus > 0) {
+  for (const stat of statKeys) {
+    if (stats[stat] > 0) {
+      parts.push(`+${stats[stat]} ${STAT_LABELS[stat]}`);
+    }
+  }
+
+  if (bonus.primaryStat && bonus.primaryStat.bonus > 0 && !parts.some((part) => part.includes(STAT_LABELS[bonus.primaryStat!.stat]))) {
     parts.push(`+${bonus.primaryStat.bonus} ${STAT_LABELS[bonus.primaryStat.stat]}`);
   }
 
@@ -28,18 +36,19 @@ export function presentLevelBonus(bonus: LevelBonus): string | null {
 
 export function presentLevelUpCelebration(
   levelChange: RewardLevelChange,
-  classId: string
+  classId: string,
+  identity: { raceId?: string; path?: CharacterPath } = {}
 ): string | null {
   if (!levelChange.leveledUp) {
     return null;
   }
 
   if (levelChange.newLevel >= LEVEL_XP_THRESHOLDS.length) {
-    return presentLevelCapCelebration(levelChange, classId);
+    return presentLevelCapCelebration(levelChange, classId, identity);
   }
 
   const growth = presentLevelBonus(
-    buildLevelGrowthBonus(levelChange.oldLevel, levelChange.newLevel, classId)
+    buildLevelGrowthBonus(levelChange.oldLevel, levelChange.newLevel, classId, identity.raceId, identity.path)
   );
   const lines = [
     "🎉 Рівень підріс!",
@@ -58,10 +67,11 @@ export function presentLevelUpCelebration(
 
 function presentLevelCapCelebration(
   levelChange: RewardLevelChange,
-  classId: string
+  classId: string,
+  identity: { raceId?: string; path?: CharacterPath } = {}
 ): string {
   const growth = presentLevelBonus(
-    buildLevelGrowthBonus(levelChange.oldLevel, levelChange.newLevel, classId)
+    buildLevelGrowthBonus(levelChange.oldLevel, levelChange.newLevel, classId, identity.raceId, identity.path)
   );
   const lines = [
     "🏆 Ви дісталися вершини поточної Квестарні!",
@@ -82,4 +92,22 @@ function presentLevelCapCelebration(
   );
 
   return lines.join("\n");
+}
+
+const statKeys: readonly StatKey[] = [
+  "strength",
+  "dexterity",
+  "intelligence",
+  "charisma",
+  "luck"
+];
+
+function emptyStats(): Record<StatKey, number> {
+  return {
+    strength: 0,
+    dexterity: 0,
+    intelligence: 0,
+    charisma: 0,
+    luck: 0
+  };
 }

@@ -164,6 +164,18 @@ describe("content tables", () => {
     );
   });
 
+  it("keeps Human-ish flavor mysterious without promising an exact stat preview", () => {
+    expect(races.find((race) => race.id === "race.human-ish")).toMatchObject({
+      name: "Людисько",
+      description: "Практичне в усьому, що вдалося вписати в корчмарську анкету.",
+      statBonus: {
+        strength: 1,
+        dexterity: 1,
+        charisma: 1
+      }
+    });
+  });
+
   it("keeps a broad set of authored race and class combo titles", () => {
     const expectedTitles = [
       ["race.human-ish", "class.bard", "Самозваний Куплетоносець"],

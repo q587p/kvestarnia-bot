@@ -16,15 +16,18 @@ describe("summarizeCharacter", () => {
         strength: 9,
         dexterity: 6,
         intelligence: 6,
-        charisma: 6,
-        luck: 6
+        charisma: 7,
+        luck: 7
       },
       levelBonus: {
         hpMax: 4,
         manaMax: 2,
-        primaryStat: {
-          stat: "strength",
-          bonus: 1
+        stats: {
+          strength: 1,
+          dexterity: 0,
+          intelligence: 0,
+          charisma: 0,
+          luck: 0
         }
       }
     });
@@ -124,7 +127,10 @@ describe("summarizeCharacter", () => {
       hpMax: 30,
       manaMax: 14,
       stats: {
-        strength: 11
+        strength: 10,
+        dexterity: 7,
+        charisma: 7,
+        luck: 7
       },
       equipmentEffects: {
         hpMax: 2,

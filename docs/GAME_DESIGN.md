@@ -39,7 +39,7 @@ The visible onboarding choices remain `Він`, `Вона`, and `Вони`, but 
 - `Вона` → `moon`.
 - `Вони` → `boundary`.
 
-Players do not see these path names during character creation. Paths do not grant stat bonuses; they are metadata in the корчмарська анкета for future race/class restrictions, dreams, quests, achievements, NPC reactions, and seasonal events.
+Players do not see these path names during character creation. Paths grant small derived effective-stat bonuses in `0.1.16`, but the ids and exact mechanics are not previewed in onboarding/remort; they remain metadata in the корчмарська анкета for future race/class restrictions, dreams, quests, achievements, NPC reactions, and seasonal events.
 
 Future path restrictions should sound like in-world folklore or institutions, not biology. Good examples: «Межа підписала пропуск заднім числом» or «ця канцелярська шухляда персонажа сьогодні не відкривається».
 
@@ -65,7 +65,7 @@ Achievements Phase 1 лишається rewardless later slice після осн
 ## Раси MVP
 Не треба одразу 40 рас. Почати з компактного набору, де кожна має механіку й гумор.
 
-- Людисько — +1 до всього потроху, бо «якось буде».
+- Людисько — практичне в усьому, що вдалося вписати в корчмарську анкету.
 - Гном — бонус до захисту й крафту; штраф до втечі від високих полиць.
 - Ельф — критичний шанс, але драматично реагує на брудні чоботи.
 - Бісини — спритність/розум/харизма, бісить перекладачів і дуже впевнених знавців фентезі.
@@ -261,6 +261,7 @@ Achievements Phase 1 лишається rewardless later slice після осн
 - У `0.0.13` кожна манатка має `goldValue` або `priceless`; це тільки metadata для огляду й майбутніх sinks, не продаж і не обмін.
 - У `0.0.14` `/inventory` показує сумарну оціночну вартість priced манаток, а `/hero` показує це число поруч із живим золотом персонажа. Це display-only: золото не додається, предмети не списуються.
 - У `0.0.19` `/inventory` пагінується по 8 манаток на сторінку, щоб торба не ставала простирадлом після кількох рейдів, льохів і полювань.
+- Inventory and item/equipment callbacks remain safe side surfaces during active combat. Combat locks adventure/navigation routes, but must not block inspecting manatky because future one-use combat items will live on this surface.
 - Спорядження у `0.0.14` persistent: можна екіпірувати owned weapon у `weapon`, armor у `chest`, accessory у `accessory`, а також зняти зайнятий слот.
 - Видимий equipment UI у `0.0.14` показує тільки чесно підтримані слоти: зброя, тулуб, аксесуар. Head і legs лишаються future vocabulary, доки content/schema не матимуть реальних речей для них.
 - `0.0.22` додає перший малий stat-effect шар: currently equipped items можуть додати HP/ману, core stats, armor/resist, weapon damage або spell power через один effective-stats helper. `/hero`, `/equipment`, item detail і persistent solo combat читають цей самий summary.
@@ -315,22 +316,22 @@ Achievements Phase 1 лишається rewardless later slice після осн
 
 Підтвердження скидає рівень до 1, XP і золото до 0, знімає спорядження, закриває активні solo fight sessions і старі pending previews. Для реморту MVP можна явно перенести навіть екіпіровані, безцінні, памʼятні або бонусні речі: ідея саме в тому, що герой бере з собою кілька важливих манаток. Якщо це створить перекіс, наступні PR мають ловити його level gates, tags, attunement або remort-only restrictions, а не прихованим wipe-ом.
 
-Кожен завершений реморт пишеться в `character_remorts`, має idempotent token replay і додає `Памʼять минулих пригод`: `ceil(23% * remort_number)` від попереднього level-growth для HP, мани й головної характеристики старого класу. Це вже відчутна памʼять, але не прихований ветеранський режим: якщо bonus почне ламати баланс, наступні PR мають вводити явні gates/tags/attunement, а не мовчки різати гравецькі речі чи цифри. Пропамʼятна дошка надворі показує перші реморти за remort number.
+Кожен завершений реморт пишеться в `character_remorts`, має idempotent token replay і додає `Памʼять минулих пригод`: `ceil(23% * remort_number)` від попереднього level-growth для HP, мани й кожної характеристики, яку попередні рівні справді підняли. Це не переносить старі расові, класові або приховані path-бонуси анкети. Памʼять уже відчутна, але не прихований ветеранський режим: якщо bonus почне ламати баланс, наступні PR мають вводити явні gates/tags/attunement, а не мовчки різати гравецькі речі чи цифри. Пропамʼятна дошка надворі показує перші реморти за remort number.
 
-## Ріст рівня 0.0.7
-Поки немає повного бою, екіпірування й постійної втрати HP, рівень усе одно має видимо рухати «циферки».
+## Ріст рівня 0.1.16
+Рівень видимо рухає «циферки», але більше не звалює всі stat points в одну головну характеристику.
 
 Alpha scaling рахується як derived effective values від збережених базових значень персонажа:
 - Effective HP max: `stored hpMax + (level - 1) * 4`.
 - Effective mana max: `stored manaMax + (level - 1) * 2`.
-- Effective current HP і current mana показуються як effective max, бо витрати/поранення ще не зберігаються.
-- Головна характеристика класу отримує `+1` за кожен рівень після першого.
+- Effective current HP і current mana беруться зі збережених current values і clamp-яться до derived max.
+- Hidden path дає derived stat bonus через shared effective-stats helper, не записується в `statsJson` і не preview-иться в onboarding/remort.
+- Рівневий stat budget лишається `max(0, level - 1)`, але deterministic smooth weighted allocator розкидає ці points між характеристиками.
+- Combined growth weight = class growth profile + race stat bonus + fixed hidden-path bonus. Race/path впливають на розподіл, але не додають extra level points.
 
-Наприклад, Воїн 1 рівня з `20 HP`, `10 мани` і `8 сили` на 2 рівні бачить `24 HP`, `12 мани` і `9 сили`.
+Наприклад, герой 5 рівня має cumulative level bonus `+16 HP`, `+8 мани` і 4 stat points, розкидані allocator-ом. У `/hero` поруч із XP показується не cumulative рядок, а forecast наступного рівня: `Зміна: +4 HP · +2 мани · +1 ...`.
 
-Важливий майбутній борг: коли з’являться persistent combat state, поранення, витрати мани, лікування або відпочинок, «поточні HP/мана» не мають магічно відновлюватись у summary. Тоді модель треба розвести на effective max values і окремий persisted current/resource state, а presenter має показувати саме збережений current, обмежений новим effective max.
-
-Це не healing/rest system і не повний stat rebalance. Бонуси предметів із `0.0.22` нашаровуються поверх цього helper-а, а майбутні розширення мають зберегти той самий шлях.
+Це не XP-curve change і не нова економіка. Бонуси предметів із `0.0.22` нашаровуються поверх цього helper-а, а майбутні розширення мають зберегти той самий шлях. Малий 0.1.16 combat follow-up лишає криву рівнів як є, але виправляє винагороди Низу: XP, золото й broad loot profile для трьох проходів рахуються від effective monster level, а не від різниці між рівнем героя й монстра.
 
 Майбутній balance борг: рівень має стати сильнішим важелем, а не декоративним числом біля імені. Наступний progression pass має помітніше впливати на HP, ману, основні перевірки, бій, шанси/пороги подій і доступ до активностей. Квестарня грає в жарти, але ще й у циферки: якщо персонаж виріс, події мають це відчувати в формулах, а не лише в summary.
 

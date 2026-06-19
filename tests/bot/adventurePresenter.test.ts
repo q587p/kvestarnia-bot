@@ -88,7 +88,7 @@ describe("adventure presenter", () => {
     expect(text).toContain("<i>Кухар &amp; свідок</i>\n\n2. 🛢️ <b>Бочка</b>");
   });
 
-  it("presents selected problem approaches without exact reward or risk spoilers", () => {
+  it("presents selected problem without approach reward or risk spoilers", () => {
     const result: Extract<AdventureProblemResult, { state: "selected" }> = {
       state: "selected",
       character,
@@ -126,16 +126,17 @@ describe("adventure presenter", () => {
     const text = presentAdventureProblem(result);
 
     expect(text).toContain("Казанок &lt;репетирує&gt;");
-    expect(text).toContain("Майже без драматичних зубів.");
-    expect(text).toContain("Майже без драматичних зубів.\n\n🧠 Хитро");
-    expect(text).toContain("Проблема може образитись.");
+    expect(text).toContain("Метод оберіть самі.");
+    expect(text).not.toContain("Майже без драматичних зубів.");
+    expect(text).not.toContain("🧠 Хитро — Середній ризик.");
+    expect(text).not.toContain("Проблема може образитись.");
     expect(text).not.toContain("+4 XP");
     expect(text).not.toContain("+10 XP");
     expect(text).not.toContain("ризик 13%");
     expect(text).not.toContain("ризик 42%");
   });
 
-  it("keeps approach hints lowercase after the dash", () => {
+  it("does not print the approach reward ladder on the selected problem screen", () => {
     const result: Extract<AdventureProblemResult, { state: "selected" }> = {
       state: "selected",
       character,
@@ -150,9 +151,11 @@ describe("adventure presenter", () => {
     };
     const text = presentAdventureProblem(result);
 
-    expect(text).toContain("🛡️ Обережно розібратись — менше винагороди");
-    expect(text).toContain("🧠 Знайти хитрий кут — середня винагорода");
-    expect(text).toContain("🔥 Зробити красиво й небезпечно — більша винагорода");
+    expect(text).not.toContain("🛡️ Обережно розібратись — менше винагороди");
+    expect(text).not.toContain("🧠 Знайти хитрий кут — середня винагорода");
+    expect(text).not.toContain("🔥 Зробити красиво й небезпечно — більша винагорода");
+    expect(text).not.toContain("винагороди");
+    expect(text).not.toContain("шанс ускладнення");
     expect(text).not.toContain("— Менше винагороди");
     expect(text).not.toContain("— Середня винагорода");
     expect(text).not.toContain("— Більша винагорода");

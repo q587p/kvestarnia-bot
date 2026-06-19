@@ -64,11 +64,11 @@ The first supported placements are:
 
 Race, class, authored combo, pronoun, and hidden path can all be selectors, but player-facing output must stay diegetic and must not expose internal path ids or path names. Combo titles remain visible; hidden path names remain internal.
 
-This does not change starter stats, rewards, cooldowns, or combat math. It only makes different biographies produce different short reactions in the korchma, shawarma scene, fight probe, cellar errand, and barrel prep hints.
+Hidden path now adds a small derived effective-stat layer, but it is not written into starter `statsJson` and is not previewed as exact mechanics during creation or remort. Other biography flavor still works through short diegetic reactions in the korchma, shawarma scene, fight probe, cellar errand, and barrel prep hints.
 
 ## Not In Scope Yet
 
 - full Ukrainian grammar inflection beyond authored combo titles;
 - combat, loot, inventory, raids, guilds, or PvP;
-- race/class stat rebalance beyond the existing starter stats;
+- broad race/class stat rebalance beyond the current starter stats;
 - copying external race/lore systems.

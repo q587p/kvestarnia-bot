@@ -32,6 +32,17 @@ export type ClaimCooldownRewardResult =
       character: CharacterRecord;
     };
 
+export type SetCooldownAvailableAtResult =
+  | {
+      state: "updated";
+      cooldown: CharacterCooldownRecord;
+      character: CharacterRecord;
+    }
+  | {
+      state: "not-found";
+      character: CharacterRecord;
+    };
+
 export interface CooldownRepository {
   findForTelegramUser(
     telegramUserId: bigint,
@@ -42,4 +53,9 @@ export interface CooldownRepository {
     telegramUserId: bigint,
     input: ClaimCooldownRewardInput
   ): Promise<ClaimCooldownRewardResult | null>;
+
+  setAvailableAtForTelegramUser?(
+    telegramUserId: bigint,
+    input: { key: string; availableAt: Date }
+  ): Promise<SetCooldownAvailableAtResult | null>;
 }

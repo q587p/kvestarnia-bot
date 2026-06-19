@@ -601,7 +601,7 @@ Callback data коротка, версіонована.
 Заплановані приклади для майбутніх persistent systems:
 - future shorter duel action callbacks only if result/rematch cards outgrow the current token payload shape;
 - `v1:gift:offer:{token}` / `v1:gift:accept:{token}` / `v1:trade:confirm:{token}` or shorter equivalents for narrow item transfer flows;
-- `v1:remort:view` / `v1:remort:confirm:{token}` for explicit level-13 remort confirmation;
+- current remort callbacks use the compact `v1:rm:*` namespace (`v1:rm:open`, `v1:rm:pr:*`, `v1:rm:ra:*`, `v1:rm:cl:*`, `v1:rm:it:*`, `v1:rm:go:*`) for explicit level-13 remort confirmation;
 - `v1:combat:*` або коротший equivalent для майбутніх group/PvP combats, якщо solo `v1:fight:turn:*` стане затісним;
 - `v1:equip:wear:{itemId}` або коротший equivalent — future richer equipment mutation after the `0.0.14` shell, if slots, restrictions, or item instances need more data than content ids.
 
@@ -668,14 +668,15 @@ Resource-state note: effective max calculation must stay separate from persisted
 Формули alpha slice:
 - HP max: `stored hpMax + (level - 1) * 4`.
 - Mana max: `stored manaMax + (level - 1) * 2`.
-- Primary stat: `stored primary stat + (level - 1)`.
+- Stats: `stored statsJson + fixed derived path bonus + distributed level stats + equipment effects`.
+- Distributed level stats keep the `level - 1` budget and allocate deterministically from class profile + race bonus + fixed path bonus weights.
 
-`0.0.22` layers equipment effects on top of this helper instead of rewriting stored starter values. The stored `hpMax`/`manaMax`/`statsJson` remain the base; equipped item content contributes additional summary values at read time.
+`0.0.22` layers equipment effects on top of this helper instead of rewriting stored starter values. `0.1.16` also layers fixed path bonus and distributed level stats at read time. The stored `hpMax`/`manaMax`/`statsJson` remain the base; equipped item content contributes additional summary values at read time.
 
 `0.0.25` adds `hp_regen_at` and `mana_regen_at` to `characters` and syncs passive resource recovery lazily on `/hero` and new persistent fight entry. Active fight turns do not naturally regenerate. Terminal persistent fights save actual remaining HP/mana back to `characters`; repeated terminal callbacks replay reward state without spending or restoring resources again.
 
 Future progression pass:
-- Revisit the alpha formulas so level has a stronger, visible impact on HP, mana, combat coefficients, event checks, and activity/content gates.
+- Revisit combat coefficients, event checks, and activity/content gates after distributed stats have playtest data.
 - Keep the source of truth centralized in progression/effective-stat helpers; presenters, services, and combat/event logic should not each invent their own level math.
 - Add tests around level breakpoints so raising level changes real outcomes, not only displayed summary numbers.
 - Model levels `14-23` as an epic bracket with milestone unlocks for race/class abilities, inspired by Munchkin-style extra class/race tricks. Keep unlock definitions data-driven enough for tests and presenters to answer «what changed at this level?» without hard-coded string checks.

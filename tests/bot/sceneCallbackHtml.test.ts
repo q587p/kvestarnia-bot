@@ -14,7 +14,10 @@ import { makeEquipItemCallbackData } from "../../src/bot/callbacks/itemCallbackD
 import { makeLevelBarterAutoCallbackData } from "../../src/bot/callbacks/levelBarterCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
-import { makeRemortConfirmCallbackData } from "../../src/bot/callbacks/remortCallbackData";
+import {
+  makeRemortConfirmCallbackData,
+  makeRemortOpenCallbackData
+} from "../../src/bot/callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import { makeYegerTrackCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -426,7 +429,7 @@ describe("scene callback HTML options", () => {
     expect(celebration?.payload.parse_mode).toBe("HTML");
     expect(String(celebration?.payload.text)).toContain("✨ <b>2 → 3</b>");
     expect(String(celebration?.payload.text)).toContain(
-      "📈 Стало краще: <b>+4 HP · +2 мани · +1 Спритності</b>"
+      "📈 Стало краще: <b>+4 HP · +2 мани · +1 Вдачі</b>"
     );
   });
 
@@ -871,10 +874,7 @@ describe("scene callback HTML options", () => {
 
   it.each([
     mainMenuButtons.tavern,
-    mainMenuButtons.quest,
-    mainMenuButtons.hero,
-    mainMenuButtons.inventory,
-    mainMenuButtons.participants
+    mainMenuButtons.quest
   ])("keeps main-menu text %s inside an active persistent fight", async (text) => {
     const calls = await captureTextApiCalls(
       text,
@@ -901,6 +901,127 @@ describe("scene callback HTML options", () => {
 
     expect(String(reply?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
     expect(String(reply?.payload.text)).toContain("Павук дедлайнів");
+  });
+
+  it.each([
+    ["inventory keyboard button", mainMenuButtons.inventory, false],
+    ["inventory command", "/inventory", true]
+  ])("lets %s through during an active persistent fight", async (_name, text, asCommand) => {
+    let inventoryCalls = 0;
+    const calls = await captureTextApiCalls(
+      text,
+      servicesWith({
+        fight: activeFightServiceThatShouldNotBeChecked(),
+        inventory: {
+          listForTelegramUser: () => {
+            inventoryCalls += 1;
+            return Promise.resolve({
+              state: "empty",
+              character
+            });
+          }
+        }
+      }),
+      { asCommand }
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+
+    expect(inventoryCalls).toBe(1);
+    expect(String(reply?.payload.text)).toContain("🎒 Манатки");
+    expect(String(reply?.payload.text)).not.toContain("Бій тримає вас за рукав");
+  });
+
+  it("lets inventory callbacks through during an active persistent fight", async () => {
+    let inventoryCalls = 0;
+    const calls = await captureApiCalls(
+      "v1:item:inventory",
+      servicesWith({
+        fight: activeFightServiceThatShouldNotBeChecked(),
+        inventory: {
+          listForTelegramUser: () => {
+            inventoryCalls += 1;
+            return Promise.resolve({
+              state: "empty",
+              character
+            });
+          }
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(inventoryCalls).toBe(1);
+    expect(String(edit?.payload.text)).toContain("🎒 Манатки");
+    expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
+  });
+
+  it("lets item detail callbacks through during an active persistent fight", async () => {
+    let itemCalls = 0;
+    const calls = await captureApiCalls(
+      "v1:item:detail:item.pan-of-persuasion",
+      servicesWith({
+        fight: activeFightServiceThatShouldNotBeChecked(),
+        inventory: {
+          getItemForTelegramUser: () => {
+            itemCalls += 1;
+            return Promise.resolve({
+              state: "not-owned"
+            });
+          }
+        },
+        equipment: {
+          getEquipmentForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          previewItemEquipForTelegramUser: () => Promise.resolve({ state: "not-owned" })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(itemCalls).toBe(1);
+    expect(String(edit?.payload.text)).toContain("Такої манатки в торбі не знайшлося");
+    expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
+  });
+
+  it("lets remort callbacks through during an active persistent fight", async () => {
+    const getFightOverviewForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-active" as const,
+        character,
+        session: persistentSession("monster.deadline-spider"),
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null
+      })
+    );
+    const openForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "locked" as const,
+        character,
+        requiredLevel: 13
+      })
+    );
+    const calls = await captureApiCalls(
+      makeRemortOpenCallbackData(),
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser
+        },
+        remort: {
+          openForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(openForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(getFightOverviewForTelegramUser).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("🕯️ Реморт ще не кличе");
+    expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
   });
 
   it("keeps main-menu text inside an active training fight", async () => {
@@ -1723,6 +1844,16 @@ function persistentSession(monsterId: string) {
   };
 }
 
+function activeFightServiceThatShouldNotBeChecked(): NonNullable<Partial<BotServices>["fight"]> {
+  return {
+    getFightOverviewForTelegramUser: () => {
+      throw new Error("inventory surfaces should bypass the combat lock");
+    },
+    getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+    completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+  } as NonNullable<Partial<BotServices>["fight"]>;
+}
+
 function trainingSession() {
   return {
     id: "123e4567-e89b-42d3-a456-426614174000",
@@ -1877,7 +2008,11 @@ async function captureApiCalls(callbackData: string, services: BotServices): Pro
   return calls;
 }
 
-async function captureTextApiCalls(text: string, services: BotServices): Promise<ApiCall[]> {
+async function captureTextApiCalls(
+  text: string,
+  services: BotServices,
+  options: { asCommand?: boolean } = {}
+): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services);
   const calls: ApiCall[] = [];
 
@@ -1922,7 +2057,18 @@ async function captureTextApiCalls(text: string, services: BotServices): Promise
         is_bot: false,
         first_name: "Тест"
       },
-      text
+      text,
+      ...(options.asCommand
+        ? {
+            entities: [
+              {
+                type: "bot_command" as const,
+                offset: 0,
+                length: text.length
+              }
+            ]
+          }
+        : {})
     }
   });
 

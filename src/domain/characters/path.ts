@@ -1,4 +1,5 @@
 import type { Pronoun } from "../../content/schema";
+import type { CharacterStats } from "./starterStats";
 
 export const characterPaths = ["sun", "moon", "boundary"] as const;
 export type CharacterPath = (typeof characterPaths)[number];
@@ -34,6 +35,36 @@ export function getCharacterPath(character: CharacterPathInput): CharacterPath {
   }
 
   return "boundary";
+}
+
+export function buildPathStatBonus(path: CharacterPath): CharacterStats {
+  if (path === "sun") {
+    return {
+      strength: 1,
+      dexterity: 1,
+      intelligence: 0,
+      charisma: 0,
+      luck: 0
+    };
+  }
+
+  if (path === "moon") {
+    return {
+      strength: 0,
+      dexterity: 1,
+      intelligence: 1,
+      charisma: 0,
+      luck: 0
+    };
+  }
+
+  return {
+    strength: 0,
+    dexterity: 0,
+    intelligence: 0,
+    charisma: 1,
+    luck: 1
+  };
 }
 
 export function isSunPath(characterOrPath: CharacterPathInput | string | null | undefined): boolean {

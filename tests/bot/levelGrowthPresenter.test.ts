@@ -17,7 +17,7 @@ describe("level growth presenter", () => {
         "🎉 Рівень підріс!",
         "",
         "✨ <b>2 → 3</b>",
-        "📈 Стало краще: <b>+4 HP · +2 мани · +1 Спритності</b>",
+        "📈 Стало краще: <b>+4 HP · +2 мани · +1 Вдачі</b>",
         "",
         "Корчма робить вигляд, що так і планувала."
       ].join("\n")
@@ -35,6 +35,24 @@ describe("level growth presenter", () => {
         "class.rogue"
       )
     ).toBeNull();
+  });
+
+  it("uses character race and path for the visible level-up growth line", () => {
+    const text = presentLevelUpCelebration(
+      {
+        oldLevel: 2,
+        newLevel: 3,
+        leveledUp: true
+      },
+      "class.rogue",
+      {
+        raceId: "race.human-ish",
+        path: "sun"
+      }
+    );
+
+    expect(text).toContain("📈 Стало краще: <b>+4 HP · +2 мани · +1 Сили</b>");
+    expect(text).not.toContain("+1 Вдачі");
   });
 
   it("renders a special message at the current level cap", () => {

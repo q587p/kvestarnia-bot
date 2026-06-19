@@ -262,7 +262,10 @@ async function sendLevelUpCelebrationToChat(
   chatId: number,
   result: Extract<TavernRaidResult, { state: "completed" }>
 ): Promise<void> {
-  const text = presentLevelUpCelebration(result.levelChange, result.character.classId);
+  const text = presentLevelUpCelebration(result.levelChange, result.character.classId, {
+    raceId: result.character.raceId,
+    path: result.character.path
+  });
 
   if (!text) {
     return;

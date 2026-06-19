@@ -13,9 +13,9 @@ describe("buildStarterStats", () => {
 
     expect(stats.stats.strength).toBe(8);
     expect(stats.stats.dexterity).toBe(6);
-    expect(stats.stats.intelligence).toBe(6);
+    expect(stats.stats.intelligence).toBe(5);
     expect(stats.stats.charisma).toBe(6);
-    expect(stats.stats.luck).toBe(6);
+    expect(stats.stats.luck).toBe(5);
   });
 
   it("keeps generated HP and mana positive", () => {

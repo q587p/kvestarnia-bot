@@ -46,6 +46,7 @@ import type { RestartService } from "../services/restartService";
 import type { RemortService } from "../services/remortService";
 import type { TavernRaidService } from "../services/tavernRaidService";
 import type { TrainingDoppelgangerService } from "../services/trainingDoppelgangerService";
+import type { CharacterPath } from "../domain/characters/path";
 import { createBarrelRaidCompletionScheduler } from "./barrelRaidCompletionNotifier";
 import { parseAdventureCallbackData, type AdventureCallback } from "./callbacks/adventureCallbackData";
 import { parseBestiaryCallbackData, type BestiaryCallback } from "./callbacks/bestiaryCallbackData";
@@ -408,7 +409,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   if (services.devGrant?.isEnabled()) {
     registerDevGrantCommands(bot, services.devGrant);
   }
-  registerDevResetCommand(bot, services.devReset, services.adventure);
+  registerDevResetCommand(bot, services.devReset, services.adventure, services.tavern);
   registerRestartCommand(bot);
   if (services.remort) {
     registerRemortCommand(bot, services.remort, services.tavern);
@@ -708,8 +709,22 @@ function registerPresenceMiddleware(bot: Bot, presenceService: PresenceService):
 function registerCombatLockMiddleware(bot: Bot, services: BotServices): void {
   bot.use(async (ctx, next) => {
     const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    const callbackData = ctx.callbackQuery?.data;
 
-    if (!telegramUserId || !shouldCheckCombatLock(ctx)) {
+    if (!telegramUserId) {
+      await next();
+      return;
+    }
+
+    if (
+      callbackData?.startsWith("v1:rm:") &&
+      typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
+      (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
+    ) {
+      return;
+    }
+
+    if (!shouldCheckCombatLock(ctx)) {
       await next();
       return;
     }
@@ -737,7 +752,8 @@ function shouldCheckCombatLock(ctx: Context): boolean {
     return (
       !data.startsWith("v1:fight:turn:") &&
       !data.startsWith("v1:spar:turn:") &&
-      !data.startsWith("v1:fight:mimic:")
+      !data.startsWith("v1:fight:mimic:") &&
+      !isCombatLockSafeCallback(data)
     );
   }
 
@@ -745,20 +761,50 @@ function shouldCheckCombatLock(ctx: Context): boolean {
   const command = text?.match(/^\/([a-z_]+)(?:@\w+)?(?:\s+.*)?$/i)?.[1]?.toLowerCase();
 
   if (command) {
-    return command !== "help" && command !== "version";
+    return !isCombatLockSafeCommand(command);
   }
 
   return isLockedMainMenuText(text);
+}
+
+function isCombatLockSafeCallback(data: string): boolean {
+  return (
+    data === "v1:menu:hero" ||
+    data === "v1:menu:help" ||
+    data === "v1:menu:inventory" ||
+    data.startsWith("v1:item:") ||
+    data.startsWith("v1:equip:") ||
+    data.startsWith("v1:restart:") ||
+    data.startsWith("v1:rm:")
+  );
+}
+
+function isCombatLockSafeCommand(command: string): boolean {
+  return (
+    command === "help" ||
+    command === "version" ||
+    command === "hero" ||
+    command === "profile" ||
+    command === "me" ||
+    command === "inventory" ||
+    command === "items" ||
+    command === "bag" ||
+    command === "equipment" ||
+    command === "gear" ||
+    command === "equip" ||
+    command === "online" ||
+    command === "look" ||
+    command === "restart" ||
+    command === "remort" ||
+    command === "support"
+  );
 }
 
 function isLockedMainMenuText(text: string | undefined): boolean {
   return (
     text === mainMenuButtons.tavern ||
     text === mainMenuButtons.quest ||
-    text === "🗺️ Квест" ||
-    text === mainMenuButtons.hero ||
-    text === mainMenuButtons.inventory ||
-    text === mainMenuButtons.participants
+    text === "🗺️ Квест"
   );
 }
 
@@ -2916,10 +2962,14 @@ async function sendLevelUpCelebration(
   ctx: Context,
   result: {
     levelChange: Parameters<typeof presentLevelUpCelebration>[0];
-    character: { classId: string };
+    character: { classId: string; raceId?: string; path?: CharacterPath };
   }
 ): Promise<void> {
-  const text = presentLevelUpCelebration(result.levelChange, result.character.classId);
+  const identity = {
+    ...(result.character.raceId ? { raceId: result.character.raceId } : {}),
+    ...(result.character.path ? { path: result.character.path } : {})
+  };
+  const text = presentLevelUpCelebration(result.levelChange, result.character.classId, identity);
 
   if (!text) {
     return;

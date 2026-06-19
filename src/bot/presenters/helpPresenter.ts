@@ -104,7 +104,7 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     description: "допомога"
   },
   {
-    commands: ["dev_reset_me", "dev_adventure_reset"],
+    commands: ["dev_reset_me", "dev_adventure_reset", "dev_raid_stop"],
     icon: "🧪",
     description: "локальні скидання для тестів",
     devOnly: "reset"
@@ -163,7 +163,7 @@ export function presentHelp(visibility: boolean | HelpVisibility): string {
   ];
 
   lines.push(
-    "Лут, ґільдії й повна бойова бухгалтерія ще готуються.",
+    "Крамниці, ремесло й ґільдії ще готуються.",
     "",
     "Квестарню розробляє @q587p — розробник і корчмар за стійкою."
   );

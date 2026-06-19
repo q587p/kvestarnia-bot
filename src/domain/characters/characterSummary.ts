@@ -76,9 +76,12 @@ export function summarizeCharacter(
   const progressionOptions = remortCount > 0 ? { remortCount } : {};
   const level = Math.max(1, Math.floor(input.level), getLevelForXp(xp, progressionOptions));
   const nextLevelXp = getNextLevelThreshold(level, progressionOptions);
+  const path = getCharacterPath({ path: input.path, pronoun });
   const effectiveStats = buildEffectiveCharacterStats({
     level,
     classId: input.classId,
+    raceId: input.raceId,
+    path,
     hpCurrent: input.hpCurrent,
     hpMax: input.hpMax,
     manaCurrent: input.manaCurrent,
@@ -95,7 +98,7 @@ export function summarizeCharacter(
     name: input.name,
     pronoun,
     pronounLabel: getPronounLabel(pronoun),
-    path: getCharacterPath({ path: input.path, pronoun }),
+    path,
     currentLocationId: input.currentLocationId ?? null,
     raceId: input.raceId,
     raceName: race?.name ?? input.raceId,

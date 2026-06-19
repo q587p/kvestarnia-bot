@@ -55,12 +55,13 @@ describe("hero presenter", () => {
     expect(text).not.toContain("до рівня 3");
     expect(text).not.toContain("XP 15 · до наступного: 10 XP · золото");
     expect(text).toContain(
-      "Рівень <b>2</b> · XP 15 · до наступного: 10 XP\nРіст: +4 HP · +2 мани · +1 Сили\n\n❤️ HP 24/24"
+      "Рівень <b>2</b> · XP 15 · до наступного: 10 XP\nЗміна: +4 HP · +2 мани · +1 Спритності\n\n❤️ HP 24/24"
     );
     expect(text).toContain("❤️ HP 24/24 · 🔮 мана 12/12");
     expect(text).toContain("Сили 9");
     expect(text).toContain("Вдача 6");
     expect(text).not.toContain("Ріст рівня:");
+    expect(text).not.toContain("Ріст:");
     expect(text).toContain(
       "\n\n👛 Золото: <b>12</b> <i>(а в манатках ще 0; торба чесна, аж нудно)</i>\n\nЗараз пригодник тут:"
     );
@@ -144,7 +145,7 @@ describe("hero presenter", () => {
     expect(text).toContain("🎒 Манатки: +2 HP · +1 Вдачі");
     expect(text).toContain("🛡️ Захист спорядження: +1 до захисту");
     expect(text).toContain("🗡️ Зброя: +2 до удару");
-    expect(text).toContain("Ріст: +4 HP · +2 мани · +1 Сили");
+    expect(text).toContain("Зміна: +4 HP · +2 мани · +1 Спритності");
   });
 
   it("shows remort memory without exposing a public x/5 scale", () => {

@@ -7,6 +7,30 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.16] - 12026.06.19 - Character Stats Growth Rework
+
+### Added
+- Added fixed hidden-path stat bonuses through the shared effective-stats pipeline, so existing characters inherit the derived layer without a schema migration or `statsJson` backfill.
+- Added deterministic distributed level stat growth: the level budget remains `level - 1`, HP remains `+4` per gained level and mana remains `+2`, while class profile, race bonus and hidden path bias which stat receives each level point.
+- Added per-stat remort memory for previous distributed level growth, preserving 23% of the previous race/path-aware level-growth contribution per stat while excluding old fixed race/class/path identity bonuses.
+- Added local `/dev_raid_stop` to finish an active pending Barrel raid through the normal completion path for manual QA.
+
+### Changed
+- Normalized `Людисько` to the active `+3` race budget (`+1 STR`, `+1 DEX`, `+1 CHA`) and refreshed its flavor so it no longer promises “a bit of everything.”
+- `/hero` now shows `Зміна:` as a next-level forecast instead of showing cumulative current level growth as `Ріст:`.
+- Level-up and remort presentation can render multiple stat deltas when growth or memory spans more than one stat.
+- Reward level-up celebrations now use the same race/path-aware next-level delta as `/hero`, including Barrel raid, training and fight reward paths.
+- Fixed `Низ` passage rewards so persistent fight XP, gold and broad loot profile power follow the effective monster level selected by the passage; XP anti-farm compression still checks the stored pre-intervention base monster level, so genuinely weak targets remain compressed without penalizing the deliberately easier right passage.
+- Combat simulation tooling now accepts the hidden path and applies the same race/path-aware effective stat math as live character summaries.
+- `/help` now points to future shops, crafting and guilds instead of implying loot and combat bookkeeping are still missing.
+- Active combat now allows safe side surfaces again, including `/inventory`, item detail/equipment callbacks, hero/profile, nearby-player views, restart/remort and support, so manatky can be inspected during a fight.
+- The front-door outdoor surface no longer shows a completed/inactive Yeger shortcut or a Barrel-side Yeger explainer; active trails still use the outdoor `До полювання` action.
+- Selected Adventure Choice problem messages no longer print the safe/medium/risky reward ladder; the approach buttons stay available without the extra body copy.
+
+### Guardrails
+- No XP curve, schema, migration, production dependency or onboarding/remort mechanical preview was added.
+- Hidden path ids remain internal and are not shown in player-facing copy.
+
 ## [0.1.15] - 12026-06-18 - Combat Lock and Battle Flow Polish
 
 ### Added
