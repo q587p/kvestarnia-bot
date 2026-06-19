@@ -164,6 +164,7 @@ function makeAudit(preparedScore: number) {
     balanceVersion: "instant-duel-v2",
     originalLevel: 3,
     originalRemortCount: 0,
+    effectiveCombatLevel: 3,
     progressionBudget: {
       level: 3,
       remortCount: 0,

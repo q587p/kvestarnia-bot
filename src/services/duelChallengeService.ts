@@ -70,6 +70,7 @@ export type DuelChallengeView =
       challengerResourceWarning: DuelResourceWarning | null;
       expiresAt: Date;
       now: Date;
+      transitioned?: boolean;
     }
   | {
       state: "active";
@@ -79,6 +80,7 @@ export type DuelChallengeView =
       target: CharacterSummary;
       turnExpiresAt: Date;
       now: Date;
+      transitioned?: boolean;
     }
   | {
       state: "resolved";
@@ -86,11 +88,13 @@ export type DuelChallengeView =
       challenger: CharacterSummary;
       target: CharacterSummary;
       result: NonNullable<DuelChallengeRecord["result"]>;
+      transitioned?: boolean;
     }
   | {
       state: "expired" | "cancelled" | "declined";
       challenge: DuelChallengeRecord;
       challenger: CharacterSummary;
+      transitioned?: boolean;
     };
 
 export type DuelCreateResult =
@@ -457,7 +461,7 @@ export class DuelChallengeService {
         }
       );
 
-      if (!started) {
+      if (!started.record) {
         const active = await this.challenges.findActiveTurnBasedByTelegramUserId(telegramUserId);
 
         if (active) {
@@ -473,7 +477,10 @@ export class DuelChallengeService {
         };
       }
 
-      return this.buildActiveView(started, now);
+      return {
+        ...this.buildActiveView(started.record, now),
+        transitioned: started.transitioned
+      };
     }
 
     const result = resolveQuickDuel({
@@ -491,11 +498,14 @@ export class DuelChallengeService {
       }, "quick")
     );
 
-    if (!accepted) {
+    if (!accepted.record) {
       return { state: "no-character" };
     }
 
-    return this.viewChallenge(accepted, now);
+    return {
+      ...this.viewChallenge(accepted.record, now),
+      transitioned: accepted.transitioned
+    };
   }
 
   async cancelForTelegramUser(
@@ -521,7 +531,9 @@ export class DuelChallengeService {
 
     const updated = await this.challenges.cancelByTokenForTelegramUser(inviteToken, telegramUserId, now);
 
-    return updated ? this.viewChallenge(updated, now) : { state: "not-found" };
+    return updated.record
+      ? { ...this.viewChallenge(updated.record, now), transitioned: updated.transitioned }
+      : { state: "not-found" };
   }
 
   async declineForTelegramUser(
@@ -599,11 +611,18 @@ export class DuelChallengeService {
       return { state: "not-found" };
     }
 
-    if (session.turn !== input.expectedTurn || session.version !== input.expectedVersion) {
+    const now = this.clock();
+
+    if (
+      session.turn !== input.expectedTurn ||
+      session.state.status !== "active" ||
+      session.version < input.expectedVersion ||
+      session.turnExpiresAt <= now
+    ) {
       return { state: "stale", session };
     }
 
-    const first = await this.tryResolveTurnBasedAction(session, character.id, input.action);
+    const first = await this.tryResolveTurnBasedAction(session, character.id, input.action, now);
 
     if (first.state !== "stale") {
       return first;
@@ -614,7 +633,13 @@ export class DuelChallengeService {
       telegramUserId
     );
 
-    if (!latest || latest.turn !== input.expectedTurn || latest.state.status !== "active") {
+    if (
+      !latest ||
+      latest.turn !== input.expectedTurn ||
+      latest.state.status !== "active" ||
+      latest.version < input.expectedVersion ||
+      latest.turnExpiresAt <= now
+    ) {
       return first;
     }
 
@@ -624,7 +649,7 @@ export class DuelChallengeService {
       return first;
     }
 
-    return this.tryResolveTurnBasedAction(latest, character.id, input.action);
+    return this.tryResolveTurnBasedAction(latest, character.id, input.action, now);
   }
 
   async resolveDueTurnBasedSession(session: DuelCombatSessionRecord): Promise<TurnBasedDuelTurnResult> {
@@ -650,6 +675,8 @@ export class DuelChallengeService {
       {
         state,
         status: state.status,
+        now,
+        deadlineMode: "timeout",
         turnExpiresAt: state.status === "active" ? getNextTurnExpiry(now) : session.turnExpiresAt,
         completedAt: state.status === "active" ? null : now,
         result,
@@ -668,7 +695,8 @@ export class DuelChallengeService {
   private async tryResolveTurnBasedAction(
     session: DuelCombatSessionRecord,
     actorCharacterId: string,
-    action: TurnBasedDuelAction
+    action: TurnBasedDuelAction,
+    now: Date
   ): Promise<TurnBasedDuelTurnResult> {
     const resolved = resolveTurnBasedDuelAction({
       state: session.state,
@@ -688,7 +716,6 @@ export class DuelChallengeService {
       };
     }
 
-    const now = this.clock();
     const result = buildStoredTurnBasedResult(
       resolved.state,
       rollTurnBasedDuelXpRewards(resolved.state, this.rng)
@@ -700,6 +727,8 @@ export class DuelChallengeService {
       {
         state: resolved.state,
         status: resolved.state.status,
+        now,
+        deadlineMode: "player-action",
         turnExpiresAt: resolved.resolution === "resolved" && resolved.state.status === "active"
           ? getNextTurnExpiry(now)
           : session.turnExpiresAt,
@@ -722,7 +751,15 @@ export class DuelChallengeService {
   }
 
   async listDueTurnBasedSessions(): Promise<DuelCombatSessionRecord[]> {
+    await this.repairTurnBasedCombatState();
     return this.challenges.listDueTurnBasedSessions(this.clock());
+  }
+
+  async repairTurnBasedCombatState(): Promise<{
+    repairedSessions: number;
+    removedOrphanLeases: number;
+  }> {
+    return this.challenges.repairTurnBasedCombatState(this.clock());
   }
 
   async recordTurnBasedMessageReference(

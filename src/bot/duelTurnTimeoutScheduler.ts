@@ -97,9 +97,13 @@ async function notifyParticipant(
   view: Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>,
   participant: "challenger" | "target"
 ): Promise<void> {
-  const chatId = participant === "challenger"
-    ? view.session.challengerChatId ?? view.challenge.challenger.telegramUserId
-    : view.session.targetChatId ?? view.challenge.target?.telegramUserId;
+  const telegramUserId = participant === "challenger"
+    ? view.challenge.challenger.telegramUserId
+    : view.challenge.target?.telegramUserId;
+  const storedChatId = participant === "challenger"
+    ? view.session.challengerChatId
+    : view.session.targetChatId;
+  const chatId = getPrivateParticipantChatId(storedChatId, telegramUserId);
   const messageId = participant === "challenger"
     ? view.session.challengerMessageId
     : view.session.targetMessageId;
@@ -148,9 +152,13 @@ async function notifyResolvedParticipant(
   session: Awaited<ReturnType<DuelChallengeService["listDueTurnBasedSessions"]>>[number],
   participant: "challenger" | "target"
 ): Promise<void> {
-  const chatId = participant === "challenger"
-    ? session.challengerChatId ?? view.challenge.challenger.telegramUserId
-    : session.targetChatId ?? view.challenge.target?.telegramUserId;
+  const telegramUserId = participant === "challenger"
+    ? view.challenge.challenger.telegramUserId
+    : view.challenge.target?.telegramUserId;
+  const storedChatId = participant === "challenger"
+    ? session.challengerChatId
+    : session.targetChatId;
+  const chatId = getPrivateParticipantChatId(storedChatId, telegramUserId);
   const messageId = participant === "challenger"
     ? session.challengerMessageId
     : session.targetMessageId;
@@ -179,6 +187,17 @@ async function notifyResolvedParticipant(
   } catch {
     // Delivery is best-effort; the persisted duel state remains canonical.
   }
+}
+
+function getPrivateParticipantChatId(
+  storedChatId: bigint | null | undefined,
+  telegramUserId: bigint | null | undefined
+): bigint | null {
+  if (!telegramUserId) {
+    return null;
+  }
+
+  return storedChatId === telegramUserId ? storedChatId : telegramUserId;
 }
 
 async function editOrSend(

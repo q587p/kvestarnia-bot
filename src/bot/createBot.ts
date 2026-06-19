@@ -951,13 +951,16 @@ async function redirectTurnBasedDuelLockIfNeeded(
       : activeDuel.challenge.target?.telegramUserId === telegramUserId
         ? activeDuel.session.targetCharacterId
         : null;
+  const privateCard = ctx.chat?.type === "private" && viewerCharacterId !== null;
   const participant = viewerCharacterId === activeDuel.session.state.participants.target.characterId
     ? activeDuel.session.state.participants.target
     : activeDuel.session.state.participants.challenger;
   const skill = getCombatSkillDisplay(getCombatSkillProfile(participant.combatStats.classId).id);
 
-  await sendCombatLockText(ctx, presentCombatLockRedirect(presentTurnBasedDuel(activeDuel, { viewerCharacterId })), {
-    reply_markup: buildTurnBasedDuelKeyboard(activeDuel, viewerCharacterId, `${skill.icon} ${skill.name}`)
+  await sendCombatLockText(ctx, presentCombatLockRedirect(presentTurnBasedDuel(activeDuel, {
+    viewerCharacterId: privateCard ? viewerCharacterId : null
+  })), {
+    reply_markup: buildTurnBasedDuelKeyboard(activeDuel, privateCard ? viewerCharacterId : null, `${skill.icon} ${skill.name}`)
   });
 
   return true;

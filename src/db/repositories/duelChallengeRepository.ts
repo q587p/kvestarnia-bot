@@ -75,6 +75,7 @@ export interface DuelResultBalanceAudit {
   balanceVersion: string;
   originalLevel: number;
   originalRemortCount: number;
+  effectiveCombatLevel: number;
   progressionBudget: DuelResultProgressionBudget;
   targetProgressionBudget: DuelResultProgressionBudget;
   temporaryHpMax: number;
@@ -144,10 +145,17 @@ export interface StartTurnBasedDuelSessionInput {
   targetMessageId?: number | null;
 }
 
+export interface TransitionResult<T> {
+  record: T | null;
+  transitioned: boolean;
+}
+
 export interface UpdateTurnBasedDuelSessionInput {
   state: TurnBasedDuelState;
   status: TurnBasedDuelStatus;
   turnExpiresAt: Date;
+  now: Date;
+  deadlineMode: "player-action" | "timeout";
   completedAt?: Date | null;
   result?: DuelResultPayload | null;
   action?: {
@@ -182,7 +190,7 @@ export interface DuelChallengeRepository {
     inviteToken: string,
     telegramUserId: bigint,
     now: Date
-  ): Promise<DuelChallengeRecord | null>;
+  ): Promise<TransitionResult<DuelChallengeRecord>>;
 
   declineByTokenForTelegramUser(
     inviteToken: string,
@@ -195,7 +203,7 @@ export interface DuelChallengeRepository {
     telegramUserId: bigint,
     now: Date,
     result: DuelResultPayload
-  ): Promise<DuelChallengeRecord | null>;
+  ): Promise<TransitionResult<DuelChallengeRecord>>;
 
   countResolvedBetweenCharacterPairSince(
     characterAId: string,
@@ -210,7 +218,7 @@ export interface DuelChallengeRepository {
     telegramUserId: bigint,
     now: Date,
     input: StartTurnBasedDuelSessionInput
-  ): Promise<DuelCombatSessionRecord | null>;
+  ): Promise<TransitionResult<DuelCombatSessionRecord>>;
 
   findActiveTurnBasedByTelegramUserId(
     telegramUserId: bigint
@@ -237,4 +245,9 @@ export interface DuelChallengeRepository {
     participant: "challenger" | "target",
     reference: { chatId: bigint; messageId: number }
   ): Promise<DuelCombatSessionRecord | null>;
+
+  repairTurnBasedCombatState(now: Date): Promise<{
+    repairedSessions: number;
+    removedOrphanLeases: number;
+  }>;
 }

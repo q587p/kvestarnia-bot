@@ -23,8 +23,13 @@ This project follows a simple pre-1.0 versioning policy:
 - Turn-based duel rounds now store a participant's chosen action without revealing damage or spending session HP/mana until both players have chosen or the durable timer resolves missing choices as ordinary attacks.
 - Terminal turn-based duel paths, including surrender and timeout resolution, now store an explicit terminal reason, resolve the parent challenge as `resolved`, and replay the canonical result card with rematch/share controls.
 - Same-round turn callback races now retry one safe merge after an optimistic version loss when the actor has not yet chosen and the round has not advanced.
+- Same-round older-version turn callbacks now also merge safely after the other participant has already queued from the same original card, as long as the round has not advanced, the actor has not chosen and the deadline has not passed.
+- Turn updates now enforce `turnExpiresAt` in the repository CAS: player actions require an unexpired turn, while timeout auto-attacks require an expired turn.
 - Turn-based duel card delivery now records successful edits, falls back to fresh messages after edit failures, and keeps committed gameplay state independent from Telegram delivery.
+- Participant-specific turn-based cards and action keyboards are now private-chat-only; group cards stay spectator-safe and never show hidden queued choices.
+- Malformed active turn-based sessions and orphan `turn-based-duel` leases now repair to a non-rewarding expired state instead of leaving players permanently combat-locked.
 - Turn-based duel cards now mirror persistent monster fights by hiding unavailable class actions while mana/cooldown rules make them unavailable and showing the viewer's active skill cooldown.
+- Turn-based duel damage now uses the normalized effective combat level from duel balancing while visible participant levels remain real, and defensive class-skill mitigation reduces incoming same-round PvP damage.
 - Turn-based duel terminal results now grant small replay-safe XP: `1 XP` for a loss, `2-5 XP` for a draw and `4-8 XP` for a win with a small luck-biased upside; quick duels remain XP-free.
 - Targeted duel invite recipients now receive a best-effort in-game notice when the challenger cancels before acceptance.
 - Quick duel participants now receive a best-effort result card immediately after the other side accepts, instead of needing to refresh an old invite card.

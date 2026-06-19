@@ -1584,6 +1584,7 @@ export class FightService {
 
     const streak = eligible.slice(-MONSTER_REST_ELIGIBLE_FIGHT_COUNT);
     const third = streak.at(-1);
+
     if (!third) {
       return null;
     }
@@ -1598,7 +1599,7 @@ function isMonsterRestEligibleSession(
   session: Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "state">
 ): boolean {
   if (
-    session.status !== "won" ||
+    session.status === "active" ||
     session.state?.source !== "normal" ||
     isTrainingDoppelgangerMonsterId(session.monsterId)
   ) {

@@ -41,6 +41,7 @@ export function presentDuelKorchmaGate(): string {
 export interface DuelPresenterOptions {
   inviteUrl?: string | null;
   replayNotice?: boolean;
+  mode?: "quick" | "turn-based";
 }
 
 export function presentDuelCreate(result: DuelCreateResult, options: DuelPresenterOptions = {}): string {
@@ -53,7 +54,7 @@ export function presentDuelCreate(result: DuelCreateResult, options: DuelPresent
   }
 
   if (result.state === "resource-warning") {
-    return presentDuelCreateResourceWarning(result.character, result.warning);
+    return presentDuelCreateResourceWarning(result.character, result.warning, options.mode ?? "quick");
   }
 
   return presentPendingDuel(result, options);
@@ -600,13 +601,21 @@ function presentDuelPairLimit(result: DuelPairLimit): string {
   ].join("\n");
 }
 
-function presentDuelCreateResourceWarning(character: CharacterSummary, warning: DuelResourceWarning): string {
+function presentDuelCreateResourceWarning(
+  character: CharacterSummary,
+  warning: DuelResourceWarning,
+  mode: "quick" | "turn-based"
+): string {
   return [
-    "⚡ <b>Кидати миттєву дуель зараз?</b>",
+    mode === "turn-based"
+      ? "♟️ <b>Кидати покрокову дуель зараз?</b>"
+      : "⚡ <b>Кидати миттєву дуель зараз?</b>",
     presentCharacterHeader(character),
     "",
     "Корчмар бачить, що ви ще не зовсім віддихалися.",
-    "Результат з’явиться одразу після згоди.",
+    mode === "turn-based"
+      ? "Після згоди почнеться бій із закритими виборами за раунд."
+      : "Результат з’явиться одразу після згоди.",
     "",
     presentResourceWarning(warning),
     "",

@@ -198,9 +198,9 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     inviteToken: string,
     telegramUserId: bigint,
     now: Date
-  ): Promise<DuelChallengeRecord | null> {
+  ): Promise<{ record: DuelChallengeRecord | null; transitioned: boolean }> {
     await this.expireIfNeeded(inviteToken, now);
-    await this.prisma.duelChallenge.updateMany({
+    const updated = await this.prisma.duelChallenge.updateMany({
       where: {
         inviteToken,
         status: "pending",
@@ -215,7 +215,10 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       }
     });
 
-    return this.findByToken(inviteToken);
+    return {
+      record: await this.findByToken(inviteToken),
+      transitioned: updated.count === 1
+    };
   }
 
   async declineByTokenForTelegramUser(
@@ -247,7 +250,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     telegramUserId: bigint,
     now: Date,
     result: DuelResultPayload
-  ): Promise<DuelChallengeRecord | null> {
+  ): Promise<{ record: DuelChallengeRecord | null; transitioned: boolean }> {
     await this.expireIfNeeded(inviteToken, now);
 
     const target = await this.prisma.character.findFirst({
@@ -262,10 +265,10 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     });
 
     if (!target) {
-      return null;
+      return { record: null, transitioned: false };
     }
 
-    await this.prisma.duelChallenge.updateMany({
+    const updated = await this.prisma.duelChallenge.updateMany({
       where: {
         inviteToken,
         status: "pending",
@@ -292,7 +295,10 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       }
     });
 
-    return this.findByToken(inviteToken);
+    return {
+      record: await this.findByToken(inviteToken),
+      transitioned: updated.count === 1
+    };
   }
 
   async startTurnBasedByTokenForTelegramUser(
@@ -300,7 +306,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     telegramUserId: bigint,
     now: Date,
     input: StartTurnBasedDuelSessionInput
-  ): Promise<DuelCombatSessionRecord | null> {
+  ): Promise<{ record: DuelCombatSessionRecord | null; transitioned: boolean }> {
     await this.expireIfNeeded(inviteToken, now);
 
     const sessionId = input.sessionId;
@@ -317,7 +323,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       });
 
       if (!target) {
-        return null;
+        return { record: null, transitioned: false };
       }
 
       const challenge = await tx.duelChallenge.findUnique({
@@ -342,7 +348,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         challenge.challengerCharacterId === target.id ||
         (challenge.targetCharacterId !== null && challenge.targetCharacterId !== target.id)
       ) {
-        return null;
+        return { record: null, transitioned: false };
       }
 
       const participantIds = [challenge.challengerCharacterId, target.id];
@@ -356,7 +362,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       });
 
       if (activeSolo > 0) {
-        return null;
+        return { record: null, transitioned: false };
       }
 
       const updated = await tx.duelChallenge.updateMany({
@@ -375,7 +381,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       });
 
       if (updated.count !== 1) {
-        return null;
+        return { record: null, transitioned: false };
       }
 
       await tx.activeCombatLease.createMany({
@@ -386,7 +392,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         }))
       });
 
-      return tx.duelCombatSession.create({
+      const record = await tx.duelCombatSession.create({
         data: {
           id: sessionId,
           duelChallengeId: challenge.id,
@@ -403,18 +409,23 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         },
         include: sessionInclude
       });
+
+      return { record, transitioned: true };
     }).catch((error: unknown) => {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"
       ) {
-        return null;
+        return { record: null, transitioned: false };
       }
 
       throw error;
     });
 
-    return mapDuelCombatSession(session);
+    return {
+      record: mapDuelCombatSession(session.record),
+      transitioned: session.transitioned
+    };
   }
 
   async findActiveTurnBasedByTelegramUserId(
@@ -483,7 +494,10 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           id: sessionId,
           status: "active",
           turn: expectedTurn,
-          version: expectedVersion
+          version: expectedVersion,
+          turnExpiresAt: input.deadlineMode === "player-action"
+            ? { gt: input.now }
+            : { lte: input.now }
         },
         data: {
           stateJson: input.state as unknown as Prisma.InputJsonValue,
@@ -492,7 +506,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           turn: input.state.turn,
           version: nextVersion,
           turnExpiresAt: input.turnExpiresAt,
-          ...(input.status === "active" ? {} : { completedAt: input.completedAt ?? new Date() })
+          ...(input.status === "active" ? {} : { completedAt: input.completedAt ?? input.now })
         }
       });
 
@@ -541,7 +555,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
               status: input.result ? "resolved" : input.status === "forfeited" ? "forfeited" : input.status,
               ...(input.result
                 ? {
-                    resolvedAt: input.completedAt ?? new Date(),
+                    resolvedAt: input.completedAt ?? input.now,
                     resultJson: input.result as unknown as Prisma.InputJsonValue
                   }
                 : {})
@@ -618,6 +632,119 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     });
 
     return mapDuelCombatSession(record);
+  }
+
+  async repairTurnBasedCombatState(now: Date): Promise<{
+    repairedSessions: number;
+    removedOrphanLeases: number;
+  }> {
+    let repairedSessions = 0;
+    const activeSessions = await this.prisma.duelCombatSession.findMany({
+      where: {
+        status: "active"
+      },
+      include: sessionInclude
+    });
+
+    for (const session of activeSessions) {
+      const state = parseTurnBasedDuelState(session.stateJson);
+      const valid =
+        state &&
+        session.duelChallenge.status === "active" &&
+        session.duelChallengeId === session.duelChallenge.id &&
+        session.challengerCharacterId === session.duelChallenge.challengerCharacterId &&
+        session.targetCharacterId === session.duelChallenge.targetCharacterId &&
+        state.participants.challenger.characterId === session.challengerCharacterId &&
+        state.participants.target.characterId === session.targetCharacterId &&
+        state.turn === session.turn &&
+        state.status === "active";
+
+      if (valid) {
+        continue;
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        const updated = await tx.duelCombatSession.updateMany({
+          where: {
+            id: session.id,
+            status: "active"
+          },
+          data: {
+            status: "expired",
+            completedAt: now
+          }
+        });
+
+        if (updated.count !== 1) {
+          return;
+        }
+
+        await tx.duelChallenge.updateMany({
+          where: {
+            id: session.duelChallengeId,
+            status: "active"
+          },
+          data: {
+            status: "expired"
+          }
+        });
+
+        await tx.activeCombatLease.deleteMany({
+          where: {
+            kind: "turn-based-duel",
+            referenceId: session.id
+          }
+        });
+      });
+
+      repairedSessions += 1;
+      console.warn("Квестарня: repaired malformed turn-based duel session.", {
+        sessionId: session.id,
+        duelChallengeId: session.duelChallengeId,
+        challengerCharacterId: session.challengerCharacterId,
+        targetCharacterId: session.targetCharacterId
+      });
+    }
+
+    const leases = await this.prisma.activeCombatLease.findMany({
+      where: {
+        kind: "turn-based-duel"
+      }
+    });
+    let removedOrphanLeases = 0;
+
+    for (const lease of leases) {
+      const owner = await this.prisma.duelCombatSession.findFirst({
+        where: {
+          id: lease.referenceId,
+          status: "active",
+          OR: [
+            { challengerCharacterId: lease.characterId },
+            { targetCharacterId: lease.characterId }
+          ]
+        },
+        select: { id: true }
+      });
+
+      if (owner) {
+        continue;
+      }
+
+      const deleted = await this.prisma.activeCombatLease.deleteMany({
+        where: {
+          id: lease.id,
+          kind: "turn-based-duel"
+        }
+      });
+      removedOrphanLeases += deleted.count;
+      console.warn("Квестарня: removed orphan turn-based duel lease.", {
+        leaseId: lease.id,
+        characterId: lease.characterId,
+        referenceId: lease.referenceId
+      });
+    }
+
+    return { repairedSessions, removedOrphanLeases };
   }
 
   private async expireIfNeeded(inviteToken: string, now: Date): Promise<void> {
@@ -757,7 +884,14 @@ function mapDuelCombatSession(
   const challenge = mapChallenge(record.duelChallenge);
   const state = parseTurnBasedDuelState(record.stateJson);
 
-  if (!challenge || !state) {
+  if (
+    !challenge ||
+    !state ||
+    state.participants.challenger.characterId !== record.challengerCharacterId ||
+    state.participants.target.characterId !== record.targetCharacterId ||
+    record.challengerCharacterId !== challenge.challengerCharacterId ||
+    record.targetCharacterId !== challenge.targetCharacterId
+  ) {
     return null;
   }
 
@@ -905,19 +1039,17 @@ function parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
     return null;
   }
 
-  const status = value.status;
-  const turn = value.turn;
+  const status = parseTurnBasedStatusSafe(value.status);
+  const turn = parsePositiveInt(value.turn);
   const participants = value.participants;
   const challenger = isRecord(participants) ? parseTurnBasedParticipant(participants.challenger) : null;
   const target = isRecord(participants) ? parseTurnBasedParticipant(participants.target) : null;
 
   if (
-    !parseTurnBasedStatusSafe(status) ||
+    !status ||
     typeof value.rulesVersion !== "string" ||
     typeof value.balanceVersion !== "string" ||
-    typeof turn !== "number" ||
-    !Number.isInteger(turn) ||
-    turn < 1 ||
+    turn === null ||
     typeof value.actingCharacterId !== "string" ||
     !challenger ||
     !target
@@ -925,7 +1057,24 @@ function parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
     return null;
   }
 
-  return value as unknown as TurnBasedDuelState;
+  const pendingActions = parsePendingActions(value.pendingActions, challenger.characterId, target.characterId);
+  const lastRound = parseRoundSummary(value.lastRound);
+  const lastAction = parseActionSummary(value.lastAction);
+  const outcome = parseTurnBasedOutcome(value.outcome);
+
+  return {
+    mode: "turn-based",
+    status,
+    rulesVersion: value.rulesVersion,
+    balanceVersion: value.balanceVersion,
+    turn,
+    actingCharacterId: value.actingCharacterId,
+    participants: { challenger, target },
+    ...(pendingActions ? { pendingActions } : {}),
+    ...(lastRound ? { lastRound } : {}),
+    ...(lastAction ? { lastAction } : {}),
+    ...(outcome ? { outcome } : {})
+  };
 }
 
 function parseTurnBasedStatusSafe(value: unknown): TurnBasedDuelStatus | null {
@@ -935,12 +1084,228 @@ function parseTurnBasedStatusSafe(value: unknown): TurnBasedDuelStatus | null {
     : null;
 }
 
-function parseTurnBasedParticipant(value: unknown): { characterId: string } | null {
-  if (!isRecord(value) || typeof value.characterId !== "string" || !value.characterId) {
+function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["participants"]["challenger"] | null {
+  if (!isRecord(value)) {
     return null;
   }
 
-  return { characterId: value.characterId };
+  const characterId = stringOrNull(value.characterId);
+  const displayName = stringOrNull(value.displayName);
+  const title = stringOrNull(value.title);
+  const raceId = stringOrNull(value.raceId);
+  const raceName = stringOrNull(value.raceName);
+  const classId = stringOrNull(value.classId);
+  const className = stringOrNull(value.className);
+  const level = parsePositiveInt(value.level);
+  const remortCount = parseNonNegativeInt(value.remortCount);
+  const stats = parseStats(value.stats);
+  const combatStats = parseCombatStats(value.combatStats);
+  const hp = parseNonNegativeInt(value.hp);
+  const hpMax = parsePositiveInt(value.hpMax);
+  const mana = parseNonNegativeInt(value.mana);
+  const manaMax = parseNonNegativeInt(value.manaMax);
+  const balanceAudit = parseBalanceAudit(value.balanceAudit);
+
+  if (
+    !characterId ||
+    !displayName ||
+    !title ||
+    !raceId ||
+    !raceName ||
+    !classId ||
+    !className ||
+    level === null ||
+    remortCount === null ||
+    !stats ||
+    !combatStats ||
+    hp === null ||
+    hpMax === null ||
+    mana === null ||
+    manaMax === null ||
+    !balanceAudit
+  ) {
+    return null;
+  }
+
+  return {
+    characterId,
+    displayName,
+    title,
+    raceId,
+    raceName,
+    classId,
+    className,
+    level,
+    remortCount,
+    stats,
+    hp,
+    hpMax,
+    mana,
+    manaMax,
+    combatStats,
+    cooldowns: parseCooldowns(value.cooldowns),
+    balanceAudit,
+    ...(isRecord(value.equipmentEffects) ? { equipmentEffects: parseEquipmentEffects(value.equipmentEffects) } : {})
+  };
+}
+
+function parseCombatStats(value: unknown): TurnBasedDuelState["participants"]["challenger"]["combatStats"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const stats = parseStats(value);
+  const level = parsePositiveInt(value.level);
+  const hpMax = parsePositiveInt(value.hpMax);
+  const manaMax = parseNonNegativeInt(value.manaMax);
+  const classId = stringOrNull(value.classId);
+
+  if (!stats || level === null || hpMax === null || manaMax === null || !classId) {
+    return null;
+  }
+
+  return {
+    ...stats,
+    level,
+    hpMax,
+    manaMax,
+    classId,
+    armor: intOrZero(value.armor),
+    resist: intOrZero(value.resist),
+    weaponDamage: intOrZero(value.weaponDamage),
+    spellPower: intOrZero(value.spellPower)
+  };
+}
+
+function parseEquipmentEffects(value: Record<string, unknown>) {
+  return {
+    hpMax: intOrZero(value.hpMax),
+    manaMax: intOrZero(value.manaMax),
+    armor: intOrZero(value.armor),
+    resist: intOrZero(value.resist),
+    weaponDamage: intOrZero(value.weaponDamage),
+    spellPower: intOrZero(value.spellPower),
+    stats: parseStats(value.stats) ?? createEmptyStats(),
+    contributions: []
+  };
+}
+
+function parseCooldowns(value: unknown): TurnBasedDuelState["participants"]["challenger"]["cooldowns"] | undefined {
+  if (!isRecord(value) || !isRecord(value.skill)) {
+    return undefined;
+  }
+  const id = stringOrNull(value.skill.id);
+  const remainingTurns = parseNonNegativeInt(value.skill.remainingTurns);
+
+  return id && remainingTurns !== null ? { skill: { id, remainingTurns } } : undefined;
+}
+
+function parsePendingActions(
+  value: unknown,
+  challengerCharacterId: string,
+  targetCharacterId: string
+): TurnBasedDuelState["pendingActions"] | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const challenger = parseQueuedAction(value.challenger, challengerCharacterId);
+  const target = parseQueuedAction(value.target, targetCharacterId);
+
+  return challenger || target
+    ? {
+        ...(challenger ? { challenger } : {}),
+        ...(target ? { target } : {})
+      }
+    : undefined;
+}
+
+function parseQueuedAction(
+  value: unknown,
+  expectedCharacterId: string
+): NonNullable<TurnBasedDuelState["pendingActions"]>["challenger"] | null {
+  if (!isRecord(value) || value.actorCharacterId !== expectedCharacterId) {
+    return null;
+  }
+  if (value.action !== "attack" && value.action !== "skill") {
+    return null;
+  }
+
+  return { actorCharacterId: expectedCharacterId, action: value.action };
+}
+
+function parseRoundSummary(value: unknown): TurnBasedDuelState["lastRound"] | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const turn = parsePositiveInt(value.turn);
+  const actions = Array.isArray(value.actions)
+    ? value.actions.map(parseActionSummary).filter((action): action is NonNullable<ReturnType<typeof parseActionSummary>> => action !== null)
+    : null;
+
+  return turn !== null && actions ? { turn, actions } : undefined;
+}
+
+function parseActionSummary(value: unknown): TurnBasedDuelState["lastAction"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const actorCharacterId = stringOrNull(value.actorCharacterId);
+  const defenderCharacterId = stringOrNull(value.defenderCharacterId);
+  const damage = parseNonNegativeInt(value.damage);
+  const manaSpent = parseNonNegativeInt(value.manaSpent);
+
+  if (!actorCharacterId || !defenderCharacterId || damage === null || manaSpent === null) {
+    return null;
+  }
+
+  return {
+    actorCharacterId,
+    defenderCharacterId,
+    action: isTurnBasedSummaryAction(value.action) ? value.action : "attack",
+    outcome: isTurnBasedSummaryOutcome(value.outcome) ? value.outcome : "miss",
+    damage,
+    manaSpent,
+    critical: value.critical === true,
+    ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {})
+  };
+}
+
+function parseTurnBasedOutcome(value: unknown): TurnBasedDuelState["outcome"] | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const outcome = value.outcome;
+  const reason = value.reason;
+
+  if (
+    (outcome !== "challenger" && outcome !== "target" && outcome !== "draw") ||
+    !isTerminalReason(reason)
+  ) {
+    return undefined;
+  }
+
+  return {
+    outcome,
+    winnerCharacterId: stringOrNull(value.winnerCharacterId),
+    loserCharacterId: stringOrNull(value.loserCharacterId),
+    reason
+  };
+}
+
+function isTurnBasedSummaryAction(value: unknown): value is NonNullable<TurnBasedDuelState["lastAction"]>["action"] {
+  return value === "attack" || value === "skill" || value === "surrender" || value === "timeout-attack";
+}
+
+function isTurnBasedSummaryOutcome(value: unknown): value is NonNullable<TurnBasedDuelState["lastAction"]>["outcome"] {
+  return (
+    value === "hit" ||
+    value === "critical-hit" ||
+    value === "miss" ||
+    value === "not-enough-mana" ||
+    value === "skill-on-cooldown" ||
+    value === "won" ||
+    value === "surrendered" ||
+    value === "draw"
+  );
 }
 
 function isTerminalReason(value: unknown): value is NonNullable<DuelResultPayload["terminalReason"]> {
@@ -1015,6 +1380,9 @@ function parseBalanceAudit(value: unknown): DuelResultBalanceAudit | null {
     balanceVersion: value.balanceVersion,
     originalLevel: intOrZero(value.originalLevel),
     originalRemortCount: intOrZero(value.originalRemortCount),
+    effectiveCombatLevel: typeof value.effectiveCombatLevel === "number"
+      ? Math.max(1, intOrZero(value.effectiveCombatLevel))
+      : targetProgressionBudget.level,
     progressionBudget,
     targetProgressionBudget,
     temporaryHpMax: intOrZero(value.temporaryHpMax),
@@ -1093,6 +1461,14 @@ function stringOrNull(value: unknown): string | null {
 
 function intOrZero(value: unknown): number {
   return typeof value === "number" && Number.isInteger(value) ? value : 0;
+}
+
+function parsePositiveInt(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 ? value : null;
+}
+
+function parseNonNegativeInt(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

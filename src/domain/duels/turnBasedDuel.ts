@@ -1,4 +1,5 @@
 import {
+  getActorCombatActionAvailability,
   getCombatSkillProfile,
   resolveActorCombatAction,
   type CombatActorStats,
@@ -241,6 +242,10 @@ function resolveQueuedRound(
   options: { timeoutCharacterIds?: string[] } = {}
 ): Extract<ResolveTurnBasedDuelActionResult, { ok: true; resolution: "resolved" }> {
   const pending = state.pendingActions;
+  const mitigation = {
+    challenger: getQueuedIncomingDamageReduction(state, "challenger"),
+    target: getQueuedIncomingDamageReduction(state, "target")
+  };
   delete state.pendingActions;
 
   const firstSide = findParticipantSide(state, state.actingCharacterId) ?? "challenger";
@@ -258,7 +263,8 @@ function resolveQueuedRound(
     }
 
     actions.push(resolveQueuedCombatAction(state, side, queued.action, rng, {
-      timeout: options.timeoutCharacterIds?.includes(queued.actorCharacterId) ?? false
+      timeout: options.timeoutCharacterIds?.includes(queued.actorCharacterId) ?? false,
+      incomingDamageReduction: mitigation[defenderSideOf(side)]
     }));
   }
 
@@ -306,7 +312,7 @@ function resolveQueuedCombatAction(
   actorSide: "challenger" | "target",
   action: Exclude<TurnBasedDuelAction, "surrender">,
   rng: RandomSource,
-  options: { timeout: boolean }
+  options: { timeout: boolean; incomingDamageReduction: number }
 ): TurnBasedDuelActionSummary {
   const defenderSide = actorSide === "challenger" ? "target" : "challenger";
   const actor = state.participants[actorSide];
@@ -335,7 +341,8 @@ function resolveQueuedCombatAction(
   actor.hp = resolved.actorState.hp;
   actor.mana = resolved.actorState.mana;
   actor.cooldowns = resolved.actorState.cooldowns;
-  defender.hp = resolved.defenderState.hp;
+  const mitigatedDamage = Math.max(0, resolved.summary.actorDamage - options.incomingDamageReduction);
+  defender.hp = Math.min(defender.hpMax, resolved.defenderState.hp + (resolved.summary.actorDamage - mitigatedDamage));
   defender.mana = resolved.defenderState.mana;
   defender.cooldowns = resolved.defenderState.cooldowns;
 
@@ -343,8 +350,14 @@ function resolveQueuedCombatAction(
     actorCharacterId: actor.characterId,
     defenderCharacterId: defender.characterId,
     action: options.timeout ? "timeout-attack" as const : action,
-    outcome: resolved.summary.actorOutcome,
-    damage: resolved.summary.actorDamage,
+    outcome: resolved.summary.actorOutcome === "won" && defender.hp > 0
+      ? resolved.summary.critical
+        ? "critical-hit" as const
+        : mitigatedDamage > 0
+          ? "hit" as const
+          : "miss" as const
+      : resolved.summary.actorOutcome,
+    damage: mitigatedDamage,
     manaSpent: resolved.summary.manaSpent,
     critical: resolved.summary.critical,
     ...(resolved.summary.skillId ? { skillId: resolved.summary.skillId } : {})
@@ -356,6 +369,33 @@ function resolveQueuedCombatAction(
   }
 
   return summary;
+}
+
+function getQueuedIncomingDamageReduction(
+  state: TurnBasedDuelState,
+  side: "challenger" | "target"
+): number {
+  const queued = state.pendingActions?.[side];
+
+  if (queued?.action !== "skill") {
+    return 0;
+  }
+
+  const participant = state.participants[side];
+  const skill = getCombatSkillProfile(participant.classId);
+  const availability = getActorCombatActionAvailability(
+    {
+      mana: participant.mana,
+      cooldowns: participant.cooldowns
+    },
+    participant.combatStats
+  ).skill;
+
+  return availability.available ? skill.monsterDamageReduction : 0;
+}
+
+function defenderSideOf(side: "challenger" | "target"): "challenger" | "target" {
+  return side === "challenger" ? "target" : "challenger";
 }
 
 export function expireTurnBasedDuel(state: TurnBasedDuelState): TurnBasedDuelState {
@@ -442,7 +482,7 @@ function buildParticipantSnapshot(
     mana: character.manaCurrent,
     manaMax: character.manaMax,
     combatStats: {
-      level: character.level,
+      level: character.balanceAudit.effectiveCombatLevel,
       hpMax: character.hpMax,
       manaMax: character.manaMax,
       classId: character.classId,
@@ -460,9 +500,9 @@ function buildDefenderStats(participant: TurnBasedDuelParticipantSnapshot) {
   return {
     monsterId: participant.characterId,
     name: participant.displayName,
-    level: participant.level,
+    level: participant.combatStats.level,
     hpMax: participant.hpMax,
-    attack: Math.max(1, Math.floor(participant.combatStats.strength / 2) + participant.level),
+    attack: Math.max(1, Math.floor(participant.combatStats.strength / 2) + participant.combatStats.level),
     armor: participant.combatStats.armor ?? 0,
     resist: participant.combatStats.resist ?? 0,
     dexterity: participant.combatStats.dexterity,

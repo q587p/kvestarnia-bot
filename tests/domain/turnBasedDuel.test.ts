@@ -79,6 +79,20 @@ describe("turn-based duel domain", () => {
     ]);
   });
 
+  it("keeps visible levels real while using normalized effective combat levels", () => {
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({ id: "newer", level: 3, remortCount: 0 }),
+      target: makeDuelist({ id: "veteran", level: 13, remortCount: 2 }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+
+    expect(state.participants.challenger.level).toBe(3);
+    expect(state.participants.target.level).toBe(13);
+    expect(state.participants.challenger.combatStats.level).toBe(13);
+    expect(state.participants.target.combatStats.level).toBe(13);
+    expect(state.participants.challenger.balanceAudit.effectiveCombatLevel).toBe(13);
+  });
+
   it("resolves surrender without rolling combat", () => {
     const state = startTurnBasedDuel({
       challenger: makeDuelist({ id: "challenger" }),
@@ -244,6 +258,76 @@ describe("turn-based duel domain", () => {
       id: "skill.trick-shot",
       remainingTurns: 2
     });
+  });
+
+  it("applies defensive class skill mitigation to opponent damage in the same hidden round", () => {
+    const base = startTurnBasedDuel({
+      challenger: makeDuelist({
+        id: "bureaucramancer",
+        classId: "class.bureaucramancer",
+        intelligence: 12,
+        manaCurrent: 20,
+        manaMax: 20,
+        hpCurrent: 100,
+        hpMax: 100
+      }),
+      target: makeDuelist({
+        id: "warrior",
+        classId: "class.warrior",
+        strength: 12,
+        hpCurrent: 100,
+        hpMax: 100
+      }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    base.actingCharacterId = "warrior";
+
+    const withoutDefenseQueued = resolveTurnBasedDuelAction({
+      state: base,
+      actorCharacterId: "warrior",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!withoutDefenseQueued.ok) {
+      throw new Error("Expected queued attack.");
+    }
+    const withoutDefense = resolveTurnBasedDuelAction({
+      state: withoutDefenseQueued.state,
+      actorCharacterId: "bureaucramancer",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    });
+    if (!withoutDefense.ok || withoutDefense.resolution !== "resolved") {
+      throw new Error("Expected baseline round.");
+    }
+    const baselineWarriorDamage = withoutDefense.round.actions.find(
+      (action) => action.actorCharacterId === "warrior"
+    )?.damage ?? 0;
+
+    const defendedQueued = resolveTurnBasedDuelAction({
+      state: base,
+      actorCharacterId: "warrior",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!defendedQueued.ok) {
+      throw new Error("Expected queued defended attack.");
+    }
+    const defended = resolveTurnBasedDuelAction({
+      state: defendedQueued.state,
+      actorCharacterId: "bureaucramancer",
+      action: "skill",
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    });
+    if (!defended.ok || defended.resolution !== "resolved") {
+      throw new Error("Expected defended round.");
+    }
+    const mitigatedWarriorDamage = defended.round.actions.find(
+      (action) => action.actorCharacterId === "warrior"
+    )?.damage ?? 0;
+
+    expect(baselineWarriorDamage).toBeGreaterThan(0);
+    expect(mitigatedWarriorDamage).toBe(Math.max(0, baselineWarriorDamage - 1));
   });
 
   it("rolls small replay-storable XP for terminal wins and losses", () => {
