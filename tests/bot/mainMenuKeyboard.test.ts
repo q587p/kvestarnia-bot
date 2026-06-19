@@ -417,29 +417,22 @@ describe("main menu and scene keyboards", () => {
       "🧥 Плащ став у чергу замість власника",
       "📋 До справ"
     ]);
-    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
-      "v1:adv:p:period93:key",
-      "v1:adv:p:period93:door",
-      "v1:adv:p:period93:cloak",
-      "v1:place:quest-table"
-    ]);
+    const callbacks = flatInlineButtonCallbacks(keyboard);
+    expect(callbacks.slice(0, 3).every((callback) => /^v2:adv:p:period93:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks[3]).toBe("v1:place:quest-table");
   });
 
   it("keeps character-aware adventure labels on the same callback actions", () => {
     expect(flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
       "🔎 Перевірити, чому лаваш дихає не в ритм",
-      "🧬 Звірити справу",
+      "🧬 Звірити шаурму",
       "🎭 Витягти доказ",
-      "🏷️ «Пересічні Пригодники»",
+      "🏷️ Викрити: «Пересічні Пригодники»",
       "📋 До справ"
     ]);
-    expect(flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
-      "v2:adv:m:inspect-folds",
-      "v2:adv:m:rh",
-      "v2:adv:m:cr",
-      "v2:adv:m:shr",
-      "v1:place:quest-table"
-    ]);
+    const callbacks = flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
+    expect(callbacks.slice(0, 4).every((callback) => /^v2:adv:m:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks[4]).toBe("v1:place:quest-table");
   });
 
   it("uses short authored method labels on selected adventure buttons", () => {
@@ -474,9 +467,9 @@ describe("main menu and scene keyboards", () => {
     });
 
     expect(flatInlineButtonTexts(keyboard)).toEqual([
-      "🔎 Знайти дрібний шрифт сцени",
+      "🔎 Переміряти вперту клітинку",
       "🧬 Підняти сухий приплив",
-      "🎭 Переспівати справу",
+      "🎭 Переспівати форму",
       "🏷️ «Співачка Без Моря»",
       "⬅️ Інші справи"
     ]);
@@ -508,23 +501,19 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(buildCellarKeyboard(domovyk))).toEqual([
       "🧀 Поставити пастку по маршруту крихт",
+      "🪙 Дати миші 1 золоту «на сирний фонд»",
       "🧬 Оголосити територією",
       "🎭 Витягти доказ",
-      "🏷️ «Пересічні Пригодники»",
       "⬅️ До зали"
     ]);
-    expect(flatInlineButtonCallbacks(buildCellarKeyboard(domovyk))).toEqual([
-      "v2:cellar:cheese-trap",
-      "v2:cellar:rk",
-      "v2:cellar:cr",
-      "v2:cellar:skr",
-      "v1:place:hall"
-    ]);
+    const callbacks = flatInlineButtonCallbacks(buildCellarKeyboard(domovyk));
+    expect(callbacks.slice(0, 4).every((callback) => /^v2:cellar:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks[4]).toBe("v1:place:hall");
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual([
       "🧀 Поставити пастку по маршруту крихт",
+      "🪙 Дати миші 1 золоту «на сирний фонд»",
       "🧬 Оголосити територією",
       "🎭 Витягти доказ",
-      "🏷️ «Пересічні Пригодники»",
       "⬅️ До зали"
     ]);
   });

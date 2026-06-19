@@ -161,13 +161,9 @@ describe("adventure command", () => {
     expect(replies[0]?.text).toContain("Вона дихає");
     expect(replies[0]?.text).not.toContain("відкриється з 3 рівня");
     expect(replies[0]?.options).toMatchObject({ parse_mode: "HTML" });
-    expect(getReplyCallbacks(replies[0]?.options)).toEqual([
-      "v2:adv:m:inspect-folds",
-      "v2:adv:m:rh",
-      "v2:adv:m:cw",
-      "v2:adv:m:shw",
-      "v1:place:quest-table"
-    ]);
+    const callbacks = getReplyCallbacks(replies[0]?.options);
+    expect(callbacks.slice(0, 4).every((callback) => /^v2:adv:m:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks[4]).toBe("v1:place:quest-table");
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,

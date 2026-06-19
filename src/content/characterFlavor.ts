@@ -1429,7 +1429,7 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
     placement: "raid.prep-hint",
     scene: "barrel",
     selector: { classIds: ["class.kharakternyk"] },
-    text: "Характерникам у повному рейді: дивіться на боса так, щоб він сам згадав cooldown."
+    text: "Характерникам у повному рейді: дивіться на боса так, щоб він сам згадав перерву між діями."
   },
   {
     id: "barrel.raid-hint.race.drantohor",

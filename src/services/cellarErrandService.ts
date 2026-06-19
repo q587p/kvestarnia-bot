@@ -98,6 +98,7 @@ export interface CellarErrandReward {
 
 export interface CellarErrandMethodOption {
   id: string;
+  callbackKey?: string;
   label: string;
   buttonLabel?: string;
   hint: string;
@@ -284,14 +285,20 @@ export class CellarErrandService {
 
 export function buildCellarMethodOptions(character: CharacterSummary): CellarErrandMethodOption[] {
   const scene = buildStarterQuestResolutionScene("cellar-mouse", character);
+  const sceneMethods = scene.methods.filter((method) => method.source === "scene").slice(0, 2);
+  const shapedMethods = resolveQuestMethodsForCharacter(scene, character, { maxMethods: 4, minMethods: 3 })
+    .filter((method) => method.source !== "scene");
+  const selected = [...sceneMethods, ...shapedMethods]
+    .filter((method, index, methods) => methods.findIndex((candidate) => candidate.id === method.id) === index)
+    .slice(0, 4);
 
-  return resolveQuestMethodsForCharacter(scene, character, { maxMethods: 4, minMethods: 3 })
-    .map(toCellarMethodOption);
+  return selected.map(toCellarMethodOption);
 }
 
 function toCellarMethodOption(method: QuestMethodDefinition): CellarErrandMethodOption {
   return {
     id: method.id,
+    ...(method.callbackKey ? { callbackKey: method.callbackKey } : {}),
     label: method.label,
     ...(method.buttonLabel ? { buttonLabel: method.buttonLabel } : {}),
     hint: method.hint,

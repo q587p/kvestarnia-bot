@@ -228,6 +228,9 @@ describe("CellarErrandService", () => {
     expect(character).not.toBeNull();
     const methods = buildCellarMethodOptions(summarizeCharacter(character!));
 
+    expect(methods.map((method) => method.id)).toContain("bribe-cheese");
+    expect(methods.find((method) => method.id === "bribe-cheese")?.callbackKey).toBeDefined();
+
     for (const method of methods) {
       const cooldowns = new FakeCooldownRepository();
       cooldowns.addCharacter(telegramUserId, { xp: 10, gold: 3 });

@@ -15,7 +15,7 @@ export function resolveQuestMethodsForCharacter(
     const candidate = scene.methods.find((method) => method.source === source);
 
     if (candidate) {
-      pushIfDistinct(selected, candidate);
+      pushIfDistinct(selected, candidate, source === "class" || source === "signature");
     }
   }
 
@@ -56,7 +56,7 @@ export function findQuestMethod(
   scene: QuestResolutionScene,
   methodId: string
 ): QuestMethodDefinition | null {
-  return scene.methods.find((method) => method.id === methodId) ?? null;
+  return scene.methods.find((method) => method.id === methodId || method.callbackKey === methodId) ?? null;
 }
 
 export function findQuestMethodByLegacyAction(
@@ -66,7 +66,11 @@ export function findQuestMethodByLegacyAction(
   return scene.methods.find((method) => method.legacyAction === legacyAction) ?? null;
 }
 
-function pushIfDistinct(selected: QuestMethodDefinition[], candidate: QuestMethodDefinition): void {
+function pushIfDistinct(
+  selected: QuestMethodDefinition[],
+  candidate: QuestMethodDefinition,
+  preferCandidate = false
+): void {
   const normalizedLabel = normalizeLabel(candidate.label);
   const duplicate = selected.some(
     (method) =>
@@ -77,7 +81,27 @@ function pushIfDistinct(selected: QuestMethodDefinition[], candidate: QuestMetho
   );
   const samePrimaryCount = selected.filter((method) => method.primaryStat === candidate.primaryStat).length;
 
-  if (!duplicate && (samePrimaryCount < 2 || candidate.source === "signature")) {
+  if (duplicate) {
+    return;
+  }
+
+  if (samePrimaryCount >= 2 && preferCandidate) {
+    const replaceIndex = selected.findIndex(
+      (method) =>
+        method.primaryStat === candidate.primaryStat &&
+        method.source !== "scene" &&
+        method.source !== "class" &&
+        method.source !== "signature"
+    );
+
+    if (replaceIndex >= 0) {
+      selected.splice(replaceIndex, 1);
+    }
+  }
+
+  const updatedSamePrimaryCount = selected.filter((method) => method.primaryStat === candidate.primaryStat).length;
+
+  if (updatedSamePrimaryCount < 2) {
     selected.push(candidate);
   }
 }

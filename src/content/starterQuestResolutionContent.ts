@@ -7,7 +7,8 @@ import {
   classTechniqueProfiles,
   getCompactClassKey,
   getCompactRaceKey,
-  raceTechniqueProfiles
+  raceTechniqueProfiles,
+  toQuestCallbackKey
 } from "./questResolution";
 
 export type StarterQuestSceneId = "shawarma" | "cellar-mouse";
@@ -49,8 +50,8 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
       method({
         id: `r${getCompactRaceKey(character.raceId)}`,
         source: "race",
-        label: `🧬 ${race.methodPrefix}`,
-        buttonLabel: `🧬 ${race.shortButtonLabel ?? race.methodPrefix}`,
+        label: `🧬 ${adaptProfileLabel(race.methodPrefix, "шаурму", "шаурми")}`,
+        buttonLabel: `🧬 ${adaptProfileLabel(race.shortButtonLabel ?? race.methodPrefix, "шаурму", "шаурми")}`,
         hint: "Особистий підхід героя.",
         primaryStat: race.primaryStat,
         secondaryStat: race.secondaryStat,
@@ -66,8 +67,8 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
       method({
         id: `c${getCompactClassKey(character.classId)}`,
         source: "class",
-        label: `🎭 ${heroClass.methodPrefix}`,
-        buttonLabel: `🎭 ${heroClass.shortButtonLabel ?? heroClass.methodPrefix}`,
+        label: `🎭 ${adaptProfileLabel(heroClass.methodPrefix, "шаурму", "шаурми")}`,
+        buttonLabel: `🎭 ${adaptProfileLabel(heroClass.shortButtonLabel ?? heroClass.methodPrefix, "шаурму", "шаурми")}`,
         hint: "Професійний підхід героя.",
         primaryStat: heroClass.primaryStat,
         secondaryStat: heroClass.secondaryStat,
@@ -84,8 +85,8 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
       method({
         id: `s${getCompactRaceKey(character.raceId)}${getCompactClassKey(character.classId)}`,
         source: "signature",
-        label: `🏷️ «${character.title}»: викрити шаурму біографією`,
-        buttonLabel: `🏷️ «${character.title}»`,
+        label: `🏷️ «${character.title}»: викрити шаурму легендою`,
+        buttonLabel: `🏷️ Викрити: «${character.title}»`,
         hint: "Непевніше, зате стильніше.",
         primaryStat: heroClass.primaryStat,
         secondaryStat: race.primaryStat,
@@ -95,7 +96,7 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
         itemIntent: "none",
         combatSkillId: heroClass.combatSkillId,
         strong: `Підпис «${character.title}» витягнув з начинки правду раніше, ніж вона згадала про зуби.`,
-        success: "Точна біографія стала доказом. Шаурма визнала, що це не випадкова вечеря.",
+        success: "Геройська легенда стала доказом. Шаурма визнала, що це не випадкова вечеря.",
         mixed: "Шаурма майже повірила, але соус лишив останню репліку собі.",
         complication: "Біографічний аргумент вийшов красивий, результат — трохи липкий."
       })
@@ -124,7 +125,7 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
         legacyAction: "cheese-trap",
         itemIntent: "cheese-trap",
         strong: "Миша підписала мир крихтою й лишила сир як доказ.",
-        success: "Сирна політика стала передбачуваною на цілий cooldown.",
+        success: "Сирна політика стала передбачуваною до наступної мишачої паузи.",
         mixed: "Миша взяла сир, але забула забрати процедурний сумнів.",
         complication: "Пастка клацнула по власній гідності. Миша аплодувала з-за шафи."
       }),
@@ -148,8 +149,8 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
       method({
         id: `r${getCompactRaceKey(character.raceId)}`,
         source: "race",
-        label: `🧬 ${race.methodPrefix}`,
-        buttonLabel: `🧬 ${race.shortButtonLabel ?? race.methodPrefix}`,
+        label: `🧬 ${adaptProfileLabel(race.methodPrefix, "мишу", "миші")}`,
+        buttonLabel: `🧬 ${adaptProfileLabel(race.shortButtonLabel ?? race.methodPrefix, "мишу", "миші")}`,
         hint: "Особистий підхід героя.",
         primaryStat: race.primaryStat,
         secondaryStat: race.secondaryStat,
@@ -165,8 +166,8 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
       method({
         id: `c${getCompactClassKey(character.classId)}`,
         source: "class",
-        label: `🎭 ${heroClass.methodPrefix}`,
-        buttonLabel: `🎭 ${heroClass.shortButtonLabel ?? heroClass.methodPrefix}`,
+        label: `🎭 ${adaptProfileLabel(heroClass.methodPrefix, "мишу", "миші")}`,
+        buttonLabel: `🎭 ${adaptProfileLabel(heroClass.shortButtonLabel ?? heroClass.methodPrefix, "мишу", "миші")}`,
         hint: "Професійний підхід героя.",
         primaryStat: heroClass.primaryStat,
         secondaryStat: heroClass.secondaryStat,
@@ -184,7 +185,7 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
         id: `s${getCompactRaceKey(character.raceId)}${getCompactClassKey(character.classId)}`,
         source: "signature",
         label: `🏷️ «${character.title}»: вирішити сирну політику`,
-        buttonLabel: `🏷️ «${character.title}»`,
+        buttonLabel: `🏷️ Сирна політика: «${character.title}»`,
         hint: "Непевніше, зате стильніше.",
         primaryStat: heroClass.primaryStat,
         secondaryStat: race.primaryStat,
@@ -194,7 +195,7 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
         itemIntent: "negotiate",
         combatSkillId: heroClass.combatSkillId,
         strong: `Підпис «${character.title}» перетворив льох на малу мирну конференцію.`,
-        success: "Точна біографія стала аргументом. Миша погодилась не гризти квестові дошки.",
+        success: "Геройська легенда стала аргументом. Миша погодилась не гризти квестові дошки.",
         mixed: "Угода чинна, але кожна крихта має окрему думку.",
         complication: "Титул вразив мишу. Миша вразила титул зустрічним пунктом."
       })
@@ -223,6 +224,7 @@ function method(input: {
 }): QuestMethodDefinition {
   return {
     id: input.id,
+    callbackKey: toQuestCallbackKey(input.id),
     source: input.source,
     label: input.label,
     ...(input.buttonLabel ? { buttonLabel: input.buttonLabel } : {}),
@@ -250,6 +252,16 @@ function method(input: {
       complication: text("⚠️ Метод лишив кумедний безлад", input.complication)
     }
   };
+}
+
+function adaptProfileLabel(prefix: string, object: string, objectGenitive: string): string {
+  return prefix
+    .replace(/справу/gu, object)
+    .replace(/справи/gu, objectGenitive)
+    .replace(/проблему/gu, object)
+    .replace(/проблеми/gu, objectGenitive)
+    .replace(/аргумент/gu, object)
+    .replace(/автора/gu, objectGenitive);
 }
 
 function text(

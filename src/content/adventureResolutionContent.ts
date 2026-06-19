@@ -13,11 +13,13 @@ import {
   classTechniqueProfiles,
   getCompactClassKey,
   getCompactRaceKey,
-  raceTechniqueProfiles
+  raceTechniqueProfiles,
+  toQuestCallbackKey
 } from "./questResolution";
 
 interface AdventureSceneSeed {
   object: string;
+  objectGenitive: string;
   methods: readonly AdventureMethodSeed[];
   mixed: string;
   complication: string;
@@ -193,8 +195,8 @@ export function buildAdventureResolutionScene(input: {
   const seed = GENERAL_SCENE_SEEDS[input.problemId] ?? buildGeneratedSceneSeed(input.problemId);
   const methods = [
     ...seed.methods.map((methodSeed) => materializeSceneMethod(input.title, seed, methodSeed)),
-    buildRaceMethod(input.character, input.title),
-    buildClassMethod(input.character, input.title),
+    buildRaceMethod(input.character, input.title, seed),
+    buildClassMethod(input.character, input.title, seed),
     buildSignatureMethod(input.character, input.title, seed.object)
   ];
 
@@ -202,6 +204,7 @@ export function buildAdventureResolutionScene(input: {
     sceneId: input.problemId,
     sceneTitle: input.title,
     sceneObject: seed.object,
+    sceneObjectGenitive: seed.objectGenitive,
     methods
   };
 }
@@ -212,48 +215,96 @@ export function getGeneralAdventureResolutionProblemIds(): readonly string[] {
 
 function buildGeneratedSceneSeed(problemId: string): AdventureSceneSeed {
   if (problemId.startsWith("race-") && problemId.endsWith("-survey")) {
-    return generated("анкету", "Анкета повернулась у графу, але просить громадянство.", "Папір подав апеляцію чорнилом.");
+    return generated("survey");
   }
 
   if (problemId.startsWith("race-") && problemId.endsWith("-mug")) {
-    return generated("кухоль", "Кухоль визнав інструктаж, але просить підставку.", "Посуд скликав церемонію без дозволу.");
+    return generated("mug");
   }
 
   if (problemId.startsWith("race-") && problemId.endsWith("-portrait")) {
-    return generated("портрет", "Рама витримала героїчність, але просить перерву.", "Фарба почала сперечатись окремо.");
+    return generated("portrait");
   }
 
   if (problemId.startsWith("class-") && problemId.endsWith("-manual")) {
-    return generated("підручник", "Підручник склав себе на трійку з плюсом.", "Практика втекла з прикладів.");
+    return generated("manual");
   }
 
   if (problemId.startsWith("class-") && problemId.endsWith("-uniform")) {
-    return generated("форму", "Клітинка розширилась, але називає це реформою.", "Бланк вимагає додаткового додатку.");
+    return generated("uniform");
   }
 
   if (problemId.startsWith("class-") && problemId.endsWith("-exam")) {
-    return generated("іспит", "Іспит визнав героя питанням підвищеної складности.", "Викладач попросив перездачу реальности.");
+    return generated("exam");
   }
 
-  return generated("титул", "Черга прийняла титул, але просить печатку слави.", "Журнал почав питати, чи репутація має ноги.");
+  return generated("title");
 }
 
-function generated(object: string, mixed: string, complication: string): AdventureSceneSeed {
-  return scene(object, mixed, complication, [
-    method("inspect-scene", "🔎 Знайти дрібний шрифт сцени", "Надійне розслідування.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
-    method("negotiate-scene", "🤝 Домовитися з головним предметом", "Звичайний ризик, звичайна винагорода.", "negotiate", ["persuasion"], "charisma", "intelligence", 64, "standard"),
-    method("deceive-scene", "🗝️ Підмінити рамку проблеми", "Непевний трюк, щедріше.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous"),
-    method("ritual-scene", "🕯️ Провести короткий ритуал порядку", "Містично, але без мани.", "ritual", ["ritual"], "charisma", "intelligence", 62, "standard")
-  ]);
+type GeneratedSceneKind = "survey" | "mug" | "portrait" | "manual" | "uniform" | "exam" | "title";
+
+function generated(kind: GeneratedSceneKind): AdventureSceneSeed {
+  const generatedSeeds = {
+    survey: scene("анкету", "анкети", "Анкета повернулась у графу, але просить громадянство.", "Папір подав апеляцію чорнилом.", [
+      method("survey-small-print", "🔎 Вичитати дрібний шрифт анкети", "Ретельна перевірка паперу.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
+      method("survey-ink-talk", "🤝 Домовитися з чорнилом про графу", "Переговори з канцелярією.", "negotiate", ["persuasion"], "charisma", "intelligence", 64, "standard"),
+      method("survey-line-shift", "🗝️ Посунути межу графи", "Точний трюк із лінійкою.", "deceive", ["deception", "craft"], "dexterity", "intelligence", 58, "generous"),
+      method("survey-stamp-ritual", "📋 Поставити печатку на здоровий глузд", "Паперова церемонія.", "ritual", ["authority", "ritual"], "charisma", "intelligence", 62, "standard")
+    ]),
+    mug: scene("кухоль", "кухля", "Кухоль визнав інструктаж, але просить підставку.", "Посуд скликав церемонію без дозволу.", [
+      method("mug-handle-audit", "🔎 Перевірити ручку на зайву гордість", "Ретельна посудна перевірка.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
+      method("mug-toast-talk", "🤝 Підняти тост за прості правила", "Дипломатія з піною.", "negotiate", ["persuasion", "performance"], "charisma", "intelligence", 64, "standard"),
+      method("mug-foam-switch", "🗝️ Підмінити урочисту піну", "Непевний барний трюк.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous"),
+      method("mug-coaster-order", "🪵 Видати підставку за регламентом", "Ремесло й порядок.", "craft", ["craft", "authority"], "dexterity", "intelligence", 62, "standard")
+    ]),
+    portrait: scene("портрет", "портрета", "Рама витримала героїчність, але просить перерву.", "Фарба почала сперечатись окремо.", [
+      method("portrait-paint-audit", "🔎 Знайти живу фарбу в портреті", "Мистецьке розслідування.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
+      method("portrait-pose-back", "🎭 Переграти портрет позою", "Сцена проти рами.", "negotiate", ["performance"], "charisma", "luck", 64, "standard"),
+      method("portrait-frame-shift", "🗝️ Змінити кут рамки", "Точний обман для ока.", "deceive", ["deception", "craft"], "dexterity", "intelligence", 58, "generous"),
+      method("portrait-restoration", "📋 Оголосити реставрацію", "Авторитетна тканина.", "ritual", ["authority"], "charisma", "intelligence", 62, "standard")
+    ]),
+    manual: scene("підручник", "підручника", "Підручник склав себе на трійку з плюсом.", "Практика втекла з прикладів.", [
+      method("manual-footnote", "🔎 Знайти примітку, яка втекла в практику", "Розумна перевірка сторінок.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
+      method("manual-lecture", "🤝 Пояснити підручнику межі уроку", "Переговори з теорією.", "negotiate", ["persuasion", "authority"], "charisma", "intelligence", 64, "standard"),
+      method("manual-example-swap", "🗝️ Підмінити надто живий приклад", "Ризиковий трюк із полями.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous"),
+      method("manual-bookmark", "🪡 Пришити закладку до розділу", "Точна реміснича правка.", "craft", ["craft"], "dexterity", "intelligence", 62, "standard")
+    ]),
+    uniform: scene("форму", "форми", "Клітинка розширилась, але називає це реформою.", "Бланк вимагає додаткового додатку.", [
+      method("uniform-grid-audit", "🔎 Переміряти вперту клітинку", "Точна перевірка бланка.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
+      method("uniform-office-talk", "🤝 Домовитися з канцелярським краєм", "Дипломатія полів.", "negotiate", ["persuasion"], "charisma", "intelligence", 64, "standard"),
+      method("uniform-margin-trick", "🗝️ Підсунути запасне поле", "Непевний трюк із форматом.", "deceive", ["deception", "craft"], "dexterity", "charisma", 58, "generous"),
+      method("uniform-stamp-order", "📋 Узаконити розширення клітинки", "Печатка й порядок.", "ritual", ["authority"], "charisma", "intelligence", 62, "standard")
+    ]),
+    exam: scene("іспит", "іспиту", "Іспит визнав героя питанням підвищеної складности.", "Викладач попросив перездачу реальности.", [
+      method("exam-read-rubric", "🔎 Вичитати критерії іспиту", "Ретельний розбір умов.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
+      method("exam-appeal", "🤝 Подати апеляцію до здорового глузду", "Переговори з оцінюванням.", "negotiate", ["persuasion", "authority"], "charisma", "intelligence", 64, "standard"),
+      method("exam-question-swap", "🗝️ Поміняти місцями питання й відповідь", "Непевний фокус із білетом.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous"),
+      method("exam-ritual-silence", "🕯️ Провести ритуал тиші в аудиторії", "Містично, але без мани.", "ritual", ["ritual"], "charisma", "intelligence", 62, "standard")
+    ]),
+    title: scene("титул", "титулу", "Черга прийняла титул, але просить печатку слави.", "Журнал почав питати, чи репутація має ноги.", [
+      method("title-ledger-read", "🔎 Знайти титул у журналі слави", "Ретельний пошук репутації.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
+      method("title-queue-talk", "🤝 Домовитися з чергою пошани", "Переговори без фанфар.", "negotiate", ["persuasion"], "charisma", "intelligence", 64, "standard"),
+      method("title-ribbon-trick", "🗝️ Переплутати стрічки урочистости", "Непевний трюк зі славою.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous"),
+      method("title-stamp-ceremony", "📋 Провести малу церемонію печатки", "Офіційно й трохи смішно.", "ritual", ["authority", "performance"], "charisma", "intelligence", 62, "standard")
+    ])
+  } satisfies Record<GeneratedSceneKind, AdventureSceneSeed>;
+
+  return generatedSeeds[kind];
 }
 
 function scene(
   object: string,
-  mixed: string,
-  complication: string,
-  methods: readonly AdventureMethodSeed[]
+  objectGenitiveOrMixed: string,
+  mixedOrComplication: string,
+  complicationOrMethods: string | readonly AdventureMethodSeed[],
+  maybeMethods?: readonly AdventureMethodSeed[]
 ): AdventureSceneSeed {
-  return { object, mixed, complication, methods };
+  const objectGenitive = maybeMethods ? objectGenitiveOrMixed : object;
+  const mixed = maybeMethods ? mixedOrComplication : objectGenitiveOrMixed;
+  const complication = maybeMethods ? complicationOrMethods as string : mixedOrComplication;
+  const methods = maybeMethods ?? complicationOrMethods as readonly AdventureMethodSeed[];
+
+  return { object, objectGenitive, mixed, complication, methods };
 }
 
 function method(
@@ -295,6 +346,7 @@ function materializeSceneMethod(
 
   return {
     id: seed.id,
+    callbackKey: toQuestCallbackKey(seed.id),
     source: "scene",
     label: seed.label,
     hint: seed.hint,
@@ -310,23 +362,23 @@ function materializeSceneMethod(
     outcomeText: buildOutcomeText({
       sceneTitle,
       label: seed.label,
-      strong: "Суперечка нарешті стихає. Корчмар навіть не встигає знайти зайву форму.",
-      success: "Рішення лягає точно в цю сцену. Корчма занотовує спосіб і ховає чорнило.",
+      strong: `${stripIcon(seed.label)} закриває сцену чисто. Корчмар навіть не встигає знайти зайву форму.`,
+      success: `${stripIcon(seed.label)} спрацьовує. Корчма занотовує спосіб і ховає чорнило.`,
       mixed: sceneSeed.mixed,
       complication: sceneSeed.complication
     })
   };
 }
 
-function buildRaceMethod(character: CharacterSummary, sceneTitle: string): QuestMethodDefinition {
+function buildRaceMethod(character: CharacterSummary, sceneTitle: string, sceneSeed: AdventureSceneSeed): QuestMethodDefinition {
   const profile = getRaceProfile(character.raceId);
   const id = `r${getCompactRaceKey(character.raceId)}`;
 
   return buildProfileMethod({
     id,
     source: "race",
-    label: `🧬 ${profile.methodPrefix}`,
-    buttonLabel: `🧬 ${profile.shortButtonLabel ?? profile.methodPrefix}`,
+    label: `🧬 ${adaptProfileLabel(profile.methodPrefix, sceneSeed.object, sceneSeed.objectGenitive)}`,
+    buttonLabel: `🧬 ${adaptProfileLabel(profile.shortButtonLabel ?? profile.methodPrefix, sceneSeed.object, sceneSeed.objectGenitive)}`,
     hint: "Особистий підхід героя. Винагорода звичайна.",
     sceneTitle,
     profile,
@@ -334,15 +386,15 @@ function buildRaceMethod(character: CharacterSummary, sceneTitle: string): Quest
   });
 }
 
-function buildClassMethod(character: CharacterSummary, sceneTitle: string): QuestMethodDefinition {
+function buildClassMethod(character: CharacterSummary, sceneTitle: string, sceneSeed: AdventureSceneSeed): QuestMethodDefinition {
   const profile = getClassProfile(character.classId);
   const id = `c${getCompactClassKey(character.classId)}`;
 
   return buildProfileMethod({
     id,
     source: "class",
-    label: `🎭 ${profile.methodPrefix}`,
-    buttonLabel: `🎭 ${profile.shortButtonLabel ?? profile.methodPrefix}`,
+    label: `🎭 ${adaptProfileLabel(profile.methodPrefix, sceneSeed.object, sceneSeed.objectGenitive)}`,
+    buttonLabel: `🎭 ${adaptProfileLabel(profile.shortButtonLabel ?? profile.methodPrefix, sceneSeed.object, sceneSeed.objectGenitive)}`,
     hint: "Професійний підхід героя. Винагорода звичайна.",
     sceneTitle,
     profile,
@@ -359,8 +411,9 @@ function buildSignatureMethod(character: CharacterSummary, sceneTitle: string, o
 
   return {
     id,
+    callbackKey: toQuestCallbackKey(id),
     source: "signature",
-    label: `🏷️ ${title}: змусити ${object} визнати точну біографію`,
+    label: `🏷️ ${title}: вписати ${object} у власну легенду`,
     buttonLabel: `🏷️ ${title}`,
     hint: "Непевніше, зате стильніше.",
     intent: chooseIntent(techniques),
@@ -374,10 +427,10 @@ function buildSignatureMethod(character: CharacterSummary, sceneTitle: string, o
     outcomeText: buildOutcomeText({
       sceneTitle,
       label: title,
-      strong: `Підпис ${title} перетворює проблему на автобіографічний доказ. Корчма коротко вірить у долю.`,
-      success: "Точна біографія стала доказом. Корчма визнала, що така комбінація не трапляється випадково.",
-      mixed: "Справа погодилась, але попросила не пояснювати біографію вдруге.",
-      complication: "Титул заплутав протокол і лишив на сцені трохи кумедного безладу."
+      strong: `${title} перетворює сцену на малий доказ власної легенди. Корчма коротко вірить у долю.`,
+      success: "Легенда героя стала аргументом. Корчма визнала, що такий збіг надто стильний для випадку.",
+      mixed: "Сцена погодилась, але попросила не повторювати легенду вдруге.",
+      complication: "Титул заплутав протокол і лишив трохи кумедного безладу."
     })
   };
 }
@@ -394,6 +447,7 @@ function buildProfileMethod(input: {
 }): QuestMethodDefinition {
   return {
     id: input.id,
+    callbackKey: toQuestCallbackKey(input.id),
     source: input.source,
     label: input.label,
     buttonLabel: input.buttonLabel,
@@ -409,12 +463,26 @@ function buildProfileMethod(input: {
     outcomeText: buildOutcomeText({
       sceneTitle: input.sceneTitle,
       label: input.profile.label,
-      strong: "Особистий підхід дає блискучий результат. Корчма визнає авторський стиль.",
-      success: "Підхід спрацьовує, і корчма занотовує це як «не повторювати без свідків».",
-      mixed: "Справа погодилась, але лишила невеликий слід власної гордости.",
-      complication: "Підхід розвʼязує не той край проблеми, зате всі бачать характер."
+      strong: `${input.label.replace(/^[^\p{L}\p{N}]+/u, "")} спрацьовує чисто. Корчма визнає авторський стиль.`,
+      success: "Метод спрацював без зайвої вистави. Корчма занотовує результат і ховає чорнило.",
+      mixed: "Сцена погодилась, але лишила невеликий слід власної гордости.",
+      complication: "Метод зачепив сусідній край проблеми, зате всі бачать характер."
     })
   };
+}
+
+function adaptProfileLabel(prefix: string, object: string, objectGenitive: string): string {
+  return prefix
+    .replace(/справу/gu, object)
+    .replace(/справи/gu, objectGenitive)
+    .replace(/проблему/gu, object)
+    .replace(/проблеми/gu, objectGenitive)
+    .replace(/аргумент/gu, object)
+    .replace(/автора/gu, objectGenitive);
+}
+
+function stripIcon(label: string): string {
+  return label.replace(/^[^\p{L}\p{N}]+/u, "").trim();
 }
 
 type QuestTechniqueProfileLike = typeof raceTechniqueProfiles[string];

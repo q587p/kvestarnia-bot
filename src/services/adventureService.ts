@@ -126,6 +126,7 @@ export interface AdventureOffer {
 
 export interface AdventureApproachOption {
   id: AdventureMethodId;
+  callbackKey?: string;
   label: string;
   buttonLabel?: string;
   hint: string;
@@ -1010,6 +1011,19 @@ export function buildStarterMethodOptions(
 ): AdventureApproachOption[] {
   const scene = buildStarterQuestResolutionScene(sceneId, character);
 
+  if (sceneId === "cellar-mouse") {
+    const sceneMethods = scene.methods.filter((method) => method.source === "scene").slice(0, 2);
+    const shapedMethods = resolveQuestMethodsForCharacter(scene, character, {
+      maxMethods,
+      minMethods: 3
+    }).filter((method) => method.source !== "scene");
+    const selected = [...sceneMethods, ...shapedMethods]
+      .filter((method, index, methods) => methods.findIndex((candidate) => candidate.id === method.id) === index)
+      .slice(0, maxMethods);
+
+    return selected.map((method) => toAdventureApproachOption(method, character));
+  }
+
   return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 3 }).map((method) =>
     toAdventureApproachOption(method, character)
   );
@@ -1043,6 +1057,7 @@ function toAdventureApproachOption(
 
   return {
     id: method.id,
+    ...(method.callbackKey ? { callbackKey: method.callbackKey } : {}),
     label: method.label,
     ...(method.buttonLabel ? { buttonLabel: method.buttonLabel } : {}),
     hint: method.hint,

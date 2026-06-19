@@ -15,7 +15,9 @@ export function buildCellarKeyboard(character?: CharacterSummary): InlineKeyboar
     const keyboard = new InlineKeyboard();
 
     for (const method of buildCellarMethodOptions(character)) {
-      keyboard.text(method.buttonLabel ?? method.label, makeCellarMethodCallbackData(method.id)).row();
+      keyboard
+        .text(method.buttonLabel ?? method.label, makeCellarMethodCallbackData(method.callbackKey ?? method.id))
+        .row();
     }
 
     keyboard.text("⬅️ До зали", makePlaceCallbackData("hall"));

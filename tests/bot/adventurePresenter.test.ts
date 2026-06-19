@@ -193,9 +193,9 @@ describe("adventure presenter", () => {
 
     const text = presentAdventureProblem(result);
 
-    expect(text).toContain("🧬 Підняти сухий приплив довкола справи");
-    expect(text).toContain("🎭 Переспівати справу, доки вона не зібʼється з ритму");
-    expect(text).toContain("🏷️ «Співачка Без Моря»: змусити форму визнати точну біографію");
+    expect(text).toContain("🧬 Підняти сухий приплив довкола форми");
+    expect(text).toContain("🎭 Переспівати форму, доки вона не зібʼється з ритму");
+    expect(text).toContain("🏷️ «Співачка Без Моря»: вписати форму у власну легенду");
     expect(text).toContain("Особистий підхід героя.");
     expect(text).toContain("Професійний підхід героя.");
     expect(text).not.toContain("Надійне розслідування. Майже надійно.");
@@ -203,6 +203,7 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("Расовий спосіб");
     expect(text).not.toContain("Класова техніка");
     expect(text).not.toContain("race+class");
+    expect(text).not.toContain("точну біографію");
     expect(text).not.toContain(": форму");
     expect(text).toContain("</i>\n\n🎭");
     expect(text).toContain("</i>\n\n🏷️");
@@ -228,7 +229,7 @@ describe("adventure presenter", () => {
     const method = scene.methods.find((candidate) => candidate.id === "track-soles");
 
     expect(method?.outcomeText["strong-success"].body.join("\n")).toContain(
-      "Суперечка нарешті стихає."
+      "Прочитати маршрут підошов закриває сцену чисто."
     );
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("перестає сперечатися");
   });

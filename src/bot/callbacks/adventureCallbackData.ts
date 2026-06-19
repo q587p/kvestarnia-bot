@@ -6,6 +6,7 @@ import {
   type AdventureProblemId
 } from "../../services/adventureService";
 import { isKnownQuestMethodId } from "../../content/questResolution";
+import { toQuestCallbackKey } from "../../content/questResolution";
 import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
@@ -30,13 +31,26 @@ export type AdventureCallbackError =
 const PREFIX = "v1:adv";
 const V2_PREFIX = "v2:adv";
 const problemIds = new Set<AdventureProblemId>(ADVENTURE_PROBLEM_IDS);
+const problemKeyToId = new Map<string, AdventureProblemId>();
+const problemIdToKey = new Map<AdventureProblemId, string>();
 const approaches = new Set<AdventureApproach>(["safe", "flair", "risky"]);
+
+for (const problemId of ADVENTURE_PROBLEM_IDS) {
+  const key = toQuestCallbackKey(problemId);
+
+  if (problemKeyToId.has(key)) {
+    throw new Error(`Duplicate adventure callback problem key: ${key}`);
+  }
+
+  problemKeyToId.set(key, problemId);
+  problemIdToKey.set(problemId, key);
+}
 
 export function makeAdventureProblemCallbackData(input: {
   periodToken: string;
   problemId: AdventureProblemId;
 }): string {
-  return `${PREFIX}:p:${input.periodToken}:${input.problemId}`;
+  return `${V2_PREFIX}:p:${input.periodToken}:${encodeProblemId(input.problemId)}`;
 }
 
 export function makeAdventureApproachCallbackData(input: {
@@ -46,7 +60,7 @@ export function makeAdventureApproachCallbackData(input: {
   approach?: AdventureApproach;
 }): string {
   if (input.methodId) {
-    return `${V2_PREFIX}:a:${input.periodToken}:${input.problemId}:${input.methodId}`;
+    return `${V2_PREFIX}:a:${input.periodToken}:${encodeProblemId(input.problemId)}:${input.methodId}`;
   }
 
   return `${PREFIX}:a:${input.periodToken}:${input.problemId}:${input.approach ?? "safe"}`;
@@ -145,16 +159,24 @@ function parseAdventureV2CallbackData(data: string): Result<AdventureCallback, A
     return ok({ type: "method", methodId: first });
   }
 
-  if (action === "a" && isPeriodToken(first) && isProblemId(second) && isKnownQuestMethodId(third)) {
+  if (action === "p" && isPeriodToken(first) && isProblemKey(second) && !third) {
+    return ok({
+      type: "problem",
+      periodToken: first,
+      problemId: decodeProblemKey(second)
+    });
+  }
+
+  if (action === "a" && isPeriodToken(first) && isProblemKey(second) && isKnownQuestMethodId(third)) {
     return ok({
       type: "approach",
       periodToken: first,
-      problemId: second,
+      problemId: decodeProblemKey(second),
       methodId: third
     });
   }
 
-  return err(action === "a" || action === "m" ? "invalid-action" : "invalid-prefix");
+  return err(action === "a" || action === "m" || action === "p" ? "invalid-action" : "invalid-prefix");
 }
 
 function isPeriodToken(value: string | undefined): value is string {
@@ -163,6 +185,24 @@ function isPeriodToken(value: string | undefined): value is string {
 
 function isProblemId(value: string | undefined): value is AdventureProblemId {
   return problemIds.has(value as AdventureProblemId);
+}
+
+function isProblemKey(value: string | undefined): value is string {
+  return typeof value === "string" && problemKeyToId.has(value);
+}
+
+function encodeProblemId(problemId: AdventureProblemId): string {
+  return problemIdToKey.get(problemId) ?? toQuestCallbackKey(problemId);
+}
+
+function decodeProblemKey(problemKey: string): AdventureProblemId {
+  const problemId = problemKeyToId.get(problemKey);
+
+  if (!problemId) {
+    throw new Error(`Unknown adventure callback problem key: ${problemKey}`);
+  }
+
+  return problemId;
 }
 
 function isApproach(value: string | undefined): value is AdventureApproach {

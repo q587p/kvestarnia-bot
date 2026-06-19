@@ -221,16 +221,17 @@ export interface QuestResolutionScene {
 
 ### 4.2. Stable method identity
 
-Callback повинен передавати compact method key, наприклад:
+Callback повинен передавати compact problem key і compact method key, наприклад:
 
 ```text
-v2:adv:a:<period>:<problem>:<method>
+v2:adv:a:<period>:<problemKey>:<methodKey>
 ```
 
 Обмеження:
 
 - загальна довжина до 64 bytes;
-- `problemId` і `methodId` мають бути allowlisted;
+- compact `problemKey` server-side розгортається до allowlisted `problemId`;
+- compact `methodKey` звіряється з реальною сценою перед claim/cost/cooldown/reward;
 - старі `v1:adv:a:*:*:safe|flair|risky` не повинні завершувати нову справу; вони відкривають актуальний problem/offer або stale-safe screen;
 - starter callback ids можна лишити сумісними, якщо action id зберігає сенс, або додати versioned parser з refresh для legacy.
 

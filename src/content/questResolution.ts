@@ -53,6 +53,7 @@ export interface QuestMethodOutcomeText {
 
 export interface QuestMethodDefinition {
   id: string;
+  callbackKey?: string;
   source: QuestMethodSource;
   label: string;
   buttonLabel?: string;
@@ -75,6 +76,7 @@ export interface QuestResolutionScene {
   sceneId: string;
   sceneTitle: string;
   sceneObject: string;
+  sceneObjectGenitive?: string;
   methods: readonly QuestMethodDefinition[];
 }
 
@@ -270,6 +272,17 @@ export function getCompactClassKey(classId: string): string {
 
 export function isKnownQuestMethodId(value: string | undefined): value is string {
   return typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,20}$/.test(value);
+}
+
+export function toQuestCallbackKey(value: string): string {
+  let hash = 0x811c9dc5;
+
+  for (const char of value) {
+    hash ^= char.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+
+  return `q${hash.toString(36)}`;
 }
 
 const COMPACT_RACE_KEYS: Record<string, string> = {

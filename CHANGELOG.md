@@ -13,7 +13,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a pure quest-resolution content/domain layer for authored methods, technique tags, reward profiles, deterministic bounded checks, grade bands and method slot selection.
 - Added authored method/outcome content for every current level 3+ Adventure Choice general problem, plus generated race, class and title problem families.
 - Added the same resolution contract to the starter mimic-shawarma adventure and level 2-3 cellar mouse errand, including character-shaped method buttons.
-- Added compact `v2` method callbacks for Adventure Choice, mimic-shawarma and cellar mouse buttons while preserving old starter/cellar callbacks and old Adventure Choice `safe/flair/risky` callbacks as stale-refresh only.
+- Added compact `v2` problem and method callbacks for Adventure Choice plus compact method callbacks for mimic-shawarma and cellar mouse buttons, while preserving old starter/cellar callbacks and old Adventure Choice `safe/flair/risky` callbacks as stale-refresh only.
 - Added `spent_gold` and optional `result_json` audit payloads to `daily_actions` so quest method, grade, consequence, cost and check data are stored at claim time.
 - Added paid cellar/adventure method support with pre-claim affordability checks and atomic net gold updates.
 - Added small deterministic post-resolution XP/gold variance for level 3+ authored Adventure Choice rewards, plus a low LUCK-influenced chance for one eligible manatka on non-fight results.
@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Adventure and cellar selected-result screens now show authored grade-specific Ukrainian outcome copy and qualitative method hints without exact future reward amounts or percentage odds.
 - Authored quest result cards now separate the scene, method and reward blocks more clearly, omit internal race/class/signature method labels and show `Винагорода за справу` before XP/gold.
 - Authored quest method hints now avoid repeated reliability wording and generated scene outcomes use grammar-neutral copy for singular/plural problem titles.
+- Generated race/class/title problem families now use scene-native method sets for анкета/кухоль/портрет/підручник/форма/іспит/титул instead of one universal generated template.
 - Adventure complications can now resolve to full reward, reduced reward, XP-only, cosmetic mess, paid success or existing persistent-fight handoff where authored.
 - Starter shawarma and cellar mouse keep their level gates, item grants, idempotency and replay behavior while routing new visible buttons through stable authored method ids.
 - Starter shawarma and the starter combat probe now each grant `75%` of the level 1-to-2 XP gap rounded up, using the remort-adjusted XP curve, so doing both starter activities guarantees level 2.

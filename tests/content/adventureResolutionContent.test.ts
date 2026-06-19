@@ -33,9 +33,11 @@ describe("adventure resolution content", () => {
         character
       });
       const methods = resolveQuestMethodsForCharacter(scene, character);
+      const callbackKeys = methods.map((method) => method.callbackKey ?? method.id);
 
       expect(methods.length, problemId).toBeGreaterThanOrEqual(3);
       expect(new Set(methods.map((method) => method.id)).size, problemId).toBe(methods.length);
+      expect(new Set(callbackKeys).size, problemId).toBe(callbackKeys.length);
     }
   });
 
@@ -71,6 +73,52 @@ describe("adventure resolution content", () => {
       });
 
       expect(scene.methods.some((method) => method.source === "signature"), title).toBe(true);
+    }
+  });
+
+  it("keeps generated problem families scene-native instead of universal fallback methods", () => {
+    const generatedIds = ADVENTURE_PROBLEM_IDS.filter((problemId) =>
+      /^(race|class|title)-/u.test(problemId)
+    );
+
+    for (const problemId of generatedIds) {
+      const scene = buildAdventureResolutionScene({
+        problemId,
+        title: problemId,
+        character
+      });
+      const sceneMethods = scene.methods.filter((method) => method.source === "scene");
+
+      expect(sceneMethods.map((method) => method.id), problemId).not.toEqual(
+        expect.arrayContaining(["inspect-scene", "negotiate-scene", "deceive-scene", "ritual-scene"])
+      );
+      expect(new Set(sceneMethods.map((method) => method.label)).size, problemId).toBe(sceneMethods.length);
+      expect(sceneMethods.every((method) => method.callbackKey && method.callbackKey.length <= 8), problemId).toBe(true);
+    }
+  });
+
+  it("keeps INT-heavy generated problems from hiding the class method", () => {
+    const intellectualBureaucramancer = {
+      ...character,
+      raceId: "race.intellectual-orc",
+      raceName: "Орк-інтелігент",
+      classId: "class.bureaucramancer",
+      className: "Бюрокромант",
+      stats: {
+        ...character.stats,
+        intelligence: 11
+      }
+    };
+    const scene = buildAdventureResolutionScene({
+      problemId: "class-bureaucramancer-uniform",
+      title: "Форма для «Бюрокроманта» не влазить у клітинку",
+      character: intellectualBureaucramancer
+    });
+    const methods = resolveQuestMethodsForCharacter(scene, intellectualBureaucramancer);
+
+    expect(methods.some((method) => method.source === "class")).toBe(true);
+    for (const primaryStat of ["strength", "dexterity", "intelligence", "charisma", "luck"] as const) {
+      expect(methods.filter((method) => method.primaryStat === primaryStat).length, primaryStat).toBeLessThanOrEqual(2);
     }
   });
 

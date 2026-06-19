@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
+import { toQuestCallbackKey } from "../../src/content/questResolution";
 import {
   makeAdventureApproachCallbackData,
   makeMimicShawarmaMethodCallbackData,
@@ -356,7 +357,7 @@ describe("scene callback HTML options", () => {
     expect(completeAdventureApproach).not.toHaveBeenCalled();
     expect(String(edit?.payload.text)).toContain("Старий папірець утратив силу");
     expect(String(edit?.payload.text)).toContain("обережно-хитро-ризикову шкалу");
-    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v2:adv:a:period93:stew");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toMatch(/v2:adv:a:period93:q[0-9a-z]+:q[0-9a-z]+/u);
   });
 
   it("offers to buy everyone beer after the Barrel raid completes", async () => {
@@ -1966,6 +1967,7 @@ const adventureChoice = {
 
 const adventureApproach = {
   id: "conduct-duet" as const,
+  callbackKey: toQuestCallbackKey("conduct-duet"),
   label: "🎵 Продиригувати юшкою",
   hint: "Добрі шанси, винагорода звичайна.",
   chanceHint: "непевно",
