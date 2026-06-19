@@ -279,6 +279,10 @@ export async function handleDuelCallback(
                 ? { state: "result", token: result.challenge.inviteToken }
                 : "result"
     );
+
+    if (result.state === "resolved") {
+      await notifyOtherQuickDuelResultParticipant(ctx, result);
+    }
     return;
   }
 
@@ -650,6 +654,30 @@ async function notifyTargetedDuelCancellation(
     });
   } catch {
     // Telegram delivery is best-effort; the cancelled challenge remains canonical.
+  }
+}
+
+async function notifyOtherQuickDuelResultParticipant(
+  ctx: Context,
+  result: Extract<DuelChallengeView, { state: "resolved" }>
+): Promise<void> {
+  const viewerCharacterId = getResolvedViewerCharacterId(ctx, result);
+  const chatId =
+    viewerCharacterId === result.challenge.challengerCharacterId
+      ? result.challenge.target?.telegramUserId
+      : result.challenge.challenger.telegramUserId;
+
+  if (!chatId || (ctx.chat?.id && BigInt(ctx.chat.id) === chatId)) {
+    return;
+  }
+
+  try {
+    await ctx.api.sendMessage(Number(chatId), presentDuelView(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildDuelResultKeyboard(result.challenge.inviteToken)
+    });
+  } catch {
+    // Telegram delivery is best-effort; the resolved duel result remains canonical.
   }
 }
 

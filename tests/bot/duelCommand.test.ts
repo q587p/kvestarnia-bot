@@ -426,7 +426,7 @@ describe("handleDuelCallback", () => {
     const service = serviceWith({
       acceptForTelegramUser
     });
-    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(99);
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext(99);
 
     await handleDuelCallback(ctx, { type: "accept-risk", token: TOKEN }, service, {
       presence
@@ -460,6 +460,14 @@ describe("handleDuelCallback", () => {
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:rematch:${TOKEN}`);
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:share:${TOKEN}`);
     expect(keyboardJson(editMessageText)).toContain("v1:duel:new");
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Результат миттєвої дуелі");
+    expect(sendMessage.mock.calls[0]?.[1]).toContain(
+      "Запис збережено: це той самий результат, без повторного кидка."
+    );
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain(`v1:duel:rematch:${TOKEN}`);
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain(`v1:duel:share:${TOKEN}`);
   });
 
   it("renders the canonical result card immediately after a terminal turn action", async () => {

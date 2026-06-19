@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Same-round turn callback races now retry one safe merge after an optimistic version loss when the actor has not yet chosen and the round has not advanced.
 - Turn-based duel card delivery now records successful edits, falls back to fresh messages after edit failures, and keeps committed gameplay state independent from Telegram delivery.
 - Targeted duel invite recipients now receive a best-effort in-game notice when the challenger cancels before acceptance.
+- Quick duel participants now receive a best-effort result card immediately after the other side accepts, instead of needing to refresh an old invite card.
 - The central combat lock now treats active turn-based duels as active combat and redirects normal navigation back to the canonical duel card.
 - Restart/remort routes remain available during ordinary combat according to the existing side-surface policy, but redirect back to an active turn-based duel until that duel is durably terminal.
 - Quick duel behavior remains instant, rewardless and replay-safe, while old quick result JSON still renders as `⚡ Миттєва дуель`.
