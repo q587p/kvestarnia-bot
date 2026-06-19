@@ -352,7 +352,7 @@ export type BattleInterventionKind = "help" | "none" | "hinder";
 export interface PersistentFightDifficultyConfig {
   id: PersistentFightDifficultyId;
   interventionKind: BattleInterventionKind;
-  levelDelta: -3 | 0 | 2;
+  levelDelta: -3 | 0 | 5;
   xpMultiplier: number;
   goldMultiplier: number;
   dropChanceMultiplier: number;
@@ -364,9 +364,9 @@ export const PERSISTENT_FIGHT_DIFFICULTY_CONFIG = {
     id: "easy",
     interventionKind: "help",
     levelDelta: -3,
-    xpMultiplier: 0.75,
-    goldMultiplier: 0.85,
-    dropChanceMultiplier: 0.65,
+    xpMultiplier: 0.45,
+    goldMultiplier: 0.45,
+    dropChanceMultiplier: 0.5,
     lootPowerOffset: -1
   },
   normal: {
@@ -381,10 +381,10 @@ export const PERSISTENT_FIGHT_DIFFICULTY_CONFIG = {
   hard: {
     id: "hard",
     interventionKind: "hinder",
-    levelDelta: 2,
-    xpMultiplier: 1.2,
-    goldMultiplier: 1.05,
-    dropChanceMultiplier: 1.35,
+    levelDelta: 5,
+    xpMultiplier: 1.1,
+    goldMultiplier: 1.1,
+    dropChanceMultiplier: 1.1,
     lootPowerOffset: 1
   }
 } as const satisfies Record<PersistentFightDifficultyId, PersistentFightDifficultyConfig>;
@@ -1668,28 +1668,30 @@ function buildPersistentFightWinXp(input: {
   effectiveMonsterLevel: number;
   difficulty: PersistentFightDifficultyConfig;
 }): number {
+  const roundReward = input.difficulty.id === "easy" ? Math.floor : Math.round;
   const antiFarmGap = input.characterLevel - input.baseMonsterLevel;
 
   if (antiFarmGap > 3) {
-    return Math.max(1, Math.round(2 * input.difficulty.xpMultiplier));
+    return Math.max(1, roundReward(2 * input.difficulty.xpMultiplier));
   }
 
   if (antiFarmGap > 2) {
-    return Math.max(1, Math.round(3 * input.difficulty.xpMultiplier));
+    return Math.max(1, roundReward(3 * input.difficulty.xpMultiplier));
   }
 
   const baseXp = Math.min(14, Math.max(5, 3 + input.effectiveMonsterLevel * 2));
 
-  return Math.max(1, Math.round(baseXp * input.difficulty.xpMultiplier));
+  return Math.max(1, roundReward(baseXp * input.difficulty.xpMultiplier));
 }
 
 function buildPersistentFightWinGold(
   monsterLevel: number,
   difficulty: PersistentFightDifficultyConfig = PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
 ): number {
+  const roundReward = difficulty.id === "easy" ? Math.floor : Math.round;
   const baseGold = Math.min(7, Math.max(1, 1 + Math.floor(monsterLevel / 2)));
 
-  return Math.max(1, Math.round(baseGold * difficulty.goldMultiplier));
+  return Math.max(1, roundReward(baseGold * difficulty.goldMultiplier));
 }
 
 function getLootExpansionSourceForMonster(monster: MonsterContent): LootExpansionSourceId {

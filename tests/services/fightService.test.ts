@@ -810,7 +810,7 @@ describe("FightService", () => {
         baseMonsterLevel: 5,
         difficulty: "hard"
       })
-    ).toBe(8);
+    ).toBe(11);
     expect(
       selectPersistentFightMonsterLevel({
         characterLevel: 2,
@@ -822,9 +822,9 @@ describe("FightService", () => {
 
   it("keeps difficulty reward scaling conservative", () => {
     expect(getPersistentFightDifficultyConfig("easy")).toMatchObject({
-      xpMultiplier: 0.75,
-      goldMultiplier: 0.85,
-      dropChanceMultiplier: 0.65
+      xpMultiplier: 0.45,
+      goldMultiplier: 0.45,
+      dropChanceMultiplier: 0.5
     });
     expect(getPersistentFightDifficultyConfig("normal")).toMatchObject({
       xpMultiplier: 1,
@@ -832,9 +832,9 @@ describe("FightService", () => {
       dropChanceMultiplier: 1
     });
     expect(getPersistentFightDifficultyConfig("hard")).toMatchObject({
-      xpMultiplier: 1.2,
-      goldMultiplier: 1.05,
-      dropChanceMultiplier: 1.35
+      xpMultiplier: 1.1,
+      goldMultiplier: 1.1,
+      dropChanceMultiplier: 1.1
     });
   });
 
@@ -1279,7 +1279,7 @@ describe("FightService", () => {
     if (result.state === "updated") {
       expect(result.character.level).toBe(6);
       expect(result.monster.level).toBe(3);
-      expect(result.fightReward?.reward.xp).toBe(7);
+      expect(result.fightReward?.reward.xp).toBe(4);
     }
   });
 
@@ -1353,7 +1353,7 @@ describe("FightService", () => {
 
     const easy = await recoverReward("easy", 1);
     const normal = await recoverReward("normal", 6);
-    const hard = await recoverReward("hard", 8);
+    const hard = await recoverReward("hard", 11);
 
     expect(easy.xp).toBeLessThan(normal.xp);
     expect(normal.xp).toBeLessThan(hard.xp);
@@ -1411,7 +1411,7 @@ describe("FightService", () => {
 
     expect(recovered.state).toBe("terminal");
     if (recovered.state === "terminal") {
-      expect(recovered.fightReward?.reward.xp).toBe(4);
+      expect(recovered.fightReward?.reward.xp).toBe(2);
     }
   });
 

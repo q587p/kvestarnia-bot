@@ -21,6 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 - PvE and PvP turn resolution now share a pure `resolveActorCombatAction` primitive for basic attacks, class skills, mana, cooldowns, armor/resist/equipment effects, HP clamping and summaries.
 - The central combat lock now treats active turn-based duels as active combat and redirects normal navigation back to the canonical duel card.
 - Quick duel behavior remains instant, rewardless and replay-safe, while old quick result JSON still renders as `⚡ Миттєва дуель`.
+- Tuned `Низ` passage rewards: the right/easy route now rounds XP/gold down and pays less than the center route, while the left/hard route now uses `character level + 5` and pays above center.
 
 ### Guardrails
 - Turn-based duel HP/mana are ephemeral session resources and do not damage, heal or refill persistent `Character` resources.
