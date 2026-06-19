@@ -293,7 +293,7 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("запалилася свічка");
   });
 
-  it("hides the fighting corner and Nyz from the early korchma hall", () => {
+  it("keeps the early korchma hall prose stable while buttons stay level-gated", () => {
     const text = presentKorchmaHall({ ...character, level: 1 });
 
     expect(text).toContain("Зала корчми");
@@ -301,8 +301,8 @@ describe("tavern presenter", () => {
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
     expect(text).toContain("<i>шинок</i>");
     expect(text).toContain("<i>льох</i>");
-    expect(text).not.toContain("бійцівський куток");
-    expect(text).not.toContain("спуск до Низу");
+    expect(text).toContain("бійцівський куток");
+    expect(text).toContain("спуск до Низу");
   });
 
   it("shows a short fighting corner level gate", () => {
