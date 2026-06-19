@@ -2,10 +2,9 @@ import type { CharacterSummary } from "../characters/characterSummary";
 import type { CharacterStats, StatKey } from "../characters/starterStats";
 import {
   buildLevelGrowthBonus,
-  getClassPrimaryStat,
   type EquipmentEffectSummary
 } from "../progression/effectiveStats";
-import { REMORT_REQUIRED_LEVEL } from "../remort";
+import { buildRemortMemoryBonus, REMORT_REQUIRED_LEVEL } from "../remort";
 
 export const INSTANT_DUEL_BALANCE_VERSION = "instant-duel-v2";
 
@@ -14,9 +13,11 @@ export interface DuelistBalanceInput extends CharacterSummary {
 }
 
 export interface DuelProgressionBudget {
+  level: number;
+  remortCount: number;
   hpMax: number;
   manaMax: number;
-  primaryStat: number;
+  stats: CharacterStats;
   score: number;
 }
 
@@ -24,12 +25,11 @@ export interface DuelistBalanceAudit {
   balanceVersion: string;
   originalLevel: number;
   originalRemortCount: number;
-  primaryStat: StatKey;
   progressionBudget: DuelProgressionBudget;
   targetProgressionBudget: DuelProgressionBudget;
   temporaryHpMax: number;
   temporaryManaMax: number;
-  temporaryPrimaryStat: number;
+  temporaryStats: CharacterStats;
   readinessPenalty: number;
   preparedScore: number;
 }
@@ -44,19 +44,19 @@ export interface PreparedDuelists {
   balanceVersion: string;
 }
 
-const REMORT_MEMORY_RATE = 0.23;
-
 export function prepareBalancedDuelists(input: {
   challenger: DuelistBalanceInput;
   target: DuelistBalanceInput;
 }): PreparedDuelists {
   const challengerBudget = buildProgressionBudget(input.challenger);
   const targetBudget = buildProgressionBudget(input.target);
-  const targetProgressionBudget =
+  const targetTierBudget =
     challengerBudget.score >= targetBudget.score ? challengerBudget : targetBudget;
+  const challengerTargetBudget = buildProgressionBudget(input.challenger, targetTierBudget);
+  const targetTargetBudget = buildProgressionBudget(input.target, targetTierBudget);
 
-  const challenger = prepareDuelist(input.challenger, challengerBudget, targetProgressionBudget);
-  const target = prepareDuelist(input.target, targetBudget, targetProgressionBudget);
+  const challenger = prepareDuelist(input.challenger, challengerBudget, challengerTargetBudget);
+  const target = prepareDuelist(input.target, targetBudget, targetTargetBudget);
 
   return {
     challenger,
@@ -84,18 +84,14 @@ function prepareDuelist(
   budget: DuelProgressionBudget,
   targetBudget: DuelProgressionBudget
 ): PreparedDuelist {
-  const primaryStat = getClassPrimaryStat(character.classId);
   const temporaryHpMax = Math.max(0, targetBudget.hpMax - budget.hpMax);
   const temporaryManaMax = Math.max(0, targetBudget.manaMax - budget.manaMax);
-  const temporaryPrimaryStat = Math.max(0, targetBudget.primaryStat - budget.primaryStat);
+  const temporaryStats = subtractStats(targetBudget.stats, budget.stats);
   const hpMax = character.hpMax + temporaryHpMax;
   const manaMax = character.manaMax + temporaryManaMax;
   const hpCurrent = preserveRatio(character.hpCurrent, character.hpMax, hpMax);
   const manaCurrent = preserveRatio(character.manaCurrent, character.manaMax, manaMax);
-  const stats = {
-    ...character.stats,
-    [primaryStat]: character.stats[primaryStat] + temporaryPrimaryStat
-  };
+  const stats = addStats(character.stats, temporaryStats);
   const prepared: PreparedDuelist = {
     ...character,
     hpCurrent,
@@ -107,12 +103,11 @@ function prepareDuelist(
       balanceVersion: INSTANT_DUEL_BALANCE_VERSION,
       originalLevel: character.level,
       originalRemortCount: character.remortCount ?? 0,
-      primaryStat,
       progressionBudget: budget,
       targetProgressionBudget: targetBudget,
       temporaryHpMax,
       temporaryManaMax,
-      temporaryPrimaryStat,
+      temporaryStats,
       readinessPenalty: calculateReadinessPenalty({
         hpCurrent,
         hpMax,
@@ -146,11 +141,15 @@ export function scorePreparedDuelist(character: PreparedDuelist): number {
   );
 }
 
-function buildProgressionBudget(character: DuelistBalanceInput): DuelProgressionBudget {
-  const primaryStat = getClassPrimaryStat(character.classId);
+function buildProgressionBudget(
+  character: DuelistBalanceInput,
+  tier?: Partial<Pick<DuelProgressionBudget, "level" | "remortCount">>
+): DuelProgressionBudget {
+  const level = Math.max(1, Math.floor(tier?.level ?? character.level));
+  const remortCount = Math.max(0, Math.floor(tier?.remortCount ?? character.remortCount ?? 0));
   const levelGrowth = buildLevelGrowthBonus(
     1,
-    character.level,
+    level,
     character.classId,
     character.raceId,
     character.path
@@ -162,29 +161,24 @@ function buildProgressionBudget(character: DuelistBalanceInput): DuelProgression
     character.raceId,
     character.path
   );
-  const remortCount = Math.max(0, Math.floor(character.remortCount ?? 0));
-  const hpMax = levelGrowth.hpMax + buildRemortMemoryBudget(remortGrowth.hpMax, remortCount);
+  const hpMax = levelGrowth.hpMax + buildRemortMemoryBonus(remortGrowth.hpMax, remortCount);
   const manaMax =
-    levelGrowth.manaMax + buildRemortMemoryBudget(remortGrowth.manaMax, remortCount);
-  const primary =
-    levelGrowth.stats[primaryStat] +
-    buildRemortMemoryBudget(remortGrowth.stats[primaryStat], remortCount);
-  const score = Math.round(hpMax * 0.18 + manaMax * 0.08 + primary * 1.2);
+    levelGrowth.manaMax + buildRemortMemoryBonus(remortGrowth.manaMax, remortCount);
+  const stats = statKeys.reduce<CharacterStats>((budgetStats, stat) => {
+    budgetStats[stat] =
+      levelGrowth.stats[stat] + buildRemortMemoryBonus(remortGrowth.stats[stat], remortCount);
+    return budgetStats;
+  }, createEmptyStats());
+  const score = scoreProgressionBudget({ hpMax, manaMax, stats });
 
   return {
+    level,
+    remortCount,
     hpMax,
     manaMax,
-    primaryStat: primary,
+    stats,
     score
   };
-}
-
-function buildRemortMemoryBudget(previousBonus: number, remortCount: number): number {
-  if (previousBonus <= 0 || remortCount <= 0) {
-    return 0;
-  }
-
-  return Math.ceil(previousBonus * REMORT_MEMORY_RATE * remortCount);
 }
 
 function preserveRatio(current: number, oldMax: number, newMax: number): number {
@@ -198,6 +192,32 @@ function preserveRatio(current: number, oldMax: number, newMax: number): number 
   const ratio = clampRatio(current / safeOldMax);
 
   return Math.min(safeNewMax, Math.max(0, Math.round(ratio * safeNewMax)));
+}
+
+function scoreProgressionBudget(input: Pick<DuelProgressionBudget, "hpMax" | "manaMax" | "stats">): number {
+  return Math.round(
+    input.hpMax * 0.18 +
+      input.manaMax * 0.08 +
+      input.stats.strength * 1.2 +
+      input.stats.dexterity * 1.15 +
+      input.stats.intelligence * 0.85 +
+      input.stats.charisma * 0.8 +
+      input.stats.luck * 0.9
+  );
+}
+
+function addStats(left: CharacterStats, right: CharacterStats): CharacterStats {
+  return statKeys.reduce<CharacterStats>((stats, stat) => {
+    stats[stat] = left[stat] + Math.max(0, right[stat]);
+    return stats;
+  }, createEmptyStats());
+}
+
+function subtractStats(left: CharacterStats, right: CharacterStats): CharacterStats {
+  return statKeys.reduce<CharacterStats>((stats, stat) => {
+    stats[stat] = Math.max(0, left[stat] - right[stat]);
+    return stats;
+  }, createEmptyStats());
 }
 
 function equipmentScore(effects: EquipmentEffectSummary | undefined): number {
@@ -226,3 +246,11 @@ export function createEmptyStats(): CharacterStats {
     luck: 0
   };
 }
+
+const statKeys: readonly StatKey[] = [
+  "strength",
+  "dexterity",
+  "intelligence",
+  "charisma",
+  "luck"
+];

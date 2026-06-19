@@ -152,22 +152,43 @@ function makeAudit(preparedScore: number) {
     balanceVersion: "instant-duel-v2",
     originalLevel: 3,
     originalRemortCount: 0,
-    primaryStat: "strength",
     progressionBudget: {
+      level: 3,
+      remortCount: 0,
       hpMax: 8,
       manaMax: 4,
-      primaryStat: 2,
+      stats: {
+        strength: 2,
+        dexterity: 1,
+        intelligence: 0,
+        charisma: 0,
+        luck: 1
+      },
       score: 4
     },
     targetProgressionBudget: {
+      level: 3,
+      remortCount: 0,
       hpMax: 8,
       manaMax: 4,
-      primaryStat: 2,
+      stats: {
+        strength: 2,
+        dexterity: 1,
+        intelligence: 0,
+        charisma: 0,
+        luck: 1
+      },
       score: 4
     },
     temporaryHpMax: 0,
     temporaryManaMax: 0,
-    temporaryPrimaryStat: 0,
+    temporaryStats: {
+      strength: 0,
+      dexterity: 0,
+      intelligence: 0,
+      charisma: 0,
+      luck: 0
+    },
     readinessPenalty: 0,
     preparedScore
   };

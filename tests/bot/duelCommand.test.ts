@@ -607,7 +607,8 @@ describe("handleDuelCallback", () => {
     expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
     expect(editMessageText).not.toHaveBeenCalled();
     expect(reply).toHaveBeenCalledTimes(1);
-    expect(reply.mock.calls[0]?.[0]).toContain("📣 <b>Картка корчемної дуелі</b>");
+    expect(reply.mock.calls[0]?.[0]).toContain("📣 <b>Картка корчемної дуелі: ⚡ Миттєва дуель</b>");
+    expect(reply.mock.calls[0]?.[0]).toContain("переміг у миттєвій корчемній дуелі");
     expect(reply.mock.calls[0]?.[0]).toContain("<i>Без XP, золота й манаток.");
     expect(reply.mock.calls[0]?.[1]).toEqual({ parse_mode: "HTML" });
   });

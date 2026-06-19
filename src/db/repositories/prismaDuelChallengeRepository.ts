@@ -11,6 +11,7 @@ import type {
   ResolvedDuelChallengeRecord
 } from "./duelChallengeRepository";
 import type { CharacterEquipmentRecord } from "./equipmentRepository";
+import type { CharacterStats, StatKey } from "../../domain/characters/starterStats";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 
 type DuelChallengeWithCharacters = Awaited<ReturnType<typeof findChallengeByToken>>;
@@ -502,7 +503,7 @@ function parseBalanceAudit(value: unknown): DuelResultBalanceAudit | null {
   const progressionBudget = parseProgressionBudget(value.progressionBudget);
   const targetProgressionBudget = parseProgressionBudget(value.targetProgressionBudget);
 
-  if (!progressionBudget || !targetProgressionBudget || typeof value.primaryStat !== "string") {
+  if (!progressionBudget || !targetProgressionBudget) {
     return null;
   }
 
@@ -510,12 +511,14 @@ function parseBalanceAudit(value: unknown): DuelResultBalanceAudit | null {
     balanceVersion: value.balanceVersion,
     originalLevel: intOrZero(value.originalLevel),
     originalRemortCount: intOrZero(value.originalRemortCount),
-    primaryStat: value.primaryStat,
     progressionBudget,
     targetProgressionBudget,
     temporaryHpMax: intOrZero(value.temporaryHpMax),
     temporaryManaMax: intOrZero(value.temporaryManaMax),
-    temporaryPrimaryStat: intOrZero(value.temporaryPrimaryStat),
+    temporaryStats: parseStats(value.temporaryStats) ?? parseLegacyPrimaryStat(
+      value.primaryStat,
+      value.temporaryPrimaryStat
+    ),
     readinessPenalty: intOrZero(value.readinessPenalty),
     preparedScore: intOrZero(value.preparedScore)
   };
@@ -527,10 +530,56 @@ function parseProgressionBudget(value: unknown): DuelResultProgressionBudget | n
   }
 
   return {
+    level: Math.max(1, intOrZero(value.level)),
+    remortCount: Math.max(0, intOrZero(value.remortCount)),
     hpMax: intOrZero(value.hpMax),
     manaMax: intOrZero(value.manaMax),
-    primaryStat: intOrZero(value.primaryStat),
+    stats: parseStats(value.stats) ?? parseLegacyPrimaryStat(value.primaryStat, value.primaryStat),
     score: intOrZero(value.score)
+  };
+}
+
+function parseStats(value: unknown): CharacterStats | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  return {
+    strength: intOrZero(value.strength),
+    dexterity: intOrZero(value.dexterity),
+    intelligence: intOrZero(value.intelligence),
+    charisma: intOrZero(value.charisma),
+    luck: intOrZero(value.luck)
+  };
+}
+
+function parseLegacyPrimaryStat(stat: unknown, bonus: unknown): CharacterStats {
+  const stats = createEmptyStats();
+
+  if (typeof stat === "string" && isStatKey(stat)) {
+    stats[stat] = intOrZero(bonus);
+  }
+
+  return stats;
+}
+
+function isStatKey(value: string): value is StatKey {
+  return (
+    value === "strength" ||
+    value === "dexterity" ||
+    value === "intelligence" ||
+    value === "charisma" ||
+    value === "luck"
+  );
+}
+
+function createEmptyStats(): CharacterStats {
+  return {
+    strength: 0,
+    dexterity: 0,
+    intelligence: 0,
+    charisma: 0,
+    luck: 0
   };
 }
 

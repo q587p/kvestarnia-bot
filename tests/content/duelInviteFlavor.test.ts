@@ -60,4 +60,36 @@ describe("duel invite flavor", () => {
       escapedInviteUrl: "url"
     })).toContain("url");
   });
+
+  it("walks the full thirteen-template pool before returning to the initial template", () => {
+    const token = "full-cycle-token";
+    const initial = getInitialDuelInviteTemplateIndex(token);
+    const seen = new Set<number>([initial]);
+    let current = initial;
+
+    for (let index = 0; index < 12; index += 1) {
+      current = getNextDuelInviteTemplateIndex(token, current);
+      seen.add(current);
+    }
+
+    expect(seen.size).toBe(13);
+    expect(getNextDuelInviteTemplateIndex(token, current)).toBe(initial);
+  });
+
+  it("keeps dynamic invite copy pronoun-neutral", () => {
+    const rendered = [6, 11].map((templateIndex) =>
+      renderDuelInviteTemplate({
+        templateIndex,
+        escapedName: "<b>Мандрівниця</b>",
+        modeLine: "mode",
+        fairnessLine: "fair",
+        escapedInviteUrl: "url"
+      })
+    ).join("\n");
+
+    expect(rendered).not.toContain("саме він");
+    expect(rendered).not.toContain("заповнив");
+    expect(rendered).toContain("дуелі щойно зажадали саме меблі");
+    expect(rendered).toContain("майже всі поля вже заповнено");
+  });
 });

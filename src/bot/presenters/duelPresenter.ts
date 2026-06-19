@@ -311,14 +311,14 @@ export function presentDuelResultShare(result: Extract<DuelChallengeView, { stat
         ? result.target
         : result.challenger;
   const headline = winner
-    ? `🏁 <b>${escapeHtml(winner.name)}</b> переміг у корчемній дуелі`
-    : "🏁 <b>Корчемна нічия</b>";
+    ? `🏁 <b>${escapeHtml(winner.name)}</b> переміг у миттєвій корчемній дуелі`
+    : "🏁 <b>Миттєва корчемна нічия</b>";
   const line = winner && loser
     ? presentDuelFlavor(result.result, winner, loser)
     : presentDuelDrawFlavor(result.result, result.challenger, result.target);
 
   return [
-    "📣 <b>Картка корчемної дуелі</b>",
+    "📣 <b>Картка корчемної дуелі: ⚡ Миттєва дуель</b>",
     "",
     `${presentDuelParticipantInline(result.challenger)} ⚔️ ${presentDuelParticipantInline(result.target)}`,
     "",

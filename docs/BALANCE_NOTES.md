@@ -321,14 +321,16 @@ Hunt Board лишається простим для входу: один кон�
 `⚡ Миттєва дуель` stays rewardless and quick-resolve, but its hidden math no longer lets raw level/remort gaps decide almost every result.
 
 The instant resolver prepares both duelists through `instant-duel-v2`:
-- compute a canonical progression budget from level-derived HP max, mana max and current-class primary stat growth;
-- add deterministic remort-memory budget using the same `23%` memory rate and the level-13 growth budget;
-- choose the stronger canonical progression budget as the target;
-- give only the lower-budget participant temporary HP max, mana max and own current-class primary-stat additions up to that target;
+- compute a canonical progression budget from level-derived HP max, mana max and the full distributed stat-growth vector used by `buildLevelGrowthBonus(...)`;
+- add deterministic remort-memory budget through the canonical `buildRemortMemoryBonus(...)` helper and the level-13 growth budget;
+- choose the stronger canonical progression tier as the target;
+- prepare each participant at that common target tier with that participant's own class/race/path growth profile, then add only the missing HP max, mana max and per-stat deltas;
 - preserve current HP/mana ratios when temporary maxima rise;
 - keep real level/remort values for display and flavor;
 - keep race, class, title, path, starter distribution, equipped item ids and all equipment/manatka effects personal;
 - remove the old raw `level * 10` score term and use equalized prepared progression contribution instead.
+
+Historic cross-class remort memory is not fully reconstructable from the current character row after remort. For instant-duel normalization, remort budget therefore uses the current character's class/race/path growth profile as a deterministic anti-snowball approximation. This is intentionally conservative: it prevents remort count from leaking back through non-primary stats without pretending to recover every previous-life identity exactly.
 
 Current resources matter only through a bounded readiness penalty after sync and normalization:
 

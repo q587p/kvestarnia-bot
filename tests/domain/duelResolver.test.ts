@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { resolveQuickDuel, type DuelistSummary } from "../../src/domain/duels/duelResolver";
-import { prepareBalancedDuelists } from "../../src/domain/duels/duelBalance";
+import { createEmptyStats, prepareBalancedDuelists } from "../../src/domain/duels/duelBalance";
 import { FakeRandomSource } from "../../src/shared/random";
+import { buildStarterStats, type CharacterStats } from "../../src/domain/characters/starterStats";
+import { buildPathStatBonus, type CharacterPath } from "../../src/domain/characters/path";
+import { buildLevelGrowthBonus } from "../../src/domain/progression/effectiveStats";
+import { buildRemortMemoryBonus, REMORT_REQUIRED_LEVEL } from "../../src/domain/remort";
 
 describe("resolveQuickDuel", () => {
   it("resolves a replayable winner from prepared character summaries and bounded swing", () => {
@@ -39,10 +43,10 @@ describe("resolveQuickDuel", () => {
     expect(result.audit.challenger.originalLevel).toBe(5);
   });
 
-  it("can produce a funny draw when the scores are close", () => {
+  it("keeps same builds at the same progression symmetric under neutral RNG", () => {
     const result = resolveQuickDuel({
-      challenger: makeDuelist({ id: "challenger" }),
-      target: makeDuelist({ id: "target" }),
+      challenger: makeCanonicalDuelist({ id: "challenger" }),
+      target: makeCanonicalDuelist({ id: "target" }),
       rng: new FakeRandomSource([0.5])
     });
 
@@ -52,13 +56,11 @@ describe("resolveQuickDuel", () => {
   });
 
   it("normalizes large level gaps without muting equipment effects", () => {
-    const low = makeDuelist({
+    const low = makeCanonicalDuelist({
       id: "low",
       level: 3,
-      hpCurrent: 16,
-      hpMax: 32,
-      manaCurrent: 8,
-      manaMax: 16,
+      hpRatio: 0.5,
+      manaRatio: 0.5,
       equipmentEffects: {
         hpMax: 0,
         manaMax: 0,
@@ -76,13 +78,9 @@ describe("resolveQuickDuel", () => {
         contributions: []
       }
     });
-    const high = makeDuelist({
+    const high = makeCanonicalDuelist({
       id: "high",
-      level: 13,
-      hpCurrent: 68,
-      hpMax: 68,
-      manaCurrent: 36,
-      manaMax: 36
+      level: 13
     });
 
     const prepared = prepareBalancedDuelists({ challenger: low, target: high });
@@ -92,17 +90,58 @@ describe("resolveQuickDuel", () => {
     expect(prepared.challenger.equipmentEffects?.weaponDamage).toBe(5);
     expect(prepared.target.balanceAudit.temporaryHpMax).toBe(0);
     expect(prepared.target.hpMax).toBe(high.hpMax);
+    expect(prepared.target.stats).toEqual(high.stats);
   });
 
-  it("normalizes remort budget and does not leak raw displayed level into score", () => {
-    const veteran = makeDuelist({ id: "veteran", level: 13, remortCount: 3 });
-    const newer = makeDuelist({ id: "newer", level: 13, remortCount: 0 });
+  it("does not leave residual level-derived non-equipment stats after preparation", () => {
+    const low = makeCanonicalDuelist({ id: "low", level: 3 });
+    const high = makeCanonicalDuelist({ id: "high", level: 13 });
+
+    const prepared = prepareBalancedDuelists({ challenger: low, target: high });
+
+    expect(prepared.challenger.stats).toEqual(prepared.target.stats);
+    expect(prepared.challenger.hpMax).toBe(prepared.target.hpMax);
+    expect(prepared.challenger.manaMax).toBe(prepared.target.manaMax);
+    expect(prepared.challenger.balanceAudit.preparedScore).toBe(
+      prepared.target.balanceAudit.preparedScore
+    );
+  });
+
+  it("normalizes remort memory across all stats without leaking non-primary growth", () => {
+    const veteran = makeCanonicalDuelist({ id: "veteran", level: 13, remortCount: 4 });
+    const newer = makeCanonicalDuelist({ id: "newer", level: 13, remortCount: 0 });
     const prepared = prepareBalancedDuelists({ challenger: veteran, target: newer });
 
     expect(prepared.target.balanceAudit.temporaryHpMax).toBeGreaterThan(0);
     expect(prepared.challenger.balanceAudit.temporaryHpMax).toBe(0);
-    expect(prepared.challenger.balanceAudit.targetProgressionBudget.score).toBe(
-      prepared.target.balanceAudit.targetProgressionBudget.score
+    expect(prepared.challenger.stats).toEqual(prepared.target.stats);
+    expect(prepared.challenger.balanceAudit.preparedScore).toBe(prepared.target.balanceAudit.preparedScore);
+  });
+
+  it("keeps each class on its own growth profile during progression normalization", () => {
+    const warrior = makeCanonicalDuelist({
+      id: "warrior",
+      level: 3,
+      classId: "class.warrior",
+      className: "Воїн"
+    });
+    const mage = makeCanonicalDuelist({
+      id: "mage",
+      level: 13,
+      classId: "class.mage",
+      className: "Маг"
+    });
+
+    const prepared = prepareBalancedDuelists({ challenger: warrior, target: mage });
+
+    expect(prepared.challenger.balanceAudit.targetProgressionBudget.stats.strength).toBeGreaterThan(
+      prepared.challenger.balanceAudit.targetProgressionBudget.stats.intelligence
+    );
+    expect(prepared.target.balanceAudit.targetProgressionBudget.stats.intelligence).toBeGreaterThan(
+      prepared.target.balanceAudit.targetProgressionBudget.stats.strength
+    );
+    expect(prepared.challenger.balanceAudit.targetProgressionBudget.stats).not.toEqual(
+      prepared.target.balanceAudit.targetProgressionBudget.stats
     );
   });
 
@@ -117,6 +156,77 @@ describe("resolveQuickDuel", () => {
     expect(result.audit.target.readinessPenalty).toBe(12);
   });
 });
+
+interface CanonicalDuelistOptions {
+  id: string;
+  level?: number;
+  remortCount?: number;
+  classId?: string;
+  className?: string;
+  raceId?: string;
+  raceName?: string;
+  path?: CharacterPath;
+  hpRatio?: number;
+  manaRatio?: number;
+  equipmentEffects?: DuelistSummary["equipmentEffects"];
+}
+
+function makeCanonicalDuelist(options: CanonicalDuelistOptions): DuelistSummary {
+  const classId = options.classId ?? "class.warrior";
+  const raceId = options.raceId ?? "race.human-ish";
+  const path = options.path ?? "boundary";
+  const level = options.level ?? 3;
+  const remortCount = options.remortCount ?? 0;
+  const starter = buildStarterStats(raceId, classId);
+  const pathBonus = buildPathStatBonus(path);
+  const levelGrowth = buildLevelGrowthBonus(1, level, classId, raceId, path);
+  const remortGrowth = buildLevelGrowthBonus(1, REMORT_REQUIRED_LEVEL, classId, raceId, path);
+  const remortStats = mapStats(remortGrowth.stats, (value) =>
+    buildRemortMemoryBonus(value, remortCount)
+  );
+  const equipmentEffects = options.equipmentEffects ?? {
+    hpMax: 0,
+    manaMax: 0,
+    armor: 0,
+    resist: 0,
+    weaponDamage: 0,
+    spellPower: 0,
+    stats: createEmptyStats(),
+    contributions: []
+  };
+  const stats = addStats(
+    addStats(addStats(starter.stats, pathBonus), levelGrowth.stats),
+    addStats(remortStats, equipmentEffects.stats)
+  );
+  const hpMax =
+    starter.hpMax +
+    levelGrowth.hpMax +
+    buildRemortMemoryBonus(remortGrowth.hpMax, remortCount) +
+    equipmentEffects.hpMax;
+  const manaMax =
+    starter.manaMax +
+    levelGrowth.manaMax +
+    buildRemortMemoryBonus(remortGrowth.manaMax, remortCount) +
+    equipmentEffects.manaMax;
+
+  return makeDuelist({
+    id: options.id,
+    level,
+    remortCount,
+    classId,
+    className: options.className ?? "Воїн",
+    raceId,
+    raceName: options.raceName ?? "Людисько",
+    path,
+    hpMax,
+    hpCurrent: Math.round(hpMax * (options.hpRatio ?? 1)),
+    manaMax,
+    manaCurrent: Math.round(manaMax * (options.manaRatio ?? 1)),
+    stats,
+    equipmentEffects,
+    levelBonus: levelGrowth
+  });
+}
 
 function makeDuelist(
   overrides: Partial<DuelistSummary> & { strength?: number } = {}
@@ -166,6 +276,23 @@ function makeDuelist(
       }
     },
     ...overrides
+  };
+}
+
+function addStats(left: CharacterStats, right: CharacterStats): CharacterStats {
+  return mapStats(left, (value, stat) => value + right[stat]);
+}
+
+function mapStats(
+  stats: CharacterStats,
+  mapper: (value: number, stat: keyof CharacterStats) => number
+): CharacterStats {
+  return {
+    strength: mapper(stats.strength, "strength"),
+    dexterity: mapper(stats.dexterity, "dexterity"),
+    intelligence: mapper(stats.intelligence, "intelligence"),
+    charisma: mapper(stats.charisma, "charisma"),
+    luck: mapper(stats.luck, "luck")
   };
 }
 

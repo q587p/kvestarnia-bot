@@ -62,7 +62,7 @@ export const DUEL_INVITE_TEMPLATES = [
     id: "table-demands",
     header: "🪑 Стіл вимагає видовища",
     body: (name) => [
-      `Стіл мовчить, але ${name} переконує всіх, що саме він щойно зажадав дуелі.`,
+      `Стіл мовчить, але ${name} переконує всіх, що дуелі щойно зажадали саме меблі.`,
       "Переходьте за посиланням, доки меблі не передумали й не викликали когось іншого."
     ]
   },
@@ -102,7 +102,7 @@ export const DUEL_INVITE_TEMPLATES = [
     id: "form-13b",
     header: "🗂️ Форма 13-Б: добровільна бійка",
     body: (name) => [
-      `${name} заповнив майже всі поля. У графі «гідний суперник» лишилося вписати вас.`,
+      `У формі ${name} майже всі поля вже заповнено. У графі «гідний суперник» лишилося вписати вас.`,
       "Переходьте за посиланням і поставте згоду там, де Корчмар уже намалював хрестик."
     ]
   },
@@ -127,7 +127,7 @@ export function getNextDuelInviteTemplateIndex(token: string, currentIndex: numb
     return current;
   }
 
-  const offset = stableIndex(`${token}:${current}`, DUEL_INVITE_TEMPLATES.length - 1) + 1;
+  const offset = stableIndex(`${token}:step`, DUEL_INVITE_TEMPLATES.length - 1) + 1;
 
   return (current + offset) % DUEL_INVITE_TEMPLATES.length;
 }

@@ -705,8 +705,12 @@ function summarizeDuelCharacterWithResultSnapshot(
     return summary;
   }
 
+  const { remortCount, remortMemoryRank, ...summaryWithoutLiveRemort } = summary;
+  void remortCount;
+  void remortMemoryRank;
+
   const replay = {
-    ...summary,
+    ...summaryWithoutLiveRemort,
     name: snapshot.displayName,
     title: snapshot.title,
     raceId: snapshot.raceId,
@@ -716,7 +720,13 @@ function summarizeDuelCharacterWithResultSnapshot(
     level: snapshot.level
   };
 
-  return snapshot.remortCount > 0 ? { ...replay, remortCount: snapshot.remortCount } : replay;
+  return snapshot.remortCount > 0
+    ? {
+        ...replay,
+        remortCount: snapshot.remortCount,
+        remortMemoryRank: snapshot.remortCount
+      }
+    : replay;
 }
 
 function buildStoredDuelResult(

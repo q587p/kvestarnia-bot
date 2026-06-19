@@ -337,7 +337,43 @@ describe("DuelChallengeService", () => {
     });
     if (replay.state === "resolved") {
       expect(replay.challenger.remortCount).toBeUndefined();
+      expect(replay.challenger.remortMemoryRank).toBeUndefined();
     }
+  });
+
+  it("replays stored positive remort counts after later character changes", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, { name: "Перший Реморт", manaCurrent: 16, remortCount: 1 });
+    world.addCharacter(2n, { name: "Друга Сторона", manaCurrent: 16 });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+    const changed = world.characters.get(1n);
+
+    if (!changed) {
+      throw new Error("Expected challenger");
+    }
+
+    world.characters.set(1n, { ...changed, name: "Новий Реморт", level: 13, remortCount: 3 });
+    const replay = await service.getByToken(created.challenge.inviteToken);
+
+    expect(replay).toMatchObject({
+      state: "resolved",
+      challenger: {
+        name: "Перший Реморт",
+        level: 3,
+        remortCount: 1,
+        remortMemoryRank: 1
+      }
+    });
   });
 
   it("keeps open invites pending when bystanders cancel or decline", async () => {
@@ -976,7 +1012,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
   }
 
   findByToken(inviteToken: string): Promise<DuelChallengeRecord | null> {
-    return Promise.resolve(this.challenges.get(inviteToken) ?? null);
+    return Promise.resolve(this.refreshChallenge(this.challenges.get(inviteToken)));
   }
 
   markExpiredByToken(inviteToken: string, now: Date): Promise<DuelChallengeRecord | null> {
@@ -986,10 +1022,10 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       const updated = { ...challenge, status: "expired" as const, updatedAt: now };
       this.challenges.set(inviteToken, updated);
 
-      return Promise.resolve(updated);
+      return Promise.resolve(this.refreshChallenge(updated));
     }
 
-    return Promise.resolve(challenge ?? null);
+    return Promise.resolve(this.refreshChallenge(challenge));
   }
 
   cancelByTokenForTelegramUser(
@@ -1003,10 +1039,10 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       const updated = { ...challenge, status: "cancelled" as const, updatedAt: now };
       this.challenges.set(inviteToken, updated);
 
-      return Promise.resolve(updated);
+      return Promise.resolve(this.refreshChallenge(updated));
     }
 
-    return Promise.resolve(challenge ?? null);
+    return Promise.resolve(this.refreshChallenge(challenge));
   }
 
   declineByTokenForTelegramUser(): Promise<DuelChallengeRecord | null> {
@@ -1076,8 +1112,31 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
           challenge.resolvedAt >= since &&
           challenge.result !== null &&
           challenge.target !== null
-      ) as ResolvedDuelChallengeRecord[]
+      ).map((challenge) => this.refreshChallenge(challenge)) as ResolvedDuelChallengeRecord[]
     );
+  }
+
+  private refreshChallenge(
+    challenge: DuelChallengeRecord | undefined | null
+  ): DuelChallengeRecord | null {
+    if (!challenge) {
+      return null;
+    }
+
+    const challenger = this.findCharacterById(challenge.challengerCharacterId) ?? challenge.challenger;
+    const target = challenge.targetCharacterId
+      ? this.findCharacterById(challenge.targetCharacterId) ?? challenge.target
+      : null;
+
+    return {
+      ...challenge,
+      challenger,
+      target
+    };
+  }
+
+  private findCharacterById(characterId: string): DuelCharacterSnapshot | null {
+    return [...this.characters.values()].find((character) => character.id === characterId) ?? null;
   }
 }
 
@@ -1085,7 +1144,7 @@ function makeEquipment(itemId: string): CharacterEquipmentRecord {
   return {
     id: `equipment-${itemId}`,
     characterId: "character",
-    slot: "armor",
+    slot: "chest",
     itemId,
     createdAt: fixedNow(),
     updatedAt: fixedNow()
