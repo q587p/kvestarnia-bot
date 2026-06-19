@@ -60,7 +60,7 @@ Current tiny inventory slice:
 - `0.0.27` adds manual Mantok Chest input selection with compact callbacks and stale-input protection.
 - `0.0.28` replaces the old hourly Hunt Board reward faucet with the first Yeger unquiet quest and front-door milestone board.
 - `0.0.29` adds Yeger tracking wait/ready resolution and the first outside-korchma Munchkin level barter exchange.
-- `0.0.30` hardens Munchkin barter with replay-safe audit rows, no gold-only exchange, protected/equipped exclusions, and pending Barrel guards.
+- `0.0.30` hardens Munchkin barter with replay-safe audit rows, no gold-only/gold-heavy exchange, protected/equipped exclusions, and pending Barrel guards.
 - `0.1.0` closes Phase 1 with version, release notes, changelog/news, smoke docs, roadmap/backlog alignment, and no new gameplay runtime.
 - `0.1.2` fixes the first post-closeout presence/routing papercut and opens the first explicit level-13 `/remort` loop: `Шинок` is now a korchma interior location for routing gates, presence routing rules are tested outside `createBot.ts`, and remort drafts/history are replay-safe.
 - `0.1.3` adds reliability polish for already-shipped loops: durable Barrel completion notifications survive restart/retry, and stale pending Дружня Скриня runs expire without touching inventory.

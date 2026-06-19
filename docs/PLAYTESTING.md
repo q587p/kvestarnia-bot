@@ -289,7 +289,7 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 6. Повторно натисни стару confirm-кнопку.
 7. Очікування: бот replay-ить той самий успішний обмін і не списує манатки, золото або рівень вдруге.
 8. Перевір персонажа з `1000+` золота, але без eligible priced манаток.
-9. Очікування: gold-only відхилено; Манчкін просить хоча б одну оцінену манатку.
+9. Очікування: gold-only і gold-heavy обміни відхилено; Манчкін просить манаток щонайменше на 587 золота.
 10. Перевір екіпіровану, безцінну, protected/story, zero-value або missing-content манатку.
 11. Очікування: вона не потрапляє в eligible суму й не списується.
 12. На спробі переходу `12 → 13` очікування: Манчкін відмовляє, бо 13 рівень лишається бойовим.
@@ -348,7 +348,7 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 17. Level 13 cap / alpha behavior зрозумілий.
 18. Mantok Chest auto/manual працює як перший item-volume sink.
 19. Yeger tracking і turn-in не дублюють прогрес або reward.
-20. Munchkin barter не дозволяє gold-only, replay-ить completed confirm і не проводить `12 -> 13`.
+20. Munchkin barter не дозволяє gold-only/gold-heavy обмін, replay-ить completed confirm і не проводить `12 -> 13`.
 21. `/version` після deploy показує `0.1.0`.
 
 ## Що це ще не перевіряє

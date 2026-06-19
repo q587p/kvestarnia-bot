@@ -24,8 +24,8 @@ describe("LevelBarterService", () => {
   it("previews item value plus missing wallet gold", async () => {
     const service = new LevelBarterService(
       new FakeLevelBarterRepository(snapshot({
-        gold: 975,
-        items: [{ itemId: "item.pan-of-persuasion", quantity: 1 }]
+        gold: 400,
+        items: [{ itemId: "item.pan-of-persuasion", quantity: 24 }]
       })),
       () => fixedNow
     );
@@ -34,8 +34,8 @@ describe("LevelBarterService", () => {
 
     expect(preview.state).toBe("preview");
     if (preview.state === "preview") {
-      expect(preview.offer.itemTotalValue).toBe(25);
-      expect(preview.offer.goldSpent).toBe(975);
+      expect(preview.offer.itemTotalValue).toBe(600);
+      expect(preview.offer.goldSpent).toBe(400);
       expect(preview.offer.selectedTotalValue).toBe(1000);
       expect(preview.offer.levelAfter).toBe(5);
     }
@@ -47,8 +47,8 @@ describe("LevelBarterService", () => {
         level: 9,
         xp: 800,
         remortCount: 1,
-        gold: 975,
-        items: [{ itemId: "item.pan-of-persuasion", quantity: 1 }]
+        gold: 400,
+        items: [{ itemId: "item.pan-of-persuasion", quantity: 24 }]
       })),
       () => fixedNow
     );
@@ -69,8 +69,8 @@ describe("LevelBarterService", () => {
     const repository = new FakeLevelBarterRepository(snapshot({
       level: 4,
       xp: 48,
-      gold: 975,
-      items: [{ itemId: "item.pan-of-persuasion", quantity: 1 }]
+      gold: 400,
+      items: [{ itemId: "item.pan-of-persuasion", quantity: 24 }]
     }));
     const service = new LevelBarterService(repository, () => fixedNow);
     const preview = await service.createAutoPreviewForTelegramUser(telegramUserId);
@@ -94,8 +94,8 @@ describe("LevelBarterService", () => {
 
   it("treats changed preview input as stale", async () => {
     const repository = new FakeLevelBarterRepository(snapshot({
-      gold: 975,
-      items: [{ itemId: "item.pan-of-persuasion", quantity: 1 }]
+      gold: 400,
+      items: [{ itemId: "item.pan-of-persuasion", quantity: 24 }]
     }));
     const service = new LevelBarterService(repository, () => fixedNow);
     const preview = await service.createAutoPreviewForTelegramUser(telegramUserId);
@@ -103,7 +103,7 @@ describe("LevelBarterService", () => {
     if (preview.state !== "preview") {
       return;
     }
-    repository.snapshot = snapshot({ gold: 975, items: [{ itemId: "item.pan-of-persuasion", quantity: 2 }] });
+    repository.snapshot = snapshot({ gold: 400, items: [{ itemId: "item.pan-of-persuasion", quantity: 25 }] });
 
     await expect(service.confirmAutoExchangeForTelegramUser(telegramUserId, preview.offer.token)).resolves.toEqual({
       state: "stale-selection"
@@ -114,8 +114,8 @@ describe("LevelBarterService", () => {
     const repository = new FakeLevelBarterRepository(snapshot({
       level: 4,
       xp: 48,
-      gold: 975,
-      items: [{ itemId: "item.pan-of-persuasion", quantity: 1 }]
+      gold: 400,
+      items: [{ itemId: "item.pan-of-persuasion", quantity: 24 }]
     }));
     const service = new LevelBarterService(repository, () => fixedNow);
     const preview = await service.createAutoPreviewForTelegramUser(telegramUserId);
@@ -152,6 +152,25 @@ describe("LevelBarterService", () => {
       eligibleTotalValue: 0,
       gold: 1000,
       combinedValue: 1000
+    });
+  });
+
+  it("denies mostly-gold exchange when eligible item value is below 587", async () => {
+    const service = new LevelBarterService(
+      new FakeLevelBarterRepository(snapshot({
+        level: 4,
+        xp: 48,
+        gold: 1000,
+        items: [{ itemId: "item.pan-of-persuasion", quantity: 23 }]
+      })),
+      () => fixedNow
+    );
+
+    await expect(service.createAutoPreviewForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "insufficient",
+      eligibleTotalValue: 575,
+      gold: 1000,
+      combinedValue: 1575
     });
   });
 

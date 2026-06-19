@@ -28,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Legacy `v1` starter and cellar callbacks continue to replay safely; old Adventure Choice `safe/flair/risky` callbacks no longer reinterpret into new methods.
 - Quest checks now use the same effective stat snapshot as the summary card, including equipped manatky/item effects, instead of resolving against base-only stats.
 - Cellar mouse rewards stay deliberately conservative, and stale/unknown current-version method ids no longer claim, charge, start cooldowns or grant rewards.
+- `🎒 Манчкін-скупник` now requires at least `587` gold value from eligible manatky before wallet gold can fill the rest of the level-barter cost.
 - `🎒 Манчкін-скупник` now follows a Kyiv local night schedule: during the day he remains outside by the korchma front door, and at night his paragraph/button moves to `Спуск до Низу`.
 - Training and duel result return buttons now say `↩️ Повернутися до кутка`, making the Fighting Corner navigation distinct from challenge actions.
 
