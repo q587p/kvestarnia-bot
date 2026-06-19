@@ -428,6 +428,44 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     };
   }
 
+  async findActiveCombatBlockerCharacterId(characterIds: string[]): Promise<string | null> {
+    if (characterIds.length === 0) {
+      return null;
+    }
+
+    const [activeLease, activeSolo] = await Promise.all([
+      this.prisma.activeCombatLease.findFirst({
+        where: {
+          characterId: {
+            in: characterIds
+          }
+        },
+        select: {
+          characterId: true
+        }
+      }),
+      this.prisma.soloCombatSession.findFirst({
+        where: {
+          status: "active",
+          characterId: {
+            in: characterIds
+          }
+        },
+        select: {
+          characterId: true
+        }
+      })
+    ]);
+
+    const blockedIds = new Set(
+      [activeLease?.characterId, activeSolo?.characterId].filter(
+        (characterId): characterId is string => Boolean(characterId)
+      )
+    );
+
+    return characterIds.find((characterId) => blockedIds.has(characterId)) ?? null;
+  }
+
   async findActiveTurnBasedByTelegramUserId(
     telegramUserId: bigint
   ): Promise<DuelCombatSessionRecord | null> {

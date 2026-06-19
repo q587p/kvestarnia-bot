@@ -224,6 +224,10 @@ export interface DuelChallengeRepository {
     telegramUserId: bigint
   ): Promise<DuelCombatSessionRecord | null>;
 
+  findActiveCombatBlockerCharacterId(
+    characterIds: string[]
+  ): Promise<string | null>;
+
   findTurnBasedByTokenForTelegramUserId(
     inviteToken: string,
     telegramUserId: bigint

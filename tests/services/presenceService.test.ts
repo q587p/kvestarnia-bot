@@ -215,6 +215,30 @@ describe("PresenceService", () => {
     });
   });
 
+  it("revalidates nearby duel target activity at the current location", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL),
+      player(2n, "Дара", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL)
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    await expect(service.isNearbyDuelTargetAvailable(1n, 2n)).resolves.toBe(true);
+
+    repository.records.set(
+      2n,
+      player(2n, "Дара", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_BAR)
+    );
+
+    await expect(service.isNearbyDuelTargetAvailable(1n, 2n)).resolves.toBe(false);
+
+    repository.records.set(
+      2n,
+      player(2n, "Дара", minutesAgo(7), PRESENCE_LOCATION_KORCHMA_HALL)
+    );
+
+    await expect(service.isNearbyDuelTargetAvailable(1n, 2n)).resolves.toBe(false);
+  });
+
   it("filters raid and adventure participants by the current scene only", async () => {
     const repository = new FakePresenceRepository([
       player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_BARREL, {

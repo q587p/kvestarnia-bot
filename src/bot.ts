@@ -69,6 +69,7 @@ const presence = new PrismaPresenceRepository(prisma);
 const remorts = new PrismaRemortRepository(prisma);
 const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
 const fight = new FightService(characters, dailyActions, undefined, soloCombatSessions, undefined, equipment);
+const presenceService = new PresenceService(presence);
 const services = {
   adventure: new AdventureService(characters, dailyActions, undefined, soloCombatSessions),
   barrelRaidNotifications,
@@ -84,9 +85,9 @@ const services = {
   levelBarter: new LevelBarterService(levelBarter),
   levelMilestones: new LevelMilestoneService(levelMilestones),
   mantokChest: new MantokChestService(mantokChestRuns),
-  presence: new PresenceService(presence),
+  presence: presenceService,
   devGrant: new DevGrantService(devGrants, config.nodeEnv, config.devGrantCommandsEnabled),
-  duel: new DuelChallengeService(duelChallenges, characters),
+  duel: new DuelChallengeService(duelChallenges, characters, undefined, undefined, presenceService),
   remort: new RemortService(remorts),
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),

@@ -17,6 +17,7 @@ import type {
 import type { CharacterEquipmentRecord } from "../../src/db/repositories/equipmentRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
 import { DuelChallengeService } from "../../src/services/duelChallengeService";
+import type { NearbyDuelTargetValidator } from "../../src/services/presenceService";
 import { FakeRandomSource } from "../../src/shared/random";
 
 const fixedNow = () => new Date("2026-06-17T18:00:00.000Z");
@@ -115,6 +116,25 @@ describe("DuelChallengeService", () => {
         mode: "turn-based"
       }
     });
+  });
+
+  it("rejects a targeted nearby invite when the target is no longer active nearby", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    world.nearbyTargets.available = false;
+    const service = buildService(world, fixedNow, world.nearbyTargets);
+
+    const result = await service.createTargetedChallengeForTelegramUser(1n, 2n, {
+      contextChatId: -100n,
+      mode: "turn-based"
+    });
+
+    expect(result).toMatchObject({
+      state: "target-not-found"
+    });
+    expect(world.nearbyTargets.calls).toEqual([{ challenger: 1n, target: 2n }]);
+    expect(world.challenges.size).toBe(0);
   });
 
   it("shows a resource warning before accepting with partial resources", async () => {
@@ -978,6 +998,34 @@ describe("DuelChallengeService", () => {
     expect(resolved.session.state.pendingActions).toBeUndefined();
   });
 
+  it("reports the challenger when their active combat lease blocks turn-based start", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, { name: "Зайнятий Автор" });
+    world.addCharacter(2n, { name: "Отримувач" });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    world.busyCharacterIds.add("character-1");
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    expect(accepted).toMatchObject({
+      state: "busy",
+      busyCharacter: {
+        name: "Зайнятий Автор"
+      }
+    });
+  });
+
   it("enforces turn deadlines at the update boundary for actions and timeouts", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n);
@@ -1091,8 +1139,18 @@ describe("DuelChallengeService", () => {
   });
 });
 
-function buildService(world: FakeDuelWorld, clock = fixedNow): DuelChallengeService {
-  return new DuelChallengeService(world, world, clock, new FakeRandomSource([0.5]));
+function buildService(
+  world: FakeDuelWorld,
+  clock = fixedNow,
+  nearbyDuelTargets?: NearbyDuelTargetValidator
+): DuelChallengeService {
+  return new DuelChallengeService(
+    world,
+    world,
+    clock,
+    new FakeRandomSource([0.5]),
+    nearbyDuelTargets
+  );
 }
 
 class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
@@ -1100,6 +1158,8 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
   readonly challenges = new Map<string, DuelChallengeRecord>();
   readonly sessions = new Map<string, DuelCombatSessionRecord>();
   readonly resourceUpdates: UpdateCharacterResourcesInput[] = [];
+  readonly busyCharacterIds = new Set<string>();
+  readonly nearbyTargets = new FakeNearbyDuelTargetValidator();
   failNextResourceUpdate = false;
   failNextTurnUpdateWithConcurrentOpponentChoice = false;
   turnUpdateAttempts = 0;
@@ -1384,7 +1444,9 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       challenge.mode !== "turn-based" ||
       challenge.expiresAt <= now ||
       challenge.challengerCharacterId === target.id ||
-      (challenge.targetCharacterId !== null && challenge.targetCharacterId !== target.id)
+      (challenge.targetCharacterId !== null && challenge.targetCharacterId !== target.id) ||
+      this.busyCharacterIds.has(challenge.challengerCharacterId) ||
+      this.busyCharacterIds.has(target.id)
     ) {
       return Promise.resolve({ record: null, transitioned: false });
     }
@@ -1437,6 +1499,12 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
           session.status === "active" &&
           (session.challengerCharacterId === character.id || session.targetCharacterId === character.id)
       ) ?? null
+    );
+  }
+
+  findActiveCombatBlockerCharacterId(characterIds: string[]): Promise<string | null> {
+    return Promise.resolve(
+      characterIds.find((characterId) => this.busyCharacterIds.has(characterId)) ?? null
     );
   }
 
@@ -1598,6 +1666,23 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       xp,
       level: Math.max(character.level, getLevelForXp(xp, { remortCount: character.remortCount ?? 0 }))
     });
+  }
+}
+
+class FakeNearbyDuelTargetValidator implements NearbyDuelTargetValidator {
+  available = true;
+  readonly calls: Array<{ challenger: bigint; target: bigint }> = [];
+
+  isNearbyDuelTargetAvailable(
+    challengerTelegramUserId: bigint,
+    targetTelegramUserId: bigint
+  ): Promise<boolean> {
+    this.calls.push({
+      challenger: challengerTelegramUserId,
+      target: targetTelegramUserId
+    });
+
+    return Promise.resolve(this.available);
   }
 }
 

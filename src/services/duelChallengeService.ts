@@ -27,6 +27,7 @@ import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import { getEquippedItemContents } from "./equipmentService";
+import type { NearbyDuelTargetValidator } from "./presenceService";
 
 export const DUEL_INVITE_MIN_LEVEL = 3;
 const DUEL_INVITE_TTL_MS = 13 * 60 * 1000;
@@ -189,7 +190,8 @@ export class DuelChallengeService {
     private readonly challenges: DuelChallengeRepository,
     private readonly characters: CharacterRepository,
     private readonly clock: Clock = systemClock,
-    private readonly rng: RandomSource = new CryptoRandomSource()
+    private readonly rng: RandomSource = new CryptoRandomSource(),
+    private readonly nearbyDuelTargets?: NearbyDuelTargetValidator
   ) {}
 
   async createOpenChallengeForTelegramUser(
@@ -468,12 +470,18 @@ export class DuelChallengeService {
           return this.buildActiveView(active, now);
         }
 
+        const busyCharacterId = await this.challenges.findActiveCombatBlockerCharacterId([
+          challenge.challenger.id,
+          targetCharacter.id
+        ]);
+
         return {
           state: "busy",
           challenge,
           challenger,
           target: currentTarget,
-          busyCharacter: currentTarget
+          busyCharacter:
+            busyCharacterId === challenge.challenger.id ? challenger : currentTarget
         };
       }
 
@@ -940,16 +948,6 @@ export class DuelChallengeService {
       };
     }
 
-    const warning = getResourceWarning(challenger);
-
-    if (warning && input.ignoreResourceWarning !== true) {
-      return {
-        state: "resource-warning",
-        character: challenger,
-        warning
-      };
-    }
-
     const target = await this.challenges.findCharacterByTelegramUser(targetTelegramUserId);
 
     if (!target) {
@@ -958,6 +956,26 @@ export class DuelChallengeService {
 
     if (target.id === challengerSnapshot.id) {
       return { state: "self-challenge", character: challenger };
+    }
+
+    if (
+      this.nearbyDuelTargets &&
+      !(await this.nearbyDuelTargets.isNearbyDuelTargetAvailable(
+        telegramUserId,
+        targetTelegramUserId
+      ))
+    ) {
+      return { state: "target-not-found", character: challenger };
+    }
+
+    const warning = getResourceWarning(challenger);
+
+    if (warning && input.ignoreResourceWarning !== true) {
+      return {
+        state: "resource-warning",
+        character: challenger,
+        warning
+      };
     }
 
     const challenge = await this.challenges.createTargetedForTelegramUser(

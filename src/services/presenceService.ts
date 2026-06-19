@@ -142,6 +142,13 @@ export type NearbyDuelCandidatesSnapshot =
       visible: PresencePerson[];
     };
 
+export interface NearbyDuelTargetValidator {
+  isNearbyDuelTargetAvailable(
+    challengerTelegramUserId: bigint,
+    targetTelegramUserId: bigint
+  ): Promise<boolean>;
+}
+
 export type CurrentPlaceSnapshot =
   | { state: "no-character" }
   | {
@@ -288,6 +295,30 @@ export class PresenceService {
       totalPages,
       visible: candidates.slice(start, start + safePageSize)
     };
+  }
+
+  async isNearbyDuelTargetAvailable(
+    challengerTelegramUserId: bigint,
+    targetTelegramUserId: bigint
+  ): Promise<boolean> {
+    if (challengerTelegramUserId === targetTelegramUserId) {
+      return false;
+    }
+
+    const current = await this.presence.findByTelegramUserId(challengerTelegramUserId);
+
+    if (!current?.characterName) {
+      return false;
+    }
+
+    const since = this.getRecentCutoff();
+    const locationId = normalizePresenceLocationId(current.lastSeenLocationId);
+    const people = groupPeople(
+      await this.listByLocationGroupSeenSince(locationId, since),
+      this.clock()
+    );
+
+    return people.active.some((person) => person.telegramUserId === targetTelegramUserId);
   }
 
   async getKorchmaInteriorPresence(): Promise<PresenceGroup> {
