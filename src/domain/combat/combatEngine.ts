@@ -49,12 +49,55 @@ export interface CombatActionAvailability {
   };
 }
 
+export interface CombatActorResourceState {
+  hp: number;
+  hpMax: number;
+  mana: number;
+  manaMax: number;
+  cooldowns?: CombatState["cooldowns"];
+}
+
+export interface ResolveActorCombatActionInput {
+  actorState: CombatActorResourceState;
+  defenderState: CombatActorResourceState;
+  actorStats: CombatActorStats;
+  defenderStats: MonsterCombatStats;
+  action: Exclude<CombatActionType, "flee">;
+  rng: RandomSource;
+}
+
+export interface ActorCombatActionSummary {
+  action: Exclude<CombatActionType, "flee">;
+  actorOutcome: Extract<
+    CombatTurnSummary["heroOutcome"],
+    "hit" | "critical-hit" | "miss" | "not-enough-mana" | "skill-on-cooldown" | "won"
+  >;
+  actorDamage: number;
+  manaSpent: number;
+  critical: boolean;
+  skillId?: string;
+  damageKind?: CombatTurnSummary["damageKind"];
+}
+
+export interface ResolveActorCombatActionResult {
+  actorState: CombatActorResourceState;
+  defenderState: CombatActorResourceState;
+  summary: ActorCombatActionSummary;
+}
+
 export function getCombatActionAvailability(
   state: CombatState,
   hero: Pick<CombatActorStats, "classId">
 ): CombatActionAvailability {
-  const skill = getCombatSkillProfile(hero.classId);
-  const cooldown = state.cooldowns?.skill;
+  return getActorCombatActionAvailability({ ...state.hero, cooldowns: state.cooldowns }, hero);
+}
+
+export function getActorCombatActionAvailability(
+  actorState: Pick<CombatActorResourceState, "mana" | "cooldowns">,
+  actor: Pick<CombatActorStats, "classId">
+): CombatActionAvailability {
+  const skill = getCombatSkillProfile(actor.classId);
+  const cooldown = actorState.cooldowns?.skill;
 
   if (cooldown?.id === skill.id && cooldown.remainingTurns > 0) {
     return {
@@ -69,7 +112,7 @@ export function getCombatActionAvailability(
     };
   }
 
-  if (state.hero.mana < skill.manaCost) {
+  if (actorState.mana < skill.manaCost) {
     return {
       attack: { available: true },
       flee: { available: true },
@@ -86,6 +129,39 @@ export function getCombatActionAvailability(
     flee: { available: true },
     skill: { available: true, skill }
   };
+}
+
+export function resolveActorCombatAction(
+  input: ResolveActorCombatActionInput
+): ResolveActorCombatActionResult {
+  const actorState = cloneActorResourceState(input.actorState);
+  const defenderState = cloneActorResourceState(input.defenderState);
+
+  if (input.action === "skill") {
+    const skill = getCombatSkillProfile(input.actorStats.classId);
+    const availability = getActorCombatActionAvailability(actorState, input.actorStats).skill;
+
+    if (!availability.available) {
+      const nextActor = tickActorSkillCooldown(actorState);
+      return {
+        actorState: nextActor,
+        defenderState,
+        summary: {
+          action: "skill",
+          actorOutcome: availability.reason === "cooldown" ? "skill-on-cooldown" : "not-enough-mana",
+          actorDamage: 0,
+          manaSpent: 0,
+          critical: false,
+          skillId: skill.id,
+          damageKind: skill.damageKind
+        }
+      };
+    }
+
+    return resolveActorAttack(input, skill);
+  }
+
+  return resolveActorAttack(input);
 }
 
 export function resolveCombatTurn(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
@@ -134,15 +210,28 @@ function resolveHeroAttack(
   skill?: ReturnType<typeof getCombatSkillProfile>
 ): ResolveCombatTurnResult {
   const nextState = cloneCombatState(input.state);
-  const attack = skill
-    ? rollSkillAttack(input.hero, input.monster, skill, input.rng)
-    : rollBasicAttack(input.hero, input.monster, input.rng);
-  const manaSpent = skill?.manaCost ?? 0;
-  const monsterHp = Math.max(0, nextState.monster.hp - attack.damage);
-
-  nextState.hero.mana = clampResource(nextState.hero.mana - manaSpent, nextState.hero.manaMax);
-  nextState.monster.hp = monsterHp;
-  tickSkillCooldown(nextState);
+  const actorAction = resolveActorCombatAction({
+    actorState: {
+      ...nextState.hero,
+      cooldowns: nextState.cooldowns
+    },
+    defenderState: {
+      hp: nextState.monster.hp,
+      hpMax: nextState.monster.hpMax,
+      mana: 0,
+      manaMax: 0
+    },
+    actorStats: input.hero,
+    defenderStats: input.monster,
+    action: skill ? "skill" : "attack",
+    rng: input.rng
+  });
+  nextState.hero.hp = actorAction.actorState.hp;
+  nextState.hero.mana = actorAction.actorState.mana;
+  setStateCooldowns(nextState, actorAction.actorState.cooldowns);
+  nextState.monster.hp = actorAction.defenderState.hp;
+  const monsterHp = nextState.monster.hp;
+  const manaSpent = actorAction.summary.manaSpent;
 
   let monsterDamage = 0;
   let monsterSkill: ReturnType<typeof getCombatSkillProfile> | null = null;
@@ -150,16 +239,13 @@ function resolveHeroAttack(
   if (monsterHp <= 0) {
     nextState.status = "won";
     nextState.turn += 1;
-    if (skill && skill.manaCost === 0) {
-      setSkillCooldown(nextState, skill, input.hero);
-    }
     const summary = buildSummary({
       action: input.action,
       heroOutcome: "won",
-      heroDamage: attack.damage,
+      heroDamage: actorAction.summary.actorDamage,
       monsterDamage,
       manaSpent,
-      critical: attack.critical,
+      critical: actorAction.summary.critical,
       ...(skill ? { skill } : {})
     });
     nextState.lastTurn = summary;
@@ -190,19 +276,16 @@ function resolveHeroAttack(
   const monsterOutcome = monsterDamage > 0 ? "hit" : "miss";
   nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
   nextState.turn += 1;
-  if (skill && skill.manaCost === 0) {
-    setSkillCooldown(nextState, skill, input.hero);
-  }
 
   const debugTrace = buildTurnDebugTrace(input.monster, monsterSkill);
   const summary = buildSummary({
     action: input.action,
-    heroOutcome: attack.hit ? (attack.critical ? "critical-hit" : "hit") : "miss",
+    heroOutcome: actorAction.summary.actorOutcome,
     monsterOutcome: nextState.status === "lost" ? "lost" : monsterOutcome,
-    heroDamage: attack.damage,
+    heroDamage: actorAction.summary.actorDamage,
     monsterDamage,
     manaSpent,
-    critical: attack.critical,
+    critical: actorAction.summary.critical,
     ...(skill ? { skill } : {}),
     ...(monsterSkill ? { monsterSkill } : {}),
     ...(debugTrace ? { debugTrace } : {})
@@ -260,7 +343,24 @@ function resolveFailedSkillAttempt(
   }
 ): ResolveCombatTurnResult {
   const nextState = cloneCombatState(input.state);
-  tickSkillCooldown(nextState);
+  const actorAction = resolveActorCombatAction({
+    actorState: {
+      ...nextState.hero,
+      cooldowns: nextState.cooldowns
+    },
+    defenderState: {
+      hp: nextState.monster.hp,
+      hpMax: nextState.monster.hpMax,
+      mana: 0,
+      manaMax: 0
+    },
+    actorStats: input.hero,
+    defenderStats: input.monster,
+    action: "skill",
+    rng: input.rng
+  });
+  nextState.hero.mana = actorAction.actorState.mana;
+  setStateCooldowns(nextState, actorAction.actorState.cooldowns);
 
   const monsterSkill = selectMonsterSkill(input.state, input.monster, input.rng);
   const monsterDamage = monsterSkill
@@ -294,6 +394,50 @@ function resolveFailedSkillAttempt(
   };
 }
 
+function resolveActorAttack(
+  input: ResolveActorCombatActionInput,
+  skill?: ReturnType<typeof getCombatSkillProfile>
+): ResolveActorCombatActionResult {
+  const actorState = cloneActorResourceState(input.actorState);
+  const defenderState = cloneActorResourceState(input.defenderState);
+  const attack = skill
+    ? rollSkillAttack(input.actorStats, input.defenderStats, skill, input.rng)
+    : rollBasicAttack(input.actorStats, input.defenderStats, input.rng);
+  const manaSpent = skill?.manaCost ?? 0;
+
+  actorState.mana = clampResource(actorState.mana - manaSpent, actorState.manaMax);
+  defenderState.hp = Math.max(0, defenderState.hp - attack.damage);
+  const tickedActorState = tickActorSkillCooldown(actorState);
+
+  if (skill && skill.manaCost === 0) {
+    setActorSkillCooldown(tickedActorState, skill, input.actorStats);
+  }
+
+  return {
+    actorState: tickedActorState,
+    defenderState,
+    summary: {
+      action: skill ? "skill" : "attack",
+      actorOutcome: defenderState.hp <= 0
+        ? "won"
+        : attack.hit
+          ? attack.critical
+            ? "critical-hit"
+            : "hit"
+          : "miss",
+      actorDamage: attack.damage,
+      manaSpent,
+      critical: attack.critical,
+      ...(skill
+        ? {
+            skillId: skill.id,
+            damageKind: skill.damageKind
+          }
+        : {})
+    }
+  };
+}
+
 export function getNonManaSkillCooldownTurns(
   hero: CombatActorStats,
   skill: ReturnType<typeof getCombatSkillProfile>
@@ -313,8 +457,32 @@ export function getNonManaSkillCooldownTurns(
   return 5;
 }
 
-function setSkillCooldown(
-  state: CombatState,
+function tickSkillCooldown(state: CombatState): void {
+  const ticked = tickActorSkillCooldown({
+    hp: state.hero.hp,
+    hpMax: state.hero.hpMax,
+    mana: state.hero.mana,
+    manaMax: state.hero.manaMax,
+    cooldowns: state.cooldowns
+  });
+
+  setStateCooldowns(state, ticked.cooldowns);
+}
+
+function setStateCooldowns(
+  state: { cooldowns?: CombatState["cooldowns"] },
+  cooldowns: CombatState["cooldowns"] | undefined
+): void {
+  if (cooldowns) {
+    state.cooldowns = cooldowns;
+    return;
+  }
+
+  delete state.cooldowns;
+}
+
+function setActorSkillCooldown(
+  state: { cooldowns?: CombatState["cooldowns"] },
   skill: ReturnType<typeof getCombatSkillProfile>,
   hero: CombatActorStats
 ): void {
@@ -327,26 +495,41 @@ function setSkillCooldown(
   };
 }
 
-function tickSkillCooldown(state: CombatState): void {
+function tickActorSkillCooldown(state: CombatActorResourceState): CombatActorResourceState {
   const cooldown = state.cooldowns?.skill;
 
   if (!cooldown) {
-    return;
+    return cloneActorResourceState(state);
   }
 
   const remainingTurns = Math.max(0, cooldown.remainingTurns - 1);
+  const next = cloneActorResourceState(state);
 
   if (remainingTurns <= 0) {
-    delete state.cooldowns;
-    return;
+    delete next.cooldowns;
+    return next;
   }
 
-  state.cooldowns = {
-    ...state.cooldowns,
+  next.cooldowns = {
+    ...next.cooldowns,
     skill: {
       ...cooldown,
       remainingTurns
     }
+  };
+
+  return next;
+}
+
+function cloneActorResourceState(state: CombatActorResourceState): CombatActorResourceState {
+  return {
+    hp: state.hp,
+    hpMax: state.hpMax,
+    mana: state.mana,
+    manaMax: state.manaMax,
+    ...(state.cooldowns?.skill
+      ? { cooldowns: { skill: { ...state.cooldowns.skill } } }
+      : {})
   };
 }
 

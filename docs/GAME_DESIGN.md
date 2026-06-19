@@ -103,7 +103,7 @@ Achievements Phase 1 лишається rewardless later slice після осн
 - стан бою показує HP/ману героя, HP монстра, номер ходу й останній результат;
 - terminal states `won/lost/fled/expired` стабільні й не дають повторних ходів.
 
-Майбутній runtime-борг для всіх покрокових боїв: хід не має висіти до довгого session timeout, якщо гравець або майбутній PvP-учасник зник. Наступний combat timeout slice має додати короткий per-turn deadline приблизно `23` секунди для `/fight`, `/spar` і майбутніх turn-based дуелей. Після deadline система робить безпечну автоатаку або явний пропуск ходу за активного учасника, проводить відповідь монстра/копії/суперника за звичайними правилами, оновлює бойову картку й переходить до наступного ходу або terminal state. Це має бути ідемпотентний background/job path із guard-ом на `sessionId + turn`, а не прихований reroll чи дублювання винагороди.
+Runtime-борг для всіх покрокових боїв: хід не має висіти до довгого session timeout, якщо гравець або PvP-учасник зник. `0.1.18` першим підключає короткий per-turn deadline приблизно `23` секунди для покрокових дуелей: після deadline система робить безпечну автоатаку за активного учасника, оновлює бойову картку й переходить до наступного ходу або terminal state. `/fight` і `/spar` ще можуть перейняти цю модель окремим slice. Це має лишатися ідемпотентний background/job path із guard-ом на `sessionId + turn/version`, а не прихований reroll чи дублювання винагороди.
 
 У 0.0.21 persistent fight стартував без XP/золота/луту за кожну окрему перемогу, щоб спершу перевірити session correctness. Щоб loop не виглядав голою кнопкою, цей зріз мав перший вузький quest wrapper: `Тринадцять дрібних проблем`. У `0.1.6` wrapper стає корчмарським ланцюжком `13 -> 23 -> 42 -> 93`: кожен етап має окремий issue/reward key у `daily_actions` bucket `once` і явно береться/здається Корчмарю в шинку. У `0.1.7` перший етап `13` лишається legacy-compatible і може врахувати старі ordinary won solo fights до claimed reward, щоб старий журнал не губився під час переходу. Старий `quest.thirteen-small-problems` лишається compatibility reward key для першого етапу; уже видані 13-проблемні нагороди можуть відкрити етап 23 без дублювання старої винагороди. Етапи `23`, `42` і `93` рахують тільки won ordinary `solo_combat_sessions`, створені строго після видачі поточного етапу. Це не broad quest engine; це маленький корчемний контракт поверх сесій із явними свіжими лічильниками після першої папки.
 
@@ -473,7 +473,7 @@ MVP flow:
 - Гравець створює duel invite з корчми, presence surface або майбутньої shareable card.
 - Target приймає виклик явною кнопкою.
 - Виклик має expiry, decline/cancel states і replay-safe result.
-- Resolve спершу quick, не full turn-based PvP.
+- Resolve має два rewardless формати: quick `⚡ Миттєва дуель` одразу пише результат, а `♟️ Покрокова дуель` створює persistent two-player session із черговістю ходів.
 - Result card коротко показує, хто кого переміг, чому це смішно й чи можна натиснути `Реванш`.
 
 Resolution formula має бути напіврандомною, але відчутно залежати від героя:
@@ -492,8 +492,8 @@ Rewards and anti-grind:
 - Повторні callbacks replay-ять той самий result і не дублюють XP/social score.
 - Daily/weekly recognition має бути social/cosmetic first: титул, запис на дошці, коротка згадка, а не power snowball.
 
-Після дуелей Phase 2 розкладається так:
-- result/rematch/tournament cards;
+Після базових дуелей Phase 2 розкладається так:
+- social recognition/tournament cards;
 - trading/gifting MVP;
 - combat variety: guard, cooldowns, monster skills, item tags and one-use manatky;
 - remort-only advanced options after the `0.1.2` MVP;

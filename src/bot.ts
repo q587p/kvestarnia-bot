@@ -3,6 +3,7 @@ import "dotenv/config";
 import type { Bot } from "grammy";
 import { getTelegramMenuCommands } from "./bot/botCommandCatalog";
 import { createBot } from "./bot/createBot";
+import { createDuelTurnTimeoutScheduler } from "./bot/duelTurnTimeoutScheduler";
 import { loadConfig } from "./config/env";
 import { prisma } from "./db/prisma";
 import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepository";
@@ -114,8 +115,10 @@ const healthServer = startHealthServer({
   ...supportJarOptions
 });
 let bot: Bot | null = null;
+let duelTurnTimeoutScheduler: ReturnType<typeof createDuelTurnTimeoutScheduler> | null = null;
 
 function shutdown(): void {
+  duelTurnTimeoutScheduler?.stop();
   if (bot) {
     void bot.stop();
   }
@@ -134,6 +137,8 @@ if (!config.botToken) {
     ...supportJarOptions,
     ...botLinkOptions
   });
+  duelTurnTimeoutScheduler = createDuelTurnTimeoutScheduler(services.duel, bot);
+  duelTurnTimeoutScheduler.start();
 
   void services.mantokChest.cleanupExpiredPendingRuns().catch((error) => {
     console.error("Квестарня: старі бланки Дружньої Скрині не прибрались.", error);

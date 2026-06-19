@@ -16,6 +16,8 @@ import type {
   PersistentFightTurnResult,
   ProblemQuestIssueNextLookupResult
 } from "../services/fightService";
+import { getCombatSkillDisplay } from "../services/fightService";
+import { getCombatSkillProfile } from "../domain/combat";
 import type { HeroService } from "../services/heroService";
 import type { HuntService } from "../services/huntService";
 import type { YegerQuestService } from "../services/yegerQuestService";
@@ -31,6 +33,7 @@ import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
   PRESENCE_ADVENTURE_CHOICE,
+  PRESENCE_ADVENTURE_DUEL_CHALLENGE,
   PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_BAR,
@@ -163,6 +166,7 @@ import {
   buildPersistentFightResultKeyboard
 } from "./keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "./keyboards/trainingDoppelgangerKeyboard";
+import { buildTurnBasedDuelKeyboard } from "./keyboards/duelKeyboard";
 import {
   buildEquipItemResultKeyboard,
   buildEquipmentKeyboard,
@@ -244,6 +248,7 @@ import {
   presentTrainingDoppelganger,
   presentTrainingDoppelgangerTurn
 } from "./presenters/trainingDoppelgangerPresenter";
+import { presentTurnBasedDuel } from "./presenters/duelPresenter";
 import { presentHelp } from "./presenters/helpPresenter";
 import {
   presentEquipment,
@@ -752,6 +757,7 @@ function shouldCheckCombatLock(ctx: Context): boolean {
     return (
       !data.startsWith("v1:fight:turn:") &&
       !data.startsWith("v1:spar:turn:") &&
+      !data.startsWith("v1:duel:t:") &&
       !data.startsWith("v1:fight:mimic:") &&
       !isCombatLockSafeCallback(data)
     );
@@ -813,6 +819,34 @@ async function redirectCombatLockIfNeeded(
   telegramUserId: bigint,
   services: BotServices
 ): Promise<boolean> {
+  if (services.duel && typeof services.duel.getActiveTurnBasedForTelegramUser === "function") {
+    const activeDuel = await services.duel.getActiveTurnBasedForTelegramUser(telegramUserId);
+
+    if (activeDuel) {
+      await answerCombatLockCallback(ctx);
+      await refreshCombatLockPresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_DUEL_CHALLENGE
+      });
+      const viewerCharacterId =
+        activeDuel.challenge.challenger.telegramUserId === telegramUserId
+          ? activeDuel.session.challengerCharacterId
+          : activeDuel.challenge.target?.telegramUserId === telegramUserId
+            ? activeDuel.session.targetCharacterId
+            : null;
+      const actor = activeDuel.session.state.actingCharacterId === activeDuel.session.state.participants.challenger.characterId
+        ? activeDuel.session.state.participants.challenger
+        : activeDuel.session.state.participants.target;
+      const skill = getCombatSkillDisplay(getCombatSkillProfile(actor.combatStats.classId).id);
+
+      await sendCombatLockText(ctx, presentCombatLockRedirect(presentTurnBasedDuel(activeDuel)), {
+        reply_markup: buildTurnBasedDuelKeyboard(activeDuel, viewerCharacterId, `${skill.icon} ${skill.name}`)
+      });
+      return true;
+    }
+  }
+
   if (typeof services.fight.getFightOverviewForTelegramUser !== "function") {
     return false;
   }

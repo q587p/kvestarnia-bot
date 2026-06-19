@@ -47,6 +47,9 @@ model Character {
   remorts CharacterRemort[]
   duelChallengesSent DuelChallenge[] @relation("DuelChallenger")
   duelChallengesReceived DuelChallenge[] @relation("DuelTarget")
+  duelCombatSessionsAsChallenger DuelCombatSession[] @relation("DuelCombatChallenger")
+  duelCombatSessionsAsTarget DuelCombatSession[] @relation("DuelCombatTarget")
+  activeCombatLease ActiveCombatLease?
   name      String
   pronoun   String   @default("they")
   path      String   @default("boundary")
@@ -90,6 +93,19 @@ model SoloCombatSession {
   @@index([monsterId])
   @@index([expiresAt])
   @@map("solo_combat_sessions")
+}
+
+model ActiveCombatLease {
+  id          String    @id @default(uuid())
+  characterId String    @unique @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  kind        String
+  referenceId String    @map("reference_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([kind, referenceId])
+  @@map("active_combat_leases")
 }
 
 model CharacterEquipment {
@@ -247,17 +263,63 @@ model DuelChallenge {
   target                Character? @relation("DuelTarget", fields: [targetCharacterId], references: [id], onDelete: SetNull)
   contextChatId         BigInt?   @map("context_chat_id")
   inviteToken           String    @unique @map("invite_token")
+  mode                  String    @default("quick")
   status                String    @default("pending")
   expiresAt             DateTime  @map("expires_at")
   resolvedAt            DateTime? @map("resolved_at")
   resultJson            Json?     @map("result_json")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
+  combatSession         DuelCombatSession?
 
   @@index([challengerCharacterId, status])
   @@index([targetCharacterId, status])
   @@index([status, expiresAt])
   @@map("duel_challenges")
+}
+
+model DuelCombatSession {
+  id                    String    @id @default(uuid())
+  duelChallengeId       String    @unique @map("duel_challenge_id")
+  duelChallenge         DuelChallenge @relation(fields: [duelChallengeId], references: [id], onDelete: Cascade)
+  challengerCharacterId String    @map("challenger_character_id")
+  challenger            Character @relation("DuelCombatChallenger", fields: [challengerCharacterId], references: [id], onDelete: Cascade)
+  targetCharacterId     String    @map("target_character_id")
+  target                Character @relation("DuelCombatTarget", fields: [targetCharacterId], references: [id], onDelete: Cascade)
+  status                String    @default("active")
+  actingCharacterId     String    @map("acting_character_id")
+  stateJson             Json      @map("state_json")
+  turn                  Int       @default(1)
+  version               Int       @default(1)
+  turnExpiresAt         DateTime  @map("turn_expires_at")
+  completedAt           DateTime? @map("completed_at")
+  challengerChatId      BigInt?   @map("challenger_chat_id")
+  challengerMessageId   Int?      @map("challenger_message_id")
+  targetChatId          BigInt?   @map("target_chat_id")
+  targetMessageId       Int?      @map("target_message_id")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  actions               DuelCombatAction[]
+
+  @@index([challengerCharacterId, status])
+  @@index([targetCharacterId, status])
+  @@index([status, turnExpiresAt])
+  @@map("duel_combat_sessions")
+}
+
+model DuelCombatAction {
+  id               String    @id @default(uuid())
+  sessionId        String    @map("session_id")
+  session          DuelCombatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  actorCharacterId String    @map("actor_character_id")
+  turn             Int
+  actionKey        String    @map("action_key")
+  resultJson       Json      @map("result_json")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@unique([sessionId, turn])
+  @@index([actorCharacterId])
+  @@map("duel_combat_actions")
 }
 
 model DailyAction {

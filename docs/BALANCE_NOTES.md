@@ -342,6 +342,20 @@ readinessPenalty = round(clamp(0, 12, hpMissingRatio * 8 + manaMissingRatio * 4)
 
 Full resources produce zero penalty. HP matters more than mana. The cap keeps tired acceptance disadvantageous but not an automatic loss. Telegram/player-facing copy must stay qualitative and must not print this formula or exact percentages.
 
+### `0.1.18` turn-based duel resources and combat math
+
+`♟️ Покрокова дуель` is also rewardless. It reuses the same progression-only preparation helper as instant duels, then freezes both accepted participant snapshots into the session.
+
+Balance rules:
+- race, class, title, path, current build, equipped manatky and equipment effects remain personal;
+- temporary progression normalization may raise session maxima while preserving the accepted HP/mana ratios;
+- duel HP/mana inside `duel_combat_sessions.state_json` are ephemeral and must not damage, heal or refill persistent character resources;
+- the turn-based resolver uses the same `resolveActorCombatAction(...)` primitive as PvE, so basic attack, class skill, mana cost, cooldown, armor/resist, weapon/spell/stat effects and HP clamping do not fork into a duel-only formula set;
+- timeout auto-actions are ordinary basic attacks by the silent actor, not a separate penalty damage table;
+- max-turn safety resolves as a deterministic draw instead of creating an infinite session.
+
+Player-facing copy may say that the Корчмар keeps the fight moving, but must not print hidden hit/critical/cooldown formulas or exact chances.
+
 ## Phase 2 trading/gifting guardrails
 - Gift/trade is not a gold source.
 - First slice transfers one eligible item unit or one narrow item-for-item offer.

@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.18] - 12026.06.19 - Turn-Based Player Duels
+
+### Added
+- Added `♟️ Покрокова дуель` beside `⚡ Миттєва дуель` in the Fighting Corner, using `duel_turnbased_<token>` deep links and the existing 13 invite templates with a turn-based mode line.
+- Added persistent turn-based duel state with `duel_combat_sessions`, action audit rows, optimistic turn versioning, stored initiative, frozen participant snapshots, rules/balance versions and terminal replay data.
+- Added active combat leases so a character cannot start or accept a persistent turn-based duel while already in a persistent/training/starter fight or another active duel.
+- Added durable 23-second turn deadlines through persisted `turnExpiresAt`, startup polling and idempotent timeout auto-attacks.
+- Added recoverable two-player battle cards, actor-only action keyboards, waiting-player refresh controls, surrender and mode-preserving rematches.
+
+### Changed
+- `DuelChallenge.mode` is now stored server-side with a default of `quick`; legacy `duel_<token>` links remain quick and crafted prefixes cannot switch an existing challenge mode.
+- PvE and PvP turn resolution now share a pure `resolveActorCombatAction` primitive for basic attacks, class skills, mana, cooldowns, armor/resist/equipment effects, HP clamping and summaries.
+- The central combat lock now treats active turn-based duels as active combat and redirects normal navigation back to the canonical duel card.
+- Quick duel behavior remains instant, rewardless and replay-safe, while old quick result JSON still renders as `⚡ Миттєва дуель`.
+
+### Guardrails
+- Turn-based duel HP/mana are ephemeral session resources and do not damage, heal or refill persistent `Character` resources.
+- No XP, gold, items, quest progress, item loss, wagers, ranking rewards, tournaments, spectator betting or broad nearby-player discovery were added.
+- Telegram sends/edits are best-effort after committed state; notification failures do not roll back gameplay state.
+
 ## [0.1.17] - 12026.06.19 - Instant Duel Polish
 
 ### Added

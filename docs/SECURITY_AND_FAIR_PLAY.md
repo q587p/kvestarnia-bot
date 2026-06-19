@@ -58,6 +58,8 @@ MVP limits:
 
 `0.1.17` keeps instant duels rewardless while hardening invite and replay behavior. `🎲 Інший текст` may edit only the separate forwardable invite message, only for the challenge owner, and must not create a new challenge, extend expiry, change odds or write challenge state. Create/rematch/accept resource checks must use the canonical lazy HP/mana sync path with optimistic conflict fallback; stale resource warnings must not be derived from the wrong participant. New resolved duel `result_json` stores acceptance-time participant snapshots and balance/audit metadata so old cards do not silently change after rename, remort, level-up or equipment changes. Old result JSON remains readable.
 
+`0.1.18` turn-based duels remain rewardless and consent-first, but add persistent two-player active state. `DuelChallenge.mode` is server-authoritative: `duel_<token>` may only open quick challenges and `duel_turnbased_<token>` may only open turn-based challenges. Accept must atomically move `pending -> active`, create one session, freeze snapshots and claim active-combat leases for both participants. Turn callbacks carry expected turn/version only; actor, action legality, skill cost, damage and result are recomputed server-side. Duplicate callbacks, stale buttons, timeout workers and user actions must converge through conditional session updates so one turn is consumed once. Terminal paths release leases and write one stored result idempotently. Telegram edit/send failures are delivery failures only and must not roll back committed duel state.
+
 ## Callback validation
 Callback data має:
 - мати версію.

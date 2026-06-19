@@ -13,9 +13,9 @@ Player value:
 
 Minimum implementation:
 - pending challenge with explicit accept/decline/expiry;
-- quick resolve, not full turn-based PvP;
+- shipped quick resolve plus first persistent turn-based PvP, both rewardless;
 - replay-safe result card;
-- rematch button with caps and cooldowns.
+- mode-preserving rematch button with caps and cooldowns.
 
 Abuse risk:
 - спам викликами;

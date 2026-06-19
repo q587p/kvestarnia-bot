@@ -20,7 +20,7 @@
 5. `0.1.5` — first Phase 2 prep/runtime slice: level 3+ бійцівський куток із покроковим тренувальним `Сумлінним Допельґанґером`, XP-only reward, recovery cooldown, no PvP state, no group raid.
 6. `0.1.6` — Korchmar/Shynok problem quest chain: `13 -> 23 -> 42 -> 93`, explicit bar turn-in plus next-stage acceptance, fresh per-stage counters and no training doppelganger progress.
 7. `0.1.10` — first rewardless duel invite ledger: level 3+ `/duel`, generated deep links, accept/decline/cancel/expire, replay-safe result, no rewards or rating.
-8. Duel result/rematch/tournament card support.
+8. Duel result/rematch support shipped incrementally through `0.1.11`, `0.1.17` and `0.1.18`; remaining duel backlog is social recognition, nearby targeted invites and tournament/rating surfaces without power creep.
 9. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
 10. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
 11. Remort follow-ups: remort-only advanced options, richer legacy flavor and social/cosmetic records; the base `/remort` loop is already runtime in `0.1.2`.
@@ -623,14 +623,14 @@ Implemented in `0.0.21` as the first Telegram runtime wiring for the combat doma
 - stale callback не дублює damage/rewards;
 - terminal states are stable and do not reopen automatically.
 
-## Later — Shared Combat Turn Timeout
+## Later — Shared PvE Combat Turn Timeout
 
 **Objective**
-Додати короткий per-turn timeout для всіх покрокових боїв, щоб зниклий гравець або майбутній PvP-учасник не підвішував бій до довгого session expiry.
+Extend the `0.1.18` turn-based duel timeout model to ordinary monster fights and `/spar`, so a missing player does not leave PvE combat hanging until long session expiry.
 
 **Scope**
 
-- ordinary monster fights, `/spar` against `Сумлінний Допельґанґер` and future turn-based duels use the same timeout model;
+- ordinary monster fights and `/spar` against `Сумлінний Допельґанґер` use the same timeout model already introduced for turn-based duels;
 - each active turn gets roughly `23` seconds;
 - after deadline, a background/job path applies a deterministic auto-attack or explicit skip for the active actor;
 - monster/copy/opponent response is resolved through the same combat rules as manual turns;
@@ -649,7 +649,7 @@ Implemented in `0.0.21` as the first Telegram runtime wiring for the combat doma
 
 - tests cover manual click before deadline, timeout after deadline, racing manual/timeout resolution, stale timeout job, terminal replay and no duplicate rewards;
 - `/fight` and `/spar` both advance or close within one timeout cycle when the player disappears;
-- future turn-based duel design can reuse the same actor-turn timeout contract without treating duel invites as combat state.
+- PvE timeout state stays compatible with the existing actor-turn timeout contract without treating quick duel invites as combat state.
 
 ## Later — Achievements Phase 1
 
