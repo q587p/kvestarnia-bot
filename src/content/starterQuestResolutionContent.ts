@@ -49,8 +49,9 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
       method({
         id: `c${getCompactClassKey(character.classId)}`,
         source: "class",
-        label: `🎭 ${heroClass.methodPrefix}: шаурму`,
-        hint: `Класова техніка: ${heroClass.label}.`,
+        label: `🎭 ${heroClass.methodPrefix}`,
+        buttonLabel: `🎭 ${heroClass.shortButtonLabel ?? heroClass.methodPrefix}`,
+        hint: "Професійний підхід героя.",
         primaryStat: heroClass.primaryStat,
         secondaryStat: heroClass.secondaryStat,
         techniques: heroClass.techniques,
@@ -67,7 +68,8 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
         id: `s${getCompactRaceKey(character.raceId)}${getCompactClassKey(character.classId)}`,
         source: "signature",
         label: `🏷️ «${character.title}»: викрити шаурму біографією`,
-        hint: "Точна race+class signature, без показу шансів.",
+        buttonLabel: `🏷️ «${character.title}»`,
+        hint: "Непевніше, зате стильніше.",
         primaryStat: heroClass.primaryStat,
         secondaryStat: race.primaryStat,
         techniques: [firstTechnique(race), firstTechnique(heroClass)],
@@ -130,8 +132,9 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
       method({
         id: `r${getCompactRaceKey(character.raceId)}`,
         source: "race",
-        label: `🧬 ${race.methodPrefix}: мишу`,
-        hint: `Расовий спосіб: ${race.label}.`,
+        label: `🧬 ${race.methodPrefix}`,
+        buttonLabel: `🧬 ${race.shortButtonLabel ?? race.methodPrefix}`,
+        hint: "Особистий підхід героя.",
         primaryStat: race.primaryStat,
         secondaryStat: race.secondaryStat,
         techniques: race.techniques,
@@ -147,7 +150,8 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
         id: `s${getCompactRaceKey(character.raceId)}${getCompactClassKey(character.classId)}`,
         source: "signature",
         label: `🏷️ «${character.title}»: вирішити сирну політику`,
-        hint: "Точна race+class signature.",
+        buttonLabel: `🏷️ «${character.title}»`,
+        hint: "Непевніше, зате стильніше.",
         primaryStat: heroClass.primaryStat,
         secondaryStat: race.primaryStat,
         techniques: [firstTechnique(race), firstTechnique(heroClass)],
@@ -169,6 +173,7 @@ function method(input: {
   id: string;
   source: QuestMethodDefinition["source"];
   label: string;
+  buttonLabel?: string | undefined;
   hint: string;
   primaryStat: QuestMethodDefinition["primaryStat"];
   secondaryStat?: QuestMethodDefinition["secondaryStat"] | undefined;
@@ -188,6 +193,7 @@ function method(input: {
     id: input.id,
     source: input.source,
     label: input.label,
+    ...(input.buttonLabel ? { buttonLabel: input.buttonLabel } : {}),
     hint: input.hint,
     intent: input.goldCost ? "bribe" : input.source === "signature" ? "deceive" : "investigate",
     techniques: input.techniques,

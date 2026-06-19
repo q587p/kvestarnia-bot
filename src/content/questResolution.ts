@@ -58,6 +58,7 @@ export interface QuestMethodDefinition {
   id: string;
   source: QuestMethodSource;
   label: string;
+  buttonLabel?: string;
   hint: string;
   intent: QuestIntent;
   techniques: readonly QuestTechniqueId[];
@@ -83,6 +84,7 @@ export interface QuestResolutionScene {
 export interface QuestTechniqueProfile {
   label: string;
   methodPrefix: string;
+  shortButtonLabel?: string;
   techniques: readonly QuestTechniqueId[];
   primaryStat: StatKey;
   secondaryStat?: StatKey;
@@ -106,6 +108,7 @@ export const raceTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "race.human-ish": {
     label: "практична анкета",
     methodPrefix: "Звірити справу з тим, що реально працює",
+    shortButtonLabel: "Звірити справу",
     techniques: ["investigation", "persuasion", "craft"],
     primaryStat: "charisma",
     secondaryStat: "intelligence"
@@ -113,6 +116,7 @@ export const raceTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "race.dwarf": {
     label: "гномська конструкція",
     methodPrefix: "Простукати справу, ніби підозрілу жилу",
+    shortButtonLabel: "Простукати справу",
     techniques: ["force", "craft", "investigation"],
     primaryStat: "strength",
     secondaryStat: "intelligence"
@@ -120,6 +124,7 @@ export const raceTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "race.elf": {
     label: "ельфійська точність",
     methodPrefix: "Виправити неестетичну частину справи",
+    shortButtonLabel: "Виправити справу",
     techniques: ["finesse", "investigation", "performance"],
     primaryStat: "dexterity",
     secondaryStat: "intelligence"
@@ -127,6 +132,7 @@ export const raceTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "race.bisyny": {
     label: "бісівська правка",
     methodPrefix: "Оскаржити назву справи до першого заперечення",
+    shortButtonLabel: "Оскаржити назву",
     techniques: ["deception", "authority", "persuasion"],
     primaryStat: "charisma",
     secondaryStat: "dexterity"
@@ -134,6 +140,7 @@ export const raceTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "race.drantohor": {
     label: "межова карта",
     methodPrefix: "Піти за неправильною картою, доки вона не стане корисною",
+    shortButtonLabel: "Піти за картою",
     techniques: ["improvisation", "tracking", "deception"],
     primaryStat: "luck",
     secondaryStat: "dexterity"
@@ -141,6 +148,7 @@ export const raceTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "race.domovyk": {
     label: "хатня юрисдикція",
     methodPrefix: "Оголосити справу хатньою територією",
+    shortButtonLabel: "Оголосити територією",
     techniques: ["domesticity", "craft", "persuasion"],
     primaryStat: "luck",
     secondaryStat: "charisma"
@@ -148,6 +156,7 @@ export const raceTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "race.dryland-rusalka": {
     label: "чайниковий приплив",
     methodPrefix: "Підняти сухий приплив довкола справи",
+    shortButtonLabel: "Підняти сухий приплив",
     techniques: ["arcana", "performance", "improvisation"],
     primaryStat: "intelligence",
     secondaryStat: "charisma"
@@ -155,6 +164,7 @@ export const raceTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "race.intellectual-orc": {
     label: "етична рецензія",
     methodPrefix: "Провести рецензію аргументу, не ламаючи автора",
+    shortButtonLabel: "Провести рецензію",
     techniques: ["investigation", "authority", "force"],
     primaryStat: "intelligence",
     secondaryStat: "strength"
@@ -162,6 +172,7 @@ export const raceTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "race.molfar-soul": {
     label: "обереговий туман",
     methodPrefix: "Дати оберегам понюхати справу",
+    shortButtonLabel: "Дати оберегам справу",
     techniques: ["ritual", "improvisation", "investigation"],
     primaryStat: "luck",
     secondaryStat: "intelligence"
@@ -172,6 +183,7 @@ export const classTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "class.warrior": {
     label: "чесний тиск",
     methodPrefix: "Притиснути справу до чесної відповіді",
+    shortButtonLabel: "Притиснути справу",
     techniques: ["force", "authority"],
     primaryStat: "strength",
     secondaryStat: "charisma",
@@ -180,6 +192,7 @@ export const classTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "class.mage": {
     label: "гаряче закляття",
     methodPrefix: "Підігріти саме той шар, де ховається закляття",
+    shortButtonLabel: "Підігріти шар",
     techniques: ["arcana", "investigation"],
     primaryStat: "intelligence",
     secondaryStat: "luck",
@@ -188,6 +201,7 @@ export const classTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "class.bard": {
     label: "небезпечний куплет",
     methodPrefix: "Переспівати справу, доки вона не зібʼється з ритму",
+    shortButtonLabel: "Переспівати справу",
     techniques: ["performance", "persuasion", "deception"],
     primaryStat: "charisma",
     secondaryStat: "luck",
@@ -196,6 +210,7 @@ export const classTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "class.rogue": {
     label: "трюк із тінню",
     methodPrefix: "Непомітно витягти зі справи доказ",
+    shortButtonLabel: "Витягти доказ",
     techniques: ["finesse", "deception", "sneak"],
     primaryStat: "dexterity",
     secondaryStat: "charisma",
@@ -204,6 +219,7 @@ export const classTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "class.priest": {
     label: "суворе благословення",
     methodPrefix: "Благословити справу на правдивість",
+    shortButtonLabel: "Благословити справу",
     techniques: ["ritual", "authority"],
     primaryStat: "charisma",
     secondaryStat: "intelligence",
@@ -212,6 +228,7 @@ export const classTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "class.varenyk-mancer": {
     label: "тістологічна експертиза",
     methodPrefix: "Запечатати проблему начинкою здорового глузду",
+    shortButtonLabel: "Запечатати проблему",
     techniques: ["arcana", "craft"],
     primaryStat: "intelligence",
     secondaryStat: "charisma",
@@ -220,6 +237,7 @@ export const classTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "class.bureaucramancer": {
     label: "форма 13-Б",
     methodPrefix: "Оформити форму 13-Б на самовільну поведінку",
+    shortButtonLabel: "Оформити форму 13-Б",
     techniques: ["authority", "investigation"],
     primaryStat: "intelligence",
     secondaryStat: "charisma",
@@ -228,6 +246,7 @@ export const classTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "class.ranger": {
     label: "слід і пастка",
     methodPrefix: "Прочитати слід і поставити пастку на справжній стежці",
+    shortButtonLabel: "Прочитати слід",
     techniques: ["tracking", "traps", "finesse"],
     primaryStat: "dexterity",
     secondaryStat: "intelligence",
@@ -236,6 +255,7 @@ export const classTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
   "class.kharakternyk": {
     label: "характерний погляд",
     methodPrefix: "Подивитися так, щоб справа сама знайшла вихід",
+    shortButtonLabel: "Подивитися характерно",
     techniques: ["improvisation", "authority", "force"],
     primaryStat: "luck",
     secondaryStat: "charisma",

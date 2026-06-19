@@ -71,9 +71,10 @@ export function presentAdventureProblem(
     return presentAdventureAlreadyCompleted();
   }
 
-  const methodLines = result.approaches.flatMap((approach) => [
+  const methodLines = result.approaches.flatMap((approach, index) => [
     `${escapeHtml(approach.label)}`,
-    `<i>${escapeHtml(approach.hint)} ${escapeHtml(approach.chanceHint ?? "якісна оцінка прихована")}.${approach.goldCost ? ` Коштує ${approach.goldCost} золота.` : ""}</i>`
+    `<i>${escapeHtml(approach.hint)} ${escapeHtml(approach.chanceHint ?? "якісна оцінка прихована")}.${approach.goldCost ? ` Коштує ${approach.goldCost} золота.` : ""}</i>`,
+    ...(index < result.approaches.length - 1 ? [""] : [])
   ]);
 
   return [

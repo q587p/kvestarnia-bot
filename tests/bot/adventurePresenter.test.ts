@@ -8,6 +8,7 @@ import {
 } from "../../src/bot/presenters/adventurePresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import {
+  buildAdventureMethodOptions,
   buildApproachOptions,
   type AdventureChoice,
   type AdventureProblemResult,
@@ -159,6 +160,49 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("— Менше винагороди");
     expect(text).not.toContain("— Середня винагорода");
     expect(text).not.toContain("— Більша винагорода");
+  });
+
+  it("separates authored methods and hides internal method source labels", () => {
+    const bard = {
+      ...character,
+      raceId: "race.dryland-rusalka",
+      raceName: "Русалка сухопутна",
+      classId: "class.bard",
+      className: "Бард",
+      title: "Співачка Без Моря"
+    };
+    const uniformChoice = {
+      id: "class-bard-uniform",
+      title: "Форма для «Барда» не влазить у клітинку",
+      hook: "У бланку професій для «Барда» лишилася надто мала клітинка.",
+      client: "Клітинка"
+    };
+    const result: Extract<AdventureProblemResult, { state: "selected" }> = {
+      state: "selected",
+      character: bard,
+      offer: {
+        localDate: "2026-06-12",
+        periodToken: "period93",
+        expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+        choices: [uniformChoice]
+      },
+      choice: uniformChoice,
+      approaches: buildAdventureMethodOptions(uniformChoice, bard)
+    };
+
+    const text = presentAdventureProblem(result);
+
+    expect(text).toContain("🧬 Підняти сухий приплив довкола справи");
+    expect(text).toContain("🎭 Переспівати справу, доки вона не зібʼється з ритму");
+    expect(text).toContain("🏷️ «Співачка Без Моря»: змусити форму визнати точну біографію");
+    expect(text).toContain("Особистий підхід героя.");
+    expect(text).toContain("Професійний підхід героя.");
+    expect(text).not.toContain("Расовий спосіб");
+    expect(text).not.toContain("Класова техніка");
+    expect(text).not.toContain("race+class");
+    expect(text).not.toContain(": форму");
+    expect(text).toContain("</i>\n\n🎭");
+    expect(text).toContain("</i>\n\n🏷️");
   });
 
   it("shows non-complicated reward without level-up text", () => {

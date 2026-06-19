@@ -73,6 +73,40 @@ describe("adventure resolution content", () => {
       expect(scene.methods.some((method) => method.source === "signature"), title).toBe(true);
     }
   });
+
+  it("keeps generated profile methods free of internal mechanic labels and object suffixes", () => {
+    const bard = {
+      ...character,
+      raceId: "race.dryland-rusalka",
+      raceName: "Русалка сухопутна",
+      classId: "class.bard",
+      className: "Бард",
+      title: "Співачка Без Моря"
+    };
+
+    for (const problemId of ADVENTURE_PROBLEM_IDS) {
+      const scene = buildAdventureResolutionScene({
+        problemId,
+        title: problemId,
+        character: bard
+      });
+      const profileMethods = scene.methods.filter((method) =>
+        method.source === "race" || method.source === "class" || method.source === "signature"
+      );
+
+      for (const method of profileMethods) {
+        expect(method.hint, `${problemId}:${method.id}`).not.toMatch(
+          /Расовий спосіб|Класова техніка|race\+class|signature/u
+        );
+      }
+
+      for (const method of profileMethods.filter((candidate) =>
+        candidate.source === "race" || candidate.source === "class"
+      )) {
+        expect(method.label, `${problemId}:${method.id}`).not.toMatch(/: [^\n]+$/u);
+      }
+    }
+  });
 });
 
 function slugTitle(title: string): string {

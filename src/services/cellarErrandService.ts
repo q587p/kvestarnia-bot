@@ -93,6 +93,7 @@ export interface CellarErrandReward {
 export interface CellarErrandMethodOption {
   id: string;
   label: string;
+  buttonLabel?: string;
   hint: string;
   goldCost?: number;
 }
@@ -270,6 +271,7 @@ function toCellarMethodOption(method: QuestMethodDefinition): CellarErrandMethod
   return {
     id: method.id,
     label: method.label,
+    ...(method.buttonLabel ? { buttonLabel: method.buttonLabel } : {}),
     hint: method.hint,
     ...(method.goldCost ? { goldCost: method.goldCost } : {})
   };

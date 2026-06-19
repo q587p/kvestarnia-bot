@@ -122,6 +122,7 @@ export interface AdventureOffer {
 export interface AdventureApproachOption {
   id: AdventureMethodId;
   label: string;
+  buttonLabel?: string;
   hint: string;
   chanceHint: string;
   reward: {
@@ -977,6 +978,7 @@ function toAdventureApproachOption(
   return {
     id: method.id,
     label: method.label,
+    ...(method.buttonLabel ? { buttonLabel: method.buttonLabel } : {}),
     hint: method.hint,
     chanceHint: chance,
     reward,

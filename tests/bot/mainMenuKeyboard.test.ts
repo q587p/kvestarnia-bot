@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildAdventureApproachKeyboard,
   buildAdventureParticipantsKeyboard,
   buildAdventureKeyboard,
   buildAdventureResultKeyboard
@@ -19,6 +20,7 @@ import {
 } from "../../src/bot/keyboards/fightKeyboard";
 import { buildDuelResultKeyboard, buildTurnBasedDuelKeyboard } from "../../src/bot/keyboards/duelKeyboard";
 import { getCombatSkillDisplay, getPersistentFightSkillLabel } from "../../src/services/fightService";
+import { buildAdventureMethodOptions } from "../../src/services/adventureService";
 import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
   buildEquipmentKeyboard,
@@ -405,8 +407,8 @@ describe("main menu and scene keyboards", () => {
   it("keeps character-aware adventure labels on the same callback actions", () => {
     expect(flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
       "🔎 Перевірити, чому лаваш дихає не в ритм",
-      "🎭 Непомітно витягти зі справи доказ: шаурму",
-      "🏷️ «Пересічні Пригодники»: викрити шаурму біографією",
+      "🎭 Витягти доказ",
+      "🏷️ «Пересічні Пригодники»",
       "📋 До справ"
     ]);
     expect(flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
@@ -415,6 +417,47 @@ describe("main menu and scene keyboards", () => {
       "v2:adv:m:s03",
       "v1:place:quest-table"
     ]);
+  });
+
+  it("uses short authored method labels on selected adventure buttons", () => {
+    const bard = {
+      ...character,
+      raceId: "race.dryland-rusalka",
+      raceName: "Русалка сухопутна",
+      classId: "class.bard",
+      className: "Бард",
+      title: "Співачка Без Моря",
+      level: 3,
+      xp: 25
+    };
+    const choice = {
+      id: "class-bard-uniform",
+      title: "Форма для «Барда» не влазить у клітинку",
+      hook: "Клітинка просить ширини.",
+      client: "Клітинка"
+    };
+
+    const keyboard = buildAdventureApproachKeyboard({
+      state: "selected",
+      character: bard,
+      offer: {
+        localDate: "2026-06-12",
+        periodToken: "period93",
+        expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+        choices: [choice]
+      },
+      choice,
+      approaches: buildAdventureMethodOptions(choice, bard)
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "🔎 Знайти дрібний шрифт сцени",
+      "🧬 Підняти сухий приплив",
+      "🎭 Переспівати справу",
+      "🏷️ «Співачка Без Моря»",
+      "⬅️ Інші справи"
+    ]);
+    expect(flatInlineButtonTexts(keyboard).join("\n")).not.toContain(": форму");
   });
 
   it("keeps cellar inline buttons scoped to repeatable errand actions", () => {
@@ -442,8 +485,8 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(buildCellarKeyboard(domovyk))).toEqual([
       "🧀 Поставити пастку по маршруту крихт",
-      "🧬 Оголосити справу хатньою територією: мишу",
-      "🏷️ «Пересічні Пригодники»: вирішити сирну політику",
+      "🧬 Оголосити територією",
+      "🏷️ «Пересічні Пригодники»",
       "🪙 Дати миші 1 золоту «на сирний фонд»",
       "⬅️ До зали"
     ]);
@@ -456,8 +499,8 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual([
       "🧀 Поставити пастку по маршруту крихт",
-      "🧬 Оголосити справу хатньою територією: мишу",
-      "🏷️ «Пересічні Пригодники»: вирішити сирну політику",
+      "🧬 Оголосити територією",
+      "🏷️ «Пересічні Пригодники»",
       "🪙 Дати миші 1 золоту «на сирний фонд»",
       "⬅️ До зали"
     ]);

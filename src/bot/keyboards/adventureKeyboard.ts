@@ -40,7 +40,7 @@ export function buildAdventureKeyboard(offer?: AdventureOffer | CharacterSummary
     const keyboard = new InlineKeyboard();
 
     for (const method of buildStarterMethodOptions("shawarma", offer)) {
-      keyboard.text(method.label, makeMimicShawarmaMethodCallbackData(method.id)).row();
+      keyboard.text(method.buttonLabel ?? method.label, makeMimicShawarmaMethodCallbackData(method.id)).row();
     }
 
     keyboard.text("📋 До справ", makePlaceCallbackData("quest-table"));
@@ -65,7 +65,7 @@ export function buildAdventureApproachKeyboard(
 
   for (const approach of result.approaches) {
     keyboard
-      .text(approach.label, makeAdventureApproachCallbackData({
+      .text(approach.buttonLabel ?? approach.label, makeAdventureApproachCallbackData({
         periodToken: result.offer.periodToken,
         problemId: result.choice.id,
         methodId: approach.id

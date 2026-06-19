@@ -325,8 +325,9 @@ function buildRaceMethod(character: CharacterSummary, sceneTitle: string, object
   return buildProfileMethod({
     id,
     source: "race",
-    label: `🧬 ${profile.methodPrefix}: ${object}`,
-    hint: `Расовий спосіб: ${profile.label}. Шанси добрі, винагорода звичайна.`,
+    label: `🧬 ${profile.methodPrefix}`,
+    buttonLabel: `🧬 ${profile.shortButtonLabel ?? profile.methodPrefix}`,
+    hint: "Особистий підхід героя. Винагорода звичайна.",
     sceneTitle,
     object,
     profile,
@@ -341,8 +342,9 @@ function buildClassMethod(character: CharacterSummary, sceneTitle: string, objec
   return buildProfileMethod({
     id,
     source: "class",
-    label: `🎭 ${profile.methodPrefix}: ${object}`,
-    hint: `Класова техніка: ${profile.label}. Шанси добрі, винагорода звичайна.`,
+    label: `🎭 ${profile.methodPrefix}`,
+    buttonLabel: `🎭 ${profile.shortButtonLabel ?? profile.methodPrefix}`,
+    hint: "Професійний підхід героя. Винагорода звичайна.",
     sceneTitle,
     object,
     profile,
@@ -361,7 +363,8 @@ function buildSignatureMethod(character: CharacterSummary, sceneTitle: string, o
     id,
     source: "signature",
     label: `🏷️ ${title}: змусити ${object} визнати точну біографію`,
-    hint: "Точна race+class signature. Непевніше, зате стильніше.",
+    buttonLabel: `🏷️ ${title}`,
+    hint: "Непевніше, зате стильніше.",
     intent: chooseIntent(techniques),
     techniques,
     primaryStat: classProfile.primaryStat,
@@ -386,6 +389,7 @@ function buildProfileMethod(input: {
   id: string;
   source: "race" | "class";
   label: string;
+  buttonLabel: string;
   hint: string;
   sceneTitle: string;
   object: string;
@@ -396,6 +400,7 @@ function buildProfileMethod(input: {
     id: input.id,
     source: input.source,
     label: input.label,
+    buttonLabel: input.buttonLabel,
     hint: input.hint,
     intent: chooseIntent(input.profile.techniques),
     techniques: input.profile.techniques,
