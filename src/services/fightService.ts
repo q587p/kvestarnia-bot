@@ -378,8 +378,8 @@ export const PERSISTENT_FIGHT_DIFFICULTY_CONFIG = {
       min: -5,
       max: -3
     },
-    dropChanceMultiplier: 0.5,
-    lootPowerOffset: -2
+    dropChanceMultiplier: 0.65,
+    lootPowerOffset: -1
   },
   normal: {
     id: "normal",
@@ -396,7 +396,7 @@ export const PERSISTENT_FIGHT_DIFFICULTY_CONFIG = {
       min: 1.25,
       max: 1.5
     },
-    dropChanceMultiplier: 1.2,
+    dropChanceMultiplier: 1.35,
     lootPowerOffset: 1
   }
 } as const satisfies Record<PersistentFightDifficultyId, PersistentFightDifficultyConfig>;
@@ -1704,11 +1704,35 @@ function buildPersistentFightWinXp(input: {
       return Math.max(1, Math.floor(baseReward));
     }
 
-    const baseline = buildBaselinePersistentFightWinXp(input);
-    return Math.max(baseline + 1, Math.ceil(baseReward));
+    const floor = buildHardPersistentFightWinXpFloor({
+      characterLevel: input.characterLevel,
+      baseMonsterLevel: input.baseMonsterLevel
+    });
+    return Math.max(floor, Math.ceil(baseReward));
   }
 
-  return buildBaselinePersistentFightWinXp(input);
+  return buildBaselinePersistentFightWinXp({
+    characterLevel: input.characterLevel,
+    baseMonsterLevel: input.baseMonsterLevel,
+    effectiveMonsterLevel: input.effectiveMonsterLevel
+  });
+}
+
+export function buildCenterBaselinePersistentFightWinXp(input: {
+  characterLevel: number;
+  baseMonsterLevel: number;
+}): number {
+  return buildBaselinePersistentFightWinXp({
+    ...input,
+    effectiveMonsterLevel: input.baseMonsterLevel
+  });
+}
+
+export function buildHardPersistentFightWinXpFloor(input: {
+  characterLevel: number;
+  baseMonsterLevel: number;
+}): number {
+  return buildCenterBaselinePersistentFightWinXp(input) + 1;
 }
 
 function buildBaselinePersistentFightWinXp(input: {
@@ -1743,13 +1767,34 @@ function buildGoldSensitiveDropChanceMultiplier(input: {
   difficulty: PersistentFightDifficultyConfig;
 }): number {
   const currentBaseChance = getItemDropChance(input.luck);
-  const currentChance = currentBaseChance * input.difficulty.dropChanceMultiplier;
-  const maxGold = Math.max(0, Math.floor(input.characterLevel));
-  const goldRatio = maxGold > 0 ? Math.min(1, Math.max(0, input.gold / maxGold)) : 0;
-  const desiredChance =
-    ZERO_GOLD_ITEM_DROP_CHANCE + (currentChance - ZERO_GOLD_ITEM_DROP_CHANCE) * goldRatio;
+  const desiredChance = getGoldSensitiveItemDropChance(input);
 
-  return desiredChance / currentBaseChance;
+  return (
+    Math.floor((desiredChance / currentBaseChance) * 1_000_000_000_000) /
+    1_000_000_000_000
+  );
+}
+
+export function getGoldSensitiveItemDropChance(input: {
+  gold: number;
+  characterLevel: number;
+  luck: number;
+  difficulty: Pick<PersistentFightDifficultyConfig, "dropChanceMultiplier">;
+}): number {
+  const configuredMaxGoldChance =
+    getItemDropChance(input.luck) * input.difficulty.dropChanceMultiplier;
+  const maxGold = Math.max(0, Math.floor(input.characterLevel));
+  const boundedGold = Math.min(maxGold, Math.max(0, Math.floor(input.gold)));
+  const goldRatio = maxGold > 0 ? boundedGold / maxGold : 0;
+
+  return Math.min(
+    1,
+    Math.max(
+      0,
+      ZERO_GOLD_ITEM_DROP_CHANCE +
+        (configuredMaxGoldChance - ZERO_GOLD_ITEM_DROP_CHANCE) * goldRatio
+    )
+  );
 }
 
 function rollLevelFactorReward(input: {

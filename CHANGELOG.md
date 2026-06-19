@@ -12,11 +12,13 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Retuned `Низ` passage difficulty so the right/easy passage now prefers available monsters `3-5` levels below the character, with safe fallback/clamping when the pool cannot satisfy that range.
 - Lowered easy-passage payout pressure: easy XP now rolls `0.5x-0.75x` character level with a small bounded LUCK bias toward the top of the range and downward rounding.
-- Kept the left/hard passage above the center XP reward while trimming earlier overpayment: hard XP now rolls `1.25x-1.5x` character level with the same bounded LUCK bias and a baseline+1 floor.
-- Made fight gold variable instead of stable by passage or monster level: victory gold now rolls from `0` to current character level; a `0` gold roll boosts item drop chance to `93%`, then interpolates back to the current item drop chance at max gold while keeping existing item rarity and loot profile modifiers in the loot pipeline.
+- Kept the left/hard passage above the center XP reward while trimming earlier overpayment: hard XP now rolls `1.25x-1.5x` character level with the same bounded LUCK bias and a floor of center-route baseline XP for the same base monster plus one.
+- Made persistent fight gold variable instead of stable by passage or monster level for ordinary, Yeger and adventure fight wins: victory gold now rolls from `0` to current character level; a `0` gold roll boosts item drop chance to `93%`, then interpolates back to the difficulty-adjusted configured item drop chance at max gold.
+- Restored the previous side-passage loot endpoints while layering the zero-gold interpolation over them: easy uses the lower `0.65` drop multiplier and `-1` loot power offset, center remains neutral, and hard uses the higher `1.35` drop multiplier and `+1` loot power offset.
 - Preserved stored reward replay semantics: already completed fight rewards continue to replay their stored XP, gold and item grants without recomputing under the new balance.
 
 ### Guardrails
+- Fixed Yeger and adventure turn-in rewards remain unchanged; the variable-gold rule applies only to persistent fight victories.
 - No XP curve, loot-table, duel, training, nearby invite, combat-lock, monster-rest, schema or migration changes were added.
 - Passage choice copy remains qualitative and does not show exact future rewards before commitment.
 

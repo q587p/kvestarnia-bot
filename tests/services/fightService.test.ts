@@ -27,11 +27,15 @@ import type {
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import type { CombatState } from "../../src/domain/combat";
 import { getLevelForXp } from "../../src/domain/progression/level";
+import { getItemDropChance } from "../../src/domain/loot";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { FakeRandomSource } from "../../src/shared/random";
 import { MIMIC_SHAWARMA_ADVENTURE_KEY } from "../../src/services/adventureService";
 import {
+  buildCenterBaselinePersistentFightWinXp,
+  buildHardPersistentFightWinXpFloor,
   FightService,
+  getGoldSensitiveItemDropChance,
   getPersistentFightDifficultyConfig,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
   PERSISTENT_SOLO_FIGHT_REWARD_KEY,
@@ -838,8 +842,8 @@ describe("FightService", () => {
         min: -5,
         max: -3
       },
-      dropChanceMultiplier: 0.5,
-      lootPowerOffset: -2
+      dropChanceMultiplier: 0.65,
+      lootPowerOffset: -1
     });
     expect(getPersistentFightDifficultyConfig("normal")).toMatchObject({
       dropChanceMultiplier: 1
@@ -850,9 +854,74 @@ describe("FightService", () => {
         min: 1.25,
         max: 1.5
       },
-      dropChanceMultiplier: 1.2,
+      dropChanceMultiplier: 1.35,
       lootPowerOffset: 1
     });
+  });
+
+  it("interpolates gold-sensitive drop chance from zero-gold boost to configured difficulty endpoints", () => {
+    const luck = 8;
+    const level = 10;
+    const easy = getPersistentFightDifficultyConfig("easy");
+    const normal = getPersistentFightDifficultyConfig("normal");
+    const hard = getPersistentFightDifficultyConfig("hard");
+
+    expect(
+      getGoldSensitiveItemDropChance({ gold: 0, characterLevel: level, luck, difficulty: easy })
+    ).toBe(0.93);
+    expect(
+      getGoldSensitiveItemDropChance({ gold: 0, characterLevel: level, luck, difficulty: normal })
+    ).toBe(0.93);
+    expect(
+      getGoldSensitiveItemDropChance({ gold: 0, characterLevel: level, luck, difficulty: hard })
+    ).toBe(0.93);
+    expect(
+      getGoldSensitiveItemDropChance({
+        gold: level,
+        characterLevel: level,
+        luck,
+        difficulty: easy
+      })
+    ).toBeCloseTo(getItemDropChance(luck) * 0.65);
+    expect(
+      getGoldSensitiveItemDropChance({
+        gold: level,
+        characterLevel: level,
+        luck,
+        difficulty: normal
+      })
+    ).toBeCloseTo(getItemDropChance(luck));
+    expect(
+      getGoldSensitiveItemDropChance({
+        gold: level,
+        characterLevel: level,
+        luck,
+        difficulty: hard
+      })
+    ).toBeCloseTo(getItemDropChance(luck) * 1.35);
+    expect(
+      getGoldSensitiveItemDropChance({ gold: 5, characterLevel: level, luck, difficulty: normal })
+    ).toBeGreaterThan(
+      getGoldSensitiveItemDropChance({ gold: level, characterLevel: level, luck, difficulty: normal })
+    );
+    expect(
+      getGoldSensitiveItemDropChance({ gold: 5, characterLevel: level, luck, difficulty: normal })
+    ).toBeLessThan(0.93);
+  });
+
+  it("keeps hard XP floor tied to the center baseline for the same base monster", () => {
+    expect(
+      buildCenterBaselinePersistentFightWinXp({ characterLevel: 3, baseMonsterLevel: 3 })
+    ).toBe(9);
+    expect(buildHardPersistentFightWinXpFloor({ characterLevel: 3, baseMonsterLevel: 3 })).toBe(
+      10
+    );
+    expect(
+      buildCenterBaselinePersistentFightWinXp({ characterLevel: 13, baseMonsterLevel: 3 })
+    ).toBe(2);
+    expect(buildHardPersistentFightWinXpFloor({ characterLevel: 13, baseMonsterLevel: 3 })).toBe(
+      3
+    );
   });
 
   it("stores selected persistent fight difficulty in combat state", async () => {
@@ -1176,6 +1245,64 @@ describe("FightService", () => {
     expect(rewardRecords).toHaveLength(1);
   });
 
+  it.each(["normal", "yeger", "adventure"] as const)(
+    "uses shared variable-gold rewards for %s persistent fight sources",
+    async (source) => {
+      const characters = new FakeCharacterRepository();
+      characters.add(telegramUserId, { xp: 25 });
+      const dailyActions = new FakeDailyActionRepository(characters);
+      const sessions = new FakeSoloCombatSessionRepository(characters);
+      const baseSession = makeTerminalSession(
+        "won",
+        `session-shared-reward-${source}`,
+        `character-${telegramUserId.toString()}`,
+        source === "yeger" ? "monster.unclosed-closure-act" : "monster.deadline-spider"
+      );
+      const wonSession = sessions.addSession({
+        ...baseSession,
+        state: {
+          ...baseSession.state!,
+          source
+        }
+      });
+      const service = new FightService(
+        characters,
+        dailyActions,
+        fixedClock,
+        sessions,
+        new FakeRandomSource([0.5, 0.99, 0.1])
+      );
+
+      const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
+        sessionId: wonSession.id,
+        turn: wonSession.turn,
+        action: "attack"
+      });
+      const replayed = await service.resolvePersistentFightTurn(telegramUserId, {
+        sessionId: wonSession.id,
+        turn: wonSession.turn,
+        action: "attack"
+      });
+
+      expect(recovered.state).toBe("terminal");
+      expect(replayed.state).toBe("terminal");
+      if (recovered.state !== "terminal" || replayed.state !== "terminal") {
+        throw new Error("Expected terminal reward recovery.");
+      }
+      expect(recovered.fightReward?.reward.gold).toBeGreaterThanOrEqual(0);
+      expect(recovered.fightReward?.reward.gold).toBeLessThanOrEqual(3);
+      expect(replayed.fightReward).toMatchObject({
+        state: "replayed",
+        reward: {
+          xp: recovered.fightReward?.reward.xp,
+          gold: recovered.fightReward?.reward.gold,
+          itemGrants: recovered.fightReward?.reward.itemGrants
+        }
+      });
+      expect(dailyActions.records.filter((record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY)).toHaveLength(1);
+    }
+  );
+
   it("compresses XP for a level-thirteen hero farming a genuinely weak base monster", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 1300 });
@@ -1395,17 +1522,116 @@ describe("FightService", () => {
     const normal = await recoverReward("normal", 13);
     const hard = await recoverReward("hard", 15);
 
-    expect(easy.xp).toBeGreaterThanOrEqual(6);
-    expect(easy.xp).toBeLessThanOrEqual(9);
+    expect(easy.xp).toBe(9);
     expect(normal.xp).toBe(14);
+    expect(hard.xp).toBe(20);
     expect(hard.xp).toBeGreaterThan(normal.xp);
-    expect(easy.xp).toBeLessThan(normal.xp);
+    expect(normal.xp).toBeGreaterThan(easy.xp);
     expect(easy.gold).toBeGreaterThanOrEqual(0);
     expect(easy.gold).toBeLessThanOrEqual(13);
     expect(normal.gold).toBeGreaterThanOrEqual(0);
     expect(normal.gold).toBeLessThanOrEqual(13);
     expect(hard.gold).toBeGreaterThanOrEqual(0);
     expect(hard.gold).toBeLessThanOrEqual(13);
+  });
+
+  it("uses the center baseline as hard XP floor instead of the hard effective monster level", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const baseSession = makeTerminalSession(
+      "won",
+      "session-hard-low-level-floor",
+      `character-${telegramUserId.toString()}`,
+      "monster.preapproval-dragonling"
+    );
+    const wonSession = sessions.addSession({
+      ...baseSession,
+      state: {
+        ...baseSession.state!,
+        monster: {
+          ...baseSession.state!.monster,
+          level: 5,
+          debugTrace: {
+            interventionKind: "hinder",
+            interventionSourceKey: "prypichnyk",
+            baseMonsterLevel: 3,
+            effectiveMonsterLevel: 5
+          }
+        }
+      }
+    });
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.5, 0.99, 0])
+    );
+
+    const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: wonSession.id,
+      turn: wonSession.turn,
+      action: "attack"
+    });
+
+    expect(recovered.state).toBe("terminal");
+    if (recovered.state !== "terminal") {
+      throw new Error("Expected terminal reward recovery.");
+    }
+    expect(recovered.fightReward?.reward.xp).toBe(10);
+  });
+
+  it("lets the hard XP range exceed the center-baseline floor at higher levels", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 1300 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const baseSession = makeTerminalSession(
+      "won",
+      "session-hard-range-wins",
+      `character-${telegramUserId.toString()}`,
+      "monster.salted-oath-pretzel"
+    );
+    const wonSession = sessions.addSession({
+      ...baseSession,
+      state: {
+        ...baseSession.state!,
+        monster: {
+          ...baseSession.state!.monster,
+          level: 15,
+          debugTrace: {
+            interventionKind: "hinder",
+            interventionSourceKey: "prypichnyk",
+            baseMonsterLevel: 13,
+            effectiveMonsterLevel: 15
+          }
+        }
+      }
+    });
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.5, 0.99, 0.99])
+    );
+
+    const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: wonSession.id,
+      turn: wonSession.turn,
+      action: "attack"
+    });
+
+    expect(recovered.state).toBe("terminal");
+    if (recovered.state !== "terminal") {
+      throw new Error("Expected terminal reward recovery.");
+    }
+    expect(buildHardPersistentFightWinXpFloor({ characterLevel: 13, baseMonsterLevel: 13 })).toBe(
+      15
+    );
+    expect(recovered.fightReward?.reward.xp).toBe(20);
   });
 
   it("raises item drop chance when variable fight gold rolls zero", async () => {
@@ -1458,6 +1684,41 @@ describe("FightService", () => {
     expect(replayed.fightReward?.reward.itemGrants).toEqual(
       recovered.fightReward?.reward.itemGrants
     );
+  });
+
+  it("does not drop at the zero-gold threshold boundary", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 1300 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const wonSession = sessions.addSession(
+      makeTerminalSession(
+        "won",
+        "session-zero-gold-drop-threshold",
+        `character-${telegramUserId.toString()}`,
+        "monster.salted-oath-pretzel"
+      )
+    );
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0, 0.93, 0])
+    );
+
+    const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: wonSession.id,
+      turn: wonSession.turn,
+      action: "attack"
+    });
+
+    expect(recovered.state).toBe("terminal");
+    if (recovered.state !== "terminal") {
+      throw new Error("Expected terminal reward recovery.");
+    }
+    expect(recovered.fightReward?.reward.gold).toBe(0);
+    expect(recovered.fightReward?.reward.itemGrants).toEqual([]);
   });
 
   it("scales recovered persistent fight rewards by stored difficulty", async () => {

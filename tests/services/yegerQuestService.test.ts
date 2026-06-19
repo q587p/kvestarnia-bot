@@ -141,6 +141,10 @@ describe("YegerQuestService", () => {
     expect(repeated).toMatchObject({ state: "already-completed" });
     expect(world.actions.filter((action) => action.key === YEGER_UNQUIET_TRIAL_COMPLETED_KEY)).toHaveLength(1);
     expect(world.itemGrants).toEqual([{ itemId: YEGER_UNQUIET_TRIAL_REWARD.itemId, quantity: 1 }]);
+    expect(world.character).toMatchObject({
+      xp: 190,
+      gold: 120
+    });
   });
 
   it("defines the Yeger keepsake and keeps it out of Mantok Chest", () => {

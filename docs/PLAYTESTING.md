@@ -336,16 +336,17 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 8. Mana too low має зрозумілий fallback.
 9. Повторний callback того самого ходу не проводить ще один хід.
 10. Victory видає XP/gold/item.
-11. `/inventory` показує item, а item detail показує rarity, value/priceless і effect, якщо є.
-12. `/equipment` дозволяє екіпірувати owned equippable item.
-13. `/hero` змінює effective stats після equip.
-14. Наступний fight показує або використовує змінені values.
-15. Level-up text показується при перетині threshold і перелічує distributed stat delta.
-16. Level 13 cap / alpha behavior зрозумілий.
-17. Mantok Chest auto/manual працює як перший item-volume sink.
-18. Yeger tracking і turn-in не дублюють прогрес або reward.
-19. Munchkin barter не дозволяє gold-only, replay-ить completed confirm і не проводить `12 -> 13`.
-20. `/version` після deploy показує `0.1.0`.
+11. Для персонажа 3+ у `Низ` перевір три проходи: правий відчутно скромніший за прямий, лівий платить більше досвіду за прямий для схожої базової загрози, золото в бою варіюється, а нульове золото частіше компенсується манаткою.
+12. `/inventory` показує item, а item detail показує rarity, value/priceless і effect, якщо є.
+13. `/equipment` дозволяє екіпірувати owned equippable item.
+14. `/hero` змінює effective stats після equip.
+15. Наступний fight показує або використовує змінені values.
+16. Level-up text показується при перетині threshold і перелічує distributed stat delta.
+17. Level 13 cap / alpha behavior зрозумілий.
+18. Mantok Chest auto/manual працює як перший item-volume sink.
+19. Yeger tracking і turn-in не дублюють прогрес або reward.
+20. Munchkin barter не дозволяє gold-only, replay-ить completed confirm і не проводить `12 -> 13`.
+21. `/version` після deploy показує `0.1.0`.
 
 ## Що це ще не перевіряє
 
