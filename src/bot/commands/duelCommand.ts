@@ -374,7 +374,7 @@ export async function handleDuelCallback(
     await sendText(
       ctx,
       "edit",
-      presentDuelDecline(result),
+      presentDuelDecline(result, { inviteUrl: getInviteUrl(options.botUsername, result) }),
       result.state === "pending" ? { state: "pending", result } : "result"
     );
     return;

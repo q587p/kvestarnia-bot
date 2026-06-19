@@ -275,6 +275,33 @@ describe("handleDuelCallback", () => {
     expect(editMessageText).not.toHaveBeenCalled();
   });
 
+  it("preserves the configured invite link when decline re-renders a pending challenge", async () => {
+    const challenger = makeCharacterSummary("Автор Виклику");
+    const challenge = makeChallenge("pending");
+    const declineForTelegramUser = vi.fn().mockResolvedValue({
+      state: "pending",
+      challenge,
+      challenger,
+      challengerResourceWarning: null,
+      expiresAt: EXPIRES_AT,
+      now: NOW
+    });
+    const service = serviceWith({
+      declineForTelegramUser
+    });
+    const { ctx, editMessageText, reply } = createCallbackContext(88);
+
+    await handleDuelCallback(ctx, { type: "decline", token: TOKEN }, service, {
+      presence: createPresence(),
+      botUsername: "kvestarnia_dev_bot"
+    });
+
+    expect(declineForTelegramUser).toHaveBeenCalledWith(88n, TOKEN);
+    expect(messageText(editMessageText)).toContain("Окреме повідомлення з інвайтом можна переслати в приват або чат.");
+    expect(messageText(editMessageText)).not.toContain("Посилання для копіювання ще не зібралося");
+    expect(reply).not.toHaveBeenCalled();
+  });
+
   it("keeps a pending open invite card stable when the challenger accepts their own invite", async () => {
     const challenger = makeCharacterSummary("Автор Виклику");
     const acceptForTelegramUser = vi.fn().mockResolvedValue({

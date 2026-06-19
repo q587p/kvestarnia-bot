@@ -177,7 +177,10 @@ export function presentDuelCancel(result: DuelCancelResult): string {
   return presentDuelView(result);
 }
 
-export function presentDuelDecline(result: DuelDeclineResult): string {
+export function presentDuelDecline(
+  result: DuelDeclineResult,
+  options: DuelPresenterOptions = {}
+): string {
   if (result.state === "no-character") {
     return "Квестарня не знайшла пригодника. Відмова теж любить документи.";
   }
@@ -194,7 +197,7 @@ export function presentDuelDecline(result: DuelDeclineResult): string {
     ].join("\n");
   }
 
-  return presentDuelView(result);
+  return presentDuelView(result, options);
 }
 
 export function presentDuelRematch(
