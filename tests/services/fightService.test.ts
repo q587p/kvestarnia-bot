@@ -1369,17 +1369,32 @@ describe("FightService", () => {
 
   it("falls back to authored monster level when legacy reward recovery lacks base trace", async () => {
     const characters = new FakeCharacterRepository();
-    characters.add(telegramUserId, { xp: 110 });
+    characters.add(telegramUserId, { xp: 70 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const wonSession = sessions.addSession(
-      makeTerminalSession(
-        "won",
-        "session-legacy-no-base-level",
-        `character-${telegramUserId.toString()}`,
-        "monster.preapproval-dragonling"
-      )
+    const legacySession = makeTerminalSession(
+      "won",
+      "session-legacy-no-base-level",
+      `character-${telegramUserId.toString()}`,
+      "monster.preapproval-dragonling"
     );
+    const wonSession = sessions.addSession({
+      ...legacySession,
+      state: {
+        ...legacySession.state,
+        monster: {
+          id: "monster.preapproval-dragonling",
+          hp: 0,
+          hpMax: 18,
+          level: 1,
+          debugTrace: {
+            interventionKind: "help",
+            interventionSourceKey: "prypichnyk",
+            effectiveMonsterLevel: 1
+          }
+        }
+      }
+    });
     const service = new FightService(
       characters,
       dailyActions,
@@ -1396,7 +1411,7 @@ describe("FightService", () => {
 
     expect(recovered.state).toBe("terminal");
     if (recovered.state === "terminal") {
-      expect(recovered.fightReward?.reward.xp).toBe(3);
+      expect(recovered.fightReward?.reward.xp).toBe(4);
     }
   });
 
