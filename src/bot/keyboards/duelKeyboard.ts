@@ -127,10 +127,7 @@ export function buildTurnBasedDuelKeyboard(
       .row();
   }
 
-  return keyboard
-    .text("🔎 Оновити", makeDuelViewCallbackData(token))
-    .row()
-    .text("🥊 До кутка", makePlaceCallbackData("fighting-corner"));
+  return keyboard.text("🔎 Оновити", makeDuelViewCallbackData(token));
 }
 
 export function buildDuelNavigationKeyboard(): InlineKeyboard {

@@ -565,7 +565,7 @@ describe("main menu and scene keyboards", () => {
     ]);
   });
 
-  it("returns terminal turn-based duel cards to the fighting corner", () => {
+  it("keeps active turn-based duel cards on recoverable refresh only", () => {
     const keyboard = buildTurnBasedDuelKeyboard(
       {
         challenge: { inviteToken: "abcDEF12" },
@@ -586,11 +586,8 @@ describe("main menu and scene keyboards", () => {
       "💪 Силовий удар"
     );
 
-    expect(flatInlineButtonTexts(keyboard)).toEqual(["🔎 Оновити", "🥊 До кутка"]);
-    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
-      "v1:duel:view:abcDEF12",
-      "v1:place:fighting-corner"
-    ]);
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["🔎 Оновити"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:duel:view:abcDEF12"]);
   });
 
   it("hides turn actions after the viewer already queued a duel choice", () => {
@@ -616,15 +613,13 @@ describe("main menu and scene keyboards", () => {
     } as never;
 
     expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-1", "💪 Силовий удар"))).toEqual([
-      "🔎 Оновити",
-      "🥊 До кутка"
+      "🔎 Оновити"
     ]);
     expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-2", "💪 Силовий удар"))).toEqual([
       "⚔️ Атакувати",
       "💪 Силовий удар",
       "🏳️ Здатися",
-      "🔎 Оновити",
-      "🥊 До кутка"
+      "🔎 Оновити"
     ]);
   });
 
