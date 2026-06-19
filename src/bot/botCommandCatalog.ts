@@ -218,7 +218,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "dev_add_level",
     icon: "🪜",
-    description: "додати рівень локально",
+    description: "додати рівні локально",
     includeInMenu: false,
     devOnly: "grant"
   },

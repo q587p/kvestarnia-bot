@@ -112,7 +112,7 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
   {
     commands: ["dev_add_level"],
     icon: "🪜",
-    description: "додати рівень локально",
+    description: "додати рівні локально",
     devOnly: "grant"
   },
   {

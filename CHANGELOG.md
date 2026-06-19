@@ -37,6 +37,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Training and duel result return buttons now say `↩️ Повернутися до кутка`, making the Fighting Corner navigation distinct from challenge actions.
 - The korchma hall now hides the `🥊 Бійцівський куток` button before level 3, matching the early `Спуск до Низу` button gate while keeping stable hall prose, and blocks stale direct corner/duel-board callbacks with a short level-gate card.
 - Local `/dev_raid_stop` now sends the ordinary separate level-up celebration when its completed raid reward crosses a level threshold.
+- Local `/dev_add_level` now documents and tests its optional amount parameter: no argument grants one level, while `/dev_add_level N` grants `N` levels.
 
 ### Guardrails
 - No broad quest engine, shops, crafting, guilds, markets, Mini App UI, combat damage rewrite, mana spending or new production dependency was added.
