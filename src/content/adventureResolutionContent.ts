@@ -310,7 +310,7 @@ function materializeSceneMethod(
     outcomeText: buildOutcomeText({
       sceneTitle,
       label: seed.label,
-      strong: `${sceneTitle} нарешті перестає сперечатися. Корчмар навіть не встигає знайти зайву форму.`,
+      strong: "Суперечка нарешті стихає. Корчмар навіть не встигає знайти зайву форму.",
       success: "Рішення лягає точно в цю сцену. Корчма занотовує спосіб і ховає чорнило.",
       mixed: sceneSeed.mixed,
       complication: sceneSeed.complication

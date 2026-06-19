@@ -92,18 +92,26 @@ export function presentAdventureProblem(
 function formatApproachHint(hint: string, chanceHint: string | undefined, goldCost: number | undefined): string {
   const cleanHint = hint
     .replace(/Коштує \d+ золот[аих]+\.?\s*/gu, "")
-    .replace(/Шанси [^.]+\.?\s*/gu, "")
-    .replace(/Добрі шанси,?\s*/gu, "")
-    .replace(/Майже надійно\.?\s*/gu, "")
+    .replace(/Шанси [^.]+\.?\s*/giu, "")
+    .replace(/Добрі шанси,?\s*/giu, "")
+    .replace(/Майже надійно\.?\s*/giu, "")
     .trim()
     .replace(/\.$/u, "");
+  const normalizedChanceHint = chanceHint ? capitalizeFirst(chanceHint) : undefined;
+  const shouldShowChanceHint =
+    normalizedChanceHint && !/\b(надійн|шанси|непевн|ризик)/iu.test(cleanHint);
   const parts = [
     cleanHint,
-    chanceHint ?? "якісна оцінка прихована",
+    shouldShowChanceHint ? normalizedChanceHint : "",
+    !normalizedChanceHint ? "Якісна оцінка прихована" : "",
     goldCost ? `коштує ${goldCost} золота` : ""
   ].filter(Boolean);
 
   return `${parts.join(". ")}.`;
+}
+
+function capitalizeFirst(value: string): string {
+  return value.length > 0 ? `${value[0]!.toLocaleUpperCase("uk-UA")}${value.slice(1)}` : value;
 }
 
 export function presentAdventureNoCharacter(): string {

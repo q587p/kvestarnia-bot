@@ -14,6 +14,7 @@ import {
   type AdventureProblemResult,
   type AdventureResult
 } from "../../src/services/adventureService";
+import { buildAdventureResolutionScene } from "../../src/content/adventureResolutionContent";
 
 const character: CharacterSummary = {
   name: "Мандрівник",
@@ -197,6 +198,8 @@ describe("adventure presenter", () => {
     expect(text).toContain("🏷️ «Співачка Без Моря»: змусити форму визнати точну біографію");
     expect(text).toContain("Особистий підхід героя.");
     expect(text).toContain("Професійний підхід героя.");
+    expect(text).not.toContain("Надійне розслідування. Майже надійно.");
+    expect(text).not.toContain("Надійне розслідування. майже надійно.");
     expect(text).not.toContain("Расовий спосіб");
     expect(text).not.toContain("Класова техніка");
     expect(text).not.toContain("race+class");
@@ -214,6 +217,20 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("Підпис методу");
     expect(text).not.toContain("race+class");
     expect(text).not.toContain("Рівень підріс");
+  });
+
+  it("keeps generated strong-success scene outcomes neutral for plural titles", () => {
+    const scene = buildAdventureResolutionScene({
+      problemId: "boots",
+      title: "Чоботи пішли без власника",
+      character
+    });
+    const method = scene.methods.find((candidate) => candidate.id === "track-soles");
+
+    expect(method?.outcomeText["strong-success"].body.join("\n")).toContain(
+      "Суперечка нарешті стихає."
+    );
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("перестає сперечатися");
   });
 
   it("shows complication-to-fight copy without granting reward", () => {
