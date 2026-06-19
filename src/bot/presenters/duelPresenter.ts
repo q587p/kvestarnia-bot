@@ -9,14 +9,22 @@ import type {
   DuelResourceWarning
 } from "../../services/duelChallengeService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import {
+  DUEL_INVITE_FAIRNESS_LINE,
+  DUEL_INVITE_MODE_LINE,
+  renderDuelInviteTemplate
+} from "../../content/duelInviteFlavor";
 import { pickDuelDrawFlavor, pickDuelResultFlavor } from "../../content/duelResultFlavor";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export function presentDuelEntry(): string {
   return [
-    "🥊 <b>Корчемний виклик</b>",
+    "⚡ <b>Миттєва дуель</b>",
     "",
     "Тут можна кинути короткий дружній виклик іншому пригоднику.",
+    "Результат з’явиться одразу після згоди.",
+    "",
+    DUEL_INVITE_FAIRNESS_LINE,
     "",
     "Без ставок, крадіжок, травм на пів сезону й іншої героїчної бухгалтерії. Хтось має натиснути «Прийняти» явно."
   ].join("\n");
@@ -88,12 +96,14 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
 
   if (result.state === "confirmation") {
     return [
-      "🥊 <b>Прийняти виклик?</b>",
+      "⚡ <b>Прийняти миттєву дуель?</b>",
       "",
       presentDuelParticipantWithItalicTitle("Запрошує", result.challenger),
       presentDuelParticipantWithItalicTitle("Ви", result.target),
       "",
       `${presentDuelFlavorName(result.challenger)} виходить проти вас у безпечному корчемному порядку.`,
+      "Результат з’явиться одразу після згоди.",
+      DUEL_INVITE_FAIRNESS_LINE,
       "",
       "Корчмар тримає перо над протоколом і питає: приймаємо?"
     ].join("\n");
@@ -101,11 +111,12 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
 
   if (result.state === "resource-warning") {
     return [
-      "🥊 <b>Прийняти виклик?</b>",
+      "⚡ <b>Прийняти миттєву дуель?</b>",
       presentDuelParticipant("Запрошує", result.challenger),
       presentDuelParticipant("Ви", result.target),
       "",
       "Виклик готовий, але ваш пригодник не зовсім відпочив.",
+      "Результат з’явиться одразу після згоди.",
       "",
       presentResourceWarning(result.warning),
       "",
@@ -231,7 +242,7 @@ export function presentDuelView(result: DuelChallengeView, options: DuelPresente
         : "Виклик відхилено. Це теж добровільна згода, просто кнопка пішла в інший бік.";
 
   return [
-    "🥊 <b>Корчемний виклик</b>",
+    "⚡ <b>Миттєва дуель</b>",
     presentDuelParticipant("Запрошує", result.challenger),
     "",
     statusLine,
@@ -245,10 +256,13 @@ function presentPendingDuel(
   options: DuelPresenterOptions = {}
 ): string {
   const lines = [
-    "🥊 <b>Корчемний виклик</b>",
+    "⚡ <b>Миттєва дуель</b>",
     presentDuelParticipant("Запрошує", result.challenger),
     "",
     "Виклик уже на столі. Погляд такий, ніби це стратегія.",
+    "",
+    "Результат з’явиться одразу після згоди.",
+    DUEL_INVITE_FAIRNESS_LINE,
     "",
     `Виклик відкритий ще <b>${formatRemaining(result.expiresAt, result.now)}</b>. Інший пригодник має натиснути «Прийняти».`,
     "Нагород, ставок і втрат немає: це перший безпечний запис бійцівського кутка."
@@ -269,16 +283,18 @@ function presentPendingDuel(
   return lines.join("\n");
 }
 
-export function presentDuelInviteShare(character: CharacterSummary, inviteUrl: string): string {
-  return [
-    "🥊 <b>Дружній корчемний виклик</b>",
-    "",
-    `<b>${escapeHtml(character.name)}</b> лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто.`,
-    "",
-    "Переходьте за посиланням, приймайте виклик, а Корчмар зробить вигляд, що все було за правилами.",
-    "",
-    escapeHtml(inviteUrl)
-  ].join("\n");
+export function presentDuelInviteShare(
+  character: CharacterSummary,
+  inviteUrl: string,
+  options: { templateIndex: number }
+): string {
+  return renderDuelInviteTemplate({
+    templateIndex: options.templateIndex,
+    escapedName: `<b>${escapeHtml(character.name)}</b>`,
+    modeLine: DUEL_INVITE_MODE_LINE,
+    fairnessLine: DUEL_INVITE_FAIRNESS_LINE,
+    escapedInviteUrl: escapeHtml(inviteUrl)
+  });
 }
 
 export function presentDuelResultShare(result: Extract<DuelChallengeView, { state: "resolved" }>): string {
@@ -295,14 +311,14 @@ export function presentDuelResultShare(result: Extract<DuelChallengeView, { stat
         ? result.target
         : result.challenger;
   const headline = winner
-    ? `🏁 <b>${escapeHtml(winner.name)}</b> переміг у корчемній дуелі`
-    : "🏁 <b>Корчемна нічия</b>";
+    ? `🏁 <b>${escapeHtml(winner.name)}</b> переміг у миттєвій корчемній дуелі`
+    : "🏁 <b>Миттєва корчемна нічия</b>";
   const line = winner && loser
     ? presentDuelFlavor(result.result, winner, loser)
     : presentDuelDrawFlavor(result.result, result.challenger, result.target);
 
   return [
-    "📣 <b>Картка корчемної дуелі</b>",
+    "📣 <b>Картка корчемної дуелі: ⚡ Миттєва дуель</b>",
     "",
     `${presentDuelParticipantInline(result.challenger)} ⚔️ ${presentDuelParticipantInline(result.target)}`,
     "",
@@ -331,14 +347,14 @@ function presentResolvedDuel(
         ? result.target
         : result.challenger;
   const headline = winner
-    ? `🏁 <b>${escapeHtml(winner.name)}</b> перемагає у корчемному виклику`
+    ? `🏁 <b>${escapeHtml(winner.name)}</b> перемагає у миттєвій дуелі`
     : "🏁 <b>Корчемна нічия</b>";
   const line = winner && loser
     ? presentDuelFlavor(result.result, winner, loser)
     : presentDuelDrawFlavor(result.result, result.challenger, result.target);
 
   const lines = [
-    "🥊 <b>Результат виклику</b>",
+    "⚡ <b>Результат миттєвої дуелі</b>",
     "",
     `${presentDuelParticipantInline(result.challenger)} ⚔️ ${presentDuelParticipantInline(result.target)}`,
     "",
@@ -403,10 +419,11 @@ function presentDuelPairLimit(result: DuelPairLimit): string {
 
 function presentDuelCreateResourceWarning(character: CharacterSummary, warning: DuelResourceWarning): string {
   return [
-    "🥊 <b>Кидати виклик зараз?</b>",
+    "⚡ <b>Кидати миттєву дуель зараз?</b>",
     presentCharacterHeader(character),
     "",
     "Корчмар бачить, що ви ще не зовсім віддихалися.",
+    "Результат з’явиться одразу після згоди.",
     "",
     presentResourceWarning(warning),
     "",

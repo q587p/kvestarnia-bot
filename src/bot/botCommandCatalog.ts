@@ -70,7 +70,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "duel",
     icon: "🤝",
-    description: "дружній корчемний виклик",
+    description: "миттєва дружня дуель",
     includeInMenu: false
   },
   {

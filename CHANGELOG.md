@@ -7,6 +7,28 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.17] - 12026.06.19 - Instant Duel Polish
+
+### Added
+- Added 13 stable forwardable invite variants for `⚡ Миттєва дуель`, each with the same deep link, an instant-result mode line and a qualitative fairness line.
+- Added owner-only `🎲 Інший текст` invite rotation that edits only the forwardable invite message, keeps the same challenge token/URL/expiry, avoids immediate repeats and does not write duel state.
+- Added `instant-duel-v2` balance/audit metadata for new resolved duel results, including participant snapshots, progression normalization fields, readiness penalty and prepared scores.
+- Added pure duel balance helpers that can be reused by a later turn-based duel mode without adding turn-based runtime in this slice.
+
+### Changed
+- Renamed the current quick duel in player-facing copy to `⚡ Миттєва дуель` and clarified that the result appears immediately after consent.
+- Duel create, rematch and accept flows now synchronize HP/mana through the same canonical lazy resource path as `/hero` and `/fight`, including persistence and optimistic conflict fallback.
+- Accept now reloads and syncs both participants at the same logical time before confirmation or resolution; resource warnings are based on the warned participant's fresh snapshot.
+- Instant duel scoring now temporarily normalizes only progression-derived level/remort budget. Race, class, title, current build, equipped manatky and equipment effects remain personal.
+- Current HP/mana now matter through a small capped readiness penalty after sync and normalization: tired participants are disadvantaged, but not automatically defeated.
+- Resolved cards and share cards prefer stored participant snapshots for new results, so later rename, remort, level-up or equipment changes do not silently rewrite the replay-facing card.
+- Duel leaderboard names prefer stored result snapshots for new rows while old rows continue to read live character snapshots.
+
+### Guardrails
+- No XP, gold, items, quest progress, item loss, wagers, tournaments, rating power or turn-based PvP runtime was added.
+- No schema migration was added; replay/audit expansion stays backward-compatible inside `resultJson`.
+- Hidden formulas and exact readiness/progression values are not shown in Telegram copy or `news.md`.
+
 ## [0.1.16] - 12026.06.19 - Character Stats Growth Rework
 
 ### Added

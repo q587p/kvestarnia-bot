@@ -124,7 +124,7 @@ describe("support command and start deep links", () => {
 
     expect(onboardingStart).not.toHaveBeenCalled();
     expect(acceptForTelegramUser).toHaveBeenCalledWith(42n, "abc_DEF12");
-    expect(String(message?.payload.text)).toContain("🥊 <b>Результат виклику</b>");
+    expect(String(message?.payload.text)).toContain("⚡ <b>Результат миттєвої дуелі</b>");
     expect(keyboard).toContain("v1:duel:rematch:abc_DEF12");
     expect(keyboard).toContain("v1:duel:share:abc_DEF12");
     expect(keyboard).toContain("v1:duel:new");

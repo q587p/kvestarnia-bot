@@ -316,6 +316,32 @@ Hunt Board лишається простим для входу: один кон�
 - Race/class edge дозволений і бажаний у тематичних бійках, але симуляції мають ловити крайнощі: воїн-орк може бути фаворитом у кулачній драці, проте бард такого самого рівня не має падати до майже нульового win rate.
 - Daily/weekly нагороди для переможців мають бути переважно cosmetic/social: титул, запис на дошці, маленький bonus payout. Не давати чемпіону предмет або buff, який збільшує наступний PvP snowball.
 
+### `0.1.17` instant duel normalization
+
+`⚡ Миттєва дуель` stays rewardless and quick-resolve, but its hidden math no longer lets raw level/remort gaps decide almost every result.
+
+The instant resolver prepares both duelists through `instant-duel-v2`:
+- compute a canonical progression budget from level-derived HP max, mana max and the full distributed stat-growth vector used by `buildLevelGrowthBonus(...)`;
+- add deterministic remort-memory budget through the canonical `buildRemortMemoryBonus(...)` helper and the level-13 growth budget;
+- choose the stronger canonical progression tier as the target;
+- prepare each participant at that common target tier with that participant's own class/race/path growth profile, then add only the missing HP max, mana max and per-stat deltas;
+- preserve current HP/mana ratios when temporary maxima rise;
+- keep real level/remort values for display and flavor;
+- keep race, class, title, path, starter distribution, equipped item ids and all equipment/manatka effects personal;
+- remove the old raw `level * 10` score term and use equalized prepared progression contribution instead.
+
+Historic cross-class remort memory is not fully reconstructable from the current character row after remort. For instant-duel normalization, remort budget therefore uses the current character's class/race/path growth profile as a deterministic anti-snowball approximation. This is intentionally conservative: it prevents remort count from leaking back through non-primary stats without pretending to recover every previous-life identity exactly.
+
+Current resources matter only through a bounded readiness penalty after sync and normalization:
+
+```text
+hpMissingRatio = 1 - hpCurrent / hpMax
+manaMissingRatio = manaMax <= 0 ? 0 : 1 - manaCurrent / manaMax
+readinessPenalty = round(clamp(0, 12, hpMissingRatio * 8 + manaMissingRatio * 4))
+```
+
+Full resources produce zero penalty. HP matters more than mana. The cap keeps tired acceptance disadvantageous but not an automatic loss. Telegram/player-facing copy must stay qualitative and must not print this formula or exact percentages.
+
 ## Phase 2 trading/gifting guardrails
 - Gift/trade is not a gold source.
 - First slice transfers one eligible item unit or one narrow item-for-item offer.

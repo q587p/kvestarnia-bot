@@ -1,5 +1,6 @@
 import type { CharacterRecord } from "./characterRepository";
 import type { CharacterEquipmentRecord } from "./equipmentRepository";
+import type { CharacterStats } from "../../domain/characters/starterStats";
 
 export type DuelChallengeStatus =
   | "pending"
@@ -21,6 +22,49 @@ export interface DuelResultPayload {
   targetScore: number;
   swing: number;
   flavorKey: string;
+  balanceVersion?: string;
+  participants?: {
+    challenger: DuelResultParticipantSnapshot;
+    target: DuelResultParticipantSnapshot;
+  };
+  audit?: {
+    challenger: DuelResultBalanceAudit;
+    target: DuelResultBalanceAudit;
+  };
+}
+
+export interface DuelResultParticipantSnapshot {
+  characterId: string;
+  displayName: string;
+  title: string;
+  raceId: string;
+  raceName: string;
+  classId: string;
+  className: string;
+  level: number;
+  remortCount: number;
+}
+
+export interface DuelResultProgressionBudget {
+  level: number;
+  remortCount: number;
+  hpMax: number;
+  manaMax: number;
+  stats: CharacterStats;
+  score: number;
+}
+
+export interface DuelResultBalanceAudit {
+  balanceVersion: string;
+  originalLevel: number;
+  originalRemortCount: number;
+  progressionBudget: DuelResultProgressionBudget;
+  targetProgressionBudget: DuelResultProgressionBudget;
+  temporaryHpMax: number;
+  temporaryManaMax: number;
+  temporaryStats: CharacterStats;
+  readinessPenalty: number;
+  preparedScore: number;
 }
 
 export interface DuelChallengeRecord {

@@ -1627,7 +1627,10 @@ function buildPersistentFightReward(
   }
 
   const difficulty = getPersistentFightSessionDifficulty(session);
-  const baseMonsterLevel = getPersistentFightSessionBaseMonsterLevel(session, monster.level);
+  const baseMonsterLevel = getPersistentFightSessionBaseMonsterLevel(
+    session,
+    getAuthoredMonsterLevel(monster)
+  );
   const effectiveMonsterLevel = getPersistentFightSessionMonsterLevel(session, monster.level);
   const lootProfileLevel = Math.max(1, effectiveMonsterLevel + difficulty.lootPowerOffset);
   const loot = rollMonsterLoot({
@@ -1809,6 +1812,10 @@ function stampCombatCompletedAt(state: CombatState, now: Date): CombatState {
 
 function findMonster(monsterId: string): MonsterContent | null {
   return monsters.find((monster) => monster.id === monsterId) ?? null;
+}
+
+function getAuthoredMonsterLevel(monster: MonsterContent): number {
+  return findMonster(monster.id)?.level ?? monster.level;
 }
 
 function findPersistentFightMonster(

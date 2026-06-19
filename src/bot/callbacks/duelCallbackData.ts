@@ -11,12 +11,14 @@ export type DuelCallback =
   | { type: "rematch"; token: string }
   | { type: "rematch-risk"; token: string }
   | { type: "share"; token: string }
+  | { type: "invite"; token: string; templateIndex: number }
   | { type: "view"; token: string };
 
 export type DuelCallbackError =
   | "invalid-version"
   | "invalid-prefix"
   | "invalid-action"
+  | "invalid-template"
   | "invalid-token"
   | "too-long";
 
@@ -59,6 +61,10 @@ export function makeDuelShareCallbackData(token: string): string {
   return `${PREFIX}:share:${token}`;
 }
 
+export function makeDuelInviteRotateCallbackData(token: string, templateIndex: number): string {
+  return `${PREFIX}:inv:${token}:${templateIndex.toString(36)}`;
+}
+
 export function makeDuelViewCallbackData(token: string): string {
   return `${PREFIX}:view:${token}`;
 }
@@ -86,7 +92,7 @@ export function parseDuelCallbackData(
     return err("invalid-prefix");
   }
 
-  const [, section, action, token, ...rest] = data.split(":");
+  const [, section, action, token, templateIndex, ...rest] = data.split(":");
 
   if (section !== "duel" || rest.length > 0) {
     return err("invalid-prefix");
@@ -99,6 +105,7 @@ export function parseDuelCallbackData(
     action !== "decline" &&
     action !== "rematch" &&
     action !== "rematch-risk" &&
+    action !== "inv" &&
     action !== "share" &&
     action !== "view"
   ) {
@@ -107,6 +114,22 @@ export function parseDuelCallbackData(
 
   if (!token || !tokenPattern.test(token)) {
     return err("invalid-token");
+  }
+
+  if (action === "inv") {
+    if (templateIndex === undefined || !/^[0-9a-c]$/.test(templateIndex)) {
+      return err("invalid-template");
+    }
+
+    return ok({
+      type: "invite",
+      token,
+      templateIndex: Number.parseInt(templateIndex, 36)
+    });
+  }
+
+  if (templateIndex !== undefined) {
+    return err("invalid-prefix");
   }
 
   return ok({

@@ -781,7 +781,7 @@ function getAdventureName(id: string): string {
   }
 
   if (id === PRESENCE_ADVENTURE_DUEL_CHALLENGE) {
-    return "Корчемний виклик";
+    return "Миттєва дуель";
   }
 
   return "Підозріла шаурма";

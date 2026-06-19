@@ -181,7 +181,7 @@ function buildRemortStatBonuses(
   });
 }
 
-function buildRemortMemoryBonus(previousBonus: number, remortNumber: number): number {
+export function buildRemortMemoryBonus(previousBonus: number, remortNumber: number): number {
   const safePreviousBonus = Math.max(0, Math.floor(previousBonus));
   const safeRemortNumber = getRemortMemoryRank(remortNumber);
 
