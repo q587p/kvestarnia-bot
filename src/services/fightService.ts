@@ -783,6 +783,32 @@ export class FightService {
       return { state: "no-character" };
     }
 
+    if (session.id !== sessionId) {
+      if (isTrainingDoppelgangerMonsterId(session.monsterId)) {
+        return {
+          state: "training-active",
+          character: characterSummary,
+          session,
+          questProgress
+        };
+      }
+
+      const activeMonster = findPersistentFightMonster(session);
+
+      if (!activeMonster || session.state?.status !== "active") {
+        return this.getFightOverviewForTelegramUser(telegramUserId);
+      }
+
+      return {
+        state: "persistent-active",
+        character: characterSummary,
+        session,
+        monster: activeMonster,
+        questProgress,
+        ...(recoveryNotice ? { recoveryNotice } : {})
+      };
+    }
+
     return {
       state: "persistent-active",
       character: characterSummary,
