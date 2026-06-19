@@ -1574,17 +1574,30 @@ export class FightService {
     const now = this.clock();
     const since = new Date(now.getTime() - MONSTER_REST_COOLDOWN_MS * MONSTER_REST_ELIGIBLE_FIGHT_COUNT);
     const recent = await this.combatSessions.listCompletedByTelegramUserIdSince(telegramUserId, since);
-    const eligible = recent
-      .filter((session) => isMonsterRestEligibleSession(session))
+    const tracked = recent
+      .filter((session) => isMonsterRestTrackedSession(session))
       .sort((left, right) => left.completedAt.getTime() - right.completedAt.getTime());
+    const streak: typeof tracked = [];
 
-    if (eligible.length < MONSTER_REST_ELIGIBLE_FIGHT_COUNT) {
+    for (let index = tracked.length - 1; index >= 0; index -= 1) {
+      const session = tracked[index];
+
+      if (!session || session.status !== "won") {
+        break;
+      }
+
+      streak.unshift(session);
+
+      if (streak.length >= MONSTER_REST_ELIGIBLE_FIGHT_COUNT) {
+        break;
+      }
+    }
+
+    if (streak.length < MONSTER_REST_ELIGIBLE_FIGHT_COUNT) {
       return null;
     }
 
-    const streak = eligible.slice(-MONSTER_REST_ELIGIBLE_FIGHT_COUNT);
-    const third = streak.at(-1);
-
+    const third = streak[MONSTER_REST_ELIGIBLE_FIGHT_COUNT - 1];
     if (!third) {
       return null;
     }
@@ -1595,7 +1608,7 @@ export class FightService {
   }
 }
 
-function isMonsterRestEligibleSession(
+function isMonsterRestTrackedSession(
   session: Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "state">
 ): boolean {
   if (

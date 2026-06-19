@@ -1775,6 +1775,42 @@ describe("FightService", () => {
     });
   });
 
+  it("resets the monster rest streak after a lost ordinary fight", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (const [index, status] of (["won", "won", "lost", "won", "won"] as const).entries()) {
+      const completedAt = new Date(`2026-06-12T10:29:${30 + index}.000Z`);
+      const session = makeTerminalSession(
+        status,
+        `ordinary-rest-reset-${index + 1}`,
+        `character-${telegramUserId.toString()}`,
+        "monster.deadline-spider",
+        {
+          createdAt: new Date("2026-06-12T10:28:00.000Z"),
+          updatedAt: completedAt
+        }
+      );
+
+      sessions.addSession({
+        ...session,
+        state: {
+          ...session.state!,
+          source: "normal"
+        }
+      });
+    }
+
+    await expect(service.getFightOverviewForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "persistent-ready"
+    });
+  });
+
   it("keeps monster rest active until the exact third-completion boundary", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
