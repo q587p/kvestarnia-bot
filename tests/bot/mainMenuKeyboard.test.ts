@@ -557,6 +557,13 @@ describe("main menu and scene keyboards", () => {
     ]);
   });
 
+  it("returns terminal training doppelganger screens to the fighting corner", () => {
+    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard())).toEqual(["🥊 До кутка"]);
+    expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard())).toEqual([
+      "v1:place:fighting-corner"
+    ]);
+  });
+
   it("keeps persistent fight skill icons unique and away from common action icons", () => {
     const skillIds = [
       "skill.forceful-strike",

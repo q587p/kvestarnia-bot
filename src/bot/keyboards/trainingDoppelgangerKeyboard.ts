@@ -8,7 +8,6 @@ import {
   makeTrainingDoppelgangerModeCallbackData,
   makeTrainingDoppelgangerTurnCallbackData
 } from "../callbacks/trainingDoppelgangerCallbackData";
-import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 
 export function buildTrainingDoppelgangerStartKeyboard(
@@ -49,8 +48,5 @@ export function buildTrainingDoppelgangerKeyboard(
     );
   }
 
-  return new InlineKeyboard()
-    .text("📋 До справ", makeQuestCallbackData("list"))
-    .row()
-    .text("🍺 До зали", makePlaceCallbackData("hall"));
+  return new InlineKeyboard().text("🥊 До кутка", makePlaceCallbackData("fighting-corner"));
 }

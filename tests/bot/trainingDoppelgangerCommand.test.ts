@@ -155,7 +155,9 @@ describe("training doppelganger command", () => {
     expect(presence.marks).toEqual([]);
     expect(replies[0]?.text).toContain("3 рівня");
     expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:spar:turn");
-    expect(JSON.stringify(replies[0]?.options)).toContain("v1:quest:list");
+    expect(JSON.stringify(replies[0]?.options)).toContain("🥊 До кутка");
+    expect(JSON.stringify(replies[0]?.options)).toContain("v1:place:fighting-corner");
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:quest:list");
   });
 });
 
