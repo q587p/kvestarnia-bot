@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import type { CharacterRecord } from "./characterRepository";
 
 export interface RewardLevelChange {
@@ -13,6 +14,8 @@ export interface DailyActionRecord {
   localDate: string;
   rewardXp: number;
   rewardGold: number;
+  spentGold: number;
+  resultJson: Prisma.JsonValue | null;
   createdAt: Date;
 }
 
@@ -27,6 +30,8 @@ export interface ClaimDailyActionInput {
   localDate: string;
   rewardXp: number;
   rewardGold: number;
+  spentGold?: number;
+  resultJson?: unknown;
   itemGrants?: ItemGrant[];
 }
 

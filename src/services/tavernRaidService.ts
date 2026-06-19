@@ -414,6 +414,10 @@ export class TavernRaidService {
       };
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Friday Barrel raid pending claim does not spend gold.");
+    }
+
     return {
       state: "pending-started",
       character: summarizeCharacter(claim.character),

@@ -15,6 +15,7 @@ export interface ClaimCooldownRewardInput {
   availableAt: Date;
   rewardXp: number;
   rewardGold: number;
+  spentGold?: number;
   itemGrants?: ItemGrant[];
 }
 
@@ -30,6 +31,11 @@ export type ClaimCooldownRewardResult =
       state: "on-cooldown";
       cooldown: CharacterCooldownRecord;
       character: CharacterRecord;
+    }
+  | {
+      state: "insufficient-gold";
+      character: CharacterRecord;
+      requiredGold: number;
     };
 
 export type SetCooldownAvailableAtResult =

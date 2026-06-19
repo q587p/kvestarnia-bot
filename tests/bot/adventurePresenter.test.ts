@@ -88,7 +88,7 @@ describe("adventure presenter", () => {
     expect(text).toContain("<i>Кухар &amp; свідок</i>\n\n2. 🛢️ <b>Бочка</b>");
   });
 
-  it("presents selected problem without approach reward or risk spoilers", () => {
+  it("presents selected problem without reward or exact odds spoilers", () => {
     const result: Extract<AdventureProblemResult, { state: "selected" }> = {
       state: "selected",
       character,
@@ -127,9 +127,9 @@ describe("adventure presenter", () => {
 
     expect(text).toContain("Казанок &lt;репетирує&gt;");
     expect(text).toContain("Метод оберіть самі.");
-    expect(text).not.toContain("Майже без драматичних зубів.");
+    expect(text).toContain("🛡️ Обережно");
+    expect(text).toContain("Майже без драматичних зубів.");
     expect(text).not.toContain("🧠 Хитро — Середній ризик.");
-    expect(text).not.toContain("Проблема може образитись.");
     expect(text).not.toContain("+4 XP");
     expect(text).not.toContain("+10 XP");
     expect(text).not.toContain("ризик 13%");
@@ -173,10 +173,10 @@ describe("adventure presenter", () => {
     const text = presentAdventureResult(completed(true));
 
     expect(text).toContain("Справа вкусила у відповідь");
-    expect(text).toContain("метод <i>🧠 Хитро</i>");
+    expect(text).toContain("<i>Метод:</i> 🧠 Хитро");
     expect(text).not.toContain("метод «");
     expect(text).toContain("Нагорода не видана");
-    expect(text).toContain("без заперечень.\n\nНагорода не видана");
+    expect(text).toContain("без заперечень.");
     expect(text).not.toContain("+7 XP");
   });
 
@@ -207,10 +207,35 @@ function completed(complication: boolean): Extract<AdventureResult, { state: "co
       id: "flair",
       label: "🧠 Хитро",
       hint: "Середній ризик.",
+      chanceHint: "непевно",
       reward: { xp: 7, gold: 4 },
-      complicationChance: 23
+      source: "scene",
+      primaryStat: "charisma",
+      consequenceByGrade: {
+        "strong-success": "full-reward",
+        success: "full-reward",
+        "mixed-success": "reduced-reward",
+        complication: complication ? "fight-handoff" : "cosmetic-mess"
+      }
     },
+    grade: complication ? "complication" : "success",
+    consequence: complication ? "fight-handoff" : "full-reward",
+    outcome: {
+      headline: complication ? "⚠️ Справа вкусила у відповідь" : "✅ Справу закрито",
+      body: [
+        complication
+          ? `${choice.title} не прийняла метод без заперечень.`
+          : `${choice.title} погодилась бути вирішеною.`
+      ]
+    },
+    spentGold: 0,
+    fightHandoff: complication,
     complication,
+    check: {
+      chance: 55,
+      roll: complication ? 99 : 12,
+      grade: complication ? "complication" : "success"
+    },
     reward: {
       xp: complication ? 0 : 7,
       gold: complication ? 0 : 4,

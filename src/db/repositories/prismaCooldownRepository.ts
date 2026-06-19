@@ -197,7 +197,17 @@ export class PrismaCooldownRepository implements CooldownRepository {
     character: CharacterRecord,
     cooldown: CharacterCooldownRecord,
     input: ClaimCooldownRewardInput
-  ): Promise<Extract<ClaimCooldownRewardResult, { state: "completed" }>> {
+  ): Promise<Extract<ClaimCooldownRewardResult, { state: "completed" | "insufficient-gold" }>> {
+    const spentGold = normalizeSpentGold(input.spentGold);
+
+    if (spentGold > character.gold) {
+      return {
+        state: "insufficient-gold",
+        character,
+        requiredGold: spentGold
+      };
+    }
+
     const rewardedCharacter = await tx.character.update({
       where: {
         id: character.id
@@ -207,7 +217,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
           increment: input.rewardXp
         },
         gold: {
-          increment: input.rewardGold
+          increment: input.rewardGold - spentGold
         }
       }
     });
@@ -378,4 +388,8 @@ async function getGrantQuantity(
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function normalizeSpentGold(value: number | undefined): number {
+  return Math.max(0, Math.floor(value ?? 0));
 }

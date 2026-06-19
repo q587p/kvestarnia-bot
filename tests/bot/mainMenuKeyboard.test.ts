@@ -404,15 +404,15 @@ describe("main menu and scene keyboards", () => {
 
   it("keeps character-aware adventure labels on the same callback actions", () => {
     expect(flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
-      "🗝️ Перевірити кишені",
-      "📋 Виманити чек",
-      "🏃 Зникнути за серветкою",
+      "🔎 Перевірити, чому лаваш дихає не в ритм",
+      "🎭 Непомітно витягти зі справи доказ: шаурму",
+      "🏷️ «Пересічні Пригодники»: викрити шаурму біографією",
       "📋 До справ"
     ]);
     expect(flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
-      "v1:adv:mimic:poke",
-      "v1:adv:mimic:receipt",
-      "v1:adv:mimic:flee",
+      "v2:adv:m:inspect-folds",
+      "v2:adv:m:c3",
+      "v2:adv:m:s03",
       "v1:place:quest-table"
     ]);
   });
@@ -441,21 +441,24 @@ describe("main menu and scene keyboards", () => {
     const domovyk = { ...character, raceId: "race.domovyk", classId: "class.rogue" };
 
     expect(flatInlineButtonTexts(buildCellarKeyboard(domovyk))).toEqual([
-      "🧀 Виставити оренду сиром",
-      "🧹 Навести хатній лад",
-      "🤝 Поділити шафу",
+      "🧀 Поставити пастку по маршруту крихт",
+      "🧬 Оголосити справу хатньою територією: мишу",
+      "🏷️ «Пересічні Пригодники»: вирішити сирну політику",
+      "🪙 Дати миші 1 золоту «на сирний фонд»",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildCellarKeyboard(domovyk))).toEqual([
-      "v1:cellar:cheese-trap",
-      "v1:cellar:sweep-bravely",
-      "v1:cellar:negotiate",
+      "v2:cellar:cheese-trap",
+      "v2:cellar:r5",
+      "v2:cellar:s53",
+      "v2:cellar:bribe-cheese",
       "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual([
-      "🧀 Виставити оренду сиром",
-      "🧹 Навести хатній лад",
-      "🤝 Поділити шафу",
+      "🧀 Поставити пастку по маршруту крихт",
+      "🧬 Оголосити справу хатньою територією: мишу",
+      "🏷️ «Пересічні Пригодники»: вирішити сирну політику",
+      "🪙 Дати миші 1 золоту «на сирний фонд»",
       "⬅️ До зали"
     ]);
   });

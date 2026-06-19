@@ -82,7 +82,7 @@ describe("adventure callback data", () => {
   });
 
   it.each(["safe", "flair", "risky"] as const)(
-    "parses %s approach callbacks within Telegram limits",
+    "parses legacy %s approach callbacks within Telegram limits",
     (approach) => {
       const data = makeAdventureApproachCallbackData({
         periodToken: "20260612",
@@ -93,7 +93,7 @@ describe("adventure callback data", () => {
       expect(parseAdventureCallbackData(data)).toEqual({
         ok: true,
         value: {
-          type: "approach",
+          type: "legacy-approach",
           periodToken: "20260612",
           problemId: "receipt",
           approach
@@ -102,6 +102,25 @@ describe("adventure callback data", () => {
       expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     }
   );
+
+  it("parses authored method callbacks within Telegram limits", () => {
+    const data = makeAdventureApproachCallbackData({
+      periodToken: "20260612",
+      problemId: "receipt",
+      methodId: "c3"
+    });
+
+    expect(parseAdventureCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "approach",
+        periodToken: "20260612",
+        problemId: "receipt",
+        methodId: "c3"
+      }
+    });
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
 
   it("parses participants callback", () => {
     const data = makeAdventureParticipantsCallbackData();
@@ -127,9 +146,13 @@ describe("adventure callback data", () => {
   });
 
   it("rejects invalid versions, periods, and actions", () => {
-    expect(parseAdventureCallbackData("v2:adv:p:20260612:stew")).toEqual({
+    expect(parseAdventureCallbackData("v3:adv:p:20260612:stew")).toEqual({
       ok: false,
       error: "invalid-version"
+    });
+    expect(parseAdventureCallbackData("v2:adv:p:20260612:stew")).toEqual({
+      ok: false,
+      error: "invalid-prefix"
     });
     expect(parseAdventureCallbackData("v1:adv:p:2026-06-12:stew")).toEqual({
       ok: false,

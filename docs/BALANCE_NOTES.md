@@ -118,6 +118,12 @@ level 13: 1300
 
 Рівні `14-23` планувати як епічний діапазон із новими важелями, а не лише більшими числами. За прикладом Munchkin, раси й класи можуть відкривати додаткові абілки на milestone-рівнях: другий класовий трюк, расову витівку, тимчасовий bypass для манаток, бонус до конкретного типу подій або кумедний недолік, який іноді стає перевагою. Балансне правило: milestone має бути помітним у грі й тексті, але не робити одну расу/клас обов’язковим вибором.
 
+## Authored quest-resolution checks
+
+`0.1.20` replaces the active Adventure Choice `safe/flair/risky` ladder with authored scene/race/class/signature methods. Quest-resolution checks use the canonical effective stat snapshot, deterministic character/period/scene/method seeding, bounded qualitative chance bands and four grades: `strong-success`, `success`, `mixed-success`, `complication`. Player-facing pre-commit copy stays qualitative: no exact percentages and no exact future rewards.
+
+Reward profiles remain conservative (`modest`, `standard`, `generous`) and consequences vary by authored method: full reward, reduced reward, XP-only, cosmetic mess, paid success or persistent-fight handoff. Small paid methods may cost visible `1..3` gold and must check affordability before claim; `daily_actions.spent_gold` and `result_json` record the chosen method, grade, consequence, cost and check at claim time.
+
 ## Gold economy MVP
 Sources:
 - PvE fights.

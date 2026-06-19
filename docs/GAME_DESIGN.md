@@ -48,6 +48,8 @@ Future path restrictions should sound like in-world folklore or institutions, no
 
 Правило для нових сцен: спершу авторський flavor, потім механіка. Новий квест або NPC-line має подумати, як на нього смішно реагує хоча б одна раса, один клас і одна дивна комбінація. Детальний контракт живе в `docs/CHARACTER_IMPACT_LOOP.md`, `docs/QUEST_FLAVOR_ROUTING.md`, `docs/KORCHMA_GREETING_CONTENT.md`, `docs/RAID_ROLE_FLAVOR_NOTES.md` і `docs/CONTENT_AUTHORING_CHECKLIST.md`.
 
+`0.1.20` робить цей принцип runtime-частиною малих справ: Adventure Choice, starter shawarma і льохова миша мають authored methods замість універсальної шкали `safe/flair/risky`. Метод має належати сцені або персонажу, використовувати deterministic bounded check, давати authored outcome і не показувати exact шансів чи майбутніх нагород до вибору. Канонічні деталі: `docs/QUEST_RESOLUTION_VARIETY.md`, `docs/QUEST_SKILLS_AND_CHECKS.md`, `docs/QUEST_RESOLUTION_CONTENT_SEEDS.md`.
+
 Hidden `path` може бути внутрішнім selector-ом, але назви `sun`, `moon`, `boundary` і великі «шляхи» не виходять у player-facing текст.
 
 ## Ачівки й титули

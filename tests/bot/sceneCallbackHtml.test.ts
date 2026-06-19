@@ -54,7 +54,7 @@ describe("scene callback HTML options", () => {
       callbackData: makeAdventureApproachCallbackData({
         periodToken: "period93",
         problemId: "stew",
-        approach: "flair"
+        methodId: adventureApproach.id
       }),
       services: servicesWith({
         adventure: {
@@ -395,7 +395,7 @@ describe("scene callback HTML options", () => {
       makeAdventureApproachCallbackData({
         periodToken: "period93",
         problemId: "stew",
-        approach: "flair"
+        methodId: adventureApproach.id
       }),
       servicesWith({
         adventure: {
@@ -809,7 +809,7 @@ describe("scene callback HTML options", () => {
       callbackData: makeAdventureApproachCallbackData({
         periodToken: "period93",
         problemId: "stew",
-        approach: "risky"
+        methodId: adventureApproach.id
       }),
       adventure: {
         selectAdventureProblem: () => Promise.resolve({ state: "no-character" as const }),
@@ -1499,7 +1499,7 @@ describe("scene callback HTML options", () => {
       makeAdventureApproachCallbackData({
         periodToken: "period93",
         problemId: "stew",
-        approach: "risky"
+        methodId: adventureApproach.id
       }),
       servicesWith({
         adventure: {
@@ -1516,7 +1516,19 @@ describe("scene callback HTML options", () => {
                 itemGrants: []
               },
               levelChange: noLevelChange,
-              complication: true
+              complication: true,
+              grade: "complication",
+              consequence: "fight-handoff",
+              outcome: "Горщик викликав вас на чесний бій ложками.",
+              spentGold: 0,
+              fightHandoff: true,
+              check: {
+                roll: 13,
+                target: 45,
+                total: 13,
+                statBonus: 0,
+                grade: "complication"
+              }
             }),
           rollbackCurrentAdventureClaimForTelegramUser
         },
@@ -1814,14 +1826,22 @@ const adventureChoice = {
 };
 
 const adventureApproach = {
-  id: "flair" as const,
-  label: "🧠 Знайти хитрий кут",
-  hint: "Середня винагорода.",
+  id: "conduct-duet" as const,
+  label: "🎵 Продиригувати юшкою",
+  hint: "Добрі шанси, винагорода звичайна.",
+  chanceHint: "непевно",
   reward: {
     xp: 7,
     gold: 4
   },
-  complicationChance: 23
+  source: "scene" as const,
+  primaryStat: "charisma" as const,
+  consequenceByGrade: {
+    "strong-success": "full-reward",
+    success: "full-reward",
+    "mixed-success": "reduced-reward",
+    complication: "cosmetic-mess"
+  }
 };
 
 const adventureOffer = {

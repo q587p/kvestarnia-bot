@@ -248,9 +248,32 @@ export function presentCellarResult(
     return presentCellarCooldown(result);
   }
 
+  if (result.state === "insufficient-gold") {
+    return [
+      "🪙 Миша відкрила сирний фонд.",
+      "",
+      `Потрібно ${result.requiredGold} золота. У вас — ${result.character.gold}.`,
+      "",
+      "Льохову справу не зараховано, cooldown не запущено, золото не списано.",
+      "",
+      npcQuote("Миша", "Фонд — це серйозно. Особливо коли фонд мій.")
+    ].join("\n");
+  }
+
+  const outcome = result.outcome ?? {
+    headline: presentCellarOutcome(result.action, result.character)[0] ?? "✅ Льохову справу закрито",
+    body: [presentCellarOutcome(result.action, result.character)[2] ?? "Миша зробила вигляд, що так і планувала."]
+  };
+  const methodLabel = result.method?.label ?? result.action;
+  const spentGold = result.spentGold ?? 0;
   const lines = [
-    ...presentCellarOutcome(result.action, result.character),
-    ...presentCharacterFlavor(result.character, "quest.outcome", "cellar", result.action),
+    escapeHtml(outcome.headline),
+    "",
+    ...outcome.body.map(escapeHtml),
+    ...(outcome.biographyLine ? ["", escapeHtml(outcome.biographyLine)] : []),
+    "",
+    `<i>Метод:</i> ${escapeHtml(methodLabel)}`,
+    ...(spentGold > 0 ? [`Списано: ${spentGold} золота.`] : []),
     "",
     presentRewardAmount(result.reward),
     ...presentItemGrantLines(result.reward.itemGrants)
@@ -752,7 +775,11 @@ function selectCellarOutcomeVariant(
   const contextualGroup = contextualCellarOutcomeGroups.find((group) =>
     matchesContextualOutcomeGroup(group, action, character)
   );
-  const variants = contextualGroup?.variants ?? cellarOutcomeVariants[action];
+  const variants =
+    contextualGroup?.variants ??
+    cellarOutcomeVariants[action] ??
+    cellarOutcomeVariants.negotiate ??
+    [];
 
   return selectStableVariant(
     variants,

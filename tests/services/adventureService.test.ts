@@ -23,12 +23,12 @@ import {
   ADVENTURE_PROBLEM_IDS,
   AdventureService,
   MIMIC_SHAWARMA_ADVENTURE_KEY,
-  buildApproachOptions,
   buildAdventureOffer,
+  buildAdventureMethodOptions,
   buildAdventurePeriod,
   getAdventureProblemPoolForProfile,
   getAdventureProblemIcon,
-  type AdventureApproach
+  type AdventureResult
 } from "../../src/services/adventureService";
 
 const telegramUserId = 42n;
@@ -44,7 +44,7 @@ describe("AdventureService", () => {
       service.completeAdventureApproach(telegramUserId, {
         periodToken: "20260612",
         problemId: "stew",
-        approach: "safe"
+        methodId: "lower-fire"
       })
     ).resolves.toEqual({
       state: "no-character"
@@ -139,7 +139,7 @@ describe("AdventureService", () => {
     expect(dwarfMug?.title).toBe("Кухоль для «Гнома» не проходить інструктаж");
   });
 
-  it("selects a problem and exposes safe, flavored, and risky approaches", async () => {
+  it("selects a problem and exposes authored, character-aware methods", async () => {
     const { service, characters } = setup();
     characters.add(telegramUserId, { xp: 25, classId: "class.bureaucramancer" });
     const offer = await readyOffer(service);
@@ -150,47 +150,49 @@ describe("AdventureService", () => {
 
     expect(result.state).toBe("selected");
     if (result.state === "selected") {
-      expect(result.approaches.map((approach) => approach.id)).toEqual([
-        "safe",
-        "flair",
-        "risky"
-      ]);
-      expect(result.approaches[0].reward.xp).toBeLessThan(result.approaches[1].reward.xp);
-      expect(result.approaches[1].reward.xp).toBeLessThan(result.approaches[2].reward.xp);
-      expect(result.approaches[0].complicationChance).toBeLessThan(
-        result.approaches[2].complicationChance
+      expect(result.approaches.length).toBeGreaterThanOrEqual(3);
+      expect(new Set(result.approaches.map((approach) => approach.id)).size).toBe(
+        result.approaches.length
       );
-      expect(result.approaches[1].label).toContain("23-Б");
+      expect(result.approaches.some((approach) => approach.source === "scene")).toBe(true);
+      expect(result.approaches.some((approach) => approach.source === "class")).toBe(true);
+      expect(result.approaches.every((approach) => !/%|\d{2,}/u.test(approach.chanceHint))).toBe(true);
     }
   });
 
-  it("claims one non-complicated reward through the daily action path", async () => {
-    const found = await findResolvedAdventure("flair", false);
+  it("claims one non-fight reward through the daily action path", async () => {
+    const found = await findResolvedAdventure((result) => !result.fightHandoff);
 
     expect(found.result.state).toBe("completed");
     if (found.result.state === "completed") {
-      expect(found.result.reward).toMatchObject({
-        xp: 7,
-        gold: 4,
-        localDate: buildAdventurePeriod(fixedClock()).storageKey
-      });
-      expect(found.result.complication).toBe(false);
+      expect(found.result.reward.localDate).toBe(buildAdventurePeriod(fixedClock()).storageKey);
+      expect(found.result.reward.xp).toBeGreaterThan(0);
+      expect(found.result.reward.xp).toBeLessThanOrEqual(found.result.approach.reward.xp);
+      expect(found.result.reward.gold).toBeGreaterThanOrEqual(0);
+      expect(found.result.reward.gold).toBeLessThanOrEqual(found.result.approach.reward.gold);
+      expect(found.result.fightHandoff).toBe(false);
     }
     expect(found.dailyActions.createCount).toBe(1);
     expect(found.dailyActions.records[0]).toMatchObject({
       key: ADVENTURE_CHOICE_KEY,
       localDate: buildAdventurePeriod(fixedClock()).storageKey,
-      rewardXp: 7,
-      rewardGold: 4
+      rewardXp: found.result.state === "completed" ? found.result.reward.xp : -1,
+      rewardGold: found.result.state === "completed" ? found.result.reward.gold : -1
+    });
+    expect(found.dailyActions.records[0]?.resultJson).toMatchObject({
+      version: 1,
+      sceneId: found.input.problemId,
+      methodId: found.input.methodId
     });
   });
 
-  it("records a complication as the daily claim without granting reward", async () => {
-    const found = await findResolvedAdventure("risky", true);
+  it("records a fight handoff complication as the daily claim without granting reward", async () => {
+    const found = await findResolvedAdventure((result) => result.fightHandoff);
 
     expect(found.result.state).toBe("completed");
     if (found.result.state === "completed") {
       expect(found.result.complication).toBe(true);
+      expect(found.result.fightHandoff).toBe(true);
       expect(found.result.reward).toMatchObject({
         xp: 0,
         gold: 0
@@ -205,7 +207,7 @@ describe("AdventureService", () => {
   });
 
   it("does not duplicate rewards when callback is replayed", async () => {
-    const found = await findResolvedAdventure("safe", false);
+    const found = await findResolvedAdventure((result) => !result.fightHandoff);
     const repeated = await found.service.completeAdventureApproach(found.userId, found.input);
 
     expect(repeated.state).toBe("already-completed");
@@ -213,7 +215,7 @@ describe("AdventureService", () => {
   });
 
   it("resets the current 93-minute adventure claim for dev testing", async () => {
-    const found = await findResolvedAdventure("safe", false);
+    const found = await findResolvedAdventure((result) => !result.fightHandoff);
     const oldOffer = found.offer;
 
     const reset = await found.service.resetCurrentPeriodForTelegramUser(found.userId);
@@ -231,10 +233,20 @@ describe("AdventureService", () => {
 
     expect(replay.state).toBe("stale");
     const nextOffer = await readyOffer(found.service, found.userId);
+    const nextSelected = await found.service.selectAdventureProblem(found.userId, {
+      periodToken: nextOffer.periodToken,
+      problemId: nextOffer.choices[0].id
+    });
+
+    expect(nextSelected.state).toBe("selected");
+    if (nextSelected.state !== "selected") {
+      throw new Error(`Expected selected next offer, got ${nextSelected.state}.`);
+    }
+
     const completed = await found.service.completeAdventureApproach(found.userId, {
       periodToken: nextOffer.periodToken,
       problemId: nextOffer.choices[0].id,
-      approach: "safe"
+      methodId: nextSelected.approaches[0].id
     });
 
     expect(completed.state).toBe("completed");
@@ -259,7 +271,7 @@ describe("AdventureService", () => {
       service.completeAdventureApproach(telegramUserId, {
         periodToken: offer.periodToken,
         problemId: staleProblem ?? "spoon",
-        approach: "safe"
+        methodId: "lower-fire"
       })
     ).resolves.toMatchObject({ state: "stale" });
     expect(dailyActions.createCount).toBe(0);
@@ -277,7 +289,7 @@ describe("AdventureService", () => {
       service.completeAdventureApproach(telegramUserId, {
         periodToken: "20260612",
         problemId: "stew",
-        approach: "safe"
+        methodId: "lower-fire"
       })
     ).resolves.toMatchObject({
       state: "level-locked",
@@ -303,16 +315,16 @@ describe("AdventureService", () => {
     expect(result.state).toBe("completed");
     if (result.state === "completed") {
       expect(result.reward).toMatchObject({
-        xp: 8,
-        gold: 4,
         localDate: "2026-06-12"
       });
+      expect(result.reward.xp).toBeGreaterThan(0);
+      expect(result.reward.gold).toBeGreaterThanOrEqual(0);
     }
     expect(dailyActions.records[0]).toMatchObject({
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,
       localDate: "2026-06-12",
-      rewardXp: 8,
-      rewardGold: 4
+      rewardXp: result.state === "completed" ? result.reward.xp : -1,
+      rewardGold: result.state === "completed" ? result.reward.gold : -1
     });
   });
 
@@ -345,7 +357,7 @@ describe("AdventureService", () => {
       service.completeAdventureApproach(telegramUserId, {
         periodToken: offer.periodToken,
         problemId: offer.choices[0].id,
-        approach: "risky"
+        methodId: "lower-fire"
       })
     ).resolves.toMatchObject({
       state: "active-fight",
@@ -369,17 +381,31 @@ describe("AdventureService", () => {
     });
   });
 
-  it("keeps approach reward and risk ordering conservative", () => {
-    const options = buildApproachOptions(characterSummary());
+  it("keeps authored method rewards conservative and qualitative", () => {
+    const options = buildAdventureMethodOptions(
+      {
+        id: "barrel",
+        title: "Бочка уклала угоду з порожнечею",
+        hook: "",
+        client: ""
+      },
+      characterSummary()
+    );
 
-    expect(options.map((option) => option.reward.xp)).toEqual([4, 7, 10]);
-    expect(options.map((option) => option.reward.gold)).toEqual([2, 4, 7]);
-    expect(options.map((option) => option.complicationChance)).toEqual([13, 23, 42]);
-    expect(options.map((option) => option.hint)).toEqual([
-      "менше винагороди, майже без драматичних зубів.",
-      "середня винагорода, шанс ускладнення теж вивчив середину.",
-      "більша винагорода, але проблема може образитись у відповідь."
-    ]);
+    expect(options.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(options.map((option) => option.label)).size).toBe(options.length);
+    expect(options.map((option) => option.reward)).toEqual(
+      expect.arrayContaining([
+        { xp: 4, gold: 2 },
+        { xp: 7, gold: 4 }
+      ])
+    );
+    expect(options.every((option) => [4, 7, 10].includes(option.reward.xp))).toBe(true);
+    expect(options.every((option) => [2, 4, 7].includes(option.reward.gold))).toBe(true);
+    expect(options.some((option) => option.source === "scene")).toBe(true);
+    expect(options.some((option) => option.source === "race")).toBe(true);
+    expect(options.some((option) => option.source === "class")).toBe(true);
+    expect(options.every((option) => !/%|\d{2,}/u.test(option.chanceHint))).toBe(true);
   });
 });
 
@@ -415,29 +441,58 @@ async function readyOffer(service: AdventureService, userId = telegramUserId) {
   return result.offer;
 }
 
-async function findResolvedAdventure(approach: AdventureApproach, complication: boolean) {
-  for (let user = 40n; user < 700n; user += 1n) {
-    const { service, characters, dailyActions } = setup();
-    characters.add(user, { xp: 25 });
-    const lookup = await service.getAdventureOfferForTelegramUser(user);
+async function findResolvedAdventure(
+  matches: (result: Extract<AdventureResult, { state: "completed" }>) => boolean
+) {
+  for (let user = 40n; user < 1_200n; user += 1n) {
+    const probe = setup();
+    probe.characters.add(user, { xp: 25, gold: 10 });
+    const lookup = await probe.service.getAdventureOfferForTelegramUser(user);
 
     if (lookup.state !== "ready") {
       continue;
     }
 
-    const input = {
-      periodToken: lookup.offer.periodToken,
-      problemId: lookup.offer.choices[0].id,
-      approach
-    };
-    const result = await service.completeAdventureApproach(user, input);
+    for (const choice of lookup.offer.choices) {
+      const selected = await probe.service.selectAdventureProblem(user, {
+        periodToken: lookup.offer.periodToken,
+        problemId: choice.id
+      });
 
-    if (result.state === "completed" && result.complication === complication) {
-      return { service, dailyActions, result, input, userId: user, offer: lookup.offer };
+      if (selected.state !== "selected") {
+        continue;
+      }
+
+      for (const approach of selected.approaches) {
+        const { service, characters, dailyActions } = setup();
+        characters.add(user, { xp: 25, gold: 10 });
+        const freshLookup = await service.getAdventureOfferForTelegramUser(user);
+
+        if (freshLookup.state !== "ready") {
+          continue;
+        }
+
+        const freshChoice = freshLookup.offer.choices.find((candidate) => candidate.id === choice.id);
+
+        if (!freshChoice) {
+          continue;
+        }
+
+        const input = {
+          periodToken: freshLookup.offer.periodToken,
+          problemId: freshChoice.id,
+          methodId: approach.id
+        };
+        const result = await service.completeAdventureApproach(user, input);
+
+        if (result.state === "completed" && matches(result)) {
+          return { service, dailyActions, result, input, userId: user, offer: freshLookup.offer };
+        }
+      }
     }
   }
 
-  throw new Error(`Could not find ${approach} adventure with complication=${complication}.`);
+  throw new Error("Could not find matching resolved adventure.");
 }
 
 function characterSummary() {
@@ -590,7 +645,14 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
   add(
     userTelegramId: bigint,
-    input: { key: string; localDate: string; rewardXp?: number; rewardGold?: number }
+    input: {
+      key: string;
+      localDate: string;
+      rewardXp?: number;
+      rewardGold?: number;
+      spentGold?: number;
+      resultJson?: DailyActionRecord["resultJson"];
+    }
   ): void {
     const characterId = `character-${userTelegramId.toString()}`;
     const action = {
@@ -600,6 +662,8 @@ class FakeDailyActionRepository implements DailyActionRepository {
       localDate: input.localDate,
       rewardXp: input.rewardXp ?? 0,
       rewardGold: input.rewardGold ?? 0,
+      spentGold: input.spentGold ?? 0,
+      resultJson: input.resultJson ?? null,
       createdAt: fixedClock()
     };
     this.actions.set(`${characterId}:${input.key}:${input.localDate}`, action);
@@ -649,6 +713,8 @@ class FakeDailyActionRepository implements DailyActionRepository {
       localDate: input.localDate,
       rewardXp: input.rewardXp,
       rewardGold: input.rewardGold,
+      spentGold: input.spentGold ?? 0,
+      resultJson: input.resultJson ?? null,
       createdAt: fixedClock()
     };
     this.actions.set(claimKey, action);
@@ -656,7 +722,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
     const updatedCharacter = this.characters.updateReward(
       userTelegramId,
       input.rewardXp,
-      input.rewardGold
+      input.rewardGold - (input.spentGold ?? 0)
     );
 
     return {

@@ -91,9 +91,14 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             key: input.key,
             localDate: input.localDate,
             rewardXp: input.rewardXp,
-            rewardGold: input.rewardGold
+            rewardGold: input.rewardGold,
+            spentGold: normalizeSpentGold(input.spentGold),
+            ...(input.resultJson === undefined
+              ? {}
+              : { resultJson: input.resultJson as Prisma.InputJsonValue })
           }
         });
+        const netGold = input.rewardGold - normalizeSpentGold(input.spentGold);
 
         const rewardedCharacter = await tx.character.update({
           where: {
@@ -104,7 +109,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
               increment: input.rewardXp
             },
             gold: {
-              increment: input.rewardGold
+              increment: netGold
             }
           }
         });
@@ -314,4 +319,8 @@ async function getGrantQuantity(
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function normalizeSpentGold(value: number | undefined): number {
+  return Math.max(0, Math.floor(value ?? 0));
 }

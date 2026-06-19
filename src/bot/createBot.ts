@@ -210,6 +210,7 @@ import {
   buildYegerTurnInKeyboard
 } from "./keyboards/yegerKeyboard";
 import {
+  presentAdventureLegacyApproachStale,
   presentAdventureNoCharacter,
   presentAdventureProblem,
   presentAdventureResult,
@@ -520,7 +521,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     await handleTavernCallback(ctx, parsed.value, services, bot);
   });
 
-  bot.callbackQuery(/^v1:adv:/, async (ctx) => {
+  bot.callbackQuery(/^v[12]:adv:/, async (ctx) => {
     const parsed = parseAdventureCallbackData(ctx.callbackQuery.data);
 
     if (!parsed.ok) {
@@ -594,7 +595,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     });
   });
 
-  bot.callbackQuery(/^v1:cellar:/, async (ctx) => {
+  bot.callbackQuery(/^v[12]:cellar:/, async (ctx) => {
     const parsed = parseCellarCallbackData(ctx.callbackQuery.data);
 
     if (!parsed.ok) {
@@ -2196,6 +2197,33 @@ async function handleAdventureCallback(
     return;
   }
 
+  if (callback.type === "method") {
+    const result = await services.adventure.completeMimicShawarma(telegramUserId, callback.methodId);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentAdventureNoCharacter());
+      return;
+    }
+
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+    });
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentMimicShawarmaResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildAdventureResultKeyboard(result)
+    });
+
+    if (result.state === "completed") {
+      await sendLevelUpCelebration(ctx, result);
+    }
+    return;
+  }
+
   if (callback.type === "problem") {
     const result = await services.adventure.selectAdventureProblem(telegramUserId, callback);
 
@@ -2215,6 +2243,28 @@ async function handleAdventureCallback(
 
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentAdventureProblem(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        result.state === "selected"
+          ? buildAdventureApproachKeyboard(result)
+          : result.state === "stale"
+            ? buildAdventureOfferKeyboard(result.offer)
+            : buildAdventureResultKeyboard(result)
+    });
+    return;
+  }
+
+  if (callback.type === "legacy-approach") {
+    const result = await services.adventure.selectAdventureProblem(telegramUserId, callback);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentAdventureNoCharacter());
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentAdventureLegacyApproachStale(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup:
         result.state === "selected"
@@ -2247,7 +2297,7 @@ async function handleAdventureCallback(
       | Awaited<ReturnType<FightService["getOrStartPersistentFightForTelegramUser"]>>
       | null = null;
 
-    if (result.complication) {
+    if (result.fightHandoff) {
       complicationFight = await services.fight.getOrStartPersistentFightForTelegramUser(
         telegramUserId,
         {
@@ -2461,7 +2511,10 @@ async function handleCellarCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentCellarResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildCellarResultKeyboard(result.state, result.character)
+    reply_markup: buildCellarResultKeyboard(
+      result.state === "insufficient-gold" ? "ready" : result.state,
+      result.character
+    )
   });
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);

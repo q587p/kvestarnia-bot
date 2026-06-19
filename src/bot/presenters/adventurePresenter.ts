@@ -71,10 +71,18 @@ export function presentAdventureProblem(
     return presentAdventureAlreadyCompleted();
   }
 
+  const methodLines = result.approaches.flatMap((approach) => [
+    `${escapeHtml(approach.label)}`,
+    `<i>${escapeHtml(approach.hint)} ${escapeHtml(approach.chanceHint ?? "якісна оцінка прихована")}.${approach.goldCost ? ` Коштує ${approach.goldCost} золота.` : ""}</i>`
+  ]);
+
   return [
     `📌 <b>${escapeHtml(result.choice.title)}</b>`,
     "",
     escapeHtml(result.choice.hook),
+    "",
+    "Можливі способи:",
+    ...methodLines,
     "",
     npcQuote("Корчмар", "Метод оберіть самі. Потім не кажіть, що метод обрав вас.")
   ].join("\n");
@@ -166,24 +174,36 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
     return presentAdventureAlreadyCompleted();
   }
 
-  if (result.complication) {
+  if (result.state === "insufficient-gold") {
     return [
-      "⚠️ Справа вкусила у відповідь",
+      "🪙 Метод просить золото.",
       "",
-      `<b>${escapeHtml(result.choice.title)}</b> не прийняла метод <i>${escapeHtml(result.approach.label)}</i> без заперечень.`,
+      `<b>${escapeHtml(result.choice.title)}</b>: ${escapeHtml(result.approach.label)}`,
       "",
-      "Нагорода не видана: замість цього проблема покликала бій.",
+      `Потрібно ${result.requiredGold} золота. У вас — ${result.character.gold}.`,
       "",
-      "Корчма вже розкладає бойовий журнал нижче."
+      "Справу не зараховано, золото не списано. Корчмар ховає рахівницю назад під стіл."
     ].join("\n");
   }
 
+  const outcome = result.outcome ?? {
+    headline: result.complication ? "⚠️ Справа вкусила у відповідь" : "✅ Справу закрито",
+    body: [
+      result.complication
+        ? `${result.choice.title} не прийняла метод без заперечень.`
+        : `${result.choice.title} погодилась бути вирішеною.`
+    ]
+  };
   const lines = [
-    "✅ Справу закрито",
+    escapeHtml(outcome.headline),
     "",
-    `<b>${escapeHtml(result.choice.title)}</b> погодилась бути вирішеною. Неохоче, але документально.`,
+    ...outcome.body.map(escapeHtml),
+    ...(outcome.biographyLine ? ["", escapeHtml(outcome.biographyLine)] : []),
     "",
-    presentRewardAmount(result.reward),
+    `<i>Метод:</i> ${escapeHtml(result.approach.label)}`,
+    ...(result.spentGold > 0 ? [`Списано: ${result.spentGold} золота.`] : []),
+    ...(result.fightHandoff ? ["Нагорода не видана: проблема покликала бій."] : [presentRewardAmount(result.reward)]),
+    "",
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
@@ -207,10 +227,18 @@ export function presentMimicShawarmaResult(
     ].join("\n");
   }
 
+  const outcome = result.outcome ?? {
+    headline: "✅ Справу закрито",
+    body: ["Підозріла шаурма дала свідчення й записалась у навчальні пригоди."]
+  };
+  const methodLabel = result.method?.label ?? String(result.action);
   const lines = [
-    ...presentMimicShawarmaActionOutcome(result.action),
-    ...presentCharacterFlavor(result.character, "quest.outcome", "shawarma", result.action),
+    escapeHtml(outcome.headline),
     "",
+    ...outcome.body.map(escapeHtml),
+    ...(outcome.biographyLine ? ["", escapeHtml(outcome.biographyLine)] : []),
+    "",
+    `<i>Метод:</i> ${escapeHtml(methodLabel)}`,
     presentRewardAmount(result.reward),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
@@ -231,6 +259,22 @@ function presentAdventureStale(result: Extract<AdventureResult | AdventureProble
   ].join("\n");
 }
 
+export function presentAdventureLegacyApproachStale(
+  result: Exclude<AdventureProblemResult, { state: "no-character" }>
+): string {
+  if (result.state === "selected") {
+    return [
+      "🪧 Старий папірець утратив силу.",
+      "",
+      "Корчмар замінив обережно-хитро-ризикову шкалу на методи, які належать самій справі.",
+      "",
+      presentAdventureProblem(result)
+    ].join("\n");
+  }
+
+  return presentAdventureProblem(result);
+}
+
 function presentCharacterFlavor(
   character: CharacterSummary,
   placement: "quest.start" | "quest.outcome",
@@ -244,30 +288,6 @@ function presentCharacterFlavor(
   });
 
   return flavor ? ["", escapeHtml(flavor.text)] : [];
-}
-
-function presentMimicShawarmaActionOutcome(action: "poke" | "receipt" | "flee"): string[] {
-  if (action === "poke") {
-    return [
-      "🏆 Шаурму викрито!",
-      "",
-      "Мімік визнав, що був не вечерею, а життєвим уроком."
-    ];
-  }
-
-  if (action === "receipt") {
-    return [
-      "📋 Чек знайдено!",
-      "",
-      "Мімік-шаурма не очікував бухгалтерського підходу."
-    ];
-  }
-
-  return [
-    "🏃 Тактичний відступ",
-    "",
-    "Ви обережно відійшли. Шаурма образилась, але юридично нічого не доведе."
-  ];
 }
 
 function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: number }>): string[] {

@@ -1,9 +1,11 @@
 import {
   ADVENTURE_PROBLEM_IDS,
   type AdventureApproach,
+  type AdventureMethodId,
   type MimicShawarmaAction,
   type AdventureProblemId
 } from "../../services/adventureService";
+import { isKnownQuestMethodId } from "../../content/questResolution";
 import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
@@ -11,11 +13,13 @@ export type AdventureCallback =
   | { type: "participants" }
   | { type: "legacy"; action: MimicShawarmaAction }
   | { type: "problem"; periodToken: string; problemId: AdventureProblemId }
+  | { type: "method"; methodId: AdventureMethodId }
+  | { type: "legacy-approach"; periodToken: string; problemId: AdventureProblemId; approach: AdventureApproach }
   | {
       type: "approach";
       periodToken: string;
       problemId: AdventureProblemId;
-      approach: AdventureApproach;
+      methodId: AdventureMethodId;
     };
 export type AdventureCallbackError =
   | "invalid-version"
@@ -24,6 +28,7 @@ export type AdventureCallbackError =
   | "too-long";
 
 const PREFIX = "v1:adv";
+const V2_PREFIX = "v2:adv";
 const problemIds = new Set<AdventureProblemId>(ADVENTURE_PROBLEM_IDS);
 const approaches = new Set<AdventureApproach>(["safe", "flair", "risky"]);
 
@@ -37,9 +42,18 @@ export function makeAdventureProblemCallbackData(input: {
 export function makeAdventureApproachCallbackData(input: {
   periodToken: string;
   problemId: AdventureProblemId;
-  approach: AdventureApproach;
+  methodId?: AdventureMethodId;
+  approach?: AdventureApproach;
 }): string {
-  return `${PREFIX}:a:${input.periodToken}:${input.problemId}:${input.approach}`;
+  if (input.methodId) {
+    return `${V2_PREFIX}:a:${input.periodToken}:${input.problemId}:${input.methodId}`;
+  }
+
+  return `${PREFIX}:a:${input.periodToken}:${input.problemId}:${input.approach ?? "safe"}`;
+}
+
+export function makeMimicShawarmaMethodCallbackData(methodId: AdventureMethodId): string {
+  return `${V2_PREFIX}:m:${methodId}`;
 }
 
 export function makeAdventureParticipantsCallbackData(): string {
@@ -57,6 +71,10 @@ export function makeAdventureCallbackData(action: string): string {
 export function parseAdventureCallbackData(
   data: string | undefined
 ): Result<AdventureCallback, AdventureCallbackError> {
+  if (data?.startsWith(`${V2_PREFIX}:`)) {
+    return parseAdventureV2CallbackData(data);
+  }
+
   if (!data?.startsWith("v1:")) {
     return err("invalid-version");
   }
@@ -102,7 +120,7 @@ export function parseAdventureCallbackData(
 
   if (action === "a" && isApproach(approach)) {
     return ok({
-      type: "approach",
+      type: "legacy-approach",
       periodToken,
       problemId,
       approach
@@ -110,6 +128,33 @@ export function parseAdventureCallbackData(
   }
 
   return err(action === "p" || action === "a" ? "invalid-action" : "invalid-prefix");
+}
+
+function parseAdventureV2CallbackData(data: string): Result<AdventureCallback, AdventureCallbackError> {
+  if (Buffer.byteLength(data, "utf8") > TELEGRAM_CALLBACK_DATA_LIMIT) {
+    return err("too-long");
+  }
+
+  const [, section, action, first, second, third, ...rest] = data.split(":");
+
+  if (section !== "adv" || rest.length > 0) {
+    return err("invalid-prefix");
+  }
+
+  if (action === "m" && isKnownQuestMethodId(first) && !second && !third) {
+    return ok({ type: "method", methodId: first });
+  }
+
+  if (action === "a" && isPeriodToken(first) && isProblemId(second) && isKnownQuestMethodId(third)) {
+    return ok({
+      type: "approach",
+      periodToken: first,
+      problemId: second,
+      methodId: third
+    });
+  }
+
+  return err(action === "a" || action === "m" ? "invalid-action" : "invalid-prefix");
 }
 
 function isPeriodToken(value: string | undefined): value is string {

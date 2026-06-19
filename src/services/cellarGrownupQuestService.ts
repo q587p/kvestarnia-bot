@@ -233,6 +233,10 @@ export class CellarGrownupQuestService {
       };
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Cellar grownup roleplay does not spend gold.");
+    }
+
     return {
       state: "roleplay-failed",
       character: summarizeCharacter(claim.character),

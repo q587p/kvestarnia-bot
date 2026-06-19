@@ -7,6 +7,29 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.20] - 12026-06-19 - Authored Quest Resolutions
+
+### Added
+- Added a pure quest-resolution content/domain layer for authored methods, technique tags, reward profiles, deterministic bounded checks, grade bands and method slot selection.
+- Added authored method/outcome content for every current level 3+ Adventure Choice general problem, plus generated race, class and title problem families.
+- Added the same resolution contract to the starter mimic-shawarma adventure and level 2-3 cellar mouse errand, including character-shaped method buttons.
+- Added compact `v2` method callbacks for Adventure Choice, mimic-shawarma and cellar mouse buttons while preserving old starter/cellar callbacks and old Adventure Choice `safe/flair/risky` callbacks as stale-refresh only.
+- Added `spent_gold` and optional `result_json` audit payloads to `daily_actions` so quest method, grade, consequence, cost and check data are stored at claim time.
+- Added paid cellar/adventure method support with pre-claim affordability checks and atomic net gold updates.
+- Added canonical design docs for authored quest resolution variety, skill/check math and content seeds, plus the `0.1.20` task doc.
+
+### Changed
+- Replaced the level 3+ global `safe / flair / risky` choice ladder with scene, race, class and signature/title method slots.
+- Adventure and cellar selected-result screens now show authored grade-specific Ukrainian outcome copy and qualitative method hints without exact future reward amounts or percentage odds.
+- Adventure complications can now resolve to full reward, reduced reward, XP-only, cosmetic mess, paid success or existing persistent-fight handoff where authored.
+- Starter shawarma and cellar mouse keep their level gates, item grants, idempotency and replay behavior while routing new visible buttons through stable authored method ids.
+- Legacy `v1` starter and cellar callbacks continue to replay safely; old Adventure Choice `safe/flair/risky` callbacks no longer reinterpret into new methods.
+
+### Guardrails
+- No broad quest engine, shops, crafting, guilds, markets, Mini App UI, combat damage rewrite, mana spending or new production dependency was added.
+- Existing grown-up cellar bottle flow was not broadened.
+- Exact check odds and future reward amounts remain hidden from player-facing pre-commit choice copy.
+
 ## [0.1.19] - 12026-06-19 - Nyz Passage Balance Polish
 
 ### Changed

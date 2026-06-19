@@ -47,6 +47,8 @@ Keep each task doc short. Link to canonical docs instead of copying long section
 The shipped `0.0.x` and `0.1.x` versions have compact historical records generated from `CHANGELOG.md`.
 They are not active tasks unless a human explicitly reopens a follow-up.
 
+- [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
+
 ## Closeout
 
 After a versioned task is done:

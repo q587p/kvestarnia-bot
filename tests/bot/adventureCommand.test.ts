@@ -162,9 +162,9 @@ describe("adventure command", () => {
     expect(replies[0]?.text).not.toContain("відкриється з 3 рівня");
     expect(replies[0]?.options).toMatchObject({ parse_mode: "HTML" });
     expect(getReplyCallbacks(replies[0]?.options)).toEqual([
-      "v1:adv:mimic:poke",
-      "v1:adv:mimic:receipt",
-      "v1:adv:mimic:flee",
+      "v2:adv:m:inspect-folds",
+      "v2:adv:m:c0",
+      "v2:adv:m:s00",
       "v1:place:quest-table"
     ]);
     expect(presence.marks[0]).toMatchObject({

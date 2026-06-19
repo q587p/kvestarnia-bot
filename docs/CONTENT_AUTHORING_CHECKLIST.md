@@ -14,6 +14,7 @@
 
 Перевірити:
 
+- [ ] Якщо квест має runtime-вибір методу, він відповідає `docs/QUEST_RESOLUTION_VARIETY.md`, `docs/QUEST_SKILLS_AND_CHECKS.md` і має scene/race/class/signature coverage або явний виняток.
 - [ ] Є neutral fallback для всіх персонажів.
 - [ ] Є мінімум 2 race-specific hooks.
 - [ ] Є мінімум 2 class-specific hooks.
