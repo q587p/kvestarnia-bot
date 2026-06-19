@@ -7,6 +7,22 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.19] - 12026-06-19 - Nyz Passage Balance Polish
+
+### Changed
+- Retuned `Низ` passage difficulty so the right/easy passage now prefers available monsters `3-5` levels below the character, with safe fallback/clamping when the pool cannot satisfy that range.
+- Lowered easy-passage payout pressure: easy XP now rolls `0.5x-0.75x` character level with a small bounded LUCK bias toward the top of the range and downward rounding.
+- Kept the left/hard passage above the center XP reward while trimming earlier overpayment: hard XP now rolls `1.25x-1.5x` character level with the same bounded LUCK bias and a floor of center-route baseline XP for the same base monster plus one.
+- Made persistent fight gold variable instead of stable by passage or monster level for ordinary, Yeger and adventure fight wins: victory gold now rolls from `0` to current character level; a `0` gold roll boosts item drop chance to `93%`, then interpolates back to the difficulty-adjusted configured item drop chance at max gold.
+- Restored the previous side-passage loot endpoints while layering the zero-gold interpolation over them: easy uses the lower `0.65` drop multiplier and `-1` loot power offset, center remains neutral, and hard uses the higher `1.35` drop multiplier and `+1` loot power offset.
+- Softened the first Yeger quest turn-in XP so low-level characters receive a level-scaled reward capped at the old `80 XP` high-level value, while stored old completions replay their original amount.
+- Preserved stored reward replay semantics: already completed fight rewards continue to replay their stored XP, gold and item grants without recomputing under the new balance.
+
+### Guardrails
+- Adventure turn-in rewards and Yeger gold/item turn-in rewards remain unchanged; the variable-gold rule applies only to persistent fight victories.
+- No XP curve, loot-table, duel, training, nearby invite, combat-lock, monster-rest, schema or migration changes were added.
+- Passage choice copy remains qualitative and does not show exact future rewards before commitment.
+
 ## [0.1.18] - 12026-06-19 - Turn-Based Player Duels
 
 ### Added
