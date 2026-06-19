@@ -74,6 +74,7 @@ import {
   type MantokChestCallback
 } from "./callbacks/mantokChestCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
+import { parseNearbyDuelCallbackData } from "./callbacks/nearbyDuelCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
 import { makePlaceCallbackData, parsePlaceCallbackData, type PlaceCallback } from "./callbacks/placeCallbackData";
 import {
@@ -119,6 +120,7 @@ import {
 } from "./commands/huntCommand";
 import { registerInventoryCommand, sendInventory } from "./commands/inventoryCommand";
 import { registerLookCommand } from "./commands/lookCommand";
+import { handleNearbyDuelCallback } from "./commands/nearbyDuelCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
 import { registerOnlineCommand, sendOnline } from "./commands/onlineCommand";
 import { registerPlannedCommands } from "./commands/plannedCommand";
@@ -405,7 +407,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   registerHeroCommand(bot, services.hero);
   registerInventoryCommand(bot, services.inventory);
   registerEquipmentCommand(bot, services.equipment);
-  registerOnlineCommand(bot, services.presence);
+  registerOnlineCommand(bot, services.presence, { duelEnabled: Boolean(services.duel) });
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset, services.devGrant);
   registerNewsCommand(bot);
@@ -574,6 +576,21 @@ export function createBot(token: string, services: BotServices, options: BotOpti
       presence: services.presence,
       tavernRaid: services.tavern,
       botUsername: options.botUsername
+    });
+  });
+
+  bot.callbackQuery(/^v1:nd:/, async (ctx) => {
+    const parsed = parseNearbyDuelCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok || !services.duel) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleNearbyDuelCallback(ctx, parsed.value, {
+      presence: services.presence,
+      duel: services.duel,
+      tavernRaid: services.tavern
     });
   });
 
@@ -1921,7 +1938,7 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
   });
 
   bot.hears(mainMenuButtons.participants, async (ctx) => {
-    await sendOnline(ctx, services.presence);
+    await sendOnline(ctx, services.presence, { duelEnabled: Boolean(services.duel) });
   });
 
   bot.hears(mainMenuButtons.help, async (ctx) => {

@@ -127,6 +127,21 @@ export type LookSnapshot =
       };
     };
 
+export type NearbyDuelCandidatesSnapshot =
+  | { state: "no-character" }
+  | {
+      state: "ready";
+      location: {
+        id: string;
+        name: string;
+      };
+      page: number;
+      pageSize: number;
+      total: number;
+      totalPages: number;
+      visible: PresencePerson[];
+    };
+
 export type CurrentPlaceSnapshot =
   | { state: "no-character" }
   | {
@@ -235,6 +250,43 @@ export class PresenceService {
           this.clock()
         )
       }
+    };
+  }
+
+  async getNearbyDuelCandidatesForTelegramUser(
+    telegramUserId: bigint,
+    page = 0,
+    pageSize = 5
+  ): Promise<NearbyDuelCandidatesSnapshot> {
+    const current = await this.presence.findByTelegramUserId(telegramUserId);
+
+    if (!current?.characterName) {
+      return { state: "no-character" };
+    }
+
+    const since = this.getRecentCutoff();
+    const locationId = normalizePresenceLocationId(current.lastSeenLocationId);
+    const people = groupPeople(
+      await this.listByLocationGroupSeenSince(locationId, since),
+      this.clock()
+    );
+    const candidates = people.active.filter((person) => person.telegramUserId !== telegramUserId);
+    const safePageSize = Math.max(1, Math.min(50, Math.trunc(pageSize)));
+    const totalPages = Math.max(1, Math.ceil(candidates.length / safePageSize));
+    const safePage = Math.max(0, Math.min(Math.trunc(page), totalPages - 1));
+    const start = safePage * safePageSize;
+
+    return {
+      state: "ready",
+      location: {
+        id: locationId,
+        name: getLocationName(locationId)
+      },
+      page: safePage,
+      pageSize: safePageSize,
+      total: candidates.length,
+      totalPages,
+      visible: candidates.slice(start, start + safePageSize)
     };
   }
 

@@ -354,12 +354,14 @@ Balance rules:
 - the turn-based resolver uses the same `resolveActorCombatAction(...)` primitive as PvE, so basic attack, class skill, mana cost, cooldown, armor/resist, weapon/spell/stat effects and HP clamping do not fork into a duel-only formula set;
 - timeout auto-actions are ordinary basic attacks for missing choices, not a separate penalty damage table;
 - max-turn safety resolves as a deterministic draw instead of creating an infinite session.
+- same-location targeted invites from `👀 Хто поруч` only change invitation routing; they do not add reward, rating, wager or combat-power modifiers.
 
 Player-facing copy may say that the Корчмар keeps the fight moving, but must not print hidden hit/critical/cooldown formulas or exact chances.
 
 ## Phase 2 trading/gifting guardrails
 - Gift/trade is not a gold source.
 - First slice transfers one eligible item unit or one narrow item-for-item offer.
+- Gold transfer, if added after nearby player selection, needs a separate cap/audit/idempotency design and must not become a faucet or level-barter bypass.
 - Equipped, protected, priceless, story, apology and already-pending items are not eligible.
 - No auction house, market pricing or gold add-ons until transfer audit/idempotency is proven.
 - Trading should help players move unsuitable манатки, not bypass progression, level gates or anti-abuse rules.

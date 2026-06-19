@@ -48,6 +48,19 @@ export function buildDuelChallengeKeyboard(
     .text("🔎 Оновити", makeDuelViewCallbackData(token));
 }
 
+export function buildDuelTargetedInviteKeyboard(
+  result: Extract<DuelCreateResult | DuelChallengeView, { state: "pending" }>
+): InlineKeyboard {
+  const token = result.challenge.inviteToken;
+
+  return new InlineKeyboard()
+    .text("🤝 Прийняти", makeDuelAcceptCallbackData(token))
+    .row()
+    .text("🙅 Не зараз", makeDuelDeclineCallbackData(token))
+    .row()
+    .text("🔎 Оновити", makeDuelViewCallbackData(token));
+}
+
 export function buildDuelInviteShareKeyboard(token: string, templateIndex: number): InlineKeyboard {
   return new InlineKeyboard().text(
     "🎲 Інший текст",

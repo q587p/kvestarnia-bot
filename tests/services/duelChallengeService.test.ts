@@ -91,6 +91,28 @@ describe("DuelChallengeService", () => {
     });
   });
 
+  it("creates a targeted nearby invite with the selected mode", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+
+    const result = await service.createTargetedChallengeForTelegramUser(1n, 2n, {
+      contextChatId: -100n,
+      mode: "turn-based"
+    });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      challenge: {
+        challengerCharacterId: "character-1",
+        targetCharacterId: "character-2",
+        contextChatId: -100n,
+        mode: "turn-based"
+      }
+    });
+  });
+
   it("shows a resource warning before accepting with partial resources", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n);
@@ -890,7 +912,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
 
   createOpenForTelegramUser(
     telegramUserId: bigint,
-    input: { inviteToken: string; contextChatId?: bigint | null; expiresAt: Date }
+    input: { inviteToken: string; mode?: "quick" | "turn-based"; contextChatId?: bigint | null; expiresAt: Date }
   ): Promise<DuelChallengeRecord | null> {
     const challenger = this.characters.get(telegramUserId);
 
@@ -904,6 +926,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       targetCharacterId: null,
       contextChatId: input.contextChatId ?? null,
       inviteToken: input.inviteToken,
+      mode: input.mode ?? "quick",
       status: "pending",
       expiresAt: input.expiresAt,
       resolvedAt: null,
@@ -921,7 +944,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
   createTargetedForTelegramUser(
     telegramUserId: bigint,
     targetCharacterId: string,
-    input: { inviteToken: string; contextChatId?: bigint | null; expiresAt: Date }
+    input: { inviteToken: string; mode?: "quick" | "turn-based"; contextChatId?: bigint | null; expiresAt: Date }
   ): Promise<DuelChallengeRecord | null> {
     const challenger = this.characters.get(telegramUserId);
     const target = [...this.characters.values()].find((character) => character.id === targetCharacterId);
@@ -936,6 +959,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       targetCharacterId: target.id,
       contextChatId: input.contextChatId ?? null,
       inviteToken: input.inviteToken,
+      mode: input.mode ?? "quick",
       status: "pending",
       expiresAt: input.expiresAt,
       resolvedAt: null,

@@ -65,13 +65,14 @@
 - participant choices are queued privately in `state_json`; damage, mana spending and visible summaries are resolved only when both participants have chosen or the timeout fills missing choices;
 - resolved rounds use shared combat-domain actor-vs-defender logic for attack, class skill, mana, cooldown, armor/resist and HP clamping;
 - each round stores `turnExpiresAt`; due rounds can be advanced by an idempotent timeout auto-attack after roughly `23` seconds;
-- terminal rows release leases, write one result and keep rematches mode-preserving.
+- terminal rows release leases, write one result and keep rematches mode-preserving;
+- `👀 Хто поруч` offers `Кинути виклик присутнім`: it pages active players in the same current location, lets the challenger pick quick or turn-based mode and sends the chosen player an in-game targeted invite best-effort.
 
-Still future: tournaments, economy rewards, wagers, item loss, nearby target-specific player selection and broad social discovery.
+Still future: tournaments, economy rewards, wagers, item loss, cross-location discovery, broad social discovery and manatka/gold exchange.
 
 ## Flow
 
-1. Challenger натискає `🤝 Кинути виклик` у Бійцівському кутку або запускає `/duel`.
+1. Challenger натискає duel action у Бійцівському кутку, запускає `/duel` або обирає активного гравця через `👀 Хто поруч` → `Кинути виклик присутнім`.
 2. Bot створює `duel_challenge` з expiry, challenger, optional target and context.
 3. Target бачить короткий виклик із кнопками `Прийняти`, `Відмовитись`, `Не зараз`.
 4. Якщо target приймає quick mode, сервіс атомарно переводить challenge у `resolved`.
@@ -159,7 +160,7 @@ active_combat_leases
 
 Turn-based duels reuse the same combat turn timeout model planned for ordinary monster fights and `/spar`: each active round gets roughly `23` seconds, then a durable poller or lazy lookup applies idempotent basic attacks for missing choices, edits/sends cards best-effort and advances or closes the fight. Notification failure must not roll back already committed gameplay.
 
-Nearby-targeted invites are the next social UX step after open share links: a location presence list can offer `Кинути виклик`, let the challenger pick a visible nearby player, send that player an opt-in notification and only move both characters to `location.korchma.fighting_corner` after the target accepts and combat/raid guards pass. Open invite links remain useful for приватні й групові чати.
+Nearby-targeted invites shipped in `0.1.18`: the location presence list offers `Кинути виклик присутнім`, lets the challenger pick a visible active nearby player, sends that player an opt-in notification and relies on the normal accept/start guards before combat state is created. Open invite links remain useful for приватні й групові чати. A later nearby social-economy slice may reuse this presence picker for manatka/gold exchange, with separate audit and confirmation rules.
 
 Duel result notifications should eventually update or notify the other side without requiring `Оновити`. That path needs replay protection, for example a stored message id or notification idempotency key, so repeated callbacks do not spam duplicate result cards.
 

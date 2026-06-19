@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added active combat leases so a character cannot start or accept a persistent turn-based duel while already in a persistent/training/starter fight or another active duel.
 - Added durable 23-second turn deadlines through persisted `turnExpiresAt`, startup polling and idempotent timeout auto-attacks.
 - Added recoverable two-player battle cards, per-participant action keyboards, hidden queued choices, surrender and mode-preserving rematches.
+- Added `🥊 Кинути виклик присутнім` from `👀 Хто поруч`: challengers can page through active players in the same location, pick a target, choose quick or turn-based mode and send an in-game targeted invite.
 
 ### Changed
 - `DuelChallenge.mode` is now stored server-side with a default of `quick`; legacy `duel_<token>` links remain quick and crafted prefixes cannot switch an existing challenge mode.
@@ -26,7 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Guardrails
 - Turn-based duel HP/mana are ephemeral session resources and do not damage, heal or refill persistent `Character` resources.
-- No XP, gold, items, quest progress, item loss, wagers, ranking rewards, tournaments, spectator betting or broad nearby-player discovery were added.
+- No XP, gold, items, quest progress, item loss, wagers, ranking rewards, tournaments, spectator betting or broad cross-location player discovery were added.
 - Telegram sends/edits are best-effort after committed state; notification failures do not roll back gameplay state.
 
 ## [0.1.17] - 12026.06.19 - Instant Duel Polish

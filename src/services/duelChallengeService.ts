@@ -98,6 +98,11 @@ export type DuelCreateResult =
   | { state: "resource-warning"; character: CharacterSummary; warning: DuelResourceWarning }
   | Extract<DuelChallengeView, { state: "pending" }>;
 
+export type DuelTargetedCreateResult =
+  | DuelCreateResult
+  | { state: "target-not-found"; character: CharacterSummary }
+  | { state: "self-challenge"; character: CharacterSummary };
+
 export type DuelRematchResult =
   | { state: "no-character" }
   | { state: "not-found" }
@@ -830,6 +835,73 @@ export class DuelChallengeService {
       challenger: summarizeTurnBasedParticipant(session.state.participants.challenger),
       target: summarizeTurnBasedParticipant(session.state.participants.target),
       turnExpiresAt: session.turnExpiresAt,
+      now
+    };
+  }
+
+  async createTargetedChallengeForTelegramUser(
+    telegramUserId: bigint,
+    targetTelegramUserId: bigint,
+    input: { contextChatId?: bigint | null; ignoreResourceWarning?: boolean; mode?: DuelMode } = {}
+  ): Promise<DuelTargetedCreateResult> {
+    const now = this.clock();
+    const challengerSnapshot = await this.challenges.findCharacterByTelegramUser(telegramUserId);
+
+    if (!challengerSnapshot) {
+      return { state: "no-character" };
+    }
+
+    const challenger = await this.syncDuelCharacterForTelegramUser(telegramUserId, challengerSnapshot, now);
+
+    if (challenger.level < DUEL_INVITE_MIN_LEVEL) {
+      return {
+        state: "level-gated",
+        character: challenger,
+        minLevel: DUEL_INVITE_MIN_LEVEL
+      };
+    }
+
+    const warning = getResourceWarning(challenger);
+
+    if (warning && input.ignoreResourceWarning !== true) {
+      return {
+        state: "resource-warning",
+        character: challenger,
+        warning
+      };
+    }
+
+    const target = await this.challenges.findCharacterByTelegramUser(targetTelegramUserId);
+
+    if (!target) {
+      return { state: "target-not-found", character: challenger };
+    }
+
+    if (target.id === challengerSnapshot.id) {
+      return { state: "self-challenge", character: challenger };
+    }
+
+    const challenge = await this.challenges.createTargetedForTelegramUser(
+      telegramUserId,
+      target.id,
+      {
+        inviteToken: createInviteToken(),
+        mode: input.mode ?? "quick",
+        contextChatId: input.contextChatId ?? null,
+        expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
+      }
+    );
+
+    if (!challenge) {
+      return { state: "target-not-found", character: challenger };
+    }
+
+    return {
+      state: "pending",
+      challenge,
+      challenger,
+      challengerResourceWarning: warning,
+      expiresAt: challenge.expiresAt,
       now
     };
   }
