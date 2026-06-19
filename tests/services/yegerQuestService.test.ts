@@ -25,6 +25,7 @@ import { isProtectedMantokChestItem } from "../../src/domain/mantokChest";
 import { FakeRandomSource } from "../../src/shared/random";
 import type { FightLookupResult, FightService } from "../../src/services/fightService";
 import {
+  getYegerUnquietTrialTurnInXp,
   getYegerTrackingExactChance,
   isYegerUnquietTarget,
   YEGER_TRACKING_COOLDOWN_KEY,
@@ -117,7 +118,7 @@ describe("YegerQuestService", () => {
 
   it("claims the completion reward once", async () => {
     const world = new FakeWorld();
-    world.addCharacter({ level: 5, xp: 110 });
+    world.addCharacter({ level: 5, xp: 70 });
     world.addAction(YEGER_UNQUIET_TRIAL_STARTED_KEY, startedAt);
     for (let index = 0; index < 5; index += 1) {
       world.sessions.push({
@@ -133,7 +134,7 @@ describe("YegerQuestService", () => {
     expect(first).toMatchObject({
       state: "completed",
       reward: {
-        xp: 80,
+        xp: 35,
         gold: 120,
         itemGrants: [{ itemId: YEGER_UNQUIET_TRIAL_REWARD.itemId, quantity: 1 }]
       }
@@ -142,9 +143,55 @@ describe("YegerQuestService", () => {
     expect(world.actions.filter((action) => action.key === YEGER_UNQUIET_TRIAL_COMPLETED_KEY)).toHaveLength(1);
     expect(world.itemGrants).toEqual([{ itemId: YEGER_UNQUIET_TRIAL_REWARD.itemId, quantity: 1 }]);
     expect(world.character).toMatchObject({
-      xp: 190,
+      xp: 105,
       gold: 120
     });
+  });
+
+  it("scales turn-in XP by level so low-level Yeger completion cannot jump two levels", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 4, xp: 69 });
+    world.addAction(YEGER_UNQUIET_TRIAL_STARTED_KEY, startedAt);
+    for (let index = 0; index < 5; index += 1) {
+      world.sessions.push({
+        monsterId: "monster.stamp-doorkeeper-skeleton",
+        status: "won",
+        createdAt: new Date(startedAt.getTime() + index)
+      });
+    }
+
+    const first = await world.service().turnInForTelegramUser(telegramUserId);
+
+    expect(first).toMatchObject({
+      state: "completed",
+      reward: {
+        xp: 28,
+        gold: 120
+      }
+    });
+    expect(world.character?.xp).toBe(97);
+  });
+
+  it("keeps old completed Yeger turn-in XP replaying from the stored ledger", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 5, xp: 190, gold: 120 });
+    world.addAction(YEGER_UNQUIET_TRIAL_COMPLETED_KEY, startedAt, {
+      rewardXp: 80,
+      rewardGold: 120
+    });
+
+    await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "completed",
+      reward: {
+        xp: 80,
+        gold: 120
+      }
+    });
+  });
+
+  it("caps scaled Yeger turn-in XP at the old high-level reward", () => {
+    expect(getYegerUnquietTrialTurnInXp({ level: 4 })).toBe(28);
+    expect(getYegerUnquietTrialTurnInXp({ level: 13 })).toBe(80);
   });
 
   it("defines the Yeger keepsake and keeps it out of Mantok Chest", () => {
@@ -453,7 +500,11 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     return summarizeCharacter(this.character);
   }
 
-  addAction(key: string, createdAt = startedAt): void {
+  addAction(
+    key: string,
+    createdAt = startedAt,
+    reward: { rewardXp?: number; rewardGold?: number } = {}
+  ): void {
     if (!this.character) {
       throw new Error("No character.");
     }
@@ -463,8 +514,8 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
       characterId: this.character.id,
       key,
       localDate: "once",
-      rewardXp: 0,
-      rewardGold: 0,
+      rewardXp: reward.rewardXp ?? 0,
+      rewardGold: reward.rewardGold ?? 0,
       createdAt
     });
   }

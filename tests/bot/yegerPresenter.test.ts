@@ -52,7 +52,7 @@ describe("Yeger presenter", () => {
       character,
       progress: { wins: 5, target: 5 },
       reward: {
-        xp: 80,
+        xp: 35,
         gold: 120,
         itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 1 }]
       },
@@ -64,7 +64,7 @@ describe("Yeger presenter", () => {
     });
 
     expect(text).toContain("Нагорода:");
-    expect(text).toContain("<b>+80 XP\n+120 золота</b>");
+    expect(text).toContain("<b>+35 XP\n+120 золота</b>");
     expect(text).toContain("Здобуто: <i>Єгерська риска на дощечці</i>");
   });
 

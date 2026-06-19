@@ -24,7 +24,7 @@ export const YEGER_UNQUIET_TRIAL_TARGET = 5;
 export const YEGER_UNQUIET_TRIAL_BUCKET = "once";
 export const YEGER_UNQUIET_TRIAL_TAGS = ["undead", "ghost", "cursed", "unquiet"] as const;
 export const YEGER_UNQUIET_TRIAL_REWARD = {
-  xp: 80,
+  maxXp: 80,
   gold: 120,
   itemId: YEGER_FIRST_NOTCH_ITEM_ID
 };
@@ -165,7 +165,11 @@ export class YegerQuestService {
         state: "completed",
         character: summary,
         progress: { wins: YEGER_UNQUIET_TRIAL_TARGET, target: YEGER_UNQUIET_TRIAL_TARGET },
-        reward: buildYegerQuestReward({ replayUnavailable: true })
+        reward: buildYegerQuestReward({
+          xp: completed.rewardXp,
+          gold: completed.rewardGold,
+          replayUnavailable: true
+        })
       };
     }
 
@@ -366,7 +370,7 @@ export class YegerQuestService {
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
       localDate: YEGER_UNQUIET_TRIAL_BUCKET,
-      rewardXp: YEGER_UNQUIET_TRIAL_REWARD.xp,
+      rewardXp: getYegerUnquietTrialTurnInXp(current.character),
       rewardGold: YEGER_UNQUIET_TRIAL_REWARD.gold,
       itemGrants: [{ itemId: YEGER_UNQUIET_TRIAL_REWARD.itemId, quantity: 1, maxOwnedQuantity: 1 }]
     });
@@ -380,6 +384,8 @@ export class YegerQuestService {
       character: summarizeCharacter(claim.character),
       progress: current.progress,
       reward: buildYegerQuestReward({
+        xp: claim.action.rewardXp,
+        gold: claim.action.rewardGold,
         itemGrants: claim.state === "created" ? claim.itemGrants : [],
         replayUnavailable: claim.state === "existing"
       }),
@@ -457,17 +463,23 @@ export function rollYegerTrackingOutcome(
   return rng.nextFloat() < YEGER_TRACKING_NEAR_MISS_CHANCE ? "near-miss" : "none";
 }
 
+export function getYegerUnquietTrialTurnInXp(character: Pick<CharacterSummary, "level">): number {
+  return Math.min(YEGER_UNQUIET_TRIAL_REWARD.maxXp, Math.max(1, Math.floor(character.level * 7)));
+}
+
 function addMinutes(date: Date, minutes: number): Date {
   return new Date(date.getTime() + minutes * 60_000);
 }
 
 function buildYegerQuestReward(input?: {
+  xp?: number;
+  gold?: number;
   itemGrants?: Array<{ itemId: string; quantity: number }>;
   replayUnavailable?: boolean;
 }): YegerQuestReward {
   return {
-    xp: YEGER_UNQUIET_TRIAL_REWARD.xp,
-    gold: YEGER_UNQUIET_TRIAL_REWARD.gold,
+    xp: input?.xp ?? YEGER_UNQUIET_TRIAL_REWARD.maxXp,
+    gold: input?.gold ?? YEGER_UNQUIET_TRIAL_REWARD.gold,
     itemGrants:
       input?.itemGrants && input.itemGrants.length > 0
         ? enrichRewardItemGrants(input.itemGrants)
