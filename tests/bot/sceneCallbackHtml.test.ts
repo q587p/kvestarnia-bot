@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import {
   makeAdventureApproachCallbackData,
+  makeMimicShawarmaMethodCallbackData,
   makeAdventureProblemCallbackData
 } from "../../src/bot/callbacks/adventureCallbackData";
 import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
@@ -218,6 +219,144 @@ describe("scene callback HTML options", () => {
       parse_mode: "HTML"
     });
     expect(String(edit?.payload.text)).toMatch(/<b>|<i>/);
+  });
+
+  it("routes starter authored method callbacks to the mimic-shawarma completion path", async () => {
+    const completeMimicShawarma = vi.fn(() =>
+      Promise.resolve({
+        state: "completed" as const,
+        action: "inspect-folds" as const,
+        method: {
+          ...adventureApproach,
+          id: "inspect-folds" as const,
+          label: "🔎 Перевірити складки лаваша"
+        },
+        grade: "success" as const,
+        outcome: {
+          headline: "🌯 Шаурма дала свідчення",
+          body: ["Складки перестали дихати так, ніби мають адвоката."]
+        },
+        spentGold: 0,
+        character,
+        reward: {
+          xp: 7,
+          gold: 4,
+          localDate: "12026-06-20",
+          itemGrants: []
+        },
+        levelChange: noLevelChange
+      })
+    );
+    const completeAdventureApproach = vi.fn(() =>
+      Promise.reject(new Error("starter method must not hit adventure choice completion"))
+    );
+    const calls = await captureApiCalls(
+      makeMimicShawarmaMethodCallbackData("inspect-folds"),
+      servicesWith({
+        adventure: {
+          completeMimicShawarma,
+          completeAdventureApproach
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(completeMimicShawarma).toHaveBeenCalledWith(42n, "inspect-folds");
+    expect(completeAdventureApproach).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("Шаурма дала свідчення");
+    expect(String(edit?.payload.text)).toContain("<i>Метод:</i> 🔎 Перевірити складки лаваша");
+  });
+
+  it("routes selected-problem authored method callbacks to adventure choice completion", async () => {
+    const completeAdventureApproach = vi.fn(() =>
+      Promise.resolve({
+        state: "completed" as const,
+        character,
+        choice: adventureChoice,
+        approach: adventureApproach,
+        reward: {
+          xp: 7,
+          gold: 4,
+          localDate: "12026-06-20",
+          itemGrants: []
+        },
+        levelChange: noLevelChange,
+        complication: false
+      })
+    );
+    const completeMimicShawarma = vi.fn(() =>
+      Promise.reject(new Error("adventure choice method must not hit starter completion"))
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach,
+          completeMimicShawarma
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(completeAdventureApproach).toHaveBeenCalledWith(
+      42n,
+      expect.objectContaining({
+        type: "approach",
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      })
+    );
+    expect(completeMimicShawarma).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("Казанок репетирує оперу");
+    expect(String(edit?.payload.text)).toContain("<i>Метод:</i> 🎵 Продиригувати юшкою");
+  });
+
+  it("routes old safe-flair-risky adventure callbacks to stale paper refresh", async () => {
+    const selectAdventureProblem = vi.fn(() =>
+      Promise.resolve({
+        state: "selected" as const,
+        character,
+        offer: adventureOffer,
+        choice: adventureChoice,
+        approaches: [adventureApproach]
+      })
+    );
+    const completeAdventureApproach = vi.fn(() =>
+      Promise.reject(new Error("legacy approach must stay stale-only"))
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        approach: "safe"
+      }),
+      servicesWith({
+        adventure: {
+          selectAdventureProblem,
+          completeAdventureApproach
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(selectAdventureProblem).toHaveBeenCalledWith(
+      42n,
+      expect.objectContaining({
+        type: "legacy-approach",
+        periodToken: "period93",
+        problemId: "stew",
+        approach: "safe"
+      })
+    );
+    expect(completeAdventureApproach).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("Старий папірець утратив силу");
+    expect(String(edit?.payload.text)).toContain("обережно-хитро-ризикову шкалу");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v2:adv:a:period93:stew");
   });
 
   it("offers to buy everyone beer after the Barrel raid completes", async () => {
