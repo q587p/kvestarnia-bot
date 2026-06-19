@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.16] - 12026-06-18 - Character Stats Growth Rework
+## [0.1.16] - 12026.06.19 - Character Stats Growth Rework
 
 ### Added
 - Added fixed hidden-path stat bonuses through the shared effective-stats pipeline, so existing characters inherit the derived layer without a schema migration or `statsJson` backfill.
