@@ -165,13 +165,15 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard())).toEqual([
       "🥊 Потренуватися",
-      "🤝 Кинути виклик",
+      "⚡ Миттєва дуель",
+      "♟️ Покрокова дуель",
       "🏆 Переможці",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaFightingCornerKeyboard())).toEqual([
       "v1:spar:open",
       "v1:duel:new",
+      "v1:duel:new-t",
       "v1:place:duel-winners",
       "v1:place:hall"
     ]);

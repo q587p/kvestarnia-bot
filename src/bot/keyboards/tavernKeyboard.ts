@@ -5,7 +5,7 @@ import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
-import { makeDuelNewCallbackData } from "../callbacks/duelCallbackData";
+import { makeDuelNewCallbackData, makeDuelNewTurnBasedCallbackData } from "../callbacks/duelCallbackData";
 import { makeTrainingDoppelgangerCallbackData } from "../callbacks/trainingDoppelgangerCallbackData";
 import { makeYegerOutsideCallbackData } from "../callbacks/yegerCallbackData";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
@@ -82,7 +82,10 @@ export function buildKorchmaFightingCornerKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("🥊 Потренуватися", makeTrainingDoppelgangerCallbackData())
     .row()
-    .text("🤝 Кинути виклик", makeDuelNewCallbackData())
+    .text("⚡ Миттєва дуель", makeDuelNewCallbackData())
+    .row()
+    .text("♟️ Покрокова дуель", makeDuelNewTurnBasedCallbackData())
+    .row()
     .text("🏆 Переможці", makePlaceCallbackData("duel-winners"))
     .row()
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
