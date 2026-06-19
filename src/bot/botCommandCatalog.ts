@@ -188,6 +188,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     includeInMenu: true
   },
   {
+    command: "dev_help",
+    icon: "🧰",
+    description: "локальна довідка dev-команд",
+    includeInMenu: false,
+    devOnly: "reset"
+  },
+  {
     command: "dev_reset_me",
     icon: "🧪",
     description: "скинути персонажа локально",

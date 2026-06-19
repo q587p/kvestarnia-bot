@@ -17,6 +17,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `spent_gold` and optional `result_json` audit payloads to `daily_actions` so quest method, grade, consequence, cost and check data are stored at claim time.
 - Added paid cellar/adventure method support with pre-claim affordability checks and atomic net gold updates.
 - Added small deterministic post-resolution XP/gold variance for level 3+ authored Adventure Choice rewards, plus a low LUCK-influenced chance for one eligible manatka on non-fight results.
+- Added `/dev_help` for local QA so available dev commands can be listed without mixing them into the main player help screen.
 - Added canonical design docs for authored quest resolution variety, skill/check math and content seeds, plus the `0.1.20` task doc.
 
 ### Changed
@@ -35,6 +36,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `🎒 Манчкін-скупник` now follows a Kyiv local night schedule: during the day he remains outside by the korchma front door, and at night his paragraph/button moves to `Спуск до Низу`.
 - Training and duel result return buttons now say `↩️ Повернутися до кутка`, making the Fighting Corner navigation distinct from challenge actions.
 - The korchma hall now hides the `🥊 Бійцівський куток` button before level 3, matching the early `Спуск до Низу` button gate while keeping stable hall prose, and blocks stale direct corner/duel-board callbacks with a short level-gate card.
+- Local `/dev_raid_stop` now sends the ordinary separate level-up celebration when its completed raid reward crosses a level threshold.
 
 ### Guardrails
 - No broad quest engine, shops, crafting, guilds, markets, Mini App UI, combat damage rewrite, mana spending or new production dependency was added.

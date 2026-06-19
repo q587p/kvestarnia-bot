@@ -49,7 +49,11 @@ describe("dev adventure reset command", () => {
             state: "completed",
             result: {
               state: "completed",
-              character: {},
+              character: {
+                classId: "class.warrior",
+                raceId: "race.human-ish",
+                path: "boundary"
+              },
               reward: {
                 xp: 18,
                 gold: 8,
@@ -68,7 +72,10 @@ describe("dev adventure reset command", () => {
 
     await bot.handleUpdate(commandUpdate("/dev_raid_stop"));
 
-    expect(replies).toEqual(["Рейд на Бочку завершено достроково.\nЗараховано: +18 XP, +8 золота."]);
+    expect(replies).toHaveLength(2);
+    expect(replies[0]).toBe("Рейд на Бочку завершено достроково.\nЗараховано: +18 XP, +8 золота.");
+    expect(replies[1]).toContain("🎉 Рівень підріс!");
+    expect(replies[1]).toContain("✨ <b>1 → 2</b>");
   });
 
   it("keeps dev raid stop disabled in production", async () => {

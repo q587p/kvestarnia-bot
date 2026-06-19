@@ -10,6 +10,7 @@ import {
   presentDevResetDisabled,
   presentDevResetPrompt
 } from "../presenters/devResetPresenter";
+import { presentLevelUpCelebration } from "../presenters/levelGrowthPresenter";
 
 export function registerDevResetCommand(
   bot: Bot,
@@ -72,5 +73,19 @@ export function registerDevResetCommand(
     const result = await tavernRaidService.stopPendingFridayBarrelRaidForDev(telegramUserId);
 
     await ctx.reply(presentDevRaidStopResult(result));
+    if (result.state === "completed") {
+      const levelUpText = presentLevelUpCelebration(
+        result.result.levelChange,
+        result.result.character.classId,
+        {
+          raceId: result.result.character.raceId,
+          path: result.result.character.path
+        }
+      );
+
+      if (levelUpText) {
+        await ctx.reply(levelUpText, { parse_mode: "HTML" });
+      }
+    }
   });
 }
