@@ -3,6 +3,7 @@ import type {
   DuelChallengeView,
   DuelCreateResult
 } from "../../services/duelChallengeService";
+import { getActorCombatActionAvailability } from "../../domain/combat";
 import {
   makeDuelAcceptCallbackData,
   makeDuelAcceptRiskCallbackData,
@@ -113,14 +114,30 @@ export function buildTurnBasedDuelKeyboard(
     viewerSide !== null &&
     session.status === "active" &&
     !session.state.pendingActions?.[viewerSide];
+  const viewer = viewerSide ? session.state.participants[viewerSide] : null;
+  const skillAvailability = viewer
+    ? getActorCombatActionAvailability(
+        {
+          mana: viewer.mana,
+          cooldowns: viewer.cooldowns
+        },
+        viewer.combatStats
+      ).skill
+    : null;
   const keyboard = new InlineKeyboard();
 
   if (canAct) {
     keyboard
       .text("⚔️ Атакувати", makeDuelTurnCallbackData(token, "attack", session.turn, session.version))
-      .row()
-      .text(skillLabel, makeDuelTurnCallbackData(token, "skill", session.turn, session.version))
-      .row()
+      .row();
+
+    if (skillAvailability?.available !== false) {
+      keyboard
+        .text(skillLabel, makeDuelTurnCallbackData(token, "skill", session.turn, session.version))
+        .row();
+    }
+
+    keyboard
       .text("🏳️ Здатися", makeDuelTurnCallbackData(token, "surrender", session.turn, session.version))
       .row();
   }

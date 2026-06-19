@@ -24,6 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Terminal turn-based duel paths, including surrender and timeout resolution, now store an explicit terminal reason, resolve the parent challenge as `resolved`, and replay the canonical result card with rematch/share controls.
 - Same-round turn callback races now retry one safe merge after an optimistic version loss when the actor has not yet chosen and the round has not advanced.
 - Turn-based duel card delivery now records successful edits, falls back to fresh messages after edit failures, and keeps committed gameplay state independent from Telegram delivery.
+- Turn-based duel cards now mirror persistent monster fights by hiding unavailable class actions while mana/cooldown rules make them unavailable and showing the viewer's active skill cooldown.
 - Targeted duel invite recipients now receive a best-effort in-game notice when the challenger cancels before acceptance.
 - Quick duel participants now receive a best-effort result card immediately after the other side accepts, instead of needing to refresh an old invite card.
 - Pending duel cards re-rendered from decline paths now preserve configured invite-link state instead of falsely warning that the bot username is missing.

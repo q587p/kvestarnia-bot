@@ -177,6 +177,73 @@ describe("turn-based duel domain", () => {
     }
     expect(resolved.round.actions.map((action) => action.action)).toContain("timeout-attack");
   });
+
+  it("treats a repeated zero-mana class action as a cooldown turn without damage", () => {
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({ id: "challenger", classId: "class.rogue", dexterity: 12, hpCurrent: 100, hpMax: 100 }),
+      target: makeDuelist({ id: "target", classId: "class.rogue", dexterity: 12, hpCurrent: 100, hpMax: 100 }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = "challenger";
+
+    const firstQueued = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "challenger",
+      action: "skill",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!firstQueued.ok) {
+      throw new Error("Expected first skill to queue.");
+    }
+
+    const firstResolved = resolveTurnBasedDuelAction({
+      state: firstQueued.state,
+      actorCharacterId: "target",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    });
+    if (!firstResolved.ok || firstResolved.resolution !== "resolved") {
+      throw new Error("Expected first round to resolve.");
+    }
+    expect(firstResolved.state.participants.challenger.cooldowns?.skill).toEqual({
+      id: "skill.trick-shot",
+      remainingTurns: 3
+    });
+
+    const secondQueued = resolveTurnBasedDuelAction({
+      state: firstResolved.state,
+      actorCharacterId: "challenger",
+      action: "skill",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!secondQueued.ok) {
+      throw new Error("Expected repeated skill to queue.");
+    }
+
+    const secondResolved = resolveTurnBasedDuelAction({
+      state: secondQueued.state,
+      actorCharacterId: "target",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    });
+    if (!secondResolved.ok || secondResolved.resolution !== "resolved") {
+      throw new Error("Expected second round to resolve.");
+    }
+
+    const repeatedSkill = secondResolved.round.actions.find(
+      (action) => action.actorCharacterId === "challenger"
+    );
+    expect(repeatedSkill).toMatchObject({
+      action: "skill",
+      outcome: "skill-on-cooldown",
+      damage: 0,
+      manaSpent: 0
+    });
+    expect(secondResolved.state.participants.challenger.cooldowns?.skill).toEqual({
+      id: "skill.trick-shot",
+      remainingTurns: 2
+    });
+  });
 });
 
 function makeDuelist(

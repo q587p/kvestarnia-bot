@@ -59,6 +59,39 @@ describe("duel presenter", () => {
     expect(text).toContain("Шкода: <b>11</b> · критично");
   });
 
+  it("shows the viewer's active turn-based skill cooldown", () => {
+    const result = makeTurnBasedDuelView({
+      participants: {
+        challenger: {
+          characterId: "challenger-character",
+          displayName: "Ліва Рука",
+          hp: 20,
+          hpMax: 24,
+          mana: 8,
+          manaMax: 12,
+          cooldowns: {
+            skill: {
+              id: "skill.forceful-strike",
+              remainingTurns: 3
+            }
+          }
+        },
+        target: {
+          characterId: "target-character",
+          displayName: "Права Рука",
+          hp: 19,
+          hpMax: 25,
+          mana: 9,
+          manaMax: 13
+        }
+      }
+    });
+
+    const text = presentTurnBasedDuel(result, { viewerCharacterId: "challenger-character" });
+
+    expect(text).toContain("🫁 Вміння відсапується: ще 3 ходи.");
+  });
+
   it("uses explicit surrender copy for stored turn-based results", () => {
     const text = presentDuelView({
       state: "resolved",

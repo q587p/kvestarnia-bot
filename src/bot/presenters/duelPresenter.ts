@@ -346,6 +346,7 @@ export function presentTurnBasedDuel(
         ? "target"
         : null;
   const viewerPending = viewerSide ? state.pendingActions?.[viewerSide] : null;
+  const viewerParticipant = viewerSide ? state.participants[viewerSide] : null;
   const statusLine =
     result.session.status === "active"
       ? viewerPending
@@ -354,7 +355,7 @@ export function presentTurnBasedDuel(
       : "Бій завершено. Запис уже не перекидається.";
   const actionLine = presentTurnBasedRoundState(state, viewerSide);
 
-  return [
+  const lines = [
     "♟️ <b>Покрокова дуель</b>",
     "",
     `${presentDuelParticipantInline(result.challenger)} ⚔️ ${presentDuelParticipantInline(result.target)}`,
@@ -363,12 +364,24 @@ export function presentTurnBasedDuel(
     presentDuelVitals(target),
     "",
     `Раунд: <b>${result.session.turn}</b>`,
-    statusLine,
+    statusLine
+  ];
+
+  if (
+    result.session.status === "active" &&
+    viewerParticipant?.cooldowns?.skill?.remainingTurns
+  ) {
+    lines.push(`🫁 Вміння відсапується: ще ${formatTurns(viewerParticipant.cooldowns.skill.remainingTurns)}.`);
+  }
+
+  lines.push(
     "",
     actionLine,
     "",
     "<i>Дуель не змінює справжні HP/ману, XP, золото чи манатки.</i>"
-  ].join("\n");
+  );
+
+  return lines.join("\n");
 }
 
 export function presentDuelResultShare(result: Extract<DuelChallengeView, { state: "resolved" }>): string {
@@ -656,6 +669,21 @@ function formatRemaining(expiresAt: Date, now: Date): string {
   }
 
   return `${minutes} хв ${seconds} с`;
+}
+
+function formatTurns(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return `${count} хід`;
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${count} ходи`;
+  }
+
+  return `${count} ходів`;
 }
 
 function formatHourMinute(date: Date): string {

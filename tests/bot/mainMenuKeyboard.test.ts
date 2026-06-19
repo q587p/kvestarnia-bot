@@ -567,21 +567,14 @@ describe("main menu and scene keyboards", () => {
 
   it("keeps active turn-based duel cards on recoverable refresh only", () => {
     const keyboard = buildTurnBasedDuelKeyboard(
-      {
-        challenge: { inviteToken: "abcDEF12" },
+      turnBasedDuelKeyboardResult({
         session: {
           actingCharacterId: "character-2",
           status: "resolved",
           turn: 6,
-          version: 9,
-          state: {
-            participants: {
-              challenger: { characterId: "character-1" },
-              target: { characterId: "character-2" }
-            }
-          }
+          version: 9
         }
-      } as never,
+      }),
       "character-1",
       "💪 Силовий удар"
     );
@@ -608,26 +601,18 @@ describe("main menu and scene keyboards", () => {
   });
 
   it("hides turn actions after the viewer already queued a duel choice", () => {
-    const result = {
-      challenge: { inviteToken: "abcDEF12" },
+    const result = turnBasedDuelKeyboardResult({
       session: {
-        status: "active",
-        turn: 2,
-        version: 4,
         state: {
           pendingActions: {
             challenger: {
               actorCharacterId: "character-1",
               action: "attack"
             }
-          },
-          participants: {
-            challenger: { characterId: "character-1" },
-            target: { characterId: "character-2" }
           }
         }
       }
-    } as never;
+    });
 
     expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-1", "💪 Силовий удар"))).toEqual([
       "🔎 Оновити"
@@ -635,6 +620,31 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-2", "💪 Силовий удар"))).toEqual([
       "⚔️ Атакувати",
       "💪 Силовий удар",
+      "🏳️ Здатися",
+      "🔎 Оновити"
+    ]);
+  });
+
+  it("hides a turn-based duel skill while the shared combat cooldown is active", () => {
+    const result = turnBasedDuelKeyboardResult({
+      session: {
+        state: {
+          participants: {
+            challenger: turnBasedParticipant("character-1", {
+              cooldowns: {
+                skill: {
+                  id: "skill.forceful-strike",
+                  remainingTurns: 3
+                }
+              }
+            })
+          }
+        }
+      }
+    });
+
+    expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-1", "💪 Силовий удар"))).toEqual([
+      "⚔️ Атакувати",
       "🏳️ Здатися",
       "🔎 Оновити"
     ]);
@@ -1543,6 +1553,69 @@ function persistentFightSession(): SoloCombatSessionRecord {
     createdAt: new Date("2026-06-12T10:30:00.000Z"),
     updatedAt: new Date("2026-06-12T10:30:00.000Z"),
     expiresAt: new Date("2026-06-12T11:00:00.000Z")
+  };
+}
+
+function turnBasedDuelKeyboardResult(
+  overrides: {
+    session?: {
+      actingCharacterId?: string;
+      status?: "active" | "resolved";
+      turn?: number;
+      version?: number;
+      state?: {
+        pendingActions?: Record<string, unknown>;
+        participants?: {
+          challenger?: ReturnType<typeof turnBasedParticipant>;
+          target?: ReturnType<typeof turnBasedParticipant>;
+        };
+      };
+    };
+  } = {}
+) {
+  return {
+    challenge: { inviteToken: "abcDEF12" },
+    session: {
+      actingCharacterId: overrides.session?.actingCharacterId ?? "character-1",
+      status: overrides.session?.status ?? "active",
+      turn: overrides.session?.turn ?? 2,
+      version: overrides.session?.version ?? 4,
+      state: {
+        pendingActions: overrides.session?.state?.pendingActions,
+        participants: {
+          challenger: overrides.session?.state?.participants?.challenger ?? turnBasedParticipant("character-1"),
+          target: overrides.session?.state?.participants?.target ?? turnBasedParticipant("character-2")
+        }
+      }
+    }
+  } as never;
+}
+
+function turnBasedParticipant(
+  characterId: string,
+  overrides: {
+    mana?: number;
+    cooldowns?: { skill: { id: string; remainingTurns: number } };
+  } = {}
+) {
+  return {
+    characterId,
+    hp: 20,
+    hpMax: 24,
+    mana: overrides.mana ?? 10,
+    manaMax: 10,
+    cooldowns: overrides.cooldowns,
+    combatStats: {
+      level: 3,
+      hpMax: 24,
+      manaMax: 10,
+      classId: "class.warrior",
+      strength: 8,
+      dexterity: 6,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6
+    }
   };
 }
 
