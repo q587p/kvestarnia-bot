@@ -105,6 +105,21 @@ describe("main menu and scene keyboards", () => {
       "🎒 Манчкін-скупник",
       "🏹 До полювання"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
+      "🚪 Зайти в корчму",
+      "📜 Табличка прибулих",
+      "🏅 Пропамʼятна дошка"
+    ]);
+    expect(
+      flatInlineButtonTexts(
+        buildKorchmaFrontKeyboard({ yegerAction: "hunt", munchkinLocation: "nyz-descent" })
+      )
+    ).toEqual([
+      "🚪 Зайти в корчму",
+      "📜 Табличка прибулих",
+      "🏅 Пропамʼятна дошка",
+      "🏹 До полювання"
+    ]);
     expect(inlineButtonRows(buildEnterKorchmaKeyboard())).toEqual([["🚪 Зайти в корчму"]]);
     expect(flatInlineButtonCallbacks(buildEnterKorchmaKeyboard())).toEqual(["v1:place:hall"]);
     expect(flatInlineButtonTexts(buildKorchmaArrivalBoardKeyboard())).toEqual([
@@ -552,6 +567,16 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard())).toEqual([
       "v1:place:hall",
+      "v1:place:deep-level1"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
+      "⬆️ Повернутися до зали",
+      "🎒 Манчкін-скупник",
+      "⬇️ Спуститися"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
+      "v1:place:hall",
+      "v1:lvlx:open",
       "v1:place:deep-level1"
     ]);
     expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toEqual([

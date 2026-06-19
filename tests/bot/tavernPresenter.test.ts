@@ -72,8 +72,16 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("<i>Дошка вістей</i>");
     expect(text).toContain("<i>табличка прибулих</i>");
     expect(text).toContain("<i>пропамʼятна дошка</i>");
+    expect(text).toContain("<i>Манчкін-скупник</i>");
     expect(text).not.toContain("За дверима біля Бочки сидить <i>Єгер</i>");
     expect(text).not.toContain("сліди просить перевіряти надворі");
+  });
+
+  it("hides the Munchkin paragraph from the front door at night", () => {
+    const text = presentKorchmaFront(character, { munchkinLocation: "nyz-descent" });
+
+    expect(text).toContain("🚪 Перед корчмою");
+    expect(text).not.toContain("Манчкін-скупник");
   });
 
   it("shows a front-door arrivals plaque with escaped visitor names", () => {
@@ -150,7 +158,16 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("🪜 Спуск до Низу");
     expect(text).toContain("За бочками в коморі є сходи.");
+    expect(text).not.toContain("Манчкін-скупник");
     expect(text).not.toContain("Ярус I: Сутерени Корчми");
+  });
+
+  it("shows Munchkin at the Nyz descent at night", () => {
+    const text = presentKorchmaDeepClosed(character, { munchkinLocation: "nyz-descent" });
+
+    expect(text).toContain("🪜 Спуск до Низу");
+    expect(text).toContain("<i>Манчкін-скупник</i>");
+    expect(text).toContain("рівні краще купувати ближче до небезпеки");
   });
 
   it("shows duel winners for day week and month", () => {

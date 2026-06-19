@@ -16,6 +16,8 @@ import type { RemortService } from "../../services/remortService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import type { FightService, ProblemQuestProgress } from "../../services/fightService";
 import type { YegerQuestService } from "../../services/yegerQuestService";
+import { getMunchkinLocationAt, type MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
+import { systemClock } from "../../shared/time";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildKorchmaArrivalBoardKeyboard,
@@ -49,6 +51,23 @@ import {
 import { safeEditMessageText } from "../safeEditMessageText";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
+type TavernCommandKeyboard =
+  | boolean
+  | "hall"
+  | { state: "hall"; characterLevel?: number }
+  | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
+  | "front"
+  | { state: "front"; yegerAction: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation }
+  | "fighting-corner"
+  | "deep"
+  | { state: "deep"; munchkinLocation?: MunchkinLocation }
+  | "back-to-fighting-corner"
+  | "back-to-hall"
+  | "arrivals"
+  | "memorial"
+  | "barrel-result"
+  | "barrel-pending"
+  | "barrel-participants";
 
 export function registerTavernCommand(
   bot: Bot,
@@ -114,7 +133,8 @@ export async function sendKorchmaFront(
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
   mode: "reply" | "edit",
-  yegerQuestService?: Pick<YegerQuestService, "getForTelegramUser">
+  yegerQuestService?: Pick<YegerQuestService, "getForTelegramUser">,
+  options: { now?: Date } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -144,10 +164,12 @@ export async function sendKorchmaFront(
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FRONT);
   const yegerAction = await getFrontYegerAction(yegerQuestService, telegramUserId);
+  const munchkinLocation = getMunchkinLocationAt(options.now ?? systemClock());
 
-  await sendText(ctx, mode, presentKorchmaFront(result.character), {
+  await sendText(ctx, mode, presentKorchmaFront(result.character, { munchkinLocation }), {
     state: "front",
-    yegerAction
+    yegerAction,
+    munchkinLocation
   });
 }
 
@@ -272,7 +294,8 @@ export async function sendKorchmaDeepClosed(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  options: { now?: Date } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -307,7 +330,13 @@ export async function sendKorchmaDeepClosed(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_DEEP);
-  await sendText(ctx, mode, presentKorchmaDeepClosed(result.character), "deep");
+  const munchkinLocation = getMunchkinLocationAt(options.now ?? systemClock());
+  await sendText(
+    ctx,
+    mode,
+    presentKorchmaDeepClosed(result.character, { munchkinLocation }),
+    { state: "deep", munchkinLocation }
+  );
 }
 
 export async function sendDuelWinnersBoard(
@@ -463,21 +492,7 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  keyboard:
-    | boolean
-    | "hall"
-    | { state: "hall"; characterLevel?: number }
-    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
-    | "front"
-    | { state: "front"; yegerAction: "hidden" | "hunt" }
-    | "fighting-corner"
-    | "deep"
-    | "back-to-fighting-corner"
-    | "back-to-hall"
-    | "arrivals"
-    | "memorial"
-    | "barrel-result"
-    | "barrel-pending" = false
+  keyboard: TavernCommandKeyboard = false
 ): Promise<void> {
   const options = keyboard
     ? {
@@ -498,12 +513,23 @@ async function sendText(
               ? buildKorchmaFightingCornerKeyboard()
             : keyboard === "deep"
               ? buildKorchmaDeepKeyboard()
+            : isDeepKeyboard(keyboard)
+              ? buildKorchmaDeepKeyboard(
+                  keyboard.munchkinLocation === undefined
+                    ? {}
+                    : { munchkinLocation: keyboard.munchkinLocation }
+                )
             : keyboard === "back-to-fighting-corner"
               ? buildKorchmaFightingCornerKeyboard()
             : keyboard === "back-to-hall"
               ? buildBackToKorchmaHallKeyboard()
             : isFrontKeyboard(keyboard)
-              ? buildKorchmaFrontKeyboard({ yegerAction: keyboard.yegerAction })
+              ? buildKorchmaFrontKeyboard({
+                  yegerAction: keyboard.yegerAction,
+                  ...(keyboard.munchkinLocation === undefined
+                    ? {}
+                    : { munchkinLocation: keyboard.munchkinLocation })
+                })
             : keyboard === "front"
               ? buildKorchmaFrontKeyboard()
             : keyboard === "arrivals"
@@ -527,66 +553,27 @@ async function sendText(
 }
 
 function isFrontKeyboard(
-  keyboard:
-    | boolean
-    | "hall"
-    | { state: "hall"; characterLevel?: number }
-    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
-    | "front"
-    | { state: "front"; yegerAction: "hidden" | "hunt" }
-    | "fighting-corner"
-    | "deep"
-    | "back-to-fighting-corner"
-    | "back-to-hall"
-    | "arrivals"
-    | "memorial"
-    | "barrel-result"
-    | "barrel-pending"
-    | "barrel-participants"
-): keyboard is { state: "front"; yegerAction: "hidden" | "hunt" } {
+  keyboard: TavernCommandKeyboard
+): keyboard is { state: "front"; yegerAction: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "front";
 }
 
 function isBarKeyboard(
-  keyboard:
-    | boolean
-    | "hall"
-    | { state: "hall"; characterLevel?: number }
-    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
-    | "front"
-    | { state: "front"; yegerAction: "hidden" | "hunt" }
-    | "fighting-corner"
-    | "deep"
-    | "back-to-fighting-corner"
-    | "back-to-hall"
-    | "arrivals"
-    | "memorial"
-    | "barrel-result"
-    | "barrel-pending"
-    | "barrel-participants"
+  keyboard: TavernCommandKeyboard
 ): keyboard is { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "bar";
 }
 
 function isHallKeyboard(
-  keyboard:
-    | boolean
-    | "hall"
-    | { state: "hall"; characterLevel?: number }
-    | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
-    | "front"
-    | { state: "front"; yegerAction: "hidden" | "hunt" }
-    | "fighting-corner"
-    | "deep"
-    | "back-to-fighting-corner"
-    | "back-to-hall"
-    | "arrivals"
-    | "memorial"
-    | "barrel-result"
-    | "barrel-pending"
-    | "barrel-participants"
+  keyboard: TavernCommandKeyboard
 ): keyboard is { state: "hall"; characterLevel?: number } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "hall";
+}
+
+function isDeepKeyboard(
+  keyboard: TavernCommandKeyboard
+): keyboard is { state: "deep"; munchkinLocation?: MunchkinLocation } {
+  return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "deep";
 }
 
 async function getFrontYegerAction(

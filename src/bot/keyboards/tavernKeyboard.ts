@@ -9,6 +9,7 @@ import { makeDuelNewCallbackData, makeDuelNewTurnBasedCallbackData } from "../ca
 import { makeTrainingDoppelgangerCallbackData } from "../callbacks/trainingDoppelgangerCallbackData";
 import { makeYegerOutsideCallbackData } from "../callbacks/yegerCallbackData";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
+import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 
 export type TavernResultKeyboardState =
   | "completed"
@@ -26,7 +27,7 @@ export function buildTavernKeyboard(): InlineKeyboard {
 }
 
 export function buildKorchmaFrontKeyboard(
-  options: { yegerAction?: "hidden" | "hunt" } = {}
+  options: { yegerAction?: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
@@ -35,11 +36,21 @@ export function buildKorchmaFrontKeyboard(
   keyboard
     .text("📜 Табличка прибулих", makePlaceCallbackData("arrivals"))
     .text("🏅 Пропамʼятна дошка", makePlaceCallbackData("memorial"))
-    .row()
-    .text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData());
+    .row();
+
+  let hasFrontActionRow = false;
+
+  if ((options.munchkinLocation ?? "front") === "front") {
+    keyboard.text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData());
+    hasFrontActionRow = true;
+  }
 
   if (options.yegerAction === "hunt") {
-    keyboard.row().text("🏹 До полювання", makeYegerOutsideCallbackData());
+    if (hasFrontActionRow) {
+      keyboard.row();
+    }
+
+    keyboard.text("🏹 До полювання", makeYegerOutsideCallbackData());
   }
 
   return keyboard;
@@ -123,11 +134,18 @@ export function buildBackToKorchmaHallKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
-export function buildKorchmaDeepKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
+export function buildKorchmaDeepKeyboard(
+  options: { munchkinLocation?: MunchkinLocation } = {}
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard()
     .text("⬆️ Повернутися до зали", makePlaceCallbackData("hall"))
-    .row()
-    .text("⬇️ Спуститися", makePlaceCallbackData("deep-level1"));
+    .row();
+
+  if (options.munchkinLocation === "nyz-descent") {
+    keyboard.text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData()).row();
+  }
+
+  return keyboard.text("⬇️ Спуститися", makePlaceCallbackData("deep-level1"));
 }
 
 export function buildKorchmaArrivalBoardKeyboard(): InlineKeyboard {
