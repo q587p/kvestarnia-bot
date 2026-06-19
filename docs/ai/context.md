@@ -9,6 +9,7 @@ Keep this file compact. Target: under 250 lines.
 - Technical slug/package/repo prefix: `kvestarnia`.
 - Bot username target: `@kvestarnia_bot`.
 - Current package version in this repository snapshot: `0.1.18`.
+- Next planned version task: `docs/tasks/0.1.19-nyz-passage-balance-polish.md` for `Низ` passage balance; center remains baseline, right/easy becomes `-5` effective levels with lower rounded-down rewards, left/hard stays above center reward without overpaying.
 
 ## Language split
 

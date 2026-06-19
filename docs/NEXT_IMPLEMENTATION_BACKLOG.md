@@ -20,12 +20,13 @@
 5. `0.1.5` — first Phase 2 prep/runtime slice: level 3+ бійцівський куток із покроковим тренувальним `Сумлінним Допельґанґером`, XP-only reward, recovery cooldown, no PvP state, no group raid.
 6. `0.1.6` — Korchmar/Shynok problem quest chain: `13 -> 23 -> 42 -> 93`, explicit bar turn-in plus next-stage acceptance, fresh per-stage counters and no training doppelganger progress.
 7. `0.1.10` — first rewardless duel invite ledger: level 3+ `/duel`, generated deep links, accept/decline/cancel/expire, replay-safe result, no rewards or rating.
-8. Duel result/rematch support shipped incrementally through `0.1.11`, `0.1.17` and `0.1.18`; remaining duel backlog is social recognition, nearby targeted invites and tournament/rating surfaces without power creep.
-9. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
-10. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
-11. Remort follow-ups: remort-only advanced options, richer legacy flavor and social/cosmetic records; the base `/remort` loop is already runtime in `0.1.2`.
-12. Multi-enemy combat.
-13. Party combat / real raid MVP with capped contribution-aware rewards.
+8. Duel result/rematch support shipped incrementally through `0.1.11`, `0.1.17` and `0.1.18`; remaining duel backlog is social recognition and tournament/rating surfaces without power creep.
+9. `0.1.19` — `Низ` passage balance polish: keep center as baseline, make the right/easy passage a stronger `-5` effective-level drop with lower rounded-down rewards, and keep the left/hard passage above center reward while trimming any overpayment.
+10. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
+11. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
+12. Remort follow-ups: remort-only advanced options, richer legacy flavor and social/cosmetic records; the base `/remort` loop is already runtime in `0.1.2`.
+13. Multi-enemy combat.
+14. Party combat / real raid MVP with capped contribution-aware rewards.
 
 Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
 
