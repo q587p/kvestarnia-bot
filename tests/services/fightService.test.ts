@@ -27,6 +27,7 @@ import type {
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import type { CombatState } from "../../src/domain/combat";
 import { getLevelForXp } from "../../src/domain/progression/level";
+import { buildStarterLevelTwoXpReward } from "../../src/domain/progression/starterRewards";
 import { getItemDropChance } from "../../src/domain/loot";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { FakeRandomSource } from "../../src/shared/random";
@@ -74,11 +75,11 @@ describe("FightService", () => {
     expect(dailyActions.records[0]).toMatchObject({
       key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
       localDate: "2026-06-12",
-      rewardXp: 9,
+      rewardXp: buildStarterLevelTwoXpReward(),
       rewardGold: 3
     });
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 16,
+      xp: 15,
       gold: 3,
       level: 2
     });
@@ -195,7 +196,7 @@ describe("FightService", () => {
       }
     ]);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 7,
+      xp: buildStarterLevelTwoXpReward(),
       gold: 5
     });
   });
@@ -265,7 +266,7 @@ describe("FightService", () => {
       }
     ]);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 9,
+      xp: buildStarterLevelTwoXpReward(),
       gold: 3
     });
   });
@@ -856,6 +857,31 @@ describe("FightService", () => {
       },
       dropChanceMultiplier: 1.35,
       lootPowerOffset: 1
+    });
+  });
+
+  it("lets starter shawarma plus the combat probe reach level two after remort", async () => {
+    const characters = new FakeCharacterRepository();
+    const starterXp = buildStarterLevelTwoXpReward({ remortCount: 1 });
+    characters.add(telegramUserId, { level: 1, xp: starterXp, remortCount: 1 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new FightService(characters, dailyActions, fixedClock);
+
+    const result = await service.completeMimicShawarma(telegramUserId, "flee");
+
+    expect(result.state).toBe("completed");
+    if (result.state === "completed") {
+      expect(result.reward.xp).toBe(starterXp);
+      expect(result.levelChange).toMatchObject({
+        oldLevel: 1,
+        newLevel: 2,
+        leveledUp: true
+      });
+    }
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: starterXp * 2,
+      level: 2,
+      remortCount: 1
     });
   });
 
@@ -3126,7 +3152,7 @@ class FakeCharacterRepository implements CharacterRepository {
       ...character,
       xp: nextXp,
       gold: character.gold + gold,
-      level: getLevelForXp(nextXp)
+      level: getLevelForXp(nextXp, { remortCount: character.remortCount ?? 0 })
     };
     this.charactersByTelegramUserId.set(userTelegramId, updated);
     return updated;
@@ -3299,9 +3325,10 @@ class FakeDailyActionRepository implements DailyActionRepository {
       character: updatedCharacter,
       itemGrants,
       levelChange: {
-        oldLevel: getLevelForXp(character.xp),
+        oldLevel: getLevelForXp(character.xp, { remortCount: character.remortCount ?? 0 }),
         newLevel: updatedCharacter.level,
-        leveledUp: updatedCharacter.level > getLevelForXp(character.xp)
+        leveledUp:
+          updatedCharacter.level > getLevelForXp(character.xp, { remortCount: character.remortCount ?? 0 })
       }
     };
   }

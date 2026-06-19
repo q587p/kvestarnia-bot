@@ -34,6 +34,7 @@ import {
   isWithinActivityMaxLevel,
   STARTER_ACTIVITY_MAX_LEVEL
 } from "../domain/progression/activityGates";
+import { buildStarterLevelTwoXpReward } from "../domain/progression/starterRewards";
 import { createEmptyEquipmentEffectSummary } from "../domain/progression/effectiveStats";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
@@ -890,7 +891,11 @@ export class FightService {
       action
     });
     const localDate = toIsoDate(this.clock());
-    const reward = MIMIC_SHAWARMA_COMBAT_REWARDS[action];
+    const baseReward = MIMIC_SHAWARMA_COMBAT_REWARDS[action];
+    const reward = {
+      ...baseReward,
+      xp: buildStarterLevelTwoXpReward({ remortCount: characterSummary.remortCount ?? 0 })
+    };
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
       localDate,

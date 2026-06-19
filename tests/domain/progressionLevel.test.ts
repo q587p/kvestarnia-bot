@@ -6,6 +6,7 @@ import {
   getNextLevelThreshold,
   getRemortXpExtraTotal
 } from "../../src/domain/progression/level";
+import { buildStarterLevelTwoXpReward } from "../../src/domain/progression/starterRewards";
 
 describe("level progression", () => {
   it.each([
@@ -74,6 +75,17 @@ describe("level progression", () => {
       newXp: 560,
       leveledUp: true
     });
+  });
+
+  it("gives each starter quest most of the level-two gap, including after remort", () => {
+    expect(buildStarterLevelTwoXpReward()).toBe(8);
+    expect(buildStarterLevelTwoXpReward({ remortCount: 1 })).toBe(10);
+
+    const remortStarterReward = buildStarterLevelTwoXpReward({ remortCount: 1 });
+
+    expect(
+      getLevelForXp(remortStarterReward * 2, { remortCount: 1 })
+    ).toBe(2);
   });
 
   it("keeps level unchanged when reward does not cross a threshold", () => {

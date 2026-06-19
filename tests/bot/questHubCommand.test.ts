@@ -179,6 +179,7 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).toContain("📦 Архів справ");
     expect(replies[0]?.text).toContain("🧾 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
+    expect(replies[0]?.text).not.toContain("🌯 <i>Підозріла шаурма</i>");
     expect(replies[0]?.text).not.toContain("⚔️ <i>Новачкова сутичка</i>");
     expect(replies[0]?.text).not.toContain("🪜 <i>Низ</i> — можна починати.");
   });
@@ -190,7 +191,7 @@ describe("quest hub command", () => {
     await sendQuestHub(
       makeContext(replies),
       servicesWith({
-        adventure: readyAdventureService(levelOneCharacter),
+        adventure: completedStarterAdventureService(levelOneCharacter),
         fight: {
           getProblemQuestProgressForTelegramUser: () =>
             Promise.resolve({
@@ -215,6 +216,7 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain("📦 Архів справ");
+    expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — сьогодні вже дала свідчення.");
     expect(replies[0]?.text).toContain("⚔️ <i>Новачкова сутичка</i> — сьогодні вже зараховано.");
     expect(replies[0]?.text).not.toContain("🪜 <i>Низ</i> — сьогодні вже зараховано.");
   });

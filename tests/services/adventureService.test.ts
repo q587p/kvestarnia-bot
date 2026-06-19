@@ -22,6 +22,7 @@ import type {
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
+import { buildStarterLevelTwoXpReward } from "../../src/domain/progression/starterRewards";
 import {
   ADVENTURE_CHOICE_KEY,
   ADVENTURE_CHOICE_REROLL_KEY,
@@ -403,6 +404,23 @@ describe("AdventureService", () => {
     });
   });
 
+  it("scales starter shawarma XP to most of the level-two gap after remort", async () => {
+    const { service, characters } = setup();
+    characters.add(telegramUserId, { level: 1, xp: 0, remortCount: 1 });
+
+    const result = await service.completeMimicShawarma(telegramUserId, "flee");
+
+    expect(result.state).toBe("completed");
+    if (result.state === "completed") {
+      expect(result.reward.xp).toBe(buildStarterLevelTwoXpReward({ remortCount: 1 }));
+    }
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: buildStarterLevelTwoXpReward({ remortCount: 1 }),
+      level: 1,
+      remortCount: 1
+    });
+  });
+
   it("does not duplicate starter shawarma rewards when legacy callbacks replay", async () => {
     const { service, characters, dailyActions } = setup();
     characters.add(telegramUserId, { xp: 0 });
@@ -669,7 +687,7 @@ class FakeCharacterRepository implements CharacterRepository {
       ...character,
       xp: nextXp,
       gold: character.gold + gold,
-      level: getLevelForXp(nextXp)
+      level: getLevelForXp(nextXp, { remortCount: character.remortCount ?? 0 })
     };
     this.charactersByTelegramUserId.set(userTelegramId, updated);
     return updated;
@@ -819,9 +837,10 @@ class FakeDailyActionRepository implements DailyActionRepository {
       character: updatedCharacter,
       itemGrants: input.itemGrants ?? [],
       levelChange: {
-        oldLevel: getLevelForXp(character.xp),
+        oldLevel: getLevelForXp(character.xp, { remortCount: character.remortCount ?? 0 }),
         newLevel: updatedCharacter.level,
-        leveledUp: updatedCharacter.level > getLevelForXp(character.xp)
+        leveledUp:
+          updatedCharacter.level > getLevelForXp(character.xp, { remortCount: character.remortCount ?? 0 })
       }
     };
   }

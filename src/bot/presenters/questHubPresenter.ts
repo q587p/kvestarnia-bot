@@ -76,22 +76,37 @@ function presentAdventureRow(
   return `${title} — ${status}.`;
 }
 
-function presentAdventureArchiveRow(
-  adventure: Exclude<AdventureLookupResult, { state: "no-character" }>
-): string | null {
+function presentAdventureArchiveRows(
+  character: CharacterSummary,
+  adventure: Exclude<AdventureLookupResult, { state: "no-character" }>,
+  starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>
+): string[] {
   if (adventure.state === "ready") {
-    return null;
+    return [];
   }
 
   if (adventure.state === "already-completed") {
-    return "🪧 <i>Три справи на найближчий час</i> — виконано; Корчмар поставив галочку і не визнає повторів.";
+    return [
+      "🪧 <i>Три справи на найближчий час</i> — виконано; Корчмар поставив галочку і не визнає повторів."
+    ];
   }
 
   if (adventure.state === "active-fight") {
-    return null;
+    return [];
   }
 
-  return `🪧 <i>Три справи на найближчий час</i> — відкриється з ${adventure.requiredLevel} рівня; у журналі немає позначки виконання.`;
+  const rows = [
+    `🪧 <i>Три справи на найближчий час</i> — відкриється з ${adventure.requiredLevel} рівня; у журналі немає позначки виконання.`
+  ];
+
+  if (
+    character.level <= STARTER_ACTIVITY_MAX_LEVEL &&
+    starterAdventure?.state === "already-completed"
+  ) {
+    rows.push("🌯 <i>Підозріла шаурма</i> — сьогодні вже дала свідчення.");
+  }
+
+  return rows;
 }
 
 function presentProblemQuestRow(
@@ -358,7 +373,7 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
 
 function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
   const rows = [
-    presentAdventureArchiveRow(snapshot.adventure),
+    ...presentAdventureArchiveRows(snapshot.character, snapshot.adventure, snapshot.starterAdventure),
     !meetsActivityLevel(snapshot.character.level, FIGHTING_CORNER_MIN_LEVEL)
       ? presentProblemQuestRow(snapshot.character, snapshot.problemQuest, snapshot.fight)
       : null,

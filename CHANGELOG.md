@@ -26,6 +26,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Authored quest method hints now avoid repeated reliability wording and generated scene outcomes use grammar-neutral copy for singular/plural problem titles.
 - Adventure complications can now resolve to full reward, reduced reward, XP-only, cosmetic mess, paid success or existing persistent-fight handoff where authored.
 - Starter shawarma and cellar mouse keep their level gates, item grants, idempotency and replay behavior while routing new visible buttons through stable authored method ids.
+- Starter shawarma and the starter combat probe now each grant `75%` of the level 1-to-2 XP gap rounded up, using the remort-adjusted XP curve, so doing both starter activities guarantees level 2.
+- The quest archive now shows completed starter shawarma alongside the completed starter combat probe instead of losing the first half of the starter chain.
 - Legacy `v1` starter and cellar callbacks continue to replay safely; old Adventure Choice `safe/flair/risky` callbacks no longer reinterpret into new methods.
 - Quest checks now use the same effective stat snapshot as the summary card, including equipped manatky/item effects, instead of resolving against base-only stats.
 - Cellar mouse rewards stay deliberately conservative, and stale/unknown current-version method ids no longer claim, charge, start cooldowns or grant rewards.

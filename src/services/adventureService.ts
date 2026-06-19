@@ -18,6 +18,7 @@ import {
   meetsActivityLevel,
   STARTER_ACTIVITY_MAX_LEVEL
 } from "../domain/progression/activityGates";
+import { buildStarterLevelTwoXpReward } from "../domain/progression/starterRewards";
 import { SeededRandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
@@ -587,7 +588,11 @@ export class AdventureService {
       classId: characterSummary.classId
     });
     const consequence = method.consequenceByGrade[check.grade];
-    const reward = buildQuestReward(method, check.grade, consequence);
+    const baseReward = buildQuestReward(method, check.grade, consequence);
+    const reward = {
+      ...baseReward,
+      xp: buildStarterLevelTwoXpReward({ remortCount: characterSummary.remortCount ?? 0 })
+    };
     const itemGrants = buildMimicShawarmaItemGrants(method.itemIntent ?? method.legacyAction ?? action);
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,
