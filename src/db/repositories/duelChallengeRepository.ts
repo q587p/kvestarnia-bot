@@ -27,6 +27,7 @@ export interface DuelCharacterSnapshot extends CharacterRecord {
 export interface DuelResultPayload {
   mode?: DuelMode;
   rulesVersion?: string;
+  terminalReason?: "defeat" | "surrender" | "max-turns" | "expired";
   outcome: "challenger" | "target" | "draw";
   winnerCharacterId: string | null;
   loserCharacterId: string | null;
@@ -143,6 +144,7 @@ export interface UpdateTurnBasedDuelSessionInput {
   state: TurnBasedDuelState;
   status: TurnBasedDuelStatus;
   turnExpiresAt: Date;
+  completedAt?: Date | null;
   result?: DuelResultPayload | null;
   action?: {
     actorCharacterId: string;

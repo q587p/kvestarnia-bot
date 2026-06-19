@@ -490,7 +490,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           turn: input.state.turn,
           version: nextVersion,
           turnExpiresAt: input.turnExpiresAt,
-          ...(input.status === "active" ? {} : { completedAt: new Date() })
+          ...(input.status === "active" ? {} : { completedAt: input.completedAt ?? new Date() })
         }
       });
 
@@ -536,10 +536,10 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
               status: "active"
             },
             data: {
-              status: input.status === "forfeited" ? "forfeited" : input.status,
+              status: input.result ? "resolved" : input.status === "forfeited" ? "forfeited" : input.status,
               ...(input.result
                 ? {
-                    resolvedAt: new Date(),
+                    resolvedAt: input.completedAt ?? new Date(),
                     resultJson: input.result as unknown as Prisma.InputJsonValue
                   }
                 : {})
@@ -550,6 +550,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
               characterId: {
                 in: [current.challengerCharacterId, current.targetCharacterId]
               },
+              kind: "turn-based-duel",
               referenceId: sessionId
             }
           });
@@ -806,6 +807,7 @@ function parseResult(value: unknown): DuelResultPayload | null {
   const result: DuelResultPayload = {
     ...(value.mode === "quick" || value.mode === "turn-based" ? { mode: value.mode } : {}),
     ...(typeof value.rulesVersion === "string" ? { rulesVersion: value.rulesVersion } : {}),
+    ...(isTerminalReason(value.terminalReason) ? { terminalReason: value.terminalReason } : {}),
     outcome,
     winnerCharacterId: typeof value.winnerCharacterId === "string" ? value.winnerCharacterId : null,
     loserCharacterId: typeof value.loserCharacterId === "string" ? value.loserCharacterId : null,
@@ -832,7 +834,46 @@ function parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
     return null;
   }
 
+  const status = value.status;
+  const turn = value.turn;
+  const participants = value.participants;
+  const challenger = isRecord(participants) ? parseTurnBasedParticipant(participants.challenger) : null;
+  const target = isRecord(participants) ? parseTurnBasedParticipant(participants.target) : null;
+
+  if (
+    !parseTurnBasedStatusSafe(status) ||
+    typeof value.rulesVersion !== "string" ||
+    typeof value.balanceVersion !== "string" ||
+    typeof turn !== "number" ||
+    !Number.isInteger(turn) ||
+    turn < 1 ||
+    typeof value.actingCharacterId !== "string" ||
+    !challenger ||
+    !target
+  ) {
+    return null;
+  }
+
   return value as unknown as TurnBasedDuelState;
+}
+
+function parseTurnBasedStatusSafe(value: unknown): TurnBasedDuelStatus | null {
+  return typeof value === "string" &&
+    (value === "active" || value === "resolved" || value === "expired" || value === "forfeited")
+    ? value
+    : null;
+}
+
+function parseTurnBasedParticipant(value: unknown): { characterId: string } | null {
+  if (!isRecord(value) || typeof value.characterId !== "string" || !value.characterId) {
+    return null;
+  }
+
+  return { characterId: value.characterId };
+}
+
+function isTerminalReason(value: unknown): value is NonNullable<DuelResultPayload["terminalReason"]> {
+  return value === "defeat" || value === "surrender" || value === "max-turns" || value === "expired";
 }
 
 function parseParticipants(value: unknown): DuelResultPayload["participants"] | null {

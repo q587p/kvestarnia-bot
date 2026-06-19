@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { presentTurnBasedDuel } from "../../src/bot/presenters/duelPresenter";
+import { presentDuelView, presentTurnBasedDuel } from "../../src/bot/presenters/duelPresenter";
 
 describe("duel presenter", () => {
   it("shows only the viewer's queued turn-based choice before the round resolves", () => {
@@ -57,6 +57,38 @@ describe("duel presenter", () => {
     expect(text).toContain("Класова дія записана в протокол.");
     expect(text).toContain("Шкода: <b>7</b>");
     expect(text).toContain("Шкода: <b>11</b> · критично");
+  });
+
+  it("uses explicit surrender copy for stored turn-based results", () => {
+    const text = presentDuelView({
+      state: "resolved",
+      challenge: {
+        mode: "turn-based",
+        inviteToken: "abcDEF12"
+      },
+      challenger: {
+        name: "Ліва Рука",
+        level: 4
+      },
+      target: {
+        name: "Права Рука",
+        level: 4
+      },
+      result: {
+        mode: "turn-based",
+        terminalReason: "surrender",
+        outcome: "challenger",
+        winnerCharacterId: "challenger-character",
+        loserCharacterId: "target-character",
+        challengerScore: 12,
+        targetScore: 3,
+        swing: 3,
+        flavorKey: "direct-hit"
+      }
+    } as never);
+
+    expect(text).toContain("🏳️ <b>Права Рука</b> здається.");
+    expect(text).toContain("<b>Ліва Рука</b> отримує перемогу");
   });
 });
 

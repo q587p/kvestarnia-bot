@@ -6,6 +6,8 @@ describe("PrismaDuelChallengeRepository", () => {
     const prisma = new FakeDuelPrisma([
       makeResolvedChallenge("new-json", {
         outcome: "challenger",
+        mode: "turn-based",
+        terminalReason: "surrender",
         winnerCharacterId: "character-1",
         loserCharacterId: "character-2",
         challengerScore: 42,
@@ -59,6 +61,8 @@ describe("PrismaDuelChallengeRepository", () => {
     expect(records).toHaveLength(2);
     expect(records[0]?.result).toMatchObject({
       balanceVersion: "instant-duel-v2",
+      mode: "turn-based",
+      terminalReason: "surrender",
       participants: {
         challenger: {
           displayName: "Старе Імʼя",

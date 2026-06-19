@@ -21,9 +21,12 @@ This project follows a simple pre-1.0 versioning policy:
 - `DuelChallenge.mode` is now stored server-side with a default of `quick`; legacy `duel_<token>` links remain quick and crafted prefixes cannot switch an existing challenge mode.
 - PvE and PvP turn resolution now share a pure `resolveActorCombatAction` primitive for basic attacks, class skills, mana, cooldowns, armor/resist/equipment effects, HP clamping and summaries.
 - Turn-based duel rounds now store a participant's chosen action without revealing damage or spending session HP/mana until both players have chosen or the durable timer resolves missing choices as ordinary attacks.
+- Terminal turn-based duel paths, including surrender and timeout resolution, now store an explicit terminal reason, resolve the parent challenge as `resolved`, and replay the canonical result card with rematch/share controls.
+- Same-round turn callback races now retry one safe merge after an optimistic version loss when the actor has not yet chosen and the round has not advanced.
+- Turn-based duel card delivery now records successful edits, falls back to fresh messages after edit failures, and keeps committed gameplay state independent from Telegram delivery.
 - The central combat lock now treats active turn-based duels as active combat and redirects normal navigation back to the canonical duel card.
+- Restart/remort routes remain available during ordinary combat according to the existing side-surface policy, but redirect back to an active turn-based duel until that duel is durably terminal.
 - Quick duel behavior remains instant, rewardless and replay-safe, while old quick result JSON still renders as `⚡ Миттєва дуель`.
-- Tuned `Низ` passage rewards: the right/easy route now rounds XP/gold down and pays less than the center route, while the left/hard route now uses `character level + 5` and pays above center.
 
 ### Guardrails
 - Turn-based duel HP/mana are ephemeral session resources and do not damage, heal or refill persistent `Character` resources.

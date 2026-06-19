@@ -746,6 +746,10 @@ function registerCombatLockMiddleware(bot: Bot, services: BotServices): void {
       return;
     }
 
+    if (isRestartOrRemortRoute(ctx) && await redirectTurnBasedDuelLockIfNeeded(ctx, telegramUserId, services)) {
+      return;
+    }
+
     if (!shouldCheckCombatLock(ctx)) {
       await next();
       return;
@@ -823,6 +827,19 @@ function isCombatLockSafeCommand(command: string): boolean {
   );
 }
 
+function isRestartOrRemortRoute(ctx: Context): boolean {
+  const data = ctx.callbackQuery?.data;
+
+  if (data) {
+    return data.startsWith("v1:restart:") || data.startsWith("v1:rm:");
+  }
+
+  const text = ctx.message?.text?.trim();
+  const command = text?.match(/^\/([a-z_]+)(?:@\w+)?(?:\s+.*)?$/i)?.[1]?.toLowerCase();
+
+  return command === "restart" || command === "remort";
+}
+
 function isLockedMainMenuText(text: string | undefined): boolean {
   return (
     text === mainMenuButtons.tavern ||
@@ -836,32 +853,8 @@ async function redirectCombatLockIfNeeded(
   telegramUserId: bigint,
   services: BotServices
 ): Promise<boolean> {
-  if (services.duel && typeof services.duel.getActiveTurnBasedForTelegramUser === "function") {
-    const activeDuel = await services.duel.getActiveTurnBasedForTelegramUser(telegramUserId);
-
-    if (activeDuel) {
-      await answerCombatLockCallback(ctx);
-      await refreshCombatLockPresence(ctx, services.presence, {
-        locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
-        currentRaidId: null,
-        currentAdventureId: PRESENCE_ADVENTURE_DUEL_CHALLENGE
-      });
-      const viewerCharacterId =
-        activeDuel.challenge.challenger.telegramUserId === telegramUserId
-          ? activeDuel.session.challengerCharacterId
-          : activeDuel.challenge.target?.telegramUserId === telegramUserId
-            ? activeDuel.session.targetCharacterId
-            : null;
-      const participant = viewerCharacterId === activeDuel.session.state.participants.target.characterId
-        ? activeDuel.session.state.participants.target
-        : activeDuel.session.state.participants.challenger;
-      const skill = getCombatSkillDisplay(getCombatSkillProfile(participant.combatStats.classId).id);
-
-      await sendCombatLockText(ctx, presentCombatLockRedirect(presentTurnBasedDuel(activeDuel, { viewerCharacterId })), {
-        reply_markup: buildTurnBasedDuelKeyboard(activeDuel, viewerCharacterId, `${skill.icon} ${skill.name}`)
-      });
-      return true;
-    }
+  if (await redirectTurnBasedDuelLockIfNeeded(ctx, telegramUserId, services)) {
+    return true;
   }
 
   if (typeof services.fight.getFightOverviewForTelegramUser !== "function") {
@@ -929,6 +922,45 @@ async function redirectCombatLockIfNeeded(
   }
 
   return false;
+}
+
+async function redirectTurnBasedDuelLockIfNeeded(
+  ctx: Context,
+  telegramUserId: bigint,
+  services: BotServices
+): Promise<boolean> {
+  if (!services.duel || typeof services.duel.getActiveTurnBasedForTelegramUser !== "function") {
+    return false;
+  }
+
+  const activeDuel = await services.duel.getActiveTurnBasedForTelegramUser(telegramUserId);
+
+  if (!activeDuel) {
+    return false;
+  }
+
+  await answerCombatLockCallback(ctx);
+  await refreshCombatLockPresence(ctx, services.presence, {
+    locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+    currentRaidId: null,
+    currentAdventureId: PRESENCE_ADVENTURE_DUEL_CHALLENGE
+  });
+  const viewerCharacterId =
+    activeDuel.challenge.challenger.telegramUserId === telegramUserId
+      ? activeDuel.session.challengerCharacterId
+      : activeDuel.challenge.target?.telegramUserId === telegramUserId
+        ? activeDuel.session.targetCharacterId
+        : null;
+  const participant = viewerCharacterId === activeDuel.session.state.participants.target.characterId
+    ? activeDuel.session.state.participants.target
+    : activeDuel.session.state.participants.challenger;
+  const skill = getCombatSkillDisplay(getCombatSkillProfile(participant.combatStats.classId).id);
+
+  await sendCombatLockText(ctx, presentCombatLockRedirect(presentTurnBasedDuel(activeDuel, { viewerCharacterId })), {
+    reply_markup: buildTurnBasedDuelKeyboard(activeDuel, viewerCharacterId, `${skill.icon} ${skill.name}`)
+  });
+
+  return true;
 }
 
 async function refreshCombatLockPresence(

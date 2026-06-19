@@ -602,10 +602,73 @@ export class DuelChallengeService {
       return { state: "stale", session };
     }
 
+    const first = await this.tryResolveTurnBasedAction(session, character.id, input.action);
+
+    if (first.state !== "stale") {
+      return first;
+    }
+
+    const latest = await this.challenges.findTurnBasedByTokenForTelegramUserId(
+      input.inviteToken,
+      telegramUserId
+    );
+
+    if (!latest || latest.turn !== input.expectedTurn || latest.state.status !== "active") {
+      return first;
+    }
+
+    const actorSide = getTurnBasedParticipantSide(latest.state, character.id);
+
+    if (!actorSide || latest.state.pendingActions?.[actorSide]) {
+      return first;
+    }
+
+    return this.tryResolveTurnBasedAction(latest, character.id, input.action);
+  }
+
+  async resolveDueTurnBasedSession(session: DuelCombatSessionRecord): Promise<TurnBasedDuelTurnResult> {
+    const resolved = resolveTurnBasedDuelTimeout({
+      state: session.state,
+      rng: this.rng
+    });
+
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      return { state: "stale", session };
+    }
+
+    const state = resolved.state;
+    const now = this.clock();
+    const updated = await this.challenges.updateTurnBasedIfActiveVersion(
+      session.id,
+      session.turn,
+      session.version,
+      {
+        state,
+        status: state.status,
+        turnExpiresAt: state.status === "active" ? getNextTurnExpiry(now) : session.turnExpiresAt,
+        completedAt: state.status === "active" ? null : now,
+        result: buildStoredTurnBasedResult(state),
+        action: {
+          actorCharacterId: session.actingCharacterId,
+          turn: session.turn,
+          actionKey: "timeout-attack",
+          result: resolved.round
+        }
+      }
+    );
+
+    return updated ? { state: "updated", session: updated } : { state: "stale", session };
+  }
+
+  private async tryResolveTurnBasedAction(
+    session: DuelCombatSessionRecord,
+    actorCharacterId: string,
+    action: TurnBasedDuelAction
+  ): Promise<TurnBasedDuelTurnResult> {
     const resolved = resolveTurnBasedDuelAction({
       state: session.state,
-      actorCharacterId: character.id,
-      action: input.action,
+      actorCharacterId,
+      action,
       rng: this.rng
     });
 
@@ -620,59 +683,29 @@ export class DuelChallengeService {
       };
     }
 
-    const updated = await this.challenges.updateTurnBasedIfActiveVersion(
-      session.id,
-      input.expectedTurn,
-      input.expectedVersion,
-      {
-        state: resolved.state,
-        status: resolved.state.status,
-        turnExpiresAt: resolved.resolution === "resolved" && resolved.state.status === "active"
-          ? getNextTurnExpiry(this.clock())
-          : session.turnExpiresAt,
-        result: buildStoredTurnBasedResult(resolved.state),
-        ...(resolved.resolution === "resolved"
-          ? {
-              action: {
-                actorCharacterId: character.id,
-                turn: input.expectedTurn,
-                actionKey: input.action === "surrender" ? input.action : "round",
-                result: resolved.round
-              }
-            }
-          : {})
-      }
-    );
-
-    return updated ? { state: "updated", session: updated } : { state: "stale", session };
-  }
-
-  async resolveDueTurnBasedSession(session: DuelCombatSessionRecord): Promise<TurnBasedDuelTurnResult> {
-    const resolved = resolveTurnBasedDuelTimeout({
-      state: session.state,
-      rng: this.rng
-    });
-
-    if (!resolved.ok || resolved.resolution !== "resolved") {
-      return { state: "stale", session };
-    }
-
-    const state = resolved.state;
+    const now = this.clock();
     const updated = await this.challenges.updateTurnBasedIfActiveVersion(
       session.id,
       session.turn,
       session.version,
       {
-        state,
-        status: state.status,
-        turnExpiresAt: state.status === "active" ? getNextTurnExpiry(this.clock()) : session.turnExpiresAt,
-        result: buildStoredTurnBasedResult(state),
-        action: {
-          actorCharacterId: session.actingCharacterId,
-          turn: session.turn,
-          actionKey: "timeout-attack",
-          result: resolved.round
-        }
+        state: resolved.state,
+        status: resolved.state.status,
+        turnExpiresAt: resolved.resolution === "resolved" && resolved.state.status === "active"
+          ? getNextTurnExpiry(now)
+          : session.turnExpiresAt,
+        completedAt: resolved.state.status === "active" ? null : now,
+        result: buildStoredTurnBasedResult(resolved.state),
+        ...(resolved.resolution === "resolved"
+          ? {
+              action: {
+                actorCharacterId,
+                turn: session.turn,
+                actionKey: action === "surrender" ? action : "round",
+                result: resolved.round
+              }
+            }
+          : {})
       }
     );
 
@@ -1091,6 +1124,7 @@ function buildStoredTurnBasedResult(state: TurnBasedDuelState): DuelResultPayloa
   return {
     mode: "turn-based",
     rulesVersion: TURN_BASED_DUEL_RULES_VERSION,
+    terminalReason: state.outcome.reason,
     outcome: state.outcome.outcome,
     winnerCharacterId: state.outcome.winnerCharacterId,
     loserCharacterId: state.outcome.loserCharacterId,
@@ -1108,6 +1142,21 @@ function buildStoredTurnBasedResult(state: TurnBasedDuelState): DuelResultPayloa
       target: state.participants.target.balanceAudit
     }
   };
+}
+
+function getTurnBasedParticipantSide(
+  state: TurnBasedDuelState,
+  characterId: string
+): "challenger" | "target" | null {
+  if (state.participants.challenger.characterId === characterId) {
+    return "challenger";
+  }
+
+  if (state.participants.target.characterId === characterId) {
+    return "target";
+  }
+
+  return null;
 }
 
 function buildStoredTurnBasedParticipantSnapshot(

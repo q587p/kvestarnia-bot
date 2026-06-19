@@ -418,6 +418,65 @@ describe("handleDuelCallback", () => {
     expect(keyboardJson(editMessageText)).toContain("v1:duel:new");
   });
 
+  it("renders the canonical result card immediately after a terminal turn action", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const terminalSession = makeTurnBasedSession("forfeited", target);
+    const resolveTurnBasedActionForTelegramUser = vi.fn().mockResolvedValue({
+      state: "updated",
+      session: terminalSession
+    });
+    const getByToken = vi.fn().mockResolvedValue({
+      state: "resolved",
+      challenge: {
+        ...makeChallenge("resolved", target),
+        mode: "turn-based"
+      },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      result: {
+        mode: "turn-based",
+        terminalReason: "surrender",
+        outcome: "challenger",
+        winnerCharacterId: "character-42",
+        loserCharacterId: "character-99",
+        challengerScore: 12,
+        targetScore: 3,
+        swing: 2,
+        flavorKey: "direct-hit"
+      }
+    });
+    const recordTurnBasedMessageReference = vi.fn().mockResolvedValue(undefined);
+    const service = serviceWith({
+      resolveTurnBasedActionForTelegramUser,
+      getByToken,
+      recordTurnBasedMessageReference
+    });
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext(99);
+
+    await handleDuelCallback(ctx, { type: "turn", token: TOKEN, action: "surrender", turn: 2, version: 3 }, service, {
+      presence: createPresence()
+    });
+
+    expect(resolveTurnBasedActionForTelegramUser).toHaveBeenCalledWith(99n, {
+      inviteToken: TOKEN,
+      expectedTurn: 2,
+      expectedVersion: 3,
+      action: "surrender"
+    });
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(messageText(editMessageText)).toContain("Результат покрокової дуелі");
+    expect(messageText(editMessageText)).toContain("здається");
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:rematch:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:share:${TOKEN}`);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Результат покрокової дуелі");
+    expect(recordTurnBasedMessageReference).toHaveBeenCalledWith("session-1", "challenger", {
+      chatId: 42n,
+      messageId: 123
+    });
+  });
+
   it("keeps resource-warning accept flow on the warning keyboard", async () => {
     const service = serviceWith({
       acceptForTelegramUser: vi.fn().mockResolvedValue({
@@ -642,11 +701,15 @@ function createCallbackContext(userId: number): {
   ctx: Context;
   answerCallbackQuery: ReturnType<typeof vi.fn>;
   editMessageText: ReturnType<typeof vi.fn>;
+  apiEditMessageText: ReturnType<typeof vi.fn>;
   reply: ReturnType<typeof vi.fn>;
+  sendMessage: ReturnType<typeof vi.fn>;
 } {
   const answerCallbackQuery = vi.fn().mockResolvedValue(true);
   const editMessageText = vi.fn().mockResolvedValue(true);
+  const apiEditMessageText = vi.fn().mockResolvedValue(true);
   const reply = vi.fn().mockResolvedValue(true);
+  const sendMessage = vi.fn().mockResolvedValue({ message_id: 123 });
   const ctx = {
     from: {
       id: userId,
@@ -667,12 +730,16 @@ function createCallbackContext(userId: number): {
         }
       }
     },
+    api: {
+      editMessageText: apiEditMessageText,
+      sendMessage
+    },
     answerCallbackQuery,
     editMessageText,
     reply
   } as unknown as Context;
 
-  return { ctx, answerCallbackQuery, editMessageText, reply };
+  return { ctx, answerCallbackQuery, editMessageText, apiEditMessageText, reply, sendMessage };
 }
 
 function createPresence(
@@ -741,6 +808,131 @@ function makeChallenge(
     updatedAt: NOW,
     challenger: makeCharacter(42n, "Автор Виклику"),
     target
+  };
+}
+
+function makeTurnBasedSession(status: "active" | "resolved" | "expired" | "forfeited", target: DuelCharacterSnapshot) {
+  return {
+    id: "session-1",
+    duelChallengeId: "duel-1",
+    challengerCharacterId: "character-42",
+    targetCharacterId: target.id,
+    status,
+    actingCharacterId: "character-99",
+    turn: 2,
+    version: 4,
+    turnExpiresAt: new Date("2026-06-17T18:00:23.000Z"),
+    completedAt: status === "active" ? null : NOW,
+    challengerChatId: null,
+    challengerMessageId: null,
+    targetChatId: null,
+    targetMessageId: null,
+    createdAt: NOW,
+    updatedAt: NOW,
+    challenge: {
+      ...makeChallenge(status === "active" ? "active" : "resolved", target),
+      mode: "turn-based"
+    },
+    state: {
+      mode: "turn-based",
+      status,
+      rulesVersion: "turn-based-duel-v1",
+      balanceVersion: "instant-duel-v2",
+      turn: 2,
+      actingCharacterId: "character-99",
+      participants: {
+        challenger: makeTurnBasedParticipant("character-42", "Автор Виклику"),
+        target: makeTurnBasedParticipant("character-99", "Ціль Виклику")
+      },
+      outcome: status === "active"
+        ? undefined
+        : {
+            outcome: "challenger",
+            winnerCharacterId: "character-42",
+            loserCharacterId: "character-99",
+            reason: "surrender"
+          }
+    }
+  } as never;
+}
+
+function makeTurnBasedParticipant(characterId: string, displayName: string) {
+  return {
+    characterId,
+    displayName,
+    title: "Пересічні Пригодники",
+    raceId: "race.human-ish",
+    raceName: "Людисько",
+    classId: "class.warrior",
+    className: "Воїн",
+    level: 3,
+    remortCount: 0,
+    stats: {
+      strength: 7,
+      dexterity: 7,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6
+    },
+    hp: 12,
+    hpMax: 24,
+    mana: 6,
+    manaMax: 12,
+    combatStats: {
+      level: 3,
+      hpMax: 24,
+      manaMax: 12,
+      strength: 7,
+      dexterity: 7,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6,
+      classId: "class.warrior"
+    },
+    balanceAudit: {
+      balanceVersion: "instant-duel-v2",
+      originalLevel: 3,
+      originalRemortCount: 0,
+      progressionBudget: {
+        level: 3,
+        remortCount: 0,
+        hpMax: 0,
+        manaMax: 0,
+        stats: {
+          strength: 0,
+          dexterity: 0,
+          intelligence: 0,
+          charisma: 0,
+          luck: 0
+        },
+        score: 0
+      },
+      targetProgressionBudget: {
+        level: 3,
+        remortCount: 0,
+        hpMax: 0,
+        manaMax: 0,
+        stats: {
+          strength: 0,
+          dexterity: 0,
+          intelligence: 0,
+          charisma: 0,
+          luck: 0
+        },
+        score: 0
+      },
+      temporaryHpMax: 0,
+      temporaryManaMax: 0,
+      temporaryStats: {
+        strength: 0,
+        dexterity: 0,
+        intelligence: 0,
+        charisma: 0,
+        luck: 0
+      },
+      readinessPenalty: 0,
+      preparedScore: 0
+    }
   };
 }
 

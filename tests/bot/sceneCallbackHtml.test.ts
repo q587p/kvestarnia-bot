@@ -1024,6 +1024,36 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
   });
 
+  it("keeps remort callbacks inside an active turn-based duel", async () => {
+    const getActiveTurnBasedForTelegramUser = vi.fn(() =>
+      Promise.resolve(activeTurnBasedDuel())
+    );
+    const openForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "locked" as const,
+        character,
+        requiredLevel: 13
+      })
+    );
+    const calls = await captureApiCalls(
+      makeRemortOpenCallbackData(),
+      servicesWith({
+        duel: {
+          getActiveTurnBasedForTelegramUser
+        },
+        remort: {
+          openForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(getActiveTurnBasedForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(openForTelegramUser).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
+    expect(String(edit?.payload.text)).toContain("♟️ <b>Покрокова дуель</b>");
+  });
+
   it("keeps main-menu text inside an active training fight", async () => {
     const calls = await captureTextApiCalls(
       mainMenuButtons.tavern,
@@ -1896,6 +1926,89 @@ function trainingMonster() {
     spawnMode: "COPY_TARGET" as const,
     source: "target" as const,
     copiedEquipmentCount: 0
+  };
+}
+
+function activeTurnBasedDuel() {
+  return {
+    state: "active",
+    challenge: {
+      inviteToken: "abcDEF12",
+      challengerCharacterId: "character-1",
+      targetCharacterId: "character-2",
+      challenger: {
+        telegramUserId: 42n
+      },
+      target: {
+        telegramUserId: 99n
+      }
+    },
+    challenger: {
+      ...character,
+      name: "Перший Кухоль"
+    },
+    target: {
+      ...character,
+      name: "Другий Кухоль"
+    },
+    turnExpiresAt: new Date("2026-06-19T12:00:23.000Z"),
+    now: new Date("2026-06-19T12:00:00.000Z"),
+    session: {
+      id: "session-1",
+      status: "active",
+      challengerCharacterId: "character-1",
+      targetCharacterId: "character-2",
+      turn: 1,
+      version: 1,
+      state: {
+        mode: "turn-based",
+        status: "active",
+        rulesVersion: "turn-based-duel-v1",
+        balanceVersion: "instant-duel-v2",
+        turn: 1,
+        actingCharacterId: "character-1",
+        participants: {
+          challenger: turnBasedParticipant("character-1", "Перший Кухоль"),
+          target: turnBasedParticipant("character-2", "Другий Кухоль")
+        }
+      }
+    }
+  } as never;
+}
+
+function turnBasedParticipant(characterId: string, displayName: string) {
+  return {
+    characterId,
+    displayName,
+    title: "Пересічні Пригодники",
+    raceId: "race.human-ish",
+    raceName: "Людисько",
+    classId: "class.warrior",
+    className: "Воїн",
+    level: 3,
+    remortCount: 0,
+    stats: {
+      strength: 7,
+      dexterity: 7,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6
+    },
+    hp: 24,
+    hpMax: 24,
+    mana: 12,
+    manaMax: 12,
+    combatStats: {
+      level: 3,
+      hpMax: 24,
+      manaMax: 12,
+      strength: 7,
+      dexterity: 7,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6,
+      classId: "class.warrior"
+    }
   };
 }
 

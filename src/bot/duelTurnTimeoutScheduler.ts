@@ -3,7 +3,9 @@ import type { DuelChallengeService } from "../services/duelChallengeService";
 import { getCombatSkillDisplay } from "../services/fightService";
 import { getCombatSkillProfile } from "../domain/combat";
 import { buildTurnBasedDuelKeyboard } from "./keyboards/duelKeyboard";
-import { presentTurnBasedDuel } from "./presenters/duelPresenter";
+import { buildDuelResultKeyboard } from "./keyboards/duelKeyboard";
+import { presentDuelView, presentTurnBasedDuel } from "./presenters/duelPresenter";
+import { isMessageNotModifiedError } from "./safeEditMessageText";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -67,19 +69,26 @@ async function notifyParticipants(
   bot: Bot,
   session: Awaited<ReturnType<DuelChallengeService["listDueTurnBasedSessions"]>>[number]
 ): Promise<void> {
-  const view = await service.getTurnBasedByTokenForTelegramUser(
-    session.challenge.challenger.telegramUserId,
-    session.challenge.inviteToken
-  );
+  const view = await service.getByToken(session.challenge.inviteToken);
 
   if (view.state === "not-found") {
     return;
   }
 
-  await Promise.all([
-    notifyParticipant(service, bot, view, "challenger"),
-    notifyParticipant(service, bot, view, "target")
-  ]);
+  if (view.state === "active") {
+    await Promise.all([
+      notifyParticipant(service, bot, view, "challenger"),
+      notifyParticipant(service, bot, view, "target")
+    ]);
+    return;
+  }
+
+  if (view.state === "resolved") {
+    await Promise.all([
+      notifyResolvedParticipant(service, bot, view, session, "challenger"),
+      notifyResolvedParticipant(service, bot, view, session, "target")
+    ]);
+  }
 }
 
 async function notifyParticipant(
@@ -111,23 +120,92 @@ async function notifyParticipant(
   const keyboard = buildTurnBasedDuelKeyboard(view, characterId, skillLabel);
 
   try {
-    if (messageId) {
-      await bot.api.editMessageText(Number(chatId), messageId, text, {
+    const deliveredMessageId = await editOrSend(bot, {
+      chatId,
+      messageId,
+      text,
+      options: {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: keyboard
-      });
-      return;
-    }
+      }
+    });
 
-    const sent = await bot.api.sendMessage(Number(chatId), text, {
-      ...HTML_MESSAGE_OPTIONS,
-      reply_markup: keyboard
-    });
-    await service.recordTurnBasedMessageReference(view.session.id, participant, {
-      chatId,
-      messageId: sent.message_id
-    });
+    if (deliveredMessageId) {
+      await service.recordTurnBasedMessageReference(view.session.id, participant, {
+        chatId,
+        messageId: deliveredMessageId
+      });
+    }
   } catch {
     // Delivery is best-effort; the persisted duel state remains canonical.
   }
+}
+
+async function notifyResolvedParticipant(
+  service: DuelChallengeService,
+  bot: Bot,
+  view: Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "resolved" }>,
+  session: Awaited<ReturnType<DuelChallengeService["listDueTurnBasedSessions"]>>[number],
+  participant: "challenger" | "target"
+): Promise<void> {
+  const chatId = participant === "challenger"
+    ? session.challengerChatId ?? view.challenge.challenger.telegramUserId
+    : session.targetChatId ?? view.challenge.target?.telegramUserId;
+  const messageId = participant === "challenger"
+    ? session.challengerMessageId
+    : session.targetMessageId;
+
+  if (!chatId) {
+    return;
+  }
+
+  try {
+    const deliveredMessageId = await editOrSend(bot, {
+      chatId,
+      messageId,
+      text: presentDuelView(view),
+      options: {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildDuelResultKeyboard(view.challenge.inviteToken)
+      }
+    });
+
+    if (deliveredMessageId) {
+      await service.recordTurnBasedMessageReference(session.id, participant, {
+        chatId,
+        messageId: deliveredMessageId
+      });
+    }
+  } catch {
+    // Delivery is best-effort; the persisted duel state remains canonical.
+  }
+}
+
+async function editOrSend(
+  bot: Bot,
+  input: {
+    chatId: bigint;
+    messageId: number | null;
+    text: string;
+    options: Parameters<Bot["api"]["editMessageText"]>[3];
+  }
+): Promise<number | null> {
+  if (input.messageId) {
+    try {
+      await bot.api.editMessageText(Number(input.chatId), input.messageId, input.text, input.options);
+      return input.messageId;
+    } catch (error) {
+      if (isMessageNotModifiedError(error)) {
+        return input.messageId;
+      }
+    }
+  }
+
+  const sent = await bot.api.sendMessage(
+    Number(input.chatId),
+    input.text,
+    input.options
+  );
+
+  return sent.message_id;
 }

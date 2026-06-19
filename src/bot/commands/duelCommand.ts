@@ -4,7 +4,7 @@ import {
   getInitialDuelInviteTemplateIndex,
   getNextDuelInviteTemplateIndex
 } from "../../content/duelInviteFlavor";
-import type { DuelChallengeService } from "../../services/duelChallengeService";
+import type { DuelChallengeService, DuelChallengeView } from "../../services/duelChallengeService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_ADVENTURE_DUEL_CHALLENGE,
@@ -41,7 +41,7 @@ import {
   presentDuelView
 } from "../presenters/duelPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
-import { safeEditMessageText } from "../safeEditMessageText";
+import { isMessageNotModifiedError, safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 
 const HTML_MESSAGE_OPTIONS = {
@@ -310,15 +310,29 @@ export async function handleDuelCallback(
       return;
     }
 
-    const active = await service.getTurnBasedByTokenForTelegramUser(telegramUserId, callback.token);
+    const current = await service.getByToken(callback.token);
 
-    if (active.state === "not-found") {
+    if (current.state === "not-found") {
       await sendText(ctx, "edit", "Цю дуель уже не можна відкрити з цієї кнопки.", "result");
       return;
     }
 
-    await sendTurnBasedDuelCard(ctx, "edit", active, service);
-    await notifyOtherTurnBasedParticipant(ctx, active, service);
+    if (current.state === "active") {
+      await sendTurnBasedDuelCard(ctx, "edit", current, service);
+      await notifyOtherTurnBasedParticipant(ctx, current, service);
+      return;
+    }
+
+    await sendText(
+      ctx,
+      "edit",
+      presentDuelView(current, { inviteUrl: getInviteUrl(options.botUsername, current) }),
+      current.state === "resolved" ? { state: "result", token: current.challenge.inviteToken } : "result"
+    );
+
+    if (result.state === "updated" && current.state === "resolved") {
+      await notifyOtherTurnBasedResultParticipant(ctx, current, result.session, service);
+    }
     return;
   }
 
@@ -531,7 +545,15 @@ async function sendTurnBasedDuelCard(
   };
 
   if (mode === "edit") {
-    await safeEditMessageText(ctx, text, options);
+    const participant = viewerCharacterId === result.session.challengerCharacterId ? "challenger" : "target";
+    const editedMessageId = await editOrReplyTurnBasedCard(ctx, text, options);
+
+    if (ctx.chat?.id && editedMessageId) {
+      await service.recordTurnBasedMessageReference(result.session.id, participant, {
+        chatId: BigInt(ctx.chat.id),
+        messageId: editedMessageId
+      });
+    }
     return;
   }
 
@@ -586,25 +608,122 @@ async function notifyOtherTurnBasedParticipant(
       `${skill.icon} ${skill.name}`
     );
 
-    if (other.messageId && other.chatId) {
-      await ctx.api.editMessageText(Number(other.chatId), other.messageId, text, {
+    const messageId = await editOrSendTurnBasedCard(ctx, {
+      chatId,
+      messageId: other.messageId ?? null,
+      text,
+      options: {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: keyboard
-      });
-      return;
-    }
+      }
+    });
 
-    const sent = await ctx.api.sendMessage(Number(chatId), text, {
-      ...HTML_MESSAGE_OPTIONS,
-      reply_markup: keyboard
-    });
-    await service.recordTurnBasedMessageReference(result.session.id, other.participant, {
-      chatId,
-      messageId: sent.message_id
-    });
+    if (messageId) {
+      await service.recordTurnBasedMessageReference(result.session.id, other.participant, {
+        chatId,
+        messageId
+      });
+    }
   } catch {
     // Telegram delivery is best-effort; committed duel state remains canonical.
   }
+}
+
+async function notifyOtherTurnBasedResultParticipant(
+  ctx: Context,
+  result: Extract<DuelChallengeView, { state: "resolved" }>,
+  session: Awaited<ReturnType<DuelChallengeService["listDueTurnBasedSessions"]>>[number],
+  service: DuelChallengeService
+): Promise<void> {
+  const viewerCharacterId = getResolvedViewerCharacterId(ctx, result);
+  const other =
+    viewerCharacterId === session.challengerCharacterId
+      ? {
+          participant: "target" as const,
+          telegramUserId: result.challenge.target?.telegramUserId,
+          chatId: session.targetChatId,
+          messageId: session.targetMessageId
+        }
+      : {
+          participant: "challenger" as const,
+          telegramUserId: result.challenge.challenger.telegramUserId,
+          chatId: session.challengerChatId,
+          messageId: session.challengerMessageId
+        };
+  const chatId = other.chatId ?? other.telegramUserId;
+
+  if (!chatId || (ctx.chat?.id && BigInt(ctx.chat.id) === chatId)) {
+    return;
+  }
+
+  try {
+    const messageId = await editOrSendTurnBasedCard(ctx, {
+      chatId,
+      messageId: other.messageId ?? null,
+      text: presentDuelView(result),
+      options: {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildDuelResultKeyboard(result.challenge.inviteToken)
+      }
+    });
+
+    if (messageId) {
+      await service.recordTurnBasedMessageReference(session.id, other.participant, {
+        chatId,
+        messageId
+      });
+    }
+  } catch {
+    // Telegram delivery is best-effort; committed duel state remains canonical.
+  }
+}
+
+async function editOrReplyTurnBasedCard(
+  ctx: Context,
+  text: string,
+  options: Parameters<Context["editMessageText"]>[1]
+): Promise<number | null> {
+  const currentMessageId = ctx.callbackQuery?.message?.message_id ?? null;
+
+  try {
+    await ctx.editMessageText(text, options);
+    return currentMessageId;
+  } catch (error) {
+    if (isMessageNotModifiedError(error)) {
+      return currentMessageId;
+    }
+
+    const sent = await ctx.reply(text, options);
+    return sent.message_id;
+  }
+}
+
+async function editOrSendTurnBasedCard(
+  ctx: Context,
+  input: {
+    chatId: bigint;
+    messageId: number | null;
+    text: string;
+    options: Parameters<Context["api"]["editMessageText"]>[3];
+  }
+): Promise<number | null> {
+  if (input.messageId) {
+    try {
+      await ctx.api.editMessageText(Number(input.chatId), input.messageId, input.text, input.options);
+      return input.messageId;
+    } catch (error) {
+      if (isMessageNotModifiedError(error)) {
+        return input.messageId;
+      }
+    }
+  }
+
+  const sent = await ctx.api.sendMessage(
+    Number(input.chatId),
+    input.text,
+    input.options
+  );
+  return sent.message_id;
 }
 
 function getViewerCharacterId(
@@ -623,6 +742,27 @@ function getViewerCharacterId(
 
   if (result.challenge.target?.telegramUserId === telegramUserId) {
     return result.session.targetCharacterId;
+  }
+
+  return null;
+}
+
+function getResolvedViewerCharacterId(
+  ctx: Context,
+  result: Extract<DuelChallengeView, { state: "resolved" }>
+): string | null {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    return null;
+  }
+
+  if (result.challenge.challenger.telegramUserId === telegramUserId) {
+    return result.challenge.challengerCharacterId;
+  }
+
+  if (result.challenge.target?.telegramUserId === telegramUserId) {
+    return result.challenge.targetCharacterId;
   }
 
   return null;

@@ -352,7 +352,7 @@ export type BattleInterventionKind = "help" | "none" | "hinder";
 export interface PersistentFightDifficultyConfig {
   id: PersistentFightDifficultyId;
   interventionKind: BattleInterventionKind;
-  levelDelta: -3 | 0 | 5;
+  levelDelta: -3 | 0 | 2;
   xpMultiplier: number;
   goldMultiplier: number;
   dropChanceMultiplier: number;
@@ -364,9 +364,9 @@ export const PERSISTENT_FIGHT_DIFFICULTY_CONFIG = {
     id: "easy",
     interventionKind: "help",
     levelDelta: -3,
-    xpMultiplier: 0.45,
-    goldMultiplier: 0.45,
-    dropChanceMultiplier: 0.5,
+    xpMultiplier: 0.75,
+    goldMultiplier: 0.85,
+    dropChanceMultiplier: 0.65,
     lootPowerOffset: -1
   },
   normal: {
@@ -381,10 +381,10 @@ export const PERSISTENT_FIGHT_DIFFICULTY_CONFIG = {
   hard: {
     id: "hard",
     interventionKind: "hinder",
-    levelDelta: 5,
-    xpMultiplier: 1.1,
-    goldMultiplier: 1.1,
-    dropChanceMultiplier: 1.1,
+    levelDelta: 2,
+    xpMultiplier: 1.2,
+    goldMultiplier: 1.05,
+    dropChanceMultiplier: 1.35,
     lootPowerOffset: 1
   }
 } as const satisfies Record<PersistentFightDifficultyId, PersistentFightDifficultyConfig>;
@@ -1574,30 +1574,16 @@ export class FightService {
     const now = this.clock();
     const since = new Date(now.getTime() - MONSTER_REST_COOLDOWN_MS * MONSTER_REST_ELIGIBLE_FIGHT_COUNT);
     const recent = await this.combatSessions.listCompletedByTelegramUserIdSince(telegramUserId, since);
-    const tracked = recent
-      .filter((session) => isMonsterRestTrackedSession(session))
+    const eligible = recent
+      .filter((session) => isMonsterRestEligibleSession(session))
       .sort((left, right) => left.completedAt.getTime() - right.completedAt.getTime());
-    const streak: typeof tracked = [];
 
-    for (let index = tracked.length - 1; index >= 0; index -= 1) {
-      const session = tracked[index];
-
-      if (!session || session.status !== "won") {
-        break;
-      }
-
-      streak.unshift(session);
-
-      if (streak.length >= MONSTER_REST_ELIGIBLE_FIGHT_COUNT) {
-        break;
-      }
-    }
-
-    if (streak.length < MONSTER_REST_ELIGIBLE_FIGHT_COUNT) {
+    if (eligible.length < MONSTER_REST_ELIGIBLE_FIGHT_COUNT) {
       return null;
     }
 
-    const third = streak[MONSTER_REST_ELIGIBLE_FIGHT_COUNT - 1];
+    const streak = eligible.slice(-MONSTER_REST_ELIGIBLE_FIGHT_COUNT);
+    const third = streak.at(-1);
     if (!third) {
       return null;
     }
@@ -1608,11 +1594,11 @@ export class FightService {
   }
 }
 
-function isMonsterRestTrackedSession(
+function isMonsterRestEligibleSession(
   session: Pick<SoloCombatSessionRecord, "monsterId" | "status" | "createdAt" | "state">
 ): boolean {
   if (
-    session.status === "active" ||
+    session.status !== "won" ||
     session.state?.source !== "normal" ||
     isTrainingDoppelgangerMonsterId(session.monsterId)
   ) {
@@ -1681,30 +1667,28 @@ function buildPersistentFightWinXp(input: {
   effectiveMonsterLevel: number;
   difficulty: PersistentFightDifficultyConfig;
 }): number {
-  const roundReward = input.difficulty.id === "easy" ? Math.floor : Math.round;
   const antiFarmGap = input.characterLevel - input.baseMonsterLevel;
 
   if (antiFarmGap > 3) {
-    return Math.max(1, roundReward(2 * input.difficulty.xpMultiplier));
+    return Math.max(1, Math.round(2 * input.difficulty.xpMultiplier));
   }
 
   if (antiFarmGap > 2) {
-    return Math.max(1, roundReward(3 * input.difficulty.xpMultiplier));
+    return Math.max(1, Math.round(3 * input.difficulty.xpMultiplier));
   }
 
   const baseXp = Math.min(14, Math.max(5, 3 + input.effectiveMonsterLevel * 2));
 
-  return Math.max(1, roundReward(baseXp * input.difficulty.xpMultiplier));
+  return Math.max(1, Math.round(baseXp * input.difficulty.xpMultiplier));
 }
 
 function buildPersistentFightWinGold(
   monsterLevel: number,
   difficulty: PersistentFightDifficultyConfig = PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
 ): number {
-  const roundReward = difficulty.id === "easy" ? Math.floor : Math.round;
   const baseGold = Math.min(7, Math.max(1, 1 + Math.floor(monsterLevel / 2)));
 
-  return Math.max(1, roundReward(baseGold * difficulty.goldMultiplier));
+  return Math.max(1, Math.round(baseGold * difficulty.goldMultiplier));
 }
 
 function getLootExpansionSourceForMonster(monster: MonsterContent): LootExpansionSourceId {

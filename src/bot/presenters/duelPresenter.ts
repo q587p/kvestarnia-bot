@@ -605,6 +605,10 @@ function presentDuelFlavor(
   winner: CharacterSummary,
   loser: CharacterSummary
 ): string {
+  if (result.mode === "turn-based" && result.terminalReason === "surrender") {
+    return `🏳️ ${presentDuelFlavorName(loser)} здається. ${presentDuelFlavorName(winner)} отримує перемогу, а Корчмар — рядок у протоколі без зайвої драматургії.`;
+  }
+
   const winnerName = presentDuelFlavorName(winner);
   const loserName = presentDuelFlavorName(loser);
 
