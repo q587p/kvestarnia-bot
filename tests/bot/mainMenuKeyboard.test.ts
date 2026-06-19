@@ -17,7 +17,7 @@ import {
   buildPersistentFightKeyboard,
   buildPersistentFightResultKeyboard
 } from "../../src/bot/keyboards/fightKeyboard";
-import { buildTurnBasedDuelKeyboard } from "../../src/bot/keyboards/duelKeyboard";
+import { buildDuelResultKeyboard, buildTurnBasedDuelKeyboard } from "../../src/bot/keyboards/duelKeyboard";
 import { getCombatSkillDisplay, getPersistentFightSkillLabel } from "../../src/services/fightService";
 import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
@@ -588,6 +588,23 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(keyboard)).toEqual(["🔎 Оновити"]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:duel:view:abcDEF12"]);
+  });
+
+  it("returns duel result cards to the fighting corner", () => {
+    const keyboard = buildDuelResultKeyboard("abcDEF12");
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "🔁 Реванш",
+      "📣 Картка",
+      "🥊 Покликати ще когось",
+      "🥊 До кутка"
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:duel:rematch:abcDEF12",
+      "v1:duel:share:abcDEF12",
+      "v1:duel:new",
+      "v1:place:fighting-corner"
+    ]);
   });
 
   it("hides turn actions after the viewer already queued a duel choice", () => {

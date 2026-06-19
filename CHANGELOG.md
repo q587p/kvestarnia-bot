@@ -27,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Targeted duel invite recipients now receive a best-effort in-game notice when the challenger cancels before acceptance.
 - Quick duel participants now receive a best-effort result card immediately after the other side accepts, instead of needing to refresh an old invite card.
 - Active turn-based duel cards now show only duel actions and refresh, removing the Fighting Corner navigation button that was blocked by the active combat lock anyway.
+- Duel result cards now return to the Fighting Corner instead of the quest table or hall.
 - The central combat lock now treats active turn-based duels as active combat and redirects normal navigation back to the canonical duel card.
 - Restart/remort routes remain available during ordinary combat according to the existing side-surface policy, but redirect back to an active turn-based duel until that duel is durably terminal.
 - Quick duel behavior remains instant, rewardless and replay-safe, while old quick result JSON still renders as `⚡ Миттєва дуель`.
