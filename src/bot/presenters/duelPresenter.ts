@@ -30,7 +30,7 @@ export function presentDuelEntry(): string {
     "",
     DUEL_INVITE_FAIRNESS_LINE,
     "",
-    "Без ставок, крадіжок, XP, золота чи втрат манаток."
+    "Миттєва — без нагород. Покрокова — з малим досвідом. Без ставок, золота чи втрат манаток."
   ].join("\n");
 }
 
@@ -300,7 +300,9 @@ function presentPendingDuel(
     DUEL_INVITE_FAIRNESS_LINE,
     "",
     `Виклик відкритий ще <b>${formatRemaining(result.expiresAt, result.now)}</b>. Інший пригодник має натиснути «Прийняти».`,
-    "Нагород, ставок і втрат немає: це перший безпечний запис бійцівського кутка."
+    result.challenge.mode === "turn-based"
+      ? "За покрокову дуель лишиться трохи досвіду. Ставок, золота й втрат немає."
+      : "Нагород, ставок і втрат немає: це безпечний запис бійцівського кутка."
   ];
 
   if (result.challengerResourceWarning) {
@@ -378,7 +380,7 @@ export function presentTurnBasedDuel(
     "",
     actionLine,
     "",
-    "<i>Дуель не змінює справжні HP/ману, XP, золото чи манатки.</i>"
+    "<i>Дуель не змінює справжні HP/ману, золото чи манатки.</i>"
   );
 
   return lines.join("\n");
@@ -413,7 +415,10 @@ export function presentDuelResultShare(result: Extract<DuelChallengeView, { stat
     "",
     headline,
     "",
-    "<i>Без XP, золота й манаток. Тільки слава, кухоль і трохи підозрілий запис у журналі.</i>"
+    ...presentDuelRewardLines(result),
+    result.challenge.mode === "turn-based"
+      ? "<i>Без золота й манаток. Тільки слава, кухоль і трохи підозрілий запис у журналі.</i>"
+      : "<i>Без XP, золота й манаток. Тільки слава, кухоль і трохи підозрілий запис у журналі.</i>"
   ].join("\n");
 }
 
@@ -452,7 +457,10 @@ function presentResolvedDuel(
     "",
     headline,
     "",
-    "<i>Без XP, золота й манаток. Це корчемний запис для слави, а не спосіб заробітку.</i>"
+    ...presentDuelRewardLines(result),
+    mode === "turn-based"
+      ? "<i>Без золота й манаток. Це корчемний запис для слави, а не спосіб заробітку.</i>"
+      : "<i>Без XP, золота й манаток. Це корчемний запис для слави, а не спосіб заробітку.</i>"
   ];
 
   if (options.replayNotice !== false) {
@@ -464,6 +472,18 @@ function presentResolvedDuel(
 
 function presentDuelModeBadge(mode: "quick" | "turn-based"): string {
   return mode === "turn-based" ? "♟️" : "⚡";
+}
+
+function presentDuelRewardLines(result: Extract<DuelChallengeView, { state: "resolved" }>): string[] {
+  if (result.challenge.mode !== "turn-based" || !result.result.xpRewards) {
+    return [];
+  }
+
+  return [
+    "Досвід за дуель:",
+    `<b>${escapeHtml(result.challenger.name)} +${result.result.xpRewards.challenger} XP\n${escapeHtml(result.target.name)} +${result.result.xpRewards.target} XP</b>`,
+    ""
+  ];
 }
 
 function presentDuelVitals(participant: {

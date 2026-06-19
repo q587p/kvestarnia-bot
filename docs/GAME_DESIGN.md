@@ -473,7 +473,7 @@ MVP flow:
 - Гравець створює duel invite з корчми, presence surface або майбутньої shareable card.
 - Target приймає виклик явною кнопкою.
 - Виклик має expiry, decline/cancel states і replay-safe result.
-- Resolve має два rewardless формати: quick `⚡ Миттєва дуель` одразу пише результат, а `♟️ Покрокова дуель` створює persistent two-player session із черговістю ходів.
+- Resolve має два безпечні формати: quick `⚡ Миттєва дуель` одразу пише результат і не дає XP, а `♟️ Покрокова дуель` створює persistent two-player session із черговістю ходів та малим XP-only terminal reward.
 - Result card коротко показує, хто кого переміг, чому це смішно й чи можна натиснути `Реванш`.
 
 Resolution formula має бути напіврандомною, але відчутно залежати від героя:
@@ -488,7 +488,7 @@ Resolution formula має бути напіврандомною, але відч
 Rewards and anti-grind:
 - No item loss, no gold steal, no injury spiral.
 - No wagers in the first duel slice.
-- Reward-bearing duels мають pair caps and per-character daily caps.
+- XP-bearing duels мають pair caps and per-character daily caps.
 - Повторні callbacks replay-ять той самий result і не дублюють XP/social score.
 - Daily/weekly recognition має бути social/cosmetic first: титул, запис на дошці, коротка згадка, а не power snowball.
 

@@ -84,7 +84,8 @@ describe("health server", () => {
     expect(text).toContain("<code>♟️ Покрокова дуель</code>");
     expect(text).toContain("<code>🎲 Інший текст</code>");
     expect(text).toContain("Корчмар і далі тимчасово підрівнює досвід");
-    expect(text).toContain("Нагород, ставок, втрат речей, турнірів");
+    expect(text).toContain("За покрокову дуель тепер лишається трохи XP");
+    expect(text).toContain("Золота, манаток, ставок, втрат речей, турнірів");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

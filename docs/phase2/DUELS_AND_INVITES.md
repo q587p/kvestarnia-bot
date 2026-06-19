@@ -56,7 +56,7 @@
 - new `result_json` payloads store participant snapshots, balance version and audit data so replay-facing cards do not silently change after rename, remort, level-up or equipment swaps;
 - old result payloads remain readable; no migration or turn-based PvP runtime ships in this slice.
 
-`0.1.18` adds the first persistent rewardless player-vs-player runtime as `♟️ Покрокова дуель`:
+`0.1.18` adds the first persistent player-vs-player runtime as `♟️ Покрокова дуель`:
 - the Fighting Corner offers `⚡ Миттєва дуель` and `♟️ Покрокова дуель`;
 - turn-based invites use `duel_turnbased_<token>`, the same 13-copy pool and the same qualitative fairness line;
 - `DuelChallenge.mode` is server-authoritative, defaults old rows to `quick`, and deep-link prefixes cannot switch a stored challenge mode;
@@ -65,10 +65,12 @@
 - participant choices are queued privately in `state_json`; damage, mana spending and visible summaries are resolved only when both participants have chosen or the timeout fills missing choices;
 - resolved rounds use shared combat-domain actor-vs-defender logic for attack, class skill, mana, cooldown, armor/resist and HP clamping;
 - each round stores `turnExpiresAt`; due rounds can be advanced by an idempotent timeout auto-attack after roughly `23` seconds;
-- terminal rows release leases, write one result and keep rematches mode-preserving;
+- terminal rows release leases, write one result, grant small stored XP exactly once and keep rematches mode-preserving;
 - `👀 Хто поруч` offers `Кинути виклик присутнім`: it pages active players in the same current location, lets the challenger pick quick or turn-based mode and sends the chosen player an in-game targeted invite best-effort.
 
-Still future: tournaments, economy rewards, wagers, item loss, cross-location discovery, broad social discovery and manatka/gold exchange.
+Turn-based duel XP is intentionally small and stored in `result_json`: `1 XP` for a loss, `2-5 XP` for a draw and `4-8 XP` for a win with a bounded luck influence. Quick duels remain XP-free.
+
+Still future: tournaments, gold/item/manatka rewards, wagers, item loss, cross-location discovery, broad social discovery and manatka/gold exchange.
 
 ## Flow
 
@@ -84,7 +86,7 @@ Still future: tournaments, economy rewards, wagers, item loss, cross-location di
 
 ## Resolve shape
 
-Quick mode remains instant resolve. Turn-based mode uses a persistent two-player session, but both modes still share the invite/rematch ledger, normalization helper, rewardless guardrails and replay-safe result payloads.
+Quick mode remains instant resolve and rewardless. Turn-based mode uses a persistent two-player session and a tiny XP-only terminal reward, but both modes still share the invite/rematch ledger, normalization helper, no-gold/no-item guardrails and replay-safe result payloads.
 
 Inputs:
 - level bracket;
@@ -184,5 +186,6 @@ Duel result notifications should eventually update or notify the other side with
 - Old buttons replay state instead of mutating it again.
 - Target ownership or open-invite eligibility is checked server-side.
 - Turn-based callbacks include expected turn/version and never trust client-supplied mode, actor, damage or result.
+- Turn-based XP rewards are stored with the terminal result and granted only by the successful terminal transaction.
 - Result card is short enough for a mobile screen.
 - Tests cover create, accept, decline, cancel, expire, stale callback, repeated accept and no reward duplication.

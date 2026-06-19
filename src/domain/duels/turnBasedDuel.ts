@@ -14,6 +14,9 @@ import type { DuelistSummary, DuelOutcomeSide } from "./duelResolver";
 export const TURN_BASED_DUEL_RULES_VERSION = "turn-based-duel-v1";
 export const TURN_BASED_DUEL_TURN_SECONDS = 23;
 export const TURN_BASED_DUEL_MAX_TURNS = 93;
+export const TURN_BASED_DUEL_LOSS_XP = 1;
+export const TURN_BASED_DUEL_DRAW_XP_RANGE = { min: 2, max: 5 } as const;
+export const TURN_BASED_DUEL_WIN_XP_RANGE = { min: 4, max: 8 } as const;
 
 export type DuelMode = "quick" | "turn-based";
 export type TurnBasedDuelStatus = "active" | "resolved" | "expired" | "forfeited";
@@ -83,6 +86,11 @@ export interface TurnBasedDuelState {
   lastRound?: TurnBasedDuelRoundSummary;
   lastAction?: TurnBasedDuelActionSummary;
   outcome?: TurnBasedDuelOutcome;
+}
+
+export interface TurnBasedDuelXpRewards {
+  challenger: number;
+  target: number;
 }
 
 export interface StartTurnBasedDuelInput {
@@ -368,6 +376,38 @@ export function expireTurnBasedDuel(state: TurnBasedDuelState): TurnBasedDuelSta
   return next;
 }
 
+export function rollTurnBasedDuelXpRewards(
+  state: TurnBasedDuelState,
+  rng: RandomSource
+): TurnBasedDuelXpRewards | null {
+  if (state.status === "active" || !state.outcome || state.outcome.reason === "expired") {
+    return null;
+  }
+
+  if (state.outcome.outcome === "draw") {
+    return {
+      challenger: rollLuckBiasedXp(TURN_BASED_DUEL_DRAW_XP_RANGE, state.participants.challenger.stats.luck, rng),
+      target: rollLuckBiasedXp(TURN_BASED_DUEL_DRAW_XP_RANGE, state.participants.target.stats.luck, rng)
+    };
+  }
+
+  const winnerSide = findParticipantSide(state, state.outcome.winnerCharacterId ?? "");
+  const loserSide = findParticipantSide(state, state.outcome.loserCharacterId ?? "");
+
+  if (!winnerSide || !loserSide) {
+    return null;
+  }
+
+  return {
+    challenger: winnerSide === "challenger"
+      ? rollLuckBiasedXp(TURN_BASED_DUEL_WIN_XP_RANGE, state.participants.challenger.stats.luck, rng)
+      : TURN_BASED_DUEL_LOSS_XP,
+    target: winnerSide === "target"
+      ? rollLuckBiasedXp(TURN_BASED_DUEL_WIN_XP_RANGE, state.participants.target.stats.luck, rng)
+      : TURN_BASED_DUEL_LOSS_XP
+  };
+}
+
 export function getTurnBasedDuelSkillLabel(participant: Pick<TurnBasedDuelParticipantSnapshot, "classId">): {
   skillId: string;
   manaCost: number;
@@ -438,6 +478,18 @@ function buildDefenderStats(participant: TurnBasedDuelParticipantSnapshot) {
 
 function rollInitiative(character: ReturnType<typeof prepareBalancedDuelists>["challenger"], rng: RandomSource): number {
   return character.stats.dexterity * 2 + character.stats.luck + rng.nextInt(1, 13);
+}
+
+function rollLuckBiasedXp(
+  range: { min: number; max: number },
+  luck: number,
+  rng: RandomSource
+): number {
+  const base = rng.nextInt(range.min, range.max);
+  const luckChance = Math.min(0.35, Math.max(0, Math.floor(luck)) * 0.02);
+  const bonus = rng.nextFloat() < luckChance ? 1 : 0;
+
+  return Math.min(range.max, base + bonus);
 }
 
 function findParticipantSide(

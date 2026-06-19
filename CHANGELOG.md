@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Same-round turn callback races now retry one safe merge after an optimistic version loss when the actor has not yet chosen and the round has not advanced.
 - Turn-based duel card delivery now records successful edits, falls back to fresh messages after edit failures, and keeps committed gameplay state independent from Telegram delivery.
 - Turn-based duel cards now mirror persistent monster fights by hiding unavailable class actions while mana/cooldown rules make them unavailable and showing the viewer's active skill cooldown.
+- Turn-based duel terminal results now grant small replay-safe XP: `1 XP` for a loss, `2-5 XP` for a draw and `4-8 XP` for a win with a small luck-biased upside; quick duels remain XP-free.
 - Targeted duel invite recipients now receive a best-effort in-game notice when the challenger cancels before acceptance.
 - Quick duel participants now receive a best-effort result card immediately after the other side accepts, instead of needing to refresh an old invite card.
 - Pending duel cards re-rendered from decline paths now preserve configured invite-link state instead of falsely warning that the bot username is missing.
@@ -36,7 +37,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Guardrails
 - Turn-based duel HP/mana are ephemeral session resources and do not damage, heal or refill persistent `Character` resources.
-- No XP, gold, items, quest progress, item loss, wagers, ranking rewards, tournaments, spectator betting or broad cross-location player discovery were added.
+- No gold, items, quest progress, item loss, wagers, ranking rewards, tournaments, spectator betting or broad cross-location player discovery were added; the only new progression reward is the small terminal XP for completed turn-based duels.
 - Telegram sends/edits are best-effort after committed state; notification failures do not roll back gameplay state.
 
 ## [0.1.17] - 12026.06.19 - Instant Duel Polish

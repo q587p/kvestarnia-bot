@@ -15,6 +15,7 @@ import { resolveQuickDuel } from "../domain/duels/duelResolver";
 import {
   resolveTurnBasedDuelAction,
   resolveTurnBasedDuelTimeout,
+  rollTurnBasedDuelXpRewards,
   startTurnBasedDuel,
   TURN_BASED_DUEL_RULES_VERSION,
   TURN_BASED_DUEL_TURN_SECONDS,
@@ -638,6 +639,10 @@ export class DuelChallengeService {
 
     const state = resolved.state;
     const now = this.clock();
+    const result = buildStoredTurnBasedResult(
+      state,
+      rollTurnBasedDuelXpRewards(state, this.rng)
+    );
     const updated = await this.challenges.updateTurnBasedIfActiveVersion(
       session.id,
       session.turn,
@@ -647,7 +652,7 @@ export class DuelChallengeService {
         status: state.status,
         turnExpiresAt: state.status === "active" ? getNextTurnExpiry(now) : session.turnExpiresAt,
         completedAt: state.status === "active" ? null : now,
-        result: buildStoredTurnBasedResult(state),
+        result,
         action: {
           actorCharacterId: session.actingCharacterId,
           turn: session.turn,
@@ -684,6 +689,10 @@ export class DuelChallengeService {
     }
 
     const now = this.clock();
+    const result = buildStoredTurnBasedResult(
+      resolved.state,
+      rollTurnBasedDuelXpRewards(resolved.state, this.rng)
+    );
     const updated = await this.challenges.updateTurnBasedIfActiveVersion(
       session.id,
       session.turn,
@@ -695,7 +704,7 @@ export class DuelChallengeService {
           ? getNextTurnExpiry(now)
           : session.turnExpiresAt,
         completedAt: resolved.state.status === "active" ? null : now,
-        result: buildStoredTurnBasedResult(resolved.state),
+        result,
         ...(resolved.resolution === "resolved"
           ? {
               action: {
@@ -1116,7 +1125,10 @@ function buildStoredDuelResult(
   };
 }
 
-function buildStoredTurnBasedResult(state: TurnBasedDuelState): DuelResultPayload | null {
+function buildStoredTurnBasedResult(
+  state: TurnBasedDuelState,
+  xpRewards: DuelResultPayload["xpRewards"] | null = null
+): DuelResultPayload | null {
   if (state.status === "active" || !state.outcome) {
     return null;
   }
@@ -1125,6 +1137,7 @@ function buildStoredTurnBasedResult(state: TurnBasedDuelState): DuelResultPayloa
     mode: "turn-based",
     rulesVersion: TURN_BASED_DUEL_RULES_VERSION,
     terminalReason: state.outcome.reason,
+    ...(xpRewards ? { xpRewards } : {}),
     outcome: state.outcome.outcome,
     winnerCharacterId: state.outcome.winnerCharacterId,
     loserCharacterId: state.outcome.loserCharacterId,

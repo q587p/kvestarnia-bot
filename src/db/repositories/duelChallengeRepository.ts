@@ -28,6 +28,10 @@ export interface DuelResultPayload {
   mode?: DuelMode;
   rulesVersion?: string;
   terminalReason?: "defeat" | "surrender" | "max-turns" | "expired";
+  xpRewards?: {
+    challenger: number;
+    target: number;
+  };
   outcome: "challenger" | "target" | "draw";
   winnerCharacterId: string | null;
   loserCharacterId: string | null;

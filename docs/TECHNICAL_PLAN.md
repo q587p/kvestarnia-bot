@@ -30,7 +30,7 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 
 `0.1.11` adds manual duel result follow-ups on top of the same ledger: resolved cards can create a targeted rewardless rematch between the original participants or send a separate shareable result card. Rematch and share callbacks reuse stored server-side state and do not reroll results, grant rewards, notify other participants automatically or create tournament/rating state.
 
-`0.1.18` adds `♟️ Покрокова дуель` on top of the duel ledger. It persists `DuelChallenge.mode`, adds one-to-one `duel_combat_sessions`, append-only resolved-round `duel_combat_actions`, active combat leases, optimistic round versioning and a durable 23-second timeout poller. Participant choices are queued privately in session state; a round reveals and applies combat only after both choices arrive or the timeout fills missing choices with ordinary attacks. Turn-based duel actions use the shared pure combat primitive extracted from `src/domain/combat`, while Telegram notifications remain best-effort after committed DB state. `👀 Хто поруч` also exposes a location-scoped targeted invite flow through `v1:nd:*` callbacks: the bot lists active same-location candidates, creates a normal targeted `DuelChallenge` in the selected mode and sends the target an in-game notification best-effort.
+`0.1.18` adds `♟️ Покрокова дуель` on top of the duel ledger. It persists `DuelChallenge.mode`, adds one-to-one `duel_combat_sessions`, append-only resolved-round `duel_combat_actions`, active combat leases, optimistic round versioning and a durable 23-second timeout poller. Participant choices are queued privately in session state; a round reveals and applies combat only after both choices arrive or the timeout fills missing choices with ordinary attacks. Turn-based duel actions use the shared pure combat primitive extracted from `src/domain/combat`, while Telegram notifications remain best-effort after committed DB state. Terminal turn-based results store small XP rewards in `result_json` and grant them once in the same transaction that resolves the parent challenge; quick duels remain XP-free. `👀 Хто поруч` also exposes a location-scoped targeted invite flow through `v1:nd:*` callbacks: the bot lists active same-location candidates, creates a normal targeted `DuelChallenge` in the selected mode and sends the target an in-game notification best-effort.
 
 Future Support Jar live status is documented in [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md). It should be a separate read-only integration with Monobank `client-info`, server-side token handling, TTL cache, no DB donor state, no payment confirmation and no gameplay rewards. Do not treat manual `SUPPORT_JAR_CURRENT_UAH`/`SUPPORT_JAR_GOAL_UAH` values as the long-term status path after that slice lands.
 
@@ -247,10 +247,10 @@ Rules:
 - Quick resolve may use level bracket, race, class, current title/earned identity, effective stats, equipment/item tags and a bounded seed.
 - Turn-based accept freezes both participant snapshots and stores active combat state in `duel_combat_sessions`; damage/mana spend inside the session is ephemeral and must not be written back to `characters`.
 - `active_combat_leases` is the narrow cross-combat guard for persistent turn-based duels and existing solo/training combat start paths.
-- Pair/day caps, ranking and abuse logging should be designed with the first reward-bearing duel slice, not bolted on after tournaments.
+- Pair/day caps and abuse logging matter as soon as turn-based XP exists; the current same-pair cap remains the narrow first guard, while later ranking rewards need a separate design.
 
 ### duel_combat_sessions and duel_combat_actions
-Shipped in `0.1.18` for rewardless turn-based player duels.
+Shipped in `0.1.18` for persistent turn-based player duels.
 
 - `duel_challenge_id` unique FK
 - `challenger_character_id`, `target_character_id`
@@ -263,7 +263,7 @@ Shipped in `0.1.18` for rewardless turn-based player duels.
 
 Rules:
 - Callback payloads carry only compact token/action/expected turn/version. Mode, actor, damage, skill cost and result are always server-side.
-- Terminal updates release both active leases idempotently and write one stored result to the parent challenge.
+- Terminal updates release both active leases idempotently, write one stored result to the parent challenge and grant stored XP rewards only when that terminal challenge update succeeds.
 - Telegram edit/send failures may fall back to a fresh message, but never roll back or duplicate gameplay state.
 
 ### future item_transfers

@@ -18,7 +18,9 @@ import type {
 import type { CharacterEquipmentRecord } from "./equipmentRepository";
 import type { CharacterStats, StatKey } from "../../domain/characters/starterStats";
 import type { TurnBasedDuelState, TurnBasedDuelStatus } from "../../domain/duels/turnBasedDuel";
-import { getIncludedRemortCount } from "./prismaRemortCount";
+import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
+import { recordLevelMilestones } from "./levelMilestoneRepository";
+import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 
 type DuelChallengeWithCharacters = Awaited<ReturnType<typeof findChallengeByToken>>;
 type DuelCombatSessionWithChallenge =
@@ -530,7 +532,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         });
 
         if (current) {
-          await tx.duelChallenge.updateMany({
+          const challengeUpdate = await tx.duelChallenge.updateMany({
             where: {
               id: current.duelChallengeId,
               status: "active"
@@ -545,6 +547,12 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
                 : {})
             }
           });
+
+          if (challengeUpdate.count === 1 && input.result?.xpRewards) {
+            await awardTurnBasedDuelXp(tx, current.challengerCharacterId, input.result.xpRewards.challenger);
+            await awardTurnBasedDuelXp(tx, current.targetCharacterId, input.result.xpRewards.target);
+          }
+
           await tx.activeCombatLease.deleteMany({
             where: {
               characterId: {
@@ -626,6 +634,56 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       }
     });
   }
+}
+
+async function awardTurnBasedDuelXp(
+  tx: Prisma.TransactionClient,
+  characterId: string,
+  xpReward: number
+): Promise<void> {
+  const amount = Math.max(0, Math.floor(xpReward));
+
+  if (amount <= 0) {
+    return;
+  }
+
+  const character = await tx.character.findUnique({
+    where: {
+      id: characterId
+    }
+  });
+
+  if (!character) {
+    return;
+  }
+
+  const rewardedCharacter = await tx.character.update({
+    where: {
+      id: character.id
+    },
+    data: {
+      xp: {
+        increment: amount
+      }
+    }
+  });
+  const remortCount = await countCharacterRemorts(tx, character.id);
+  const rewardProgress = applyXpReward(character.xp, amount, { remortCount });
+  const oldLevel = Math.max(character.level, rewardProgress.oldLevel);
+  const newLevel = Math.max(rewardedCharacter.level, getLevelForXp(rewardedCharacter.xp, { remortCount }));
+
+  if (newLevel !== rewardedCharacter.level) {
+    await tx.character.update({
+      where: {
+        id: rewardedCharacter.id
+      },
+      data: {
+        level: newLevel
+      }
+    });
+  }
+
+  await recordLevelMilestones(tx, character.id, oldLevel, newLevel);
 }
 
 async function findChallengeByToken(prisma: PrismaClient, inviteToken: string) {
@@ -804,10 +862,12 @@ function parseResult(value: unknown): DuelResultPayload | null {
 
   const participants = parseParticipants(value.participants);
   const audit = parseAudit(value.audit);
+  const xpRewards = parseXpRewards(value.xpRewards);
   const result: DuelResultPayload = {
     ...(value.mode === "quick" || value.mode === "turn-based" ? { mode: value.mode } : {}),
     ...(typeof value.rulesVersion === "string" ? { rulesVersion: value.rulesVersion } : {}),
     ...(isTerminalReason(value.terminalReason) ? { terminalReason: value.terminalReason } : {}),
+    ...(xpRewards ? { xpRewards } : {}),
     outcome,
     winnerCharacterId: typeof value.winnerCharacterId === "string" ? value.winnerCharacterId : null,
     loserCharacterId: typeof value.loserCharacterId === "string" ? value.loserCharacterId : null,
@@ -827,6 +887,17 @@ function parseResult(value: unknown): DuelResultPayload | null {
   }
 
   return result;
+}
+
+function parseXpRewards(value: unknown): DuelResultPayload["xpRewards"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  return {
+    challenger: Math.max(0, intOrZero(value.challenger)),
+    target: Math.max(0, intOrZero(value.target))
+  };
 }
 
 function parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {

@@ -15,6 +15,7 @@ import type {
   UpdateCharacterResourcesInput
 } from "../../src/db/repositories/characterRepository";
 import type { CharacterEquipmentRecord } from "../../src/db/repositories/equipmentRepository";
+import { getLevelForXp } from "../../src/domain/progression/level";
 import { DuelChallengeService } from "../../src/services/duelChallengeService";
 import { FakeRandomSource } from "../../src/shared/random";
 
@@ -959,9 +960,24 @@ describe("DuelChallengeService", () => {
       result: {
         mode: "turn-based",
         terminalReason: "surrender",
-        loserCharacterId: "character-2"
+        loserCharacterId: "character-2",
+        xpRewards: {
+          challenger: 6,
+          target: 1
+        }
       }
     });
+    expect(world.characters.get(1n)?.xp).toBe(31);
+    expect(world.characters.get(2n)?.xp).toBe(26);
+
+    await service.resolveTurnBasedActionForTelegramUser(2n, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "surrender"
+    });
+    expect(world.characters.get(1n)?.xp).toBe(31);
+    expect(world.characters.get(2n)?.xp).toBe(26);
   });
 });
 
@@ -1389,6 +1405,10 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
             updatedAt: input.completedAt ?? fixedNow()
           }
         : challenge;
+    if (input.status !== "active" && input.result?.xpRewards) {
+      this.awardXp(session.challengerCharacterId, input.result.xpRewards.challenger);
+      this.awardXp(session.targetCharacterId, input.result.xpRewards.target);
+    }
     const updated = {
       ...session,
       status: input.status,
@@ -1446,6 +1466,22 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
 
   private findCharacterById(characterId: string): DuelCharacterSnapshot | null {
     return [...this.characters.values()].find((character) => character.id === characterId) ?? null;
+  }
+
+  private awardXp(characterId: string, xpReward: number): void {
+    const entry = [...this.characters.entries()].find(([, character]) => character.id === characterId);
+
+    if (!entry) {
+      return;
+    }
+
+    const [telegramUserId, character] = entry;
+    const xp = character.xp + Math.max(0, Math.floor(xpReward));
+    this.characters.set(telegramUserId, {
+      ...character,
+      xp,
+      level: Math.max(character.level, getLevelForXp(xp, { remortCount: character.remortCount ?? 0 }))
+    });
   }
 }
 

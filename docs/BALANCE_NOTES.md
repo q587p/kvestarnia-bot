@@ -344,7 +344,7 @@ Full resources produce zero penalty. HP matters more than mana. The cap keeps ti
 
 ### `0.1.18` turn-based duel resources and combat math
 
-`♟️ Покрокова дуель` is also rewardless. It reuses the same progression-only preparation helper as instant duels, then freezes both accepted participant snapshots into the session.
+`♟️ Покрокова дуель` reuses the same progression-only preparation helper as instant duels, then freezes both accepted participant snapshots into the session. Unlike quick duels, completed turn-based duels grant a tiny XP-only reward because they consume real turn time.
 
 Balance rules:
 - race, class, title, path, current build, equipped manatky and equipment effects remain personal;
@@ -354,7 +354,8 @@ Balance rules:
 - the turn-based resolver uses the same `resolveActorCombatAction(...)` primitive as PvE, so basic attack, class skill, mana cost, cooldown, armor/resist, weapon/spell/stat effects and HP clamping do not fork into a duel-only formula set;
 - timeout auto-actions are ordinary basic attacks for missing choices, not a separate penalty damage table;
 - max-turn safety resolves as a deterministic draw instead of creating an infinite session.
-- same-location targeted invites from `👀 Хто поруч` only change invitation routing; they do not add reward, rating, wager or combat-power modifiers.
+- terminal XP is stored in `result_json` and granted exactly once by the terminal transaction: loss `1 XP`, draw `2-5 XP`, win `4-8 XP`, with a small bounded LUCK chance to nudge within the range;
+- same-location targeted invites from `👀 Хто поруч` only change invitation routing; they do not add gold/item rewards, rating, wager or combat-power modifiers.
 
 Player-facing copy may say that the Корчмар keeps the fight moving, but must not print hidden hit/critical/cooldown formulas or exact chances.
 

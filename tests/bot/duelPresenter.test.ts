@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { presentDuelView, presentTurnBasedDuel } from "../../src/bot/presenters/duelPresenter";
+import {
+  presentDuelResultShare,
+  presentDuelView,
+  presentTurnBasedDuel
+} from "../../src/bot/presenters/duelPresenter";
 
 describe("duel presenter", () => {
   it("shows only the viewer's queued turn-based choice before the round resolves", () => {
@@ -122,6 +126,48 @@ describe("duel presenter", () => {
 
     expect(text).toContain("🏳️ <b>Права Рука</b> здається.");
     expect(text).toContain("<b>Ліва Рука</b> отримує перемогу");
+  });
+
+  it("shows stored XP rewards for turn-based results without claiming no XP", () => {
+    const view = {
+      state: "resolved",
+      challenge: {
+        mode: "turn-based",
+        inviteToken: "abcDEF12"
+      },
+      challenger: {
+        name: "Ліва Рука",
+        level: 4
+      },
+      target: {
+        name: "Права Рука",
+        level: 4
+      },
+      result: {
+        mode: "turn-based",
+        terminalReason: "defeat",
+        xpRewards: {
+          challenger: 7,
+          target: 1
+        },
+        outcome: "challenger",
+        winnerCharacterId: "challenger-character",
+        loserCharacterId: "target-character",
+        challengerScore: 12,
+        targetScore: 0,
+        swing: 3,
+        flavorKey: "direct-hit"
+      }
+    } as never;
+    const text = presentDuelView(view);
+    const share = presentDuelResultShare(view);
+
+    expect(text).toContain("Досвід за дуель:");
+    expect(text).toContain("<b>Ліва Рука +7 XP\nПрава Рука +1 XP</b>");
+    expect(text).toContain("Без золота й манаток");
+    expect(text).not.toContain("Без XP");
+    expect(share).toContain("<b>Ліва Рука +7 XP\nПрава Рука +1 XP</b>");
+    expect(share).not.toContain("Без XP");
   });
 });
 

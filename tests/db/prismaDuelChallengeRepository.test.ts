@@ -10,6 +10,10 @@ describe("PrismaDuelChallengeRepository", () => {
         terminalReason: "surrender",
         winnerCharacterId: "character-1",
         loserCharacterId: "character-2",
+        xpRewards: {
+          challenger: 7,
+          target: 1
+        },
         challengerScore: 42,
         targetScore: 23,
         swing: 2,
@@ -63,6 +67,10 @@ describe("PrismaDuelChallengeRepository", () => {
       balanceVersion: "instant-duel-v2",
       mode: "turn-based",
       terminalReason: "surrender",
+      xpRewards: {
+        challenger: 7,
+        target: 1
+      },
       participants: {
         challenger: {
           displayName: "Старе Імʼя",

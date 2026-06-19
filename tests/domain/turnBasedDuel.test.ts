@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveTurnBasedDuelAction,
   resolveTurnBasedDuelTimeout,
+  rollTurnBasedDuelXpRewards,
   startTurnBasedDuel,
   TURN_BASED_DUEL_MAX_TURNS
 } from "../../src/domain/duels/turnBasedDuel";
@@ -243,6 +244,66 @@ describe("turn-based duel domain", () => {
       id: "skill.trick-shot",
       remainingTurns: 2
     });
+  });
+
+  it("rolls small replay-storable XP for terminal wins and losses", () => {
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({ id: "challenger", luck: 6 }),
+      target: makeDuelist({ id: "target", luck: 6 }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    const resolved = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "target",
+      action: "surrender",
+      rng: new FakeRandomSource([0])
+    });
+
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      throw new Error("Expected terminal surrender.");
+    }
+
+    expect(rollTurnBasedDuelXpRewards(resolved.state, new FakeRandomSource([0.5, 0.99]))).toEqual({
+      challenger: 6,
+      target: 1
+    });
+  });
+
+  it("rolls luck-biased draw XP inside the draw range", () => {
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({ id: "challenger", luck: 20 }),
+      target: makeDuelist({ id: "target", luck: 0 }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.status = "resolved";
+    state.outcome = {
+      outcome: "draw",
+      winnerCharacterId: null,
+      loserCharacterId: null,
+      reason: "max-turns"
+    };
+
+    expect(rollTurnBasedDuelXpRewards(state, new FakeRandomSource([0.5, 0, 0.5, 0]))).toEqual({
+      challenger: 5,
+      target: 4
+    });
+  });
+
+  it("does not grant XP for abandoned expired duel sessions", () => {
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({ id: "challenger" }),
+      target: makeDuelist({ id: "target" }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.status = "expired";
+    state.outcome = {
+      outcome: "draw",
+      winnerCharacterId: null,
+      loserCharacterId: null,
+      reason: "expired"
+    };
+
+    expect(rollTurnBasedDuelXpRewards(state, new FakeRandomSource([0]))).toBeNull();
   });
 });
 
