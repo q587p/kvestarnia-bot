@@ -24,6 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Terminal turn-based duel paths, including surrender and timeout resolution, now store an explicit terminal reason, resolve the parent challenge as `resolved`, and replay the canonical result card with rematch/share controls.
 - Same-round turn callback races now retry one safe merge after an optimistic version loss when the actor has not yet chosen and the round has not advanced.
 - Turn-based duel card delivery now records successful edits, falls back to fresh messages after edit failures, and keeps committed gameplay state independent from Telegram delivery.
+- Targeted duel invite recipients now receive a best-effort in-game notice when the challenger cancels before acceptance.
 - The central combat lock now treats active turn-based duels as active combat and redirects normal navigation back to the canonical duel card.
 - Restart/remort routes remain available during ordinary combat according to the existing side-surface policy, but redirect back to an active turn-based duel until that duel is durably terminal.
 - Quick duel behavior remains instant, rewardless and replay-safe, while old quick result JSON still renders as `⚡ Миттєва дуель`.

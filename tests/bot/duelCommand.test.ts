@@ -324,6 +324,50 @@ describe("handleDuelCallback", () => {
     expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:cancel:${TOKEN}`);
   });
 
+  it("notifies the targeted recipient when the challenger cancels", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const challenger = makeCharacterSummary("Автор Виклику");
+    const service = serviceWith({
+      cancelForTelegramUser: vi.fn().mockResolvedValue({
+        state: "cancelled",
+        challenge: makeChallenge("cancelled", target),
+        challenger,
+        target: makeCharacterSummary("Ціль Виклику")
+      })
+    });
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "cancel", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(99);
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Виклик скасовано");
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:duel:new");
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).not.toContain(`v1:duel:accept:${TOKEN}`);
+  });
+
+  it("does not broadcast open invite cancellation", async () => {
+    const challenger = makeCharacterSummary("Автор Виклику");
+    const service = serviceWith({
+      cancelForTelegramUser: vi.fn().mockResolvedValue({
+        state: "cancelled",
+        challenge: makeChallenge("cancelled"),
+        challenger
+      })
+    });
+    const { ctx, sendMessage } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "cancel", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("asks for confirmation before accepting with full resources", async () => {
     const acceptForTelegramUser = vi.fn().mockResolvedValue({
       state: "confirmation",

@@ -351,6 +351,10 @@ export async function handleDuelCallback(
       presentDuelCancel(result),
       result.state === "pending" ? { state: "pending", result } : "result"
     );
+
+    if (result.state === "cancelled") {
+      await notifyTargetedDuelCancellation(ctx, result);
+    }
     return;
   }
 
@@ -626,6 +630,26 @@ async function notifyOtherTurnBasedParticipant(
     }
   } catch {
     // Telegram delivery is best-effort; committed duel state remains canonical.
+  }
+}
+
+async function notifyTargetedDuelCancellation(
+  ctx: Context,
+  result: Extract<DuelChallengeView, { state: "expired" | "cancelled" | "declined" }>
+): Promise<void> {
+  const chatId = result.challenge.target?.telegramUserId;
+
+  if (!chatId || (ctx.chat?.id && BigInt(ctx.chat.id) === chatId)) {
+    return;
+  }
+
+  try {
+    await ctx.api.sendMessage(Number(chatId), presentDuelView(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildDuelResultKeyboard(result.challenge.inviteToken)
+    });
+  } catch {
+    // Telegram delivery is best-effort; the cancelled challenge remains canonical.
   }
 }
 
