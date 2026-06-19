@@ -17,6 +17,7 @@ import {
   buildPersistentFightKeyboard,
   buildPersistentFightResultKeyboard
 } from "../../src/bot/keyboards/fightKeyboard";
+import { buildTurnBasedDuelKeyboard } from "../../src/bot/keyboards/duelKeyboard";
 import { getCombatSkillDisplay, getPersistentFightSkillLabel } from "../../src/services/fightService";
 import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
@@ -560,6 +561,28 @@ describe("main menu and scene keyboards", () => {
   it("returns terminal training doppelganger screens to the fighting corner", () => {
     expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard())).toEqual(["🥊 До кутка"]);
     expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard())).toEqual([
+      "v1:place:fighting-corner"
+    ]);
+  });
+
+  it("returns terminal turn-based duel cards to the fighting corner", () => {
+    const keyboard = buildTurnBasedDuelKeyboard(
+      {
+        challenge: { inviteToken: "abcDEF12" },
+        session: {
+          actingCharacterId: "character-2",
+          status: "resolved",
+          turn: 6,
+          version: 9
+        }
+      } as never,
+      "character-1",
+      "💪 Силовий удар"
+    );
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["🔎 Оновити", "🥊 До кутка"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:duel:view:abcDEF12",
       "v1:place:fighting-corner"
     ]);
   });
