@@ -121,7 +121,7 @@ Canonical docs:
 
 Deliverables:
 - Бійцівський куток із тренувальним `Сумлінним Допельґанґером`: копія поточного героя для level 3+ спарингу перед справжніми дуелями з гравцями. Майбутні дуелі також стартують з 3 рівня, якщо окремий балансний PR не змінить це явно.
-- First duel invite MVP shipped in `0.1.10`: challenge, accept/decline/cancel/expire, quick rewardless resolve, replay-safe result, generated deep links via `BOT_USERNAME`, a dedicated Fighting Corner screen and a rewardless winners board. `0.1.11` adds manual targeted rematches and shareable saved-result cards without rewards or rerolls.
+- First duel invite MVP shipped in `0.1.10`: challenge, accept/decline/cancel/expire, quick rewardless resolve, replay-safe result, generated deep links via `BOT_USERNAME`, a dedicated Fighting Corner screen and a rewardless winners board. `0.1.11` adds manual targeted rematches and shareable saved-result cards without rerolls; `0.1.18` adds persistent turn-based duels with small XP-only terminal rewards and no gold/items/manatky rewards.
 - Tournament cards without exact hidden formulas or toxic pressure.
 - Trading/gifting MVP: transfer one eligible манатка or stack unit with explicit confirmation and audit row.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.

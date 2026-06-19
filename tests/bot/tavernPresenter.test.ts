@@ -138,7 +138,11 @@ describe("tavern presenter", () => {
     expect(text).toContain("Тут не бʼються одразу");
     expect(text).toContain("Сумлінним Допельґанґером");
     expect(text).toContain("дружній виклик");
-    expect(text).toContain("найпереконливіше махав честю");
+    expect(text).toContain("⚡ Миттєва дуель");
+    expect(text).toContain("результат одразу після згоди.");
+    expect(text).toContain("♟️ Покрокова дуель");
+    expect(text).toContain("гравці таємно обирають дії за раунд.");
+    expect(text).toContain("глянути переможців");
   });
 
   it("shows the Nyz descent with its first surface copy", () => {

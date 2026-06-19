@@ -24,6 +24,16 @@ describe("start payload parser", () => {
       type: "duel",
       token: "abc_DEF12"
     });
+    expect(parseStartPayload("duel_turnbased_abc_DEF12")).toEqual({
+      type: "duel",
+      token: "abc_DEF12",
+      mode: "turn-based"
+    });
+    expect(parseStartPayload("duel_turnbased_abc123")).toEqual({
+      type: "unknown",
+      raw: "duel_turnbased_abc123",
+      safe: true
+    });
   });
 
   it("marks long or invalid payloads unsafe without throwing", () => {

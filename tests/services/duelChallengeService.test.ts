@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import type {
   DuelChallengeRecord,
   DuelChallengeRepository,
+  DuelCombatSessionRecord,
   DuelCharacterSnapshot,
   DuelResultPayload,
-  ResolvedDuelChallengeRecord
+  ResolvedDuelChallengeRecord,
+  StartTurnBasedDuelSessionInput,
+  UpdateTurnBasedDuelSessionInput
 } from "../../src/db/repositories/duelChallengeRepository";
 import type {
   CharacterRecord,
@@ -12,7 +15,9 @@ import type {
   UpdateCharacterResourcesInput
 } from "../../src/db/repositories/characterRepository";
 import type { CharacterEquipmentRecord } from "../../src/db/repositories/equipmentRepository";
+import { getLevelForXp } from "../../src/domain/progression/level";
 import { DuelChallengeService } from "../../src/services/duelChallengeService";
+import type { NearbyDuelTargetValidator } from "../../src/services/presenceService";
 import { FakeRandomSource } from "../../src/shared/random";
 
 const fixedNow = () => new Date("2026-06-17T18:00:00.000Z");
@@ -89,6 +94,47 @@ describe("DuelChallengeService", () => {
       hpCurrent: 32,
       manaCurrent: 16
     });
+  });
+
+  it("creates a targeted nearby invite with the selected mode", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+
+    const result = await service.createTargetedChallengeForTelegramUser(1n, 2n, {
+      contextChatId: -100n,
+      mode: "turn-based"
+    });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      challenge: {
+        challengerCharacterId: "character-1",
+        targetCharacterId: "character-2",
+        contextChatId: -100n,
+        mode: "turn-based"
+      }
+    });
+  });
+
+  it("rejects a targeted nearby invite when the target is no longer active nearby", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    world.nearbyTargets.available = false;
+    const service = buildService(world, fixedNow, world.nearbyTargets);
+
+    const result = await service.createTargetedChallengeForTelegramUser(1n, 2n, {
+      contextChatId: -100n,
+      mode: "turn-based"
+    });
+
+    expect(result).toMatchObject({
+      state: "target-not-found"
+    });
+    expect(world.nearbyTargets.calls).toEqual([{ challenger: 1n, target: 2n }]);
+    expect(world.challenges.size).toBe(0);
   });
 
   it("shows a resource warning before accepting with partial resources", async () => {
@@ -842,17 +888,281 @@ describe("DuelChallengeService", () => {
       ]
     });
   });
+
+  it("retries a same-round action once after an optimistic turn update race", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    world.failNextTurnUpdateWithConcurrentOpponentChoice = true;
+    const resolved = await service.resolveTurnBasedActionForTelegramUser(2n, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "attack"
+    });
+
+    expect(world.turnUpdateAttempts).toBe(2);
+    expect(resolved).toMatchObject({
+      state: "updated",
+      session: {
+        version: 3,
+        state: {
+          lastRound: {
+            turn: 1
+          }
+        }
+      }
+    });
+    if (resolved.state === "updated") {
+      expect(resolved.session.state.pendingActions).toBeUndefined();
+      expect(resolved.session.state.lastRound?.actions).toHaveLength(2);
+    }
+  });
+
+  it("accepts the second same-round choice from the original older-version button", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const firstActorTelegramId =
+      accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
+    const secondActorTelegramId = firstActorTelegramId === 1n ? 2n : 1n;
+    const originalTurn = accepted.session.turn;
+    const originalVersion = accepted.session.version;
+
+    const queued = await service.resolveTurnBasedActionForTelegramUser(firstActorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: originalTurn,
+      expectedVersion: originalVersion,
+      action: "attack"
+    });
+
+    expect(queued.state).toBe("updated");
+    if (queued.state !== "updated") {
+      throw new Error(`Expected queued action, got ${queued.state}`);
+    }
+    expect(queued.session.version).toBe(originalVersion + 1);
+    expect(queued.session.state.pendingActions).toBeDefined();
+
+    const resolved = await service.resolveTurnBasedActionForTelegramUser(secondActorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: originalTurn,
+      expectedVersion: originalVersion,
+      action: "attack"
+    });
+
+    expect(resolved.state).toBe("updated");
+    if (resolved.state !== "updated") {
+      throw new Error(`Expected resolved round, got ${resolved.state}`);
+    }
+    expect(resolved.session.version).toBe(originalVersion + 2);
+    expect(resolved.session.state.lastRound?.turn).toBe(originalTurn);
+    expect(resolved.session.state.lastRound?.actions.map((action) => action.action)).toEqual(["attack", "attack"]);
+    expect(resolved.session.state.pendingActions).toBeUndefined();
+  });
+
+  it("reports the challenger when their active combat lease blocks turn-based start", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, { name: "Зайнятий Автор" });
+    world.addCharacter(2n, { name: "Отримувач" });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    world.busyCharacterIds.add("character-1");
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    expect(accepted).toMatchObject({
+      state: "busy",
+      busyCharacter: {
+        name: "Зайнятий Автор"
+      }
+    });
+  });
+
+  it("enforces turn deadlines at the update boundary for actions and timeouts", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world, fixedNow);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const earlyService = buildService(world, () => new Date("2026-06-17T18:00:22.999Z"));
+    await expect(earlyService.resolveDueTurnBasedSession(accepted.session)).resolves.toMatchObject({
+      state: "stale"
+    });
+
+    const beforeDeadline = await earlyService.resolveTurnBasedActionForTelegramUser(2n, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "attack"
+    });
+    expect(beforeDeadline).toMatchObject({ state: "updated" });
+
+    const second = beforeDeadline.state === "updated" ? beforeDeadline.session : accepted.session;
+    const lateService = buildService(world, () => second.turnExpiresAt);
+    const lateAction = await lateService.resolveTurnBasedActionForTelegramUser(1n, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: second.turn,
+      expectedVersion: second.version,
+      action: "attack"
+    });
+    expect(lateAction).toMatchObject({ state: "stale" });
+
+    const timeout = await lateService.resolveDueTurnBasedSession(second);
+    expect(timeout).toMatchObject({ state: "updated" });
+  });
+
+  it("stores surrender as a resolved parent challenge with a terminal reason", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const surrendered = await service.resolveTurnBasedActionForTelegramUser(2n, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "surrender"
+    });
+
+    expect(surrendered).toMatchObject({
+      state: "updated",
+      session: {
+        status: "forfeited"
+      }
+    });
+    expect(world.challenges.get(created.challenge.inviteToken)).toMatchObject({
+      status: "resolved",
+      resolvedAt: fixedNow(),
+      result: {
+        mode: "turn-based",
+        terminalReason: "surrender",
+        loserCharacterId: "character-2",
+        xpRewards: {
+          challenger: 6,
+          target: 1
+        }
+      }
+    });
+    expect(world.characters.get(1n)?.xp).toBe(31);
+    expect(world.characters.get(2n)?.xp).toBe(26);
+
+    await service.resolveTurnBasedActionForTelegramUser(2n, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "surrender"
+    });
+    expect(world.characters.get(1n)?.xp).toBe(31);
+    expect(world.characters.get(2n)?.xp).toBe(26);
+  });
 });
 
-function buildService(world: FakeDuelWorld, clock = fixedNow): DuelChallengeService {
-  return new DuelChallengeService(world, world, clock, new FakeRandomSource([0.5]));
+function buildService(
+  world: FakeDuelWorld,
+  clock = fixedNow,
+  nearbyDuelTargets?: NearbyDuelTargetValidator
+): DuelChallengeService {
+  return new DuelChallengeService(
+    world,
+    world,
+    clock,
+    new FakeRandomSource([0.5]),
+    nearbyDuelTargets
+  );
 }
 
 class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
   readonly characters = new Map<bigint, DuelCharacterSnapshot>();
   readonly challenges = new Map<string, DuelChallengeRecord>();
+  readonly sessions = new Map<string, DuelCombatSessionRecord>();
   readonly resourceUpdates: UpdateCharacterResourcesInput[] = [];
+  readonly busyCharacterIds = new Set<string>();
+  readonly nearbyTargets = new FakeNearbyDuelTargetValidator();
   failNextResourceUpdate = false;
+  failNextTurnUpdateWithConcurrentOpponentChoice = false;
+  turnUpdateAttempts = 0;
 
   addCharacter(
     telegramUserId: bigint,
@@ -890,7 +1200,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
 
   createOpenForTelegramUser(
     telegramUserId: bigint,
-    input: { inviteToken: string; contextChatId?: bigint | null; expiresAt: Date }
+    input: { inviteToken: string; mode?: "quick" | "turn-based"; contextChatId?: bigint | null; expiresAt: Date }
   ): Promise<DuelChallengeRecord | null> {
     const challenger = this.characters.get(telegramUserId);
 
@@ -904,6 +1214,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       targetCharacterId: null,
       contextChatId: input.contextChatId ?? null,
       inviteToken: input.inviteToken,
+      mode: input.mode ?? "quick",
       status: "pending",
       expiresAt: input.expiresAt,
       resolvedAt: null,
@@ -921,7 +1232,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
   createTargetedForTelegramUser(
     telegramUserId: bigint,
     targetCharacterId: string,
-    input: { inviteToken: string; contextChatId?: bigint | null; expiresAt: Date }
+    input: { inviteToken: string; mode?: "quick" | "turn-based"; contextChatId?: bigint | null; expiresAt: Date }
   ): Promise<DuelChallengeRecord | null> {
     const challenger = this.characters.get(telegramUserId);
     const target = [...this.characters.values()].find((character) => character.id === targetCharacterId);
@@ -936,6 +1247,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       targetCharacterId: target.id,
       contextChatId: input.contextChatId ?? null,
       inviteToken: input.inviteToken,
+      mode: input.mode ?? "quick",
       status: "pending",
       expiresAt: input.expiresAt,
       resolvedAt: null,
@@ -1032,17 +1344,17 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     inviteToken: string,
     telegramUserId: bigint,
     now: Date
-  ): Promise<DuelChallengeRecord | null> {
+  ): Promise<{ record: DuelChallengeRecord | null; transitioned: boolean }> {
     const challenge = this.challenges.get(inviteToken);
 
     if (challenge?.status === "pending" && challenge.challenger.telegramUserId === telegramUserId) {
       const updated = { ...challenge, status: "cancelled" as const, updatedAt: now };
       this.challenges.set(inviteToken, updated);
 
-      return Promise.resolve(this.refreshChallenge(updated));
+      return Promise.resolve({ record: this.refreshChallenge(updated), transitioned: true });
     }
 
-    return Promise.resolve(this.refreshChallenge(challenge));
+    return Promise.resolve({ record: this.refreshChallenge(challenge), transitioned: false });
   }
 
   declineByTokenForTelegramUser(): Promise<DuelChallengeRecord | null> {
@@ -1054,7 +1366,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     telegramUserId: bigint,
     now: Date,
     result: DuelResultPayload
-  ): Promise<DuelChallengeRecord | null> {
+  ): Promise<{ record: DuelChallengeRecord | null; transitioned: boolean }> {
     const challenge = this.challenges.get(inviteToken);
     const target = this.characters.get(telegramUserId);
 
@@ -1066,7 +1378,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       challenge.challengerCharacterId === target.id ||
       (challenge.targetCharacterId !== null && challenge.targetCharacterId !== target.id)
     ) {
-      return Promise.resolve(challenge ?? null);
+      return Promise.resolve({ record: challenge ?? null, transitioned: false });
     }
 
     const updated = {
@@ -1080,7 +1392,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     };
     this.challenges.set(inviteToken, updated);
 
-    return Promise.resolve(updated);
+    return Promise.resolve({ record: updated, transitioned: true });
   }
 
   countResolvedBetweenCharacterPairSince(
@@ -1116,6 +1428,198 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     );
   }
 
+  startTurnBasedByTokenForTelegramUser(
+    inviteToken: string,
+    telegramUserId: bigint,
+    now: Date,
+    input: StartTurnBasedDuelSessionInput
+  ): Promise<{ record: DuelCombatSessionRecord | null; transitioned: boolean }> {
+    const challenge = this.challenges.get(inviteToken);
+    const target = this.characters.get(telegramUserId);
+
+    if (
+      !challenge ||
+      !target ||
+      challenge.status !== "pending" ||
+      challenge.mode !== "turn-based" ||
+      challenge.expiresAt <= now ||
+      challenge.challengerCharacterId === target.id ||
+      (challenge.targetCharacterId !== null && challenge.targetCharacterId !== target.id) ||
+      this.busyCharacterIds.has(challenge.challengerCharacterId) ||
+      this.busyCharacterIds.has(target.id)
+    ) {
+      return Promise.resolve({ record: null, transitioned: false });
+    }
+
+    const activeChallenge: DuelChallengeRecord = {
+      ...challenge,
+      targetCharacterId: target.id,
+      target,
+      status: "active",
+      updatedAt: now
+    };
+    const session: DuelCombatSessionRecord = {
+      id: input.sessionId,
+      duelChallengeId: activeChallenge.id,
+      challengerCharacterId: activeChallenge.challengerCharacterId,
+      targetCharacterId: target.id,
+      status: "active",
+      actingCharacterId: input.state.actingCharacterId,
+      state: cloneState(input.state),
+      turn: input.state.turn,
+      version: 1,
+      turnExpiresAt: input.turnExpiresAt,
+      completedAt: null,
+      challengerChatId: null,
+      challengerMessageId: null,
+      targetChatId: input.targetChatId ?? null,
+      targetMessageId: input.targetMessageId ?? null,
+      createdAt: now,
+      updatedAt: now,
+      challenge: activeChallenge
+    };
+    this.challenges.set(inviteToken, activeChallenge);
+    this.sessions.set(session.id, session);
+
+    return Promise.resolve({ record: this.refreshSession(session), transitioned: true });
+  }
+
+  findActiveTurnBasedByTelegramUserId(
+    telegramUserId: bigint
+  ): Promise<DuelCombatSessionRecord | null> {
+    const character = this.characters.get(telegramUserId);
+
+    if (!character) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve(
+      [...this.sessions.values()].map((session) => this.refreshSession(session)).find(
+        (session) =>
+          session.status === "active" &&
+          (session.challengerCharacterId === character.id || session.targetCharacterId === character.id)
+      ) ?? null
+    );
+  }
+
+  findActiveCombatBlockerCharacterId(characterIds: string[]): Promise<string | null> {
+    return Promise.resolve(
+      characterIds.find((characterId) => this.busyCharacterIds.has(characterId)) ?? null
+    );
+  }
+
+  findTurnBasedByTokenForTelegramUserId(
+    inviteToken: string,
+    telegramUserId: bigint
+  ): Promise<DuelCombatSessionRecord | null> {
+    const character = this.characters.get(telegramUserId);
+
+    if (!character) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve(
+      [...this.sessions.values()].map((session) => this.refreshSession(session)).find(
+        (session) =>
+          session.challenge.inviteToken === inviteToken &&
+          (session.challengerCharacterId === character.id || session.targetCharacterId === character.id)
+      ) ?? null
+    );
+  }
+
+  findTurnBasedByToken(inviteToken: string): Promise<DuelCombatSessionRecord | null> {
+    return Promise.resolve(
+      [...this.sessions.values()].map((session) => this.refreshSession(session)).find(
+        (session) => session.challenge.inviteToken === inviteToken
+      ) ?? null
+    );
+  }
+
+  updateTurnBasedIfActiveVersion(
+    sessionId: string,
+    expectedTurn: number,
+    expectedVersion: number,
+    input: UpdateTurnBasedDuelSessionInput
+  ): Promise<DuelCombatSessionRecord | null> {
+    this.turnUpdateAttempts += 1;
+    const session = this.sessions.get(sessionId);
+
+    if (
+      !session ||
+      session.status !== "active" ||
+      session.turn !== expectedTurn ||
+      session.version !== expectedVersion ||
+      (input.deadlineMode === "player-action" && session.turnExpiresAt <= input.now) ||
+      (input.deadlineMode === "timeout" && session.turnExpiresAt > input.now)
+    ) {
+      return Promise.resolve(null);
+    }
+
+    if (this.failNextTurnUpdateWithConcurrentOpponentChoice) {
+      this.failNextTurnUpdateWithConcurrentOpponentChoice = false;
+      const nextState = cloneState(session.state);
+      nextState.pendingActions = {
+        challenger: {
+          actorCharacterId: session.challengerCharacterId,
+          action: "attack"
+        }
+      };
+      const raced = {
+        ...session,
+        state: nextState,
+        version: expectedVersion + 1,
+        updatedAt: fixedNow()
+      };
+      this.sessions.set(sessionId, raced);
+      return Promise.resolve(null);
+    }
+
+    const challenge = this.challenges.get(session.challenge.inviteToken) ?? session.challenge;
+    const nextChallenge =
+      input.status !== "active" && input.result
+        ? {
+            ...challenge,
+            status: "resolved" as const,
+            resolvedAt: input.completedAt ?? fixedNow(),
+            result: input.result,
+            updatedAt: input.completedAt ?? fixedNow()
+          }
+        : challenge;
+    if (input.status !== "active" && input.result?.xpRewards) {
+      this.awardXp(session.challengerCharacterId, input.result.xpRewards.challenger);
+      this.awardXp(session.targetCharacterId, input.result.xpRewards.target);
+    }
+    const updated = {
+      ...session,
+      status: input.status,
+      actingCharacterId: input.state.actingCharacterId,
+      state: cloneState(input.state),
+      turn: input.state.turn,
+      version: expectedVersion + 1,
+      turnExpiresAt: input.turnExpiresAt,
+      completedAt: input.status === "active" ? null : input.completedAt ?? fixedNow(),
+      updatedAt: fixedNow(),
+      challenge: nextChallenge
+    };
+
+    this.challenges.set(nextChallenge.inviteToken, nextChallenge);
+    this.sessions.set(sessionId, updated);
+
+    return Promise.resolve(this.refreshSession(updated));
+  }
+
+  listDueTurnBasedSessions(): Promise<DuelCombatSessionRecord[]> {
+    return Promise.resolve([]);
+  }
+
+  repairTurnBasedCombatState(): Promise<{ repairedSessions: number; removedOrphanLeases: number }> {
+    return Promise.resolve({ repairedSessions: 0, removedOrphanLeases: 0 });
+  }
+
+  recordTurnBasedMessageReference(): Promise<DuelCombatSessionRecord | null> {
+    return Promise.resolve(null);
+  }
+
   private refreshChallenge(
     challenge: DuelChallengeRecord | undefined | null
   ): DuelChallengeRecord | null {
@@ -1135,9 +1639,55 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     };
   }
 
+  private refreshSession(session: DuelCombatSessionRecord): DuelCombatSessionRecord {
+    const challenge = this.refreshChallenge(session.challenge) ?? session.challenge;
+
+    return {
+      ...session,
+      challenge
+    };
+  }
+
   private findCharacterById(characterId: string): DuelCharacterSnapshot | null {
     return [...this.characters.values()].find((character) => character.id === characterId) ?? null;
   }
+
+  private awardXp(characterId: string, xpReward: number): void {
+    const entry = [...this.characters.entries()].find(([, character]) => character.id === characterId);
+
+    if (!entry) {
+      return;
+    }
+
+    const [telegramUserId, character] = entry;
+    const xp = character.xp + Math.max(0, Math.floor(xpReward));
+    this.characters.set(telegramUserId, {
+      ...character,
+      xp,
+      level: Math.max(character.level, getLevelForXp(xp, { remortCount: character.remortCount ?? 0 }))
+    });
+  }
+}
+
+class FakeNearbyDuelTargetValidator implements NearbyDuelTargetValidator {
+  available = true;
+  readonly calls: Array<{ challenger: bigint; target: bigint }> = [];
+
+  isNearbyDuelTargetAvailable(
+    challengerTelegramUserId: bigint,
+    targetTelegramUserId: bigint
+  ): Promise<boolean> {
+    this.calls.push({
+      challenger: challengerTelegramUserId,
+      target: targetTelegramUserId
+    });
+
+    return Promise.resolve(this.available);
+  }
+}
+
+function cloneState<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function makeEquipment(itemId: string): CharacterEquipmentRecord {

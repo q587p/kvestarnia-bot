@@ -123,11 +123,64 @@ describe("support command and start deep links", () => {
     const keyboard = JSON.stringify(message?.payload.reply_markup);
 
     expect(onboardingStart).not.toHaveBeenCalled();
-    expect(acceptForTelegramUser).toHaveBeenCalledWith(42n, "abc_DEF12");
+    expect(acceptForTelegramUser).toHaveBeenCalledWith(42n, "abc_DEF12", {
+      expectedMode: "quick"
+    });
     expect(String(message?.payload.text)).toContain("⚡ <b>Результат миттєвої дуелі</b>");
     expect(keyboard).toContain("v1:duel:rematch:abc_DEF12");
     expect(keyboard).toContain("v1:duel:share:abc_DEF12");
     expect(keyboard).toContain("v1:duel:new");
+  });
+
+  it("keeps active turn-based /start deep links private in private chats", async () => {
+    const acceptForTelegramUser = vi.fn().mockResolvedValue(makeActiveTurnBasedDuelView());
+    const calls = await captureMessageCalls(
+      "/start duel_turnbased_abc_DEF12",
+      servicesWith({
+        duel: {
+          acceptForTelegramUser
+        }
+      } as Partial<BotServices>),
+      {
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+    const message = calls.find((call) => call.method === "sendMessage");
+    const keyboard = JSON.stringify(message?.payload.reply_markup);
+
+    expect(acceptForTelegramUser).toHaveBeenCalledWith(42n, "abc_DEF12", {
+      expectedMode: "turn-based"
+    });
+    expect(String(message?.payload.text)).toContain("Покрокова дуель");
+    expect(String(message?.payload.text)).toContain("Ваш вибір");
+    expect(keyboard).toContain("Оновити");
+  });
+
+  it("keeps active turn-based /start deep links spectator-safe in group chats", async () => {
+    const acceptForTelegramUser = vi.fn().mockResolvedValue(makeActiveTurnBasedDuelView());
+    const calls = await captureMessageCalls(
+      "/start duel_turnbased_abc_DEF12",
+      servicesWith({
+        duel: {
+          acceptForTelegramUser
+        }
+      } as Partial<BotServices>),
+      {
+        botUsername: "kvestarnia_test_bot",
+        chatType: "group"
+      }
+    );
+    const message = calls.find((call) => call.method === "sendMessage");
+    const keyboard = JSON.stringify(message?.payload.reply_markup);
+
+    expect(acceptForTelegramUser).toHaveBeenCalledWith(42n, "abc_DEF12", {
+      expectedMode: "turn-based"
+    });
+    expect(String(message?.payload.text)).toContain("Покрокова дуель");
+    expect(String(message?.payload.text)).toContain("записи закритими");
+    expect(String(message?.payload.text)).not.toContain("Ваш вибір");
+    expect(keyboard).not.toContain("Атакувати");
+    expect(keyboard).not.toContain("Здатися");
   });
 
   it("explains that self-duel links should be forwarded to another adventurer", async () => {
@@ -192,6 +245,7 @@ async function captureMessageCalls(
     supportJarUrl?: string;
     supportJarStatus?: { currentUah?: number; goalUah?: number; updatedAt?: string };
     botUsername?: string;
+    chatType?: "private" | "group" | "supergroup";
   } = {}
 ): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services, options);
@@ -237,7 +291,7 @@ async function captureMessageCalls(
       ],
       chat: {
         id: 42,
-        type: "private"
+        type: options.chatType ?? "private"
       },
       from: {
         id: 42,
@@ -326,6 +380,154 @@ function makeDuelChallenge(inviteToken: string) {
     updatedAt: new Date("2026-06-17T18:00:00.000Z"),
     challenger: null,
     target: null
+  };
+}
+
+function makeActiveTurnBasedDuelView() {
+  const session = makeTurnBasedSession();
+
+  return {
+    state: "active",
+    challenge: session.challenge,
+    session,
+    challenger: makeCharacterSummary("Kyjivan BooksDragon"),
+    target: makeCharacterSummary("Shannar de Kassal"),
+    turnExpiresAt: session.turnExpiresAt,
+    now: new Date("2026-06-17T18:00:00.000Z")
+  };
+}
+
+function makeTurnBasedSession() {
+  const turnExpiresAt = new Date("2026-06-17T18:00:23.000Z");
+  const challenge = {
+    ...makeDuelChallenge("abc_DEF12"),
+    mode: "turn-based",
+    status: "active",
+    resolvedAt: null,
+    result: null,
+    challenger: {
+      ...makeCharacterRecord(42n, "Kyjivan BooksDragon"),
+      id: "character-42"
+    },
+    target: {
+      ...makeCharacterRecord(99n, "Shannar de Kassal"),
+      id: "character-99"
+    }
+  };
+
+  return {
+    id: "session-1",
+    duelChallengeId: "duel-1",
+    challengerCharacterId: "character-42",
+    targetCharacterId: "character-99",
+    status: "active",
+    actingCharacterId: "character-99",
+    turn: 2,
+    version: 4,
+    turnExpiresAt,
+    completedAt: null,
+    challengerChatId: null,
+    challengerMessageId: null,
+    targetChatId: null,
+    targetMessageId: null,
+    createdAt: new Date("2026-06-17T17:55:00.000Z"),
+    updatedAt: new Date("2026-06-17T18:00:00.000Z"),
+    challenge,
+    state: {
+      mode: "turn-based",
+      status: "active",
+      rulesVersion: "turn-based-duel-v1",
+      balanceVersion: "instant-duel-v2",
+      turn: 2,
+      actingCharacterId: "character-99",
+      participants: {
+        challenger: makeTurnBasedParticipant("character-42", "Kyjivan BooksDragon"),
+        target: makeTurnBasedParticipant("character-99", "Shannar de Kassal")
+      },
+      pendingActions: {
+        challenger: {
+          actorCharacterId: "character-42",
+          action: "skill"
+        }
+      }
+    }
+  };
+}
+
+function makeTurnBasedParticipant(characterId: string, displayName: string) {
+  return {
+    characterId,
+    displayName,
+    title: "Пригодник місцевого значення",
+    raceId: "race.human-ish",
+    raceName: "Людисько",
+    classId: "class.warrior",
+    className: "Воїн",
+    level: 3,
+    remortCount: 0,
+    stats: {
+      strength: 7,
+      dexterity: 7,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6
+    },
+    combatStats: {
+      level: 3,
+      classId: "class.warrior",
+      strength: 7,
+      dexterity: 7,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6,
+      armor: 1,
+      resistance: 1,
+      weaponPower: 2,
+      spellPower: 1,
+      critChance: 0,
+      critMultiplier: 2,
+      evasion: 0
+    },
+    hp: {
+      current: 24,
+      max: 24
+    },
+    mana: {
+      current: 12,
+      max: 12
+    },
+    cooldowns: {}
+  };
+}
+
+function makeCharacterRecord(telegramUserId: bigint, name: string) {
+  return {
+    telegramUserId,
+    userId: `user-${telegramUserId.toString()}`,
+    name,
+    pronoun: "they",
+    path: "boundary",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 3,
+    xp: 25,
+    gold: 0,
+    hpCurrent: 24,
+    hpMax: 24,
+    manaCurrent: 12,
+    manaMax: 12,
+    statsJson: {
+      strength: 7,
+      dexterity: 7,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6
+    },
+    hpRegenAt: null,
+    manaRegenAt: null,
+    createdAt: new Date("2026-06-17T17:00:00.000Z"),
+    updatedAt: new Date("2026-06-17T18:00:00.000Z"),
+    equipment: []
   };
 }
 

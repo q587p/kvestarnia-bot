@@ -130,31 +130,44 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     telegramUserId: bigint,
     input: CreateSoloCombatSessionInput
   ): Promise<SoloCombatSessionRecord | null> {
-    const character = await this.prisma.character.findFirst({
-      where: {
-        user: {
-          telegramUserId
+    const sessionId = input.id;
+    const record = await this.prisma.$transaction(async (tx) => {
+      const character = await tx.character.findFirst({
+        where: {
+          user: {
+            telegramUserId
+          }
+        },
+        select: {
+          id: true
         }
-      },
-      select: {
-        id: true
-      }
-    });
+      });
 
-    if (!character) {
-      return null;
-    }
-
-    const record = await this.prisma.soloCombatSession.create({
-      data: {
-        ...(input.id ? { id: input.id } : {}),
-        characterId: character.id,
-        monsterId: input.monsterId,
-        stateJson: input.state as unknown as Prisma.InputJsonValue,
-        status: input.state.status,
-        turn: input.state.turn,
-        expiresAt: input.expiresAt
+      if (!character) {
+        return null;
       }
+
+      const session = await tx.soloCombatSession.create({
+        data: {
+          ...(sessionId ? { id: sessionId } : {}),
+          characterId: character.id,
+          monsterId: input.monsterId,
+          stateJson: input.state as unknown as Prisma.InputJsonValue,
+          status: input.state.status,
+          turn: input.state.turn,
+          expiresAt: input.expiresAt
+        }
+      });
+
+      await tx.activeCombatLease.create({
+        data: {
+          characterId: character.id,
+          kind: "solo-combat",
+          referenceId: session.id
+        }
+      });
+
+      return session;
     }).catch((error: unknown) => {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -173,13 +186,44 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     sessionId: string,
     status: SoloCombatSessionStatus
   ): Promise<SoloCombatSessionRecord | null> {
-    const record = await this.prisma.soloCombatSession.update({
-      where: {
-        id: sessionId
-      },
-      data: {
-        status
+    if (!hasTransaction(this.prisma)) {
+      const record = await this.prisma.soloCombatSession.update({
+        where: {
+          id: sessionId
+        },
+        data: {
+          status
+        }
+      }).catch((error: unknown) => {
+        if (isPrismaNotFound(error)) {
+          return null;
+        }
+
+        throw error;
+      });
+
+      return mapRecord(record);
+    }
+
+    const record = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.soloCombatSession.update({
+        where: {
+          id: sessionId
+        },
+        data: {
+          status
+        }
+      });
+
+      if (status !== "active") {
+        await tx.activeCombatLease.deleteMany({
+          where: {
+            referenceId: sessionId
+          }
+        });
       }
+
+      return updated;
     }).catch((error: unknown) => {
       if (isPrismaNotFound(error)) {
         return null;
@@ -195,16 +239,50 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     sessionId: string,
     input: UpdateSoloCombatSessionInput
   ): Promise<SoloCombatSessionRecord | null> {
-    const record = await this.prisma.soloCombatSession.update({
-      where: {
-        id: sessionId
-      },
-      data: {
-        stateJson: input.state as unknown as Prisma.InputJsonValue,
-        status: input.status,
-        turn: input.state.turn,
-        ...(input.expiresAt ? { expiresAt: input.expiresAt } : {})
+    if (!hasTransaction(this.prisma)) {
+      const record = await this.prisma.soloCombatSession.update({
+        where: {
+          id: sessionId
+        },
+        data: {
+          stateJson: input.state as unknown as Prisma.InputJsonValue,
+          status: input.status,
+          turn: input.state.turn,
+          ...(input.expiresAt ? { expiresAt: input.expiresAt } : {})
+        }
+      }).catch((error: unknown) => {
+        if (isPrismaNotFound(error)) {
+          return null;
+        }
+
+        throw error;
+      });
+
+      return mapRecord(record);
+    }
+
+    const record = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.soloCombatSession.update({
+        where: {
+          id: sessionId
+        },
+        data: {
+          stateJson: input.state as unknown as Prisma.InputJsonValue,
+          status: input.status,
+          turn: input.state.turn,
+          ...(input.expiresAt ? { expiresAt: input.expiresAt } : {})
+        }
+      });
+
+      if (input.status !== "active") {
+        await tx.activeCombatLease.deleteMany({
+          where: {
+            referenceId: sessionId
+          }
+        });
       }
+
+      return updated;
     }).catch((error: unknown) => {
       if (isPrismaNotFound(error)) {
         return null;
@@ -238,6 +316,14 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (result.count !== 1) {
         return null;
+      }
+
+      if (input.status !== "active") {
+        await tx.activeCombatLease.deleteMany({
+          where: {
+            referenceId: sessionId
+          }
+        });
       }
 
       return tx.soloCombatSession.findUnique({
@@ -468,4 +554,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isPrismaNotFound(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025";
+}
+
+function hasTransaction(prisma: PrismaClient): boolean {
+  return typeof (prisma as { $transaction?: unknown }).$transaction === "function";
 }

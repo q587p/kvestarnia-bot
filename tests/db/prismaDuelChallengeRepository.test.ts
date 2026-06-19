@@ -6,8 +6,14 @@ describe("PrismaDuelChallengeRepository", () => {
     const prisma = new FakeDuelPrisma([
       makeResolvedChallenge("new-json", {
         outcome: "challenger",
+        mode: "turn-based",
+        terminalReason: "surrender",
         winnerCharacterId: "character-1",
         loserCharacterId: "character-2",
+        xpRewards: {
+          challenger: 7,
+          target: 1
+        },
         challengerScore: 42,
         targetScore: 23,
         swing: 2,
@@ -59,6 +65,12 @@ describe("PrismaDuelChallengeRepository", () => {
     expect(records).toHaveLength(2);
     expect(records[0]?.result).toMatchObject({
       balanceVersion: "instant-duel-v2",
+      mode: "turn-based",
+      terminalReason: "surrender",
+      xpRewards: {
+        challenger: 7,
+        target: 1
+      },
       participants: {
         challenger: {
           displayName: "Старе Імʼя",
@@ -152,6 +164,7 @@ function makeAudit(preparedScore: number) {
     balanceVersion: "instant-duel-v2",
     originalLevel: 3,
     originalRemortCount: 0,
+    effectiveCombatLevel: 3,
     progressionBudget: {
       level: 3,
       remortCount: 0,

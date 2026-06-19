@@ -30,6 +30,8 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 
 `0.1.11` adds manual duel result follow-ups on top of the same ledger: resolved cards can create a targeted rewardless rematch between the original participants or send a separate shareable result card. Rematch and share callbacks reuse stored server-side state and do not reroll results, grant rewards, notify other participants automatically or create tournament/rating state.
 
+`0.1.18` adds `♟️ Покрокова дуель` on top of the duel ledger. It persists `DuelChallenge.mode`, adds one-to-one `duel_combat_sessions`, append-only resolved-round `duel_combat_actions`, active combat leases, optimistic round versioning and a durable 23-second timeout poller. Participant choices are queued privately in session state; participant-specific cards/action keyboards are private-chat-only, while group/shared cards render spectator-safe status. A round reveals and applies combat only after both choices arrive or the timeout fills missing choices with ordinary attacks. Turn-based duel actions use the shared pure combat primitive extracted from `src/domain/combat`, while Telegram notifications remain best-effort after committed DB state and are sent only from explicit transition results. Terminal turn-based results store small XP rewards in `result_json` and grant them once in the same transaction that resolves the parent challenge; quick duels remain XP-free. `👀 Хто поруч` also exposes a location-scoped targeted invite flow through `v1:nd:*` callbacks: the bot lists active same-location candidates, creates a normal targeted `DuelChallenge` in the selected mode and sends the target an in-game notification best-effort.
+
 Future Support Jar live status is documented in [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md). It should be a separate read-only integration with Monobank `client-info`, server-side token handling, TTL cache, no DB donor state, no payment confirmation and no gameplay rewards. Do not treat manual `SUPPORT_JAR_CURRENT_UAH`/`SUPPORT_JAR_GOAL_UAH` values as the long-term status path after that slice lands.
 
 Phase 2 planning now starts with social session primitives: duel invites, result/rematch cards, trading/gifting, item tags, remort-only advanced options, multi-enemy combat and later party/raid sessions. The first runtime implementation should add only the narrow tables/state it needs and must not treat the sketches below as already migrated schema.
@@ -219,7 +221,7 @@ Rules:
 - In `0.0.21`, per-fight rewards were deliberately absent. `0.0.23` adds a small won-session reward path: `daily_actions` with key `combat.solo-fight.reward` and `local_date = solo_combat_sessions.id` remains the idempotent reward authority, while nullable reward fields on `solo_combat_sessions` store replay/audit details for repeated callbacks.
 - The narrow problem-chain wrapper stays separate from per-session rewards. `quest.thirteen-small-problems` remains the first compatibility reward key; `0.1.6` adds explicit `quest.problem-chain.*.issued` issue keys for every stage, later `quest.problem-chain.*.reward` reward keys and no replacement of the per-session fight reward. `0.1.7` preserves old ordinary won solo fights only for the first `13`-problem paper; later stages keep fresh counters from issue time.
 - Lazy expiry happens when `/fight` or a fight callback touches an old active session; no Redis/job worker is required for this slice.
-- Future combat timeout work should add a per-turn deadline, currently planned around `23` seconds, across ordinary monster fights, `/spar` doppelganger fights and later turn-based PvP duels. The timeout path must be a background/job action with a conditional update on the active row and expected turn, then apply a deterministic auto-attack or explicit skip for the active actor, render the next battle card and preserve reward/idempotency guards. Long session expiry can remain a cleanup fallback, but it should not be the player-facing wait model for a stuck turn.
+- `0.1.18` ships the first durable per-round deadline for turn-based duels: around `23` seconds, persisted on the session row and consumed by expected turn/version. Player-action CAS requires `turn_expires_at > now`; timeout CAS requires `turn_expires_at <= now`, so callback-vs-timeout races have one database winner. The timeout path applies deterministic basic attacks for missing choices, reveals the resolved round, renders private cards best-effort and preserves idempotency. Ordinary monster fights and `/spar` can reuse the model later; long session expiry can remain a cleanup fallback, but it should not be the player-facing wait model for a stuck turn.
 
 ### duel_challenges
 Shipped in `0.1.10` for the first rewardless Phase 2 social-combat slice.
@@ -229,7 +231,8 @@ Shipped in `0.1.10` for the first rewardless Phase 2 social-combat slice.
 - `target_character_id` FK nullable for shareable/open invites
 - `context_chat_id` nullable
 - `invite_token` unique
-- `status`: pending, declined, expired, accepted, resolved, cancelled
+- `mode`: `quick` or `turn-based`, default `quick`
+- `status`: pending, active, declined, expired, forfeited, resolved, cancelled
 - `expires_at`
 - `resolved_at` nullable
 - `result_json` nullable replay/audit payload
@@ -242,7 +245,27 @@ Rules:
 - Targeted rematch invites must keep `target_character_id` set and accept only from that target; bystanders can view stable state but cannot hijack the rematch.
 - Shareable result cards are presentation-only replies based on `result_json`; they must not create new ledger rows or reroll outcomes.
 - Quick resolve may use level bracket, race, class, current title/earned identity, effective stats, equipment/item tags and a bounded seed.
-- Pair/day caps, ranking and abuse logging should be designed with the first reward-bearing duel slice, not bolted on after tournaments.
+- Turn-based accept freezes both participant snapshots and stores active combat state in `duel_combat_sessions`; damage/mana spend inside the session is ephemeral and must not be written back to `characters`.
+- `active_combat_leases` is the narrow cross-combat guard for persistent turn-based duels and existing solo/training combat start paths.
+- Pair/day caps and abuse logging matter as soon as turn-based XP exists; the current same-pair cap remains the narrow first guard, while later ranking rewards need a separate design.
+
+### duel_combat_sessions and duel_combat_actions
+Shipped in `0.1.18` for persistent turn-based player duels.
+
+- `duel_challenge_id` unique FK
+- `challenger_character_id`, `target_character_id`
+- `status`: active, resolved, expired, forfeited
+- `acting_character_id`
+- `state_json` frozen participant/combat state, last action, outcome, rules version and balance version
+- `turn`, `version`, `turn_expires_at`
+- nullable Telegram message refs for each side
+- append-only `duel_combat_actions` keyed by `(session_id, turn)` for action/audit idempotency
+
+Rules:
+- Callback payloads carry only compact token/action/expected turn/version. Mode, actor, damage, skill cost and result are always server-side.
+- Terminal updates release both active leases idempotently, write one stored result to the parent challenge and grant stored XP rewards only when that terminal challenge update succeeds.
+- Startup/lazy due-turn paths repair malformed active duel sessions to a non-rewarding expired state and remove orphan `turn-based-duel` leases whose referenced active session no longer owns the character.
+- Telegram edit/send failures may fall back to a fresh message, but never roll back or duplicate gameplay state.
 
 ### future item_transfers
 Planned for Phase 2 trading/gifting after duel invite primitives are proven; not present in `0.1.0`.
@@ -504,7 +527,7 @@ Web presence у `0.0.9`:
 
 Legacy ids `location.tavern`, `location.shawarma-table` і `location.tavern-cellar` лишаються read aliases для старих rows, але нові writes мають використовувати `location.korchma.*`. `/quest` не позначає гравця біля столу зі справами на рівні глобальної кнопки; command handler спершу перевіряє поточну місцину, блокує квест надворі й лише тоді переводить героя до столу. Льох є відкритою aggregate-місциною для public `/presence`, але public web усе одно лишає `players` порожнім за замовчуванням.
 
-Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/fight` для persistent problem chain у майбутньому може писати `location.korchma.deep`, бо Стіл зі справами є маршрутизатором, а не місцем бою. У `0.1.10` Глибка має neutral place callback і closed stub без старту бою. Quest-table list/archive callbacks лишаються neutral `{}` у middleware, а `sendQuestHub(...)` пише `location.korchma.quest_table` тільки після успішного Barrel/location/stale-button gate; place callbacks і quest/fight action callbacks мають таку саму модель neutral-before-handler. `0.1.6` додає `v1:quest:problem`: completion/turn-in для problem chain веде до Корчмаря в `location.korchma.bar`, приймає готовий етап `13/23/42/93` і видає наступний stage issue row з окремим fresh counter. `/hunt` у цьому MVP відкриває Єгерський куток, пише `location.korchma.ranger_corner` і `adventure.hunt-board.contract`, доки немає окремої wilderness/session model. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу. `0.1.5` додає level 3+ `/spar`, `v1:spar:open` і `v1:spar:turn:{sessionId}:{turn}:{action}`; `0.1.10` тримає ці callbacks neutral `{}` у middleware, handler перевіряє pending Barrel, korchma interior і level gate, а тільки потім пише `location.korchma.fighting_corner` і `adventure.training-doppelganger`. `v1:duel:new` має той самий interior gate і пише `location.korchma.fighting_corner` тільки після успішного створення challenge. Тренування використовує `solo_combat_sessions`, не створює PvP ledger, не видає золото/items/манатки, не дає problem-chain progress, але може видати малий XP; повторний старт блокується cooldown-ом відновлення допельґанґера, розрахованим від HP копії після бою.
+Routing rule у `0.0.11`/`0.0.17`: `/quest`, `/adventure`, `/fight`, `/hunt` і `/cellar` не мають глобально телепортувати героя до Столу зі справами. Якщо остання відома місцина надворі або порожня, handler показує `Квести видають усередині.` і кнопку входу до корчми. Якщо герой уже всередині корчми, `/quest` відкриває hub і пише `location.korchma.quest_table`; direct focus commands `/adventure`, `/fight` і `/hunt` можуть показати свою starter scene тільки після такого interior gate. `/fight` для persistent problem chain у майбутньому може писати `location.korchma.deep`, бо Стіл зі справами є маршрутизатором, а не місцем бою. У `0.1.10` Глибка має neutral place callback і closed stub без старту бою. Quest-table list/archive callbacks лишаються neutral `{}` у middleware, а `sendQuestHub(...)` пише `location.korchma.quest_table` тільки після успішного Barrel/location/stale-button gate; place callbacks і quest/fight action callbacks мають таку саму модель neutral-before-handler. `0.1.6` додає `v1:quest:problem`: completion/turn-in для problem chain веде до Корчмаря в `location.korchma.bar`, приймає готовий етап `13/23/42/93` і видає наступний stage issue row з окремим fresh counter. `/hunt` у цьому MVP відкриває Єгерський куток, пише `location.korchma.ranger_corner` і `adventure.hunt-board.contract`, доки немає окремої wilderness/session model. `/cellar` лишається secondary fallback і пише `location.korchma.cellar` тільки після входу. `0.1.5` додає level 3+ `/spar`, `v1:spar:open` і `v1:spar:turn:{sessionId}:{turn}:{action}`; `0.1.10` тримає ці callbacks neutral `{}` у middleware, handler перевіряє pending Barrel, korchma interior і level gate, а тільки потім пише `location.korchma.fighting_corner` і `adventure.training-doppelganger`. `v1:duel:new` має той самий interior gate і пише `location.korchma.fighting_corner` тільки після успішного створення challenge. `v1:nd:*` nearby-duel callbacks are presence-neutral; they read the current location's active candidate list and create targeted pending duel challenges without moving either player before normal accept/start guards. Тренування використовує `solo_combat_sessions`, не створює PvP ledger, не видає золото/items/манатки, не дає problem-chain progress, але може видати малий XP; повторний старт блокується cooldown-ом відновлення допельґанґера, розрахованим від HP копії після бою.
 
 `0.0.11` також додає `korchma_round_purchases` як малий журнал підтверджених частувань:
 - `v1:tavern:round` тільки показує offer/statistics screen і не списує золото;
@@ -542,7 +565,9 @@ Callback data коротка, версіонована.
 - `v1:news:entry:{entryIndex}:{listPage}`
 - `v1:tavern:raid`
 - `v1:duel:new`
+- `v1:duel:new-t`
 - `v1:duel:new-risk`
+- `v1:duel:new-t-risk`
 - `v1:duel:accept:{token}`
 - `v1:duel:accept-risk:{token}`
 - `v1:duel:decline:{token}`
@@ -551,6 +576,7 @@ Callback data коротка, версіонована.
 - `v1:duel:rematch-risk:{token}`
 - `v1:duel:share:{token}`
 - `v1:duel:view:{token}`
+- `v1:duel:t:{token}:{atk|skl|ff}:{turn36}:{version36}`
 - `v1:tavern:participants`
 - `v1:tavern:ranger`
 - `v1:tavern:round`

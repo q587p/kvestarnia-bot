@@ -3,6 +3,7 @@ import "dotenv/config";
 import type { Bot } from "grammy";
 import { getTelegramMenuCommands } from "./bot/botCommandCatalog";
 import { createBot } from "./bot/createBot";
+import { createDuelTurnTimeoutScheduler } from "./bot/duelTurnTimeoutScheduler";
 import { loadConfig } from "./config/env";
 import { prisma } from "./db/prisma";
 import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepository";
@@ -68,6 +69,7 @@ const presence = new PrismaPresenceRepository(prisma);
 const remorts = new PrismaRemortRepository(prisma);
 const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
 const fight = new FightService(characters, dailyActions, undefined, soloCombatSessions, undefined, equipment);
+const presenceService = new PresenceService(presence);
 const services = {
   adventure: new AdventureService(characters, dailyActions, undefined, soloCombatSessions),
   barrelRaidNotifications,
@@ -83,9 +85,9 @@ const services = {
   levelBarter: new LevelBarterService(levelBarter),
   levelMilestones: new LevelMilestoneService(levelMilestones),
   mantokChest: new MantokChestService(mantokChestRuns),
-  presence: new PresenceService(presence),
+  presence: presenceService,
   devGrant: new DevGrantService(devGrants, config.nodeEnv, config.devGrantCommandsEnabled),
-  duel: new DuelChallengeService(duelChallenges, characters),
+  duel: new DuelChallengeService(duelChallenges, characters, undefined, undefined, presenceService),
   remort: new RemortService(remorts),
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),
@@ -114,8 +116,10 @@ const healthServer = startHealthServer({
   ...supportJarOptions
 });
 let bot: Bot | null = null;
+let duelTurnTimeoutScheduler: ReturnType<typeof createDuelTurnTimeoutScheduler> | null = null;
 
 function shutdown(): void {
+  duelTurnTimeoutScheduler?.stop();
   if (bot) {
     void bot.stop();
   }
@@ -134,6 +138,8 @@ if (!config.botToken) {
     ...supportJarOptions,
     ...botLinkOptions
   });
+  duelTurnTimeoutScheduler = createDuelTurnTimeoutScheduler(services.duel, bot);
+  duelTurnTimeoutScheduler.start();
 
   void services.mantokChest.cleanupExpiredPendingRuns().catch((error) => {
     console.error("Квестарня: старі бланки Дружньої Скрині не прибрались.", error);

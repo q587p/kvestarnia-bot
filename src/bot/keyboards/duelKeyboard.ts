@@ -3,6 +3,7 @@ import type {
   DuelChallengeView,
   DuelCreateResult
 } from "../../services/duelChallengeService";
+import { getActorCombatActionAvailability } from "../../domain/combat";
 import {
   makeDuelAcceptCallbackData,
   makeDuelAcceptRiskCallbackData,
@@ -10,10 +11,13 @@ import {
   makeDuelDeclineCallbackData,
   makeDuelInviteRotateCallbackData,
   makeDuelNewCallbackData,
+  makeDuelNewTurnBasedCallbackData,
+  makeDuelNewTurnBasedRiskCallbackData,
   makeDuelNewRiskCallbackData,
   makeDuelRematchCallbackData,
   makeDuelRematchRiskCallbackData,
   makeDuelShareCallbackData,
+  makeDuelTurnCallbackData,
   makeDuelViewCallbackData
 } from "../callbacks/duelCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
@@ -21,7 +25,9 @@ import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 
 export function buildDuelEntryKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
-    .text("🥊 Кинути виклик", makeDuelNewCallbackData())
+    .text("⚡ Миттєва дуель", makeDuelNewCallbackData())
+    .row()
+    .text("♟️ Покрокова дуель", makeDuelNewTurnBasedCallbackData())
     .row()
     .text("📋 До справ", makeQuestCallbackData("list"))
     .row()
@@ -39,6 +45,19 @@ export function buildDuelChallengeKeyboard(
     .text("🙅 Не зараз", makeDuelDeclineCallbackData(token))
     .row()
     .text("🧹 Скасувати виклик", makeDuelCancelCallbackData(token))
+    .row()
+    .text("🔎 Оновити", makeDuelViewCallbackData(token));
+}
+
+export function buildDuelTargetedInviteKeyboard(
+  result: Extract<DuelCreateResult | DuelChallengeView, { state: "pending" }>
+): InlineKeyboard {
+  const token = result.challenge.inviteToken;
+
+  return new InlineKeyboard()
+    .text("🤝 Прийняти", makeDuelAcceptCallbackData(token))
+    .row()
+    .text("🙅 Не зараз", makeDuelDeclineCallbackData(token))
     .row()
     .text("🔎 Оновити", makeDuelViewCallbackData(token));
 }
@@ -63,18 +82,67 @@ export function buildDuelResultKeyboard(token?: string): InlineKeyboard {
   return keyboard
     .text("🥊 Покликати ще когось", makeDuelNewCallbackData())
     .row()
+    .text("🥊 До кутка", makePlaceCallbackData("fighting-corner"));
+}
+
+export function buildDuelCreateResourceWarningKeyboard(mode: "quick" | "turn-based" = "quick"): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(
+      "🥊 Так, кинути виклик",
+      mode === "turn-based" ? makeDuelNewTurnBasedRiskCallbackData() : makeDuelNewRiskCallbackData()
+    )
+    .row()
     .text("📋 До справ", makeQuestCallbackData("list"))
     .row()
     .text("🍺 До зали", makePlaceCallbackData("hall"));
 }
 
-export function buildDuelCreateResourceWarningKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
-    .text("🥊 Так, кинути виклик", makeDuelNewRiskCallbackData())
-    .row()
-    .text("📋 До справ", makeQuestCallbackData("list"))
-    .row()
-    .text("🍺 До зали", makePlaceCallbackData("hall"));
+export function buildTurnBasedDuelKeyboard(
+  result: Extract<DuelChallengeView, { state: "active" }>,
+  viewerCharacterId: string | null,
+  skillLabel: string
+): InlineKeyboard {
+  const token = result.challenge.inviteToken;
+  const session = result.session;
+  const viewerSide =
+    viewerCharacterId === session.state.participants.challenger.characterId
+      ? "challenger"
+      : viewerCharacterId === session.state.participants.target.characterId
+        ? "target"
+        : null;
+  const canAct =
+    viewerSide !== null &&
+    session.status === "active" &&
+    !session.state.pendingActions?.[viewerSide];
+  const viewer = viewerSide ? session.state.participants[viewerSide] : null;
+  const skillAvailability = viewer
+    ? getActorCombatActionAvailability(
+        {
+          mana: viewer.mana,
+          cooldowns: viewer.cooldowns
+        },
+        viewer.combatStats
+      ).skill
+    : null;
+  const keyboard = new InlineKeyboard();
+
+  if (canAct) {
+    keyboard
+      .text("⚔️ Атакувати", makeDuelTurnCallbackData(token, "attack", session.turn, session.version))
+      .row();
+
+    if (skillAvailability?.available !== false) {
+      keyboard
+        .text(skillLabel, makeDuelTurnCallbackData(token, "skill", session.turn, session.version))
+        .row();
+    }
+
+    keyboard
+      .text("🏳️ Здатися", makeDuelTurnCallbackData(token, "surrender", session.turn, session.version))
+      .row();
+  }
+
+  return keyboard.text("🔎 Оновити", makeDuelViewCallbackData(token));
 }
 
 export function buildDuelNavigationKeyboard(): InlineKeyboard {

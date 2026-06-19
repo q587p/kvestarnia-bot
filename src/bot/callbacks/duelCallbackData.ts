@@ -3,7 +3,9 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type DuelCallback =
   | { type: "new" }
+  | { type: "new-turn-based" }
   | { type: "new-risk" }
+  | { type: "new-turn-based-risk" }
   | { type: "accept"; token: string }
   | { type: "accept-risk"; token: string }
   | { type: "cancel"; token: string }
@@ -12,6 +14,7 @@ export type DuelCallback =
   | { type: "rematch-risk"; token: string }
   | { type: "share"; token: string }
   | { type: "invite"; token: string; templateIndex: number }
+  | { type: "turn"; token: string; action: "attack" | "skill" | "surrender"; turn: number; version: number }
   | { type: "view"; token: string };
 
 export type DuelCallbackError =
@@ -31,6 +34,14 @@ export function makeDuelNewCallbackData(): string {
 
 export function makeDuelNewRiskCallbackData(): string {
   return `${PREFIX}:new-risk`;
+}
+
+export function makeDuelNewTurnBasedCallbackData(): string {
+  return `${PREFIX}:new-t`;
+}
+
+export function makeDuelNewTurnBasedRiskCallbackData(): string {
+  return `${PREFIX}:new-t-risk`;
 }
 
 export function makeDuelAcceptCallbackData(token: string): string {
@@ -69,6 +80,17 @@ export function makeDuelViewCallbackData(token: string): string {
   return `${PREFIX}:view:${token}`;
 }
 
+export function makeDuelTurnCallbackData(
+  token: string,
+  action: "attack" | "skill" | "surrender",
+  turn: number,
+  version: number
+): string {
+  const actionKey = action === "attack" ? "atk" : action === "skill" ? "skl" : "ff";
+
+  return `${PREFIX}:t:${token}:${actionKey}:${turn.toString(36)}:${version.toString(36)}`;
+}
+
 export function parseDuelCallbackData(
   data: string | undefined
 ): Result<DuelCallback, DuelCallbackError> {
@@ -88,11 +110,19 @@ export function parseDuelCallbackData(
     return ok({ type: "new-risk" });
   }
 
+  if (data === `${PREFIX}:new-t`) {
+    return ok({ type: "new-turn-based" });
+  }
+
+  if (data === `${PREFIX}:new-t-risk`) {
+    return ok({ type: "new-turn-based-risk" });
+  }
+
   if (!data.startsWith(`${PREFIX}:`)) {
     return err("invalid-prefix");
   }
 
-  const [, section, action, token, templateIndex, ...rest] = data.split(":");
+  const [, section, action, token, templateIndex, turnValue, versionValue, ...rest] = data.split(":");
 
   if (section !== "duel" || rest.length > 0) {
     return err("invalid-prefix");
@@ -106,6 +136,7 @@ export function parseDuelCallbackData(
     action !== "rematch" &&
     action !== "rematch-risk" &&
     action !== "inv" &&
+    action !== "t" &&
     action !== "share" &&
     action !== "view"
   ) {
@@ -128,7 +159,29 @@ export function parseDuelCallbackData(
     });
   }
 
-  if (templateIndex !== undefined) {
+  if (action === "t") {
+    if (
+      templateIndex !== "atk" &&
+      templateIndex !== "skl" &&
+      templateIndex !== "ff"
+    ) {
+      return err("invalid-action");
+    }
+
+    if (!turnValue || !versionValue || !/^[0-9a-z]{1,4}$/.test(turnValue) || !/^[0-9a-z]{1,4}$/.test(versionValue)) {
+      return err("invalid-prefix");
+    }
+
+    return ok({
+      type: "turn",
+      token,
+      action: templateIndex === "atk" ? "attack" : templateIndex === "skl" ? "skill" : "surrender",
+      turn: Number.parseInt(turnValue, 36),
+      version: Number.parseInt(versionValue, 36)
+    });
+  }
+
+  if (templateIndex !== undefined || turnValue !== undefined || versionValue !== undefined) {
     return err("invalid-prefix");
   }
 

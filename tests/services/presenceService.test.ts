@@ -183,6 +183,62 @@ describe("PresenceService", () => {
     );
   });
 
+  it("lists only active nearby duel candidates at the current location", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL),
+      player(2n, "Дара", minutesAgo(2), PRESENCE_LOCATION_KORCHMA_HALL, {
+        characterLevel: 5
+      }),
+      player(3n, "Притихлий Нестор", minutesAgo(7), PRESENCE_LOCATION_KORCHMA_HALL),
+      player(4n, "Інша кімната", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_BAR)
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    const snapshot = await service.getNearbyDuelCandidatesForTelegramUser(1n);
+
+    expect(snapshot).toMatchObject({
+      state: "ready",
+      location: {
+        id: PRESENCE_LOCATION_KORCHMA_HALL,
+        name: "Зала корчми"
+      },
+      total: 1,
+      totalPages: 1,
+      visible: [
+        {
+          telegramUserId: 2n,
+          name: "Дара",
+          level: 5,
+          status: "active"
+        }
+      ]
+    });
+  });
+
+  it("revalidates nearby duel target activity at the current location", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL),
+      player(2n, "Дара", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL)
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    await expect(service.isNearbyDuelTargetAvailable(1n, 2n)).resolves.toBe(true);
+
+    repository.records.set(
+      2n,
+      player(2n, "Дара", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_BAR)
+    );
+
+    await expect(service.isNearbyDuelTargetAvailable(1n, 2n)).resolves.toBe(false);
+
+    repository.records.set(
+      2n,
+      player(2n, "Дара", minutesAgo(7), PRESENCE_LOCATION_KORCHMA_HALL)
+    );
+
+    await expect(service.isNearbyDuelTargetAvailable(1n, 2n)).resolves.toBe(false);
+  });
+
   it("filters raid and adventure participants by the current scene only", async () => {
     const repository = new FakePresenceRepository([
       player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_BARREL, {

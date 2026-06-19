@@ -12,6 +12,7 @@ import type { CharacterSummary } from "../../domain/characters/characterSummary"
 import {
   DUEL_INVITE_FAIRNESS_LINE,
   DUEL_INVITE_MODE_LINE,
+  DUEL_TURN_BASED_INVITE_MODE_LINE,
   renderDuelInviteTemplate
 } from "../../content/duelInviteFlavor";
 import { pickDuelDrawFlavor, pickDuelResultFlavor } from "../../content/duelResultFlavor";
@@ -19,14 +20,17 @@ import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export function presentDuelEntry(): string {
   return [
-    "⚡ <b>Миттєва дуель</b>",
+    "🥊 <b>Бійцівський куток</b>",
     "",
-    "Тут можна кинути короткий дружній виклик іншому пригоднику.",
-    "Результат з’явиться одразу після згоди.",
+    "⚡ <b>Миттєва дуель</b>",
+    "Результат одразу після згоди.",
+    "",
+    "♟️ <b>Покрокова дуель</b>",
+    "Гравці таємно обирають дії за раунд.",
     "",
     DUEL_INVITE_FAIRNESS_LINE,
     "",
-    "Без ставок, крадіжок, травм на пів сезону й іншої героїчної бухгалтерії. Хтось має натиснути «Прийняти» явно."
+    "Миттєва — без нагород. Покрокова — з малим досвідом. Без ставок, золота чи втрат манаток."
   ].join("\n");
 }
 
@@ -37,6 +41,7 @@ export function presentDuelKorchmaGate(): string {
 export interface DuelPresenterOptions {
   inviteUrl?: string | null;
   replayNotice?: boolean;
+  mode?: "quick" | "turn-based";
 }
 
 export function presentDuelCreate(result: DuelCreateResult, options: DuelPresenterOptions = {}): string {
@@ -49,7 +54,7 @@ export function presentDuelCreate(result: DuelCreateResult, options: DuelPresent
   }
 
   if (result.state === "resource-warning") {
-    return presentDuelCreateResourceWarning(result.character, result.warning);
+    return presentDuelCreateResourceWarning(result.character, result.warning, options.mode ?? "quick");
   }
 
   return presentPendingDuel(result, options);
@@ -94,15 +99,29 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
     ].join("\n");
   }
 
+  if (result.state === "busy") {
+    return [
+      `${presentDuelModeBadge(result.challenge.mode)} <b>Дуель почекає</b>`,
+      "",
+      presentDuelParticipant("Зайнятий пригодник", result.busyCharacter),
+      "",
+      "Корчмар бачить, що хтось із цієї пари вже в бою. Спершу завершіть поточну пригоду, тоді протокол знову відкриється."
+    ].join("\n");
+  }
+
   if (result.state === "confirmation") {
     return [
-      "⚡ <b>Прийняти миттєву дуель?</b>",
+      result.challenge.mode === "turn-based"
+        ? "♟️ <b>Прийняти покрокову дуель?</b>"
+        : "⚡ <b>Прийняти миттєву дуель?</b>",
       "",
       presentDuelParticipantWithItalicTitle("Запрошує", result.challenger),
       presentDuelParticipantWithItalicTitle("Ви", result.target),
       "",
       `${presentDuelFlavorName(result.challenger)} виходить проти вас у безпечному корчемному порядку.`,
-      "Результат з’явиться одразу після згоди.",
+      result.challenge.mode === "turn-based"
+        ? "Після згоди почнеться бій із закритими виборами за раунд."
+        : "Результат з’явиться одразу після згоди.",
       DUEL_INVITE_FAIRNESS_LINE,
       "",
       "Корчмар тримає перо над протоколом і питає: приймаємо?"
@@ -111,12 +130,16 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
 
   if (result.state === "resource-warning") {
     return [
-      "⚡ <b>Прийняти миттєву дуель?</b>",
+      result.challenge.mode === "turn-based"
+        ? "♟️ <b>Прийняти покрокову дуель?</b>"
+        : "⚡ <b>Прийняти миттєву дуель?</b>",
       presentDuelParticipant("Запрошує", result.challenger),
       presentDuelParticipant("Ви", result.target),
       "",
       "Виклик готовий, але ваш пригодник не зовсім відпочив.",
-      "Результат з’явиться одразу після згоди.",
+      result.challenge.mode === "turn-based"
+        ? "Після згоди почнеться бій із закритими виборами за раунд."
+        : "Результат з’явиться одразу після згоди.",
       "",
       presentResourceWarning(result.warning),
       "",
@@ -126,6 +149,10 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
 
   if (result.state === "resolved") {
     return presentResolvedDuel(result, { replayNotice: false });
+  }
+
+  if (result.state === "active") {
+    return presentTurnBasedDuel(result);
   }
 
   return presentDuelView(result);
@@ -151,7 +178,10 @@ export function presentDuelCancel(result: DuelCancelResult): string {
   return presentDuelView(result);
 }
 
-export function presentDuelDecline(result: DuelDeclineResult): string {
+export function presentDuelDecline(
+  result: DuelDeclineResult,
+  options: DuelPresenterOptions = {}
+): string {
   if (result.state === "no-character") {
     return "Квестарня не знайшла пригодника. Відмова теж любить документи.";
   }
@@ -168,7 +198,7 @@ export function presentDuelDecline(result: DuelDeclineResult): string {
     ].join("\n");
   }
 
-  return presentDuelView(result);
+  return presentDuelView(result, options);
 }
 
 export function presentDuelRematch(
@@ -234,6 +264,10 @@ export function presentDuelView(result: DuelChallengeView, options: DuelPresente
     return presentResolvedDuel(result);
   }
 
+  if (result.state === "active") {
+    return presentTurnBasedDuel(result);
+  }
+
   const statusLine =
     result.state === "expired"
       ? "Виклик прострочився. Кухоль охолов, а Корчмар уже підклав бланк під ніжку столу."
@@ -242,7 +276,7 @@ export function presentDuelView(result: DuelChallengeView, options: DuelPresente
         : "Виклик відхилено. Це теж добровільна згода, просто кнопка пішла в інший бік.";
 
   return [
-    "⚡ <b>Миттєва дуель</b>",
+    `${presentDuelModeBadge(result.challenge.mode)} <b>Дуель</b>`,
     presentDuelParticipant("Запрошує", result.challenger),
     "",
     statusLine,
@@ -256,16 +290,20 @@ function presentPendingDuel(
   options: DuelPresenterOptions = {}
 ): string {
   const lines = [
-    "⚡ <b>Миттєва дуель</b>",
+    `${presentDuelModeBadge(result.challenge.mode)} <b>${result.challenge.mode === "turn-based" ? "Покрокова дуель" : "Миттєва дуель"}</b>`,
     presentDuelParticipant("Запрошує", result.challenger),
     "",
     "Виклик уже на столі. Погляд такий, ніби це стратегія.",
     "",
-    "Результат з’явиться одразу після згоди.",
+    result.challenge.mode === "turn-based"
+      ? "Гравці таємно обирають дії за раунд."
+      : "Результат з’явиться одразу після згоди.",
     DUEL_INVITE_FAIRNESS_LINE,
     "",
     `Виклик відкритий ще <b>${formatRemaining(result.expiresAt, result.now)}</b>. Інший пригодник має натиснути «Прийняти».`,
-    "Нагород, ставок і втрат немає: це перший безпечний запис бійцівського кутка."
+    result.challenge.mode === "turn-based"
+      ? "За покрокову дуель лишиться трохи досвіду. Ставок, золота й втрат немає."
+      : "Нагород, ставок і втрат немає: це безпечний запис бійцівського кутка."
   ];
 
   if (result.challengerResourceWarning) {
@@ -286,15 +324,67 @@ function presentPendingDuel(
 export function presentDuelInviteShare(
   character: CharacterSummary,
   inviteUrl: string,
-  options: { templateIndex: number }
+  options: { templateIndex: number; mode?: "quick" | "turn-based" }
 ): string {
   return renderDuelInviteTemplate({
     templateIndex: options.templateIndex,
     escapedName: `<b>${escapeHtml(character.name)}</b>`,
-    modeLine: DUEL_INVITE_MODE_LINE,
+    modeLine: options.mode === "turn-based" ? DUEL_TURN_BASED_INVITE_MODE_LINE : DUEL_INVITE_MODE_LINE,
     fairnessLine: DUEL_INVITE_FAIRNESS_LINE,
     escapedInviteUrl: escapeHtml(inviteUrl)
   });
+}
+
+export function presentTurnBasedDuel(
+  result: Extract<DuelChallengeView, { state: "active" }>,
+  options: { viewerCharacterId?: string | null } = {}
+): string {
+  const state = result.session.state;
+  const challenger = state.participants.challenger;
+  const target = state.participants.target;
+  const viewerSide =
+    options.viewerCharacterId === challenger.characterId
+      ? "challenger"
+      : options.viewerCharacterId === target.characterId
+        ? "target"
+        : null;
+  const viewerPending = viewerSide ? state.pendingActions?.[viewerSide] : null;
+  const viewerParticipant = viewerSide ? state.participants[viewerSide] : null;
+  const statusLine =
+    result.session.status === "active"
+      ? viewerPending
+        ? `Ваш вибір записано · ${formatRemaining(result.turnExpiresAt, result.now)}`
+        : `Оберіть дію · ${formatRemaining(result.turnExpiresAt, result.now)}`
+      : "Бій завершено. Запис уже не перекидається.";
+  const actionLine = presentTurnBasedRoundState(state, viewerSide);
+
+  const lines = [
+    "♟️ <b>Покрокова дуель</b>",
+    "",
+    `${presentDuelParticipantInline(result.challenger)} ⚔️ ${presentDuelParticipantInline(result.target)}`,
+    "",
+    presentDuelVitals(challenger),
+    presentDuelVitals(target),
+    "",
+    `Раунд: <b>${result.session.turn}</b>`,
+    statusLine
+  ];
+
+  if (
+    result.session.status === "active" &&
+    viewerParticipant?.cooldowns?.skill?.remainingTurns
+  ) {
+    lines.push(`🫁 Вміння відсапується: ще ${formatTurns(viewerParticipant.cooldowns.skill.remainingTurns)}.`);
+  }
+
+  lines.push(
+    "",
+    actionLine,
+    "",
+    "<i>Дуель не змінює справжні HP/ману, золото чи манатки.</i>"
+  );
+
+  return lines.join("\n");
 }
 
 export function presentDuelResultShare(result: Extract<DuelChallengeView, { state: "resolved" }>): string {
@@ -311,14 +401,14 @@ export function presentDuelResultShare(result: Extract<DuelChallengeView, { stat
         ? result.target
         : result.challenger;
   const headline = winner
-    ? `🏁 <b>${escapeHtml(winner.name)}</b> переміг у миттєвій корчемній дуелі`
-    : "🏁 <b>Миттєва корчемна нічия</b>";
+    ? `🏁 <b>${escapeHtml(winner.name)}</b> переміг у ${result.challenge.mode === "turn-based" ? "корчемній" : "миттєвій корчемній"} дуелі`
+    : "🏁 <b>Корчемна нічия</b>";
   const line = winner && loser
     ? presentDuelFlavor(result.result, winner, loser)
     : presentDuelDrawFlavor(result.result, result.challenger, result.target);
 
   return [
-    "📣 <b>Картка корчемної дуелі: ⚡ Миттєва дуель</b>",
+    `📣 <b>Картка корчемної дуелі: ${presentDuelModeBadge(result.challenge.mode)} ${result.challenge.mode === "turn-based" ? "Покрокова дуель" : "Миттєва дуель"}</b>`,
     "",
     `${presentDuelParticipantInline(result.challenger)} ⚔️ ${presentDuelParticipantInline(result.target)}`,
     "",
@@ -326,7 +416,10 @@ export function presentDuelResultShare(result: Extract<DuelChallengeView, { stat
     "",
     headline,
     "",
-    "<i>Без XP, золота й манаток. Тільки слава, кухоль і трохи підозрілий запис у журналі.</i>"
+    ...presentDuelRewardLines(result),
+    result.challenge.mode === "turn-based"
+      ? "<i>Без золота й манаток. Тільки слава, кухоль і трохи підозрілий запис у журналі.</i>"
+      : "<i>Без XP, золота й манаток. Тільки слава, кухоль і трохи підозрілий запис у журналі.</i>"
   ].join("\n");
 }
 
@@ -334,6 +427,7 @@ function presentResolvedDuel(
   result: Extract<DuelChallengeView, { state: "resolved" }>,
   options: Pick<DuelPresenterOptions, "replayNotice"> = {}
 ): string {
+  const mode = result.challenge.mode ?? "quick";
   const winner =
     result.result.outcome === "draw"
       ? null
@@ -347,24 +441,27 @@ function presentResolvedDuel(
         ? result.target
         : result.challenger;
   const headline = winner
-    ? `🏁 <b>${escapeHtml(winner.name)}</b> перемагає у миттєвій дуелі`
+    ? `🏁 <b>${escapeHtml(winner.name)}</b> перемагає у ${mode === "turn-based" ? "дуелі" : "миттєвій дуелі"}`
     : "🏁 <b>Корчемна нічия</b>";
   const line = winner && loser
     ? presentDuelFlavor(result.result, winner, loser)
     : presentDuelDrawFlavor(result.result, result.challenger, result.target);
 
   const lines = [
-    "⚡ <b>Результат миттєвої дуелі</b>",
+    `${presentDuelModeBadge(mode)} <b>Результат ${mode === "turn-based" ? "покрокової дуелі" : "миттєвої дуелі"}</b>`,
     "",
     `${presentDuelParticipantInline(result.challenger)} ⚔️ ${presentDuelParticipantInline(result.target)}`,
     "",
-    "Перший і останній хід:",
+    mode === "turn-based" ? "Останній запис:" : "Перший і останній хід:",
     "",
     line,
     "",
     headline,
     "",
-    "<i>Без XP, золота й манаток. Це корчемний запис для слави, а не спосіб заробітку.</i>"
+    ...presentDuelRewardLines(result),
+    mode === "turn-based"
+      ? "<i>Без золота й манаток. Це корчемний запис для слави, а не спосіб заробітку.</i>"
+      : "<i>Без XP, золота й манаток. Це корчемний запис для слави, а не спосіб заробітку.</i>"
   ];
 
   if (options.replayNotice !== false) {
@@ -372,6 +469,93 @@ function presentResolvedDuel(
   }
 
   return lines.join("\n");
+}
+
+function presentDuelModeBadge(mode: "quick" | "turn-based"): string {
+  return mode === "turn-based" ? "♟️" : "⚡";
+}
+
+function presentDuelRewardLines(result: Extract<DuelChallengeView, { state: "resolved" }>): string[] {
+  if (result.challenge.mode !== "turn-based" || !result.result.xpRewards) {
+    return [];
+  }
+
+  return [
+    "Досвід за дуель:",
+    `<b>${escapeHtml(result.challenger.name)} +${result.result.xpRewards.challenger} XP\n${escapeHtml(result.target.name)} +${result.result.xpRewards.target} XP</b>`,
+    ""
+  ];
+}
+
+function presentDuelVitals(participant: {
+  displayName: string;
+  hp: number;
+  hpMax: number;
+  mana: number;
+  manaMax: number;
+}): string {
+  return `<b>${escapeHtml(participant.displayName)}</b>: HP ${participant.hp}/${participant.hpMax} · мана ${participant.mana}/${participant.manaMax}`;
+}
+
+function presentTurnBasedRoundState(
+  state: Extract<DuelChallengeView, { state: "active" }>["session"]["state"],
+  viewerSide: "challenger" | "target" | null
+): string {
+  const pending = viewerSide ? state.pendingActions?.[viewerSide] : null;
+
+  if (state.status === "active" && pending) {
+    return `Ваш вибір: <b>${presentQueuedDuelAction(pending.action)}</b>.\nРезультат відкриється, коли обидва учасники зроблять хід або спливе таймер.`;
+  }
+
+  if (state.status === "active" && state.pendingActions) {
+    return "⏳ Корчмар тримає записи закритими, доки обидва учасники не зроблять хід.";
+  }
+
+  if (state.lastRound) {
+    return state.lastRound.actions.map(presentTurnBasedLastAction).join("\n");
+  }
+
+  if (state.lastAction) {
+    return presentTurnBasedLastAction(state.lastAction);
+  }
+
+  return "⏳ На хід є 23 секунди. Потім Корчмар зарахує звичайну атаку.";
+}
+
+function presentQueuedDuelAction(action: string): string {
+  return action === "skill"
+    ? "класова дія"
+    : action === "surrender"
+      ? "здатися"
+      : "звичайна атака";
+}
+
+function presentTurnBasedLastAction(action: {
+  actorCharacterId: string;
+  action: string;
+  outcome: string;
+  damage: number;
+  manaSpent: number;
+  critical: boolean;
+}): string {
+  const actionLine =
+    action.action === "surrender"
+      ? "🏳️ Учасник здався. Корчмар записав це без зайвих запитань."
+      : action.action === "timeout-attack"
+        ? "⏳ Тиша зробила звичайну атаку замість гравця."
+        : action.action === "skill"
+          ? "✨ Класова дія записана в протокол."
+          : "⚔️ Звичайна атака записана в протокол.";
+  const hitLine =
+    action.damage > 0
+      ? `Шкода: <b>${action.damage}</b>${action.critical ? " · критично" : ""}.`
+      : action.outcome === "not-enough-mana"
+        ? "Мани не вистачило, але хід усе одно пішов у протокол."
+        : action.outcome === "skill-on-cooldown"
+          ? "Дія ще не відлипла від попереднього разу."
+          : "Шкода не пройшла.";
+
+  return [actionLine, hitLine].join("\n");
 }
 
 function presentDuelParticipant(label: string, character: CharacterSummary): string {
@@ -417,13 +601,21 @@ function presentDuelPairLimit(result: DuelPairLimit): string {
   ].join("\n");
 }
 
-function presentDuelCreateResourceWarning(character: CharacterSummary, warning: DuelResourceWarning): string {
+function presentDuelCreateResourceWarning(
+  character: CharacterSummary,
+  warning: DuelResourceWarning,
+  mode: "quick" | "turn-based"
+): string {
   return [
-    "⚡ <b>Кидати миттєву дуель зараз?</b>",
+    mode === "turn-based"
+      ? "♟️ <b>Кидати покрокову дуель зараз?</b>"
+      : "⚡ <b>Кидати миттєву дуель зараз?</b>",
     presentCharacterHeader(character),
     "",
     "Корчмар бачить, що ви ще не зовсім віддихалися.",
-    "Результат з’явиться одразу після згоди.",
+    mode === "turn-based"
+      ? "Після згоди почнеться бій із закритими виборами за раунд."
+      : "Результат з’явиться одразу після згоди.",
     "",
     presentResourceWarning(warning),
     "",
@@ -458,6 +650,10 @@ function presentDuelFlavor(
   winner: CharacterSummary,
   loser: CharacterSummary
 ): string {
+  if (result.mode === "turn-based" && result.terminalReason === "surrender") {
+    return `🏳️ ${presentDuelFlavorName(loser)} здається. ${presentDuelFlavorName(winner)} отримує перемогу, а Корчмар — рядок у протоколі без зайвої драматургії.`;
+  }
+
   const winnerName = presentDuelFlavorName(winner);
   const loserName = presentDuelFlavorName(loser);
 
@@ -502,6 +698,21 @@ function formatRemaining(expiresAt: Date, now: Date): string {
   }
 
   return `${minutes} хв ${seconds} с`;
+}
+
+function formatTurns(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return `${count} хід`;
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${count} ходи`;
+  }
+
+  return `${count} ходів`;
 }
 
 function formatHourMinute(date: Date): string {

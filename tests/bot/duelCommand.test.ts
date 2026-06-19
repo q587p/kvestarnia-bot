@@ -1,7 +1,11 @@
 import type { Context } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { handleDuelCallback } from "../../src/bot/commands/duelCommand";
-import type { DuelChallengeRecord, DuelCharacterSnapshot } from "../../src/db/repositories/duelChallengeRepository";
+import type {
+  DuelChallengeRecord,
+  DuelCharacterSnapshot,
+  DuelCombatSessionRecord
+} from "../../src/db/repositories/duelChallengeRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { DuelChallengeService } from "../../src/services/duelChallengeService";
 import type { PresenceService } from "../../src/services/presenceService";
@@ -275,6 +279,33 @@ describe("handleDuelCallback", () => {
     expect(editMessageText).not.toHaveBeenCalled();
   });
 
+  it("preserves the configured invite link when decline re-renders a pending challenge", async () => {
+    const challenger = makeCharacterSummary("Автор Виклику");
+    const challenge = makeChallenge("pending");
+    const declineForTelegramUser = vi.fn().mockResolvedValue({
+      state: "pending",
+      challenge,
+      challenger,
+      challengerResourceWarning: null,
+      expiresAt: EXPIRES_AT,
+      now: NOW
+    });
+    const service = serviceWith({
+      declineForTelegramUser
+    });
+    const { ctx, editMessageText, reply } = createCallbackContext(88);
+
+    await handleDuelCallback(ctx, { type: "decline", token: TOKEN }, service, {
+      presence: createPresence(),
+      botUsername: "kvestarnia_dev_bot"
+    });
+
+    expect(declineForTelegramUser).toHaveBeenCalledWith(88n, TOKEN);
+    expect(messageText(editMessageText)).toContain("Окреме повідомлення з інвайтом можна переслати в приват або чат.");
+    expect(messageText(editMessageText)).not.toContain("Посилання для копіювання ще не зібралося");
+    expect(reply).not.toHaveBeenCalled();
+  });
+
   it("keeps a pending open invite card stable when the challenger accepts their own invite", async () => {
     const challenger = makeCharacterSummary("Автор Виклику");
     const acceptForTelegramUser = vi.fn().mockResolvedValue({
@@ -324,6 +355,71 @@ describe("handleDuelCallback", () => {
     expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:cancel:${TOKEN}`);
   });
 
+  it("notifies the targeted recipient when the challenger cancels", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const challenger = makeCharacterSummary("Автор Виклику");
+    const service = serviceWith({
+      cancelForTelegramUser: vi.fn().mockResolvedValue({
+        state: "cancelled",
+        transitioned: true,
+        challenge: makeChallenge("cancelled", target),
+        challenger,
+        target: makeCharacterSummary("Ціль Виклику")
+      })
+    });
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "cancel", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(99);
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Виклик скасовано");
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:quest:list");
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).not.toContain(`v1:duel:accept:${TOKEN}`);
+  });
+
+  it("does not broadcast open invite cancellation", async () => {
+    const challenger = makeCharacterSummary("Автор Виклику");
+    const service = serviceWith({
+      cancelForTelegramUser: vi.fn().mockResolvedValue({
+        state: "cancelled",
+        transitioned: true,
+        challenge: makeChallenge("cancelled"),
+        challenger
+      })
+    });
+    const { ctx, sendMessage } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "cancel", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("does not notify targeted cancellation again on replayed cancel", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const service = serviceWith({
+      cancelForTelegramUser: vi.fn().mockResolvedValue({
+        state: "cancelled",
+        transitioned: false,
+        challenge: makeChallenge("cancelled", target),
+        challenger: makeCharacterSummary("Автор Виклику")
+      })
+    });
+    const { ctx, sendMessage } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "cancel", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("asks for confirmation before accepting with full resources", async () => {
     const acceptForTelegramUser = vi.fn().mockResolvedValue({
       state: "confirmation",
@@ -366,6 +462,7 @@ describe("handleDuelCallback", () => {
     const presence = createPresence(markAction);
     const acceptForTelegramUser = vi.fn().mockResolvedValue({
       state: "resolved",
+      transitioned: true,
       challenge: makeChallenge("resolved", makeCharacter(99n, "Ціль Виклику")),
       challenger,
       target,
@@ -382,7 +479,7 @@ describe("handleDuelCallback", () => {
     const service = serviceWith({
       acceptForTelegramUser
     });
-    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(99);
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext(99, "private");
 
     await handleDuelCallback(ctx, { type: "accept-risk", token: TOKEN }, service, {
       presence
@@ -416,6 +513,145 @@ describe("handleDuelCallback", () => {
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:rematch:${TOKEN}`);
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:share:${TOKEN}`);
     expect(keyboardJson(editMessageText)).toContain("v1:duel:new");
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Результат миттєвої дуелі");
+    expect(sendMessage.mock.calls[0]?.[1]).toContain(
+      "Запис збережено: це той самий результат, без повторного кидка."
+    );
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain(`v1:duel:rematch:${TOKEN}`);
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain(`v1:duel:share:${TOKEN}`);
+  });
+
+  it("does not notify the other quick-duel participant on replayed accept", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const acceptForTelegramUser = vi.fn().mockResolvedValue({
+      state: "resolved",
+      transitioned: false,
+      challenge: makeChallenge("resolved", target),
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      result: {
+        outcome: "target",
+        winnerCharacterId: "character-99",
+        loserCharacterId: "character-42",
+        challengerScore: 7,
+        targetScore: 9,
+        swing: 0,
+        flavorKey: "paperwork-stall"
+      }
+    });
+    const service = serviceWith({ acceptForTelegramUser });
+    const { ctx, sendMessage } = createCallbackContext(99);
+
+    await handleDuelCallback(ctx, { type: "accept-risk", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("renders the canonical result card immediately after a terminal turn action", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const terminalSession = makeTurnBasedSession("forfeited", target);
+    const resolveTurnBasedActionForTelegramUser = vi.fn().mockResolvedValue({
+      state: "updated",
+      session: terminalSession
+    });
+    const getByToken = vi.fn().mockResolvedValue({
+      state: "resolved",
+      challenge: {
+        ...makeChallenge("resolved", target),
+        mode: "turn-based"
+      },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      result: {
+        mode: "turn-based",
+        terminalReason: "surrender",
+        outcome: "challenger",
+        winnerCharacterId: "character-42",
+        loserCharacterId: "character-99",
+        challengerScore: 12,
+        targetScore: 3,
+        swing: 2,
+        flavorKey: "direct-hit"
+      }
+    });
+    const recordTurnBasedMessageReference = vi.fn().mockResolvedValue(undefined);
+    const service = serviceWith({
+      resolveTurnBasedActionForTelegramUser,
+      getByToken,
+      recordTurnBasedMessageReference
+    });
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext(99, "private");
+
+    await handleDuelCallback(ctx, { type: "turn", token: TOKEN, action: "surrender", turn: 2, version: 3 }, service, {
+      presence: createPresence()
+    });
+
+    expect(resolveTurnBasedActionForTelegramUser).toHaveBeenCalledWith(99n, {
+      inviteToken: TOKEN,
+      expectedTurn: 2,
+      expectedVersion: 3,
+      action: "surrender"
+    });
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(messageText(editMessageText)).toContain("Результат покрокової дуелі");
+    expect(messageText(editMessageText)).toContain("здається");
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:rematch:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:share:${TOKEN}`);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Результат покрокової дуелі");
+    expect(recordTurnBasedMessageReference).toHaveBeenCalledWith("session-1", "challenger", {
+      chatId: 42n,
+      messageId: 123
+    });
+  });
+
+  it("does not accept turn actions from a group chat or expose private queued choices", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const activeSession = makeTurnBasedSession("active", target);
+    activeSession.state.pendingActions = {
+      target: {
+        actorCharacterId: "character-99",
+        action: "skill"
+      }
+    };
+    const resolveTurnBasedActionForTelegramUser = vi.fn();
+    const getByToken = vi.fn().mockResolvedValue({
+      state: "active",
+      challenge: {
+        ...makeChallenge("active", target),
+        mode: "turn-based"
+      },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      session: activeSession,
+      turnExpiresAt: activeSession.turnExpiresAt,
+      now: NOW
+    });
+    const service = serviceWith({
+      resolveTurnBasedActionForTelegramUser,
+      getByToken,
+      recordTurnBasedMessageReference: vi.fn()
+    });
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(99, "group");
+
+    await handleDuelCallback(ctx, { type: "turn", token: TOKEN, action: "attack", turn: 2, version: 4 }, service, {
+      presence: createPresence()
+    });
+
+    expect(resolveTurnBasedActionForTelegramUser).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Ходи дуелі приймаються тільки в приваті з ботом."
+    });
+    expect(messageText(editMessageText)).toContain("Покрокова дуель");
+    expect(messageText(editMessageText)).toContain("записи закритими");
+    expect(messageText(editMessageText)).not.toContain("Ваш вибір");
+    expect(keyboardJson(editMessageText)).not.toContain("Атакувати");
+    expect(keyboardJson(editMessageText)).not.toContain("Здатися");
   });
 
   it("keeps resource-warning accept flow on the warning keyboard", async () => {
@@ -638,15 +874,20 @@ describe("handleDuelCallback", () => {
   });
 });
 
-function createCallbackContext(userId: number): {
+function createCallbackContext(userId: number, chatType: "private" | "group" | "supergroup" = "group"): {
   ctx: Context;
   answerCallbackQuery: ReturnType<typeof vi.fn>;
   editMessageText: ReturnType<typeof vi.fn>;
+  apiEditMessageText: ReturnType<typeof vi.fn>;
   reply: ReturnType<typeof vi.fn>;
+  sendMessage: ReturnType<typeof vi.fn>;
 } {
   const answerCallbackQuery = vi.fn().mockResolvedValue(true);
   const editMessageText = vi.fn().mockResolvedValue(true);
+  const apiEditMessageText = vi.fn().mockResolvedValue(true);
   const reply = vi.fn().mockResolvedValue(true);
+  const sendMessage = vi.fn().mockResolvedValue({ message_id: 123 });
+  const chatId = chatType === "private" ? userId : -100;
   const ctx = {
     from: {
       id: userId,
@@ -654,25 +895,29 @@ function createCallbackContext(userId: number): {
       first_name: "Тест"
     },
     chat: {
-      id: -100,
-      type: "group"
+      id: chatId,
+      type: chatType
     },
     callbackQuery: {
       id: "callback-1",
       message: {
         message_id: 10,
         chat: {
-          id: -100,
-          type: "group"
+          id: chatId,
+          type: chatType
         }
       }
+    },
+    api: {
+      editMessageText: apiEditMessageText,
+      sendMessage
     },
     answerCallbackQuery,
     editMessageText,
     reply
   } as unknown as Context;
 
-  return { ctx, answerCallbackQuery, editMessageText, reply };
+  return { ctx, answerCallbackQuery, editMessageText, apiEditMessageText, reply, sendMessage };
 }
 
 function createPresence(
@@ -741,6 +986,135 @@ function makeChallenge(
     updatedAt: NOW,
     challenger: makeCharacter(42n, "Автор Виклику"),
     target
+  };
+}
+
+function makeTurnBasedSession(
+  status: "active" | "resolved" | "expired" | "forfeited",
+  target: DuelCharacterSnapshot
+): DuelCombatSessionRecord {
+  return {
+    id: "session-1",
+    duelChallengeId: "duel-1",
+    challengerCharacterId: "character-42",
+    targetCharacterId: target.id,
+    status,
+    actingCharacterId: "character-99",
+    turn: 2,
+    version: 4,
+    turnExpiresAt: new Date("2026-06-17T18:00:23.000Z"),
+    completedAt: status === "active" ? null : NOW,
+    challengerChatId: null,
+    challengerMessageId: null,
+    targetChatId: null,
+    targetMessageId: null,
+    createdAt: NOW,
+    updatedAt: NOW,
+    challenge: {
+      ...makeChallenge(status === "active" ? "active" : "resolved", target),
+      mode: "turn-based"
+    },
+    state: {
+      mode: "turn-based",
+      status,
+      rulesVersion: "turn-based-duel-v1",
+      balanceVersion: "instant-duel-v2",
+      turn: 2,
+      actingCharacterId: "character-99",
+      participants: {
+        challenger: makeTurnBasedParticipant("character-42", "Автор Виклику"),
+        target: makeTurnBasedParticipant("character-99", "Ціль Виклику")
+      },
+      outcome: status === "active"
+        ? undefined
+        : {
+            outcome: "challenger",
+            winnerCharacterId: "character-42",
+            loserCharacterId: "character-99",
+            reason: "surrender"
+          }
+    }
+  };
+}
+
+function makeTurnBasedParticipant(characterId: string, displayName: string) {
+  return {
+    characterId,
+    displayName,
+    title: "Пересічні Пригодники",
+    raceId: "race.human-ish",
+    raceName: "Людисько",
+    classId: "class.warrior",
+    className: "Воїн",
+    level: 3,
+    remortCount: 0,
+    stats: {
+      strength: 7,
+      dexterity: 7,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6
+    },
+    hp: 12,
+    hpMax: 24,
+    mana: 6,
+    manaMax: 12,
+    combatStats: {
+      level: 3,
+      hpMax: 24,
+      manaMax: 12,
+      strength: 7,
+      dexterity: 7,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6,
+      classId: "class.warrior"
+    },
+    balanceAudit: {
+      balanceVersion: "instant-duel-v2",
+      originalLevel: 3,
+      originalRemortCount: 0,
+      effectiveCombatLevel: 3,
+      progressionBudget: {
+        level: 3,
+        remortCount: 0,
+        hpMax: 0,
+        manaMax: 0,
+        stats: {
+          strength: 0,
+          dexterity: 0,
+          intelligence: 0,
+          charisma: 0,
+          luck: 0
+        },
+        score: 0
+      },
+      targetProgressionBudget: {
+        level: 3,
+        remortCount: 0,
+        hpMax: 0,
+        manaMax: 0,
+        stats: {
+          strength: 0,
+          dexterity: 0,
+          intelligence: 0,
+          charisma: 0,
+          luck: 0
+        },
+        score: 0
+      },
+      temporaryHpMax: 0,
+      temporaryManaMax: 0,
+      temporaryStats: {
+        strength: 0,
+        dexterity: 0,
+        intelligence: 0,
+        charisma: 0,
+        luck: 0
+      },
+      readinessPenalty: 0,
+      preparedScore: 0
+    }
   };
 }
 

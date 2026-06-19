@@ -28,10 +28,10 @@ Phase 2 не починається з «великого рейду на всі
 ## Phase 2 order
 
 1. **Pre-duel training doppelganger.** `0.1.5` adds level 3+ `/spar` / `🥊 Бійцівський куток`: a turn-based XP-only training fight against a bot-owned mirror copy, with no target player, duel ledger, gold/items/manatky rewards, quest progress, wager, rank or title yet. It reuses solo combat sessions for the local fight state but is explicitly excluded from ordinary `/fight` quest counting.
-2. **Duel invite MVP.** `0.1.10` ships the first rewardless ledger: level 3+ challenge row, accept/decline/cancel/expire, generated deep links, quick resolve and replay-safe result. `0.1.11` adds rematches/share cards, and `0.1.17` renames the current quick mode to `⚡ Миттєва дуель`, adds invite text rotation, canonical resource sync, progression-only normalization and result snapshots. It still has no rewards, rating, wagers, item loss or tournament state.
-3. **Result/rematch/tournament cards.** Compact share card, rematch button, small daily/weekly recognition without power creep; tournament/rating power remains future until the rewardless duel loop is proven.
-4. **Trading/gifting MVP.** Передати одну eligible манатку або stack-unit іншому гравцю з explicit confirmation and audit row.
-5. **Combat turn timeout.** Shared combat infrastructure for ordinary monster fights, `/spar` and later turn-based duels: around `23` seconds per turn, then an idempotent auto-attack or skip so abandoned fights do not block the table.
+2. **Duel invite MVP.** `0.1.10` ships the first rewardless ledger: level 3+ challenge row, accept/decline/cancel/expire, generated deep links, quick resolve and replay-safe result. `0.1.11` adds rematches/share cards, `0.1.17` renames the quick mode to `⚡ Миттєва дуель`, and `0.1.18` adds `♟️ Покрокова дуель` with persistent two-player session state, leases, 23-second hidden-choice rounds, shared combat-domain actions, a small XP-only terminal reward and same-location targeted invites from `👀 Хто поруч`. It still has no gold/items/manatky rewards, rating, wagers, item loss or tournament state.
+3. **Result/rematch/tournament cards.** Compact share card and mode-preserving rematch are shipped; small daily/weekly recognition without power creep remains future, and tournament/rating power waits until the rewardless duel loop is proven.
+4. **Trading/gifting MVP.** Передати одну eligible манатку, stack-unit або золото іншому гравцю з explicit confirmation and audit row; nearby presence selection can be reused, but exchange rules stay separate from duel invites.
+5. **Combat turn timeout.** Turn-based duels now use the first durable 23-second turn timeout path with idempotent auto-attacks. Ordinary monster fights and `/spar` can reuse the same model later instead of relying only on long-session expiry.
 6. **Combat variety.** Guard, cooldowns, monster skills, class/race/action catalog, item tags and one-use manatky.
 7. **Remort follow-ups.** The base `/remort` loop shipped in `0.1.2`; future Phase 2 work can add remort-only flavor/options without paid power, hidden wipes or veteran snowball.
 8. **Multi-enemy combat.** Main enemy plus controlled helper/summon pattern, compact UI, no doubled reward faucet.
@@ -63,7 +63,7 @@ Social-combat results may depend on:
 
 The goal is not sterile symmetry. A class, race, title or carried/equipped manatka should sometimes create a funny upset, as long as caps and logs prevent abuse loops.
 
-For instant duels, level/remort progression may be temporarily normalized before scoring. Identity and equipment should not be copied, averaged or erased; the normalization only prevents progression gap from becoming the whole result.
+For duels, level/remort progression may be temporarily normalized before scoring or session start. Identity and equipment should not be copied, averaged or erased; the normalization only prevents progression gap from becoming the whole result. Turn-based sessions freeze the accepted snapshots so later equipment, remort or rename changes do not mutate the active or replayed fight.
 
 ## Required docs before runtime work
 

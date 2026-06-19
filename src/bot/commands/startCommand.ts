@@ -1,4 +1,4 @@
-import type { Bot } from "grammy";
+import type { Bot, Context } from "grammy";
 import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { OnboardingService } from "../../services/onboardingService";
 import { playerFromContext } from "../context";
@@ -6,11 +6,14 @@ import {
   buildDuelAcceptConfirmationKeyboard,
   buildDuelChallengeKeyboard,
   buildDuelResourceWarningKeyboard,
-  buildDuelResultKeyboard
+  buildDuelResultKeyboard,
+  buildTurnBasedDuelKeyboard
 } from "../keyboards/duelKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { buildGenderKeyboard } from "../keyboards/onboardingKeyboard";
-import { presentDuelAccept, presentDuelView } from "../presenters/duelPresenter";
+import { getCombatSkillDisplay } from "../../services/fightService";
+import { getCombatSkillProfile } from "../../domain/combat";
+import { presentDuelAccept, presentDuelView, presentTurnBasedDuel } from "../presenters/duelPresenter";
 import { presentHero } from "../presenters/heroPresenter";
 import { presentWelcome } from "../presenters/onboardingPresenter";
 import { presentSupportThanks } from "../presenters/supportPresenter";
@@ -44,7 +47,9 @@ export function registerStartCommand(
     }
 
     if (payload.type === "duel" && options.duel) {
-      const result = await options.duel.acceptForTelegramUser(player.telegramUserId, payload.token);
+      const result = await options.duel.acceptForTelegramUser(player.telegramUserId, payload.token, {
+        expectedMode: payload.mode ?? "quick"
+      });
 
       if (result.state === "no-character") {
         await onboardingService.start(player);
@@ -56,9 +61,29 @@ export function registerStartCommand(
       }
 
       if (result.state === "pending") {
-        await ctx.reply(presentDuelView(result, { inviteUrl: buildDuelInviteUrl(options.duelBotUsername, result.challenge.inviteToken) }), {
+        await ctx.reply(presentDuelView(result, { inviteUrl: buildDuelInviteUrl(options.duelBotUsername, result.challenge.inviteToken, result.challenge.mode) }), {
           parse_mode: "HTML",
           reply_markup: buildDuelChallengeKeyboard(result)
+        });
+        return;
+      }
+
+      if (result.state === "active") {
+        const viewerCharacterId = isPrivateChat(ctx)
+          ? getTurnBasedDuelViewerCharacterId(player.telegramUserId, result)
+          : null;
+        const participant = viewerCharacterId === result.session.state.participants.target.characterId
+          ? result.session.state.participants.target
+          : result.session.state.participants.challenger;
+        const skill = getCombatSkillDisplay(getCombatSkillProfile(participant.combatStats.classId).id);
+
+        await ctx.reply(presentTurnBasedDuel(result, { viewerCharacterId }), {
+          parse_mode: "HTML",
+          reply_markup: buildTurnBasedDuelKeyboard(
+            result,
+            viewerCharacterId,
+            `${skill.icon} ${skill.name}`
+          )
         });
         return;
       }
@@ -105,8 +130,35 @@ export function registerStartCommand(
   });
 }
 
-function buildDuelInviteUrl(botUsername: string | undefined, token: string): string | null {
-  return botUsername ? `https://t.me/${botUsername}?start=duel_${token}` : null;
+function getTurnBasedDuelViewerCharacterId(
+  telegramUserId: bigint,
+  result: Extract<Awaited<ReturnType<NonNullable<StartCommandOptions["duel"]>["acceptForTelegramUser"]>>, { state: "active" }>
+): string | null {
+  if (result.challenge.challenger.telegramUserId === telegramUserId) {
+    return result.session.challengerCharacterId;
+  }
+
+  if (result.challenge.target?.telegramUserId === telegramUserId) {
+    return result.session.targetCharacterId;
+  }
+
+  return null;
+}
+
+function buildDuelInviteUrl(
+  botUsername: string | undefined,
+  token: string,
+  mode: "quick" | "turn-based" = "quick"
+): string | null {
+  if (!botUsername) {
+    return null;
+  }
+
+  return `https://t.me/${botUsername}?start=${mode === "turn-based" ? "duel_turnbased_" : "duel_"}${token}`;
+}
+
+function isPrivateChat(ctx: Context): boolean {
+  return ctx.chat?.type === "private";
 }
 
 export function buildExistingCharacterReplyOptions(): {

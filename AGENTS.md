@@ -107,7 +107,7 @@ After closing a versioned task:
 9. In Ukrainian text, use `«»` quotes, not English curly quotes or straight double quotes; straight quotes are allowed only for code/JSON/technical examples.
 10. Use `міт`, `мітичний`, `мітологія`, `мітологічний` with `т`, not `міф*`, unless it is an immutable external quote or name.
 11. Use `соціяльний`, `соціяльна`, `соціяльне`, `соціяльні`, `соціяльність` with `я`, not `соціальн*`, unless it is an immutable external quote or name.
-12. In visible docs/changelog/news/player dates, use the Holocene calendar: `12026`, not `2026`. Release/news/changelog date headings use Kyiv time (`Europe/Kyiv`). Do not rewrite machine timestamps, migration names, or technical IDs.
+12. In visible docs/changelog/news/player dates, use the Holocene calendar: `12026`, not `2026`. Release/news/changelog date headings use Kyiv time (`Europe/Kyiv`) and the fixed Holocene `1YYYY-MM-DD` format, for example `12026-06-19`. Do not rewrite machine timestamps, migration names, or technical IDs.
 13. Player-facing under-Korchma combat terminology: ordinary/problem fights route to `Низ`, not `Глибка` or generic `підземелля`; use `Спуск` as the action, `Спуск до Низу` as the first surface, `Ярус I: Сутерени Корчми` as the first layer, and `Зіґурат` only as later lore/reveal. Spell it exactly `Зіґурат`; do not write `Зикурат` in new player-facing copy.
 14. When choosing non-critical exact numbers for flavor, short timers, quest counters, or small limits, prefer `13`, `23`, `42`, `93`, and `587` when it is appropriate. Do not force these numbers when balance, safety, API limits, clarity, or established formulas need something else.
 15. Do not insert secrets, tokens, private chat IDs, or real keys into code or docs.

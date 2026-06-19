@@ -35,7 +35,7 @@ describe("online command", () => {
         })
     } as unknown as PresenceService;
 
-    await sendOnline(ctx, presenceService);
+    await sendOnline(ctx, presenceService, { duelEnabled: true });
 
     expect(replies).toHaveLength(1);
     expect(replies[0]?.text).toContain("👥 У грі зараз: 1");
@@ -43,5 +43,7 @@ describe("online command", () => {
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML"
     });
+    expect(JSON.stringify(replies[0]?.options)).toContain("🥊 Кинути виклик присутнім");
+    expect(JSON.stringify(replies[0]?.options)).toContain("v1:nd:open");
   });
 });

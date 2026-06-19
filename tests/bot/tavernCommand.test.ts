@@ -210,7 +210,7 @@ describe("tavern command screens", () => {
     });
   });
 
-  it("shows the fighting corner as a menu with training duel and winners", async () => {
+  it("shows the fighting corner as a menu with training, duel modes and winners", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
     await sendKorchmaFightingCorner(
@@ -222,13 +222,16 @@ describe("tavern command screens", () => {
 
     expect(replies[0]?.text).toContain("🥊 Бійцівський куток");
     expect(replies[0]?.text).toContain("Тут не бʼються одразу");
+    expect(replies[0]?.text).toContain("⚡ Миттєва дуель");
+    expect(replies[0]?.text).toContain("♟️ Покрокова дуель");
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
           [{ text: "🥊 Потренуватися", callback_data: "v1:spar:open" }],
+          [{ text: "⚡ Миттєва дуель", callback_data: "v1:duel:new" }],
+          [{ text: "♟️ Покрокова дуель", callback_data: "v1:duel:new-t" }],
           [
-            { text: "🤝 Кинути виклик", callback_data: "v1:duel:new" },
             { text: "🏆 Переможці", callback_data: makePlaceCallbackData("duel-winners") }
           ],
           [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]

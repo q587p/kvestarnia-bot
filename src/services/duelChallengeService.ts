@@ -1,19 +1,33 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type {
   DuelChallengeRecord,
   DuelChallengeRepository,
+  DuelCombatSessionRecord,
   DuelCharacterSnapshot,
+  DuelMode,
   DuelResultParticipantSnapshot,
   DuelResultPayload,
   ResolvedDuelChallengeRecord
 } from "../db/repositories/duelChallengeRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { resolveQuickDuel } from "../domain/duels/duelResolver";
+import {
+  resolveTurnBasedDuelAction,
+  resolveTurnBasedDuelTimeout,
+  rollTurnBasedDuelXpRewards,
+  startTurnBasedDuel,
+  TURN_BASED_DUEL_RULES_VERSION,
+  TURN_BASED_DUEL_TURN_SECONDS,
+  type TurnBasedDuelAction,
+  type TurnBasedDuelParticipantSnapshot,
+  type TurnBasedDuelState
+} from "../domain/duels/turnBasedDuel";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import { getEquippedItemContents } from "./equipmentService";
+import type { NearbyDuelTargetValidator } from "./presenceService";
 
 export const DUEL_INVITE_MIN_LEVEL = 3;
 const DUEL_INVITE_TTL_MS = 13 * 60 * 1000;
@@ -57,6 +71,17 @@ export type DuelChallengeView =
       challengerResourceWarning: DuelResourceWarning | null;
       expiresAt: Date;
       now: Date;
+      transitioned?: boolean;
+    }
+  | {
+      state: "active";
+      challenge: DuelChallengeRecord;
+      session: DuelCombatSessionRecord;
+      challenger: CharacterSummary;
+      target: CharacterSummary;
+      turnExpiresAt: Date;
+      now: Date;
+      transitioned?: boolean;
     }
   | {
       state: "resolved";
@@ -64,11 +89,13 @@ export type DuelChallengeView =
       challenger: CharacterSummary;
       target: CharacterSummary;
       result: NonNullable<DuelChallengeRecord["result"]>;
+      transitioned?: boolean;
     }
   | {
       state: "expired" | "cancelled" | "declined";
       challenge: DuelChallengeRecord;
       challenger: CharacterSummary;
+      transitioned?: boolean;
     };
 
 export type DuelCreateResult =
@@ -76,6 +103,11 @@ export type DuelCreateResult =
   | { state: "level-gated"; character: CharacterSummary; minLevel: number }
   | { state: "resource-warning"; character: CharacterSummary; warning: DuelResourceWarning }
   | Extract<DuelChallengeView, { state: "pending" }>;
+
+export type DuelTargetedCreateResult =
+  | DuelCreateResult
+  | { state: "target-not-found"; character: CharacterSummary }
+  | { state: "self-challenge"; character: CharacterSummary };
 
 export type DuelRematchResult =
   | { state: "no-character" }
@@ -104,6 +136,13 @@ export type DuelAcceptResult =
     }
   | { state: "level-gated"; character: CharacterSummary; minLevel: number }
   | ({ state: "pair-limited"; challenge: DuelChallengeRecord } & DuelPairLimit)
+  | {
+      state: "busy";
+      challenge: DuelChallengeRecord;
+      challenger: CharacterSummary;
+      target: CharacterSummary;
+      busyCharacter: CharacterSummary;
+    }
   | {
       state: "confirmation";
       challenge: DuelChallengeRecord;
@@ -137,17 +176,27 @@ export type DuelInviteRotationResult =
   | { state: "not-pending"; view: DuelChallengeView }
   | { state: "ready"; challenge: DuelChallengeRecord; challenger: CharacterSummary };
 
+export type TurnBasedDuelTurnResult =
+  | { state: "no-character" }
+  | { state: "not-found" }
+  | { state: "not-participant"; session: DuelCombatSessionRecord }
+  | { state: "already-acted"; session: DuelCombatSessionRecord }
+  | { state: "wrong-turn"; session: DuelCombatSessionRecord }
+  | { state: "stale"; session: DuelCombatSessionRecord }
+  | { state: "updated"; session: DuelCombatSessionRecord };
+
 export class DuelChallengeService {
   constructor(
     private readonly challenges: DuelChallengeRepository,
     private readonly characters: CharacterRepository,
     private readonly clock: Clock = systemClock,
-    private readonly rng: RandomSource = new CryptoRandomSource()
+    private readonly rng: RandomSource = new CryptoRandomSource(),
+    private readonly nearbyDuelTargets?: NearbyDuelTargetValidator
   ) {}
 
   async createOpenChallengeForTelegramUser(
     telegramUserId: bigint,
-    input: { contextChatId?: bigint | null; ignoreResourceWarning?: boolean } = {}
+    input: { contextChatId?: bigint | null; ignoreResourceWarning?: boolean; mode?: DuelMode } = {}
   ): Promise<DuelCreateResult> {
     const now = this.clock();
     const challengerSnapshot = await this.challenges.findCharacterByTelegramUser(telegramUserId);
@@ -178,6 +227,7 @@ export class DuelChallengeService {
 
     const challenge = await this.challenges.createOpenForTelegramUser(telegramUserId, {
       inviteToken: createInviteToken(),
+      mode: input.mode ?? "quick",
       contextChatId: input.contextChatId ?? null,
       expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
     });
@@ -275,6 +325,7 @@ export class DuelChallengeService {
       rematchTarget.id,
       {
         inviteToken: createInviteToken(),
+        mode: original.result.mode ?? original.mode,
         contextChatId: input.contextChatId ?? null,
         expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
       }
@@ -297,7 +348,13 @@ export class DuelChallengeService {
   async acceptForTelegramUser(
     telegramUserId: bigint,
     inviteToken: string,
-    options: { confirmed?: boolean; ignoreResourceWarning?: boolean } = {}
+    options: {
+      confirmed?: boolean;
+      ignoreResourceWarning?: boolean;
+      expectedMode?: DuelMode;
+      chatId?: bigint | null;
+      messageId?: number | null;
+    } = {}
   ): Promise<DuelAcceptResult> {
     const now = this.clock();
     const challenge = await this.getFreshChallenge(inviteToken, now);
@@ -306,10 +363,14 @@ export class DuelChallengeService {
       return { state: "not-found" };
     }
 
+    if (options.expectedMode && challenge.mode !== options.expectedMode) {
+      return this.viewChallengeOrActive(challenge, now);
+    }
+
     let challenger = summarizeDuelCharacter(challenge.challenger);
 
     if (challenge.status !== "pending") {
-      return this.viewChallenge(challenge, now);
+      return this.viewChallengeOrActive(challenge, now);
     }
 
     if (challenge.challenger.telegramUserId === telegramUserId) {
@@ -383,6 +444,53 @@ export class DuelChallengeService {
       };
     }
 
+    if (challenge.mode === "turn-based") {
+      const duelState = startTurnBasedDuel({
+        challenger: { ...challenger, id: challenge.challenger.id },
+        target: { ...currentTarget, id: targetCharacter.id },
+        rng: this.rng
+      });
+      const started = await this.challenges.startTurnBasedByTokenForTelegramUser(
+        inviteToken,
+        telegramUserId,
+        now,
+        {
+          sessionId: randomUUID(),
+          state: duelState,
+          turnExpiresAt: getNextTurnExpiry(now),
+          targetChatId: options.chatId ?? null,
+          targetMessageId: options.messageId ?? null
+        }
+      );
+
+      if (!started.record) {
+        const active = await this.challenges.findActiveTurnBasedByTelegramUserId(telegramUserId);
+
+        if (active) {
+          return this.buildActiveView(active, now);
+        }
+
+        const busyCharacterId = await this.challenges.findActiveCombatBlockerCharacterId([
+          challenge.challenger.id,
+          targetCharacter.id
+        ]);
+
+        return {
+          state: "busy",
+          challenge,
+          challenger,
+          target: currentTarget,
+          busyCharacter:
+            busyCharacterId === challenge.challenger.id ? challenger : currentTarget
+        };
+      }
+
+      return {
+        ...this.buildActiveView(started.record, now),
+        transitioned: started.transitioned
+      };
+    }
+
     const result = resolveQuickDuel({
       challenger: { ...challenger, id: challenge.challenger.id },
       target: { ...currentTarget, id: targetCharacter.id },
@@ -395,14 +503,17 @@ export class DuelChallengeService {
       buildStoredDuelResult(result, {
         challenger: { id: challenge.challenger.id, character: challenger },
         target: { id: targetCharacter.id, character: currentTarget }
-      })
+      }, "quick")
     );
 
-    if (!accepted) {
+    if (!accepted.record) {
       return { state: "no-character" };
     }
 
-    return this.viewChallenge(accepted, now);
+    return {
+      ...this.viewChallenge(accepted.record, now),
+      transitioned: accepted.transitioned
+    };
   }
 
   async cancelForTelegramUser(
@@ -428,7 +539,9 @@ export class DuelChallengeService {
 
     const updated = await this.challenges.cancelByTokenForTelegramUser(inviteToken, telegramUserId, now);
 
-    return updated ? this.viewChallenge(updated, now) : { state: "not-found" };
+    return updated.record
+      ? { ...this.viewChallenge(updated.record, now), transitioned: updated.transitioned }
+      : { state: "not-found" };
   }
 
   async declineForTelegramUser(
@@ -462,7 +575,207 @@ export class DuelChallengeService {
     const now = this.clock();
     const challenge = await this.getFreshChallenge(inviteToken, now);
 
-    return challenge ? this.viewChallenge(challenge, now) : { state: "not-found" };
+    return challenge ? this.viewChallengeOrActive(challenge, now) : { state: "not-found" };
+  }
+
+  async getActiveTurnBasedForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<Extract<DuelChallengeView, { state: "active" }> | null> {
+    const session = await this.challenges.findActiveTurnBasedByTelegramUserId(telegramUserId);
+
+    return session ? this.buildActiveView(session, this.clock()) : null;
+  }
+
+  async getTurnBasedByTokenForTelegramUser(
+    telegramUserId: bigint,
+    inviteToken: string
+  ): Promise<Extract<DuelChallengeView, { state: "active" }> | { state: "not-found" }> {
+    const session = await this.challenges.findTurnBasedByTokenForTelegramUserId(inviteToken, telegramUserId);
+
+    return session ? this.buildActiveView(session, this.clock()) : { state: "not-found" };
+  }
+
+  async resolveTurnBasedActionForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      inviteToken: string;
+      expectedTurn: number;
+      expectedVersion: number;
+      action: TurnBasedDuelAction;
+    }
+  ): Promise<TurnBasedDuelTurnResult> {
+    const character = await this.challenges.findCharacterByTelegramUser(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const session = await this.challenges.findTurnBasedByTokenForTelegramUserId(
+      input.inviteToken,
+      telegramUserId
+    );
+
+    if (!session) {
+      return { state: "not-found" };
+    }
+
+    const now = this.clock();
+
+    if (
+      session.turn !== input.expectedTurn ||
+      session.state.status !== "active" ||
+      session.version < input.expectedVersion ||
+      session.turnExpiresAt <= now
+    ) {
+      return { state: "stale", session };
+    }
+
+    const first = await this.tryResolveTurnBasedAction(session, character.id, input.action, now);
+
+    if (first.state !== "stale") {
+      return first;
+    }
+
+    const latest = await this.challenges.findTurnBasedByTokenForTelegramUserId(
+      input.inviteToken,
+      telegramUserId
+    );
+
+    if (
+      !latest ||
+      latest.turn !== input.expectedTurn ||
+      latest.state.status !== "active" ||
+      latest.version < input.expectedVersion ||
+      latest.turnExpiresAt <= now
+    ) {
+      return first;
+    }
+
+    const actorSide = getTurnBasedParticipantSide(latest.state, character.id);
+
+    if (!actorSide || latest.state.pendingActions?.[actorSide]) {
+      return first;
+    }
+
+    return this.tryResolveTurnBasedAction(latest, character.id, input.action, now);
+  }
+
+  async resolveDueTurnBasedSession(session: DuelCombatSessionRecord): Promise<TurnBasedDuelTurnResult> {
+    const resolved = resolveTurnBasedDuelTimeout({
+      state: session.state,
+      rng: this.rng
+    });
+
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      return { state: "stale", session };
+    }
+
+    const state = resolved.state;
+    const now = this.clock();
+    const result = buildStoredTurnBasedResult(
+      state,
+      rollTurnBasedDuelXpRewards(state, this.rng)
+    );
+    const updated = await this.challenges.updateTurnBasedIfActiveVersion(
+      session.id,
+      session.turn,
+      session.version,
+      {
+        state,
+        status: state.status,
+        now,
+        deadlineMode: "timeout",
+        turnExpiresAt: state.status === "active" ? getNextTurnExpiry(now) : session.turnExpiresAt,
+        completedAt: state.status === "active" ? null : now,
+        result,
+        action: {
+          actorCharacterId: session.actingCharacterId,
+          turn: session.turn,
+          actionKey: "timeout-attack",
+          result: resolved.round
+        }
+      }
+    );
+
+    return updated ? { state: "updated", session: updated } : { state: "stale", session };
+  }
+
+  private async tryResolveTurnBasedAction(
+    session: DuelCombatSessionRecord,
+    actorCharacterId: string,
+    action: TurnBasedDuelAction,
+    now: Date
+  ): Promise<TurnBasedDuelTurnResult> {
+    const resolved = resolveTurnBasedDuelAction({
+      state: session.state,
+      actorCharacterId,
+      action,
+      rng: this.rng
+    });
+
+    if (!resolved.ok) {
+      return {
+        state: resolved.reason === "already-acted"
+          ? "already-acted"
+          : resolved.reason === "not-participant"
+            ? "not-participant"
+            : "wrong-turn",
+        session
+      };
+    }
+
+    const result = buildStoredTurnBasedResult(
+      resolved.state,
+      rollTurnBasedDuelXpRewards(resolved.state, this.rng)
+    );
+    const updated = await this.challenges.updateTurnBasedIfActiveVersion(
+      session.id,
+      session.turn,
+      session.version,
+      {
+        state: resolved.state,
+        status: resolved.state.status,
+        now,
+        deadlineMode: "player-action",
+        turnExpiresAt: resolved.resolution === "resolved" && resolved.state.status === "active"
+          ? getNextTurnExpiry(now)
+          : session.turnExpiresAt,
+        completedAt: resolved.state.status === "active" ? null : now,
+        result,
+        ...(resolved.resolution === "resolved"
+          ? {
+              action: {
+                actorCharacterId,
+                turn: session.turn,
+                actionKey: action === "surrender" ? action : "round",
+                result: resolved.round
+              }
+            }
+          : {})
+      }
+    );
+
+    return updated ? { state: "updated", session: updated } : { state: "stale", session };
+  }
+
+  async listDueTurnBasedSessions(): Promise<DuelCombatSessionRecord[]> {
+    await this.repairTurnBasedCombatState();
+    return this.challenges.listDueTurnBasedSessions(this.clock());
+  }
+
+  async repairTurnBasedCombatState(): Promise<{
+    repairedSessions: number;
+    removedOrphanLeases: number;
+  }> {
+    return this.challenges.repairTurnBasedCombatState(this.clock());
+  }
+
+  async recordTurnBasedMessageReference(
+    sessionId: string,
+    participant: "challenger" | "target",
+    reference: { chatId: bigint; messageId: number }
+  ): Promise<void> {
+    await this.challenges.recordTurnBasedMessageReference(sessionId, participant, reference);
   }
 
   async getInviteRotationForTelegramUser(
@@ -560,9 +873,14 @@ export class DuelChallengeService {
       };
     }
 
-    if (challenge.status === "cancelled" || challenge.status === "declined" || challenge.status === "expired") {
+    if (
+      challenge.status === "cancelled" ||
+      challenge.status === "declined" ||
+      challenge.status === "expired" ||
+      challenge.status === "forfeited"
+    ) {
       return {
-        state: challenge.status,
+        state: challenge.status === "forfeited" ? "expired" : challenge.status,
         challenge,
         challenger
       };
@@ -573,6 +891,113 @@ export class DuelChallengeService {
       challenge,
       challenger,
       challengerResourceWarning: null,
+      expiresAt: challenge.expiresAt,
+      now
+    };
+  }
+
+  private async viewChallengeOrActive(
+    challenge: DuelChallengeRecord,
+    now: Date
+  ): Promise<DuelChallengeView> {
+    if (challenge.status === "active" && challenge.mode === "turn-based") {
+      const session = await this.challenges.findTurnBasedByToken(challenge.inviteToken);
+
+      if (session) {
+        return this.buildActiveView(session, now);
+      }
+    }
+
+    return this.viewChallenge(challenge, now);
+  }
+
+  private buildActiveView(
+    session: DuelCombatSessionRecord,
+    now: Date
+  ): Extract<DuelChallengeView, { state: "active" }> {
+    return {
+      state: "active",
+      challenge: session.challenge,
+      session,
+      challenger: summarizeTurnBasedParticipant(session.state.participants.challenger),
+      target: summarizeTurnBasedParticipant(session.state.participants.target),
+      turnExpiresAt: session.turnExpiresAt,
+      now
+    };
+  }
+
+  async createTargetedChallengeForTelegramUser(
+    telegramUserId: bigint,
+    targetTelegramUserId: bigint,
+    input: { contextChatId?: bigint | null; ignoreResourceWarning?: boolean; mode?: DuelMode } = {}
+  ): Promise<DuelTargetedCreateResult> {
+    const now = this.clock();
+    const challengerSnapshot = await this.challenges.findCharacterByTelegramUser(telegramUserId);
+
+    if (!challengerSnapshot) {
+      return { state: "no-character" };
+    }
+
+    const challenger = await this.syncDuelCharacterForTelegramUser(telegramUserId, challengerSnapshot, now);
+
+    if (challenger.level < DUEL_INVITE_MIN_LEVEL) {
+      return {
+        state: "level-gated",
+        character: challenger,
+        minLevel: DUEL_INVITE_MIN_LEVEL
+      };
+    }
+
+    const target = await this.challenges.findCharacterByTelegramUser(targetTelegramUserId);
+
+    if (!target) {
+      return { state: "target-not-found", character: challenger };
+    }
+
+    if (target.id === challengerSnapshot.id) {
+      return { state: "self-challenge", character: challenger };
+    }
+
+    if (
+      this.nearbyDuelTargets &&
+      !(await this.nearbyDuelTargets.isNearbyDuelTargetAvailable(
+        telegramUserId,
+        targetTelegramUserId
+      ))
+    ) {
+      return { state: "target-not-found", character: challenger };
+    }
+
+    const warning = getResourceWarning(challenger);
+
+    if (warning && input.ignoreResourceWarning !== true) {
+      return {
+        state: "resource-warning",
+        character: challenger,
+        warning
+      };
+    }
+
+    const challenge = await this.challenges.createTargetedForTelegramUser(
+      telegramUserId,
+      target.id,
+      {
+        inviteToken: createInviteToken(),
+        mode: input.mode ?? "quick",
+        contextChatId: input.contextChatId ?? null,
+        expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
+      }
+    );
+
+    if (!challenge) {
+      return { state: "target-not-found", character: challenger };
+    }
+
+    return {
+      state: "pending",
+      challenge,
+      challenger,
+      challengerResourceWarning: warning,
       expiresAt: challenge.expiresAt,
       now
     };
@@ -734,9 +1159,11 @@ function buildStoredDuelResult(
   participants: {
     challenger: { id: string; character: CharacterSummary };
     target: { id: string; character: CharacterSummary };
-  }
+  },
+  mode: DuelMode = "quick"
 ): DuelResultPayload {
   return {
+    mode,
     outcome: result.outcome,
     winnerCharacterId: result.winnerCharacterId,
     loserCharacterId: result.loserCharacterId,
@@ -751,6 +1178,115 @@ function buildStoredDuelResult(
     },
     audit: result.audit
   };
+}
+
+function buildStoredTurnBasedResult(
+  state: TurnBasedDuelState,
+  xpRewards: DuelResultPayload["xpRewards"] | null = null
+): DuelResultPayload | null {
+  if (state.status === "active" || !state.outcome) {
+    return null;
+  }
+
+  return {
+    mode: "turn-based",
+    rulesVersion: TURN_BASED_DUEL_RULES_VERSION,
+    terminalReason: state.outcome.reason,
+    ...(xpRewards ? { xpRewards } : {}),
+    outcome: state.outcome.outcome,
+    winnerCharacterId: state.outcome.winnerCharacterId,
+    loserCharacterId: state.outcome.loserCharacterId,
+    challengerScore: state.participants.challenger.hp,
+    targetScore: state.participants.target.hp,
+    swing: state.turn,
+    flavorKey: state.outcome.outcome === "draw" ? "dramatic-draw" : "direct-hit",
+    balanceVersion: state.balanceVersion,
+    participants: {
+      challenger: buildStoredTurnBasedParticipantSnapshot(state.participants.challenger),
+      target: buildStoredTurnBasedParticipantSnapshot(state.participants.target)
+    },
+    audit: {
+      challenger: state.participants.challenger.balanceAudit,
+      target: state.participants.target.balanceAudit
+    }
+  };
+}
+
+function getTurnBasedParticipantSide(
+  state: TurnBasedDuelState,
+  characterId: string
+): "challenger" | "target" | null {
+  if (state.participants.challenger.characterId === characterId) {
+    return "challenger";
+  }
+
+  if (state.participants.target.characterId === characterId) {
+    return "target";
+  }
+
+  return null;
+}
+
+function buildStoredTurnBasedParticipantSnapshot(
+  participant: TurnBasedDuelParticipantSnapshot
+): NonNullable<DuelResultPayload["participants"]>["challenger"] {
+  return {
+    characterId: participant.characterId,
+    displayName: participant.displayName,
+    title: participant.title,
+    raceId: participant.raceId,
+    raceName: participant.raceName,
+    classId: participant.classId,
+    className: participant.className,
+    level: participant.level,
+    remortCount: participant.remortCount
+  };
+}
+
+function summarizeTurnBasedParticipant(participant: TurnBasedDuelParticipantSnapshot): CharacterSummary {
+  return {
+    name: participant.displayName,
+    pronoun: "they",
+    pronounLabel: "вони",
+    path: "boundary",
+    raceId: participant.raceId,
+    raceName: participant.raceName,
+    classId: participant.classId,
+    className: participant.className,
+    title: participant.title,
+    level: participant.level,
+    xp: 0,
+    nextLevelXp: null,
+    xpToNextLevel: null,
+    gold: 0,
+    hpCurrent: participant.hp,
+    hpMax: participant.hpMax,
+    manaCurrent: participant.mana,
+    manaMax: participant.manaMax,
+    stats: participant.stats,
+    levelBonus: {
+      hpMax: 0,
+      manaMax: 0,
+      stats: {
+        strength: 0,
+        dexterity: 0,
+        intelligence: 0,
+        charisma: 0,
+        luck: 0
+      }
+    },
+    ...(participant.equipmentEffects ? { equipmentEffects: participant.equipmentEffects } : {}),
+    ...(participant.remortCount > 0
+      ? {
+          remortCount: participant.remortCount,
+          remortMemoryRank: participant.remortCount
+        }
+      : {})
+  };
+}
+
+function getNextTurnExpiry(now: Date): Date {
+  return new Date(now.getTime() + TURN_BASED_DUEL_TURN_SECONDS * 1000);
 }
 
 function buildParticipantSnapshot(

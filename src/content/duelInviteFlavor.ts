@@ -1,5 +1,7 @@
 export const DUEL_INVITE_MODE_LINE =
   "⚡ Формат: миттєва дуель — результат одразу після згоди.";
+export const DUEL_TURN_BASED_INVITE_MODE_LINE =
+  "♟️ Формат: покрокова дуель — кожен сам обирає дії.";
 export const DUEL_INVITE_FAIRNESS_LINE =
   "⚖️ Корчмар тимчасово зрівняє досвід. Ваші манатки й їхні ефекти лишаться вашими.";
 

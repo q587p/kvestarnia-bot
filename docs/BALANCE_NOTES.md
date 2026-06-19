@@ -342,9 +342,29 @@ readinessPenalty = round(clamp(0, 12, hpMissingRatio * 8 + manaMissingRatio * 4)
 
 Full resources produce zero penalty. HP matters more than mana. The cap keeps tired acceptance disadvantageous but not an automatic loss. Telegram/player-facing copy must stay qualitative and must not print this formula or exact percentages.
 
+### `0.1.18` turn-based duel resources and combat math
+
+`♟️ Покрокова дуель` reuses the same progression-only preparation helper as instant duels, then freezes both accepted participant snapshots into the session. Unlike quick duels, completed turn-based duels grant a tiny XP-only reward because they consume real turn time.
+
+Balance rules:
+- race, class, title, path, current build, equipped manatky and equipment effects remain personal;
+- temporary progression normalization may raise session maxima while preserving the accepted HP/mana ratios;
+- duel HP/mana inside `duel_combat_sessions.state_json` are ephemeral and must not damage, heal or refill persistent character resources;
+- participant choices are hidden until both players choose or the timer fills missing choices, so HP/mana spending is applied at round reveal rather than at the first button press;
+- the turn-based resolver uses the same `resolveActorCombatAction(...)` primitive as PvE, so basic attack, class skill, mana cost, cooldown, armor/resist, weapon/spell/stat effects and HP clamping do not fork into a duel-only formula set;
+- PvP damage uses the normalized effective combat level from the duel progression tier, while visible level/remort in cards stays real;
+- class skills with incoming-damage mitigation apply that mitigation to the opponent's damage in the same hidden reveal round, independent of Telegram button order;
+- timeout auto-actions are ordinary basic attacks for missing choices, not a separate penalty damage table;
+- max-turn safety resolves as a deterministic draw instead of creating an infinite session.
+- terminal XP is stored in `result_json` and granted exactly once by the terminal transaction: loss `1 XP`, draw `2-5 XP`, win `4-8 XP`, with a small bounded LUCK chance to nudge within the range;
+- same-location targeted invites from `👀 Хто поруч` only change invitation routing; they do not add gold/item rewards, rating, wager or combat-power modifiers.
+
+Player-facing copy may say that the Корчмар keeps the fight moving, but must not print hidden hit/critical/cooldown formulas or exact chances.
+
 ## Phase 2 trading/gifting guardrails
 - Gift/trade is not a gold source.
 - First slice transfers one eligible item unit or one narrow item-for-item offer.
+- Gold transfer, if added after nearby player selection, needs a separate cap/audit/idempotency design and must not become a faucet or level-barter bypass.
 - Equipped, protected, priceless, story, apology and already-pending items are not eligible.
 - No auction house, market pricing or gold add-ons until transfer audit/idempotency is proven.
 - Trading should help players move unsuitable манатки, not bypass progression, level gates or anti-abuse rules.

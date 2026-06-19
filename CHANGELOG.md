@@ -7,7 +7,45 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.17] - 12026.06.19 - Instant Duel Polish
+## [0.1.18] - 12026-06-19 - Turn-Based Player Duels
+
+### Added
+- Added `♟️ Покрокова дуель` beside `⚡ Миттєва дуель` in the Fighting Corner, using `duel_turnbased_<token>` deep links and the existing 13 invite templates with a turn-based mode line.
+- Added persistent turn-based duel state with `duel_combat_sessions`, action audit rows, optimistic turn versioning, stored initiative, frozen participant snapshots, rules/balance versions and terminal replay data.
+- Added active combat leases so a character cannot start or accept a persistent turn-based duel while already in a persistent/training/starter fight or another active duel.
+- Added durable 23-second turn deadlines through persisted `turnExpiresAt`, startup polling and idempotent timeout auto-attacks.
+- Added recoverable two-player battle cards, per-participant action keyboards, hidden queued choices, surrender and mode-preserving rematches.
+- Added `🥊 Кинути виклик присутнім` from `👀 Хто поруч`: challengers can page through active players in the same location, pick a target, choose quick or turn-based mode and send an in-game targeted invite.
+
+### Changed
+- `DuelChallenge.mode` is now stored server-side with a default of `quick`; legacy `duel_<token>` links remain quick and crafted prefixes cannot switch an existing challenge mode.
+- PvE and PvP turn resolution now share a pure `resolveActorCombatAction` primitive for basic attacks, class skills, mana, cooldowns, armor/resist/equipment effects, HP clamping and summaries.
+- Turn-based duel rounds now store a participant's chosen action without revealing damage or spending session HP/mana until both players have chosen or the durable timer resolves missing choices as ordinary attacks.
+- Terminal turn-based duel paths, including surrender and timeout resolution, now store an explicit terminal reason, resolve the parent challenge as `resolved`, and replay the canonical result card with rematch/share controls.
+- Same-round turn callback races now retry one safe merge after an optimistic version loss when the actor has not yet chosen and the round has not advanced.
+- Same-round older-version turn callbacks now also merge safely after the other participant has already queued from the same original card, as long as the round has not advanced, the actor has not chosen and the deadline has not passed.
+- Turn updates now enforce `turnExpiresAt` in the repository CAS: player actions require an unexpired turn, while timeout auto-attacks require an expired turn.
+- Turn-based duel card delivery now records successful edits, falls back to fresh messages after edit failures, and keeps committed gameplay state independent from Telegram delivery.
+- Participant-specific turn-based cards and action keyboards are now private-chat-only; group cards stay spectator-safe and never show hidden queued choices.
+- Malformed active turn-based sessions and orphan `turn-based-duel` leases now repair to a non-rewarding expired state instead of leaving players permanently combat-locked.
+- Turn-based duel cards now mirror persistent monster fights by hiding unavailable class actions while mana/cooldown rules make them unavailable and showing the viewer's active skill cooldown.
+- Turn-based duel damage now uses the normalized effective combat level from duel balancing while visible participant levels remain real, and defensive class-skill mitigation reduces incoming same-round PvP damage.
+- Turn-based duel terminal results now grant small replay-safe XP: `1 XP` for a loss, `2-5 XP` for a draw and `4-8 XP` for a win with a small luck-biased upside; quick duels remain XP-free.
+- Targeted duel invite recipients now receive a best-effort in-game notice when the challenger cancels before acceptance.
+- Quick duel participants now receive a best-effort result card immediately after the other side accepts, instead of needing to refresh an old invite card.
+- Pending duel cards re-rendered from decline paths now preserve configured invite-link state instead of falsely warning that the bot username is missing.
+- Active turn-based duel cards now show only duel actions and refresh, removing the Fighting Corner navigation button that was blocked by the active combat lock anyway.
+- Duel result cards now return to the Fighting Corner instead of the quest table or hall.
+- The central combat lock now treats active turn-based duels as active combat and redirects normal navigation back to the canonical duel card.
+- Restart/remort routes remain available during ordinary combat according to the existing side-surface policy, but redirect back to an active turn-based duel until that duel is durably terminal.
+- Quick duel behavior remains instant, rewardless and replay-safe, while old quick result JSON still renders as `⚡ Миттєва дуель`.
+
+### Guardrails
+- Turn-based duel HP/mana are ephemeral session resources and do not damage, heal or refill persistent `Character` resources.
+- No gold, items, quest progress, item loss, wagers, ranking rewards, tournaments, spectator betting or broad cross-location player discovery were added; the only new progression reward is the small terminal XP for completed turn-based duels.
+- Telegram sends/edits are best-effort after committed state; notification failures do not roll back gameplay state.
+
+## [0.1.17] - 12026-06-19 - Instant Duel Polish
 
 ### Added
 - Added 13 stable forwardable invite variants for `⚡ Миттєва дуель`, each with the same deep link, an instant-result mode line and a qualitative fairness line.
@@ -29,7 +67,7 @@ This project follows a simple pre-1.0 versioning policy:
 - No schema migration was added; replay/audit expansion stays backward-compatible inside `resultJson`.
 - Hidden formulas and exact readiness/progression values are not shown in Telegram copy or `news.md`.
 
-## [0.1.16] - 12026.06.19 - Character Stats Growth Rework
+## [0.1.16] - 12026-06-19 - Character Stats Growth Rework
 
 ### Added
 - Added fixed hidden-path stat bonuses through the shared effective-stats pipeline, so existing characters inherit the derived layer without a schema migration or `statsJson` backfill.

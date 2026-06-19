@@ -17,6 +17,7 @@ import {
   buildPersistentFightKeyboard,
   buildPersistentFightResultKeyboard
 } from "../../src/bot/keyboards/fightKeyboard";
+import { buildDuelResultKeyboard, buildTurnBasedDuelKeyboard } from "../../src/bot/keyboards/duelKeyboard";
 import { getCombatSkillDisplay, getPersistentFightSkillLabel } from "../../src/services/fightService";
 import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
@@ -56,7 +57,10 @@ import {
   buildTavernKeyboard,
   buildTavernResultKeyboard
 } from "../../src/bot/keyboards/tavernKeyboard";
-import { buildTrainingDoppelgangerKeyboard } from "../../src/bot/keyboards/trainingDoppelgangerKeyboard";
+import {
+  buildTrainingDoppelgangerKeyboard,
+  buildTrainingDoppelgangerStartKeyboard
+} from "../../src/bot/keyboards/trainingDoppelgangerKeyboard";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 
 describe("main menu and scene keyboards", () => {
@@ -165,13 +169,15 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard())).toEqual([
       "🥊 Потренуватися",
-      "🤝 Кинути виклик",
+      "⚡ Миттєва дуель",
+      "♟️ Покрокова дуель",
       "🏆 Переможці",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaFightingCornerKeyboard())).toEqual([
       "v1:spar:open",
       "v1:duel:new",
+      "v1:duel:new-t",
       "v1:place:duel-winners",
       "v1:place:hall"
     ]);
@@ -192,6 +198,34 @@ describe("main menu and scene keyboards", () => {
       "v1:tavern:round",
       "v1:cellar:grownup-turn-in",
       "v1:place:hall"
+    ]);
+  });
+
+  it("returns doppelganger training target choice to the fighting corner", () => {
+    const keyboard = buildTrainingDoppelgangerStartKeyboard([
+      {
+        mode: "copy-target",
+        buttonLabel: "🪞 Копія поточного",
+        title: "Копія поточного",
+        description: "Допельґанґер бере поточний образ."
+      },
+      {
+        mode: "random-build",
+        buttonLabel: "🎲 Випадковий пригодник",
+        title: "Випадковий пригодник",
+        description: "Дзеркало збирає випадковий образ."
+      }
+    ]);
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "🪞 Копія поточного",
+      "🎲 Випадковий пригодник",
+      "🥊 До кутка"
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:spar:mode:copy-target",
+      "v1:spar:mode:random-build",
+      "v1:place:fighting-corner"
     ]);
   });
 
@@ -521,6 +555,98 @@ describe("main menu and scene keyboards", () => {
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:skill",
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:flee"
+    ]);
+  });
+
+  it("returns terminal training doppelganger screens to the fighting corner", () => {
+    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard())).toEqual(["🥊 До кутка"]);
+    expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard())).toEqual([
+      "v1:place:fighting-corner"
+    ]);
+  });
+
+  it("keeps active turn-based duel cards on recoverable refresh only", () => {
+    const keyboard = buildTurnBasedDuelKeyboard(
+      turnBasedDuelKeyboardResult({
+        session: {
+          actingCharacterId: "character-2",
+          status: "resolved",
+          turn: 6,
+          version: 9
+        }
+      }),
+      "character-1",
+      "💪 Силовий удар"
+    );
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["🔎 Оновити"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:duel:view:abcDEF12"]);
+  });
+
+  it("returns duel result cards to the fighting corner", () => {
+    const keyboard = buildDuelResultKeyboard("abcDEF12");
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "🔁 Реванш",
+      "📣 Картка",
+      "🥊 Покликати ще когось",
+      "🥊 До кутка"
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:duel:rematch:abcDEF12",
+      "v1:duel:share:abcDEF12",
+      "v1:duel:new",
+      "v1:place:fighting-corner"
+    ]);
+  });
+
+  it("hides turn actions after the viewer already queued a duel choice", () => {
+    const result = turnBasedDuelKeyboardResult({
+      session: {
+        state: {
+          pendingActions: {
+            challenger: {
+              actorCharacterId: "character-1",
+              action: "attack"
+            }
+          }
+        }
+      }
+    });
+
+    expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-1", "💪 Силовий удар"))).toEqual([
+      "🔎 Оновити"
+    ]);
+    expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-2", "💪 Силовий удар"))).toEqual([
+      "⚔️ Атакувати",
+      "💪 Силовий удар",
+      "🏳️ Здатися",
+      "🔎 Оновити"
+    ]);
+  });
+
+  it("hides a turn-based duel skill while the shared combat cooldown is active", () => {
+    const result = turnBasedDuelKeyboardResult({
+      session: {
+        state: {
+          participants: {
+            challenger: turnBasedParticipant("character-1", {
+              cooldowns: {
+                skill: {
+                  id: "skill.forceful-strike",
+                  remainingTurns: 3
+                }
+              }
+            })
+          }
+        }
+      }
+    });
+
+    expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-1", "💪 Силовий удар"))).toEqual([
+      "⚔️ Атакувати",
+      "🏳️ Здатися",
+      "🔎 Оновити"
     ]);
   });
 
@@ -1427,6 +1553,69 @@ function persistentFightSession(): SoloCombatSessionRecord {
     createdAt: new Date("2026-06-12T10:30:00.000Z"),
     updatedAt: new Date("2026-06-12T10:30:00.000Z"),
     expiresAt: new Date("2026-06-12T11:00:00.000Z")
+  };
+}
+
+function turnBasedDuelKeyboardResult(
+  overrides: {
+    session?: {
+      actingCharacterId?: string;
+      status?: "active" | "resolved";
+      turn?: number;
+      version?: number;
+      state?: {
+        pendingActions?: Record<string, unknown>;
+        participants?: {
+          challenger?: ReturnType<typeof turnBasedParticipant>;
+          target?: ReturnType<typeof turnBasedParticipant>;
+        };
+      };
+    };
+  } = {}
+) {
+  return {
+    challenge: { inviteToken: "abcDEF12" },
+    session: {
+      actingCharacterId: overrides.session?.actingCharacterId ?? "character-1",
+      status: overrides.session?.status ?? "active",
+      turn: overrides.session?.turn ?? 2,
+      version: overrides.session?.version ?? 4,
+      state: {
+        pendingActions: overrides.session?.state?.pendingActions,
+        participants: {
+          challenger: overrides.session?.state?.participants?.challenger ?? turnBasedParticipant("character-1"),
+          target: overrides.session?.state?.participants?.target ?? turnBasedParticipant("character-2")
+        }
+      }
+    }
+  } as never;
+}
+
+function turnBasedParticipant(
+  characterId: string,
+  overrides: {
+    mana?: number;
+    cooldowns?: { skill: { id: string; remainingTurns: number } };
+  } = {}
+) {
+  return {
+    characterId,
+    hp: 20,
+    hpMax: 24,
+    mana: overrides.mana ?? 10,
+    manaMax: 10,
+    cooldowns: overrides.cooldowns,
+    combatStats: {
+      level: 3,
+      hpMax: 24,
+      manaMax: 10,
+      classId: "class.warrior",
+      strength: 8,
+      dexterity: 6,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6
+    }
   };
 }
 

@@ -25,6 +25,7 @@ export interface DuelistBalanceAudit {
   balanceVersion: string;
   originalLevel: number;
   originalRemortCount: number;
+  effectiveCombatLevel: number;
   progressionBudget: DuelProgressionBudget;
   targetProgressionBudget: DuelProgressionBudget;
   temporaryHpMax: number;
@@ -103,6 +104,7 @@ function prepareDuelist(
       balanceVersion: INSTANT_DUEL_BALANCE_VERSION,
       originalLevel: character.level,
       originalRemortCount: character.remortCount ?? 0,
+      effectiveCombatLevel: targetBudget.level,
       progressionBudget: budget,
       targetProgressionBudget: targetBudget,
       temporaryHpMax,

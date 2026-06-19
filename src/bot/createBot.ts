@@ -16,6 +16,8 @@ import type {
   PersistentFightTurnResult,
   ProblemQuestIssueNextLookupResult
 } from "../services/fightService";
+import { getCombatSkillDisplay } from "../services/fightService";
+import { getCombatSkillProfile } from "../domain/combat";
 import type { HeroService } from "../services/heroService";
 import type { HuntService } from "../services/huntService";
 import type { YegerQuestService } from "../services/yegerQuestService";
@@ -31,6 +33,7 @@ import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
   PRESENCE_ADVENTURE_CHOICE,
+  PRESENCE_ADVENTURE_DUEL_CHALLENGE,
   PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_BAR,
@@ -71,6 +74,7 @@ import {
   type MantokChestCallback
 } from "./callbacks/mantokChestCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
+import { parseNearbyDuelCallbackData } from "./callbacks/nearbyDuelCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
 import { makePlaceCallbackData, parsePlaceCallbackData, type PlaceCallback } from "./callbacks/placeCallbackData";
 import {
@@ -116,6 +120,7 @@ import {
 } from "./commands/huntCommand";
 import { registerInventoryCommand, sendInventory } from "./commands/inventoryCommand";
 import { registerLookCommand } from "./commands/lookCommand";
+import { handleNearbyDuelCallback } from "./commands/nearbyDuelCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
 import { registerOnlineCommand, sendOnline } from "./commands/onlineCommand";
 import { registerPlannedCommands } from "./commands/plannedCommand";
@@ -163,6 +168,7 @@ import {
   buildPersistentFightResultKeyboard
 } from "./keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "./keyboards/trainingDoppelgangerKeyboard";
+import { buildTurnBasedDuelKeyboard } from "./keyboards/duelKeyboard";
 import {
   buildEquipItemResultKeyboard,
   buildEquipmentKeyboard,
@@ -244,6 +250,7 @@ import {
   presentTrainingDoppelganger,
   presentTrainingDoppelgangerTurn
 } from "./presenters/trainingDoppelgangerPresenter";
+import { presentTurnBasedDuel } from "./presenters/duelPresenter";
 import { presentHelp } from "./presenters/helpPresenter";
 import {
   presentEquipment,
@@ -400,7 +407,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   registerHeroCommand(bot, services.hero);
   registerInventoryCommand(bot, services.inventory);
   registerEquipmentCommand(bot, services.equipment);
-  registerOnlineCommand(bot, services.presence);
+  registerOnlineCommand(bot, services.presence, { duelEnabled: Boolean(services.duel) });
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset, services.devGrant);
   registerNewsCommand(bot);
@@ -572,6 +579,21 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     });
   });
 
+  bot.callbackQuery(/^v1:nd:/, async (ctx) => {
+    const parsed = parseNearbyDuelCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok || !services.duel) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleNearbyDuelCallback(ctx, parsed.value, {
+      presence: services.presence,
+      duel: services.duel,
+      tavernRaid: services.tavern
+    });
+  });
+
   bot.callbackQuery(/^v1:cellar:/, async (ctx) => {
     const parsed = parseCellarCallbackData(ctx.callbackQuery.data);
 
@@ -724,6 +746,10 @@ function registerCombatLockMiddleware(bot: Bot, services: BotServices): void {
       return;
     }
 
+    if (isRestartOrRemortRoute(ctx) && await redirectTurnBasedDuelLockIfNeeded(ctx, telegramUserId, services)) {
+      return;
+    }
+
     if (!shouldCheckCombatLock(ctx)) {
       await next();
       return;
@@ -752,6 +778,7 @@ function shouldCheckCombatLock(ctx: Context): boolean {
     return (
       !data.startsWith("v1:fight:turn:") &&
       !data.startsWith("v1:spar:turn:") &&
+      !data.startsWith("v1:duel:t:") &&
       !data.startsWith("v1:fight:mimic:") &&
       !isCombatLockSafeCallback(data)
     );
@@ -800,6 +827,19 @@ function isCombatLockSafeCommand(command: string): boolean {
   );
 }
 
+function isRestartOrRemortRoute(ctx: Context): boolean {
+  const data = ctx.callbackQuery?.data;
+
+  if (data) {
+    return data.startsWith("v1:restart:") || data.startsWith("v1:rm:");
+  }
+
+  const text = ctx.message?.text?.trim();
+  const command = text?.match(/^\/([a-z_]+)(?:@\w+)?(?:\s+.*)?$/i)?.[1]?.toLowerCase();
+
+  return command === "restart" || command === "remort";
+}
+
 function isLockedMainMenuText(text: string | undefined): boolean {
   return (
     text === mainMenuButtons.tavern ||
@@ -813,6 +853,10 @@ async function redirectCombatLockIfNeeded(
   telegramUserId: bigint,
   services: BotServices
 ): Promise<boolean> {
+  if (await redirectTurnBasedDuelLockIfNeeded(ctx, telegramUserId, services)) {
+    return true;
+  }
+
   if (typeof services.fight.getFightOverviewForTelegramUser !== "function") {
     return false;
   }
@@ -878,6 +922,48 @@ async function redirectCombatLockIfNeeded(
   }
 
   return false;
+}
+
+async function redirectTurnBasedDuelLockIfNeeded(
+  ctx: Context,
+  telegramUserId: bigint,
+  services: BotServices
+): Promise<boolean> {
+  if (!services.duel || typeof services.duel.getActiveTurnBasedForTelegramUser !== "function") {
+    return false;
+  }
+
+  const activeDuel = await services.duel.getActiveTurnBasedForTelegramUser(telegramUserId);
+
+  if (!activeDuel) {
+    return false;
+  }
+
+  await answerCombatLockCallback(ctx);
+  await refreshCombatLockPresence(ctx, services.presence, {
+    locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+    currentRaidId: null,
+    currentAdventureId: PRESENCE_ADVENTURE_DUEL_CHALLENGE
+  });
+  const viewerCharacterId =
+    activeDuel.challenge.challenger.telegramUserId === telegramUserId
+      ? activeDuel.session.challengerCharacterId
+      : activeDuel.challenge.target?.telegramUserId === telegramUserId
+        ? activeDuel.session.targetCharacterId
+        : null;
+  const privateCard = ctx.chat?.type === "private" && viewerCharacterId !== null;
+  const participant = viewerCharacterId === activeDuel.session.state.participants.target.characterId
+    ? activeDuel.session.state.participants.target
+    : activeDuel.session.state.participants.challenger;
+  const skill = getCombatSkillDisplay(getCombatSkillProfile(participant.combatStats.classId).id);
+
+  await sendCombatLockText(ctx, presentCombatLockRedirect(presentTurnBasedDuel(activeDuel, {
+    viewerCharacterId: privateCard ? viewerCharacterId : null
+  })), {
+    reply_markup: buildTurnBasedDuelKeyboard(activeDuel, privateCard ? viewerCharacterId : null, `${skill.icon} ${skill.name}`)
+  });
+
+  return true;
 }
 
 async function refreshCombatLockPresence(
@@ -1887,7 +1973,7 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
   });
 
   bot.hears(mainMenuButtons.participants, async (ctx) => {
-    await sendOnline(ctx, services.presence);
+    await sendOnline(ctx, services.presence, { duelEnabled: Boolean(services.duel) });
   });
 
   bot.hears(mainMenuButtons.help, async (ctx) => {

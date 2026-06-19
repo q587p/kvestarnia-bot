@@ -1,0 +1,619 @@
+import {
+  getActorCombatActionAvailability,
+  getCombatSkillProfile,
+  resolveActorCombatAction,
+  type CombatActorStats,
+  type CombatState,
+  type CombatTurnSummary
+} from "../combat";
+import type { CharacterStats } from "../characters/starterStats";
+import type { EquipmentEffectSummary } from "../progression/effectiveStats";
+import type { RandomSource } from "../../shared/random";
+import { INSTANT_DUEL_BALANCE_VERSION, prepareBalancedDuelists, type DuelistBalanceAudit } from "./duelBalance";
+import type { DuelistSummary, DuelOutcomeSide } from "./duelResolver";
+
+export const TURN_BASED_DUEL_RULES_VERSION = "turn-based-duel-v1";
+export const TURN_BASED_DUEL_TURN_SECONDS = 23;
+export const TURN_BASED_DUEL_MAX_TURNS = 93;
+export const TURN_BASED_DUEL_LOSS_XP = 1;
+export const TURN_BASED_DUEL_DRAW_XP_RANGE = { min: 2, max: 5 } as const;
+export const TURN_BASED_DUEL_WIN_XP_RANGE = { min: 4, max: 8 } as const;
+
+export type DuelMode = "quick" | "turn-based";
+export type TurnBasedDuelStatus = "active" | "resolved" | "expired" | "forfeited";
+export type TurnBasedDuelAction = "attack" | "skill" | "surrender";
+
+export interface TurnBasedDuelParticipantSnapshot {
+  characterId: string;
+  displayName: string;
+  title: string;
+  raceId: string;
+  raceName: string;
+  classId: string;
+  className: string;
+  level: number;
+  remortCount: number;
+  stats: CharacterStats;
+  equipmentEffects?: EquipmentEffectSummary;
+  hp: number;
+  hpMax: number;
+  mana: number;
+  manaMax: number;
+  combatStats: CombatActorStats;
+  cooldowns?: CombatState["cooldowns"];
+  balanceAudit: DuelistBalanceAudit;
+}
+
+export interface TurnBasedDuelActionSummary {
+  actorCharacterId: string;
+  defenderCharacterId: string;
+  action: TurnBasedDuelAction | "timeout-attack";
+  outcome: CombatTurnSummary["heroOutcome"] | "surrendered" | "draw";
+  damage: number;
+  manaSpent: number;
+  critical: boolean;
+  skillId?: string;
+}
+
+export interface TurnBasedDuelQueuedAction {
+  actorCharacterId: string;
+  action: Exclude<TurnBasedDuelAction, "surrender">;
+}
+
+export interface TurnBasedDuelRoundSummary {
+  turn: number;
+  actions: TurnBasedDuelActionSummary[];
+}
+
+export interface TurnBasedDuelOutcome {
+  outcome: DuelOutcomeSide;
+  winnerCharacterId: string | null;
+  loserCharacterId: string | null;
+  reason: "defeat" | "surrender" | "max-turns" | "expired";
+}
+
+export interface TurnBasedDuelState {
+  mode: "turn-based";
+  status: TurnBasedDuelStatus;
+  rulesVersion: string;
+  balanceVersion: string;
+  turn: number;
+  actingCharacterId: string;
+  participants: {
+    challenger: TurnBasedDuelParticipantSnapshot;
+    target: TurnBasedDuelParticipantSnapshot;
+  };
+  pendingActions?: Partial<Record<"challenger" | "target", TurnBasedDuelQueuedAction>>;
+  lastRound?: TurnBasedDuelRoundSummary;
+  lastAction?: TurnBasedDuelActionSummary;
+  outcome?: TurnBasedDuelOutcome;
+}
+
+export interface TurnBasedDuelXpRewards {
+  challenger: number;
+  target: number;
+}
+
+export interface StartTurnBasedDuelInput {
+  challenger: DuelistSummary;
+  target: DuelistSummary;
+  rng: RandomSource;
+}
+
+export function startTurnBasedDuel(input: StartTurnBasedDuelInput): TurnBasedDuelState {
+  const prepared = prepareBalancedDuelists({
+    challenger: input.challenger,
+    target: input.target
+  });
+  const challengerInitiative = rollInitiative(prepared.challenger, input.rng);
+  const targetInitiative = rollInitiative(prepared.target, input.rng);
+  const actingCharacterId =
+    challengerInitiative === targetInitiative
+      ? input.rng.nextFloat() < 0.5
+        ? input.challenger.id
+        : input.target.id
+      : challengerInitiative > targetInitiative
+        ? input.challenger.id
+        : input.target.id;
+
+  return {
+    mode: "turn-based",
+    status: "active",
+    rulesVersion: TURN_BASED_DUEL_RULES_VERSION,
+    balanceVersion: INSTANT_DUEL_BALANCE_VERSION,
+    turn: 1,
+    actingCharacterId,
+    participants: {
+      challenger: buildParticipantSnapshot(prepared.challenger),
+      target: buildParticipantSnapshot(prepared.target)
+    }
+  };
+}
+
+export type ResolveTurnBasedDuelActionResult =
+  | { ok: true; resolution: "queued"; state: TurnBasedDuelState; queuedAction: TurnBasedDuelQueuedAction }
+  | { ok: true; resolution: "resolved"; state: TurnBasedDuelState; round: TurnBasedDuelRoundSummary }
+  | { ok: false; reason: "inactive" | "already-acted" | "not-participant"; state: TurnBasedDuelState };
+
+export function resolveTurnBasedDuelAction(input: {
+  state: TurnBasedDuelState;
+  actorCharacterId: string;
+  action: TurnBasedDuelAction;
+  rng: RandomSource;
+}): ResolveTurnBasedDuelActionResult {
+  const state = cloneTurnBasedDuelState(input.state);
+
+  if (state.status !== "active") {
+    return { ok: false, reason: "inactive", state };
+  }
+
+  if (!findParticipantSide(state, input.actorCharacterId)) {
+    return { ok: false, reason: "not-participant", state };
+  }
+
+  const actorSide = findParticipantSide(state, input.actorCharacterId);
+
+  if (!actorSide) {
+    return { ok: false, reason: "not-participant", state };
+  }
+
+  const actor = state.participants[actorSide];
+
+  if (input.action === "surrender") {
+    const defenderSide = actorSide === "challenger" ? "target" : "challenger";
+    const defender = state.participants[defenderSide];
+    const summary = {
+      actorCharacterId: actor.characterId,
+      defenderCharacterId: defender.characterId,
+      action: "surrender" as const,
+      outcome: "surrendered" as const,
+      damage: 0,
+      manaSpent: 0,
+      critical: false
+    };
+    state.status = "forfeited";
+    state.outcome = buildOutcome(state, defender.characterId, "surrender");
+    state.lastAction = summary;
+    state.lastRound = { turn: state.turn, actions: [summary] };
+    return { ok: true, resolution: "resolved", state, round: state.lastRound };
+  }
+
+  if (state.pendingActions?.[actorSide]) {
+    return { ok: false, reason: "already-acted", state };
+  }
+
+  const queuedAction = {
+    actorCharacterId: actor.characterId,
+    action: input.action
+  };
+  state.pendingActions = {
+    ...state.pendingActions,
+    [actorSide]: queuedAction
+  };
+
+  if (!state.pendingActions.challenger || !state.pendingActions.target) {
+    return { ok: true, resolution: "queued", state, queuedAction };
+  }
+
+  return resolveQueuedRound(state, input.rng);
+}
+
+export function resolveTurnBasedDuelTimeout(input: {
+  state: TurnBasedDuelState;
+  rng: RandomSource;
+}): ResolveTurnBasedDuelActionResult {
+  const state = cloneTurnBasedDuelState(input.state);
+
+  if (state.status !== "active") {
+    return { ok: false, reason: "inactive", state };
+  }
+
+  state.pendingActions = {
+    ...state.pendingActions,
+    ...(state.pendingActions?.challenger
+      ? {}
+      : {
+          challenger: {
+            actorCharacterId: state.participants.challenger.characterId,
+            action: "attack" as const
+          }
+        }),
+    ...(state.pendingActions?.target
+      ? {}
+      : {
+          target: {
+            actorCharacterId: state.participants.target.characterId,
+            action: "attack" as const
+          }
+        })
+  };
+
+  return resolveQueuedRound(state, input.rng, {
+    timeoutCharacterIds: [
+      ...(input.state.pendingActions?.challenger ? [] : [state.participants.challenger.characterId]),
+      ...(input.state.pendingActions?.target ? [] : [state.participants.target.characterId])
+    ]
+  });
+}
+
+function resolveQueuedRound(
+  state: TurnBasedDuelState,
+  rng: RandomSource,
+  options: { timeoutCharacterIds?: string[] } = {}
+): Extract<ResolveTurnBasedDuelActionResult, { ok: true; resolution: "resolved" }> {
+  const pending = state.pendingActions;
+  const mitigation = {
+    challenger: getQueuedIncomingDamageReduction(state, "challenger"),
+    target: getQueuedIncomingDamageReduction(state, "target")
+  };
+  delete state.pendingActions;
+
+  const firstSide = findParticipantSide(state, state.actingCharacterId) ?? "challenger";
+  const secondSide = firstSide === "challenger" ? "target" : "challenger";
+  const actions: TurnBasedDuelActionSummary[] = [];
+
+  for (const side of [firstSide, secondSide] as const) {
+    if (state.status !== "active") {
+      break;
+    }
+
+    const queued = pending?.[side];
+    if (!queued) {
+      continue;
+    }
+
+    actions.push(resolveQueuedCombatAction(state, side, queued.action, rng, {
+      timeout: options.timeoutCharacterIds?.includes(queued.actorCharacterId) ?? false,
+      incomingDamageReduction: mitigation[defenderSideOf(side)]
+    }));
+  }
+
+  const round = {
+    turn: state.turn,
+    actions
+  };
+  state.lastRound = round;
+  const lastAction = actions.at(-1);
+  if (lastAction) {
+    state.lastAction = lastAction;
+  } else {
+    delete state.lastAction;
+  }
+
+  if (state.status === "active" && state.turn >= TURN_BASED_DUEL_MAX_TURNS) {
+    state.status = "resolved";
+    state.outcome = {
+      outcome: "draw",
+      winnerCharacterId: null,
+      loserCharacterId: null,
+      reason: "max-turns"
+    };
+    const last = state.lastAction;
+    if (last) {
+      state.lastAction = { ...last, outcome: "draw" };
+      state.lastRound = {
+        turn: round.turn,
+        actions: [...round.actions.slice(0, -1), state.lastAction]
+      };
+    }
+    return { ok: true, resolution: "resolved", state, round: state.lastRound };
+  }
+
+  if (state.status === "active") {
+    state.turn += 1;
+    state.actingCharacterId = getOtherCharacterId(state, state.actingCharacterId);
+  }
+
+  return { ok: true, resolution: "resolved", state, round: state.lastRound };
+}
+
+function resolveQueuedCombatAction(
+  state: TurnBasedDuelState,
+  actorSide: "challenger" | "target",
+  action: Exclude<TurnBasedDuelAction, "surrender">,
+  rng: RandomSource,
+  options: { timeout: boolean; incomingDamageReduction: number }
+): TurnBasedDuelActionSummary {
+  const defenderSide = actorSide === "challenger" ? "target" : "challenger";
+  const actor = state.participants[actorSide];
+  const defender = state.participants[defenderSide];
+  const resolved = resolveActorCombatAction({
+    actorState: {
+      hp: actor.hp,
+      hpMax: actor.hpMax,
+      mana: actor.mana,
+      manaMax: actor.manaMax,
+      cooldowns: actor.cooldowns
+    },
+    defenderState: {
+      hp: defender.hp,
+      hpMax: defender.hpMax,
+      mana: defender.mana,
+      manaMax: defender.manaMax,
+      cooldowns: defender.cooldowns
+    },
+    actorStats: actor.combatStats,
+    defenderStats: buildDefenderStats(defender),
+    action,
+    rng
+  });
+
+  actor.hp = resolved.actorState.hp;
+  actor.mana = resolved.actorState.mana;
+  actor.cooldowns = resolved.actorState.cooldowns;
+  const mitigatedDamage = Math.max(0, resolved.summary.actorDamage - options.incomingDamageReduction);
+  defender.hp = Math.min(defender.hpMax, resolved.defenderState.hp + (resolved.summary.actorDamage - mitigatedDamage));
+  defender.mana = resolved.defenderState.mana;
+  defender.cooldowns = resolved.defenderState.cooldowns;
+
+  const summary = {
+    actorCharacterId: actor.characterId,
+    defenderCharacterId: defender.characterId,
+    action: options.timeout ? "timeout-attack" as const : action,
+    outcome: resolved.summary.actorOutcome === "won" && defender.hp > 0
+      ? resolved.summary.critical
+        ? "critical-hit" as const
+        : mitigatedDamage > 0
+          ? "hit" as const
+          : "miss" as const
+      : resolved.summary.actorOutcome,
+    damage: mitigatedDamage,
+    manaSpent: resolved.summary.manaSpent,
+    critical: resolved.summary.critical,
+    ...(resolved.summary.skillId ? { skillId: resolved.summary.skillId } : {})
+  };
+
+  if (defender.hp <= 0) {
+    state.status = "resolved";
+    state.outcome = buildOutcome(state, actor.characterId, "defeat");
+  }
+
+  return summary;
+}
+
+function getQueuedIncomingDamageReduction(
+  state: TurnBasedDuelState,
+  side: "challenger" | "target"
+): number {
+  const queued = state.pendingActions?.[side];
+
+  if (queued?.action !== "skill") {
+    return 0;
+  }
+
+  const participant = state.participants[side];
+  const skill = getCombatSkillProfile(participant.classId);
+  const availability = getActorCombatActionAvailability(
+    {
+      mana: participant.mana,
+      cooldowns: participant.cooldowns
+    },
+    participant.combatStats
+  ).skill;
+
+  return availability.available ? skill.monsterDamageReduction : 0;
+}
+
+function defenderSideOf(side: "challenger" | "target"): "challenger" | "target" {
+  return side === "challenger" ? "target" : "challenger";
+}
+
+export function expireTurnBasedDuel(state: TurnBasedDuelState): TurnBasedDuelState {
+  if (state.status !== "active") {
+    return cloneTurnBasedDuelState(state);
+  }
+
+  const next = cloneTurnBasedDuelState(state);
+
+  next.status = "expired";
+  next.outcome = {
+    outcome: "draw",
+    winnerCharacterId: null,
+    loserCharacterId: null,
+    reason: "expired"
+  };
+
+  return next;
+}
+
+export function rollTurnBasedDuelXpRewards(
+  state: TurnBasedDuelState,
+  rng: RandomSource
+): TurnBasedDuelXpRewards | null {
+  if (state.status === "active" || !state.outcome || state.outcome.reason === "expired") {
+    return null;
+  }
+
+  if (state.outcome.outcome === "draw") {
+    return {
+      challenger: rollLuckBiasedXp(TURN_BASED_DUEL_DRAW_XP_RANGE, state.participants.challenger.stats.luck, rng),
+      target: rollLuckBiasedXp(TURN_BASED_DUEL_DRAW_XP_RANGE, state.participants.target.stats.luck, rng)
+    };
+  }
+
+  const winnerSide = findParticipantSide(state, state.outcome.winnerCharacterId ?? "");
+  const loserSide = findParticipantSide(state, state.outcome.loserCharacterId ?? "");
+
+  if (!winnerSide || !loserSide) {
+    return null;
+  }
+
+  return {
+    challenger: winnerSide === "challenger"
+      ? rollLuckBiasedXp(TURN_BASED_DUEL_WIN_XP_RANGE, state.participants.challenger.stats.luck, rng)
+      : TURN_BASED_DUEL_LOSS_XP,
+    target: winnerSide === "target"
+      ? rollLuckBiasedXp(TURN_BASED_DUEL_WIN_XP_RANGE, state.participants.target.stats.luck, rng)
+      : TURN_BASED_DUEL_LOSS_XP
+  };
+}
+
+export function getTurnBasedDuelSkillLabel(participant: Pick<TurnBasedDuelParticipantSnapshot, "classId">): {
+  skillId: string;
+  manaCost: number;
+} {
+  const skill = getCombatSkillProfile(participant.classId);
+
+  return {
+    skillId: skill.id,
+    manaCost: skill.manaCost
+  };
+}
+
+function buildParticipantSnapshot(
+  character: ReturnType<typeof prepareBalancedDuelists>["challenger"]
+): TurnBasedDuelParticipantSnapshot {
+  const equipment = character.equipmentEffects;
+
+  return {
+    characterId: character.id,
+    displayName: character.name,
+    title: character.title,
+    raceId: character.raceId,
+    raceName: character.raceName,
+    classId: character.classId,
+    className: character.className,
+    level: character.level,
+    remortCount: character.remortCount ?? 0,
+    stats: { ...character.stats },
+    ...(equipment ? { equipmentEffects: { ...equipment } } : {}),
+    hp: character.hpCurrent,
+    hpMax: character.hpMax,
+    mana: character.manaCurrent,
+    manaMax: character.manaMax,
+    combatStats: {
+      level: character.balanceAudit.effectiveCombatLevel,
+      hpMax: character.hpMax,
+      manaMax: character.manaMax,
+      classId: character.classId,
+      ...character.stats,
+      armor: equipment?.armor ?? 0,
+      resist: equipment?.resist ?? 0,
+      weaponDamage: equipment?.weaponDamage ?? 0,
+      spellPower: equipment?.spellPower ?? 0
+    },
+    balanceAudit: character.balanceAudit
+  };
+}
+
+function buildDefenderStats(participant: TurnBasedDuelParticipantSnapshot) {
+  return {
+    monsterId: participant.characterId,
+    name: participant.displayName,
+    level: participant.combatStats.level,
+    hpMax: participant.hpMax,
+    attack: Math.max(1, Math.floor(participant.combatStats.strength / 2) + participant.combatStats.level),
+    armor: participant.combatStats.armor ?? 0,
+    resist: participant.combatStats.resist ?? 0,
+    dexterity: participant.combatStats.dexterity,
+    classId: participant.classId,
+    className: participant.className,
+    raceId: participant.raceId,
+    raceName: participant.raceName,
+    title: participant.title,
+    spellPower: participant.combatStats.spellPower ?? 0,
+    tags: []
+  };
+}
+
+function rollInitiative(character: ReturnType<typeof prepareBalancedDuelists>["challenger"], rng: RandomSource): number {
+  return character.stats.dexterity * 2 + character.stats.luck + rng.nextInt(1, 13);
+}
+
+function rollLuckBiasedXp(
+  range: { min: number; max: number },
+  luck: number,
+  rng: RandomSource
+): number {
+  const base = rng.nextInt(range.min, range.max);
+  const luckChance = Math.min(0.35, Math.max(0, Math.floor(luck)) * 0.02);
+  const bonus = rng.nextFloat() < luckChance ? 1 : 0;
+
+  return Math.min(range.max, base + bonus);
+}
+
+function findParticipantSide(
+  state: TurnBasedDuelState,
+  characterId: string
+): "challenger" | "target" | null {
+  if (state.participants.challenger.characterId === characterId) {
+    return "challenger";
+  }
+
+  if (state.participants.target.characterId === characterId) {
+    return "target";
+  }
+
+  return null;
+}
+
+function buildOutcome(
+  state: TurnBasedDuelState,
+  winnerCharacterId: string,
+  reason: TurnBasedDuelOutcome["reason"]
+): TurnBasedDuelOutcome {
+  const winnerSide = findParticipantSide(state, winnerCharacterId);
+  const loser =
+    winnerSide === "challenger" ? state.participants.target : state.participants.challenger;
+
+  return {
+    outcome: winnerSide === "challenger" ? "challenger" : "target",
+    winnerCharacterId,
+    loserCharacterId: loser.characterId,
+    reason
+  };
+}
+
+function cloneTurnBasedDuelState(state: TurnBasedDuelState): TurnBasedDuelState {
+  return {
+    ...state,
+    participants: {
+      challenger: cloneParticipant(state.participants.challenger),
+      target: cloneParticipant(state.participants.target)
+    },
+    ...(state.lastAction ? { lastAction: { ...state.lastAction } } : {}),
+    ...(state.lastRound
+      ? {
+          lastRound: {
+            turn: state.lastRound.turn,
+            actions: state.lastRound.actions.map((action) => ({ ...action }))
+          }
+        }
+      : {}),
+    ...(state.pendingActions
+      ? {
+          pendingActions: {
+            ...(state.pendingActions.challenger
+              ? { challenger: { ...state.pendingActions.challenger } }
+              : {}),
+            ...(state.pendingActions.target
+              ? { target: { ...state.pendingActions.target } }
+              : {})
+          }
+        }
+      : {}),
+    ...(state.outcome ? { outcome: { ...state.outcome } } : {})
+  };
+}
+
+function getOtherCharacterId(state: TurnBasedDuelState, characterId: string): string {
+  return characterId === state.participants.challenger.characterId
+    ? state.participants.target.characterId
+    : state.participants.challenger.characterId;
+}
+
+function cloneParticipant(
+  participant: TurnBasedDuelParticipantSnapshot
+): TurnBasedDuelParticipantSnapshot {
+  return {
+    ...participant,
+    stats: { ...participant.stats },
+    combatStats: { ...participant.combatStats },
+    ...(participant.equipmentEffects
+      ? { equipmentEffects: { ...participant.equipmentEffects } }
+      : {}),
+    ...(participant.cooldowns?.skill
+      ? { cooldowns: { skill: { ...participant.cooldowns.skill } } }
+      : {})
+  };
+}
