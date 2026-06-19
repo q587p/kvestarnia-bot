@@ -56,7 +56,10 @@ import {
   buildTavernKeyboard,
   buildTavernResultKeyboard
 } from "../../src/bot/keyboards/tavernKeyboard";
-import { buildTrainingDoppelgangerKeyboard } from "../../src/bot/keyboards/trainingDoppelgangerKeyboard";
+import {
+  buildTrainingDoppelgangerKeyboard,
+  buildTrainingDoppelgangerStartKeyboard
+} from "../../src/bot/keyboards/trainingDoppelgangerKeyboard";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 
 describe("main menu and scene keyboards", () => {
@@ -194,6 +197,34 @@ describe("main menu and scene keyboards", () => {
       "v1:tavern:round",
       "v1:cellar:grownup-turn-in",
       "v1:place:hall"
+    ]);
+  });
+
+  it("returns doppelganger training target choice to the fighting corner", () => {
+    const keyboard = buildTrainingDoppelgangerStartKeyboard([
+      {
+        mode: "copy-target",
+        buttonLabel: "🪞 Копія поточного",
+        title: "Копія поточного",
+        description: "Допельґанґер бере поточний образ."
+      },
+      {
+        mode: "random-build",
+        buttonLabel: "🎲 Випадковий пригодник",
+        title: "Випадковий пригодник",
+        description: "Дзеркало збирає випадковий образ."
+      }
+    ]);
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "🪞 Копія поточного",
+      "🎲 Випадковий пригодник",
+      "🥊 До кутка"
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:spar:mode:copy-target",
+      "v1:spar:mode:random-build",
+      "v1:place:fighting-corner"
     ]);
   });
 

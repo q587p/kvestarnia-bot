@@ -20,10 +20,7 @@ export function buildTrainingDoppelgangerStartKeyboard(
     keyboard.text(choice.buttonLabel, makeTrainingDoppelgangerModeCallbackData(choice.mode)).row();
   }
 
-  return keyboard
-    .text("📋 До справ", makeQuestCallbackData("list"))
-    .row()
-    .text("🍺 До зали", makePlaceCallbackData("hall"));
+  return keyboard.text("🥊 До кутка", makePlaceCallbackData("fighting-corner"));
 }
 
 export function buildTrainingDoppelgangerKeyboard(
