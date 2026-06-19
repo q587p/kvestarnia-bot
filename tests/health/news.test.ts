@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { readNewsEntries, parseNewsEntries, renderNewsMarkdown } from "../../src/health/news";
 
@@ -43,5 +45,11 @@ describe("public news rendering", () => {
 
   it("surfaces missing news files instead of silently returning an empty archive", () => {
     expect(() => readNewsEntries("missing-news-file.md")).toThrow();
+  });
+
+  it("keeps Nyz descent casing in prose", () => {
+    const news = readFileSync(join(process.cwd(), "news.md"), "utf8");
+
+    expect(news).not.toMatch(/(?:до|на|у|в|біля|з|зі)\s+Спуск[ау]?\s+до\s+Низу/u);
   });
 });
