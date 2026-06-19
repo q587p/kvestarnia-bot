@@ -90,7 +90,7 @@ export function presentKorchmaHall(
     "",
     "Корчма Квестарні тримає тепло, шум і кілька справ, які краще не залишати без нагляду.",
     "",
-    "Ліворуч гупає <i>бійцівський куток</i>, праворуч терпить життя <i>стіл зі справами</i>. Далі піниться <i>Бочка Пінного Міражу</i>, шумить <i>шинок</i>, за бочками чекає <i>спуск до Низу</i>, а поруч скромно пахне <i>льох</i>.",
+    presentKorchmaHallPlaceLine(character.level),
     "",
     "Біля дверей висить <i>дошка вістей</i>, а самі двері роблять вигляд, що <i>надвір</i> теж варіянт.",
     ...presentRemortCandleHint(character),
@@ -119,6 +119,20 @@ export function presentKorchmaFightingCorner(character: CharacterSummary): strin
   ].join("\n");
 }
 
+export function presentKorchmaFightingCornerLevelLocked(
+  character: CharacterSummary,
+  requiredLevel = 3
+): string {
+  return [
+    `🥊 Бійцівський куток відкриється з ${requiredLevel} рівня`,
+    presentCharacterHeader(character),
+    "",
+    "Куток поки вдає, що це просто дуже підозрілий закуток. Корчмар радить спершу закрити кілька справ і не сваритися з рукавицями.",
+    "",
+    "Поверніться до зали або до Столу зі справами."
+  ].join("\n");
+}
+
 export function presentKorchmaDeepClosed(
   character: CharacterSummary,
   options: { munchkinLocation?: MunchkinLocation } = {}
@@ -130,6 +144,14 @@ export function presentKorchmaDeepClosed(
     "За бочками в коморі є сходи. Перші тринадцять сходинок ще пахнуть пивом і мишами. Далі — гарячим каменем, старою кров’ю і чимось, що не мало б дихати.",
     ...presentDeepMunchkinLines(options.munchkinLocation ?? "front")
   ].join("\n");
+}
+
+function presentKorchmaHallPlaceLine(level: number): string {
+  if (level < 3) {
+    return "Праворуч терпить життя <i>стіл зі справами</i>. Далі піниться <i>Бочка Пінного Міражу</i>, шумить <i>шинок</i>, а поруч скромно пахне <i>льох</i>.";
+  }
+
+  return "Ліворуч гупає <i>бійцівський куток</i>, праворуч терпить життя <i>стіл зі справами</i>. Далі піниться <i>Бочка Пінного Міражу</i>, шумить <i>шинок</i>, за бочками чекає <i>спуск до Низу</i>, а поруч скромно пахне <i>льох</i>.";
 }
 
 function presentFrontMunchkinLines(location: MunchkinLocation): string[] {

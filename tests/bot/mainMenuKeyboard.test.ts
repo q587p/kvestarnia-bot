@@ -175,8 +175,14 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ characterLevel: 1 }))).not.toContain(
       "🪜 Спуск до Низу"
     );
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ characterLevel: 1 }))).not.toContain(
+      "🥊 Бійцівський куток"
+    );
     expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard({ characterLevel: 1 }))).not.toContain(
       "v1:place:deep"
+    );
+    expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard({ characterLevel: 1 }))).not.toContain(
+      "v1:place:fighting-corner"
     );
     expect(inlineButtonRows(buildKorchmaHallKeyboard())).toEqual([
       ["🥊 Бійцівський куток", "📋 Стіл зі справами"],

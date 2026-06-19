@@ -222,7 +222,7 @@ describe("tavern command screens", () => {
 
     await sendKorchmaFightingCorner(
       makeContext(replies),
-      readyTavernService(),
+      readyTavernService({ ...character, level: 3 }),
       capturingPresenceService(),
       "reply"
     );
@@ -245,6 +245,22 @@ describe("tavern command screens", () => {
         ]
       }
     });
+  });
+
+  it("keeps lower-level characters out of the fighting corner surface", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaFightingCorner(
+      makeContext(replies),
+      readyTavernService({ ...character, level: 1 }),
+      capturingPresenceService(),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🥊 Бійцівський куток відкриється з 3 рівня");
+    expect(replies[0]?.text).not.toContain("⚡ Миттєва дуель");
+    expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
+    expect(JSON.stringify(replies[0]?.options)).not.toContain(makePlaceCallbackData("fighting-corner"));
   });
 
   it("shows the Nyz descent surface", async () => {
@@ -315,7 +331,7 @@ describe("tavern command screens", () => {
 
     await sendDuelWinnersBoard(
       makeContext(replies),
-      readyTavernService(),
+      readyTavernService({ ...character, level: 3 }),
       capturingPresenceService(),
       {
         getLeaderboard: () =>
@@ -331,6 +347,30 @@ describe("tavern command screens", () => {
     expect(replies[0]?.text).toContain("🏆 Переможці дуелей");
     expect(replies[0]?.text).toContain("1. Дара — 2 перемоги, 1 нічия, 5 поразок");
     expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("duel-winners"));
+  });
+
+  it("keeps lower-level characters out of the duel winners board", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendDuelWinnersBoard(
+      makeContext(replies),
+      readyTavernService({ ...character, level: 1 }),
+      capturingPresenceService(),
+      {
+        getLeaderboard: () =>
+          Promise.resolve({
+            day: [{ characterId: "character-1", name: "Дара", winCount: 2, drawCount: 1, lossCount: 5 }],
+            week: [],
+            month: []
+          })
+      },
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🥊 Бійцівський куток відкриється з 3 рівня");
+    expect(replies[0]?.text).not.toContain("Переможці дуелей");
+    expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
+    expect(JSON.stringify(replies[0]?.options)).not.toContain(makePlaceCallbackData("duel-winners"));
   });
 
   it("offers problem quest turn-in from the Шинок when a stage is ready", async () => {

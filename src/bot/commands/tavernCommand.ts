@@ -38,6 +38,7 @@ import {
   presentKorchmaDeepClosed,
   presentKorchmaDeepLevelLocked,
   presentKorchmaFightingCorner,
+  presentKorchmaFightingCornerLevelLocked,
   presentKorchmaFront,
   presentKorchmaHall,
   presentKorchmaMemorialBoard,
@@ -286,6 +287,12 @@ export async function sendKorchmaFightingCorner(
     return;
   }
 
+  if (result.character.level < 3) {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_HALL);
+    await sendText(ctx, mode, presentKorchmaFightingCornerLevelLocked(result.character), "back-to-hall");
+    return;
+  }
+
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
   await sendText(ctx, mode, presentKorchmaFightingCorner(result.character), "fighting-corner");
 }
@@ -369,6 +376,12 @@ export async function sendDuelWinnersBoard(
   if (result.state === "pending-complete") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
     await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
+    return;
+  }
+
+  if (result.character.level < 3) {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_HALL);
+    await sendText(ctx, mode, presentKorchmaFightingCornerLevelLocked(result.character), "back-to-hall");
     return;
   }
 

@@ -62,15 +62,18 @@ export function buildEnterKorchmaKeyboard(): InlineKeyboard {
 
 export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = {}): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+  const showFightingCorner = options.characterLevel === undefined || options.characterLevel >= 3;
   const showNyz = options.characterLevel === undefined || options.characterLevel >= 3;
 
   if ((options.characterLevel ?? 0) >= 13) {
     keyboard.text("🕯️ Реморт", makeRemortOpenCallbackData()).row();
   }
 
-  keyboard
-    .text("🥊 Бійцівський куток", makePlaceCallbackData("fighting-corner"))
-    .text("📋 Стіл зі справами", makePlaceCallbackData("quest-table"))
+  if (showFightingCorner) {
+    keyboard.text("🥊 Бійцівський куток", makePlaceCallbackData("fighting-corner"));
+  }
+
+  keyboard.text("📋 Стіл зі справами", makePlaceCallbackData("quest-table"))
     .row()
     .text("🛢️ Бочка", makePlaceCallbackData("barrel"))
     .text("🍻 Шинок", makePlaceCallbackData("bar"))

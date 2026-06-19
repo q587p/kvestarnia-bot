@@ -32,6 +32,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `🎒 Манчкін-скупник` now requires at least `587` gold value from eligible manatky before wallet gold can fill the rest of the level-barter cost.
 - `🎒 Манчкін-скупник` now follows a Kyiv local night schedule: during the day he remains outside by the korchma front door, and at night his paragraph/button moves to `Спуск до Низу`.
 - Training and duel result return buttons now say `↩️ Повернутися до кутка`, making the Fighting Corner navigation distinct from challenge actions.
+- The korchma hall now hides `🥊 Бійцівський куток` before level 3, matching the early `Спуск до Низу` visibility gate and blocking stale direct corner/duel-board callbacks with a short level-gate card.
 
 ### Guardrails
 - No broad quest engine, shops, crafting, guilds, markets, Mini App UI, combat damage rewrite, mana spending or new production dependency was added.
