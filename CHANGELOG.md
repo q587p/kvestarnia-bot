@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.20] - 12026-06-19 - Authored Quest Resolutions
+## [0.1.20] - 12026-06-20 - Authored Quest Resolutions
 
 ### Added
 - Added a pure quest-resolution content/domain layer for authored methods, technique tags, reward profiles, deterministic bounded checks, grade bands and method slot selection.

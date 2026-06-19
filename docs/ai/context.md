@@ -14,7 +14,7 @@ Keep this file compact. Target: under 250 lines.
 
 - Codex-facing workflow docs, task docs, prompts, skills, PR text, commits, and test names should be English when practical.
 - Player-facing Telegram copy, lore, item/monster names, news, and release flavor stay Ukrainian.
-- Ukrainian copy uses `«»`, Holocene visible dates (`12026`; release/news/changelog headings use `1YYYY-MM-DD`, e.g. `12026-06-19`), `міт*` with `т`, and `соціяльн*` with `я` where applicable.
+- Ukrainian copy uses `«»`, Holocene visible dates (`12026`; release/news/changelog headings use `1YYYY-MM-DD`, e.g. `12026-06-20`, and should be rechecked against the current Kyiv release day before PR-ready handoff), `міт*` with `т`, and `соціяльн*` with `я` where applicable.
 
 ## Token-economy rules
 

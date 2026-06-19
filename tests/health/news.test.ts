@@ -52,4 +52,25 @@ describe("public news rendering", () => {
 
     expect(news).not.toMatch(/(?:до|на|у|в|біля|з|зі)\s+Спуск[ау]?\s+до\s+Низу/u);
   });
+
+  it("keeps latest release dates aligned across changelog and news", () => {
+    const packageJson = JSON.parse(
+      readFileSync(join(process.cwd(), "package.json"), "utf8")
+    ) as { version: string };
+    const changelog = readFileSync(join(process.cwd(), "CHANGELOG.md"), "utf8");
+    const news = readFileSync(join(process.cwd(), "news.md"), "utf8");
+
+    const changelogHeading = changelog.match(
+      /^## \[(?<version>\d+\.\d+\.\d+)\] - (?<date>1\d{4}-\d{2}-\d{2}) - /m
+    )?.groups;
+    const newsHeading = news.match(
+      /^## (?<version>\d+\.\d+\.\d+) — (?<date>1\d{4}-\d{2}-\d{2}) — /m
+    )?.groups;
+
+    expect(changelogHeading).toEqual(
+      expect.objectContaining({ version: packageJson.version })
+    );
+    expect(newsHeading).toEqual(expect.objectContaining({ version: packageJson.version }));
+    expect(newsHeading?.date).toBe(changelogHeading?.date);
+  });
 });
