@@ -1,5 +1,11 @@
 import type { CharacterSummary } from "../characters/characterSummary";
 import type { RandomSource } from "../../shared/random";
+import {
+  INSTANT_DUEL_BALANCE_VERSION,
+  prepareBalancedDuelists,
+  scorePreparedDuelist,
+  type DuelistBalanceAudit
+} from "./duelBalance";
 
 export type DuelOutcomeSide = "challenger" | "target" | "draw";
 
@@ -21,6 +27,11 @@ export interface DuelResolveResult {
   targetScore: number;
   swing: number;
   flavorKey: DuelFlavorKey;
+  balanceVersion: string;
+  audit: {
+    challenger: DuelistBalanceAudit;
+    target: DuelistBalanceAudit;
+  };
 }
 
 export type DuelFlavorKey =
@@ -33,8 +44,12 @@ export type DuelFlavorKey =
 const DRAW_MARGIN = 3;
 
 export function resolveQuickDuel(input: DuelResolveInput): DuelResolveResult {
-  const challengerBase = scoreDuelist(input.challenger);
-  const targetBase = scoreDuelist(input.target);
+  const prepared = prepareBalancedDuelists({
+    challenger: input.challenger,
+    target: input.target
+  });
+  const challengerBase = scorePreparedDuelist(prepared.challenger);
+  const targetBase = scorePreparedDuelist(prepared.target);
   const swing = input.rng.nextInt(-12, 12);
   const challengerScore = challengerBase + swing;
   const targetScore = targetBase - swing;
@@ -48,13 +63,24 @@ export function resolveQuickDuel(input: DuelResolveInput): DuelResolveResult {
       challengerScore,
       targetScore,
       swing,
-      flavorKey: "dramatic-draw"
+      flavorKey: "dramatic-draw",
+      balanceVersion: INSTANT_DUEL_BALANCE_VERSION,
+      audit: {
+        challenger: {
+          ...prepared.challenger.balanceAudit,
+          preparedScore: challengerBase
+        },
+        target: {
+          ...prepared.target.balanceAudit,
+          preparedScore: targetBase
+        }
+      }
     };
   }
 
   const challengerWins = delta > 0;
-  const winner = challengerWins ? input.challenger : input.target;
-  const loser = challengerWins ? input.target : input.challenger;
+  const winner = challengerWins ? prepared.challenger : prepared.target;
+  const loser = challengerWins ? prepared.target : prepared.challenger;
 
   return {
     outcome: challengerWins ? "challenger" : "target",
@@ -63,28 +89,19 @@ export function resolveQuickDuel(input: DuelResolveInput): DuelResolveResult {
     challengerScore,
     targetScore,
     swing,
-    flavorKey: pickFlavorKey(winner, loser, Math.abs(swing))
+    flavorKey: pickFlavorKey(winner, loser, Math.abs(swing)),
+    balanceVersion: INSTANT_DUEL_BALANCE_VERSION,
+    audit: {
+      challenger: {
+        ...prepared.challenger.balanceAudit,
+        preparedScore: challengerBase
+      },
+      target: {
+        ...prepared.target.balanceAudit,
+        preparedScore: targetBase
+      }
+    }
   };
-}
-
-function scoreDuelist(character: DuelistSummary): number {
-  const stats = character.stats;
-  const effects = character.equipmentEffects;
-
-  return Math.round(
-    character.level * 10 +
-      character.hpMax * 0.18 +
-      character.manaMax * 0.08 +
-      stats.strength * 1.2 +
-      stats.dexterity * 1.15 +
-      stats.intelligence * 0.85 +
-      stats.charisma * 0.8 +
-      stats.luck * 0.9 +
-      (effects?.weaponDamage ?? 0) * 2.2 +
-      (effects?.armor ?? 0) * 1.7 +
-      (effects?.spellPower ?? 0) * 1.9 +
-      (effects?.resist ?? 0) * 1.2
-  );
 }
 
 function pickFlavorKey(

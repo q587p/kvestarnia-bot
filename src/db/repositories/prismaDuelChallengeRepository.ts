@@ -4,6 +4,9 @@ import type {
   DuelChallengeRepository,
   DuelChallengeStatus,
   DuelCharacterSnapshot,
+  DuelResultBalanceAudit,
+  DuelResultParticipantSnapshot,
+  DuelResultProgressionBudget,
   DuelResultPayload,
   ResolvedDuelChallengeRecord
 } from "./duelChallengeRepository";
@@ -415,15 +418,124 @@ function parseResult(value: unknown): DuelResultPayload | null {
     return null;
   }
 
-  return {
+  const participants = parseParticipants(value.participants);
+  const audit = parseAudit(value.audit);
+  const result: DuelResultPayload = {
     outcome,
     winnerCharacterId: typeof value.winnerCharacterId === "string" ? value.winnerCharacterId : null,
     loserCharacterId: typeof value.loserCharacterId === "string" ? value.loserCharacterId : null,
     challengerScore: intOrZero(value.challengerScore),
     targetScore: intOrZero(value.targetScore),
     swing: intOrZero(value.swing),
-    flavorKey: typeof value.flavorKey === "string" ? value.flavorKey : "direct-hit"
+    flavorKey: typeof value.flavorKey === "string" ? value.flavorKey : "direct-hit",
+    ...(typeof value.balanceVersion === "string" ? { balanceVersion: value.balanceVersion } : {})
   };
+
+  if (participants) {
+    result.participants = participants;
+  }
+
+  if (audit) {
+    result.audit = audit;
+  }
+
+  return result;
+}
+
+function parseParticipants(value: unknown): DuelResultPayload["participants"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const challenger = parseParticipant(value.challenger);
+  const target = parseParticipant(value.target);
+
+  return challenger && target ? { challenger, target } : null;
+}
+
+function parseParticipant(value: unknown): DuelResultParticipantSnapshot | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const characterId = stringOrNull(value.characterId);
+  const displayName = stringOrNull(value.displayName);
+  const title = stringOrNull(value.title);
+  const raceId = stringOrNull(value.raceId);
+  const raceName = stringOrNull(value.raceName);
+  const classId = stringOrNull(value.classId);
+  const className = stringOrNull(value.className);
+
+  if (!characterId || !displayName || !title || !raceId || !raceName || !classId || !className) {
+    return null;
+  }
+
+  return {
+    characterId,
+    displayName,
+    title,
+    raceId,
+    raceName,
+    classId,
+    className,
+    level: Math.max(1, intOrZero(value.level)),
+    remortCount: Math.max(0, intOrZero(value.remortCount))
+  };
+}
+
+function parseAudit(value: unknown): DuelResultPayload["audit"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const challenger = parseBalanceAudit(value.challenger);
+  const target = parseBalanceAudit(value.target);
+
+  return challenger && target ? { challenger, target } : null;
+}
+
+function parseBalanceAudit(value: unknown): DuelResultBalanceAudit | null {
+  if (!isRecord(value) || typeof value.balanceVersion !== "string") {
+    return null;
+  }
+
+  const progressionBudget = parseProgressionBudget(value.progressionBudget);
+  const targetProgressionBudget = parseProgressionBudget(value.targetProgressionBudget);
+
+  if (!progressionBudget || !targetProgressionBudget || typeof value.primaryStat !== "string") {
+    return null;
+  }
+
+  return {
+    balanceVersion: value.balanceVersion,
+    originalLevel: intOrZero(value.originalLevel),
+    originalRemortCount: intOrZero(value.originalRemortCount),
+    primaryStat: value.primaryStat,
+    progressionBudget,
+    targetProgressionBudget,
+    temporaryHpMax: intOrZero(value.temporaryHpMax),
+    temporaryManaMax: intOrZero(value.temporaryManaMax),
+    temporaryPrimaryStat: intOrZero(value.temporaryPrimaryStat),
+    readinessPenalty: intOrZero(value.readinessPenalty),
+    preparedScore: intOrZero(value.preparedScore)
+  };
+}
+
+function parseProgressionBudget(value: unknown): DuelResultProgressionBudget | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  return {
+    hpMax: intOrZero(value.hpMax),
+    manaMax: intOrZero(value.manaMax),
+    primaryStat: intOrZero(value.primaryStat),
+    score: intOrZero(value.score)
+  };
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
 }
 
 function intOrZero(value: unknown): number {

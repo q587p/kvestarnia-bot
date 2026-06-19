@@ -21,6 +21,48 @@ export interface DuelResultPayload {
   targetScore: number;
   swing: number;
   flavorKey: string;
+  balanceVersion?: string;
+  participants?: {
+    challenger: DuelResultParticipantSnapshot;
+    target: DuelResultParticipantSnapshot;
+  };
+  audit?: {
+    challenger: DuelResultBalanceAudit;
+    target: DuelResultBalanceAudit;
+  };
+}
+
+export interface DuelResultParticipantSnapshot {
+  characterId: string;
+  displayName: string;
+  title: string;
+  raceId: string;
+  raceName: string;
+  classId: string;
+  className: string;
+  level: number;
+  remortCount: number;
+}
+
+export interface DuelResultProgressionBudget {
+  hpMax: number;
+  manaMax: number;
+  primaryStat: number;
+  score: number;
+}
+
+export interface DuelResultBalanceAudit {
+  balanceVersion: string;
+  originalLevel: number;
+  originalRemortCount: number;
+  primaryStat: string;
+  progressionBudget: DuelResultProgressionBudget;
+  targetProgressionBudget: DuelResultProgressionBudget;
+  temporaryHpMax: number;
+  temporaryManaMax: number;
+  temporaryPrimaryStat: number;
+  readinessPenalty: number;
+  preparedScore: number;
 }
 
 export interface DuelChallengeRecord {

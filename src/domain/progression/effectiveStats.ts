@@ -61,8 +61,8 @@ export interface EquipmentEffectSummary {
   contributions: EquipmentEffectContribution[];
 }
 
-const HP_MAX_PER_LEVEL = 4;
-const MANA_MAX_PER_LEVEL = 2;
+export const HP_MAX_PER_LEVEL = 4;
+export const MANA_MAX_PER_LEVEL = 2;
 
 interface ClassGrowthProfile {
   weights: CharacterStats;
@@ -214,6 +214,10 @@ export function buildLevelGrowthBonus(
     manaMax: gainedLevels * MANA_MAX_PER_LEVEL,
     stats: subtractStats(newStats, oldStats)
   };
+}
+
+export function getClassPrimaryStat(classId: string): StatKey {
+  return (classGrowthProfiles[classId] ?? fallbackGrowthProfile).priority[0] ?? "strength";
 }
 
 function buildLevelBonus(

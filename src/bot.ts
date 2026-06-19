@@ -85,7 +85,7 @@ const services = {
   mantokChest: new MantokChestService(mantokChestRuns),
   presence: new PresenceService(presence),
   devGrant: new DevGrantService(devGrants, config.nodeEnv, config.devGrantCommandsEnabled),
-  duel: new DuelChallengeService(duelChallenges),
+  duel: new DuelChallengeService(duelChallenges, characters),
   remort: new RemortService(remorts),
   devReset: new DevResetService(characters, config.nodeEnv),
   restart: new RestartService(characters),

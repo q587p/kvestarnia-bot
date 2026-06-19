@@ -56,6 +56,8 @@ MVP limits:
 
 `0.1.11` duel rematches and shareable result cards stay on the same rewardless ledger boundary. A rematch can be created only from a resolved stored result by one of the original participants, and it must set `target_character_id` to the other participant; accept must check that target server-side so bystanders cannot hijack an адресний реванш. Share callbacks must only send presentation text from stored `result_json`; they must not reroll, mutate status, notify the other side automatically, grant rewards or create соціяльний pressure loops.
 
+`0.1.17` keeps instant duels rewardless while hardening invite and replay behavior. `🎲 Інший текст` may edit only the separate forwardable invite message, only for the challenge owner, and must not create a new challenge, extend expiry, change odds or write challenge state. Create/rematch/accept resource checks must use the canonical lazy HP/mana sync path with optimistic conflict fallback; stale resource warnings must not be derived from the wrong participant. New resolved duel `result_json` stores acceptance-time participant snapshots and balance/audit metadata so old cards do not silently change after rename, remort, level-up or equipment changes. Old result JSON remains readable.
+
 ## Callback validation
 Callback data має:
 - мати версію.

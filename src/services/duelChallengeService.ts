@@ -1,15 +1,18 @@
 import { randomBytes } from "node:crypto";
+import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type {
   DuelChallengeRecord,
   DuelChallengeRepository,
   DuelCharacterSnapshot,
+  DuelResultParticipantSnapshot,
+  DuelResultPayload,
   ResolvedDuelChallengeRecord
 } from "../db/repositories/duelChallengeRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { resolveQuickDuel } from "../domain/duels/duelResolver";
-import { applyPassiveResourceRegeneration } from "../domain/resources/resourceRegeneration";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
+import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import { getEquippedItemContents } from "./equipmentService";
 
 export const DUEL_INVITE_MIN_LEVEL = 3;
@@ -128,9 +131,16 @@ export type DuelDeclineResult =
   | { state: "open-invite"; challenge: DuelChallengeRecord; challenger: CharacterSummary }
   | DuelChallengeView;
 
+export type DuelInviteRotationResult =
+  | { state: "not-found" }
+  | { state: "not-owner"; challenge: DuelChallengeRecord; challenger: CharacterSummary }
+  | { state: "not-pending"; view: DuelChallengeView }
+  | { state: "ready"; challenge: DuelChallengeRecord; challenger: CharacterSummary };
+
 export class DuelChallengeService {
   constructor(
     private readonly challenges: DuelChallengeRepository,
+    private readonly characters: CharacterRepository,
     private readonly clock: Clock = systemClock,
     private readonly rng: RandomSource = new CryptoRandomSource()
   ) {}
@@ -146,7 +156,7 @@ export class DuelChallengeService {
       return { state: "no-character" };
     }
 
-    const challenger = summarizeDuelCharacter(challengerSnapshot, { now });
+    const challenger = await this.syncDuelCharacterForTelegramUser(telegramUserId, challengerSnapshot, now);
 
     if (challenger.level < DUEL_INVITE_MIN_LEVEL) {
       return {
@@ -221,7 +231,7 @@ export class DuelChallengeService {
       return { state: "not-participant", challenge: original, challenger };
     }
 
-    const current = summarizeDuelCharacter(currentCharacter, { now });
+    const current = await this.syncDuelCharacterForTelegramUser(telegramUserId, currentCharacter, now);
 
     if (current.level < DUEL_INVITE_MIN_LEVEL) {
       return {
@@ -296,7 +306,7 @@ export class DuelChallengeService {
       return { state: "not-found" };
     }
 
-    const challenger = summarizeDuelCharacter(challenge.challenger);
+    let challenger = summarizeDuelCharacter(challenge.challenger);
 
     if (challenge.status !== "pending") {
       return this.viewChallenge(challenge, now);
@@ -325,7 +335,12 @@ export class DuelChallengeService {
       return { state: "no-character" };
     }
 
-    const currentTarget = summarizeDuelCharacter(targetCharacter, { now });
+    const currentTarget = await this.syncDuelCharacterForTelegramUser(telegramUserId, targetCharacter, now);
+    challenger = await this.syncDuelCharacterForTelegramUser(
+      challenge.challenger.telegramUserId,
+      challenge.challenger,
+      now
+    );
 
     if (currentTarget.level < DUEL_INVITE_MIN_LEVEL) {
       return {
@@ -373,7 +388,15 @@ export class DuelChallengeService {
       target: { ...currentTarget, id: targetCharacter.id },
       rng: this.rng
     });
-    const accepted = await this.challenges.acceptByTokenForTelegramUser(inviteToken, telegramUserId, now, result);
+    const accepted = await this.challenges.acceptByTokenForTelegramUser(
+      inviteToken,
+      telegramUserId,
+      now,
+      buildStoredDuelResult(result, {
+        challenger: { id: challenge.challenger.id, character: challenger },
+        target: { id: targetCharacter.id, character: currentTarget }
+      })
+    );
 
     if (!accepted) {
       return { state: "no-character" };
@@ -442,6 +465,30 @@ export class DuelChallengeService {
     return challenge ? this.viewChallenge(challenge, now) : { state: "not-found" };
   }
 
+  async getInviteRotationForTelegramUser(
+    telegramUserId: bigint,
+    inviteToken: string
+  ): Promise<DuelInviteRotationResult> {
+    const now = this.clock();
+    const challenge = await this.getFreshChallenge(inviteToken, now);
+
+    if (!challenge) {
+      return { state: "not-found" };
+    }
+
+    const challenger = summarizeDuelCharacter(challenge.challenger);
+
+    if (challenge.status !== "pending") {
+      return { state: "not-pending", view: this.viewChallenge(challenge, now) };
+    }
+
+    if (challenge.challenger.telegramUserId !== telegramUserId) {
+      return { state: "not-owner", challenge, challenger };
+    }
+
+    return { state: "ready", challenge, challenger };
+  }
+
   async getLeaderboard(): Promise<DuelLeaderboard> {
     const now = this.clock();
     const daySince = new Date(now.getTime() - DAY_MS);
@@ -495,14 +542,20 @@ export class DuelChallengeService {
   }
 
   private viewChallenge(challenge: DuelChallengeRecord, now: Date): DuelChallengeView {
-    const challenger = summarizeDuelCharacter(challenge.challenger);
+    const challenger = summarizeDuelCharacterWithResultSnapshot(
+      challenge.challenger,
+      challenge.result?.participants?.challenger
+    );
 
     if (challenge.status === "resolved" && challenge.target && challenge.result) {
       return {
         state: "resolved",
         challenge,
         challenger,
-        target: summarizeDuelCharacter(challenge.target),
+        target: summarizeDuelCharacterWithResultSnapshot(
+          challenge.target,
+          challenge.result.participants?.target
+        ),
         result: challenge.result
       };
     }
@@ -525,6 +578,36 @@ export class DuelChallengeService {
     };
   }
 
+  private async syncDuelCharacterForTelegramUser(
+    telegramUserId: bigint,
+    character: DuelCharacterSnapshot,
+    now: Date
+  ): Promise<CharacterSummary> {
+    const result = await summarizeAndSyncCharacterResources({
+      characters: this.characters,
+      telegramUserId,
+      character,
+      equippedItems: getEquippedItemContents(character.equipment),
+      ...(character.remortCount !== undefined ? { remortCount: character.remortCount } : {}),
+      now,
+      reloadLatest: async () => {
+        const latest = await this.challenges.findCharacterByTelegramUser(telegramUserId);
+
+        if (!latest) {
+          return null;
+        }
+
+        return {
+          character: latest,
+          equippedItems: getEquippedItemContents(latest.equipment),
+          ...(latest.remortCount !== undefined ? { remortCount: latest.remortCount } : {})
+        };
+      }
+    });
+
+    return result.character;
+  }
+
 }
 
 function buildLeaderboard(
@@ -538,8 +621,16 @@ function buildLeaderboard(
       continue;
     }
 
-    const challenger = getOrCreateLeaderboardEntry(entries, record.challenger);
-    const target = getOrCreateLeaderboardEntry(entries, record.target);
+    const challenger = getOrCreateLeaderboardEntry(
+      entries,
+      record.challenger,
+      record.result.participants?.challenger.displayName
+    );
+    const target = getOrCreateLeaderboardEntry(
+      entries,
+      record.target,
+      record.result.participants?.target.displayName
+    );
 
     if (record.result.outcome === "draw") {
       challenger.drawCount += 1;
@@ -574,7 +665,8 @@ function buildLeaderboard(
 
 function getOrCreateLeaderboardEntry(
   entries: Map<string, DuelLeaderboardEntry>,
-  character: DuelCharacterSnapshot
+  character: DuelCharacterSnapshot,
+  snapshotName?: string
 ): DuelLeaderboardEntry {
   const current = entries.get(character.id);
 
@@ -584,7 +676,7 @@ function getOrCreateLeaderboardEntry(
 
   const next = {
     characterId: character.id,
-    name: character.name,
+    name: snapshotName ?? character.name,
     winCount: 0,
     drawCount: 0,
     lossCount: 0
@@ -596,42 +688,75 @@ function getOrCreateLeaderboardEntry(
 }
 
 function summarizeDuelCharacter(
-  character: DuelCharacterSnapshot,
-  options: { now?: Date } = {}
+  character: DuelCharacterSnapshot
 ): CharacterSummary {
-  const summary = summarizeCharacter(character, {
+  return summarizeCharacter(character, {
     equippedItems: getEquippedItemContents(character.equipment)
   });
+}
 
-  if (!options.now) {
+function summarizeDuelCharacterWithResultSnapshot(
+  character: DuelCharacterSnapshot,
+  snapshot: DuelResultParticipantSnapshot | undefined
+): CharacterSummary {
+  const summary = summarizeDuelCharacter(character);
+
+  if (!snapshot) {
     return summary;
   }
 
-  const regeneration = applyPassiveResourceRegeneration({
-    resources: {
-      hpCurrent: summary.hpCurrent,
-      hpMax: summary.hpMax,
-      manaCurrent: summary.manaCurrent,
-      manaMax: summary.manaMax,
-      hpRegenAt: character.hpRegenAt ?? null,
-      manaRegenAt: character.manaRegenAt ?? null
-    },
-    profile: {
-      raceId: summary.raceId,
-      classId: summary.classId,
-      title: summary.title,
-      stats: summary.stats
-    },
-    now: options.now
-  });
-
-  return {
+  const replay = {
     ...summary,
-    hpCurrent: regeneration.resources.hpCurrent,
-    hpMax: regeneration.resources.hpMax,
-    manaCurrent: regeneration.resources.manaCurrent,
-    manaMax: regeneration.resources.manaMax,
-    resourceRecovery: regeneration.recovery
+    name: snapshot.displayName,
+    title: snapshot.title,
+    raceId: snapshot.raceId,
+    raceName: snapshot.raceName,
+    classId: snapshot.classId,
+    className: snapshot.className,
+    level: snapshot.level
+  };
+
+  return snapshot.remortCount > 0 ? { ...replay, remortCount: snapshot.remortCount } : replay;
+}
+
+function buildStoredDuelResult(
+  result: ReturnType<typeof resolveQuickDuel>,
+  participants: {
+    challenger: { id: string; character: CharacterSummary };
+    target: { id: string; character: CharacterSummary };
+  }
+): DuelResultPayload {
+  return {
+    outcome: result.outcome,
+    winnerCharacterId: result.winnerCharacterId,
+    loserCharacterId: result.loserCharacterId,
+    challengerScore: result.challengerScore,
+    targetScore: result.targetScore,
+    swing: result.swing,
+    flavorKey: result.flavorKey,
+    balanceVersion: result.balanceVersion,
+    participants: {
+      challenger: buildParticipantSnapshot(participants.challenger.id, participants.challenger.character),
+      target: buildParticipantSnapshot(participants.target.id, participants.target.character)
+    },
+    audit: result.audit
+  };
+}
+
+function buildParticipantSnapshot(
+  characterId: string,
+  character: CharacterSummary
+): NonNullable<DuelResultPayload["participants"]>["challenger"] {
+  return {
+    characterId,
+    displayName: character.name,
+    title: character.title,
+    raceId: character.raceId,
+    raceName: character.raceName,
+    classId: character.classId,
+    className: character.className,
+    level: character.level,
+    remortCount: character.remortCount ?? 0
   };
 }
 

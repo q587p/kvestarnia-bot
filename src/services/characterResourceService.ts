@@ -24,6 +24,12 @@ export interface ResourceRecoveryNotice {
   hpMax: number;
 }
 
+export interface CharacterResourceReloadResult {
+  character: CharacterRecord;
+  equippedItems?: ItemContent[];
+  remortCount?: number;
+}
+
 export async function summarizeAndSyncCharacterResources(input: {
   characters: CharacterRepository;
   telegramUserId: bigint;
@@ -32,6 +38,7 @@ export async function summarizeAndSyncCharacterResources(input: {
   remortCount?: number;
   now: Date;
   persist?: boolean;
+  reloadLatest?: () => Promise<CharacterResourceReloadResult | null>;
 }): Promise<CharacterResourceSyncResult> {
   const baseSummary = summarizeCharacter(input.character, {
     equippedItems: input.equippedItems ?? [],
@@ -81,16 +88,26 @@ export async function summarizeAndSyncCharacterResources(input: {
     });
 
     if (!updated) {
-      const latest = await input.characters.findByTelegramUserId(input.telegramUserId);
+      const reloaded = await input.reloadLatest?.();
+      const latest = reloaded ?? (await input.characters.findByTelegramUserId(input.telegramUserId));
 
       if (latest) {
-        return summarizeAndSyncCharacterResources({
+        const latestCharacter = "character" in latest ? latest.character : latest;
+        const retryInput = {
           ...input,
-          character: latest,
-          ...(input.remortCount !== undefined || latest.remortCount !== undefined
-            ? { remortCount: input.remortCount ?? latest.remortCount }
-            : {}),
-          persist: false
+          character: latestCharacter,
+          persist: false as const
+        };
+        const latestEquippedItems = "equippedItems" in latest ? latest.equippedItems : input.equippedItems;
+        const latestRemortCount =
+          ("remortCount" in latest ? latest.remortCount : undefined) ??
+          input.remortCount ??
+          latestCharacter.remortCount;
+
+        return summarizeAndSyncCharacterResources({
+          ...retryInput,
+          ...(latestEquippedItems !== undefined ? { equippedItems: latestEquippedItems } : {}),
+          ...(latestRemortCount !== undefined ? { remortCount: latestRemortCount } : {})
         });
       }
     }

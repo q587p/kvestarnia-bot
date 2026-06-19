@@ -316,6 +316,30 @@ Hunt Board лишається простим для входу: один кон�
 - Race/class edge дозволений і бажаний у тематичних бійках, але симуляції мають ловити крайнощі: воїн-орк може бути фаворитом у кулачній драці, проте бард такого самого рівня не має падати до майже нульового win rate.
 - Daily/weekly нагороди для переможців мають бути переважно cosmetic/social: титул, запис на дошці, маленький bonus payout. Не давати чемпіону предмет або buff, який збільшує наступний PvP snowball.
 
+### `0.1.17` instant duel normalization
+
+`⚡ Миттєва дуель` stays rewardless and quick-resolve, but its hidden math no longer lets raw level/remort gaps decide almost every result.
+
+The instant resolver prepares both duelists through `instant-duel-v2`:
+- compute a canonical progression budget from level-derived HP max, mana max and current-class primary stat growth;
+- add deterministic remort-memory budget using the same `23%` memory rate and the level-13 growth budget;
+- choose the stronger canonical progression budget as the target;
+- give only the lower-budget participant temporary HP max, mana max and own current-class primary-stat additions up to that target;
+- preserve current HP/mana ratios when temporary maxima rise;
+- keep real level/remort values for display and flavor;
+- keep race, class, title, path, starter distribution, equipped item ids and all equipment/manatka effects personal;
+- remove the old raw `level * 10` score term and use equalized prepared progression contribution instead.
+
+Current resources matter only through a bounded readiness penalty after sync and normalization:
+
+```text
+hpMissingRatio = 1 - hpCurrent / hpMax
+manaMissingRatio = manaMax <= 0 ? 0 : 1 - manaCurrent / manaMax
+readinessPenalty = round(clamp(0, 12, hpMissingRatio * 8 + manaMissingRatio * 4))
+```
+
+Full resources produce zero penalty. HP matters more than mana. The cap keeps tired acceptance disadvantageous but not an automatic loss. Telegram/player-facing copy must stay qualitative and must not print this formula or exact percentages.
+
 ## Phase 2 trading/gifting guardrails
 - Gift/trade is not a gold source.
 - First slice transfers one eligible item unit or one narrow item-for-item offer.

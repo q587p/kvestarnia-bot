@@ -40,16 +40,14 @@ describe("handleDuelCallback", () => {
     expect(messageText(editMessageText)).toContain("Виклик уже на столі. Погляд такий, ніби це стратегія.");
     expect(messageText(editMessageText)).not.toContain("Автор Виклику ставить виклик");
     expect(reply).toHaveBeenCalledTimes(1);
-    expect(reply.mock.calls[0]?.[0]).toContain("🥊 <b>Дружній корчемний виклик</b>");
-    expect(reply.mock.calls[0]?.[0]).toContain(
-      "<b>Автор Виклику</b> лишає рукавицю на столі й удає, що це не виглядає підозріло урочисто."
-    );
-    expect(reply.mock.calls[0]?.[0]).toContain(
-      "підозріло урочисто.\n\nПереходьте за посиланням"
-    );
+    expect(reply.mock.calls[0]?.[0]).toContain("<b>Автор Виклику</b>");
+    expect(reply.mock.calls[0]?.[0]).toContain("⚡ Формат: миттєва дуель — результат одразу після згоди.");
+    expect(reply.mock.calls[0]?.[0]).toContain("⚖️ Корчмар тимчасово зрівняє досвід.");
     expect(reply.mock.calls[0]?.[0]).not.toContain("рівень 3 лишає");
     expect(reply.mock.calls[0]?.[0]).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
-    expect(reply.mock.calls[0]?.[1]).toEqual({ parse_mode: "HTML" });
+    expect(reply.mock.calls[0]?.[1]).toMatchObject({ parse_mode: "HTML" });
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("🎲 Інший текст");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain(`v1:duel:inv:${TOKEN}:`);
   });
 
   it("explains missing bot username instead of silently hiding the invite link", async () => {
@@ -121,7 +119,7 @@ describe("handleDuelCallback", () => {
       botUsername: "kvestarnia_dev_bot"
     });
 
-    expect(messageText(editMessageText)).toContain("Кидати виклик зараз?");
+    expect(messageText(editMessageText)).toContain("Кидати миттєву дуель зараз?");
     expect(messageText(editMessageText)).toContain("Попередження: здоров’я не повне.");
     expect(keyboardJson(editMessageText)).toContain("v1:duel:new-risk");
     expect(reply).not.toHaveBeenCalled();
@@ -157,6 +155,55 @@ describe("handleDuelCallback", () => {
     });
     expect(reply).toHaveBeenCalledTimes(1);
     expect(reply.mock.calls[0]?.[0]).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
+  });
+
+  it("lets the invite owner rotate only the forwardable invite copy", async () => {
+    const getInviteRotationForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      challenge: makeChallenge("pending"),
+      challenger: makeCharacterSummary("Автор & <Виклику>")
+    });
+    const service = serviceWith({
+      getInviteRotationForTelegramUser
+    });
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "invite", token: TOKEN, templateIndex: 0 }, service, {
+      presence: createPresence(),
+      botUsername: "kvestarnia_dev_bot"
+    });
+
+    expect(getInviteRotationForTelegramUser).toHaveBeenCalledWith(42n, TOKEN);
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(messageText(editMessageText)).toContain("Автор &amp; &lt;Виклику&gt;");
+    expect(messageText(editMessageText)).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
+    expect(messageText(editMessageText)).toContain("⚡ Формат: миттєва дуель");
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:inv:${TOKEN}:`);
+    expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:accept:${TOKEN}`);
+  });
+
+  it("does not edit invite copy when a bystander presses the rotate button", async () => {
+    const getInviteRotationForTelegramUser = vi.fn().mockResolvedValue({
+      state: "not-owner",
+      challenge: makeChallenge("pending"),
+      challenger: makeCharacterSummary("Автор Виклику")
+    });
+    const service = serviceWith({
+      getInviteRotationForTelegramUser
+    });
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(77);
+
+    await handleDuelCallback(ctx, { type: "invite", token: TOKEN, templateIndex: 0 }, service, {
+      presence: createPresence(),
+      botUsername: "kvestarnia_dev_bot"
+    });
+
+    expect(getInviteRotationForTelegramUser).toHaveBeenCalledWith(77n, TOKEN);
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Інший текст може вибрати тільки автор виклику."
+    });
+    expect(editMessageText).not.toHaveBeenCalled();
   });
 
   it("hides the new challenge button after showing the level gate", async () => {
@@ -297,7 +344,7 @@ describe("handleDuelCallback", () => {
       confirmed: false,
       ignoreResourceWarning: false
     });
-    expect(messageText(editMessageText)).toContain("🥊 <b>Прийняти виклик?</b>\n\nЗапрошує:");
+    expect(messageText(editMessageText)).toContain("⚡ <b>Прийняти миттєву дуель?</b>\n\nЗапрошує:");
     expect(messageText(editMessageText)).toContain(
       "Запрошує: <b>Автор Виклику</b> · <i>Пересічні Пригодники</i> · рівень 9"
     );
@@ -305,7 +352,7 @@ describe("handleDuelCallback", () => {
       "Ви: <b>Ціль Виклику</b> · <i>Пересічні Пригодники</i> · рівень 3"
     );
     expect(messageText(editMessageText)).toContain(
-      "у безпечному корчемному порядку.\n\nКорчмар тримає перо над протоколом"
+      "у безпечному корчемному порядку.\nРезультат з’явиться одразу після згоди."
     );
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:accept-risk:${TOKEN}`);
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:decline:${TOKEN}`);
@@ -349,7 +396,7 @@ describe("handleDuelCallback", () => {
     expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
     expect(editMessageText).toHaveBeenCalledTimes(1);
     const text = messageText(editMessageText);
-    expect(text).not.toContain("Прийняти виклик?");
+    expect(text).not.toContain("Прийняти миттєву дуель?");
     expect(text).not.toContain("Повторний перехід");
     expect(text).not.toContain("це той самий результат");
     expect(text).toContain("<b>Автор Виклику</b> · рівень 9 (реморт: 3) ⚔️ <b>Ціль Виклику</b> · рівень 3");
@@ -362,7 +409,7 @@ describe("handleDuelCallback", () => {
     expect(flavorLine).toContain("<b>Автор Виклику</b>");
     expect(moveHeaderIndex).toBeGreaterThan(-1);
     expect(text.indexOf(flavorLine)).toBeLessThan(
-      text.indexOf("🏁 <b>Ціль Виклику</b> перемагає у корчемному виклику")
+      text.indexOf("🏁 <b>Ціль Виклику</b> перемагає у миттєвій дуелі")
     );
     expect(text).toContain("<i>Без XP, золота й манаток. Це корчемний запис для слави, а не спосіб заробітку.</i>");
     expect(text).not.toContain("рейтингу");

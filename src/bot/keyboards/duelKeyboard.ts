@@ -8,6 +8,7 @@ import {
   makeDuelAcceptRiskCallbackData,
   makeDuelCancelCallbackData,
   makeDuelDeclineCallbackData,
+  makeDuelInviteRotateCallbackData,
   makeDuelNewCallbackData,
   makeDuelNewRiskCallbackData,
   makeDuelRematchCallbackData,
@@ -40,6 +41,13 @@ export function buildDuelChallengeKeyboard(
     .text("🧹 Скасувати виклик", makeDuelCancelCallbackData(token))
     .row()
     .text("🔎 Оновити", makeDuelViewCallbackData(token));
+}
+
+export function buildDuelInviteShareKeyboard(token: string, templateIndex: number): InlineKeyboard {
+  return new InlineKeyboard().text(
+    "🎲 Інший текст",
+    makeDuelInviteRotateCallbackData(token, templateIndex)
+  );
 }
 
 export function buildDuelResultKeyboard(token?: string): InlineKeyboard {

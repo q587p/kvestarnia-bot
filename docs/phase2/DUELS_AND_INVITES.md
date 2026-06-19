@@ -47,6 +47,15 @@
 - partial HP or mana still warns before the rematch invite is created;
 - shareable result cards send a separate forwardable message from the stored result and do not reroll or mutate the duel ledger.
 
+`0.1.17` polishes the shipped quick mode as `⚡ Миттєва дуель`:
+- forwardable invites use 13 stable text variants with the same deep link, the instant mode line and a qualitative fairness line;
+- `🎲 Інший текст` is owner-only, edits only the invite message, preserves token/URL/expiry/mode/ownership and does not mutate the challenge row;
+- create, rematch and accept paths sync current HP/mana through the canonical lazy resource path before warnings or resolution;
+- instant scoring temporarily normalizes progression-derived level/remort budget only, while race, class, title, equipped manatky and equipment effects remain personal;
+- fresh HP/mana ratios add only a small capped readiness effect, so warnings match mechanics without making tired acceptance an automatic loss;
+- new `result_json` payloads store participant snapshots, balance version and audit data so replay-facing cards do not silently change after rename, remort, level-up or equipment swaps;
+- old result payloads remain readable; no migration or turn-based PvP runtime ships in this slice.
+
 Still future: tournaments, economy rewards, wagers, item loss, nearby target-specific player selection, other-side result notifications and full turn-based PvP.
 
 ## Flow
@@ -55,7 +64,7 @@ Still future: tournaments, economy rewards, wagers, item loss, nearby target-spe
 2. Bot створює `duel_challenge` з expiry, challenger, optional target and context.
 3. Target бачить короткий виклик із кнопками `Прийняти`, `Відмовитись`, `Не зараз`.
 4. Якщо target приймає, сервіс атомарно переводить challenge у `accepted/resolved`.
-5. Resolve використовує рівень, стати, клас/расу, титул або earned identity, equipment/item-tag summary і bounded randomness.
+5. Resolve uses synced current resources, progression-normalized effective stats, class/race/title flavor hooks, equipment/item-tag summary and bounded randomness.
 6. Result зберігається як replay/audit payload.
 7. Повторні callback-и показують той самий результат.
 8. Card пропонує `Реванш` або `Покликати ще когось`, але не створює автоматичний grind.
@@ -72,12 +81,13 @@ Inputs:
 - selected duel style, якщо він є;
 - equipment and item tags only through shared summary/catalog;
 - bounded random seed.
+- current HP/mana readiness ratios after canonical sync.
 
 Outputs:
 - winner/loser or funny draw;
 - short flavor result;
 - capped XP/social score, якщо баланс дозволяє;
-- replay-safe card payload.
+- replay-safe card payload with acceptance-time participant snapshots.
 
 ## Data sketch
 

@@ -4,6 +4,7 @@ import {
   makeDuelAcceptRiskCallbackData,
   makeDuelCancelCallbackData,
   makeDuelDeclineCallbackData,
+  makeDuelInviteRotateCallbackData,
   makeDuelNewCallbackData,
   makeDuelNewRiskCallbackData,
   makeDuelRematchCallbackData,
@@ -51,10 +52,18 @@ describe("duel callback data", () => {
       ok: true,
       value: { type: "share", token: "abc_DEF12" }
     });
+    expect(parseDuelCallbackData(makeDuelInviteRotateCallbackData("abc_DEF12", 12))).toEqual({
+      ok: true,
+      value: { type: "invite", token: "abc_DEF12", templateIndex: 12 }
+    });
     expect(parseDuelCallbackData(makeDuelViewCallbackData("abc_DEF12"))).toEqual({
       ok: true,
       value: { type: "view", token: "abc_DEF12" }
     });
+  });
+
+  it("keeps invite rotation callback data below Telegram limits", () => {
+    expect(Buffer.byteLength(makeDuelInviteRotateCallbackData("abc_DEF12", 12), "utf8")).toBeLessThanOrEqual(64);
   });
 
   it("rejects unknown, unsafe and too-long payloads", () => {
@@ -69,6 +78,10 @@ describe("duel callback data", () => {
     expect(parseDuelCallbackData(`v1:duel:accept:${"a".repeat(80)}`)).toEqual({
       ok: false,
       error: "too-long"
+    });
+    expect(parseDuelCallbackData("v1:duel:inv:abc_DEF12:z")).toEqual({
+      ok: false,
+      error: "invalid-template"
     });
   });
 });

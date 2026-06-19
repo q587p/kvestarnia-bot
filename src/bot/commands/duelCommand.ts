@@ -1,5 +1,9 @@
 import type { Bot, Context } from "grammy";
 import type { DuelCallback } from "../callbacks/duelCallbackData";
+import {
+  getInitialDuelInviteTemplateIndex,
+  getNextDuelInviteTemplateIndex
+} from "../../content/duelInviteFlavor";
 import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
@@ -13,6 +17,7 @@ import {
   buildDuelChallengeKeyboard,
   buildDuelCreateResourceWarningKeyboard,
   buildDuelEntryKeyboard,
+  buildDuelInviteShareKeyboard,
   buildDuelNavigationKeyboard,
   buildDuelRematchResourceWarningKeyboard,
   buildDuelResourceWarningKeyboard,
@@ -117,6 +122,48 @@ export async function handleDuelCallback(
     return;
   }
 
+  if (callback.type === "invite") {
+    const result = await service.getInviteRotationForTelegramUser(telegramUserId, callback.token);
+
+    if (result.state === "not-owner") {
+      await answerCallback({ text: "Інший текст може вибрати тільки автор виклику." });
+      return;
+    }
+
+    if (result.state === "not-found") {
+      await answerCallback({ text: "Цей інвайт уже загубився між кухлем і протоколом." });
+      return;
+    }
+
+    if (result.state === "not-pending") {
+      await answerCallback({ text: "Цей інвайт уже не змінюємо: запис не відкритий." });
+      return;
+    }
+
+    const inviteUrl = buildInviteUrl(options.botUsername, result.challenge.inviteToken);
+
+    if (!inviteUrl) {
+      await answerCallback({ text: "Посилання ще не зібралося: бот не знає свій username." });
+      return;
+    }
+
+    const nextTemplateIndex = getNextDuelInviteTemplateIndex(
+      result.challenge.inviteToken,
+      callback.templateIndex
+    );
+
+    await answerCallback();
+    await safeEditMessageText(
+      ctx,
+      presentDuelInviteShare(result.challenger, inviteUrl, { templateIndex: nextTemplateIndex }),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildDuelInviteShareKeyboard(result.challenge.inviteToken, nextTemplateIndex)
+      }
+    );
+    return;
+  }
+
   if (await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options.tavernRaid, "edit")) {
     await answerCallback();
     return;
@@ -159,7 +206,11 @@ export async function handleDuelCallback(
           : "result"
     );
     if (result.state === "pending" && inviteUrl) {
-      await ctx.reply(presentDuelInviteShare(result.challenger, inviteUrl), HTML_MESSAGE_OPTIONS);
+      const templateIndex = getInitialDuelInviteTemplateIndex(result.challenge.inviteToken);
+      await ctx.reply(presentDuelInviteShare(result.challenger, inviteUrl, { templateIndex }), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildDuelInviteShareKeyboard(result.challenge.inviteToken, templateIndex)
+      });
     }
     return;
   }
@@ -273,7 +324,11 @@ export async function handleDuelCallback(
     );
 
     if (result.state === "pending" && inviteUrl) {
-      await ctx.reply(presentDuelInviteShare(result.challenger, inviteUrl), HTML_MESSAGE_OPTIONS);
+      const templateIndex = getInitialDuelInviteTemplateIndex(result.challenge.inviteToken);
+      await ctx.reply(presentDuelInviteShare(result.challenger, inviteUrl, { templateIndex }), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildDuelInviteShareKeyboard(result.challenge.inviteToken, templateIndex)
+      });
     }
     return;
   }
@@ -383,5 +438,9 @@ function getInviteUrl(
     return null;
   }
 
-  return `https://t.me/${botUsername}?start=duel_${result.challenge.inviteToken}`;
+  return buildInviteUrl(botUsername, result.challenge.inviteToken);
+}
+
+function buildInviteUrl(botUsername: string | undefined, token: string): string | null {
+  return botUsername ? `https://t.me/${botUsername}?start=duel_${token}` : null;
 }
