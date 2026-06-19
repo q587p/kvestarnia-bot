@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Starter shawarma and cellar mouse keep their level gates, item grants, idempotency and replay behavior while routing new visible buttons through stable authored method ids.
 - Legacy `v1` starter and cellar callbacks continue to replay safely; old Adventure Choice `safe/flair/risky` callbacks no longer reinterpret into new methods.
 - `🎒 Манчкін-скупник` now follows a Kyiv local night schedule: during the day he remains outside by the korchma front door, and at night his paragraph/button moves to `Спуск до Низу`.
+- Training and duel result return buttons now say `↩️ Повернутися до кутка`, making the Fighting Corner navigation distinct from challenge actions.
 
 ### Guardrails
 - No broad quest engine, shops, crafting, guilds, markets, Mini App UI, combat damage rewrite, mana spending or new production dependency was added.

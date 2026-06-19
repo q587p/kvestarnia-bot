@@ -237,7 +237,7 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(keyboard)).toEqual([
       "🪞 Копія поточного",
       "🎲 Випадковий пригодник",
-      "🥊 До кутка"
+      "↩️ Повернутися до кутка"
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
       "v1:spar:mode:copy-target",
@@ -630,7 +630,9 @@ describe("main menu and scene keyboards", () => {
   });
 
   it("returns terminal training doppelganger screens to the fighting corner", () => {
-    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard())).toEqual(["🥊 До кутка"]);
+    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard())).toEqual([
+      "↩️ Повернутися до кутка"
+    ]);
     expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard())).toEqual([
       "v1:place:fighting-corner"
     ]);
@@ -661,7 +663,7 @@ describe("main menu and scene keyboards", () => {
       "🔁 Реванш",
       "📣 Картка",
       "🥊 Покликати ще когось",
-      "🥊 До кутка"
+      "↩️ Повернутися до кутка"
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
       "v1:duel:rematch:abcDEF12",
