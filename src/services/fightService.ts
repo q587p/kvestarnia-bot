@@ -903,6 +903,10 @@ export class FightService {
       return { state: "no-character" };
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Mimic shawarma combat daily claim unexpectedly required gold.");
+    }
+
     if (claim.state === "existing") {
       const existingAdventure = await this.dailyActions.findForTelegramUser(telegramUserId, {
         key: MIMIC_SHAWARMA_ADVENTURE_KEY,
@@ -1191,6 +1195,10 @@ export class FightService {
       return { state: "no-character" };
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Problem quest daily claim unexpectedly required gold.");
+    }
+
     const nextStage = stage.nextStageId ? getProblemQuestStage(stage.nextStageId) : null;
 
     return {
@@ -1316,6 +1324,10 @@ export class FightService {
 
     if (!claim) {
       return null;
+    }
+
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Persistent fight reward claim unexpectedly required gold.");
     }
 
     if (claim.state === "existing") {

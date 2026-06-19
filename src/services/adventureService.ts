@@ -6,6 +6,7 @@ import type {
   DailyActionRepository,
   RewardLevelChange
 } from "../db/repositories/dailyActionRepository";
+import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import type {
   SoloCombatSessionRecord,
   SoloCombatSessionRepository
@@ -40,6 +41,7 @@ import {
   type QuestResolutionGrade
 } from "../content/questResolution";
 import {
+  calculateQuestChance,
   qualitativeQuestChance,
   resolveQuestCheck,
   type QuestCheckResult
@@ -50,6 +52,7 @@ import {
   findQuestMethodByLegacyAction,
   resolveQuestMethodsForCharacter
 } from "../domain/quests/questMethodResolver";
+import { getEquippedItemContents } from "./equipmentService";
 
 export { ADVENTURE_CHOICE_KEY } from "./dailyActionKeys";
 export { ADVENTURE_CHOICE_REROLL_KEY } from "./dailyActionKeys";
@@ -218,6 +221,7 @@ export type AdventureResult =
 export type MimicShawarmaResult =
   | { state: "no-character" }
   | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
+  | { state: "stale"; character: CharacterSummary }
   | {
       state: "completed";
       action: AdventureMethodId;
@@ -251,7 +255,8 @@ export class AdventureService {
     private readonly characters: CharacterRepository,
     private readonly dailyActions: DailyActionRepository,
     private readonly clock: Clock = systemClock,
-    private readonly combatSessions?: Pick<SoloCombatSessionRepository, "findActiveByTelegramUserId">
+    private readonly combatSessions?: Pick<SoloCombatSessionRepository, "findActiveByTelegramUserId">,
+    private readonly equipment?: EquipmentRepository
   ) {}
 
   async getAdventureOfferForTelegramUser(telegramUserId: bigint): Promise<AdventureLookupResult> {
@@ -319,7 +324,8 @@ export class AdventureService {
       return { state: "no-character" };
     }
 
-    const characterSummary = summarizeCharacter(character);
+    const equippedItems = await this.getEquippedItemContents(telegramUserId);
+    const characterSummary = summarizeCharacter(character, { equippedItems });
 
     if (!meetsActivityLevel(characterSummary.level, ADVENTURE_CHOICE_MIN_LEVEL)) {
       return {
@@ -454,16 +460,27 @@ export class AdventureService {
       return { state: "no-character" };
     }
 
+    if (claim.state === "insufficient-gold") {
+      return {
+        state: "insufficient-gold",
+        character: summarizeCharacter(claim.character, { equippedItems }),
+        offer,
+        choice,
+        approach,
+        requiredGold: claim.requiredGold
+      };
+    }
+
     if (claim.state === "existing") {
       return {
         state: "already-completed",
-        character: summarizeCharacter(claim.character)
+        character: summarizeCharacter(claim.character, { equippedItems })
       };
     }
 
     return {
       state: "completed",
-      character: summarizeCharacter(claim.character),
+      character: summarizeCharacter(claim.character, { equippedItems }),
       choice,
       approach,
       grade: check.grade,
@@ -492,7 +509,8 @@ export class AdventureService {
       return { state: "no-character" };
     }
 
-    const characterSummary = summarizeCharacter(character);
+    const equippedItems = await this.getEquippedItemContents(telegramUserId);
+    const characterSummary = summarizeCharacter(character, { equippedItems });
 
     if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
       return {
@@ -537,7 +555,8 @@ export class AdventureService {
       return { state: "no-character" };
     }
 
-    const characterSummary = summarizeCharacter(character);
+    const equippedItems = await this.getEquippedItemContents(telegramUserId);
+    const characterSummary = summarizeCharacter(character, { equippedItems });
 
     if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
       return {
@@ -553,7 +572,7 @@ export class AdventureService {
 
     if (!method) {
       return {
-        state: "already-completed",
+        state: "stale",
         character: characterSummary
       };
     }
@@ -592,10 +611,14 @@ export class AdventureService {
       return { state: "no-character" };
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Mimic shawarma daily claim unexpectedly required gold.");
+    }
+
     if (claim.state === "existing") {
       return {
         state: "already-completed",
-        character: summarizeCharacter(claim.character)
+        character: summarizeCharacter(claim.character, { equippedItems })
       };
     }
 
@@ -606,7 +629,7 @@ export class AdventureService {
       grade: check.grade,
       outcome: method.outcomeText[check.grade],
       spentGold: 0,
-      character: summarizeCharacter(claim.character),
+      character: summarizeCharacter(claim.character, { equippedItems }),
       reward: {
         ...reward,
         localDate,
@@ -668,7 +691,8 @@ export class AdventureService {
       return { state: "no-character" };
     }
 
-    const characterSummary = summarizeCharacter(character);
+    const equippedItems = await this.getEquippedItemContents(telegramUserId);
+    const characterSummary = summarizeCharacter(character, { equippedItems });
 
     if (!meetsActivityLevel(characterSummary.level, ADVENTURE_CHOICE_MIN_LEVEL)) {
       return {
@@ -721,6 +745,12 @@ export class AdventureService {
     return session;
   }
 
+  private async getEquippedItemContents(telegramUserId: bigint) {
+    const equipmentSnapshot = await this.equipment?.listByTelegramUserId(telegramUserId);
+
+    return equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
+  }
+
   private async getAdventureRerollIndex(
     telegramUserId: bigint,
     period: AdventurePeriod
@@ -751,6 +781,10 @@ export class AdventureService {
       return null;
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Adventure reroll daily claim unexpectedly required gold.");
+    }
+
     return nextIndex;
   }
 }
@@ -758,7 +792,7 @@ export class AdventureService {
 function buildMimicShawarmaItemGrants(
   action: string
 ): Array<{ itemId: string; quantity: number }> {
-  if (action === "poke") {
+  if (action === "wrapper" || action === "poke") {
     return [
       {
         itemId: SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
@@ -774,6 +808,10 @@ function buildMimicShawarmaItemGrants(
         quantity: 1
       }
     ];
+  }
+
+  if (action === "none" || action === "no-item") {
+    return [];
   }
 
   return [];
@@ -963,7 +1001,7 @@ export function buildAdventureMethodOptions(
 export function buildStarterMethodOptions(
   sceneId: "shawarma" | "cellar-mouse",
   character: CharacterSummary,
-  maxMethods = 3
+  maxMethods = 4
 ): AdventureApproachOption[] {
   const scene = buildStarterQuestResolutionScene(sceneId, character);
 
@@ -990,8 +1028,12 @@ function toAdventureApproachOption(
 ): AdventureApproachOption {
   const reward = QUEST_REWARD_PROFILES[method.rewardProfile];
   const chance = qualitativeQuestChance(
-    // This hint is deliberately qualitative; exact chance stays in service result/tests.
-    64 + (character.stats[method.primaryStat] >= 8 ? 8 : 0) + (method.goldCost ? 8 : 0)
+    calculateQuestChance({
+      method,
+      stats: character.stats,
+      raceId: character.raceId,
+      classId: character.classId
+    })
   );
 
   return {

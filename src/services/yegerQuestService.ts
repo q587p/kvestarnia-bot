@@ -383,6 +383,10 @@ export class YegerQuestService {
       return { state: "no-character" };
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Yeger quest daily claim unexpectedly required gold.");
+    }
+
     return {
       state: claim.state === "created" ? "completed" : "already-completed",
       character: summarizeCharacter(claim.character),

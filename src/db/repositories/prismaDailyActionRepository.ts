@@ -85,6 +85,34 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           };
         }
 
+        const spentGold = normalizeSpentGold(input.spentGold);
+
+        if (spentGold > 0) {
+          const debit = await tx.character.updateMany({
+            where: {
+              id: character.id,
+              gold: {
+                gte: spentGold
+              }
+            },
+            data: {
+              gold: {
+                decrement: spentGold
+              }
+            }
+          });
+
+          if (debit.count !== 1) {
+            const remortCount = await countCharacterRemorts(tx, character.id);
+
+            return {
+              state: "insufficient-gold",
+              character: { ...character, remortCount },
+              requiredGold: spentGold
+            };
+          }
+        }
+
         const action = await tx.dailyAction.create({
           data: {
             characterId: character.id,
@@ -92,13 +120,12 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             localDate: input.localDate,
             rewardXp: input.rewardXp,
             rewardGold: input.rewardGold,
-            spentGold: normalizeSpentGold(input.spentGold),
+            spentGold,
             ...(input.resultJson === undefined
               ? {}
               : { resultJson: input.resultJson as Prisma.InputJsonValue })
           }
         });
-        const netGold = input.rewardGold - normalizeSpentGold(input.spentGold);
 
         const rewardedCharacter = await tx.character.update({
           where: {
@@ -109,7 +136,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
               increment: input.rewardXp
             },
             gold: {
-              increment: netGold
+              increment: input.rewardGold
             }
           }
         });

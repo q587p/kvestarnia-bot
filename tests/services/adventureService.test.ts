@@ -14,6 +14,11 @@ import type {
   DailyActionRecord,
   DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
+import type {
+  CharacterEquipmentRecord,
+  CharacterEquipmentSnapshot,
+  EquipmentRepository
+} from "../../src/db/repositories/equipmentRepository";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
@@ -223,6 +228,36 @@ describe("AdventureService", () => {
           ]
         }
       });
+    }
+  });
+
+  it("uses equipped item effects in the actual quest check snapshot", async () => {
+    const equipment = new FakeEquipmentRepository({
+      characterId: `character-${telegramUserId.toString()}`,
+      equipment: [buildEquipment({ itemId: "item.cork-ring-of-serious-business", slot: "accessory" })]
+    });
+    const { service, characters } = setup(null, equipment);
+    characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const offer = await readyOffer(service);
+    const selected = await service.selectAdventureProblem(telegramUserId, {
+      periodToken: offer.periodToken,
+      problemId: offer.choices[0].id
+    });
+
+    expect(selected.state).toBe("selected");
+    if (selected.state !== "selected") {
+      return;
+    }
+
+    const result = await service.completeAdventureApproach(telegramUserId, {
+      periodToken: offer.periodToken,
+      problemId: selected.choice.id,
+      methodId: selected.approaches[0]?.id ?? ""
+    });
+
+    expect(result.state).toBe("completed");
+    if (result.state === "completed") {
+      expect(result.check.effectiveStatsSnapshot.luck).toBe(8);
     }
   });
 
@@ -453,7 +488,10 @@ function fixedClock(): Date {
   return new Date("2026-06-12T10:30:00.000Z");
 }
 
-function setup(activeFight: SoloCombatSessionRecord | null = null): {
+function setup(
+  activeFight: SoloCombatSessionRecord | null = null,
+  equipment: EquipmentRepository | undefined = undefined
+): {
   characters: FakeCharacterRepository;
   dailyActions: FakeDailyActionRepository;
   service: AdventureService;
@@ -467,7 +505,7 @@ function setup(activeFight: SoloCombatSessionRecord | null = null): {
   return {
     characters,
     dailyActions,
-    service: new AdventureService(characters, dailyActions, fixedClock, fights)
+    service: new AdventureService(characters, dailyActions, fixedClock, fights, equipment)
   };
 }
 
@@ -745,6 +783,16 @@ class FakeDailyActionRepository implements DailyActionRepository {
       };
     }
 
+    const spentGold = Math.max(0, Math.floor(input.spentGold ?? 0));
+
+    if (spentGold > character.gold) {
+      return {
+        state: "insufficient-gold",
+        character,
+        requiredGold: spentGold
+      };
+    }
+
     this.createCount += 1;
     const action = {
       id: `daily-action-${this.createCount}`,
@@ -753,7 +801,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
       localDate: input.localDate,
       rewardXp: input.rewardXp,
       rewardGold: input.rewardGold,
-      spentGold: input.spentGold ?? 0,
+      spentGold,
       resultJson: input.resultJson ?? null,
       createdAt: fixedClock()
     };
@@ -762,7 +810,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
     const updatedCharacter = this.characters.updateReward(
       userTelegramId,
       input.rewardXp,
-      input.rewardGold - (input.spentGold ?? 0)
+      input.rewardGold - spentGold
     );
 
     return {
@@ -810,4 +858,32 @@ class FakeDailyActionRepository implements DailyActionRepository {
         action.localDate.startsWith(input.localDatePrefix)
     ).length;
   }
+}
+
+class FakeEquipmentRepository implements EquipmentRepository {
+  constructor(private snapshot: CharacterEquipmentSnapshot | null) {}
+
+  listByTelegramUserId(): Promise<CharacterEquipmentSnapshot | null> {
+    return Promise.resolve(this.snapshot);
+  }
+
+  equipForCharacter(): Promise<CharacterEquipmentRecord> {
+    throw new Error("Not implemented in adventure service tests.");
+  }
+
+  unequipForCharacter(): Promise<boolean> {
+    throw new Error("Not implemented in adventure service tests.");
+  }
+}
+
+function buildEquipment(overrides: Partial<CharacterEquipmentRecord>): CharacterEquipmentRecord {
+  return {
+    id: "equipment-1",
+    characterId: `character-${telegramUserId.toString()}`,
+    slot: "accessory",
+    itemId: "item.cork-ring-of-serious-business",
+    createdAt: fixedClock(),
+    updatedAt: fixedClock(),
+    ...overrides
+  };
 }

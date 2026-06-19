@@ -1,4 +1,5 @@
 import type { CooldownRepository } from "../db/repositories/cooldownRepository";
+import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import type { RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
@@ -18,13 +19,14 @@ import {
   type RewardItemGrant
 } from "./itemGrant";
 import { buildStarterQuestResolutionScene } from "../content/starterQuestResolutionContent";
-import { QUEST_REWARD_PROFILES, type QuestMethodDefinition, type QuestResolutionGrade } from "../content/questResolution";
+import { type QuestMethodDefinition, type QuestResolutionGrade } from "../content/questResolution";
 import { resolveQuestCheck, type QuestCheckResult } from "../domain/quests/questChecks";
 import {
   findQuestMethod,
   findQuestMethodByLegacyAction,
   resolveQuestMethodsForCharacter
 } from "../domain/quests/questMethodResolver";
+import { getEquippedItemContents } from "./equipmentService";
 
 export const CELLAR_MOUSE_ERRAND_KEY = "cellar.mouse-errand";
 export const CELLAR_MOUSE_ERRAND_COOLDOWN_MS = 3 * 60 * 1000;
@@ -78,6 +80,10 @@ export type CellarErrandResult =
       now: Date;
     }
   | {
+      state: "stale";
+      character: CharacterSummary;
+    }
+  | {
       state: "insufficient-gold";
       character: CharacterSummary;
       method: CellarErrandMethodOption;
@@ -101,7 +107,8 @@ export interface CellarErrandMethodOption {
 export class CellarErrandService {
   constructor(
     private readonly cooldowns: CooldownRepository,
-    private readonly clock: Clock = systemClock
+    private readonly clock: Clock = systemClock,
+    private readonly equipment?: EquipmentRepository
   ) {}
 
   async getForTelegramUser(telegramUserId: bigint): Promise<CellarErrandLookupResult> {
@@ -115,7 +122,8 @@ export class CellarErrandService {
       return { state: "no-character" };
     }
 
-    const character = summarizeCharacter(current.character);
+    const equippedItems = await this.getEquippedItemContents(telegramUserId);
+    const character = summarizeCharacter(current.character, { equippedItems });
 
     if (!meetsActivityLevel(character.level, CELLAR_MIN_LEVEL)) {
       return {
@@ -163,7 +171,8 @@ export class CellarErrandService {
       return { state: "no-character" };
     }
 
-    const character = summarizeCharacter(current.character);
+    const equippedItems = await this.getEquippedItemContents(telegramUserId);
+    const character = summarizeCharacter(current.character, { equippedItems });
 
     if (!meetsActivityLevel(character.level, CELLAR_MIN_LEVEL)) {
       return {
@@ -182,23 +191,30 @@ export class CellarErrandService {
       };
     }
 
+    if (current.cooldown && current.cooldown.availableAt > now) {
+      return {
+        state: "on-cooldown",
+        character,
+        availableAt: current.cooldown.availableAt,
+        now
+      };
+    }
+
     const scene = buildStarterQuestResolutionScene("cellar-mouse", character);
     const method =
       findQuestMethod(scene, action) ?? findQuestMethodByLegacyAction(scene, action);
 
     if (!method) {
       return {
-        state: "on-cooldown",
-        character,
-        availableAt: now,
-        now
+        state: "stale",
+        character
       };
     }
 
     const methodOption = toCellarMethodOption(method);
     const check = resolveQuestCheck({
       characterId: current.character.id,
-      periodKey: `${CELLAR_MOUSE_ERRAND_KEY}:${now.toISOString()}`,
+      periodKey: buildCellarCycleKey(current.cooldown),
       sceneId: scene.sceneId,
       method,
       stats: character.stats,
@@ -225,7 +241,7 @@ export class CellarErrandService {
     if (claim.state === "on-cooldown") {
       return {
         state: "on-cooldown",
-        character: summarizeCharacter(claim.character),
+        character: summarizeCharacter(claim.character, { equippedItems }),
         availableAt: claim.cooldown.availableAt,
         now
       };
@@ -234,7 +250,7 @@ export class CellarErrandService {
     if (claim.state === "insufficient-gold") {
       return {
         state: "insufficient-gold",
-        character: summarizeCharacter(claim.character),
+        character: summarizeCharacter(claim.character, { equippedItems }),
         method: methodOption,
         requiredGold: claim.requiredGold
       };
@@ -248,7 +264,7 @@ export class CellarErrandService {
       outcome: method.outcomeText[check.grade],
       spentGold,
       check,
-      character: summarizeCharacter(claim.character),
+      character: summarizeCharacter(claim.character, { equippedItems }),
       reward: {
         ...reward,
         itemGrants: enrichRewardItemGrants(claim.itemGrants)
@@ -257,6 +273,12 @@ export class CellarErrandService {
       now,
       levelChange: claim.levelChange
     };
+  }
+
+  private async getEquippedItemContents(telegramUserId: bigint) {
+    const equipmentSnapshot = await this.equipment?.listByTelegramUserId(telegramUserId);
+
+    return equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
   }
 }
 
@@ -281,7 +303,7 @@ function buildCellarReward(
   method: QuestMethodDefinition,
   grade: QuestResolutionGrade
 ): { xp: number; gold: number } {
-  const reward = QUEST_REWARD_PROFILES[method.rewardProfile];
+  const reward = getConservativeCellarReward(method);
 
   if (grade === "strong-success" || grade === "success") {
     return reward;
@@ -289,7 +311,7 @@ function buildCellarReward(
 
   if (grade === "mixed-success") {
     return {
-      xp: Math.ceil(reward.xp * 0.5),
+      xp: Math.max(1, Math.floor(reward.xp * 0.5)),
       gold: Math.floor(reward.gold * 0.5)
     };
   }
@@ -302,6 +324,24 @@ function buildCellarReward(
     xp: Math.max(1, Math.ceil(reward.xp * 0.35)),
     gold: 0
   };
+}
+
+function getConservativeCellarReward(method: QuestMethodDefinition): { xp: number; gold: number } {
+  const action = method.itemIntent ?? method.legacyAction ?? method.id;
+
+  if (action === "cheese-trap") {
+    return { xp: 2, gold: 1 };
+  }
+
+  if (action === "sweep-bravely") {
+    return { xp: 1, gold: 0 };
+  }
+
+  return { xp: 2, gold: 0 };
+}
+
+function buildCellarCycleKey(cooldown: { availableAt: Date } | null): string {
+  return `${CELLAR_MOUSE_ERRAND_KEY}:${cooldown ? cooldown.availableAt.toISOString() : "initial"}`;
 }
 
 function buildCellarItemGrants(action: string): Array<{ itemId: string; quantity: number }> {

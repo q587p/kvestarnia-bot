@@ -87,6 +87,32 @@ export class PrismaCooldownRepository implements CooldownRepository {
           };
         }
 
+        const spentGold = normalizeSpentGold(input.spentGold);
+
+        if (spentGold > 0) {
+          const debit = await tx.character.updateMany({
+            where: {
+              id: character.id,
+              gold: {
+                gte: spentGold
+              }
+            },
+            data: {
+              gold: {
+                decrement: spentGold
+              }
+            }
+          });
+
+          if (debit.count !== 1) {
+            return {
+              state: "insufficient-gold",
+              character: toCharacterRecord(character),
+              requiredGold: spentGold
+            };
+          }
+        }
+
         if (existing) {
           const updated = await tx.characterCooldown.updateMany({
             where: {
@@ -101,17 +127,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
           });
 
           if (updated.count === 0) {
-            const refreshed = await tx.characterCooldown.findUniqueOrThrow({
-              where: {
-                id: existing.id
-              }
-            });
-
-            return {
-              state: "on-cooldown",
-              cooldown: refreshed,
-              character: toCharacterRecord(character)
-            };
+            throw new CooldownClaimLostRaceError();
           }
 
           const cooldown = await tx.characterCooldown.findUniqueOrThrow({
@@ -135,6 +151,10 @@ export class PrismaCooldownRepository implements CooldownRepository {
       });
     } catch (error) {
       if (isUniqueConstraintError(error)) {
+        return this.findCurrentCooldown(telegramUserId, input);
+      }
+
+      if (error instanceof CooldownClaimLostRaceError) {
         return this.findCurrentCooldown(telegramUserId, input);
       }
 
@@ -197,17 +217,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
     character: CharacterRecord,
     cooldown: CharacterCooldownRecord,
     input: ClaimCooldownRewardInput
-  ): Promise<Extract<ClaimCooldownRewardResult, { state: "completed" | "insufficient-gold" }>> {
-    const spentGold = normalizeSpentGold(input.spentGold);
-
-    if (spentGold > character.gold) {
-      return {
-        state: "insufficient-gold",
-        character,
-        requiredGold: spentGold
-      };
-    }
-
+  ): Promise<Extract<ClaimCooldownRewardResult, { state: "completed" }>> {
     const rewardedCharacter = await tx.character.update({
       where: {
         id: character.id
@@ -217,7 +227,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
           increment: input.rewardXp
         },
         gold: {
-          increment: input.rewardGold - spentGold
+          increment: input.rewardGold
         }
       }
     });
@@ -392,4 +402,10 @@ function isUniqueConstraintError(error: unknown): boolean {
 
 function normalizeSpentGold(value: number | undefined): number {
   return Math.max(0, Math.floor(value ?? 0));
+}
+
+class CooldownClaimLostRaceError extends Error {
+  constructor() {
+    super("Cooldown claim lost an optimistic race after guarded debit.");
+  }
 }

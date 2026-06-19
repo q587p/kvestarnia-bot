@@ -15,7 +15,7 @@ export function resolveQuestMethodsForCharacter(
     const candidate = scene.methods.find((method) => method.source === source);
 
     if (candidate) {
-      pushPriorityIfDistinct(selected, candidate);
+      pushIfDistinct(selected, candidate);
     }
   }
 
@@ -25,6 +25,16 @@ export function resolveQuestMethodsForCharacter(
     }
 
     pushIfDistinct(selected, candidate);
+  }
+
+  if (selected.length < minMethods) {
+    for (const candidate of scene.methods) {
+      if (selected.length >= minMethods) {
+        break;
+      }
+
+      pushIfDistinct(selected, candidate);
+    }
   }
 
   if (selected.length < minMethods) {
@@ -61,22 +71,13 @@ function pushIfDistinct(selected: QuestMethodDefinition[], candidate: QuestMetho
   const duplicate = selected.some(
     (method) =>
       normalizeLabel(method.label) === normalizedLabel ||
-      (method.intent === candidate.intent && method.primaryStat === candidate.primaryStat)
+      (method.source === candidate.source &&
+        method.intent === candidate.intent &&
+        method.primaryStat === candidate.primaryStat)
   );
   const samePrimaryCount = selected.filter((method) => method.primaryStat === candidate.primaryStat).length;
 
-  if (!duplicate && samePrimaryCount < 2) {
-    selected.push(candidate);
-  }
-}
-
-function pushPriorityIfDistinct(selected: QuestMethodDefinition[], candidate: QuestMethodDefinition): void {
-  const normalizedLabel = normalizeLabel(candidate.label);
-  const duplicate = selected.some(
-    (method) => method.id === candidate.id || normalizeLabel(method.label) === normalizedLabel
-  );
-
-  if (!duplicate) {
+  if (!duplicate && (samePrimaryCount < 2 || candidate.source === "signature")) {
     selected.push(candidate);
   }
 }

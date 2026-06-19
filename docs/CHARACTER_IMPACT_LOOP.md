@@ -216,6 +216,8 @@ selectFlavorLines(lines, context, seedParts, limit)
 - Для `shawarma` потрібні окремі race/class pools і combo-lines для всіх доступних onboarding комбінацій.
 - Character-aware labels на кнопках можуть міняти текст дії, але не callback payload, reward math або idempotency key.
 - Не міняти reward keys у першому PR.
+- У `0.1.20` стартерна шаурма використовує authored method contract: scene/race/class/signature кнопки мають стабільні compact ids, outcome мапить item grants через method intent, а result copy не показує службові labels на кшталт race/class/signature.
+- Коли текст підставляє назву раси, класу, титулу або предмета, краще писати граматично нейтральну конструкцію (`Професійний підхід...`, `Підпис «...»...`) замість узгоджувати дієслово з довільною назвою.
 
 ### Сутичка з шаурмою
 
@@ -234,6 +236,7 @@ selectFlavorLines(lines, context, seedParts, limit)
 - Льох — друге знайомство з варіятивністю після шаурми, тому потрібні race/class pools і combo-lines для всіх доступних onboarding комбінацій.
 - Character-aware labels на кнопках льоху можуть міняти текст дії, але не callback payload, cooldown, reward math або item grants.
 - Дії мають звучати різно: сирна пастка, хоробре підмітання й переговори з мишею не повинні відчуватись як одна кнопка з різними емоджі.
+- У `0.1.20` льохова миша теж використовує authored method contract: unknown/stale method id не стартує cooldown, paid methods списують золото тільки в guarded repository transaction, а винагорода лишається навчальною й консервативною.
 
 ### Манатки
 

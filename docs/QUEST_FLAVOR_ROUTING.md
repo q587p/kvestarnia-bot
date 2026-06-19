@@ -66,6 +66,8 @@ export interface QuestFlavorHook {
 
 For MVP, action labels can be text-only aliases over existing action ids. Do not create new reward keys for every class variant.
 
+For authored methods shipped in `0.1.20`, the same idea is stricter: the player may see a scene-shaped, race-shaped, class-shaped or signature-shaped button, but the result card must not print the internal source label. Avoid player-facing lines like `Расовий спосіб`, `Класова техніка`, `Точна race+class signature`, `Підпис методу` or raw signature formulas. If a method needs a title/name flourish, make it part of the sentence and keep grammar neutral.
+
 Example:
 
 ```ts
@@ -367,6 +369,8 @@ Base actions:
 - Бард: «Квиток шелестить у розмірі невдалої балади.»
 
 ## Balance notes
+
+Historical note: the first flavor-only PR did not change reward math. Runtime authored quest methods in `0.1.20` may use the bounded reward/cost ledger from `docs/QUEST_RESOLUTION_VARIETY.md`, but they still must not expose exact future rewards or hidden odds before commitment.
 
 Перший PR не має міняти reward math. Якщо дуже хочеться мікро-винагороду:
 

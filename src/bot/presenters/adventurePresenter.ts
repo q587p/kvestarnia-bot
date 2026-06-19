@@ -73,7 +73,7 @@ export function presentAdventureProblem(
 
   const methodLines = result.approaches.flatMap((approach, index) => [
     `${escapeHtml(approach.label)}`,
-    `<i>${escapeHtml(approach.hint)} ${escapeHtml(approach.chanceHint ?? "якісна оцінка прихована")}.${approach.goldCost ? ` Коштує ${approach.goldCost} золота.` : ""}</i>`,
+    `<i>${escapeHtml(formatApproachHint(approach.hint, approach.chanceHint, approach.goldCost))}</i>`,
     ...(index < result.approaches.length - 1 ? [""] : [])
   ]);
 
@@ -87,6 +87,23 @@ export function presentAdventureProblem(
     "",
     npcQuote("Корчмар", "Метод оберіть самі. Потім не кажіть, що метод обрав вас.")
   ].join("\n");
+}
+
+function formatApproachHint(hint: string, chanceHint: string | undefined, goldCost: number | undefined): string {
+  const cleanHint = hint
+    .replace(/Коштує \d+ золот[аих]+\.?\s*/gu, "")
+    .replace(/Шанси [^.]+\.?\s*/gu, "")
+    .replace(/Добрі шанси,?\s*/gu, "")
+    .replace(/Майже надійно\.?\s*/gu, "")
+    .trim()
+    .replace(/\.$/u, "");
+  const parts = [
+    cleanHint,
+    chanceHint ?? "якісна оцінка прихована",
+    goldCost ? `коштує ${goldCost} золота` : ""
+  ].filter(Boolean);
+
+  return `${parts.join(". ")}.`;
 }
 
 export function presentAdventureNoCharacter(): string {
@@ -226,6 +243,14 @@ export function presentMimicShawarmaResult(
       "Вона мовчить, але юридично все зрозуміло.",
       "",
       "Повертайтесь завтра або перевірте персонажа: /hero"
+    ].join("\n");
+  }
+
+  if (result.state === "stale") {
+    return [
+      "🧾 Кнопка застаріла.",
+      "",
+      "Корчмар не впізнав цей спосіб у поточній справі. Відкрийте квест ще раз, щоб побачити чинні варіанти."
     ].join("\n");
   }
 

@@ -82,7 +82,7 @@ export function buildAdventureResultKeyboard(
   result:
     | { state: "stale"; offer: AdventureOffer }
     | { state: "active-fight" }
-    | { state: "completed" | "already-completed" | "level-locked" | "level-retired" | "insufficient-gold" }
+    | { state: "completed" | "already-completed" | "level-locked" | "level-retired" | "insufficient-gold" | "stale" }
     | "completed"
     | "already-completed"
 ): InlineKeyboard {
@@ -90,7 +90,7 @@ export function buildAdventureResultKeyboard(
     return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
   }
 
-  if (result.state === "stale") {
+  if (result.state === "stale" && "offer" in result) {
     return buildAdventureOfferKeyboard(result.offer);
   }
 

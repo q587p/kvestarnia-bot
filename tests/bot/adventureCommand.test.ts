@@ -163,8 +163,9 @@ describe("adventure command", () => {
     expect(replies[0]?.options).toMatchObject({ parse_mode: "HTML" });
     expect(getReplyCallbacks(replies[0]?.options)).toEqual([
       "v2:adv:m:inspect-folds",
-      "v2:adv:m:c0",
-      "v2:adv:m:s00",
+      "v2:adv:m:rh",
+      "v2:adv:m:cw",
+      "v2:adv:m:shw",
       "v1:place:quest-table"
     ]);
     expect(presence.marks[0]).toMatchObject({

@@ -1,5 +1,3 @@
-import { classes } from "./classes";
-import { activeRaces } from "./races";
 import type { StatKey } from "../domain/characters/starterStats";
 
 export type QuestMethodSource = "scene" | "race" | "class" | "signature";
@@ -263,15 +261,37 @@ export const classTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
 };
 
 export function getCompactRaceKey(raceId: string): string {
-  const index = activeRaces.findIndex((race) => race.id === raceId);
-  return index >= 0 ? index.toString(36) : "x";
+  return COMPACT_RACE_KEYS[raceId] ?? "x";
 }
 
 export function getCompactClassKey(classId: string): string {
-  const index = classes.findIndex((characterClass) => characterClass.id === classId);
-  return index >= 0 ? index.toString(36) : "x";
+  return COMPACT_CLASS_KEYS[classId] ?? "x";
 }
 
 export function isKnownQuestMethodId(value: string | undefined): value is string {
   return typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,20}$/.test(value);
 }
+
+const COMPACT_RACE_KEYS: Record<string, string> = {
+  "race.human-ish": "h",
+  "race.dwarf": "d",
+  "race.elf": "e",
+  "race.bisyny": "b",
+  "race.drantohor": "o",
+  "race.domovyk": "k",
+  "race.dryland-rusalka": "r",
+  "race.intellectual-orc": "i",
+  "race.molfar-soul": "m"
+};
+
+const COMPACT_CLASS_KEYS: Record<string, string> = {
+  "class.warrior": "w",
+  "class.mage": "m",
+  "class.bard": "b",
+  "class.rogue": "r",
+  "class.priest": "p",
+  "class.varenyk-mancer": "v",
+  "class.bureaucramancer": "c",
+  "class.ranger": "g",
+  "class.kharakternyk": "k"
+};

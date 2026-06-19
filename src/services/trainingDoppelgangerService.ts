@@ -617,6 +617,10 @@ export class TrainingDoppelgangerService {
       return null;
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Training doppelganger daily claim unexpectedly required gold.");
+    }
+
     if (claim.state === "existing") {
       return {
         state: "already-claimed",

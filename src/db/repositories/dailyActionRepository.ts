@@ -49,6 +49,11 @@ export type ClaimDailyActionResult =
       character: CharacterRecord;
       levelChange: null;
       itemGrants: [];
+    }
+  | {
+      state: "insufficient-gold";
+      character: CharacterRecord;
+      requiredGold: number;
     };
 
 export interface DailyActionRepository {

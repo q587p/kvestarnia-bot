@@ -17,7 +17,6 @@ docs/tasks/0.1.20-authored-quest-resolutions.md
 docs/QUEST_RESOLUTION_VARIETY.md
 docs/QUEST_SKILLS_AND_CHECKS.md
 docs/QUEST_RESOLUTION_CONTENT_SEEDS.md
-docs/EXISTING_DOCS_UPDATE_PLAN.md
 ```
 
 Then inspect only the directly relevant current code and tests before planning edits. At minimum inspect the Adventure Choice service/callback/keyboard/presenter path, the starter mimic-shawarma path, the cellar mouse path, effective-stat helpers, combat skill profiles, daily-action/cooldown transaction patterns and existing persistent-fight handoff.
@@ -157,7 +156,7 @@ Use `npm run check` as the final combined gate if practical.
 
 ## Documentation and release
 
-Apply `docs/EXISTING_DOCS_UPDATE_PLAN.md`. Update the task doc if implementation decisions change. Keep historical task claims intact; their only allowed edit in this feature is a short later-follow-up cross-reference.
+Apply the relevant updates directly to the current docs listed in the task doc. Update the task doc if implementation decisions change. Keep historical task claims intact; their only allowed edit in this feature is a short later-follow-up cross-reference.
 
 Update package versions, `CHANGELOG.md`, spoiler-light Ukrainian `news.md`, current README feature text, docs index, canonical design/balance/checklist docs, playtesting and compact Codex context. Use Kyiv/Holocene release date conventions.
 

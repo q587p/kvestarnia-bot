@@ -260,6 +260,14 @@ export function presentCellarResult(
     ].join("\n");
   }
 
+  if (result.state === "stale") {
+    return [
+      "🐭 Кнопка застаріла.",
+      "",
+      "Миша не впізнала цей спосіб у поточній льоховій справі. Відкрийте льох ще раз, щоб побачити чинні варіанти."
+    ].join("\n");
+  }
+
   const outcome = result.outcome ?? {
     headline: presentCellarOutcome(result.action, result.character)[0] ?? "✅ Льохову справу закрито",
     body: [presentCellarOutcome(result.action, result.character)[2] ?? "Миша зробила вигляд, що так і планувала."]

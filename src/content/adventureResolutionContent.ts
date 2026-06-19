@@ -310,8 +310,8 @@ function materializeSceneMethod(
     outcomeText: buildOutcomeText({
       sceneTitle,
       label: seed.label,
-      strong: "Метод спрацював так добре, що справа на мить забула бути проблемою.",
-      success: "Корчма занотувала рішення й попросила проблему більше не сперечатися з протоколом.",
+      strong: `${sceneTitle} нарешті перестає сперечатися. Корчмар навіть не встигає знайти зайву форму.`,
+      success: "Рішення лягає точно в цю сцену. Корчма занотовує спосіб і ховає чорнило.",
       mixed: sceneSeed.mixed,
       complication: sceneSeed.complication
     })
@@ -374,7 +374,7 @@ function buildSignatureMethod(character: CharacterSummary, sceneTitle: string, o
     outcomeText: buildOutcomeText({
       sceneTitle,
       label: title,
-      strong: `${title} зробив із проблеми автобіографічний доказ. Корчма коротко повірила в долю.`,
+      strong: `Підпис ${title} перетворює проблему на автобіографічний доказ. Корчма коротко вірить у долю.`,
       success: "Точна біографія стала доказом. Корчма визнала, що така комбінація не трапляється випадково.",
       mixed: "Справа погодилась, але попросила не пояснювати біографію вдруге.",
       complication: "Титул заплутав протокол і лишив на сцені трохи кумедного безладу."
@@ -409,10 +409,10 @@ function buildProfileMethod(input: {
     outcomeText: buildOutcomeText({
       sceneTitle: input.sceneTitle,
       label: input.profile.label,
-      strong: `${input.profile.label} дала блискучий результат. Корчма визнала авторський підхід.`,
-      success: `${input.profile.label} дала результат, і корчма занотувала це як «не повторювати без свідків».`,
+      strong: "Особистий підхід дає блискучий результат. Корчма визнає авторський стиль.",
+      success: "Підхід спрацьовує, і корчма занотовує це як «не повторювати без свідків».",
       mixed: "Справа погодилась, але лишила невеликий слід власної гордости.",
-      complication: `${input.profile.label} розвʼязала не той край проблеми, зате всі побачили характер.`
+      complication: "Підхід розвʼязує не той край проблеми, зате всі бачать характер."
     })
   };
 }
@@ -461,7 +461,7 @@ function buildOutcomeText(input: {
 }): Record<QuestResolutionGrade, QuestMethodOutcomeText> {
   return {
     "strong-success": {
-      headline: "✨ Метод спрацював занадто добре",
+      headline: "✨ Справу закрито блискуче",
       body: [input.sceneTitle, "", input.strong]
     },
     success: {

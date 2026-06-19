@@ -47,6 +47,23 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
         complication: "Шаурма образилась на допит і залишила дуже юридичний запах."
       }),
       method({
+        id: `r${getCompactRaceKey(character.raceId)}`,
+        source: "race",
+        label: `🧬 ${race.methodPrefix}`,
+        buttonLabel: `🧬 ${race.shortButtonLabel ?? race.methodPrefix}`,
+        hint: "Особистий підхід героя.",
+        primaryStat: race.primaryStat,
+        secondaryStat: race.secondaryStat,
+        techniques: race.techniques,
+        rewardProfile: "standard",
+        legacyAction: "receipt",
+        itemIntent: "receipt",
+        strong: "Особистий підхід розгорнув лаваш саме там, де ховалась правда.",
+        success: "Шаурма не витримала біографічного тиску й видала доказ.",
+        mixed: "Доказ є, але соус тепер має власну версію подій.",
+        complication: "Підхід вийшов стильний, а лаваш лишив липкий коментар."
+      }),
+      method({
         id: `c${getCompactClassKey(character.classId)}`,
         source: "class",
         label: `🎭 ${heroClass.methodPrefix}`,
@@ -59,9 +76,9 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
         legacyAction: "poke",
         itemIntent: "wrapper",
         combatSkillId: heroClass.combatSkillId,
-        strong: `${heroClass.label} розкрила начинку так акуратно, що зуби самі вийшли в протокол.`,
-        success: `${heroClass.label} дала результат. Шаурма видала доказ і вдала простий лаваш.`,
-        mixed: "Метод спрацював, але соус поставив зустрічне питання.",
+        strong: "Професійний підхід розкрив начинку так акуратно, що зуби самі вийшли в протокол.",
+        success: "Професійний підхід дав результат. Шаурма видала доказ і вдала простий лаваш.",
+        mixed: "Професійний підхід дав результат, але соус поставив зустрічне питання.",
         complication: "Шаурма не розкрилась повністю, зате стала підозріло чемною."
       }),
       method({
@@ -77,7 +94,7 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
         legacyAction: "flee",
         itemIntent: "none",
         combatSkillId: heroClass.combatSkillId,
-        strong: `«${character.title}» змусив начинку признатися до того, як вона згадала про зуби.`,
+        strong: `Підпис «${character.title}» витягнув з начинки правду раніше, ніж вона згадала про зуби.`,
         success: "Точна біографія стала доказом. Шаурма визнала, що це не випадкова вечеря.",
         mixed: "Шаурма майже повірила, але соус лишив останню репліку собі.",
         complication: "Біографічний аргумент вийшов красивий, результат — трохи липкий."
@@ -140,10 +157,28 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
         rewardProfile: "standard",
         legacyAction: "sweep-bravely",
         itemIntent: "sweep-bravely",
-        strong: `${race.label} навела у льосі такий лад, що миша сама попросила графік.`,
-        success: `${race.label} дала результат. Льох визнав героя тимчасовою владою.`,
+        strong: "Особистий підхід навів у льосі такий лад, що миша сама попросила графік.",
+        success: "Особистий підхід дав результат. Льох визнав героя тимчасовою владою.",
         mixed: "Льох чистіший, угода — ні.",
         complication: "Миша не програла, а стратегічно перемістилась у чистіше місце."
+      }),
+      method({
+        id: `c${getCompactClassKey(character.classId)}`,
+        source: "class",
+        label: `🎭 ${heroClass.methodPrefix}`,
+        buttonLabel: `🎭 ${heroClass.shortButtonLabel ?? heroClass.methodPrefix}`,
+        hint: "Професійний підхід героя.",
+        primaryStat: heroClass.primaryStat,
+        secondaryStat: heroClass.secondaryStat,
+        techniques: heroClass.techniques,
+        rewardProfile: "standard",
+        legacyAction: "negotiate",
+        itemIntent: "negotiate",
+        combatSkillId: heroClass.combatSkillId,
+        strong: "Професійний підхід перетворив писк на переговорну позицію.",
+        success: "Миша погодилась: такий фаховий аргумент краще не гризти.",
+        mixed: "Аргумент спрацював, але миша лишила собі право драматично пищати.",
+        complication: "Фаховий підхід зачепив полицю, і полиця тепер теж хоче слово."
       }),
       method({
         id: `s${getCompactRaceKey(character.raceId)}${getCompactClassKey(character.classId)}`,
@@ -158,7 +193,7 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
         legacyAction: "negotiate",
         itemIntent: "negotiate",
         combatSkillId: heroClass.combatSkillId,
-        strong: `«${character.title}» перетворив льох на малу мирну конференцію.`,
+        strong: `Підпис «${character.title}» перетворив льох на малу мирну конференцію.`,
         success: "Точна біографія стала аргументом. Миша погодилась не гризти квестові дошки.",
         mixed: "Угода чинна, але кожна крихта має окрему думку.",
         complication: "Титул вразив мишу. Миша вразила титул зустрічним пунктом."
@@ -209,7 +244,7 @@ function method(input: {
       complication: input.goldCost ? "gold-cost-success" : "cosmetic-mess"
     },
     outcomeText: {
-      "strong-success": text("✨ Метод спрацював занадто добре", input.strong),
+      "strong-success": text("✨ Справу закрито блискуче", input.strong),
       success: text("✅ Справу закрито", input.success),
       "mixed-success": text("🟡 Справу закрито з хвостиком", input.mixed),
       complication: text("⚠️ Метод лишив кумедний безлад", input.complication)

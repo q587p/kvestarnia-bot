@@ -71,9 +71,9 @@ const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
 const fight = new FightService(characters, dailyActions, undefined, soloCombatSessions, undefined, equipment);
 const presenceService = new PresenceService(presence);
 const services = {
-  adventure: new AdventureService(characters, dailyActions, undefined, soloCombatSessions),
+  adventure: new AdventureService(characters, dailyActions, undefined, soloCombatSessions, equipment),
   barrelRaidNotifications,
-  cellarErrand: new CellarErrandService(cooldowns),
+  cellarErrand: new CellarErrandService(cooldowns, undefined, equipment),
   cellarGrownup: new CellarGrownupQuestService(cellarGrownupQuests, dailyActions, cooldowns),
   fight,
   hunt: new HuntService(characters, dailyActions, huntContracts),

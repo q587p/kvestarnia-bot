@@ -2512,7 +2512,7 @@ async function handleCellarCallback(
   await safeEditMessageText(ctx, presentCellarResult(result), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildCellarResultKeyboard(
-      result.state === "insufficient-gold" ? "ready" : result.state,
+      result.state === "insufficient-gold" || result.state === "stale" ? "ready" : result.state,
       result.character
     )
   });
