@@ -1090,15 +1090,26 @@ function parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
     turn === null ||
     typeof value.actingCharacterId !== "string" ||
     !challenger ||
-    !target
+    !target ||
+    (value.actingCharacterId !== challenger.characterId &&
+      value.actingCharacterId !== target.characterId)
   ) {
     return null;
   }
 
   const pendingActions = parsePendingActions(value.pendingActions, challenger.characterId, target.characterId);
   const lastRound = parseRoundSummary(value.lastRound);
-  const lastAction = parseActionSummary(value.lastAction);
+  const lastAction = hasOwn(value, "lastAction") ? parseActionSummary(value.lastAction) : undefined;
   const outcome = parseTurnBasedOutcome(value.outcome);
+
+  if (
+    pendingActions === null ||
+    lastRound === null ||
+    lastAction === null ||
+    outcome === null
+  ) {
+    return null;
+  }
 
   return {
     mode: "turn-based",
@@ -1143,6 +1154,10 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
   const mana = parseNonNegativeInt(value.mana);
   const manaMax = parseNonNegativeInt(value.manaMax);
   const balanceAudit = parseBalanceAudit(value.balanceAudit);
+  const cooldowns = hasOwn(value, "cooldowns") ? parseCooldowns(value.cooldowns) : undefined;
+  const equipmentEffects = hasOwn(value, "equipmentEffects")
+    ? parseEquipmentEffects(value.equipmentEffects)
+    : undefined;
 
   if (
     !characterId ||
@@ -1160,7 +1175,9 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
     hpMax === null ||
     mana === null ||
     manaMax === null ||
-    !balanceAudit
+    !balanceAudit ||
+    cooldowns === null ||
+    equipmentEffects === null
   ) {
     return null;
   }
@@ -1181,9 +1198,9 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
     mana,
     manaMax,
     combatStats,
-    cooldowns: parseCooldowns(value.cooldowns),
+    ...(cooldowns ? { cooldowns } : {}),
     balanceAudit,
-    ...(isRecord(value.equipmentEffects) ? { equipmentEffects: parseEquipmentEffects(value.equipmentEffects) } : {})
+    ...(equipmentEffects ? { equipmentEffects } : {})
   };
 }
 
@@ -1214,7 +1231,17 @@ function parseCombatStats(value: unknown): TurnBasedDuelState["participants"]["c
   };
 }
 
-function parseEquipmentEffects(value: Record<string, unknown>) {
+function parseEquipmentEffects(value: unknown): TurnBasedDuelState["participants"]["challenger"]["equipmentEffects"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const stats = parseStats(value.stats);
+
+  if (hasOwn(value, "stats") && !stats) {
+    return null;
+  }
+
   return {
     hpMax: intOrZero(value.hpMax),
     manaMax: intOrZero(value.manaMax),
@@ -1222,31 +1249,46 @@ function parseEquipmentEffects(value: Record<string, unknown>) {
     resist: intOrZero(value.resist),
     weaponDamage: intOrZero(value.weaponDamage),
     spellPower: intOrZero(value.spellPower),
-    stats: parseStats(value.stats) ?? createEmptyStats(),
+    stats: stats ?? createEmptyStats(),
     contributions: []
   };
 }
 
-function parseCooldowns(value: unknown): TurnBasedDuelState["participants"]["challenger"]["cooldowns"] | undefined {
+function parseCooldowns(value: unknown): TurnBasedDuelState["participants"]["challenger"]["cooldowns"] | null {
   if (!isRecord(value) || !isRecord(value.skill)) {
-    return undefined;
+    return null;
   }
   const id = stringOrNull(value.skill.id);
   const remainingTurns = parseNonNegativeInt(value.skill.remainingTurns);
 
-  return id && remainingTurns !== null ? { skill: { id, remainingTurns } } : undefined;
+  return id && remainingTurns !== null ? { skill: { id, remainingTurns } } : null;
 }
 
 function parsePendingActions(
   value: unknown,
   challengerCharacterId: string,
   targetCharacterId: string
-): TurnBasedDuelState["pendingActions"] | undefined {
-  if (!isRecord(value)) {
+): TurnBasedDuelState["pendingActions"] | undefined | null {
+  if (value === undefined || value === null) {
     return undefined;
+  }
+
+  if (!isRecord(value)) {
+    return null;
   }
   const challenger = parseQueuedAction(value.challenger, challengerCharacterId);
   const target = parseQueuedAction(value.target, targetCharacterId);
+
+  if (Object.keys(value).some((key) => key !== "challenger" && key !== "target")) {
+    return null;
+  }
+
+  if (
+    (challenger === null && hasOwn(value, "challenger")) ||
+    (target === null && hasOwn(value, "target"))
+  ) {
+    return null;
+  }
 
   return challenger || target
     ? {
@@ -1270,16 +1312,24 @@ function parseQueuedAction(
   return { actorCharacterId: expectedCharacterId, action: value.action };
 }
 
-function parseRoundSummary(value: unknown): TurnBasedDuelState["lastRound"] | undefined {
-  if (!isRecord(value)) {
+function parseRoundSummary(value: unknown): TurnBasedDuelState["lastRound"] | undefined | null {
+  if (value === undefined || value === null) {
     return undefined;
+  }
+
+  if (!isRecord(value)) {
+    return null;
   }
   const turn = parsePositiveInt(value.turn);
   const actions = Array.isArray(value.actions)
-    ? value.actions.map(parseActionSummary).filter((action): action is NonNullable<ReturnType<typeof parseActionSummary>> => action !== null)
+    ? value.actions.map(parseActionSummary)
     : null;
 
-  return turn !== null && actions ? { turn, actions } : undefined;
+  const parsedActions = actions?.filter((action): action is NonNullable<ReturnType<typeof parseActionSummary>> => action !== null);
+
+  return turn !== null && actions && parsedActions && parsedActions.length === actions.length
+    ? { turn, actions: parsedActions }
+    : null;
 }
 
 function parseActionSummary(value: unknown): TurnBasedDuelState["lastAction"] | null {
@@ -1307,9 +1357,13 @@ function parseActionSummary(value: unknown): TurnBasedDuelState["lastAction"] | 
   };
 }
 
-function parseTurnBasedOutcome(value: unknown): TurnBasedDuelState["outcome"] | undefined {
-  if (!isRecord(value)) {
+function parseTurnBasedOutcome(value: unknown): TurnBasedDuelState["outcome"] | undefined | null {
+  if (value === undefined || value === null) {
     return undefined;
+  }
+
+  if (!isRecord(value)) {
+    return null;
   }
   const outcome = value.outcome;
   const reason = value.reason;
@@ -1318,7 +1372,7 @@ function parseTurnBasedOutcome(value: unknown): TurnBasedDuelState["outcome"] | 
     (outcome !== "challenger" && outcome !== "target" && outcome !== "draw") ||
     !isTerminalReason(reason)
   ) {
-    return undefined;
+    return null;
   }
 
   return {
@@ -1511,6 +1565,10 @@ function parseNonNegativeInt(value: unknown): number | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
 }
 
 function isPrismaNotFound(error: unknown): boolean {

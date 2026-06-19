@@ -155,9 +155,9 @@ duel_combat_actions
 active_combat_leases
 - character_id unique
 - kind
-- ref_id
+- reference_id
 - created_at
-- expires_at nullable
+- updated_at
 ```
 
 Turn-based duels reuse the same combat turn timeout model planned for ordinary monster fights and `/spar`: each active round gets roughly `23` seconds, then a durable poller or lazy lookup applies idempotent basic attacks for missing choices, edits/sends cards best-effort and advances or closes the fight. Notification failure must not roll back already committed gameplay.
