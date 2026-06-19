@@ -199,11 +199,12 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
     escapeHtml(outcome.headline),
     "",
     ...outcome.body.map(escapeHtml),
-    ...(outcome.biographyLine ? ["", escapeHtml(outcome.biographyLine)] : []),
     "",
     `<i>Метод:</i> ${escapeHtml(result.approach.label)}`,
     ...(result.spentGold > 0 ? [`Списано: ${result.spentGold} золота.`] : []),
-    ...(result.fightHandoff ? ["Нагорода не видана: проблема покликала бій."] : [presentRewardAmount(result.reward)]),
+    ...(result.fightHandoff
+      ? ["Нагорода не видана: проблема покликала бій."]
+      : ["", presentRewardAmount({ ...result.reward, label: "Винагорода за справу" })]),
     "",
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
@@ -237,10 +238,10 @@ export function presentMimicShawarmaResult(
     escapeHtml(outcome.headline),
     "",
     ...outcome.body.map(escapeHtml),
-    ...(outcome.biographyLine ? ["", escapeHtml(outcome.biographyLine)] : []),
     "",
     `<i>Метод:</i> ${escapeHtml(methodLabel)}`,
-    presentRewardAmount(result.reward),
+    "",
+    presentRewardAmount({ ...result.reward, label: "Винагорода за пригоду" }),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 

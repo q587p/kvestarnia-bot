@@ -209,7 +209,10 @@ describe("adventure presenter", () => {
     const text = presentAdventureResult(completed(false));
 
     expect(text).toContain("✅ Справу закрито");
-    expect(text).toContain("<b>+7 XP\n+4 золота</b>");
+    expect(text).toContain("Винагорода за справу:");
+    expect(text).toContain("\n\nВинагорода за справу:\n<b>+7 XP\n+4 золота</b>");
+    expect(text).not.toContain("Підпис методу");
+    expect(text).not.toContain("race+class");
     expect(text).not.toContain("Рівень підріс");
   });
 
@@ -219,6 +222,7 @@ describe("adventure presenter", () => {
     expect(text).toContain("Справа вкусила у відповідь");
     expect(text).toContain("<i>Метод:</i> 🧠 Хитро");
     expect(text).not.toContain("метод «");
+    expect(text).not.toContain("Винагорода за справу:");
     expect(text).toContain("Нагорода не видана");
     expect(text).toContain("без заперечень.");
     expect(text).not.toContain("+7 XP");

@@ -124,6 +124,8 @@ level 13: 1300
 
 Reward profiles remain conservative (`modest`, `standard`, `generous`) and consequences vary by authored method: full reward, reduced reward, XP-only, cosmetic mess, paid success or persistent-fight handoff. Small paid methods may cost visible `1..3` gold and must check affordability before claim; `daily_actions.spent_gold` and `result_json` record the chosen method, grade, consequence, cost and check at claim time.
 
+Level 3+ authored Adventure Choice rewards apply a small deterministic post-resolution XP/gold variance around the selected profile and consequence, with bounded LUCK influence. The exact stored reward is written into the daily claim and never rerolled on replay. Non-fight authored Adventure Choice results also have a low LUCK-influenced chance to grant one eligible loot-expansion manatka through the normal item-grant path; starter shawarma and cellar mouse keep their existing fixed teaching item grants.
+
 ## Gold economy MVP
 Sources:
 - PvE fights.

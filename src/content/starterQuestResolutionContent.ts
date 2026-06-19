@@ -60,7 +60,7 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
         itemIntent: "wrapper",
         combatSkillId: heroClass.combatSkillId,
         strong: `${heroClass.label} розкрила начинку так акуратно, що зуби самі вийшли в протокол.`,
-        success: `${heroClass.label} спрацювала: шаурма видала доказ і вдала простий лаваш.`,
+        success: `${heroClass.label} дала результат. Шаурма видала доказ і вдала простий лаваш.`,
         mixed: "Метод спрацював, але соус поставив зустрічне питання.",
         complication: "Шаурма не розкрилась повністю, зате стала підозріло чемною."
       }),
@@ -78,10 +78,9 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
         itemIntent: "none",
         combatSkillId: heroClass.combatSkillId,
         strong: `«${character.title}» змусив начинку признатися до того, як вона згадала про зуби.`,
-        success: `«${character.title}» спрацював: шаурма визнала, що така біографія не смакує випадково.`,
+        success: "Точна біографія стала доказом. Шаурма визнала, що це не випадкова вечеря.",
         mixed: "Шаурма майже повірила, але соус лишив останню репліку собі.",
-        complication: "Підпис методу вийшов красивий, результат — трохи липкий.",
-        biographyLine: `${character.raceName} + ${character.className}: метод занотовано на серветці.`
+        complication: "Біографічний аргумент вийшов красивий, результат — трохи липкий."
       })
     ]
   };
@@ -142,7 +141,7 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
         legacyAction: "sweep-bravely",
         itemIntent: "sweep-bravely",
         strong: `${race.label} навела у льосі такий лад, що миша сама попросила графік.`,
-        success: `${race.label} спрацювала: льох визнав героя тимчасовою владою.`,
+        success: `${race.label} дала результат. Льох визнав героя тимчасовою владою.`,
         mixed: "Льох чистіший, угода — ні.",
         complication: "Миша не програла, а стратегічно перемістилась у чистіше місце."
       }),
@@ -160,10 +159,9 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
         itemIntent: "negotiate",
         combatSkillId: heroClass.combatSkillId,
         strong: `«${character.title}» перетворив льох на малу мирну конференцію.`,
-        success: `«${character.title}» спрацював: миша погодилась не гризти квестові дошки.`,
+        success: "Точна біографія стала аргументом. Миша погодилась не гризти квестові дошки.",
         mixed: "Угода чинна, але кожна крихта має окрему думку.",
-        complication: "Титул вразив мишу. Миша вразила титул зустрічним пунктом.",
-        biographyLine: `${character.raceName} + ${character.className}: сирна справа занотована.`
+        complication: "Титул вразив мишу. Миша вразила титул зустрічним пунктом."
       })
     ]
   };
@@ -187,7 +185,6 @@ function method(input: {
   success: string;
   mixed: string;
   complication: string;
-  biographyLine?: string | undefined;
 }): QuestMethodDefinition {
   return {
     id: input.id,
@@ -212,27 +209,24 @@ function method(input: {
       complication: input.goldCost ? "gold-cost-success" : "cosmetic-mess"
     },
     outcomeText: {
-      "strong-success": text("✨ Метод спрацював занадто добре", input.strong, input.biographyLine),
-      success: text("✅ Справу закрито", input.success, input.biographyLine),
-      "mixed-success": text("🟡 Справу закрито з хвостиком", input.mixed, input.biographyLine),
-      complication: text("⚠️ Метод лишив кумедний безлад", input.complication, input.biographyLine)
+      "strong-success": text("✨ Метод спрацював занадто добре", input.strong),
+      success: text("✅ Справу закрито", input.success),
+      "mixed-success": text("🟡 Справу закрито з хвостиком", input.mixed),
+      complication: text("⚠️ Метод лишив кумедний безлад", input.complication)
     }
   };
 }
 
 function text(
   headline: string,
-  body: string,
-  biographyLine?: string
+  body: string
 ): {
   headline: string;
   body: readonly string[];
-  biographyLine?: string;
 } {
   return {
     headline,
-    body: [body],
-    ...(biographyLine ? { biographyLine } : {})
+    body: [body]
   };
 }
 

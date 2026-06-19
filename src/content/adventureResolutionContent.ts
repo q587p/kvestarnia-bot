@@ -193,8 +193,8 @@ export function buildAdventureResolutionScene(input: {
   const seed = GENERAL_SCENE_SEEDS[input.problemId] ?? buildGeneratedSceneSeed(input.problemId);
   const methods = [
     ...seed.methods.map((methodSeed) => materializeSceneMethod(input.title, seed, methodSeed)),
-    buildRaceMethod(input.character, input.title, seed.object),
-    buildClassMethod(input.character, input.title, seed.object),
+    buildRaceMethod(input.character, input.title),
+    buildClassMethod(input.character, input.title),
     buildSignatureMethod(input.character, input.title, seed.object)
   ];
 
@@ -310,15 +310,15 @@ function materializeSceneMethod(
     outcomeText: buildOutcomeText({
       sceneTitle,
       label: seed.label,
-      strong: `Метод спрацював так добре, що ${sceneSeed.object} на мить забув бути проблемою.`,
-      success: `Метод спрацював: ${sceneSeed.object} прийняв рішення корчми.`,
+      strong: "Метод спрацював так добре, що справа на мить забула бути проблемою.",
+      success: "Корчма занотувала рішення й попросила проблему більше не сперечатися з протоколом.",
       mixed: sceneSeed.mixed,
       complication: sceneSeed.complication
     })
   };
 }
 
-function buildRaceMethod(character: CharacterSummary, sceneTitle: string, object: string): QuestMethodDefinition {
+function buildRaceMethod(character: CharacterSummary, sceneTitle: string): QuestMethodDefinition {
   const profile = getRaceProfile(character.raceId);
   const id = `r${getCompactRaceKey(character.raceId)}`;
 
@@ -329,13 +329,12 @@ function buildRaceMethod(character: CharacterSummary, sceneTitle: string, object
     buttonLabel: `🧬 ${profile.shortButtonLabel ?? profile.methodPrefix}`,
     hint: "Особистий підхід героя. Винагорода звичайна.",
     sceneTitle,
-    object,
     profile,
     rewardProfile: "standard"
   });
 }
 
-function buildClassMethod(character: CharacterSummary, sceneTitle: string, object: string): QuestMethodDefinition {
+function buildClassMethod(character: CharacterSummary, sceneTitle: string): QuestMethodDefinition {
   const profile = getClassProfile(character.classId);
   const id = `c${getCompactClassKey(character.classId)}`;
 
@@ -346,7 +345,6 @@ function buildClassMethod(character: CharacterSummary, sceneTitle: string, objec
     buttonLabel: `🎭 ${profile.shortButtonLabel ?? profile.methodPrefix}`,
     hint: "Професійний підхід героя. Винагорода звичайна.",
     sceneTitle,
-    object,
     profile,
     rewardProfile: "standard"
   });
@@ -377,10 +375,9 @@ function buildSignatureMethod(character: CharacterSummary, sceneTitle: string, o
       sceneTitle,
       label: title,
       strong: `${title} зробив із проблеми автобіографічний доказ. Корчма коротко повірила в долю.`,
-      success: `${title} спрацював: ${object} визнав, що така комбінація не трапляється випадково.`,
-      mixed: `${object} погодився, але попросив не пояснювати біографію вдруге.`,
-      complication: `${object} заплутався в титулі й лишив на сцені трохи кумедного безладу.`,
-      biographyLine: `Підпис методу: ${character.raceName} + ${character.className}.`
+      success: "Точна біографія стала доказом. Корчма визнала, що така комбінація не трапляється випадково.",
+      mixed: "Справа погодилась, але попросила не пояснювати біографію вдруге.",
+      complication: "Титул заплутав протокол і лишив на сцені трохи кумедного безладу."
     })
   };
 }
@@ -392,7 +389,6 @@ function buildProfileMethod(input: {
   buttonLabel: string;
   hint: string;
   sceneTitle: string;
-  object: string;
   profile: QuestTechniqueProfileLike;
   rewardProfile: QuestRewardProfile;
 }): QuestMethodDefinition {
@@ -413,9 +409,9 @@ function buildProfileMethod(input: {
     outcomeText: buildOutcomeText({
       sceneTitle: input.sceneTitle,
       label: input.profile.label,
-      strong: `${input.profile.label} спрацювала блискуче: ${input.object} визнав авторський підхід.`,
+      strong: `${input.profile.label} дала блискучий результат. Корчма визнала авторський підхід.`,
       success: `${input.profile.label} дала результат, і корчма занотувала це як «не повторювати без свідків».`,
-      mixed: `${input.object} погодився, але лишив невеликий слід власної гордости.`,
+      mixed: "Справа погодилась, але лишила невеликий слід власної гордости.",
       complication: `${input.profile.label} розвʼязала не той край проблеми, зате всі побачили характер.`
     })
   };
@@ -462,28 +458,23 @@ function buildOutcomeText(input: {
   success: string;
   mixed: string;
   complication: string;
-  biographyLine?: string;
 }): Record<QuestResolutionGrade, QuestMethodOutcomeText> {
   return {
     "strong-success": {
       headline: "✨ Метод спрацював занадто добре",
-      body: [`${input.sceneTitle}: ${input.strong}`],
-      ...(input.biographyLine ? { biographyLine: input.biographyLine } : {})
+      body: [input.sceneTitle, "", input.strong]
     },
     success: {
       headline: "✅ Справу закрито",
-      body: [`${input.sceneTitle}: ${input.success}`],
-      ...(input.biographyLine ? { biographyLine: input.biographyLine } : {})
+      body: [input.sceneTitle, "", input.success]
     },
     "mixed-success": {
       headline: "🟡 Справу закрито з хвостиком",
-      body: [`${input.sceneTitle}: ${input.mixed}`],
-      ...(input.biographyLine ? { biographyLine: input.biographyLine } : {})
+      body: [input.sceneTitle, "", input.mixed]
     },
     complication: {
       headline: "⚠️ Метод зачепив не той нерв",
-      body: [`${input.sceneTitle}: ${input.complication}`],
-      ...(input.biographyLine ? { biographyLine: input.biographyLine } : {})
+      body: [input.sceneTitle, "", input.complication]
     }
   };
 }

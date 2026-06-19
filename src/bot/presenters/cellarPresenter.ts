@@ -270,12 +270,11 @@ export function presentCellarResult(
     escapeHtml(outcome.headline),
     "",
     ...outcome.body.map(escapeHtml),
-    ...(outcome.biographyLine ? ["", escapeHtml(outcome.biographyLine)] : []),
     "",
     `<i>Метод:</i> ${escapeHtml(methodLabel)}`,
     ...(spentGold > 0 ? [`Списано: ${spentGold} золота.`] : []),
     "",
-    presentRewardAmount(result.reward),
+    presentRewardAmount({ ...result.reward, label: "Винагорода за справу" }),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 

@@ -458,7 +458,6 @@ interface PresentedQuestResolution {
   grade: QuestResolutionGrade;
   headline: string;
   body: string[];
-  biographyLine?: string;
   reward: AdventureReward;
   goldCost?: number;
   followup?: "fight" | "quest-table" | "cellar";
@@ -469,8 +468,8 @@ interface PresentedQuestResolution {
 
 1. унікальний headline сцени;
 2. 1–2 authored outcome paragraphs;
-3. максимум одна biography/signature line;
-4. cost/reward lines;
+3. no player-facing source labels such as `Підпис методу`, `race+class`, `раса + клас`, `Расовий спосіб` or `Класова техніка`;
+4. cost/reward lines with a clear reward block;
 5. follow-up button.
 
 Заборонені універсальні фінали як єдиний текст для всього пулу:

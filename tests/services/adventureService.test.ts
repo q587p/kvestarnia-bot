@@ -167,9 +167,9 @@ describe("AdventureService", () => {
     if (found.result.state === "completed") {
       expect(found.result.reward.localDate).toBe(buildAdventurePeriod(fixedClock()).storageKey);
       expect(found.result.reward.xp).toBeGreaterThan(0);
-      expect(found.result.reward.xp).toBeLessThanOrEqual(found.result.approach.reward.xp);
+      expect(found.result.reward.xp).toBeLessThanOrEqual(found.result.approach.reward.xp + 2);
       expect(found.result.reward.gold).toBeGreaterThanOrEqual(0);
-      expect(found.result.reward.gold).toBeLessThanOrEqual(found.result.approach.reward.gold);
+      expect(found.result.reward.gold).toBeLessThanOrEqual(found.result.approach.reward.gold + 2);
       expect(found.result.fightHandoff).toBe(false);
     }
     expect(found.dailyActions.createCount).toBe(1);
@@ -184,6 +184,46 @@ describe("AdventureService", () => {
       sceneId: found.input.problemId,
       methodId: found.input.methodId
     });
+  });
+
+  it("stores deterministic post-resolution reward variance", async () => {
+    const found = await findResolvedAdventure(
+      (result) =>
+        !result.fightHandoff &&
+        result.consequence === "full-reward" &&
+        (result.reward.xp !== result.approach.reward.xp ||
+          result.reward.gold !== result.approach.reward.gold)
+    );
+    const repeatedSetup = setup();
+    repeatedSetup.characters.add(found.userId, { xp: 25, gold: 10 });
+    const repeated = await repeatedSetup.service.completeAdventureApproach(found.userId, found.input);
+
+    expect(repeated.state).toBe("completed");
+    if (repeated.state === "completed" && found.result.state === "completed") {
+      expect(repeated.reward).toEqual(found.result.reward);
+    }
+  });
+
+  it("can grant a low-chance authored quest mantok through the daily claim", async () => {
+    const found = await findResolvedAdventure(
+      (result) => !result.fightHandoff && result.reward.itemGrants.length > 0
+    );
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state === "completed") {
+      expect(found.result.reward.itemGrants).toHaveLength(1);
+      expect(found.result.reward.itemGrants[0]?.itemId).toMatch(/^item\.loot-v1-/);
+      expect(found.dailyActions.records[0]?.resultJson).toMatchObject({
+        reward: {
+          itemGrants: [
+            {
+              itemId: found.result.reward.itemGrants[0]?.itemId,
+              quantity: 1
+            }
+          ]
+        }
+      });
+    }
   });
 
   it("records a fight handoff complication as the daily claim without granting reward", async () => {

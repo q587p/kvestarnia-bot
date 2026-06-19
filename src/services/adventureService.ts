@@ -44,6 +44,7 @@ import {
   resolveQuestCheck,
   type QuestCheckResult
 } from "../domain/quests/questChecks";
+import { rollLootExpansionItem } from "../domain/loot/lootEngine";
 import {
   findQuestMethod,
   findQuestMethodByLegacyAction,
@@ -412,7 +413,23 @@ export class AdventureService {
       classId: characterSummary.classId
     });
     const consequence = method.consequenceByGrade[check.grade];
-    const reward = buildQuestReward(method, check.grade, consequence);
+    const reward = varyAdventureChoiceReward(buildQuestReward(method, check.grade, consequence), {
+      characterId: character.id,
+      periodKey: period.storageKey,
+      sceneId: choice.id,
+      methodId: method.id,
+      grade: check.grade,
+      luck: characterSummary.stats.luck
+    });
+    const itemGrants = buildAdventureChoiceItemGrants({
+      character: characterSummary,
+      characterId: character.id,
+      periodKey: period.storageKey,
+      sceneId: choice.id,
+      method,
+      grade: check.grade,
+      consequence
+    });
     const spentGold = method.goldCost ?? 0;
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: ADVENTURE_CHOICE_KEY,
@@ -426,10 +443,11 @@ export class AdventureService {
         grade: check.grade,
         consequence,
         reward,
+        itemGrants,
         spentGold,
         check
       }),
-      itemGrants: []
+      itemGrants
     });
 
     if (!claim) {
@@ -563,6 +581,7 @@ export class AdventureService {
         grade: check.grade,
         consequence,
         reward,
+        itemGrants,
         spentGold: 0,
         check
       }),
@@ -1021,12 +1040,89 @@ function buildQuestReward(
   };
 }
 
+function varyAdventureChoiceReward(
+  reward: { xp: number; gold: number },
+  input: {
+    characterId: string;
+    periodKey: string;
+    sceneId: string;
+    methodId: string;
+    grade: QuestResolutionGrade;
+    luck: number;
+  }
+): { xp: number; gold: number } {
+  if (reward.xp <= 0 && reward.gold <= 0) {
+    return reward;
+  }
+
+  const rng = new SeededRandomSource(
+    `adventure-choice-reward:v1:${input.characterId}:${input.periodKey}:${input.sceneId}:${input.methodId}:${input.grade}`
+  );
+  const luck = Math.floor(input.luck);
+  const luckyNudge =
+    rng.nextFloat() < clamp((luck - 6) * 0.035, 0, 0.18)
+      ? 1
+      : rng.nextFloat() < clamp((6 - luck) * 0.025, 0, 0.12)
+        ? -1
+        : 0;
+  const xpSpread = reward.xp > 0 ? Math.max(1, Math.floor(reward.xp * 0.23)) : 0;
+  const goldSpread = reward.gold > 0 ? Math.max(1, Math.floor(reward.gold * 0.23)) : 0;
+
+  return {
+    xp:
+      reward.xp > 0
+        ? Math.max(1, reward.xp + rng.nextInt(-xpSpread, xpSpread) + luckyNudge)
+        : 0,
+    gold:
+      reward.gold > 0
+        ? Math.max(0, reward.gold + rng.nextInt(-goldSpread, goldSpread) + luckyNudge)
+        : 0
+  };
+}
+
+function buildAdventureChoiceItemGrants(input: {
+  character: CharacterSummary;
+  characterId: string;
+  periodKey: string;
+  sceneId: string;
+  method: QuestMethodDefinition;
+  grade: QuestResolutionGrade;
+  consequence: QuestConsequenceKind;
+}): Array<{ itemId: string; quantity: number }> {
+  if (input.consequence === "fight-handoff") {
+    return [];
+  }
+
+  const rng = new SeededRandomSource(
+    `adventure-choice-item:v1:${input.characterId}:${input.periodKey}:${input.sceneId}:${input.method.id}:${input.grade}`
+  );
+  const dropChance = clamp(0.11 + (Math.floor(input.character.stats.luck) - 6) * 0.012, 0.07, 0.21);
+
+  if (rng.nextFloat() >= dropChance) {
+    return [];
+  }
+
+  const item = rollLootExpansionItem({
+    profile: input.character,
+    sourceId: "tavern_event",
+    sourceTags: ["authored_quest", ...input.method.techniques],
+    rng
+  });
+
+  return item ? [{ itemId: item.id, quantity: 1 }] : [];
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 function buildQuestResolutionClaimPayload(input: {
   sceneId: string;
   method: QuestMethodDefinition;
   grade: QuestResolutionGrade;
   consequence: QuestConsequenceKind;
   reward: { xp: number; gold: number };
+  itemGrants?: Array<{ itemId: string; quantity: number }>;
   spentGold: number;
   check: QuestCheckResult;
 }): unknown {
@@ -1040,7 +1136,7 @@ function buildQuestResolutionClaimPayload(input: {
     reward: {
       xp: input.reward.xp,
       gold: input.reward.gold,
-      itemGrants: []
+      itemGrants: input.itemGrants ?? []
     },
     spentGold: input.spentGold,
     check: input.check

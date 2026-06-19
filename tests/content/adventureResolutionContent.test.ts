@@ -98,6 +98,13 @@ describe("adventure resolution content", () => {
         expect(method.hint, `${problemId}:${method.id}`).not.toMatch(
           /Расовий спосіб|Класова техніка|race\+class|signature/u
         );
+        const outcomeBody = Object.values(method.outcomeText)
+          .flatMap((outcome) => outcome.body)
+          .join("\n");
+        expect(outcomeBody, `${problemId}:${method.id}`).not.toMatch(
+          /Підпис методу|Расовий спосіб|Класова техніка|race\+class/u
+        );
+        expect(outcomeBody, `${problemId}:${method.id}`).not.toMatch(/:\s*[^:\n]+:/u);
       }
 
       for (const method of profileMethods.filter((candidate) =>

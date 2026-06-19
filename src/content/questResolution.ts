@@ -51,7 +51,6 @@ export type QuestRewardProfile = "modest" | "standard" | "generous";
 export interface QuestMethodOutcomeText {
   headline: string;
   body: readonly string[];
-  biographyLine?: string;
 }
 
 export interface QuestMethodDefinition {
