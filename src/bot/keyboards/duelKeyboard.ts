@@ -92,10 +92,19 @@ export function buildTurnBasedDuelKeyboard(
 ): InlineKeyboard {
   const token = result.challenge.inviteToken;
   const session = result.session;
-  const isActor = viewerCharacterId === session.actingCharacterId && session.status === "active";
+  const viewerSide =
+    viewerCharacterId === session.state.participants.challenger.characterId
+      ? "challenger"
+      : viewerCharacterId === session.state.participants.target.characterId
+        ? "target"
+        : null;
+  const canAct =
+    viewerSide !== null &&
+    session.status === "active" &&
+    !session.state.pendingActions?.[viewerSide];
   const keyboard = new InlineKeyboard();
 
-  if (isActor) {
+  if (canAct) {
     keyboard
       .text("⚔️ Атакувати", makeDuelTurnCallbackData(token, "attack", session.turn, session.version))
       .row()

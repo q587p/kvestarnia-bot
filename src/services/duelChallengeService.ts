@@ -14,6 +14,7 @@ import { summarizeCharacter, type CharacterSummary } from "../domain/characters/
 import { resolveQuickDuel } from "../domain/duels/duelResolver";
 import {
   resolveTurnBasedDuelAction,
+  resolveTurnBasedDuelTimeout,
   startTurnBasedDuel,
   TURN_BASED_DUEL_RULES_VERSION,
   TURN_BASED_DUEL_TURN_SECONDS,
@@ -168,6 +169,7 @@ export type TurnBasedDuelTurnResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | { state: "not-participant"; session: DuelCombatSessionRecord }
+  | { state: "already-acted"; session: DuelCombatSessionRecord }
   | { state: "wrong-turn"; session: DuelCombatSessionRecord }
   | { state: "stale"; session: DuelCombatSessionRecord }
   | { state: "updated"; session: DuelCombatSessionRecord };
@@ -604,7 +606,11 @@ export class DuelChallengeService {
 
     if (!resolved.ok) {
       return {
-        state: resolved.reason === "wrong-actor" ? "wrong-turn" : "not-participant",
+        state: resolved.reason === "already-acted"
+          ? "already-acted"
+          : resolved.reason === "not-participant"
+            ? "not-participant"
+            : "wrong-turn",
         session
       };
     }
@@ -616,14 +622,20 @@ export class DuelChallengeService {
       {
         state: resolved.state,
         status: resolved.state.status,
-        turnExpiresAt: resolved.state.status === "active" ? getNextTurnExpiry(this.clock()) : session.turnExpiresAt,
+        turnExpiresAt: resolved.resolution === "resolved" && resolved.state.status === "active"
+          ? getNextTurnExpiry(this.clock())
+          : session.turnExpiresAt,
         result: buildStoredTurnBasedResult(resolved.state),
-        action: {
-          actorCharacterId: character.id,
-          turn: input.expectedTurn,
-          actionKey: input.action,
-          result: resolved.summary
-        }
+        ...(resolved.resolution === "resolved"
+          ? {
+              action: {
+                actorCharacterId: character.id,
+                turn: input.expectedTurn,
+                actionKey: input.action === "surrender" ? input.action : "round",
+                result: resolved.round
+              }
+            }
+          : {})
       }
     );
 
@@ -631,24 +643,16 @@ export class DuelChallengeService {
   }
 
   async resolveDueTurnBasedSession(session: DuelCombatSessionRecord): Promise<TurnBasedDuelTurnResult> {
-    const resolved = resolveTurnBasedDuelAction({
+    const resolved = resolveTurnBasedDuelTimeout({
       state: session.state,
-      actorCharacterId: session.actingCharacterId,
-      action: "attack",
       rng: this.rng
     });
 
-    if (!resolved.ok) {
+    if (!resolved.ok || resolved.resolution !== "resolved") {
       return { state: "stale", session };
     }
 
-    const state = {
-      ...resolved.state,
-      lastAction: {
-        ...resolved.summary,
-        action: "timeout-attack" as const
-      }
-    };
+    const state = resolved.state;
     const updated = await this.challenges.updateTurnBasedIfActiveVersion(
       session.id,
       session.turn,
@@ -662,7 +666,7 @@ export class DuelChallengeService {
           actorCharacterId: session.actingCharacterId,
           turn: session.turn,
           actionKey: "timeout-attack",
-          result: state.lastAction
+          result: resolved.round
         }
       }
     );

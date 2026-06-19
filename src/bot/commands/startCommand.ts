@@ -69,20 +69,22 @@ export function registerStartCommand(
       }
 
       if (result.state === "active") {
-        const actor = result.session.state.actingCharacterId === result.session.state.participants.challenger.characterId
-          ? result.session.state.participants.challenger
-          : result.session.state.participants.target;
-        const skill = getCombatSkillDisplay(getCombatSkillProfile(actor.combatStats.classId).id);
+        const viewerCharacterId =
+          result.challenge.challenger.telegramUserId === player.telegramUserId
+            ? result.session.challengerCharacterId
+            : result.challenge.target?.telegramUserId === player.telegramUserId
+              ? result.session.targetCharacterId
+              : null;
+        const participant = viewerCharacterId === result.session.state.participants.target.characterId
+          ? result.session.state.participants.target
+          : result.session.state.participants.challenger;
+        const skill = getCombatSkillDisplay(getCombatSkillProfile(participant.combatStats.classId).id);
 
-        await ctx.reply(presentTurnBasedDuel(result), {
+        await ctx.reply(presentTurnBasedDuel(result, { viewerCharacterId }), {
           parse_mode: "HTML",
           reply_markup: buildTurnBasedDuelKeyboard(
             result,
-            result.challenge.challenger.telegramUserId === player.telegramUserId
-              ? result.session.challengerCharacterId
-              : result.challenge.target?.telegramUserId === player.telegramUserId
-                ? result.session.targetCharacterId
-                : null,
+            viewerCharacterId,
             `${skill.icon} ${skill.name}`
           )
         });

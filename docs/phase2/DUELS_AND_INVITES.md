@@ -62,8 +62,9 @@
 - `DuelChallenge.mode` is server-authoritative, defaults old rows to `quick`, and deep-link prefixes cannot switch a stored challenge mode;
 - accept syncs both participants' canonical resources, freezes acceptance-time snapshots, stores initiative and creates one active `duel_combat_sessions` row;
 - active leases prevent overlapping persistent solo/training/starter fights and turn-based duels;
-- actions use shared combat-domain actor-vs-defender logic for attack, class skill, mana, cooldown, armor/resist and HP clamping;
-- each turn stores `turnExpiresAt`; due turns can be advanced by an idempotent timeout auto-attack after roughly `23` seconds;
+- participant choices are queued privately in `state_json`; damage, mana spending and visible summaries are resolved only when both participants have chosen or the timeout fills missing choices;
+- resolved rounds use shared combat-domain actor-vs-defender logic for attack, class skill, mana, cooldown, armor/resist and HP clamping;
+- each round stores `turnExpiresAt`; due rounds can be advanced by an idempotent timeout auto-attack after roughly `23` seconds;
 - terminal rows release leases, write one result and keep rematches mode-preserving.
 
 Still future: tournaments, economy rewards, wagers, item loss, nearby target-specific player selection and broad social discovery.
@@ -127,7 +128,7 @@ duel_combat_sessions
 - target_character_id
 - status: active | resolved | expired | forfeited
 - acting_character_id
-- state_json
+- state_json, including frozen participants, pending private choices, last resolved round and outcome
 - turn
 - version
 - turn_expires_at
@@ -156,7 +157,7 @@ active_combat_leases
 - expires_at nullable
 ```
 
-Turn-based duels reuse the same combat turn timeout model planned for ordinary monster fights and `/spar`: each active turn gets roughly `23` seconds, then a durable poller or lazy lookup applies an idempotent basic attack for the silent actor, edits/sends cards best-effort and advances or closes the fight. Notification failure must not roll back already committed gameplay.
+Turn-based duels reuse the same combat turn timeout model planned for ordinary monster fights and `/spar`: each active round gets roughly `23` seconds, then a durable poller or lazy lookup applies idempotent basic attacks for missing choices, edits/sends cards best-effort and advances or closes the fight. Notification failure must not roll back already committed gameplay.
 
 Nearby-targeted invites are the next social UX step after open share links: a location presence list can offer `Кинути виклик`, let the challenger pick a visible nearby player, send that player an opt-in notification and only move both characters to `location.korchma.fighting_corner` after the target accepts and combat/raid guards pass. Open invite links remain useful for приватні й групові чати.
 

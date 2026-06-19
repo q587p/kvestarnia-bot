@@ -51,6 +51,16 @@ export interface TurnBasedDuelActionSummary {
   skillId?: string;
 }
 
+export interface TurnBasedDuelQueuedAction {
+  actorCharacterId: string;
+  action: Exclude<TurnBasedDuelAction, "surrender">;
+}
+
+export interface TurnBasedDuelRoundSummary {
+  turn: number;
+  actions: TurnBasedDuelActionSummary[];
+}
+
 export interface TurnBasedDuelOutcome {
   outcome: DuelOutcomeSide;
   winnerCharacterId: string | null;
@@ -69,6 +79,8 @@ export interface TurnBasedDuelState {
     challenger: TurnBasedDuelParticipantSnapshot;
     target: TurnBasedDuelParticipantSnapshot;
   };
+  pendingActions?: Partial<Record<"challenger" | "target", TurnBasedDuelQueuedAction>>;
+  lastRound?: TurnBasedDuelRoundSummary;
   lastAction?: TurnBasedDuelActionSummary;
   outcome?: TurnBasedDuelOutcome;
 }
@@ -110,8 +122,9 @@ export function startTurnBasedDuel(input: StartTurnBasedDuelInput): TurnBasedDue
 }
 
 export type ResolveTurnBasedDuelActionResult =
-  | { ok: true; state: TurnBasedDuelState; summary: TurnBasedDuelActionSummary }
-  | { ok: false; reason: "inactive" | "wrong-actor" | "not-participant"; state: TurnBasedDuelState };
+  | { ok: true; resolution: "queued"; state: TurnBasedDuelState; queuedAction: TurnBasedDuelQueuedAction }
+  | { ok: true; resolution: "resolved"; state: TurnBasedDuelState; round: TurnBasedDuelRoundSummary }
+  | { ok: false; reason: "inactive" | "already-acted" | "not-participant"; state: TurnBasedDuelState };
 
 export function resolveTurnBasedDuelAction(input: {
   state: TurnBasedDuelState;
@@ -129,21 +142,17 @@ export function resolveTurnBasedDuelAction(input: {
     return { ok: false, reason: "not-participant", state };
   }
 
-  if (state.actingCharacterId !== input.actorCharacterId) {
-    return { ok: false, reason: "wrong-actor", state };
-  }
-
   const actorSide = findParticipantSide(state, input.actorCharacterId);
-  const defenderSide = actorSide === "challenger" ? "target" : "challenger";
 
   if (!actorSide) {
     return { ok: false, reason: "not-participant", state };
   }
 
   const actor = state.participants[actorSide];
-  const defender = state.participants[defenderSide];
 
   if (input.action === "surrender") {
+    const defenderSide = actorSide === "challenger" ? "target" : "challenger";
+    const defender = state.participants[defenderSide];
     const summary = {
       actorCharacterId: actor.characterId,
       defenderCharacterId: defender.characterId,
@@ -156,9 +165,144 @@ export function resolveTurnBasedDuelAction(input: {
     state.status = "forfeited";
     state.outcome = buildOutcome(state, defender.characterId, "surrender");
     state.lastAction = summary;
-    return { ok: true, state, summary };
+    state.lastRound = { turn: state.turn, actions: [summary] };
+    return { ok: true, resolution: "resolved", state, round: state.lastRound };
   }
 
+  if (state.pendingActions?.[actorSide]) {
+    return { ok: false, reason: "already-acted", state };
+  }
+
+  const queuedAction = {
+    actorCharacterId: actor.characterId,
+    action: input.action
+  };
+  state.pendingActions = {
+    ...state.pendingActions,
+    [actorSide]: queuedAction
+  };
+
+  if (!state.pendingActions.challenger || !state.pendingActions.target) {
+    return { ok: true, resolution: "queued", state, queuedAction };
+  }
+
+  return resolveQueuedRound(state, input.rng);
+}
+
+export function resolveTurnBasedDuelTimeout(input: {
+  state: TurnBasedDuelState;
+  rng: RandomSource;
+}): ResolveTurnBasedDuelActionResult {
+  const state = cloneTurnBasedDuelState(input.state);
+
+  if (state.status !== "active") {
+    return { ok: false, reason: "inactive", state };
+  }
+
+  state.pendingActions = {
+    ...state.pendingActions,
+    ...(state.pendingActions?.challenger
+      ? {}
+      : {
+          challenger: {
+            actorCharacterId: state.participants.challenger.characterId,
+            action: "attack" as const
+          }
+        }),
+    ...(state.pendingActions?.target
+      ? {}
+      : {
+          target: {
+            actorCharacterId: state.participants.target.characterId,
+            action: "attack" as const
+          }
+        })
+  };
+
+  return resolveQueuedRound(state, input.rng, {
+    timeoutCharacterIds: [
+      ...(input.state.pendingActions?.challenger ? [] : [state.participants.challenger.characterId]),
+      ...(input.state.pendingActions?.target ? [] : [state.participants.target.characterId])
+    ]
+  });
+}
+
+function resolveQueuedRound(
+  state: TurnBasedDuelState,
+  rng: RandomSource,
+  options: { timeoutCharacterIds?: string[] } = {}
+): Extract<ResolveTurnBasedDuelActionResult, { ok: true; resolution: "resolved" }> {
+  const pending = state.pendingActions;
+  delete state.pendingActions;
+
+  const firstSide = findParticipantSide(state, state.actingCharacterId) ?? "challenger";
+  const secondSide = firstSide === "challenger" ? "target" : "challenger";
+  const actions: TurnBasedDuelActionSummary[] = [];
+
+  for (const side of [firstSide, secondSide] as const) {
+    if (state.status !== "active") {
+      break;
+    }
+
+    const queued = pending?.[side];
+    if (!queued) {
+      continue;
+    }
+
+    actions.push(resolveQueuedCombatAction(state, side, queued.action, rng, {
+      timeout: options.timeoutCharacterIds?.includes(queued.actorCharacterId) ?? false
+    }));
+  }
+
+  const round = {
+    turn: state.turn,
+    actions
+  };
+  state.lastRound = round;
+  const lastAction = actions.at(-1);
+  if (lastAction) {
+    state.lastAction = lastAction;
+  } else {
+    delete state.lastAction;
+  }
+
+  if (state.status === "active" && state.turn >= TURN_BASED_DUEL_MAX_TURNS) {
+    state.status = "resolved";
+    state.outcome = {
+      outcome: "draw",
+      winnerCharacterId: null,
+      loserCharacterId: null,
+      reason: "max-turns"
+    };
+    const last = state.lastAction;
+    if (last) {
+      state.lastAction = { ...last, outcome: "draw" };
+      state.lastRound = {
+        turn: round.turn,
+        actions: [...round.actions.slice(0, -1), state.lastAction]
+      };
+    }
+    return { ok: true, resolution: "resolved", state, round: state.lastRound };
+  }
+
+  if (state.status === "active") {
+    state.turn += 1;
+    state.actingCharacterId = getOtherCharacterId(state, state.actingCharacterId);
+  }
+
+  return { ok: true, resolution: "resolved", state, round: state.lastRound };
+}
+
+function resolveQueuedCombatAction(
+  state: TurnBasedDuelState,
+  actorSide: "challenger" | "target",
+  action: Exclude<TurnBasedDuelAction, "surrender">,
+  rng: RandomSource,
+  options: { timeout: boolean }
+): TurnBasedDuelActionSummary {
+  const defenderSide = actorSide === "challenger" ? "target" : "challenger";
+  const actor = state.participants[actorSide];
+  const defender = state.participants[defenderSide];
   const resolved = resolveActorCombatAction({
     actorState: {
       hp: actor.hp,
@@ -176,8 +320,8 @@ export function resolveTurnBasedDuelAction(input: {
     },
     actorStats: actor.combatStats,
     defenderStats: buildDefenderStats(defender),
-    action: input.action,
-    rng: input.rng
+    action,
+    rng
   });
 
   actor.hp = resolved.actorState.hp;
@@ -190,37 +334,20 @@ export function resolveTurnBasedDuelAction(input: {
   const summary = {
     actorCharacterId: actor.characterId,
     defenderCharacterId: defender.characterId,
-    action: input.action,
+    action: options.timeout ? "timeout-attack" as const : action,
     outcome: resolved.summary.actorOutcome,
     damage: resolved.summary.actorDamage,
     manaSpent: resolved.summary.manaSpent,
     critical: resolved.summary.critical,
     ...(resolved.summary.skillId ? { skillId: resolved.summary.skillId } : {})
   };
-  state.lastAction = summary;
 
   if (defender.hp <= 0) {
     state.status = "resolved";
     state.outcome = buildOutcome(state, actor.characterId, "defeat");
-    return { ok: true, state, summary };
   }
 
-  if (state.turn >= TURN_BASED_DUEL_MAX_TURNS) {
-    state.status = "resolved";
-    state.outcome = {
-      outcome: "draw",
-      winnerCharacterId: null,
-      loserCharacterId: null,
-      reason: "max-turns"
-    };
-    state.lastAction = { ...summary, outcome: "draw" };
-    return { ok: true, state, summary: state.lastAction };
-  }
-
-  state.turn += 1;
-  state.actingCharacterId = defender.characterId;
-
-  return { ok: true, state, summary };
+  return summary;
 }
 
 export function expireTurnBasedDuel(state: TurnBasedDuelState): TurnBasedDuelState {
@@ -353,8 +480,34 @@ function cloneTurnBasedDuelState(state: TurnBasedDuelState): TurnBasedDuelState 
       target: cloneParticipant(state.participants.target)
     },
     ...(state.lastAction ? { lastAction: { ...state.lastAction } } : {}),
+    ...(state.lastRound
+      ? {
+          lastRound: {
+            turn: state.lastRound.turn,
+            actions: state.lastRound.actions.map((action) => ({ ...action }))
+          }
+        }
+      : {}),
+    ...(state.pendingActions
+      ? {
+          pendingActions: {
+            ...(state.pendingActions.challenger
+              ? { challenger: { ...state.pendingActions.challenger } }
+              : {}),
+            ...(state.pendingActions.target
+              ? { target: { ...state.pendingActions.target } }
+              : {})
+          }
+        }
+      : {}),
     ...(state.outcome ? { outcome: { ...state.outcome } } : {})
   };
+}
+
+function getOtherCharacterId(state: TurnBasedDuelState, characterId: string): string {
+  return characterId === state.participants.challenger.characterId
+    ? state.participants.target.characterId
+    : state.participants.challenger.characterId;
 }
 
 function cloneParticipant(

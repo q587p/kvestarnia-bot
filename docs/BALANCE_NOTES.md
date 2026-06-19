@@ -350,8 +350,9 @@ Balance rules:
 - race, class, title, path, current build, equipped manatky and equipment effects remain personal;
 - temporary progression normalization may raise session maxima while preserving the accepted HP/mana ratios;
 - duel HP/mana inside `duel_combat_sessions.state_json` are ephemeral and must not damage, heal or refill persistent character resources;
+- participant choices are hidden until both players choose or the timer fills missing choices, so HP/mana spending is applied at round reveal rather than at the first button press;
 - the turn-based resolver uses the same `resolveActorCombatAction(...)` primitive as PvE, so basic attack, class skill, mana cost, cooldown, armor/resist, weapon/spell/stat effects and HP clamping do not fork into a duel-only formula set;
-- timeout auto-actions are ordinary basic attacks by the silent actor, not a separate penalty damage table;
+- timeout auto-actions are ordinary basic attacks for missing choices, not a separate penalty damage table;
 - max-turn safety resolves as a deterministic draw instead of creating an infinite session.
 
 Player-facing copy may say that the Корчмар keeps the fight moving, but must not print hidden hit/critical/cooldown formulas or exact chances.

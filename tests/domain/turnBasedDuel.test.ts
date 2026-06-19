@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   resolveTurnBasedDuelAction,
+  resolveTurnBasedDuelTimeout,
   startTurnBasedDuel,
   TURN_BASED_DUEL_MAX_TURNS
 } from "../../src/domain/duels/turnBasedDuel";
@@ -23,37 +24,58 @@ describe("turn-based duel domain", () => {
     expect(state.balanceVersion).toBe("instant-duel-v2");
   });
 
-  it("allows only the current participant to advance a turn", () => {
+  it("queues each participant choice and resolves only after both have acted", () => {
     const state = startTurnBasedDuel({
       challenger: makeDuelist({ id: "challenger" }),
       target: makeDuelist({ id: "target" }),
       rng: new FakeRandomSource([0.99, 0])
     });
-    const wrongActor = state.actingCharacterId === "challenger" ? "target" : "challenger";
+    const otherActor = state.actingCharacterId === "challenger" ? "target" : "challenger";
+    const initialChallengerHp = state.participants.challenger.hp;
+    const initialTargetHp = state.participants.target.hp;
 
-    expect(
-      resolveTurnBasedDuelAction({
-        state,
-        actorCharacterId: wrongActor,
-        action: "attack",
-        rng: new FakeRandomSource([0.1, 0.9])
-      })
-    ).toMatchObject({ ok: false, reason: "wrong-actor", state });
-
-    const resolved = resolveTurnBasedDuelAction({
+    const queued = resolveTurnBasedDuelAction({
       state,
-      actorCharacterId: state.actingCharacterId,
+      actorCharacterId: otherActor,
       action: "attack",
       rng: new FakeRandomSource([0.1, 0.9])
     });
 
-    expect(resolved.ok).toBe(true);
-    if (resolved.ok) {
-      expect(resolved.state.turn).toBe(2);
-      expect(resolved.state.actingCharacterId).toBe(wrongActor);
-      expect(resolved.summary.actorCharacterId).toBe(state.actingCharacterId);
-      expect(resolved.summary.action).toBe("attack");
+    expect(queued.ok).toBe(true);
+    if (!queued.ok) {
+      throw new Error("Expected queued action.");
     }
+    expect(queued.resolution).toBe("queued");
+    expect(queued.state.turn).toBe(1);
+    expect(queued.state.participants.challenger.hp).toBe(initialChallengerHp);
+    expect(queued.state.participants.target.hp).toBe(initialTargetHp);
+
+    expect(
+      resolveTurnBasedDuelAction({
+        state: queued.state,
+        actorCharacterId: otherActor,
+        action: "skill",
+        rng: new FakeRandomSource([0.1, 0.9])
+      })
+    ).toMatchObject({ ok: false, reason: "already-acted" });
+
+    const resolved = resolveTurnBasedDuelAction({
+      state: queued.state,
+      actorCharacterId: state.actingCharacterId,
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    });
+
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      throw new Error("Expected resolved round.");
+    }
+    expect(resolved.state.turn).toBe(2);
+    expect(resolved.state.pendingActions).toBeUndefined();
+    expect(resolved.round.actions.map((action) => action.actorCharacterId)).toEqual([
+      state.actingCharacterId,
+      otherActor
+    ]);
   });
 
   it("resolves surrender without rolling combat", () => {
@@ -72,19 +94,20 @@ describe("turn-based duel domain", () => {
     });
 
     expect(resolved.ok).toBe(true);
-    if (resolved.ok) {
-      expect(resolved.state.status).toBe("forfeited");
-      expect(resolved.state.outcome).toMatchObject({
-        winnerCharacterId: winner,
-        loserCharacterId: state.actingCharacterId,
-        reason: "surrender"
-      });
-      expect(resolved.summary).toMatchObject({
-        action: "surrender",
-        damage: 0,
-        manaSpent: 0
-      });
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      throw new Error("Expected resolved surrender.");
     }
+    expect(resolved.state.status).toBe("forfeited");
+    expect(resolved.state.outcome).toMatchObject({
+      winnerCharacterId: winner,
+      loserCharacterId: state.actingCharacterId,
+      reason: "surrender"
+    });
+    expect(resolved.round.actions[0]).toMatchObject({
+      action: "surrender",
+      damage: 0,
+      manaSpent: 0
+    });
   });
 
   it("produces a deterministic draw at the maximum turn safety limit", () => {
@@ -95,24 +118,64 @@ describe("turn-based duel domain", () => {
     });
     state.turn = TURN_BASED_DUEL_MAX_TURNS;
 
-    const resolved = resolveTurnBasedDuelAction({
+    const queued = resolveTurnBasedDuelAction({
       state,
       actorCharacterId: state.actingCharacterId,
       action: "attack",
       rng: new FakeRandomSource([0.99])
     });
+    if (!queued.ok) {
+      throw new Error("Expected queued action.");
+    }
+    const resolved = resolveTurnBasedDuelAction({
+      state: queued.state,
+      actorCharacterId: state.actingCharacterId === "challenger" ? "target" : "challenger",
+      action: "attack",
+      rng: new FakeRandomSource([0.99, 0.99])
+    });
 
     expect(resolved.ok).toBe(true);
-    if (resolved.ok) {
-      expect(resolved.state.status).toBe("resolved");
-      expect(resolved.state.outcome).toEqual({
-        outcome: "draw",
-        winnerCharacterId: null,
-        loserCharacterId: null,
-        reason: "max-turns"
-      });
-      expect(resolved.summary.outcome).toBe("draw");
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      throw new Error("Expected resolved round.");
     }
+    expect(resolved.state.status).toBe("resolved");
+    expect(resolved.state.outcome).toEqual({
+      outcome: "draw",
+      winnerCharacterId: null,
+      loserCharacterId: null,
+      reason: "max-turns"
+    });
+    expect(resolved.round.actions.at(-1)?.outcome).toBe("draw");
+  });
+
+  it("resolves missing choices as timeout attacks", () => {
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({ id: "challenger" }),
+      target: makeDuelist({ id: "target" }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    const queued = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: state.actingCharacterId,
+      action: "skill",
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(queued.ok && queued.resolution).toBe("queued");
+    if (!queued.ok) {
+      throw new Error("Expected queued action.");
+    }
+
+    const resolved = resolveTurnBasedDuelTimeout({
+      state: queued.state,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    });
+
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      throw new Error("Expected timeout round.");
+    }
+    expect(resolved.round.actions.map((action) => action.action)).toContain("timeout-attack");
   });
 });
 

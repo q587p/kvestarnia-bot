@@ -141,7 +141,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("⚡ Миттєва дуель");
     expect(text).toContain("результат одразу після згоди.");
     expect(text).toContain("♟️ Покрокова дуель");
-    expect(text).toContain("гравці по черзі обирають дії.");
+    expect(text).toContain("гравці таємно обирають дії за раунд.");
     expect(text).toContain("глянути переможців");
   });
 

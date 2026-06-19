@@ -573,7 +573,13 @@ describe("main menu and scene keyboards", () => {
           actingCharacterId: "character-2",
           status: "resolved",
           turn: 6,
-          version: 9
+          version: 9,
+          state: {
+            participants: {
+              challenger: { characterId: "character-1" },
+              target: { characterId: "character-2" }
+            }
+          }
         }
       } as never,
       "character-1",
@@ -584,6 +590,41 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
       "v1:duel:view:abcDEF12",
       "v1:place:fighting-corner"
+    ]);
+  });
+
+  it("hides turn actions after the viewer already queued a duel choice", () => {
+    const result = {
+      challenge: { inviteToken: "abcDEF12" },
+      session: {
+        status: "active",
+        turn: 2,
+        version: 4,
+        state: {
+          pendingActions: {
+            challenger: {
+              actorCharacterId: "character-1",
+              action: "attack"
+            }
+          },
+          participants: {
+            challenger: { characterId: "character-1" },
+            target: { characterId: "character-2" }
+          }
+        }
+      }
+    } as never;
+
+    expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-1", "💪 Силовий удар"))).toEqual([
+      "🔎 Оновити",
+      "🥊 До кутка"
+    ]);
+    expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-2", "💪 Силовий удар"))).toEqual([
+      "⚔️ Атакувати",
+      "💪 Силовий удар",
+      "🏳️ Здатися",
+      "🔎 Оновити",
+      "🥊 До кутка"
     ]);
   });
 

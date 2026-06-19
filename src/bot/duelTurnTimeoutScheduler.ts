@@ -76,15 +76,9 @@ async function notifyParticipants(
     return;
   }
 
-  const actor = view.session.state.actingCharacterId === view.session.state.participants.challenger.characterId
-    ? view.session.state.participants.challenger
-    : view.session.state.participants.target;
-  const skill = getCombatSkillDisplay(getCombatSkillProfile(actor.combatStats.classId).id);
-  const text = presentTurnBasedDuel(view);
-
   await Promise.all([
-    notifyParticipant(service, bot, view, "challenger", `${skill.icon} ${skill.name}`, text),
-    notifyParticipant(service, bot, view, "target", `${skill.icon} ${skill.name}`, text)
+    notifyParticipant(service, bot, view, "challenger"),
+    notifyParticipant(service, bot, view, "target")
   ]);
 }
 
@@ -92,9 +86,7 @@ async function notifyParticipant(
   service: DuelChallengeService,
   bot: Bot,
   view: Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>,
-  participant: "challenger" | "target",
-  skillLabel: string,
-  text: string
+  participant: "challenger" | "target"
 ): Promise<void> {
   const chatId = participant === "challenger"
     ? view.session.challengerChatId ?? view.challenge.challenger.telegramUserId
@@ -105,6 +97,12 @@ async function notifyParticipant(
   const characterId = participant === "challenger"
     ? view.session.challengerCharacterId
     : view.session.targetCharacterId;
+  const duelParticipant = characterId === view.session.state.participants.target.characterId
+    ? view.session.state.participants.target
+    : view.session.state.participants.challenger;
+  const skill = getCombatSkillDisplay(getCombatSkillProfile(duelParticipant.combatStats.classId).id);
+  const skillLabel = `${skill.icon} ${skill.name}`;
+  const text = presentTurnBasedDuel(view, { viewerCharacterId: characterId });
 
   if (!chatId) {
     return;

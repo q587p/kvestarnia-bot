@@ -295,6 +295,8 @@ export async function handleDuelCallback(
         ? { text: "Зараз не ваш хід." }
         : result.state === "stale"
           ? { text: "Цей хід уже змінився. Показую актуальний запис." }
+          : result.state === "already-acted"
+            ? { text: "Ваш вибір уже записано. Чекаємо другого учасника або таймер." }
           : undefined
     );
 
@@ -519,12 +521,10 @@ async function sendTurnBasedDuelCard(
   service: DuelChallengeService
 ): Promise<void> {
   const viewerCharacterId = getViewerCharacterId(ctx, result);
-  const actor = result.session.state.actingCharacterId === result.session.state.participants.challenger.characterId
-    ? result.session.state.participants.challenger
-    : result.session.state.participants.target;
-  const skillProfile = getCombatSkillProfile(actor.combatStats.classId);
+  const skillParticipant = getParticipantForSkill(result, viewerCharacterId);
+  const skillProfile = getCombatSkillProfile(skillParticipant.combatStats.classId);
   const skill = getCombatSkillDisplay(skillProfile.id);
-  const text = presentTurnBasedDuel(result);
+  const text = presentTurnBasedDuel(result, { viewerCharacterId });
   const options = {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildTurnBasedDuelKeyboard(result, viewerCharacterId, `${skill.icon} ${skill.name}`)
@@ -573,15 +573,16 @@ async function notifyOtherTurnBasedParticipant(
   }
 
   try {
-    const text = presentTurnBasedDuel(result);
-    const actor = result.session.state.actingCharacterId === result.session.state.participants.challenger.characterId
-      ? result.session.state.participants.challenger
-      : result.session.state.participants.target;
-    const skillProfile = getCombatSkillProfile(actor.combatStats.classId);
+    const otherCharacterId = other.participant === "challenger"
+      ? result.session.challengerCharacterId
+      : result.session.targetCharacterId;
+    const text = presentTurnBasedDuel(result, { viewerCharacterId: otherCharacterId });
+    const participant = getParticipantForSkill(result, otherCharacterId);
+    const skillProfile = getCombatSkillProfile(participant.combatStats.classId);
     const skill = getCombatSkillDisplay(skillProfile.id);
     const keyboard = buildTurnBasedDuelKeyboard(
       result,
-      other.participant === "challenger" ? result.session.challengerCharacterId : result.session.targetCharacterId,
+      otherCharacterId,
       `${skill.icon} ${skill.name}`
     );
 
@@ -625,6 +626,17 @@ function getViewerCharacterId(
   }
 
   return null;
+}
+
+function getParticipantForSkill(
+  result: Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>,
+  viewerCharacterId: string | null
+): Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>["session"]["state"]["participants"]["challenger"] {
+  if (viewerCharacterId === result.session.state.participants.target.characterId) {
+    return result.session.state.participants.target;
+  }
+
+  return result.session.state.participants.challenger;
 }
 
 function buildInviteUrl(botUsername: string | undefined, token: string, mode: "quick" | "turn-based" = "quick"): string | null {

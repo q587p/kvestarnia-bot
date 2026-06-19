@@ -147,7 +147,7 @@ export interface UpdateTurnBasedDuelSessionInput {
   action?: {
     actorCharacterId: string;
     turn: number;
-    actionKey: TurnBasedDuelAction | "timeout-attack";
+    actionKey: TurnBasedDuelAction | "timeout-attack" | "round";
     result: unknown;
   };
 }

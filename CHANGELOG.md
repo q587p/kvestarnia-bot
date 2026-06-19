@@ -14,11 +14,12 @@ This project follows a simple pre-1.0 versioning policy:
 - Added persistent turn-based duel state with `duel_combat_sessions`, action audit rows, optimistic turn versioning, stored initiative, frozen participant snapshots, rules/balance versions and terminal replay data.
 - Added active combat leases so a character cannot start or accept a persistent turn-based duel while already in a persistent/training/starter fight or another active duel.
 - Added durable 23-second turn deadlines through persisted `turnExpiresAt`, startup polling and idempotent timeout auto-attacks.
-- Added recoverable two-player battle cards, actor-only action keyboards, waiting-player refresh controls, surrender and mode-preserving rematches.
+- Added recoverable two-player battle cards, per-participant action keyboards, hidden queued choices, surrender and mode-preserving rematches.
 
 ### Changed
 - `DuelChallenge.mode` is now stored server-side with a default of `quick`; legacy `duel_<token>` links remain quick and crafted prefixes cannot switch an existing challenge mode.
 - PvE and PvP turn resolution now share a pure `resolveActorCombatAction` primitive for basic attacks, class skills, mana, cooldowns, armor/resist/equipment effects, HP clamping and summaries.
+- Turn-based duel rounds now store a participant's chosen action without revealing damage or spending session HP/mana until both players have chosen or the durable timer resolves missing choices as ordinary attacks.
 - The central combat lock now treats active turn-based duels as active combat and redirects normal navigation back to the canonical duel card.
 - Quick duel behavior remains instant, rewardless and replay-safe, while old quick result JSON still renders as `⚡ Миттєва дуель`.
 - Tuned `Низ` passage rewards: the right/easy route now rounds XP/gold down and pays less than the center route, while the left/hard route now uses `character level + 5` and pays above center.

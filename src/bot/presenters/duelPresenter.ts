@@ -26,7 +26,7 @@ export function presentDuelEntry(): string {
     "Результат одразу після згоди.",
     "",
     "♟️ <b>Покрокова дуель</b>",
-    "Гравці по черзі обирають дії.",
+    "Гравці таємно обирають дії за раунд.",
     "",
     DUEL_INVITE_FAIRNESS_LINE,
     "",
@@ -119,7 +119,7 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
       "",
       `${presentDuelFlavorName(result.challenger)} виходить проти вас у безпечному корчемному порядку.`,
       result.challenge.mode === "turn-based"
-        ? "Після згоди почнеться бій із ходами по черзі."
+        ? "Після згоди почнеться бій із закритими виборами за раунд."
         : "Результат з’явиться одразу після згоди.",
       DUEL_INVITE_FAIRNESS_LINE,
       "",
@@ -137,7 +137,7 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
       "",
       "Виклик готовий, але ваш пригодник не зовсім відпочив.",
       result.challenge.mode === "turn-based"
-        ? "Після згоди почнеться покроковий бій."
+        ? "Після згоди почнеться бій із закритими виборами за раунд."
         : "Результат з’явиться одразу після згоди.",
       "",
       presentResourceWarning(result.warning),
@@ -292,7 +292,7 @@ function presentPendingDuel(
     "Виклик уже на столі. Погляд такий, ніби це стратегія.",
     "",
     result.challenge.mode === "turn-based"
-      ? "Гравці по черзі обирають дії."
+      ? "Гравці таємно обирають дії за раунд."
       : "Результат з’явиться одразу після згоди.",
     DUEL_INVITE_FAIRNESS_LINE,
     "",
@@ -329,15 +329,27 @@ export function presentDuelInviteShare(
   });
 }
 
-export function presentTurnBasedDuel(result: Extract<DuelChallengeView, { state: "active" }>): string {
+export function presentTurnBasedDuel(
+  result: Extract<DuelChallengeView, { state: "active" }>,
+  options: { viewerCharacterId?: string | null } = {}
+): string {
   const state = result.session.state;
   const challenger = state.participants.challenger;
   const target = state.participants.target;
-  const acting = state.actingCharacterId === challenger.characterId ? challenger : target;
+  const viewerSide =
+    options.viewerCharacterId === challenger.characterId
+      ? "challenger"
+      : options.viewerCharacterId === target.characterId
+        ? "target"
+        : null;
+  const viewerPending = viewerSide ? state.pendingActions?.[viewerSide] : null;
   const statusLine =
     result.session.status === "active"
-      ? `Хід: <b>${escapeHtml(acting.displayName)}</b> · ${formatRemaining(result.turnExpiresAt, result.now)}`
+      ? viewerPending
+        ? `Ваш вибір записано · ${formatRemaining(result.turnExpiresAt, result.now)}`
+        : `Оберіть дію · ${formatRemaining(result.turnExpiresAt, result.now)}`
       : "Бій завершено. Запис уже не перекидається.";
+  const actionLine = presentTurnBasedRoundState(state, viewerSide);
 
   return [
     "♟️ <b>Покрокова дуель</b>",
@@ -350,7 +362,7 @@ export function presentTurnBasedDuel(result: Extract<DuelChallengeView, { state:
     `Раунд: <b>${result.session.turn}</b>`,
     statusLine,
     "",
-    state.lastAction ? presentTurnBasedLastAction(state.lastAction) : "⏳ На хід є 23 секунди. Потім Корчмар зарахує звичайну атаку.",
+    actionLine,
     "",
     "<i>Дуель не змінює справжні HP/ману, XP, золото чи манатки.</i>"
   ].join("\n");
@@ -446,6 +458,39 @@ function presentDuelVitals(participant: {
   manaMax: number;
 }): string {
   return `<b>${escapeHtml(participant.displayName)}</b>: HP ${participant.hp}/${participant.hpMax} · мана ${participant.mana}/${participant.manaMax}`;
+}
+
+function presentTurnBasedRoundState(
+  state: Extract<DuelChallengeView, { state: "active" }>["session"]["state"],
+  viewerSide: "challenger" | "target" | null
+): string {
+  const pending = viewerSide ? state.pendingActions?.[viewerSide] : null;
+
+  if (state.status === "active" && pending) {
+    return `Ваш вибір: <b>${presentQueuedDuelAction(pending.action)}</b>.\nРезультат відкриється, коли обидва учасники зроблять хід або спливе таймер.`;
+  }
+
+  if (state.status === "active" && state.pendingActions) {
+    return "⏳ Корчмар тримає записи закритими, доки обидва учасники не зроблять хід.";
+  }
+
+  if (state.lastRound) {
+    return state.lastRound.actions.map(presentTurnBasedLastAction).join("\n");
+  }
+
+  if (state.lastAction) {
+    return presentTurnBasedLastAction(state.lastAction);
+  }
+
+  return "⏳ На хід є 23 секунди. Потім Корчмар зарахує звичайну атаку.";
+}
+
+function presentQueuedDuelAction(action: string): string {
+  return action === "skill"
+    ? "класова дія"
+    : action === "surrender"
+      ? "здатися"
+      : "звичайна атака";
 }
 
 function presentTurnBasedLastAction(action: {
