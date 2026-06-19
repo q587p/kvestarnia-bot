@@ -7,6 +7,18 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.19] - 12026-06-19 - Nyz Passage Balance Polish
+
+### Changed
+- Retuned `Низ` passage difficulty so the right/easy passage now applies a `-5` effective monster level adjustment with safe clamping, while the center passage remains the unchanged baseline.
+- Lowered easy-passage payout pressure: XP, gold and broad loot profile now use the lower effective level, stronger easy multipliers, and downward rounding for easy passage reward fractions.
+- Kept the left/hard passage above the center reward while trimming its XP/drop pressure from the previous heavier bonus; hard still uses a higher effective monster level and enough gold scaling to stay above center at high levels.
+- Preserved stored reward replay semantics: already completed fight rewards continue to replay their stored XP, gold and item grants without recomputing under the new balance.
+
+### Guardrails
+- No XP curve, loot-table, duel, training, nearby invite, combat-lock, monster-rest, schema or migration changes were added.
+- Passage choice copy remains qualitative and does not show exact future rewards before commitment.
+
 ## [0.1.18] - 12026-06-19 - Turn-Based Player Duels
 
 ### Added

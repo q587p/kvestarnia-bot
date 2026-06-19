@@ -796,7 +796,7 @@ describe("FightService", () => {
         baseMonsterLevel: 5,
         difficulty: "easy"
       })
-    ).toBe(3);
+    ).toBe(1);
     expect(
       selectPersistentFightMonsterLevel({
         characterLevel: 6,
@@ -822,9 +822,11 @@ describe("FightService", () => {
 
   it("keeps difficulty reward scaling conservative", () => {
     expect(getPersistentFightDifficultyConfig("easy")).toMatchObject({
-      xpMultiplier: 0.75,
-      goldMultiplier: 0.85,
-      dropChanceMultiplier: 0.65
+      levelDelta: -5,
+      xpMultiplier: 0.6,
+      goldMultiplier: 0.7,
+      dropChanceMultiplier: 0.5,
+      lootPowerOffset: -2
     });
     expect(getPersistentFightDifficultyConfig("normal")).toMatchObject({
       xpMultiplier: 1,
@@ -832,9 +834,11 @@ describe("FightService", () => {
       dropChanceMultiplier: 1
     });
     expect(getPersistentFightDifficultyConfig("hard")).toMatchObject({
-      xpMultiplier: 1.2,
-      goldMultiplier: 1.05,
-      dropChanceMultiplier: 1.35
+      levelDelta: 2,
+      xpMultiplier: 1.1,
+      goldMultiplier: 1.1,
+      dropChanceMultiplier: 1.2,
+      lootPowerOffset: 1
     });
   });
 
@@ -858,12 +862,12 @@ describe("FightService", () => {
     expect(started.state).toBe("persistent-active");
     if (started.state === "persistent-active") {
       expect(started.character.level).toBe(6);
-      expect(started.monster.level).toBe(3);
+      expect(started.monster.level).toBe(1);
       expect(started.session.state?.monster.debugTrace).toMatchObject({
         interventionKind: "help",
         interventionSourceKey: "prypichnyk",
         baseMonsterLevel: started.session.state.monster.debugTrace?.baseMonsterLevel,
-        effectiveMonsterLevel: 3
+        effectiveMonsterLevel: 1
       });
     }
   });
@@ -892,7 +896,7 @@ describe("FightService", () => {
     expect(second.state).toBe("persistent-active");
     if (first.state === "persistent-active" && second.state === "persistent-active") {
       expect(second.session.id).toBe(first.session.id);
-      expect(second.monster.level).toBe(3);
+      expect(second.monster.level).toBe(1);
       expect(second.session.state?.monster.debugTrace?.interventionKind).toBe("help");
     }
     expect(sessions.createCount).toBe(1);
@@ -1257,12 +1261,12 @@ describe("FightService", () => {
               id: "monster.salted-oath-pretzel",
               hp: 1,
               hpMax: 24,
-              level: 3,
+              level: 1,
               debugTrace: {
                 interventionKind: "help",
                 interventionSourceKey: "prypichnyk",
                 baseMonsterLevel: 6,
-                effectiveMonsterLevel: 3
+                effectiveMonsterLevel: 1
               }
             }
           }
@@ -1278,9 +1282,82 @@ describe("FightService", () => {
     expect(result.state).toBe("updated");
     if (result.state === "updated") {
       expect(result.character.level).toBe(6);
-      expect(result.monster.level).toBe(3);
-      expect(result.fightReward?.reward.xp).toBe(7);
+      expect(result.monster.level).toBe(1);
+      expect(result.fightReward?.reward.xp).toBe(3);
     }
+  });
+
+  it("rounds easy passage rewards down while preserving left-center-right ordering", async () => {
+    async function recoverReward(
+      difficulty: "easy" | "normal" | "hard",
+      effectiveMonsterLevel: number
+    ): Promise<{ xp: number; gold: number }> {
+      const characters = new FakeCharacterRepository();
+      characters.add(telegramUserId, { xp: 1300 });
+      const dailyActions = new FakeDailyActionRepository(characters);
+      const sessions = new FakeSoloCombatSessionRepository(characters);
+      const baseSession = makeTerminalSession(
+        "won",
+        `session-rounding-${difficulty}`,
+        `character-${telegramUserId.toString()}`,
+        "monster.salted-oath-pretzel"
+      );
+      const interventionKind =
+        difficulty === "easy" ? "help" : difficulty === "hard" ? "hinder" : "none";
+      const wonSession = sessions.addSession({
+        ...baseSession,
+        state: baseSession.state
+          ? {
+              ...baseSession.state,
+              monster: {
+                ...baseSession.state.monster,
+                level: effectiveMonsterLevel,
+                debugTrace: {
+                  interventionKind,
+                  interventionSourceKey: "prypichnyk",
+                  baseMonsterLevel: 13,
+                  effectiveMonsterLevel
+                }
+              }
+            }
+          : baseSession.state
+      });
+      const service = new FightService(
+        characters,
+        dailyActions,
+        fixedClock,
+        sessions,
+        new FakeRandomSource([0.99])
+      );
+
+      const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
+        sessionId: wonSession.id,
+        turn: wonSession.turn,
+        action: "attack"
+      });
+
+      expect(recovered.state).toBe("terminal");
+      if (recovered.state !== "terminal") {
+        throw new Error("Expected terminal reward recovery.");
+      }
+
+      return {
+        xp: recovered.fightReward?.reward.xp ?? 0,
+        gold: recovered.fightReward?.reward.gold ?? 0
+      };
+    }
+
+    const easy = await recoverReward("easy", 8);
+    const normal = await recoverReward("normal", 13);
+    const hard = await recoverReward("hard", 15);
+
+    expect(easy).toEqual({ xp: 8, gold: 3 });
+    expect(normal).toEqual({ xp: 14, gold: 7 });
+    expect(hard).toEqual({ xp: 15, gold: 8 });
+    expect(easy.xp).toBeLessThan(normal.xp);
+    expect(normal.xp).toBeLessThan(hard.xp);
+    expect(easy.gold).toBeLessThan(normal.gold);
+    expect(normal.gold).toBeLessThan(hard.gold);
   });
 
   it("scales recovered persistent fight rewards by stored difficulty", async () => {
@@ -1411,7 +1488,7 @@ describe("FightService", () => {
 
     expect(recovered.state).toBe("terminal");
     if (recovered.state === "terminal") {
-      expect(recovered.fightReward?.reward.xp).toBe(4);
+      expect(recovered.fightReward?.reward.xp).toBe(3);
     }
   });
 
