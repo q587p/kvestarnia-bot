@@ -29,7 +29,7 @@ import {
   type CombatActorStats,
   type CombatState
 } from "../domain/combat";
-import { rollMonsterLoot } from "../domain/loot";
+import { getItemDropChance, rollMonsterLoot } from "../domain/loot";
 import {
   isWithinActivityMaxLevel,
   STARTER_ACTIVITY_MAX_LEVEL
@@ -353,8 +353,14 @@ export interface PersistentFightDifficultyConfig {
   id: PersistentFightDifficultyId;
   interventionKind: BattleInterventionKind;
   levelDelta: -5 | 0 | 2;
-  xpMultiplier: number;
-  goldMultiplier: number;
+  xpFactorRange?: {
+    min: number;
+    max: number;
+  };
+  monsterLevelRangeOffset?: {
+    min: number;
+    max: number;
+  };
   dropChanceMultiplier: number;
   lootPowerOffset: number;
 }
@@ -364,8 +370,14 @@ export const PERSISTENT_FIGHT_DIFFICULTY_CONFIG = {
     id: "easy",
     interventionKind: "help",
     levelDelta: -5,
-    xpMultiplier: 0.6,
-    goldMultiplier: 0.7,
+    xpFactorRange: {
+      min: 0.5,
+      max: 0.75
+    },
+    monsterLevelRangeOffset: {
+      min: -5,
+      max: -3
+    },
     dropChanceMultiplier: 0.5,
     lootPowerOffset: -2
   },
@@ -373,8 +385,6 @@ export const PERSISTENT_FIGHT_DIFFICULTY_CONFIG = {
     id: "normal",
     interventionKind: "none",
     levelDelta: 0,
-    xpMultiplier: 1,
-    goldMultiplier: 1,
     dropChanceMultiplier: 1,
     lootPowerOffset: 0
   },
@@ -382,12 +392,16 @@ export const PERSISTENT_FIGHT_DIFFICULTY_CONFIG = {
     id: "hard",
     interventionKind: "hinder",
     levelDelta: 2,
-    xpMultiplier: 1.1,
-    goldMultiplier: 1.1,
+    xpFactorRange: {
+      min: 1.25,
+      max: 1.5
+    },
     dropChanceMultiplier: 1.2,
     lootPowerOffset: 1
   }
 } as const satisfies Record<PersistentFightDifficultyId, PersistentFightDifficultyConfig>;
+
+const ZERO_GOLD_ITEM_DROP_CHANCE = 0.93;
 
 export interface PersistentFightStartOptions {
   source?: "normal" | "yeger" | "adventure";
@@ -744,7 +758,7 @@ export class FightService {
       : getPersistentFightDifficultyConfig(options.difficulty);
     const baseMonster = options.target
       ? selectTargetedSoloFightMonster(characterSummary, this.rng, options.target)
-      : selectSoloFightMonster(characterSummary, this.rng);
+      : selectSoloFightMonster(characterSummary, this.rng, difficulty);
     const monster = applyPersistentFightDifficulty(baseMonster, characterSummary, difficulty);
     const sessionId = randomUUID();
     const state = startCombat({
@@ -1633,12 +1647,18 @@ function buildPersistentFightReward(
   );
   const effectiveMonsterLevel = getPersistentFightSessionMonsterLevel(session, monster.level);
   const lootProfileLevel = Math.max(1, effectiveMonsterLevel + difficulty.lootPowerOffset);
+  const gold = buildPersistentFightWinGold(character.level, rng);
   const loot = rollMonsterLoot({
     monsterId: monster.id,
     monsterLoot,
     items,
     luck: character.stats.luck,
-    dropChanceMultiplier: difficulty.dropChanceMultiplier,
+    dropChanceMultiplier: buildGoldSensitiveDropChanceMultiplier({
+      gold,
+      characterLevel: character.level,
+      luck: character.stats.luck,
+      difficulty
+    }),
     rng,
     character: {
       level: lootProfileLevel,
@@ -1653,49 +1673,96 @@ function buildPersistentFightReward(
   return {
     xp: buildPersistentFightWinXp({
       characterLevel: character.level,
+      luck: character.stats.luck,
       baseMonsterLevel,
       effectiveMonsterLevel,
-      difficulty
+      difficulty,
+      rng
     }),
-    gold: buildPersistentFightWinGold(effectiveMonsterLevel, difficulty),
+    gold,
     itemGrants: loot.state === "dropped" ? [{ itemId: loot.item.id, quantity: 1 }] : []
   };
 }
 
 function buildPersistentFightWinXp(input: {
   characterLevel: number;
+  luck: number;
   baseMonsterLevel: number;
   effectiveMonsterLevel: number;
   difficulty: PersistentFightDifficultyConfig;
+  rng: RandomSource;
+}): number {
+  if (input.difficulty.xpFactorRange) {
+    const baseReward = rollLevelFactorReward({
+      level: input.characterLevel,
+      range: input.difficulty.xpFactorRange,
+      luck: input.luck,
+      rng: input.rng
+    });
+
+    if (input.difficulty.id === "easy") {
+      return Math.max(1, Math.floor(baseReward));
+    }
+
+    const baseline = buildBaselinePersistentFightWinXp(input);
+    return Math.max(baseline + 1, Math.ceil(baseReward));
+  }
+
+  return buildBaselinePersistentFightWinXp(input);
+}
+
+function buildBaselinePersistentFightWinXp(input: {
+  characterLevel: number;
+  baseMonsterLevel: number;
+  effectiveMonsterLevel: number;
 }): number {
   const antiFarmGap = input.characterLevel - input.baseMonsterLevel;
 
   if (antiFarmGap > 3) {
-    return roundPersistentFightReward(2 * input.difficulty.xpMultiplier, input.difficulty);
+    return 2;
   }
 
   if (antiFarmGap > 2) {
-    return roundPersistentFightReward(3 * input.difficulty.xpMultiplier, input.difficulty);
+    return 3;
   }
 
-  const baseXp = Math.min(14, Math.max(5, 3 + input.effectiveMonsterLevel * 2));
-
-  return roundPersistentFightReward(baseXp * input.difficulty.xpMultiplier, input.difficulty);
+  return Math.min(14, Math.max(5, 3 + input.effectiveMonsterLevel * 2));
 }
 
 function buildPersistentFightWinGold(
-  monsterLevel: number,
-  difficulty: PersistentFightDifficultyConfig = PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
+  characterLevel: number,
+  rng: RandomSource
 ): number {
-  const baseGold = Math.min(7, Math.max(1, 1 + Math.floor(monsterLevel / 2)));
-
-  return roundPersistentFightReward(baseGold * difficulty.goldMultiplier, difficulty);
+  return rng.nextInt(0, Math.max(0, Math.floor(characterLevel)));
 }
 
-function roundPersistentFightReward(value: number, difficulty: PersistentFightDifficultyConfig): number {
-  const rounded = difficulty.id === "easy" ? Math.floor(value) : Math.round(value);
+function buildGoldSensitiveDropChanceMultiplier(input: {
+  gold: number;
+  characterLevel: number;
+  luck: number;
+  difficulty: PersistentFightDifficultyConfig;
+}): number {
+  const currentBaseChance = getItemDropChance(input.luck);
+  const currentChance = currentBaseChance * input.difficulty.dropChanceMultiplier;
+  const maxGold = Math.max(0, Math.floor(input.characterLevel));
+  const goldRatio = maxGold > 0 ? Math.min(1, Math.max(0, input.gold / maxGold)) : 0;
+  const desiredChance =
+    ZERO_GOLD_ITEM_DROP_CHANCE + (currentChance - ZERO_GOLD_ITEM_DROP_CHANCE) * goldRatio;
 
-  return Math.max(1, rounded);
+  return desiredChance / currentBaseChance;
+}
+
+function rollLevelFactorReward(input: {
+  level: number;
+  range: { min: number; max: number };
+  luck: number;
+  rng: RandomSource;
+}): number {
+  const luckBias = Math.min(0.23, Math.max(0, Math.floor(input.luck)) * 0.015);
+  const roll = Math.min(0.999_999, input.rng.nextFloat() + luckBias);
+  const factor = input.range.min + (input.range.max - input.range.min) * roll;
+
+  return input.level * factor;
 }
 
 function getLootExpansionSourceForMonster(monster: MonsterContent): LootExpansionSourceId {
@@ -1855,6 +1922,15 @@ export function selectPersistentFightMonsterLevel(input: {
     return Math.max(1, Math.floor(input.baseMonsterLevel));
   }
 
+  if (difficulty.monsterLevelRangeOffset) {
+    const minLevel = Math.max(1, input.characterLevel + difficulty.monsterLevelRangeOffset.min);
+    const maxLevel = Math.max(minLevel, input.characterLevel + difficulty.monsterLevelRangeOffset.max);
+
+    if (input.baseMonsterLevel >= minLevel && input.baseMonsterLevel <= maxLevel) {
+      return Math.max(1, Math.floor(input.baseMonsterLevel));
+    }
+  }
+
   return Math.max(1, Math.floor(input.characterLevel + difficulty.levelDelta));
 }
 
@@ -1922,11 +1998,22 @@ function getPersistentFightSessionBaseMonsterLevel(
 
 function selectSoloFightMonster(
   character: CharacterSummary,
-  rng: RandomSource
+  rng: RandomSource,
+  difficulty: PersistentFightDifficultyConfig = PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
 ): MonsterContent {
   const maxMonsterLevel = Math.max(3, character.level);
   const closeMonsterLevelFloor = Math.max(1, character.level - 2);
   const eligibleMonsters = monsters.filter((monster) => isSoloFightMonsterEligible(monster, maxMonsterLevel));
+  const difficultyCandidates = selectDifficultyMonsterCandidates(
+    eligibleMonsters,
+    character,
+    difficulty
+  );
+
+  if (difficultyCandidates.length > 0) {
+    return difficultyCandidates[rng.nextInt(0, difficultyCandidates.length - 1)] ?? difficultyCandidates[0]!;
+  }
+
   const closeCandidates = eligibleMonsters.filter(
     (monster) => monster.level >= closeMonsterLevelFloor
   );
@@ -1943,6 +2030,24 @@ function selectSoloFightMonster(
   }
 
   return candidates[rng.nextInt(0, candidates.length - 1)] ?? candidates[0] ?? fallback;
+}
+
+function selectDifficultyMonsterCandidates(
+  eligibleMonsters: MonsterContent[],
+  character: CharacterSummary,
+  difficulty: PersistentFightDifficultyConfig
+): MonsterContent[] {
+  if (!difficulty.monsterLevelRangeOffset) {
+    return [];
+  }
+
+  const minLevel = Math.max(1, character.level + difficulty.monsterLevelRangeOffset.min);
+  const maxLevel = Math.max(minLevel, character.level + difficulty.monsterLevelRangeOffset.max);
+  const candidates = eligibleMonsters.filter(
+    (monster) => monster.level >= minLevel && monster.level <= maxLevel
+  );
+
+  return candidates.length > 0 ? candidates : [];
 }
 
 function selectTargetedSoloFightMonster(

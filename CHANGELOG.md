@@ -10,9 +10,10 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.1.19] - 12026-06-19 - Nyz Passage Balance Polish
 
 ### Changed
-- Retuned `Низ` passage difficulty so the right/easy passage now applies a `-5` effective monster level adjustment with safe clamping, while the center passage remains the unchanged baseline.
-- Lowered easy-passage payout pressure: XP, gold and broad loot profile now use the lower effective level, stronger easy multipliers, and downward rounding for easy passage reward fractions.
-- Kept the left/hard passage above the center reward while trimming its XP/drop pressure from the previous heavier bonus; hard still uses a higher effective monster level and enough gold scaling to stay above center at high levels.
+- Retuned `Низ` passage difficulty so the right/easy passage now prefers available monsters `3-5` levels below the character, with safe fallback/clamping when the pool cannot satisfy that range.
+- Lowered easy-passage payout pressure: easy XP now rolls `0.5x-0.75x` character level with a small bounded LUCK bias toward the top of the range and downward rounding.
+- Kept the left/hard passage above the center XP reward while trimming earlier overpayment: hard XP now rolls `1.25x-1.5x` character level with the same bounded LUCK bias and a baseline+1 floor.
+- Made fight gold variable instead of stable by passage or monster level: victory gold now rolls from `0` to current character level; a `0` gold roll boosts item drop chance to `93%`, then interpolates back to the current item drop chance at max gold while keeping existing item rarity and loot profile modifiers in the loot pipeline.
 - Preserved stored reward replay semantics: already completed fight rewards continue to replay their stored XP, gold and item grants without recomputing under the new balance.
 
 ### Guardrails
