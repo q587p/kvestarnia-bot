@@ -25,7 +25,7 @@ Use this for release-oriented or runtime PRs. Keep it compact.
 - [ ] Player-facing text is Ukrainian
 - [ ] Messages are short and Telegram-friendly
 - [ ] No sensitive or harmful humor
-- [ ] Visible dates use Holocene calendar where applicable
+- [ ] Visible dates use Holocene calendar where applicable; release/news/changelog headings use `YYYY-MM-DD`
 
 ## Safety checklist
 - [ ] No secrets in diff

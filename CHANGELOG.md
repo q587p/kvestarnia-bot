@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.18] - 12026.06.19 - Turn-Based Player Duels
+## [0.1.18] - 12026-06-19 - Turn-Based Player Duels
 
 ### Added
 - Added `♟️ Покрокова дуель` beside `⚡ Миттєва дуель` in the Fighting Corner, using `duel_turnbased_<token>` deep links and the existing 13 invite templates with a turn-based mode line.
@@ -40,7 +40,7 @@ This project follows a simple pre-1.0 versioning policy:
 - No gold, items, quest progress, item loss, wagers, ranking rewards, tournaments, spectator betting or broad cross-location player discovery were added; the only new progression reward is the small terminal XP for completed turn-based duels.
 - Telegram sends/edits are best-effort after committed state; notification failures do not roll back gameplay state.
 
-## [0.1.17] - 12026.06.19 - Instant Duel Polish
+## [0.1.17] - 12026-06-19 - Instant Duel Polish
 
 ### Added
 - Added 13 stable forwardable invite variants for `⚡ Миттєва дуель`, each with the same deep link, an instant-result mode line and a qualitative fairness line.
@@ -62,7 +62,7 @@ This project follows a simple pre-1.0 versioning policy:
 - No schema migration was added; replay/audit expansion stays backward-compatible inside `resultJson`.
 - Hidden formulas and exact readiness/progression values are not shown in Telegram copy or `news.md`.
 
-## [0.1.16] - 12026.06.19 - Character Stats Growth Rework
+## [0.1.16] - 12026-06-19 - Character Stats Growth Rework
 
 ### Added
 - Added fixed hidden-path stat bonuses through the shared effective-stats pipeline, so existing characters inherit the derived layer without a schema migration or `statsJson` backfill.

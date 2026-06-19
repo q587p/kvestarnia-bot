@@ -46,8 +46,8 @@ For these changes:
 - Update `package.json` version only when the task includes a version bump.
 - If version moves, keep `package.json`, `package-lock.json`, `CHANGELOG.md`, and `news.md` in lockstep unless the user narrows scope.
 - Update `CHANGELOG.md` and `news.md` only for release-oriented changes.
-- Release headings must include version, Holocene date, and short description.
-- Use Kyiv time (`Europe/Kyiv`) for release/news/changelog dates.
+- Release headings must include version, Holocene `YYYY-MM-DD` date, and short description.
+- Use Kyiv time (`Europe/Kyiv`) for release/news/changelog dates, e.g. `12026-06-19`.
 - PR title starts with version and short changelog description, e.g. `0.0.4 — First Mimic Shawarma Adventure`.
 
 ## Docs-only / presentation changes
