@@ -1,4 +1,4 @@
-import type { Bot } from "grammy";
+import type { Bot, Context } from "grammy";
 import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { OnboardingService } from "../../services/onboardingService";
 import { playerFromContext } from "../context";
@@ -69,12 +69,9 @@ export function registerStartCommand(
       }
 
       if (result.state === "active") {
-        const viewerCharacterId =
-          result.challenge.challenger.telegramUserId === player.telegramUserId
-            ? result.session.challengerCharacterId
-            : result.challenge.target?.telegramUserId === player.telegramUserId
-              ? result.session.targetCharacterId
-              : null;
+        const viewerCharacterId = isPrivateChat(ctx)
+          ? getTurnBasedDuelViewerCharacterId(player.telegramUserId, result)
+          : null;
         const participant = viewerCharacterId === result.session.state.participants.target.characterId
           ? result.session.state.participants.target
           : result.session.state.participants.challenger;
@@ -133,6 +130,21 @@ export function registerStartCommand(
   });
 }
 
+function getTurnBasedDuelViewerCharacterId(
+  telegramUserId: bigint,
+  result: Extract<Awaited<ReturnType<NonNullable<StartCommandOptions["duel"]>["acceptForTelegramUser"]>>, { state: "active" }>
+): string | null {
+  if (result.challenge.challenger.telegramUserId === telegramUserId) {
+    return result.session.challengerCharacterId;
+  }
+
+  if (result.challenge.target?.telegramUserId === telegramUserId) {
+    return result.session.targetCharacterId;
+  }
+
+  return null;
+}
+
 function buildDuelInviteUrl(
   botUsername: string | undefined,
   token: string,
@@ -143,6 +155,10 @@ function buildDuelInviteUrl(
   }
 
   return `https://t.me/${botUsername}?start=${mode === "turn-based" ? "duel_turnbased_" : "duel_"}${token}`;
+}
+
+function isPrivateChat(ctx: Context): boolean {
+  return ctx.chat?.type === "private";
 }
 
 export function buildExistingCharacterReplyOptions(): {
