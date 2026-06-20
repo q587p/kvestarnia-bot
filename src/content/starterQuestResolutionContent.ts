@@ -316,8 +316,8 @@ function buildPersonalMethods(
       id: compactPersonalMethodId("r", getCompactRaceKey(character.raceId), base.id),
       affordanceId: `${base.affordanceId}:race:${getCompactRaceKey(character.raceId)}:${base.id}`,
       source: "race",
-      label: buildPersonalMethodLabel(base.label, firstTechnique(race)),
-      buttonLabel: buildPersonalMethodLabel(base.label, firstTechnique(race)),
+      label: buildPersonalMethodLabel(base.label),
+      buttonLabel: buildPersonalMethodLabel(base.label),
       hint: buildPersonalHint(base),
       intent: base.intent,
       primaryStat: base.primaryStat,
@@ -337,8 +337,8 @@ function buildPersonalMethods(
       id: compactPersonalMethodId("c", getCompactClassKey(character.classId), base.id),
       affordanceId: `${base.affordanceId}:class:${getCompactClassKey(character.classId)}:${base.id}`,
       source: "class",
-      label: buildPersonalMethodLabel(base.label, firstTechnique(heroClass)),
-      buttonLabel: buildPersonalMethodLabel(base.label, firstTechnique(heroClass)),
+      label: buildPersonalMethodLabel(base.label),
+      buttonLabel: buildPersonalMethodLabel(base.label),
       hint: buildPersonalHint(base),
       intent: base.intent,
       primaryStat: base.primaryStat,
@@ -359,8 +359,8 @@ function buildPersonalMethods(
       id: compactPersonalMethodId(`s${getCompactRaceKey(character.raceId)}`, getCompactClassKey(character.classId), base.id),
       affordanceId: `${base.affordanceId}:signature:${getCompactRaceKey(character.raceId)}:${getCompactClassKey(character.classId)}:${base.id}`,
       source: "signature",
-      label: buildSignatureMethodLabel(base.label, firstTechnique(race), firstTechnique(heroClass)),
-      buttonLabel: buildSignatureMethodLabel(base.label, firstTechnique(race), firstTechnique(heroClass)),
+      label: buildSignatureMethodLabel(base.label),
+      buttonLabel: buildSignatureMethodLabel(base.label),
       hint: buildPersonalHint(base),
       intent: base.intent,
       primaryStat: base.primaryStat,
@@ -380,46 +380,12 @@ function buildPersonalMethods(
   ]);
 }
 
-function buildPersonalMethodLabel(
-  label: string,
-  technique: QuestMethodDefinition["techniques"][number]
-): string {
-  return `${label} ${techniqueButtonSuffix(technique)}`;
+function buildPersonalMethodLabel(label: string): string {
+  return label;
 }
 
-function buildSignatureMethodLabel(
-  label: string,
-  raceTechnique: QuestMethodDefinition["techniques"][number],
-  classTechnique: QuestMethodDefinition["techniques"][number]
-): string {
-  const raceSuffix = techniqueButtonSuffix(raceTechnique);
-  const classSuffix = techniqueButtonSuffix(classTechnique);
-
-  return raceSuffix === classSuffix
-    ? `${label} ${raceSuffix}`
-    : `${label} ${raceSuffix} і ${classSuffix.replace(/^з /u, "")}`;
-}
-
-function techniqueButtonSuffix(technique: QuestMethodDefinition["techniques"][number]): string {
-  const suffixes: Partial<Record<QuestMethodDefinition["techniques"][number], string>> = {
-    authority: "з печаткою",
-    bribery: "через внесок",
-    craft: "дрібним ремонтом",
-    deception: "обхідним ходом",
-    domesticity: "по-домашньому",
-    force: "силовим підпором",
-    improvisation: "на випадку",
-    investigation: "через ревізію",
-    performance: "у ритм",
-    persuasion: "мирною умовою",
-    ritual: "малим обрядом",
-    tracking: "за слідом",
-    traps: "через пастку",
-    arcana: "тихим чаром",
-    finesse: "точним рухом"
-  };
-
-  return suffixes[technique] ?? "практичним нахилом";
+function buildSignatureMethodLabel(label: string): string {
+  return label;
 }
 
 function getRaceProfile(raceId: string): QuestTechniqueProfile {

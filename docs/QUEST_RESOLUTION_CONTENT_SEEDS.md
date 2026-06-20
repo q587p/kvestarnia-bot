@@ -155,7 +155,7 @@
 
 ## 3. Level 3+ general adventure problems
 
-У таблиці нижче наведені базові method families на сцену. Runtime resolver може додати scene-native affordances, щоб активна справа показувала 5-7 справді різних дій; race/class/signature впливи мають привʼязуватися до цих affordances, а не показувати внутрішній source label у кнопці.
+У таблиці нижче наведені базові method families на сцену. Runtime resolver може додати scene-native affordances, щоб активна справа показувала 5-7 справді різних дій; race/class/signature впливи мають привʼязуватися до цих affordances, а не показувати внутрішній source label або повторюваний технічний хвіст у кнопці.
 
 ### `stew` — Казанок репетирує оперу
 

@@ -220,6 +220,14 @@ describe("adventure resolution content", () => {
       "тримає справу достатньо міцно",
       "майже складає порядок",
       "зривається у найгострішому місці",
+      "Уважний хід «",
+      "Ремісничий рух «",
+      "Акуратна робота «",
+      "Ремонт «",
+      "Робота «",
+      "Перевірка «",
+      "Рішення «",
+      "Спроба «",
       "Особистий варіант",
       "Професійний варіант",
       "Особистий ризикований варіант",
@@ -317,7 +325,27 @@ describe("adventure resolution content", () => {
       "survey-ink-talk",
       "manual-lecture",
       "uniform-office-talk",
-      "title-queue-talk"
+      "title-queue-talk",
+      "oil-soles",
+      "jar-soot",
+      "trim-wick",
+      "measure-legs",
+      "braid-bristles",
+      "oil-hinge",
+      "pin-thread-route",
+      "chalk-fish",
+      "clean-frame",
+      "warm-teeth",
+      "bookmark-debt",
+      "pin-corner",
+      "pad-clapper",
+      "survey-fold-corner",
+      "mug-steady-handle",
+      "portrait-varnish-knock",
+      "manual-bookmark-risk",
+      "uniform-pin-cuff",
+      "exam-scratch-margin",
+      "title-knot-crest"
     ];
     const banned = [
       "знаходить точний робочий кут",
@@ -333,9 +361,24 @@ describe("adventure resolution content", () => {
       "cloak",
       "spoon",
       "chimney",
+      "boots",
+      "candle",
+      "chair",
+      "broom",
+      "door",
+      "map",
+      "sign",
+      "portrait",
+      "key",
+      "ledger",
+      "rug",
+      "bell",
       "race-human-ish-survey",
+      "race-human-ish-mug",
+      "race-human-ish-portrait",
       "class-bard-manual",
       "class-bard-uniform",
+      "class-bard-exam",
       `title-${slugTitle(getKnownComboTitleValues()[0] ?? "Архівний Дух")}`
     ];
     const bodiesByMethod = new Map<string, string>();
@@ -378,6 +421,26 @@ describe("adventure resolution content", () => {
     expect(bodiesByMethod.get("manual-lecture")).toContain("підручнику");
     expect(bodiesByMethod.get("uniform-office-talk")).toContain("Канцелярський край");
     expect(bodiesByMethod.get("title-queue-talk")).toContain("Черга пошани");
+    expect(bodiesByMethod.get("oil-soles")).toContain("підошви");
+    expect(bodiesByMethod.get("jar-soot")).toContain("Сажа");
+    expect(bodiesByMethod.get("trim-wick")).toContain("Ґніт");
+    expect(bodiesByMethod.get("measure-legs")).toContain("Ніжки");
+    expect(bodiesByMethod.get("braid-bristles")).toContain("Щетина");
+    expect(bodiesByMethod.get("oil-hinge")).toContain("Петля");
+    expect(bodiesByMethod.get("pin-thread-route")).toContain("Нитка");
+    expect(bodiesByMethod.get("chalk-fish")).toContain("риба");
+    expect(bodiesByMethod.get("clean-frame")).toContain("Раму");
+    expect(bodiesByMethod.get("warm-teeth")).toContain("Зубці");
+    expect(bodiesByMethod.get("bookmark-debt")).toContain("Борг");
+    expect(bodiesByMethod.get("pin-corner")).toContain("Кут килима");
+    expect(bodiesByMethod.get("pad-clapper")).toContain("язичок дзвінка");
+    expect(bodiesByMethod.get("survey-fold-corner")).toContain("Кут анкети");
+    expect(bodiesByMethod.get("mug-steady-handle")).toContain("Ручку кухля");
+    expect(bodiesByMethod.get("portrait-varnish-knock")).toContain("Лак");
+    expect(bodiesByMethod.get("manual-bookmark-risk")).toContain("Сторінку");
+    expect(bodiesByMethod.get("uniform-pin-cuff")).toContain("Манжет");
+    expect(bodiesByMethod.get("exam-scratch-margin")).toContain("Відповідь");
+    expect(bodiesByMethod.get("title-knot-crest")).toContain("Стрічка");
   });
 
   it("capitalizes starter identity beats at sentence start", () => {
@@ -676,7 +739,36 @@ describe("adventure resolution content", () => {
     expect(new Set(methods.map(getQuestMethodAffordanceKey)).size).toBe(methods.length);
     for (const method of methods.filter((candidate) => candidate.source !== "scene")) {
       expect(method.label).not.toMatch(/Расовий спосіб|Класова техніка|signature|race\+class/u);
-      expect(method.label).toMatch(/по-домашньому|з печаткою|мирною умовою|через ревізію/u);
+      expect(method.label).not.toMatch(/з печаткою|через внесок|дрібним ремонтом|обхідним ходом|по-домашньому|силовим підпором|на випадку|через ревізію|у ритм|мирною умовою|малим обрядом|за слідом|через пастку|тихим чаром|точним рухом/u);
+    }
+  });
+
+  it("does not expose global technique suffixes on rendered method buttons", () => {
+    const suffixes = /з печаткою|через внесок|дрібним ремонтом|обхідним ходом|по-домашньому|силовим підпором|на випадку|через ревізію|у ритм|мирною умовою|малим обрядом|за слідом|через пастку|тихим чаром|точним рухом/u;
+    const profiles = [
+      character,
+      { ...character, raceId: "race.domovyk", classId: "class.bureaucramancer", title: "Домовий Аудитор" },
+      { ...character, raceId: "race.dryland-rusalka", classId: "class.bard", title: "Співачка Без Моря" },
+      { ...character, raceId: "race.intellectual-orc", classId: "class.warrior", title: "Критик Прикладного Биття" },
+      { ...character, raceId: "race.drantohor", classId: "class.ranger", title: "Слідоход Чужої Карти" },
+      { ...character, raceId: "race.molfar-soul", classId: "class.priest", title: "Пастир Малих Оберегів" }
+    ];
+
+    for (const profile of profiles) {
+      for (const problemId of ADVENTURE_PROBLEM_IDS) {
+        const methods = resolveQuestMethodsForCharacter(
+          buildAdventureResolutionScene({
+            problemId,
+            title: problemId,
+            character: profile
+          }),
+          profile
+        );
+
+        expect(methods.length, `${problemId}:${profile.raceId}:${profile.classId}`).toBeGreaterThanOrEqual(5);
+        expect(methods.length, `${problemId}:${profile.raceId}:${profile.classId}`).toBeLessThanOrEqual(7);
+        expect(methods.map((method) => method.buttonLabel ?? method.label).join("\n"), problemId).not.toMatch(suffixes);
+      }
     }
   });
 

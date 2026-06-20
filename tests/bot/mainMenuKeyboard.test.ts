@@ -426,7 +426,7 @@ describe("main menu and scene keyboards", () => {
     const labels = flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
 
     expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
-    expect(labels.join("\n")).toMatch(/з печаткою|точним рухом|обхідним ходом|мирною умовою/u);
+    expect(labels.join("\n")).not.toMatch(/з печаткою|через внесок|дрібним ремонтом|обхідним ходом|по-домашньому|силовим підпором|на випадку|через ревізію|у ритм|мирною умовою|малим обрядом|за слідом|через пастку|тихим чаром|точним рухом/u);
     expect(labels.join("\n")).not.toMatch(/Звірити «|Витягти доказ|🏷️|Пересічні Пригодники/u);
     expect(labels.at(-1)).toBe("📋 До справ");
     const callbacks = flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
@@ -468,7 +468,7 @@ describe("main menu and scene keyboards", () => {
     const labels = flatInlineButtonTexts(keyboard);
 
     expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
-    expect(labels.join("\n")).toMatch(/у ритм|точним рухом|мирною умовою|через ревізію/u);
+    expect(labels.join("\n")).not.toMatch(/з печаткою|через внесок|дрібним ремонтом|обхідним ходом|по-домашньому|силовим підпором|на випадку|через ревізію|у ритм|мирною умовою|малим обрядом|за слідом|через пастку|тихим чаром|точним рухом/u);
     expect(labels.join("\n")).not.toMatch(/Приплив|Куплет|Співачка Без Моря|🏷️|: форму/u);
     expect(labels.at(-1)).toBe("⬅️ Інші справи");
   });
