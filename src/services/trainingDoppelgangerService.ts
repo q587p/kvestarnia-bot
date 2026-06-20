@@ -157,7 +157,8 @@ export class TrainingDoppelgangerService {
   private async advanceExpiredTrainingTurn(
     telegramUserId: bigint,
     session: SoloCombatSessionRecord,
-    character: CharacterSummary
+    character: CharacterSummary,
+    mode: "auto-attack" | "skip" = "auto-attack"
   ): Promise<SoloCombatSessionRecord> {
     if (session.status !== "active" || session.state?.status !== "active") {
       return session;
@@ -181,17 +182,16 @@ export class TrainingDoppelgangerService {
 
     const resolved = resolveCombatTurn({
       state: session.state,
-      action: "attack",
+      action: mode === "skip" ? "skip" : "attack",
       hero: buildHeroCombatStats(character),
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
       rng: this.rng
     });
+    const state = resolved.ok ? withNextTrainingTurnExpiry(resolved.state, now) : null;
 
-    if (!resolved.ok) {
+    if (!state) {
       return session;
     }
-
-    const state = withNextTrainingTurnExpiry(resolved.state, now);
     const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
       state,
       status: state.status,
@@ -206,9 +206,10 @@ export class TrainingDoppelgangerService {
   }
 
   async getStartOptionsForTelegramUser(
-    telegramUserId: bigint
+    telegramUserId: bigint,
+    options: { expiredTurnMode?: "auto-attack" | "skip" } = {}
   ): Promise<TrainingDoppelgangerLookupResult> {
-    const base = await this.getStartBaseForTelegramUser(telegramUserId);
+    const base = await this.getStartBaseForTelegramUser(telegramUserId, options);
 
     if (base.state !== "startable") {
       return base.result;
@@ -456,7 +457,10 @@ export class TrainingDoppelgangerService {
     };
   }
 
-  private async getStartBaseForTelegramUser(telegramUserId: bigint): Promise<
+  private async getStartBaseForTelegramUser(
+    telegramUserId: bigint,
+    options: { expiredTurnMode?: "auto-attack" | "skip" } = {}
+  ): Promise<
     | {
         state: "startable";
         character: CharacterSummary;
@@ -493,7 +497,7 @@ export class TrainingDoppelgangerService {
 
       return {
         state: "blocked",
-        result: await this.getExistingTrainingSession(telegramUserId, character, activeSession)
+      result: await this.getExistingTrainingSession(telegramUserId, character, activeSession, options)
       };
     }
 
@@ -627,7 +631,8 @@ export class TrainingDoppelgangerService {
   private async getExistingTrainingSession(
     telegramUserId: bigint,
     character: CharacterSummary,
-    session: SoloCombatSessionRecord
+    session: SoloCombatSessionRecord,
+    options: { expiredTurnMode?: "auto-attack" | "skip" } = {}
   ): Promise<Extract<TrainingDoppelgangerLookupResult, { state: "active" | "terminal" }>> {
     if (!session.state) {
       const expired = await this.combatSessions.markStatusById(session.id, "expired");
@@ -668,7 +673,12 @@ export class TrainingDoppelgangerService {
       };
     }
 
-    const refreshedSession = await this.advanceExpiredTrainingTurn(telegramUserId, session, character);
+    const refreshedSession = await this.advanceExpiredTrainingTurn(
+      telegramUserId,
+      session,
+      character,
+      options.expiredTurnMode ?? "auto-attack"
+    );
     if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
       return {
         state: "terminal",

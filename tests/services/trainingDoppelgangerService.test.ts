@@ -216,6 +216,42 @@ describe("TrainingDoppelgangerService", () => {
     expect(world.resourceMutations).toBe(1);
   });
 
+  it("skips the hero action but lets the copy act when an expired turn is recovered from start options", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world, new FakeRandomSource([0.6]));
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+
+    if (started.state !== "active" || !started.session.state) {
+      throw new Error(`Expected active training, got ${started.state}`);
+    }
+    world.sessions.set(started.session.id, {
+      ...started.session,
+      state: {
+        ...started.session.state,
+        turnExpiresAt: new Date("2026-06-17T09:29:59.000Z").toISOString()
+      }
+    });
+
+    const result = await service.getStartOptionsForTelegramUser(telegramUserId, {
+      expiredTurnMode: "skip"
+    });
+
+    expect(result.state).toBe("active");
+    if (result.state === "active") {
+      expect(result.session.state?.turn).toBe(2);
+      expect(result.session.state?.lastTurn).toMatchObject({
+        action: "skip",
+        heroOutcome: "inactive",
+        heroDamage: 0
+      });
+      expect(result.session.state?.lastTurn?.monsterDamage ?? 0).toBeGreaterThan(0);
+      expect(result.session.state?.monster.hp).toBe(started.session.state.monster.hp);
+      expect(result.session.state?.hero.hp ?? 0).toBeLessThan(started.session.state.hero.hp);
+      expect(result.session.state?.turnExpiresAt).toBe("2026-06-17T09:30:23.000Z");
+    }
+  });
+
   it("keeps random-build source for terminal replay copy text", async () => {
     const world = new FakeWorld();
     world.addCharacter(telegramUserId);

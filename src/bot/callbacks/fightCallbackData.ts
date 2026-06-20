@@ -1,5 +1,5 @@
 import type { CombatProbeAction } from "../../domain/combat/combatProbe";
-import type { CombatActionType } from "../../domain/combat";
+import type { PlayerCombatActionType } from "../../domain/combat";
 import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
@@ -19,13 +19,13 @@ export type FightCallback =
       type: "turn";
       sessionId: string;
       turn: number;
-      action: CombatActionType;
+      action: PlayerCombatActionType;
     };
 
 const MIMIC_PREFIX = "v1:fight:mimic";
 const TURN_PREFIX = "v1:fight:turn";
 const fightActions = new Set<CombatProbeAction>(["attack", "receipt", "flee"]);
-const turnActions = new Set<CombatActionType>(["attack", "defend", "skill", "flee"]);
+const turnActions = new Set<PlayerCombatActionType>(["attack", "defend", "skill", "flee"]);
 const sessionIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function makeFightCallbackData(action: CombatProbeAction): string {
@@ -35,7 +35,7 @@ export function makeFightCallbackData(action: CombatProbeAction): string {
 export function makeFightTurnCallbackData(input: {
   sessionId: string;
   turn: number;
-  action: CombatActionType;
+  action: PlayerCombatActionType;
 }): string {
   return `${TURN_PREFIX}:${input.sessionId}:${input.turn}:${input.action}`;
 }
@@ -85,7 +85,7 @@ export function parseFightCallbackData(
       return err("invalid-turn");
     }
 
-    if (!turnActions.has(action as CombatActionType)) {
+    if (!turnActions.has(action as PlayerCombatActionType)) {
       return err("invalid-action");
     }
 
@@ -93,7 +93,7 @@ export function parseFightCallbackData(
       type: "turn",
       sessionId,
       turn,
-      action: action as CombatActionType
+      action: action as PlayerCombatActionType
     });
   }
 

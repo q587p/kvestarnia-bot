@@ -1,5 +1,5 @@
 import type { StatKey } from "../characters/starterStats";
-import type { CombatActionType, CombatDamageKind } from "./combatState";
+import type { CombatActionType, CombatDamageKind, PlayerCombatActionType } from "./combatState";
 
 export type CombatAbilitySource = "basic" | "class" | "race" | "signature" | "monster";
 export type CombatTargetScope =
@@ -193,7 +193,7 @@ export function getClassCombatAbility(classId: string | undefined): CombatAbilit
 }
 
 export function getCombatAbilityForAction(
-  action: Exclude<CombatActionType, "flee">,
+  action: Exclude<PlayerCombatActionType, "flee">,
   classId: string | undefined
 ): CombatAbilityDefinition {
   return action === "skill" ? getClassCombatAbility(classId) : getBasicCombatAbility(action);

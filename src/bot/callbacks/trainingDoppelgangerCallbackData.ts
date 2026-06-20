@@ -1,4 +1,4 @@
-import type { CombatActionType } from "../../domain/combat";
+import type { PlayerCombatActionType } from "../../domain/combat";
 import type { TrainingDoppelgangerStartMode } from "../../services/trainingDoppelgangerService";
 import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
@@ -6,7 +6,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 export type TrainingDoppelgangerCallback =
   | { type: "open" }
   | { type: "mode"; mode: TrainingDoppelgangerStartMode }
-  | { type: "turn"; sessionId: string; turn: number; action: CombatActionType };
+  | { type: "turn"; sessionId: string; turn: number; action: PlayerCombatActionType };
 export type TrainingDoppelgangerCallbackError =
   | "invalid-version"
   | "invalid-prefix"
@@ -17,7 +17,7 @@ export type TrainingDoppelgangerCallbackError =
 const PREFIX = "v1:spar";
 const MODE_PREFIX = "v1:spar:mode";
 const TURN_PREFIX = "v1:spar:turn";
-const turnActions = new Set<CombatActionType>(["attack", "defend", "skill", "flee"]);
+const turnActions = new Set<PlayerCombatActionType>(["attack", "defend", "skill", "flee"]);
 const startModes = new Set<TrainingDoppelgangerStartMode>([
   "copy-target",
   "random-build",
@@ -40,7 +40,7 @@ export function makeTrainingDoppelgangerModeCallbackData(
 export function makeTrainingDoppelgangerTurnCallbackData(input: {
   sessionId: string;
   turn: number;
-  action: CombatActionType;
+  action: PlayerCombatActionType;
 }): string {
   return `${TURN_PREFIX}:${input.sessionId}:${input.turn}:${input.action}`;
 }
@@ -91,7 +91,7 @@ export function parseTrainingDoppelgangerCallbackData(
       return err("invalid-turn");
     }
 
-    if (!turnActions.has(action as CombatActionType)) {
+    if (!turnActions.has(action as PlayerCombatActionType)) {
       return err("invalid-action");
     }
 
@@ -99,7 +99,7 @@ export function parseTrainingDoppelgangerCallbackData(
       type: "turn",
       sessionId,
       turn,
-      action: action as CombatActionType
+      action: action as PlayerCombatActionType
     });
   }
 

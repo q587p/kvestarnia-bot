@@ -434,7 +434,8 @@ export class FightService {
     telegramUserId: bigint,
     session: SoloCombatSessionRecord,
     character: CharacterSummary,
-    monster: MonsterContent
+    monster: MonsterContent,
+    mode: "auto-attack" | "skip" = "auto-attack"
   ): Promise<SoloCombatSessionRecord> {
     if (!this.combatSessions || session.status !== "active" || session.state?.status !== "active") {
       return session;
@@ -458,17 +459,18 @@ export class FightService {
 
     const resolved = resolveCombatTurn({
       state: session.state,
-      action: "attack",
+      action: mode === "skip" ? "skip" : "attack",
       hero: buildHeroCombatStats(character),
       monster: buildPersistentMonsterCombatStats(monster, session.state),
       rng: this.rng
     });
+    const resolvedState = resolved.ok
+      ? withNextTurnExpiry(stampCombatCompletedAt(resolved.state, now), now)
+      : null;
 
-    if (!resolved.ok) {
+    if (!resolvedState) {
       return session;
     }
-
-    const resolvedState = withNextTurnExpiry(stampCombatCompletedAt(resolved.state, now), now);
     const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
       state: resolvedState,
       status: resolvedState.status,
@@ -639,7 +641,8 @@ export class FightService {
       telegramUserId,
       activeSession,
       characterSummary,
-      monster
+      monster,
+      "skip"
     );
     if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
       return {

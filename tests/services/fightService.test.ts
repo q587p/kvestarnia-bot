@@ -3132,6 +3132,44 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
+  it("skips the hero action but lets the monster act when an expired turn is recovered from overview", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.6])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 80);
+    sessions.setTurnExpiresAt(started.session.id, new Date("2026-06-12T10:29:59.000Z"));
+
+    const result = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(result.state).toBe("persistent-active");
+    if (result.state === "persistent-active") {
+      expect(result.session.state?.turn).toBe(2);
+      expect(result.session.state?.lastTurn).toMatchObject({
+        action: "skip",
+        heroOutcome: "inactive",
+        heroDamage: 0
+      });
+      expect(result.session.state?.lastTurn?.monsterDamage ?? 0).toBeGreaterThan(0);
+      expect(result.session.state?.monster.hp).toBe(80);
+      expect(result.session.state?.hero.hp ?? 0).toBeLessThan(started.session.state?.hero.hp ?? 0);
+      expect(result.session.state?.turnExpiresAt).toBe("2026-06-12T10:30:23.000Z");
+    }
+    expect(dailyActions.createCount).toBe(0);
+  });
+
   it("expires a stale persistent fight lazily without rewards", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });

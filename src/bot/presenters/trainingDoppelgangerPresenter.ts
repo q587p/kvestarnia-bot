@@ -307,7 +307,12 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
   }
 
   if (summary.heroOutcome === "inactive") {
-    return "Тренування прострочилось без героїчного підпису.";
+    return [
+      "Ви не встигли обрати дію.",
+      summary.monsterDamage > 0
+        ? `Копія використала паузу на ${summary.monsterDamage} шкоди.`
+        : "Копія використала паузу, але промахнулась із педагогічною впевненістю."
+    ].join("\n");
   }
 
   const action =

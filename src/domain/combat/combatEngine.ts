@@ -17,7 +17,8 @@ import {
   type CombatGuardState,
   type CombatState,
   type CombatTurnSummary,
-  type MonsterCombatStats
+  type MonsterCombatStats,
+  type PlayerCombatActionType
 } from "./combatState";
 
 export interface ResolveCombatTurnInput {
@@ -67,12 +68,12 @@ export interface ResolveActorCombatActionInput {
   defenderState: CombatActorResourceState;
   actorStats: CombatActorStats;
   defenderStats: MonsterCombatStats;
-  action: Exclude<CombatActionType, "flee">;
+  action: Exclude<PlayerCombatActionType, "flee">;
   rng: RandomSource;
 }
 
 export interface ActorCombatActionSummary {
-  action: Exclude<CombatActionType, "flee">;
+  action: Exclude<PlayerCombatActionType, "flee">;
   actorOutcome: Extract<
     CombatTurnSummary["heroOutcome"],
     "hit" | "critical-hit" | "miss" | "defended" | "not-enough-mana" | "skill-on-cooldown" | "won"
@@ -214,6 +215,10 @@ export function resolveCombatTurn(input: ResolveCombatTurnInput): ResolveCombatT
     return resolveFlee(input);
   }
 
+  if (input.action === "skip") {
+    return resolveHeroSkip(input);
+  }
+
   if (input.action === "skill") {
     const skill = getCombatSkillProfile(input.hero.classId);
     const availability = getCombatActionAvailability(input.state, input.hero).skill;
@@ -240,6 +245,47 @@ export function resolveCombatTurn(input: ResolveCombatTurnInput): ResolveCombatT
   }
 
   return resolveHeroAttack(input);
+}
+
+function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
+  const nextState = cloneCombatState(input.state);
+  tickSkillCooldown(nextState);
+
+  const monsterSkill = selectMonsterSkill(input.state, input.monster, input.rng);
+  const monsterDamage = monsterSkill
+    ? rollMonsterSkillDamage(input.hero, input.monster, monsterSkill, input.rng)
+    : rollMonsterDamage(input.hero, input.monster, input.rng);
+  nextState.hero.hp = Math.max(0, nextState.hero.hp - monsterDamage);
+  nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
+  nextState.turn += 1;
+  const bark = resolveMonsterBark({
+    state: input.state,
+    monster: input.monster,
+    monsterCommittedAction: true,
+    monsterUsedAbility: Boolean(monsterSkill),
+    monsterHpAfterHeroAction: nextState.monster.hp
+  });
+  nextState.barks = bark.state;
+  const debugTrace = buildTurnDebugTrace(input.monster, monsterSkill);
+  const summary = buildSummary({
+    action: "skip",
+    heroOutcome: "inactive",
+    monsterOutcome: nextState.status === "lost" ? "lost" : monsterDamage > 0 ? "hit" : "miss",
+    heroDamage: 0,
+    monsterDamage,
+    manaSpent: 0,
+    critical: false,
+    ...(monsterSkill ? { monsterSkill } : {}),
+    ...(bark.barkId ? { monsterBarkId: bark.barkId } : {}),
+    ...(debugTrace ? { debugTrace } : {})
+  });
+  nextState.lastTurn = summary;
+
+  return {
+    ok: true,
+    state: nextState,
+    summary
+  };
 }
 
 function resolveHeroAttack(

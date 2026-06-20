@@ -879,7 +879,9 @@ async function redirectCombatLockIfNeeded(
 
   if (lock.state === "training-active") {
     const training = services.trainingDoppelganger
-      ? await services.trainingDoppelganger.getStartOptionsForTelegramUser(telegramUserId)
+      ? await services.trainingDoppelganger.getStartOptionsForTelegramUser(telegramUserId, {
+          expiredTurnMode: "skip"
+        })
       : null;
 
     await answerCombatLockCallback(ctx);

@@ -628,7 +628,13 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
   }
 
   if (summary.heroOutcome === "inactive") {
-    return withMonsterBark(summary, ["Останній хід", "Бій прострочився без героїчного підпису."]);
+    return withMonsterBark(summary, [
+      "Останній хід",
+      "Ви не встигли обрати дію.",
+      summary.monsterDamage > 0
+        ? `Монстр скористався паузою на ${summary.monsterDamage} шкоди.`
+        : "Монстр скористався паузою, але не знайшов переконливого кута."
+    ]);
   }
 
   const action =

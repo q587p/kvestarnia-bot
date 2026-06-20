@@ -3,7 +3,8 @@ import type { CombatBarkStateV1 } from "./combatBarks";
 import type { MonsterContextSnapshotV1 } from "./monsterContext";
 
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
-export type CombatActionType = "attack" | "defend" | "skill" | "flee";
+export type CombatActionType = "attack" | "defend" | "skill" | "flee" | "skip";
+export type PlayerCombatActionType = Exclude<CombatActionType, "skip">;
 export type CombatDamageKind = "physical" | "spell" | "social" | "trick";
 export type CombatTurnOutcome =
   | "hit"
