@@ -20,6 +20,7 @@ import {
 } from "./itemGrant";
 import { buildStarterQuestResolutionScene } from "../content/starterQuestResolutionContent";
 import { type QuestMethodDefinition, type QuestResolutionGrade } from "../content/questResolution";
+import type { QuestConsequenceKind } from "../content/questResolution";
 import { resolveQuestCheck, type QuestCheckResult } from "../domain/quests/questChecks";
 import {
   findQuestMethodByLegacyAction,
@@ -232,7 +233,8 @@ export class CellarErrandService {
       raceId: character.raceId,
       classId: character.classId
     });
-    const reward = buildCellarReward(method, check.grade);
+    const consequence = method.consequenceByGrade[check.grade];
+    const reward = buildCellarReward(method, check.grade, consequence);
     const spentGold = method.goldCost ?? 0;
     const availableAt = new Date(now.getTime() + CELLAR_MOUSE_ERRAND_COOLDOWN_MS);
     const cycleKey = buildCellarCycleKey(current.cooldown);
@@ -257,11 +259,22 @@ export class CellarErrandService {
       rewardXp: reward.xp,
       rewardGold: reward.gold,
       spentGold,
-      itemGrants: buildCellarItemGrants(
-        method.itemIntent ??
-          method.legacyAction ??
-          (completionInput.type === "legacy-action" ? completionInput.action : completionInput.methodId)
-      )
+      hpLoss: {
+        requested: hpLoss,
+        effectiveHpMax: character.hpMax
+      },
+      resultJson: buildCellarResultPayload({
+        sceneId: scene.sceneId,
+        method,
+        grade: check.grade,
+        consequence,
+        reward,
+        spentGold,
+        itemGrants,
+        check,
+        cycleKey
+      }),
+      itemGrants
     });
 
     if (!claim) {
@@ -334,12 +347,20 @@ function toCellarMethodOption(method: QuestMethodDefinition): CellarErrandMethod
 
 function buildCellarReward(
   method: QuestMethodDefinition,
-  grade: QuestResolutionGrade
+  grade: QuestResolutionGrade,
+  consequence: QuestConsequenceKind
 ): { xp: number; gold: number } {
   const reward = getConservativeCellarReward(method);
 
   if (grade === "strong-success" || grade === "success") {
     return reward;
+  }
+
+  if (consequence === "minor-injury") {
+    return {
+      xp: Math.max(1, Math.floor(reward.xp * 0.5)),
+      gold: 0
+    };
   }
 
   if (grade === "mixed-success") {
@@ -356,6 +377,58 @@ function buildCellarReward(
   return {
     xp: Math.max(1, Math.ceil(reward.xp * 0.35)),
     gold: 0
+  };
+}
+
+function buildCellarHpLoss(input: {
+  characterId: string;
+  cycleKey: string;
+  sceneId: string;
+  methodId: string;
+  grade: QuestResolutionGrade;
+  consequence: QuestConsequenceKind;
+  hpMax: number;
+}): number {
+  if (input.consequence !== "minor-injury") {
+    return 0;
+  }
+
+  let hash = 0x811c9dc5;
+  const seed = `cellar-hp-loss-v1:${input.characterId}:${input.cycleKey}:${input.sceneId}:${input.methodId}:${input.grade}`;
+
+  for (const char of seed) {
+    hash ^= char.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+
+  return Math.min(3, Math.max(1, Math.ceil(Math.max(1, input.hpMax) * (0.04 + (hash % 4) / 100))));
+}
+
+function buildCellarResultPayload(input: {
+  sceneId: string;
+  method: QuestMethodDefinition;
+  grade: QuestResolutionGrade;
+  consequence: QuestConsequenceKind;
+  reward: { xp: number; gold: number };
+  spentGold: number;
+  itemGrants: Array<{ itemId: string; quantity: number }>;
+  check: QuestCheckResult;
+  cycleKey: string;
+}): unknown {
+  return {
+    version: 1,
+    sceneId: input.sceneId,
+    methodId: input.method.id,
+    grade: input.grade,
+    consequence: input.consequence,
+    reward: {
+      xp: input.reward.xp,
+      gold: input.reward.gold,
+      itemGrants: input.itemGrants
+    },
+    spentGold: input.spentGold,
+    cycleKey: input.cycleKey,
+    check: input.check
   };
 }
 

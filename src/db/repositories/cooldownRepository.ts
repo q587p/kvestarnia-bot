@@ -17,6 +17,8 @@ export interface ClaimCooldownRewardInput {
   rewardXp: number;
   rewardGold: number;
   spentGold?: number;
+  hpLoss?: number | HpLossRequest;
+  resultJson?: unknown;
   itemGrants?: ItemGrant[];
 }
 

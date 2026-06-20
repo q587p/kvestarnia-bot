@@ -215,7 +215,10 @@ export type AdventureResult =
       consequence: QuestConsequenceKind;
       outcome: QuestMethodDefinition["outcomeText"][QuestResolutionGrade];
       spentGold: number;
+      hpLoss: HpLossAudit | null;
       fightHandoff: boolean;
+      fightEncounter: AdventureFightHandoffTarget | null;
+      claim: AdventureClaimIdentity;
       reward: AdventureReward;
       levelChange: RewardLevelChange;
       complication: boolean;
@@ -455,12 +458,32 @@ export class AdventureService {
       consequence
     });
     const spentGold = method.goldCost ?? 0;
+    const hpLoss = buildQuestHpLoss({
+      characterId: character.id,
+      periodKey: period.storageKey,
+      sceneId: choice.id,
+      methodId: method.id,
+      grade: check.grade,
+      consequence,
+      hpMax: characterSummary.hpMax
+    });
+    const fightEncounter =
+      consequence === "fight-handoff"
+        ? buildAdventureFightHandoffTarget(
+            choice.id,
+            method.id,
+            character.id,
+            period.storageKey,
+            characterSummary
+          )
+        : null;
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: claimIdentity.key,
       localDate: claimIdentity.localDate,
       rewardXp: reward.xp,
       rewardGold: reward.gold,
       spentGold,
+      hpLoss: buildHpLossRequest(hpLoss, characterSummary.hpMax),
       resultJson: buildQuestResolutionClaimPayload({
         sceneId: choice.id,
         method,
@@ -469,7 +492,8 @@ export class AdventureService {
         reward,
         itemGrants,
         spentGold,
-        check
+        check,
+        fightEncounter
       }),
       itemGrants
     });
@@ -505,7 +529,9 @@ export class AdventureService {
       consequence,
       outcome: method.outcomeText[check.grade],
       spentGold,
+      hpLoss: claim.hpLoss,
       fightHandoff: consequence === "fight-handoff",
+      fightEncounter,
       reward: {
         ...reward,
         localDate: period.storageKey,
@@ -513,7 +539,8 @@ export class AdventureService {
       },
       levelChange: claim.levelChange,
       complication: check.grade === "complication",
-      check
+      check,
+      claim: claimIdentity
     };
   }
 
@@ -1222,6 +1249,147 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function buildQuestHpLoss(input: {
+  characterId: string;
+  periodKey: string;
+  sceneId: string;
+  methodId: string;
+  grade: QuestResolutionGrade;
+  consequence: QuestConsequenceKind;
+  hpMax: number;
+}): number {
+  if (input.consequence !== "minor-injury" && input.consequence !== "serious-injury") {
+    return 0;
+  }
+
+  const rng = new SeededRandomSource(
+    `quest-hp-loss-v1:${input.characterId}:${input.periodKey}:${input.sceneId}:${input.methodId}:${input.grade}`
+  );
+  const hpMax = Math.max(1, Math.floor(input.hpMax));
+  const percent =
+    input.consequence === "minor-injury"
+      ? rng.nextFloat() * 0.04 + 0.05
+      : rng.nextFloat() * 0.08 + 0.13;
+  const floor = input.consequence === "minor-injury" ? 1 : 2;
+  const cap = input.consequence === "minor-injury" ? 4 : 8;
+
+  return clamp(Math.ceil(hpMax * percent), floor, cap);
+}
+
+function buildHpLossRequest(requested: number, effectiveHpMax: number): { requested: number; effectiveHpMax: number } {
+  return {
+    requested,
+    effectiveHpMax
+  };
+}
+
+function buildAdventureFightHandoffTarget(
+  sceneId: string,
+  methodId: string,
+  characterId: string,
+  periodKey: string,
+  character: CharacterSummary
+): AdventureFightHandoffTarget {
+  const generatedKind = getGeneratedFightKind(sceneId);
+  const exact = ADVENTURE_FIGHT_HANDOFF_MONSTERS[`${sceneId}:${methodId}`] ?? [];
+  const scene = ADVENTURE_FIGHT_HANDOFF_MONSTERS[sceneId] ?? [];
+  const generated = generatedKind ? ADVENTURE_FIGHT_HANDOFF_MONSTERS[`generated:${generatedKind}`] ?? [] : [];
+  const candidates = [...exact, ...scene, ...generated, "monster.unread-rules-ghost"];
+  const eligible = candidates
+    .map((monsterId) => monsters.find((monster) => monster.id === monsterId))
+    .filter((monster): monster is (typeof monsters)[number] =>
+      monster !== undefined && isAdventureHandoffMonsterEligible(monster, character)
+    );
+  const pool = eligible.length > 0 ? eligible : monsters.filter((monster) =>
+    isAdventureHandoffMonsterEligible(monster, character)
+  );
+  const closeFloor = Math.max(1, character.level - 2);
+  const close = pool.filter((monster) => monster.level >= closeFloor);
+  const ranked = selectHighestMonsterLevel(close.length > 0 ? close : pool);
+  const rng = new SeededRandomSource(
+    `adventure-fight-target-v1:${characterId}:${periodKey}:${sceneId}:${methodId}:${character.level}`
+  );
+  const selected = ranked[rng.nextInt(0, Math.max(0, ranked.length - 1))] ?? monsters.find((monster) =>
+    monster.id === "monster.unread-rules-ghost"
+  );
+
+  return {
+    monsterId: selected?.id ?? "monster.unread-rules-ghost"
+  };
+}
+
+function isAdventureHandoffMonsterEligible(
+  monster: (typeof monsters)[number],
+  character: CharacterSummary
+): boolean {
+  const tags = new Set(monster.tags);
+
+  return (
+    monster.id !== "monster.mimic-shawarma" &&
+    !tags.has("starter") &&
+    !tags.has("boss") &&
+    monster.level <= Math.max(3, character.level)
+  );
+}
+
+function selectHighestMonsterLevel(candidates: (typeof monsters)[number][]): (typeof monsters)[number][] {
+  const highest = candidates.reduce((current, monster) => Math.max(current, monster.level), 0);
+
+  return candidates.filter((monster) => monster.level === highest);
+}
+
+function getGeneratedFightKind(sceneId: string): string | null {
+  if (sceneId.startsWith("race-") && sceneId.endsWith("-survey")) {
+    return "survey";
+  }
+
+  if (sceneId.startsWith("race-") && sceneId.endsWith("-mug")) {
+    return "mug";
+  }
+
+  if (sceneId.startsWith("race-") && sceneId.endsWith("-portrait")) {
+    return "portrait";
+  }
+
+  if (sceneId.startsWith("class-") && sceneId.endsWith("-manual")) {
+    return "manual";
+  }
+
+  if (sceneId.startsWith("class-") && sceneId.endsWith("-uniform")) {
+    return "uniform";
+  }
+
+  if (sceneId.startsWith("class-") && sceneId.endsWith("-exam")) {
+    return "exam";
+  }
+
+  if (sceneId.startsWith("title-")) {
+    return "title";
+  }
+
+  return null;
+}
+
+const ADVENTURE_FIGHT_HANDOFF_MONSTERS: Record<string, string[]> = {
+  stew: ["monster.borshch-slime", "monster.conditionally-sliced-loaf-bandit"],
+  barrel: ["monster.cheese-vault-warden", "monster.no-change-merchantling", "monster.queue-counter-gargoyle"],
+  helmet: ["monster.unread-rules-ghost", "monster.preapproval-dragonling"],
+  receipt: ["monster.stamp-doorkeeper-skeleton", "monster.preapproval-dragonling"],
+  cloak: ["monster.unclosed-closure-act", "monster.queue-counter-gargoyle", "monster.unread-rules-ghost"],
+  chimney: ["monster.complaint-lantern", "monster.borshch-slime", "monster.report-jellyfish"],
+  chair: ["monster.queue-counter-gargoyle", "monster.anxious-slippers-swarm"],
+  broom: ["monster.audit-mosquito", "monster.anxious-slippers-swarm"],
+  map: ["monster.liar-corridor-map", "monster.deadline-spider", "monster.unread-rules-ghost"],
+  portrait: ["monster.self-critique-mirror", "monster.unread-rules-ghost"],
+  rug: ["monster.self-critique-mirror", "monster.anxious-slippers-swarm"],
+  bell: ["monster.quiet-catastrophe-clerk", "monster.stamp-doorkeeper-skeleton", "monster.deadline-spider"],
+  "generated:portrait": ["monster.self-critique-mirror", "monster.unread-rules-ghost"],
+  "generated:manual": ["monster.unread-rules-ghost", "monster.stamp-doorkeeper-skeleton"],
+  "generated:uniform": ["monster.queue-counter-gargoyle", "monster.audit-mosquito"],
+  "generated:exam": ["monster.deadline-spider", "monster.stamp-doorkeeper-skeleton"],
+  "generated:title": ["monster.inventory-prophet", "monster.self-critique-mirror", "monster.unread-rules-ghost"]
+};
+
 function buildQuestResolutionClaimPayload(input: {
   sceneId: string;
   method: QuestMethodDefinition;
@@ -1231,6 +1399,7 @@ function buildQuestResolutionClaimPayload(input: {
   itemGrants?: Array<{ itemId: string; quantity: number }>;
   spentGold: number;
   check: QuestCheckResult;
+  fightEncounter?: AdventureFightHandoffTarget | null;
 }): unknown {
   return {
     version: 1,
@@ -1245,6 +1414,7 @@ function buildQuestResolutionClaimPayload(input: {
       itemGrants: input.itemGrants ?? []
     },
     spentGold: input.spentGold,
+    fightHandoff: input.fightEncounter,
     check: input.check
   };
 }

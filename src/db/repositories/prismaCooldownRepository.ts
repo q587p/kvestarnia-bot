@@ -56,110 +56,122 @@ export class PrismaCooldownRepository implements CooldownRepository {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         return await this.prisma.$transaction(async (tx) => {
-        const character = await tx.character.findFirst({
-          where: {
-            user: {
-              telegramUserId
-            }
-          },
-          include: remortCountInclude
-        });
-
-        if (!character) {
-          return null;
-        }
-
-        const where = {
-          characterId_key: {
-            characterId: character.id,
-            key: input.key
-          }
-        };
-
-        const existing = await tx.characterCooldown.findUnique({
-          where
-        });
-
-        if (existing && existing.availableAt > input.now) {
-          return {
-            state: "on-cooldown",
-            cooldown: existing,
-            character: toCharacterRecord(character)
-          };
-        }
-
-        const spentGold = normalizeSpentGold(input.spentGold);
-
-        if (spentGold > 0) {
-          const debit = await tx.character.updateMany({
+          const character = await tx.character.findFirst({
             where: {
-              id: character.id,
-              gold: {
-                gte: spentGold
+              user: {
+                telegramUserId
               }
             },
-            data: {
-              gold: {
-                decrement: spentGold
-              }
-            }
+            include: remortCountInclude
           });
 
-          if (debit.count !== 1) {
+          if (!character) {
+            return null;
+          }
+
+          const where = {
+            characterId_key: {
+              characterId: character.id,
+              key: input.key
+            }
+          };
+
+          const existing = await tx.characterCooldown.findUnique({
+            where
+          });
+
+          if (existing && existing.availableAt > input.now) {
             return {
-              state: "insufficient-gold",
-              character: toCharacterRecord(character),
-              requiredGold: spentGold
+              state: "on-cooldown",
+              cooldown: existing,
+              character: toCharacterRecord(character)
             };
           }
-        }
 
-        if (existing) {
-          const updated = await tx.characterCooldown.updateMany({
-            where: {
-              id: existing.id,
-              availableAt: {
-                lte: input.now
+          const spentGold = normalizeSpentGold(input.spentGold);
+
+          if (spentGold > 0) {
+            const debit = await tx.character.updateMany({
+              where: {
+                id: character.id,
+                gold: {
+                  gte: spentGold
+                }
+              },
+              data: {
+                gold: {
+                  decrement: spentGold
+                }
               }
-            },
+            });
+
+            if (debit.count !== 1) {
+              return {
+                state: "insufficient-gold",
+                character: toCharacterRecord(character),
+                requiredGold: spentGold
+              };
+            }
+          }
+
+          const resourceCharacter = await tx.character.findUniqueOrThrow({
+            where: {
+              id: character.id
+            }
+          });
+          const hpLoss = buildHpLossAudit(resourceCharacter.hpCurrent, input.hpLoss);
+
+          if (existing) {
+            const updated = await tx.characterCooldown.updateMany({
+              where: {
+                id: existing.id,
+                availableAt: {
+                  lte: input.now
+                }
+              },
+              data: {
+                availableAt: input.availableAt
+              }
+            });
+
+            if (updated.count === 0) {
+              throw new CooldownClaimLostRaceError();
+            }
+
+            const cooldown = await tx.characterCooldown.findUniqueOrThrow({
+              where: {
+                id: existing.id
+              }
+            });
+
+            return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
+          }
+
+          const cooldown = await tx.characterCooldown.create({
             data: {
+              characterId: character.id,
+              key: input.key,
               availableAt: input.availableAt
             }
           });
 
-          if (updated.count === 0) {
-            throw new CooldownClaimLostRaceError();
-          }
-
-          const cooldown = await tx.characterCooldown.findUniqueOrThrow({
-            where: {
-              id: existing.id
-            }
-          });
-
           return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
-        }
-
-        const cooldown = await tx.characterCooldown.create({
-          data: {
-            characterId: character.id,
-            key: input.key,
-            availableAt: input.availableAt
-          }
-        });
-
-        return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
         });
       } catch (error) {
         if (error instanceof HpMutationConflictError && attempt < 2) {
           continue;
         }
 
-      if (error instanceof CooldownClaimLostRaceError) {
-        return this.findCurrentCooldown(telegramUserId, input);
-      }
+        if (isUniqueConstraintError(error)) {
+          return this.findCurrentCooldown(telegramUserId, input);
+        }
 
-      throw error;
+        if (error instanceof CooldownClaimLostRaceError) {
+          return this.findCurrentCooldown(telegramUserId, input);
+        }
+
+        throw error;
+      }
     }
 
     throw new HpMutationConflictError();
@@ -451,8 +463,73 @@ function normalizeSpentGold(value: number | undefined): number {
   return Math.max(0, Math.floor(value ?? 0));
 }
 
+function normalizeHpLoss(value: ClaimCooldownRewardInput["hpLoss"]): { requested: number; effectiveHpMax: number | null } {
+  if (typeof value === "number") {
+    return {
+      requested: Math.max(0, Math.floor(value)),
+      effectiveHpMax: null
+    };
+  }
+
+  if (!value) {
+    return {
+      requested: 0,
+      effectiveHpMax: null
+    };
+  }
+
+  return {
+    requested: Math.max(0, Math.floor(value.requested)),
+    effectiveHpMax: Math.max(1, Math.floor(value.effectiveHpMax))
+  };
+}
+
+function buildHpLossAudit(
+  hpCurrent: number,
+  requestedLoss: ClaimCooldownRewardInput["hpLoss"]
+): HpLossAudit | null {
+  const { requested, effectiveHpMax } = normalizeHpLoss(requestedLoss);
+
+  if (requested <= 0) {
+    return null;
+  }
+
+  const before = Math.max(0, Math.floor(hpCurrent));
+  const lost = Math.min(requested, Math.max(0, before - 1));
+
+  return {
+    before,
+    max: Math.max(before, effectiveHpMax ?? before),
+    lost,
+    after: before - lost
+  };
+}
+
+function withCooldownResultAudit(
+  resultJson: unknown,
+  hpLoss: HpLossAudit | null,
+  appliedItemGrants: ItemGrant[]
+): unknown {
+  const base =
+    resultJson && typeof resultJson === "object" && !Array.isArray(resultJson)
+      ? { ...resultJson }
+      : {};
+
+  return {
+    ...base,
+    hp: hpLoss,
+    appliedItemGrants
+  };
+}
+
 class CooldownClaimLostRaceError extends Error {
   constructor() {
     super("Cooldown claim lost an optimistic race after guarded debit.");
+  }
+}
+
+class HpMutationConflictError extends Error {
+  constructor() {
+    super("Cooldown HP mutation lost an optimistic race.");
   }
 }

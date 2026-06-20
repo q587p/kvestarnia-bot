@@ -42,6 +42,8 @@ export type QuestConsequenceKind =
   | "xp-only"
   | "gold-cost-success"
   | "fight-handoff"
+  | "minor-injury"
+  | "serious-injury"
   | "cosmetic-mess";
 
 export type QuestRewardProfile = "modest" | "standard" | "generous";

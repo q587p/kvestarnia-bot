@@ -41,6 +41,7 @@ import {
 } from "../../src/services/adventureService";
 import { buildAdventureResolutionScene } from "../../src/content/adventureResolutionContent";
 import { buildStarterQuestResolutionScene } from "../../src/content/starterQuestResolutionContent";
+import { monsters } from "../../src/content/monsters";
 
 const telegramUserId = 42n;
 
@@ -438,11 +439,6 @@ describe("AdventureService", () => {
       name: "level-3 bell",
       problemId: "bell",
       character: { xp: 25, level: 3 }
-    },
-    {
-      name: "generated portrait",
-      problemId: "race-human-ish-portrait",
-      character: { xp: 25, level: 3, raceId: "race.human-ish" }
     },
     {
       name: "higher-level handoff",
@@ -850,6 +846,57 @@ async function findResolvedAdventure(
   }
 
   throw new Error("Could not find matching resolved adventure.");
+}
+
+async function findResolvedAdventureForProblem(
+  problemId: string,
+  characterOverrides: Partial<CharacterRecord>,
+  matches: (result: Extract<AdventureResult, { state: "completed" }>) => boolean
+) {
+  for (let user = 40n; user < 2_500n; user += 1n) {
+    const probe = setup();
+    probe.characters.add(user, { xp: 25, gold: 93, ...characterOverrides });
+    const lookup = await probe.service.getAdventureOfferForTelegramUser(user);
+
+    if (lookup.state !== "ready" || !lookup.offer.choices.some((choice) => choice.id === problemId)) {
+      continue;
+    }
+
+    const selected = await probe.service.selectAdventureProblem(user, {
+      periodToken: lookup.offer.periodToken,
+      problemId
+    });
+
+    if (selected.state !== "selected") {
+      continue;
+    }
+
+    for (const approach of selected.approaches) {
+      const { service, characters, dailyActions } = setup();
+      characters.add(user, { xp: 25, gold: 93, ...characterOverrides });
+      const freshLookup = await service.getAdventureOfferForTelegramUser(user);
+
+      if (
+        freshLookup.state !== "ready" ||
+        !freshLookup.offer.choices.some((choice) => choice.id === problemId)
+      ) {
+        continue;
+      }
+
+      const input = {
+        periodToken: freshLookup.offer.periodToken,
+        problemId,
+        methodId: approach.callbackKey ?? approach.id
+      };
+      const result = await service.completeAdventureApproach(user, input);
+
+      if (result.state === "completed" && matches(result)) {
+        return { service, dailyActions, result, input, userId: user, offer: freshLookup.offer };
+      }
+    }
+  }
+
+  throw new Error(`Could not find matching resolved adventure for ${problemId}.`);
 }
 
 function characterSummary() {

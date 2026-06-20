@@ -117,6 +117,13 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           }
         }
 
+        const resourceCharacter = await tx.character.findUniqueOrThrow({
+          where: {
+            id: character.id
+          }
+        });
+        const hpLoss = buildHpLossAudit(resourceCharacter.hpCurrent, input.hpLoss);
+
         const action = await tx.dailyAction.create({
           data: {
             characterId: character.id,
@@ -125,9 +132,9 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             rewardXp: input.rewardXp,
             rewardGold: input.rewardGold,
             spentGold,
-            ...(input.resultJson === undefined
+            ...(input.resultJson === undefined && !hpLoss
               ? {}
-              : { resultJson: input.resultJson as Prisma.InputJsonValue })
+              : { resultJson: withHpLossAudit(input.resultJson, hpLoss) as Prisma.InputJsonValue })
           }
         });
 
@@ -550,4 +557,153 @@ function isUniqueConstraintError(error: unknown): boolean {
 
 function normalizeSpentGold(value: number | undefined): number {
   return Math.max(0, Math.floor(value ?? 0));
+}
+
+function normalizeHpLoss(value: ClaimDailyActionInput["hpLoss"]): { requested: number; effectiveHpMax: number | null } {
+  if (typeof value === "number") {
+    return {
+      requested: Math.max(0, Math.floor(value)),
+      effectiveHpMax: null
+    };
+  }
+
+  if (!value) {
+    return {
+      requested: 0,
+      effectiveHpMax: null
+    };
+  }
+
+  return {
+    requested: Math.max(0, Math.floor(value.requested)),
+    effectiveHpMax: Math.max(1, Math.floor(value.effectiveHpMax))
+  };
+}
+
+function buildHpLossAudit(
+  hpCurrent: number,
+  requestedLoss: ClaimDailyActionInput["hpLoss"]
+): HpLossAudit | null {
+  const { requested, effectiveHpMax } = normalizeHpLoss(requestedLoss);
+
+  if (requested <= 0) {
+    return null;
+  }
+
+  const before = Math.max(0, Math.floor(hpCurrent));
+  const lost = Math.min(requested, Math.max(0, before - 1));
+
+  return {
+    before,
+    max: Math.max(before, effectiveHpMax ?? before),
+    lost,
+    after: before - lost
+  };
+}
+
+function withHpLossAudit(resultJson: unknown, hpLoss: HpLossAudit | null): unknown {
+  if (!hpLoss) {
+    return resultJson;
+  }
+
+  if (resultJson && typeof resultJson === "object" && !Array.isArray(resultJson)) {
+    return {
+      ...resultJson,
+      hp: hpLoss
+    };
+  }
+
+  return {
+    hp: hpLoss
+  };
+}
+
+function withAppliedItemGrants(resultJson: Prisma.JsonValue | null, appliedItemGrants: ItemGrant[]): unknown {
+  const base =
+    resultJson && typeof resultJson === "object" && !Array.isArray(resultJson)
+      ? resultJson
+      : {};
+  const reward = (base as { reward?: unknown }).reward;
+  const rewardObject =
+    reward && typeof reward === "object" && !Array.isArray(reward)
+      ? reward
+      : {};
+
+  return {
+    ...base,
+    reward: {
+      ...rewardObject,
+      appliedItemGrants: appliedItemGrants.map((grant) => ({
+        itemId: grant.itemId,
+        quantity: grant.quantity
+      }))
+    }
+  };
+}
+
+function readHpLossAudit(resultJson: Prisma.JsonValue | null): HpLossAudit | null {
+  if (!resultJson || typeof resultJson !== "object" || Array.isArray(resultJson)) {
+    return null;
+  }
+
+  const hp = (resultJson as { hp?: unknown }).hp;
+
+  if (!hp || typeof hp !== "object" || Array.isArray(hp)) {
+    return null;
+  }
+
+  const before = (hp as { before?: unknown }).before;
+  const max = (hp as { max?: unknown }).max;
+  const lost = (hp as { lost?: unknown }).lost;
+  const after = (hp as { after?: unknown }).after;
+
+  return typeof before === "number" && typeof lost === "number" && typeof after === "number"
+    ? { before, max: typeof max === "number" ? max : Math.max(before, after), lost, after }
+    : null;
+}
+
+function readItemGrants(resultJson: Prisma.JsonValue | null): ItemGrant[] {
+  if (!resultJson || typeof resultJson !== "object" || Array.isArray(resultJson)) {
+    return [];
+  }
+
+  const reward = (resultJson as { reward?: unknown }).reward;
+
+  if (!reward || typeof reward !== "object" || Array.isArray(reward)) {
+    return [];
+  }
+
+  const appliedItemGrants = (reward as { appliedItemGrants?: unknown }).appliedItemGrants;
+  const itemGrants = Array.isArray(appliedItemGrants)
+    ? appliedItemGrants
+    : (reward as { itemGrants?: unknown }).itemGrants;
+
+  if (!Array.isArray(itemGrants)) {
+    return [];
+  }
+
+  return itemGrants.flatMap((grant) => {
+    if (!grant || typeof grant !== "object" || Array.isArray(grant)) {
+      return [];
+    }
+
+    const itemId = (grant as { itemId?: unknown }).itemId;
+    const quantity = (grant as { quantity?: unknown }).quantity;
+
+    return typeof itemId === "string" && typeof quantity === "number"
+      ? [{ itemId, quantity }]
+      : [];
+  });
+}
+
+class HpMutationConflictError extends Error {
+  constructor() {
+    super("Daily action HP mutation lost an optimistic race.");
+  }
+}
+
+class RollbackMutationConflictError extends Error {
+  constructor() {
+    super("Daily action rollback lost an optimistic race.");
+  }
 }
