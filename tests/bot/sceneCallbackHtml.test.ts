@@ -987,6 +987,7 @@ describe("scene callback HTML options", () => {
   });
 
   it("shows a visible combat-lock explanation when a place button is pressed during a fight", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
     const calls = await captureApiCalls(
       makePlaceCallbackData("hall"),
       servicesWith({
@@ -995,7 +996,14 @@ describe("scene callback HTML options", () => {
             Promise.resolve({
               state: "persistent-active" as const,
               character,
-              session: persistentSession("monster.deadline-spider"),
+              session: {
+                ...persistentSession("monster.deadline-spider"),
+                state: {
+                  ...persistentSession("monster.deadline-spider").state,
+                  source: "adventure",
+                  originLocationId: "location.korchma.quest_table"
+                }
+              },
               monster: {
                 id: "monster.deadline-spider",
                 name: "Павук дедлайнів",
@@ -1005,11 +1013,20 @@ describe("scene callback HTML options", () => {
               },
               questProgress: null
             })
+        },
+        presence: {
+          markAction
         }
       })
     );
     const edit = calls.find((call) => call.method === "editMessageText");
 
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.quest_table",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
     expect(String(edit?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
     expect(String(edit?.payload.text)).toContain("Спершу завершіть цю сутичку");
     expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
@@ -1684,6 +1701,7 @@ describe("scene callback HTML options", () => {
 
     expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
       source: "adventure",
+      originLocationId: "location.korchma.quest_table",
       difficulty: "normal"
     });
     expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n);

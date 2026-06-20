@@ -16,6 +16,7 @@ import {
   YEGER_FIRST_NOTCH_ITEM_ID,
   type RewardItemGrant
 } from "./itemGrant";
+import { PRESENCE_LOCATION_KORCHMA_RANGER_CORNER } from "./presenceService";
 
 export { YEGER_UNQUIET_TRIAL_COMPLETED_KEY, YEGER_UNQUIET_TRIAL_STARTED_KEY } from "./dailyActionKeys";
 
@@ -326,6 +327,7 @@ export class YegerQuestService {
 
     const fight = await this.fight.getOrStartPersistentFightForTelegramUser(telegramUserId, {
       source: "yeger",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
       target: { tagsAny: [...YEGER_UNQUIET_TRIAL_TAGS] }
     });
 

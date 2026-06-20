@@ -580,7 +580,7 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["⚔️ Новий бій", "🪜 До Низу"]);
+    }, character))).toEqual(["⚔️ Новий бій", "↩️ Повернутися до Низу"]);
     expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
       ...session,
       status: "won",
@@ -589,6 +589,26 @@ describe("main menu and scene keyboards", () => {
         status: "won"
       }
     }, character))).toEqual(["v1:place:deep-level1", "v1:place:deep"]);
+    expect(flatInlineButtonTexts(buildPersistentFightResultKeyboard({
+      ...session,
+      status: "won",
+      state: {
+        ...session.state!,
+        source: "adventure",
+        originLocationId: "location.korchma.quest_table",
+        status: "won"
+      }
+    }, character))).toEqual(["↩️ Повернутися до столу"]);
+    expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
+      ...session,
+      status: "won",
+      state: {
+        ...session.state!,
+        source: "adventure",
+        originLocationId: "location.korchma.quest_table",
+        status: "won"
+      }
+    }, character))).toEqual(["v1:place:quest-table"]);
   });
 
   it("keeps active training doppelganger buttons scoped to turn callbacks", () => {

@@ -165,7 +165,8 @@ import {
 import {
   buildFightKeyboard,
   buildFightResultKeyboard,
-  buildPersistentFightResultKeyboard
+  buildPersistentFightResultKeyboard,
+  getPersistentFightOriginLocationId
 } from "./keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "./keyboards/trainingDoppelgangerKeyboard";
 import { buildTurnBasedDuelKeyboard } from "./keyboards/duelKeyboard";
@@ -867,7 +868,7 @@ async function redirectCombatLockIfNeeded(
   if (lock.state === "persistent-active") {
     await answerCombatLockCallback(ctx);
     await refreshCombatLockPresence(ctx, services.presence, {
-      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+      locationId: getPersistentFightOriginLocationId(lock.session),
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
     });
@@ -1633,6 +1634,14 @@ async function handlePlaceCallback(
     return;
   }
 
+  if (action === "ranger-corner") {
+    await sendHuntBoard(ctx, services.yeger, "edit", {
+      presence: services.presence,
+      tavernRaid: services.tavern
+    });
+    return;
+  }
+
   if (action === "quest-table") {
     await sendQuestHub(
       ctx,
@@ -2310,6 +2319,7 @@ async function handleAdventureCallback(
         telegramUserId,
         {
           source: "adventure",
+          originLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
           difficulty: "normal"
         }
       );

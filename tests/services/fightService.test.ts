@@ -45,6 +45,11 @@ import {
   selectPersistentFightMonsterLevel,
   THIRTEEN_SMALL_PROBLEMS_QUEST_KEY
 } from "../../src/services/fightService";
+import {
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
+} from "../../src/services/presenceService";
 
 const telegramUserId = 42n;
 
@@ -1075,6 +1080,64 @@ describe("FightService", () => {
         baseMonsterLevel: 23,
         effectiveMonsterLevel: 24
       });
+    }
+  });
+
+  it("stores persistent fight origin location in combat state", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      source: "adventure",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      difficulty: "normal"
+    });
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.session.state?.source).toBe("adventure");
+      expect(started.session.state?.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+    }
+  });
+
+  it("defaults ordinary and Yeger persistent fight origins without caller input", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    characters.add(99n, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const ordinary = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal"
+    });
+    const yeger = await service.getOrStartPersistentFightForTelegramUser(99n, {
+      source: "yeger",
+      target: { tagsAny: ["undead"] }
+    });
+
+    expect(ordinary.state).toBe("persistent-active");
+    expect(yeger.state).toBe("persistent-active");
+    if (ordinary.state === "persistent-active") {
+      expect(ordinary.session.state?.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1);
+    }
+    if (yeger.state === "persistent-active") {
+      expect(yeger.session.state?.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_RANGER_CORNER);
     }
   });
 

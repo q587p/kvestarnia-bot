@@ -48,6 +48,12 @@ import {
   type ResourceRecoveryNotice
 } from "./characterResourceService";
 import {
+  normalizePresenceLocationId,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
+} from "./presenceService";
+import {
   MIMIC_SHAWARMA_ADVENTURE_KEY,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
   PERSISTENT_SOLO_FIGHT_REWARD_KEY,
@@ -413,6 +419,7 @@ const ZERO_GOLD_ITEM_DROP_CHANCE = 0.93;
 
 export interface PersistentFightStartOptions {
   source?: "normal" | "yeger" | "adventure";
+  originLocationId?: string;
   difficulty?: PersistentFightDifficultyId;
   target?: {
     tagsAny?: string[];
@@ -890,6 +897,7 @@ export class FightService {
     });
     state.turnExpiresAt = getTurnExpiry(now).toISOString();
     state.source = options.source ?? "normal";
+    state.originLocationId = resolvePersistentFightOriginLocationId(options);
     if (monsterContext) {
       state.context = monsterContext;
     }
@@ -1836,6 +1844,22 @@ export class FightService {
 
     return availableAt > now ? { availableAt, now } : null;
   }
+}
+
+function resolvePersistentFightOriginLocationId(options: PersistentFightStartOptions): string {
+  if (options.originLocationId) {
+    return normalizePresenceLocationId(options.originLocationId);
+  }
+
+  if (options.source === "adventure") {
+    return PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
+  }
+
+  if (options.source === "yeger") {
+    return PRESENCE_LOCATION_KORCHMA_RANGER_CORNER;
+  }
+
+  return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1;
 }
 
 function isMonsterRestEligibleSession(

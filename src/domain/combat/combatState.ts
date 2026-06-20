@@ -94,6 +94,7 @@ export interface CombatContextModifiers {
 export interface CombatState {
   id?: string;
   source?: "normal" | "yeger" | "adventure" | "training";
+  originLocationId?: string;
   completedAt?: string;
   turnExpiresAt?: string;
   turn: number;
@@ -219,6 +220,7 @@ export function cloneCombatState(state: CombatState): CombatState {
   return {
     ...(state.id ? { id: state.id } : {}),
     ...(state.source ? { source: state.source } : {}),
+    ...(state.originLocationId ? { originLocationId: state.originLocationId } : {}),
     ...(state.completedAt ? { completedAt: state.completedAt } : {}),
     ...(state.turnExpiresAt ? { turnExpiresAt: state.turnExpiresAt } : {}),
     turn: state.turn,

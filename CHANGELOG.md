@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added ability-keyed cooldown state for combat skills while keeping legacy `cooldowns.skill` combat states readable and normalizing them on the next committed action.
 - Added 23-second turn deadlines to active persistent solo/training combat state. When a player returns to the battle screen or presses an expired combat button after the deadline, the service first commits a canonical basic attack for the missed turn and then shows the current state. When a safe side-surface redirect recovers an overdue turn, the hero skips their action and the monster still acts.
 - Added persistent-fight monster context snapshots: combat start now freezes a `Europe/Kyiv` world context, applies at most two small capped monster traits, stores the context in combat state and reuses it on resume/replay.
+- Added persistent-fight origin tracking in combat state, so non-Низ fight handoffs can return to the place where the fight started.
 - Expanded the monster roster to 93 entries from the contextual monster package, keeping the current `MonsterContent` shape and existing reward/eligibility rules.
 - Added deterministic monster barks for the full 93-monster roster: every monster has five authored Ukrainian lines, and stored turn summaries render bark ids without rerolling old cards.
 - Added focused domain, service, callback, keyboard and presenter coverage for defend, unavailable skill no-op behavior, legacy cooldown loading, expired-turn auto-attacks and side-surface missed-turn skips.
@@ -25,6 +26,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Defend reduces incoming damage for the current round and can produce a small PvE counter, with repeated defend attempts fatiguing the stance so it cannot become an infinite best action.
 - Turn-based duel defend choices stay hidden like other round choices and apply deterministic same-round incoming damage reduction when the round resolves.
 - Opening safe side surfaces such as hero/inventory/manatky does not auto-attack for an overdue solo/training combat turn; if the lock redirects back to combat after the deadline, the hero skips that action and the monster still acts.
+- Post-fight `Новий бій` now appears only for fights that started in `Низ`; adventure and Yeger handoff fights return to their origin surface instead of showing `До Низу`.
 - Contextual monster traits affect only combat texture and small stat modifiers. They do not change encounter eligibility, Yeger matching/progress, XP, gold, loot, authored monster level or stored rewards.
 - The contextual-monster package was adapted into the current content/runtime shape; the monster ability/loadout extension remains out of scope.
 
