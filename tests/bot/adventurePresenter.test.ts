@@ -199,8 +199,10 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("Підняти сухий приплив для");
     expect(text).not.toContain("Переспівати ритм");
     expect(text).not.toContain("«Співачка Без Моря» поєднує");
-    expect(text).toContain("Особистий підхід героя.");
-    expect(text).toContain("Професійний підхід героя.");
+    expect(text).toContain("Особистий варіант.");
+    expect(text).toContain("Професійний варіант.");
+    expect(text).not.toContain("Особистий підхід героя.");
+    expect(text).not.toContain("Професійний підхід героя.");
     expect(text).not.toContain("Надійне розслідування. Майже надійно.");
     expect(text).not.toContain("Надійне розслідування. майже надійно.");
     expect(text).not.toContain("Расовий спосіб");
@@ -232,7 +234,7 @@ describe("adventure presenter", () => {
     const method = scene.methods.find((candidate) => candidate.id === "track-soles");
 
     expect(method?.outcomeText["strong-success"].body.join("\n")).toContain(
-      "Прочитати маршрут підошов закриває сцену чисто."
+      "Прочитати маршрут підошов знаходить у чоботи точну причину безладу й кладе її на видноті."
     );
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("перестає сперечатися");
   });

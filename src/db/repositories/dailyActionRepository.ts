@@ -32,13 +32,18 @@ export interface HpLossAudit {
   after: number;
 }
 
+export interface HpLossRequest {
+  requested: number;
+  effectiveHpMax: number;
+}
+
 export interface ClaimDailyActionInput {
   key: string;
   localDate: string;
   rewardXp: number;
   rewardGold: number;
   spentGold?: number;
-  hpLoss?: number;
+  hpLoss?: number | HpLossRequest;
   resultJson?: unknown;
   itemGrants?: ItemGrant[];
 }

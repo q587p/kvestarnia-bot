@@ -244,6 +244,90 @@ describe("adventure resolution content", () => {
     }
   });
 
+  it("gives compared methods in the same scene visibly different outcome bodies", () => {
+    const comparisons = [
+      {
+        problemId: "barrel",
+        title: "Бочка вимагає орендну угоду",
+        methodIds: ["inspect-staves", "sign-lease", "bribe-cork", "evict-emptiness"]
+      },
+      {
+        problemId: "stew",
+        title: "Казанок репетирує оперу",
+        methodIds: ["conduct-duet", "lower-fire", "taste-critic", "lid-challenge"]
+      },
+      {
+        problemId: "calendar",
+        title: "Календар загубив четвер",
+        methodIds: ["audit-days", "negotiate-week", "forge-thursday", "bribe-deadline"]
+      },
+      {
+        problemId: "door",
+        title: "Двері беруть плату за вихід",
+        methodIds: ["inspect-hinges", "negotiate-toll", "fake-payment", "pay-tip"]
+      }
+    ] as const;
+
+    for (const comparison of comparisons) {
+      const scene = buildAdventureResolutionScene({
+        problemId: comparison.problemId,
+        title: comparison.title,
+        character
+      });
+      const bodies = comparison.methodIds.map((methodId) => {
+        const method = scene.methods.find((candidate) => candidate.id === methodId);
+
+        expect(method, `${comparison.problemId}:${methodId}`).toBeDefined();
+        return activeOutcomeBody(method!);
+      });
+
+      expect(new Set(bodies).size, comparison.problemId).toBe(bodies.length);
+    }
+
+    for (const sceneId of ["shawarma", "cellar-mouse"] as const) {
+      const scene = buildStarterQuestResolutionScene(sceneId, bard);
+      const sceneMethods = scene.methods.filter((method) => method.source === "scene");
+      const bodies = sceneMethods.map(activeOutcomeBody);
+
+      expect(new Set(bodies).size, sceneId).toBe(sceneMethods.length);
+    }
+  });
+
+  it("keeps qualitative danger warnings on every rendered risky method variant", () => {
+    const renderedSets = [
+      ...ADVENTURE_PROBLEM_IDS.map((problemId) =>
+        resolveQuestMethodsForCharacter(
+          buildAdventureResolutionScene({
+            problemId,
+            title: problemId,
+            character: bard
+          }),
+          bard
+        )
+      ),
+      resolveQuestMethodsForCharacter(buildStarterQuestResolutionScene("shawarma", bard), bard),
+      resolveQuestMethodsForCharacter(buildStarterQuestResolutionScene("cellar-mouse", bard), bard, {
+        sceneSlotKey: "bribe-cheese"
+      })
+    ];
+
+    for (const methods of renderedSets) {
+      for (const method of methods) {
+        const consequence = method.consequenceByGrade.complication;
+
+        if (consequence === "minor-injury" || consequence === "serious-injury") {
+          expect(method.hint, method.id).toMatch(
+            /постраждати|небезпеч|пальц|забит|синц|обпект|впасти|травм/i
+          );
+        }
+
+        if (consequence === "fight-handoff") {
+          expect(method.hint, method.id).toMatch(/бійк|бій|істот|мешканц|поклик|виліз|варта/i);
+        }
+      }
+    }
+  });
+
   it("changes fitting visible affordances for different identities on the same scene", () => {
     const profiles = [
       {
@@ -461,4 +545,12 @@ const bard = {
 
 function normalize(label: string): string {
   return label.replace(/^[^\p{L}\p{N}]+/u, "").trim().toLocaleLowerCase("uk-UA");
+}
+
+function activeOutcomeBody(method: {
+  outcomeText: Record<string, { body: readonly string[] }>;
+}): string {
+  return Object.values(method.outcomeText)
+    .flatMap((outcome) => outcome.body)
+    .join("\n");
 }

@@ -251,6 +251,11 @@ export class CellarErrandService {
       consequence,
       hpMax: character.hpMax
     });
+    const itemGrants = buildCellarItemGrants(
+      method.itemIntent ??
+        method.legacyAction ??
+        (completionInput.type === "legacy-action" ? completionInput.action : completionInput.methodId)
+    );
     const claim = await this.cooldowns.claimRewardForTelegramUser(telegramUserId, {
       key: CELLAR_MOUSE_ERRAND_KEY,
       now,
@@ -258,12 +263,22 @@ export class CellarErrandService {
       rewardXp: reward.xp,
       rewardGold: reward.gold,
       spentGold,
-      hpLoss,
-      itemGrants: buildCellarItemGrants(
-        method.itemIntent ??
-          method.legacyAction ??
-          (completionInput.type === "legacy-action" ? completionInput.action : completionInput.methodId)
-      )
+      hpLoss: {
+        requested: hpLoss,
+        effectiveHpMax: character.hpMax
+      },
+      resultJson: buildCellarResultPayload({
+        sceneId: scene.sceneId,
+        method,
+        grade: check.grade,
+        consequence,
+        reward,
+        spentGold,
+        itemGrants,
+        check,
+        cycleKey
+      }),
+      itemGrants
     });
 
     if (!claim) {
@@ -392,6 +407,34 @@ function buildCellarHpLoss(input: {
   }
 
   return Math.min(3, Math.max(1, Math.ceil(Math.max(1, input.hpMax) * (0.04 + (hash % 4) / 100))));
+}
+
+function buildCellarResultPayload(input: {
+  sceneId: string;
+  method: QuestMethodDefinition;
+  grade: QuestResolutionGrade;
+  consequence: QuestConsequenceKind;
+  reward: { xp: number; gold: number };
+  spentGold: number;
+  itemGrants: Array<{ itemId: string; quantity: number }>;
+  check: QuestCheckResult;
+  cycleKey: string;
+}): unknown {
+  return {
+    version: 1,
+    sceneId: input.sceneId,
+    methodId: input.method.id,
+    grade: input.grade,
+    consequence: input.consequence,
+    reward: {
+      xp: input.reward.xp,
+      gold: input.reward.gold,
+      itemGrants: input.itemGrants
+    },
+    spentGold: input.spentGold,
+    cycleKey: input.cycleKey,
+    check: input.check
+  };
 }
 
 function getConservativeCellarReward(method: QuestMethodDefinition): { xp: number; gold: number } {

@@ -2319,10 +2319,22 @@ async function handleAdventureCallback(
         complicationFight.state === "needs-rest" ||
         complicationFight.state === "monster-rest" ||
         complicationFight.state === "level-retired" ||
-        complicationFight.state === "no-character"
+        complicationFight.state === "no-character" ||
+        (complicationFight.state === "persistent-active" && complicationFight.started !== true)
       ) {
         await services.adventure.rollbackCurrentAdventureClaimForTelegramUser(telegramUserId);
         await safeAnswerCallbackQuery(ctx);
+
+        if (complicationFight.state === "persistent-active") {
+          await safeEditMessageText(ctx, presentPersistentFight(complicationFight), {
+            ...HTML_MESSAGE_OPTIONS,
+            reply_markup: buildPersistentFightResultKeyboard(
+              complicationFight.session,
+              complicationFight.character
+            )
+          });
+          return;
+        }
 
         if (complicationFight.state === "needs-rest") {
           await safeEditMessageText(

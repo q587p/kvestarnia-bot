@@ -75,7 +75,10 @@ describe("paid Prisma claim repositories", () => {
       rewardXp: 7,
       rewardGold: 4,
       spentGold: 1,
-      hpLoss: 8,
+      hpLoss: {
+        requested: 8,
+        effectiveHpMax: 25
+      },
       resultJson: {
         reward: {
           itemGrants: [{ itemId: "item.hp", quantity: 1 }]
@@ -129,7 +132,10 @@ describe("paid Prisma claim repositories", () => {
       rewardXp: 7,
       rewardGold: 4,
       spentGold: 2,
-      hpLoss: 3,
+      hpLoss: {
+        requested: 3,
+        effectiveHpMax: 25
+      },
       resultJson: {
         reward: {
           itemGrants: [{ itemId: "item.rollback", quantity: 1 }]
@@ -227,7 +233,10 @@ describe("paid Prisma claim repositories", () => {
       rewardXp: 7,
       rewardGold: 4,
       spentGold: 2,
-      hpLoss: 3,
+      hpLoss: {
+        requested: 3,
+        effectiveHpMax: 25
+      },
       itemGrants: [{ itemId: "item.hp.concurrent", quantity: 1 }]
     };
 
@@ -318,7 +327,20 @@ describe("paid Prisma claim repositories", () => {
       availableAt: new Date(now.getTime() + 60_000),
       rewardXp: 2,
       rewardGold: 1,
-      hpLoss: 2,
+      hpLoss: {
+        requested: 2,
+        effectiveHpMax: 25
+      },
+      resultJson: {
+        version: 1,
+        sceneId: "cellar-mouse",
+        methodId: "sweep-tracks",
+        grade: "mixed-success",
+        consequence: "minor-injury",
+        reward: { xp: 2, gold: 1, itemGrants: [] },
+        spentGold: 0,
+        cycleKey: "cycle-a"
+      },
       itemGrants: []
     });
     const replay = await cooldowns.claimRewardForTelegramUser(9024n, {
@@ -327,7 +349,10 @@ describe("paid Prisma claim repositories", () => {
       availableAt: new Date(now.getTime() + 60_000),
       rewardXp: 2,
       rewardGold: 1,
-      hpLoss: 2,
+      hpLoss: {
+        requested: 2,
+        effectiveHpMax: 25
+      },
       itemGrants: []
     });
     const oldStyle = await cooldowns.claimRewardForTelegramUser(9024n, {
@@ -343,6 +368,7 @@ describe("paid Prisma claim repositories", () => {
       state: "completed",
       hpLoss: {
         before: 8,
+        max: 25,
         lost: 2,
         after: 6
       }
@@ -352,6 +378,175 @@ describe("paid Prisma claim repositories", () => {
     await expect(
       prisma.character.findUniqueOrThrow({ where: { id: "character-cooldown-hp" } })
     ).resolves.toMatchObject({ xp: 3, gold: 4, hpCurrent: 6 });
+    const cooldown = await prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId: "character-cooldown-hp",
+          key: "cellar.mouse-errand.hp"
+        }
+      }
+    });
+    expect(cooldown.resultJson).toMatchObject({
+      version: 1,
+      sceneId: "cellar-mouse",
+      methodId: "sweep-tracks",
+      grade: "mixed-success",
+      consequence: "minor-injury",
+      reward: { xp: 2, gold: 1, itemGrants: [] },
+      spentGold: 0,
+      cycleKey: "cycle-a",
+      hp: {
+        before: 8,
+        max: 25,
+        lost: 2,
+        after: 6
+      },
+      appliedItemGrants: []
+    });
+  });
+
+  it("stores the service-supplied effective max for level and equipment HP bonuses", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-daily-effective-hp",
+      characterId: "character-daily-effective-hp",
+      telegramUserId: 9025n,
+      gold: 2,
+      hpCurrent: 24,
+      hpMax: 25
+    });
+
+    const result = await dailyActions.claimForTelegramUser(9025n, {
+      key: "quest.hp.effective",
+      localDate: "12026-06-20",
+      rewardXp: 1,
+      rewardGold: 0,
+      hpLoss: {
+        requested: 4,
+        effectiveHpMax: 33
+      }
+    });
+
+    expect(result).toMatchObject({
+      state: "created",
+      hpLoss: {
+        before: 24,
+        max: 33,
+        lost: 4,
+        after: 20
+      }
+    });
+    const action = await prisma.dailyAction.findFirstOrThrow({
+      where: { characterId: "character-daily-effective-hp" }
+    });
+    expect(action.resultJson).toMatchObject({
+      hp: {
+        before: 24,
+        max: 33,
+        lost: 4,
+        after: 20
+      }
+    });
+  });
+
+  it("applies two different concurrent daily HP claims without losing either injury", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-daily-distinct-hp",
+      characterId: "character-daily-distinct-hp",
+      telegramUserId: 9026n,
+      gold: 10,
+      hpCurrent: 12,
+      hpMax: 25
+    });
+
+    const [first, second] = await Promise.all([
+      dailyActions.claimForTelegramUser(9026n, {
+        key: "quest.hp.distinct-a",
+        localDate: "12026-06-20",
+        rewardXp: 1,
+        rewardGold: 0,
+        spentGold: 1,
+        hpLoss: { requested: 3, effectiveHpMax: 25 }
+      }),
+      dailyActions.claimForTelegramUser(9026n, {
+        key: "quest.hp.distinct-b",
+        localDate: "12026-06-20",
+        rewardXp: 2,
+        rewardGold: 0,
+        spentGold: 1,
+        hpLoss: { requested: 4, effectiveHpMax: 25 }
+      })
+    ]);
+
+    expect([first?.state, second?.state].sort()).toEqual(["created", "created"]);
+    await expect(
+      prisma.character.findUniqueOrThrow({ where: { id: "character-daily-distinct-hp" } })
+    ).resolves.toMatchObject({ xp: 3, gold: 8, hpCurrent: 5 });
+    const actions = await prisma.dailyAction.findMany({
+      where: { characterId: "character-daily-distinct-hp" },
+      orderBy: { key: "asc" }
+    });
+    const audits = actions.map((action) => (action.resultJson as { hp: { before: number; lost: number; after: number } }).hp);
+    expect(audits.map((audit) => audit.lost).sort((a, b) => a - b)).toEqual([3, 4]);
+    for (const audit of audits) {
+      expect(audit.after).toBe(audit.before - audit.lost);
+    }
+    expect(new Set(audits.flatMap((audit) => [audit.before, audit.after]))).toEqual(new Set([12, 9, 5]));
+  });
+
+  it("rolls back only the committed HP delta after an unrelated HP change", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-daily-rollback-delta",
+      characterId: "character-daily-rollback-delta",
+      telegramUserId: 9027n,
+      gold: 5,
+      hpCurrent: 12,
+      hpMax: 25
+    });
+
+    await dailyActions.claimForTelegramUser(9027n, {
+      key: "quest.rollback.delta",
+      localDate: "12026-06-20",
+      rewardXp: 5,
+      rewardGold: 3,
+      spentGold: 2,
+      hpLoss: { requested: 3, effectiveHpMax: 25 },
+      resultJson: {
+        reward: {
+          itemGrants: [{ itemId: "item.rollback.delta", quantity: 1 }]
+        }
+      },
+      itemGrants: [{ itemId: "item.rollback.delta", quantity: 1 }]
+    });
+    await prisma.character.update({
+      where: { id: "character-daily-rollback-delta" },
+      data: { hpCurrent: { decrement: 2 } }
+    });
+
+    await expect(
+      prisma.character.findUniqueOrThrow({ where: { id: "character-daily-rollback-delta" } })
+    ).resolves.toMatchObject({ xp: 5, gold: 6, hpCurrent: 7 });
+    await expect(
+      dailyActions.rollbackForTelegramUser(9027n, {
+        key: "quest.rollback.delta",
+        localDate: "12026-06-20"
+      })
+    ).resolves.toBe("rolled-back");
+    await expect(
+      prisma.character.findUniqueOrThrow({ where: { id: "character-daily-rollback-delta" } })
+    ).resolves.toMatchObject({ xp: 0, gold: 5, hpCurrent: 10 });
+    await expect(
+      dailyActions.rollbackForTelegramUser(9027n, {
+        key: "quest.rollback.delta",
+        localDate: "12026-06-20"
+      })
+    ).resolves.toBe("missing");
+    await expect(
+      dailyActions.rollbackForTelegramUser(9027n, {
+        key: "quest.rollback.missing",
+        localDate: "12026-06-20"
+      })
+    ).resolves.toBe("missing");
+    await expect(prisma.characterItem.count({ where: { characterId: "character-daily-rollback-delta" } })).resolves.toBe(0);
   });
 
   it("serializes concurrent paid cooldown claims without a second charge", async () => {
@@ -448,6 +643,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       character_id TEXT NOT NULL,
       key TEXT NOT NULL,
       available_at DATETIME NOT NULL,
+      result_json JSONB,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE UNIQUE INDEX character_cooldowns_character_key ON character_cooldowns(character_id, key)`,

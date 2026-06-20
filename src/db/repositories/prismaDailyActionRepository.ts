@@ -48,8 +48,9 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     telegramUserId: bigint,
     input: ClaimDailyActionInput
   ): Promise<ClaimDailyActionResult | null> {
-    try {
-      return await this.prisma.$transaction(async (tx) => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
         const character = await tx.character.findFirst({
           where: {
             user: {
@@ -87,7 +88,6 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
         }
 
         const spentGold = normalizeSpentGold(input.spentGold);
-        const hpLoss = buildHpLossAudit(character.hpCurrent, input.hpLoss, character.hpMax);
 
         if (spentGold > 0) {
           const debit = await tx.character.updateMany({
@@ -115,6 +115,13 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           }
         }
 
+        const resourceCharacter = await tx.character.findUniqueOrThrow({
+          where: {
+            id: character.id
+          }
+        });
+        const hpLoss = buildHpLossAudit(resourceCharacter.hpCurrent, input.hpLoss);
+
         const action = await tx.dailyAction.create({
           data: {
             characterId: character.id,
@@ -129,25 +136,48 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           }
         });
 
-        const rewardedCharacter = await tx.character.update({
-          where: {
-            id: character.id
+        const rewardUpdate = {
+          xp: {
+            increment: input.rewardXp
           },
-          data: {
-            xp: {
-              increment: input.rewardXp
+          gold: {
+            increment: input.rewardGold
+          },
+          ...(hpLoss
+            ? {
+                hpCurrent: hpLoss.after,
+                hpRegenAt: new Date()
+              }
+            : {})
+        };
+        let rewardedCharacter: typeof character;
+
+        if (hpLoss) {
+          const updated = await tx.character.updateMany({
+            where: {
+              id: character.id,
+              hpCurrent: hpLoss.before
             },
-            gold: {
-              increment: input.rewardGold
-            },
-            ...(hpLoss
-              ? {
-                  hpCurrent: hpLoss.after,
-                  hpRegenAt: new Date()
-                }
-              : {})
+            data: rewardUpdate
+          });
+
+          if (updated.count !== 1) {
+            throw new HpMutationConflictError();
           }
-        });
+
+          rewardedCharacter = await tx.character.findUniqueOrThrow({
+            where: {
+              id: character.id
+            }
+          });
+        } else {
+          rewardedCharacter = await tx.character.update({
+            where: {
+              id: character.id
+            },
+            data: rewardUpdate
+          });
+        }
         const remortCount = await countCharacterRemorts(tx, character.id);
         const rewardProgress = applyXpReward(character.xp, input.rewardXp, { remortCount });
         const oldLevel = Math.max(character.level, rewardProgress.oldLevel);
@@ -214,14 +244,21 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           itemGrants: appliedItemGrants,
           hpLoss
         };
-      });
-    } catch (error) {
-      if (isUniqueConstraintError(error)) {
-        return this.findExistingClaim(telegramUserId, input);
-      }
+        });
+      } catch (error) {
+        if (error instanceof HpMutationConflictError && attempt < 2) {
+          continue;
+        }
 
-      throw error;
+        if (isUniqueConstraintError(error)) {
+          return this.findExistingClaim(telegramUserId, input);
+        }
+
+        throw error;
+      }
     }
+
+    throw new HpMutationConflictError();
   }
 
   async deleteForTelegramUser(
@@ -299,6 +336,11 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
       const remortCount = await countCharacterRemorts(tx, character.id);
       const xpAfterRollback = Math.max(0, character.xp - action.rewardXp);
       const levelAfterRollback = getLevelForXp(xpAfterRollback, { remortCount });
+      const rollbackHpCurrent =
+        hpLoss && hpLoss.lost > 0
+          ? Math.min(Math.max(character.hpMax, hpLoss.max), Math.max(0, character.hpCurrent) + hpLoss.lost)
+          : null;
+
       await tx.character.update({
         where: {
           id: character.id
@@ -309,9 +351,9 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           gold: {
             increment: action.spentGold - action.rewardGold
           },
-          ...(hpLoss && hpLoss.lost > 0
+          ...(rollbackHpCurrent !== null
             ? {
-                hpCurrent: hpLoss.before,
+                hpCurrent: rollbackHpCurrent,
                 hpRegenAt: new Date()
               }
             : {})
@@ -469,16 +511,32 @@ function normalizeSpentGold(value: number | undefined): number {
   return Math.max(0, Math.floor(value ?? 0));
 }
 
-function normalizeHpLoss(value: number | undefined): number {
-  return Math.max(0, Math.floor(value ?? 0));
+function normalizeHpLoss(value: ClaimDailyActionInput["hpLoss"]): { requested: number; effectiveHpMax: number | null } {
+  if (typeof value === "number") {
+    return {
+      requested: Math.max(0, Math.floor(value)),
+      effectiveHpMax: null
+    };
+  }
+
+  if (!value) {
+    return {
+      requested: 0,
+      effectiveHpMax: null
+    };
+  }
+
+  return {
+    requested: Math.max(0, Math.floor(value.requested)),
+    effectiveHpMax: Math.max(1, Math.floor(value.effectiveHpMax))
+  };
 }
 
 function buildHpLossAudit(
   hpCurrent: number,
-  requestedLoss: number | undefined,
-  hpMax = hpCurrent
+  requestedLoss: ClaimDailyActionInput["hpLoss"]
 ): HpLossAudit | null {
-  const requested = normalizeHpLoss(requestedLoss);
+  const { requested, effectiveHpMax } = normalizeHpLoss(requestedLoss);
 
   if (requested <= 0) {
     return null;
@@ -489,7 +547,7 @@ function buildHpLossAudit(
 
   return {
     before,
-    max: Math.max(before, Math.floor(hpMax)),
+    max: Math.max(before, effectiveHpMax ?? before),
     lost,
     after: before - lost
   };
@@ -562,4 +620,10 @@ function readItemGrants(resultJson: Prisma.JsonValue | null): ItemGrant[] {
       ? [{ itemId, quantity }]
       : [];
   });
+}
+
+class HpMutationConflictError extends Error {
+  constructor() {
+    super("Daily action HP mutation lost an optimistic race.");
+  }
 }

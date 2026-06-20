@@ -1695,6 +1695,85 @@ describe("scene callback HTML options", () => {
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 
+  it("rolls back a complication claim when another active fight wins the handoff race", async () => {
+    const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
+      Promise.resolve("deleted" as const)
+    );
+    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-active" as const,
+        character: {
+          ...character,
+          level: 3
+        },
+        session: persistentSession("monster.deadline-spider"),
+        monster: {
+          id: "monster.deadline-spider",
+          name: "РџР°РІСѓРє РґРµРґР»Р°Р№РЅС–РІ",
+          description: "РџР»РµС‚Рµ РїР°РІСѓС‚РёРЅСѓ Р· В«СЊРѕРіРѕРґРЅС– С€РІРёРґРµРЅСЊРєРѕВ».",
+          level: 2,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null
+      })
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              choice: adventureChoice,
+              approach: adventureApproach,
+              reward: {
+                xp: 0,
+                gold: 0,
+                localDate: "12026-06-12",
+                itemGrants: []
+              },
+              levelChange: noLevelChange,
+              complication: true,
+              grade: "complication",
+              consequence: "fight-handoff",
+              outcome: "Р“РѕСЂС‰РёРє РІРёРєР»РёРєР°РІ РІР°СЃ РЅР° С‡РµСЃРЅРёР№ Р±С–Р№ Р»РѕР¶РєР°РјРё.",
+              spentGold: 0,
+              hpLoss: null,
+              fightHandoff: true,
+              fightEncounter: { monsterId: "monster.borshch-slime" },
+              check: {
+                roll: 13,
+                target: 45,
+                total: 13,
+                statBonus: 0,
+                grade: "complication"
+              }
+            }),
+          rollbackCurrentAdventureClaimForTelegramUser
+        },
+        fight: {
+          getOrStartPersistentFightForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
+      source: "adventure",
+      difficulty: "normal",
+      target: { monsterIds: ["monster.borshch-slime"] }
+    });
+    expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(String(edit?.payload.text)).toContain("РџР°РІСѓРє РґРµРґР»Р°Р№РЅС–РІ");
+    expect(String(edit?.payload.text)).not.toContain("РќР°РіРѕСЂРѕРґР° РЅРµ РІРёРґР°РЅР°");
+    expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+  });
+
   it("blocks level barter callbacks while the Barrel raid is pending", async () => {
     const calls = await captureApiCalls(
       makeLevelBarterAutoCallbackData(),

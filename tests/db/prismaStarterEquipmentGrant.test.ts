@@ -163,12 +163,28 @@ class FakeRewardPrisma {
   private readonly tx: FakeRewardTx = {
     character: {
       findFirst: () => Promise.resolve({ ...this.character }),
+      findUniqueOrThrow: () => Promise.resolve({ ...this.character }),
+      updateMany: (input) => {
+        if (input.where.hpCurrent !== undefined && input.where.hpCurrent !== this.character.hpCurrent) {
+          return Promise.resolve({ count: 0 });
+        }
+        this.character = {
+          ...this.character,
+          xp: this.character.xp + (input.data.xp?.increment ?? 0),
+          gold: this.character.gold + (input.data.gold?.increment ?? 0),
+          hpCurrent: input.data.hpCurrent ?? this.character.hpCurrent,
+          hpRegenAt: input.data.hpRegenAt ?? this.character.hpRegenAt
+        };
+        return Promise.resolve({ count: 1 });
+      },
       update: (input) => {
         this.character = {
           ...this.character,
           xp: this.character.xp + (input.data.xp?.increment ?? 0),
           gold: this.character.gold + (input.data.gold?.increment ?? 0),
-          level: input.data.level ?? this.character.level
+          level: input.data.level ?? this.character.level,
+          hpCurrent: input.data.hpCurrent ?? this.character.hpCurrent,
+          hpRegenAt: input.data.hpRegenAt ?? this.character.hpRegenAt
         };
         return Promise.resolve({ ...this.character });
       }
@@ -217,10 +233,26 @@ class FakeRewardPrisma {
           characterId: input.data.characterId,
           key: input.data.key,
           availableAt: input.data.availableAt,
+          resultJson: null,
           updatedAt: new Date("2026-06-15T10:00:00.000Z")
         };
         this.cooldowns.set(cooldownKey(record.characterId, record.key), record);
         return Promise.resolve(record);
+      },
+      update: (input) => {
+        const existing = [...this.cooldowns.values()].find((cooldown) => cooldown.id === input.where.id);
+
+        if (!existing) {
+          return Promise.reject(new Error("Missing cooldown."));
+        }
+
+        const updated = {
+          ...existing,
+          resultJson: input.data.resultJson ?? existing.resultJson,
+          updatedAt: new Date("2026-06-15T10:00:00.000Z")
+        };
+        this.cooldowns.set(cooldownKey(updated.characterId, updated.key), updated);
+        return Promise.resolve(updated);
       },
       updateMany: () => Promise.resolve({ count: 0 }),
       findUniqueOrThrow: () => Promise.reject(new Error("Unexpected cooldown lookup"))
@@ -261,11 +293,26 @@ function cooldownKey(characterId: string, key: string): string {
 interface FakeRewardTx {
   character: {
     findFirst: () => Promise<FakeCharacterRecord>;
+    findUniqueOrThrow: () => Promise<FakeCharacterRecord>;
+    updateMany: (input: {
+      where: {
+        id: string;
+        hpCurrent?: number;
+      };
+      data: {
+        xp?: { increment: number };
+        gold?: { increment: number };
+        hpCurrent?: number;
+        hpRegenAt?: Date;
+      };
+    }) => Promise<{ count: number }>;
     update: (input: {
       data: {
         xp?: { increment: number };
         gold?: { increment: number };
         level?: number;
+        hpCurrent?: number;
+        hpRegenAt?: Date;
       };
     }) => Promise<FakeCharacterRecord>;
   };
@@ -303,6 +350,14 @@ interface FakeRewardTx {
         characterId: string;
         key: string;
         availableAt: Date;
+      };
+    }) => Promise<FakeCooldownRecord>;
+    update: (input: {
+      where: {
+        id: string;
+      };
+      data: {
+        resultJson?: unknown;
       };
     }) => Promise<FakeCooldownRecord>;
     updateMany: () => Promise<{ count: number }>;
@@ -351,6 +406,7 @@ interface FakeCharacterRecord {
   gold: number;
   hpCurrent: number;
   hpMax: number;
+  hpRegenAt?: Date;
   manaCurrent: number;
   manaMax: number;
   statsJson: unknown;
@@ -371,6 +427,7 @@ interface FakeCooldownRecord {
   characterId: string;
   key: string;
   availableAt: Date;
+  resultJson: unknown;
   updatedAt: Date;
 }
 

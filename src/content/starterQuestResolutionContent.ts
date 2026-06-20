@@ -253,7 +253,7 @@ function method(input: {
     source: input.source,
     label: input.label,
     ...(input.buttonLabel ? { buttonLabel: input.buttonLabel } : {}),
-    hint: input.hint,
+    hint: withRiskHint(input.hint, input.consequence ?? (input.goldCost ? "gold-cost-success" : "cosmetic-mess")),
     intent: input.intent,
     techniques: input.techniques,
     primaryStat: input.primaryStat,
@@ -307,7 +307,7 @@ function buildPersonalMethods(
       source: "race",
       label: base.label,
       buttonLabel: base.label,
-      hint: "Особистий підхід героя.",
+      hint: buildPersonalHint(base, "race"),
       intent: base.intent,
       primaryStat: base.primaryStat,
       secondaryStat: race.primaryStat,
@@ -317,10 +317,10 @@ function buildPersonalMethods(
       consequence: base.consequenceByGrade.complication,
       legacyAction: base.legacyAction ?? base.id,
       itemIntent: base.itemIntent ?? base.legacyAction ?? base.id,
-      strong: `Мотив «${race.label}» природно лягає в «${stripIcon(base.label)}». ${sceneTitle} коротко припиняє сперечатись.`,
-      success: `«${stripIcon(base.label)}» спрацювало з відтінком «${race.label}»: сцена зрозуміла натяк і здалась.`,
-      mixed: `Особистий жест допоміг, але «${stripIcon(base.label)}» лишив дрібний хвіст для бурчання.`,
-      complication: `Мотив «${race.label}» дав результат із кумедним безладом. Корчмар записує це як стиль.`
+      strong: appendIdentityBeat(base, "strong-success", race, "race"),
+      success: appendIdentityBeat(base, "success", race, "race"),
+      mixed: appendIdentityBeat(base, "mixed-success", race, "race"),
+      complication: appendIdentityBeat(base, "complication", race, "race")
     }),
     method({
       id: compactPersonalMethodId("c", getCompactClassKey(character.classId), base.id),
@@ -328,7 +328,7 @@ function buildPersonalMethods(
       source: "class",
       label: base.label,
       buttonLabel: base.label,
-      hint: "Професійний підхід героя.",
+      hint: buildPersonalHint(base, "class"),
       intent: base.intent,
       primaryStat: base.primaryStat,
       secondaryStat: heroClass.primaryStat,
@@ -339,10 +339,10 @@ function buildPersonalMethods(
       legacyAction: base.legacyAction ?? base.id,
       itemIntent: base.itemIntent ?? base.legacyAction ?? base.id,
       combatSkillId: heroClass.combatSkillId,
-      strong: `«${heroClass.label}» підсилює «${stripIcon(base.label)}» так чисто, що сцена здається майже навчальною.`,
-      success: `«${heroClass.label}» дає результат: «${stripIcon(base.label)}» стає не подвигом, а робочим прийомом.`,
-      mixed: `Професійний хід спрацював, але «${stripIcon(base.label)}» залишив трохи сценічного пилу.`,
-      complication: `Хід «${heroClass.label}» зачепив зайву полицю реальности. Результат є, порядок ще сперечається.`
+      strong: appendIdentityBeat(base, "strong-success", heroClass, "class"),
+      success: appendIdentityBeat(base, "success", heroClass, "class"),
+      mixed: appendIdentityBeat(base, "mixed-success", heroClass, "class"),
+      complication: appendIdentityBeat(base, "complication", heroClass, "class")
     }),
     method({
       id: compactPersonalMethodId(`s${getCompactRaceKey(character.raceId)}`, getCompactClassKey(character.classId), base.id),
@@ -350,7 +350,7 @@ function buildPersonalMethods(
       source: "signature",
       label: base.label,
       buttonLabel: base.label,
-      hint: "Непевніше, зате стильніше.",
+      hint: buildPersonalHint(base, "signature"),
       intent: base.intent,
       primaryStat: base.primaryStat,
       secondaryStat: heroClass.primaryStat,
@@ -361,10 +361,10 @@ function buildPersonalMethods(
       legacyAction: base.legacyAction ?? base.id,
       itemIntent: base.itemIntent ?? base.legacyAction ?? base.id,
       combatSkillId: heroClass.combatSkillId,
-      strong: `Обраний хід зводить кілька дрібних переваг в один точний рух. Сцена визнає, що це вже майже біографія.`,
-      success: `Метод спрацював: «${stripIcon(base.label)}» знаходить край і ставить крапку.`,
-      mixed: `Хід допомагає, але «${stripIcon(base.label)}» лишає маленький шурхіт для пізнішої легенди.`,
-      complication: `Метод виглядає переконливо. Сцена теж так думає, але додає власний безлад.`
+      strong: appendSignatureBeat(base, "strong-success", race, heroClass, character.title ?? null),
+      success: appendSignatureBeat(base, "success", race, heroClass, character.title ?? null),
+      mixed: appendSignatureBeat(base, "mixed-success", race, heroClass, character.title ?? null),
+      complication: appendSignatureBeat(base, "complication", race, heroClass, character.title ?? null)
     })
   ]);
 }
@@ -381,14 +381,92 @@ function firstTechnique(profile: QuestTechniqueProfile): QuestMethodDefinition["
   return profile.techniques[0] ?? "investigation";
 }
 
+function buildPersonalHint(
+  base: QuestMethodDefinition,
+  source: "race" | "class" | "signature"
+): string {
+  const prefix =
+    source === "signature"
+      ? "Особистий ризикований варіант."
+      : source === "class"
+        ? "Професійний варіант."
+        : "Особистий варіант.";
+
+  return withRiskHint(`${prefix} ${base.hint}`, base.consequenceByGrade.complication);
+}
+
+function appendIdentityBeat(
+  base: QuestMethodDefinition,
+  grade: keyof QuestMethodDefinition["outcomeText"],
+  profile: QuestTechniqueProfile,
+  source: "race" | "class"
+): string {
+  const core = base.outcomeText[grade].body.join(" ");
+  const motif = techniqueMotif(firstTechnique(profile));
+  const owner = source === "race" ? profile.label : profile.label.toLowerCase();
+
+  return `${core} ${owner} додає ${motif}, тож дія лишається конкретною й зрозумілою.`;
+}
+
+function appendSignatureBeat(
+  base: QuestMethodDefinition,
+  grade: keyof QuestMethodDefinition["outcomeText"],
+  race: QuestTechniqueProfile,
+  heroClass: QuestTechniqueProfile,
+  title: string | null
+): string {
+  const core = base.outcomeText[grade].body.join(" ");
+  const titleBeat = title ? ` Титул «${title}» киває як свідок.` : "";
+
+  return `${core} ${capitalizeFirst(techniqueMotif(firstTechnique(race)))} зустрічає ${techniqueMotif(firstTechnique(heroClass))}.${titleBeat}`;
+}
+
+function withRiskHint(hint: string, consequence: QuestConsequenceKind): string {
+  if (consequence === "minor-injury" || consequence === "serious-injury") {
+    return /постраждати|небезпеч|пальц|забит|синц|обпект|впасти|травм/i.test(hint)
+      ? hint
+      : `${hint} Можна постраждати.`;
+  }
+
+  if (consequence === "fight-handoff") {
+    return /бійк|бій|істот|мешканц|поклик|виліз|варта/i.test(hint)
+      ? hint
+      : `${hint} Ризик бійки.`;
+  }
+
+  return hint;
+}
+
+function techniqueMotif(technique: QuestMethodDefinition["techniques"][number]): string {
+  const motifs: Partial<Record<QuestMethodDefinition["techniques"][number], string>> = {
+    authority: "печатку й право голосу",
+    bribery: "малий сирний фонд",
+    craft: "ремесло з гострим краєм",
+    deception: "хитрий обхід кута",
+    domesticity: "хатню юрисдикцію",
+    force: "вагу прямого аргументу",
+    improvisation: "корисний збіг",
+    investigation: "уважну ревізію причини",
+    performance: "ритм і паузу",
+    persuasion: "угоду без зайвої слави",
+    ritual: "обрядову впертість",
+    tracking: "слід там, де його соромились",
+    traps: "пастку з чесним виглядом",
+    arcana: "тихий магічний шов",
+    finesse: "точний рух без фанфар"
+  };
+
+  return motifs[technique] ?? "практичний нахил";
+}
+
+function capitalizeFirst(value: string): string {
+  return value.length > 0 ? `${value[0]?.toUpperCase()}${value.slice(1)}` : value;
+}
+
 function compactPersonalMethodId(prefix: string, profileKey: string, baseId: string): string {
   return `${prefix}${profileKey}${toQuestCallbackKey(baseId).slice(1)}`;
 }
 
 function uniqueTechniques(techniques: readonly QuestMethodDefinition["techniques"][number][]): QuestMethodDefinition["techniques"][number][] {
   return [...new Set(techniques)];
-}
-
-function stripIcon(label: string): string {
-  return label.replace(/^[^\p{L}\p{N}]+/u, "").trim();
 }

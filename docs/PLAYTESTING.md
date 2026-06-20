@@ -147,6 +147,18 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 
 ## Миттєва дуель
 
+## 0.1.20 authored quest hardening addendum
+
+Use this with the Adventure Choice, starter shawarma and cellar mouse smoke paths above:
+
+1. On a level 3+ hero, open several Adventure Choice scenes and confirm each selected scene renders 5-7 concrete scene-action buttons, not race/class/signature source captions.
+2. Pick two risky methods in different scenes. Before pressing, confirm the hint uses qualitative danger copy only; after completion, confirm any HP loss line shows the exact committed loss and current HP.
+3. Try a paid cellar mouse method with insufficient gold. Confirm the same visible method set and cost remain available, no cooldown advances, no result is stored and HP does not change.
+4. Complete a cellar mouse method that causes injury, then press the old button again while the cooldown is active. Confirm the replay/on-cooldown path uses the stored result/audit and does not reroll or damage again.
+5. Trigger a fight-handoff Adventure complication, then repeat the callback. Confirm the stored encounter id matches the started fight, and replay does not start a second fight.
+6. With an already active unrelated fight, press a stale/late Adventure handoff callback. Confirm the adventure claim rolls back and the active fight card is shown instead of consuming the quest.
+7. Equip or level a hero so effective max HP exceeds the persisted base max, then take a quest injury. Confirm the result card and audit show the effective max, not the base row max.
+
 1. На двох персонажах 3+ рівня зайди в `🥊 Бійцівський куток` і створи `⚡ Миттєва дуель`.
 2. Очікування: основна картка каже, що результат зʼявиться одразу після згоди, а окреме forwardable-повідомлення має invite link, mode line, fairness line і кнопку `🎲 Інший текст`.
 3. Натисни `🎲 Інший текст` автором виклику.

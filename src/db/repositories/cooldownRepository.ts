@@ -1,11 +1,12 @@
 import type { CharacterRecord } from "./characterRepository";
-import type { HpLossAudit, ItemGrant, RewardLevelChange } from "./dailyActionRepository";
+import type { HpLossAudit, HpLossRequest, ItemGrant, RewardLevelChange } from "./dailyActionRepository";
 
 export interface CharacterCooldownRecord {
   id: string;
   characterId: string;
   key: string;
   availableAt: Date;
+  resultJson: unknown;
   updatedAt: Date;
 }
 
@@ -16,7 +17,8 @@ export interface ClaimCooldownRewardInput {
   rewardXp: number;
   rewardGold: number;
   spentGold?: number;
-  hpLoss?: number;
+  hpLoss?: number | HpLossRequest;
+  resultJson?: unknown;
   itemGrants?: ItemGrant[];
 }
 

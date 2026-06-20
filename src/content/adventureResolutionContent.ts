@@ -421,7 +421,7 @@ function materializeSceneMethod(
     affordanceId: seed.id,
     source: "scene",
     label: seed.label,
-    hint: seed.hint,
+    hint: withRiskHint(seed.hint, consequence),
     intent: seed.intent,
     techniques: seed.techniques,
     primaryStat: seed.primaryStat,
@@ -431,14 +431,7 @@ function materializeSceneMethod(
     ...(seed.cost ? { goldCost: seed.cost } : {}),
     ...(seed.combatSkillId ? { combatSkillId: seed.combatSkillId } : {}),
     consequenceByGrade: consequences(consequence),
-    outcomeText: buildOutcomeText({
-      sceneTitle,
-      label: seed.label,
-      strong: `${stripIcon(seed.label)} закриває сцену чисто. Корчмар навіть не встигає знайти зайву форму.`,
-      success: `${stripIcon(seed.label)} спрацьовує. Корчма занотовує спосіб і ховає чорнило.`,
-      mixed: sceneSeed.mixed,
-      complication: sceneSeed.complication
-    })
+    outcomeText: buildSceneOutcomeText(sceneTitle, sceneSeed, seed)
   };
 }
 
@@ -451,8 +444,9 @@ function buildRaceMethods(character: CharacterSummary, sceneTitle: string, scene
     source: "race",
     label: seed.label,
     buttonLabel: seed.label,
-    hint: "Особистий підхід героя. Винагорода звичайна.",
+    hint: buildProfileHint(seed, "race"),
     sceneTitle,
+    sceneSeed,
     profile,
     seed,
     rewardProfile: "standard",
@@ -469,8 +463,9 @@ function buildClassMethods(character: CharacterSummary, sceneTitle: string, scen
     source: "class",
     label: seed.label,
     buttonLabel: seed.label,
-    hint: "Професійний підхід героя. Винагорода звичайна.",
+    hint: buildProfileHint(seed, "class"),
     sceneTitle,
+    sceneSeed,
     profile,
     seed,
     rewardProfile: "standard",
@@ -481,13 +476,11 @@ function buildClassMethods(character: CharacterSummary, sceneTitle: string, scen
 function buildSignatureMethods(character: CharacterSummary, sceneTitle: string, sceneSeed: AdventureSceneSeed): QuestMethodDefinition[] {
   const raceProfile = getRaceProfile(character.raceId);
   const classProfile = getClassProfile(character.classId);
-  const title = character.title ? `«${character.title}»` : "геройський підпис";
   const raceKey = getCompactRaceKey(character.raceId);
   const classKey = getCompactClassKey(character.classId);
 
   return sceneSeed.methods.map((seed) => {
     const id = compactPersonalMethodId(`s${raceKey}`, classKey, seed.id);
-    const action = stripIcon(seed.label);
     const techniques = uniqueTechniques([
       firstTechnique(raceProfile),
       firstTechnique(classProfile),
@@ -501,7 +494,7 @@ function buildSignatureMethods(character: CharacterSummary, sceneTitle: string, 
       source: "signature",
       label: seed.label,
       buttonLabel: seed.label,
-      hint: "Непевніше, зате стильніше.",
+      hint: buildProfileHint(seed, "signature"),
       intent: seed.intent,
       techniques,
       primaryStat: seed.primaryStat,
@@ -511,13 +504,11 @@ function buildSignatureMethods(character: CharacterSummary, sceneTitle: string, 
       ...(seed.cost ? { goldCost: seed.cost } : {}),
       ...(classProfile.combatSkillId ?? seed.combatSkillId ? { combatSkillId: classProfile.combatSkillId ?? seed.combatSkillId } : {}),
       consequenceByGrade: consequences(seed.consequence ?? "cosmetic-mess"),
-      outcomeText: buildOutcomeText({
+      outcomeText: buildProfileOutcomeText({
         sceneTitle,
-        label: title,
-        strong: `Обраний хід спрацював чисто. Сцена «${action}» здається до того, як зрозуміє, хто саме її переконав.`,
-        success: `Метод знаходить край сцени й ставить крапку. «${action}» лишається в корчемному протоколі як підозріло влучний збіг.`,
-        mixed: `Хід спрацював, але сцена «${action}» залишає дрібний хвіст для пізнішого бурчання.`,
-        complication: `Метод виглядав красиво, та сцена «${action}» зачепила сусідню проблему. Корчмар записує це як характер, не як провину.`
+        sceneSeed,
+        seed,
+        identity: buildSignatureIdentityBeat(raceProfile, classProfile, character.title ?? null)
       })
     };
   });
@@ -530,12 +521,12 @@ function buildProfileMethod(input: {
   buttonLabel: string;
   hint: string;
   sceneTitle: string;
+  sceneSeed: AdventureSceneSeed;
   profile: QuestTechniqueProfile;
   seed: AdventureMethodSeed;
   rewardProfile: QuestRewardProfile;
   profileKind: "race" | "class";
 }): QuestMethodDefinition {
-  const action = stripIcon(input.seed.label);
   const techniques = uniqueTechniques([firstTechnique(input.profile), ...input.seed.techniques]);
 
   return {
@@ -545,7 +536,7 @@ function buildProfileMethod(input: {
     source: input.source,
     label: input.label,
     buttonLabel: input.buttonLabel,
-    hint: input.hint,
+    hint: buildProfileHint(input.seed, input.profileKind),
     intent: input.seed.intent,
     techniques,
     primaryStat: input.seed.primaryStat,
@@ -555,13 +546,11 @@ function buildProfileMethod(input: {
     ...(input.seed.cost ? { goldCost: input.seed.cost } : {}),
     ...(input.profile.combatSkillId ?? input.seed.combatSkillId ? { combatSkillId: input.profile.combatSkillId ?? input.seed.combatSkillId } : {}),
     consequenceByGrade: consequences(input.seed.consequence ?? "cosmetic-mess"),
-    outcomeText: buildOutcomeText({
+    outcomeText: buildProfileOutcomeText({
       sceneTitle: input.sceneTitle,
-      label: input.profile.label,
-      strong: `${stripIcon(input.label)} спрацьовує чисто. Сцена «${action}» визнає, що такий підхід важко назвати випадковим.`,
-      success: `Сцена «${action}» погоджується без зайвого підпису. Корчма занотовує результат і ховає чорнило.`,
-      mixed: `Сцена «${action}» погодилась, але лишила невеликий слід власної гордости.`,
-      complication: `Хід зачепив сусідній край сцени «${action}». Результат є, безлад теж має свідків.`
+      sceneSeed: input.sceneSeed,
+      seed: input.seed,
+      identity: buildTechniqueIdentityBeat(input.profile, input.profileKind)
     })
   };
 }
@@ -589,6 +578,229 @@ function consequences(complication: QuestConsequenceKind): Record<QuestResolutio
     "mixed-success": "reduced-reward",
     complication
   };
+}
+
+function buildSceneOutcomeText(
+  sceneTitle: string,
+  sceneSeed: Pick<AdventureSceneSeed, "object" | "objectGenitive" | "mixed" | "complication">,
+  seed: AdventureMethodSeed
+): Record<QuestResolutionGrade, QuestMethodOutcomeText> {
+  const beats = buildMethodOutcomeBeats(sceneSeed, seed);
+
+  return buildOutcomeText({
+    sceneTitle,
+    label: seed.label,
+    strong: beats.strong,
+    success: beats.success,
+    mixed: beats.mixed,
+    complication: beats.complication
+  });
+}
+
+function buildProfileOutcomeText(input: {
+  sceneTitle: string;
+  sceneSeed: Pick<AdventureSceneSeed, "object" | "objectGenitive" | "mixed" | "complication">;
+  seed: AdventureMethodSeed;
+  identity: {
+    strong: string;
+    success: string;
+    mixed: string;
+    complication: string;
+  };
+}): Record<QuestResolutionGrade, QuestMethodOutcomeText> {
+  const beats = buildMethodOutcomeBeats(input.sceneSeed, input.seed);
+
+  return buildOutcomeText({
+    sceneTitle: input.sceneTitle,
+    label: input.seed.label,
+    strong: `${beats.strong} ${input.identity.strong}`,
+    success: `${beats.success} ${input.identity.success}`,
+    mixed: `${beats.mixed} ${input.identity.mixed}`,
+    complication: `${beats.complication} ${input.identity.complication}`
+  });
+}
+
+function buildMethodOutcomeBeats(
+  sceneSeed: Pick<AdventureSceneSeed, "object" | "objectGenitive" | "mixed" | "complication">,
+  seed: AdventureMethodSeed
+): {
+  strong: string;
+  success: string;
+  mixed: string;
+  complication: string;
+} {
+  const action = stripIcon(seed.label);
+  const object = sceneSeed.objectGenitive;
+  const consequence = seed.consequence ?? "cosmetic-mess";
+
+  if (seed.intent === "bribe") {
+    return {
+      strong: `${action}: ${object} приймає заставу, змінює умови й повертає сцені пристойний вигляд.`,
+      success: `${action} працює як малий фонд взаєморозуміння. Корчма записує витрату, а проблема стихає.`,
+      mixed: `${action} купує результат, але ${object} лишає собі дрібне право бурчати в протокол.`,
+      complication: `${action} не повертає монету назад: ${object} бере внесок і додає умову, яку доведеться пережити.`
+    };
+  }
+
+  if (seed.intent === "fight" || consequence === "fight-handoff") {
+    return {
+      strong: `${action} ставить силу рівно туди, де сцена тріщить, і не зачіпає зайвого посуду.`,
+      success: `${action} перемагає опір без довгої промови. ${capitalizeFirst(object)} змушено визнає факт.`,
+      mixed: `${action} дає результат, але сцена відповідає синцем, гуркотом або чужою образою.`,
+      complication: consequence === "fight-handoff"
+        ? `${action} будить того, хто ховався за сценою. ${sceneSeed.complication}`
+        : `${action} спрацьовує надто буквально: ${sceneSeed.complication}`
+    };
+  }
+
+  if (seed.intent === "negotiate") {
+    return {
+      strong: `${action} знаходить умову, від якої ${object} не може чемно відмовитись.`,
+      success: `${action} зводить претензії до короткої угоди. Сторони роблять вигляд, що так і планували.`,
+      mixed: `${action} приносить згоду, але ${object} лишає один пункт для майбутнього бурчання.`,
+      complication: `${action} заходить у дрібний торг не з тим словом. ${sceneSeed.complication}`
+    };
+  }
+
+  if (seed.intent === "deceive" || seed.intent === "sneak") {
+    return {
+      strong: `${action} підміняє рамку так чисто, що ${object} сам підписує власну помилку.`,
+      success: `${action} відводить увагу сцени й витягає потрібний результат без зайвого грюкоту.`,
+      mixed: `${action} спрацьовує, але лишає доказ, який Корчмар називає «не моє, але бачив».`,
+      complication: `${action} ловлять за край хитрости. ${sceneSeed.complication}`
+    };
+  }
+
+  if (seed.intent === "ritual") {
+    return {
+      strong: `${action} складає символи в правильний порядок, і ${object} слухає обряд без сарказму.`,
+      success: `${action} надає сцені форму, якій навіть корчемна магія не заперечує.`,
+      mixed: `${action} працює, але один знак лишається світитися там, де його всі бачать.`,
+      complication: `${action} чіпляє зайвий шар магії. ${sceneSeed.complication}`
+    };
+  }
+
+  if (seed.intent === "craft") {
+    return {
+      strong: `${action} лагодить саме той шов сцени, який тримав усю дурню разом.`,
+      success: `${action} приводить ${object} до робочого стану, хай і з підозрілим скрипом.`,
+      mixed: `${action} допомагає, але майстерність лишає на столі дрібний слід, голку або пляму.`,
+      complication: `${action} торкається гострого краю справи. ${sceneSeed.complication}`
+    };
+  }
+
+  return {
+    strong: `${action} знаходить у ${object} точну причину безладу й кладе її на видноті.`,
+    success: `${action} збирає досить доказів, щоб сцена перестала сперечатись.`,
+    mixed: `${action} пояснює проблему, але ${sceneSeed.mixed}`,
+    complication: `${action} докопується до зайвої правди. ${sceneSeed.complication}`
+  };
+}
+
+function buildProfileHint(
+  seed: AdventureMethodSeed,
+  profileKind: "race" | "class" | "signature"
+): string {
+  const prefix =
+    profileKind === "signature"
+      ? "Особистий ризикований варіант."
+      : profileKind === "class"
+        ? "Професійний варіант."
+        : "Особистий варіант.";
+
+  return withRiskHint(`${prefix} ${seed.hint}`, seed.consequence ?? "cosmetic-mess");
+}
+
+function withRiskHint(hint: string, consequence: QuestConsequenceKind): string {
+  if (consequence === "minor-injury" || consequence === "serious-injury") {
+    return hasInjuryWarning(hint)
+      ? hint
+      : `${hint} Можна постраждати.`;
+  }
+
+  if (consequence === "fight-handoff") {
+    return hasFightWarning(hint)
+      ? hint
+      : `${hint} Ризик бійки.`;
+  }
+
+  return hint;
+}
+
+function hasInjuryWarning(hint: string): boolean {
+  return /постраждати|небезпеч|пальц|забит|синц|обпект|впасти|травм/i.test(hint);
+}
+
+function hasFightWarning(hint: string): boolean {
+  return /бійк|бій|істот|мешканц|поклик|виліз|супровід|варта/i.test(hint);
+}
+
+function buildTechniqueIdentityBeat(
+  profile: QuestTechniqueProfile,
+  profileKind: "race" | "class"
+): {
+  strong: string;
+  success: string;
+  mixed: string;
+  complication: string;
+} {
+  const motif = techniqueMotif(firstTechnique(profile));
+  const owner = profileKind === "race" ? profile.label : profile.label.toLowerCase();
+
+  return {
+    strong: `${owner} додає ${motif}, і жарт стає схожим на план.`,
+    success: `${capitalizeFirst(motif)} тримає сцену в межах здорового абсурду.`,
+    mixed: `${capitalizeFirst(motif)} допомагає, хоча Корчмар просить не називати це методологією.`,
+    complication: `${capitalizeFirst(motif)} лишає впізнаваний слід, але без службової мітки на кнопці.`
+  };
+}
+
+function buildSignatureIdentityBeat(
+  raceProfile: QuestTechniqueProfile,
+  classProfile: QuestTechniqueProfile,
+  title: string | null
+): {
+  strong: string;
+  success: string;
+  mixed: string;
+  complication: string;
+} {
+  const raceMotif = techniqueMotif(firstTechnique(raceProfile));
+  const classMotif = techniqueMotif(firstTechnique(classProfile));
+  const titleBeat = title ? ` Титул «${title}» стоїть свідком і робить вигляд, що так було в статуті.` : "";
+
+  return {
+    strong: `${capitalizeFirst(raceMotif)} зчіплюється з ${classMotif}, і сцена здається раніше за гонор.${titleBeat}`,
+    success: `${capitalizeFirst(classMotif)} підхоплює ${raceMotif}, тож результат виглядає особистим, а не службовим.`,
+    mixed: `${capitalizeFirst(raceMotif)} і ${classMotif} спрацювали разом, але кожен залишив по маленькій претензії.`,
+    complication: `${capitalizeFirst(classMotif)} потягнув за ${raceMotif} надто різко; смішно, дієво, незручно.`
+  };
+}
+
+function techniqueMotif(technique: QuestTechniqueId): string {
+  const motifs: Partial<Record<QuestTechniqueId, string>> = {
+    authority: "печатку й право голосу",
+    bribery: "малий фонд взаєморозуміння",
+    craft: "ремесло з гострим краєм",
+    deception: "хитрий обхід кута",
+    domesticity: "хатню юрисдикцію",
+    force: "вагу прямого аргументу",
+    improvisation: "корисний збіг",
+    investigation: "уважну ревізію причини",
+    performance: "ритм і паузу",
+    persuasion: "угоду без зайвої слави",
+    ritual: "обрядову впертість",
+    tracking: "слід там, де його соромились",
+    traps: "пастку з чесним виглядом",
+    arcana: "тихий магічний шов",
+    finesse: "точний рух без фанфар"
+  };
+
+  return motifs[technique] ?? "практичний нахил";
+}
+
+function capitalizeFirst(value: string): string {
+  return value.length > 0 ? `${value[0]?.toUpperCase()}${value.slice(1)}` : value;
 }
 
 function buildOutcomeText(input: {

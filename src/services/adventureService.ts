@@ -1,6 +1,7 @@
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import { classes } from "../content/classes";
 import { classIdToKey, getKnownComboTitleValues, raceIdToKey } from "../content/characterOptions";
+import { monsters } from "../content/monsters";
 import { activeRaces } from "../content/races";
 import type {
   DailyActionRepository,
@@ -461,7 +462,7 @@ export class AdventureService {
     });
     const fightEncounter =
       consequence === "fight-handoff"
-        ? buildAdventureFightHandoffTarget(choice.id, method.id)
+        ? buildAdventureFightHandoffTarget(choice.id, method.id, character.id, period.storageKey, characterSummary)
         : null;
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: ADVENTURE_CHOICE_KEY,
@@ -469,7 +470,7 @@ export class AdventureService {
       rewardXp: reward.xp,
       rewardGold: reward.gold,
       spentGold,
-      hpLoss,
+      hpLoss: buildHpLossRequest(hpLoss, characterSummary.hpMax),
       resultJson: buildQuestResolutionClaimPayload({
         sceneId: choice.id,
         method,
@@ -645,7 +646,7 @@ export class AdventureService {
       localDate,
       rewardXp: reward.xp,
       rewardGold: reward.gold,
-      hpLoss,
+      hpLoss: buildHpLossRequest(hpLoss, characterSummary.hpMax),
       resultJson: buildQuestResolutionClaimPayload({
         sceneId: scene.sceneId,
         method,
@@ -1277,22 +1278,66 @@ function buildQuestHpLoss(input: {
   return clamp(Math.ceil(hpMax * percent), floor, cap);
 }
 
+function buildHpLossRequest(requested: number, effectiveHpMax: number) {
+  return {
+    requested,
+    effectiveHpMax
+  };
+}
+
 function buildAdventureFightHandoffTarget(
   sceneId: string,
-  methodId: string
+  methodId: string,
+  characterId: string,
+  periodKey: string,
+  character: CharacterSummary
 ): AdventureFightHandoffTarget {
   const generatedKind = getGeneratedFightKind(sceneId);
-  const exact = ADVENTURE_FIGHT_HANDOFF_MONSTERS[`${sceneId}:${methodId}`];
-  const scene = ADVENTURE_FIGHT_HANDOFF_MONSTERS[sceneId];
-  const generated = generatedKind ? ADVENTURE_FIGHT_HANDOFF_MONSTERS[`generated:${generatedKind}`] : undefined;
+  const exact = ADVENTURE_FIGHT_HANDOFF_MONSTERS[`${sceneId}:${methodId}`] ?? [];
+  const scene = ADVENTURE_FIGHT_HANDOFF_MONSTERS[sceneId] ?? [];
+  const generated = generatedKind ? ADVENTURE_FIGHT_HANDOFF_MONSTERS[`generated:${generatedKind}`] ?? [] : [];
+  const candidates = [...exact, ...scene, ...generated, "monster.unread-rules-ghost"];
+  const eligible = candidates
+    .map((monsterId) => monsters.find((monster) => monster.id === monsterId))
+    .filter((monster): monster is (typeof monsters)[number] =>
+      monster !== undefined && isAdventureHandoffMonsterEligible(monster, character)
+    );
+  const pool = eligible.length > 0 ? eligible : monsters.filter((monster) =>
+    isAdventureHandoffMonsterEligible(monster, character)
+  );
+  const closeFloor = Math.max(1, character.level - 2);
+  const close = pool.filter((monster) => monster.level >= closeFloor);
+  const ranked = selectHighestMonsterLevel(close.length > 0 ? close : pool);
+  const rng = new SeededRandomSource(
+    `adventure-fight-target-v1:${characterId}:${periodKey}:${sceneId}:${methodId}:${character.level}`
+  );
+  const selected = ranked[rng.nextInt(0, Math.max(0, ranked.length - 1))] ?? monsters.find((monster) =>
+    monster.id === "monster.unread-rules-ghost"
+  );
 
   return {
-    monsterId:
-      exact ??
-      scene ??
-      generated ??
-      "monster.unread-rules-ghost"
+    monsterId: selected?.id ?? "monster.unread-rules-ghost"
   };
+}
+
+function isAdventureHandoffMonsterEligible(
+  monster: (typeof monsters)[number],
+  character: CharacterSummary
+): boolean {
+  const tags = new Set(monster.tags);
+
+  return (
+    monster.id !== "monster.mimic-shawarma" &&
+    !tags.has("starter") &&
+    !tags.has("boss") &&
+    monster.level <= Math.max(3, character.level)
+  );
+}
+
+function selectHighestMonsterLevel(candidates: (typeof monsters)[number][]): (typeof monsters)[number][] {
+  const highest = candidates.reduce((current, monster) => Math.max(current, monster.level), 0);
+
+  return candidates.filter((monster) => monster.level === highest);
 }
 
 function getGeneratedFightKind(sceneId: string): string | null {
@@ -1327,24 +1372,24 @@ function getGeneratedFightKind(sceneId: string): string | null {
   return null;
 }
 
-const ADVENTURE_FIGHT_HANDOFF_MONSTERS: Record<string, string> = {
-  stew: "monster.borshch-slime",
-  barrel: "monster.cheese-vault-warden",
-  helmet: "monster.unread-rules-ghost",
-  receipt: "monster.stamp-doorkeeper-skeleton",
-  cloak: "monster.unclosed-closure-act",
-  chimney: "monster.complaint-lantern",
-  chair: "monster.queue-counter-gargoyle",
-  broom: "monster.audit-mosquito",
-  map: "monster.liar-corridor-map",
-  portrait: "monster.self-critique-mirror",
-  rug: "monster.self-critique-mirror",
-  bell: "monster.quiet-catastrophe-clerk",
-  "generated:portrait": "monster.self-critique-mirror",
-  "generated:manual": "monster.unread-rules-ghost",
-  "generated:uniform": "monster.queue-counter-gargoyle",
-  "generated:exam": "monster.deadline-spider",
-  "generated:title": "monster.inventory-prophet"
+const ADVENTURE_FIGHT_HANDOFF_MONSTERS: Record<string, string[]> = {
+  stew: ["monster.borshch-slime", "monster.conditionally-sliced-loaf-bandit"],
+  barrel: ["monster.cheese-vault-warden", "monster.no-change-merchantling", "monster.queue-counter-gargoyle"],
+  helmet: ["monster.unread-rules-ghost", "monster.preapproval-dragonling"],
+  receipt: ["monster.stamp-doorkeeper-skeleton", "monster.preapproval-dragonling"],
+  cloak: ["monster.unclosed-closure-act", "monster.queue-counter-gargoyle", "monster.unread-rules-ghost"],
+  chimney: ["monster.complaint-lantern", "monster.borshch-slime", "monster.report-jellyfish"],
+  chair: ["monster.queue-counter-gargoyle", "monster.anxious-slippers-swarm"],
+  broom: ["monster.audit-mosquito", "monster.anxious-slippers-swarm"],
+  map: ["monster.liar-corridor-map", "monster.deadline-spider", "monster.unread-rules-ghost"],
+  portrait: ["monster.self-critique-mirror", "monster.unread-rules-ghost"],
+  rug: ["monster.self-critique-mirror", "monster.anxious-slippers-swarm"],
+  bell: ["monster.quiet-catastrophe-clerk", "monster.stamp-doorkeeper-skeleton", "monster.deadline-spider"],
+  "generated:portrait": ["monster.self-critique-mirror", "monster.unread-rules-ghost"],
+  "generated:manual": ["monster.unread-rules-ghost", "monster.stamp-doorkeeper-skeleton"],
+  "generated:uniform": ["monster.queue-counter-gargoyle", "monster.audit-mosquito"],
+  "generated:exam": ["monster.deadline-spider", "monster.stamp-doorkeeper-skeleton"],
+  "generated:title": ["monster.inventory-prophet", "monster.self-critique-mirror", "monster.unread-rules-ghost"]
 };
 
 function buildQuestResolutionClaimPayload(input: {

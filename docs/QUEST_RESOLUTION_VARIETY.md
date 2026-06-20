@@ -641,3 +641,11 @@ Repository path має створювати ledger row, умовно спису�
 - callbacks до 64 bytes;
 - matrix/focused/full tests проходять;
 - player-facing exact percentages і hidden path ids не витікають.
+
+## 15. Follow-up hardening
+
+Active method hints preserve the concrete scene trade-off after race, class or signature personalization. A visible method with `minor-injury` or `serious-injury` includes a qualitative injury warning; a visible method with `fight-handoff` includes a qualitative fight/summoning warning. Personalization may add flavor, but it must not replace scene risk copy with a generic biography line.
+
+Resolved bodies are authored or composed as `scene + method + grade`. Two methods in the same scene must not produce the same body with only the method label substituted: bribery, negotiation, deception, ritual, trap, fight and craft failures need visibly different beats. Generic fallback copy is defensive only and is covered by tests so active visible methods avoid it.
+
+Persistent-fight complications store the actual eligible encounter id selected for the hero and pass that same id to the fight service. If another active fight wins the race or the handoff cannot newly start, the quest claim is rolled back instead of being consumed by an unrelated combat session.

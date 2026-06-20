@@ -443,3 +443,9 @@ Title text є flavor override; механічний selector — combo key.
 - Не робити race line другою версією class line.
 - Один scene може мати максимум одну згадку title/race/class у явному вигляді; решта читається через образ.
 - Кожна активна scene повинна мати щонайменше 4 різні outcome headlines у pool, deterministic selection за method+grade.
+
+## 8. Follow-up outcome seed contract
+
+Every active affordance needs distinct grade beats for `strong-success`, `success`, `mixed-success` and `complication`. A scene-level mixed or complication paragraph can inspire the family, but it must not be the only active body for bribery, negotiation, force, trap, ritual, deception and fight methods. Generated survey/mug/portrait/manual/uniform/exam/title families follow the same rule.
+
+Identity flavor is appended only when it improves the resolved joke or explains why the chosen method worked. Do not print internal source captions, and do not make signature outcomes a universal race paragraph plus a universal class paragraph. The active tests compare methods inside the same scene so label substitution alone is not enough.
