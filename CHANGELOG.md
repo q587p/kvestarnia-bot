@@ -18,7 +18,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added paid cellar/adventure method support with pre-claim affordability checks and atomic net gold updates.
 - Added authored direct HP injury consequences with deterministic bounded loss, persisted HP audit payloads and replay-safe result lines.
 - Added scene-specific persistent-fight handoff targets for authored Adventure complications, reusing the existing fight pipeline.
-- Added nullable `character_cooldowns.result_json` persistence so cooldown-backed cellar completions can store exact result, item and HP audit payloads for replay.
+- Added nullable `character_cooldowns.result_json` persistence so cooldown-backed cellar completions can store exact result, item and HP audit payloads for audit and duplicate safety.
 - Added repository-level optimistic HP mutation retries so two different accepted daily/cooldown claims cannot overwrite one another's committed injuries.
 - Added small deterministic post-resolution XP/gold variance for level 3+ authored Adventure Choice rewards, plus a low LUCK-influenced chance for one eligible manatka on non-fight results; paid methods never return gold as reward and instead get a slightly higher manatka chance.
 - Added `/dev_help` for local QA so available dev commands can be listed without mixing them into the main player help screen.
@@ -32,6 +32,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Authored quest result cards now separate the scene, method and reward blocks more clearly, omit internal race/class/signature method labels and show `Винагорода за справу` before XP/gold.
 - Authored quest method hints now avoid repeated reliability wording and generated scene outcomes use grammar-neutral copy for singular/plural problem titles.
 - Authored result bodies are now composed per concrete method and grade, so bribery, negotiation, deception, force, ritual and trap outcomes no longer share one scene-level strong/success/failure paragraph.
+- Authored result bodies now avoid the last intent-wide noun-substitution templates and use grammar-neutral method beats or explicit scene text for active methods.
 - Personalized race/class/signature variants now preserve scene-specific risk hints, including qualitative injury and fight/summoning warnings.
 - Generated race/class/title problem families now use scene-native method sets for анкета/кухоль/портрет/підручник/форма/іспит/титул instead of one universal generated template.
 - Race, class and signature methods now bind to concrete scene affordances instead of blind profile-noun substitution, while visible labels/buttons keep only the scene action; the same hero gets different verbs/outcomes across unrelated problems and malformed forms such as doubled object suffixes are covered by tests.
@@ -40,7 +41,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Failed or blocked Adventure fight handoff now rolls back claim, spent gold, rewards, item grants and HP mutation together; replay cannot spawn a second fight.
 - HP loss audits now use the canonical effective max supplied by the resolver, so level and equipment HP bonuses are reflected in stored and presented injury results.
 - Daily/cooldown HP mutation now records the actual committed before/lost/after values from fresh transactional state; rollback compensates only the committed loss instead of restoring a stale absolute HP value.
-- Adventure fight handoffs now persist the actual eligible encounter id selected for the hero and pass that same id into the persistent-fight pipeline; an unrelated already-active fight no longer consumes the quest claim.
+- Adventure fight handoffs now persist the actual eligible encounter id selected for the hero and pass that same id into the persistent-fight pipeline; any non-new handoff state, including unrelated active, training or terminal fights, rolls the quest claim back instead of consuming it.
+- Adventure handoff rollback now uses the original claim identity and compensates HP without reducing later healing or max-HP changes.
 - Starter shawarma and cellar mouse keep their level gates, item grants, idempotency and replay behavior while routing new visible buttons through stable authored method ids.
 - Adventure, starter shawarma and cellar mouse completions now validate current callbacks against the deterministic visible method set before claim/cost/cooldown/reward mutation; hidden authored scene methods cannot be invoked just because their ids exist in content.
 - The cellar mouse paid bribe is reachable through the centralized visible-method resolver without dropping personalized check/outcome influence.

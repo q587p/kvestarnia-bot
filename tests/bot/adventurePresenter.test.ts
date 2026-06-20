@@ -234,8 +234,9 @@ describe("adventure presenter", () => {
     const method = scene.methods.find((candidate) => candidate.id === "track-soles");
 
     expect(method?.outcomeText["strong-success"].body.join("\n")).toContain(
-      "Прочитати маршрут підошов знаходить у чоботи точну причину безладу й кладе її на видноті."
+      "Прочитати маршрут підошов. Уважність знаходить точну причину безладу й кладе її на видноті."
     );
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("у чоботи");
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("перестає сперечатися");
   });
 

@@ -26,6 +26,13 @@ interface AdventureSceneSeed {
   complication: string;
 }
 
+interface AdventureOutcomeBeats {
+  strong: string;
+  success: string;
+  mixed: string;
+  complication: string;
+}
+
 interface AdventureMethodSeed {
   id: string;
   label: string;
@@ -39,6 +46,7 @@ interface AdventureMethodSeed {
   consequence?: QuestConsequenceKind;
   cost?: number;
   combatSkillId?: string;
+  outcomes: AdventureOutcomeBeats;
 }
 
 const GENERAL_SCENE_SEEDS: Record<string, AdventureSceneSeed> = {
@@ -392,6 +400,8 @@ function method(
   cost?: number,
   combatSkillId?: string
 ): AdventureMethodSeed {
+  const consequenceKind = consequence ?? "cosmetic-mess";
+
   return {
     id,
     label,
@@ -404,7 +414,13 @@ function method(
     rewardProfile,
     ...(consequence ? { consequence } : {}),
     ...(cost ? { cost } : {}),
-    ...(combatSkillId ? { combatSkillId } : {})
+    ...(combatSkillId ? { combatSkillId } : {}),
+    outcomes: buildMethodOutcomeBeats({
+      id,
+      label,
+      intent,
+      consequence: consequenceKind
+    })
   };
 }
 
@@ -582,10 +598,10 @@ function consequences(complication: QuestConsequenceKind): Record<QuestResolutio
 
 function buildSceneOutcomeText(
   sceneTitle: string,
-  sceneSeed: Pick<AdventureSceneSeed, "object" | "objectGenitive" | "mixed" | "complication">,
+  _sceneSeed: Pick<AdventureSceneSeed, "object" | "objectGenitive" | "mixed" | "complication">,
   seed: AdventureMethodSeed
 ): Record<QuestResolutionGrade, QuestMethodOutcomeText> {
-  const beats = buildMethodOutcomeBeats(sceneSeed, seed);
+  const beats = seed.outcomes;
 
   return buildOutcomeText({
     sceneTitle,
@@ -608,7 +624,7 @@ function buildProfileOutcomeText(input: {
     complication: string;
   };
 }): Record<QuestResolutionGrade, QuestMethodOutcomeText> {
-  const beats = buildMethodOutcomeBeats(input.sceneSeed, input.seed);
+  const beats = input.seed.outcomes;
 
   return buildOutcomeText({
     sceneTitle: input.sceneTitle,
@@ -620,81 +636,184 @@ function buildProfileOutcomeText(input: {
   });
 }
 
-function buildMethodOutcomeBeats(
-  sceneSeed: Pick<AdventureSceneSeed, "object" | "objectGenitive" | "mixed" | "complication">,
-  seed: AdventureMethodSeed
-): {
-  strong: string;
-  success: string;
-  mixed: string;
-  complication: string;
-} {
-  const action = stripIcon(seed.label);
-  const object = sceneSeed.objectGenitive;
-  const consequence = seed.consequence ?? "cosmetic-mess";
+function buildMethodOutcomeBeats(input: {
+  id: string;
+  label: string;
+  intent: QuestIntent;
+  consequence: QuestConsequenceKind;
+}): AdventureOutcomeBeats {
+  const override = getMethodOutcomeOverride(input.id);
 
-  if (seed.intent === "bribe") {
+  if (override) {
+    return override;
+  }
+
+  const action = stripIcon(input.label);
+  const consequence = input.consequence;
+
+  if (input.intent === "bribe") {
     return {
-      strong: `${action}: ${object} приймає заставу, змінює умови й повертає сцені пристойний вигляд.`,
-      success: `${action} працює як малий фонд взаєморозуміння. Корчма записує витрату, а проблема стихає.`,
-      mixed: `${action} купує результат, але ${object} лишає собі дрібне право бурчати в протокол.`,
-      complication: `${action} не повертає монету назад: ${object} бере внесок і додає умову, яку доведеться пережити.`
+      strong: `${action}. Монета знаходить правильну кишеню, умови стихають, а Корчмар записує витрату без зайвої моралі.`,
+      success: `${action}. Плата спрацьовує як маленький фонд тиші: сцену закрито, внесок не повертають.`,
+      mixed: `${action}. Угода проходить, проте дрібний борг лишається в протоколі й урізає вигоду.`,
+      complication: `${action}. Внесок прийнято, але сцена читає дрібний шрифт уголос і забирає більше гідності, ніж планувалось.`
     };
   }
 
-  if (seed.intent === "fight" || consequence === "fight-handoff") {
+  if (input.intent === "fight" || consequence === "fight-handoff") {
     return {
-      strong: `${action} ставить силу рівно туди, де сцена тріщить, і не зачіпає зайвого посуду.`,
-      success: `${action} перемагає опір без довгої промови. ${capitalizeFirst(object)} змушено визнає факт.`,
-      mixed: `${action} дає результат, але сцена відповідає синцем, гуркотом або чужою образою.`,
+      strong: `${action}. Сила влучає рівно в причину безладу; меблі здригаються, але не подають скаргу.`,
+      success: `${action}. Опір тріскає після першого чесного натиску, і справа закривається без довгої промови.`,
+      mixed: `${action}. Результат є, та сцена відповідає синцем, гуркотом або образою на підлозі.`,
       complication: consequence === "fight-handoff"
-        ? `${action} будить того, хто ховався за сценою. ${sceneSeed.complication}`
-        : `${action} спрацьовує надто буквально: ${sceneSeed.complication}`
+        ? `${action}. Натиск будить того, хто ховався за проблемою, і тепер справу доведеться завершувати в бою.`
+        : `${action}. Ривок виходить надто буквальним: перемога майже поруч, але пальці й гордість це запам'ятають.`
     };
   }
 
-  if (seed.intent === "negotiate") {
+  if (input.intent === "negotiate") {
     return {
-      strong: `${action} знаходить умову, від якої ${object} не може чемно відмовитись.`,
-      success: `${action} зводить претензії до короткої угоди. Сторони роблять вигляд, що так і планували.`,
-      mixed: `${action} приносить згоду, але ${object} лишає один пункт для майбутнього бурчання.`,
-      complication: `${action} заходить у дрібний торг не з тим словом. ${sceneSeed.complication}`
+      strong: `${action}. Умова звучить настільки доречно, що суперечка сама просить чистий підпис.`,
+      success: `${action}. Сторони погоджуються на коротку угоду й удають, що завжди так планували.`,
+      mixed: `${action}. Згода є, але один пункт лишається бурчати в майбутньому акті.`,
+      complication: `${action}. Торг заходить у не той рядок, і сцена лишає дрібну, дуже голосну умову.`
     };
   }
 
-  if (seed.intent === "deceive" || seed.intent === "sneak") {
+  if (input.intent === "deceive" || input.intent === "sneak") {
     return {
-      strong: `${action} підміняє рамку так чисто, що ${object} сам підписує власну помилку.`,
-      success: `${action} відводить увагу сцени й витягає потрібний результат без зайвого грюкоту.`,
-      mixed: `${action} спрацьовує, але лишає доказ, який Корчмар називає «не моє, але бачив».`,
-      complication: `${action} ловлять за край хитрости. ${sceneSeed.complication}`
+      strong: `${action}. Підміна проходить чисто; доказ сам соромиться бути доказом.`,
+      success: `${action}. Увагу відведено, потрібний результат витягнуто без зайвого грюкоту.`,
+      mixed: `${action}. Трюк спрацьовує, проте лишає слід, який Корчмар називає «не моє, але бачив».`,
+      complication: `${action}. Хитрість ловлять за край, і сцена вимагає пояснити фокус без фокусу.`
     };
   }
 
-  if (seed.intent === "ritual") {
+  if (input.intent === "ritual") {
     return {
-      strong: `${action} складає символи в правильний порядок, і ${object} слухає обряд без сарказму.`,
-      success: `${action} надає сцені форму, якій навіть корчемна магія не заперечує.`,
-      mixed: `${action} працює, але один знак лишається світитися там, де його всі бачать.`,
-      complication: `${action} чіпляє зайвий шар магії. ${sceneSeed.complication}`
+      strong: `${action}. Символи стають у правильну чергу, і безлад слухає обряд без сарказму.`,
+      success: `${action}. Обряд надає сцені форму, яку навіть корчемна магія визнає придатною.`,
+      mixed: `${action}. Знак спрацьовує, але лишається світитися там, де його всі бачать.`,
+      complication: `${action}. Ритуал чіпляє зайвий шар магії, і сцена відповідає надто буквально.`
     };
   }
 
-  if (seed.intent === "craft") {
+  if (input.intent === "craft") {
     return {
-      strong: `${action} лагодить саме той шов сцени, який тримав усю дурню разом.`,
-      success: `${action} приводить ${object} до робочого стану, хай і з підозрілим скрипом.`,
-      mixed: `${action} допомагає, але майстерність лишає на столі дрібний слід, голку або пляму.`,
-      complication: `${action} торкається гострого краю справи. ${sceneSeed.complication}`
+      strong: `${action}. Шов, петля або хитрий вузол стають на місце й тримають усю дурню разом.`,
+      success: `${action}. Ремонт спрацьовує з підозрілим скрипом, але сцена вже придатна до життя.`,
+      mixed: `${action}. Майстерність допомагає, проте на столі лишається голка, пляма або маленька образа.`,
+      complication: `${action}. Робота торкається гострого краю справи, і край відповідає.`
     };
   }
 
   return {
-    strong: `${action} знаходить у ${object} точну причину безладу й кладе її на видноті.`,
-    success: `${action} збирає досить доказів, щоб сцена перестала сперечатись.`,
-    mixed: `${action} пояснює проблему, але ${sceneSeed.mixed}`,
-    complication: `${action} докопується до зайвої правди. ${sceneSeed.complication}`
+    strong: `${action}. Уважність знаходить точну причину безладу й кладе її на видноті.`,
+    success: `${action}. Доказів вистачає, щоб сцена перестала сперечатись.`,
+    mixed: `${action}. Причину знайдено, але дрібний хвостик проблеми ще шурхотить під столом.`,
+    complication: `${action}. Розслідування дістає зайву правду, яку всі воліли б не чути.`
   };
+}
+
+function getMethodOutcomeOverride(id: string): AdventureOutcomeBeats | undefined {
+  return ({
+  "inspect-staves": {
+    strong: "Огляд клепок знаходить крихітний житловий зазор і одразу показує, хто там підписувався тирсою.",
+    success: "Клепки видають адресу мешканця; бочка стишується, бо доказ уже стукає зсередини.",
+    mixed: "Мешканця знайдено, проте він вимагає визнати тишу службовим приміщенням.",
+    complication: "Стук по клепках будить сусіда між дошками, і бочка починає відповідати не тим голосом."
+  },
+  "sign-lease": {
+    strong: "Орендна угода ловить порожнечу в пункті про спільну тишу й закриває суперечку печаткою.",
+    success: "Порожнеча отримує правила проживання, бочка отримує спокій, а Корчмар — копію з підписом.",
+    mixed: "Угоду підписано, але дрібний підпункт лишає бочці право бурчати після опівночі.",
+    complication: "Папери надають порожнечі забагато прав, і вона просить окрему полицю для свого ніщо."
+  },
+  "bribe-cork": {
+    strong: "Корок приймає заставу, змінює умови тиші й урочисто вдає, що це не хабар.",
+    success: "Дві монети створюють малий фонд спокою; бочка стихає, внесок лишається в обігу.",
+    mixed: "Застава працює, але корок відкладає частину суми «на майбутні порожні потреби».",
+    complication: "Корок бере гроші й додає платну умову, і тепер тишу треба не лише мати, а й утримувати."
+  },
+  "evict-emptiness": {
+    strong: "Порожнечу виселено одним чесним ривком, і бочка раптом згадує, що вона меблі, а не гуртожиток.",
+    success: "Силове виселення спрацьовує; за клепками ще бурчать, але ключі вже в Корчмаря.",
+    mixed: "Порожнеча виходить, лишаючи після себе глухий синець у повітрі й трохи менше винагороди.",
+    complication: "Ривок витягає не порожнечу, а її прихованого мешканця. Далі він сперечатиметься кулаками."
+  },
+  "conduct-duet": {
+    strong: "Юшка слухає батон, бере правильну ноту й змушує ложки аплодувати без брязкоту.",
+    success: "Диригування збирає суп у куплет; казанок стихає, хоч і просить афішу.",
+    mixed: "Дует вдається, але остання ложка бере соло й лишає на столі гарячу пляму.",
+    complication: "Батон летить надто широко, і казанок відповідає киплячим бісом."
+  },
+  "lower-fire": {
+    strong: "Температура знаходить потрібну ноту, пара складається в тихий акорд і не лізе в очі.",
+    success: "Вогонь стишується, суп перестає співати вище здорового глузду.",
+    mixed: "Ноту знижено, але пара залишає на рукаві гарячий підпис.",
+    complication: "Жар провалюється не туди, випускає хмару пари й коротко пояснює, чому пальці не диригують."
+  },
+  "taste-critic": {
+    strong: "Дегустаційна рецензія знаходить фальшиву спецію, і суп визнає правку ще до крапки.",
+    success: "Критика смакує суворо, але чесно; казанок знімає найвищу ноту з меню.",
+    mixed: "Рецензія допомагає, та післясмак вимагає дрібної компенсації репутацією.",
+    complication: "Критик куштує забагато правди, і юшка відповідає гарячим коментарем."
+  },
+  "lid-challenge": {
+    strong: "Двобій кришок закінчується швидко: казанок визнає поразку й накриває власну драму.",
+    success: "Кришка тримає удар, суп стихає, а ложки роблять вигляд, що не боялися.",
+    mixed: "Казанок поступається, але відправляє бризки як офіційну ноту протесту.",
+    complication: "Виклик звучить надто переконливо, і з-під кришки виходить те, що давно хотіло битися."
+  },
+  "audit-days": {
+    strong: "Аудит днів знаходить зайвий четвер у колонці «сам прийшов» і списує його без сварки.",
+    success: "Календар приймає перерахунок, три п'ятниці повертаються в чергу.",
+    mixed: "Дати сходяться, проте один обід лишається без законного часу.",
+    complication: "Перевірка знаходить ще один дрібний день, який уже встиг подати апеляцію."
+  },
+  "negotiate-week": {
+    strong: "Переговори з п'ятницями дають їм чергування, чай і заборону з'являтися хором.",
+    success: "Три п'ятниці погоджуються на графік, хоча кожна підписує його іншим настроєм.",
+    mixed: "Тиждень зібрано, але п'ятниці вибивають собі понаднормову паузу.",
+    complication: "П'ятниці торгуються до темряви й залишають герою рахунок за календарну дипломатію."
+  },
+  "forge-thursday": {
+    strong: "Підроблений четвер виглядає настільки переконливо, що час сам ставить на ньому печатку.",
+    success: "Фальшивий четвер закриває діру між обідом і вечерею без зайвого шуму.",
+    mixed: "Підробка працює, але хвилинна стрілка кусає за рукав.",
+    complication: "Четвер виявляється підробкою з характером і боляче відкушує шматок часу."
+  },
+  "bribe-deadline": {
+    strong: "Дедлайн бере монету, тихо переносить себе на потім і не залишає свідків.",
+    success: "Золото купує мовчання дати; календар закривається без фанфар.",
+    mixed: "Дедлайн мовчить, але ставить маленьку позначку «боржник часу».",
+    complication: "Монета зникає, а дедлайн оголошує, що тиша була лише передоплатою."
+  },
+  "inspect-hinges": {
+    strong: "Петлі викривають того, хто навчив двері рахувати виходи, і соромно скриплять.",
+    success: "Огляд петель знаходить механізм плати; двері відкриваються, бурмочучи тарифи.",
+    mixed: "Петлі піддаються, але повертають героя через кухню як службовий маршрут.",
+    complication: "Петля замикає доказ на пальці й вимагає пояснити, хто тут майстер."
+  },
+  "negotiate-toll": {
+    strong: "Переговори вибивають безкоштовний перший вихід і право дверей зітхати без збору.",
+    success: "Двері погоджуються на пільгу, якщо ніхто не називатиме це слабкістю.",
+    mixed: "Прохід відкрито, проте двері записують героя в чергу на майбутню розмову.",
+    complication: "Тариф починає сперечатись окремо від дверей і затримує всіх у дуже ввічливому коридорі."
+  },
+  "fake-payment": {
+    strong: "Відбиття монети обманює замок чисто, і двері дякують порожньому блиску.",
+    success: "Фальшива оплата проходить; двері рахують відблиск і відкриваються.",
+    mixed: "Трюк працює, але відбиття лишається боржником і блимає з підлоги.",
+    complication: "Двері ловлять фальшиву плату на пальцях і стискають доказ із прикрим скрипом."
+  },
+  "pay-tip": {
+    strong: "Чайові змащують петлі так вдало, що двері відкриваються з майже професійною чемністю.",
+    success: "Плата проходить у правильну щілину, і вихід стає коротшим на одну сварку.",
+    mixed: "Двері беруть чайові, але проводять героя довшим маршрутом «для сервісу».",
+    complication: "Монета прийнята, проте двері вирішують, що чайові не скасовують дрібний допит."
+  }
+  } as Record<string, AdventureOutcomeBeats>)[id];
 }
 
 function buildProfileHint(
@@ -748,10 +867,10 @@ function buildTechniqueIdentityBeat(
   const owner = profileKind === "race" ? profile.label : profile.label.toLowerCase();
 
   return {
-    strong: `${owner} додає ${motif}, і жарт стає схожим на план.`,
-    success: `${capitalizeFirst(motif)} тримає сцену в межах здорового абсурду.`,
-    mixed: `${capitalizeFirst(motif)} допомагає, хоча Корчмар просить не називати це методологією.`,
-    complication: `${capitalizeFirst(motif)} лишає впізнаваний слід, але без службової мітки на кнопці.`
+    strong: `У жесті, який робить ${owner}, є ${motif}; цього досить, щоб жарт став схожим на план.`,
+    success: `Сцена тримається в межах здорового абсурду, бо в методі є ${motif}.`,
+    mixed: `Допомагає ${motif}, хоча Корчмар просить не називати це методологією.`,
+    complication: `Після методу лишається впізнаваний слід із мотивом «${motif}», але без службової мітки на кнопці.`
   };
 }
 
@@ -770,37 +889,33 @@ function buildSignatureIdentityBeat(
   const titleBeat = title ? ` Титул «${title}» стоїть свідком і робить вигляд, що так було в статуті.` : "";
 
   return {
-    strong: `${capitalizeFirst(raceMotif)} зчіплюється з ${classMotif}, і сцена здається раніше за гонор.${titleBeat}`,
-    success: `${capitalizeFirst(classMotif)} підхоплює ${raceMotif}, тож результат виглядає особистим, а не службовим.`,
-    mixed: `${capitalizeFirst(raceMotif)} і ${classMotif} спрацювали разом, але кожен залишив по маленькій претензії.`,
-    complication: `${capitalizeFirst(classMotif)} потягнув за ${raceMotif} надто різко; смішно, дієво, незручно.`
+    strong: `У підході сходяться ${raceMotif} і ${classMotif}. Сцена здається раніше за гонор.${titleBeat}`,
+    success: `Поєднання «${raceMotif}» плюс «${classMotif}» виглядає особистим, а не службовим.`,
+    mixed: `Разом спрацювали ${raceMotif} і ${classMotif}, але кожен мотив залишив по маленькій претензії.`,
+    complication: `Між мотивами «${raceMotif}» і «${classMotif}» виник занадто різкий рух; смішно, дієво, незручно.`
   };
 }
 
 function techniqueMotif(technique: QuestTechniqueId): string {
   const motifs: Partial<Record<QuestTechniqueId, string>> = {
-    authority: "печатку й право голосу",
+    authority: "печатка й право голосу",
     bribery: "малий фонд взаєморозуміння",
     craft: "ремесло з гострим краєм",
     deception: "хитрий обхід кута",
-    domesticity: "хатню юрисдикцію",
-    force: "вагу прямого аргументу",
+    domesticity: "хатня юрисдикція",
+    force: "вага прямого аргументу",
     improvisation: "корисний збіг",
-    investigation: "уважну ревізію причини",
-    performance: "ритм і паузу",
-    persuasion: "угоду без зайвої слави",
-    ritual: "обрядову впертість",
+    investigation: "уважна ревізія причини",
+    performance: "ритм і пауза",
+    persuasion: "угода без зайвої слави",
+    ritual: "обрядова впертість",
     tracking: "слід там, де його соромились",
-    traps: "пастку з чесним виглядом",
+    traps: "пастка з чесним виглядом",
     arcana: "тихий магічний шов",
     finesse: "точний рух без фанфар"
   };
 
   return motifs[technique] ?? "практичний нахил";
-}
-
-function capitalizeFirst(value: string): string {
-  return value.length > 0 ? `${value[0]?.toUpperCase()}${value.slice(1)}` : value;
 }
 
 function buildOutcomeText(input: {

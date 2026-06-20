@@ -285,7 +285,29 @@ describe("scene callback HTML options", () => {
           itemGrants: []
         },
         levelChange: noLevelChange,
-        complication: false
+        complication: false,
+        grade: "success" as const,
+        consequence: "full-reward" as const,
+        outcome: {
+          headline: "✅ Справу закрито",
+          body: ["Казанок стишився."]
+        },
+        spentGold: 0,
+        hpLoss: null,
+        fightHandoff: false,
+        fightEncounter: null,
+        claim: {
+          key: "adventure.choice",
+          localDate: "12026-06-20",
+          effectiveHpMax: character.hpMax
+        },
+        check: {
+          roll: 13,
+          target: 45,
+          total: 13,
+          statBonus: 0,
+          grade: "success"
+        }
       })
     );
     const completeMimicShawarma = vi.fn(() =>
@@ -316,7 +338,7 @@ describe("scene callback HTML options", () => {
       })
     );
     expect(completeMimicShawarma).not.toHaveBeenCalled();
-    expect(String(edit?.payload.text)).toContain("Казанок репетирує оперу");
+    expect(String(edit?.payload.text)).toContain("Казанок стишився");
     expect(String(edit?.payload.text)).toContain("<i>Метод:</i> 🎵 Продиригувати юшкою");
   });
 
@@ -1667,6 +1689,11 @@ describe("scene callback HTML options", () => {
               hpLoss: null,
               fightHandoff: true,
               fightEncounter: { monsterId: "monster.borshch-slime" },
+              claim: {
+                key: "adventure.choice",
+                localDate: "12026-06-12",
+                effectiveHpMax: character.hpMax
+              },
               check: {
                 roll: 13,
                 target: 45,
@@ -1689,7 +1716,11 @@ describe("scene callback HTML options", () => {
       difficulty: "normal",
       target: { monsterIds: ["monster.borshch-slime"] }
     });
-    expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n, {
+      key: "adventure.choice",
+      localDate: "12026-06-12",
+      effectiveHpMax: character.hpMax
+    });
     expect(String(edit?.payload.text)).toContain("HP 0/20");
     expect(String(edit?.payload.text)).not.toContain("Нагорода не видана");
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
@@ -1746,6 +1777,11 @@ describe("scene callback HTML options", () => {
               hpLoss: null,
               fightHandoff: true,
               fightEncounter: { monsterId: "monster.borshch-slime" },
+              claim: {
+                key: "adventure.choice",
+                localDate: "12026-06-12",
+                effectiveHpMax: character.hpMax
+              },
               check: {
                 roll: 13,
                 target: 45,
@@ -1768,9 +1804,151 @@ describe("scene callback HTML options", () => {
       difficulty: "normal",
       target: { monsterIds: ["monster.borshch-slime"] }
     });
-    expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n, {
+      key: "adventure.choice",
+      localDate: "12026-06-12",
+      effectiveHpMax: character.hpMax
+    });
     expect(String(edit?.payload.text)).toContain("РџР°РІСѓРє РґРµРґР»Р°Р№РЅС–РІ");
     expect(String(edit?.payload.text)).not.toContain("РќР°РіРѕСЂРѕРґР° РЅРµ РІРёРґР°РЅР°");
+    expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+  });
+
+  it("rolls back a complication claim when a training fight wins the handoff race", async () => {
+    const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
+      Promise.resolve("deleted" as const)
+    );
+    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "training-active" as const,
+        character,
+        session: trainingSession(),
+        questProgress: null
+      })
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              choice: adventureChoice,
+              approach: adventureApproach,
+              reward: { xp: 0, gold: 0, localDate: "12026-06-12", itemGrants: [] },
+              levelChange: noLevelChange,
+              complication: true,
+              grade: "complication",
+              consequence: "fight-handoff",
+              outcome: "Казанок покликав не ту бійку.",
+              spentGold: 0,
+              hpLoss: null,
+              fightHandoff: true,
+              fightEncounter: { monsterId: "monster.borshch-slime" },
+              claim: { key: "adventure.choice", localDate: "12026-06-12", effectiveHpMax: character.hpMax },
+              check: { roll: 13, target: 45, total: 13, statBonus: 0, grade: "complication" }
+            }),
+          rollbackCurrentAdventureClaimForTelegramUser
+        },
+        fight: {
+          getOrStartPersistentFightForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n, {
+      key: "adventure.choice",
+      localDate: "12026-06-12",
+      effectiveHpMax: character.hpMax
+    });
+    expect(String(edit?.payload.text)).toContain("Тренування вже триває");
+    expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+  });
+
+  it("rolls back a complication claim when an expired terminal fight is returned", async () => {
+    const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
+      Promise.resolve("deleted" as const)
+    );
+    const terminalSession = {
+      ...persistentSession("monster.deadline-spider"),
+      status: "won" as const,
+      state: {
+        ...persistentSession("monster.deadline-spider").state,
+        status: "won" as const,
+        lastTurn: {
+          action: "attack" as const,
+          heroOutcome: "won" as const,
+          heroDamage: 18,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false
+        }
+      }
+    };
+    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-terminal" as const,
+        character,
+        session: terminalSession,
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null,
+        fightReward: null
+      })
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              choice: adventureChoice,
+              approach: adventureApproach,
+              reward: { xp: 0, gold: 0, localDate: "12026-06-12", itemGrants: [] },
+              levelChange: noLevelChange,
+              complication: true,
+              grade: "complication",
+              consequence: "fight-handoff",
+              outcome: "Казанок знайшов уже завершену бійку.",
+              spentGold: 0,
+              hpLoss: null,
+              fightHandoff: true,
+              fightEncounter: { monsterId: "monster.borshch-slime" },
+              claim: { key: "adventure.choice", localDate: "12026-06-12", effectiveHpMax: character.hpMax },
+              check: { roll: 13, target: 45, total: 13, statBonus: 0, grade: "complication" }
+            }),
+          rollbackCurrentAdventureClaimForTelegramUser
+        },
+        fight: {
+          getOrStartPersistentFightForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n, {
+      key: "adventure.choice",
+      localDate: "12026-06-12",
+      effectiveHpMax: character.hpMax
+    });
+    expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 

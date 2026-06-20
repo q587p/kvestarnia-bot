@@ -3,6 +3,7 @@ import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import type {
   ClaimDailyActionInput,
   ClaimDailyActionResult,
+  DailyActionClaimIdentity,
   DailyActionRecord,
   DailyActionRepository,
   HpLossAudit,
@@ -263,7 +264,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
 
   async deleteForTelegramUser(
     telegramUserId: bigint,
-    input: { key: string; localDate: string }
+    input: DailyActionClaimIdentity
   ): Promise<"deleted" | "missing" | "no-character"> {
     const character = await this.prisma.character.findFirst({
       where: {
@@ -293,7 +294,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
 
   async rollbackForTelegramUser(
     telegramUserId: bigint,
-    input: { key: string; localDate: string }
+    input: DailyActionClaimIdentity
   ): Promise<"rolled-back" | "missing" | "no-character"> {
     return this.prisma.$transaction(async (tx) => {
       const character = await tx.character.findFirst({
@@ -338,7 +339,13 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
       const levelAfterRollback = getLevelForXp(xpAfterRollback, { remortCount });
       const rollbackHpCurrent =
         hpLoss && hpLoss.lost > 0
-          ? Math.min(Math.max(character.hpMax, hpLoss.max), Math.max(0, character.hpCurrent) + hpLoss.lost)
+          ? Math.max(
+              character.hpCurrent,
+              Math.min(
+                Math.max(1, Math.floor(input.effectiveHpMax ?? character.hpMax)),
+                Math.max(0, character.hpCurrent) + hpLoss.lost
+              )
+            )
           : null;
 
       await tx.character.update({

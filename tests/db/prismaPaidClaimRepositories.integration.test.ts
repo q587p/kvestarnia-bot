@@ -490,7 +490,9 @@ describe("paid Prisma claim repositories", () => {
     for (const audit of audits) {
       expect(audit.after).toBe(audit.before - audit.lost);
     }
-    expect(new Set(audits.flatMap((audit) => [audit.before, audit.after]))).toEqual(new Set([12, 9, 5]));
+    expect(Math.max(...audits.map((audit) => audit.before))).toBe(12);
+    expect(Math.min(...audits.map((audit) => audit.after))).toBe(5);
+    expect(new Set(audits.flatMap((audit) => [audit.before, audit.after])).size).toBe(3);
   });
 
   it("rolls back only the committed HP delta after an unrelated HP change", async () => {
@@ -547,6 +549,76 @@ describe("paid Prisma claim repositories", () => {
       })
     ).resolves.toBe("missing");
     await expect(prisma.characterItem.count({ where: { characterId: "character-daily-rollback-delta" } })).resolves.toBe(0);
+  });
+
+  it.each([
+    {
+      name: "later healing",
+      characterId: "character-daily-rollback-healing",
+      telegramUserId: 9028n,
+      mutate: () =>
+        prisma.character.update({
+          where: { id: "character-daily-rollback-healing" },
+          data: { hpCurrent: 15 }
+        }),
+      expectedHp: 18
+    },
+    {
+      name: "later max HP increase",
+      characterId: "character-daily-rollback-max-up",
+      telegramUserId: 9029n,
+      mutate: () =>
+        prisma.character.update({
+          where: { id: "character-daily-rollback-max-up" },
+          data: { hpCurrent: 38, hpMax: 40 }
+        }),
+      expectedHp: 40
+    },
+    {
+      name: "later max HP decrease below current",
+      characterId: "character-daily-rollback-max-down",
+      telegramUserId: 9030n,
+      mutate: () =>
+        prisma.character.update({
+          where: { id: "character-daily-rollback-max-down" },
+          data: { hpCurrent: 9, hpMax: 8 }
+        }),
+      expectedHp: 9
+    }
+  ])("does not reduce current HP during rollback after $name", async ({ characterId, telegramUserId, mutate, expectedHp }) => {
+    await seedCharacter(prisma, {
+      userId: `user-${characterId}`,
+      characterId,
+      telegramUserId,
+      gold: 5,
+      hpCurrent: 12,
+      hpMax: 25
+    });
+
+    await dailyActions.claimForTelegramUser(telegramUserId, {
+      key: `quest.rollback.${characterId}`,
+      localDate: "12026-06-20",
+      rewardXp: 5,
+      rewardGold: 0,
+      hpLoss: { requested: 3, effectiveHpMax: 25 }
+    });
+    await mutate();
+
+    await expect(
+      dailyActions.rollbackForTelegramUser(telegramUserId, {
+        key: `quest.rollback.${characterId}`,
+        localDate: "12026-06-20"
+      })
+    ).resolves.toBe("rolled-back");
+    await expect(prisma.character.findUniqueOrThrow({ where: { id: characterId } })).resolves.toMatchObject({
+      hpCurrent: expectedHp
+    });
+    await expect(
+      dailyActions.rollbackForTelegramUser(telegramUserId, {
+        key: `quest.rollback.${characterId}`,
+        localDate: "12026-06-20"
+      })
+    ).resolves.toBe("missing");
   });
 
   it("serializes concurrent paid cooldown claims without a second charge", async () => {

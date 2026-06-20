@@ -244,6 +244,49 @@ describe("adventure resolution content", () => {
     }
   });
 
+  it("keeps adventure outcome copy free of known case and agreement breakages", () => {
+    const sampledProblemIds = [
+      "barrel",
+      "bench",
+      "helmet",
+      "spoon",
+      "race-human-ish-survey",
+      "race-human-ish-mug",
+      "race-human-ish-portrait",
+      "class-bard-manual",
+      "class-bard-uniform",
+      "class-bard-exam",
+      `title-${slugTitle(getKnownComboTitleValues()[0] ?? "Архівний Дух")}`
+    ];
+    const malformed = [
+      "бочку приймає заставу",
+      "від якої лаву не може відмовитись",
+      "Ложку змушено визнає факт",
+      "приводить анкети до робочого стану",
+      "у портрета точну причину",
+      "знаходить у бочку",
+      "Уважну ревізію причини тримає",
+      "зчіплюється з вагу прямого аргументу",
+      "Вагу прямого аргументу допомагає"
+    ];
+
+    for (const problemId of sampledProblemIds) {
+      const scene = buildAdventureResolutionScene({
+        problemId,
+        title: problemId,
+        character
+      });
+      const copy = scene.methods
+        .flatMap((method) => Object.values(method.outcomeText))
+        .flatMap((outcome) => [outcome.headline, ...outcome.body])
+        .join("\n");
+
+      for (const phrase of malformed) {
+        expect(copy, `${problemId}:${phrase}`).not.toContain(phrase);
+      }
+    }
+  });
+
   it("gives compared methods in the same scene visibly different outcome bodies", () => {
     const comparisons = [
       {

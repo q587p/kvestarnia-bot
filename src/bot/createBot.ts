@@ -235,6 +235,7 @@ import {
   presentFightLevelRetired,
   presentFightMonsterRest,
   presentFightNoCharacter,
+  presentFightTrainingActive,
   buildProblemQuestProgressAfterFightEntry,
   type QuestProgressAfterFightEntry,
   presentProblemQuestIssueNext,
@@ -2315,20 +2316,31 @@ async function handleAdventureCallback(
         }
       );
 
-      if (
-        complicationFight.state === "needs-rest" ||
-        complicationFight.state === "monster-rest" ||
-        complicationFight.state === "level-retired" ||
-        complicationFight.state === "no-character" ||
-        (complicationFight.state === "persistent-active" && complicationFight.started !== true)
-      ) {
-        await services.adventure.rollbackCurrentAdventureClaimForTelegramUser(telegramUserId);
+      const handoffStarted =
+        complicationFight.state === "persistent-active" && complicationFight.started === true;
+
+      if (!handoffStarted) {
+        await services.adventure.rollbackCurrentAdventureClaimForTelegramUser(telegramUserId, result.claim);
         await safeAnswerCallbackQuery(ctx);
 
-        if (complicationFight.state === "persistent-active") {
+        if (
+          complicationFight.state === "persistent-active" ||
+          complicationFight.state === "persistent-terminal"
+        ) {
           await safeEditMessageText(ctx, presentPersistentFight(complicationFight), {
             ...HTML_MESSAGE_OPTIONS,
             reply_markup: buildPersistentFightResultKeyboard(
+              complicationFight.session,
+              complicationFight.character
+            )
+          });
+          return;
+        }
+
+        if (complicationFight.state === "training-active") {
+          await safeEditMessageText(ctx, presentFightTrainingActive(complicationFight), {
+            ...HTML_MESSAGE_OPTIONS,
+            reply_markup: buildTrainingDoppelgangerKeyboard(
               complicationFight.session,
               complicationFight.character
             )

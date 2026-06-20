@@ -11,6 +11,7 @@ import type {
 import type {
   ClaimDailyActionInput,
   ClaimDailyActionResult,
+  DailyActionClaimIdentity,
   DailyActionRecord,
   DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
@@ -320,6 +321,55 @@ describe("AdventureService", () => {
       rewardXp: 0,
       rewardGold: 0
     });
+  });
+
+  it("rolls back the original adventure claim identity across a 93-minute boundary", async () => {
+    let now = fixedClock();
+    const oldPeriod = buildAdventurePeriod(now);
+    const userId = 2_588n;
+    const characters = new FakeCharacterRepository();
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new AdventureService(
+      characters,
+      dailyActions,
+      () => now,
+      { findActiveByTelegramUserId: () => Promise.resolve(null) }
+    );
+    characters.add(userId, { xp: 25, gold: 10 });
+    const lookup = await service.getAdventureOfferForTelegramUser(userId);
+
+    if (lookup.state !== "ready") {
+      throw new Error(`Expected ready offer, got ${lookup.state}.`);
+    }
+
+    const selected = await service.selectAdventureProblem(userId, {
+      periodToken: lookup.offer.periodToken,
+      problemId: lookup.offer.choices[0]!.id
+    });
+
+    if (selected.state !== "selected") {
+      throw new Error(`Expected selected problem, got ${selected.state}.`);
+    }
+
+    const result = await service.completeAdventureApproach(userId, {
+      periodToken: lookup.offer.periodToken,
+      problemId: selected.choice.id,
+      methodId: selected.approaches[0]!.callbackKey ?? selected.approaches[0]!.id
+    });
+
+    expect(result.state).toBe("completed");
+    if (result.state !== "completed") {
+      throw new Error(`Expected completed adventure, got ${result.state}.`);
+    }
+
+    now = new Date(oldPeriod.expiresAt.getTime() + 1);
+
+    await expect(service.rollbackCurrentAdventureClaimForTelegramUser(userId, result.claim)).resolves.toBe("deleted");
+    expect(dailyActions.lastDeleteInput).toMatchObject({
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: oldPeriod.storageKey
+    });
+    expect(dailyActions.records).toHaveLength(0);
   });
 
   it.each([
@@ -933,6 +983,7 @@ class FakeCharacterRepository implements CharacterRepository {
 class FakeDailyActionRepository implements DailyActionRepository {
   private readonly actions = new Map<string, DailyActionRecord>();
   createCount = 0;
+  lastDeleteInput: DailyActionClaimIdentity | null = null;
 
   constructor(private readonly characters: FakeCharacterRepository) {}
 
@@ -1037,6 +1088,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
       action,
       character: updatedCharacter,
       itemGrants: input.itemGrants ?? [],
+      hpLoss: null,
       levelChange: {
         oldLevel: getLevelForXp(character.xp, { remortCount: character.remortCount ?? 0 }),
         newLevel: updatedCharacter.level,
@@ -1048,8 +1100,9 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
   async deleteForTelegramUser(
     userTelegramId: bigint,
-    input: { key: string; localDate: string }
+    input: DailyActionClaimIdentity
   ): Promise<"deleted" | "missing" | "no-character"> {
+    this.lastDeleteInput = input;
     const character = await this.characters.findByTelegramUserId(userTelegramId);
 
     if (!character) {

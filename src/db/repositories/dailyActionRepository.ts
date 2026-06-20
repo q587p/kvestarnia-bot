@@ -48,6 +48,12 @@ export interface ClaimDailyActionInput {
   itemGrants?: ItemGrant[];
 }
 
+export interface DailyActionClaimIdentity {
+  key: string;
+  localDate: string;
+  effectiveHpMax?: number;
+}
+
 export type ClaimDailyActionResult =
   | {
       state: "created";
@@ -83,12 +89,12 @@ export interface DailyActionRepository {
 
   deleteForTelegramUser?(
     telegramUserId: bigint,
-    input: { key: string; localDate: string }
+    input: DailyActionClaimIdentity
   ): Promise<"deleted" | "missing" | "no-character">;
 
   rollbackForTelegramUser?(
     telegramUserId: bigint,
-    input: { key: string; localDate: string }
+    input: DailyActionClaimIdentity
   ): Promise<"rolled-back" | "missing" | "no-character">;
 
   countForTelegramUser?(
