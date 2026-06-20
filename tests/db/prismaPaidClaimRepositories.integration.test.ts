@@ -536,7 +536,7 @@ describe("paid Prisma claim repositories", () => {
     ).resolves.toBe("rolled-back");
     await expect(
       prisma.character.findUniqueOrThrow({ where: { id: "character-daily-rollback-delta" } })
-    ).resolves.toMatchObject({ xp: 0, gold: 5, hpCurrent: 10 });
+    ).resolves.toMatchObject({ xp: 0, gold: 5, hpCurrent: 7 });
     await expect(
       dailyActions.rollbackForTelegramUser(9027n, {
         key: "quest.rollback.delta",
@@ -643,7 +643,7 @@ describe("paid Prisma claim repositories", () => {
     ).resolves.toMatchObject({ quantity: 2 });
   });
 
-  it("rolls back HP using the current effective max supplied by the service", async () => {
+  it("does not heal changed current HP when current effective max increased after the claim", async () => {
     await seedCharacter(prisma, {
       userId: "user-daily-rollback-current-max",
       characterId: "character-daily-rollback-current-max",
@@ -674,7 +674,7 @@ describe("paid Prisma claim repositories", () => {
     ).resolves.toBe("rolled-back");
     await expect(
       prisma.character.findUniqueOrThrow({ where: { id: "character-daily-rollback-current-max" } })
-    ).resolves.toMatchObject({ hpCurrent: 27, hpMax: 40 });
+    ).resolves.toMatchObject({ hpCurrent: 24, hpMax: 40 });
   });
 
   it("rolls back only applied item grants when max-owned caps reduce the request", async () => {
@@ -801,7 +801,7 @@ describe("paid Prisma claim repositories", () => {
           where: { id: "character-daily-rollback-healing" },
           data: { hpCurrent: 15 }
         }),
-      expectedHp: 18
+      expectedHp: 15
     },
     {
       name: "later max HP increase",
@@ -812,7 +812,7 @@ describe("paid Prisma claim repositories", () => {
           where: { id: "character-daily-rollback-max-up" },
           data: { hpCurrent: 38, hpMax: 40 }
         }),
-      expectedHp: 40
+      expectedHp: 38
     },
     {
       name: "later max HP decrease below current",

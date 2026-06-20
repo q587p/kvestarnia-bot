@@ -352,12 +352,12 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           const xpAfterRollback = Math.max(0, character.xp - action.rewardXp);
           const levelAfterRollback = getLevelForXp(xpAfterRollback, { remortCount });
           const rollbackHpCurrent =
-            hpLoss && hpLoss.lost > 0
+            hpLoss && hpLoss.lost > 0 && character.hpCurrent === hpLoss.after
               ? Math.max(
                   character.hpCurrent,
                   Math.min(
                     Math.max(1, Math.floor(input.currentEffectiveHpMax ?? character.hpMax)),
-                    Math.max(0, character.hpCurrent) + hpLoss.lost
+                    hpLoss.after + hpLoss.lost
                   )
                 )
               : null;
