@@ -287,6 +287,34 @@ describe("adventure resolution content", () => {
     }
   });
 
+  it("keeps full method labels out of resolved outcome bodies", () => {
+    const problemIds = [
+      ...getGeneralAdventureResolutionProblemIds(),
+      "race-human-ish-survey",
+      "race-human-ish-mug",
+      "race-human-ish-portrait",
+      "class-bard-manual",
+      "class-bard-uniform",
+      "class-bard-exam",
+      `title-${slugTitle(getKnownComboTitleValues()[0] ?? "Архівний Дух")}`
+    ];
+
+    for (const problemId of problemIds) {
+      const scene = buildAdventureResolutionScene({
+        problemId,
+        title: problemId,
+        character
+      });
+
+      for (const method of scene.methods) {
+        const label = normalize(method.label);
+        const copy = activeOutcomeBody(method).toLocaleLowerCase("uk-UA");
+
+        expect(copy, `${problemId}:${method.id}`).not.toContain(label);
+      }
+    }
+  });
+
   it("gives compared methods in the same scene visibly different outcome bodies", () => {
     const comparisons = [
       {

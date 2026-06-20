@@ -30,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Adventure and cellar selected-result screens now show authored grade-specific Ukrainian outcome copy and qualitative method hints without exact future reward amounts or percentage odds.
 - Successful personalized result copy now avoids generic meta-lines such as “Обраний підхід...” and keeps the sentence anchored to the scene action.
 - Authored quest result cards now separate the scene, method and reward blocks more clearly, omit internal race/class/signature method labels and show `Винагорода за справу` before XP/gold.
+- Authored quest result cards now show the chosen method immediately after the scene title, while the resolved outcome paragraph avoids repeating the full button label.
 - Authored quest method hints now avoid repeated reliability wording and generated scene outcomes use grammar-neutral copy for singular/plural problem titles.
 - Authored result bodies are now composed per concrete method and grade, so bribery, negotiation, deception, force, ritual and trap outcomes no longer share one scene-level strong/success/failure paragraph.
 - Authored result bodies now avoid the last intent-wide noun-substitution templates and use grammar-neutral method beats or explicit scene text for active methods.

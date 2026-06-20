@@ -220,6 +220,8 @@ describe("adventure presenter", () => {
     expect(text).toContain("✅ Справу закрито");
     expect(text).toContain("Винагорода за справу:");
     expect(text).toContain("\n\nВинагорода за справу:\n<b>+7 XP\n+4 золота</b>");
+    expect(text.indexOf("Казанок &lt;репетирує&gt;")).toBeLessThan(text.indexOf("<i>Метод:</i> 🧠 Хитро"));
+    expect(text.indexOf("<i>Метод:</i> 🧠 Хитро")).toBeLessThan(text.indexOf("без заперечень."));
     expect(text).not.toContain("Підпис методу");
     expect(text).not.toContain("race+class");
     expect(text).not.toContain("Рівень підріс");
@@ -234,8 +236,9 @@ describe("adventure presenter", () => {
     const method = scene.methods.find((candidate) => candidate.id === "track-soles");
 
     expect(method?.outcomeText["strong-success"].body.join("\n")).toContain(
-      "Прочитати маршрут підошов. Уважність знаходить точну причину безладу й кладе її на видноті."
+      "Уважність знаходить точну причину безладу й кладе її на видноті."
     );
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("Прочитати маршрут підошов.");
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("у чоботи");
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("перестає сперечатися");
   });
@@ -311,9 +314,11 @@ function completed(complication: boolean): Extract<AdventureResult, { state: "co
     outcome: {
       headline: complication ? "⚠️ Справа вкусила у відповідь" : "✅ Справу закрито",
       body: [
+        choice.title,
+        "",
         complication
-          ? `${choice.title} не прийняла метод без заперечень.`
-          : `${choice.title} погодилась бути вирішеною.`
+          ? "Сцена не прийняла метод без заперечень."
+          : "Сцена погодилась бути вирішеною без заперечень."
       ]
     },
     spentGold: 0,

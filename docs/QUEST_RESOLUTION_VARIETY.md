@@ -648,4 +648,6 @@ Active method hints preserve the concrete scene trade-off after race, class or s
 
 Resolved bodies are authored or composed as `scene + method + grade`. Two methods in the same scene must not produce the same body with only the method label substituted: bribery, negotiation, deception, ritual, trap, fight and craft failures need visibly different beats. Grammar-sensitive scene objects must not be reused across subject/accusative/genitive/locative positions; prefer explicit scene text or grammar-neutral method beats over generic noun interpolation. Generic fallback copy is defensive only and is covered by tests so active visible methods avoid it.
 
+Result cards show the chosen method as its own line immediately after the scene title. The following outcome paragraph describes what happened and should not start by repeating the full button label.
+
 Persistent-fight complications store the actual eligible encounter id selected for the hero and pass that same id to the fight service. A quest handoff succeeds only when the fight service returns a newly started intended persistent fight; unrelated active, training, terminal, rest or no-character states roll the original claim back instead of being consumed by another combat session.
