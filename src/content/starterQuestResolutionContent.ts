@@ -403,9 +403,22 @@ function appendIdentityBeat(
 ): string {
   const core = base.outcomeText[grade].body.join(" ");
   const motif = techniqueMotif(firstTechnique(profile));
-  const owner = capitalizeFirst(source === "race" ? profile.label : profile.label.toLowerCase());
+  const owner = capitalizeFirst(source === "race" ? profile.label : profile.label.toLocaleLowerCase("uk-UA"));
+  const focus = methodFocus(base.label);
 
-  return `${core} ${owner} додає ${motif}, тож дія лишається конкретною й зрозумілою.`;
+  if (grade === "complication") {
+    return `${core} ${owner} заносить у ${focus} ${motif}, але сцена відповідає надто близько.`;
+  }
+
+  if (grade === "mixed-success") {
+    return `${core} ${owner} додає ${motif} саме в ${focus}, тому результат тримається, хоч і бурчить.`;
+  }
+
+  if (grade === "success") {
+    return `${core} ${owner} підсилює ${focus} через ${motif}, без службового підпису на кнопці.`;
+  }
+
+  return `${core} ${owner} кладе ${motif} поруч із ${focus}, і вся дія звучить як особистий план.`;
 }
 
 function appendSignatureBeat(
@@ -417,8 +430,16 @@ function appendSignatureBeat(
 ): string {
   const core = base.outcomeText[grade].body.join(" ");
   const titleBeat = title ? ` Титул «${title}» киває як свідок.` : "";
+  const focus = methodFocus(base.label);
 
-  return `${core} ${capitalizeFirst(techniqueMotif(firstTechnique(race)))} зустрічає ${techniqueMotif(firstTechnique(heroClass))}.${titleBeat}`;
+  return `${core} ${capitalizeFirst(techniqueMotif(firstTechnique(race)))} зустрічає ${techniqueMotif(firstTechnique(heroClass))} у ${focus}.${titleBeat}`;
+}
+
+function methodFocus(label: string): string {
+  const clean = label.replace(/^[^\p{L}\p{N}]+/u, "").trim();
+  const fragment = clean.split(/\s+/u).slice(1, 4).join(" ").replace(/[.!?]+$/u, "");
+
+  return fragment ? `«${fragment.toLocaleLowerCase("uk-UA")}»` : "обраному русі";
 }
 
 function withRiskHint(hint: string, consequence: QuestConsequenceKind): string {

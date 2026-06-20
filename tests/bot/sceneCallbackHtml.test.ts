@@ -1595,6 +1595,79 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("fight-normal");
   });
 
+  it("marks canonical solo-fight presence when an adventure complication starts a new fight", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-active" as const,
+        started: true,
+        character: {
+          ...character,
+          level: 3
+        },
+        session: persistentSession("monster.borshch-slime"),
+        monster: {
+          id: "monster.borshch-slime",
+          name: "Борщовий слиз",
+          description: "Булькає статутом і буряком.",
+          level: 3,
+          tags: ["slime", "food"]
+        },
+        questProgress: null
+      })
+    );
+    const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() => Promise.resolve("missing" as const));
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              choice: adventureChoice,
+              approach: adventureApproach,
+              reward: { xp: 0, gold: 0, localDate: "12026-06-12", itemGrants: [] },
+              levelChange: noLevelChange,
+              complication: true,
+              grade: "complication",
+              consequence: "fight-handoff",
+              outcome: {
+                headline: "⚔️ Казанок покликав бій",
+                body: ["Кришка грюкнула, і слиз виліз із параграфа."]
+              },
+              spentGold: 0,
+              hpLoss: null,
+              fightHandoff: true,
+              fightEncounter: { monsterId: "monster.borshch-slime" },
+              claim: { key: "adventure.choice", localDate: "12026-06-12", effectiveHpMax: character.hpMax },
+              check: { roll: 13, target: 45, total: 13, statBonus: 0, grade: "complication" }
+            }),
+          rollbackCurrentAdventureClaimForTelegramUser
+        },
+        fight: {
+          getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction
+        }
+      })
+    );
+
+    expect(rollbackCurrentAdventureClaimForTelegramUser).not.toHaveBeenCalled();
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep.level1",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(calls.some((call) => call.method === "sendMessage" && String(call.payload.text).includes("Борщовий слиз"))).toBe(true);
+  });
+
   it("starts selected problem fight difficulty after moving from the hall to the Nyz", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
@@ -1740,8 +1813,8 @@ describe("scene callback HTML options", () => {
         session: persistentSession("monster.deadline-spider"),
         monster: {
           id: "monster.deadline-spider",
-          name: "РџР°РІСѓРє РґРµРґР»Р°Р№РЅС–РІ",
-          description: "РџР»РµС‚Рµ РїР°РІСѓС‚РёРЅСѓ Р· В«СЊРѕРіРѕРґРЅС– С€РІРёРґРµРЅСЊРєРѕВ».",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
           level: 2,
           tags: ["beast", "time", "web"]
         },
@@ -1772,7 +1845,7 @@ describe("scene callback HTML options", () => {
               complication: true,
               grade: "complication",
               consequence: "fight-handoff",
-              outcome: "Р“РѕСЂС‰РёРє РІРёРєР»РёРєР°РІ РІР°СЃ РЅР° С‡РµСЃРЅРёР№ Р±С–Р№ Р»РѕР¶РєР°РјРё.",
+              outcome: "Горщик викликав вас на чесний бій ложками.",
               spentGold: 0,
               hpLoss: null,
               fightHandoff: true,
@@ -1809,8 +1882,8 @@ describe("scene callback HTML options", () => {
       localDate: "12026-06-12",
       effectiveHpMax: character.hpMax
     });
-    expect(String(edit?.payload.text)).toContain("РџР°РІСѓРє РґРµРґР»Р°Р№РЅС–РІ");
-    expect(String(edit?.payload.text)).not.toContain("РќР°РіРѕСЂРѕРґР° РЅРµ РІРёРґР°РЅР°");
+    expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(edit?.payload.text)).not.toContain("Нагорода не видана");
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 

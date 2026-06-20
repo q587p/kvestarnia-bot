@@ -34,15 +34,20 @@ This project follows a simple pre-1.0 versioning policy:
 - Authored quest method hints now avoid repeated reliability wording and generated scene outcomes use grammar-neutral copy for singular/plural problem titles.
 - Authored result bodies are now composed per concrete method and grade, so bribery, negotiation, deception, force, ritual and trap outcomes no longer share one scene-level strong/success/failure paragraph.
 - Authored result bodies now avoid the last intent-wide noun-substitution templates and use grammar-neutral method beats or explicit scene text for active methods.
+- Active authored methods no longer use the remaining intent-wide outcome fallback; non-overridden methods now compose method-specific grammar-neutral beats, and content tests reject the old shared fallback paragraphs plus common mojibake markers.
 - Personalized race/class/signature variants now preserve scene-specific risk hints, including qualitative injury and fight/summoning warnings.
+- Personalized starter and Adventure result flavor now varies by concrete method focus instead of appending one universal identity paragraph everywhere.
 - Generated race/class/title problem families now use scene-native method sets for анкета/кухоль/портрет/підручник/форма/іспит/титул instead of one universal generated template.
 - Race, class and signature methods now bind to concrete scene affordances instead of blind profile-noun substitution, while visible labels/buttons keep only the scene action; the same hero gets different verbs/outcomes across unrelated problems and malformed forms such as doubled object suffixes are covered by tests.
 - Adventure complications can now resolve to full reward, reduced reward, XP-only, cosmetic mess, paid success or existing persistent-fight handoff where authored.
 - Adventure and starter/cellar complications can now include method-owned minor/serious injury where allowed; direct quest injury is applied atomically with claim/cost/reward/item/cooldown mutations and clamped to leave at least `1 HP`.
 - Failed or blocked Adventure fight handoff now rolls back claim, spent gold, rewards, item grants and HP mutation together; replay cannot spawn a second fight.
 - HP loss audits now use the canonical effective max supplied by the resolver, so level and equipment HP bonuses are reflected in stored and presented injury results.
+- Player-facing HP result lines now use the returned post-claim character summary for current `HP/max HP`, while the stored audit retains the damage-time effective max.
 - Daily/cooldown HP mutation now records the actual committed before/lost/after values from fresh transactional state; rollback compensates only the committed loss instead of restoring a stale absolute HP value.
+- Daily-action rollback now uses guarded retry updates for XP, level, gold, HP and item quantities, preserving later rewards, healing/injury and same-item gains while removing only the original claim delta.
 - Adventure fight handoffs now persist the actual eligible encounter id selected for the hero and pass that same id into the persistent-fight pipeline; any non-new handoff state, including unrelated active, training or terminal fights, rolls the quest claim back instead of consuming it.
+- Newly started Adventure fight handoffs now stamp canonical solo-fight presence instead of leaving the hero marked at the quest table.
 - Adventure handoff rollback now uses the original claim identity and compensates HP without reducing later healing or max-HP changes.
 - Starter shawarma and cellar mouse keep their level gates, item grants, idempotency and replay behavior while routing new visible buttons through stable authored method ids.
 - Adventure, starter shawarma and cellar mouse completions now validate current callbacks against the deterministic visible method set before claim/cost/cooldown/reward mutation; hidden authored scene methods cannot be invoked just because their ids exist in content.

@@ -281,7 +281,7 @@ export function presentCellarResult(
     "",
     `<i>Метод:</i> ${escapeHtml(methodLabel)}`,
     ...(spentGold > 0 ? [`Списано: ${spentGold} золота.`] : []),
-    ...presentHpLossLines(result.hpLoss),
+    ...presentHpLossLines(result.hpLoss, result.character),
     "",
     presentRewardAmount({ ...result.reward, label: "Винагорода за справу" }),
     ...presentItemGrantLines(result.reward.itemGrants)
@@ -293,15 +293,19 @@ export function presentCellarResult(
 }
 
 function presentHpLossLines(
-  hpLoss: { lost: number; after: number; before: number; max: number } | null | undefined
+  hpLoss: { lost: number; after: number; before: number; max: number } | null | undefined,
+  character?: Pick<CharacterSummary, "hpCurrent" | "hpMax">
 ): string[] {
   if (!hpLoss || hpLoss.lost <= 0) {
     return [];
   }
 
+  const currentHp = character?.hpCurrent ?? hpLoss.after;
+  const currentHpMax = character?.hpMax ?? hpLoss.max;
+
   return [
     `Втрачено здоров’я: ${hpLoss.lost}`,
-    `Здоров’я: ${hpLoss.after}/${hpLoss.max}`
+    `Здоров’я: ${currentHp}/${currentHpMax}`
   ];
 }
 

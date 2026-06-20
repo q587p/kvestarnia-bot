@@ -2378,6 +2378,12 @@ async function handleAdventureCallback(
         await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
         return;
       }
+
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
     }
 
     await safeAnswerCallbackQuery(ctx);

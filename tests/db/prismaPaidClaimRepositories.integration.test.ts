@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { getLevelForXp } from "../../src/domain/progression/level";
 import { PrismaCooldownRepository } from "../../src/db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "../../src/db/repositories/prismaDailyActionRepository";
 
@@ -549,6 +550,97 @@ describe("paid Prisma claim repositories", () => {
       })
     ).resolves.toBe("missing");
     await expect(prisma.characterItem.count({ where: { characterId: "character-daily-rollback-delta" } })).resolves.toBe(0);
+  });
+
+  it("rolls back only the claim reward after another XP and gold reward lands", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-daily-rollback-later-reward",
+      characterId: "character-daily-rollback-later-reward",
+      telegramUserId: 9031n,
+      gold: 10
+    });
+
+    await dailyActions.claimForTelegramUser(9031n, {
+      key: "quest.rollback.later-reward",
+      localDate: "12026-06-20",
+      rewardXp: 12,
+      rewardGold: 4,
+      spentGold: 2
+    });
+    await prisma.character.update({
+      where: { id: "character-daily-rollback-later-reward" },
+      data: {
+        xp: { increment: 100 },
+        gold: { increment: 7 },
+        level: getLevelForXp(112, { remortCount: 0 })
+      }
+    });
+
+    await expect(
+      dailyActions.rollbackForTelegramUser(9031n, {
+        key: "quest.rollback.later-reward",
+        localDate: "12026-06-20"
+      })
+    ).resolves.toBe("rolled-back");
+    await expect(
+      prisma.character.findUniqueOrThrow({ where: { id: "character-daily-rollback-later-reward" } })
+    ).resolves.toMatchObject({
+      xp: 100,
+      gold: 17,
+      level: getLevelForXp(100, { remortCount: 0 })
+    });
+  });
+
+  it("removes only the claim item quantity when the same item is gained later", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-daily-rollback-same-item",
+      characterId: "character-daily-rollback-same-item",
+      telegramUserId: 9032n,
+      gold: 5
+    });
+
+    await dailyActions.claimForTelegramUser(9032n, {
+      key: "quest.rollback.same-item",
+      localDate: "12026-06-20",
+      rewardXp: 1,
+      rewardGold: 0,
+      resultJson: {
+        reward: {
+          itemGrants: [{ itemId: "item.rollback.same", quantity: 1 }]
+        }
+      },
+      itemGrants: [{ itemId: "item.rollback.same", quantity: 1 }]
+    });
+    await prisma.characterItem.update({
+      where: {
+        characterId_itemId: {
+          characterId: "character-daily-rollback-same-item",
+          itemId: "item.rollback.same"
+        }
+      },
+      data: {
+        quantity: {
+          increment: 2
+        }
+      }
+    });
+
+    await expect(
+      dailyActions.rollbackForTelegramUser(9032n, {
+        key: "quest.rollback.same-item",
+        localDate: "12026-06-20"
+      })
+    ).resolves.toBe("rolled-back");
+    await expect(
+      prisma.characterItem.findUniqueOrThrow({
+        where: {
+          characterId_itemId: {
+            characterId: "character-daily-rollback-same-item",
+            itemId: "item.rollback.same"
+          }
+        }
+      })
+    ).resolves.toMatchObject({ quantity: 2 });
   });
 
   it.each([

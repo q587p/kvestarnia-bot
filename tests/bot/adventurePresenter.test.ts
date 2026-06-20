@@ -235,9 +235,7 @@ describe("adventure presenter", () => {
     });
     const method = scene.methods.find((candidate) => candidate.id === "track-soles");
 
-    expect(method?.outcomeText["strong-success"].body.join("\n")).toContain(
-      "Уважність знаходить точну причину безладу й кладе її на видноті."
-    );
+    expect(method?.outcomeText["strong-success"].body.join("\n")).toContain("Деталь «маршрут підошов»");
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("Прочитати маршрут підошов.");
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("у чоботи");
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("перестає сперечатися");
@@ -258,6 +256,10 @@ describe("adventure presenter", () => {
   it("shows bounded HP loss only when a quest injury happened", () => {
     const result = {
       ...completed(false),
+      character: {
+        ...character,
+        hpCurrent: 17
+      },
       hpLoss: {
         before: 20,
         max: 28,
@@ -269,6 +271,28 @@ describe("adventure presenter", () => {
 
     expect(text).toContain("Втрачено здоров’я: 3");
     expect(text).toContain("Здоров’я: 17/28");
+  });
+
+  it("uses the returned character summary for the current HP line after injury", () => {
+    const result = {
+      ...completed(false),
+      character: {
+        ...character,
+        hpCurrent: 17,
+        hpMax: 32
+      },
+      hpLoss: {
+        before: 20,
+        max: 28,
+        lost: 3,
+        after: 17
+      }
+    };
+    const text = presentAdventureResult(result);
+
+    expect(text).toContain("Втрачено здоров’я: 3");
+    expect(text).toContain("Здоров’я: 17/32");
+    expect(text).not.toContain("Здоров’я: 17/28");
   });
 
   it("does not imply duplicate rewards for already-completed adventure", () => {

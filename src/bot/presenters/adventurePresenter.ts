@@ -232,7 +232,7 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
     `<i>Метод:</i> ${escapeHtml(result.approach.label)}`,
     ...(outcomeDetailLines.length > 0 ? ["", ...outcomeDetailLines] : []),
     ...(result.spentGold > 0 ? [`Списано: ${result.spentGold} золота.`] : []),
-    ...presentHpLossLines(result.hpLoss),
+    ...presentHpLossLines(result.hpLoss, result.character),
     ...(result.fightHandoff
       ? ["Нагорода не видана: проблема покликала бій."]
       : ["", presentRewardAmount({ ...result.reward, label: "Винагорода за справу" })]),
@@ -279,7 +279,7 @@ export function presentMimicShawarmaResult(
     ...outcome.body.map(escapeHtml),
     "",
     `<i>Метод:</i> ${escapeHtml(methodLabel)}`,
-    ...presentHpLossLines(result.hpLoss),
+    ...presentHpLossLines(result.hpLoss, result.character),
     "",
     presentRewardAmount({ ...result.reward, label: "Винагорода за пригоду" }),
     ...presentItemGrantLines(result.reward.itemGrants)
@@ -289,15 +289,19 @@ export function presentMimicShawarmaResult(
 }
 
 function presentHpLossLines(
-  hpLoss: { lost: number; after: number; before: number; max: number } | null | undefined
+  hpLoss: { lost: number; after: number; before: number; max: number } | null | undefined,
+  character?: Pick<CharacterSummary, "hpCurrent" | "hpMax">
 ): string[] {
   if (!hpLoss || hpLoss.lost <= 0) {
     return [];
   }
 
+  const currentHp = character?.hpCurrent ?? hpLoss.after;
+  const currentHpMax = character?.hpMax ?? hpLoss.max;
+
   return [
     `Втрачено здоров’я: ${hpLoss.lost}`,
-    `Здоров’я: ${hpLoss.after}/${hpLoss.max}`
+    `Здоров’я: ${currentHp}/${currentHpMax}`
   ];
 }
 

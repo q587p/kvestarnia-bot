@@ -418,7 +418,7 @@ function method(
     outcomes: buildMethodOutcomeBeats({
       id,
       label,
-      intent,
+      hint,
       consequence: consequenceKind
     })
   };
@@ -524,7 +524,7 @@ function buildSignatureMethods(character: CharacterSummary, sceneTitle: string, 
         sceneTitle,
         sceneSeed,
         seed,
-        identity: buildSignatureIdentityBeat(raceProfile, classProfile, character.title ?? null)
+        identity: buildSignatureIdentityBeat(raceProfile, classProfile, character.title ?? null, seed)
       })
     };
   });
@@ -566,7 +566,7 @@ function buildProfileMethod(input: {
       sceneTitle: input.sceneTitle,
       sceneSeed: input.sceneSeed,
       seed: input.seed,
-      identity: buildTechniqueIdentityBeat(input.profile, input.profileKind)
+      identity: buildTechniqueIdentityBeat(input.profile, input.profileKind, input.seed)
     })
   };
 }
@@ -635,7 +635,7 @@ function buildProfileOutcomeText(input: {
 function buildMethodOutcomeBeats(input: {
   id: string;
   label: string;
-  intent: QuestIntent;
+  hint: string;
   consequence: QuestConsequenceKind;
 }): AdventureOutcomeBeats {
   const override = getMethodOutcomeOverride(input.id);
@@ -644,70 +644,122 @@ function buildMethodOutcomeBeats(input: {
     return override;
   }
 
-  const consequence = input.consequence;
+  const focus = buildMethodFocus(input.label);
+  const texture = buildMethodTexture(input.id, input.hint);
+  const complication = buildMethodComplicationBeat(input.consequence, focus, texture);
 
-  if (input.intent === "bribe") {
+  return {
+    strong: `${focus} влучає просто в нерв справи: ${texture.strong}`,
+    success: `${focus} тримає сцену достатньо міцно: ${texture.success}`,
+    mixed: `${focus} майже складає порядок, але ${texture.mixed}`,
+    complication
+  };
+}
+
+function buildMethodFocus(label: string): string {
+  const clean = label.replace(/^[^\p{L}\p{N}]+/u, "").trim();
+  const fragment = clean.split(/\s+/u).slice(1, 5).join(" ").replace(/[.!?]+$/u, "");
+
+  return fragment ? `Деталь «${fragment.toLocaleLowerCase("uk-UA")}»` : "Цей конкретний рух";
+}
+
+function buildMethodTexture(id: string, hint: string): { strong: string; success: string; mixed: string } {
+  const tokens = new Set(id.split("-"));
+  const lowerHint = hint.toLocaleLowerCase("uk-UA");
+
+  if (tokens.has("bribe") || tokens.has("pay") || tokens.has("buy") || lowerHint.includes("золот")) {
     return {
-      strong: "Монета знаходить правильну кишеню, умови стихають, а Корчмар записує витрату без зайвої моралі.",
-      success: "Плата спрацьовує як маленький фонд тиші: сцену закрито, внесок не повертають.",
-      mixed: "Угода проходить, проте дрібний борг лишається в протоколі й урізає вигоду.",
-      complication: "Внесок прийнято, але сцена читає дрібний шрифт уголос і забирає більше гідності, ніж планувалось."
+      strong: "внесок одразу стає договором тиші, а рахівниця не встигає обуритись.",
+      success: "плата гасить найгучнішу вимогу, хоч монети назад не повертаються.",
+      mixed: "дрібний борг лишається в протоколі й підгризає вигоду."
     };
   }
 
-  if (input.intent === "fight" || consequence === "fight-handoff") {
+  if (tokens.has("fake") || tokens.has("swap") || tokens.has("steal") || tokens.has("hide") || tokens.has("trick")) {
     return {
-      strong: "Сила влучає рівно в причину безладу; меблі здригаються, але не подають скаргу.",
-      success: "Опір тріскає після першого чесного натиску, і справа закривається без довгої промови.",
-      mixed: "Результат є, та сцена відповідає синцем, гуркотом або образою на підлозі.",
-      complication: consequence === "fight-handoff"
-        ? "Натиск будить того, хто ховався за проблемою, і тепер справу доведеться завершувати в бою."
-        : "Ривок виходить надто буквальним: перемога майже поруч, але пальці й гордість це запам'ятають."
+      strong: "підміна проходить чисто, і свідки сперечаються вже з власною памʼяттю.",
+      success: "увага ковзає вбік, потрібний доказ виходить із тіні без фанфар.",
+      mixed: "край фокусу лишає слід, який Корчмар бачить і не коментує."
     };
   }
 
-  if (input.intent === "negotiate") {
+  if (tokens.has("duel") || tokens.has("challenge") || tokens.has("wrestle") || tokens.has("evict") || tokens.has("outrun")) {
     return {
-      strong: "Умова звучить настільки доречно, що суперечка сама просить чистий підпис.",
-      success: "Сторони погоджуються на коротку угоду й удають, що завжди так планували.",
-      mixed: "Згода є, але один пункт лишається бурчати в майбутньому акті.",
-      complication: "Торг заходить у не той рядок, і сцена лишає дрібну, дуже голосну умову."
+      strong: "натиск потрапляє точно в причину безладу й не дає їй покликати родичів.",
+      success: "опір тріскає після чесного натиску, а підлога переживає це мовчки.",
+      mixed: "гуркіт лишає синюватий аргумент там, де мала бути крапка."
     };
   }
 
-  if (input.intent === "deceive" || input.intent === "sneak") {
+  if (tokens.has("ritual") || tokens.has("stamp") || tokens.has("ceremony") || tokens.has("revoke") || tokens.has("order")) {
     return {
-      strong: "Підміна проходить чисто; доказ сам соромиться бути доказом.",
-      success: "Увагу відведено, потрібний результат витягнуто без зайвого грюкоту.",
-      mixed: "Трюк спрацьовує, проте лишає слід, який Корчмар називає «не моє, але бачив».",
-      complication: "Хитрість ловлять за край, і сцена вимагає пояснити фокус без фокусу."
+      strong: "знак, печатка й пауза стають у правильну чергу.",
+      success: "формальність надає безладові форму, яку соромно заперечувати.",
+      mixed: "один службовий знак світиться довше, ніж треба."
     };
   }
 
-  if (input.intent === "ritual") {
+  if (tokens.has("trap") || tokens.has("pin") || tokens.has("stitch") || tokens.has("fold") || tokens.has("tie") || tokens.has("knot")) {
     return {
-      strong: "Символи стають у правильну чергу, і безлад слухає обряд без сарказму.",
-      success: "Обряд надає сцені форму, яку навіть корчемна магія визнає придатною.",
-      mixed: "Знак спрацьовує, але лишається світитися там, де його всі бачать.",
-      complication: "Ритуал чіпляє зайвий шар магії, і сцена відповідає надто буквально."
+      strong: "шов, кут або вузол замикає проблему саме там, де вона шукала шпарину.",
+      success: "ремесло тримає, хоч матеріал тихо вдає ображеного.",
+      mixed: "на столі лишається дрібна гостра згадка про ціну точности."
     };
   }
 
-  if (input.intent === "craft") {
+  if (tokens.has("talk") || tokens.has("negotiate") || tokens.has("offer") || tokens.has("debate") || tokens.has("appeal")) {
     return {
-      strong: "Шов, петля або хитрий вузол стають на місце й тримають усю дурню разом.",
-      success: "Ремонт спрацьовує з підозрілим скрипом, але сцена вже придатна до життя.",
-      mixed: "Майстерність допомагає, проте на столі лишається голка, пляма або маленька образа.",
-      complication: "Робота торкається гострого краю справи, і край відповідає."
+      strong: "умова звучить доречно, і суперечка сама просить чистий підпис.",
+      success: "домовленість стишує головну претензію без зайвого героїзму.",
+      mixed: "один пункт угоди ще бурчить під столом."
+    };
+  }
+
+  if (tokens.has("track") || tokens.has("trace") || tokens.has("read") || tokens.has("audit") || tokens.has("inspect")) {
+    return {
+      strong: "доказ показує точну причину й одразу соромить безлад.",
+      success: "перевірка знаходить робочий слід і кладе його на видноті.",
+      mixed: "малий хвостик правди ще шурхотить після рішення."
     };
   }
 
   return {
-    strong: "Уважність знаходить точну причину безладу й кладе її на видноті.",
-    success: "Доказів вистачає, щоб сцена перестала сперечатись.",
-    mixed: "Причину знайдено, але дрібний хвостик проблеми ще шурхотить під столом.",
-    complication: "Розслідування дістає зайву правду, яку всі воліли б не чути."
+    strong: "рух, доказ і наслідок складаються без зайвого клею.",
+    success: "сцена погоджується на порядок із третьої спроби.",
+    mixed: "маленький залишок проблеми просить не закривати протокол."
   };
+}
+
+function buildMethodComplicationBeat(
+  consequence: QuestConsequenceKind,
+  focus: string,
+  texture: { mixed: string }
+): string {
+  if (consequence === "fight-handoff") {
+    return `${focus} зачіпає прихованого мешканця сцени; той виходить не пояснювати, а битися.`;
+  }
+
+  if (consequence === "serious-injury") {
+    return `${focus} зривається надто різко, і герой платить за це добрим ударом по здоровʼю.`;
+  }
+
+  if (consequence === "minor-injury") {
+    return `${focus} чіпляє гострий край справи; пальці або лікоть одразу запамʼятовують урок.`;
+  }
+
+  if (consequence === "gold-cost-success") {
+    return `${focus} спрацьовує неохайно: внесок прийнято, але сцена лишає платний дрібний шрифт.`;
+  }
+
+  if (consequence === "xp-only") {
+    return `${focus} доводить урок, але винагорода розсипається на досвід без дзвону монет.`;
+  }
+
+  if (consequence === "reduced-reward") {
+    return `${focus} лишає результат, проте ${texture.mixed}`;
+  }
+
+  return `${focus} дає відповідь, але на підлозі лишається безлад із власною думкою.`;
 }
 
 function getMethodOutcomeOverride(id: string): AdventureOutcomeBeats | undefined {
@@ -851,7 +903,8 @@ function hasFightWarning(hint: string): boolean {
 
 function buildTechniqueIdentityBeat(
   profile: QuestTechniqueProfile,
-  profileKind: "race" | "class"
+  profileKind: "race" | "class",
+  seed: AdventureMethodSeed
 ): {
   strong: string;
   success: string;
@@ -859,20 +912,22 @@ function buildTechniqueIdentityBeat(
   complication: string;
 } {
   const motif = techniqueMotif(firstTechnique(profile));
-  const owner = profileKind === "race" ? profile.label : profile.label.toLowerCase();
+  const owner = profileKind === "race" ? profile.label : profile.label.toLocaleLowerCase("uk-UA");
+  const focus = buildMethodFocus(seed.label).replace(/^Деталь /u, "");
 
   return {
-    strong: `У жесті, який робить ${owner}, є ${motif}; цього досить, щоб жарт став схожим на план.`,
-    success: `Сцена тримається в межах здорового абсурду, бо в методі є ${motif}.`,
-    mixed: `Допомагає ${motif}, хоча Корчмар просить не називати це методологією.`,
-    complication: `Після методу лишається впізнаваний слід із мотивом «${motif}», але без службової мітки на кнопці.`
+    strong: `${capitalizeFirst(owner)} підхоплює ${focus} через ${motif}, і дія стає схожою на добре замаскований план.`,
+    success: `${capitalizeFirst(motif)} лягає поруч із ${focus}, тож сцена здається без службової промови.`,
+    mixed: `${capitalizeFirst(owner)} втримує ${focus}, але ${motif} залишає маленьку претензію на серветці.`,
+    complication: `${capitalizeFirst(motif)} входить у ${focus} під неправильним кутом, і наслідок виходить особистим, а не безіменним.`
   };
 }
 
 function buildSignatureIdentityBeat(
   raceProfile: QuestTechniqueProfile,
   classProfile: QuestTechniqueProfile,
-  title: string | null
+  title: string | null,
+  seed: AdventureMethodSeed
 ): {
   strong: string;
   success: string;
@@ -881,13 +936,14 @@ function buildSignatureIdentityBeat(
 } {
   const raceMotif = techniqueMotif(firstTechnique(raceProfile));
   const classMotif = techniqueMotif(firstTechnique(classProfile));
-  const titleBeat = title ? ` Титул «${title}» стоїть свідком і робить вигляд, що так було в статуті.` : "";
+  const focus = buildMethodFocus(seed.label).replace(/^Деталь /u, "");
+  const titleBeat = title ? ` Титул «${title}» тихо свідчить, що це майже офіційно.` : "";
 
   return {
-    strong: `У підході сходяться ${raceMotif} і ${classMotif}. Сцена здається раніше за гонор.${titleBeat}`,
-    success: `Поєднання «${raceMotif}» плюс «${classMotif}» виглядає особистим, а не службовим.`,
-    mixed: `Разом спрацювали ${raceMotif} і ${classMotif}, але кожен мотив залишив по маленькій претензії.`,
-    complication: `Між мотивами «${raceMotif}» і «${classMotif}» виник занадто різкий рух; смішно, дієво, незручно.`
+    strong: `${capitalizeFirst(raceMotif)} тримає ${focus}, а ${classMotif} ставить поруч робочу крапку.${titleBeat}`,
+    success: `${capitalizeFirst(focus)} отримує і ${raceMotif}, і ${classMotif}; сцена впізнає героя без підпису на кнопці.`,
+    mixed: `${capitalizeFirst(raceMotif)} штовхає ${focus} уперед, ${classMotif} підпирає збоку, але дрібна претензія лишається.`,
+    complication: `${capitalizeFirst(focus)} ловить одночасно ${raceMotif} і ${classMotif}; тому наслідок виходить яскравий, особистий і незручний.`
   };
 }
 
@@ -911,6 +967,10 @@ function techniqueMotif(technique: QuestTechniqueId): string {
   };
 
   return motifs[technique] ?? "практичний нахил";
+}
+
+function capitalizeFirst(value: string): string {
+  return value.length > 0 ? `${value[0]!.toLocaleUpperCase("uk-UA")}${value.slice(1)}` : value;
 }
 
 function buildOutcomeText(input: {

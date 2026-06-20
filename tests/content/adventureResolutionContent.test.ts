@@ -208,6 +208,10 @@ describe("adventure resolution content", () => {
       "обраний підхід",
       "обраний метод",
       "потрібний кут",
+      "Сторони погоджуються на коротку угоду",
+      "Увагу відведено, потрібний результат витягнуто",
+      "Шов, петля або хитрий вузол стають на місце",
+      "Доказів вистачає, щоб сцена перестала сперечатись",
       "chosen approach",
       "chosen method"
     ];
@@ -300,8 +304,64 @@ describe("adventure resolution content", () => {
     const raceMethod = scene.methods.find((method) => method.source === "race");
 
     expect(raceMethod).toBeDefined();
-    expect(activeOutcomeBody(raceMethod!)).toContain("Етична рецензія додає уважну ревізію причини");
+    expect(activeOutcomeBody(raceMethod!)).toContain("Етична рецензія");
+    expect(activeOutcomeBody(raceMethod!)).toContain("уважну ревізію причини");
     expect(activeOutcomeBody(raceMethod!)).not.toContain(". етична рецензія додає");
+  });
+
+  it("keeps runtime Ukrainian copy free of known mojibake markers", () => {
+    const markers = ["Рџ", "Р“Р", "СЃ", "РЅ", "В«", "вЂ", "пёЏ"];
+    const adventureProblemIds = [
+      ...ADVENTURE_PROBLEM_IDS,
+      "race-human-ish-survey",
+      "race-human-ish-mug",
+      "race-human-ish-portrait",
+      "class-bard-manual",
+      "class-bard-uniform",
+      "class-bard-exam",
+      `title-${slugTitle(getKnownComboTitleValues()[0] ?? "Архівний Дух")}`
+    ];
+    const copyBlocks = [
+      ...adventureProblemIds.map((problemId) => {
+        const scene = buildAdventureResolutionScene({
+          problemId,
+          title: problemId,
+          character: bard
+        });
+
+        return [
+          scene.sceneTitle,
+          scene.sceneObject ?? "",
+          scene.sceneObjectGenitive ?? "",
+          ...scene.methods.flatMap((method) => [
+            method.label,
+            method.buttonLabel ?? "",
+            method.hint,
+            ...Object.values(method.outcomeText).flatMap((outcome) => [outcome.headline, ...outcome.body])
+          ])
+        ].join("\n");
+      }),
+      ...(["shawarma", "cellar-mouse"] as const).map((sceneId) => {
+        const scene = buildStarterQuestResolutionScene(sceneId, bard);
+
+        return [
+          scene.sceneTitle,
+          scene.sceneObject ?? "",
+          ...scene.methods.flatMap((method) => [
+            method.label,
+            method.buttonLabel ?? "",
+            method.hint,
+            ...Object.values(method.outcomeText).flatMap((outcome) => [outcome.headline, ...outcome.body])
+          ])
+        ].join("\n");
+      })
+    ];
+
+    for (const copy of copyBlocks) {
+      for (const marker of markers) {
+        expect(copy).not.toContain(marker);
+      }
+    }
   });
 
   it("keeps full method labels out of resolved outcome bodies", () => {
@@ -378,6 +438,33 @@ describe("adventure resolution content", () => {
       const bodies = sceneMethods.map(activeOutcomeBody);
 
       expect(new Set(bodies).size, sceneId).toBe(sceneMethods.length);
+    }
+  });
+
+  it("does not reuse one active outcome paragraph across unrelated scene methods", () => {
+    for (const problemId of ADVENTURE_PROBLEM_IDS) {
+      const methods = resolveQuestMethodsForCharacter(
+        buildAdventureResolutionScene({
+          problemId,
+          title: problemId,
+          character
+        }),
+        character
+      );
+      const sceneBodies = methods
+        .filter((method) => method.source === "scene")
+        .map(activeOutcomeBody);
+
+      expect(new Set(sceneBodies).size, problemId).toBe(sceneBodies.length);
+    }
+
+    for (const sceneId of ["shawarma", "cellar-mouse"] as const) {
+      const methods = resolveQuestMethodsForCharacter(buildStarterQuestResolutionScene(sceneId, character), character, {
+        ...(sceneId === "cellar-mouse" ? { sceneSlotKey: "bribe-cheese" } : {})
+      });
+      const bodies = methods.map(activeOutcomeBody);
+
+      expect(new Set(bodies).size, sceneId).toBe(bodies.length);
     }
   });
 
