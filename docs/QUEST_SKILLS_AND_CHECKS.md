@@ -158,6 +158,8 @@ chance = clamp(sum, 45, 88)
 | trap | середній | standard/generous | 0 | item omitted on mixed result |
 | performance | варіативний | standard/generous | 0 | audience complicates scene |
 
+Risk is authored on the selected method. Careful audit/negotiation methods should normally fail into reduced reward, XP-only or scene mess; reckless force, unstable ritual, trap, deception and fight-shaped methods may own `minor-injury`, `serious-injury` or persistent-fight handoff where the scene supports it. Do not add a global danger roll after the deterministic grade.
+
 Гравець вибирає не лише «найвищий reward», а стиль і наслідок.
 
 ## 8. Gold-cost contract для bribery

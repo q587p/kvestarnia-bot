@@ -1,6 +1,6 @@
 import type { CooldownRepository } from "../db/repositories/cooldownRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
-import type { RewardLevelChange } from "../db/repositories/dailyActionRepository";
+import type { HpLossAudit, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   CELLAR_MAX_LEVEL,
@@ -19,7 +19,11 @@ import {
   type RewardItemGrant
 } from "./itemGrant";
 import { buildStarterQuestResolutionScene } from "../content/starterQuestResolutionContent";
-import { type QuestMethodDefinition, type QuestResolutionGrade } from "../content/questResolution";
+import {
+  type QuestConsequenceKind,
+  type QuestMethodDefinition,
+  type QuestResolutionGrade
+} from "../content/questResolution";
 import { resolveQuestCheck, type QuestCheckResult } from "../domain/quests/questChecks";
 import {
   findQuestMethodByLegacyAction,
@@ -70,6 +74,7 @@ export type CellarErrandResult =
       grade: QuestResolutionGrade;
       outcome: QuestMethodDefinition["outcomeText"][QuestResolutionGrade];
       spentGold: number;
+      hpLoss: HpLossAudit | null;
       check: QuestCheckResult;
       character: CharacterSummary;
       reward: CellarErrandReward;
@@ -232,9 +237,20 @@ export class CellarErrandService {
       raceId: character.raceId,
       classId: character.classId
     });
-    const reward = buildCellarReward(method, check.grade);
+    const consequence = method.consequenceByGrade[check.grade];
+    const reward = buildCellarReward(method, check.grade, consequence);
     const spentGold = method.goldCost ?? 0;
     const availableAt = new Date(now.getTime() + CELLAR_MOUSE_ERRAND_COOLDOWN_MS);
+    const cycleKey = buildCellarCycleKey(current.cooldown);
+    const hpLoss = buildCellarHpLoss({
+      characterId: current.character.id,
+      cycleKey,
+      sceneId: scene.sceneId,
+      methodId: method.id,
+      grade: check.grade,
+      consequence,
+      hpMax: character.hpMax
+    });
     const claim = await this.cooldowns.claimRewardForTelegramUser(telegramUserId, {
       key: CELLAR_MOUSE_ERRAND_KEY,
       now,
@@ -242,6 +258,7 @@ export class CellarErrandService {
       rewardXp: reward.xp,
       rewardGold: reward.gold,
       spentGold,
+      hpLoss,
       itemGrants: buildCellarItemGrants(
         method.itemIntent ??
           method.legacyAction ??
@@ -278,6 +295,7 @@ export class CellarErrandService {
       grade: check.grade,
       outcome: method.outcomeText[check.grade],
       spentGold,
+      hpLoss: claim.hpLoss,
       check,
       character: summarizeCharacter(claim.character, { equippedItems }),
       reward: {
@@ -319,12 +337,20 @@ function toCellarMethodOption(method: QuestMethodDefinition): CellarErrandMethod
 
 function buildCellarReward(
   method: QuestMethodDefinition,
-  grade: QuestResolutionGrade
+  grade: QuestResolutionGrade,
+  consequence: QuestConsequenceKind
 ): { xp: number; gold: number } {
   const reward = getConservativeCellarReward(method);
 
   if (grade === "strong-success" || grade === "success") {
     return reward;
+  }
+
+  if (consequence === "minor-injury") {
+    return {
+      xp: Math.max(1, Math.floor(reward.xp * 0.5)),
+      gold: 0
+    };
   }
 
   if (grade === "mixed-success") {
@@ -342,6 +368,30 @@ function buildCellarReward(
     xp: Math.max(1, Math.ceil(reward.xp * 0.35)),
     gold: 0
   };
+}
+
+function buildCellarHpLoss(input: {
+  characterId: string;
+  cycleKey: string;
+  sceneId: string;
+  methodId: string;
+  grade: QuestResolutionGrade;
+  consequence: QuestConsequenceKind;
+  hpMax: number;
+}): number {
+  if (input.consequence !== "minor-injury") {
+    return 0;
+  }
+
+  let hash = 0x811c9dc5;
+  const seed = `cellar-hp-loss-v1:${input.characterId}:${input.cycleKey}:${input.sceneId}:${input.methodId}:${input.grade}`;
+
+  for (const char of seed) {
+    hash ^= char.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+
+  return Math.min(3, Math.max(1, Math.ceil(Math.max(1, input.hpMax) * (0.04 + (hash % 4) / 100))));
 }
 
 function getConservativeCellarReward(method: QuestMethodDefinition): { xp: number; gold: number } {

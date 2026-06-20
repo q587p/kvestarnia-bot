@@ -281,6 +281,7 @@ export function presentCellarResult(
     "",
     `<i>Метод:</i> ${escapeHtml(methodLabel)}`,
     ...(spentGold > 0 ? [`Списано: ${spentGold} золота.`] : []),
+    ...presentHpLossLines(result.hpLoss),
     "",
     presentRewardAmount({ ...result.reward, label: "Винагорода за справу" }),
     ...presentItemGrantLines(result.reward.itemGrants)
@@ -289,6 +290,19 @@ export function presentCellarResult(
   lines.push("", `Льох знову чекатиме за ${formatCooldown(result.availableAt, result.now)}.`);
 
   return lines.join("\n");
+}
+
+function presentHpLossLines(
+  hpLoss: { lost: number; after: number; before: number; max: number } | null | undefined
+): string[] {
+  if (!hpLoss || hpLoss.lost <= 0) {
+    return [];
+  }
+
+  return [
+    `Втрачено здоров’я: ${hpLoss.lost}`,
+    `Здоров’я: ${hpLoss.after}/${hpLoss.max}`
+  ];
 }
 
 function presentCharacterFlavor(

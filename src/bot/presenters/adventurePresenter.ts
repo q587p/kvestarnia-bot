@@ -228,6 +228,7 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
     "",
     `<i>Метод:</i> ${escapeHtml(result.approach.label)}`,
     ...(result.spentGold > 0 ? [`Списано: ${result.spentGold} золота.`] : []),
+    ...presentHpLossLines(result.hpLoss),
     ...(result.fightHandoff
       ? ["Нагорода не видана: проблема покликала бій."]
       : ["", presentRewardAmount({ ...result.reward, label: "Винагорода за справу" })]),
@@ -274,12 +275,26 @@ export function presentMimicShawarmaResult(
     ...outcome.body.map(escapeHtml),
     "",
     `<i>Метод:</i> ${escapeHtml(methodLabel)}`,
+    ...presentHpLossLines(result.hpLoss),
     "",
     presentRewardAmount({ ...result.reward, label: "Винагорода за пригоду" }),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
   return lines.join("\n");
+}
+
+function presentHpLossLines(
+  hpLoss: { lost: number; after: number; before: number; max: number } | null | undefined
+): string[] {
+  if (!hpLoss || hpLoss.lost <= 0) {
+    return [];
+  }
+
+  return [
+    `Втрачено здоров’я: ${hpLoss.lost}`,
+    `Здоров’я: ${hpLoss.after}/${hpLoss.max}`
+  ];
 }
 
 function presentAdventureStale(result: Extract<AdventureResult | AdventureProblemResult, { state: "stale" }>): string {

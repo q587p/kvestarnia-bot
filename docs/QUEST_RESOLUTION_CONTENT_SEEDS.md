@@ -9,6 +9,8 @@
 - outcome пишеться для `method family + grade`;
 - strong/success/mixed/complication мають різні сцени, не лише різні reward numbers;
 - активний контент не повинен падати в універсальний «справа погодилась бути вирішеною».
+- активний контент не добирає 5-7 кнопок універсальними filler-методами; кожна family має власні scene-native дієслова, предмети, ризики й ускладнення.
+- HP injury and fight handoff are owned by specific methods. Starter scenes use only minor injury; ordinary level 3+ scenes can use minor injury, serious injury or existing persistent-fight handoff where the fiction supports it.
 
 ## 1. Starter: Підозріла шаурма
 
@@ -24,7 +26,7 @@
 1. `inspect-folds` — `🔎 Перевірити, чому лаваш дихає не в ритм`
    - INT + LUCK, investigation, modest reward.
    - Mixed: причина знайдена, але соус записав героя свідком.
-   - Complication: шаурма розуміє, що її викрили, і переходить у fight handoff.
+   - Complication: шаурма лишає дрібну травму або липкий безлад; starter не використовує serious injury.
 
 2. `demand-receipt` — `📋 Вимагати чек і походження начинки`
    - INT + CHA, authority, standard reward.
@@ -38,7 +40,7 @@
 
 4. `pin-wrapper` — `🍴 Притиснути лаваш виделкою до з’ясування`
    - STR + DEX, force, generous reward.
-   - Complication: fight handoff.
+   - Complication: дрібна травма від липкого опору, без death/item loss.
 
 ### Race options
 
@@ -149,7 +151,7 @@
 - Mixed: `🧹 Льох чистіший, угода — ні`.
 - Complication: `📣 Миша скликала профспілку за шафою`.
 
-Не кожна complication запускає fight. Для starter mouse рекомендовано mixed/cosmetic mess; fight handoff лишити рідкісним або не використовувати.
+Не кожна complication запускає fight. Для starter mouse рекомендовано mixed/cosmetic mess або minor injury; fight handoff у starter mouse не використовувати в `0.1.20`.
 
 ## 3. Level 3+ general adventure problems
 

@@ -63,20 +63,20 @@ const GENERAL_SCENE_SEEDS: Record<string, AdventureSceneSeed> = {
   calendar: scene("календар", "Четвер повернувся, але між обідом і вечерею.", "Зайвий день лишив дрібний часовий безлад.", [
     method("audit-days", "📋 Перерахувати дні й знайти підміну", "Надійна канцелярія часу.", "investigate", ["investigation"], "intelligence", "luck", 72, "modest"),
     method("negotiate-week", "🤝 Домовитися з трьома пʼятницями", "Переговори з датами.", "negotiate", ["persuasion"], "charisma", "intelligence", 65, "standard"),
-    method("forge-thursday", "🗝️ Підробити четвер для часу", "Непевний трюк, винагорода щедріша.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous"),
+    method("forge-thursday", "🗝️ Підробити четвер для часу", "Непевний трюк, можна постраждати від часу.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous", "minor-injury"),
     method("bribe-deadline", "🪙 Дати дедлайну 1 золото за мовчання", "Коштує 1 золото. Майже надійно.", "bribe", ["bribery"], "charisma", "luck", 78, "modest", "gold-cost-success", 1)
   ]),
   receipt: scene("чек", "Портал закрився, протяг лишив рахунок.", "З іншого боку вилізла істота з печаткою.", [
     method("read-print", "🔎 Знайти адресу порталу в дрібному шрифті", "Ретельно, винагорода скромніша.", "investigate", ["investigation"], "intelligence", "luck", 71, "modest"),
     method("stamp-closed", "📋 Закрити прохід печаткою", "Авторитет і папір, звичайна винагорода.", "ritual", ["authority"], "intelligence", "charisma", 66, "standard", undefined, undefined, "skill.form-thirteen-b"),
-    method("swap-total", "🗝️ Підмінити суму на «нуль вимірів»", "Ризиковий обман.", "deceive", ["deception"], "dexterity", "charisma", 59, "generous"),
+    method("swap-total", "🗝️ Підмінити суму на «нуль вимірів»", "Ризиковий обман: може пустити щось із-за чека.", "deceive", ["deception"], "dexterity", "charisma", 59, "generous", "fight-handoff"),
     method("pay-draft", "🪙 Кинути 2 золотих як мито", "Коштує 2 золота. Добрі шанси.", "bribe", ["bribery"], "charisma", "luck", 76, "modest", "gold-cost-success", 2)
   ]),
   bench: scene("лаву", "Пророцтво замовкло, лишивши пораду про шкарпетки.", "Лава сказала зайве, і тепер усім ніяково.", [
     method("cross-examine", "📋 Допитати лаву про джерела", "Розумний тиск без бійки.", "investigate", ["authority", "investigation"], "intelligence", "charisma", 68, "standard"),
     method("out-prophesy", "🎵 Відповісти кращим пророцтвом", "Сценічно й трохи непевно.", "negotiate", ["performance"], "charisma", "luck", 62, "standard"),
     method("sand-splinter", "🪡 Прибрати тріску з даром", "Точна робота, скромна винагорода.", "craft", ["craft", "finesse"], "dexterity", "intelligence", 70, "modest"),
-    method("sit-defiantly", "💪 Сісти й витримати правду поставою", "Грубо, смішно, щедріше.", "fight", ["force"], "strength", "luck", 57, "generous", "cosmetic-mess")
+    method("sit-defiantly", "💪 Сісти й витримати правду поставою", "Грубо, смішно, небезпечно для гідности й спини.", "fight", ["force"], "strength", "luck", 57, "generous", "minor-injury")
   ]),
   cloak: scene("плащ", "Черга відновлена, але плащ зберіг один голос.", "Плащ душить драмою й майже руками.", [
     method("verify-owner", "🔎 Перевірити підкладку й підпис", "Ретельно й спокійно.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
@@ -88,7 +88,7 @@ const GENERAL_SCENE_SEEDS: Record<string, AdventureSceneSeed> = {
     method("agenda", "📋 Скласти порядок денний до вечері", "Надійна бюрократія столу.", "investigate", ["authority"], "intelligence", "charisma", 70, "modest"),
     method("coalition", "🤝 Домовитися з виделками", "Переговори, звичайна винагорода.", "negotiate", ["persuasion"], "charisma", "intelligence", 65, "standard"),
     method("hide-gavel", "🗝️ Забрати ложку-спікера", "Тихий трюк.", "deceive", ["deception", "finesse"], "dexterity", "charisma", 60, "standard"),
-    method("table-knock", "💪 Закрити засідання стуком", "Прямо й гучно.", "fight", ["force"], "strength", "luck", 58, "generous", "cosmetic-mess")
+    method("table-knock", "💪 Закрити засідання стуком", "Прямо й гучно, небезпечно для пальців.", "fight", ["force"], "strength", "luck", 58, "generous", "minor-injury")
   ]),
   mirror: scene("дзеркало", "Дзеркало показало правду, але з невдалим освітленням.", "Відбиття вийшло назовні й просить слово.", [
     method("find-angle", "🔎 Знайти фізичний кут брехні", "Розум і точність.", "investigate", ["investigation"], "dexterity", "intelligence", 68, "standard"),
@@ -99,12 +99,12 @@ const GENERAL_SCENE_SEEDS: Record<string, AdventureSceneSeed> = {
   boots: scene("чоботи", "Чоботи повернулись, але планують відпустку.", "Погоня лишила героя з пилом і без частини золота.", [
     method("track-soles", "🏹 Прочитати маршрут підошов", "Слід і розум.", "investigate", ["tracking"], "dexterity", "intelligence", 68, "standard", undefined, undefined, "skill.trick-shot"),
     method("offer-expedition", "🤝 Записати їх у безпечну експедицію", "Дипломатія взуття.", "negotiate", ["persuasion"], "charisma", "intelligence", 65, "standard"),
-    method("lace-trap", "🪤 Звʼязати шнурки пасткою", "Точний трюк.", "craft", ["traps"], "dexterity", "intelligence", 62, "generous"),
-    method("outrun-boots", "💪 Перегнати чоботи до дверей", "Гучно й ризиковано.", "fight", ["force"], "strength", "dexterity", 57, "generous", "cosmetic-mess")
+    method("lace-trap", "🪤 Звʼязати шнурки пасткою", "Точний трюк, можна впасти разом із доказом.", "craft", ["traps"], "dexterity", "intelligence", 62, "generous", "minor-injury"),
+    method("outrun-boots", "💪 Перегнати чоботи до дверей", "Гучно й ризиковано, можна добряче забитись.", "fight", ["force"], "strength", "dexterity", 57, "generous", "serious-injury")
   ]),
   chimney: scene("комин", "Довідки зупинились, одна лишилась на героя.", "Сажа склалась у службову істоту.", [
     method("trace-stamps", "🔎 Знайти джерело печаток у сажі", "Надійне розслідування.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
-    method("revoke-license", "📋 Відкликати право диму на документи", "Авторитет і дим.", "ritual", ["authority"], "intelligence", "charisma", 66, "standard"),
+    method("revoke-license", "📋 Відкликати право диму на документи", "Авторитет і дим; може покликати сажову істоту.", "ritual", ["authority"], "intelligence", "charisma", 66, "standard", "fight-handoff"),
     method("clean-evidence", "🧹 Вичистити акт без втрат", "Точна робота.", "craft", ["craft"], "dexterity", "intelligence", 63, "standard"),
     method("bribe-smoke", "🪙 Дати 2 золотих на вентиляцію", "Коштує 2 золота. Добрі шанси.", "bribe", ["bribery"], "charisma", "luck", 76, "modest", "gold-cost-success", 2)
   ]),
@@ -129,14 +129,14 @@ const GENERAL_SCENE_SEEDS: Record<string, AdventureSceneSeed> = {
   door: scene("двері", "Двері відпускають, але повертають героя через кухню.", "Двері відкрили філософську петлю.", [
     method("inspect-hinges", "🔎 Знайти, хто навчив петлі рахувати", "Ремонт і логіка.", "craft", ["craft", "investigation"], "intelligence", "dexterity", 70, "modest"),
     method("negotiate-toll", "🤝 Домовитися про перший безкоштовний вихід", "Переговори з порогом.", "negotiate", ["persuasion"], "charisma", "intelligence", 65, "standard"),
-    method("fake-payment", "🗝️ Показати монету лише відбиттям", "Обман без витрат.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous"),
-    method("pay-tip", "🪙 Дати 1 золото на мастило", "Коштує 1 золото. Надійно.", "bribe", ["bribery"], "charisma", "luck", 78, "modest", "gold-cost-success", 1)
+    method("fake-payment", "🗝️ Показати монету лише відбиттям", "Обман без витрат, але двері можуть клацнути по пальцях.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous", "minor-injury"),
+    method("pay-tip", "🪙 Дати 1 золото на мастило", "Коштує 1 золото. Надійно, без обіцянки правильного виходу.", "bribe", ["bribery"], "charisma", "luck", 78, "modest", "gold-cost-success", 1)
   ]),
   map: scene("мапу", "Мапа правильна, але позначає героя стихійним лихом.", "Експедиція з мапи просить супровід.", [
     method("survey-table", "🔎 Переміряти материк тарілок", "Точна географія столу.", "investigate", ["tracking"], "intelligence", "dexterity", 69, "standard"),
     method("redraw-coast", "🪡 Виправити море підливи", "Ремесло й точність.", "craft", ["craft"], "dexterity", "intelligence", 65, "standard"),
     method("negotiate-border", "🤝 Домовитися з горою кухлів", "Дипломатія посуду.", "negotiate", ["persuasion"], "charisma", "intelligence", 64, "standard"),
-    method("wrong-route", "🌾 Піти за помилкою до короткого шляху", "Вдача бере кермо.", "sneak", ["improvisation"], "luck", "dexterity", 58, "generous")
+    method("wrong-route", "🌾 Піти за помилкою до короткого шляху", "Вдача бере кермо; може привести до бійки.", "sneak", ["improvisation"], "luck", "dexterity", 58, "generous", "fight-handoff")
   ]),
   teapot: scene("чайник", "Чайник мовчить, але кришка продовжує штабну нараду.", "Пара стала тактичною формацією.", [
     method("decode-whistle", "🔎 Розібрати свист як шифр", "Розум проти пари.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
@@ -147,26 +147,26 @@ const GENERAL_SCENE_SEEDS: Record<string, AdventureSceneSeed> = {
   menu: scene("меню", "Ціни нормальні, але компот лишився з наслідками.", "Меню виставило рахунок за настрій.", [
     method("audit-prices", "🔎 Перевірити, хто оцінив тривогу", "Ретельний аудит.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
     method("feelings", "🤝 Торгуватися за дешевшу славу", "Харизма проти прайсу.", "negotiate", ["persuasion"], "charisma", "intelligence", 65, "standard"),
-    method("change-font", "🗝️ Підмінити «наслідки» на «серветки»", "Ризиковий шрифт.", "deceive", ["deception", "craft"], "dexterity", "intelligence", 59, "generous"),
+    method("change-font", "🗝️ Підмінити «наслідки» на «серветки»", "Ризиковий шрифт, можна порізатись об цінник.", "deceive", ["deception", "craft"], "dexterity", "intelligence", 59, "generous", "minor-injury"),
     method("buy-calm", "🪙 Купити малий спокій за 2 золотих", "Коштує 2 золота. Надійно.", "bribe", ["bribery"], "charisma", "luck", 78, "modest", "gold-cost-success", 2)
   ]),
   sign: scene("вивіску", "«Корчма» повернулась, риба лишила заявку.", "Публіка заплуталась і просить компенсацію.", [
     method("repair-letters", "🪡 Повернути літери на зміну", "Ремонт із розумом.", "craft", ["craft"], "intelligence", "dexterity", 69, "standard"),
     method("shift-talk", "🤝 Дати вивісці вечір без «ч»", "Переговори з буквами.", "negotiate", ["persuasion"], "charisma", "intelligence", 65, "standard"),
     method("rebrand-decoy", "🗝️ Повісити тимчасову назву", "Обман і стиль.", "deceive", ["deception"], "dexterity", "charisma", 59, "generous"),
-    method("hold-straight", "💪 Втримати бізнес-модель руками", "Силовий аргумент.", "fight", ["force"], "strength", "luck", 56, "generous", "cosmetic-mess")
+    method("hold-straight", "💪 Втримати бізнес-модель руками", "Силовий аргумент, небезпечно для пальців.", "fight", ["force"], "strength", "luck", 56, "generous", "minor-injury")
   ]),
   portrait: scene("портрет", "Портрет чемний, але підморгує лише Корчмарю.", "Намальований герой ступив із рами.", [
     method("study-paint", "🔎 Знайти живу фарбу", "Розслідування мистецтва.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
-    method("pose-back", "🎭 Змусити портрет ніяковіти", "Сцена проти сцени.", "negotiate", ["performance"], "charisma", "luck", 63, "standard"),
+    method("pose-back", "🎭 Змусити портрет ніяковіти", "Сцена проти сцени; може витягти фарбу з рами.", "negotiate", ["performance"], "charisma", "luck", 63, "standard", "fight-handoff"),
     method("swap-eyes", "🗝️ Змінити напрям погляду", "Точний обман.", "deceive", ["deception", "craft"], "dexterity", "intelligence", 60, "generous"),
     method("cover-history", "📋 Оголосити реставрацію", "Авторитетна тканина.", "ritual", ["authority"], "charisma", "intelligence", 66, "standard")
   ]),
   key: scene("ключ", "Потрібний замок відкрито, ключ тепер закриває пісні.", "Неправильні двері відчинили неправильну пригоду.", [
     method("catalog-locks", "🔎 Провести обхід замків", "Ретельна інвентаризація.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
     method("ask-key", "🤝 Переконати ключ згадати першу любов", "Дипломатія металу.", "negotiate", ["persuasion"], "charisma", "intelligence", 65, "standard"),
-    method("pick-memory", "🗝️ Відкрити памʼять відмичкою", "Точний трюк.", "sneak", ["finesse"], "dexterity", "intelligence", 60, "generous"),
-    method("forge-purpose", "💪 Перекувати сенс одним ударом", "Сила і ремесло.", "craft", ["force", "craft"], "strength", "intelligence", 57, "generous")
+    method("pick-memory", "🗝️ Відкрити памʼять відмичкою", "Точний трюк, можна вколотись чужим спогадом.", "sneak", ["finesse"], "dexterity", "intelligence", 60, "generous", "minor-injury"),
+    method("forge-purpose", "💪 Перекувати сенс одним ударом", "Сила і ремесло, можна серйозно вдарити не той сенс.", "craft", ["force", "craft"], "strength", "intelligence", 57, "generous", "serious-injury")
   ]),
   ledger: scene("журнал", "Числа сходяться, але кожен борг має приспів.", "Паперова істота вимагає округлення кулаком.", [
     method("recalculate", "🔎 Знайти риму, де зламалась сума", "Розумний підрахунок.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
@@ -194,7 +194,7 @@ export function buildAdventureResolutionScene(input: {
   character: CharacterSummary;
 }): QuestResolutionScene {
   const seed = GENERAL_SCENE_SEEDS[input.problemId] ?? buildGeneratedSceneSeed(input.problemId);
-  const sceneMethods = [...seed.methods, ...buildExtraSceneMethodSeeds(seed)];
+  const sceneMethods = [...seed.methods, ...buildSceneNativeTopUpMethods(input.problemId)];
   const methods = [
     ...sceneMethods.map((methodSeed) => materializeSceneMethod(input.title, seed, methodSeed)),
     ...buildRaceMethods(input.character, input.title, { ...seed, methods: sceneMethods }),
@@ -209,45 +209,6 @@ export function buildAdventureResolutionScene(input: {
     sceneObjectGenitive: seed.objectGenitive,
     methods
   };
-}
-
-function buildExtraSceneMethodSeeds(seed: AdventureSceneSeed): AdventureMethodSeed[] {
-  return [
-    method(
-      "korchmar-witness",
-      "📣 Покликати Корчмаря як свідка",
-      "Свідок із досвідом. Винагорода звичайна.",
-      "negotiate",
-      ["persuasion", "investigation"],
-      "charisma",
-      "intelligence",
-      63,
-      "standard"
-    ),
-    method(
-      "mark-evidence",
-      `🧵 Позначити ${seed.object} контрольною ниткою`,
-      "Точна підготовка, без зайвих фанфар.",
-      "craft",
-      ["craft", "finesse"],
-      "dexterity",
-      "intelligence",
-      62,
-      "standard"
-    ),
-    method(
-      "quiet-minute",
-      "🕯️ Дати сцені хвилину тиші",
-      "Обережно й трохи дивно.",
-      "ritual",
-      ["ritual", "improvisation"],
-      "luck",
-      "charisma",
-      58,
-      "modest",
-      "xp-only"
-    )
-  ];
 }
 
 export function getGeneralAdventureResolutionProblemIds(): readonly string[] {
@@ -289,48 +250,117 @@ function generated(kind: GeneratedSceneKind): AdventureSceneSeed {
     survey: scene("анкету", "анкети", "Анкета повернулась у графу, але просить громадянство.", "Папір подав апеляцію чорнилом.", [
       method("survey-small-print", "🔎 Вичитати дрібний шрифт анкети", "Ретельна перевірка паперу.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
       method("survey-ink-talk", "🤝 Домовитися з чорнилом про графу", "Переговори з канцелярією.", "negotiate", ["persuasion"], "charisma", "intelligence", 64, "standard"),
-      method("survey-line-shift", "🗝️ Посунути межу графи", "Точний трюк із лінійкою.", "deceive", ["deception", "craft"], "dexterity", "intelligence", 58, "generous"),
+      method("survey-line-shift", "🗝️ Посунути межу графи", "Точний трюк із лінійкою, можна порізатись папером.", "deceive", ["deception", "craft"], "dexterity", "intelligence", 58, "generous", "minor-injury"),
       method("survey-stamp-ritual", "📋 Поставити печатку на здоровий глузд", "Паперова церемонія.", "ritual", ["authority", "ritual"], "charisma", "intelligence", 62, "standard")
     ]),
     mug: scene("кухоль", "кухля", "Кухоль визнав інструктаж, але просить підставку.", "Посуд скликав церемонію без дозволу.", [
       method("mug-handle-audit", "🔎 Перевірити ручку на зайву гордість", "Ретельна посудна перевірка.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
       method("mug-toast-talk", "🤝 Підняти тост за прості правила", "Дипломатія з піною.", "negotiate", ["persuasion", "performance"], "charisma", "intelligence", 64, "standard"),
-      method("mug-foam-switch", "🗝️ Підмінити урочисту піну", "Непевний барний трюк.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous"),
+      method("mug-foam-switch", "🗝️ Підмінити урочисту піну", "Непевний барний трюк, можна отримати ручкою по пальцях.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous", "minor-injury"),
       method("mug-coaster-order", "🪵 Видати підставку за регламентом", "Ремесло й порядок.", "craft", ["craft", "authority"], "dexterity", "intelligence", 62, "standard")
     ]),
     portrait: scene("портрет", "портрета", "Рама витримала героїчність, але просить перерву.", "Фарба почала сперечатись окремо.", [
       method("portrait-paint-audit", "🔎 Знайти живу фарбу в портреті", "Мистецьке розслідування.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
       method("portrait-pose-back", "🎭 Переграти портрет позою", "Сцена проти рами.", "negotiate", ["performance"], "charisma", "luck", 64, "standard"),
-      method("portrait-frame-shift", "🗝️ Змінити кут рамки", "Точний обман для ока.", "deceive", ["deception", "craft"], "dexterity", "intelligence", 58, "generous"),
+      method("portrait-frame-shift", "🗝️ Змінити кут рамки", "Точний обман для ока; фарба може вийти назовні.", "deceive", ["deception", "craft"], "dexterity", "intelligence", 58, "generous", "fight-handoff"),
       method("portrait-restoration", "📋 Оголосити реставрацію", "Авторитетна тканина.", "ritual", ["authority"], "charisma", "intelligence", 62, "standard")
     ]),
     manual: scene("підручник", "підручника", "Підручник склав себе на трійку з плюсом.", "Практика втекла з прикладів.", [
       method("manual-footnote", "🔎 Знайти примітку, яка втекла в практику", "Розумна перевірка сторінок.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
       method("manual-lecture", "🤝 Пояснити підручнику межі уроку", "Переговори з теорією.", "negotiate", ["persuasion", "authority"], "charisma", "intelligence", 64, "standard"),
-      method("manual-example-swap", "🗝️ Підмінити надто живий приклад", "Ризиковий трюк із полями.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous"),
+      method("manual-example-swap", "🗝️ Підмінити надто живий приклад", "Ризиковий трюк із полями, можна отримати закладкою по носі.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous", "minor-injury"),
       method("manual-bookmark", "🪡 Пришити закладку до розділу", "Точна реміснича правка.", "craft", ["craft"], "dexterity", "intelligence", 62, "standard")
     ]),
     uniform: scene("форму", "форми", "Клітинка розширилась, але називає це реформою.", "Бланк вимагає додаткового додатку.", [
       method("uniform-grid-audit", "🔎 Переміряти вперту клітинку", "Точна перевірка бланка.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
       method("uniform-office-talk", "🤝 Домовитися з канцелярським краєм", "Дипломатія полів.", "negotiate", ["persuasion"], "charisma", "intelligence", 64, "standard"),
-      method("uniform-margin-trick", "🗝️ Підсунути запасне поле", "Непевний трюк із форматом.", "deceive", ["deception", "craft"], "dexterity", "charisma", 58, "generous"),
+      method("uniform-margin-trick", "🗝️ Підсунути запасне поле", "Непевний трюк із форматом, можна встрягнути в клітинку.", "deceive", ["deception", "craft"], "dexterity", "charisma", 58, "generous", "minor-injury"),
       method("uniform-stamp-order", "📋 Узаконити розширення клітинки", "Печатка й порядок.", "ritual", ["authority"], "charisma", "intelligence", 62, "standard")
     ]),
     exam: scene("іспит", "іспиту", "Іспит визнав героя питанням підвищеної складности.", "Викладач попросив перездачу реальности.", [
       method("exam-read-rubric", "🔎 Вичитати критерії іспиту", "Ретельний розбір умов.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
       method("exam-appeal", "🤝 Подати апеляцію до здорового глузду", "Переговори з оцінюванням.", "negotiate", ["persuasion", "authority"], "charisma", "intelligence", 64, "standard"),
-      method("exam-question-swap", "🗝️ Поміняти місцями питання й відповідь", "Непевний фокус із білетом.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous"),
+      method("exam-question-swap", "🗝️ Поміняти місцями питання й відповідь", "Непевний фокус із білетом, можна постраждати від оцінювання.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous", "minor-injury"),
       method("exam-ritual-silence", "🕯️ Провести ритуал тиші в аудиторії", "Містично, але без мани.", "ritual", ["ritual"], "charisma", "intelligence", 62, "standard")
     ]),
     title: scene("титул", "титулу", "Черга прийняла титул, але просить печатку слави.", "Журнал почав питати, чи репутація має ноги.", [
       method("title-ledger-read", "🔎 Знайти титул у журналі слави", "Ретельний пошук репутації.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
       method("title-queue-talk", "🤝 Домовитися з чергою пошани", "Переговори без фанфар.", "negotiate", ["persuasion"], "charisma", "intelligence", 64, "standard"),
-      method("title-ribbon-trick", "🗝️ Переплутати стрічки урочистости", "Непевний трюк зі славою.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous"),
+      method("title-ribbon-trick", "🗝️ Переплутати стрічки урочистости", "Непевний трюк зі славою, можна зачепити репутацію й лікоть.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous", "minor-injury"),
       method("title-stamp-ceremony", "📋 Провести малу церемонію печатки", "Офіційно й трохи смішно.", "ritual", ["authority", "performance"], "charisma", "intelligence", 62, "standard")
     ])
   } satisfies Record<GeneratedSceneKind, AdventureSceneSeed>;
 
   return generatedSeeds[kind];
+}
+
+function buildSceneNativeTopUpMethods(problemId: string): readonly AdventureMethodSeed[] {
+  const generatedKind = getGeneratedSceneKind(problemId);
+  const topUpMethods: Record<string, AdventureMethodSeed> = {
+    stew: method("skim-foam", "🥄 Зняти найгучнішу піну окремою ложкою", "Обережно, але можна обпекти пальці.", "craft", ["craft"], "dexterity", "intelligence", 64, "standard", "minor-injury"),
+    barrel: method("tap-bottom", "🪵 Вистукати дно на таємну кімнату", "Ремесло й підозра, без виселення силою.", "investigate", ["craft", "investigation"], "intelligence", "dexterity", 66, "standard"),
+    helmet: method("polish-visor", "🪞 Відполірувати забрало до чесної версії", "Точно, але стара слава може вдарити відблиском.", "craft", ["craft", "finesse"], "dexterity", "intelligence", 62, "standard", "minor-injury"),
+    calendar: method("pin-week", "📌 Пришпилити тиждень до стіни доказів", "Канцелярська точність без сварки з пʼятницями.", "craft", ["authority", "craft"], "intelligence", "dexterity", 66, "standard"),
+    receipt: method("fold-corner", "🧾 Загнути кут порталу в кишеньковий формат", "Точний паперовий трюк, небезпечний для пальців.", "craft", ["craft", "finesse"], "dexterity", "intelligence", 62, "standard", "minor-injury"),
+    bench: method("cushion-witness", "🧵 Підкласти подушку як мʼякого свідка", "Тихий доказ без героїчної посадки.", "craft", ["domesticity", "investigation"], "dexterity", "charisma", 66, "modest"),
+    cloak: method("stitch-shadow", "🧵 Пришити тінь плаща до правильного гачка", "Тканина слухає, голка інколи сперечається.", "craft", ["craft", "finesse"], "dexterity", "intelligence", 62, "standard", "minor-injury"),
+    spoon: method("count-quorum", "📋 Перерахувати кворум ложок до десерту", "Порядок денний без стуку по столу.", "investigate", ["authority", "investigation"], "intelligence", "charisma", 66, "modest"),
+    mirror: method("pad-frame", "🧤 Притримати раму рукавицею правди", "Обережний трюк зі склом, можна постраждати.", "craft", ["craft", "force"], "strength", "intelligence", 61, "standard", "minor-injury"),
+    boots: method("oil-soles", "🛢️ Змастити підошви проти відпусткових планів", "Практично й менш героїчно за погоню.", "craft", ["craft", "tracking"], "intelligence", "dexterity", 65, "standard"),
+    chimney: method("jar-soot", "🏺 Зібрати сажу в банку з етикеткою", "Ремесло й акт приймання, можна забруднитися до синця.", "craft", ["craft", "authority"], "dexterity", "intelligence", 62, "standard", "minor-injury"),
+    candle: method("trim-wick", "✂️ Підрізати ґніт до робочого настрою", "Точно, гаряче, небезпечно для пальців.", "craft", ["craft", "arcana"], "dexterity", "intelligence", 61, "standard", "minor-injury"),
+    chair: method("measure-legs", "📏 Виміряти ніжки на змову меблів", "Розслідування без негайного виклику варти.", "investigate", ["investigation", "craft"], "intelligence", "dexterity", 67, "standard"),
+    broom: method("braid-bristles", "🧹 Заплести щетину в мирну косу", "Ремесло з ризиком отримати мітлою по пальцях.", "craft", ["craft", "domesticity"], "charisma", "luck", 62, "standard", "minor-injury"),
+    door: method("oil-hinge", "🛢️ Змастити завісу замість платити мито", "Практичний трюк, завіса може клацнути у відповідь.", "craft", ["craft", "finesse"], "dexterity", "intelligence", 62, "standard", "minor-injury"),
+    map: method("pin-thread-route", "🧵 Протягнути нитку через безпечний маршрут", "Слідопитство без короткого шляху навмання.", "investigate", ["tracking", "traps"], "dexterity", "intelligence", 66, "standard"),
+    teapot: method("hold-lid", "🫖 Притримати кришку під час мирних переговорів", "Обережно з парою, можна постраждати.", "craft", ["craft", "arcana"], "dexterity", "intelligence", 61, "standard", "minor-injury"),
+    menu: method("blot-price", "🖋️ Промокнути цінник серветкою доказів", "Тонка робота без переписування наслідків.", "craft", ["craft", "investigation"], "dexterity", "intelligence", 66, "standard"),
+    sign: method("chalk-fish", "🖍️ Домалювати рибі офіційний напрямок", "Ремонт із дрібною дипломатією.", "craft", ["craft", "persuasion"], "dexterity", "charisma", 66, "standard"),
+    portrait: method("clean-frame", "🧽 Витерти раму від зайвого підморгування", "Обережно, фарба не любить свідків.", "craft", ["craft", "investigation"], "dexterity", "intelligence", 64, "standard", "minor-injury"),
+    key: method("warm-teeth", "🔥 Нагріти зубці над тихим полумʼям", "Точна робота з металом, пальцям непевно.", "craft", ["craft", "arcana"], "intelligence", "dexterity", 61, "standard", "minor-injury"),
+    ledger: method("bookmark-debt", "🔖 Закласти борг серветкою з правильним римуванням", "Канцелярія без округлення кулаком, але папір ріже пальці.", "craft", ["authority", "craft"], "dexterity", "charisma", 62, "standard", "minor-injury"),
+    rug: method("pin-corner", "📌 Пришпилити кут, який знає забагато", "Текстильна точність, можна вколоти гордість.", "craft", ["craft", "traps"], "intelligence", "dexterity", 62, "standard", "minor-injury"),
+    bell: method("pad-clapper", "🧤 Обгорнути язичок дзвінка рукавицею", "Тихо, але дзвінок може вкусити звуком.", "craft", ["craft", "finesse"], "dexterity", "luck", 62, "standard", "minor-injury"),
+    survey: method("survey-fold-corner", "📎 Загнути кут анкети під правильну графу", "Папір мирний лише здалеку; можна порізатися.", "craft", ["craft", "finesse"], "dexterity", "intelligence", 61, "standard", "minor-injury"),
+    mug: method("mug-steady-handle", "☕ Утримати ручку кухля підставкою", "Посудна інженерія без урочистого тосту, ручка може вдарити по пальцях.", "craft", ["craft", "domesticity"], "strength", "intelligence", 62, "standard", "minor-injury"),
+    portraitFamily: method("portrait-varnish-knock", "🖼️ Постукати лаком по краю рами", "Може покликати того, хто сидить у портреті.", "ritual", ["ritual", "force"], "strength", "luck", 58, "generous", "fight-handoff"),
+    manual: method("manual-bookmark-risk", "🔖 Закласти сторінку небезпечним прикладом", "Паперова педагогіка, можна постраждати від правила.", "craft", ["authority", "craft"], "intelligence", "dexterity", 61, "standard", "minor-injury"),
+    uniform: method("uniform-pin-cuff", "📌 Підігнути манжет під потрібну клітинку", "Кравецький ризик для пальців.", "craft", ["craft", "finesse"], "dexterity", "intelligence", 61, "standard", "minor-injury"),
+    exam: method("exam-scratch-margin", "✏️ Видряпати відповідь на полях іспиту", "Нервово, паперово, небезпечно для пальців.", "deceive", ["deception", "craft"], "dexterity", "intelligence", 59, "generous", "minor-injury"),
+    title: method("title-knot-crest", "🎗️ Завʼязати стрічку титулу на доказі", "Стильно, але вузол може затягнутися.", "craft", ["authority", "craft"], "strength", "dexterity", 61, "standard", "minor-injury")
+  };
+  const key = generatedKind === "portrait" ? "portraitFamily" : generatedKind;
+  const selected = topUpMethods[problemId] ?? (key ? topUpMethods[key] : undefined);
+
+  return selected ? [selected] : [];
+}
+
+function getGeneratedSceneKind(problemId: string): GeneratedSceneKind | null {
+  if (problemId.startsWith("race-") && problemId.endsWith("-survey")) {
+    return "survey";
+  }
+
+  if (problemId.startsWith("race-") && problemId.endsWith("-mug")) {
+    return "mug";
+  }
+
+  if (problemId.startsWith("race-") && problemId.endsWith("-portrait")) {
+    return "portrait";
+  }
+
+  if (problemId.startsWith("class-") && problemId.endsWith("-manual")) {
+    return "manual";
+  }
+
+  if (problemId.startsWith("class-") && problemId.endsWith("-uniform")) {
+    return "uniform";
+  }
+
+  if (problemId.startsWith("class-") && problemId.endsWith("-exam")) {
+    return "exam";
+  }
+
+  return "title";
 }
 
 function scene(

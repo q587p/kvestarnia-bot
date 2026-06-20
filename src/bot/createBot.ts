@@ -2308,7 +2308,10 @@ async function handleAdventureCallback(
         telegramUserId,
         {
           source: "adventure",
-          difficulty: "normal"
+          difficulty: "normal",
+          ...(result.fightEncounter
+            ? { target: { monsterIds: [result.fightEncounter.monsterId] } }
+            : {})
         }
       );
 

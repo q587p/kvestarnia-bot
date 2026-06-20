@@ -599,11 +599,9 @@ describe("AdventureService", () => {
     expect(options.length).toBeGreaterThanOrEqual(3);
     expect(new Set(options.map((option) => option.label)).size).toBe(options.length);
     expect(options.map((option) => option.reward)).toEqual(
-      expect.arrayContaining([
-        { xp: 4, gold: 2 },
-        { xp: 7, gold: 4 }
-      ])
+      expect.arrayContaining([{ xp: 7, gold: 4 }])
     );
+    expect(options.some((option) => option.reward.xp === 4)).toBe(true);
     expect(options.every((option) => [4, 7, 10].includes(option.reward.xp))).toBe(true);
     expect(options.every((option) => [0, 2, 4, 7].includes(option.reward.gold))).toBe(true);
     expect(options.filter((option) => option.goldCost).every((option) => option.reward.gold === 0)).toBe(true);

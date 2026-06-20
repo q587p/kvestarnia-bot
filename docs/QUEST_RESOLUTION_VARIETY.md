@@ -44,7 +44,7 @@
 3. **Класову опцію** — спосіб, що використовує класову техніку або профіль уже наявного combat skill.
 4. **Signature-опцію** — точна race+class комбінація; current title впливає на label/outcome й може мати explicit override.
 
-Starter-сцени й level 3+ справи використовують один видимий resolver: мінімум пʼять методів, а коли сцена має достатньо справді різних affordances — шість або сім. Race/class/signature candidates впливають на вибір affordance, перевірку й наслідок, але не повинні перетворювати кнопку на підпис внутрішньої механіки.
+Starter-сцени й level 3+ справи використовують один видимий resolver: пʼять-сім методів, коли сцена відкрита для вибору. Race/class/signature candidates впливають на вибір affordance, перевірку й наслідок, але не повинні перетворювати кнопку на підпис внутрішньої механіки. Якщо scene/family не має достатньо дій, треба авторити ще одну дію самої сцени, а не додавати універсальне «покликати свідка», «позначити ниткою» чи «дати хвилину тиші».
 
 ### 2.3. Методи відрізняються не лише шансом
 
@@ -84,6 +84,7 @@ STR/DEX/INT/CHA/LUCK впливають на перевірку. Race/class/sign
 - не списує gold cost вдруге;
 - не reroll-ить outcome;
 - не запускає другий fight handoff;
+- не списує HP вдруге;
 - або відтворює той самий stable result, або показує безпечний already-completed state.
 
 ## 3. Новий player flow
@@ -109,15 +110,16 @@ STR/DEX/INT/CHA/LUCK впливають на перевірку. Race/class/sign
 На бочці зʼявився папірець…
 
 Можливі способи:
-🪵 Перевірити клепки й знайти справжнього мешканця
-🧬 [Домовик] Виставити порожнечі рахунок за підпілля
-🎭 [Бюрокромант] Оформити форму 13-Б на нежилу тару
-🏷️ [Архівний Дух] Визнати бочку тимчасовим відділенням архіву
+🪵 Знайти мешканця між клепками
+📋 Укласти угоду з порожнечею
+🪙 Дати корку заставу
+💪 Виселити порожнечу силою
+🪵 Вистукати дно на таємну кімнату
 
 Корчмар: «Метод ваш. Наслідки, як завжди, уже чиїсь».
 ```
 
-Позначки `[Домовик]` у player-facing тексті не обов’язкові. Краще використовувати емоджі та природний label. У dev/debug presenter можна показувати source.
+Кнопки не показують `[Домовик]`, `[Бюрокромант]`, `signature`, `race+class` або титул як службову мітку. Біографія героя впливає на те, які scene affordances потрапляють у 5-7 видимих способів, на стати/affinity і на природний outcome flavor після розвʼязання.
 
 ### 3.3. Qualitative hints
 
@@ -181,6 +183,8 @@ export type QuestConsequenceKind =
   | "xp-only"
   | "gold-cost-success"
   | "fight-handoff"
+  | "minor-injury"
+  | "serious-injury"
   | "cosmetic-mess";
 
 export interface QuestCheckSpec {
@@ -373,6 +377,7 @@ Exact chance дозволений у local dev trace/tests.
 Method визначає consequence:
 
 - `fight-handoff`: без immediate reward, existing persistent fight; якщо fight не стартує, claim/cost не витрачаються;
+- `minor-injury` / `serious-injury`: deterministic bounded HP loss, stored with HP before/lost/after/max and clamped so quest injury never drops below `1 HP`;
 - `reduced-reward`: мала consolation reward і authored mess;
 - `xp-only`: досвід є, золото втекло разом із гідністю;
 - `gold-cost-success`: підкуп спрацював, але заплачене не повертається й gold reward лишається `0`;
@@ -386,6 +391,8 @@ Method визначає consequence:
 - довгі punitive cooldowns;
 - випадкове списання великого золота;
 - нову бойову систему.
+
+Direct HP loss is method-owned, not a global random punishment after resolution. Starter shawarma and cellar mouse may use only `minor-injury`; level 3+ Adventure Choice may use `minor-injury` or `serious-injury` where the fiction supports it. Result cards show relevant HP lines only after the choice resolves, and pre-commit hints stay qualitative: `можна постраждати`, `небезпечно для пальців`, `ризик бійки`.
 
 ## 7. Підкуп і ресурсні витрати
 
@@ -488,13 +495,13 @@ interface PresentedQuestResolution {
 
 Для кожної active scene:
 
-- мінімум 2 scene methods;
+- enough authored scene-native methods/family methods to support the 5-7 visible resolver without universal filler;
 - покриття всіх active races через race motif binding або explicit override;
 - покриття всіх active classes через technique binding або explicit override;
 - signature method для кожної valid onboarding race+class комбінації;
-- мінімум 3 grade-specific outcome texts на method family; complication не може бути одним global рядком;
+- four grade-specific outcome texts на method family; complication не може бути одним global рядком;
 - мінімум 2 consequence kinds на сцену;
-- не більше одного fight-handoff method, якщо сама сцена не є явно бойовою;
+- не більше одного-двох fight-handoff methods на ordinary scene, якщо сама сцена не є явно бойовою;
 - кнопки після resolver не дублюють normalized labels/intents;
 - player-facing text український і HTML-escaped.
 

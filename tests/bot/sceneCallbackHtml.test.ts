@@ -1664,7 +1664,9 @@ describe("scene callback HTML options", () => {
               consequence: "fight-handoff",
               outcome: "Горщик викликав вас на чесний бій ложками.",
               spentGold: 0,
+              hpLoss: null,
               fightHandoff: true,
+              fightEncounter: { monsterId: "monster.borshch-slime" },
               check: {
                 roll: 13,
                 target: 45,
@@ -1684,7 +1686,8 @@ describe("scene callback HTML options", () => {
 
     expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
       source: "adventure",
-      difficulty: "normal"
+      difficulty: "normal",
+      target: { monsterIds: ["monster.borshch-slime"] }
     });
     expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n);
     expect(String(edit?.payload.text)).toContain("HP 0/20");

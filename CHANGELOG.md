@@ -16,12 +16,15 @@ This project follows a simple pre-1.0 versioning policy:
 - Added compact `v2` problem and method callbacks for Adventure Choice plus compact method callbacks for mimic-shawarma and cellar mouse buttons, while preserving old starter/cellar callbacks and old Adventure Choice `safe/flair/risky` callbacks as stale-refresh only.
 - Added `spent_gold` and optional `result_json` audit payloads to `daily_actions` so quest method, grade, consequence, cost and check data are stored at claim time.
 - Added paid cellar/adventure method support with pre-claim affordability checks and atomic net gold updates.
+- Added authored direct HP injury consequences with deterministic bounded loss, persisted HP audit payloads and replay-safe result lines.
+- Added scene-specific persistent-fight handoff targets for authored Adventure complications, reusing the existing fight pipeline.
 - Added small deterministic post-resolution XP/gold variance for level 3+ authored Adventure Choice rewards, plus a low LUCK-influenced chance for one eligible manatka on non-fight results; paid methods never return gold as reward and instead get a slightly higher manatka chance.
 - Added `/dev_help` for local QA so available dev commands can be listed without mixing them into the main player help screen.
 - Added canonical design docs for authored quest resolution variety, skill/check math and content seeds, plus the `0.1.20` task doc.
 
 ### Changed
 - Replaced the level 3+ global `safe / flair / risky` choice ladder with 5-7 scene-action methods whose checks/outcomes can still reflect race, class and signature/title.
+- Removed universal active filler methods from authored quest content; every active general problem and generated family now supplies enough scene-native affordances for the 5-7 resolver.
 - Adventure and cellar selected-result screens now show authored grade-specific Ukrainian outcome copy and qualitative method hints without exact future reward amounts or percentage odds.
 - Successful personalized result copy now avoids generic meta-lines such as “Обраний підхід...” and keeps the sentence anchored to the scene action.
 - Authored quest result cards now separate the scene, method and reward blocks more clearly, omit internal race/class/signature method labels and show `Винагорода за справу` before XP/gold.
@@ -29,6 +32,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Generated race/class/title problem families now use scene-native method sets for анкета/кухоль/портрет/підручник/форма/іспит/титул instead of one universal generated template.
 - Race, class and signature methods now bind to concrete scene affordances instead of blind profile-noun substitution, while visible labels/buttons keep only the scene action; the same hero gets different verbs/outcomes across unrelated problems and malformed forms such as doubled object suffixes are covered by tests.
 - Adventure complications can now resolve to full reward, reduced reward, XP-only, cosmetic mess, paid success or existing persistent-fight handoff where authored.
+- Adventure and starter/cellar complications can now include method-owned minor/serious injury where allowed; direct quest injury is applied atomically with claim/cost/reward/item/cooldown mutations and clamped to leave at least `1 HP`.
+- Failed or blocked Adventure fight handoff now rolls back claim, spent gold, rewards, item grants and HP mutation together; replay cannot spawn a second fight.
 - Starter shawarma and cellar mouse keep their level gates, item grants, idempotency and replay behavior while routing new visible buttons through stable authored method ids.
 - Adventure, starter shawarma and cellar mouse completions now validate current callbacks against the deterministic visible method set before claim/cost/cooldown/reward mutation; hidden authored scene methods cannot be invoked just because their ids exist in content.
 - The cellar mouse paid bribe is reachable through the centralized visible-method resolver without dropping personalized check/outcome influence.

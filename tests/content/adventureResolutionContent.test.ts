@@ -46,6 +46,45 @@ describe("adventure resolution content", () => {
     }
   });
 
+  it("does not inject universal filler methods into unrelated active problems", () => {
+    const forbiddenIds = new Set(["korchmar-witness", "mark-evidence", "quiet-minute"]);
+    const forbiddenLabels = [
+      "Покликати Корчмаря як свідка",
+      "Позначити предмет контрольною ниткою",
+      "Дати сцені хвилину тиші"
+    ];
+    const seenByLabel = new Map<string, Set<string>>();
+
+    for (const problemId of ADVENTURE_PROBLEM_IDS) {
+      const methods = resolveQuestMethodsForCharacter(
+        buildAdventureResolutionScene({
+          problemId,
+          title: problemId,
+          character
+        }),
+        character
+      );
+
+      expect(methods.some((method) => forbiddenIds.has(method.id)), problemId).toBe(false);
+
+      for (const method of methods) {
+        const label = method.buttonLabel ?? method.label;
+
+        expect(forbiddenLabels.some((forbidden) => label.includes(forbidden)), problemId).toBe(false);
+
+        if (!seenByLabel.has(label)) {
+          seenByLabel.set(label, new Set());
+        }
+
+        seenByLabel.get(label)!.add(problemId);
+      }
+    }
+
+    for (const [label, problemIds] of seenByLabel) {
+      expect(problemIds.size, label).toBeLessThan(ADVENTURE_PROBLEM_IDS.length);
+    }
+  });
+
   it("has generated coverage for every active race, class and known title", () => {
     for (const race of activeRaces) {
       const problemId = `race-${race.id.replace("race.", "")}-portrait`;
@@ -163,6 +202,98 @@ describe("adventure resolution content", () => {
     }
   });
 
+  it("keeps active problem sets risk-owned without global punishment copy", () => {
+    const riskyConsequences = new Set(["minor-injury", "serious-injury", "fight-handoff"]);
+    const fallbackCopy = [
+      "обраний підхід",
+      "обраний метод",
+      "потрібний кут",
+      "chosen approach",
+      "chosen method"
+    ];
+
+    for (const problemId of ADVENTURE_PROBLEM_IDS) {
+      const methods = resolveQuestMethodsForCharacter(
+        buildAdventureResolutionScene({
+          problemId,
+          title: problemId,
+          character
+        }),
+        character
+      );
+
+      expect(
+        methods.some((method) => riskyConsequences.has(method.consequenceByGrade.complication)),
+        problemId
+      ).toBe(true);
+
+      for (const method of methods) {
+        const outcomeBodies = Object.values(method.outcomeText)
+          .flatMap((outcome) => outcome.body)
+          .join("\n")
+          .toLocaleLowerCase("uk-UA");
+        const uniqueGradeBodies = new Set(
+          Object.values(method.outcomeText).map((outcome) => outcome.body.join("\n"))
+        );
+
+        expect(uniqueGradeBodies.size, `${problemId}:${method.id}`).toBe(4);
+        for (const fallback of fallbackCopy) {
+          expect(outcomeBodies, `${problemId}:${method.id}`).not.toContain(fallback);
+        }
+      }
+    }
+  });
+
+  it("changes fitting visible affordances for different identities on the same scene", () => {
+    const profiles = [
+      {
+        ...character,
+        raceId: "race.domovyk",
+        raceName: "Домовик",
+        classId: "class.bureaucramancer",
+        className: "Бюрокромант"
+      },
+      bard,
+      {
+        ...character,
+        raceId: "race.intellectual-orc",
+        raceName: "Орк-інтелігент",
+        classId: "class.warrior",
+        className: "Воїн",
+        stats: { ...character.stats, intelligence: 9, strength: 9 }
+      },
+      {
+        ...character,
+        raceId: "race.drantohor",
+        raceName: "Дрантогор",
+        classId: "class.ranger",
+        className: "Єгер",
+        stats: { ...character.stats, dexterity: 9, luck: 8 }
+      },
+      {
+        ...character,
+        raceId: "race.molfar-soul",
+        raceName: "Мольфарська душа",
+        classId: "class.priest",
+        className: "Жрець",
+        stats: { ...character.stats, intelligence: 8, luck: 9 }
+      }
+    ] as const;
+    const methodSets = profiles.map((profile) =>
+      resolveQuestMethodsForCharacter(
+        buildAdventureResolutionScene({
+          problemId: "barrel",
+          title: "Бочка вимагає орендну угоду",
+          character: profile
+        }),
+        profile
+      ).map((method) => method.id)
+    );
+    const uniqueSets = new Set(methodSets.map((methods) => methods.join("|")));
+
+    expect(uniqueSets.size).toBeGreaterThan(1);
+  });
+
   it("keeps starter shawarma and cellar mouse slots represented without duplicate tactics", () => {
     for (const sceneId of ["shawarma", "cellar-mouse"] as const) {
       const scene = buildStarterQuestResolutionScene(sceneId, bard);
@@ -170,12 +301,17 @@ describe("adventure resolution content", () => {
         ...(sceneId === "cellar-mouse" ? { sceneSlotKey: "bribe-cheese" } : {})
       });
       const sources = new Set(methods.map((method) => method.source));
+      const injuryConsequences = methods
+        .map((method) => method.consequenceByGrade.complication)
+        .filter((consequence) => consequence === "minor-injury" || consequence === "serious-injury");
 
       expect(methods.length, sceneId).toBeGreaterThanOrEqual(5);
       expect(methods.length, sceneId).toBeLessThanOrEqual(7);
       expect(sources.has("scene")).toBe(true);
       expect(new Set(methods.map(getQuestMethodTacticKey)).size, sceneId).toBe(methods.length);
       expect(new Set(methods.map(getQuestMethodAffordanceKey)).size, sceneId).toBe(methods.length);
+      expect(injuryConsequences, sceneId).toContain("minor-injury");
+      expect(injuryConsequences, sceneId).not.toContain("serious-injury");
     }
   });
 

@@ -4,6 +4,7 @@ import { classIdToKey, getKnownComboTitleValues, raceIdToKey } from "../content/
 import { activeRaces } from "../content/races";
 import type {
   DailyActionRepository,
+  HpLossAudit,
   RewardLevelChange
 } from "../db/repositories/dailyActionRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
@@ -151,6 +152,10 @@ export interface AdventureReward {
   itemGrants: RewardItemGrant[];
 }
 
+export interface AdventureFightHandoffTarget {
+  monsterId: string;
+}
+
 export const MIMIC_SHAWARMA_REWARDS = {
   poke: {
     xp: 8,
@@ -208,7 +213,9 @@ export type AdventureResult =
       consequence: QuestConsequenceKind;
       outcome: QuestMethodDefinition["outcomeText"][QuestResolutionGrade];
       spentGold: number;
+      hpLoss: HpLossAudit | null;
       fightHandoff: boolean;
+      fightEncounter: AdventureFightHandoffTarget | null;
       reward: AdventureReward;
       levelChange: RewardLevelChange;
       complication: boolean;
@@ -234,6 +241,7 @@ export type MimicShawarmaResult =
       grade: QuestResolutionGrade;
       outcome: QuestMethodDefinition["outcomeText"][QuestResolutionGrade];
       spentGold: number;
+      hpLoss: HpLossAudit | null;
       character: CharacterSummary;
       reward: AdventureReward;
       levelChange: RewardLevelChange;
@@ -442,12 +450,26 @@ export class AdventureService {
       consequence
     });
     const spentGold = method.goldCost ?? 0;
+    const hpLoss = buildQuestHpLoss({
+      characterId: character.id,
+      periodKey: period.storageKey,
+      sceneId: choice.id,
+      methodId: method.id,
+      grade: check.grade,
+      consequence,
+      hpMax: characterSummary.hpMax
+    });
+    const fightEncounter =
+      consequence === "fight-handoff"
+        ? buildAdventureFightHandoffTarget(choice.id, method.id)
+        : null;
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: ADVENTURE_CHOICE_KEY,
       localDate: period.storageKey,
       rewardXp: reward.xp,
       rewardGold: reward.gold,
       spentGold,
+      hpLoss,
       resultJson: buildQuestResolutionClaimPayload({
         sceneId: choice.id,
         method,
@@ -456,7 +478,8 @@ export class AdventureService {
         reward,
         itemGrants,
         spentGold,
-        check
+        check,
+        fightEncounter
       }),
       itemGrants
     });
@@ -492,7 +515,9 @@ export class AdventureService {
       consequence,
       outcome: method.outcomeText[check.grade],
       spentGold,
+      hpLoss: claim.hpLoss,
       fightHandoff: consequence === "fight-handoff",
+      fightEncounter,
       reward: {
         ...reward,
         localDate: period.storageKey,
@@ -606,11 +631,21 @@ export class AdventureService {
     const itemGrants = buildMimicShawarmaItemGrants(
       method.itemIntent ?? method.legacyAction ?? (completionInput.type === "legacy" ? completionInput.action : completionInput.methodId)
     );
+    const hpLoss = buildQuestHpLoss({
+      characterId: character.id,
+      periodKey: localDate,
+      sceneId: scene.sceneId,
+      methodId: method.id,
+      grade: check.grade,
+      consequence,
+      hpMax: characterSummary.hpMax
+    });
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,
       localDate,
       rewardXp: reward.xp,
       rewardGold: reward.gold,
+      hpLoss,
       resultJson: buildQuestResolutionClaimPayload({
         sceneId: scene.sceneId,
         method,
@@ -619,7 +654,8 @@ export class AdventureService {
         reward,
         itemGrants,
         spentGold: 0,
-        check
+        check,
+        fightEncounter: null
       }),
       itemGrants
     });
@@ -646,6 +682,7 @@ export class AdventureService {
       grade: check.grade,
       outcome: method.outcomeText[check.grade],
       spentGold: 0,
+      hpLoss: claim.hpLoss,
       character: summarizeCharacter(claim.character, { equippedItems }),
       reward: {
         ...reward,
@@ -688,11 +725,20 @@ export class AdventureService {
   async rollbackCurrentAdventureClaimForTelegramUser(
     telegramUserId: bigint
   ): Promise<AdventureClaimRollbackResult> {
+    const period = buildAdventurePeriod(this.clock());
+
+    if (this.dailyActions.rollbackForTelegramUser) {
+      const result = await this.dailyActions.rollbackForTelegramUser(telegramUserId, {
+        key: ADVENTURE_CHOICE_KEY,
+        localDate: period.storageKey
+      });
+
+      return result === "rolled-back" ? "deleted" : result;
+    }
+
     if (!this.dailyActions.deleteForTelegramUser) {
       return "unavailable";
     }
-
-    const period = buildAdventurePeriod(this.clock());
 
     return this.dailyActions.deleteForTelegramUser(telegramUserId, {
       key: ADVENTURE_CHOICE_KEY,
@@ -1089,6 +1135,17 @@ function buildQuestReward(
     return { xp: 0, gold: 0 };
   }
 
+  if (consequence === "serious-injury") {
+    return { xp: Math.ceil(reward.xp * 0.5), gold: 0 };
+  }
+
+  if (consequence === "minor-injury") {
+    return {
+      xp: Math.ceil(reward.xp * 0.5),
+      gold: Math.floor(reward.gold * 0.5)
+    };
+  }
+
   if (consequence === "xp-only") {
     return { xp: Math.ceil(reward.xp * 0.5), gold: 0 };
   }
@@ -1193,6 +1250,103 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function buildQuestHpLoss(input: {
+  characterId: string;
+  periodKey: string;
+  sceneId: string;
+  methodId: string;
+  grade: QuestResolutionGrade;
+  consequence: QuestConsequenceKind;
+  hpMax: number;
+}): number {
+  if (input.consequence !== "minor-injury" && input.consequence !== "serious-injury") {
+    return 0;
+  }
+
+  const rng = new SeededRandomSource(
+    `quest-hp-loss-v1:${input.characterId}:${input.periodKey}:${input.sceneId}:${input.methodId}:${input.grade}`
+  );
+  const hpMax = Math.max(1, Math.floor(input.hpMax));
+  const percent =
+    input.consequence === "minor-injury"
+      ? rng.nextFloat() * 0.04 + 0.05
+      : rng.nextFloat() * 0.08 + 0.13;
+  const floor = input.consequence === "minor-injury" ? 1 : 2;
+  const cap = input.consequence === "minor-injury" ? 4 : 8;
+
+  return clamp(Math.ceil(hpMax * percent), floor, cap);
+}
+
+function buildAdventureFightHandoffTarget(
+  sceneId: string,
+  methodId: string
+): AdventureFightHandoffTarget {
+  const generatedKind = getGeneratedFightKind(sceneId);
+  const exact = ADVENTURE_FIGHT_HANDOFF_MONSTERS[`${sceneId}:${methodId}`];
+  const scene = ADVENTURE_FIGHT_HANDOFF_MONSTERS[sceneId];
+  const generated = generatedKind ? ADVENTURE_FIGHT_HANDOFF_MONSTERS[`generated:${generatedKind}`] : undefined;
+
+  return {
+    monsterId:
+      exact ??
+      scene ??
+      generated ??
+      "monster.unread-rules-ghost"
+  };
+}
+
+function getGeneratedFightKind(sceneId: string): string | null {
+  if (sceneId.startsWith("race-") && sceneId.endsWith("-survey")) {
+    return "survey";
+  }
+
+  if (sceneId.startsWith("race-") && sceneId.endsWith("-mug")) {
+    return "mug";
+  }
+
+  if (sceneId.startsWith("race-") && sceneId.endsWith("-portrait")) {
+    return "portrait";
+  }
+
+  if (sceneId.startsWith("class-") && sceneId.endsWith("-manual")) {
+    return "manual";
+  }
+
+  if (sceneId.startsWith("class-") && sceneId.endsWith("-uniform")) {
+    return "uniform";
+  }
+
+  if (sceneId.startsWith("class-") && sceneId.endsWith("-exam")) {
+    return "exam";
+  }
+
+  if (sceneId.startsWith("title-")) {
+    return "title";
+  }
+
+  return null;
+}
+
+const ADVENTURE_FIGHT_HANDOFF_MONSTERS: Record<string, string> = {
+  stew: "monster.borshch-slime",
+  barrel: "monster.cheese-vault-warden",
+  helmet: "monster.unread-rules-ghost",
+  receipt: "monster.stamp-doorkeeper-skeleton",
+  cloak: "monster.unclosed-closure-act",
+  chimney: "monster.complaint-lantern",
+  chair: "monster.queue-counter-gargoyle",
+  broom: "monster.audit-mosquito",
+  map: "monster.liar-corridor-map",
+  portrait: "monster.self-critique-mirror",
+  rug: "monster.self-critique-mirror",
+  bell: "monster.quiet-catastrophe-clerk",
+  "generated:portrait": "monster.self-critique-mirror",
+  "generated:manual": "monster.unread-rules-ghost",
+  "generated:uniform": "monster.queue-counter-gargoyle",
+  "generated:exam": "monster.deadline-spider",
+  "generated:title": "monster.inventory-prophet"
+};
+
 function buildQuestResolutionClaimPayload(input: {
   sceneId: string;
   method: QuestMethodDefinition;
@@ -1202,6 +1356,7 @@ function buildQuestResolutionClaimPayload(input: {
   itemGrants?: Array<{ itemId: string; quantity: number }>;
   spentGold: number;
   check: QuestCheckResult;
+  fightEncounter?: AdventureFightHandoffTarget | null;
 }): unknown {
   return {
     version: 1,
@@ -1216,6 +1371,7 @@ function buildQuestResolutionClaimPayload(input: {
       itemGrants: input.itemGrants ?? []
     },
     spentGold: input.spentGold,
+    fightHandoff: input.fightEncounter,
     check: input.check
   };
 }

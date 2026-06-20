@@ -8,7 +8,7 @@ import type {
   CooldownRepository,
   SetCooldownAvailableAtResult
 } from "./cooldownRepository";
-import type { ItemGrant } from "./dailyActionRepository";
+import type { HpLossAudit, ItemGrant } from "./dailyActionRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 
@@ -88,6 +88,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
         }
 
         const spentGold = normalizeSpentGold(input.spentGold);
+        const hpLoss = buildHpLossAudit(character.hpCurrent, input.hpLoss, character.hpMax);
 
         if (spentGold > 0) {
           const debit = await tx.character.updateMany({
@@ -136,7 +137,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
             }
           });
 
-          return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
+          return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input, hpLoss);
         }
 
         const cooldown = await tx.characterCooldown.create({
@@ -147,7 +148,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
           }
         });
 
-        return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
+        return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input, hpLoss);
       });
     } catch (error) {
       if (isUniqueConstraintError(error)) {
@@ -216,7 +217,8 @@ export class PrismaCooldownRepository implements CooldownRepository {
     tx: TxClient,
     character: CharacterRecord,
     cooldown: CharacterCooldownRecord,
-    input: ClaimCooldownRewardInput
+    input: ClaimCooldownRewardInput,
+    hpLoss: HpLossAudit | null
   ): Promise<Extract<ClaimCooldownRewardResult, { state: "completed" }>> {
     const rewardedCharacter = await tx.character.update({
       where: {
@@ -228,7 +230,13 @@ export class PrismaCooldownRepository implements CooldownRepository {
         },
         gold: {
           increment: input.rewardGold
-        }
+        },
+        ...(hpLoss
+          ? {
+              hpCurrent: hpLoss.after,
+              hpRegenAt: new Date()
+            }
+          : {})
       }
     });
     const remortCount = await countCharacterRemorts(tx, character.id);
@@ -263,7 +271,8 @@ export class PrismaCooldownRepository implements CooldownRepository {
         newLevel,
         leveledUp: newLevel > oldLevel
       },
-      itemGrants: appliedItemGrants
+      itemGrants: appliedItemGrants,
+      hpLoss
     };
   }
 
@@ -402,6 +411,32 @@ function isUniqueConstraintError(error: unknown): boolean {
 
 function normalizeSpentGold(value: number | undefined): number {
   return Math.max(0, Math.floor(value ?? 0));
+}
+
+function normalizeHpLoss(value: number | undefined): number {
+  return Math.max(0, Math.floor(value ?? 0));
+}
+
+function buildHpLossAudit(
+  hpCurrent: number,
+  requestedLoss: number | undefined,
+  hpMax = hpCurrent
+): HpLossAudit | null {
+  const requested = normalizeHpLoss(requestedLoss);
+
+  if (requested <= 0) {
+    return null;
+  }
+
+  const before = Math.max(0, Math.floor(hpCurrent));
+  const lost = Math.min(requested, Math.max(0, before - 1));
+
+  return {
+    before,
+    max: Math.max(before, Math.floor(hpMax)),
+    lost,
+    after: before - lost
+  };
 }
 
 class CooldownClaimLostRaceError extends Error {
