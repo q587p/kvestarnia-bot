@@ -200,7 +200,7 @@ describe("fight presenter", () => {
     expect(text).not.toContain("золота</b>");
   });
 
-  it("guides wounded persistent fighters back to /hero after a terminal result", () => {
+  it("does not add new-fight hero guidance to terminal persistent results", () => {
     const text = presentPersistentFight({
       state: "persistent-terminal",
       character,
@@ -224,7 +224,8 @@ describe("fight presenter", () => {
       fightReward: null
     });
 
-    expect(text).toContain("Спершу /hero, тоді новий бій.");
+    expect(text).toContain("💤 Ви програли.");
+    expect(text).not.toContain("Спершу /hero, тоді новий бій.");
   });
 
   it("shows stale and mana failure persistent turns without mutating reward copy", () => {
