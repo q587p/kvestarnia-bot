@@ -287,6 +287,23 @@ describe("adventure resolution content", () => {
     }
   });
 
+  it("capitalizes starter identity beats at sentence start", () => {
+    const intellectualOrc = {
+      ...character,
+      raceId: "race.intellectual-orc",
+      raceName: "Орк-інтелігент",
+      classId: "class.warrior",
+      className: "Воїн",
+      stats: { ...character.stats, intelligence: 9, strength: 9 }
+    };
+    const scene = buildStarterQuestResolutionScene("shawarma", intellectualOrc);
+    const raceMethod = scene.methods.find((method) => method.source === "race");
+
+    expect(raceMethod).toBeDefined();
+    expect(activeOutcomeBody(raceMethod!)).toContain("Етична рецензія додає уважну ревізію причини");
+    expect(activeOutcomeBody(raceMethod!)).not.toContain(". етична рецензія додає");
+  });
+
   it("keeps full method labels out of resolved outcome bodies", () => {
     const problemIds = [
       ...getGeneralAdventureResolutionProblemIds(),

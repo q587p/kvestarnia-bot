@@ -403,7 +403,7 @@ function appendIdentityBeat(
 ): string {
   const core = base.outcomeText[grade].body.join(" ");
   const motif = techniqueMotif(firstTechnique(profile));
-  const owner = source === "race" ? profile.label : profile.label.toLowerCase();
+  const owner = capitalizeFirst(source === "race" ? profile.label : profile.label.toLowerCase());
 
   return `${core} ${owner} додає ${motif}, тож дія лишається конкретною й зрозумілою.`;
 }
