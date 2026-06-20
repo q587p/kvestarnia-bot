@@ -216,6 +216,13 @@ describe("adventure resolution content", () => {
       "Деталь «",
       "Цей конкретний рух",
       "рух, доказ і наслідок",
+      "знаходить точний робочий кут",
+      "тримає справу достатньо міцно",
+      "майже складає порядок",
+      "зривається у найгострішому місці",
+      "Особистий варіант",
+      "Професійний варіант",
+      "Особистий ризикований варіант",
       "chosen approach",
       "chosen method"
     ];
@@ -273,6 +280,10 @@ describe("adventure resolution content", () => {
       "приводить анкети до робочого стану",
       "у портрета точну причину",
       "знаходить у бочку",
+      "навколо маршрут підошов",
+      "навколо плащу талончик",
+      "навколо з чорнилом про графу",
+      "навколо підручнику межі уроку",
       "Уважну ревізію причини тримає",
       "зчіплюється з вагу прямого аргументу",
       "Вагу прямого аргументу допомагає"
@@ -295,6 +306,80 @@ describe("adventure resolution content", () => {
     }
   });
 
+  it("keeps named regression methods on explicit authored outcome beats", () => {
+    const regressionIds = [
+      "duel-memory",
+      "fact-check",
+      "stage-applause",
+      "queue-talk",
+      "coalition",
+      "bribe-smoke",
+      "survey-ink-talk",
+      "manual-lecture",
+      "uniform-office-talk",
+      "title-queue-talk"
+    ];
+    const banned = [
+      "знаходить точний робочий кут",
+      "тримає справу достатньо міцно",
+      "майже складає порядок",
+      "зривається у найгострішому місці",
+      "Деталь «",
+      "Цей конкретний рух",
+      "рух, доказ і наслідок"
+    ];
+    const problemIds = [
+      "helmet",
+      "cloak",
+      "spoon",
+      "chimney",
+      "race-human-ish-survey",
+      "class-bard-manual",
+      "class-bard-uniform",
+      `title-${slugTitle(getKnownComboTitleValues()[0] ?? "Архівний Дух")}`
+    ];
+    const bodiesByMethod = new Map<string, string>();
+
+    for (const problemId of problemIds) {
+      const scene = buildAdventureResolutionScene({
+        problemId,
+        title: problemId,
+        character
+      });
+
+      for (const method of scene.methods) {
+        if (regressionIds.includes(method.id)) {
+          bodiesByMethod.set(
+            method.id,
+            Object.values(method.outcomeText)
+              .flatMap((outcome) => outcome.body)
+              .join("\n")
+          );
+        }
+      }
+    }
+
+    for (const id of regressionIds) {
+      const body = bodiesByMethod.get(id);
+
+      expect(body, id).toBeDefined();
+      for (const phrase of banned) {
+        expect(body!, `${id}:${phrase}`).not.toContain(phrase);
+      }
+    }
+
+    expect(bodiesByMethod.get("duel-memory")).toContain("Спогад");
+    expect(bodiesByMethod.get("fact-check")).toContain("Вмʼятини");
+    expect(bodiesByMethod.get("stage-applause")).toContain("шолому");
+    expect(bodiesByMethod.get("queue-talk")).toContain("Талончик");
+    expect(bodiesByMethod.get("coalition")).toContain("Виделки");
+    expect(bodiesByMethod.get("bribe-smoke")).toContain("вентиляцію");
+    expect(bodiesByMethod.get("survey-ink-talk")).toContain("чорнилом");
+    expect(bodiesByMethod.get("manual-lecture")).toContain("підручнику");
+    expect(bodiesByMethod.get("uniform-office-talk")).toContain("Канцелярський край");
+    expect(bodiesByMethod.get("title-queue-talk")).toContain("Черга пошани");
+  });
+
   it("capitalizes starter identity beats at sentence start", () => {
     const intellectualOrc = {
       ...character,
@@ -308,9 +393,10 @@ describe("adventure resolution content", () => {
     const raceMethod = scene.methods.find((method) => method.source === "race");
 
     expect(raceMethod).toBeDefined();
-    expect(activeOutcomeBody(raceMethod!)).toContain("Етична рецензія");
-    expect(activeOutcomeBody(raceMethod!)).toContain("уважну ревізію причини");
-    expect(activeOutcomeBody(raceMethod!)).not.toContain(". етична рецензія додає");
+    expect(activeOutcomeBody(raceMethod!)).toContain("Уважна ревізія");
+    expect(activeOutcomeBody(raceMethod!)).toContain("Перевірка складає докази");
+    expect(activeOutcomeBody(raceMethod!)).not.toContain(". етична рецензія");
+    expect(activeOutcomeBody(raceMethod!)).not.toContain(". уважна ревізія");
   });
 
   it("keeps runtime Ukrainian copy free of known mojibake markers", () => {

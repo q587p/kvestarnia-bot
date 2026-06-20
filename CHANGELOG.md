@@ -34,10 +34,10 @@ This project follows a simple pre-1.0 versioning policy:
 - Authored quest method hints now avoid repeated reliability wording and generated scene outcomes use grammar-neutral copy for singular/plural problem titles.
 - Authored result bodies are now composed per concrete method and grade, so bribery, negotiation, deception, force, ritual and trap outcomes no longer share one scene-level strong/success/failure paragraph.
 - Authored result bodies now avoid the last intent-wide noun-substitution templates and use grammar-neutral method beats or explicit scene text for active methods.
-- Active authored methods no longer use the remaining intent-wide outcome fallback; non-overridden methods now compose method-specific grammar-neutral beats, and content tests reject the old shared fallback paragraphs plus common mojibake markers.
-- Active authored methods now fail fast during content construction when a method lacks authored outcome focus data; tests also reject sliced-label focus markers such as `Деталь «`.
+- Active authored methods no longer use the remaining intent-wide outcome fallback; every runtime-visible method now carries complete four-grade authored or family-specific outcome beats, and content tests reject the old shared fallback paragraphs plus common mojibake markers.
+- Active authored methods now fail fast during content construction when a method lacks complete outcome beats; tests also reject sliced-label focus markers and old template sentences.
 - Personalized race/class/signature variants now preserve scene-specific risk hints, including qualitative injury and fight/summoning warnings.
-- Personalized starter and Adventure result flavor now varies by concrete method focus instead of appending one universal identity paragraph everywhere.
+- Personalized starter and Adventure result flavor now uses technique-specific complete sentences instead of sliced button-label fragments or one universal identity paragraph everywhere.
 - Generated race/class/title problem families now use scene-native method sets for анкета/кухоль/портрет/підручник/форма/іспит/титул instead of one universal generated template.
 - Race, class and signature methods now bind to concrete scene affordances instead of blind profile-noun substitution, while visible labels/buttons keep only the scene action; the same hero gets different verbs/outcomes across unrelated problems and malformed forms such as doubled object suffixes are covered by tests.
 - Race, class and signature variants now use distinct scene-action labels and affordance ids, so the authoritative visible-method resolver can actually surface character-shaped methods instead of deduplicating them behind scene-native base methods.

@@ -199,8 +199,9 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("Підняти сухий приплив для");
     expect(text).not.toContain("Переспівати ритм");
     expect(text).not.toContain("«Співачка Без Моря» поєднує");
-    expect(text).toContain("Особистий варіант.");
-    expect(text).toContain("Професійний варіант.");
+    expect(text).not.toContain("Особистий варіант.");
+    expect(text).not.toContain("Професійний варіант.");
+    expect(text).not.toContain("Особистий ризикований варіант.");
     expect(text).not.toContain("Особистий підхід героя.");
     expect(text).not.toContain("Професійний підхід героя.");
     expect(text).not.toContain("Надійне розслідування. Майже надійно.");
@@ -235,7 +236,9 @@ describe("adventure presenter", () => {
     });
     const method = scene.methods.find((candidate) => candidate.id === "track-soles");
 
-    expect(method?.outcomeText["strong-success"].body.join("\n")).toContain("Маршрут підошов знаходить точний робочий кут.");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).toContain("«Маршрут підошов»");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("знаходить точний робочий кут");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("навколо маршрут підошов");
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("Деталь «");
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("Прочитати маршрут підошов.");
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("у чоботи");
