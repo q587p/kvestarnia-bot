@@ -364,6 +364,14 @@ describe("adventure resolution content", () => {
     }
   });
 
+  it("keeps sentence starts capitalized in runtime quest copy", () => {
+    const lowercaseAfterSentenceBreak = /[.!?]\s+\p{Ll}/u;
+
+    for (const copy of collectRuntimeQuestCopy()) {
+      expect(copy.match(lowercaseAfterSentenceBreak), copy).toBeNull();
+    }
+  });
+
   it("keeps full method labels out of resolved outcome bodies", () => {
     const problemIds = [
       ...getGeneralAdventureResolutionProblemIds(),
@@ -720,6 +728,54 @@ const bard = {
 
 function normalize(label: string): string {
   return label.replace(/^[^\p{L}\p{N}]+/u, "").trim().toLocaleLowerCase("uk-UA");
+}
+
+function collectRuntimeQuestCopy(): string[] {
+  const adventureProblemIds = [
+    ...ADVENTURE_PROBLEM_IDS,
+    "race-human-ish-survey",
+    "race-human-ish-mug",
+    "race-human-ish-portrait",
+    "class-bard-manual",
+    "class-bard-uniform",
+    "class-bard-exam",
+    `title-${slugTitle(getKnownComboTitleValues()[0] ?? "Архівний Дух")}`
+  ];
+  const adventureCopy = adventureProblemIds.map((problemId) => {
+    const scene = buildAdventureResolutionScene({
+      problemId,
+      title: problemId,
+      character: bard
+    });
+
+    return [
+      scene.sceneTitle,
+      scene.sceneObject ?? "",
+      scene.sceneObjectGenitive ?? "",
+      ...scene.methods.flatMap((method) => [
+        method.label,
+        method.buttonLabel ?? "",
+        method.hint,
+        ...Object.values(method.outcomeText).flatMap((outcome) => [outcome.headline, ...outcome.body])
+      ])
+    ].join("\n");
+  });
+  const starterCopy = (["shawarma", "cellar-mouse"] as const).map((sceneId) => {
+    const scene = buildStarterQuestResolutionScene(sceneId, bard);
+
+    return [
+      scene.sceneTitle,
+      scene.sceneObject ?? "",
+      ...scene.methods.flatMap((method) => [
+        method.label,
+        method.buttonLabel ?? "",
+        method.hint,
+        ...Object.values(method.outcomeText).flatMap((outcome) => [outcome.headline, ...outcome.body])
+      ])
+    ].join("\n");
+  });
+
+  return [...adventureCopy, ...starterCopy];
 }
 
 function activeOutcomeBody(method: {
