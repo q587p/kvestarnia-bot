@@ -8,7 +8,7 @@ import type {
   CooldownRepository,
   SetCooldownAvailableAtResult
 } from "./cooldownRepository";
-import type { ItemGrant } from "./dailyActionRepository";
+import type { HpLossAudit, ItemGrant } from "./dailyActionRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 
@@ -53,8 +53,9 @@ export class PrismaCooldownRepository implements CooldownRepository {
     telegramUserId: bigint,
     input: ClaimCooldownRewardInput
   ): Promise<ClaimCooldownRewardResult | null> {
-    try {
-      return await this.prisma.$transaction(async (tx) => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
         const character = await tx.character.findFirst({
           where: {
             user: {
@@ -87,6 +88,32 @@ export class PrismaCooldownRepository implements CooldownRepository {
           };
         }
 
+        const spentGold = normalizeSpentGold(input.spentGold);
+
+        if (spentGold > 0) {
+          const debit = await tx.character.updateMany({
+            where: {
+              id: character.id,
+              gold: {
+                gte: spentGold
+              }
+            },
+            data: {
+              gold: {
+                decrement: spentGold
+              }
+            }
+          });
+
+          if (debit.count !== 1) {
+            return {
+              state: "insufficient-gold",
+              character: toCharacterRecord(character),
+              requiredGold: spentGold
+            };
+          }
+        }
+
         if (existing) {
           const updated = await tx.characterCooldown.updateMany({
             where: {
@@ -101,17 +128,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
           });
 
           if (updated.count === 0) {
-            const refreshed = await tx.characterCooldown.findUniqueOrThrow({
-              where: {
-                id: existing.id
-              }
-            });
-
-            return {
-              state: "on-cooldown",
-              cooldown: refreshed,
-              character: toCharacterRecord(character)
-            };
+            throw new CooldownClaimLostRaceError();
           }
 
           const cooldown = await tx.characterCooldown.findUniqueOrThrow({
@@ -132,14 +149,25 @@ export class PrismaCooldownRepository implements CooldownRepository {
         });
 
         return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
-      });
-    } catch (error) {
-      if (isUniqueConstraintError(error)) {
-        return this.findCurrentCooldown(telegramUserId, input);
-      }
+        });
+      } catch (error) {
+        if (error instanceof HpMutationConflictError && attempt < 2) {
+          continue;
+        }
 
-      throw error;
+        if (isUniqueConstraintError(error)) {
+          return this.findCurrentCooldown(telegramUserId, input);
+        }
+
+        if (error instanceof CooldownClaimLostRaceError) {
+          return this.findCurrentCooldown(telegramUserId, input);
+        }
+
+        throw error;
+      }
     }
+
+    throw new HpMutationConflictError();
   }
 
   async setAvailableAtForTelegramUser(
@@ -198,19 +226,54 @@ export class PrismaCooldownRepository implements CooldownRepository {
     cooldown: CharacterCooldownRecord,
     input: ClaimCooldownRewardInput
   ): Promise<Extract<ClaimCooldownRewardResult, { state: "completed" }>> {
-    const rewardedCharacter = await tx.character.update({
+    const resourceCharacter = await tx.character.findUniqueOrThrow({
       where: {
         id: character.id
-      },
-      data: {
-        xp: {
-          increment: input.rewardXp
-        },
-        gold: {
-          increment: input.rewardGold
-        }
       }
     });
+    const hpLoss = buildHpLossAudit(resourceCharacter.hpCurrent, input.hpLoss);
+    const rewardUpdate = {
+      xp: {
+        increment: input.rewardXp
+      },
+      gold: {
+        increment: input.rewardGold
+      },
+      ...(hpLoss
+        ? {
+            hpCurrent: hpLoss.after,
+            hpRegenAt: new Date()
+          }
+        : {})
+    };
+    let rewardedCharacter: Character;
+
+    if (hpLoss) {
+      const updated = await tx.character.updateMany({
+        where: {
+          id: character.id,
+          hpCurrent: hpLoss.before
+        },
+        data: rewardUpdate
+      });
+
+      if (updated.count !== 1) {
+        throw new HpMutationConflictError();
+      }
+
+      rewardedCharacter = await tx.character.findUniqueOrThrow({
+        where: {
+          id: character.id
+        }
+      });
+    } else {
+      rewardedCharacter = await tx.character.update({
+        where: {
+          id: character.id
+        },
+        data: rewardUpdate
+      });
+    }
     const remortCount = await countCharacterRemorts(tx, character.id);
     const rewardProgress = applyXpReward(character.xp, input.rewardXp, { remortCount });
     const oldLevel = Math.max(character.level, rewardProgress.oldLevel);
@@ -230,10 +293,18 @@ export class PrismaCooldownRepository implements CooldownRepository {
     const itemGrants = input.itemGrants ?? [];
 
     const appliedItemGrants = await grantItems(tx, character.id, itemGrants);
+    const persistedCooldown = await tx.characterCooldown.update({
+      where: {
+        id: cooldown.id
+      },
+      data: {
+        resultJson: withCooldownResultAudit(input.resultJson, hpLoss, appliedItemGrants) as Prisma.InputJsonValue
+      }
+    });
 
     return {
       state: "completed",
-      cooldown,
+      cooldown: persistedCooldown,
       character: {
         ...updatedCharacter,
         remortCount
@@ -243,7 +314,8 @@ export class PrismaCooldownRepository implements CooldownRepository {
         newLevel,
         leveledUp: newLevel > oldLevel
       },
-      itemGrants: appliedItemGrants
+      itemGrants: appliedItemGrants,
+      hpLoss
     };
   }
 
@@ -378,4 +450,79 @@ async function getGrantQuantity(
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function normalizeSpentGold(value: number | undefined): number {
+  return Math.max(0, Math.floor(value ?? 0));
+}
+
+function normalizeHpLoss(value: ClaimCooldownRewardInput["hpLoss"]): { requested: number; effectiveHpMax: number | null } {
+  if (typeof value === "number") {
+    return {
+      requested: Math.max(0, Math.floor(value)),
+      effectiveHpMax: null
+    };
+  }
+
+  if (!value) {
+    return {
+      requested: 0,
+      effectiveHpMax: null
+    };
+  }
+
+  return {
+    requested: Math.max(0, Math.floor(value.requested)),
+    effectiveHpMax: Math.max(1, Math.floor(value.effectiveHpMax))
+  };
+}
+
+function buildHpLossAudit(
+  hpCurrent: number,
+  requestedLoss: ClaimCooldownRewardInput["hpLoss"]
+): HpLossAudit | null {
+  const { requested, effectiveHpMax } = normalizeHpLoss(requestedLoss);
+
+  if (requested <= 0) {
+    return null;
+  }
+
+  const before = Math.max(0, Math.floor(hpCurrent));
+  const lost = Math.min(requested, Math.max(0, before - 1));
+
+  return {
+    before,
+    max: Math.max(before, effectiveHpMax ?? before),
+    lost,
+    after: before - lost
+  };
+}
+
+function withCooldownResultAudit(
+  resultJson: unknown,
+  hpLoss: HpLossAudit | null,
+  appliedItemGrants: ItemGrant[]
+): unknown {
+  const base =
+    resultJson && typeof resultJson === "object" && !Array.isArray(resultJson)
+      ? { ...resultJson }
+      : {};
+
+  return {
+    ...base,
+    hp: hpLoss,
+    appliedItemGrants
+  };
+}
+
+class CooldownClaimLostRaceError extends Error {
+  constructor() {
+    super("Cooldown claim lost an optimistic race after guarded debit.");
+  }
+}
+
+class HpMutationConflictError extends Error {
+  constructor() {
+    super("Cooldown HP mutation lost an optimistic race.");
+  }
 }

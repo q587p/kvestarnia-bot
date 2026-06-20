@@ -104,7 +104,7 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     description: "допомога"
   },
   {
-    commands: ["dev_reset_me", "dev_adventure_reset", "dev_raid_stop"],
+    commands: ["dev_help", "dev_reset_me", "dev_adventure_reset", "dev_raid_stop"],
     icon: "🧪",
     description: "локальні скидання для тестів",
     devOnly: "reset"
@@ -112,7 +112,7 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
   {
     commands: ["dev_add_level"],
     icon: "🪜",
-    description: "додати рівень локально",
+    description: "додати рівні локально",
     devOnly: "grant"
   },
   {
@@ -169,6 +169,25 @@ export function presentHelp(visibility: boolean | HelpVisibility): string {
   );
 
   return lines.join("\n");
+}
+
+export function presentDevHelp(visibility: boolean | HelpVisibility): string {
+  const normalized = normalizeHelpVisibility(visibility);
+  const devCommands = getHelpCommandEntries(normalized)
+    .filter((entry) => entry.devOnly)
+    .map((entry) => `${entry.icon} /${entry.command} — ${entry.description}`);
+
+  if (devCommands.length === 0) {
+    return "Dev-команди тут не ввімкнені. Корчмар сховав викрутку.";
+  }
+
+  return [
+    "🧰 Dev-довідка Квестарні",
+    "",
+    ...devCommands,
+    "",
+    "Команди працюють тільки у локальній майстерні."
+  ].join("\n");
 }
 
 function presentHelpCommandGroup(group: HelpCommandGroup): string {

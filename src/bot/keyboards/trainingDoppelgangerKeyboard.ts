@@ -19,7 +19,7 @@ export function buildTrainingDoppelgangerStartKeyboard(
     keyboard.text(choice.buttonLabel, makeTrainingDoppelgangerModeCallbackData(choice.mode)).row();
   }
 
-  return keyboard.text("🥊 До кутка", makePlaceCallbackData("fighting-corner"));
+  return keyboard.text("↩️ Повернутися до кутка", makePlaceCallbackData("fighting-corner"));
 }
 
 export function buildTrainingDoppelgangerKeyboard(
@@ -48,5 +48,8 @@ export function buildTrainingDoppelgangerKeyboard(
     );
   }
 
-  return new InlineKeyboard().text("🥊 До кутка", makePlaceCallbackData("fighting-corner"));
+  return new InlineKeyboard().text(
+    "↩️ Повернутися до кутка",
+    makePlaceCallbackData("fighting-corner")
+  );
 }

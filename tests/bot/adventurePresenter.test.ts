@@ -8,11 +8,13 @@ import {
 } from "../../src/bot/presenters/adventurePresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import {
+  buildAdventureMethodOptions,
   buildApproachOptions,
   type AdventureChoice,
   type AdventureProblemResult,
   type AdventureResult
 } from "../../src/services/adventureService";
+import { buildAdventureResolutionScene } from "../../src/content/adventureResolutionContent";
 
 const character: CharacterSummary = {
   name: "Мандрівник",
@@ -88,7 +90,7 @@ describe("adventure presenter", () => {
     expect(text).toContain("<i>Кухар &amp; свідок</i>\n\n2. 🛢️ <b>Бочка</b>");
   });
 
-  it("presents selected problem without approach reward or risk spoilers", () => {
+  it("presents selected problem without reward or exact odds spoilers", () => {
     const result: Extract<AdventureProblemResult, { state: "selected" }> = {
       state: "selected",
       character,
@@ -126,10 +128,11 @@ describe("adventure presenter", () => {
     const text = presentAdventureProblem(result);
 
     expect(text).toContain("Казанок &lt;репетирує&gt;");
+    expect(text).toContain("Можливі способи:\n\n🛡️ Обережно");
     expect(text).toContain("Метод оберіть самі.");
-    expect(text).not.toContain("Майже без драматичних зубів.");
+    expect(text).toContain("🛡️ Обережно");
+    expect(text).toContain("Майже без драматичних зубів.");
     expect(text).not.toContain("🧠 Хитро — Середній ризик.");
-    expect(text).not.toContain("Проблема може образитись.");
     expect(text).not.toContain("+4 XP");
     expect(text).not.toContain("+10 XP");
     expect(text).not.toContain("ризик 13%");
@@ -161,23 +164,139 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("— Більша винагорода");
   });
 
+  it("separates authored methods and hides internal method source labels", () => {
+    const bard = {
+      ...character,
+      raceId: "race.dryland-rusalka",
+      raceName: "Русалка сухопутна",
+      classId: "class.bard",
+      className: "Бард",
+      title: "Співачка Без Моря"
+    };
+    const uniformChoice = {
+      id: "class-bard-uniform",
+      title: "Форма для «Барда» не влазить у клітинку",
+      hook: "У бланку професій для «Барда» лишилася надто мала клітинка.",
+      client: "Клітинка"
+    };
+    const result: Extract<AdventureProblemResult, { state: "selected" }> = {
+      state: "selected",
+      character: bard,
+      offer: {
+        localDate: "2026-06-12",
+        periodToken: "period93",
+        expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+        choices: [uniformChoice]
+      },
+      choice: uniformChoice,
+      approaches: buildAdventureMethodOptions(uniformChoice, bard)
+    };
+
+    const text = presentAdventureProblem(result);
+
+    expect(text).toContain("Підсунути запасне поле");
+    expect(text).toContain("Домовитися з канцелярським краєм");
+    expect(text).not.toContain("Підняти сухий приплив для");
+    expect(text).not.toContain("Переспівати ритм");
+    expect(text).not.toContain("«Співачка Без Моря» поєднує");
+    expect(text).not.toContain("Особистий варіант.");
+    expect(text).not.toContain("Професійний варіант.");
+    expect(text).not.toContain("Особистий ризикований варіант.");
+    expect(text).not.toContain("Особистий підхід героя.");
+    expect(text).not.toContain("Професійний підхід героя.");
+    expect(text).not.toContain("Надійне розслідування. Майже надійно.");
+    expect(text).not.toContain("Надійне розслідування. майже надійно.");
+    expect(text).not.toContain("Расовий спосіб");
+    expect(text).not.toContain("Класова техніка");
+    expect(text).not.toContain("race+class");
+    expect(text).not.toContain("точну біографію");
+    expect(text).not.toContain(": форму");
+    expect(text).toContain("</i>\n\n");
+    expect(text.match(/<i>/gu)?.length ?? 0).toBeGreaterThanOrEqual(5);
+  });
+
   it("shows non-complicated reward without level-up text", () => {
     const text = presentAdventureResult(completed(false));
 
     expect(text).toContain("✅ Справу закрито");
-    expect(text).toContain("<b>+7 XP\n+4 золота</b>");
+    expect(text).toContain("Винагорода за справу:");
+    expect(text).toContain("\n\nВинагорода за справу:\n<b>+7 XP\n+4 золота</b>");
+    expect(text.indexOf("Казанок &lt;репетирує&gt;")).toBeLessThan(text.indexOf("<i>Метод:</i> 🧠 Хитро"));
+    expect(text.indexOf("<i>Метод:</i> 🧠 Хитро")).toBeLessThan(text.indexOf("без заперечень."));
+    expect(text).not.toContain("Підпис методу");
+    expect(text).not.toContain("race+class");
     expect(text).not.toContain("Рівень підріс");
+  });
+
+  it("keeps generated strong-success scene outcomes neutral for plural titles", () => {
+    const scene = buildAdventureResolutionScene({
+      problemId: "boots",
+      title: "Чоботи пішли без власника",
+      character
+    });
+    const method = scene.methods.find((candidate) => candidate.id === "track-soles");
+
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("«Маршрут підошов»");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("знаходить точний робочий кут");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("навколо маршрут підошов");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("Деталь «");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("Прочитати маршрут підошов.");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("у чоботи");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("перестає сперечатися");
   });
 
   it("shows complication-to-fight copy without granting reward", () => {
     const text = presentAdventureResult(completed(true));
 
     expect(text).toContain("Справа вкусила у відповідь");
-    expect(text).toContain("метод <i>🧠 Хитро</i>");
+    expect(text).toContain("<i>Метод:</i> 🧠 Хитро");
     expect(text).not.toContain("метод «");
+    expect(text).not.toContain("Винагорода за справу:");
     expect(text).toContain("Нагорода не видана");
-    expect(text).toContain("без заперечень.\n\nНагорода не видана");
+    expect(text).toContain("без заперечень.");
     expect(text).not.toContain("+7 XP");
+  });
+
+  it("shows bounded HP loss only when a quest injury happened", () => {
+    const result = {
+      ...completed(false),
+      character: {
+        ...character,
+        hpCurrent: 17
+      },
+      hpLoss: {
+        before: 20,
+        max: 28,
+        lost: 3,
+        after: 17
+      }
+    };
+    const text = presentAdventureResult(result);
+
+    expect(text).toContain("Втрачено здоров’я: 3");
+    expect(text).toContain("Здоров’я: 17/28");
+  });
+
+  it("uses the returned character summary for the current HP line after injury", () => {
+    const result = {
+      ...completed(false),
+      character: {
+        ...character,
+        hpCurrent: 17,
+        hpMax: 32
+      },
+      hpLoss: {
+        before: 20,
+        max: 28,
+        lost: 3,
+        after: 17
+      }
+    };
+    const text = presentAdventureResult(result);
+
+    expect(text).toContain("Втрачено здоров’я: 3");
+    expect(text).toContain("Здоров’я: 17/32");
+    expect(text).not.toContain("Здоров’я: 17/28");
   });
 
   it("does not imply duplicate rewards for already-completed adventure", () => {
@@ -207,10 +326,39 @@ function completed(complication: boolean): Extract<AdventureResult, { state: "co
       id: "flair",
       label: "🧠 Хитро",
       hint: "Середній ризик.",
+      chanceHint: "непевно",
       reward: { xp: 7, gold: 4 },
-      complicationChance: 23
+      source: "scene",
+      primaryStat: "charisma",
+      consequenceByGrade: {
+        "strong-success": "full-reward",
+        success: "full-reward",
+        "mixed-success": "reduced-reward",
+        complication: complication ? "fight-handoff" : "cosmetic-mess"
+      }
     },
+    grade: complication ? "complication" : "success",
+    consequence: complication ? "fight-handoff" : "full-reward",
+    outcome: {
+      headline: complication ? "⚠️ Справа вкусила у відповідь" : "✅ Справу закрито",
+      body: [
+        choice.title,
+        "",
+        complication
+          ? "Сцена не прийняла метод без заперечень."
+          : "Сцена погодилась бути вирішеною без заперечень."
+      ]
+    },
+    spentGold: 0,
+    hpLoss: null,
+    fightHandoff: complication,
+    fightEncounter: complication ? { monsterId: "monster.borshch-slime" } : null,
     complication,
+    check: {
+      chance: 55,
+      roll: complication ? 99 : 12,
+      grade: complication ? "complication" : "success"
+    },
     reward: {
       xp: complication ? 0 : 7,
       gold: complication ? 0 : 4,

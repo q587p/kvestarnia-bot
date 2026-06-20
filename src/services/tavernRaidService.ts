@@ -307,6 +307,10 @@ export class TavernRaidService {
       return { state: "no-character" };
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Friday barrel daily claim unexpectedly required gold.");
+    }
+
     if (claim.state === "existing") {
       return {
         state: "already-completed",
@@ -412,6 +416,10 @@ export class TavernRaidService {
         now,
         periodId: period.id
       };
+    }
+
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Friday Barrel raid pending claim does not spend gold.");
     }
 
     return {

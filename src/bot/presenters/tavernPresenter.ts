@@ -22,8 +22,12 @@ import {
 } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
+import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 
-export function presentKorchmaFront(character: CharacterSummary): string {
+export function presentKorchmaFront(
+  character: CharacterSummary,
+  options: { munchkinLocation?: MunchkinLocation } = {}
+): string {
   return [
     "🚪 Перед корчмою",
     presentCharacterHeader(character),
@@ -33,8 +37,7 @@ export function presentKorchmaFront(character: CharacterSummary): string {
     "Зліва від дверей висить <i>табличка прибулих</i>: хто вже проходив повз і не був стертий дощем.",
     "",
     "Справа від дверей висить <i>пропамʼятна дошка</i>. Вона міряє рівні, але робить вигляд, що це історія.",
-    "",
-    "Трохи збоку стоїть <i>Манчкін-скупник</i>. Він каже, що манатки, золото й рівні мають домовлятися без зайвої моралі.",
+    ...presentFrontMunchkinLines(options.munchkinLocation ?? "front"),
     "",
     "Натисніть «🚪 Зайти в корчму» або відкрийте двері через /tavern."
   ].join("\n");
@@ -116,13 +119,53 @@ export function presentKorchmaFightingCorner(character: CharacterSummary): strin
   ].join("\n");
 }
 
-export function presentKorchmaDeepClosed(character: CharacterSummary): string {
+export function presentKorchmaFightingCornerLevelLocked(
+  character: CharacterSummary,
+  requiredLevel = 3
+): string {
+  return [
+    `🥊 Бійцівський куток відкриється з ${requiredLevel} рівня`,
+    presentCharacterHeader(character),
+    "",
+    "Куток поки вдає, що це просто дуже підозрілий закуток. Корчмар радить спершу закрити кілька справ і не сваритися з рукавицями.",
+    "",
+    "Поверніться до зали або до Столу зі справами."
+  ].join("\n");
+}
+
+export function presentKorchmaDeepClosed(
+  character: CharacterSummary,
+  options: { munchkinLocation?: MunchkinLocation } = {}
+): string {
   return [
     "🪜 Спуск до Низу",
     presentCharacterHeader(character),
     "",
-    "За бочками в коморі є сходи. Перші тринадцять сходинок ще пахнуть пивом і мишами. Далі — гарячим каменем, старою кров’ю і чимось, що не мало б дихати."
+    "За бочками в коморі є сходи. Перші тринадцять сходинок ще пахнуть пивом і мишами. Далі — гарячим каменем, старою кров’ю і чимось, що не мало б дихати.",
+    ...presentDeepMunchkinLines(options.munchkinLocation ?? "front")
   ].join("\n");
+}
+
+function presentFrontMunchkinLines(location: MunchkinLocation): string[] {
+  if (location !== "front") {
+    return [];
+  }
+
+  return [
+    "",
+    "Трохи збоку стоїть <i>Манчкін-скупник</i>. Він каже, що манатки, золото й рівні мають домовлятися без зайвої моралі."
+  ];
+}
+
+function presentDeepMunchkinLines(location: MunchkinLocation): string[] {
+  if (location !== "nyz-descent") {
+    return [];
+  }
+
+  return [
+    "",
+    "Біля перил причаївся <i>Манчкін-скупник</i>. Уночі він каже, що рівні краще купувати ближче до небезпеки: так чесніше звучить."
+  ];
 }
 
 export function presentKorchmaDeepLevelLocked(

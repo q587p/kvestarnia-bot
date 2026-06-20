@@ -4,6 +4,7 @@ import type {
   LevelBarterPresentedOffer,
   LevelBarterPreviewResult
 } from "../../services/levelBarterService";
+import { LEVEL_BARTER_MIN_ITEM_VALUE_GOLD } from "../../domain/levelBarter";
 import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
 
 export function presentLevelBarterOffer(result: LevelBarterOfferResult): string {
@@ -23,7 +24,7 @@ export function presentLevelBarterOffer(result: LevelBarterOfferResult): string 
     "",
     npcQuote(
       "Манчкін",
-      "Мені треба манатки, золото й переконлива відсутність свідків. Назбираєш на 1000 золота — підтягну тобі рівень. До тринадцятого не лізу: там уже тільки бій, піт і дуже підозріла статистика."
+      `Мені треба манатки, золото й переконлива відсутність свідків. Манаток має бути щонайменше на ${LEVEL_BARTER_MIN_ITEM_VALUE_GOLD} золота, решту гаманець може добити. До тринадцятого не лізу: там уже тільки бій, піт і дуже підозріла статистика.`
     ),
     "",
     presentLevelBarterTotals({
@@ -159,7 +160,17 @@ function presentLevelBarterInsufficientReason(input: {
   if (input.eligibleTotalValue <= 0 && input.gold >= input.cost) {
     return npcQuote(
       "Манчкін",
-      "Гаманець гарний, але мені треба хоча б одна оцінена манатка. Рівень без предметного сорому не рахується."
+      `Гаманець гарний, але мені треба манаток щонайменше на ${LEVEL_BARTER_MIN_ITEM_VALUE_GOLD} золота. Рівень без предметного сорому не рахується.`
+    );
+  }
+
+  if (
+    input.eligibleTotalValue < LEVEL_BARTER_MIN_ITEM_VALUE_GOLD &&
+    input.eligibleTotalValue + input.gold >= input.cost
+  ) {
+    return npcQuote(
+      "Манчкін",
+      `Золото допоможе, але не везтиме всю виставу. Манаток має бути щонайменше на ${LEVEL_BARTER_MIN_ITEM_VALUE_GOLD} золота, тоді вже домовимось про решту.`
     );
   }
 
@@ -174,6 +185,7 @@ function presentLevelBarterTotals(input: {
 }): string {
   return [
     `Манаток, які можна віддати: <b>${input.eligibleTotalValue}</b> / ${input.cost} золота.`,
+    `Мінімум манатками: <b>${LEVEL_BARTER_MIN_ITEM_VALUE_GOLD}</b> золота.`,
     `👛 У гаманці: <b>${input.gold}</b> золота.`,
     `Разом для манчкінської математики: <b>${input.combinedValue}</b> / ${input.cost}.`
   ].join("\n");

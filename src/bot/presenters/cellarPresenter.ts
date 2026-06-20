@@ -248,17 +248,65 @@ export function presentCellarResult(
     return presentCellarCooldown(result);
   }
 
+  if (result.state === "insufficient-gold") {
+    return [
+      "🪙 Миша відкрила сирний фонд.",
+      "",
+      `Потрібно ${result.requiredGold} золота. У вас — ${result.character.gold}.`,
+      "",
+      "Льохову справу не зараховано, паузу не запущено, золото не списано.",
+      "",
+      npcQuote("Миша", "Фонд — це серйозно. Особливо коли фонд мій.")
+    ].join("\n");
+  }
+
+  if (result.state === "stale") {
+    return [
+      "🐭 Кнопка застаріла.",
+      "",
+      "Миша не впізнала цей спосіб у поточній льоховій справі. Відкрийте льох ще раз, щоб побачити чинні варіанти."
+    ].join("\n");
+  }
+
+  const outcome = result.outcome ?? {
+    headline: presentCellarOutcome(result.action, result.character)[0] ?? "✅ Льохову справу закрито",
+    body: [presentCellarOutcome(result.action, result.character)[2] ?? "Миша зробила вигляд, що так і планувала."]
+  };
+  const methodLabel = result.method?.label ?? result.action;
+  const spentGold = result.spentGold ?? 0;
   const lines = [
-    ...presentCellarOutcome(result.action, result.character),
-    ...presentCharacterFlavor(result.character, "quest.outcome", "cellar", result.action),
+    escapeHtml(outcome.headline),
     "",
-    presentRewardAmount(result.reward),
+    ...outcome.body.map(escapeHtml),
+    "",
+    `<i>Метод:</i> ${escapeHtml(methodLabel)}`,
+    ...(spentGold > 0 ? [`Списано: ${spentGold} золота.`] : []),
+    ...presentHpLossLines(result.hpLoss, result.character),
+    "",
+    presentRewardAmount({ ...result.reward, label: "Винагорода за справу" }),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 
   lines.push("", `Льох знову чекатиме за ${formatCooldown(result.availableAt, result.now)}.`);
 
   return lines.join("\n");
+}
+
+function presentHpLossLines(
+  hpLoss: { lost: number; after: number; before: number; max: number } | null | undefined,
+  character?: Pick<CharacterSummary, "hpCurrent" | "hpMax">
+): string[] {
+  if (!hpLoss || hpLoss.lost <= 0) {
+    return [];
+  }
+
+  const currentHp = character?.hpCurrent ?? hpLoss.after;
+  const currentHpMax = character?.hpMax ?? hpLoss.max;
+
+  return [
+    `Втрачено здоров’я: ${hpLoss.lost}`,
+    `Здоров’я: ${currentHp}/${currentHpMax}`
+  ];
 }
 
 function presentCharacterFlavor(
@@ -613,7 +661,7 @@ const contextualCellarOutcomeGroups: readonly CellarContextualOutcomeGroup[] = [
       {
         title: "🤝 Бард узяв переговори в тональність сиру.",
         description: "Миша вислухала куплет, заборонила приспів і погодилась на мир за роялті крихтами.",
-        quote: "Рима «миша — тиша» приймається тільки один раз за cooldown."
+        quote: "Рима «миша — тиша» приймається тільки один раз за мишачу паузу."
       },
       {
         title: "🤝 Дипломатія отримала акомпанемент.",
@@ -752,7 +800,11 @@ function selectCellarOutcomeVariant(
   const contextualGroup = contextualCellarOutcomeGroups.find((group) =>
     matchesContextualOutcomeGroup(group, action, character)
   );
-  const variants = contextualGroup?.variants ?? cellarOutcomeVariants[action];
+  const variants =
+    contextualGroup?.variants ??
+    cellarOutcomeVariants[action] ??
+    cellarOutcomeVariants.negotiate ??
+    [];
 
   return selectStableVariant(
     variants,

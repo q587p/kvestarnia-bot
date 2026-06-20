@@ -196,6 +196,10 @@ export class HuntService {
       return { state: "no-character" };
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Hunt board daily claim unexpectedly required gold.");
+    }
+
     if (claim.state === "existing") {
       return {
         state: "already-completed",

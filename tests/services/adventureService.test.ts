@@ -11,25 +11,37 @@ import type {
 import type {
   ClaimDailyActionInput,
   ClaimDailyActionResult,
+  DailyActionClaimIdentity,
+  DailyActionRollbackInput,
   DailyActionRecord,
   DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
+import type {
+  CharacterEquipmentRecord,
+  CharacterEquipmentSnapshot,
+  EquipmentRepository
+} from "../../src/db/repositories/equipmentRepository";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
+import { buildStarterLevelTwoXpReward } from "../../src/domain/progression/starterRewards";
 import {
   ADVENTURE_CHOICE_KEY,
   ADVENTURE_CHOICE_REROLL_KEY,
   ADVENTURE_PROBLEM_IDS,
   AdventureService,
   MIMIC_SHAWARMA_ADVENTURE_KEY,
-  buildApproachOptions,
   buildAdventureOffer,
+  buildAdventureMethodOptions,
   buildAdventurePeriod,
+  buildStarterMethodOptions,
   getAdventureProblemPoolForProfile,
   getAdventureProblemIcon,
-  type AdventureApproach
+  type AdventureResult
 } from "../../src/services/adventureService";
+import { buildAdventureResolutionScene } from "../../src/content/adventureResolutionContent";
+import { buildStarterQuestResolutionScene } from "../../src/content/starterQuestResolutionContent";
+import { monsters } from "../../src/content/monsters";
 
 const telegramUserId = 42n;
 
@@ -44,7 +56,7 @@ describe("AdventureService", () => {
       service.completeAdventureApproach(telegramUserId, {
         periodToken: "20260612",
         problemId: "stew",
-        approach: "safe"
+        methodId: "lower-fire"
       })
     ).resolves.toEqual({
       state: "no-character"
@@ -139,7 +151,7 @@ describe("AdventureService", () => {
     expect(dwarfMug?.title).toBe("Кухоль для «Гнома» не проходить інструктаж");
   });
 
-  it("selects a problem and exposes safe, flavored, and risky approaches", async () => {
+  it("selects a problem and exposes authored, character-aware methods", async () => {
     const { service, characters } = setup();
     characters.add(telegramUserId, { xp: 25, classId: "class.bureaucramancer" });
     const offer = await readyOffer(service);
@@ -150,47 +162,155 @@ describe("AdventureService", () => {
 
     expect(result.state).toBe("selected");
     if (result.state === "selected") {
-      expect(result.approaches.map((approach) => approach.id)).toEqual([
-        "safe",
-        "flair",
-        "risky"
-      ]);
-      expect(result.approaches[0].reward.xp).toBeLessThan(result.approaches[1].reward.xp);
-      expect(result.approaches[1].reward.xp).toBeLessThan(result.approaches[2].reward.xp);
-      expect(result.approaches[0].complicationChance).toBeLessThan(
-        result.approaches[2].complicationChance
+      expect(result.approaches.length).toBeGreaterThanOrEqual(3);
+      expect(new Set(result.approaches.map((approach) => approach.id)).size).toBe(
+        result.approaches.length
       );
-      expect(result.approaches[1].label).toContain("23-Б");
+      expect(result.approaches.some((approach) => approach.source === "scene")).toBe(true);
+      expect(result.approaches.some((approach) => approach.source === "class")).toBe(true);
+      expect(result.approaches.every((approach) => !/%|\d{2,}/u.test(approach.chanceHint))).toBe(true);
     }
   });
 
-  it("claims one non-complicated reward through the daily action path", async () => {
-    const found = await findResolvedAdventure("flair", false);
+  it("claims one non-fight reward through the daily action path", async () => {
+    const found = await findResolvedAdventure((result) => !result.fightHandoff);
 
     expect(found.result.state).toBe("completed");
     if (found.result.state === "completed") {
-      expect(found.result.reward).toMatchObject({
-        xp: 7,
-        gold: 4,
-        localDate: buildAdventurePeriod(fixedClock()).storageKey
-      });
-      expect(found.result.complication).toBe(false);
+      expect(found.result.reward.localDate).toBe(buildAdventurePeriod(fixedClock()).storageKey);
+      expect(found.result.reward.xp).toBeGreaterThan(0);
+      expect(found.result.reward.xp).toBeLessThanOrEqual(found.result.approach.reward.xp + 2);
+      expect(found.result.reward.gold).toBeGreaterThanOrEqual(0);
+      expect(found.result.reward.gold).toBeLessThanOrEqual(found.result.approach.reward.gold + 2);
+      expect(found.result.fightHandoff).toBe(false);
     }
     expect(found.dailyActions.createCount).toBe(1);
     expect(found.dailyActions.records[0]).toMatchObject({
       key: ADVENTURE_CHOICE_KEY,
       localDate: buildAdventurePeriod(fixedClock()).storageKey,
-      rewardXp: 7,
-      rewardGold: 4
+      rewardXp: found.result.state === "completed" ? found.result.reward.xp : -1,
+      rewardGold: found.result.state === "completed" ? found.result.reward.gold : -1
+    });
+    expect(found.dailyActions.records[0]?.resultJson).toMatchObject({
+      version: 1,
+      sceneId: found.input.problemId,
+      methodId: found.result.state === "completed" ? found.result.approach.id : ""
     });
   });
 
-  it("records a complication as the daily claim without granting reward", async () => {
-    const found = await findResolvedAdventure("risky", true);
+  it("stores deterministic post-resolution reward variance", async () => {
+    const found = await findResolvedAdventure(
+      (result) =>
+        !result.fightHandoff &&
+        result.consequence === "full-reward" &&
+        (result.reward.xp !== result.approach.reward.xp ||
+          result.reward.gold !== result.approach.reward.gold)
+    );
+    const repeatedSetup = setup();
+    repeatedSetup.characters.add(found.userId, { xp: 25, gold: 10 });
+    const repeated = await repeatedSetup.service.completeAdventureApproach(found.userId, found.input);
+
+    expect(repeated.state).toBe("completed");
+    if (repeated.state === "completed" && found.result.state === "completed") {
+      expect(repeated.reward).toEqual(found.result.reward);
+    }
+  });
+
+  it("does not return gold from paid authored methods", async () => {
+    const found = await findResolvedAdventure(
+      (result) => !result.fightHandoff && result.spentGold > 0 && result.reward.xp > 0
+    );
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state === "completed") {
+      expect(found.result.spentGold).toBeGreaterThan(0);
+      expect(found.result.approach.reward.gold).toBe(0);
+      expect(found.result.reward.gold).toBe(0);
+      expect(found.dailyActions.records[0]).toMatchObject({
+        spentGold: found.result.spentGold,
+        rewardGold: 0
+      });
+    }
+  });
+
+  it("can grant a low-chance authored quest mantok through the daily claim", async () => {
+    const found = await findResolvedAdventure(
+      (result) => !result.fightHandoff && result.reward.itemGrants.length > 0
+    );
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state === "completed") {
+      expect(found.result.reward.itemGrants).toHaveLength(1);
+      expect(found.result.reward.itemGrants[0]?.itemId).toMatch(/^item\.loot-v1-/);
+      expect(found.dailyActions.records[0]?.resultJson).toMatchObject({
+        reward: {
+          itemGrants: [
+            {
+              itemId: found.result.reward.itemGrants[0]?.itemId,
+              quantity: 1
+            }
+          ]
+        }
+      });
+    }
+  });
+
+  it("can grant a mantok from a paid authored quest without adding gold reward", async () => {
+    const found = await findResolvedAdventure(
+      (result) =>
+        !result.fightHandoff &&
+        result.spentGold > 0 &&
+        result.reward.gold === 0 &&
+        result.reward.itemGrants.length > 0
+    );
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state === "completed") {
+      expect(found.result.reward.itemGrants).toHaveLength(1);
+      expect(found.result.reward.gold).toBe(0);
+      expect(found.dailyActions.records[0]).toMatchObject({
+        rewardGold: 0
+      });
+    }
+  });
+
+  it("uses equipped item effects in the actual quest check snapshot", async () => {
+    const equipment = new FakeEquipmentRepository({
+      characterId: `character-${telegramUserId.toString()}`,
+      equipment: [buildEquipment({ itemId: "item.cork-ring-of-serious-business", slot: "accessory" })]
+    });
+    const { service, characters } = setup(null, equipment);
+    characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const offer = await readyOffer(service);
+    const selected = await service.selectAdventureProblem(telegramUserId, {
+      periodToken: offer.periodToken,
+      problemId: offer.choices[0].id
+    });
+
+    expect(selected.state).toBe("selected");
+    if (selected.state !== "selected") {
+      return;
+    }
+
+    const result = await service.completeAdventureApproach(telegramUserId, {
+      periodToken: offer.periodToken,
+      problemId: selected.choice.id,
+      methodId: selected.approaches[0]?.callbackKey ?? selected.approaches[0]?.id ?? ""
+    });
+
+    expect(result.state).toBe("completed");
+    if (result.state === "completed") {
+      expect(result.check.effectiveStatsSnapshot.luck).toBe(8);
+    }
+  });
+
+  it("records a fight handoff complication as the daily claim without granting reward", async () => {
+    const found = await findResolvedAdventure((result) => result.fightHandoff);
 
     expect(found.result.state).toBe("completed");
     if (found.result.state === "completed") {
       expect(found.result.complication).toBe(true);
+      expect(found.result.fightHandoff).toBe(true);
       expect(found.result.reward).toMatchObject({
         xp: 0,
         gold: 0
@@ -204,8 +324,155 @@ describe("AdventureService", () => {
     });
   });
 
+  it("rolls back a failed fight handoff through the stored claim identity", async () => {
+    const found = await findResolvedAdventure((result) => result.fightHandoff);
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state !== "completed") {
+      throw new Error("Expected completed adventure.");
+    }
+
+    await expect(
+      found.service.rollbackCurrentAdventureClaimForTelegramUser(found.userId, found.result.claim)
+    ).resolves.toBe("deleted");
+    expect(found.dailyActions.lastRollbackInput).toMatchObject(found.result.claim);
+    expect(found.dailyActions.lastRollbackInput?.currentEffectiveHpMax).toEqual(expect.any(Number));
+    expect(found.dailyActions.lastDeleteInput).toBeNull();
+    expect(found.dailyActions.records).toHaveLength(0);
+  });
+
+  it("passes the current effective HP max into rollback instead of claim-time state", async () => {
+    const equipment = new FakeEquipmentRepository({
+      characterId: `character-${telegramUserId.toString()}`,
+      equipment: [buildEquipment({ itemId: "item.apron-of-foam-resistance", slot: "armor" })]
+    });
+    const { service, characters, dailyActions } = setup(null, equipment);
+    characters.add(telegramUserId, { xp: 25, gold: 10, hpMax: 25 });
+    const offer = await readyOffer(service);
+    const selected = await service.selectAdventureProblem(telegramUserId, {
+      periodToken: offer.periodToken,
+      problemId: offer.choices[0]!.id
+    });
+
+    expect(selected.state).toBe("selected");
+    if (selected.state !== "selected") {
+      throw new Error(`Expected selected problem, got ${selected.state}.`);
+    }
+
+    const result = await service.completeAdventureApproach(telegramUserId, {
+      periodToken: offer.periodToken,
+      problemId: selected.choice.id,
+      methodId: selected.approaches[0]!.callbackKey ?? selected.approaches[0]!.id
+    });
+
+    expect(result.state).toBe("completed");
+    if (result.state !== "completed") {
+      throw new Error(`Expected completed adventure, got ${result.state}.`);
+    }
+
+    await expect(service.rollbackCurrentAdventureClaimForTelegramUser(telegramUserId, result.claim)).resolves.toBe("deleted");
+    expect(dailyActions.lastRollbackInput).toMatchObject({
+      key: result.claim.key,
+      localDate: result.claim.localDate,
+      currentEffectiveHpMax: result.character.hpMax
+    });
+    expect(dailyActions.lastRollbackInput).not.toHaveProperty("effectiveHpMax");
+  });
+
+  it("rolls back the original adventure claim identity across a 93-minute boundary", async () => {
+    let now = fixedClock();
+    const oldPeriod = buildAdventurePeriod(now);
+    const userId = 2_588n;
+    const characters = new FakeCharacterRepository();
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new AdventureService(
+      characters,
+      dailyActions,
+      () => now,
+      { findActiveByTelegramUserId: () => Promise.resolve(null) }
+    );
+    characters.add(userId, { xp: 25, gold: 10 });
+    const lookup = await service.getAdventureOfferForTelegramUser(userId);
+
+    if (lookup.state !== "ready") {
+      throw new Error(`Expected ready offer, got ${lookup.state}.`);
+    }
+
+    const selected = await service.selectAdventureProblem(userId, {
+      periodToken: lookup.offer.periodToken,
+      problemId: lookup.offer.choices[0]!.id
+    });
+
+    if (selected.state !== "selected") {
+      throw new Error(`Expected selected problem, got ${selected.state}.`);
+    }
+
+    const result = await service.completeAdventureApproach(userId, {
+      periodToken: lookup.offer.periodToken,
+      problemId: selected.choice.id,
+      methodId: selected.approaches[0]!.callbackKey ?? selected.approaches[0]!.id
+    });
+
+    expect(result.state).toBe("completed");
+    if (result.state !== "completed") {
+      throw new Error(`Expected completed adventure, got ${result.state}.`);
+    }
+
+    now = new Date(oldPeriod.expiresAt.getTime() + 1);
+
+    await expect(service.rollbackCurrentAdventureClaimForTelegramUser(userId, result.claim)).resolves.toBe("deleted");
+    expect(dailyActions.lastRollbackInput).toMatchObject({
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: oldPeriod.storageKey
+    });
+    expect(dailyActions.lastDeleteInput).toBeNull();
+    expect(dailyActions.records).toHaveLength(0);
+  });
+
+  it.each([
+    {
+      name: "level-3 barrel",
+      problemId: "barrel",
+      character: { xp: 25, level: 3 }
+    },
+    {
+      name: "level-3 bell",
+      problemId: "bell",
+      character: { xp: 25, level: 3 }
+    },
+    {
+      name: "generated portrait",
+      problemId: "race-human-ish-portrait",
+      character: { xp: 25, level: 3, raceId: "race.human-ish" }
+    },
+    {
+      name: "higher-level handoff",
+      problemId: "barrel",
+      character: { xp: 250, level: 8 }
+    }
+  ])("stores the actual eligible fight handoff target for $name", async ({ problemId, character }) => {
+    const found = await findResolvedAdventureForProblem(problemId, character, (result) => result.fightHandoff);
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state !== "completed") {
+      return;
+    }
+
+    const monsterId = found.result.fightEncounter?.monsterId;
+    const audit = found.dailyActions.records[0]?.resultJson as
+      | { fightHandoff?: { monsterId?: string } }
+      | null
+      | undefined;
+    const monster = monsters.find((candidate) => candidate.id === monsterId);
+
+    expect(monsterId).toBeDefined();
+    expect(audit?.fightHandoff?.monsterId).toBe(monsterId);
+    expect(monster?.level).toBeLessThanOrEqual(Math.max(3, character.level ?? 3));
+    expect(monster?.tags ?? []).not.toEqual(expect.arrayContaining(["starter", "boss"]));
+  });
+
   it("does not duplicate rewards when callback is replayed", async () => {
-    const found = await findResolvedAdventure("safe", false);
+    const found = await findResolvedAdventure((result) => !result.fightHandoff);
     const repeated = await found.service.completeAdventureApproach(found.userId, found.input);
 
     expect(repeated.state).toBe("already-completed");
@@ -213,7 +480,7 @@ describe("AdventureService", () => {
   });
 
   it("resets the current 93-minute adventure claim for dev testing", async () => {
-    const found = await findResolvedAdventure("safe", false);
+    const found = await findResolvedAdventure((result) => !result.fightHandoff);
     const oldOffer = found.offer;
 
     const reset = await found.service.resetCurrentPeriodForTelegramUser(found.userId);
@@ -231,10 +498,20 @@ describe("AdventureService", () => {
 
     expect(replay.state).toBe("stale");
     const nextOffer = await readyOffer(found.service, found.userId);
+    const nextSelected = await found.service.selectAdventureProblem(found.userId, {
+      periodToken: nextOffer.periodToken,
+      problemId: nextOffer.choices[0].id
+    });
+
+    expect(nextSelected.state).toBe("selected");
+    if (nextSelected.state !== "selected") {
+      throw new Error(`Expected selected next offer, got ${nextSelected.state}.`);
+    }
+
     const completed = await found.service.completeAdventureApproach(found.userId, {
       periodToken: nextOffer.periodToken,
       problemId: nextOffer.choices[0].id,
-      approach: "safe"
+      methodId: nextSelected.approaches[0].callbackKey ?? nextSelected.approaches[0].id
     });
 
     expect(completed.state).toBe("completed");
@@ -259,7 +536,41 @@ describe("AdventureService", () => {
       service.completeAdventureApproach(telegramUserId, {
         periodToken: offer.periodToken,
         problemId: staleProblem ?? "spoon",
-        approach: "safe"
+        methodId: "lower-fire"
+      })
+    ).resolves.toMatchObject({ state: "stale" });
+    expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("rejects authored methods that exist in content but were not rendered visible", async () => {
+    const { service, characters, dailyActions } = setup();
+    characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const offer = await readyOffer(service);
+    const choice = offer.choices[0];
+    const selected = await service.selectAdventureProblem(telegramUserId, {
+      periodToken: offer.periodToken,
+      problemId: choice.id
+    });
+
+    expect(selected.state).toBe("selected");
+    if (selected.state !== "selected") {
+      return;
+    }
+
+    const visible = selected.approaches.map((method) => method.id);
+    const scene = buildAdventureResolutionScene({
+      problemId: choice.id,
+      title: choice.title,
+      character: selected.character
+    });
+    const hidden = scene.methods.find((method) => !visible.includes(method.id));
+
+    expect(hidden).toBeDefined();
+    await expect(
+      service.completeAdventureApproach(telegramUserId, {
+        periodToken: offer.periodToken,
+        problemId: choice.id,
+        methodId: hidden?.id ?? "missing"
       })
     ).resolves.toMatchObject({ state: "stale" });
     expect(dailyActions.createCount).toBe(0);
@@ -277,7 +588,7 @@ describe("AdventureService", () => {
       service.completeAdventureApproach(telegramUserId, {
         periodToken: "20260612",
         problemId: "stew",
-        approach: "safe"
+        methodId: "lower-fire"
       })
     ).resolves.toMatchObject({
       state: "level-locked",
@@ -303,16 +614,33 @@ describe("AdventureService", () => {
     expect(result.state).toBe("completed");
     if (result.state === "completed") {
       expect(result.reward).toMatchObject({
-        xp: 8,
-        gold: 4,
         localDate: "2026-06-12"
       });
+      expect(result.reward.xp).toBeGreaterThan(0);
+      expect(result.reward.gold).toBeGreaterThanOrEqual(0);
     }
     expect(dailyActions.records[0]).toMatchObject({
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,
       localDate: "2026-06-12",
-      rewardXp: 8,
-      rewardGold: 4
+      rewardXp: result.state === "completed" ? result.reward.xp : -1,
+      rewardGold: result.state === "completed" ? result.reward.gold : -1
+    });
+  });
+
+  it("scales starter shawarma XP to most of the level-two gap after remort", async () => {
+    const { service, characters } = setup();
+    characters.add(telegramUserId, { level: 1, xp: 0, remortCount: 1 });
+
+    const result = await service.completeMimicShawarma(telegramUserId, "flee");
+
+    expect(result.state).toBe("completed");
+    if (result.state === "completed") {
+      expect(result.reward.xp).toBe(buildStarterLevelTwoXpReward({ remortCount: 1 }));
+    }
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: buildStarterLevelTwoXpReward({ remortCount: 1 }),
+      level: 1,
+      remortCount: 1
     });
   });
 
@@ -327,6 +655,44 @@ describe("AdventureService", () => {
     expect(replay.state).toBe("already-completed");
     expect(dailyActions.createCount).toBe(1);
   });
+
+  it("rejects hidden starter shawarma method ids without claiming", async () => {
+    const { service, characters, dailyActions } = setup();
+    characters.add(telegramUserId, { xp: 0 });
+    const summary = {
+      ...characterSummary(),
+      level: 1,
+      xp: 0,
+      classId: "class.bard",
+      className: "Бард"
+    };
+    const visible = buildStarterMethodOptions("shawarma", summary).map((method) => method.id);
+    const scene = buildStarterQuestResolutionScene("shawarma", summary);
+    const hidden = scene.methods.find((method) => !visible.includes(method.id));
+
+    expect(hidden).toBeDefined();
+    await expect(service.completeMimicShawarma(telegramUserId, {
+      type: "method",
+      methodId: hidden?.id ?? "missing"
+    })).resolves.toMatchObject({
+      state: "stale"
+    });
+    expect(dailyActions.createCount).toBe(0);
+  });
+
+  it.each(["receipt", "poke", "flee"] as const)(
+    "does not let v2 starter method %s fall through to legacy actions",
+    async (methodId) => {
+      const { service, characters, dailyActions } = setup();
+      characters.add(telegramUserId, { xp: 0 });
+
+      await expect(service.completeMimicShawarma(telegramUserId, {
+        type: "method",
+        methodId
+      })).resolves.toMatchObject({ state: "stale" });
+      expect(dailyActions.createCount).toBe(0);
+    }
+  );
 
   it("blocks fresh offers and claims while a live fight is active", async () => {
     const activeFight = fakeSession();
@@ -345,7 +711,7 @@ describe("AdventureService", () => {
       service.completeAdventureApproach(telegramUserId, {
         periodToken: offer.periodToken,
         problemId: offer.choices[0].id,
-        approach: "risky"
+        methodId: "lower-fire"
       })
     ).resolves.toMatchObject({
       state: "active-fight",
@@ -369,17 +735,30 @@ describe("AdventureService", () => {
     });
   });
 
-  it("keeps approach reward and risk ordering conservative", () => {
-    const options = buildApproachOptions(characterSummary());
+  it("keeps authored method rewards conservative and qualitative", () => {
+    const options = buildAdventureMethodOptions(
+      {
+        id: "barrel",
+        title: "Бочка уклала угоду з порожнечею",
+        hook: "",
+        client: ""
+      },
+      characterSummary()
+    );
 
-    expect(options.map((option) => option.reward.xp)).toEqual([4, 7, 10]);
-    expect(options.map((option) => option.reward.gold)).toEqual([2, 4, 7]);
-    expect(options.map((option) => option.complicationChance)).toEqual([13, 23, 42]);
-    expect(options.map((option) => option.hint)).toEqual([
-      "менше винагороди, майже без драматичних зубів.",
-      "середня винагорода, шанс ускладнення теж вивчив середину.",
-      "більша винагорода, але проблема може образитись у відповідь."
-    ]);
+    expect(options.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(options.map((option) => option.label)).size).toBe(options.length);
+    expect(options.map((option) => option.reward)).toEqual(
+      expect.arrayContaining([{ xp: 7, gold: 4 }])
+    );
+    expect(options.some((option) => option.reward.xp === 4)).toBe(true);
+    expect(options.every((option) => [4, 7, 10].includes(option.reward.xp))).toBe(true);
+    expect(options.every((option) => [0, 2, 4, 7].includes(option.reward.gold))).toBe(true);
+    expect(options.filter((option) => option.goldCost).every((option) => option.reward.gold === 0)).toBe(true);
+    expect(options.some((option) => option.source === "scene")).toBe(true);
+    expect(options.some((option) => option.source === "race")).toBe(true);
+    expect(options.some((option) => option.source === "class")).toBe(true);
+    expect(options.every((option) => !/%|\d{2,}/u.test(option.chanceHint))).toBe(true);
   });
 });
 
@@ -387,7 +766,10 @@ function fixedClock(): Date {
   return new Date("2026-06-12T10:30:00.000Z");
 }
 
-function setup(activeFight: SoloCombatSessionRecord | null = null): {
+function setup(
+  activeFight: SoloCombatSessionRecord | null = null,
+  equipment: EquipmentRepository | undefined = undefined
+): {
   characters: FakeCharacterRepository;
   dailyActions: FakeDailyActionRepository;
   service: AdventureService;
@@ -401,7 +783,7 @@ function setup(activeFight: SoloCombatSessionRecord | null = null): {
   return {
     characters,
     dailyActions,
-    service: new AdventureService(characters, dailyActions, fixedClock, fights)
+    service: new AdventureService(characters, dailyActions, fixedClock, fights, equipment)
   };
 }
 
@@ -415,29 +797,106 @@ async function readyOffer(service: AdventureService, userId = telegramUserId) {
   return result.offer;
 }
 
-async function findResolvedAdventure(approach: AdventureApproach, complication: boolean) {
-  for (let user = 40n; user < 700n; user += 1n) {
-    const { service, characters, dailyActions } = setup();
-    characters.add(user, { xp: 25 });
-    const lookup = await service.getAdventureOfferForTelegramUser(user);
+async function findResolvedAdventure(
+  matches: (result: Extract<AdventureResult, { state: "completed" }>) => boolean
+) {
+  for (let user = 40n; user < 1_200n; user += 1n) {
+    const probe = setup();
+    probe.characters.add(user, { xp: 25, gold: 10 });
+    const lookup = await probe.service.getAdventureOfferForTelegramUser(user);
 
     if (lookup.state !== "ready") {
       continue;
     }
 
-    const input = {
-      periodToken: lookup.offer.periodToken,
-      problemId: lookup.offer.choices[0].id,
-      approach
-    };
-    const result = await service.completeAdventureApproach(user, input);
+    for (const choice of lookup.offer.choices) {
+      const selected = await probe.service.selectAdventureProblem(user, {
+        periodToken: lookup.offer.periodToken,
+        problemId: choice.id
+      });
 
-    if (result.state === "completed" && result.complication === complication) {
-      return { service, dailyActions, result, input, userId: user, offer: lookup.offer };
+      if (selected.state !== "selected") {
+        continue;
+      }
+
+      for (const approach of selected.approaches) {
+        const { service, characters, dailyActions } = setup();
+        characters.add(user, { xp: 25, gold: 10 });
+        const freshLookup = await service.getAdventureOfferForTelegramUser(user);
+
+        if (freshLookup.state !== "ready") {
+          continue;
+        }
+
+        const freshChoice = freshLookup.offer.choices.find((candidate) => candidate.id === choice.id);
+
+        if (!freshChoice) {
+          continue;
+        }
+
+        const input = {
+          periodToken: freshLookup.offer.periodToken,
+          problemId: freshChoice.id,
+          methodId: approach.callbackKey ?? approach.id
+        };
+        const result = await service.completeAdventureApproach(user, input);
+
+        if (result.state === "completed" && matches(result)) {
+          return { service, dailyActions, result, input, userId: user, offer: freshLookup.offer };
+        }
+      }
     }
   }
 
-  throw new Error(`Could not find ${approach} adventure with complication=${complication}.`);
+  throw new Error("Could not find matching resolved adventure.");
+}
+
+async function findResolvedAdventureForProblem(
+  problemId: string,
+  characterOverrides: Partial<CharacterRecord>,
+  matches: (result: Extract<AdventureResult, { state: "completed" }>) => boolean
+) {
+  for (let user = 40n; user < 2_500n; user += 1n) {
+    const probe = setup();
+    probe.characters.add(user, { xp: 25, gold: 10, ...characterOverrides });
+    const lookup = await probe.service.getAdventureOfferForTelegramUser(user);
+
+    if (lookup.state !== "ready" || !lookup.offer.choices.some((choice) => choice.id === problemId)) {
+      continue;
+    }
+
+    const selected = await probe.service.selectAdventureProblem(user, {
+      periodToken: lookup.offer.periodToken,
+      problemId
+    });
+
+    if (selected.state !== "selected") {
+      continue;
+    }
+
+    for (const approach of selected.approaches) {
+      const { service, characters, dailyActions } = setup();
+      characters.add(user, { xp: 25, gold: 10, ...characterOverrides });
+      const freshLookup = await service.getAdventureOfferForTelegramUser(user);
+
+      if (freshLookup.state !== "ready" || !freshLookup.offer.choices.some((choice) => choice.id === problemId)) {
+        continue;
+      }
+
+      const input = {
+        periodToken: freshLookup.offer.periodToken,
+        problemId,
+        methodId: approach.callbackKey ?? approach.id
+      };
+      const result = await service.completeAdventureApproach(user, input);
+
+      if (result.state === "completed" && matches(result)) {
+        return { service, dailyActions, result, input, userId: user, offer: freshLookup.offer };
+      }
+    }
+  }
+
+  throw new Error(`Could not find matching resolved adventure for ${problemId}.`);
 }
 
 function characterSummary() {
@@ -536,7 +995,7 @@ class FakeCharacterRepository implements CharacterRepository {
       ...character,
       xp: nextXp,
       gold: character.gold + gold,
-      level: getLevelForXp(nextXp)
+      level: getLevelForXp(nextXp, { remortCount: character.remortCount ?? 0 })
     };
     this.charactersByTelegramUserId.set(userTelegramId, updated);
     return updated;
@@ -581,6 +1040,8 @@ class FakeCharacterRepository implements CharacterRepository {
 class FakeDailyActionRepository implements DailyActionRepository {
   private readonly actions = new Map<string, DailyActionRecord>();
   createCount = 0;
+  lastDeleteInput: DailyActionClaimIdentity | null = null;
+  lastRollbackInput: DailyActionRollbackInput | null = null;
 
   constructor(private readonly characters: FakeCharacterRepository) {}
 
@@ -590,7 +1051,14 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
   add(
     userTelegramId: bigint,
-    input: { key: string; localDate: string; rewardXp?: number; rewardGold?: number }
+    input: {
+      key: string;
+      localDate: string;
+      rewardXp?: number;
+      rewardGold?: number;
+      spentGold?: number;
+      resultJson?: DailyActionRecord["resultJson"];
+    }
   ): void {
     const characterId = `character-${userTelegramId.toString()}`;
     const action = {
@@ -600,6 +1068,8 @@ class FakeDailyActionRepository implements DailyActionRepository {
       localDate: input.localDate,
       rewardXp: input.rewardXp ?? 0,
       rewardGold: input.rewardGold ?? 0,
+      spentGold: input.spentGold ?? 0,
+      resultJson: input.resultJson ?? null,
       createdAt: fixedClock()
     };
     this.actions.set(`${characterId}:${input.key}:${input.localDate}`, action);
@@ -641,6 +1111,16 @@ class FakeDailyActionRepository implements DailyActionRepository {
       };
     }
 
+    const spentGold = Math.max(0, Math.floor(input.spentGold ?? 0));
+
+    if (spentGold > character.gold) {
+      return {
+        state: "insufficient-gold",
+        character,
+        requiredGold: spentGold
+      };
+    }
+
     this.createCount += 1;
     const action = {
       id: `daily-action-${this.createCount}`,
@@ -649,6 +1129,8 @@ class FakeDailyActionRepository implements DailyActionRepository {
       localDate: input.localDate,
       rewardXp: input.rewardXp,
       rewardGold: input.rewardGold,
+      spentGold,
+      resultJson: input.resultJson ?? null,
       createdAt: fixedClock()
     };
     this.actions.set(claimKey, action);
@@ -656,7 +1138,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
     const updatedCharacter = this.characters.updateReward(
       userTelegramId,
       input.rewardXp,
-      input.rewardGold
+      input.rewardGold - spentGold
     );
 
     return {
@@ -664,18 +1146,21 @@ class FakeDailyActionRepository implements DailyActionRepository {
       action,
       character: updatedCharacter,
       itemGrants: input.itemGrants ?? [],
+      hpLoss: null,
       levelChange: {
-        oldLevel: getLevelForXp(character.xp),
+        oldLevel: getLevelForXp(character.xp, { remortCount: character.remortCount ?? 0 }),
         newLevel: updatedCharacter.level,
-        leveledUp: updatedCharacter.level > getLevelForXp(character.xp)
+        leveledUp:
+          updatedCharacter.level > getLevelForXp(character.xp, { remortCount: character.remortCount ?? 0 })
       }
     };
   }
 
   async deleteForTelegramUser(
     userTelegramId: bigint,
-    input: { key: string; localDate: string }
+    input: DailyActionClaimIdentity
   ): Promise<"deleted" | "missing" | "no-character"> {
+    this.lastDeleteInput = input;
     const character = await this.characters.findByTelegramUserId(userTelegramId);
 
     if (!character) {
@@ -684,6 +1169,22 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
     return this.actions.delete(`${character.id}:${input.key}:${input.localDate}`)
       ? "deleted"
+      : "missing";
+  }
+
+  async rollbackForTelegramUser(
+    userTelegramId: bigint,
+    input: DailyActionRollbackInput
+  ): Promise<"rolled-back" | "missing" | "no-character"> {
+    this.lastRollbackInput = input;
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return "no-character";
+    }
+
+    return this.actions.delete(`${character.id}:${input.key}:${input.localDate}`)
+      ? "rolled-back"
       : "missing";
   }
 
@@ -704,4 +1205,32 @@ class FakeDailyActionRepository implements DailyActionRepository {
         action.localDate.startsWith(input.localDatePrefix)
     ).length;
   }
+}
+
+class FakeEquipmentRepository implements EquipmentRepository {
+  constructor(private snapshot: CharacterEquipmentSnapshot | null) {}
+
+  listByTelegramUserId(): Promise<CharacterEquipmentSnapshot | null> {
+    return Promise.resolve(this.snapshot);
+  }
+
+  equipForCharacter(): Promise<CharacterEquipmentRecord> {
+    throw new Error("Not implemented in adventure service tests.");
+  }
+
+  unequipForCharacter(): Promise<boolean> {
+    throw new Error("Not implemented in adventure service tests.");
+  }
+}
+
+function buildEquipment(overrides: Partial<CharacterEquipmentRecord>): CharacterEquipmentRecord {
+  return {
+    id: "equipment-1",
+    characterId: `character-${telegramUserId.toString()}`,
+    slot: "accessory",
+    itemId: "item.cork-ring-of-serious-business",
+    createdAt: fixedClock(),
+    updatedAt: fixedClock(),
+    ...overrides
+  };
 }

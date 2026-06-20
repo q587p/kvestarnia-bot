@@ -34,6 +34,7 @@ import {
   isWithinActivityMaxLevel,
   STARTER_ACTIVITY_MAX_LEVEL
 } from "../domain/progression/activityGates";
+import { buildStarterLevelTwoXpReward } from "../domain/progression/starterRewards";
 import { createEmptyEquipmentEffectSummary } from "../domain/progression/effectiveStats";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
@@ -783,6 +784,32 @@ export class FightService {
       return { state: "no-character" };
     }
 
+    if (session.id !== sessionId) {
+      if (isTrainingDoppelgangerMonsterId(session.monsterId)) {
+        return {
+          state: "training-active",
+          character: characterSummary,
+          session,
+          questProgress
+        };
+      }
+
+      const activeMonster = findPersistentFightMonster(session);
+
+      if (!activeMonster || session.state?.status !== "active") {
+        return this.getFightOverviewForTelegramUser(telegramUserId);
+      }
+
+      return {
+        state: "persistent-active",
+        character: characterSummary,
+        session,
+        monster: activeMonster,
+        questProgress,
+        ...(recoveryNotice ? { recoveryNotice } : {})
+      };
+    }
+
     return {
       state: "persistent-active",
       character: characterSummary,
@@ -864,7 +891,11 @@ export class FightService {
       action
     });
     const localDate = toIsoDate(this.clock());
-    const reward = MIMIC_SHAWARMA_COMBAT_REWARDS[action];
+    const baseReward = MIMIC_SHAWARMA_COMBAT_REWARDS[action];
+    const reward = {
+      ...baseReward,
+      xp: buildStarterLevelTwoXpReward({ remortCount: characterSummary.remortCount ?? 0 })
+    };
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
       localDate,
@@ -875,6 +906,10 @@ export class FightService {
 
     if (!claim) {
       return { state: "no-character" };
+    }
+
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Mimic shawarma combat daily claim unexpectedly required gold.");
     }
 
     if (claim.state === "existing") {
@@ -1165,6 +1200,10 @@ export class FightService {
       return { state: "no-character" };
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Problem quest daily claim unexpectedly required gold.");
+    }
+
     const nextStage = stage.nextStageId ? getProblemQuestStage(stage.nextStageId) : null;
 
     return {
@@ -1290,6 +1329,10 @@ export class FightService {
 
     if (!claim) {
       return null;
+    }
+
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Persistent fight reward claim unexpectedly required gold.");
     }
 
     if (claim.state === "existing") {

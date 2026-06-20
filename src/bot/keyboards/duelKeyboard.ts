@@ -82,7 +82,7 @@ export function buildDuelResultKeyboard(token?: string): InlineKeyboard {
   return keyboard
     .text("🥊 Покликати ще когось", makeDuelNewCallbackData())
     .row()
-    .text("🥊 До кутка", makePlaceCallbackData("fighting-corner"));
+    .text("↩️ Повернутися до кутка", makePlaceCallbackData("fighting-corner"));
 }
 
 export function buildDuelCreateResourceWarningKeyboard(mode: "quick" | "turn-based" = "quick"): InlineKeyboard {

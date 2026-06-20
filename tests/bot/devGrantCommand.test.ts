@@ -8,6 +8,8 @@ import type {
 describe("dev grant commands", () => {
   it("passes explicit and default amounts to the dev grant service", async () => {
     const devGrant = fakeDevGrantService();
+    const defaultLevelCalls = await captureMessageCalls("/dev_add_level", devGrant);
+    const explicitLevelCalls = await captureMessageCalls("/dev_add_level 3", devGrant);
     const xpCalls = await captureMessageCalls("/dev_add_xp 7", devGrant);
     const itemCalls = await captureMessageCalls("/dev_add_random_item", devGrant);
     const fullHealCalls = await captureMessageCalls("/dev_heal", devGrant);
@@ -15,12 +17,16 @@ describe("dev grant commands", () => {
     const fullManaCalls = await captureMessageCalls("/dev_restore_mana", devGrant);
     const partialManaCalls = await captureMessageCalls("/dev_restore_mana 4", devGrant);
 
+    expect(devGrant.addLevel).toHaveBeenCalledWith(42n, 1);
+    expect(devGrant.addLevel).toHaveBeenCalledWith(42n, 3);
     expect(devGrant.addXp).toHaveBeenCalledWith(42n, 7);
     expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 1);
     expect(devGrant.heal).toHaveBeenCalledWith(42n, undefined);
     expect(devGrant.heal).toHaveBeenCalledWith(42n, 7);
     expect(devGrant.restoreMana).toHaveBeenCalledWith(42n, undefined);
     expect(devGrant.restoreMana).toHaveBeenCalledWith(42n, 4);
+    expect(String(defaultLevelCalls.at(-1)?.payload.text)).toContain("додано 1 рівень");
+    expect(String(explicitLevelCalls.at(-1)?.payload.text)).toContain("додано 3 рівні");
     expect(String(xpCalls.at(-1)?.payload.text)).toContain("додано 7 XP");
     expect(String(itemCalls.at(-1)?.payload.text)).toContain("додано 1 манатку");
     expect(String(fullHealCalls.at(-1)?.payload.text)).toContain("HP: 20/20");
@@ -31,13 +37,18 @@ describe("dev grant commands", () => {
 
   it("rejects invalid amounts before mutating", async () => {
     const devGrant = fakeDevGrantService();
+    const levelCalls = await captureMessageCalls("/dev_add_level 0", devGrant);
     const calls = await captureMessageCalls("/dev_add_gold nope", devGrant);
     const healCalls = await captureMessageCalls("/dev_heal 0", devGrant);
     const manaCalls = await captureMessageCalls("/dev_restore_mana 0", devGrant);
 
+    expect(devGrant.addLevel).not.toHaveBeenCalled();
     expect(devGrant.addGold).not.toHaveBeenCalled();
     expect(devGrant.heal).not.toHaveBeenCalled();
     expect(devGrant.restoreMana).not.toHaveBeenCalled();
+    expect(String(levelCalls.at(-1)?.payload.text)).toContain(
+      "Формат: /dev_add_level [додатне ціле число]."
+    );
     expect(String(calls.at(-1)?.payload.text)).toContain(
       "Формат: /dev_add_gold [додатне ціле число]."
     );

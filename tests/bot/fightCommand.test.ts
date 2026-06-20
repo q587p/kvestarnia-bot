@@ -16,6 +16,8 @@ import {
 } from "../../src/services/presenceService";
 
 describe("fight command", () => {
+  const dayInKyiv = new Date("2026-06-19T09:00:00.000Z");
+
   it("blocks /fight outside before marking the quest table", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
@@ -293,7 +295,7 @@ describe("fight command", () => {
       }
     } as unknown as FightService;
 
-    await sendFight(makeContext(replies), fightService, "reply");
+    await sendFight(makeContext(replies), fightService, "reply", { now: dayInKyiv });
 
     expect(startCount).toBe(0);
     expect(replies[0]?.text).toContain("🪜 Спуск до Низу");
@@ -402,7 +404,7 @@ describe("fight command", () => {
         })
     } as unknown as FightService;
 
-    await sendFight(makeContext(replies), fightService, "reply");
+    await sendFight(makeContext(replies), fightService, "reply", { now: dayInKyiv });
 
     expect(replies).toHaveLength(2);
     expect(replies[0]?.text).toContain("Здоров’я знову повне: 24/24");

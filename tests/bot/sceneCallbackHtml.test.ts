@@ -1,10 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
+import { toQuestCallbackKey } from "../../src/content/questResolution";
 import {
   makeAdventureApproachCallbackData,
+  makeMimicShawarmaMethodCallbackData,
   makeAdventureProblemCallbackData
 } from "../../src/bot/callbacks/adventureCallbackData";
-import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
+import {
+  makeCellarCallbackData,
+  makeCellarMethodCallbackData
+} from "../../src/bot/callbacks/cellarCallbackData";
 import {
   makeFightCallbackData,
   makeFightTurnCallbackData
@@ -23,6 +28,8 @@ import { makeYegerTrackCallbackData } from "../../src/bot/callbacks/yegerCallbac
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { mainMenuButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
+
+type MarkPresenceInput = Parameters<NonNullable<BotServices["presence"]>["markAction"]>[0];
 
 describe("scene callback HTML options", () => {
   afterEach(() => {
@@ -54,7 +61,7 @@ describe("scene callback HTML options", () => {
       callbackData: makeAdventureApproachCallbackData({
         periodToken: "period93",
         problemId: "stew",
-        approach: "flair"
+        methodId: adventureApproach.id
       }),
       services: servicesWith({
         adventure: {
@@ -218,6 +225,385 @@ describe("scene callback HTML options", () => {
       parse_mode: "HTML"
     });
     expect(String(edit?.payload.text)).toMatch(/<b>|<i>/);
+  });
+
+  it("routes starter authored method callbacks to the mimic-shawarma completion path", async () => {
+    const completeMimicShawarma = vi.fn(() =>
+      Promise.resolve({
+        state: "completed" as const,
+        action: "inspect-folds" as const,
+        method: {
+          ...adventureApproach,
+          id: "inspect-folds" as const,
+          label: "🔎 Перевірити складки лаваша"
+        },
+        grade: "success" as const,
+        outcome: {
+          headline: "🌯 Шаурма дала свідчення",
+          body: ["Складки перестали дихати так, ніби мають адвоката."]
+        },
+        spentGold: 0,
+        character,
+        reward: {
+          xp: 7,
+          gold: 4,
+          localDate: "12026-06-20",
+          itemGrants: []
+        },
+        levelChange: noLevelChange
+      })
+    );
+    const completeAdventureApproach = vi.fn(() =>
+      Promise.reject(new Error("starter method must not hit adventure choice completion"))
+    );
+    const calls = await captureApiCalls(
+      makeMimicShawarmaMethodCallbackData("inspect-folds"),
+      servicesWith({
+        adventure: {
+          completeMimicShawarma,
+          completeAdventureApproach
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(completeMimicShawarma).toHaveBeenCalledWith(42n, {
+      type: "method",
+      methodId: "inspect-folds"
+    });
+    expect(completeAdventureApproach).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("Шаурма дала свідчення");
+    expect(String(edit?.payload.text)).toContain("<i>Метод:</i> 🔎 Перевірити складки лаваша");
+  });
+
+  it("routes selected-problem authored method callbacks to adventure choice completion", async () => {
+    const completeAdventureApproach = vi.fn(() =>
+      Promise.resolve({
+        state: "completed" as const,
+        character,
+        choice: adventureChoice,
+        approach: adventureApproach,
+        reward: {
+          xp: 7,
+          gold: 4,
+          localDate: "12026-06-20",
+          itemGrants: []
+        },
+        levelChange: noLevelChange,
+        complication: false,
+        grade: "success" as const,
+        consequence: "full-reward" as const,
+        outcome: {
+          headline: "✅ Справу закрито",
+          body: ["Казанок стишився."]
+        },
+        spentGold: 0,
+        hpLoss: null,
+        fightHandoff: false,
+        fightEncounter: null,
+        claim: {
+          key: "adventure.choice",
+          localDate: "12026-06-20",
+        },
+        check: {
+          roll: 13,
+          target: 45,
+          total: 13,
+          statBonus: 0,
+          grade: "success"
+        }
+      })
+    );
+    const completeMimicShawarma = vi.fn(() =>
+      Promise.reject(new Error("adventure choice method must not hit starter completion"))
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach,
+          completeMimicShawarma
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(completeAdventureApproach).toHaveBeenCalledWith(
+      42n,
+      expect.objectContaining({
+        type: "approach",
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      })
+    );
+    expect(completeMimicShawarma).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("Казанок стишився");
+    expect(String(edit?.payload.text)).toContain("<i>Метод:</i> 🎵 Продиригувати юшкою");
+  });
+
+  it("routes duplicate v2 adventure method taps through the bot without a second completion card", async () => {
+    const completeAdventureApproach = vi
+      .fn()
+      .mockResolvedValueOnce({
+        state: "completed" as const,
+        character,
+        choice: adventureChoice,
+        approach: adventureApproach,
+        reward: {
+          xp: 7,
+          gold: 4,
+          localDate: "12026-06-20",
+          itemGrants: []
+        },
+        levelChange: noLevelChange,
+        complication: false,
+        grade: "success" as const,
+        consequence: "full-reward" as const,
+        outcome: {
+          headline: "✅ Справу закрито",
+          body: ["Казанок стишився."]
+        },
+        spentGold: 0,
+        hpLoss: null,
+        fightHandoff: false,
+        fightEncounter: null,
+        claim: {
+          key: "adventure.choice",
+          localDate: "12026-06-20"
+        },
+        check: {
+          roll: 13,
+          target: 45,
+          total: 13,
+          statBonus: 0,
+          grade: "success"
+        }
+      })
+      .mockResolvedValueOnce({
+        state: "already-completed" as const,
+        character
+      });
+    const callbackData = makeAdventureApproachCallbackData({
+      periodToken: "period93",
+      problemId: "stew",
+      methodId: adventureApproach.id
+    });
+    const calls = await captureRepeatedApiCalls(
+      [callbackData, callbackData],
+      servicesWith({
+        adventure: {
+          completeAdventureApproach
+        }
+      })
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+
+    expect(completeAdventureApproach).toHaveBeenCalledTimes(2);
+    expect(completeAdventureApproach).toHaveBeenNthCalledWith(
+      1,
+      42n,
+      expect.objectContaining({
+        type: "approach",
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      })
+    );
+    expect(completeAdventureApproach).toHaveBeenNthCalledWith(
+      2,
+      42n,
+      expect.objectContaining({
+        type: "approach",
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      })
+    );
+    expect(String(edits[0]?.payload.text)).toContain("Казанок стишився");
+    expect(String(edits[0]?.payload.text)).toContain("XP");
+    expect(String(edits[1]?.payload.text)).toContain("/hero");
+    expect(String(edits[1]?.payload.text)).not.toContain("Казанок стишився");
+  });
+
+  it("routes duplicate v2 paid cellar method taps through cooldown after the first result", async () => {
+    const complete = vi
+      .fn()
+      .mockResolvedValueOnce({
+        state: "completed" as const,
+        action: "bribe-cheese",
+        method: {
+          id: "bribe-cheese",
+          callbackKey: toQuestCallbackKey("bribe-cheese"),
+          label: "🪙 Дати миші 1 золоту «на сирний фонд»",
+          hint: "Коштує 1 золото.",
+          goldCost: 1
+        },
+        grade: "success" as const,
+        outcome: {
+          headline: "✅ Льохову справу закрито",
+          body: ["Сирний фонд офіційно зашаршів."]
+        },
+        spentGold: 1,
+        hpLoss: null,
+        check: {
+          roll: 13,
+          target: 45,
+          total: 13,
+          statBonus: 0,
+          grade: "success"
+        },
+        character,
+        reward: {
+          xp: 2,
+          gold: 0,
+          itemGrants: []
+        },
+        availableAt: new Date("2026-06-13T10:03:00.000Z"),
+        now: new Date("2026-06-13T10:00:00.000Z"),
+        levelChange: noLevelChange
+      })
+      .mockResolvedValueOnce({
+        state: "on-cooldown" as const,
+        character,
+        availableAt: new Date("2026-06-13T10:03:00.000Z"),
+        now: new Date("2026-06-13T10:00:30.000Z")
+      });
+    const callbackData = makeCellarMethodCallbackData("bribe-cheese");
+    const calls = await captureRepeatedApiCalls(
+      [callbackData, callbackData],
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          complete
+        }
+      })
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(complete).toHaveBeenNthCalledWith(1, 42n, {
+      type: "method",
+      methodId: "bribe-cheese"
+    });
+    expect(complete).toHaveBeenNthCalledWith(2, 42n, {
+      type: "method",
+      methodId: "bribe-cheese"
+    });
+    expect(String(edits[0]?.payload.text)).toContain("Сирний фонд офіційно зашаршів");
+    expect(String(edits[0]?.payload.text)).toContain("1");
+    expect(String(edits[1]?.payload.text)).not.toContain("Сирний фонд офіційно зашаршів");
+    expect(String(edits[1]?.payload.text)).not.toContain("Списано");
+  });
+
+  it("renders stale state for hidden v2 adventure method callbacks", async () => {
+    const completeAdventureApproach = vi.fn(() =>
+      Promise.resolve({
+        state: "stale" as const,
+        character,
+        offer: adventureOffer
+      })
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: "sign-lease"
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(completeAdventureApproach).toHaveBeenCalledWith(
+      42n,
+      expect.objectContaining({
+        type: "approach",
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: "sign-lease"
+      })
+    );
+    expect(String(edit?.payload.text)).toContain("Цей папірець уже не актуальний");
+    expect(String(edit?.payload.text)).toContain("Стіл зі справами перерахував актуальні проблеми");
+    expect(String(edit?.payload.text)).toContain("Казанок репетирує оперу");
+    expect(String(edit?.payload.text)).not.toContain("Винагорода за справу");
+  });
+
+  it("routes old safe-flair-risky adventure callbacks to stale paper refresh", async () => {
+    const selectAdventureProblem = vi.fn(() =>
+      Promise.resolve({
+        state: "selected" as const,
+        character,
+        offer: adventureOffer,
+        choice: adventureChoice,
+        approaches: [adventureApproach]
+      })
+    );
+    const completeAdventureApproach = vi.fn(() =>
+      Promise.reject(new Error("legacy approach must stay stale-only"))
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        approach: "safe"
+      }),
+      servicesWith({
+        adventure: {
+          selectAdventureProblem,
+          completeAdventureApproach
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(selectAdventureProblem).toHaveBeenCalledWith(
+      42n,
+      expect.objectContaining({
+        type: "legacy-approach",
+        periodToken: "period93",
+        problemId: "stew",
+        approach: "safe"
+      })
+    );
+    expect(completeAdventureApproach).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("Старий папірець утратив силу");
+    expect(String(edit?.payload.text)).toContain("обережно-хитро-ризикову шкалу");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toMatch(/v2:adv:a:period93:q[0-9a-z]+:q[0-9a-z]+/u);
+  });
+
+  it("renders stale state for hidden v2 cellar method callbacks", async () => {
+    const complete = vi.fn(() =>
+      Promise.resolve({
+        state: "stale" as const,
+        character
+      })
+    );
+    const calls = await captureApiCalls(
+      "v2:cellar:conduct-duet",
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          complete
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(complete).toHaveBeenCalledWith(42n, {
+      type: "method",
+      methodId: "conduct-duet"
+    });
+    expect(String(edit?.payload.text)).toContain("Кнопка застаріла");
+    expect(String(edit?.payload.text)).not.toContain("Винагорода за справу");
   });
 
   it("offers to buy everyone beer after the Barrel raid completes", async () => {
@@ -395,7 +781,7 @@ describe("scene callback HTML options", () => {
       makeAdventureApproachCallbackData({
         periodToken: "period93",
         problemId: "stew",
-        approach: "flair"
+        methodId: adventureApproach.id
       }),
       servicesWith({
         adventure: {
@@ -809,7 +1195,7 @@ describe("scene callback HTML options", () => {
       callbackData: makeAdventureApproachCallbackData({
         periodToken: "period93",
         problemId: "stew",
-        approach: "risky"
+        methodId: adventureApproach.id
       }),
       adventure: {
         selectAdventureProblem: () => Promise.resolve({ state: "no-character" as const }),
@@ -1430,6 +1816,79 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("fight-normal");
   });
 
+  it("marks canonical solo-fight presence when an adventure complication starts a new fight", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-active" as const,
+        started: true,
+        character: {
+          ...character,
+          level: 3
+        },
+        session: persistentSession("monster.borshch-slime"),
+        monster: {
+          id: "monster.borshch-slime",
+          name: "Борщовий слиз",
+          description: "Булькає статутом і буряком.",
+          level: 3,
+          tags: ["slime", "food"]
+        },
+        questProgress: null
+      })
+    );
+    const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() => Promise.resolve("missing" as const));
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              choice: adventureChoice,
+              approach: adventureApproach,
+              reward: { xp: 0, gold: 0, localDate: "12026-06-12", itemGrants: [] },
+              levelChange: noLevelChange,
+              complication: true,
+              grade: "complication",
+              consequence: "fight-handoff",
+              outcome: {
+                headline: "⚔️ Казанок покликав бій",
+                body: ["Кришка грюкнула, і слиз виліз із параграфа."]
+              },
+              spentGold: 0,
+              hpLoss: null,
+              fightHandoff: true,
+              fightEncounter: { monsterId: "monster.borshch-slime" },
+              claim: { key: "adventure.choice", localDate: "12026-06-12" },
+              check: { roll: 13, target: 45, total: 13, statBonus: 0, grade: "complication" }
+            }),
+          rollbackCurrentAdventureClaimForTelegramUser
+        },
+        fight: {
+          getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction
+        }
+      })
+    );
+
+    expect(rollbackCurrentAdventureClaimForTelegramUser).not.toHaveBeenCalled();
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep.level1",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(calls.some((call) => call.method === "sendMessage" && String(call.payload.text).includes("Борщовий слиз"))).toBe(true);
+  });
+
   it("starts selected problem fight difficulty after moving from the hall to the Nyz", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
@@ -1483,6 +1942,7 @@ describe("scene callback HTML options", () => {
   });
 
   it("rolls back a complication claim when the follow-up fight needs rest", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
     const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
       Promise.resolve("deleted" as const)
     );
@@ -1499,7 +1959,7 @@ describe("scene callback HTML options", () => {
       makeAdventureApproachCallbackData({
         periodToken: "period93",
         problemId: "stew",
-        approach: "risky"
+        methodId: adventureApproach.id
       }),
       servicesWith({
         adventure: {
@@ -1516,12 +1976,33 @@ describe("scene callback HTML options", () => {
                 itemGrants: []
               },
               levelChange: noLevelChange,
-              complication: true
+              complication: true,
+              grade: "complication",
+              consequence: "fight-handoff",
+              outcome: "Горщик викликав вас на чесний бій ложками.",
+              spentGold: 0,
+              hpLoss: null,
+              fightHandoff: true,
+              fightEncounter: { monsterId: "monster.borshch-slime" },
+              claim: {
+                key: "adventure.choice",
+                localDate: "12026-06-12",
+              },
+              check: {
+                roll: 13,
+                target: 45,
+                total: 13,
+                statBonus: 0,
+                grade: "complication"
+              }
             }),
           rollbackCurrentAdventureClaimForTelegramUser
         },
         fight: {
           getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction
         }
       })
     );
@@ -1529,11 +2010,271 @@ describe("scene callback HTML options", () => {
 
     expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
       source: "adventure",
-      difficulty: "normal"
+      difficulty: "normal",
+      target: { monsterIds: ["monster.borshch-slime"] }
     });
-    expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n, {
+      key: "adventure.choice",
+      localDate: "12026-06-12"
+    });
+    expect(markAction).not.toHaveBeenCalled();
     expect(String(edit?.payload.text)).toContain("HP 0/20");
     expect(String(edit?.payload.text)).not.toContain("Нагорода не видана");
+    expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+  });
+
+  it("rolls back a complication claim when another active fight wins the handoff race", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
+      Promise.resolve("deleted" as const)
+    );
+    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-active" as const,
+        character: {
+          ...character,
+          level: 3
+        },
+        session: persistentSession("monster.deadline-spider"),
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null
+      })
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              choice: adventureChoice,
+              approach: adventureApproach,
+              reward: {
+                xp: 0,
+                gold: 0,
+                localDate: "12026-06-12",
+                itemGrants: []
+              },
+              levelChange: noLevelChange,
+              complication: true,
+              grade: "complication",
+              consequence: "fight-handoff",
+              outcome: "Горщик викликав вас на чесний бій ложками.",
+              spentGold: 0,
+              hpLoss: null,
+              fightHandoff: true,
+              fightEncounter: { monsterId: "monster.borshch-slime" },
+              claim: {
+                key: "adventure.choice",
+                localDate: "12026-06-12",
+              },
+              check: {
+                roll: 13,
+                target: 45,
+                total: 13,
+                statBonus: 0,
+                grade: "complication"
+              }
+            }),
+          rollbackCurrentAdventureClaimForTelegramUser
+        },
+        fight: {
+          getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
+      source: "adventure",
+      difficulty: "normal",
+      target: { monsterIds: ["monster.borshch-slime"] }
+    });
+    expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n, {
+      key: "adventure.choice",
+      localDate: "12026-06-12"
+    });
+    const [presenceInput] = markAction.mock.calls[0] as [MarkPresenceInput];
+    expect(presenceInput.user.telegramUserId).toBe(42n);
+    expect(presenceInput).toMatchObject({
+      locationId: "location.korchma.deep.level1",
+      currentRaidId: null,
+      currentAdventureId: "adventure.solo-fight"
+    });
+    expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(edit?.payload.text)).not.toContain("Нагорода не видана");
+    expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+  });
+
+  it("rolls back a complication claim when a training fight wins the handoff race", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
+      Promise.resolve("deleted" as const)
+    );
+    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "training-active" as const,
+        character,
+        session: trainingSession(),
+        questProgress: null
+      })
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              choice: adventureChoice,
+              approach: adventureApproach,
+              reward: { xp: 0, gold: 0, localDate: "12026-06-12", itemGrants: [] },
+              levelChange: noLevelChange,
+              complication: true,
+              grade: "complication",
+              consequence: "fight-handoff",
+              outcome: "Казанок покликав не ту бійку.",
+              spentGold: 0,
+              hpLoss: null,
+              fightHandoff: true,
+              fightEncounter: { monsterId: "monster.borshch-slime" },
+              claim: { key: "adventure.choice", localDate: "12026-06-12" },
+              check: { roll: 13, target: 45, total: 13, statBonus: 0, grade: "complication" }
+            }),
+          rollbackCurrentAdventureClaimForTelegramUser
+        },
+        fight: {
+          getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n, {
+      key: "adventure.choice",
+      localDate: "12026-06-12"
+    });
+    const [presenceInput] = markAction.mock.calls[0] as [MarkPresenceInput];
+    expect(presenceInput.user.telegramUserId).toBe(42n);
+    expect(presenceInput).toMatchObject({
+      locationId: "location.korchma.fighting_corner",
+      currentRaidId: null,
+      currentAdventureId: "adventure.training-doppelganger"
+    });
+    expect(String(edit?.payload.text)).toContain("Тренування вже триває");
+    expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+  });
+
+  it("rolls back a complication claim when an expired terminal fight is returned", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
+      Promise.resolve("deleted" as const)
+    );
+    const terminalSession = {
+      ...persistentSession("monster.deadline-spider"),
+      status: "won" as const,
+      state: {
+        ...persistentSession("monster.deadline-spider").state,
+        status: "won" as const,
+        lastTurn: {
+          action: "attack" as const,
+          heroOutcome: "won" as const,
+          heroDamage: 18,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false
+        }
+      }
+    };
+    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-terminal" as const,
+        character,
+        session: terminalSession,
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null,
+        fightReward: null
+      })
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              choice: adventureChoice,
+              approach: adventureApproach,
+              reward: { xp: 0, gold: 0, localDate: "12026-06-12", itemGrants: [] },
+              levelChange: noLevelChange,
+              complication: true,
+              grade: "complication",
+              consequence: "fight-handoff",
+              outcome: "Казанок знайшов уже завершену бійку.",
+              spentGold: 0,
+              hpLoss: null,
+              fightHandoff: true,
+              fightEncounter: { monsterId: "monster.borshch-slime" },
+              claim: { key: "adventure.choice", localDate: "12026-06-12" },
+              check: { roll: 13, target: 45, total: 13, statBonus: 0, grade: "complication" }
+            }),
+          rollbackCurrentAdventureClaimForTelegramUser
+        },
+        fight: {
+          getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n, {
+      key: "adventure.choice",
+      localDate: "12026-06-12"
+    });
+    const [presenceInput] = markAction.mock.calls[0] as [MarkPresenceInput];
+    expect(presenceInput.user.telegramUserId).toBe(42n);
+    expect(presenceInput).toMatchObject({
+      locationId: "location.korchma.deep.level1",
+      currentRaidId: null,
+      currentAdventureId: "adventure.solo-fight"
+    });
+    expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 
@@ -1814,14 +2555,23 @@ const adventureChoice = {
 };
 
 const adventureApproach = {
-  id: "flair" as const,
-  label: "🧠 Знайти хитрий кут",
-  hint: "Середня винагорода.",
+  id: "conduct-duet" as const,
+  callbackKey: toQuestCallbackKey("conduct-duet"),
+  label: "🎵 Продиригувати юшкою",
+  hint: "Добрі шанси, винагорода звичайна.",
+  chanceHint: "непевно",
   reward: {
     xp: 7,
     gold: 4
   },
-  complicationChance: 23
+  source: "scene" as const,
+  primaryStat: "charisma" as const,
+  consequenceByGrade: {
+    "strong-success": "full-reward",
+    success: "full-reward",
+    "mixed-success": "reduced-reward",
+    complication: "cosmetic-mess"
+  }
 };
 
 const adventureOffer = {
@@ -2117,6 +2867,68 @@ async function captureApiCalls(callbackData: string, services: BotServices): Pro
       }
     }
   });
+
+  return calls;
+}
+
+async function captureRepeatedApiCalls(
+  callbackDataList: string[],
+  services: BotServices
+): Promise<ApiCall[]> {
+  const bot = createBot("123456:test-token", services);
+  const calls: ApiCall[] = [];
+
+  bot.api.config.use((_prev, method, payload) => {
+    calls.push({
+      method,
+      payload
+    });
+
+    if (method === "getMe") {
+      return Promise.resolve({
+        ok: true,
+        result: {
+          id: 123456,
+          is_bot: true,
+          first_name: "РљРІРµСЃС‚Р°СЂРЅСЏ",
+          username: "kvestarnia_bot"
+        }
+      });
+    }
+
+    return Promise.resolve({
+      ok: true,
+      result: true
+    });
+  });
+
+  await bot.init();
+
+  for (const [index, callbackData] of callbackDataList.entries()) {
+    await bot.handleUpdate({
+      update_id: index + 1,
+      callback_query: {
+        id: `callback-${index + 1}`,
+        from: {
+          id: 42,
+          is_bot: false,
+          first_name: "РўРµСЃС‚"
+        },
+        chat_instance: "chat-instance",
+        data: callbackData,
+        message: {
+          message_id: 10,
+          date: 0,
+          chat: {
+            id: 42,
+            type: "private",
+            first_name: "РўРµСЃС‚"
+          },
+          text: "old"
+        }
+      }
+    });
+  }
 
   return calls;
 }

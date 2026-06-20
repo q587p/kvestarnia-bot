@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildAdventureApproachKeyboard,
   buildAdventureParticipantsKeyboard,
   buildAdventureKeyboard,
   buildAdventureResultKeyboard
@@ -19,6 +20,7 @@ import {
 } from "../../src/bot/keyboards/fightKeyboard";
 import { buildDuelResultKeyboard, buildTurnBasedDuelKeyboard } from "../../src/bot/keyboards/duelKeyboard";
 import { getCombatSkillDisplay, getPersistentFightSkillLabel } from "../../src/services/fightService";
+import { buildAdventureMethodOptions } from "../../src/services/adventureService";
 import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
   buildEquipmentKeyboard,
@@ -103,6 +105,21 @@ describe("main menu and scene keyboards", () => {
       "🎒 Манчкін-скупник",
       "🏹 До полювання"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
+      "🚪 Зайти в корчму",
+      "📜 Табличка прибулих",
+      "🏅 Пропамʼятна дошка"
+    ]);
+    expect(
+      flatInlineButtonTexts(
+        buildKorchmaFrontKeyboard({ yegerAction: "hunt", munchkinLocation: "nyz-descent" })
+      )
+    ).toEqual([
+      "🚪 Зайти в корчму",
+      "📜 Табличка прибулих",
+      "🏅 Пропамʼятна дошка",
+      "🏹 До полювання"
+    ]);
     expect(inlineButtonRows(buildEnterKorchmaKeyboard())).toEqual([["🚪 Зайти в корчму"]]);
     expect(flatInlineButtonCallbacks(buildEnterKorchmaKeyboard())).toEqual(["v1:place:hall"]);
     expect(flatInlineButtonTexts(buildKorchmaArrivalBoardKeyboard())).toEqual([
@@ -158,8 +175,14 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ characterLevel: 1 }))).not.toContain(
       "🪜 Спуск до Низу"
     );
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ characterLevel: 1 }))).not.toContain(
+      "🥊 Бійцівський куток"
+    );
     expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard({ characterLevel: 1 }))).not.toContain(
       "v1:place:deep"
+    );
+    expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard({ characterLevel: 1 }))).not.toContain(
+      "v1:place:fighting-corner"
     );
     expect(inlineButtonRows(buildKorchmaHallKeyboard())).toEqual([
       ["🥊 Бійцівський куток", "📋 Стіл зі справами"],
@@ -220,7 +243,7 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(keyboard)).toEqual([
       "🪞 Копія поточного",
       "🎲 Випадковий пригодник",
-      "🥊 До кутка"
+      "↩️ Повернутися до кутка"
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
       "v1:spar:mode:copy-target",
@@ -394,27 +417,60 @@ describe("main menu and scene keyboards", () => {
       "🧥 Плащ став у чергу замість власника",
       "📋 До справ"
     ]);
-    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
-      "v1:adv:p:period93:key",
-      "v1:adv:p:period93:door",
-      "v1:adv:p:period93:cloak",
-      "v1:place:quest-table"
-    ]);
+    const callbacks = flatInlineButtonCallbacks(keyboard);
+    expect(callbacks.slice(0, 3).every((callback) => /^v2:adv:p:period93:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks[3]).toBe("v1:place:quest-table");
   });
 
   it("keeps character-aware adventure labels on the same callback actions", () => {
-    expect(flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
-      "🗝️ Перевірити кишені",
-      "📋 Виманити чек",
-      "🏃 Зникнути за серветкою",
-      "📋 До справ"
-    ]);
-    expect(flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
-      "v1:adv:mimic:poke",
-      "v1:adv:mimic:receipt",
-      "v1:adv:mimic:flee",
-      "v1:place:quest-table"
-    ]);
+    const labels = flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
+
+    expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
+    expect(labels.join("\n")).not.toMatch(/з печаткою|через внесок|дрібним ремонтом|обхідним ходом|по-домашньому|силовим підпором|на випадку|через ревізію|у ритм|мирною умовою|малим обрядом|за слідом|через пастку|тихим чаром|точним рухом/u);
+    expect(labels.join("\n")).not.toMatch(/Звірити «|Витягти доказ|🏷️|Пересічні Пригодники/u);
+    expect(labels.at(-1)).toBe("📋 До справ");
+    const callbacks = flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
+    expect(callbacks.slice(0, -1).every((callback) => /^v2:adv:m:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks.at(-1)).toBe("v1:place:quest-table");
+  });
+
+  it("uses short authored method labels on selected adventure buttons", () => {
+    const bard = {
+      ...character,
+      raceId: "race.dryland-rusalka",
+      raceName: "Русалка сухопутна",
+      classId: "class.bard",
+      className: "Бард",
+      title: "Співачка Без Моря",
+      level: 3,
+      xp: 25
+    };
+    const choice = {
+      id: "class-bard-uniform",
+      title: "Форма для «Барда» не влазить у клітинку",
+      hook: "Клітинка просить ширини.",
+      client: "Клітинка"
+    };
+
+    const keyboard = buildAdventureApproachKeyboard({
+      state: "selected",
+      character: bard,
+      offer: {
+        localDate: "2026-06-12",
+        periodToken: "period93",
+        expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+        choices: [choice]
+      },
+      choice,
+      approaches: buildAdventureMethodOptions(choice, bard)
+    });
+
+    const labels = flatInlineButtonTexts(keyboard);
+
+    expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
+    expect(labels.join("\n")).not.toMatch(/з печаткою|через внесок|дрібним ремонтом|обхідним ходом|по-домашньому|силовим підпором|на випадку|через ревізію|у ритм|мирною умовою|малим обрядом|за слідом|через пастку|тихим чаром|точним рухом/u);
+    expect(labels.join("\n")).not.toMatch(/Приплив|Куплет|Співачка Без Моря|🏷️|: форму/u);
+    expect(labels.at(-1)).toBe("⬅️ Інші справи");
   });
 
   it("keeps cellar inline buttons scoped to repeatable errand actions", () => {
@@ -440,24 +496,16 @@ describe("main menu and scene keyboards", () => {
   it("keeps character-aware cellar labels on the same callback actions", () => {
     const domovyk = { ...character, raceId: "race.domovyk", classId: "class.rogue" };
 
-    expect(flatInlineButtonTexts(buildCellarKeyboard(domovyk))).toEqual([
-      "🧀 Виставити оренду сиром",
-      "🧹 Навести хатній лад",
-      "🤝 Поділити шафу",
-      "⬅️ До зали"
-    ]);
-    expect(flatInlineButtonCallbacks(buildCellarKeyboard(domovyk))).toEqual([
-      "v1:cellar:cheese-trap",
-      "v1:cellar:sweep-bravely",
-      "v1:cellar:negotiate",
-      "v1:place:hall"
-    ]);
-    expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual([
-      "🧀 Виставити оренду сиром",
-      "🧹 Навести хатній лад",
-      "🤝 Поділити шафу",
-      "⬅️ До зали"
-    ]);
+    const cellarLabels = flatInlineButtonTexts(buildCellarKeyboard(domovyk));
+
+    expect(cellarLabels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
+    expect(cellarLabels).toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
+    expect(cellarLabels.join("\n")).not.toMatch(/Оголосити правилом|Витягти доказ|🏷️|Пересічні Пригодники/u);
+    expect(cellarLabels.at(-1)).toBe("⬅️ До зали");
+    const callbacks = flatInlineButtonCallbacks(buildCellarKeyboard(domovyk));
+    expect(callbacks.slice(0, -1).every((callback) => /^v2:cellar:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks.at(-1)).toBe("v1:place:hall");
+    expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual(cellarLabels);
   });
 
   it("keeps fight inline buttons scoped to fight actions", () => {
@@ -506,6 +554,16 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard())).toEqual([
       "v1:place:hall",
+      "v1:place:deep-level1"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
+      "⬆️ Повернутися до зали",
+      "🎒 Манчкін-скупник",
+      "⬇️ Спуститися"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
+      "v1:place:hall",
+      "v1:lvlx:open",
       "v1:place:deep-level1"
     ]);
     expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toEqual([
@@ -559,7 +617,9 @@ describe("main menu and scene keyboards", () => {
   });
 
   it("returns terminal training doppelganger screens to the fighting corner", () => {
-    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard())).toEqual(["🥊 До кутка"]);
+    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard())).toEqual([
+      "↩️ Повернутися до кутка"
+    ]);
     expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard())).toEqual([
       "v1:place:fighting-corner"
     ]);
@@ -590,7 +650,7 @@ describe("main menu and scene keyboards", () => {
       "🔁 Реванш",
       "📣 Картка",
       "🥊 Покликати ще когось",
-      "🥊 До кутка"
+      "↩️ Повернутися до кутка"
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
       "v1:duel:rematch:abcDEF12",

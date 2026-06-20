@@ -210,6 +210,7 @@ import {
   buildYegerTurnInKeyboard
 } from "./keyboards/yegerKeyboard";
 import {
+  presentAdventureLegacyApproachStale,
   presentAdventureNoCharacter,
   presentAdventureProblem,
   presentAdventureResult,
@@ -234,6 +235,7 @@ import {
   presentFightLevelRetired,
   presentFightMonsterRest,
   presentFightNoCharacter,
+  presentFightTrainingActive,
   buildProblemQuestProgressAfterFightEntry,
   type QuestProgressAfterFightEntry,
   presentProblemQuestIssueNext,
@@ -520,7 +522,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     await handleTavernCallback(ctx, parsed.value, services, bot);
   });
 
-  bot.callbackQuery(/^v1:adv:/, async (ctx) => {
+  bot.callbackQuery(/^v[12]:adv:/, async (ctx) => {
     const parsed = parseAdventureCallbackData(ctx.callbackQuery.data);
 
     if (!parsed.ok) {
@@ -594,7 +596,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     });
   });
 
-  bot.callbackQuery(/^v1:cellar:/, async (ctx) => {
+  bot.callbackQuery(/^v[12]:cellar:/, async (ctx) => {
     const parsed = parseCellarCallbackData(ctx.callbackQuery.data);
 
     if (!parsed.ok) {
@@ -2170,7 +2172,40 @@ async function handleAdventureCallback(
   }
 
   if (callback.type === "legacy") {
-    const result = await services.adventure.completeMimicShawarma(telegramUserId, callback.action);
+    const result = await services.adventure.completeMimicShawarma(telegramUserId, {
+      type: "legacy",
+      action: callback.action
+    });
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentAdventureNoCharacter());
+      return;
+    }
+
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+    });
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentMimicShawarmaResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildAdventureResultKeyboard(result)
+    });
+
+    if (result.state === "completed") {
+      await sendLevelUpCelebration(ctx, result);
+    }
+    return;
+  }
+
+  if (callback.type === "method") {
+    const result = await services.adventure.completeMimicShawarma(telegramUserId, {
+      type: "method",
+      methodId: callback.methodId
+    });
 
     if (result.state === "no-character") {
       await safeAnswerCallbackQuery(ctx);
@@ -2226,6 +2261,28 @@ async function handleAdventureCallback(
     return;
   }
 
+  if (callback.type === "legacy-approach") {
+    const result = await services.adventure.selectAdventureProblem(telegramUserId, callback);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentAdventureNoCharacter());
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentAdventureLegacyApproachStale(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        result.state === "selected"
+          ? buildAdventureApproachKeyboard(result)
+          : result.state === "stale"
+            ? buildAdventureOfferKeyboard(result.offer)
+            : buildAdventureResultKeyboard(result)
+    });
+    return;
+  }
+
   const result = await services.adventure.completeAdventureApproach(telegramUserId, callback);
 
   if (result.state === "no-character") {
@@ -2234,36 +2291,64 @@ async function handleAdventureCallback(
     return;
   }
 
-  if (result.state !== "active-fight") {
-    await markScenePresence(ctx, services.presence, {
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_CHOICE
-    });
-  }
-
   if (result.state === "completed") {
     let complicationFight:
       | Awaited<ReturnType<FightService["getOrStartPersistentFightForTelegramUser"]>>
       | null = null;
 
-    if (result.complication) {
+    if (result.fightHandoff) {
       complicationFight = await services.fight.getOrStartPersistentFightForTelegramUser(
         telegramUserId,
         {
           source: "adventure",
-          difficulty: "normal"
+          difficulty: "normal",
+          ...(result.fightEncounter
+            ? { target: { monsterIds: [result.fightEncounter.monsterId] } }
+            : {})
         }
       );
 
-      if (
-        complicationFight.state === "needs-rest" ||
-        complicationFight.state === "monster-rest" ||
-        complicationFight.state === "level-retired" ||
-        complicationFight.state === "no-character"
-      ) {
-        await services.adventure.rollbackCurrentAdventureClaimForTelegramUser(telegramUserId);
+      const handoffStarted =
+        complicationFight.state === "persistent-active" && complicationFight.started === true;
+
+      if (!handoffStarted) {
+        await services.adventure.rollbackCurrentAdventureClaimForTelegramUser(telegramUserId, result.claim);
         await safeAnswerCallbackQuery(ctx);
+
+        if (
+          complicationFight.state === "persistent-active" ||
+          complicationFight.state === "persistent-terminal"
+        ) {
+          await markScenePresence(ctx, services.presence, {
+            locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+            currentRaidId: null,
+            currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+          });
+          await safeEditMessageText(ctx, presentPersistentFight(complicationFight), {
+            ...HTML_MESSAGE_OPTIONS,
+            reply_markup: buildPersistentFightResultKeyboard(
+              complicationFight.session,
+              complicationFight.character
+            )
+          });
+          return;
+        }
+
+        if (complicationFight.state === "training-active") {
+          await markScenePresence(ctx, services.presence, {
+            locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+            currentRaidId: null,
+            currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
+          });
+          await safeEditMessageText(ctx, presentFightTrainingActive(complicationFight), {
+            ...HTML_MESSAGE_OPTIONS,
+            reply_markup: buildTrainingDoppelgangerKeyboard(
+              complicationFight.session,
+              complicationFight.character
+            )
+          });
+          return;
+        }
 
         if (complicationFight.state === "needs-rest") {
           await safeEditMessageText(
@@ -2295,6 +2380,18 @@ async function handleAdventureCallback(
         await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
         return;
       }
+
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
+    } else {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_CHOICE
+      });
     }
 
     await safeAnswerCallbackQuery(ctx);
@@ -2321,6 +2418,14 @@ async function handleAdventureCallback(
     return;
   }
 
+  if (result.state !== "active-fight") {
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_CHOICE
+    });
+  }
+
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentAdventureResult(result), {
     ...HTML_MESSAGE_OPTIONS,
@@ -2330,7 +2435,7 @@ async function handleAdventureCallback(
 
 async function handleCellarCallback(
   ctx: Context,
-  action: CellarCallback,
+  callback: CellarCallback,
   services: BotServices
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
@@ -2360,8 +2465,8 @@ async function handleCellarCallback(
 
   if (lookup.state === "level-retired") {
     if (services.cellarGrownup) {
-      if (isCellarGrownupAction(action)) {
-        await handleCellarGrownupCallback(ctx, action, services);
+      if (callback.type === "grownup") {
+        await handleCellarGrownupCallback(ctx, callback.action, services);
         return;
       }
 
@@ -2405,7 +2510,7 @@ async function handleCellarCallback(
     return;
   }
 
-  if (action === "participants") {
+  if (callback.type === "participants") {
     const snapshot = await services.presence.getAdventureParticipantsForTelegramUser(
       telegramUserId,
       PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
@@ -2427,12 +2532,17 @@ async function handleCellarCallback(
     return;
   }
 
-  if (isCellarGrownupAction(action)) {
+  if (callback.type === "grownup") {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
     return;
   }
 
-  const result = await services.cellarErrand.complete(telegramUserId, action);
+  const result = await services.cellarErrand.complete(
+    telegramUserId,
+    callback.type === "method"
+      ? { type: "method", methodId: callback.methodId }
+      : { type: "legacy-action", action: callback.action }
+  );
 
   if (result.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
@@ -2461,7 +2571,10 @@ async function handleCellarCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentCellarResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildCellarResultKeyboard(result.state, result.character)
+    reply_markup: buildCellarResultKeyboard(
+      result.state === "insufficient-gold" || result.state === "stale" ? "ready" : result.state,
+      result.character
+    )
   });
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
@@ -2529,10 +2642,6 @@ async function handleCellarGrownupCallback(
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
   }
-}
-
-function isCellarGrownupAction(action: CellarCallback): action is CellarGrownupQuestAction {
-  return action.startsWith("grownup-");
 }
 
 function getCellarGrownupKeyboardState(

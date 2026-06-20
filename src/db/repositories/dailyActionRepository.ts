@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import type { CharacterRecord } from "./characterRepository";
 
 export interface RewardLevelChange {
@@ -13,6 +14,8 @@ export interface DailyActionRecord {
   localDate: string;
   rewardXp: number;
   rewardGold: number;
+  spentGold: number;
+  resultJson: Prisma.JsonValue | null;
   createdAt: Date;
 }
 
@@ -22,12 +25,36 @@ export interface ItemGrant {
   maxOwnedQuantity?: number;
 }
 
+export interface HpLossAudit {
+  before: number;
+  max: number;
+  lost: number;
+  after: number;
+}
+
+export interface HpLossRequest {
+  requested: number;
+  effectiveHpMax: number;
+}
+
 export interface ClaimDailyActionInput {
   key: string;
   localDate: string;
   rewardXp: number;
   rewardGold: number;
+  spentGold?: number;
+  hpLoss?: number | HpLossRequest;
+  resultJson?: unknown;
   itemGrants?: ItemGrant[];
+}
+
+export interface DailyActionClaimIdentity {
+  key: string;
+  localDate: string;
+}
+
+export interface DailyActionRollbackInput extends DailyActionClaimIdentity {
+  currentEffectiveHpMax?: number;
 }
 
 export type ClaimDailyActionResult =
@@ -37,6 +64,7 @@ export type ClaimDailyActionResult =
       character: CharacterRecord;
       levelChange: RewardLevelChange;
       itemGrants: ItemGrant[];
+      hpLoss: HpLossAudit | null;
     }
   | {
       state: "existing";
@@ -44,6 +72,11 @@ export type ClaimDailyActionResult =
       character: CharacterRecord;
       levelChange: null;
       itemGrants: [];
+    }
+  | {
+      state: "insufficient-gold";
+      character: CharacterRecord;
+      requiredGold: number;
     };
 
 export interface DailyActionRepository {
@@ -59,8 +92,13 @@ export interface DailyActionRepository {
 
   deleteForTelegramUser?(
     telegramUserId: bigint,
-    input: { key: string; localDate: string }
+    input: DailyActionClaimIdentity
   ): Promise<"deleted" | "missing" | "no-character">;
+
+  rollbackForTelegramUser?(
+    telegramUserId: bigint,
+    input: DailyActionRollbackInput
+  ): Promise<"rolled-back" | "missing" | "no-character">;
 
   countForTelegramUser?(
     telegramUserId: bigint,

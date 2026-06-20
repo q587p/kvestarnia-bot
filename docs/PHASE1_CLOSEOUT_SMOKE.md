@@ -57,10 +57,10 @@
 ## Манчкін-скупник
 
 - [ ] Preview показує selected eligible stacks, докладене золото, переплату, XP carry і рівень `N → N+1`.
-- [ ] Confirm списує щонайменше одну eligible priced манатку й тільки потрібне wallet gold.
+- [ ] Confirm списує eligible priced манаток щонайменше на 587 золота й тільки потрібне wallet gold.
 - [ ] Repeated confirm після успіху replay-ить той самий exchange і не списує вдруге.
 - [ ] Stale preview до першого успіху не мутує gold/items/level.
-- [ ] Gold-only з `1000+` золота denied: Манчкін вимагає хоча б одну оцінену манатку.
+- [ ] Gold-only з `1000+` золота denied: Манчкін вимагає eligible манаток щонайменше на 587 золота.
 - [ ] Equipped/priceless/protected/story/zero-value/missing items excluded.
 - [ ] `12 → 13` refused: 13 рівень лишається battle-only.
 - [ ] Pending Бочка блокує open/preview/confirm callback-и Манчкіна.

@@ -118,6 +118,22 @@ level 13: 1300
 
 Рівні `14-23` планувати як епічний діапазон із новими важелями, а не лише більшими числами. За прикладом Munchkin, раси й класи можуть відкривати додаткові абілки на milestone-рівнях: другий класовий трюк, расову витівку, тимчасовий bypass для манаток, бонус до конкретного типу подій або кумедний недолік, який іноді стає перевагою. Балансне правило: milestone має бути помітним у грі й тексті, але не робити одну расу/клас обов’язковим вибором.
 
+## Authored quest-resolution checks
+
+`0.1.20` replaces the active Adventure Choice `safe/flair/risky` ladder with authored scene/race/class/signature methods. Quest-resolution checks use the canonical effective stat snapshot, deterministic character/period/scene/method seeding, bounded qualitative chance bands and four grades: `strong-success`, `success`, `mixed-success`, `complication`. Player-facing pre-commit copy stays qualitative: no exact percentages and no exact future rewards.
+
+Reward profiles remain conservative (`modest`, `standard`, `generous`) and consequences vary by authored method: full reward, reduced reward, XP-only, cosmetic mess, paid success or persistent-fight handoff. Small paid methods may cost visible `1..3` gold and must check affordability before claim; `daily_actions.spent_gold` and `result_json` record the chosen method, grade, consequence, cost and check at claim time. Paid adventure/cellar claims debit gold only inside guarded repository transactions, so insufficient gold, stale method ids and duplicate callbacks do not leave partial claims or second charges.
+
+Direct quest injury is conservative and authored per method: minor injury is a small bounded HP loss, serious injury is available only for level 3+ Adventure Choice methods whose fiction supports real physical danger, and both are clamped to leave at least `1 HP`. The stored result payload records HP before/lost/after/max, so duplicate callbacks replay the same audit and do not damage twice. Failed or blocked fight handoff rolls back claim, cost, reward, item grants and HP mutation together.
+
+Follow-up hardening keeps that risk method-owned and makes the audit transactionally precise. Daily and cooldown claims store the exact committed HP audit; cooldown rows also store the cellar result payload for audit and duplicate safety, while the ordinary on-cooldown card remains the player-facing repeat surface. HP loss uses the effective max supplied by the resolver, while the mutation itself is based on fresh database state so two different accepted claims cannot overwrite one another's injury. Result cards keep that audit but render the current health line from the returned post-claim character summary. Rollback compensates the committed HP delta against the current effective max supplied by the service instead of restoring an old absolute HP value, never reduces later HP, and uses guarded retries plus exact applied item grants so later XP/gold/item changes survive the rollback.
+
+Adventure fight handoff targets are selected from scene-fitting eligible monster candidates for the current hero and persisted after selection. The audit id is the id passed into the existing persistent-fight service; if a different already-active fight wins the race, the quest claim rolls back instead of consuming the adventure.
+
+Level 3+ authored Adventure Choice rewards apply a small deterministic post-resolution XP/gold variance around the selected profile and consequence, with bounded LUCK influence. The exact stored reward is written into the daily claim and never rerolled on replay. Non-fight authored Adventure Choice results also have a low LUCK-influenced chance to grant one eligible loot-expansion manatka through the normal item-grant path; starter shawarma keeps its fixed teaching item grants, while the level 2-3 cellar mouse stays intentionally tiny and cannot become a better farm through paid methods.
+
+Starter shawarma and the starter combat probe are onboarding exceptions: each grants `ceil((level_2_start_xp - level_1_start_xp) * 0.75)` using the current remort-adjusted XP curve. Completing both therefore guarantees level 2 from a fresh life without waiting for another daily reset, while either activity alone still leaves room for the second starter step.
+
 ## Gold economy MVP
 Sources:
 - PvE fights.
@@ -296,7 +312,7 @@ Hunt Board лишається простим для входу: один кон�
 Механіка `🎒 Манчкін-скупник` уже існує як обережний item+gold sink у дусі Munchkin: якщо персонаж здає eligible манатки й докладає золото до визначеної суми `1000`, підозрілий тип надворі може оформити підняття рівня. Це не free-gold loop, не broad selling/trading system і не shortcut до `12 -> 13`. Guardrails:
 - тільки явне підтвердження, без автоматичного списання;
 - не приймати безцінні або заблоковані речі;
-- не дозволяти gold-only: у кожному обміні має бути хоча б одна priced eligible манатка;
+- не дозволяти gold-heavy обмін: у кожному обміні має бути eligible манаток щонайменше на `587` золота, а гаманець може лише добити решту до `1000`;
 - не дозволяти перескочити важливі progression gates, якщо вони ще не відкриті;
 - не дозволяти купити 13 рівень, бо поточний alpha-cap має братися боями;
 - тримати пороги достатньо високими, щоб це було веселим способом спалити зайве, а не основним шляхом прокачки;

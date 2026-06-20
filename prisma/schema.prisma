@@ -330,6 +330,8 @@ model DailyAction {
   localDate   String    @map("local_date")
   rewardXp    Int       @map("reward_xp")
   rewardGold  Int       @map("reward_gold")
+  spentGold   Int       @default(0) @map("spent_gold")
+  resultJson  Json?     @map("result_json")
   createdAt   DateTime  @default(now()) @map("created_at")
 
   @@unique([characterId, key, localDate])
@@ -365,6 +367,7 @@ model CharacterCooldown {
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
   key         String
   availableAt DateTime  @map("available_at")
+  resultJson  Json?     @map("result_json")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   @@unique([characterId, key])

@@ -265,6 +265,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "restart" ||
     command === "remort" ||
     command === "dev_reset_me" ||
+    command === "dev_help" ||
     command === "dev_adventure_reset" ||
     command === "dev_raid_stop" ||
     command === "dev_add_level" ||

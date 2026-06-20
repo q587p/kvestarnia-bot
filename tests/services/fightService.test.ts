@@ -27,6 +27,7 @@ import type {
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import type { CombatState } from "../../src/domain/combat";
 import { getLevelForXp } from "../../src/domain/progression/level";
+import { buildStarterLevelTwoXpReward } from "../../src/domain/progression/starterRewards";
 import { getItemDropChance } from "../../src/domain/loot";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { FakeRandomSource } from "../../src/shared/random";
@@ -74,11 +75,11 @@ describe("FightService", () => {
     expect(dailyActions.records[0]).toMatchObject({
       key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
       localDate: "2026-06-12",
-      rewardXp: 9,
+      rewardXp: buildStarterLevelTwoXpReward(),
       rewardGold: 3
     });
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 16,
+      xp: 15,
       gold: 3,
       level: 2
     });
@@ -195,7 +196,7 @@ describe("FightService", () => {
       }
     ]);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 7,
+      xp: buildStarterLevelTwoXpReward(),
       gold: 5
     });
   });
@@ -265,7 +266,7 @@ describe("FightService", () => {
       }
     ]);
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
-      xp: 9,
+      xp: buildStarterLevelTwoXpReward(),
       gold: 3
     });
   });
@@ -717,6 +718,35 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(1);
   });
 
+  it("creates an adventure handoff fight with the selected monster id", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+    const adventureMonsterId = "monster.borshch-slime";
+
+    const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      source: "adventure",
+      difficulty: "normal",
+      target: { monsterIds: [adventureMonsterId] }
+    });
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.started).toBe(true);
+      expect(started.monster.id).toBe(adventureMonsterId);
+      expect(started.session.monsterId).toBe(adventureMonsterId);
+    }
+    expect(sessions.createCount).toBe(1);
+  });
+
   it("syncs passive resources before starting a new persistent fight", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, {
@@ -859,6 +889,31 @@ describe("FightService", () => {
     });
   });
 
+  it("lets starter shawarma plus the combat probe reach level two after remort", async () => {
+    const characters = new FakeCharacterRepository();
+    const starterXp = buildStarterLevelTwoXpReward({ remortCount: 1 });
+    characters.add(telegramUserId, { level: 1, xp: starterXp, remortCount: 1 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new FightService(characters, dailyActions, fixedClock);
+
+    const result = await service.completeMimicShawarma(telegramUserId, "flee");
+
+    expect(result.state).toBe("completed");
+    if (result.state === "completed") {
+      expect(result.reward.xp).toBe(starterXp);
+      expect(result.levelChange).toMatchObject({
+        oldLevel: 1,
+        newLevel: 2,
+        leveledUp: true
+      });
+    }
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: starterXp * 2,
+      level: 2,
+      remortCount: 1
+    });
+  });
+
   it("interpolates gold-sensitive drop chance from zero-gold boost to configured difficulty endpoints", () => {
     const luck = 8;
     const level = 10;
@@ -984,6 +1039,35 @@ describe("FightService", () => {
     }
   });
 
+  it("falls back to a clamped right-passage monster level when the lower band has no content", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 19, xp: 13_000 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.99])
+    );
+
+    const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "easy"
+    });
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.character.level).toBe(19);
+      expect(started.monster.level).toBe(14);
+      expect(started.session.state?.monster.debugTrace).toMatchObject({
+        interventionKind: "help",
+        baseMonsterLevel: 13,
+        effectiveMonsterLevel: 14
+      });
+    }
+  });
+
   it("does not replace an active persistent fight when another difficulty is clicked", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 110 });
@@ -1011,6 +1095,38 @@ describe("FightService", () => {
       expect(second.monster.level).toBeGreaterThanOrEqual(1);
       expect(second.monster.level).toBeLessThanOrEqual(3);
       expect(second.session.state?.monster.debugTrace?.interventionKind).toBe("help");
+    }
+    expect(sessions.createCount).toBe(1);
+  });
+
+  it("returns the active lease winner when a persistent fight start races another create", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.activeSessionToReturnOnCreate = makeActivePersistentSession({
+      id: "session-existing",
+      characterId: "character-42",
+      monsterId: "monster.deadline-spider"
+    });
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.99])
+    );
+
+    const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "hard"
+    });
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.session.id).toBe("session-existing");
+      expect(started.monster.id).toBe("monster.deadline-spider");
+      expect(started.session.state?.monster.debugTrace?.interventionKind).toBe("help");
+      expect(started.started).toBeUndefined();
     }
     expect(sessions.createCount).toBe(1);
   });
@@ -3065,7 +3181,7 @@ class FakeCharacterRepository implements CharacterRepository {
       ...character,
       xp: nextXp,
       gold: character.gold + gold,
-      level: getLevelForXp(nextXp)
+      level: getLevelForXp(nextXp, { remortCount: character.remortCount ?? 0 })
     };
     this.charactersByTelegramUserId.set(userTelegramId, updated);
     return updated;
@@ -3238,9 +3354,10 @@ class FakeDailyActionRepository implements DailyActionRepository {
       character: updatedCharacter,
       itemGrants,
       levelChange: {
-        oldLevel: getLevelForXp(character.xp),
+        oldLevel: getLevelForXp(character.xp, { remortCount: character.remortCount ?? 0 }),
         newLevel: updatedCharacter.level,
-        leveledUp: updatedCharacter.level > getLevelForXp(character.xp)
+        leveledUp:
+          updatedCharacter.level > getLevelForXp(character.xp, { remortCount: character.remortCount ?? 0 })
       }
     };
   }
@@ -3298,6 +3415,7 @@ class FakeEquipmentRepository implements EquipmentRepository {
 class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   private readonly sessions = new Map<string, SoloCombatSessionRecord>();
   private persistRewardReplay = true;
+  activeSessionToReturnOnCreate: SoloCombatSessionRecord | null = null;
   createCount = 0;
   updateCount = 0;
 
@@ -3395,6 +3513,12 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     }
 
     this.createCount += 1;
+    if (this.activeSessionToReturnOnCreate) {
+      const activeSession = this.addSession(this.activeSessionToReturnOnCreate);
+      this.activeSessionToReturnOnCreate = null;
+      return activeSession;
+    }
+
     const now = fixedClock();
     const session: SoloCombatSessionRecord = {
       id: input.id ?? `session-${this.createCount}`,
@@ -3596,6 +3720,48 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
       );
     }
   }
+}
+
+function makeActivePersistentSession(input: {
+  id: string;
+  characterId: string;
+  monsterId: string;
+}): SoloCombatSessionRecord {
+  const createdAt = fixedClock();
+
+  return {
+    id: input.id,
+    characterId: input.characterId,
+    monsterId: input.monsterId,
+    status: "active",
+    turn: 1,
+    state: {
+      id: input.id,
+      turn: 1,
+      status: "active",
+      hero: {
+        hp: 20,
+        hpMax: 24,
+        mana: 10,
+        manaMax: 12
+      },
+      monster: {
+        id: input.monsterId,
+        hp: 18,
+        hpMax: 18,
+        debugTrace: {
+          interventionKind: "help",
+          interventionSourceKey: "prypichnyk",
+          baseMonsterLevel: 2,
+          effectiveMonsterLevel: 1
+        }
+      }
+    },
+    reward: null,
+    createdAt,
+    updatedAt: createdAt,
+    expiresAt: new Date("2026-06-12T11:00:00.000Z")
+  };
 }
 
 function makeTerminalSession(

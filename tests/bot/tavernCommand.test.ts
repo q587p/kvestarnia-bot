@@ -21,6 +21,9 @@ import type { LevelMilestoneService } from "../../src/services/levelMilestoneSer
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 
 describe("tavern command screens", () => {
+  const dayInKyiv = new Date("2026-06-19T09:00:00.000Z");
+  const nightInKyiv = new Date("2026-06-19T19:00:00.000Z");
+
   it("shows front-of-korchma options with an enter button", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
@@ -28,7 +31,9 @@ describe("tavern command screens", () => {
       makeContext(replies),
       readyTavernService(),
       capturingPresenceService(),
-      "reply"
+      "reply",
+      undefined,
+      { now: dayInKyiv }
     );
 
     expect(replies[0]?.text).toContain("За дверима гуде <b>Корчма Квестарні</b>");
@@ -83,7 +88,8 @@ describe("tavern command screens", () => {
             progress: { wins: 1, target: 5 },
             tracking: { state: "none" }
           })
-      }
+      },
+      { now: dayInKyiv }
     );
 
     const options = replies[0]?.options as {
@@ -120,7 +126,8 @@ describe("tavern command screens", () => {
             progress: { wins: 5, target: 5 },
             reward: { xp: 80, gold: 120, itemGrants: [] }
           })
-      }
+      },
+      { now: dayInKyiv }
     );
 
     expect(JSON.stringify(replies[0]?.options)).not.toContain("До Єгеря");
@@ -215,7 +222,7 @@ describe("tavern command screens", () => {
 
     await sendKorchmaFightingCorner(
       makeContext(replies),
-      readyTavernService(),
+      readyTavernService({ ...character, level: 3 }),
       capturingPresenceService(),
       "reply"
     );
@@ -240,6 +247,22 @@ describe("tavern command screens", () => {
     });
   });
 
+  it("keeps lower-level characters out of the fighting corner surface", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaFightingCorner(
+      makeContext(replies),
+      readyTavernService({ ...character, level: 1 }),
+      capturingPresenceService(),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🥊 Бійцівський куток відкриється з 3 рівня");
+    expect(replies[0]?.text).not.toContain("⚡ Миттєва дуель");
+    expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
+    expect(JSON.stringify(replies[0]?.options)).not.toContain(makePlaceCallbackData("fighting-corner"));
+  });
+
   it("shows the Nyz descent surface", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
@@ -247,7 +270,8 @@ describe("tavern command screens", () => {
       makeContext(replies),
       readyTavernService({ ...character, level: 3 }),
       capturingPresenceService(),
-      "reply"
+      "reply",
+      { now: dayInKyiv }
     );
 
     expect(replies[0]?.text).toContain("🪜 Спуск до Низу");
@@ -263,7 +287,8 @@ describe("tavern command screens", () => {
       makeContext(replies),
       readyTavernService({ ...character, level: 1 }),
       capturingPresenceService(),
-      "reply"
+      "reply",
+      { now: dayInKyiv }
     );
 
     expect(replies[0]?.text).toContain("🪜 Низ відкриється з 3 рівня");
@@ -272,12 +297,41 @@ describe("tavern command screens", () => {
     expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
   });
 
+  it("moves Munchkin from the front door to the Nyz descent at night", async () => {
+    const frontReplies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaFront(
+      makeContext(frontReplies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      { now: nightInKyiv }
+    );
+
+    expect(frontReplies[0]?.text).not.toContain("Манчкін-скупник");
+    expect(JSON.stringify(frontReplies[0]?.options)).not.toContain("v1:lvlx:open");
+
+    const deepReplies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaDeepClosed(
+      makeContext(deepReplies),
+      readyTavernService({ ...character, level: 3 }),
+      capturingPresenceService(),
+      "reply",
+      { now: nightInKyiv }
+    );
+
+    expect(deepReplies[0]?.text).toContain("Манчкін-скупник");
+    expect(JSON.stringify(deepReplies[0]?.options)).toContain("v1:lvlx:open");
+  });
+
   it("shows duel winners from the fighting corner", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
     await sendDuelWinnersBoard(
       makeContext(replies),
-      readyTavernService(),
+      readyTavernService({ ...character, level: 3 }),
       capturingPresenceService(),
       {
         getLeaderboard: () =>
@@ -293,6 +347,30 @@ describe("tavern command screens", () => {
     expect(replies[0]?.text).toContain("🏆 Переможці дуелей");
     expect(replies[0]?.text).toContain("1. Дара — 2 перемоги, 1 нічия, 5 поразок");
     expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("duel-winners"));
+  });
+
+  it("keeps lower-level characters out of the duel winners board", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendDuelWinnersBoard(
+      makeContext(replies),
+      readyTavernService({ ...character, level: 1 }),
+      capturingPresenceService(),
+      {
+        getLeaderboard: () =>
+          Promise.resolve({
+            day: [{ characterId: "character-1", name: "Дара", winCount: 2, drawCount: 1, lossCount: 5 }],
+            week: [],
+            month: []
+          })
+      },
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🥊 Бійцівський куток відкриється з 3 рівня");
+    expect(replies[0]?.text).not.toContain("Переможці дуелей");
+    expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
+    expect(JSON.stringify(replies[0]?.options)).not.toContain(makePlaceCallbackData("duel-winners"));
   });
 
   it("offers problem quest turn-in from the Шинок when a stage is ready", async () => {

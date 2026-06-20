@@ -78,12 +78,12 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Підсходник підкрутив стрілки");
-    expect(text).toContain("якщо два шляхи платять майже однаково");
-    expect(text).toContain("Правий прохід став помітно обережнішим");
-    expect(text).toContain("Прямий прохід лишився звичайним корчемним хаосом");
-    expect(text).toContain("Лівий прохід і далі небезпечніший");
-    expect(text).toContain("Старі завершені бої не переписуються");
+    expect(text).toContain("Справи перестали питати");
+    expect(text).toContain("Корчмар прибрав зі Столу зі справами");
+    expect(text).toContain("Справи з 3 рівня тепер пропонують способи");
+    expect(text).toContain("Раса, клас і титул героя частіше відчуваються");
+    expect(text).toContain("старі кнопки не перетворилися на пастку");
+    expect(text).toContain("Точних шансів і майбутніх винагород");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

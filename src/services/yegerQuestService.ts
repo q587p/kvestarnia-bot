@@ -284,6 +284,10 @@ export class YegerQuestService {
       return { state: "no-character" };
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Yeger tracking claim does not spend gold.");
+    }
+
     const tracking = {
       state: "tracking-pending" as const,
       availableAt: claim.cooldown.availableAt,
@@ -377,6 +381,10 @@ export class YegerQuestService {
 
     if (!claim) {
       return { state: "no-character" };
+    }
+
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Yeger quest daily claim unexpectedly required gold.");
     }
 
     return {

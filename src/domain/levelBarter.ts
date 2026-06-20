@@ -4,6 +4,7 @@ import { isProtectedMantokChestItem } from "./mantokChest";
 import { getLevelForXp, getLevelStartXp, getNextLevelThreshold } from "./progression/level";
 
 export const LEVEL_BARTER_COST_GOLD = 1000;
+export const LEVEL_BARTER_MIN_ITEM_VALUE_GOLD = 587;
 export const LEVEL_BARTER_BATTLE_ONLY_LEVEL = 13;
 
 export interface LevelBarterStackInput {
@@ -92,17 +93,21 @@ export function getLevelBarterEligibleTotalValue(
 export function pickItemsForLevelBarter(
   stacks: readonly LevelBarterEligibleStack[],
   targetValue = LEVEL_BARTER_COST_GOLD,
-  availableGold = 0
+  availableGold = 0,
+  minimumItemValue = LEVEL_BARTER_MIN_ITEM_VALUE_GOLD
 ): LevelBarterSelection | null {
   const safeTarget = Math.max(1, Math.floor(targetValue));
   const safeGold = Math.max(0, Math.floor(availableGold));
+  const safeMinimumItemValue = Math.max(1, Math.min(safeTarget, Math.floor(minimumItemValue)));
   const units = expandLevelBarterStacks(stacks);
 
   if (units.length === 0) {
     return null;
   }
 
-  if (units.reduce((sum, unit) => sum + unit.unitGoldValue, 0) + safeGold < safeTarget) {
+  const totalItemValue = units.reduce((sum, unit) => sum + unit.unitGoldValue, 0);
+
+  if (totalItemValue < safeMinimumItemValue || totalItemValue + safeGold < safeTarget) {
     return null;
   }
 
@@ -118,7 +123,10 @@ export function pickItemsForLevelBarter(
         total: candidate.total + unit.unitGoldValue
       };
 
-      if (next.total >= safeTarget || safeTarget - next.total <= safeGold) {
+      if (
+        next.total >= safeMinimumItemValue &&
+        (next.total >= safeTarget || safeTarget - next.total <= safeGold)
+      ) {
         best = chooseBetterLevelBarterCandidate(best, next, safeTarget, safeGold);
       }
 

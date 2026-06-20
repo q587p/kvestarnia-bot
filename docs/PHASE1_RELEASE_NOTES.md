@@ -60,7 +60,7 @@ Manual smoke should cover:
 - equipment effective stats in `/hero`, `/equipment`, item detail, and new combat;
 - Mantok Chest auto and manual paths;
 - Yeger tracking wait, ready trail, target fight, progress, and turn-in;
-- Munchkin barter replay confirm, no gold-only exchange, protected/equipped exclusions, `12 -> 13` refusal, and pending Barrel guard;
+- Munchkin barter replay confirm, no gold-only/gold-heavy exchange, protected/equipped exclusions, `12 -> 13` refusal, and pending Barrel guard;
 - Barrel, Shynok, local presence, and public `/presence`;
 - `/health`, `/news`, homepage, and `/version` showing `0.1.0` after deploy.
 

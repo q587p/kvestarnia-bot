@@ -14,6 +14,10 @@
 
 Перевірити:
 
+- [ ] Якщо квест має runtime-вибір методу, він відповідає `docs/QUEST_RESOLUTION_VARIETY.md`, `docs/QUEST_SKILLS_AND_CHECKS.md` і має scene/race/class/signature coverage або явний виняток.
+- [ ] Player-facing copy не розкриває службові source labels: без `Расовий спосіб`, `Класова техніка`, `signature`, `Підпис методу` або raw race+class формул у результатах.
+- [ ] Назви race/class/title/item у реченні не створюють неузгодженого дієслова; якщо рід/відмінок сумнівний, використано нейтральну конструкцію.
+- [ ] Generated race/class/title scenes не використовують один універсальний набір методів; анкета, кухоль, портрет, підручник, форма, іспит і титул мають scene-native verbs.
 - [ ] Є neutral fallback для всіх персонажів.
 - [ ] Є мінімум 2 race-specific hooks.
 - [ ] Є мінімум 2 class-specific hooks.
@@ -23,6 +27,7 @@
 - [ ] Жарти не спираються на реальні стереотипи людей.
 - [ ] Репліки короткі: одна думка, один жарт, один punch.
 - [ ] Якщо є reward — repeated callback не дублює XP/gold/items.
+- [ ] Якщо метод коштує золото, списання, claim/cooldown і винагорода відбуваються атомарно в repository layer; insufficient/replay/stale не списують вдруге.
 - [ ] Тести перевіряють fallback і принаймні один matching hook.
 
 ## Перед merge нового предмета

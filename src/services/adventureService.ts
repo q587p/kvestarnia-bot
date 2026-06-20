@@ -1,11 +1,15 @@
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import { classes } from "../content/classes";
 import { classIdToKey, getKnownComboTitleValues, raceIdToKey } from "../content/characterOptions";
+import { monsters } from "../content/monsters";
 import { activeRaces } from "../content/races";
 import type {
+  DailyActionClaimIdentity,
   DailyActionRepository,
+  HpLossAudit,
   RewardLevelChange
 } from "../db/repositories/dailyActionRepository";
+import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import type {
   SoloCombatSessionRecord,
   SoloCombatSessionRepository
@@ -17,6 +21,7 @@ import {
   meetsActivityLevel,
   STARTER_ACTIVITY_MAX_LEVEL
 } from "../domain/progression/activityGates";
+import { buildStarterLevelTwoXpReward } from "../domain/progression/starterRewards";
 import { SeededRandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
@@ -31,6 +36,27 @@ import {
   SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
   type RewardItemGrant
 } from "./itemGrant";
+import { buildAdventureResolutionScene } from "../content/adventureResolutionContent";
+import { buildStarterQuestResolutionScene } from "../content/starterQuestResolutionContent";
+import {
+  QUEST_REWARD_PROFILES,
+  type QuestConsequenceKind,
+  type QuestMethodDefinition,
+  type QuestResolutionGrade
+} from "../content/questResolution";
+import {
+  calculateQuestChance,
+  qualitativeQuestChance,
+  resolveQuestCheck,
+  type QuestCheckResult
+} from "../domain/quests/questChecks";
+import { rollLootExpansionItem } from "../domain/loot/lootEngine";
+import {
+  findVisibleQuestMethodByCallbackKey,
+  findQuestMethodByLegacyAction,
+  resolveQuestMethodsForCharacter
+} from "../domain/quests/questMethodResolver";
+import { getEquippedItemContents } from "./equipmentService";
 
 export { ADVENTURE_CHOICE_KEY } from "./dailyActionKeys";
 export { ADVENTURE_CHOICE_REROLL_KEY } from "./dailyActionKeys";
@@ -41,7 +67,11 @@ export const ADVENTURE_CHOICE_COUNT = 3;
 export const ADVENTURE_CHOICE_PERIOD_MINUTES = 93;
 
 export type AdventureApproach = "safe" | "flair" | "risky";
+export type AdventureMethodId = string;
 export type MimicShawarmaAction = "poke" | "receipt" | "flee";
+export type MimicShawarmaCompletionInput =
+  | { type: "legacy"; action: MimicShawarmaAction }
+  | { type: "method"; methodId: AdventureMethodId };
 const GENERAL_ADVENTURE_PROBLEM_IDS = [
   "stew",
   "barrel",
@@ -101,14 +131,20 @@ export interface AdventureOffer {
 }
 
 export interface AdventureApproachOption {
-  id: AdventureApproach;
+  id: AdventureMethodId;
+  callbackKey?: string;
   label: string;
+  buttonLabel?: string;
   hint: string;
+  chanceHint: string;
   reward: {
     xp: number;
     gold: number;
   };
-  complicationChance: number;
+  goldCost?: number;
+  source: QuestMethodDefinition["source"];
+  primaryStat: QuestMethodDefinition["primaryStat"];
+  consequenceByGrade: QuestMethodDefinition["consequenceByGrade"];
 }
 
 export interface AdventureReward {
@@ -116,6 +152,10 @@ export interface AdventureReward {
   gold: number;
   localDate: string;
   itemGrants: RewardItemGrant[];
+}
+
+export interface AdventureFightHandoffTarget {
+  monsterId: string;
 }
 
 export const MIMIC_SHAWARMA_REWARDS = {
@@ -171,17 +211,40 @@ export type AdventureResult =
       character: CharacterSummary;
       choice: AdventureChoice;
       approach: AdventureApproachOption;
+      grade: QuestResolutionGrade;
+      consequence: QuestConsequenceKind;
+      outcome: QuestMethodDefinition["outcomeText"][QuestResolutionGrade];
+      spentGold: number;
+      hpLoss: HpLossAudit | null;
+      fightHandoff: boolean;
+      fightEncounter: AdventureFightHandoffTarget | null;
+      claim: AdventureClaimIdentity;
       reward: AdventureReward;
       levelChange: RewardLevelChange;
       complication: boolean;
+      check: QuestCheckResult;
+    }
+  | {
+      state: "insufficient-gold";
+      character: CharacterSummary;
+      offer: AdventureOffer;
+      choice: AdventureChoice;
+      approach: AdventureApproachOption;
+      requiredGold: number;
     };
 
 export type MimicShawarmaResult =
   | { state: "no-character" }
   | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
+  | { state: "stale"; character: CharacterSummary }
   | {
       state: "completed";
-      action: MimicShawarmaAction;
+      action: AdventureMethodId;
+      method: AdventureApproachOption;
+      grade: QuestResolutionGrade;
+      outcome: QuestMethodDefinition["outcomeText"][QuestResolutionGrade];
+      spentGold: number;
+      hpLoss: HpLossAudit | null;
       character: CharacterSummary;
       reward: AdventureReward;
       levelChange: RewardLevelChange;
@@ -203,12 +266,15 @@ export type AdventureClaimRollbackResult =
   | "no-character"
   | "unavailable";
 
+export type AdventureClaimIdentity = DailyActionClaimIdentity;
+
 export class AdventureService {
   constructor(
     private readonly characters: CharacterRepository,
     private readonly dailyActions: DailyActionRepository,
     private readonly clock: Clock = systemClock,
-    private readonly combatSessions?: Pick<SoloCombatSessionRepository, "findActiveByTelegramUserId">
+    private readonly combatSessions?: Pick<SoloCombatSessionRepository, "findActiveByTelegramUserId">,
+    private readonly equipment?: EquipmentRepository
   ) {}
 
   async getAdventureOfferForTelegramUser(telegramUserId: bigint): Promise<AdventureLookupResult> {
@@ -258,7 +324,7 @@ export class AdventureService {
       character: context.character,
       offer: context.offer,
       choice,
-      approaches: buildApproachOptions(context.character)
+      approaches: buildAdventureMethodOptions(choice, context.character)
     };
   }
 
@@ -267,7 +333,7 @@ export class AdventureService {
     input: {
       periodToken: string;
       problemId: AdventureProblemId;
-      approach: AdventureApproach;
+      methodId: AdventureMethodId;
     }
   ): Promise<AdventureResult> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
@@ -276,7 +342,8 @@ export class AdventureService {
       return { state: "no-character" };
     }
 
-    const characterSummary = summarizeCharacter(character);
+    const equippedItems = await this.getEquippedItemContents(telegramUserId);
+    const characterSummary = summarizeCharacter(character, { equippedItems });
 
     if (!meetsActivityLevel(characterSummary.level, ADVENTURE_CHOICE_MIN_LEVEL)) {
       return {
@@ -297,9 +364,13 @@ export class AdventureService {
     }
 
     const period = buildAdventurePeriod(this.clock());
-    const existing = await this.dailyActions.findForTelegramUser(telegramUserId, {
+    const claimIdentity: AdventureClaimIdentity = {
       key: ADVENTURE_CHOICE_KEY,
       localDate: period.storageKey
+    };
+    const existing = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: claimIdentity.key,
+      localDate: claimIdentity.localDate
     });
 
     if (existing) {
@@ -332,11 +403,14 @@ export class AdventureService {
       };
     }
 
-    const approach = buildApproachOptions(characterSummary).find(
-      (candidate) => candidate.id === input.approach
-    );
+    const scene = buildAdventureResolutionScene({
+      problemId: choice.id,
+      title: choice.title,
+      character: characterSummary
+    });
+    const method = findVisibleQuestMethodByCallbackKey(scene, characterSummary, input.methodId);
 
-    if (!approach) {
+    if (!method) {
       return {
         state: "stale",
         character: characterSummary,
@@ -344,45 +418,124 @@ export class AdventureService {
       };
     }
 
-    const complication = hasComplication({
+    const approach = toAdventureApproachOption(method, characterSummary);
+
+    if ((method.goldCost ?? 0) > characterSummary.gold) {
+      return {
+        state: "insufficient-gold",
+        character: characterSummary,
+        offer,
+        choice,
+        approach,
+        requiredGold: method.goldCost ?? 0
+      };
+    }
+
+    const check = resolveQuestCheck({
       characterId: character.id,
-      localDate: period.storageKey,
-      problemId: choice.id,
-      approach: approach.id,
-      chance: approach.complicationChance
+      periodKey: period.storageKey,
+      sceneId: choice.id,
+      method,
+      stats: characterSummary.stats,
+      raceId: characterSummary.raceId,
+      classId: characterSummary.classId
     });
-    const reward = complication ? { xp: 0, gold: 0 } : approach.reward;
+    const consequence = method.consequenceByGrade[check.grade];
+    const reward = varyAdventureChoiceReward(buildQuestReward(method, check.grade, consequence), {
+      characterId: character.id,
+      periodKey: period.storageKey,
+      sceneId: choice.id,
+      methodId: method.id,
+      grade: check.grade,
+      luck: characterSummary.stats.luck
+    });
+    const itemGrants = buildAdventureChoiceItemGrants({
+      character: characterSummary,
+      characterId: character.id,
+      periodKey: period.storageKey,
+      sceneId: choice.id,
+      method,
+      grade: check.grade,
+      consequence
+    });
+    const spentGold = method.goldCost ?? 0;
+    const hpLoss = buildQuestHpLoss({
+      characterId: character.id,
+      periodKey: period.storageKey,
+      sceneId: choice.id,
+      methodId: method.id,
+      grade: check.grade,
+      consequence,
+      hpMax: characterSummary.hpMax
+    });
+    const fightEncounter =
+      consequence === "fight-handoff"
+        ? buildAdventureFightHandoffTarget(choice.id, method.id, character.id, period.storageKey, characterSummary)
+        : null;
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
-      key: ADVENTURE_CHOICE_KEY,
-      localDate: period.storageKey,
+      key: claimIdentity.key,
+      localDate: claimIdentity.localDate,
       rewardXp: reward.xp,
       rewardGold: reward.gold,
-      itemGrants: []
+      spentGold,
+      hpLoss: buildHpLossRequest(hpLoss, characterSummary.hpMax),
+      resultJson: buildQuestResolutionClaimPayload({
+        sceneId: choice.id,
+        method,
+        grade: check.grade,
+        consequence,
+        reward,
+        itemGrants,
+        spentGold,
+        check,
+        fightEncounter
+      }),
+      itemGrants
     });
 
     if (!claim) {
       return { state: "no-character" };
     }
 
+    if (claim.state === "insufficient-gold") {
+      return {
+        state: "insufficient-gold",
+        character: summarizeCharacter(claim.character, { equippedItems }),
+        offer,
+        choice,
+        approach,
+        requiredGold: claim.requiredGold
+      };
+    }
+
     if (claim.state === "existing") {
       return {
         state: "already-completed",
-        character: summarizeCharacter(claim.character)
+        character: summarizeCharacter(claim.character, { equippedItems })
       };
     }
 
     return {
       state: "completed",
-      character: summarizeCharacter(claim.character),
+      character: summarizeCharacter(claim.character, { equippedItems }),
       choice,
       approach,
+      grade: check.grade,
+      consequence,
+      outcome: method.outcomeText[check.grade],
+      spentGold,
+      hpLoss: claim.hpLoss,
+      fightHandoff: consequence === "fight-handoff",
+      fightEncounter,
+      claim: claimIdentity,
       reward: {
         ...reward,
         localDate: period.storageKey,
         itemGrants: enrichRewardItemGrants(claim.itemGrants)
       },
       levelChange: claim.levelChange,
-      complication
+      complication: check.grade === "complication",
+      check
     };
   }
 
@@ -396,7 +549,8 @@ export class AdventureService {
       return { state: "no-character" };
     }
 
-    const characterSummary = summarizeCharacter(character);
+    const equippedItems = await this.getEquippedItemContents(telegramUserId);
+    const characterSummary = summarizeCharacter(character, { equippedItems });
 
     if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
       return {
@@ -432,8 +586,12 @@ export class AdventureService {
 
   async completeMimicShawarma(
     telegramUserId: bigint,
-    action: MimicShawarmaAction
+    input: AdventureMethodId | MimicShawarmaCompletionInput
   ): Promise<MimicShawarmaResult> {
+    const completionInput =
+      typeof input === "string"
+        ? { type: "legacy" as const, action: input as MimicShawarmaAction }
+        : input;
     const localDate = toIsoDate(this.clock());
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -441,7 +599,8 @@ export class AdventureService {
       return { state: "no-character" };
     }
 
-    const characterSummary = summarizeCharacter(character);
+    const equippedItems = await this.getEquippedItemContents(telegramUserId);
+    const characterSummary = summarizeCharacter(character, { equippedItems });
 
     if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
       return {
@@ -451,30 +610,90 @@ export class AdventureService {
       };
     }
 
-    const reward = MIMIC_SHAWARMA_REWARDS[action];
+    const scene = buildStarterQuestResolutionScene("shawarma", characterSummary);
+    const method =
+      completionInput.type === "method"
+        ? findVisibleQuestMethodByCallbackKey(scene, characterSummary, completionInput.methodId)
+        : findQuestMethodByLegacyAction(scene, completionInput.action);
+
+    if (!method) {
+      return {
+        state: "stale",
+        character: characterSummary
+      };
+    }
+
+    const check = resolveQuestCheck({
+      characterId: character.id,
+      periodKey: localDate,
+      sceneId: scene.sceneId,
+      method,
+      stats: characterSummary.stats,
+      raceId: characterSummary.raceId,
+      classId: characterSummary.classId
+    });
+    const consequence = method.consequenceByGrade[check.grade];
+    const baseReward = buildQuestReward(method, check.grade, consequence);
+    const reward = {
+      ...baseReward,
+      xp: buildStarterLevelTwoXpReward({ remortCount: characterSummary.remortCount ?? 0 })
+    };
+    const itemGrants = buildMimicShawarmaItemGrants(
+      method.itemIntent ?? method.legacyAction ?? (completionInput.type === "legacy" ? completionInput.action : completionInput.methodId)
+    );
+    const hpLoss = buildQuestHpLoss({
+      characterId: character.id,
+      periodKey: localDate,
+      sceneId: scene.sceneId,
+      methodId: method.id,
+      grade: check.grade,
+      consequence,
+      hpMax: characterSummary.hpMax
+    });
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,
       localDate,
       rewardXp: reward.xp,
       rewardGold: reward.gold,
-      itemGrants: buildMimicShawarmaItemGrants(action)
+      hpLoss: buildHpLossRequest(hpLoss, characterSummary.hpMax),
+      resultJson: buildQuestResolutionClaimPayload({
+        sceneId: scene.sceneId,
+        method,
+        grade: check.grade,
+        consequence,
+        reward,
+        itemGrants,
+        spentGold: 0,
+        check,
+        fightEncounter: null
+      }),
+      itemGrants
     });
 
     if (!claim) {
       return { state: "no-character" };
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Mimic shawarma daily claim unexpectedly required gold.");
+    }
+
     if (claim.state === "existing") {
       return {
         state: "already-completed",
-        character: summarizeCharacter(claim.character)
+        character: summarizeCharacter(claim.character, { equippedItems })
       };
     }
 
     return {
       state: "completed",
-      action,
-      character: summarizeCharacter(claim.character),
+      action: completionInput.type === "legacy" ? completionInput.action : completionInput.methodId,
+      method: toAdventureApproachOption(method, characterSummary),
+      grade: check.grade,
+      outcome: method.outcomeText[check.grade],
+      spentGold: 0,
+      hpLoss: claim.hpLoss,
+      character: summarizeCharacter(claim.character, { equippedItems }),
       reward: {
         ...reward,
         localDate,
@@ -514,18 +733,34 @@ export class AdventureService {
   }
 
   async rollbackCurrentAdventureClaimForTelegramUser(
-    telegramUserId: bigint
+    telegramUserId: bigint,
+    claimIdentity?: AdventureClaimIdentity
   ): Promise<AdventureClaimRollbackResult> {
+    const input =
+      claimIdentity ?? {
+        key: ADVENTURE_CHOICE_KEY,
+        localDate: buildAdventurePeriod(this.clock()).storageKey
+      };
+
+    if (this.dailyActions.rollbackForTelegramUser) {
+      const currentCharacter = await this.characters.findByTelegramUserId(telegramUserId);
+      const equippedItems = currentCharacter ? await this.getEquippedItemContents(telegramUserId) : [];
+      const currentSummary = currentCharacter
+        ? summarizeCharacter(currentCharacter, { equippedItems })
+        : null;
+      const result = await this.dailyActions.rollbackForTelegramUser(telegramUserId, {
+        ...input,
+        ...(currentSummary ? { currentEffectiveHpMax: currentSummary.hpMax } : {})
+      });
+
+      return result === "rolled-back" ? "deleted" : result;
+    }
+
     if (!this.dailyActions.deleteForTelegramUser) {
       return "unavailable";
     }
 
-    const period = buildAdventurePeriod(this.clock());
-
-    return this.dailyActions.deleteForTelegramUser(telegramUserId, {
-      key: ADVENTURE_CHOICE_KEY,
-      localDate: period.storageKey
-    });
+    return this.dailyActions.deleteForTelegramUser(telegramUserId, input);
   }
 
   private async getAdventureContext(telegramUserId: bigint): Promise<AdventureLookupResult> {
@@ -536,7 +771,8 @@ export class AdventureService {
       return { state: "no-character" };
     }
 
-    const characterSummary = summarizeCharacter(character);
+    const equippedItems = await this.getEquippedItemContents(telegramUserId);
+    const characterSummary = summarizeCharacter(character, { equippedItems });
 
     if (!meetsActivityLevel(characterSummary.level, ADVENTURE_CHOICE_MIN_LEVEL)) {
       return {
@@ -589,6 +825,12 @@ export class AdventureService {
     return session;
   }
 
+  private async getEquippedItemContents(telegramUserId: bigint) {
+    const equipmentSnapshot = await this.equipment?.listByTelegramUserId(telegramUserId);
+
+    return equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
+  }
+
   private async getAdventureRerollIndex(
     telegramUserId: bigint,
     period: AdventurePeriod
@@ -619,14 +861,18 @@ export class AdventureService {
       return null;
     }
 
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Adventure reroll daily claim unexpectedly required gold.");
+    }
+
     return nextIndex;
   }
 }
 
 function buildMimicShawarmaItemGrants(
-  action: MimicShawarmaAction
+  action: string
 ): Array<{ itemId: string; quantity: number }> {
-  if (action === "poke") {
+  if (action === "wrapper" || action === "poke") {
     return [
       {
         itemId: SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
@@ -642,6 +888,10 @@ function buildMimicShawarmaItemGrants(
         quantity: 1
       }
     ];
+  }
+
+  if (action === "none" || action === "no-item") {
+    return [];
   }
 
   return [];
@@ -813,76 +1063,378 @@ function shuffleAdventureChoices(choices: AdventureChoice[], rng: SeededRandomSo
   }
 }
 
-export function buildApproachOptions(character: CharacterSummary): AdventureApproachOption[] {
-  return [
-    {
-      id: "safe",
-      label: "🛡️ Обережно розібратись",
-      hint: "менше винагороди, майже без драматичних зубів.",
-      reward: {
-        xp: 4,
-        gold: 2
-      },
-      complicationChance: 13
-    },
-    {
-      id: "flair",
-      label: getFlairApproachLabel(character),
-      hint: "середня винагорода, шанс ускладнення теж вивчив середину.",
-      reward: {
-        xp: 7,
-        gold: 4
-      },
-      complicationChance: 23
-    },
-    {
-      id: "risky",
-      label: "🔥 Зробити красиво й небезпечно",
-      hint: "більша винагорода, але проблема може образитись у відповідь.",
-      reward: {
-        xp: 10,
-        gold: 7
-      },
-      complicationChance: 42
-    }
-  ];
+export function buildAdventureMethodOptions(
+  choice: AdventureChoice,
+  character: CharacterSummary
+): AdventureApproachOption[] {
+  const scene = buildAdventureResolutionScene({
+    problemId: choice.id,
+    title: choice.title,
+    character
+  });
+
+  return resolveQuestMethodsForCharacter(scene, character).map((method) =>
+    toAdventureApproachOption(method, character)
+  );
 }
 
-function hasComplication(input: {
-  characterId: string;
-  localDate: string;
-  problemId: AdventureProblemId;
-  approach: AdventureApproach;
-  chance: number;
-}): boolean {
-  const rng = new SeededRandomSource(
-    `adventure-complication:${input.characterId}:${input.localDate}:${input.problemId}:${input.approach}`
+export function buildStarterMethodOptions(
+  sceneId: "shawarma" | "cellar-mouse",
+  character: CharacterSummary,
+  maxMethods = 7
+): AdventureApproachOption[] {
+  const scene = buildStarterQuestResolutionScene(sceneId, character);
+
+  if (sceneId === "cellar-mouse") {
+    return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 5 }).map((method) =>
+      toAdventureApproachOption(method, character)
+    );
+  }
+
+  return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 5 }).map((method) =>
+    toAdventureApproachOption(method, character)
+  );
+}
+
+export function buildApproachOptions(character: CharacterSummary): AdventureApproachOption[] {
+  return buildAdventureMethodOptions(
+    {
+      id: "stew",
+      title: "Казанок репетирує оперу",
+      hook: "",
+      client: ""
+    },
+    character
+  ).slice(0, 3);
+}
+
+function toAdventureApproachOption(
+  method: QuestMethodDefinition,
+  character: CharacterSummary
+): AdventureApproachOption {
+  const reward = getBaseQuestReward(method);
+  const chance = qualitativeQuestChance(
+    calculateQuestChance({
+      method,
+      stats: character.stats,
+      raceId: character.raceId,
+      classId: character.classId
+    })
   );
 
-  return rng.nextInt(1, 100) <= input.chance;
+  return {
+    id: method.id,
+    ...(method.callbackKey ? { callbackKey: method.callbackKey } : {}),
+    label: method.label,
+    ...(method.buttonLabel ? { buttonLabel: method.buttonLabel } : {}),
+    hint: method.hint,
+    chanceHint: chance,
+    reward,
+    ...(method.goldCost ? { goldCost: method.goldCost } : {}),
+    source: method.source,
+    primaryStat: method.primaryStat,
+    consequenceByGrade: method.consequenceByGrade
+  };
 }
 
-function getFlairApproachLabel(character: CharacterSummary): string {
-  switch (character.classId) {
-    case "class.bureaucramancer":
-      return "📋 Оформити форму 23-Б";
-    case "class.mage":
-      return "✨ Пояснити це мітологією";
-    case "class.bard":
-      return "🎵 Переспівати проблему";
-    case "class.rogue":
-      return "🗝️ Домовитись із тінню";
-    case "class.priest":
-      return "🕯️ Суворо благословити";
-    case "class.varenyk-mancer":
-      return "🥟 Замісити аргумент";
-    case "class.ranger":
-      return "🏹 Взяти слід із підлоги";
-    case "class.kharakternyk":
-      return "🌾 Подивитись характерно";
-    default:
-      return "🧠 Знайти хитрий кут";
+function buildQuestReward(
+  method: QuestMethodDefinition,
+  grade: QuestResolutionGrade,
+  consequence: QuestConsequenceKind
+): { xp: number; gold: number } {
+  const reward = getBaseQuestReward(method);
+
+  if (grade === "strong-success" || grade === "success" || consequence === "gold-cost-success") {
+    return reward;
   }
+
+  if (consequence === "fight-handoff") {
+    return { xp: 0, gold: 0 };
+  }
+
+  if (consequence === "serious-injury") {
+    return { xp: Math.ceil(reward.xp * 0.5), gold: 0 };
+  }
+
+  if (consequence === "minor-injury") {
+    return {
+      xp: Math.ceil(reward.xp * 0.5),
+      gold: Math.floor(reward.gold * 0.5)
+    };
+  }
+
+  if (consequence === "xp-only") {
+    return { xp: Math.ceil(reward.xp * 0.5), gold: 0 };
+  }
+
+  if (consequence === "reduced-reward") {
+    return {
+      xp: Math.ceil(reward.xp * 0.5),
+      gold: Math.floor(reward.gold * 0.5)
+    };
+  }
+
+  return {
+    xp: Math.max(1, Math.ceil(reward.xp * 0.35)),
+    gold: 0
+  };
+}
+
+function getBaseQuestReward(method: QuestMethodDefinition): { xp: number; gold: number } {
+  const reward = QUEST_REWARD_PROFILES[method.rewardProfile];
+
+  return method.goldCost ? { ...reward, gold: 0 } : reward;
+}
+
+function varyAdventureChoiceReward(
+  reward: { xp: number; gold: number },
+  input: {
+    characterId: string;
+    periodKey: string;
+    sceneId: string;
+    methodId: string;
+    grade: QuestResolutionGrade;
+    luck: number;
+  }
+): { xp: number; gold: number } {
+  if (reward.xp <= 0 && reward.gold <= 0) {
+    return reward;
+  }
+
+  const rng = new SeededRandomSource(
+    `adventure-choice-reward:v1:${input.characterId}:${input.periodKey}:${input.sceneId}:${input.methodId}:${input.grade}`
+  );
+  const luck = Math.floor(input.luck);
+  const luckyNudge =
+    rng.nextFloat() < clamp((luck - 6) * 0.035, 0, 0.18)
+      ? 1
+      : rng.nextFloat() < clamp((6 - luck) * 0.025, 0, 0.12)
+        ? -1
+        : 0;
+  const xpSpread = reward.xp > 0 ? Math.max(1, Math.floor(reward.xp * 0.23)) : 0;
+  const goldSpread = reward.gold > 0 ? Math.max(1, Math.floor(reward.gold * 0.23)) : 0;
+
+  return {
+    xp:
+      reward.xp > 0
+        ? Math.max(1, reward.xp + rng.nextInt(-xpSpread, xpSpread) + luckyNudge)
+        : 0,
+    gold:
+      reward.gold > 0
+        ? Math.max(0, reward.gold + rng.nextInt(-goldSpread, goldSpread) + luckyNudge)
+        : 0
+  };
+}
+
+function buildAdventureChoiceItemGrants(input: {
+  character: CharacterSummary;
+  characterId: string;
+  periodKey: string;
+  sceneId: string;
+  method: QuestMethodDefinition;
+  grade: QuestResolutionGrade;
+  consequence: QuestConsequenceKind;
+}): Array<{ itemId: string; quantity: number }> {
+  if (input.consequence === "fight-handoff") {
+    return [];
+  }
+
+  const rng = new SeededRandomSource(
+    `adventure-choice-item:v1:${input.characterId}:${input.periodKey}:${input.sceneId}:${input.method.id}:${input.grade}`
+  );
+  const paidMethodBonus = input.method.goldCost ? 0.07 : 0;
+  const dropChance = clamp(
+    0.11 + paidMethodBonus + (Math.floor(input.character.stats.luck) - 6) * 0.012,
+    input.method.goldCost ? 0.12 : 0.07,
+    input.method.goldCost ? 0.29 : 0.21
+  );
+
+  if (rng.nextFloat() >= dropChance) {
+    return [];
+  }
+
+  const item = rollLootExpansionItem({
+    profile: input.character,
+    sourceId: "tavern_event",
+    sourceTags: ["authored_quest", ...input.method.techniques],
+    rng
+  });
+
+  return item ? [{ itemId: item.id, quantity: 1 }] : [];
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function buildQuestHpLoss(input: {
+  characterId: string;
+  periodKey: string;
+  sceneId: string;
+  methodId: string;
+  grade: QuestResolutionGrade;
+  consequence: QuestConsequenceKind;
+  hpMax: number;
+}): number {
+  if (input.consequence !== "minor-injury" && input.consequence !== "serious-injury") {
+    return 0;
+  }
+
+  const rng = new SeededRandomSource(
+    `quest-hp-loss-v1:${input.characterId}:${input.periodKey}:${input.sceneId}:${input.methodId}:${input.grade}`
+  );
+  const hpMax = Math.max(1, Math.floor(input.hpMax));
+  const percent =
+    input.consequence === "minor-injury"
+      ? rng.nextFloat() * 0.04 + 0.05
+      : rng.nextFloat() * 0.08 + 0.13;
+  const floor = input.consequence === "minor-injury" ? 1 : 2;
+  const cap = input.consequence === "minor-injury" ? 4 : 8;
+
+  return clamp(Math.ceil(hpMax * percent), floor, cap);
+}
+
+function buildHpLossRequest(requested: number, effectiveHpMax: number) {
+  return {
+    requested,
+    effectiveHpMax
+  };
+}
+
+function buildAdventureFightHandoffTarget(
+  sceneId: string,
+  methodId: string,
+  characterId: string,
+  periodKey: string,
+  character: CharacterSummary
+): AdventureFightHandoffTarget {
+  const generatedKind = getGeneratedFightKind(sceneId);
+  const exact = ADVENTURE_FIGHT_HANDOFF_MONSTERS[`${sceneId}:${methodId}`] ?? [];
+  const scene = ADVENTURE_FIGHT_HANDOFF_MONSTERS[sceneId] ?? [];
+  const generated = generatedKind ? ADVENTURE_FIGHT_HANDOFF_MONSTERS[`generated:${generatedKind}`] ?? [] : [];
+  const candidates = [...exact, ...scene, ...generated, "monster.unread-rules-ghost"];
+  const eligible = candidates
+    .map((monsterId) => monsters.find((monster) => monster.id === monsterId))
+    .filter((monster): monster is (typeof monsters)[number] =>
+      monster !== undefined && isAdventureHandoffMonsterEligible(monster, character)
+    );
+  const pool = eligible.length > 0 ? eligible : monsters.filter((monster) =>
+    isAdventureHandoffMonsterEligible(monster, character)
+  );
+  const closeFloor = Math.max(1, character.level - 2);
+  const close = pool.filter((monster) => monster.level >= closeFloor);
+  const ranked = selectHighestMonsterLevel(close.length > 0 ? close : pool);
+  const rng = new SeededRandomSource(
+    `adventure-fight-target-v1:${characterId}:${periodKey}:${sceneId}:${methodId}:${character.level}`
+  );
+  const selected = ranked[rng.nextInt(0, Math.max(0, ranked.length - 1))] ?? monsters.find((monster) =>
+    monster.id === "monster.unread-rules-ghost"
+  );
+
+  return {
+    monsterId: selected?.id ?? "monster.unread-rules-ghost"
+  };
+}
+
+function isAdventureHandoffMonsterEligible(
+  monster: (typeof monsters)[number],
+  character: CharacterSummary
+): boolean {
+  const tags = new Set(monster.tags);
+
+  return (
+    monster.id !== "monster.mimic-shawarma" &&
+    !tags.has("starter") &&
+    !tags.has("boss") &&
+    monster.level <= Math.max(3, character.level)
+  );
+}
+
+function selectHighestMonsterLevel(candidates: (typeof monsters)[number][]): (typeof monsters)[number][] {
+  const highest = candidates.reduce((current, monster) => Math.max(current, monster.level), 0);
+
+  return candidates.filter((monster) => monster.level === highest);
+}
+
+function getGeneratedFightKind(sceneId: string): string | null {
+  if (sceneId.startsWith("race-") && sceneId.endsWith("-survey")) {
+    return "survey";
+  }
+
+  if (sceneId.startsWith("race-") && sceneId.endsWith("-mug")) {
+    return "mug";
+  }
+
+  if (sceneId.startsWith("race-") && sceneId.endsWith("-portrait")) {
+    return "portrait";
+  }
+
+  if (sceneId.startsWith("class-") && sceneId.endsWith("-manual")) {
+    return "manual";
+  }
+
+  if (sceneId.startsWith("class-") && sceneId.endsWith("-uniform")) {
+    return "uniform";
+  }
+
+  if (sceneId.startsWith("class-") && sceneId.endsWith("-exam")) {
+    return "exam";
+  }
+
+  if (sceneId.startsWith("title-")) {
+    return "title";
+  }
+
+  return null;
+}
+
+const ADVENTURE_FIGHT_HANDOFF_MONSTERS: Record<string, string[]> = {
+  stew: ["monster.borshch-slime", "monster.conditionally-sliced-loaf-bandit"],
+  barrel: ["monster.cheese-vault-warden", "monster.no-change-merchantling", "monster.queue-counter-gargoyle"],
+  helmet: ["monster.unread-rules-ghost", "monster.preapproval-dragonling"],
+  receipt: ["monster.stamp-doorkeeper-skeleton", "monster.preapproval-dragonling"],
+  cloak: ["monster.unclosed-closure-act", "monster.queue-counter-gargoyle", "monster.unread-rules-ghost"],
+  chimney: ["monster.complaint-lantern", "monster.borshch-slime", "monster.report-jellyfish"],
+  chair: ["monster.queue-counter-gargoyle", "monster.anxious-slippers-swarm"],
+  broom: ["monster.audit-mosquito", "monster.anxious-slippers-swarm"],
+  map: ["monster.liar-corridor-map", "monster.deadline-spider", "monster.unread-rules-ghost"],
+  portrait: ["monster.self-critique-mirror", "monster.unread-rules-ghost"],
+  rug: ["monster.self-critique-mirror", "monster.anxious-slippers-swarm"],
+  bell: ["monster.quiet-catastrophe-clerk", "monster.stamp-doorkeeper-skeleton", "monster.deadline-spider"],
+  "generated:portrait": ["monster.self-critique-mirror", "monster.unread-rules-ghost"],
+  "generated:manual": ["monster.unread-rules-ghost", "monster.stamp-doorkeeper-skeleton"],
+  "generated:uniform": ["monster.queue-counter-gargoyle", "monster.audit-mosquito"],
+  "generated:exam": ["monster.deadline-spider", "monster.stamp-doorkeeper-skeleton"],
+  "generated:title": ["monster.inventory-prophet", "monster.self-critique-mirror", "monster.unread-rules-ghost"]
+};
+
+function buildQuestResolutionClaimPayload(input: {
+  sceneId: string;
+  method: QuestMethodDefinition;
+  grade: QuestResolutionGrade;
+  consequence: QuestConsequenceKind;
+  reward: { xp: number; gold: number };
+  itemGrants?: Array<{ itemId: string; quantity: number }>;
+  spentGold: number;
+  check: QuestCheckResult;
+  fightEncounter?: AdventureFightHandoffTarget | null;
+}): unknown {
+  return {
+    version: 1,
+    sceneId: input.sceneId,
+    methodId: input.method.id,
+    grade: input.grade,
+    consequence: input.consequence,
+    outcomeId: `${input.method.id}:${input.grade}`,
+    reward: {
+      xp: input.reward.xp,
+      gold: input.reward.gold,
+      itemGrants: input.itemGrants ?? []
+    },
+    spentGold: input.spentGold,
+    fightHandoff: input.fightEncounter,
+    check: input.check
+  };
 }
 
 const ADVENTURE_PROBLEM_ICONS = {

@@ -7,6 +7,7 @@ import {
   presentDuelWinnersBoard,
   presentKorchmaDeepClosed,
   presentKorchmaFightingCorner,
+  presentKorchmaFightingCornerLevelLocked,
   presentKorchmaFront,
   presentKorchmaHall,
   presentKorchmaMemorialBoard,
@@ -72,8 +73,16 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("<i>Дошка вістей</i>");
     expect(text).toContain("<i>табличка прибулих</i>");
     expect(text).toContain("<i>пропамʼятна дошка</i>");
+    expect(text).toContain("<i>Манчкін-скупник</i>");
     expect(text).not.toContain("За дверима біля Бочки сидить <i>Єгер</i>");
     expect(text).not.toContain("сліди просить перевіряти надворі");
+  });
+
+  it("hides the Munchkin paragraph from the front door at night", () => {
+    const text = presentKorchmaFront(character, { munchkinLocation: "nyz-descent" });
+
+    expect(text).toContain("🚪 Перед корчмою");
+    expect(text).not.toContain("Манчкін-скупник");
   });
 
   it("shows a front-door arrivals plaque with escaped visitor names", () => {
@@ -150,7 +159,16 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("🪜 Спуск до Низу");
     expect(text).toContain("За бочками в коморі є сходи.");
+    expect(text).not.toContain("Манчкін-скупник");
     expect(text).not.toContain("Ярус I: Сутерени Корчми");
+  });
+
+  it("shows Munchkin at the Nyz descent at night", () => {
+    const text = presentKorchmaDeepClosed(character, { munchkinLocation: "nyz-descent" });
+
+    expect(text).toContain("🪜 Спуск до Низу");
+    expect(text).toContain("<i>Манчкін-скупник</i>");
+    expect(text).toContain("рівні краще купувати ближче до небезпеки");
   });
 
   it("shows duel winners for day week and month", () => {
@@ -255,7 +273,7 @@ describe("tavern presenter", () => {
   });
 
   it("shows the korchma hall as the hub", () => {
-    const text = presentKorchmaHall(character);
+    const text = presentKorchmaHall({ ...character, level: 3 });
 
     expect(text).toContain("Зала корчми");
     expect(text).toContain("<b>Мандрівник</b> · <i>Пересічний Пригодник</i>");
@@ -273,6 +291,26 @@ describe("tavern presenter", () => {
     expect(text).toContain("Куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
     expect(text).not.toContain("запалилася свічка");
+  });
+
+  it("keeps the early korchma hall prose stable while buttons stay level-gated", () => {
+    const text = presentKorchmaHall({ ...character, level: 1 });
+
+    expect(text).toContain("Зала корчми");
+    expect(text).toContain("<i>стіл зі справами</i>");
+    expect(text).toContain("<i>Бочка Пінного Міражу</i>");
+    expect(text).toContain("<i>шинок</i>");
+    expect(text).toContain("<i>льох</i>");
+    expect(text).toContain("бійцівський куток");
+    expect(text).toContain("спуск до Низу");
+  });
+
+  it("shows a short fighting corner level gate", () => {
+    const text = presentKorchmaFightingCornerLevelLocked(character);
+
+    expect(text).toContain("Бійцівський куток відкриється з 3 рівня");
+    expect(text).toContain("Поверніться до зали");
+    expect(text).not.toContain("⚡ Миттєва дуель");
   });
 
   it("shows a personal remort candle in the korchma hall at level 13", () => {

@@ -79,21 +79,49 @@ describe("level barter domain", () => {
     ]);
   });
 
-  it("requires at least one eligible item even when the wallet covers the cost", () => {
+  it("requires at least 587 gold value in eligible items even when the wallet covers the cost", () => {
     expect(pickItemsForLevelBarter([], 1000, 1000)).toBeNull();
 
     const token = item({ id: "item.token", goldValue: 25 });
+    const enough = item({ id: "item.enough", goldValue: 587 });
     const stacks = buildLevelBarterEligibleStacks({
       stacks: [{ itemId: token.id, quantity: 1 }],
-      itemContents: [token]
+      itemContents: [token, enough]
+    });
+
+    expect(pickItemsForLevelBarter(stacks, 1000, 1000)).toBeNull();
+
+    const enoughStacks = buildLevelBarterEligibleStacks({
+      stacks: [{ itemId: enough.id, quantity: 1 }],
+      itemContents: [token, enough]
+    });
+
+    expect(pickItemsForLevelBarter(enoughStacks, 1000, 1000)).toMatchObject({
+      itemTotalValue: 587,
+      goldSpent: 413,
+      selectedTotalValue: 1000,
+      overpay: 0,
+      items: [{ itemId: enough.id, quantity: 1 }]
+    });
+  });
+
+  it("does not choose an exact low-item wallet fill over the minimum item-value rule", () => {
+    const low = item({ id: "item.low", goldValue: 500 });
+    const enough = item({ id: "item.enough", goldValue: 600 });
+    const stacks = buildLevelBarterEligibleStacks({
+      stacks: [
+        { itemId: low.id, quantity: 1 },
+        { itemId: enough.id, quantity: 1 }
+      ],
+      itemContents: [low, enough]
     });
 
     expect(pickItemsForLevelBarter(stacks, 1000, 1000)).toMatchObject({
-      itemTotalValue: 25,
-      goldSpent: 975,
+      itemTotalValue: 600,
+      goldSpent: 400,
       selectedTotalValue: 1000,
       overpay: 0,
-      items: [{ itemId: token.id, quantity: 1 }]
+      items: [{ itemId: enough.id, quantity: 1 }]
     });
   });
 

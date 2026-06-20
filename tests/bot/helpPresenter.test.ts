@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { presentHelp } from "../../src/bot/presenters/helpPresenter";
+import { presentDevHelp, presentHelp } from "../../src/bot/presenters/helpPresenter";
 
 describe("help presenter", () => {
   it("lists only currently available commands by default", () => {
@@ -35,6 +35,7 @@ describe("help presenter", () => {
     expect(text).toContain("/news");
     expect(text).toContain("/support");
     expect(text).toContain("/help");
+    expect(text).not.toContain("/dev_help");
     expect(text).not.toContain("/dev_reset_me");
     expect(text).not.toContain("/dev_adventure_reset");
     expect(text).not.toContain("/dev_raid_stop");
@@ -78,7 +79,8 @@ describe("help presenter", () => {
     const resetOnly = presentHelp({ includeDevReset: true, includeDevGrant: false });
     const grantsEnabled = presentHelp({ includeDevReset: true, includeDevGrant: true });
 
-    expect(resetOnly).toContain("🧪 /dev_reset_me");
+    expect(resetOnly).toContain("🧪 /dev_help");
+    expect(resetOnly).toContain("/dev_reset_me");
     expect(resetOnly).toContain("/dev_adventure_reset");
     expect(resetOnly).toContain("/dev_raid_stop");
     expect(resetOnly).not.toContain("🪜 /dev_add_level");
@@ -89,7 +91,8 @@ describe("help presenter", () => {
     expect(resetOnly).not.toContain("🎲 /dev_add_random_item");
     expect(resetOnly).toContain("допомога\n\n🧪");
 
-    expect(grantsEnabled).toContain("🧪 /dev_reset_me");
+    expect(grantsEnabled).toContain("🧪 /dev_help");
+    expect(grantsEnabled).toContain("/dev_reset_me");
     expect(grantsEnabled).toContain("/dev_adventure_reset");
     expect(grantsEnabled).toContain("/dev_raid_stop");
     expect(grantsEnabled).toContain("🪜 /dev_add_level");
@@ -98,5 +101,22 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("🩹 /dev_heal");
     expect(grantsEnabled).toContain("🔮 /dev_restore_mana");
     expect(grantsEnabled).toContain("🎲 /dev_add_random_item");
+  });
+
+  it("renders a compact dev-only help screen from available dev commands", () => {
+    const resetOnly = presentDevHelp({ includeDevReset: true, includeDevGrant: false });
+    const grantsEnabled = presentDevHelp({ includeDevReset: true, includeDevGrant: true });
+    const disabled = presentDevHelp({ includeDevReset: false, includeDevGrant: false });
+
+    expect(resetOnly).toContain("🧰 Dev-довідка Квестарні");
+    expect(resetOnly).toContain("🧰 /dev_help");
+    expect(resetOnly).toContain("🧪 /dev_reset_me");
+    expect(resetOnly).toContain("⏱️ /dev_adventure_reset");
+    expect(resetOnly).toContain("⏹️ /dev_raid_stop");
+    expect(resetOnly).not.toContain("/dev_add_xp");
+
+    expect(grantsEnabled).toContain("🔢 /dev_add_xp");
+    expect(grantsEnabled).toContain("🎲 /dev_add_random_item");
+    expect(disabled).toBe("Dev-команди тут не ввімкнені. Корчмар сховав викрутку.");
   });
 });

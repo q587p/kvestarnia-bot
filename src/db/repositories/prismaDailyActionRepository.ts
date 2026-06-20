@@ -3,8 +3,11 @@ import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import type {
   ClaimDailyActionInput,
   ClaimDailyActionResult,
+  DailyActionClaimIdentity,
   DailyActionRecord,
   DailyActionRepository,
+  DailyActionRollbackInput,
+  HpLossAudit,
   ItemGrant
 } from "./dailyActionRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
@@ -47,8 +50,9 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     telegramUserId: bigint,
     input: ClaimDailyActionInput
   ): Promise<ClaimDailyActionResult | null> {
-    try {
-      return await this.prisma.$transaction(async (tx) => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
         const character = await tx.character.findFirst({
           where: {
             user: {
@@ -85,29 +89,97 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           };
         }
 
+        const spentGold = normalizeSpentGold(input.spentGold);
+
+        if (spentGold > 0) {
+          const debit = await tx.character.updateMany({
+            where: {
+              id: character.id,
+              gold: {
+                gte: spentGold
+              }
+            },
+            data: {
+              gold: {
+                decrement: spentGold
+              }
+            }
+          });
+
+          if (debit.count !== 1) {
+            const remortCount = await countCharacterRemorts(tx, character.id);
+
+            return {
+              state: "insufficient-gold",
+              character: { ...character, remortCount },
+              requiredGold: spentGold
+            };
+          }
+        }
+
+        const resourceCharacter = await tx.character.findUniqueOrThrow({
+          where: {
+            id: character.id
+          }
+        });
+        const hpLoss = buildHpLossAudit(resourceCharacter.hpCurrent, input.hpLoss);
+
         const action = await tx.dailyAction.create({
           data: {
             characterId: character.id,
             key: input.key,
             localDate: input.localDate,
             rewardXp: input.rewardXp,
-            rewardGold: input.rewardGold
+            rewardGold: input.rewardGold,
+            spentGold,
+            ...(input.resultJson === undefined && !hpLoss
+              ? {}
+              : { resultJson: withHpLossAudit(input.resultJson, hpLoss) as Prisma.InputJsonValue })
           }
         });
 
-        const rewardedCharacter = await tx.character.update({
-          where: {
-            id: character.id
+        const rewardUpdate = {
+          xp: {
+            increment: input.rewardXp
           },
-          data: {
-            xp: {
-              increment: input.rewardXp
+          gold: {
+            increment: input.rewardGold
+          },
+          ...(hpLoss
+            ? {
+                hpCurrent: hpLoss.after,
+                hpRegenAt: new Date()
+              }
+            : {})
+        };
+        let rewardedCharacter: typeof character;
+
+        if (hpLoss) {
+          const updated = await tx.character.updateMany({
+            where: {
+              id: character.id,
+              hpCurrent: hpLoss.before
             },
-            gold: {
-              increment: input.rewardGold
-            }
+            data: rewardUpdate
+          });
+
+          if (updated.count !== 1) {
+            throw new HpMutationConflictError();
           }
-        });
+
+          rewardedCharacter = await tx.character.findUniqueOrThrow({
+            where: {
+              id: character.id
+            }
+          });
+        } else {
+          rewardedCharacter = await tx.character.update({
+            where: {
+              id: character.id
+            },
+            data: rewardUpdate
+          });
+        }
         const remortCount = await countCharacterRemorts(tx, character.id);
         const rewardProgress = applyXpReward(character.xp, input.rewardXp, { remortCount });
         const oldLevel = Math.max(character.level, rewardProgress.oldLevel);
@@ -162,6 +234,17 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           });
         }
 
+        if (appliedItemGrants.length > 0 || itemGrants.length > 0) {
+          await tx.dailyAction.update({
+            where: {
+              id: action.id
+            },
+            data: {
+              resultJson: withAppliedItemGrants(action.resultJson, appliedItemGrants) as Prisma.InputJsonValue
+            }
+          });
+        }
+
         return {
           state: "created",
           action,
@@ -171,21 +254,29 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             newLevel,
             leveledUp: newLevel > oldLevel
           },
-          itemGrants: appliedItemGrants
+          itemGrants: appliedItemGrants,
+          hpLoss
         };
-      });
-    } catch (error) {
-      if (isUniqueConstraintError(error)) {
-        return this.findExistingClaim(telegramUserId, input);
-      }
+        });
+      } catch (error) {
+        if (error instanceof HpMutationConflictError && attempt < 2) {
+          continue;
+        }
 
-      throw error;
+        if (isUniqueConstraintError(error)) {
+          return this.findExistingClaim(telegramUserId, input);
+        }
+
+        throw error;
+      }
     }
+
+    throw new HpMutationConflictError();
   }
 
   async deleteForTelegramUser(
     telegramUserId: bigint,
-    input: { key: string; localDate: string }
+    input: DailyActionClaimIdentity
   ): Promise<"deleted" | "missing" | "no-character"> {
     const character = await this.prisma.character.findFirst({
       where: {
@@ -211,6 +302,154 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     });
 
     return deleted.count > 0 ? "deleted" : "missing";
+  }
+
+  async rollbackForTelegramUser(
+    telegramUserId: bigint,
+    input: DailyActionRollbackInput
+  ): Promise<"rolled-back" | "missing" | "no-character"> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          const character = await tx.character.findFirst({
+            where: {
+              user: {
+                telegramUserId
+              }
+            }
+          });
+
+          if (!character) {
+            return "no-character";
+          }
+
+          const action = await tx.dailyAction.findUnique({
+            where: {
+              characterId_key_localDate: {
+                characterId: character.id,
+                key: input.key,
+                localDate: input.localDate
+              }
+            }
+          });
+
+          if (!action) {
+            return "missing";
+          }
+
+          const hpLoss = readHpLossAudit(action.resultJson);
+          await tx.dailyAction.delete({
+            where: {
+              characterId_key_localDate: {
+                characterId: character.id,
+                key: input.key,
+                localDate: input.localDate
+              }
+            }
+          });
+
+          const remortCount = await countCharacterRemorts(tx, character.id);
+          const xpAfterRollback = Math.max(0, character.xp - action.rewardXp);
+          const levelAfterRollback = getLevelForXp(xpAfterRollback, { remortCount });
+          const rollbackHpCurrent =
+            hpLoss && hpLoss.lost > 0 && character.hpCurrent === hpLoss.after
+              ? Math.max(
+                  character.hpCurrent,
+                  Math.min(
+                    Math.max(1, Math.floor(input.currentEffectiveHpMax ?? character.hpMax)),
+                    hpLoss.after + hpLoss.lost
+                  )
+                )
+              : null;
+          const characterUpdate = await tx.character.updateMany({
+            where: {
+              id: character.id,
+              xp: character.xp,
+              level: character.level,
+              gold: character.gold,
+              ...(rollbackHpCurrent !== null ? { hpCurrent: character.hpCurrent } : {})
+            },
+            data: {
+              xp: xpAfterRollback,
+              level: levelAfterRollback,
+              gold: {
+                increment: action.spentGold - action.rewardGold
+              },
+              ...(rollbackHpCurrent !== null
+                ? {
+                    hpCurrent: rollbackHpCurrent,
+                    hpRegenAt: new Date()
+                  }
+                : {})
+            }
+          });
+
+          if (characterUpdate.count !== 1) {
+            throw new RollbackMutationConflictError();
+          }
+
+          const itemGrants = readItemGrants(action.resultJson);
+
+          for (const grant of itemGrants) {
+            if (grant.quantity <= 0) {
+              continue;
+            }
+
+            const existing = await tx.characterItem.findUnique({
+              where: {
+                characterId_itemId: {
+                  characterId: character.id,
+                  itemId: grant.itemId
+                }
+              }
+            });
+
+            if (!existing) {
+              continue;
+            }
+
+            const nextQuantity = existing.quantity - grant.quantity;
+
+            if (nextQuantity > 0) {
+              const itemUpdate = await tx.characterItem.updateMany({
+                where: {
+                  id: existing.id,
+                  quantity: existing.quantity
+                },
+                data: {
+                  quantity: nextQuantity
+                }
+              });
+
+              if (itemUpdate.count !== 1) {
+                throw new RollbackMutationConflictError();
+              }
+            } else {
+              const itemDelete = await tx.characterItem.deleteMany({
+                where: {
+                  id: existing.id,
+                  quantity: existing.quantity
+                }
+              });
+
+              if (itemDelete.count !== 1) {
+                throw new RollbackMutationConflictError();
+              }
+            }
+          }
+
+          return "rolled-back";
+        });
+      } catch (error) {
+        if (error instanceof RollbackMutationConflictError && attempt < 2) {
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    throw new RollbackMutationConflictError();
   }
 
   async countForTelegramUser(
@@ -314,4 +553,157 @@ async function getGrantQuantity(
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function normalizeSpentGold(value: number | undefined): number {
+  return Math.max(0, Math.floor(value ?? 0));
+}
+
+function normalizeHpLoss(value: ClaimDailyActionInput["hpLoss"]): { requested: number; effectiveHpMax: number | null } {
+  if (typeof value === "number") {
+    return {
+      requested: Math.max(0, Math.floor(value)),
+      effectiveHpMax: null
+    };
+  }
+
+  if (!value) {
+    return {
+      requested: 0,
+      effectiveHpMax: null
+    };
+  }
+
+  return {
+    requested: Math.max(0, Math.floor(value.requested)),
+    effectiveHpMax: Math.max(1, Math.floor(value.effectiveHpMax))
+  };
+}
+
+function buildHpLossAudit(
+  hpCurrent: number,
+  requestedLoss: ClaimDailyActionInput["hpLoss"]
+): HpLossAudit | null {
+  const { requested, effectiveHpMax } = normalizeHpLoss(requestedLoss);
+
+  if (requested <= 0) {
+    return null;
+  }
+
+  const before = Math.max(0, Math.floor(hpCurrent));
+  const lost = Math.min(requested, Math.max(0, before - 1));
+
+  return {
+    before,
+    max: Math.max(before, effectiveHpMax ?? before),
+    lost,
+    after: before - lost
+  };
+}
+
+function withHpLossAudit(resultJson: unknown, hpLoss: HpLossAudit | null): unknown {
+  if (!hpLoss) {
+    return resultJson;
+  }
+
+  if (resultJson && typeof resultJson === "object" && !Array.isArray(resultJson)) {
+    return {
+      ...resultJson,
+      hp: hpLoss
+    };
+  }
+
+  return {
+    hp: hpLoss
+  };
+}
+
+function withAppliedItemGrants(resultJson: Prisma.JsonValue | null, appliedItemGrants: ItemGrant[]): unknown {
+  const base =
+    resultJson && typeof resultJson === "object" && !Array.isArray(resultJson)
+      ? resultJson
+      : {};
+  const reward = (base as { reward?: unknown }).reward;
+  const rewardObject =
+    reward && typeof reward === "object" && !Array.isArray(reward)
+      ? reward
+      : {};
+
+  return {
+    ...base,
+    reward: {
+      ...rewardObject,
+      appliedItemGrants: appliedItemGrants.map((grant) => ({
+        itemId: grant.itemId,
+        quantity: grant.quantity
+      }))
+    }
+  };
+}
+
+function readHpLossAudit(resultJson: Prisma.JsonValue | null): HpLossAudit | null {
+  if (!resultJson || typeof resultJson !== "object" || Array.isArray(resultJson)) {
+    return null;
+  }
+
+  const hp = (resultJson as { hp?: unknown }).hp;
+
+  if (!hp || typeof hp !== "object" || Array.isArray(hp)) {
+    return null;
+  }
+
+  const before = (hp as { before?: unknown }).before;
+  const max = (hp as { max?: unknown }).max;
+  const lost = (hp as { lost?: unknown }).lost;
+  const after = (hp as { after?: unknown }).after;
+
+  return typeof before === "number" && typeof lost === "number" && typeof after === "number"
+    ? { before, max: typeof max === "number" ? max : Math.max(before, after), lost, after }
+    : null;
+}
+
+function readItemGrants(resultJson: Prisma.JsonValue | null): ItemGrant[] {
+  if (!resultJson || typeof resultJson !== "object" || Array.isArray(resultJson)) {
+    return [];
+  }
+
+  const reward = (resultJson as { reward?: unknown }).reward;
+
+  if (!reward || typeof reward !== "object" || Array.isArray(reward)) {
+    return [];
+  }
+
+  const appliedItemGrants = (reward as { appliedItemGrants?: unknown }).appliedItemGrants;
+  const itemGrants = Array.isArray(appliedItemGrants)
+    ? appliedItemGrants
+    : (reward as { itemGrants?: unknown }).itemGrants;
+
+  if (!Array.isArray(itemGrants)) {
+    return [];
+  }
+
+  return itemGrants.flatMap((grant) => {
+    if (!grant || typeof grant !== "object" || Array.isArray(grant)) {
+      return [];
+    }
+
+    const itemId = (grant as { itemId?: unknown }).itemId;
+    const quantity = (grant as { quantity?: unknown }).quantity;
+
+    return typeof itemId === "string" && typeof quantity === "number"
+      ? [{ itemId, quantity }]
+      : [];
+  });
+}
+
+class HpMutationConflictError extends Error {
+  constructor() {
+    super("Daily action HP mutation lost an optimistic race.");
+  }
+}
+
+class RollbackMutationConflictError extends Error {
+  constructor() {
+    super("Daily action rollback lost an optimistic race.");
+  }
 }

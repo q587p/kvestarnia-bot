@@ -40,6 +40,8 @@ import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 import type { PersistentFightDifficultyId } from "../../services/fightService";
+import { getMunchkinLocationAt, type MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
+import { systemClock } from "../../shared/time";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 
@@ -69,6 +71,7 @@ export async function sendFight(
     requireKorchmaInterior?: boolean;
     openDifficulty?: boolean;
     difficulty?: PersistentFightDifficultyId;
+    now?: Date;
   }
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
@@ -177,7 +180,11 @@ export async function sendFight(
 
   if (result.state === "persistent-ready") {
     if (!options?.openDifficulty) {
-      await sendResultText(presentKorchmaDeepClosed(result.character), "deep");
+      const munchkinLocation = getMunchkinLocationAt(options?.now ?? systemClock());
+      await sendResultText(
+        presentKorchmaDeepClosed(result.character, { munchkinLocation }),
+        { type: "deep", munchkinLocation }
+      );
       return;
     }
 
@@ -254,6 +261,7 @@ async function sendText(
     | false
     | "enter-korchma"
     | "deep"
+    | { type: "deep"; munchkinLocation?: MunchkinLocation }
     | "persistent-difficulty"
     | "persistent-ready"
     | "problem-not-issued"
@@ -277,6 +285,12 @@ async function sendText(
             ? buildEnterKorchmaKeyboard()
             : keyboard === "deep"
               ? buildKorchmaDeepKeyboard()
+            : typeof keyboard === "object" && keyboard.type === "deep"
+              ? buildKorchmaDeepKeyboard(
+                  keyboard.munchkinLocation === undefined
+                    ? {}
+                    : { munchkinLocation: keyboard.munchkinLocation }
+                )
             : keyboard === "persistent-difficulty"
               ? buildPersistentFightDifficultyKeyboard()
             : keyboard === "persistent-ready"

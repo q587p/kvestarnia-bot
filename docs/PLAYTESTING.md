@@ -67,7 +67,7 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 4. Бот має показати pending-рейд із фактичним очікуванням: на 1 рівні межа `5-8` хвилин, на вищих рівнях можливий максимум росте на `30` секунд за рівень після першого.
 5. Поки рейд pending, спробуй `🗺️ Квести`, `/adventure`, `/fight`, `/hunt` або `/cellar`.
 6. Очікування: пригодові дії тимчасово заблоковані й не переносять пригодника з рейдової присутності біля Бочки.
-   У локальному режимі можна викликати `/dev_raid_stop`, щоб достроково провести active pending-рейд через звичайне завершення.
+   У локальному режимі можна викликати `/dev_raid_stop`, щоб достроково провести active pending-рейд через звичайне завершення; якщо XP піднімає рівень, має прийти звичайне окреме привітання.
 7. Дочекайся завершення очікування без ручного натискання.
 8. Має прийти окреме повідомлення з підсумком і винагородою; ручне `🍺 Перевірити бочку` після очікування лишається fallback.
 9. Повторне натискання за той самий рейдовий відтинок не дублює XP, золото або предмети.
@@ -96,31 +96,28 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 3. Hub має показувати лише актуальні справи й кнопку `📦 Архів`.
 4. Натисни `📦 Архів`.
 5. Очікування: завершені, retired і locked справи показані окремо, а кнопка `📋 До справ` повертає на активний список.
+6. На новому персонажі 1 рівня закрий підозрілу шаурму й новачкову сутичку, потім відкрий архів: обидві стартові справи мають бути видимі як завершені, а герой має дорости до 2 рівня навіть після реморту.
 
 ## Вибір корчемної пригоди
 
 1. На персонажі 3+ рівня натисни `🪧 Обрати пригоду` або відкрий `/adventure`.
 2. Перевір, що бот показує три різні корчемні справи.
 3. Обери одну справу.
-4. Перевір, що бот показує три підходи:
-   - обережний;
-   - хитрий/класовий;
-   - ризиковий.
-5. Обери підхід і перевір результат: сцена коротка, винагорода ідемпотентна, ризиковіший підхід дає щедріший, але небезпечніший результат.
-6. Повторне натискання старої кнопки в тому самому 93-хвилинному вікні не дублює XP, золото або манатки.
-7. У локальному режимі виклич `/dev_adventure_reset` і перевір, що `/adventure` показує інші три справи в цьому самому вікні, а старі кнопки стають застарілими.
-8. За активної persistent-сутички `/adventure` має показати safety-стан і не відкривати другу пригоду.
+4. Перевір, що замість старої лінійки `safe/flair/risky` видно 5-7 коротких авторських методів самої сцени, без підписів `Расовий спосіб`, `Класова техніка`, `signature`, `race+class` або кнопки з одним лише титулом.
+5. Обери метод і перевір результат: текст короткий, метод згадано, нагорода ідемпотентна, exact шансів і майбутньої винагороди не показано до натискання; якщо метод травмонебезпечний, результат показує фактичну втрату здоровʼя й поточне HP.
+6. Якщо метод має малу золоту ціну, перевір персонажа з достатнім золотом і без нього: без золота справа не зараховується й гаманець не змінюється.
+7. Повторне натискання старої кнопки в тому самому 93-хвилинному вікні не дублює XP, золото, манатки, HP injury або fight handoff.
+8. Старий `safe/flair/risky` callback з історії має показати stale-refresh/current offer, а не тихо обрати новий метод.
+9. У локальному режимі виклич `/dev_adventure_reset` і перевір, що `/adventure` показує інші три справи в цьому самому вікні, а старі кнопки стають застарілими.
+10. За активної persistent-сутички `/adventure` має показати safety-стан і не відкривати другу пригоду.
 
 ## Сутичка з Міміком-шаурмою
 
 1. Натисни `⚔️ До сутички` або відкрий `/fight`.
 2. Екран має показати preview HP пригодника й Міміка-шаурми.
-3. Обери одну дію:
-   - вдарити;
-   - збити з пантелику чеком;
-   - відступити красиво.
-4. Очікування: результат deterministic, без випадковості, з винагородою раз на збережену дату.
-5. HP після цієї сцени не зберігається, персонаж не може померти, повна combat state machine ще не створюється.
+3. Обери один авторський метод шаурми: базовий огляд, класову дію або signature/title-спосіб.
+4. Очікування: результат deterministic для персонажа/дати/методу, з винагородою раз на збережену дату; старі `poke`, `receipt`, `flee` callback-и лишаються replay-safe.
+5. Minor HP injury після цієї сцени може зберігатися, якщо обраний метод і grade це дали; персонаж не може впасти нижче `1 HP`, death/item loss/serious injury тут не додаються, повна combat state machine ще не створюється.
 6. На персонажі 3+ рівня `/adventure` має показувати новий вибір корчемної пригоди, якщо немає активної persistent-сутички.
 
 ## Старший покроковий `/fight`
@@ -149,6 +146,20 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 22. Поки рейд на Бочку pending, `/fight` і fight callback-и мають показувати рейдовий блок і не переносити presence зі сцени Бочки.
 
 ## Миттєва дуель
+
+## 0.1.20 authored quest hardening addendum
+
+Use this with the Adventure Choice, starter shawarma and cellar mouse smoke paths above:
+
+1. On a level 3+ hero, open several Adventure Choice scenes and confirm each selected scene renders 5-7 concrete scene-action buttons, not race/class/signature source captions.
+2. Pick two risky methods in different scenes. Before pressing, confirm the hint uses qualitative danger copy only; after completion, confirm any HP loss line shows the exact committed loss and current HP.
+3. Try a paid cellar mouse method with insufficient gold. Confirm the same visible method set and cost remain available, no cooldown advances, no result is stored and HP does not change.
+4. Complete a cellar mouse method that causes injury, then press the old button again while the cooldown is active. Confirm the on-cooldown path does not reroll, damage again or overwrite the stored audit payload.
+5. Trigger a fight-handoff Adventure complication, then repeat the callback. Confirm the stored encounter id matches the started fight, and replay does not start a second fight.
+6. With an already active unrelated fight, press a stale/late Adventure handoff callback. Confirm the adventure claim rolls back and the active fight card is shown instead of consuming the quest.
+7. With an active training fight or terminal persistent fight, press a stale/late Adventure handoff callback. Confirm the claim rolls back and the final presence/card stays on the canonical training or solo-fight route, not the quest table.
+8. Equip or level a hero so effective max HP exceeds the persisted base max, then take a quest injury. Confirm the stored audit keeps the damage-time effective max, while the result card's current HP line matches the returned post-claim `/hero` summary.
+9. Test a capped item-grant method, then force rollback after the hero gains the same item again. Confirm rollback removes only the applied quest grant and preserves the later item quantity.
 
 1. На двох персонажах 3+ рівня зайди в `🥊 Бійцівський куток` і створи `⚡ Миттєва дуель`.
 2. Очікування: основна картка каже, що результат зʼявиться одразу після згоди, а окреме forwardable-повідомлення має invite link, mode line, fairness line і кнопку `🎲 Інший текст`.
@@ -232,19 +243,22 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 2. Очікування: Льохова справа locked до 2 рівня, в активному списку її немає, action-кнопка `🧹 У льох` не показується, presence не переходить у льох.
 3. Відкрий `📦 Архів` і перевір, що locked-рядок льохової справи видно там.
 4. На персонажі 2-3 рівня, коли денна шаурма й сутичка вже витрачені, відкрий `/quest` або `🗺️ Квести` усередині корчми.
-5. Обери «Льохову справу».
-6. Одразу повтори дію.
-7. Очікування: результат має мишачу репліку й дрібний трофей відповідної дії.
-8. Очікування: короткий SQLite cooldown не дозволяє дублювати XP/золото або item grants.
-9. `/cellar` працює як secondary fallback command, а не як окремий великий activity engine.
-10. На персонажі 4+ рівня `/cellar` або quest-hub льох має відкрити `Справа не до миші`, позначити presence у `Льох корчми` і не показувати старі мишачі action-кнопки.
-11. Якщо золота вистачає, натисни `🧀 Купити пломбу`.
-12. Очікування: золото списується один раз, `Сирна пломба Корчмаря` зʼявляється один раз, повторний callback не списує золото вдруге.
-13. Натисни `🐭 Домовитись без пломби` на іншому тестовому персонажі або зі штучним deterministic roll.
-14. Очікування: success видає `Пляшка Пінного Міражу` максимум один раз, failure ставить cooldown для повторної roleplay-спроби, але route через пломбу лишається доступним.
-15. Після отримання пляшки перевір, що льоховий екран веде до `🍻 Шинку`, а не показує `🍾 Здати Корчмарю` чи `🎒 Лишити собі` в льосі.
-16. У шинку натисни `🍾 Здати пляшку`.
-17. Очікування: здача пляшки остаточна, повторне натискання показує already-completed стан і не дублює XP, золото, bottle item або completion progress.
+5. Обери «Льохову справу» й перевір, що кнопки можуть включати сценовий, race/class/signature і малий paid-метод; результат не має показувати службові підписи цих слотів.
+6. Якщо paid-метод доступний, перевір достатньо/недостатньо золота: без золота cooldown не стартує, item grants не дублюються, золото не списується.
+7. Одразу повтори завершений callback.
+8. Очікування: результат має авторський мишачий outcome і дрібний трофей відповідної legacy-family дії.
+9. Очікування: короткий SQLite cooldown не дозволяє дублювати XP/золото або item grants.
+10. Старі `v1:cellar:*` callback-и лишаються replay-safe і не починають несподівано paid-метод без явного v2 method callback.
+11. Штучний або старий `v2` method id, якого вже немає в поточній сцені, показує stale/refresh стан і не стартує cooldown, не списує золото й не видає нагороду.
+12. `/cellar` працює як secondary fallback command, а не як окремий великий activity engine.
+13. На персонажі 4+ рівня `/cellar` або quest-hub льох має відкрити `Справа не до миші`, позначити presence у `Льох корчми` і не показувати старі мишачі action-кнопки.
+14. Якщо золота вистачає, натисни `🧀 Купити пломбу`.
+15. Очікування: золото списується один раз, `Сирна пломба Корчмаря` зʼявляється один раз, повторний callback не списує золото вдруге.
+16. Натисни `🐭 Домовитись без пломби` на іншому тестовому персонажі або зі штучним deterministic roll.
+17. Очікування: success видає `Пляшка Пінного Міражу` максимум один раз, failure ставить cooldown для повторної roleplay-спроби, але route через пломбу лишається доступним.
+18. Після отримання пляшки перевір, що льоховий екран веде до `🍻 Шинку`, а не показує `🍾 Здати Корчмарю` чи `🎒 Лишити собі` в льосі.
+19. У шинку натисни `🍾 Здати пляшку`.
+20. Очікування: здача пляшки остаточна, повторне натискання показує already-completed стан і не дублює XP, золото, bottle item або completion progress.
 
 ## Манатки й прогрес
 
@@ -286,7 +300,7 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 6. Повторно натисни стару confirm-кнопку.
 7. Очікування: бот replay-ить той самий успішний обмін і не списує манатки, золото або рівень вдруге.
 8. Перевір персонажа з `1000+` золота, але без eligible priced манаток.
-9. Очікування: gold-only відхилено; Манчкін просить хоча б одну оцінену манатку.
+9. Очікування: gold-only і gold-heavy обміни відхилено; Манчкін просить манаток щонайменше на 587 золота.
 10. Перевір екіпіровану, безцінну, protected/story, zero-value або missing-content манатку.
 11. Очікування: вона не потрапляє в eligible суму й не списується.
 12. На спробі переходу `12 → 13` очікування: Манчкін відмовляє, бо 13 рівень лишається бойовим.
@@ -318,9 +332,11 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 - `/news` — читає останню новину й архів із `news.md`.
 - `/restart` — видаляє персонажа поточного Telegram-користувача після підтвердження.
 - `/remort` — після 13 рівня відкриває explicit prestige reset із preview, памʼяттю минулих пригод і без прихованого wipe.
+- `/dev_help` — у локальному режимі показує доступні dev-команди.
 - `/dev_reset_me` — у локальному режимі видаляє тільки персонажа поточного користувача після підтвердження.
+- `/dev_add_level [число]` — у локальному режимі додає вказану кількість рівнів; без числа додає 1 рівень.
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.
-- `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку.
+- `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
 
 ## `0.1.0` Phase 1 Definition of Done
 
@@ -345,7 +361,7 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 17. Level 13 cap / alpha behavior зрозумілий.
 18. Mantok Chest auto/manual працює як перший item-volume sink.
 19. Yeger tracking і turn-in не дублюють прогрес або reward.
-20. Munchkin barter не дозволяє gold-only, replay-ить completed confirm і не проводить `12 -> 13`.
+20. Munchkin barter не дозволяє gold-only/gold-heavy обмін, replay-ить completed confirm і не проводить `12 -> 13`.
 21. `/version` після deploy показує `0.1.0`.
 
 ## Що це ще не перевіряє

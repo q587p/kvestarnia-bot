@@ -18,6 +18,7 @@ describe("level barter presenter", () => {
     });
 
     expect(text).toContain("Манаток, які можна віддати");
+    expect(text).toContain("Мінімум манатками");
     expect(text).toContain("👛 У гаманці");
     expect(text).toContain("1000");
   });
@@ -60,7 +61,7 @@ describe("level barter presenter", () => {
     expect(text).not.toContain("item.pan-of-persuasion");
   });
 
-  it("explains that gold-only exchange still needs an item", () => {
+  it("explains that gold-only exchange still needs enough item value", () => {
     const text = presentLevelBarterPreview({
       state: "insufficient",
       character: character({ gold: 1000 }),
@@ -70,7 +71,20 @@ describe("level barter presenter", () => {
       cost: 1000
     });
 
-    expect(text).toContain("хоча б одна оцінена манатка");
+    expect(text).toContain("манаток щонайменше на 587 золота");
+  });
+
+  it("explains that wallet gold can only supplement a majority item value", () => {
+    const text = presentLevelBarterPreview({
+      state: "insufficient",
+      character: character({ gold: 1000 }),
+      eligibleTotalValue: 575,
+      gold: 1000,
+      combinedValue: 1575,
+      cost: 1000
+    });
+
+    expect(text).toContain("Манаток має бути щонайменше на 587 золота");
   });
 
   it("shows completed replay without scary stale copy", () => {

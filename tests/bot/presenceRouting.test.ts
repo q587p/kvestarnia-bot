@@ -161,7 +161,8 @@ describe("presence routing", () => {
     ["look", {}],
     ["support", {}],
     ["restart", {}],
-    ["dev_raid_stop", {}]
+    ["dev_raid_stop", {}],
+    ["dev_help", {}]
   ])("routes command /%s", (command, expected) => {
     expect(getCommandPresenceContext(command)).toEqual(expected);
   });

@@ -125,7 +125,7 @@ describe("training doppelganger command", () => {
     expect(replies[0]?.text).toContain("Оберіть, кого сьогодні копіювати");
     expect(JSON.stringify(replies[0]?.options)).toContain("v1:spar:mode:copy-target");
     expect(JSON.stringify(replies[0]?.options)).toContain("v1:spar:mode:random-build");
-    expect(JSON.stringify(replies[0]?.options)).toContain("🥊 До кутка");
+    expect(JSON.stringify(replies[0]?.options)).toContain("↩️ Повернутися до кутка");
     expect(JSON.stringify(replies[0]?.options)).toContain("v1:place:fighting-corner");
     expect(JSON.stringify(replies[0]?.options)).not.toContain("📋 До справ");
     expect(JSON.stringify(replies[0]?.options)).not.toContain("🍺 До зали");
@@ -155,7 +155,7 @@ describe("training doppelganger command", () => {
     expect(presence.marks).toEqual([]);
     expect(replies[0]?.text).toContain("3 рівня");
     expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:spar:turn");
-    expect(JSON.stringify(replies[0]?.options)).toContain("🥊 До кутка");
+    expect(JSON.stringify(replies[0]?.options)).toContain("↩️ Повернутися до кутка");
     expect(JSON.stringify(replies[0]?.options)).toContain("v1:place:fighting-corner");
     expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:quest:list");
   });
