@@ -323,6 +323,22 @@ describe("AdventureService", () => {
     });
   });
 
+  it("rolls back a failed fight handoff through the stored claim identity", async () => {
+    const found = await findResolvedAdventure((result) => result.fightHandoff);
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state !== "completed") {
+      throw new Error("Expected completed adventure.");
+    }
+
+    await expect(
+      found.service.rollbackCurrentAdventureClaimForTelegramUser(found.userId, found.result.claim)
+    ).resolves.toBe("deleted");
+    expect(found.dailyActions.lastRollbackInput).toEqual(found.result.claim);
+    expect(found.dailyActions.lastDeleteInput).toBeNull();
+    expect(found.dailyActions.records).toHaveLength(0);
+  });
+
   it("rolls back the original adventure claim identity across a 93-minute boundary", async () => {
     let now = fixedClock();
     const oldPeriod = buildAdventurePeriod(now);
@@ -365,10 +381,11 @@ describe("AdventureService", () => {
     now = new Date(oldPeriod.expiresAt.getTime() + 1);
 
     await expect(service.rollbackCurrentAdventureClaimForTelegramUser(userId, result.claim)).resolves.toBe("deleted");
-    expect(dailyActions.lastDeleteInput).toMatchObject({
+    expect(dailyActions.lastRollbackInput).toMatchObject({
       key: ADVENTURE_CHOICE_KEY,
       localDate: oldPeriod.storageKey
     });
+    expect(dailyActions.lastDeleteInput).toBeNull();
     expect(dailyActions.records).toHaveLength(0);
   });
 
@@ -984,6 +1001,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
   private readonly actions = new Map<string, DailyActionRecord>();
   createCount = 0;
   lastDeleteInput: DailyActionClaimIdentity | null = null;
+  lastRollbackInput: DailyActionClaimIdentity | null = null;
 
   constructor(private readonly characters: FakeCharacterRepository) {}
 
@@ -1111,6 +1129,22 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
     return this.actions.delete(`${character.id}:${input.key}:${input.localDate}`)
       ? "deleted"
+      : "missing";
+  }
+
+  async rollbackForTelegramUser(
+    userTelegramId: bigint,
+    input: DailyActionClaimIdentity
+  ): Promise<"rolled-back" | "missing" | "no-character"> {
+    this.lastRollbackInput = input;
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return "no-character";
+    }
+
+    return this.actions.delete(`${character.id}:${input.key}:${input.localDate}`)
+      ? "rolled-back"
       : "missing";
   }
 

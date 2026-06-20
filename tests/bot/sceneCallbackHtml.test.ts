@@ -342,6 +342,43 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("<i>Метод:</i> 🎵 Продиригувати юшкою");
   });
 
+  it("renders stale state for hidden v2 adventure method callbacks", async () => {
+    const completeAdventureApproach = vi.fn(() =>
+      Promise.resolve({
+        state: "stale" as const,
+        character,
+        offer: adventureOffer
+      })
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: "sign-lease"
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(completeAdventureApproach).toHaveBeenCalledWith(
+      42n,
+      expect.objectContaining({
+        type: "approach",
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: "sign-lease"
+      })
+    );
+    expect(String(edit?.payload.text)).toContain("Цей папірець уже не актуальний");
+    expect(String(edit?.payload.text)).toContain("Стіл зі справами перерахував актуальні проблеми");
+    expect(String(edit?.payload.text)).toContain("Казанок репетирує оперу");
+    expect(String(edit?.payload.text)).not.toContain("Винагорода за справу");
+  });
+
   it("routes old safe-flair-risky adventure callbacks to stale paper refresh", async () => {
     const selectAdventureProblem = vi.fn(() =>
       Promise.resolve({
@@ -383,6 +420,32 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("Старий папірець утратив силу");
     expect(String(edit?.payload.text)).toContain("обережно-хитро-ризикову шкалу");
     expect(JSON.stringify(edit?.payload.reply_markup)).toMatch(/v2:adv:a:period93:q[0-9a-z]+:q[0-9a-z]+/u);
+  });
+
+  it("renders stale state for hidden v2 cellar method callbacks", async () => {
+    const complete = vi.fn(() =>
+      Promise.resolve({
+        state: "stale" as const,
+        character
+      })
+    );
+    const calls = await captureApiCalls(
+      "v2:cellar:conduct-duet",
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          complete
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(complete).toHaveBeenCalledWith(42n, {
+      type: "method",
+      methodId: "conduct-duet"
+    });
+    expect(String(edit?.payload.text)).toContain("Кнопка застаріла");
+    expect(String(edit?.payload.text)).not.toContain("Винагорода за справу");
   });
 
   it("offers to buy everyone beer after the Barrel raid completes", async () => {
