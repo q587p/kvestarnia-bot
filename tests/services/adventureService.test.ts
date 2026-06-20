@@ -441,6 +441,11 @@ describe("AdventureService", () => {
       character: { xp: 25, level: 3 }
     },
     {
+      name: "generated portrait",
+      problemId: "race-human-ish-portrait",
+      character: { xp: 25, level: 3, raceId: "race.human-ish" }
+    },
+    {
       name: "higher-level handoff",
       problemId: "barrel",
       character: { xp: 250, level: 8 }
@@ -744,11 +749,9 @@ describe("AdventureService", () => {
     expect(options.length).toBeGreaterThanOrEqual(3);
     expect(new Set(options.map((option) => option.label)).size).toBe(options.length);
     expect(options.map((option) => option.reward)).toEqual(
-      expect.arrayContaining([
-        { xp: 4, gold: 2 },
-        { xp: 7, gold: 4 }
-      ])
+      expect.arrayContaining([{ xp: 7, gold: 4 }])
     );
+    expect(options.some((option) => option.reward.xp === 4)).toBe(true);
     expect(options.every((option) => [4, 7, 10].includes(option.reward.xp))).toBe(true);
     expect(options.every((option) => [0, 2, 4, 7].includes(option.reward.gold))).toBe(true);
     expect(options.filter((option) => option.goldCost).every((option) => option.reward.gold === 0)).toBe(true);
@@ -855,7 +858,7 @@ async function findResolvedAdventureForProblem(
 ) {
   for (let user = 40n; user < 2_500n; user += 1n) {
     const probe = setup();
-    probe.characters.add(user, { xp: 25, gold: 93, ...characterOverrides });
+    probe.characters.add(user, { xp: 25, gold: 10, ...characterOverrides });
     const lookup = await probe.service.getAdventureOfferForTelegramUser(user);
 
     if (lookup.state !== "ready" || !lookup.offer.choices.some((choice) => choice.id === problemId)) {
@@ -873,13 +876,10 @@ async function findResolvedAdventureForProblem(
 
     for (const approach of selected.approaches) {
       const { service, characters, dailyActions } = setup();
-      characters.add(user, { xp: 25, gold: 93, ...characterOverrides });
+      characters.add(user, { xp: 25, gold: 10, ...characterOverrides });
       const freshLookup = await service.getAdventureOfferForTelegramUser(user);
 
-      if (
-        freshLookup.state !== "ready" ||
-        !freshLookup.offer.choices.some((choice) => choice.id === problemId)
-      ) {
+      if (freshLookup.state !== "ready" || !freshLookup.offer.choices.some((choice) => choice.id === problemId)) {
         continue;
       }
 

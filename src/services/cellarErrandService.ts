@@ -1,6 +1,6 @@
 import type { CooldownRepository } from "../db/repositories/cooldownRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
-import type { RewardLevelChange } from "../db/repositories/dailyActionRepository";
+import type { HpLossAudit, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   CELLAR_MAX_LEVEL,
@@ -19,8 +19,11 @@ import {
   type RewardItemGrant
 } from "./itemGrant";
 import { buildStarterQuestResolutionScene } from "../content/starterQuestResolutionContent";
-import { type QuestMethodDefinition, type QuestResolutionGrade } from "../content/questResolution";
-import type { QuestConsequenceKind } from "../content/questResolution";
+import {
+  type QuestConsequenceKind,
+  type QuestMethodDefinition,
+  type QuestResolutionGrade
+} from "../content/questResolution";
 import { resolveQuestCheck, type QuestCheckResult } from "../domain/quests/questChecks";
 import {
   findQuestMethodByLegacyAction,
@@ -71,6 +74,7 @@ export type CellarErrandResult =
       grade: QuestResolutionGrade;
       outcome: QuestMethodDefinition["outcomeText"][QuestResolutionGrade];
       spentGold: number;
+      hpLoss: HpLossAudit | null;
       check: QuestCheckResult;
       character: CharacterSummary;
       reward: CellarErrandReward;
@@ -306,6 +310,7 @@ export class CellarErrandService {
       grade: check.grade,
       outcome: method.outcomeText[check.grade],
       spentGold,
+      hpLoss: claim.hpLoss,
       check,
       character: summarizeCharacter(claim.character, { equippedItems }),
       reward: {

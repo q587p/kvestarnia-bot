@@ -244,6 +244,7 @@ export type MimicShawarmaResult =
       grade: QuestResolutionGrade;
       outcome: QuestMethodDefinition["outcomeText"][QuestResolutionGrade];
       spentGold: number;
+      hpLoss: HpLossAudit | null;
       character: CharacterSummary;
       reward: AdventureReward;
       levelChange: RewardLevelChange;
@@ -469,13 +470,7 @@ export class AdventureService {
     });
     const fightEncounter =
       consequence === "fight-handoff"
-        ? buildAdventureFightHandoffTarget(
-            choice.id,
-            method.id,
-            character.id,
-            period.storageKey,
-            characterSummary
-          )
+        ? buildAdventureFightHandoffTarget(choice.id, method.id, character.id, period.storageKey, characterSummary)
         : null;
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: claimIdentity.key,
@@ -532,6 +527,7 @@ export class AdventureService {
       hpLoss: claim.hpLoss,
       fightHandoff: consequence === "fight-handoff",
       fightEncounter,
+      claim: claimIdentity,
       reward: {
         ...reward,
         localDate: period.storageKey,
@@ -539,8 +535,7 @@ export class AdventureService {
       },
       levelChange: claim.levelChange,
       complication: check.grade === "complication",
-      check,
-      claim: claimIdentity
+      check
     };
   }
 
@@ -646,11 +641,21 @@ export class AdventureService {
     const itemGrants = buildMimicShawarmaItemGrants(
       method.itemIntent ?? method.legacyAction ?? (completionInput.type === "legacy" ? completionInput.action : completionInput.methodId)
     );
+    const hpLoss = buildQuestHpLoss({
+      characterId: character.id,
+      periodKey: localDate,
+      sceneId: scene.sceneId,
+      methodId: method.id,
+      grade: check.grade,
+      consequence,
+      hpMax: characterSummary.hpMax
+    });
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,
       localDate,
       rewardXp: reward.xp,
       rewardGold: reward.gold,
+      hpLoss: buildHpLossRequest(hpLoss, characterSummary.hpMax),
       resultJson: buildQuestResolutionClaimPayload({
         sceneId: scene.sceneId,
         method,
@@ -659,7 +664,8 @@ export class AdventureService {
         reward,
         itemGrants,
         spentGold: 0,
-        check
+        check,
+        fightEncounter: null
       }),
       itemGrants
     });
@@ -686,6 +692,7 @@ export class AdventureService {
       grade: check.grade,
       outcome: method.outcomeText[check.grade],
       spentGold: 0,
+      hpLoss: claim.hpLoss,
       character: summarizeCharacter(claim.character, { equippedItems }),
       reward: {
         ...reward,
@@ -1145,6 +1152,17 @@ function buildQuestReward(
     return { xp: 0, gold: 0 };
   }
 
+  if (consequence === "serious-injury") {
+    return { xp: Math.ceil(reward.xp * 0.5), gold: 0 };
+  }
+
+  if (consequence === "minor-injury") {
+    return {
+      xp: Math.ceil(reward.xp * 0.5),
+      gold: Math.floor(reward.gold * 0.5)
+    };
+  }
+
   if (consequence === "xp-only") {
     return { xp: Math.ceil(reward.xp * 0.5), gold: 0 };
   }
@@ -1276,7 +1294,7 @@ function buildQuestHpLoss(input: {
   return clamp(Math.ceil(hpMax * percent), floor, cap);
 }
 
-function buildHpLossRequest(requested: number, effectiveHpMax: number): { requested: number; effectiveHpMax: number } {
+function buildHpLossRequest(requested: number, effectiveHpMax: number) {
   return {
     requested,
     effectiveHpMax

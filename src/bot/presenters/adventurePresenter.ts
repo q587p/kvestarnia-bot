@@ -221,13 +221,18 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
         : `${result.choice.title} погодилась бути вирішеною.`
     ]
   };
+  const [sceneLine = "", maybeBlankLine, ...remainingOutcomeLines] = outcome.body.map(escapeHtml);
+  const outcomeDetailLines =
+    maybeBlankLine === "" ? remainingOutcomeLines : [maybeBlankLine, ...remainingOutcomeLines];
   const lines = [
     escapeHtml(outcome.headline),
     "",
-    ...outcome.body.map(escapeHtml),
+    sceneLine,
     "",
     `<i>Метод:</i> ${escapeHtml(result.approach.label)}`,
+    ...(outcomeDetailLines.length > 0 ? ["", ...outcomeDetailLines] : []),
     ...(result.spentGold > 0 ? [`Списано: ${result.spentGold} золота.`] : []),
+    ...presentHpLossLines(result.hpLoss, result.character),
     ...(result.fightHandoff
       ? ["Нагорода не видана: проблема покликала бій."]
       : ["", presentRewardAmount({ ...result.reward, label: "Винагорода за справу" })]),
@@ -274,6 +279,7 @@ export function presentMimicShawarmaResult(
     ...outcome.body.map(escapeHtml),
     "",
     `<i>Метод:</i> ${escapeHtml(methodLabel)}`,
+    ...presentHpLossLines(result.hpLoss, result.character),
     "",
     presentRewardAmount({ ...result.reward, label: "Винагорода за пригоду" }),
     ...presentItemGrantLines(result.reward.itemGrants)

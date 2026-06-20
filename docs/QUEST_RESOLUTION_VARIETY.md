@@ -44,7 +44,7 @@
 3. **Класову опцію** — спосіб, що використовує класову техніку або профіль уже наявного combat skill.
 4. **Signature-опцію** — точна race+class комбінація; current title впливає на label/outcome й може мати explicit override.
 
-Starter-сцени й level 3+ справи використовують один видимий resolver: мінімум пʼять методів, а коли сцена має достатньо справді різних affordances — шість або сім. Race/class/signature candidates впливають на вибір affordance, перевірку й наслідок, але не повинні перетворювати кнопку на підпис внутрішньої механіки.
+Starter-сцени й level 3+ справи використовують один видимий resolver: пʼять-сім методів, коли сцена відкрита для вибору. Race/class/signature candidates впливають на вибір affordance, перевірку й наслідок, але не повинні перетворювати кнопку на підпис внутрішньої механіки. Якщо scene/family не має достатньо дій, треба авторити ще одну дію самої сцени, а не додавати універсальне «покликати свідка», «позначити ниткою» чи «дати хвилину тиші».
 
 ### 2.3. Методи відрізняються не лише шансом
 
@@ -84,6 +84,7 @@ STR/DEX/INT/CHA/LUCK впливають на перевірку. Race/class/sign
 - не списує gold cost вдруге;
 - не reroll-ить outcome;
 - не запускає другий fight handoff;
+- не списує HP вдруге;
 - або відтворює той самий stable result, або показує безпечний already-completed state.
 
 ## 3. Новий player flow
@@ -109,15 +110,16 @@ STR/DEX/INT/CHA/LUCK впливають на перевірку. Race/class/sign
 На бочці зʼявився папірець…
 
 Можливі способи:
-🪵 Перевірити клепки й знайти справжнього мешканця
-🧬 [Домовик] Виставити порожнечі рахунок за підпілля
-🎭 [Бюрокромант] Оформити форму 13-Б на нежилу тару
-🏷️ [Архівний Дух] Визнати бочку тимчасовим відділенням архіву
+🪵 Знайти мешканця між клепками
+📋 Укласти угоду з порожнечею
+🪙 Дати корку заставу
+💪 Виселити порожнечу силою
+🪵 Вистукати дно на таємну кімнату
 
 Корчмар: «Метод ваш. Наслідки, як завжди, уже чиїсь».
 ```
 
-Позначки `[Домовик]` у player-facing тексті не обов’язкові. Краще використовувати емоджі та природний label. У dev/debug presenter можна показувати source.
+Кнопки не показують `[Домовик]`, `[Бюрокромант]`, `signature`, `race+class` або титул як службову мітку. Біографія героя впливає на те, які scene affordances потрапляють у 5-7 видимих способів, на стати/affinity і на природний outcome flavor після розвʼязання.
 
 ### 3.3. Qualitative hints
 
@@ -181,6 +183,8 @@ export type QuestConsequenceKind =
   | "xp-only"
   | "gold-cost-success"
   | "fight-handoff"
+  | "minor-injury"
+  | "serious-injury"
   | "cosmetic-mess";
 
 export interface QuestCheckSpec {
@@ -254,6 +258,8 @@ v2:adv:a:<period>:<problemKey>:<methodKey>
 - при неможливості зібрати пʼять справді різних методів додати інший `scene` method, а не показувати декоративний дубль.
 
 Implementation note for `0.1.20`: race, class and signature slots must bind to an authored scene affordance candidate before rendering. Do not produce active labels by blindly replacing nouns inside a global profile phrase, and do not expose the selected source/technique in player-facing buttons. The same deterministic visible-method resolver is the allowlist for both button rendering and completion; hidden authored scene methods are not valid callbacks unless they are in the current visible set or an explicit legacy starter/cellar action.
+
+Character-shaped variants must remain visible when selected: give them distinct concise scene-action labels and distinct affordance ids rather than cloning the base scene method with only hidden stat/outcome metadata. Do not append reusable technique tails such as `з печаткою`, `за слідом`, `у ритм` or `по-домашньому`; if a profile slot would duplicate a label, bind it to another compatible scene affordance or an authored scene-specific alternative action instead.
 
 ### 4.4. Combo і title
 
@@ -373,6 +379,7 @@ Exact chance дозволений у local dev trace/tests.
 Method визначає consequence:
 
 - `fight-handoff`: без immediate reward, existing persistent fight; якщо fight не стартує, claim/cost не витрачаються;
+- `minor-injury` / `serious-injury`: deterministic bounded HP loss, stored with HP before/lost/after/max and clamped so quest injury never drops below `1 HP`;
 - `reduced-reward`: мала consolation reward і authored mess;
 - `xp-only`: досвід є, золото втекло разом із гідністю;
 - `gold-cost-success`: підкуп спрацював, але заплачене не повертається й gold reward лишається `0`;
@@ -386,6 +393,8 @@ Method визначає consequence:
 - довгі punitive cooldowns;
 - випадкове списання великого золота;
 - нову бойову систему.
+
+Direct HP loss is method-owned, not a global random punishment after resolution. Starter shawarma and cellar mouse may use only `minor-injury`; level 3+ Adventure Choice may use `minor-injury` or `serious-injury` where the fiction supports it. Result cards show relevant HP lines only after the choice resolves, and pre-commit hints stay qualitative: `можна постраждати`, `небезпечно для пальців`, `ризик бійки`.
 
 ## 7. Підкуп і ресурсні витрати
 
@@ -488,13 +497,13 @@ interface PresentedQuestResolution {
 
 Для кожної active scene:
 
-- мінімум 2 scene methods;
+- enough authored scene-native methods/family methods to support the 5-7 visible resolver without universal filler;
 - покриття всіх active races через race motif binding або explicit override;
 - покриття всіх active classes через technique binding або explicit override;
 - signature method для кожної valid onboarding race+class комбінації;
-- мінімум 3 grade-specific outcome texts на method family; complication не може бути одним global рядком;
+- four grade-specific outcome texts на method family; complication не може бути одним global рядком;
 - мінімум 2 consequence kinds на сцену;
-- не більше одного fight-handoff method, якщо сама сцена не є явно бойовою;
+- не більше одного-двох fight-handoff methods на ordinary scene, якщо сама сцена не є явно бойовою;
 - кнопки після resolver не дублюють normalized labels/intents;
 - player-facing text український і HTML-escaped.
 
@@ -531,6 +540,7 @@ for every active problem
 - Старі `safe/flair/risky` callbacks не повинні silently map-итися на новий випадковий метод.
 - Legacy callback відкриває поточний selected problem/offer із поясненням, що старий папірець замінено.
 - Старі шаурма/миша callbacks лишаються idempotent.
+- Якщо старий starter/cellar action має кілька authored методів, legacy replay іде через explicit canonical alias map, а не через перший збіг у списку.
 
 ### 12.3. Fight handoff
 
@@ -634,3 +644,15 @@ Repository path має створювати ledger row, умовно спису�
 - callbacks до 64 bytes;
 - matrix/focused/full tests проходять;
 - player-facing exact percentages і hidden path ids не витікають.
+
+## 15. Follow-up hardening
+
+Active method hints preserve the concrete scene trade-off after race, class or signature personalization. A visible method with `minor-injury` or `serious-injury` includes a qualitative injury warning; a visible method with `fight-handoff` includes a qualitative fight/summoning warning. Personalization may add flavor, but it must not replace scene risk copy with a generic biography line.
+
+Resolved bodies are authored or composed as `scene + method + grade` from complete four-grade method beats. Two methods in the same scene must not produce the same body with only the method label substituted: bribery, negotiation, deception, ritual, trap, fight and craft failures need visibly different beats. Grammar-sensitive scene objects must not be reused across subject/accusative/genitive/locative positions; prefer explicit scene text or family-specific complete sentences over generic noun interpolation. Intent-wide outcome fallback copy is defensive only and is covered by tests so active visible methods avoid it.
+
+Result cards show the chosen method as its own line immediately after the scene title. The following outcome paragraph describes what happened and should not start by repeating the full button label.
+
+Persistent-fight complications store the actual eligible encounter id selected for the hero and pass that same id to the fight service. A quest handoff succeeds only when the fight service returns a newly started intended persistent fight; unrelated active, training, terminal, rest or no-character states roll the original claim back instead of being consumed by another combat session. A successful new handoff also stamps the same canonical solo-fight presence used by ordinary persistent fights, while rollback branches keep the existing canonical persistent/training/rest routing instead of stamping quest-table presence first.
+
+Stored HP audit keeps the damage-time effective maximum for replay/audit. Player-facing result cards use the returned post-claim character summary for the current `HP/max HP` line so level-up or equipment effects in the same claim do not show stale maxima. Rollback compensation is delta-based and guarded/retried so later XP, gold, item and HP changes are preserved. Daily-action rollback receives the current effective HP maximum from the service summary at rollback time and removes only exact applied item grants recorded after cap calculation.

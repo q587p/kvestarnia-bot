@@ -281,6 +281,7 @@ export function presentCellarResult(
     "",
     `<i>Метод:</i> ${escapeHtml(methodLabel)}`,
     ...(spentGold > 0 ? [`Списано: ${spentGold} золота.`] : []),
+    ...presentHpLossLines(result.hpLoss, result.character),
     "",
     presentRewardAmount({ ...result.reward, label: "Винагорода за справу" }),
     ...presentItemGrantLines(result.reward.itemGrants)

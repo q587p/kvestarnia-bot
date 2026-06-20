@@ -9,6 +9,9 @@
 - outcome пишеться для `method family + grade`;
 - strong/success/mixed/complication мають різні сцени, не лише різні reward numbers;
 - активний контент не повинен падати в універсальний «справа погодилась бути вирішеною».
+- активний контент не добирає 5-7 кнопок універсальними filler-методами; кожна family має власні scene-native дієслова, предмети, ризики й ускладнення.
+- active outcome copy must be complete Ukrainian sentences, not quoted accusative/nominative fragments inserted into a shared skeleton; tests normalize case and sentence skeletons to catch this.
+- HP injury and fight handoff are owned by specific methods. Starter scenes use only minor injury; ordinary level 3+ scenes can use minor injury, serious injury or existing persistent-fight handoff where the fiction supports it.
 
 ## 1. Starter: Підозріла шаурма
 
@@ -24,7 +27,7 @@
 1. `inspect-folds` — `🔎 Перевірити, чому лаваш дихає не в ритм`
    - INT + LUCK, investigation, modest reward.
    - Mixed: причина знайдена, але соус записав героя свідком.
-   - Complication: шаурма розуміє, що її викрили, і переходить у fight handoff.
+   - Complication: шаурма лишає дрібну травму або липкий безлад; starter не використовує serious injury.
 
 2. `demand-receipt` — `📋 Вимагати чек і походження начинки`
    - INT + CHA, authority, standard reward.
@@ -38,7 +41,7 @@
 
 4. `pin-wrapper` — `🍴 Притиснути лаваш виделкою до з’ясування`
    - STR + DEX, force, generous reward.
-   - Complication: fight handoff.
+   - Complication: дрібна травма від липкого опору, без death/item loss.
 
 ### Race options
 
@@ -149,11 +152,11 @@
 - Mixed: `🧹 Льох чистіший, угода — ні`.
 - Complication: `📣 Миша скликала профспілку за шафою`.
 
-Не кожна complication запускає fight. Для starter mouse рекомендовано mixed/cosmetic mess; fight handoff лишити рідкісним або не використовувати.
+Не кожна complication запускає fight. Для starter mouse рекомендовано mixed/cosmetic mess або minor injury; fight handoff у starter mouse не використовувати в `0.1.20`.
 
 ## 3. Level 3+ general adventure problems
 
-У таблиці нижче наведені базові method families на сцену. Runtime resolver може додати scene-native affordances, щоб активна справа показувала 5-7 справді різних дій; race/class/signature впливи мають привʼязуватися до цих affordances, а не показувати внутрішній source label у кнопці.
+У таблиці нижче наведені базові method families на сцену. Runtime resolver може додати scene-native affordances, щоб активна справа показувала 5-7 справді різних дій; race/class/signature впливи мають привʼязуватися до цих affordances, а не показувати внутрішній source label або повторюваний технічний хвіст у кнопці.
 
 ### `stew` — Казанок репетирує оперу
 
@@ -441,3 +444,11 @@ Title text є flavor override; механічний selector — combo key.
 - Не робити race line другою версією class line.
 - Один scene може мати максимум одну згадку title/race/class у явному вигляді; решта читається через образ.
 - Кожна активна scene повинна мати щонайменше 4 різні outcome headlines у pool, deterministic selection за method+grade.
+
+## 8. Follow-up outcome seed contract
+
+Every active affordance needs complete distinct grade beats for `strong-success`, `success`, `mixed-success` and `complication`. A scene-level mixed or complication paragraph can inspire the family, but it must not be the only active body for bribery, negotiation, force, trap, ritual, deception and fight methods. Generated survey/mug/portrait/manual/uniform/exam/title families follow the same rule. Intent-level fallback paragraphs are defensive only; active content must use explicit scene text or family-specific complete outcome sentences.
+
+Identity flavor is appended only when it improves the resolved joke or explains why the chosen method worked. Do not print internal source captions, and do not make signature outcomes a universal race paragraph plus a universal class paragraph. The active tests compare methods inside the same scene so label substitution alone is not enough.
+
+Active runtime methods must carry explicit authored or family-specific four-grade outcome data. The builder may compose small shared structure around complete method beats, but it must not infer player-facing outcome prose from method id tokens, sliced/lowercased button labels or arbitrary display nouns; missing outcome beats should fail content construction during tests rather than falling back to active generic copy.

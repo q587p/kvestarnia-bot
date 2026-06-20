@@ -158,6 +158,8 @@ chance = clamp(sum, 45, 88)
 | trap | середній | standard/generous | 0 | item omitted on mixed result |
 | performance | варіативний | standard/generous | 0 | audience complicates scene |
 
+Risk is authored on the selected method. Careful audit/negotiation methods should normally fail into reduced reward, XP-only or scene mess; reckless force, unstable ritual, trap, deception and fight-shaped methods may own `minor-injury`, `serious-injury` or persistent-fight handoff where the scene supports it. Do not add a global danger roll after the deterministic grade.
+
 Гравець вибирає не лише «найвищий reward», а стиль і наслідок.
 
 ## 8. Gold-cost contract для bribery
@@ -292,3 +294,11 @@ Pure tests повинні перевіряти:
 - exact percentages не потрапляють у production presenter;
 - class method має combat skill id зі stable registry;
 - quest code не викликає combat damage resolver.
+
+## 12. Follow-up HP and handoff contracts
+
+Direct quest injury is resolved from the selected method and grade, not from a separate global danger roll. The service passes the canonical effective HP max used by the quest resolver into the repository claim so audit payloads can display `after/effectiveMax` correctly when level or equipped-item bonuses raise max HP. Rollback separately passes the current effective HP max from the service summary so later equipment/level changes are respected without duplicating stat formulas in repositories. Repositories only persist and apply the supplied deterministic request.
+
+Concurrent accepted claims with different idempotency keys must apply both HP losses exactly once. Repository HP mutation uses fresh transactional resource state and records the actual committed `before/lost/after/max` audit instead of trusting a stale pre-read. Rollback compensates only the committed loss and must never reduce later HP; if the hero was healed or their effective maximum changed after the claim, the compensation respects current state rather than restoring an old absolute value. Rollback resource updates are guarded and retried so later XP, gold or same-item gains are not overwritten by absolute claim-time values.
+
+Fight handoff methods resolve a real eligible encounter target before claim audit persistence. The stored target id must match the id passed into the existing persistent-fight service and the combat session that starts from the handoff. A handoff is successful only when the service reports `persistent-active` with `started: true`; every other returned state rolls back the original claim identity. A successful handoff stamps the normal solo-fight presence rather than leaving the hero at the quest table.

@@ -2314,7 +2314,10 @@ async function handleAdventureCallback(
         {
           source: "adventure",
           originLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-          difficulty: "normal"
+          difficulty: "normal",
+          ...(result.fightEncounter
+            ? { target: { monsterIds: [result.fightEncounter.monsterId] } }
+            : {})
         }
       );
 

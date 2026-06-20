@@ -199,8 +199,11 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("Підняти сухий приплив для");
     expect(text).not.toContain("Переспівати ритм");
     expect(text).not.toContain("«Співачка Без Моря» поєднує");
-    expect(text).toContain("Особистий підхід героя.");
-    expect(text).toContain("Професійний підхід героя.");
+    expect(text).not.toContain("Особистий варіант.");
+    expect(text).not.toContain("Професійний варіант.");
+    expect(text).not.toContain("Особистий ризикований варіант.");
+    expect(text).not.toContain("Особистий підхід героя.");
+    expect(text).not.toContain("Професійний підхід героя.");
     expect(text).not.toContain("Надійне розслідування. Майже надійно.");
     expect(text).not.toContain("Надійне розслідування. майже надійно.");
     expect(text).not.toContain("Расовий спосіб");
@@ -218,6 +221,8 @@ describe("adventure presenter", () => {
     expect(text).toContain("✅ Справу закрито");
     expect(text).toContain("Винагорода за справу:");
     expect(text).toContain("\n\nВинагорода за справу:\n<b>+7 XP\n+4 золота</b>");
+    expect(text.indexOf("Казанок &lt;репетирує&gt;")).toBeLessThan(text.indexOf("<i>Метод:</i> 🧠 Хитро"));
+    expect(text.indexOf("<i>Метод:</i> 🧠 Хитро")).toBeLessThan(text.indexOf("без заперечень."));
     expect(text).not.toContain("Підпис методу");
     expect(text).not.toContain("race+class");
     expect(text).not.toContain("Рівень підріс");
@@ -231,9 +236,12 @@ describe("adventure presenter", () => {
     });
     const method = scene.methods.find((candidate) => candidate.id === "track-soles");
 
-    expect(method?.outcomeText["strong-success"].body.join("\n")).toContain(
-      "Прочитати маршрут підошов закриває сцену чисто."
-    );
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("«Маршрут підошов»");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("знаходить точний робочий кут");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("навколо маршрут підошов");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("Деталь «");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("Прочитати маршрут підошов.");
+    expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("у чоботи");
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("перестає сперечатися");
   });
 
@@ -334,13 +342,17 @@ function completed(complication: boolean): Extract<AdventureResult, { state: "co
     outcome: {
       headline: complication ? "⚠️ Справа вкусила у відповідь" : "✅ Справу закрито",
       body: [
+        choice.title,
+        "",
         complication
-          ? `${choice.title} не прийняла метод без заперечень.`
-          : `${choice.title} погодилась бути вирішеною.`
+          ? "Сцена не прийняла метод без заперечень."
+          : "Сцена погодилась бути вирішеною без заперечень."
       ]
     },
     spentGold: 0,
+    hpLoss: null,
     fightHandoff: complication,
+    fightEncounter: complication ? { monsterId: "monster.borshch-slime" } : null,
     complication,
     check: {
       chance: 55,

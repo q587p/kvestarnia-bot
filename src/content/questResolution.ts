@@ -81,6 +81,7 @@ export interface QuestResolutionScene {
   sceneObject: string;
   sceneObjectGenitive?: string;
   methods: readonly QuestMethodDefinition[];
+  legacyActionAliases?: Readonly<Record<string, string>>;
 }
 
 export interface QuestTechniqueProfile {

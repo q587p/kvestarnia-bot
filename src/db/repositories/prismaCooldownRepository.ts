@@ -56,106 +56,99 @@ export class PrismaCooldownRepository implements CooldownRepository {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         return await this.prisma.$transaction(async (tx) => {
-          const character = await tx.character.findFirst({
+        const character = await tx.character.findFirst({
+          where: {
+            user: {
+              telegramUserId
+            }
+          },
+          include: remortCountInclude
+        });
+
+        if (!character) {
+          return null;
+        }
+
+        const where = {
+          characterId_key: {
+            characterId: character.id,
+            key: input.key
+          }
+        };
+
+        const existing = await tx.characterCooldown.findUnique({
+          where
+        });
+
+        if (existing && existing.availableAt > input.now) {
+          return {
+            state: "on-cooldown",
+            cooldown: existing,
+            character: toCharacterRecord(character)
+          };
+        }
+
+        const spentGold = normalizeSpentGold(input.spentGold);
+
+        if (spentGold > 0) {
+          const debit = await tx.character.updateMany({
             where: {
-              user: {
-                telegramUserId
+              id: character.id,
+              gold: {
+                gte: spentGold
               }
             },
-            include: remortCountInclude
-          });
-
-          if (!character) {
-            return null;
-          }
-
-          const where = {
-            characterId_key: {
-              characterId: character.id,
-              key: input.key
+            data: {
+              gold: {
+                decrement: spentGold
+              }
             }
-          };
-
-          const existing = await tx.characterCooldown.findUnique({
-            where
           });
 
-          if (existing && existing.availableAt > input.now) {
+          if (debit.count !== 1) {
             return {
-              state: "on-cooldown",
-              cooldown: existing,
-              character: toCharacterRecord(character)
+              state: "insufficient-gold",
+              character: toCharacterRecord(character),
+              requiredGold: spentGold
             };
           }
+        }
 
-          const spentGold = normalizeSpentGold(input.spentGold);
-
-          if (spentGold > 0) {
-            const debit = await tx.character.updateMany({
-              where: {
-                id: character.id,
-                gold: {
-                  gte: spentGold
-                }
-              },
-              data: {
-                gold: {
-                  decrement: spentGold
-                }
-              }
-            });
-
-            if (debit.count !== 1) {
-              return {
-                state: "insufficient-gold",
-                character: toCharacterRecord(character),
-                requiredGold: spentGold
-              };
-            }
-          }
-
-          const resourceCharacter = await tx.character.findUniqueOrThrow({
+        if (existing) {
+          const updated = await tx.characterCooldown.updateMany({
             where: {
-              id: character.id
-            }
-          });
-          const hpLoss = buildHpLossAudit(resourceCharacter.hpCurrent, input.hpLoss);
-
-          if (existing) {
-            const updated = await tx.characterCooldown.updateMany({
-              where: {
-                id: existing.id,
-                availableAt: {
-                  lte: input.now
-                }
-              },
-              data: {
-                availableAt: input.availableAt
+              id: existing.id,
+              availableAt: {
+                lte: input.now
               }
-            });
-
-            if (updated.count === 0) {
-              throw new CooldownClaimLostRaceError();
-            }
-
-            const cooldown = await tx.characterCooldown.findUniqueOrThrow({
-              where: {
-                id: existing.id
-              }
-            });
-
-            return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
-          }
-
-          const cooldown = await tx.characterCooldown.create({
+            },
             data: {
-              characterId: character.id,
-              key: input.key,
               availableAt: input.availableAt
             }
           });
 
+          if (updated.count === 0) {
+            throw new CooldownClaimLostRaceError();
+          }
+
+          const cooldown = await tx.characterCooldown.findUniqueOrThrow({
+            where: {
+              id: existing.id
+            }
+          });
+
           return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
+        }
+
+        const cooldown = await tx.characterCooldown.create({
+          data: {
+            characterId: character.id,
+            key: input.key,
+            availableAt: input.availableAt
+          }
+        });
+
+        return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
         });
       } catch (error) {
         if (error instanceof HpMutationConflictError && attempt < 2) {

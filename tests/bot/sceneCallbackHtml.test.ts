@@ -290,7 +290,28 @@ describe("scene callback HTML options", () => {
           itemGrants: []
         },
         levelChange: noLevelChange,
-        complication: false
+        complication: false,
+        grade: "success" as const,
+        consequence: "full-reward" as const,
+        outcome: {
+          headline: "✅ Справу закрито",
+          body: ["Казанок стишився."]
+        },
+        spentGold: 0,
+        hpLoss: null,
+        fightHandoff: false,
+        fightEncounter: null,
+        claim: {
+          key: "adventure.choice",
+          localDate: "12026-06-20",
+        },
+        check: {
+          roll: 13,
+          target: 45,
+          total: 13,
+          statBonus: 0,
+          grade: "success"
+        }
       })
     );
     const completeMimicShawarma = vi.fn(() =>
@@ -321,8 +342,199 @@ describe("scene callback HTML options", () => {
       })
     );
     expect(completeMimicShawarma).not.toHaveBeenCalled();
-    expect(String(edit?.payload.text)).toContain("Казанок репетирує оперу");
+    expect(String(edit?.payload.text)).toContain("Казанок стишився");
     expect(String(edit?.payload.text)).toContain("<i>Метод:</i> 🎵 Продиригувати юшкою");
+  });
+
+  it("routes duplicate v2 adventure method taps through the bot without a second completion card", async () => {
+    const completeAdventureApproach = vi
+      .fn()
+      .mockResolvedValueOnce({
+        state: "completed" as const,
+        character,
+        choice: adventureChoice,
+        approach: adventureApproach,
+        reward: {
+          xp: 7,
+          gold: 4,
+          localDate: "12026-06-20",
+          itemGrants: []
+        },
+        levelChange: noLevelChange,
+        complication: false,
+        grade: "success" as const,
+        consequence: "full-reward" as const,
+        outcome: {
+          headline: "✅ Справу закрито",
+          body: ["Казанок стишився."]
+        },
+        spentGold: 0,
+        hpLoss: null,
+        fightHandoff: false,
+        fightEncounter: null,
+        claim: {
+          key: "adventure.choice",
+          localDate: "12026-06-20"
+        },
+        check: {
+          roll: 13,
+          target: 45,
+          total: 13,
+          statBonus: 0,
+          grade: "success"
+        }
+      })
+      .mockResolvedValueOnce({
+        state: "already-completed" as const,
+        character
+      });
+    const callbackData = makeAdventureApproachCallbackData({
+      periodToken: "period93",
+      problemId: "stew",
+      methodId: adventureApproach.id
+    });
+    const calls = await captureRepeatedApiCalls(
+      [callbackData, callbackData],
+      servicesWith({
+        adventure: {
+          completeAdventureApproach
+        }
+      })
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+
+    expect(completeAdventureApproach).toHaveBeenCalledTimes(2);
+    expect(completeAdventureApproach).toHaveBeenNthCalledWith(
+      1,
+      42n,
+      expect.objectContaining({
+        type: "approach",
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      })
+    );
+    expect(completeAdventureApproach).toHaveBeenNthCalledWith(
+      2,
+      42n,
+      expect.objectContaining({
+        type: "approach",
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      })
+    );
+    expect(String(edits[0]?.payload.text)).toContain("Казанок стишився");
+    expect(String(edits[0]?.payload.text)).toContain("XP");
+    expect(String(edits[1]?.payload.text)).toContain("/hero");
+    expect(String(edits[1]?.payload.text)).not.toContain("Казанок стишився");
+  });
+
+  it("routes duplicate v2 paid cellar method taps through cooldown after the first result", async () => {
+    const complete = vi
+      .fn()
+      .mockResolvedValueOnce({
+        state: "completed" as const,
+        action: "bribe-cheese",
+        method: {
+          id: "bribe-cheese",
+          callbackKey: toQuestCallbackKey("bribe-cheese"),
+          label: "🪙 Дати миші 1 золоту «на сирний фонд»",
+          hint: "Коштує 1 золото.",
+          goldCost: 1
+        },
+        grade: "success" as const,
+        outcome: {
+          headline: "✅ Льохову справу закрито",
+          body: ["Сирний фонд офіційно зашаршів."]
+        },
+        spentGold: 1,
+        hpLoss: null,
+        check: {
+          roll: 13,
+          target: 45,
+          total: 13,
+          statBonus: 0,
+          grade: "success"
+        },
+        character,
+        reward: {
+          xp: 2,
+          gold: 0,
+          itemGrants: []
+        },
+        availableAt: new Date("2026-06-13T10:03:00.000Z"),
+        now: new Date("2026-06-13T10:00:00.000Z"),
+        levelChange: noLevelChange
+      })
+      .mockResolvedValueOnce({
+        state: "on-cooldown" as const,
+        character,
+        availableAt: new Date("2026-06-13T10:03:00.000Z"),
+        now: new Date("2026-06-13T10:00:30.000Z")
+      });
+    const callbackData = makeCellarMethodCallbackData("bribe-cheese");
+    const calls = await captureRepeatedApiCalls(
+      [callbackData, callbackData],
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          complete
+        }
+      })
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(complete).toHaveBeenNthCalledWith(1, 42n, {
+      type: "method",
+      methodId: "bribe-cheese"
+    });
+    expect(complete).toHaveBeenNthCalledWith(2, 42n, {
+      type: "method",
+      methodId: "bribe-cheese"
+    });
+    expect(String(edits[0]?.payload.text)).toContain("Сирний фонд офіційно зашаршів");
+    expect(String(edits[0]?.payload.text)).toContain("1");
+    expect(String(edits[1]?.payload.text)).not.toContain("Сирний фонд офіційно зашаршів");
+    expect(String(edits[1]?.payload.text)).not.toContain("Списано");
+  });
+
+  it("renders stale state for hidden v2 adventure method callbacks", async () => {
+    const completeAdventureApproach = vi.fn(() =>
+      Promise.resolve({
+        state: "stale" as const,
+        character,
+        offer: adventureOffer
+      })
+    );
+    const calls = await captureApiCalls(
+      makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: "sign-lease"
+      }),
+      servicesWith({
+        adventure: {
+          completeAdventureApproach
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(completeAdventureApproach).toHaveBeenCalledWith(
+      42n,
+      expect.objectContaining({
+        type: "approach",
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: "sign-lease"
+      })
+    );
+    expect(String(edit?.payload.text)).toContain("Цей папірець уже не актуальний");
+    expect(String(edit?.payload.text)).toContain("Стіл зі справами перерахував актуальні проблеми");
+    expect(String(edit?.payload.text)).toContain("Казанок репетирує оперу");
+    expect(String(edit?.payload.text)).not.toContain("Винагорода за справу");
   });
 
   it("routes old safe-flair-risky adventure callbacks to stale paper refresh", async () => {
@@ -366,6 +578,32 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("Старий папірець утратив силу");
     expect(String(edit?.payload.text)).toContain("обережно-хитро-ризикову шкалу");
     expect(JSON.stringify(edit?.payload.reply_markup)).toMatch(/v2:adv:a:period93:q[0-9a-z]+:q[0-9a-z]+/u);
+  });
+
+  it("renders stale state for hidden v2 cellar method callbacks", async () => {
+    const complete = vi.fn(() =>
+      Promise.resolve({
+        state: "stale" as const,
+        character
+      })
+    );
+    const calls = await captureApiCalls(
+      "v2:cellar:conduct-duet",
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          complete
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(complete).toHaveBeenCalledWith(42n, {
+      type: "method",
+      methodId: "conduct-duet"
+    });
+    expect(String(edit?.payload.text)).toContain("Кнопка застаріла");
+    expect(String(edit?.payload.text)).not.toContain("Винагорода за справу");
   });
 
   it("offers to buy everyone beer after the Barrel raid completes", async () => {
@@ -932,7 +1170,9 @@ describe("scene callback HTML options", () => {
 
     expect(String(edit?.payload.text)).toContain("У вас уже триває інша сутичка.");
     expect(String(edit?.payload.text)).not.toContain("Щось неупокоєне знайшлося");
-    expect(String(fight?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(fight?.payload.text)).toContain("❤️ Ви:");
+    expect(String(fight?.payload.text)).toContain("⏳ На хід є 23 секунди.");
+    expect(String(fight?.payload.text)).toContain("Що робимо?");
   });
 
   it.each([
@@ -1034,7 +1274,8 @@ describe("scene callback HTML options", () => {
     );
     expect(String(edit?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
     expect(String(edit?.payload.text)).toContain("Спершу завершіть цю сутичку");
-    expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(edit?.payload.text)).toContain("❤️ Ви:");
+    expect(String(edit?.payload.text)).toContain("⏳ На хід є 23 секунди.");
   });
 
   it.each([
@@ -1065,7 +1306,8 @@ describe("scene callback HTML options", () => {
     const reply = calls.find((call) => call.method === "sendMessage");
 
     expect(String(reply?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
-    expect(String(reply?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(reply?.payload.text)).toContain("❤️ Ви:");
+    expect(String(reply?.payload.text)).toContain("⏳ На хід є 23 секунди.");
   });
 
   it.each([
@@ -1717,7 +1959,9 @@ describe("scene callback HTML options", () => {
         currentAdventureId: "adventure.solo-fight"
       })
     );
-    expect(String(fight?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(fight?.payload.text)).toContain("❤️ Ви:");
+    expect(String(fight?.payload.text)).toContain("⏳ На хід є 23 секунди.");
+    expect(String(fight?.payload.text)).toContain("Що робимо?");
   });
 
   it("rolls back a complication claim when the follow-up fight needs rest", async () => {
@@ -1760,7 +2004,13 @@ describe("scene callback HTML options", () => {
               consequence: "fight-handoff",
               outcome: "Горщик викликав вас на чесний бій ложками.",
               spentGold: 0,
+              hpLoss: null,
               fightHandoff: true,
+              fightEncounter: { monsterId: "monster.borshch-slime" },
+              claim: {
+                key: "adventure.choice",
+                localDate: "12026-06-12",
+              },
               check: {
                 roll: 13,
                 target: 45,
@@ -1784,7 +2034,8 @@ describe("scene callback HTML options", () => {
     expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
       source: "adventure",
       originLocationId: "location.korchma.quest_table",
-      difficulty: "normal"
+      difficulty: "normal",
+      target: { monsterIds: ["monster.borshch-slime"] }
     });
     expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n, {
       key: "adventure.choice",
@@ -1874,6 +2125,7 @@ describe("scene callback HTML options", () => {
 
     expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
       source: "adventure",
+      originLocationId: "location.korchma.quest_table",
       difficulty: "normal",
       target: { monsterIds: ["monster.borshch-slime"] }
     });
@@ -1888,7 +2140,8 @@ describe("scene callback HTML options", () => {
       currentRaidId: null,
       currentAdventureId: "adventure.solo-fight"
     });
-    expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(edit?.payload.text)).toContain("❤️ Ви:");
+    expect(String(edit?.payload.text)).toContain("⏳ На хід є 23 секунди.");
     expect(String(edit?.payload.text)).not.toContain("Нагорода не видана");
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
   });
@@ -2047,7 +2300,9 @@ describe("scene callback HTML options", () => {
       currentRaidId: null,
       currentAdventureId: "adventure.solo-fight"
     });
-    expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(edit?.payload.text)).toContain("❤️ Ви:");
+    expect(String(edit?.payload.text)).toContain("🎉 Ви перемогли.");
+    expect(String(edit?.payload.text)).not.toContain("⏳ На хід є 23 секунди.");
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 

@@ -37,6 +37,7 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
       secondaryStat: "luck",
       techniques: ["investigation"],
       rewardProfile: "modest",
+      consequence: "minor-injury",
       legacyAction: "receipt",
       itemIntent: "receipt",
       strong: "Лаваш сам розгорнув доказ раніше, ніж хтось сказав «вечеря».",
@@ -54,6 +55,7 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
       secondaryStat: "dexterity",
       techniques: ["force"],
       rewardProfile: "standard",
+      consequence: "minor-injury",
       legacyAction: "poke",
       itemIntent: "wrapper",
       strong: "Виделка втримала лаваш, а лаваш не втримав алібі.",
@@ -118,6 +120,11 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
     sceneId: "shawarma",
     sceneTitle: "Підозріла шаурма",
     sceneObject: "шаурму",
+    legacyActionAliases: {
+      receipt: "demand-receipt",
+      poke: "pin-wrapper",
+      flee: "name-retreat"
+    },
     methods: [...sceneMethods, ...buildPersonalMethods(character, "Підозріла шаурма", sceneMethods)]
   };
 }
@@ -134,6 +141,7 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
       secondaryStat: "intelligence",
       techniques: ["traps", "tracking"],
       rewardProfile: "standard",
+      consequence: "minor-injury",
       legacyAction: "cheese-trap",
       itemIntent: "cheese-trap",
       strong: "Миша підписала мир крихтою й лишила сир як доказ.",
@@ -203,6 +211,7 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
       secondaryStat: "charisma",
       techniques: ["deception"],
       rewardProfile: "standard",
+      consequence: "minor-injury",
       legacyAction: "negotiate",
       itemIntent: "negotiate",
       strong: "Оголошення спрацювало ще до слова «кіт». Миша стала дипломаткою.",
@@ -216,6 +225,12 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
     sceneId: "cellar-mouse",
     sceneTitle: "Льохова миша",
     sceneObject: "мишу",
+    legacyActionAliases: {
+      "cheese-trap": "cheese-trap",
+      "sweep-bravely": "sweep-evidence",
+      negotiate: "negotiate-shelf",
+      "bribe-cheese": "bribe-cheese"
+    },
     methods: [...sceneMethods, ...buildPersonalMethods(character, "Льохова миша", sceneMethods)]
   };
 }
@@ -249,7 +264,7 @@ function method(input: {
     source: input.source,
     label: input.label,
     ...(input.buttonLabel ? { buttonLabel: input.buttonLabel } : {}),
-    hint: input.hint,
+    hint: withRiskHint(input.hint, input.consequence ?? (input.goldCost ? "gold-cost-success" : "cosmetic-mess")),
     intent: input.intent,
     techniques: input.techniques,
     primaryStat: input.primaryStat,
@@ -299,67 +314,78 @@ function buildPersonalMethods(
   return sceneMethods.flatMap((base) => [
     method({
       id: compactPersonalMethodId("r", getCompactRaceKey(character.raceId), base.id),
-      affordanceId: base.affordanceId,
+      affordanceId: `${base.affordanceId}:race:${getCompactRaceKey(character.raceId)}:${base.id}`,
       source: "race",
-      label: base.label,
-      buttonLabel: base.label,
-      hint: "Особистий підхід героя.",
+      label: buildPersonalMethodLabel(base.label),
+      buttonLabel: buildPersonalMethodLabel(base.label),
+      hint: buildPersonalHint(base),
       intent: base.intent,
       primaryStat: base.primaryStat,
       secondaryStat: race.primaryStat,
       techniques: uniqueTechniques([firstTechnique(race), ...base.techniques]),
       rewardProfile: "standard",
       goldCost: base.goldCost,
+      consequence: base.consequenceByGrade.complication,
       legacyAction: base.legacyAction ?? base.id,
       itemIntent: base.itemIntent ?? base.legacyAction ?? base.id,
-      strong: `Підхід «${race.label}» знаходить власний хід у «${stripIcon(base.label)}». ${sceneTitle} коротко припиняє сперечатись.`,
-      success: `Метод із мотивом «${race.label}» спрацював. «${stripIcon(base.label)}» лишається зрозумілим, а сцена — вирішеною.`,
-      mixed: `Особистий хід спрацював, але «${stripIcon(base.label)}» лишив дрібний хвіст для бурчання.`,
-      complication: `Хід із мотивом «${race.label}» дав результат із кумедним безладом. Корчмар записує це як стиль.`
+      strong: appendIdentityBeat(base, "strong-success", race),
+      success: appendIdentityBeat(base, "success", race),
+      mixed: appendIdentityBeat(base, "mixed-success", race),
+      complication: appendIdentityBeat(base, "complication", race)
     }),
     method({
       id: compactPersonalMethodId("c", getCompactClassKey(character.classId), base.id),
-      affordanceId: base.affordanceId,
+      affordanceId: `${base.affordanceId}:class:${getCompactClassKey(character.classId)}:${base.id}`,
       source: "class",
-      label: base.label,
-      buttonLabel: base.label,
-      hint: "Професійний підхід героя.",
+      label: buildPersonalMethodLabel(base.label),
+      buttonLabel: buildPersonalMethodLabel(base.label),
+      hint: buildPersonalHint(base),
       intent: base.intent,
       primaryStat: base.primaryStat,
       secondaryStat: heroClass.primaryStat,
       techniques: uniqueTechniques([firstTechnique(heroClass), ...base.techniques]),
       rewardProfile: "standard",
       goldCost: base.goldCost,
+      consequence: base.consequenceByGrade.complication,
       legacyAction: base.legacyAction ?? base.id,
       itemIntent: base.itemIntent ?? base.legacyAction ?? base.id,
       combatSkillId: heroClass.combatSkillId,
-      strong: `Підхід «${heroClass.label}» підсилює «${stripIcon(base.label)}» так чисто, що сцена здається майже навчальною.`,
-      success: `Метод «${heroClass.label}» дає результат. «${stripIcon(base.label)}» стає не подвигом, а робочим методом.`,
-      mixed: `Професійний хід спрацював, але «${stripIcon(base.label)}» залишив трохи сценічного пилу.`,
-      complication: `Хід «${heroClass.label}» зачепив зайву полицю реальности. Результат є, порядок ще сперечається.`
+      strong: appendIdentityBeat(base, "strong-success", heroClass),
+      success: appendIdentityBeat(base, "success", heroClass),
+      mixed: appendIdentityBeat(base, "mixed-success", heroClass),
+      complication: appendIdentityBeat(base, "complication", heroClass)
     }),
     method({
       id: compactPersonalMethodId(`s${getCompactRaceKey(character.raceId)}`, getCompactClassKey(character.classId), base.id),
-      affordanceId: base.affordanceId,
+      affordanceId: `${base.affordanceId}:signature:${getCompactRaceKey(character.raceId)}:${getCompactClassKey(character.classId)}:${base.id}`,
       source: "signature",
-      label: base.label,
-      buttonLabel: base.label,
-      hint: "Непевніше, зате стильніше.",
+      label: buildSignatureMethodLabel(base.label),
+      buttonLabel: buildSignatureMethodLabel(base.label),
+      hint: buildPersonalHint(base),
       intent: base.intent,
       primaryStat: base.primaryStat,
       secondaryStat: heroClass.primaryStat,
       techniques: uniqueTechniques([firstTechnique(race), firstTechnique(heroClass), ...base.techniques]),
       rewardProfile: "generous",
       goldCost: base.goldCost,
+      consequence: base.consequenceByGrade.complication,
       legacyAction: base.legacyAction ?? base.id,
       itemIntent: base.itemIntent ?? base.legacyAction ?? base.id,
       combatSkillId: heroClass.combatSkillId,
-      strong: `Обраний хід зводить кілька дрібних переваг в один точний рух. Сцена визнає, що це вже майже біографія.`,
-      success: `Метод спрацював: «${stripIcon(base.label)}» знаходить край і ставить крапку.`,
-      mixed: `Хід допомагає, але «${stripIcon(base.label)}» лишає маленький шурхіт для пізнішої легенди.`,
-      complication: `Метод виглядає переконливо. Сцена теж так думає, але додає власний безлад.`
+      strong: appendSignatureBeat(base, "strong-success", race, heroClass, character.title ?? null),
+      success: appendSignatureBeat(base, "success", race, heroClass, character.title ?? null),
+      mixed: appendSignatureBeat(base, "mixed-success", race, heroClass, character.title ?? null),
+      complication: appendSignatureBeat(base, "complication", race, heroClass, character.title ?? null)
     })
   ]);
+}
+
+function buildPersonalMethodLabel(label: string): string {
+  return label;
+}
+
+function buildSignatureMethodLabel(label: string): string {
+  return label;
 }
 
 function getRaceProfile(raceId: string): QuestTechniqueProfile {
@@ -374,14 +400,158 @@ function firstTechnique(profile: QuestTechniqueProfile): QuestMethodDefinition["
   return profile.techniques[0] ?? "investigation";
 }
 
+function buildPersonalHint(base: QuestMethodDefinition): string {
+  return withRiskHint(base.hint, base.consequenceByGrade.complication);
+}
+
+function appendIdentityBeat(
+  base: QuestMethodDefinition,
+  grade: keyof QuestMethodDefinition["outcomeText"],
+  profile: QuestTechniqueProfile
+): string {
+  const core = base.outcomeText[grade].body.join(" ");
+  const beat = techniqueIdentityBeat(firstTechnique(profile));
+
+  return `${core} ${beat[grade]}`;
+}
+
+function appendSignatureBeat(
+  base: QuestMethodDefinition,
+  grade: keyof QuestMethodDefinition["outcomeText"],
+  race: QuestTechniqueProfile,
+  heroClass: QuestTechniqueProfile,
+  title: string | null
+): string {
+  const core = base.outcomeText[grade].body.join(" ");
+  const raceBeat = techniqueIdentityBeat(firstTechnique(race));
+  const classBeat = techniqueIdentityBeat(firstTechnique(heroClass));
+  const titleBeat = title ? ` Титул «${title}» зʼявляється тільки як смішний свідок результату.` : "";
+
+  return `${core} ${raceBeat[grade]} ${classBeat[grade]}${titleBeat}`;
+}
+
+function techniqueIdentityBeat(technique: QuestMethodDefinition["techniques"][number]): Record<keyof QuestMethodDefinition["outcomeText"], string> {
+  const beats: Partial<Record<QuestMethodDefinition["techniques"][number], Record<keyof QuestMethodDefinition["outcomeText"], string>>> = {
+    authority: {
+      "strong-success": "Печатка лягає тихо, але всі одразу згадують про порядок.",
+      success: "Офіційний тон тримає сцену в межах пристойности.",
+      "mixed-success": "Печатка допомагає, та просить окрему полицю для самолюбства.",
+      complication: "Печатка падає не тим боком і будить зайву інстанцію."
+    },
+    bribery: {
+      "strong-success": "Малий внесок поводиться як мирний посередник, а не як хабар у темному кутку.",
+      success: "Сирний чи часниковий фонд стишує суперечку без зайвих промов.",
+      "mixed-success": "Внесок допомагає, але залишає крихітний рядок дрібного шрифту.",
+      complication: "Внесок прийнято, проте сцена раптом просить касову мораль."
+    },
+    domesticity: {
+      "strong-success": "Хатня юрисдикція розставляє речі так, ніби вони самі цього просили.",
+      success: "Домашній порядок стишує сцену краще за лекцію.",
+      "mixed-success": "Побут допомагає, але залишає одну крихту з характером.",
+      complication: "Хатній порядок ображається й відповідає дуже близько до пальців."
+    },
+    force: {
+      "strong-success": "Прямий аргумент ставить крапку раніше, ніж сцена знаходить кому скаржитись.",
+      success: "Сила працює, хоч і залишає довкола трохи тиші з переляком.",
+      "mixed-success": "Натиск дає результат, але гордість просить пластир.",
+      complication: "Сила заходить надто голосно й будить гострий край сцени."
+    },
+    investigation: {
+      "strong-success": "Уважна ревізія знаходить причину там, де сцена ховала сором.",
+      success: "Перевірка складає докази в порядок без зайвого пафосу.",
+      "mixed-success": "Ревізія працює, але один доказ лишається з характером.",
+      complication: "Зачеплений доказ відстрибує й робить висновок болючим."
+    },
+    performance: {
+      "strong-success": "Ритм і пауза змушують сцену вийти на правильний такт.",
+      success: "Виступ тримає увагу там, де безлад хотів утекти.",
+      "mixed-success": "Ритм майже влучає, та остання пауза просить окремий уклін.",
+      complication: "Пауза провалюється, і сцена бере незапланований біс."
+    },
+    tracking: {
+      "strong-success": "Слід виходить із сорому й сам показує коротку дорогу.",
+      success: "Стежка складається достатньо чітко, щоб безлад перестав тікати.",
+      "mixed-success": "Слід знайдено, проте він лишає маленький обхід через ніяковість.",
+      complication: "Стежка веде не до відповіді, а до гострого краю."
+    },
+    traps: {
+      "strong-success": "Пастка має чесний вигляд і ловить саме ту проблему, яка вдавала невинність.",
+      success: "Пастка спрацьовує без зайвого клацання по пальцях.",
+      "mixed-success": "Пастка ловить частину безладу, а решта просить адвоката.",
+      complication: "Пастка замикається не на тому краї й залишає болючий урок."
+    },
+    arcana: {
+      "strong-success": "Тихий магічний шов тримає сцену без великого сяйва.",
+      success: "Чари працюють малим стібком і не вимагають окремої завіси.",
+      "mixed-success": "Магічний шов тримається, але тихо іскрить під серветкою.",
+      complication: "Чар ковзає вбік і кличе наслідок, який не питав дозволу."
+    },
+    finesse: {
+      "strong-success": "Точний рух прибирає зайве так чисто, що сцена моргає із запізненням.",
+      success: "Фінес тримає результат без фанфар і без зайвих уламків.",
+      "mixed-success": "Рух майже ідеальний, та один край лишає дрібний слід.",
+      complication: "Точність зривається на волосину, і волосина виявляється дуже гострою."
+    },
+    deception: {
+      "strong-success": "Обхідний хід лишає правду цілою, але переставляє її стілець.",
+      success: "Хитрий кут спрацьовує без таблички на дверях.",
+      "mixed-success": "Трюк майже непомітний, та одна складка все одно підморгує.",
+      complication: "Обман зачіпає власну нитку й тягне наслідок на світло."
+    },
+    persuasion: {
+      "strong-success": "Мирна умова сідає між сторонами й забирає в суперечки ложку.",
+      success: "Угода працює без зайвої слави й не потребує крику.",
+      "mixed-success": "Домовленість тримається, хоч одна претензія ще совається.",
+      complication: "Слова повертаються з додатком, який ніхто не читав уголос."
+    },
+    ritual: {
+      "strong-success": "Малий обряд замикає сцену так буденно, ніби це інструкція до чайника.",
+      success: "Обрядова впертість тримає межу без великого диму.",
+      "mixed-success": "Обряд працює, але одна іскра просить визнати її знаком.",
+      complication: "Ритуал бере зайвий оберт і відкриває наслідок із того боку."
+    },
+    craft: {
+      "strong-success": "Ремесло ставить край так рівно, що безлад соромиться стирчати.",
+      success: "Акуратний ремонт тримає результат без фанфар.",
+      "mixed-success": "Ремісничий шов працює, хоч один кут і бурчить.",
+      complication: "Інструмент ковзає, і сцена нагадує про гострий бік майстерности."
+    },
+    improvisation: {
+      "strong-success": "Корисний збіг приходить вчасно й удає, що так було заплановано.",
+      success: "Імпровізація ловить потрібну мить за край фартуха.",
+      "mixed-success": "Випадок допомагає, та просить не називати його системою.",
+      complication: "Збіг плутає двері й приносить наслідок не з того боку."
+    }
+  };
+
+  return beats[technique] ?? {
+    "strong-success": "Практичний нахил робить сцену простішою, ніж вона хотіла здаватись.",
+    success: "Практичний хід допомагає без зайвого підпису.",
+    "mixed-success": "Практичність працює, але лишає дрібну претензію.",
+    complication: "Практичний хід чіпляє незручний край сцени."
+  };
+}
+
+function withRiskHint(hint: string, consequence: QuestConsequenceKind): string {
+  if (consequence === "minor-injury" || consequence === "serious-injury") {
+    return /постраждати|небезпеч|пальц|забит|синц|обпект|впасти|травм/i.test(hint)
+      ? hint
+      : `${hint} Можна постраждати.`;
+  }
+
+  if (consequence === "fight-handoff") {
+    return /бійк|бій|істот|мешканц|поклик|виліз|варта/i.test(hint)
+      ? hint
+      : `${hint} Ризик бійки.`;
+  }
+
+  return hint;
+}
+
 function compactPersonalMethodId(prefix: string, profileKey: string, baseId: string): string {
   return `${prefix}${profileKey}${toQuestCallbackKey(baseId).slice(1)}`;
 }
 
 function uniqueTechniques(techniques: readonly QuestMethodDefinition["techniques"][number][]): QuestMethodDefinition["techniques"][number][] {
   return [...new Set(techniques)];
-}
-
-function stripIcon(label: string): string {
-  return label.replace(/^[^\p{L}\p{N}]+/u, "").trim();
 }
