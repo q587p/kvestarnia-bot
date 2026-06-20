@@ -208,6 +208,7 @@ class FakeRewardPrisma {
           localDate: input.data.localDate,
           rewardXp: input.data.rewardXp,
           rewardGold: input.data.rewardGold,
+          resultJson: input.data.resultJson ?? null,
           createdAt: new Date("2026-06-15T10:00:00.000Z")
         };
         this.dailyActions.set(
@@ -215,6 +216,23 @@ class FakeRewardPrisma {
           record
         );
         return Promise.resolve(record);
+      },
+      update: (input) => {
+        const existing = [...this.dailyActions.values()].find((action) => action.id === input.where.id);
+
+        if (!existing) {
+          return Promise.reject(new Error("Missing daily action."));
+        }
+
+        const updated = {
+          ...existing,
+          resultJson: input.data.resultJson ?? existing.resultJson
+        };
+        this.dailyActions.set(
+          dailyActionKey(updated.characterId, updated.key, updated.localDate),
+          updated
+        );
+        return Promise.resolve(updated);
       }
     },
     characterCooldown: {
@@ -333,6 +351,15 @@ interface FakeRewardTx {
         localDate: string;
         rewardXp: number;
         rewardGold: number;
+        resultJson?: unknown;
+      };
+    }) => Promise<FakeDailyActionRecord>;
+    update: (input: {
+      where: {
+        id: string;
+      };
+      data: {
+        resultJson?: unknown;
       };
     }) => Promise<FakeDailyActionRecord>;
   };
@@ -419,6 +446,7 @@ interface FakeDailyActionRecord {
   localDate: string;
   rewardXp: number;
   rewardGold: number;
+  resultJson: unknown;
   createdAt: Date;
 }
 

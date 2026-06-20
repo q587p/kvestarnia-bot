@@ -26,6 +26,8 @@ import type { CharacterSummary } from "../../src/domain/characters/characterSumm
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { mainMenuButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
 
+type MarkPresenceInput = Parameters<NonNullable<BotServices["presence"]>["markAction"]>[0];
+
 describe("scene callback HTML options", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -299,7 +301,6 @@ describe("scene callback HTML options", () => {
         claim: {
           key: "adventure.choice",
           localDate: "12026-06-20",
-          effectiveHpMax: character.hpMax
         },
         check: {
           roll: 13,
@@ -1707,7 +1708,7 @@ describe("scene callback HTML options", () => {
               hpLoss: null,
               fightHandoff: true,
               fightEncounter: { monsterId: "monster.borshch-slime" },
-              claim: { key: "adventure.choice", localDate: "12026-06-12", effectiveHpMax: character.hpMax },
+              claim: { key: "adventure.choice", localDate: "12026-06-12" },
               check: { roll: 13, target: 45, total: 13, statBonus: 0, grade: "complication" }
             }),
           rollbackCurrentAdventureClaimForTelegramUser
@@ -1784,6 +1785,7 @@ describe("scene callback HTML options", () => {
   });
 
   it("rolls back a complication claim when the follow-up fight needs rest", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
     const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
       Promise.resolve("deleted" as const)
     );
@@ -1828,7 +1830,6 @@ describe("scene callback HTML options", () => {
               claim: {
                 key: "adventure.choice",
                 localDate: "12026-06-12",
-                effectiveHpMax: character.hpMax
               },
               check: {
                 roll: 13,
@@ -1842,6 +1843,9 @@ describe("scene callback HTML options", () => {
         },
         fight: {
           getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction
         }
       })
     );
@@ -1854,15 +1858,16 @@ describe("scene callback HTML options", () => {
     });
     expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n, {
       key: "adventure.choice",
-      localDate: "12026-06-12",
-      effectiveHpMax: character.hpMax
+      localDate: "12026-06-12"
     });
+    expect(markAction).not.toHaveBeenCalled();
     expect(String(edit?.payload.text)).toContain("HP 0/20");
     expect(String(edit?.payload.text)).not.toContain("Нагорода не видана");
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 
   it("rolls back a complication claim when another active fight wins the handoff race", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
     const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
       Promise.resolve("deleted" as const)
     );
@@ -1916,7 +1921,6 @@ describe("scene callback HTML options", () => {
               claim: {
                 key: "adventure.choice",
                 localDate: "12026-06-12",
-                effectiveHpMax: character.hpMax
               },
               check: {
                 roll: 13,
@@ -1930,6 +1934,9 @@ describe("scene callback HTML options", () => {
         },
         fight: {
           getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction
         }
       })
     );
@@ -1942,8 +1949,14 @@ describe("scene callback HTML options", () => {
     });
     expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n, {
       key: "adventure.choice",
-      localDate: "12026-06-12",
-      effectiveHpMax: character.hpMax
+      localDate: "12026-06-12"
+    });
+    const [presenceInput] = markAction.mock.calls[0] as [MarkPresenceInput];
+    expect(presenceInput.user.telegramUserId).toBe(42n);
+    expect(presenceInput).toMatchObject({
+      locationId: "location.korchma.deep.level1",
+      currentRaidId: null,
+      currentAdventureId: "adventure.solo-fight"
     });
     expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
     expect(String(edit?.payload.text)).not.toContain("Нагорода не видана");
@@ -1951,6 +1964,7 @@ describe("scene callback HTML options", () => {
   });
 
   it("rolls back a complication claim when a training fight wins the handoff race", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
     const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
       Promise.resolve("deleted" as const)
     );
@@ -1986,13 +2000,16 @@ describe("scene callback HTML options", () => {
               hpLoss: null,
               fightHandoff: true,
               fightEncounter: { monsterId: "monster.borshch-slime" },
-              claim: { key: "adventure.choice", localDate: "12026-06-12", effectiveHpMax: character.hpMax },
+              claim: { key: "adventure.choice", localDate: "12026-06-12" },
               check: { roll: 13, target: 45, total: 13, statBonus: 0, grade: "complication" }
             }),
           rollbackCurrentAdventureClaimForTelegramUser
         },
         fight: {
           getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction
         }
       })
     );
@@ -2000,14 +2017,21 @@ describe("scene callback HTML options", () => {
 
     expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n, {
       key: "adventure.choice",
-      localDate: "12026-06-12",
-      effectiveHpMax: character.hpMax
+      localDate: "12026-06-12"
+    });
+    const [presenceInput] = markAction.mock.calls[0] as [MarkPresenceInput];
+    expect(presenceInput.user.telegramUserId).toBe(42n);
+    expect(presenceInput).toMatchObject({
+      locationId: "location.korchma.fighting_corner",
+      currentRaidId: null,
+      currentAdventureId: "adventure.training-doppelganger"
     });
     expect(String(edit?.payload.text)).toContain("Тренування вже триває");
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 
   it("rolls back a complication claim when an expired terminal fight is returned", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
     const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
       Promise.resolve("deleted" as const)
     );
@@ -2067,13 +2091,16 @@ describe("scene callback HTML options", () => {
               hpLoss: null,
               fightHandoff: true,
               fightEncounter: { monsterId: "monster.borshch-slime" },
-              claim: { key: "adventure.choice", localDate: "12026-06-12", effectiveHpMax: character.hpMax },
+              claim: { key: "adventure.choice", localDate: "12026-06-12" },
               check: { roll: 13, target: 45, total: 13, statBonus: 0, grade: "complication" }
             }),
           rollbackCurrentAdventureClaimForTelegramUser
         },
         fight: {
           getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction
         }
       })
     );
@@ -2081,8 +2108,14 @@ describe("scene callback HTML options", () => {
 
     expect(rollbackCurrentAdventureClaimForTelegramUser).toHaveBeenCalledWith(42n, {
       key: "adventure.choice",
-      localDate: "12026-06-12",
-      effectiveHpMax: character.hpMax
+      localDate: "12026-06-12"
+    });
+    const [presenceInput] = markAction.mock.calls[0] as [MarkPresenceInput];
+    expect(presenceInput.user.telegramUserId).toBe(42n);
+    expect(presenceInput).toMatchObject({
+      locationId: "location.korchma.deep.level1",
+      currentRaidId: null,
+      currentAdventureId: "adventure.solo-fight"
     });
     expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);

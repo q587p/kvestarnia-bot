@@ -643,6 +643,154 @@ describe("paid Prisma claim repositories", () => {
     ).resolves.toMatchObject({ quantity: 2 });
   });
 
+  it("rolls back HP using the current effective max supplied by the service", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-daily-rollback-current-max",
+      characterId: "character-daily-rollback-current-max",
+      telegramUserId: 9033n,
+      gold: 5,
+      hpCurrent: 12,
+      hpMax: 25
+    });
+
+    await dailyActions.claimForTelegramUser(9033n, {
+      key: "quest.rollback.current-max",
+      localDate: "12026-06-20",
+      rewardXp: 1,
+      rewardGold: 0,
+      hpLoss: { requested: 3, effectiveHpMax: 25 }
+    });
+    await prisma.character.update({
+      where: { id: "character-daily-rollback-current-max" },
+      data: { hpCurrent: 24, hpMax: 40 }
+    });
+
+    await expect(
+      dailyActions.rollbackForTelegramUser(9033n, {
+        key: "quest.rollback.current-max",
+        localDate: "12026-06-20",
+        currentEffectiveHpMax: 40
+      })
+    ).resolves.toBe("rolled-back");
+    await expect(
+      prisma.character.findUniqueOrThrow({ where: { id: "character-daily-rollback-current-max" } })
+    ).resolves.toMatchObject({ hpCurrent: 27, hpMax: 40 });
+  });
+
+  it("rolls back only applied item grants when max-owned caps reduce the request", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-daily-rollback-applied-cap",
+      characterId: "character-daily-rollback-applied-cap",
+      telegramUserId: 9034n,
+      gold: 5
+    });
+    await prisma.characterItem.create({
+      data: {
+        characterId: "character-daily-rollback-applied-cap",
+        itemId: "item.rollback.cap",
+        quantity: 1
+      }
+    });
+
+    await dailyActions.claimForTelegramUser(9034n, {
+      key: "quest.rollback.applied-zero",
+      localDate: "12026-06-20",
+      rewardXp: 1,
+      rewardGold: 0,
+      resultJson: {
+        reward: {
+          itemGrants: [{ itemId: "item.rollback.cap", quantity: 1, maxOwnedQuantity: 1 }]
+        }
+      },
+      itemGrants: [{ itemId: "item.rollback.cap", quantity: 1, maxOwnedQuantity: 1 }]
+    });
+
+    await expect(
+      dailyActions.rollbackForTelegramUser(9034n, {
+        key: "quest.rollback.applied-zero",
+        localDate: "12026-06-20"
+      })
+    ).resolves.toBe("rolled-back");
+    await expect(
+      prisma.characterItem.findUniqueOrThrow({
+        where: {
+          characterId_itemId: {
+            characterId: "character-daily-rollback-applied-cap",
+            itemId: "item.rollback.cap"
+          }
+        }
+      })
+    ).resolves.toMatchObject({ quantity: 1 });
+  });
+
+  it("persists partial applied item grants and rolls back only that quantity", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-daily-rollback-applied-partial",
+      characterId: "character-daily-rollback-applied-partial",
+      telegramUserId: 9035n,
+      gold: 5
+    });
+    await prisma.characterItem.create({
+      data: {
+        characterId: "character-daily-rollback-applied-partial",
+        itemId: "item.rollback.partial",
+        quantity: 1
+      }
+    });
+
+    const claim = await dailyActions.claimForTelegramUser(9035n, {
+      key: "quest.rollback.applied-one",
+      localDate: "12026-06-20",
+      rewardXp: 1,
+      rewardGold: 0,
+      resultJson: {
+        reward: {
+          itemGrants: [{ itemId: "item.rollback.partial", quantity: 2, maxOwnedQuantity: 2 }]
+        }
+      },
+      itemGrants: [{ itemId: "item.rollback.partial", quantity: 2, maxOwnedQuantity: 2 }]
+    });
+
+    expect(claim).toMatchObject({
+      state: "created",
+      itemGrants: [{ itemId: "item.rollback.partial", quantity: 1 }]
+    });
+    const action = await prisma.dailyAction.findFirstOrThrow({
+      where: { characterId: "character-daily-rollback-applied-partial" }
+    });
+    expect(action.resultJson).toMatchObject({
+      reward: {
+        appliedItemGrants: [{ itemId: "item.rollback.partial", quantity: 1 }]
+      }
+    });
+    await prisma.characterItem.update({
+      where: {
+        characterId_itemId: {
+          characterId: "character-daily-rollback-applied-partial",
+          itemId: "item.rollback.partial"
+        }
+      },
+      data: { quantity: { increment: 2 } }
+    });
+
+    await expect(
+      dailyActions.rollbackForTelegramUser(9035n, {
+        key: "quest.rollback.applied-one",
+        localDate: "12026-06-20"
+      })
+    ).resolves.toBe("rolled-back");
+    await expect(
+      prisma.characterItem.findUniqueOrThrow({
+        where: {
+          characterId_itemId: {
+            characterId: "character-daily-rollback-applied-partial",
+            itemId: "item.rollback.partial"
+          }
+        }
+      })
+    ).resolves.toMatchObject({ quantity: 3 });
+  });
+
   it.each([
     {
       name: "later healing",

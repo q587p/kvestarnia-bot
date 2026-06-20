@@ -6,6 +6,7 @@ import type {
   DailyActionClaimIdentity,
   DailyActionRecord,
   DailyActionRepository,
+  DailyActionRollbackInput,
   HpLossAudit,
   ItemGrant
 } from "./dailyActionRepository";
@@ -233,6 +234,17 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           });
         }
 
+        if (appliedItemGrants.length > 0 || itemGrants.length > 0) {
+          await tx.dailyAction.update({
+            where: {
+              id: action.id
+            },
+            data: {
+              resultJson: withAppliedItemGrants(action.resultJson, appliedItemGrants) as Prisma.InputJsonValue
+            }
+          });
+        }
+
         return {
           state: "created",
           action,
@@ -294,7 +306,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
 
   async rollbackForTelegramUser(
     telegramUserId: bigint,
-    input: DailyActionClaimIdentity
+    input: DailyActionRollbackInput
   ): Promise<"rolled-back" | "missing" | "no-character"> {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
@@ -344,7 +356,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
               ? Math.max(
                   character.hpCurrent,
                   Math.min(
-                    Math.max(1, Math.floor(input.effectiveHpMax ?? character.hpMax)),
+                    Math.max(1, Math.floor(input.currentEffectiveHpMax ?? character.hpMax)),
                     Math.max(0, character.hpCurrent) + hpLoss.lost
                   )
                 )
@@ -606,6 +618,29 @@ function withHpLossAudit(resultJson: unknown, hpLoss: HpLossAudit | null): unkno
   };
 }
 
+function withAppliedItemGrants(resultJson: Prisma.JsonValue | null, appliedItemGrants: ItemGrant[]): unknown {
+  const base =
+    resultJson && typeof resultJson === "object" && !Array.isArray(resultJson)
+      ? resultJson
+      : {};
+  const reward = (base as { reward?: unknown }).reward;
+  const rewardObject =
+    reward && typeof reward === "object" && !Array.isArray(reward)
+      ? reward
+      : {};
+
+  return {
+    ...base,
+    reward: {
+      ...rewardObject,
+      appliedItemGrants: appliedItemGrants.map((grant) => ({
+        itemId: grant.itemId,
+        quantity: grant.quantity
+      }))
+    }
+  };
+}
+
 function readHpLossAudit(resultJson: Prisma.JsonValue | null): HpLossAudit | null {
   if (!resultJson || typeof resultJson !== "object" || Array.isArray(resultJson)) {
     return null;
@@ -638,7 +673,10 @@ function readItemGrants(resultJson: Prisma.JsonValue | null): ItemGrant[] {
     return [];
   }
 
-  const itemGrants = (reward as { itemGrants?: unknown }).itemGrants;
+  const appliedItemGrants = (reward as { appliedItemGrants?: unknown }).appliedItemGrants;
+  const itemGrants = Array.isArray(appliedItemGrants)
+    ? appliedItemGrants
+    : (reward as { itemGrants?: unknown }).itemGrants;
 
   if (!Array.isArray(itemGrants)) {
     return [];

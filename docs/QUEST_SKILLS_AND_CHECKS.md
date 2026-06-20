@@ -297,7 +297,7 @@ Pure tests повинні перевіряти:
 
 ## 12. Follow-up HP and handoff contracts
 
-Direct quest injury is resolved from the selected method and grade, not from a separate global danger roll. The service passes the canonical effective HP max used by the quest resolver into the repository claim so audit payloads can display `after/effectiveMax` correctly when level or equipped-item bonuses raise max HP. Repositories must not duplicate the effective-stat formula; they only persist and apply the supplied deterministic request.
+Direct quest injury is resolved from the selected method and grade, not from a separate global danger roll. The service passes the canonical effective HP max used by the quest resolver into the repository claim so audit payloads can display `after/effectiveMax` correctly when level or equipped-item bonuses raise max HP. Rollback separately passes the current effective HP max from the service summary so later equipment/level changes are respected without duplicating stat formulas in repositories. Repositories only persist and apply the supplied deterministic request.
 
 Concurrent accepted claims with different idempotency keys must apply both HP losses exactly once. Repository HP mutation uses fresh transactional resource state and records the actual committed `before/lost/after/max` audit instead of trusting a stale pre-read. Rollback compensates only the committed loss and must never reduce later HP; if the hero was healed or their effective maximum changed after the claim, the compensation respects current state rather than restoring an old absolute value. Rollback resource updates are guarded and retried so later XP, gold or same-item gains are not overwritten by absolute claim-time values.
 

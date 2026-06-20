@@ -366,8 +366,7 @@ export class AdventureService {
     const period = buildAdventurePeriod(this.clock());
     const claimIdentity: AdventureClaimIdentity = {
       key: ADVENTURE_CHOICE_KEY,
-      localDate: period.storageKey,
-      effectiveHpMax: characterSummary.hpMax
+      localDate: period.storageKey
     };
     const existing = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: claimIdentity.key,
@@ -744,7 +743,15 @@ export class AdventureService {
       };
 
     if (this.dailyActions.rollbackForTelegramUser) {
-      const result = await this.dailyActions.rollbackForTelegramUser(telegramUserId, input);
+      const currentCharacter = await this.characters.findByTelegramUserId(telegramUserId);
+      const equippedItems = currentCharacter ? await this.getEquippedItemContents(telegramUserId) : [];
+      const currentSummary = currentCharacter
+        ? summarizeCharacter(currentCharacter, { equippedItems })
+        : null;
+      const result = await this.dailyActions.rollbackForTelegramUser(telegramUserId, {
+        ...input,
+        ...(currentSummary ? { currentEffectiveHpMax: currentSummary.hpMax } : {})
+      });
 
       return result === "rolled-back" ? "deleted" : result;
     }

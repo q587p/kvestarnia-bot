@@ -157,7 +157,9 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 4. Complete a cellar mouse method that causes injury, then press the old button again while the cooldown is active. Confirm the on-cooldown path does not reroll, damage again or overwrite the stored audit payload.
 5. Trigger a fight-handoff Adventure complication, then repeat the callback. Confirm the stored encounter id matches the started fight, and replay does not start a second fight.
 6. With an already active unrelated fight, press a stale/late Adventure handoff callback. Confirm the adventure claim rolls back and the active fight card is shown instead of consuming the quest.
-7. Equip or level a hero so effective max HP exceeds the persisted base max, then take a quest injury. Confirm the stored audit keeps the damage-time effective max, while the result card's current HP line matches the returned post-claim `/hero` summary.
+7. With an active training fight or terminal persistent fight, press a stale/late Adventure handoff callback. Confirm the claim rolls back and the final presence/card stays on the canonical training or solo-fight route, not the quest table.
+8. Equip or level a hero so effective max HP exceeds the persisted base max, then take a quest injury. Confirm the stored audit keeps the damage-time effective max, while the result card's current HP line matches the returned post-claim `/hero` summary.
+9. Test a capped item-grant method, then force rollback after the hero gains the same item again. Confirm rollback removes only the applied quest grant and preserves the later item quantity.
 
 1. На двох персонажах 3+ рівня зайди в `🥊 Бійцівський куток` і створи `⚡ Миттєва дуель`.
 2. Очікування: основна картка каже, що результат зʼявиться одразу після згоди, а окреме forwardable-повідомлення має invite link, mode line, fairness line і кнопку `🎲 Інший текст`.

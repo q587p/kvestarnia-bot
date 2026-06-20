@@ -49,6 +49,172 @@ interface AdventureMethodSeed {
   outcomes: AdventureOutcomeBeats;
 }
 
+const AUTHORED_METHOD_FOCUS = {
+  "conduct-duet": authoredFocus("Юшкою"),
+  "lower-fire": authoredFocus("Ноту в температурі"),
+  "taste-critic": authoredFocus("Дегустаційну рецензію"),
+  "lid-challenge": authoredFocus("Казанок на двобій кришок"),
+  "inspect-staves": authoredFocus("Мешканця між клепками"),
+  "sign-lease": authoredFocus("Угоду з порожнечею"),
+  "bribe-cork": authoredFocus("Корку 2 золотих застави"),
+  "evict-emptiness": authoredFocus("Порожнечу силою"),
+  "duel-memory": authoredFocus("Спогад на чесний поєдинок"),
+  "fact-check": authoredFocus("Подвиги за вмʼятинами"),
+  "stage-applause": authoredFocus("Шолому контрольовану сцену"),
+  "steal-punchline": authoredFocus("Найгучнішу байку"),
+  "audit-days": authoredFocus("Дні й знайти підміну"),
+  "negotiate-week": authoredFocus("З трьома пʼятницями"),
+  "forge-thursday": authoredFocus("Четвер для часу"),
+  "bribe-deadline": authoredFocus("Дедлайну 1 золото за мовчання"),
+  "read-print": authoredFocus("Адресу порталу в дрібному шрифті"),
+  "stamp-closed": authoredFocus("Прохід печаткою"),
+  "swap-total": authoredFocus("Суму на «нуль вимірів»"),
+  "pay-draft": authoredFocus("2 золотих як мито"),
+  "cross-examine": authoredFocus("Лаву про джерела"),
+  "out-prophesy": authoredFocus("Кращим пророцтвом"),
+  "sand-splinter": authoredFocus("Тріску з даром"),
+  "sit-defiantly": authoredFocus("Й витримати правду поставою"),
+  "verify-owner": authoredFocus("Підкладку й підпис"),
+  "queue-talk": authoredFocus("Плащу талончик"),
+  "wear-disguise": authoredFocus("Власника плаща"),
+  "challenge-rank": authoredFocus("Право тканини на місце"),
+  "agenda": authoredFocus("Порядок денний до вечері"),
+  "coalition": authoredFocus("З виделками"),
+  "hide-gavel": authoredFocus("Ложку-спікера"),
+  "table-knock": authoredFocus("Засідання стуком"),
+  "find-angle": authoredFocus("Фізичний кут брехні"),
+  "debate-reflection": authoredFocus("З відбиттям"),
+  "better-pose": authoredFocus("Дзеркало позою"),
+  "cover-listen": authoredFocus("Й підслухати правду"),
+  "track-soles": authoredFocus("Маршрут підошов"),
+  "offer-expedition": authoredFocus("Їх у безпечну експедицію"),
+  "lace-trap": authoredFocus("Шнурки пасткою"),
+  "outrun-boots": authoredFocus("Чоботи до дверей"),
+  "trace-stamps": authoredFocus("Джерело печаток у сажі"),
+  "revoke-license": authoredFocus("Право диму на документи"),
+  "clean-evidence": authoredFocus("Акт без втрат"),
+  "bribe-smoke": authoredFocus("2 золотих на вентиляцію"),
+  "write-rider": authoredFocus("Короткий райдер світла"),
+  "applause": authoredFocus("Чергові оплески"),
+  "mirror-light": authoredFocus("Відбитим полумʼям"),
+  "relight": authoredFocus("Попри профспілку"),
+  "genealogy": authoredFocus("Родовід ніжок"),
+  "ceremony": authoredFocus("Малу коронацію"),
+  "swap-cushion": authoredFocus("Королівську подушку"),
+  "sit-down": authoredFocus("До завершення промови"),
+  "follow-sweep": authoredFocus("Куди йдуть докази"),
+  "evidence-bag": authoredFocus("Кожну смітинку"),
+  "plant-decoy": authoredFocus("Фальшивий доказ"),
+  "wrestle-broom": authoredFocus("Килим у мітли"),
+  "inspect-hinges": authoredFocus("Хто навчив петлі рахувати"),
+  "negotiate-toll": authoredFocus("Про перший безкоштовний вихід"),
+  "fake-payment": authoredFocus("Монету лише відбиттям"),
+  "pay-tip": authoredFocus("1 золото на мастило"),
+  "survey-table": authoredFocus("Материк тарілок"),
+  "redraw-coast": authoredFocus("Море підливи"),
+  "negotiate-border": authoredFocus("З горою кухлів"),
+  "wrong-route": authoredFocus("За помилкою до короткого шляху"),
+  "decode-whistle": authoredFocus("Свист як шифр"),
+  "counter-plan": authoredFocus("Кращу облогу кухні"),
+  "cool-it": authoredFocus("Температуру поради"),
+  "tea-bribe": authoredFocus("1 золото на добрий чай"),
+  "audit-prices": authoredFocus("Хто оцінив тривогу"),
+  "feelings": authoredFocus("За дешевшу славу"),
+  "change-font": authoredFocus("«наслідки» на «серветки»"),
+  "buy-calm": authoredFocus("Малий спокій за 2 золотих"),
+  "repair-letters": authoredFocus("Літери на зміну"),
+  "shift-talk": authoredFocus("Вивісці вечір без «ч»"),
+  "rebrand-decoy": authoredFocus("Тимчасову назву"),
+  "hold-straight": authoredFocus("Бізнес-модель руками"),
+  "study-paint": authoredFocus("Живу фарбу"),
+  "pose-back": authoredFocus("Портрет ніяковіти"),
+  "swap-eyes": authoredFocus("Напрям погляду"),
+  "cover-history": authoredFocus("Реставрацію"),
+  "catalog-locks": authoredFocus("Обхід замків"),
+  "ask-key": authoredFocus("Ключ згадати першу любов"),
+  "pick-memory": authoredFocus("Памʼять відмичкою"),
+  "forge-purpose": authoredFocus("Сенс одним ударом"),
+  "recalculate": authoredFocus("Риму, де зламалась сума"),
+  "debate-total": authoredFocus("Журнал, що Корчмар не завжди правий"),
+  "steal-rhyme": authoredFocus("Риму з підсумку"),
+  "perform-balance": authoredFocus("Правильний баланс"),
+  "read-pile": authoredFocus("Напрям ворсу"),
+  "offer-trade": authoredFocus("Слід на непотрібну таємницю"),
+  "pick-rug": authoredFocus("Монету й доказ"),
+  "shake-truth": authoredFocus("Правду силою"),
+  "trace-call": authoredFocus("Куди йде дзвін"),
+  "set-menu": authoredFocus("Про список викликів"),
+  "fake-ring": authoredFocus("Звук"),
+  "challenge-problem": authoredFocus("Навмисно"),
+  "survey-small-print": authoredFocus("Дрібний шрифт анкети"),
+  "survey-ink-talk": authoredFocus("З чорнилом про графу"),
+  "survey-line-shift": authoredFocus("Межу графи"),
+  "survey-stamp-ritual": authoredFocus("Печатку на здоровий глузд"),
+  "mug-handle-audit": authoredFocus("Ручку на зайву гордість"),
+  "mug-toast-talk": authoredFocus("Тост за прості правила"),
+  "mug-foam-switch": authoredFocus("Урочисту піну"),
+  "mug-coaster-order": authoredFocus("Підставку за регламентом"),
+  "portrait-paint-audit": authoredFocus("Живу фарбу в портреті"),
+  "portrait-pose-back": authoredFocus("Портрет позою"),
+  "portrait-frame-shift": authoredFocus("Кут рамки"),
+  "portrait-restoration": authoredFocus("Реставрацію"),
+  "manual-footnote": authoredFocus("Примітку, яка втекла в практику"),
+  "manual-lecture": authoredFocus("Підручнику межі уроку"),
+  "manual-example-swap": authoredFocus("Надто живий приклад"),
+  "manual-bookmark": authoredFocus("Закладку до розділу"),
+  "uniform-grid-audit": authoredFocus("Вперту клітинку"),
+  "uniform-office-talk": authoredFocus("З канцелярським краєм"),
+  "uniform-margin-trick": authoredFocus("Запасне поле"),
+  "uniform-stamp-order": authoredFocus("Розширення клітинки"),
+  "exam-read-rubric": authoredFocus("Критерії іспиту"),
+  "exam-appeal": authoredFocus("Апеляцію до здорового глузду"),
+  "exam-question-swap": authoredFocus("Місцями питання й відповідь"),
+  "exam-ritual-silence": authoredFocus("Ритуал тиші в аудиторії"),
+  "title-ledger-read": authoredFocus("Титул у журналі слави"),
+  "title-queue-talk": authoredFocus("З чергою пошани"),
+  "title-ribbon-trick": authoredFocus("Стрічки урочистости"),
+  "title-stamp-ceremony": authoredFocus("Малу церемонію печатки"),
+  "skim-foam": authoredFocus("Найгучнішу піну окремою ложкою"),
+  "tap-bottom": authoredFocus("Дно на таємну кімнату"),
+  "polish-visor": authoredFocus("Забрало до чесної версії"),
+  "pin-week": authoredFocus("Тиждень до стіни доказів"),
+  "fold-corner": authoredFocus("Кут порталу в кишеньковий формат"),
+  "cushion-witness": authoredFocus("Подушку як мʼякого свідка"),
+  "stitch-shadow": authoredFocus("Тінь плаща до правильного гачка"),
+  "count-quorum": authoredFocus("Кворум ложок до десерту"),
+  "pad-frame": authoredFocus("Раму рукавицею правди"),
+  "oil-soles": authoredFocus("Підошви проти відпусткових планів"),
+  "jar-soot": authoredFocus("Сажу в банку з етикеткою"),
+  "trim-wick": authoredFocus("Ґніт до робочого настрою"),
+  "measure-legs": authoredFocus("Ніжки на змову меблів"),
+  "braid-bristles": authoredFocus("Щетину в мирну косу"),
+  "oil-hinge": authoredFocus("Завісу замість платити мито"),
+  "pin-thread-route": authoredFocus("Нитку через безпечний маршрут"),
+  "hold-lid": authoredFocus("Кришку під час мирних переговорів"),
+  "blot-price": authoredFocus("Цінник серветкою доказів"),
+  "chalk-fish": authoredFocus("Рибі офіційний напрямок"),
+  "clean-frame": authoredFocus("Раму від зайвого підморгування"),
+  "warm-teeth": authoredFocus("Зубці над тихим полумʼям"),
+  "bookmark-debt": authoredFocus("Борг серветкою з правильним римуванням"),
+  "pin-corner": authoredFocus("Кут, який знає забагато"),
+  "pad-clapper": authoredFocus("Язичок дзвінка рукавицею"),
+  "survey-fold-corner": authoredFocus("Кут анкети під правильну графу"),
+  "mug-steady-handle": authoredFocus("Ручку кухля підставкою"),
+  "portrait-varnish-knock": authoredFocus("Лаком по краю рами"),
+  "manual-bookmark-risk": authoredFocus("Сторінку небезпечним прикладом"),
+  "uniform-pin-cuff": authoredFocus("Манжет під потрібну клітинку"),
+  "exam-scratch-margin": authoredFocus("Відповідь на полях іспиту"),
+  "title-knot-crest": authoredFocus("Стрічку титулу на доказі"),
+} as const satisfies Record<string, AuthoredMethodFocus>;
+
+function authoredFocus(focus: string): AuthoredMethodFocus {
+  return {
+    strong: `${focus} знаходить точний робочий кут.`,
+    success: `${focus} тримає справу достатньо міцно.`,
+    mixed: `${focus} майже складає порядок.`,
+    complication: `${focus} зривається у найгострішому місці.`
+  };
+}
 const GENERAL_SCENE_SEEDS: Record<string, AdventureSceneSeed> = {
   stew: scene("казанок", "Суп стих, але кожна ложка ще бере високу ноту.", "Пара скликала дрібну вокальну біду.", [
     method("conduct-duet", "🎵 Продиригувати юшкою", "Добрі шанси, винагорода звичайна.", "negotiate", ["performance"], "charisma", "luck", 66, "standard"),
@@ -417,8 +583,6 @@ function method(
     ...(combatSkillId ? { combatSkillId } : {}),
     outcomes: buildMethodOutcomeBeats({
       id,
-      label,
-      hint,
       consequence: consequenceKind
     })
   };
@@ -524,7 +688,7 @@ function buildSignatureMethods(character: CharacterSummary, sceneTitle: string, 
         sceneTitle,
         sceneSeed,
         seed,
-        identity: buildSignatureIdentityBeat(raceProfile, classProfile, character.title ?? null, seed)
+        identity: buildSignatureIdentityBeat(raceProfile, classProfile, character.title ?? null)
       })
     };
   });
@@ -566,7 +730,7 @@ function buildProfileMethod(input: {
       sceneTitle: input.sceneTitle,
       sceneSeed: input.sceneSeed,
       seed: input.seed,
-      identity: buildTechniqueIdentityBeat(input.profile, input.profileKind, input.seed)
+      identity: buildTechniqueIdentityBeat(input.profile, input.profileKind)
     })
   };
 }
@@ -634,8 +798,6 @@ function buildProfileOutcomeText(input: {
 
 function buildMethodOutcomeBeats(input: {
   id: string;
-  label: string;
-  hint: string;
   consequence: QuestConsequenceKind;
 }): AdventureOutcomeBeats {
   const override = getMethodOutcomeOverride(input.id);
@@ -644,122 +806,63 @@ function buildMethodOutcomeBeats(input: {
     return override;
   }
 
-  const focus = buildMethodFocus(input.label);
-  const texture = buildMethodTexture(input.id, input.hint);
-  const complication = buildMethodComplicationBeat(input.consequence, focus, texture);
+  const focus = getAuthoredMethodFocus(input.id);
+  const complication = buildMethodComplicationBeat(input.consequence, focus);
 
   return {
-    strong: `${focus} влучає просто в нерв справи: ${texture.strong}`,
-    success: `${focus} тримає сцену достатньо міцно: ${texture.success}`,
-    mixed: `${focus} майже складає порядок, але ${texture.mixed}`,
+    strong: `${focus.strong} Сцена складається без зайвого клею і не просить перекладу з жестів.`,
+    success: `${focus.success} Безлад стишується достатньо, щоб Корчмар не відкривав другу справу.`,
+    mixed: `${focus.mixed} Результат є, але дрібна претензія ще шарудить під столом.`,
     complication
   };
 }
 
-function buildMethodFocus(label: string): string {
-  const clean = label.replace(/^[^\p{L}\p{N}]+/u, "").trim();
-  const fragment = clean.split(/\s+/u).slice(1, 5).join(" ").replace(/[.!?]+$/u, "");
-
-  return fragment ? `Деталь «${fragment.toLocaleLowerCase("uk-UA")}»` : "Цей конкретний рух";
+interface AuthoredMethodFocus {
+  strong: string;
+  success: string;
+  mixed: string;
+  complication: string;
 }
 
-function buildMethodTexture(id: string, hint: string): { strong: string; success: string; mixed: string } {
-  const tokens = new Set(id.split("-"));
-  const lowerHint = hint.toLocaleLowerCase("uk-UA");
+function getAuthoredMethodFocus(id: string): AuthoredMethodFocus {
+  const focus = (AUTHORED_METHOD_FOCUS as Record<string, AuthoredMethodFocus>)[id];
 
-  if (tokens.has("bribe") || tokens.has("pay") || tokens.has("buy") || lowerHint.includes("золот")) {
-    return {
-      strong: "внесок одразу стає договором тиші, а рахівниця не встигає обуритись.",
-      success: "плата гасить найгучнішу вимогу, хоч монети назад не повертаються.",
-      mixed: "дрібний борг лишається в протоколі й підгризає вигоду."
-    };
+  if (!focus) {
+    throw new Error(`Missing authored adventure outcome focus for method ${id}.`);
   }
 
-  if (tokens.has("fake") || tokens.has("swap") || tokens.has("steal") || tokens.has("hide") || tokens.has("trick")) {
-    return {
-      strong: "підміна проходить чисто, і свідки сперечаються вже з власною памʼяттю.",
-      success: "увага ковзає вбік, потрібний доказ виходить із тіні без фанфар.",
-      mixed: "край фокусу лишає слід, який Корчмар бачить і не коментує."
-    };
-  }
-
-  if (tokens.has("duel") || tokens.has("challenge") || tokens.has("wrestle") || tokens.has("evict") || tokens.has("outrun")) {
-    return {
-      strong: "натиск потрапляє точно в причину безладу й не дає їй покликати родичів.",
-      success: "опір тріскає після чесного натиску, а підлога переживає це мовчки.",
-      mixed: "гуркіт лишає синюватий аргумент там, де мала бути крапка."
-    };
-  }
-
-  if (tokens.has("ritual") || tokens.has("stamp") || tokens.has("ceremony") || tokens.has("revoke") || tokens.has("order")) {
-    return {
-      strong: "знак, печатка й пауза стають у правильну чергу.",
-      success: "формальність надає безладові форму, яку соромно заперечувати.",
-      mixed: "один службовий знак світиться довше, ніж треба."
-    };
-  }
-
-  if (tokens.has("trap") || tokens.has("pin") || tokens.has("stitch") || tokens.has("fold") || tokens.has("tie") || tokens.has("knot")) {
-    return {
-      strong: "шов, кут або вузол замикає проблему саме там, де вона шукала шпарину.",
-      success: "ремесло тримає, хоч матеріал тихо вдає ображеного.",
-      mixed: "на столі лишається дрібна гостра згадка про ціну точности."
-    };
-  }
-
-  if (tokens.has("talk") || tokens.has("negotiate") || tokens.has("offer") || tokens.has("debate") || tokens.has("appeal")) {
-    return {
-      strong: "умова звучить доречно, і суперечка сама просить чистий підпис.",
-      success: "домовленість стишує головну претензію без зайвого героїзму.",
-      mixed: "один пункт угоди ще бурчить під столом."
-    };
-  }
-
-  if (tokens.has("track") || tokens.has("trace") || tokens.has("read") || tokens.has("audit") || tokens.has("inspect")) {
-    return {
-      strong: "доказ показує точну причину й одразу соромить безлад.",
-      success: "перевірка знаходить робочий слід і кладе його на видноті.",
-      mixed: "малий хвостик правди ще шурхотить після рішення."
-    };
-  }
-
-  return {
-    strong: "рух, доказ і наслідок складаються без зайвого клею.",
-    success: "сцена погоджується на порядок із третьої спроби.",
-    mixed: "маленький залишок проблеми просить не закривати протокол."
-  };
+  return focus;
 }
 
 function buildMethodComplicationBeat(
   consequence: QuestConsequenceKind,
-  focus: string,
-  texture: { mixed: string }
+  focus: AuthoredMethodFocus
 ): string {
   if (consequence === "fight-handoff") {
-    return `${focus} зачіпає прихованого мешканця сцени; той виходить не пояснювати, а битися.`;
+    return `${focus.complication} Із-за сцени виходить той, хто пояснює наслідки кулаками.`;
   }
 
   if (consequence === "serious-injury") {
-    return `${focus} зривається надто різко, і герой платить за це добрим ударом по здоровʼю.`;
+    return `${focus.complication} Герой платить за це добрим ударом по здоровʼю.`;
   }
 
   if (consequence === "minor-injury") {
-    return `${focus} чіпляє гострий край справи; пальці або лікоть одразу запамʼятовують урок.`;
+    return `${focus.complication} Пальці або лікоть одразу записують урок у здоровʼя.`;
   }
 
   if (consequence === "gold-cost-success") {
-    return `${focus} спрацьовує неохайно: внесок прийнято, але сцена лишає платний дрібний шрифт.`;
+    return `${focus.complication} Внесок прийнято, але платний дрібний шрифт лишається в протоколі.`;
   }
 
   if (consequence === "xp-only") {
-    return `${focus} доводить урок, але винагорода розсипається на досвід без дзвону монет.`;
+    return `${focus.complication} Урок є, а монети розходяться на пояснення.`;
   }
 
   if (consequence === "reduced-reward") {
-    return `${focus} лишає результат, проте ${texture.mixed}`;
+    return `${focus.complication} Результат лишається, проте винагорода помітно худне.`;
   }
 
-  return `${focus} дає відповідь, але на підлозі лишається безлад із власною думкою.`;
+  return `${focus.complication} Відповідь є, але на підлозі лишається безлад із власною думкою.`;
 }
 
 function getMethodOutcomeOverride(id: string): AdventureOutcomeBeats | undefined {
@@ -903,8 +1006,7 @@ function hasFightWarning(hint: string): boolean {
 
 function buildTechniqueIdentityBeat(
   profile: QuestTechniqueProfile,
-  profileKind: "race" | "class",
-  seed: AdventureMethodSeed
+  profileKind: "race" | "class"
 ): {
   strong: string;
   success: string;
@@ -913,21 +1015,19 @@ function buildTechniqueIdentityBeat(
 } {
   const motif = techniqueMotif(firstTechnique(profile));
   const owner = profileKind === "race" ? profile.label : profile.label.toLocaleLowerCase("uk-UA");
-  const focus = buildMethodFocus(seed.label).replace(/^Деталь /u, "");
 
   return {
-    strong: `${capitalizeFirst(owner)} підхоплює ${focus} через ${motif}, і дія стає схожою на добре замаскований план.`,
-    success: `${capitalizeFirst(motif)} лягає поруч із ${focus}, тож сцена здається без службової промови.`,
-    mixed: `${capitalizeFirst(owner)} втримує ${focus}, але ${motif} залишає маленьку претензію на серветці.`,
-    complication: `${capitalizeFirst(motif)} входить у ${focus} під неправильним кутом, і наслідок виходить особистим, а не безіменним.`
+    strong: `${capitalizeFirst(owner)} додає ${motif}; сцена приймає це як природну частину рішення.`,
+    success: `${capitalizeFirst(motif)} підсилює обраний хід без службової таблички на кнопці.`,
+    mixed: `${capitalizeFirst(owner)} допомагає втримати сцену, але ${motif} лишає маленьку претензію на серветці.`,
+    complication: `${capitalizeFirst(motif)} заходить у сцену під неправильним кутом, і наслідок виходить особистим, а не безіменним.`
   };
 }
 
 function buildSignatureIdentityBeat(
   raceProfile: QuestTechniqueProfile,
   classProfile: QuestTechniqueProfile,
-  title: string | null,
-  seed: AdventureMethodSeed
+  title: string | null
 ): {
   strong: string;
   success: string;
@@ -936,14 +1036,13 @@ function buildSignatureIdentityBeat(
 } {
   const raceMotif = techniqueMotif(firstTechnique(raceProfile));
   const classMotif = techniqueMotif(firstTechnique(classProfile));
-  const focus = buildMethodFocus(seed.label).replace(/^Деталь /u, "");
   const titleBeat = title ? ` Титул «${title}» тихо свідчить, що це майже офіційно.` : "";
 
   return {
-    strong: `${capitalizeFirst(raceMotif)} тримає ${focus}, а ${classMotif} ставить поруч робочу крапку.${titleBeat}`,
-    success: `${capitalizeFirst(focus)} отримує і ${raceMotif}, і ${classMotif}; сцена впізнає героя без підпису на кнопці.`,
-    mixed: `${capitalizeFirst(raceMotif)} штовхає ${focus} уперед, ${classMotif} підпирає збоку, але дрібна претензія лишається.`,
-    complication: `${capitalizeFirst(focus)} ловить одночасно ${raceMotif} і ${classMotif}; тому наслідок виходить яскравий, особистий і незручний.`
+    strong: `${capitalizeFirst(raceMotif)} тримає сцену з одного боку, а ${classMotif} ставить поруч робочу крапку.${titleBeat}`,
+    success: `${capitalizeFirst(raceMotif)} і ${classMotif} сходяться без підпису на кнопці; сцена впізнає героя за дією.`,
+    mixed: `${capitalizeFirst(raceMotif)} штовхає рішення вперед, ${classMotif} підпирає збоку, але дрібна претензія лишається.`,
+    complication: `Сцена ловить одночасно ${raceMotif} і ${classMotif}; тому наслідок виходить яскравий, особистий і незручний.`
   };
 }
 

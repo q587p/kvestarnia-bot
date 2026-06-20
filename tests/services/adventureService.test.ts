@@ -12,6 +12,7 @@ import type {
   ClaimDailyActionInput,
   ClaimDailyActionResult,
   DailyActionClaimIdentity,
+  DailyActionRollbackInput,
   DailyActionRecord,
   DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
@@ -334,9 +335,48 @@ describe("AdventureService", () => {
     await expect(
       found.service.rollbackCurrentAdventureClaimForTelegramUser(found.userId, found.result.claim)
     ).resolves.toBe("deleted");
-    expect(found.dailyActions.lastRollbackInput).toEqual(found.result.claim);
+    expect(found.dailyActions.lastRollbackInput).toMatchObject(found.result.claim);
+    expect(found.dailyActions.lastRollbackInput?.currentEffectiveHpMax).toEqual(expect.any(Number));
     expect(found.dailyActions.lastDeleteInput).toBeNull();
     expect(found.dailyActions.records).toHaveLength(0);
+  });
+
+  it("passes the current effective HP max into rollback instead of claim-time state", async () => {
+    const equipment = new FakeEquipmentRepository({
+      characterId: `character-${telegramUserId.toString()}`,
+      equipment: [buildEquipment({ itemId: "item.apron-of-foam-resistance", slot: "armor" })]
+    });
+    const { service, characters, dailyActions } = setup(null, equipment);
+    characters.add(telegramUserId, { xp: 25, gold: 10, hpMax: 25 });
+    const offer = await readyOffer(service);
+    const selected = await service.selectAdventureProblem(telegramUserId, {
+      periodToken: offer.periodToken,
+      problemId: offer.choices[0]!.id
+    });
+
+    expect(selected.state).toBe("selected");
+    if (selected.state !== "selected") {
+      throw new Error(`Expected selected problem, got ${selected.state}.`);
+    }
+
+    const result = await service.completeAdventureApproach(telegramUserId, {
+      periodToken: offer.periodToken,
+      problemId: selected.choice.id,
+      methodId: selected.approaches[0]!.callbackKey ?? selected.approaches[0]!.id
+    });
+
+    expect(result.state).toBe("completed");
+    if (result.state !== "completed") {
+      throw new Error(`Expected completed adventure, got ${result.state}.`);
+    }
+
+    await expect(service.rollbackCurrentAdventureClaimForTelegramUser(telegramUserId, result.claim)).resolves.toBe("deleted");
+    expect(dailyActions.lastRollbackInput).toMatchObject({
+      key: result.claim.key,
+      localDate: result.claim.localDate,
+      currentEffectiveHpMax: result.character.hpMax
+    });
+    expect(dailyActions.lastRollbackInput).not.toHaveProperty("effectiveHpMax");
   });
 
   it("rolls back the original adventure claim identity across a 93-minute boundary", async () => {
@@ -1001,7 +1041,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
   private readonly actions = new Map<string, DailyActionRecord>();
   createCount = 0;
   lastDeleteInput: DailyActionClaimIdentity | null = null;
-  lastRollbackInput: DailyActionClaimIdentity | null = null;
+  lastRollbackInput: DailyActionRollbackInput | null = null;
 
   constructor(private readonly characters: FakeCharacterRepository) {}
 
@@ -1134,7 +1174,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
   async rollbackForTelegramUser(
     userTelegramId: bigint,
-    input: DailyActionClaimIdentity
+    input: DailyActionRollbackInput
   ): Promise<"rolled-back" | "missing" | "no-character"> {
     this.lastRollbackInput = input;
     const character = await this.characters.findByTelegramUserId(userTelegramId);

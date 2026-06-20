@@ -51,7 +51,10 @@ export interface ClaimDailyActionInput {
 export interface DailyActionClaimIdentity {
   key: string;
   localDate: string;
-  effectiveHpMax?: number;
+}
+
+export interface DailyActionRollbackInput extends DailyActionClaimIdentity {
+  currentEffectiveHpMax?: number;
 }
 
 export type ClaimDailyActionResult =
@@ -94,7 +97,7 @@ export interface DailyActionRepository {
 
   rollbackForTelegramUser?(
     telegramUserId: bigint,
-    input: DailyActionClaimIdentity
+    input: DailyActionRollbackInput
   ): Promise<"rolled-back" | "missing" | "no-character">;
 
   countForTelegramUser?(
