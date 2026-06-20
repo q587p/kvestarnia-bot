@@ -291,7 +291,7 @@ Monster actions мають бути простими, але не однаков
 - context never changes encounter eligibility, Yeger matching/progress, XP, gold, loot, authored level or stored reward replay;
 - monster barks live in content/domain data, not presenter code; turn summaries store a `monsterBarkId`, and presenters resolve that stable id to Ukrainian copy.
 
-The current implementation adapts the package data to the existing monster roster. It does not import the future 93-monster roster expansion.
+The current implementation imports the package's 93-monster roster into the existing `MonsterContent` shape, plus context profiles and five authored bark lines per monster. It still does not import the monster ability/loadout extension.
 
 ## Відмова, здача і backup
 

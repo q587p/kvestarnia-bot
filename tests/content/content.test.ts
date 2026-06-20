@@ -52,6 +52,7 @@ describe("content tables", () => {
     const contextProfileIds = monsterContextProfiles.map((profile) => profile.monsterId);
     const barkMonsterIds = Object.keys(monsterBarkTextByMonsterId);
 
+    expect(monsters).toHaveLength(93);
     expect(new Set(contextProfileIds).size).toBe(contextProfileIds.length);
     expect(new Set(barkMonsterIds).size).toBe(barkMonsterIds.length);
     expect(contextProfileIds.sort()).toEqual([...monsterIds].sort());

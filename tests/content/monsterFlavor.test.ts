@@ -62,9 +62,10 @@ const legacyMonsterLootIds = [
 ] as const;
 
 describe("monster flavor content", () => {
-  it("keeps the first bestiary roster stable", () => {
-    expect(monsters).toHaveLength(31);
+  it("keeps the expanded bestiary roster stable", () => {
+    expect(monsters).toHaveLength(93);
     expect(monsters.map((monster) => monster.id)).toContain("monster.mimic-shawarma");
+    expect(monsters.map((monster) => monster.id)).toContain("monster.expired-archive-upyr-king");
   });
 
   it("gives every monster meaningful tags", () => {

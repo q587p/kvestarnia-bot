@@ -1051,7 +1051,7 @@ describe("FightService", () => {
 
   it("falls back to a clamped right-passage monster level when the lower band has no content", async () => {
     const characters = new FakeCharacterRepository();
-    characters.add(telegramUserId, { level: 19, xp: 13_000 });
+    characters.add(telegramUserId, { level: 29, xp: 130_000 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const service = new FightService(
@@ -1068,12 +1068,12 @@ describe("FightService", () => {
 
     expect(started.state).toBe("persistent-active");
     if (started.state === "persistent-active") {
-      expect(started.character.level).toBe(19);
-      expect(started.monster.level).toBe(14);
+      expect(started.character.level).toBe(29);
+      expect(started.monster.level).toBe(24);
       expect(started.session.state?.monster.debugTrace).toMatchObject({
         interventionKind: "help",
-        baseMonsterLevel: 13,
-        effectiveMonsterLevel: 14
+        baseMonsterLevel: 23,
+        effectiveMonsterLevel: 24
       });
     }
   });

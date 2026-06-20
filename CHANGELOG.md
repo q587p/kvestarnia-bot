@@ -15,7 +15,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added ability-keyed cooldown state for combat skills while keeping legacy `cooldowns.skill` combat states readable and normalizing them on the next committed action.
 - Added 23-second turn deadlines to active persistent solo/training combat state. When a player returns to the battle screen or presses an expired combat button after the deadline, the service first commits a canonical basic attack for the missed turn and then shows the current state.
 - Added persistent-fight monster context snapshots: combat start now freezes a `Europe/Kyiv` world context, applies at most two small capped monster traits, stores the context in combat state and reuses it on resume/replay.
-- Added deterministic monster barks for the current 31-monster roster: every current monster has five authored Ukrainian lines, and stored turn summaries render bark ids without rerolling old cards.
+- Expanded the monster roster to 93 entries from the contextual monster package, keeping the current `MonsterContent` shape and existing reward/eligibility rules.
+- Added deterministic monster barks for the full 93-monster roster: every monster has five authored Ukrainian lines, and stored turn summaries render bark ids without rerolling old cards.
 - Added focused domain, service, callback, keyboard and presenter coverage for defend, unavailable skill no-op behavior, legacy cooldown loading and expired-turn auto-attacks.
 
 ### Changed
@@ -25,10 +26,10 @@ This project follows a simple pre-1.0 versioning policy:
 - Turn-based duel defend choices stay hidden like other round choices and apply deterministic same-round incoming damage reduction when the round resolves.
 - Opening safe side surfaces such as hero/inventory/manatky does not advance an overdue solo/training combat turn; only battle-surface restore/callback paths perform the lazy auto-attack.
 - Contextual monster traits affect only combat texture and small stat modifiers. They do not change encounter eligibility, Yeger matching/progress, XP, gold, loot, authored monster level or stored rewards.
-- The contextual-monster package was adapted to the current roster; no new monster entries were imported in this slice.
+- The contextual-monster package was adapted into the current content/runtime shape; the monster ability/loadout extension remains out of scope.
 
 ### Guardrails
-- No race ability catalog, signature/title ability catalog, monster ability catalog, new monster roster entries, item/consumable actions, schema migration, reward/economy change, wager, rating, tournament or broad combat coefficient rewrite was added.
+- No race ability catalog, signature/title ability catalog, monster ability catalog, item/consumable actions, schema migration, reward/economy change, wager, rating, tournament or broad combat coefficient rewrite was added.
 - Telegram callbacks still carry only compact action keys; mana, cooldowns, damage, mitigation and terminal results remain server-side.
 
 ## [0.1.20] - 12026-06-20 - Authored Quest Resolutions

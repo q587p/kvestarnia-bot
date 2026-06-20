@@ -4,6 +4,7 @@ export type MonsterContextTraitId =
   | "context.cold-start"
   | "context.crowd-performer"
   | "context.dusk-rumor"
+  | "context.home-ground"
   | "context.meal-rush"
   | "context.month-end-panic"
   | "context.night-shift"
@@ -49,6 +50,8 @@ export interface MonsterContextBranch {
   whenAny?: MonsterContextWhen[];
   whenProfileSeasonMatches?: true;
   whenProfileOppositeSeasonMatches?: true;
+  whenProfileLocationMatches?: true;
+  whenLocationKnownAndNoProfileMatch?: true;
   effects: MonsterContextEffects;
   cue: string;
 }
@@ -66,6 +69,7 @@ export interface MonsterContextProfile {
     favoredSeason?: "winter" | "spring" | "summer" | "autumn";
     oppositeSeason?: "winter" | "spring" | "summer" | "autumn";
     strangeCalendarDays?: readonly number[];
+    preferredLocationTags?: readonly string[];
   };
 }
 
@@ -272,38 +276,835 @@ export const monsterContextTraits = [
       }
     ]
   }
+,
+  {
+    id: "context.home-ground",
+    branches: [
+      {
+        id: "home",
+        tone: "advantage",
+        whenProfileLocationMatches: true,
+        effects: { incomingDamageMultiplier: 0.94, accuracyDeltaPp: 2, flatResistDelta: 1 },
+        cue: "?? ???? ?????????. ?????? ????? ??? ??????, ?? ???? ??????."
+      },
+      {
+        id: "away",
+        tone: "disadvantage",
+        whenLocationKnownAndNoProfileMatch: true,
+        effects: { accuracyDeltaPp: -2, flatArmorDelta: -1 },
+        cue: "?????? ?? ?? ????? ????????? ? ??? ??? ???? ????? ???????? ???."
+      }
+    ]
+  }
 ] satisfies MonsterContextTrait[];
 
 export const monsterContextProfiles = [
-  { monsterId: "monster.mimic-shawarma", contextTraitIds: ["context.meal-rush"], mechanicalScale: 0 },
-  { monsterId: "monster.basement-mouse-with-title", contextTraitIds: ["context.dusk-rumor"], mechanicalScale: 0.5 },
-  { monsterId: "monster.stamp-doorkeeper-skeleton", contextTraitIds: ["context.night-shift"], mechanicalScale: 0.5 },
-  { monsterId: "monster.spreadsheet-goblin", contextTraitIds: ["context.office-hours", "context.strange-number-day"], mechanicalScale: 0.5, contextConfig: { strangeCalendarDays: [13, 23] } },
-  { monsterId: "monster.deadline-spider", contextTraitIds: ["context.month-end-panic"], mechanicalScale: 0.5 },
-  { monsterId: "monster.preapproval-dragonling", contextTraitIds: ["context.sun-fed"], mechanicalScale: 0.75 },
-  { monsterId: "monster.unread-rules-ghost", contextTraitIds: ["context.night-shift"], mechanicalScale: 0.5 },
-  { monsterId: "monster.anxious-slippers-swarm", contextTraitIds: ["context.crowd-performer"], mechanicalScale: 0.5 },
-  { monsterId: "monster.borshch-slime", contextTraitIds: ["context.meal-rush"], mechanicalScale: 0.5 },
-  { monsterId: "monster.conditionally-sliced-loaf-bandit", contextTraitIds: ["context.meal-rush"], mechanicalScale: 0.5 },
-  { monsterId: "monster.queue-counter-gargoyle", contextTraitIds: ["context.cold-start"], mechanicalScale: 0.75 },
-  { monsterId: "monster.audit-mosquito", contextTraitIds: ["context.weekend-market"], mechanicalScale: 0.5 },
-  { monsterId: "monster.archival-knysh-eater", contextTraitIds: ["context.meal-rush"], mechanicalScale: 0.5 },
-  { monsterId: "monster.final-comment-troll", contextTraitIds: ["context.dusk-rumor"], mechanicalScale: 0.75 },
-  { monsterId: "monster.report-jellyfish", contextTraitIds: ["context.office-hours"], mechanicalScale: 0.5 },
-  { monsterId: "monster.no-change-merchantling", contextTraitIds: ["context.weekend-market"], mechanicalScale: 0.5 },
-  { monsterId: "monster.self-critique-mirror", contextTraitIds: ["context.night-shift"], mechanicalScale: 0.75 },
-  { monsterId: "monster.dry-sea-teapot", contextTraitIds: ["context.meal-rush"], mechanicalScale: 0.5 },
-  { monsterId: "monster.cabbage-knight-on-break", contextTraitIds: ["context.seasonal-body"], mechanicalScale: 0.5, contextConfig: { favoredSeason: "spring", oppositeSeason: "winter" } },
-  { monsterId: "monster.zero-declaration-tax-dragon", contextTraitIds: ["context.weekend-market", "context.strange-number-day"], mechanicalScale: 0.75, contextConfig: { strangeCalendarDays: [13, 23] } },
-  { monsterId: "monster.complaint-lantern", contextTraitIds: ["context.month-end-panic"], mechanicalScale: 0.75 },
-  { monsterId: "monster.ledger-boar", contextTraitIds: ["context.office-hours"], mechanicalScale: 0.75 },
-  { monsterId: "monster.salted-oath-pretzel", contextTraitIds: ["context.meal-rush"], mechanicalScale: 0.75 },
-  { monsterId: "monster.unclosed-closure-act", contextTraitIds: ["context.office-hours"], mechanicalScale: 0.75 },
-  { monsterId: "monster.liar-corridor-map", contextTraitIds: ["context.crowd-performer"], mechanicalScale: 1 },
-  { monsterId: "monster.foam-auditor-boots", contextTraitIds: ["context.office-hours"], mechanicalScale: 1 },
-  { monsterId: "monster.three-signature-chimera", contextTraitIds: ["context.strange-number-day", "context.office-hours"], mechanicalScale: 1, contextConfig: { strangeCalendarDays: [13, 23] } },
-  { monsterId: "monster.cheese-vault-warden", contextTraitIds: ["context.meal-rush", "context.office-hours"], mechanicalScale: 1 },
-  { monsterId: "monster.calendar-hydra", contextTraitIds: ["context.month-end-panic", "context.office-hours"], mechanicalScale: 1 },
-  { monsterId: "monster.inventory-prophet", contextTraitIds: ["context.month-end-panic", "context.office-hours"], mechanicalScale: 1 },
-  { monsterId: "monster.quiet-catastrophe-clerk", contextTraitIds: ["context.month-end-panic", "context.office-hours"], mechanicalScale: 1 }
+  {
+    "monsterId": "monster.mimic-shawarma",
+    "contextTraitIds": [
+      "context.meal-rush"
+    ],
+    "mechanicalScale": 0
+  },
+  {
+    "monsterId": "monster.basement-mouse-with-title",
+    "contextTraitIds": [
+      "context.dusk-rumor"
+    ],
+    "mechanicalScale": 0.5
+  },
+  {
+    "monsterId": "monster.stamp-doorkeeper-skeleton",
+    "contextTraitIds": [
+      "context.night-shift"
+    ],
+    "mechanicalScale": 0.5
+  },
+  {
+    "monsterId": "monster.spreadsheet-goblin",
+    "contextTraitIds": [
+      "context.office-hours",
+      "context.strange-number-day"
+    ],
+    "mechanicalScale": 0.5,
+    "contextConfig": {
+      "strangeCalendarDays": [
+        13,
+        23
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.deadline-spider",
+    "contextTraitIds": [
+      "context.month-end-panic"
+    ],
+    "mechanicalScale": 0.5
+  },
+  {
+    "monsterId": "monster.preapproval-dragonling",
+    "contextTraitIds": [
+      "context.sun-fed"
+    ],
+    "mechanicalScale": 0.75
+  },
+  {
+    "monsterId": "monster.unread-rules-ghost",
+    "contextTraitIds": [
+      "context.night-shift"
+    ],
+    "mechanicalScale": 0.5
+  },
+  {
+    "monsterId": "monster.anxious-slippers-swarm",
+    "contextTraitIds": [
+      "context.crowd-performer"
+    ],
+    "mechanicalScale": 0.5
+  },
+  {
+    "monsterId": "monster.borshch-slime",
+    "contextTraitIds": [
+      "context.meal-rush"
+    ],
+    "mechanicalScale": 0.5
+  },
+  {
+    "monsterId": "monster.conditionally-sliced-loaf-bandit",
+    "contextTraitIds": [
+      "context.meal-rush"
+    ],
+    "mechanicalScale": 0.5
+  },
+  {
+    "monsterId": "monster.queue-counter-gargoyle",
+    "contextTraitIds": [
+      "context.cold-start"
+    ],
+    "mechanicalScale": 0.75
+  },
+  {
+    "monsterId": "monster.audit-mosquito",
+    "contextTraitIds": [
+      "context.weekend-market"
+    ],
+    "mechanicalScale": 0.5
+  },
+  {
+    "monsterId": "monster.archival-knysh-eater",
+    "contextTraitIds": [
+      "context.meal-rush"
+    ],
+    "mechanicalScale": 0.5
+  },
+  {
+    "monsterId": "monster.final-comment-troll",
+    "contextTraitIds": [
+      "context.dusk-rumor"
+    ],
+    "mechanicalScale": 0.75
+  },
+  {
+    "monsterId": "monster.report-jellyfish",
+    "contextTraitIds": [
+      "context.office-hours"
+    ],
+    "mechanicalScale": 0.5
+  },
+  {
+    "monsterId": "monster.no-change-merchantling",
+    "contextTraitIds": [
+      "context.weekend-market"
+    ],
+    "mechanicalScale": 0.5
+  },
+  {
+    "monsterId": "monster.self-critique-mirror",
+    "contextTraitIds": [
+      "context.night-shift"
+    ],
+    "mechanicalScale": 0.75
+  },
+  {
+    "monsterId": "monster.dry-sea-teapot",
+    "contextTraitIds": [
+      "context.meal-rush"
+    ],
+    "mechanicalScale": 0.5
+  },
+  {
+    "monsterId": "monster.cabbage-knight-on-break",
+    "contextTraitIds": [
+      "context.seasonal-body"
+    ],
+    "mechanicalScale": 0.5,
+    "contextConfig": {
+      "favoredSeason": "spring",
+      "oppositeSeason": "winter"
+    }
+  },
+  {
+    "monsterId": "monster.zero-declaration-tax-dragon",
+    "contextTraitIds": [
+      "context.weekend-market",
+      "context.strange-number-day"
+    ],
+    "mechanicalScale": 0.75,
+    "contextConfig": {
+      "strangeCalendarDays": [
+        13,
+        23
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.complaint-lantern",
+    "contextTraitIds": [
+      "context.month-end-panic"
+    ],
+    "mechanicalScale": 0.75
+  },
+  {
+    "monsterId": "monster.ledger-boar",
+    "contextTraitIds": [
+      "context.office-hours"
+    ],
+    "mechanicalScale": 0.75
+  },
+  {
+    "monsterId": "monster.salted-oath-pretzel",
+    "contextTraitIds": [
+      "context.meal-rush"
+    ],
+    "mechanicalScale": 0.75
+  },
+  {
+    "monsterId": "monster.unclosed-closure-act",
+    "contextTraitIds": [
+      "context.office-hours"
+    ],
+    "mechanicalScale": 0.75
+  },
+  {
+    "monsterId": "monster.liar-corridor-map",
+    "contextTraitIds": [
+      "context.crowd-performer"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.foam-auditor-boots",
+    "contextTraitIds": [
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.three-signature-chimera",
+    "contextTraitIds": [
+      "context.strange-number-day",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "strangeCalendarDays": [
+        13,
+        23
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.cheese-vault-warden",
+    "contextTraitIds": [
+      "context.meal-rush",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.calendar-hydra",
+    "contextTraitIds": [
+      "context.month-end-panic",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.inventory-prophet",
+    "contextTraitIds": [
+      "context.month-end-panic",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.quiet-catastrophe-clerk",
+    "contextTraitIds": [
+      "context.month-end-panic",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.collective-liability-cauldron",
+    "contextTraitIds": [
+      "context.meal-rush"
+    ],
+    "mechanicalScale": 0.75
+  },
+  {
+    "monsterId": "monster.bypass-sheet-fox",
+    "contextTraitIds": [
+      "context.home-ground"
+    ],
+    "mechanicalScale": 0.75,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "forest"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.sourdough-kvas-golem",
+    "contextTraitIds": [
+      "context.meal-rush"
+    ],
+    "mechanicalScale": 0.75
+  },
+  {
+    "monsterId": "monster.tender-committee-frog",
+    "contextTraitIds": [
+      "context.home-ground"
+    ],
+    "mechanicalScale": 0.75,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "water"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.safety-intern-chuhaister",
+    "contextTraitIds": [
+      "context.home-ground"
+    ],
+    "mechanicalScale": 0.75,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "forest"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.bulk-discount-zlydni",
+    "contextTraitIds": [
+      "context.weekend-market"
+    ],
+    "mechanicalScale": 0.75
+  },
+  {
+    "monsterId": "monster.fourth-grind-rumor-mill",
+    "contextTraitIds": [
+      "context.dusk-rumor"
+    ],
+    "mechanicalScale": 0.75
+  },
+  {
+    "monsterId": "monster.improper-parking-boar",
+    "contextTraitIds": [
+      "context.home-ground"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "road"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.three-correct-roads-blud",
+    "contextTraitIds": [
+      "context.home-ground"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "forest"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.wet-coal-salamander",
+    "contextTraitIds": [
+      "context.seasonal-body"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "favoredSeason": "winter",
+      "oppositeSeason": "summer"
+    }
+  },
+  {
+    "monsterId": "monster.service-key-monkey",
+    "contextTraitIds": [
+      "context.home-ground"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "archive"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.hr-pesyholovets",
+    "contextTraitIds": [
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.licensed-shine-magpie",
+    "contextTraitIds": [
+      "context.weekend-market"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.diet-menu-sausage-basilisk",
+    "contextTraitIds": [
+      "context.meal-rush"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.dry-fountain-vodyanyk",
+    "contextTraitIds": [
+      "context.home-ground",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "water"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.curfew-stove-lion",
+    "contextTraitIds": [
+      "context.night-shift",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.three-instance-duck",
+    "contextTraitIds": [
+      "context.dusk-rumor",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.promo-perelesnyk",
+    "contextTraitIds": [
+      "context.dusk-rumor"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.basement-pipe-stone-catfish",
+    "contextTraitIds": [
+      "context.home-ground"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "cellar",
+        "water"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.final-approval-raven",
+    "contextTraitIds": [
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.quarterly-report-pan-kotsky",
+    "contextTraitIds": [
+      "context.dusk-rumor"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.small-business-didko",
+    "contextTraitIds": [
+      "context.weekend-market"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.deep-estimate-sawfish",
+    "contextTraitIds": [
+      "context.home-ground",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "water"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.treasure-ventilation-copper-snake",
+    "contextTraitIds": [
+      "context.weekend-market"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.strategic-reserve-potato",
+    "contextTraitIds": [
+      "context.meal-rush"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.forest-loss-aurochs",
+    "contextTraitIds": [
+      "context.home-ground",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "forest"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.service-path-lisovyk",
+    "contextTraitIds": [
+      "context.home-ground",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "forest"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.siege-iron-varenyk",
+    "contextTraitIds": [
+      "context.meal-rush"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.thirteen-address-dragon-courier",
+    "contextTraitIds": [
+      "context.strange-number-day"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "strangeCalendarDays": [
+        13,
+        23
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.tide-accountant-vodyanyk",
+    "contextTraitIds": [
+      "context.month-end-panic",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.failed-tender-pea-giant",
+    "contextTraitIds": [
+      "context.seasonal-body",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "favoredSeason": "spring",
+      "oppositeSeason": "winter"
+    }
+  },
+  {
+    "monsterId": "monster.archive-ventilation-dragon",
+    "contextTraitIds": [
+      "context.home-ground"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "archive"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.seven-draft-chuhaister",
+    "contextTraitIds": [
+      "context.home-ground"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "forest"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.seasonal-defense-pumpkin-hetman",
+    "contextTraitIds": [
+      "context.seasonal-body"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "favoredSeason": "autumn",
+      "oppositeSeason": "spring"
+    }
+  },
+  {
+    "monsterId": "monster.second-copy-ghost",
+    "contextTraitIds": [
+      "context.night-shift",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.six-hour-meeting-viy",
+    "contextTraitIds": [
+      "context.strange-number-day",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "strangeCalendarDays": [
+        13,
+        23
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.state-sluice-beaver",
+    "contextTraitIds": [
+      "context.home-ground",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "water"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.cash-gap-upyr",
+    "contextTraitIds": [
+      "context.night-shift"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.late-vacation-mavka",
+    "contextTraitIds": [
+      "context.dusk-rumor"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.third-reheat-kulish-phoenix",
+    "contextTraitIds": [
+      "context.meal-rush"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.night-reservation-mara",
+    "contextTraitIds": [
+      "context.night-shift"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.storage-silence-reed-king",
+    "contextTraitIds": [
+      "context.seasonal-body"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "favoredSeason": "summer",
+      "oppositeSeason": "winter"
+    }
+  },
+  {
+    "monsterId": "monster.false-note-bandura-griffin",
+    "contextTraitIds": [
+      "context.weekend-market"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.last-shift-vovkulaka",
+    "contextTraitIds": [
+      "context.night-shift"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.mountain-leasing-aridnyk",
+    "contextTraitIds": [
+      "context.weekend-market"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.customs-three-whisker-carp",
+    "contextTraitIds": [
+      "context.weekend-market",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.hr-intern-necromancer",
+    "contextTraitIds": [
+      "context.office-hours",
+      "context.night-shift"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.cold-storage-state-mammoth",
+    "contextTraitIds": [
+      "context.seasonal-body"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "favoredSeason": "winter",
+      "oppositeSeason": "summer"
+    }
+  },
+  {
+    "monsterId": "monster.excise-honey-giant-bee",
+    "contextTraitIds": [
+      "context.weekend-market"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.overtime-heat-poludnytsia",
+    "contextTraitIds": [
+      "context.sun-fed"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.spoon-mobilization-iron-raven",
+    "contextTraitIds": [
+      "context.cold-start"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.fire-safety-three-headed-serpent",
+    "contextTraitIds": [
+      "context.office-hours",
+      "context.crowd-performer"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.last-will-dead-auditor",
+    "contextTraitIds": [
+      "context.night-shift",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.underground-sea-acceptance-whale",
+    "contextTraitIds": [
+      "context.home-ground",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1,
+    "contextConfig": {
+      "preferredLocationTags": [
+        "water",
+        "underground"
+      ]
+    }
+  },
+  {
+    "monsterId": "monster.collateral-grey-bear",
+    "contextTraitIds": [
+      "context.weekend-market"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.empty-chamber-lady",
+    "contextTraitIds": [
+      "context.night-shift"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.fair-tax-honey-leviathan",
+    "contextTraitIds": [
+      "context.weekend-market"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.siege-song-stone-skylark",
+    "contextTraitIds": [
+      "context.dusk-rumor"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.written-off-assets-black-booker",
+    "contextTraitIds": [
+      "context.night-shift",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.last-route-star-boar",
+    "contextTraitIds": [
+      "context.crowd-performer"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.queue-dragon-prince",
+    "contextTraitIds": [
+      "context.crowd-performer",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  },
+  {
+    "monsterId": "monster.expired-archive-upyr-king",
+    "contextTraitIds": [
+      "context.night-shift",
+      "context.office-hours"
+    ],
+    "mechanicalScale": 1
+  }
 ] satisfies MonsterContextProfile[];

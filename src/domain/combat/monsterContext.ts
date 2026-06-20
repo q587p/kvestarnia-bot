@@ -140,7 +140,25 @@ function branchMatches(
     return false;
   }
 
-  return Boolean(branch.when || branch.whenAny || branch.whenProfileSeasonMatches || branch.whenProfileOppositeSeasonMatches);
+  if (branch.whenProfileLocationMatches && !profileLocationMatches(profile, world)) {
+    return false;
+  }
+
+  if (
+    branch.whenLocationKnownAndNoProfileMatch &&
+    (!hasKnownLocation(world) || profileLocationMatches(profile, world))
+  ) {
+    return false;
+  }
+
+  return Boolean(
+    branch.when ||
+      branch.whenAny ||
+      branch.whenProfileSeasonMatches ||
+      branch.whenProfileOppositeSeasonMatches ||
+      branch.whenProfileLocationMatches ||
+      branch.whenLocationKnownAndNoProfileMatch
+  );
 }
 
 function whenMatches(
@@ -167,6 +185,19 @@ function matchesValue<T extends string | number>(
   actual: T
 ): boolean {
   return !expected || expected.includes(actual);
+}
+
+function profileLocationMatches(
+  profile: MonsterContextProfile,
+  world: CombatWorldContextV1
+): boolean {
+  const preferred = profile.contextConfig?.preferredLocationTags;
+
+  return Boolean(preferred?.some((tag) => world.locationTags.includes(tag)));
+}
+
+function hasKnownLocation(world: CombatWorldContextV1): boolean {
+  return world.locationTags.length > 0;
 }
 
 function composeEffects(effects: readonly MonsterContextEffects[]): Required<MonsterContextEffects> {
