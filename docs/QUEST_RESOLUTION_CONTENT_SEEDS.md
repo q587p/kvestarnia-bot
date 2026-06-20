@@ -10,6 +10,7 @@
 - strong/success/mixed/complication мають різні сцени, не лише різні reward numbers;
 - активний контент не повинен падати в універсальний «справа погодилась бути вирішеною».
 - активний контент не добирає 5-7 кнопок універсальними filler-методами; кожна family має власні scene-native дієслова, предмети, ризики й ускладнення.
+- active outcome copy must be complete Ukrainian sentences, not quoted accusative/nominative fragments inserted into a shared skeleton; tests normalize case and sentence skeletons to catch this.
 - HP injury and fight handoff are owned by specific methods. Starter scenes use only minor injury; ordinary level 3+ scenes can use minor injury, serious injury or existing persistent-fight handoff where the fiction supports it.
 
 ## 1. Starter: Підозріла шаурма

@@ -253,15 +253,17 @@ describe("adventure resolution content", () => {
       for (const method of methods) {
         const outcomeBodies = Object.values(method.outcomeText)
           .flatMap((outcome) => outcome.body)
-          .join("\n")
-          .toLocaleLowerCase("uk-UA");
+          .join("\n");
+        const normalizedOutcomeBodies = normalizeCopyGateText(outcomeBodies);
         const uniqueGradeBodies = new Set(
           Object.values(method.outcomeText).map((outcome) => outcome.body.join("\n"))
         );
 
         expect(uniqueGradeBodies.size, `${problemId}:${method.id}`).toBe(4);
         for (const fallback of fallbackCopy) {
-          expect(outcomeBodies, `${problemId}:${method.id}`).not.toContain(fallback);
+          expect(normalizedOutcomeBodies, `${problemId}:${method.id}:${fallback}`).not.toContain(
+            normalizeCopyGateText(fallback)
+          );
         }
       }
     }
@@ -269,6 +271,7 @@ describe("adventure resolution content", () => {
 
   it("keeps adventure outcome copy free of known case and agreement breakages", () => {
     const sampledProblemIds = [
+      ...ADVENTURE_PROBLEM_IDS,
       "barrel",
       "bench",
       "helmet",
@@ -294,10 +297,25 @@ describe("adventure resolution content", () => {
       "навколо підручнику межі уроку",
       "Уважну ревізію причини тримає",
       "зчіплюється з вагу прямого аргументу",
-      "Вагу прямого аргументу допомагає"
+      "Вагу прямого аргументу допомагає",
+      "Ремісничий підхід до «Закладку до розділу»",
+      "«Закладку до розділу» ламається",
+      "Сліди «Вперту клітинку» стають у ряд",
+      "Домовленість «Апеляцію до здорового глузду»",
+      "Коло для «Ритуал тиші в аудиторії»",
+      "«Стрічки урочистости» прикриває трюк",
+      "Обережний знак біля «Малу церемонію печатки»",
+      "Край «Найгучнішу піну окремою ложкою»",
+      "Сліди «Дно на таємну кімнату»",
+      "до «Закладку",
+      "біля «Малу",
+      "навколо «Вперту",
+      "для «Ритуал",
+      "«Стрічки урочистости» прикриває",
+      "«Апеляцію до здорового глузду» стишує"
     ];
 
-    for (const problemId of sampledProblemIds) {
+    for (const problemId of new Set(sampledProblemIds)) {
       const scene = buildAdventureResolutionScene({
         problemId,
         title: problemId,
@@ -312,6 +330,28 @@ describe("adventure resolution content", () => {
         expect(copy, `${problemId}:${phrase}`).not.toContain(phrase);
       }
     }
+  });
+
+  it("rejects copied long outcome skeletons across unrelated adventure scenes", () => {
+    const repeatedSkeletons = new Map<string, Set<string>>();
+
+    for (const { problemId, methodId, grade, sentence } of collectActiveAdventureOutcomeSentences()) {
+      const skeleton = normalizeOutcomeSkeleton(sentence);
+      if (skeleton.length < 42) {
+        continue;
+      }
+
+      const key = `${grade}:${skeleton}`;
+      const owners = repeatedSkeletons.get(key) ?? new Set<string>();
+      owners.add(`${problemId}:${methodId}`);
+      repeatedSkeletons.set(key, owners);
+    }
+
+    const duplicates = [...repeatedSkeletons.entries()]
+      .filter(([, owners]) => new Set([...owners].map((owner) => owner.split(":")[0])).size > 1)
+      .map(([skeleton, owners]) => `${skeleton} => ${[...owners].join(", ")}`);
+
+    expect(duplicates).toEqual([]);
   });
 
   it("keeps named regression methods on explicit authored outcome beats", () => {
@@ -959,6 +999,65 @@ const bard = {
 
 function normalize(label: string): string {
   return label.replace(/^[^\p{L}\p{N}]+/u, "").trim().toLocaleLowerCase("uk-UA");
+}
+
+function normalizeCopyGateText(value: string): string {
+  return value.normalize("NFC").toLocaleLowerCase("uk-UA");
+}
+
+function collectActiveAdventureOutcomeSentences(): Array<{
+  problemId: string;
+  methodId: string;
+  grade: string;
+  sentence: string;
+}> {
+  const problemIds = [
+    ...getGeneralAdventureResolutionProblemIds(),
+    "race-human-ish-survey",
+    "race-human-ish-mug",
+    "race-human-ish-portrait",
+    "class-bard-manual",
+    "class-bard-uniform",
+    "class-bard-exam",
+    `title-${slugTitle(getKnownComboTitleValues()[0] ?? "Архівний Дух")}`
+  ];
+  const sentences: Array<{ problemId: string; methodId: string; grade: string; sentence: string }> = [];
+
+  for (const problemId of new Set(problemIds)) {
+    const scene = buildAdventureResolutionScene({
+      problemId,
+      title: problemId,
+      character: bard
+    });
+
+    for (const method of scene.methods) {
+      if (method.source !== "scene") {
+        continue;
+      }
+
+      for (const [grade, outcome] of Object.entries(method.outcomeText)) {
+        for (const bodyLine of outcome.body) {
+          for (const sentence of bodyLine.split(/(?<=[.!?])\s+/u)) {
+            const trimmed = sentence.trim();
+            if (trimmed) {
+              sentences.push({ problemId, methodId: method.id, grade, sentence: trimmed });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return sentences;
+}
+
+function normalizeOutcomeSkeleton(sentence: string): string {
+  return normalizeCopyGateText(sentence)
+    .replace(/«[^»]*»/gu, "«»")
+    .replace(/\b[a-z0-9.-]+\b/giu, "")
+    .replace(/[^\p{L}\p{N}«»]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
 }
 
 function collectRuntimeQuestCopy(): string[] {
