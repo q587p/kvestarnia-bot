@@ -97,6 +97,7 @@ export interface CombatState {
   originLocationId?: string;
   completedAt?: string;
   turnExpiresAt?: string;
+  message?: CombatMessageReference;
   turn: number;
   status: CombatStatus;
   hero: {
@@ -143,6 +144,11 @@ export interface CombatState {
   context?: MonsterContextSnapshotV1;
   barks?: CombatBarkStateV1;
   lastTurn?: CombatTurnSummary;
+}
+
+export interface CombatMessageReference {
+  chatId: string;
+  messageId: number;
 }
 
 export interface CombatTurnSummary {

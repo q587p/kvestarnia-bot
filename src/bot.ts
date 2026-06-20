@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import type { Bot } from "grammy";
 import { getTelegramMenuCommands } from "./bot/botCommandCatalog";
+import { createCombatTurnTimeoutScheduler } from "./bot/combatTurnTimeoutScheduler";
 import { createBot } from "./bot/createBot";
 import { createDuelTurnTimeoutScheduler } from "./bot/duelTurnTimeoutScheduler";
 import { loadConfig } from "./config/env";
@@ -117,8 +118,10 @@ const healthServer = startHealthServer({
 });
 let bot: Bot | null = null;
 let duelTurnTimeoutScheduler: ReturnType<typeof createDuelTurnTimeoutScheduler> | null = null;
+let combatTurnTimeoutScheduler: ReturnType<typeof createCombatTurnTimeoutScheduler> | null = null;
 
 function shutdown(): void {
+  combatTurnTimeoutScheduler?.stop();
   duelTurnTimeoutScheduler?.stop();
   if (bot) {
     void bot.stop();
@@ -140,6 +143,11 @@ if (!config.botToken) {
   });
   duelTurnTimeoutScheduler = createDuelTurnTimeoutScheduler(services.duel, bot);
   duelTurnTimeoutScheduler.start();
+  combatTurnTimeoutScheduler = createCombatTurnTimeoutScheduler({
+    fight: services.fight,
+    trainingDoppelganger: services.trainingDoppelganger
+  }, bot);
+  combatTurnTimeoutScheduler.start();
 
   void services.mantokChest.cleanupExpiredPendingRuns().catch((error) => {
     console.error("Квестарня: старі бланки Дружньої Скрині не прибрались.", error);

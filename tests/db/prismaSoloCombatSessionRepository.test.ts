@@ -31,6 +31,10 @@ describe("PrismaSoloCombatSessionRepository", () => {
       id: "session-context",
       turn: 2,
       turnExpiresAt: "2026-06-20T00:00:23.000Z",
+      message: {
+        chatId: "42",
+        messageId: 587
+      },
       context: {
         version: 1,
         rulesVersion: "monster-context-v1",
@@ -136,6 +140,48 @@ describe("PrismaSoloCombatSessionRepository", () => {
     });
     expect(mapped?.state?.lastTurn?.monsterBarkId).toBe("bark.deadline-spider.early-turn");
     expect(mapped?.state?.monster.contextModifiers?.outgoingDamageMultiplier).toBe(1.08);
+    expect(mapped?.state?.message).toEqual({
+      chatId: "42",
+      messageId: 587
+    });
+  });
+
+  it("lists due active sessions with telegram ids for the combat scheduler", async () => {
+    const dueState: CombatState = {
+      ...activeCombatState,
+      turnExpiresAt: "2026-06-20T00:00:23.000Z",
+      message: {
+        chatId: "42",
+        messageId: 587
+      }
+    };
+    const futureState: CombatState = {
+      ...activeCombatState,
+      id: "future-session",
+      turnExpiresAt: "2026-06-20T00:00:46.000Z"
+    };
+    const repository = new PrismaSoloCombatSessionRepository({
+      soloCombatSession: {
+        findMany: () => Promise.resolve([
+          makeSoloCombatRow(dueState, { telegramUserId: 42n }),
+          makeSoloCombatRow(futureState, { telegramUserId: 99n })
+        ])
+      }
+    } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
+
+    const due = await repository.listDueActiveSessions(new Date("2026-06-20T00:00:24.000Z"));
+
+    expect(due).toHaveLength(1);
+    expect(due[0]).toMatchObject({
+      id: "missing-session",
+      telegramUserId: 42n,
+      state: {
+        message: {
+          chatId: "42",
+          messageId: 587
+        }
+      }
+    });
   });
 
   it("counts won sessions after the issue timestamp while excluding training monsters", async () => {
@@ -193,9 +239,9 @@ function prismaNotFoundError(): Prisma.PrismaClientKnownRequestError {
   });
 }
 
-function makeSoloCombatRow(state: CombatState) {
+function makeSoloCombatRow(state: CombatState, options: { telegramUserId?: bigint } = {}) {
   return {
-    id: "session-context",
+    id: state.id ?? "session-context",
     characterId: "character-42",
     monsterId: "monster.deadline-spider",
     status: "active",
@@ -207,7 +253,16 @@ function makeSoloCombatRow(state: CombatState) {
     rewardClaimedAt: null,
     createdAt: new Date("2026-06-20T00:00:00.000Z"),
     updatedAt: new Date("2026-06-20T00:00:01.000Z"),
-    expiresAt: new Date("2026-06-20T00:10:00.000Z")
+    expiresAt: new Date("2026-06-20T00:10:00.000Z"),
+    ...(options.telegramUserId
+      ? {
+          character: {
+            user: {
+              telegramUserId: options.telegramUserId
+            }
+          }
+        }
+      : {})
   };
 }
 

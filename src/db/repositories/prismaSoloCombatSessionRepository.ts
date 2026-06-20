@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import type { CombatState, CombatStatus, CombatTurnSummary } from "../../domain/combat";
 import type {
   CreateSoloCombatSessionInput,
+  DueSoloCombatSessionRecord,
   RecordSoloCombatRewardInput,
   SoloCombatSessionCompletionRecord,
   SoloCombatSessionRecord,
@@ -37,6 +38,45 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     });
 
     return mapRecord(record);
+  }
+
+  async listDueActiveSessions(
+    now: Date,
+    options: { limit?: number } = {}
+  ): Promise<DueSoloCombatSessionRecord[]> {
+    const records = await this.prisma.soloCombatSession.findMany({
+      where: {
+        status: "active"
+      },
+      include: {
+        character: {
+          select: {
+            user: {
+              select: {
+                telegramUserId: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        updatedAt: "asc"
+      },
+      take: Math.max(options.limit ?? 20, 100)
+    });
+
+    return records.flatMap((record) => {
+      const mapped = mapRecord(record);
+
+      if (!mapped?.state?.turnExpiresAt || Date.parse(mapped.state.turnExpiresAt) > now.getTime()) {
+        return [];
+      }
+
+      return [{
+        ...mapped,
+        telegramUserId: record.character.user.telegramUserId
+      }];
+    }).slice(0, options.limit ?? 20);
   }
 
   async countWonByTelegramUserId(
@@ -444,6 +484,7 @@ function parseCombatState(value: unknown): CombatState | null {
     ...(source ? { source } : {}),
     ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
     ...(turnExpiresAt ? { turnExpiresAt: turnExpiresAt.toISOString() } : {}),
+    ...(parseMessageReference(value.message) ? { message: parseMessageReference(value.message)! } : {}),
     turn,
     status,
     hero,
@@ -453,6 +494,18 @@ function parseCombatState(value: unknown): CombatState | null {
     ...(parseBarkState(value.barks) ? { barks: parseBarkState(value.barks)! } : {}),
     ...(isTurnSummary(value.lastTurn) ? { lastTurn: value.lastTurn } : {})
   };
+}
+
+function parseMessageReference(value: unknown): CombatState["message"] | null {
+  if (!isRecord(value) || typeof value.chatId !== "string") {
+    return null;
+  }
+
+  const messageId = intOrNull(value.messageId);
+
+  return messageId === null || messageId <= 0
+    ? null
+    : { chatId: value.chatId, messageId };
 }
 
 function getSessionCompletionTime(input: {

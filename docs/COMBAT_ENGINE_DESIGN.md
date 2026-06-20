@@ -66,14 +66,14 @@ max_auto_turns_before_escape_or_expire = 2
 Timeout має бути **source-of-truth у service/domain**, а не в Telegram presenter-і:
 
 1. При створенні/оновленні ходу в `stateJson` пишеться deadline поточного ходу. У `0.1.21` solo/training fights use `turnExpiresAt`; broader `missedTurns`/`autoTurnCount` ladders remain future work.
-2. In-process timer може викликати `advanceCombatTimeout(combatId)` і надіслати повідомлення, але це best-effort.
+2. In-process timer може викликати timeout advancement і оновити активну бойову картку, але це best-effort. У `0.1.21` solo/training scheduler сканує overdue `CombatState.turnExpiresAt` rows and edits/sends through the stored Telegram message reference.
 3. Після restart/deploy будь-яка наступна команда/callback, яка бачить overdue combat, спочатку викликає lazy timeout advancement.
 4. Повторний timeout call з тим самим `expectedTurnToken` нічого не дублює.
 
 Auto-action ladder:
 
 - **Якщо герой мовчить після старту бою приблизно 23 секунди:** service/domain спершу намагається безпечний auto-action з доступних, а не відразу прострочує бій. У типових випадках це `attack`, а якщо герой має мало HP або стоїть на `coward`-сценарії, можна підняти `guard` або `escape` як більш обережний варіант.
-- **Перший пропущений хід:** у `0.1.21` service commits a canonical basic attack when the player returns to the battle surface or presses an expired combat callback. Smarter class-shaped auto-actions remain future work.
+- **Перший пропущений хід:** у `0.1.21` scheduler normally commits a canonical basic attack and updates the active card after the deadline; if restart, delivery failure or callback race wins instead, battle-surface restore/callback paths commit the same canonical basic attack. Smarter class-shaped auto-actions remain future work.
 - **Другий пропущений хід:** guard або спроба втечі, залежно від HP і odds.
 - **Третій пропущений хід або hard expiry:** `expired` або auto-flee з мʼяким текстом. Reward не видавати.
 

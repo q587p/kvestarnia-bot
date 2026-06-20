@@ -8,6 +8,7 @@ import type {
 } from "../db/repositories/duelChallengeRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import type {
+  DueSoloCombatSessionRecord,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository
 } from "../db/repositories/soloCombatSessionRepository";
@@ -119,6 +120,30 @@ export type TrainingDoppelgangerTurnResult =
       session: SoloCombatSessionRecord;
       reward: TrainingDoppelgangerRewardClaim | null;
     };
+
+export type TrainingDoppelgangerTimeoutResult =
+  | { state: "skipped" }
+  | {
+      state: "updated";
+      telegramUserId: bigint;
+      character: CharacterSummary;
+      doppelganger: TrainingDoppelgangerCopy;
+      session: SoloCombatSessionRecord;
+      reward: TrainingDoppelgangerRewardClaim | null;
+    }
+  | {
+      state: "terminal";
+      telegramUserId: bigint;
+      character: CharacterSummary;
+      doppelganger: TrainingDoppelgangerCopy;
+      session: SoloCombatSessionRecord;
+      reward: TrainingDoppelgangerRewardClaim | null;
+    };
+
+export interface TrainingCombatMessageReferenceInput {
+  chatId: string;
+  messageId: number;
+}
 
 export interface TrainingDoppelgangerCopy {
   name: string;
@@ -276,6 +301,96 @@ export class TrainingDoppelgangerService {
       doppelganger: buildDoppelgangerCopy(spawn.character, session.state),
       session
     };
+  }
+
+  async listDueTrainingTurns(options: { limit?: number } = {}): Promise<DueSoloCombatSessionRecord[]> {
+    if (!this.combatSessions.listDueActiveSessions) {
+      return [];
+    }
+
+    const due = await this.combatSessions.listDueActiveSessions(this.clock(), options);
+
+    return due.filter((session) =>
+      session.status === "active" &&
+      session.state?.status === "active" &&
+      isTrainingDoppelgangerMonsterId(session.monsterId)
+    );
+  }
+
+  async resolveDueTrainingTurn(
+    due: DueSoloCombatSessionRecord
+  ): Promise<TrainingDoppelgangerTimeoutResult> {
+    if (!due.state || due.status !== "active" || due.state.status !== "active") {
+      return { state: "skipped" };
+    }
+
+    const current = await this.cooldowns.findForTelegramUser(
+      due.telegramUserId,
+      TRAINING_DOPPELGANGER_COOLDOWN_KEY
+    );
+
+    if (!current) {
+      return { state: "skipped" };
+    }
+
+    const equippedItems = await this.getEquippedItemContents(due.telegramUserId);
+    const character = summarizeCharacter(current.character, { equippedItems });
+    const refreshedSession = await this.advanceExpiredTrainingTurn(
+      due.telegramUserId,
+      due,
+      character
+    );
+
+    if (refreshedSession.id === due.id && refreshedSession.state?.turn === due.state.turn) {
+      return { state: "skipped" };
+    }
+
+    const doppelganger = buildDoppelgangerCopy(character, refreshedSession.state);
+
+    if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
+      return {
+        state: "terminal",
+        telegramUserId: due.telegramUserId,
+        character,
+        doppelganger,
+        session: refreshedSession,
+        reward: await this.getOrRecoverReward(due.telegramUserId, refreshedSession)
+      };
+    }
+
+    return {
+      state: "updated",
+      telegramUserId: due.telegramUserId,
+      character,
+      doppelganger,
+      session: refreshedSession,
+      reward: null
+    };
+  }
+
+  async recordTrainingDoppelgangerMessageReference(
+    telegramUserId: bigint,
+    sessionId: string,
+    reference: TrainingCombatMessageReferenceInput
+  ): Promise<void> {
+    const session = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, sessionId);
+
+    if (
+      session?.status !== "active" ||
+      session.state?.status !== "active" ||
+      !isTrainingDoppelgangerMonsterId(session.monsterId)
+    ) {
+      return;
+    }
+
+    await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+      state: {
+        ...session.state,
+        message: reference
+      },
+      status: session.state.status,
+      expiresAt: session.expiresAt
+    });
   }
 
   async resolveTurn(

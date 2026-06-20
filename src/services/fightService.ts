@@ -9,6 +9,7 @@ import type {
 } from "../db/repositories/characterRepository";
 import type { DailyActionRepository, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import type {
+  DueSoloCombatSessionRecord,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository
 } from "../db/repositories/soloCombatSessionRepository";
@@ -353,6 +354,32 @@ export type PersistentFightTurnResult =
       fightReward: PersistentFightReward | null;
     };
 
+export type PersistentFightTimeoutResult =
+  | { state: "skipped" }
+  | {
+      state: "updated";
+      telegramUserId: bigint;
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      monster: MonsterContent;
+      questProgress: ThirteenSmallProblemsProgress;
+      fightReward: PersistentFightReward | null;
+    }
+  | {
+      state: "terminal";
+      telegramUserId: bigint;
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      monster: MonsterContent | null;
+      questProgress: ThirteenSmallProblemsProgress;
+      fightReward: PersistentFightReward | null;
+    };
+
+export interface CombatMessageReferenceInput {
+  chatId: string;
+  messageId: number;
+}
+
 export interface FightReward {
   xp: number;
   gold: number;
@@ -674,6 +701,101 @@ export class FightService {
       monster,
       questProgress
     };
+  }
+
+  async listDuePersistentFightTurns(options: { limit?: number } = {}): Promise<DueSoloCombatSessionRecord[]> {
+    if (!this.combatSessions?.listDueActiveSessions) {
+      return [];
+    }
+
+    const due = await this.combatSessions.listDueActiveSessions(this.clock(), options);
+
+    return due.filter((session) =>
+      session.status === "active" &&
+      session.state?.status === "active" &&
+      !isTrainingDoppelgangerMonsterId(session.monsterId)
+    );
+  }
+
+  async resolveDuePersistentFightTurn(
+    due: DueSoloCombatSessionRecord
+  ): Promise<PersistentFightTimeoutResult> {
+    const character = await this.characters.findByTelegramUserId(due.telegramUserId);
+
+    if (!character || !due.state || due.status !== "active" || due.state.status !== "active") {
+      return { state: "skipped" };
+    }
+
+    const characterSummary = await this.summarizeCharacterWithEquipment(due.telegramUserId, character);
+    const monster = findPersistentFightMonster(due);
+
+    if (!monster) {
+      return { state: "skipped" };
+    }
+
+    const questProgress = await this.getThirteenSmallProblemsProgress(due.telegramUserId);
+    const refreshedSession = await this.advanceExpiredPersistentTurn(
+      due.telegramUserId,
+      due,
+      characterSummary,
+      monster
+    );
+
+    if (refreshedSession.id === due.id && refreshedSession.state?.turn === due.state.turn) {
+      return { state: "skipped" };
+    }
+
+    if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
+      return {
+        state: "terminal",
+        telegramUserId: due.telegramUserId,
+        character: characterSummary,
+        session: refreshedSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          due.telegramUserId,
+          refreshedSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    return {
+      state: "updated",
+      telegramUserId: due.telegramUserId,
+      character: characterSummary,
+      session: refreshedSession,
+      monster,
+      questProgress,
+      fightReward: null
+    };
+  }
+
+  async recordPersistentFightMessageReference(
+    telegramUserId: bigint,
+    sessionId: string,
+    reference: CombatMessageReferenceInput
+  ): Promise<void> {
+    if (!this.combatSessions) {
+      return;
+    }
+
+    const session = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, sessionId);
+
+    if (session?.status !== "active" || session.state?.status !== "active") {
+      return;
+    }
+
+    await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+      state: {
+        ...session.state,
+        message: reference
+      },
+      status: session.state.status,
+      expiresAt: session.expiresAt
+    });
   }
 
   async getProblemQuestProgressForTelegramUser(

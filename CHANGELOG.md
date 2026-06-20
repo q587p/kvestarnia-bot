@@ -13,12 +13,12 @@ This project follows a simple pre-1.0 versioning policy:
 - Added the first shared combat ability foundation around existing actions: basic attack, basic defend, class skill and flee now resolve through a server-authoritative action/availability contract instead of presenter-only button assumptions.
 - Added `🛡 Захищатися` to persistent solo fights, training doppelganger fights and turn-based duels.
 - Added ability-keyed cooldown state for combat skills while keeping legacy `cooldowns.skill` combat states readable and normalizing them on the next committed action.
-- Added 23-second turn deadlines to active persistent solo/training combat state. When a player returns to the battle screen or presses an expired combat button after the deadline, the service first commits a canonical basic attack for the missed turn and then shows the current state. When a safe side-surface redirect recovers an overdue turn, the hero skips their action and the monster still acts.
+- Added 23-second turn deadlines to active persistent solo/training combat state plus an in-process combat turn timeout scheduler. The scheduler best-effort commits the canonical basic auto-attack after the deadline and edits the active battle card, while battle-screen restore/callback paths keep the same catch-up as a restart/race fallback. When a safe side-surface redirect wins the overdue turn first, the hero skips their action and the monster still acts.
 - Added persistent-fight monster context snapshots: combat start now freezes a `Europe/Kyiv` world context, applies at most two small capped monster traits, stores the context in combat state and reuses it on resume/replay.
 - Added persistent-fight origin tracking in combat state, so non-Низ fight handoffs can return to the place where the fight started.
 - Expanded the monster roster to 93 entries from the contextual monster package, keeping the current `MonsterContent` shape and existing reward/eligibility rules.
 - Added deterministic monster barks for the full 93-monster roster: every monster has five authored Ukrainian lines, and stored turn summaries render bark ids without rerolling old cards.
-- Added focused domain, service, callback, keyboard and presenter coverage for defend, unavailable skill no-op behavior, legacy cooldown loading, expired-turn auto-attacks and side-surface missed-turn skips.
+- Added focused domain, service, repository, scheduler, callback, keyboard and presenter coverage for defend, unavailable skill no-op behavior, legacy cooldown loading, expired-turn auto-attacks, active-card message tracking and side-surface missed-turn skips.
 - Added a separate persistent-fight intro card for newly started monster fights; the active card below it now carries the buttons and updates each turn.
 
 ### Changed
@@ -26,17 +26,18 @@ This project follows a simple pre-1.0 versioning policy:
 - Existing class skill labels and approximate damage remain in place, but cooldowns now last for one subsequent own committed action in this foundation slice instead of using the older hidden `3..5` non-mana skill roll.
 - Defend reduces incoming damage for the current round and can produce a small PvE counter, with repeated defend attempts fatiguing the stance so it cannot become an infinite best action.
 - Turn-based duel defend choices stay hidden like other round choices and apply deterministic same-round incoming damage reduction when the round resolves.
-- Opening safe side surfaces such as hero/inventory/manatky does not auto-attack for an overdue solo/training combat turn; if the lock redirects back to combat after the deadline, the hero skips that action and the monster still acts.
+- Opening safe side surfaces such as hero/inventory/manatky does not intentionally auto-attack for an overdue solo/training combat turn; if the combat lock path wins the timeout race before the scheduler or a battle callback, the hero skips that action and the monster still acts.
 - Post-fight `Новий бій` now appears only for fights that started in `Низ`; adventure and Yeger handoff fights return to their origin surface instead of showing `До Низу`.
 - Contextual monster traits affect only combat texture and small stat modifiers. They do not change encounter eligibility, Yeger matching/progress, XP, gold, loot, authored monster level or stored rewards.
 - The contextual-monster package was adapted into the current content/runtime shape; the monster ability/loadout extension remains out of scope.
-- Active persistent monster fight cards now show HP/mana, turn number and the visible 23-second timeout rule directly on the button message.
+- Active persistent monster fight cards now show HP/mana, turn number and the visible 23-second timeout rule directly on the button message, and active solo/training cards store their Telegram message reference for scheduled edits.
 - Persistent monster barks now render as Telegram blockquotes after the `🗣️ Монстр` marker.
 - Fight and hunt result cards no longer append generic `Наступний крок` command prompts.
 
 ### Guardrails
 - No race ability catalog, signature/title ability catalog, monster ability catalog, item/consumable actions, schema migration, reward/economy change, wager, rating, tournament or broad combat coefficient rewrite was added.
 - Telegram callbacks still carry only compact action keys; mana, cooldowns, damage, mitigation and terminal results remain server-side.
+- The combat timeout scheduler is best-effort and in-process: persisted combat state remains canonical, and no Redis/BullMQ dependency, schema migration or proactive notification table was added.
 
 ## [0.1.20] - 12026-06-20 - Authored Quest Resolutions
 
