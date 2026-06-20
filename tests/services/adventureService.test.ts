@@ -213,6 +213,23 @@ describe("AdventureService", () => {
     }
   });
 
+  it("does not return gold from paid authored methods", async () => {
+    const found = await findResolvedAdventure(
+      (result) => !result.fightHandoff && result.spentGold > 0 && result.reward.xp > 0
+    );
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state === "completed") {
+      expect(found.result.spentGold).toBeGreaterThan(0);
+      expect(found.result.approach.reward.gold).toBe(0);
+      expect(found.result.reward.gold).toBe(0);
+      expect(found.dailyActions.records[0]).toMatchObject({
+        spentGold: found.result.spentGold,
+        rewardGold: 0
+      });
+    }
+  });
+
   it("can grant a low-chance authored quest mantok through the daily claim", async () => {
     const found = await findResolvedAdventure(
       (result) => !result.fightHandoff && result.reward.itemGrants.length > 0
@@ -231,6 +248,25 @@ describe("AdventureService", () => {
             }
           ]
         }
+      });
+    }
+  });
+
+  it("can grant a mantok from a paid authored quest without adding gold reward", async () => {
+    const found = await findResolvedAdventure(
+      (result) =>
+        !result.fightHandoff &&
+        result.spentGold > 0 &&
+        result.reward.gold === 0 &&
+        result.reward.itemGrants.length > 0
+    );
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state === "completed") {
+      expect(found.result.reward.itemGrants).toHaveLength(1);
+      expect(found.result.reward.gold).toBe(0);
+      expect(found.dailyActions.records[0]).toMatchObject({
+        rewardGold: 0
       });
     }
   });
@@ -569,7 +605,8 @@ describe("AdventureService", () => {
       ])
     );
     expect(options.every((option) => [4, 7, 10].includes(option.reward.xp))).toBe(true);
-    expect(options.every((option) => [2, 4, 7].includes(option.reward.gold))).toBe(true);
+    expect(options.every((option) => [0, 2, 4, 7].includes(option.reward.gold))).toBe(true);
+    expect(options.filter((option) => option.goldCost).every((option) => option.reward.gold === 0)).toBe(true);
     expect(options.some((option) => option.source === "scene")).toBe(true);
     expect(options.some((option) => option.source === "race")).toBe(true);
     expect(options.some((option) => option.source === "class")).toBe(true);

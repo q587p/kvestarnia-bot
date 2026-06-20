@@ -16,13 +16,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Added compact `v2` problem and method callbacks for Adventure Choice plus compact method callbacks for mimic-shawarma and cellar mouse buttons, while preserving old starter/cellar callbacks and old Adventure Choice `safe/flair/risky` callbacks as stale-refresh only.
 - Added `spent_gold` and optional `result_json` audit payloads to `daily_actions` so quest method, grade, consequence, cost and check data are stored at claim time.
 - Added paid cellar/adventure method support with pre-claim affordability checks and atomic net gold updates.
-- Added small deterministic post-resolution XP/gold variance for level 3+ authored Adventure Choice rewards, plus a low LUCK-influenced chance for one eligible manatka on non-fight results.
+- Added small deterministic post-resolution XP/gold variance for level 3+ authored Adventure Choice rewards, plus a low LUCK-influenced chance for one eligible manatka on non-fight results; paid methods never return gold as reward and instead get a slightly higher manatka chance.
 - Added `/dev_help` for local QA so available dev commands can be listed without mixing them into the main player help screen.
 - Added canonical design docs for authored quest resolution variety, skill/check math and content seeds, plus the `0.1.20` task doc.
 
 ### Changed
 - Replaced the level 3+ global `safe / flair / risky` choice ladder with 5-7 scene-action methods whose checks/outcomes can still reflect race, class and signature/title.
 - Adventure and cellar selected-result screens now show authored grade-specific Ukrainian outcome copy and qualitative method hints without exact future reward amounts or percentage odds.
+- Successful personalized result copy now avoids generic meta-lines such as “Обраний підхід...” and keeps the sentence anchored to the scene action.
 - Authored quest result cards now separate the scene, method and reward blocks more clearly, omit internal race/class/signature method labels and show `Винагорода за справу` before XP/gold.
 - Authored quest method hints now avoid repeated reliability wording and generated scene outcomes use grammar-neutral copy for singular/plural problem titles.
 - Generated race/class/title problem families now use scene-native method sets for анкета/кухоль/портрет/підручник/форма/іспит/титул instead of one universal generated template.

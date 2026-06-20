@@ -375,7 +375,7 @@ Method визначає consequence:
 - `fight-handoff`: без immediate reward, existing persistent fight; якщо fight не стартує, claim/cost не витрачаються;
 - `reduced-reward`: мала consolation reward і authored mess;
 - `xp-only`: досвід є, золото втекло разом із гідністю;
-- `gold-cost-success`: підкуп спрацював, але заплачене не повертається;
+- `gold-cost-success`: підкуп спрацював, але заплачене не повертається й gold reward лишається `0`;
 - `cosmetic-mess`: no power penalty, але окремий memorable result.
 
 Не вводити в цьому slice:
@@ -398,7 +398,7 @@ Method визначає consequence:
 - insufficient-gold має окремий scene-specific текст і не витрачає claim;
 - debit + reward claim відбуваються в одній транзакції;
 - repeated callback не списує gold вдруге;
-- net gold reward може бути нульовою або меншою, зате шанс вищий.
+- paid methods не видають gold reward; замість цього вони мають трохи вищий шанс на manatka grant.
 
 Ману в quest methods у цьому slice **не витрачати**. Class option може посилатися на наявний combat skill id і використовувати той самий primary stat, але quest resolution не викликає damage resolver. Mana spending можна додати окремим task після стабілізації атомарних resource costs.
 

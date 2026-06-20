@@ -1049,7 +1049,7 @@ function toAdventureApproachOption(
   method: QuestMethodDefinition,
   character: CharacterSummary
 ): AdventureApproachOption {
-  const reward = QUEST_REWARD_PROFILES[method.rewardProfile];
+  const reward = getBaseQuestReward(method);
   const chance = qualitativeQuestChance(
     calculateQuestChance({
       method,
@@ -1079,7 +1079,7 @@ function buildQuestReward(
   grade: QuestResolutionGrade,
   consequence: QuestConsequenceKind
 ): { xp: number; gold: number } {
-  const reward = QUEST_REWARD_PROFILES[method.rewardProfile];
+  const reward = getBaseQuestReward(method);
 
   if (grade === "strong-success" || grade === "success" || consequence === "gold-cost-success") {
     return reward;
@@ -1104,6 +1104,12 @@ function buildQuestReward(
     xp: Math.max(1, Math.ceil(reward.xp * 0.35)),
     gold: 0
   };
+}
+
+function getBaseQuestReward(method: QuestMethodDefinition): { xp: number; gold: number } {
+  const reward = QUEST_REWARD_PROFILES[method.rewardProfile];
+
+  return method.goldCost ? { ...reward, gold: 0 } : reward;
 }
 
 function varyAdventureChoiceReward(
@@ -1162,7 +1168,12 @@ function buildAdventureChoiceItemGrants(input: {
   const rng = new SeededRandomSource(
     `adventure-choice-item:v1:${input.characterId}:${input.periodKey}:${input.sceneId}:${input.method.id}:${input.grade}`
   );
-  const dropChance = clamp(0.11 + (Math.floor(input.character.stats.luck) - 6) * 0.012, 0.07, 0.21);
+  const paidMethodBonus = input.method.goldCost ? 0.07 : 0;
+  const dropChance = clamp(
+    0.11 + paidMethodBonus + (Math.floor(input.character.stats.luck) - 6) * 0.012,
+    input.method.goldCost ? 0.12 : 0.07,
+    input.method.goldCost ? 0.29 : 0.21
+  );
 
   if (rng.nextFloat() >= dropChance) {
     return [];

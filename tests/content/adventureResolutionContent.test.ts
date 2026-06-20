@@ -221,6 +221,7 @@ describe("adventure resolution content", () => {
         expect(outcomeBody, `${problemId}:${method.id}`).not.toMatch(
           /Підпис методу|Расовий спосіб|Класова техніка|race\+class/u
         );
+        expect(outcomeBody, `${problemId}:${method.id}`).not.toContain("Обраний підхід дає потрібний кут");
         expect(outcomeBody, `${problemId}:${method.id}`).not.toMatch(/:\s*[^:\n]+:/u);
       }
 
