@@ -21,8 +21,14 @@ describe("cellar callback data", () => {
     "parses %s action",
     (action) => {
       const data = makeCellarCallbackData(action);
+      const expected =
+        action === "participants"
+          ? { type: "participants" as const }
+          : action.startsWith("grownup-")
+            ? { type: "grownup" as const, action }
+            : { type: "legacy-action" as const, action };
 
-      expect(parseCellarCallbackData(data)).toEqual({ ok: true, value: action });
+      expect(parseCellarCallbackData(data)).toEqual({ ok: true, value: expected });
       expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     }
   );
@@ -32,7 +38,7 @@ describe("cellar callback data", () => {
 
     expect(parseCellarCallbackData(data)).toEqual({
       ok: true,
-      value: "r5"
+      value: { type: "method", methodId: "r5" }
     });
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });

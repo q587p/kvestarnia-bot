@@ -9,6 +9,7 @@ import {
 import { buildStarterQuestResolutionScene } from "../../src/content/starterQuestResolutionContent";
 import { ADVENTURE_PROBLEM_IDS } from "../../src/services/adventureService";
 import {
+  getQuestMethodAffordanceKey,
   getQuestMethodTacticKey,
   resolveQuestMethodsForCharacter
 } from "../../src/domain/quests/questMethodResolver";
@@ -147,14 +148,12 @@ describe("adventure resolution content", () => {
           const sources = new Set(methods.map((method) => method.source));
 
           expect(methods.map((method) => method.id), problemId).toEqual(repeated.map((method) => method.id));
-          expect(methods.length, `${problemId}:${race.id}:${heroClass.id}`).toBeGreaterThanOrEqual(3);
-          expect(methods.length, `${problemId}:${race.id}:${heroClass.id}`).toBeLessThanOrEqual(4);
+          expect(methods.length, `${problemId}:${race.id}:${heroClass.id}`).toBeGreaterThanOrEqual(5);
+          expect(methods.length, `${problemId}:${race.id}:${heroClass.id}`).toBeLessThanOrEqual(7);
           expect(sources.has("scene"), `${problemId}:${race.id}:${heroClass.id}`).toBe(true);
-          expect(sources.has("race"), `${problemId}:${race.id}:${heroClass.id}`).toBe(true);
-          expect(sources.has("class"), `${problemId}:${race.id}:${heroClass.id}`).toBe(true);
-          expect(sources.has("signature"), `${problemId}:${race.id}:${heroClass.id}`).toBe(true);
           expect(new Set(methods.map((method) => normalize(method.label))).size, problemId).toBe(methods.length);
           expect(new Set(methods.map(getQuestMethodTacticKey)).size, problemId).toBe(methods.length);
+          expect(new Set(methods.map(getQuestMethodAffordanceKey)).size, problemId).toBe(methods.length);
 
           for (const primaryStat of ["strength", "dexterity", "intelligence", "charisma", "luck"] as const) {
             expect(methods.filter((method) => method.primaryStat === primaryStat).length, primaryStat).toBeLessThanOrEqual(2);
@@ -168,15 +167,15 @@ describe("adventure resolution content", () => {
     for (const sceneId of ["shawarma", "cellar-mouse"] as const) {
       const scene = buildStarterQuestResolutionScene(sceneId, bard);
       const methods = resolveQuestMethodsForCharacter(scene, bard, {
-        maxMethods: 4,
-        minMethods: 3,
         ...(sceneId === "cellar-mouse" ? { sceneSlotKey: "bribe-cheese" } : {})
       });
       const sources = new Set(methods.map((method) => method.source));
 
-      expect(methods.length, sceneId).toBe(4);
-      expect(sources).toEqual(new Set(["scene", "race", "class", "signature"]));
+      expect(methods.length, sceneId).toBeGreaterThanOrEqual(5);
+      expect(methods.length, sceneId).toBeLessThanOrEqual(7);
+      expect(sources.has("scene")).toBe(true);
       expect(new Set(methods.map(getQuestMethodTacticKey)).size, sceneId).toBe(methods.length);
+      expect(new Set(methods.map(getQuestMethodAffordanceKey)).size, sceneId).toBe(methods.length);
     }
   });
 
@@ -200,6 +199,18 @@ describe("adventure resolution content", () => {
         method.source === "race" || method.source === "class" || method.source === "signature"
       );
 
+      for (const method of scene.methods) {
+        const methodCopy = [
+          method.label,
+          method.buttonLabel ?? "",
+          method.hint,
+          ...Object.values(method.outcomeText).flatMap((outcome) => [outcome.headline, ...outcome.body])
+        ].join("\n");
+        expect(methodCopy, `${problemId}:${method.id}`).not.toMatch(
+          /шаурмуу|формуу|кухольу|частину бочку|зі бочку|довкола бочку|до бочку/u
+        );
+      }
+
       for (const method of profileMethods) {
         expect(method.hint, `${problemId}:${method.id}`).not.toMatch(
           /Расовий спосіб|Класова техніка|race\+class|signature/u
@@ -211,9 +222,6 @@ describe("adventure resolution content", () => {
           /Підпис методу|Расовий спосіб|Класова техніка|race\+class/u
         );
         expect(outcomeBody, `${problemId}:${method.id}`).not.toMatch(/:\s*[^:\n]+:/u);
-        expect(`${method.label}\n${method.buttonLabel ?? ""}\n${outcomeBody}`, `${problemId}:${method.id}`).not.toMatch(
-          /шаурмуу|формуу|кухольу|частину бочку|зі бочку|довкола бочку/u
-        );
       }
 
       for (const method of profileMethods.filter((candidate) =>

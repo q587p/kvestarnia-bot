@@ -54,6 +54,7 @@ export interface QuestMethodOutcomeText {
 export interface QuestMethodDefinition {
   id: string;
   callbackKey?: string;
+  affordanceId: string;
   source: QuestMethodSource;
   label: string;
   buttonLabel?: string;

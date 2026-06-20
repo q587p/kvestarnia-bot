@@ -23,7 +23,7 @@ import { type QuestMethodDefinition, type QuestResolutionGrade } from "../conten
 import { resolveQuestCheck, type QuestCheckResult } from "../domain/quests/questChecks";
 import {
   findQuestMethodByLegacyAction,
-  findVisibleQuestMethod,
+  findVisibleQuestMethodByCallbackKey,
   resolveQuestMethodsForCharacter
 } from "../domain/quests/questMethodResolver";
 import { getEquippedItemContents } from "./equipmentService";
@@ -33,6 +33,9 @@ export const CELLAR_MOUSE_ERRAND_COOLDOWN_MS = 3 * 60 * 1000;
 const CELLAR_DEFAULT_SCENE_SLOT = "bribe-cheese";
 
 export type CellarErrandAction = string;
+export type CellarErrandCompletionInput =
+  | { type: "legacy-action"; action: CellarErrandAction }
+  | { type: "method"; methodId: string };
 
 export const CELLAR_MOUSE_ERRAND_REWARDS = {
   "cheese-trap": {
@@ -161,8 +164,10 @@ export class CellarErrandService {
 
   async complete(
     telegramUserId: bigint,
-    action: CellarErrandAction
+    input: CellarErrandAction | CellarErrandCompletionInput
   ): Promise<CellarErrandResult> {
+    const completionInput =
+      typeof input === "string" ? { type: "legacy-action" as const, action: input } : input;
     const now = this.clock();
     const current = await this.cooldowns.findForTelegramUser(
       telegramUserId,
@@ -204,11 +209,11 @@ export class CellarErrandService {
 
     const scene = buildStarterQuestResolutionScene("cellar-mouse", character);
     const method =
-      findVisibleQuestMethod(scene, character, action, {
-        maxMethods: 4,
-        minMethods: 3,
-        sceneSlotKey: CELLAR_DEFAULT_SCENE_SLOT
-      }) ?? findQuestMethodByLegacyAction(scene, action);
+      completionInput.type === "method"
+        ? findVisibleQuestMethodByCallbackKey(scene, character, completionInput.methodId, {
+            sceneSlotKey: CELLAR_DEFAULT_SCENE_SLOT
+          })
+        : findQuestMethodByLegacyAction(scene, completionInput.action);
 
     if (!method) {
       return {
@@ -237,7 +242,11 @@ export class CellarErrandService {
       rewardXp: reward.xp,
       rewardGold: reward.gold,
       spentGold,
-      itemGrants: buildCellarItemGrants(method.itemIntent ?? method.legacyAction ?? action)
+      itemGrants: buildCellarItemGrants(
+        method.itemIntent ??
+          method.legacyAction ??
+          (completionInput.type === "legacy-action" ? completionInput.action : completionInput.methodId)
+      )
     });
 
     if (!claim) {
@@ -264,7 +273,7 @@ export class CellarErrandService {
 
     return {
       state: "completed",
-      action,
+      action: completionInput.type === "legacy-action" ? completionInput.action : completionInput.methodId,
       method: methodOption,
       grade: check.grade,
       outcome: method.outcomeText[check.grade],
@@ -291,8 +300,8 @@ export class CellarErrandService {
 export function buildCellarMethodOptions(character: CharacterSummary): CellarErrandMethodOption[] {
   const scene = buildStarterQuestResolutionScene("cellar-mouse", character);
   return resolveQuestMethodsForCharacter(scene, character, {
-    maxMethods: 4,
-    minMethods: 3,
+    maxMethods: 7,
+    minMethods: 5,
     sceneSlotKey: CELLAR_DEFAULT_SCENE_SLOT
   }).map(toCellarMethodOption);
 }

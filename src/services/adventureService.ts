@@ -49,8 +49,8 @@ import {
 } from "../domain/quests/questChecks";
 import { rollLootExpansionItem } from "../domain/loot/lootEngine";
 import {
+  findVisibleQuestMethodByCallbackKey,
   findQuestMethodByLegacyAction,
-  findVisibleQuestMethod,
   resolveQuestMethodsForCharacter
 } from "../domain/quests/questMethodResolver";
 import { getEquippedItemContents } from "./equipmentService";
@@ -66,6 +66,9 @@ export const ADVENTURE_CHOICE_PERIOD_MINUTES = 93;
 export type AdventureApproach = "safe" | "flair" | "risky";
 export type AdventureMethodId = string;
 export type MimicShawarmaAction = "poke" | "receipt" | "flee";
+export type MimicShawarmaCompletionInput =
+  | { type: "legacy"; action: MimicShawarmaAction }
+  | { type: "method"; methodId: AdventureMethodId };
 const GENERAL_ADVENTURE_PROBLEM_IDS = [
   "stew",
   "barrel",
@@ -388,7 +391,7 @@ export class AdventureService {
       title: choice.title,
       character: characterSummary
     });
-    const method = findVisibleQuestMethod(scene, characterSummary, input.methodId);
+    const method = findVisibleQuestMethodByCallbackKey(scene, characterSummary, input.methodId);
 
     if (!method) {
       return {
@@ -548,8 +551,12 @@ export class AdventureService {
 
   async completeMimicShawarma(
     telegramUserId: bigint,
-    action: AdventureMethodId
+    input: AdventureMethodId | MimicShawarmaCompletionInput
   ): Promise<MimicShawarmaResult> {
+    const completionInput =
+      typeof input === "string"
+        ? { type: "legacy" as const, action: input as MimicShawarmaAction }
+        : input;
     const localDate = toIsoDate(this.clock());
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -570,8 +577,9 @@ export class AdventureService {
 
     const scene = buildStarterQuestResolutionScene("shawarma", characterSummary);
     const method =
-      findVisibleQuestMethod(scene, characterSummary, action) ??
-      findQuestMethodByLegacyAction(scene, action);
+      completionInput.type === "method"
+        ? findVisibleQuestMethodByCallbackKey(scene, characterSummary, completionInput.methodId)
+        : findQuestMethodByLegacyAction(scene, completionInput.action);
 
     if (!method) {
       return {
@@ -595,7 +603,9 @@ export class AdventureService {
       ...baseReward,
       xp: buildStarterLevelTwoXpReward({ remortCount: characterSummary.remortCount ?? 0 })
     };
-    const itemGrants = buildMimicShawarmaItemGrants(method.itemIntent ?? method.legacyAction ?? action);
+    const itemGrants = buildMimicShawarmaItemGrants(
+      method.itemIntent ?? method.legacyAction ?? (completionInput.type === "legacy" ? completionInput.action : completionInput.methodId)
+    );
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,
       localDate,
@@ -631,7 +641,7 @@ export class AdventureService {
 
     return {
       state: "completed",
-      action,
+      action: completionInput.type === "legacy" ? completionInput.action : completionInput.methodId,
       method: toAdventureApproachOption(method, characterSummary),
       grade: check.grade,
       outcome: method.outcomeText[check.grade],
@@ -1008,17 +1018,17 @@ export function buildAdventureMethodOptions(
 export function buildStarterMethodOptions(
   sceneId: "shawarma" | "cellar-mouse",
   character: CharacterSummary,
-  maxMethods = 4
+  maxMethods = 7
 ): AdventureApproachOption[] {
   const scene = buildStarterQuestResolutionScene(sceneId, character);
 
   if (sceneId === "cellar-mouse") {
-    return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 3 }).map((method) =>
+    return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 5 }).map((method) =>
       toAdventureApproachOption(method, character)
     );
   }
 
-  return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 3 }).map((method) =>
+  return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 5 }).map((method) =>
     toAdventureApproachOption(method, character)
   );
 }

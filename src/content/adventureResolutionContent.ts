@@ -194,11 +194,12 @@ export function buildAdventureResolutionScene(input: {
   character: CharacterSummary;
 }): QuestResolutionScene {
   const seed = GENERAL_SCENE_SEEDS[input.problemId] ?? buildGeneratedSceneSeed(input.problemId);
+  const sceneMethods = [...seed.methods, ...buildExtraSceneMethodSeeds(seed)];
   const methods = [
-    ...seed.methods.map((methodSeed) => materializeSceneMethod(input.title, seed, methodSeed)),
-    ...buildRaceMethods(input.character, input.title, seed),
-    ...buildClassMethods(input.character, input.title, seed),
-    ...buildSignatureMethods(input.character, input.title, seed)
+    ...sceneMethods.map((methodSeed) => materializeSceneMethod(input.title, seed, methodSeed)),
+    ...buildRaceMethods(input.character, input.title, { ...seed, methods: sceneMethods }),
+    ...buildClassMethods(input.character, input.title, { ...seed, methods: sceneMethods }),
+    ...buildSignatureMethods(input.character, input.title, { ...seed, methods: sceneMethods })
   ];
 
   return {
@@ -208,6 +209,45 @@ export function buildAdventureResolutionScene(input: {
     sceneObjectGenitive: seed.objectGenitive,
     methods
   };
+}
+
+function buildExtraSceneMethodSeeds(seed: AdventureSceneSeed): AdventureMethodSeed[] {
+  return [
+    method(
+      "korchmar-witness",
+      "📣 Покликати Корчмаря як свідка",
+      "Свідок із досвідом. Винагорода звичайна.",
+      "negotiate",
+      ["persuasion", "investigation"],
+      "charisma",
+      "intelligence",
+      63,
+      "standard"
+    ),
+    method(
+      "mark-evidence",
+      `🧵 Позначити ${seed.object} контрольною ниткою`,
+      "Точна підготовка, без зайвих фанфар.",
+      "craft",
+      ["craft", "finesse"],
+      "dexterity",
+      "intelligence",
+      62,
+      "standard"
+    ),
+    method(
+      "quiet-minute",
+      "🕯️ Дати сцені хвилину тиші",
+      "Обережно й трохи дивно.",
+      "ritual",
+      ["ritual", "improvisation"],
+      "luck",
+      "charisma",
+      58,
+      "modest",
+      "xp-only"
+    )
+  ];
 }
 
 export function getGeneralAdventureResolutionProblemIds(): readonly string[] {
@@ -348,6 +388,7 @@ function materializeSceneMethod(
   return {
     id: seed.id,
     callbackKey: toQuestCallbackKey(seed.id),
+    affordanceId: seed.id,
     source: "scene",
     label: seed.label,
     hint: seed.hint,
@@ -378,8 +419,8 @@ function buildRaceMethods(character: CharacterSummary, sceneTitle: string, scene
   return sceneSeed.methods.map((seed) => buildProfileMethod({
     id: compactPersonalMethodId("r", raceKey, seed.id),
     source: "race",
-    label: `${profileIcon(character.raceId)} ${buildRaceActionLabel(character.raceId, profile, seed)}`,
-    buttonLabel: `${profileIcon(character.raceId)} ${buildRaceButtonLabel(character.raceId, profile, seed)}`,
+    label: seed.label,
+    buttonLabel: seed.label,
     hint: "Особистий підхід героя. Винагорода звичайна.",
     sceneTitle,
     profile,
@@ -396,8 +437,8 @@ function buildClassMethods(character: CharacterSummary, sceneTitle: string, scen
   return sceneSeed.methods.map((seed) => buildProfileMethod({
     id: compactPersonalMethodId("c", classKey, seed.id),
     source: "class",
-    label: `${classIcon(character.classId)} ${buildClassActionLabel(character.classId, profile, seed)}`,
-    buttonLabel: `${classIcon(character.classId)} ${buildClassButtonLabel(character.classId, profile, seed)}`,
+    label: seed.label,
+    buttonLabel: seed.label,
     hint: "Професійний підхід героя. Винагорода звичайна.",
     sceneTitle,
     profile,
@@ -426,9 +467,10 @@ function buildSignatureMethods(character: CharacterSummary, sceneTitle: string, 
     return {
       id,
       callbackKey: toQuestCallbackKey(id),
+      affordanceId: seed.id,
       source: "signature",
-      label: `🏷️ ${title} поєднує ${raceProfile.label} і ${classProfile.label} для «${action}»`,
-      buttonLabel: `🏷️ ${title}`,
+      label: seed.label,
+      buttonLabel: seed.label,
       hint: "Непевніше, зате стильніше.",
       intent: seed.intent,
       techniques,
@@ -442,10 +484,10 @@ function buildSignatureMethods(character: CharacterSummary, sceneTitle: string, 
       outcomeText: buildOutcomeText({
         sceneTitle,
         label: title,
-        strong: `${title} сплітає ${raceProfile.label} з ${classProfile.label}. Сцена «${action}» здається до того, як зрозуміє, хто саме її переконав.`,
-        success: `${raceProfile.label} знаходить край сцени, а ${classProfile.label} ставить крапку. «${action}» лишається в корчемному протоколі як підозріло влучний збіг.`,
-        mixed: `${title} спрацьовує, але сцена «${action}» залишає дрібний хвіст для пізнішого бурчання.`,
-        complication: `${raceProfile.label} і ${classProfile.label} зійшлися красиво, та сцена «${action}» зачепила сусідню проблему. Корчмар записує це як характер, не як провину.`
+        strong: `Обраний хід спрацював чисто. Сцена «${action}» здається до того, як зрозуміє, хто саме її переконав.`,
+        success: `Метод знаходить край сцени й ставить крапку. «${action}» лишається в корчемному протоколі як підозріло влучний збіг.`,
+        mixed: `Хід спрацював, але сцена «${action}» залишає дрібний хвіст для пізнішого бурчання.`,
+        complication: `Метод виглядав красиво, та сцена «${action}» зачепила сусідню проблему. Корчмар записує це як характер, не як провину.`
       })
     };
   });
@@ -469,6 +511,7 @@ function buildProfileMethod(input: {
   return {
     id: input.id,
     callbackKey: toQuestCallbackKey(input.id),
+    affordanceId: input.seed.id,
     source: input.source,
     label: input.label,
     buttonLabel: input.buttonLabel,
@@ -486,9 +529,9 @@ function buildProfileMethod(input: {
       sceneTitle: input.sceneTitle,
       label: input.profile.label,
       strong: `${stripIcon(input.label)} спрацьовує чисто. Сцена «${action}» визнає, що такий підхід важко назвати випадковим.`,
-      success: `${input.profile.label} дає потрібний кут до «${action}». Корчма занотовує результат і ховає чорнило.`,
+      success: `Обраний підхід дає потрібний кут до «${action}». Корчма занотовує результат і ховає чорнило.`,
       mixed: `Сцена «${action}» погодилась, але лишила невеликий слід власної гордости.`,
-      complication: `${input.profile.label} зачепила сусідній край сцени «${action}». Результат є, безлад теж має свідків.`
+      complication: `Хід зачепив сусідній край сцени «${action}». Результат є, безлад теж має свідків.`
     })
   };
 }
@@ -552,96 +595,4 @@ function compactPersonalMethodId(prefix: string, profileKey: string, seedId: str
 
 function uniqueTechniques(techniques: readonly QuestTechniqueId[]): QuestTechniqueId[] {
   return [...new Set(techniques)];
-}
-
-function buildRaceActionLabel(raceId: string, profile: QuestTechniqueProfile, seed: AdventureMethodSeed): string {
-  const action = stripIcon(seed.label);
-  const motifs: Record<string, string> = {
-    "race.human-ish": `Звірити з практикою «${action}»`,
-    "race.dwarf": `Простукати основу «${action}»`,
-    "race.elf": `Виправити форму «${action}»`,
-    "race.bisyny": `Оскаржити назву «${action}»`,
-    "race.drantohor": `Піти хибною картою до «${action}»`,
-    "race.domovyk": `Оголосити хатнім правилом «${action}»`,
-    "race.dryland-rusalka": `Підняти сухий приплив для «${action}»`,
-    "race.intellectual-orc": `Провести рецензію на «${action}»`,
-    "race.molfar-soul": `Поставити оберіг біля «${action}»`
-  };
-
-  return motifs[raceId] ?? `${profile.label} для «${action}»`;
-}
-
-function buildRaceButtonLabel(raceId: string, profile: QuestTechniqueProfile, seed: AdventureMethodSeed): string {
-  const action = stripIcon(seed.label);
-  const motifs: Record<string, string> = {
-    "race.human-ish": `Звірити «${action}»`,
-    "race.dwarf": `Простукати «${action}»`,
-    "race.elf": `Виправити «${action}»`,
-    "race.bisyny": `Оскаржити «${action}»`,
-    "race.drantohor": `Піти картою до «${action}»`,
-    "race.domovyk": `Оголосити правилом`,
-    "race.dryland-rusalka": `Підняти сухий приплив`,
-    "race.intellectual-orc": `Провести рецензію`,
-    "race.molfar-soul": `Поставити оберіг`
-  };
-
-  return motifs[raceId] ?? profile.shortButtonLabel ?? profile.label;
-}
-
-function buildClassActionLabel(classId: string, profile: QuestTechniqueProfile, seed: AdventureMethodSeed): string {
-  const action = stripIcon(seed.label);
-  const motifs: Record<string, string> = {
-    "class.warrior": `Притиснути до чесности «${action}»`,
-    "class.mage": `Розігріти прихований шар «${action}»`,
-    "class.bard": `Переспівати ритм «${action}»`,
-    "class.rogue": `Витягти доказ із «${action}»`,
-    "class.priest": `Благословити умови «${action}»`,
-    "class.varenyk-mancer": `Запечатати начинкою «${action}»`,
-    "class.bureaucramancer": `Оформити акт на «${action}»`,
-    "class.ranger": `Прочитати слід у «${action}»`,
-    "class.kharakternyk": `Подивитися боком на «${action}»`
-  };
-
-  return motifs[classId] ?? `${profile.label} для «${action}»`;
-}
-
-function buildClassButtonLabel(classId: string, profile: QuestTechniqueProfile, seed: AdventureMethodSeed): string {
-  const action = stripIcon(seed.label);
-  const motifs: Record<string, string> = {
-    "class.warrior": `Притиснути «${action}»`,
-    "class.mage": `Розігріти шар`,
-    "class.bard": `Переспівати хід`,
-    "class.rogue": `Витягти доказ`,
-    "class.priest": `Благословити умови`,
-    "class.varenyk-mancer": `Запечатати начинкою`,
-    "class.bureaucramancer": `Оформити акт`,
-    "class.ranger": `Прочитати слід`,
-    "class.kharakternyk": `Подивитися боком`
-  };
-
-  return motifs[classId] ?? profile.shortButtonLabel ?? action;
-}
-
-function profileIcon(id: string): string {
-  if (id === "race.domovyk") return "🏠";
-  if (id === "race.dryland-rusalka") return "🫖";
-  if (id === "race.intellectual-orc") return "📚";
-  if (id === "race.molfar-soul") return "🧿";
-  if (id === "race.dwarf") return "⛏️";
-  if (id === "race.elf") return "🪡";
-  if (id === "race.bisyny") return "✍️";
-  if (id === "race.drantohor") return "🗺️";
-  return "🧬";
-}
-
-function classIcon(id: string): string {
-  if (id === "class.warrior") return "🛡️";
-  if (id === "class.mage") return "🔥";
-  if (id === "class.bard") return "🎭";
-  if (id === "class.rogue") return "🗝️";
-  if (id === "class.priest") return "🕯️";
-  if (id === "class.varenyk-mancer") return "🥟";
-  if (id === "class.bureaucramancer") return "📋";
-  if (id === "class.ranger") return "🏹";
-  return "🌾";
 }

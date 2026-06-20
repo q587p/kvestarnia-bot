@@ -62,6 +62,40 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
       complication: "Шаурма прикинулась слухняною, щоб зручніше лишити липкий коментар."
     }),
     method({
+      id: "demand-receipt",
+      source: "scene",
+      label: "📋 Вимагати чек і походження начинки",
+      hint: "Папери, походження й дуже ранній аудит.",
+      intent: "ritual",
+      primaryStat: "intelligence",
+      secondaryStat: "charisma",
+      techniques: ["authority", "investigation"],
+      rewardProfile: "standard",
+      legacyAction: "receipt",
+      itemIntent: "receipt",
+      strong: "Чек сам викрив зуби дрібним шрифтом.",
+      success: "Походження начинки стало зрозумілим, хоча начинка просила адвоката.",
+      mixed: "Чек знайшовся, але вписав героя як свідка вечері.",
+      complication: "Шаурма принесла чек на імʼя іншої вечері й зробила вигляд, що так і треба."
+    }),
+    method({
+      id: "offer-garlic",
+      source: "scene",
+      label: "🧄 Запропонувати зубчик часнику як примирення",
+      hint: "Мирна приманка без великої героїки.",
+      intent: "negotiate",
+      primaryStat: "charisma",
+      secondaryStat: "luck",
+      techniques: ["persuasion", "improvisation"],
+      rewardProfile: "modest",
+      legacyAction: "flee",
+      itemIntent: "none",
+      strong: "Часник спрацював як дипломат, хоч ніхто не давав йому мандат.",
+      success: "Шаурма відволіклась на запах і видала важливий хрускіт.",
+      mixed: "Примирення майже вдалось, але соус попросив окремий договір.",
+      complication: "Часник виявився її адвокатом і почав пахнути процедурою."
+    }),
+    method({
       id: "name-retreat",
       source: "scene",
       label: "🗝️ Відступити так, щоб назва сама себе видала",
@@ -188,6 +222,7 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
 
 function method(input: {
   id: string;
+  affordanceId?: string | undefined;
   source: QuestMethodDefinition["source"];
   label: string;
   buttonLabel?: string | undefined;
@@ -210,6 +245,7 @@ function method(input: {
   return {
     id: input.id,
     callbackKey: toQuestCallbackKey(input.id),
+    affordanceId: input.affordanceId ?? input.id,
     source: input.source,
     label: input.label,
     ...(input.buttonLabel ? { buttonLabel: input.buttonLabel } : {}),
@@ -259,14 +295,14 @@ function buildPersonalMethods(
 ): QuestMethodDefinition[] {
   const race = getRaceProfile(character.raceId);
   const heroClass = getClassProfile(character.classId);
-  const title = character.title ? `«${character.title}»` : "геройський підпис";
 
   return sceneMethods.flatMap((base) => [
     method({
       id: compactPersonalMethodId("r", getCompactRaceKey(character.raceId), base.id),
+      affordanceId: base.affordanceId,
       source: "race",
-      label: `${profileIcon(character.raceId)} ${raceStarterLabel(character.raceId, base)}`,
-      buttonLabel: `${profileIcon(character.raceId)} ${raceStarterButton(character.raceId, base)}`,
+      label: base.label,
+      buttonLabel: base.label,
       hint: "Особистий підхід героя.",
       intent: base.intent,
       primaryStat: base.primaryStat,
@@ -276,16 +312,17 @@ function buildPersonalMethods(
       goldCost: base.goldCost,
       legacyAction: base.legacyAction ?? base.id,
       itemIntent: base.itemIntent ?? base.legacyAction ?? base.id,
-      strong: `${race.label} знаходить власний хід у «${stripIcon(base.label)}». ${sceneTitle} коротко припиняє сперечатись.`,
-      success: `${race.label} спрацювала. «${stripIcon(base.label)}» лишається зрозумілим, а сцена — вирішеною.`,
+      strong: `Підхід «${race.label}» знаходить власний хід у «${stripIcon(base.label)}». ${sceneTitle} коротко припиняє сперечатись.`,
+      success: `Метод із мотивом «${race.label}» спрацював. «${stripIcon(base.label)}» лишається зрозумілим, а сцена — вирішеною.`,
       mixed: `Особистий хід спрацював, але «${stripIcon(base.label)}» лишив дрібний хвіст для бурчання.`,
-      complication: `${race.label} дала результат із кумедним безладом. Корчмар записує це як стиль.`
+      complication: `Хід із мотивом «${race.label}» дав результат із кумедним безладом. Корчмар записує це як стиль.`
     }),
     method({
       id: compactPersonalMethodId("c", getCompactClassKey(character.classId), base.id),
+      affordanceId: base.affordanceId,
       source: "class",
-      label: `${classIcon(character.classId)} ${classStarterLabel(character.classId, base)}`,
-      buttonLabel: `${classIcon(character.classId)} ${classStarterButton(character.classId, base)}`,
+      label: base.label,
+      buttonLabel: base.label,
       hint: "Професійний підхід героя.",
       intent: base.intent,
       primaryStat: base.primaryStat,
@@ -296,16 +333,17 @@ function buildPersonalMethods(
       legacyAction: base.legacyAction ?? base.id,
       itemIntent: base.itemIntent ?? base.legacyAction ?? base.id,
       combatSkillId: heroClass.combatSkillId,
-      strong: `${heroClass.label} підсилює «${stripIcon(base.label)}» так чисто, що сцена здається майже навчальною.`,
-      success: `${heroClass.label} дає результат. «${stripIcon(base.label)}» стає не подвигом, а робочим методом.`,
+      strong: `Підхід «${heroClass.label}» підсилює «${stripIcon(base.label)}» так чисто, що сцена здається майже навчальною.`,
+      success: `Метод «${heroClass.label}» дає результат. «${stripIcon(base.label)}» стає не подвигом, а робочим методом.`,
       mixed: `Професійний хід спрацював, але «${stripIcon(base.label)}» залишив трохи сценічного пилу.`,
-      complication: `${heroClass.label} зачепила зайву полицю реальности. Результат є, порядок ще сперечається.`
+      complication: `Хід «${heroClass.label}» зачепив зайву полицю реальности. Результат є, порядок ще сперечається.`
     }),
     method({
       id: compactPersonalMethodId(`s${getCompactRaceKey(character.raceId)}`, getCompactClassKey(character.classId), base.id),
+      affordanceId: base.affordanceId,
       source: "signature",
-      label: `🏷️ ${title} поєднує ${race.label} і ${heroClass.label} для «${stripIcon(base.label)}»`,
-      buttonLabel: `🏷️ ${title}`,
+      label: base.label,
+      buttonLabel: base.label,
       hint: "Непевніше, зате стильніше.",
       intent: base.intent,
       primaryStat: base.primaryStat,
@@ -316,10 +354,10 @@ function buildPersonalMethods(
       legacyAction: base.legacyAction ?? base.id,
       itemIntent: base.itemIntent ?? base.legacyAction ?? base.id,
       combatSkillId: heroClass.combatSkillId,
-      strong: `${title} зводить ${race.label} і ${heroClass.label} в один точний рух. Сцена визнає, що це вже біографія.`,
-      success: `${title} спрацьовує: ${race.label} знаходить край, ${heroClass.label} ставить крапку.`,
-      mixed: `${title} допомагає, але «${stripIcon(base.label)}» лишає маленький шурхіт для пізнішої легенди.`,
-      complication: `${title} виглядає переконливо. Сцена теж так думає, але додає власний безлад.`
+      strong: `Обраний хід зводить кілька дрібних переваг в один точний рух. Сцена визнає, що це вже майже біографія.`,
+      success: `Метод спрацював: «${stripIcon(base.label)}» знаходить край і ставить крапку.`,
+      mixed: `Хід допомагає, але «${stripIcon(base.label)}» лишає маленький шурхіт для пізнішої легенди.`,
+      complication: `Метод виглядає переконливо. Сцена теж так думає, але додає власний безлад.`
     })
   ]);
 }
@@ -346,96 +384,4 @@ function uniqueTechniques(techniques: readonly QuestMethodDefinition["techniques
 
 function stripIcon(label: string): string {
   return label.replace(/^[^\p{L}\p{N}]+/u, "").trim();
-}
-
-function raceStarterLabel(raceId: string, base: QuestMethodDefinition): string {
-  const action = stripIcon(base.label);
-  const labels: Record<string, string> = {
-    "race.human-ish": `Звірити практикою «${action}»`,
-    "race.dwarf": `Простукати основу «${action}»`,
-    "race.elf": `Виправити форму «${action}»`,
-    "race.bisyny": `Оскаржити назву «${action}»`,
-    "race.drantohor": `Знайти хибну карту до «${action}»`,
-    "race.domovyk": `Оголосити хатнім правилом «${action}»`,
-    "race.dryland-rusalka": `Підняти сухий приплив для «${action}»`,
-    "race.intellectual-orc": `Провести рецензію на «${action}»`,
-    "race.molfar-soul": `Поставити оберіг біля «${action}»`
-  };
-
-  return labels[raceId] ?? action;
-}
-
-function raceStarterButton(raceId: string, base: QuestMethodDefinition): string {
-  const action = stripIcon(base.label);
-  const labels: Record<string, string> = {
-    "race.human-ish": `Звірити «${action}»`,
-    "race.dwarf": `Простукати «${action}»`,
-    "race.elf": `Виправити «${action}»`,
-    "race.bisyny": `Оскаржити «${action}»`,
-    "race.drantohor": "Знайти карту",
-    "race.domovyk": "Оголосити правилом",
-    "race.dryland-rusalka": "Підняти сухий приплив",
-    "race.intellectual-orc": "Провести рецензію",
-    "race.molfar-soul": "Поставити оберіг"
-  };
-
-  return labels[raceId] ?? action;
-}
-
-function classStarterLabel(classId: string, base: QuestMethodDefinition): string {
-  const action = stripIcon(base.label);
-  const labels: Record<string, string> = {
-    "class.warrior": `Притиснути до чесности «${action}»`,
-    "class.mage": `Розігріти прихований шар «${action}»`,
-    "class.bard": `Переспівати ритм «${action}»`,
-    "class.rogue": `Витягти доказ із «${action}»`,
-    "class.priest": `Благословити умови «${action}»`,
-    "class.varenyk-mancer": `Запечатати начинкою «${action}»`,
-    "class.bureaucramancer": `Оформити акт на «${action}»`,
-    "class.ranger": `Прочитати слід у «${action}»`,
-    "class.kharakternyk": `Подивитися боком на «${action}»`
-  };
-
-  return labels[classId] ?? action;
-}
-
-function classStarterButton(classId: string, base: QuestMethodDefinition): string {
-  const action = stripIcon(base.label);
-  const labels: Record<string, string> = {
-    "class.warrior": `Притиснути «${action}»`,
-    "class.mage": "Розігріти шар",
-    "class.bard": "Переспівати хід",
-    "class.rogue": "Витягти доказ",
-    "class.priest": "Благословити умови",
-    "class.varenyk-mancer": "Запечатати начинкою",
-    "class.bureaucramancer": "Оформити акт",
-    "class.ranger": "Прочитати слід",
-    "class.kharakternyk": "Подивитися боком"
-  };
-
-  return labels[classId] ?? action;
-}
-
-function profileIcon(id: string): string {
-  if (id === "race.domovyk") return "🏠";
-  if (id === "race.dryland-rusalka") return "🫖";
-  if (id === "race.intellectual-orc") return "📚";
-  if (id === "race.molfar-soul") return "🧿";
-  if (id === "race.dwarf") return "⛏️";
-  if (id === "race.elf") return "🪡";
-  if (id === "race.bisyny") return "✍️";
-  if (id === "race.drantohor") return "🗺️";
-  return "🧬";
-}
-
-function classIcon(id: string): string {
-  if (id === "class.warrior") return "🛡️";
-  if (id === "class.mage") return "🔥";
-  if (id === "class.bard") return "🎭";
-  if (id === "class.rogue") return "🗝️";
-  if (id === "class.priest") return "🕯️";
-  if (id === "class.varenyk-mancer") return "🥟";
-  if (id === "class.bureaucramancer") return "📋";
-  if (id === "class.ranger") return "🏹";
-  return "🌾";
 }

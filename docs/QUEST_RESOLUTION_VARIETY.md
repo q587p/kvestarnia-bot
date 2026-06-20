@@ -44,7 +44,7 @@
 3. **Класову опцію** — спосіб, що використовує класову техніку або профіль уже наявного combat skill.
 4. **Signature-опцію** — точна race+class комбінація; current title впливає на label/outcome й може мати explicit override.
 
-У компактних starter-сценах можна лишати три кнопки, але resolver усе одно має побудувати race/class/signature candidates і обрати три без дублювання наміру. Для level 3+ справ рекомендовано чотири кнопки.
+Starter-сцени й level 3+ справи використовують один видимий resolver: мінімум пʼять методів, а коли сцена має достатньо справді різних affordances — шість або сім. Race/class/signature candidates впливають на вибір affordance, перевірку й наслідок, але не повинні перетворювати кнопку на підпис внутрішньої механіки.
 
 ### 2.3. Методи відрізняються не лише шансом
 
@@ -237,22 +237,23 @@ v2:adv:a:<period>:<problemKey>:<methodKey>
 
 ### 4.3. Method slot resolver
 
-Для level 3+ selected problem resolver повертає до чотирьох методів:
+Для level 3+ selected problem resolver повертає пʼять-сім методів:
 
-1. `scene` — один унікальний neutral method;
-2. `race` — method, сумісний із race motifs героя;
-3. `class` — method, сумісний із class techniques;
-4. `signature` — exact combo override або composed race+class method, із title flavor override за наявності.
+1. `scene` — один або кілька унікальних neutral methods;
+2. `race` — вплив, сумісний із race motifs героя та привʼязаний до concrete scene affordance;
+3. `class` — вплив, сумісний із class techniques та привʼязаний до іншого scene affordance;
+4. `signature` — exact combo override або composed race+class influence, із title flavor за наявності, теж привʼязаний до distinct affordance.
 
 Правила deduplication:
 
 - різні buttons не можуть мати однаковий `intent + primaryStat + normalized label`;
+- visible label/button не показує `race`, `class`, `signature`, title чи profile technique label; кнопка називає scene action;
 - signature не копіює class label із заміненим одним іменником;
 - якщо race і class природно ведуть до одного intent, один із них бере alternate technique цієї сцени;
 - не більше двох methods з однаковим primary stat;
-- при неможливості зібрати чотири справді різні методи додати другий `scene` method, а не показувати декоративний дубль.
+- при неможливості зібрати пʼять справді різних методів додати інший `scene` method, а не показувати декоративний дубль.
 
-Implementation note for `0.1.20`: race, class and signature slots must bind to an authored scene affordance candidate before rendering. Do not produce active labels by blindly replacing nouns inside a global profile phrase. The same deterministic visible-method resolver is the allowlist for both button rendering and completion; hidden authored scene methods are not valid callbacks unless they are in the current visible set or an explicit legacy starter/cellar action.
+Implementation note for `0.1.20`: race, class and signature slots must bind to an authored scene affordance candidate before rendering. Do not produce active labels by blindly replacing nouns inside a global profile phrase, and do not expose the selected source/technique in player-facing buttons. The same deterministic visible-method resolver is the allowlist for both button rendering and completion; hidden authored scene methods are not valid callbacks unless they are in the current visible set or an explicit legacy starter/cellar action.
 
 ### 4.4. Combo і title
 
@@ -507,7 +508,7 @@ for every active problem
     class method exists
   for every valid race+class combo
     signature method exists
-    3..4 distinct methods are renderable
+    5..7 distinct methods are renderable
 ```
 
 ## 12. Backward compatibility та persistence
@@ -620,7 +621,7 @@ Repository path має створювати ledger row, умовно спису�
 Фіча готова, коли:
 
 - вибрана level 3+ справа не показує global safe/flair/risky labels;
-- race, class і exact combo/signature героя реально породжують різні кнопки;
+- race, class і exact combo/signature героя реально впливають на affordance/check/outcome без mechanic-source labels у кнопках;
 - усі 24 general problems мають власні method/outcome seeds;
 - generated race/class/title problems також використовують scene-aware methods;
 - шаурма й миша працюють через той самий contract або тонкі adapters;

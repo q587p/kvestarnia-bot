@@ -191,7 +191,7 @@ describe("AdventureService", () => {
     expect(found.dailyActions.records[0]?.resultJson).toMatchObject({
       version: 1,
       sceneId: found.input.problemId,
-      methodId: found.input.methodId
+      methodId: found.result.state === "completed" ? found.result.approach.id : ""
     });
   });
 
@@ -256,7 +256,7 @@ describe("AdventureService", () => {
     const result = await service.completeAdventureApproach(telegramUserId, {
       periodToken: offer.periodToken,
       problemId: selected.choice.id,
-      methodId: selected.approaches[0]?.id ?? ""
+      methodId: selected.approaches[0]?.callbackKey ?? selected.approaches[0]?.id ?? ""
     });
 
     expect(result.state).toBe("completed");
@@ -325,7 +325,7 @@ describe("AdventureService", () => {
     const completed = await found.service.completeAdventureApproach(found.userId, {
       periodToken: nextOffer.periodToken,
       problemId: nextOffer.choices[0].id,
-      methodId: nextSelected.approaches[0].id
+      methodId: nextSelected.approaches[0].callbackKey ?? nextSelected.approaches[0].id
     });
 
     expect(completed.state).toBe("completed");
@@ -480,16 +480,33 @@ describe("AdventureService", () => {
       classId: "class.bard",
       className: "Бард"
     };
-    const visible = buildStarterMethodOptions("shawarma", summary, 4).map((method) => method.id);
+    const visible = buildStarterMethodOptions("shawarma", summary).map((method) => method.id);
     const scene = buildStarterQuestResolutionScene("shawarma", summary);
     const hidden = scene.methods.find((method) => !visible.includes(method.id));
 
     expect(hidden).toBeDefined();
-    await expect(service.completeMimicShawarma(telegramUserId, hidden?.id ?? "missing")).resolves.toMatchObject({
+    await expect(service.completeMimicShawarma(telegramUserId, {
+      type: "method",
+      methodId: hidden?.id ?? "missing"
+    })).resolves.toMatchObject({
       state: "stale"
     });
     expect(dailyActions.createCount).toBe(0);
   });
+
+  it.each(["receipt", "poke", "flee"] as const)(
+    "does not let v2 starter method %s fall through to legacy actions",
+    async (methodId) => {
+      const { service, characters, dailyActions } = setup();
+      characters.add(telegramUserId, { xp: 0 });
+
+      await expect(service.completeMimicShawarma(telegramUserId, {
+        type: "method",
+        methodId
+      })).resolves.toMatchObject({ state: "stale" });
+      expect(dailyActions.createCount).toBe(0);
+    }
+  );
 
   it("blocks fresh offers and claims while a live fight is active", async () => {
     const activeFight = fakeSession();
@@ -635,7 +652,7 @@ async function findResolvedAdventure(
         const input = {
           periodToken: freshLookup.offer.periodToken,
           problemId: freshChoice.id,
-          methodId: approach.id
+          methodId: approach.callbackKey ?? approach.id
         };
         const result = await service.completeAdventureApproach(user, input);
 

@@ -6,8 +6,8 @@ export function resolveQuestMethodsForCharacter(
   character: CharacterSummary,
   options: { maxMethods?: number; minMethods?: number; sceneSlotKey?: string } = {}
 ): QuestMethodDefinition[] {
-  const maxMethods = options.maxMethods ?? 4;
-  const minMethods = options.minMethods ?? Math.min(3, maxMethods);
+  const maxMethods = options.maxMethods ?? 7;
+  const minMethods = options.minMethods ?? Math.min(5, maxMethods);
   const priority: QuestMethodDefinition["source"][] = ["scene", "race", "class", "signature"];
   const selected: QuestMethodDefinition[] = [];
 
@@ -58,6 +58,19 @@ export function findVisibleQuestMethod(
   );
 }
 
+export function findVisibleQuestMethodByCallbackKey(
+  scene: QuestResolutionScene,
+  character: CharacterSummary,
+  callbackKey: string,
+  options: { maxMethods?: number; minMethods?: number; sceneSlotKey?: string } = {}
+): QuestMethodDefinition | null {
+  return (
+    resolveQuestMethodsForCharacter(scene, character, options).find(
+      (method) => method.callbackKey === callbackKey
+    ) ?? null
+  );
+}
+
 export function findQuestMethod(
   scene: QuestResolutionScene,
   methodId: string
@@ -73,7 +86,11 @@ export function findQuestMethodByLegacyAction(
 }
 
 export function getQuestMethodTacticKey(method: QuestMethodDefinition): string {
-  return `${method.intent}:${method.primaryStat}:${[...method.techniques].sort().join("+")}`;
+  return `${method.intent}:${method.primaryStat}:${method.affordanceId}:${[...method.techniques].sort().join("+")}`;
+}
+
+export function getQuestMethodAffordanceKey(method: QuestMethodDefinition): string {
+  return method.affordanceId;
 }
 
 function pushIfDistinct(
@@ -84,6 +101,7 @@ function pushIfDistinct(
   const duplicate = selected.some(
     (method) =>
       method.id === candidate.id ||
+      method.affordanceId === candidate.affordanceId ||
       normalizeLabel(method.label) === normalizedLabel ||
       getQuestMethodTacticKey(method) === getQuestMethodTacticKey(candidate)
   );

@@ -193,9 +193,11 @@ describe("adventure presenter", () => {
 
     const text = presentAdventureProblem(result);
 
-    expect(text).toContain("🫖 Підняти сухий приплив для «Підсунути запасне поле»");
-    expect(text).toContain("🎭 Переспівати ритм «Домовитися з канцелярським краєм»");
-    expect(text).toContain("🏷️ «Співачка Без Моря» поєднує чайниковий приплив і небезпечний куплет");
+    expect(text).toContain("Підсунути запасне поле");
+    expect(text).toContain("Домовитися з канцелярським краєм");
+    expect(text).not.toContain("Підняти сухий приплив для");
+    expect(text).not.toContain("Переспівати ритм");
+    expect(text).not.toContain("«Співачка Без Моря» поєднує");
     expect(text).toContain("Особистий підхід героя.");
     expect(text).toContain("Професійний підхід героя.");
     expect(text).not.toContain("Надійне розслідування. Майже надійно.");
@@ -205,8 +207,8 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("race+class");
     expect(text).not.toContain("точну біографію");
     expect(text).not.toContain(": форму");
-    expect(text).toContain("</i>\n\n🎭");
-    expect(text).toContain("</i>\n\n🏷️");
+    expect(text).toContain("</i>\n\n");
+    expect(text.match(/<i>/gu)?.length ?? 0).toBeGreaterThanOrEqual(5);
   });
 
   it("shows non-complicated reward without level-up text", () => {
