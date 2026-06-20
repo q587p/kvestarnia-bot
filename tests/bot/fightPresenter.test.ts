@@ -10,6 +10,7 @@ import {
   presentProblemQuestTurnIn,
   presentQuestProgressAfterFight,
   presentPersistentFight,
+  presentPersistentFightIntro,
   presentPersistentFightTurn
 } from "../../src/bot/presenters/fightPresenter";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
@@ -128,11 +129,10 @@ describe("fight presenter", () => {
         "<b>+9 XP",
         "+3 золота</b>",
         "",
-        "Здобуто: <i>Підозрілий лавашний доказ</i>",
-        "",
-        "Наступний крок: /hero"
+        "Здобуто: <i>Підозрілий лавашний доказ</i>"
       ].join("\n")
     );
+    expect(text).not.toContain("Наступний крок");
     expect(text).not.toContain("×1");
   });
 
@@ -169,7 +169,7 @@ describe("fight presenter", () => {
   });
 
   it("renders a persistent fight state without reward promises", () => {
-    const text = presentPersistentFight({
+    const result = {
       state: "persistent-active",
       character: {
         ...character,
@@ -184,15 +184,20 @@ describe("fight presenter", () => {
         tags: ["test"]
       },
       questProgress: questProgress(4)
-    });
+    } as const;
+    const intro = presentPersistentFightIntro(result);
+    const text = presentPersistentFight(result);
 
-    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
-    expect(text).toContain("&lt;i&gt;Монстр&lt;/i&gt;");
-    expect(text).toContain("Проти вас: <b>&lt;i&gt;Монстр&lt;/i&gt;</b> · рівень 3");
+    expect(intro).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
+    expect(intro).toContain("Проти вас: <b>&lt;i&gt;Монстр&lt;/i&gt;</b> · рівень 3");
+    expect(intro).toContain("поки не видає нагород");
+    expect(text).not.toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
+    expect(text).not.toContain("Проти вас");
     expect(text).not.toContain("📋 <b>Тринадцять дрібних проблем</b>");
     expect(text).not.toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
     expect(text).toContain("👹 Монстр: 18/18");
+    expect(text).toContain("⏳ На хід є 23 секунди");
     expect(text).toContain("Що робимо?");
     expect(text).not.toContain("Не зволікайте надто довго");
     expect(text).not.toContain("Нагорода");
@@ -325,8 +330,7 @@ describe("fight presenter", () => {
     });
 
     expect(stale).toContain("поточний стан");
-    expect(stale).toContain("Невідомий монстр");
-    expect(stale).not.toContain("Невідомий монстр</b> · рівень");
+    expect(stale).not.toContain("Проти вас");
     expect(noMana).toContain("Мани не стало навіть на драматичний жест");
     expect(noMana).not.toContain("Нагорода");
   });
@@ -367,7 +371,8 @@ describe("fight presenter", () => {
     );
     expect(text).not.toContain("Останній хід: вміння");
     expect(text).not.toContain("критично:");
-    expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
+    expect(text).toContain("⏳ На хід є 23 секунди");
+    expect(text).not.toContain("Проти вас");
     expect(text).not.toContain("критично дала");
   });
 
@@ -398,7 +403,9 @@ describe("fight presenter", () => {
       fightReward: null
     });
 
-    expect(text).toContain("🗣️ «Ще один хід — і прострочення стане вашим титулом.»");
+    expect(text).toContain(
+      "🗣️ Монстр:\n<blockquote>Ще один хід — і прострочення стане вашим титулом.</blockquote>"
+    );
     expect(text).toContain("Остання дія\nАтака влучає на 4 шкоди.");
   });
 
@@ -581,7 +588,7 @@ describe("fight presenter", () => {
 
     expect(text).toContain("Винагорода вже видана");
     expect(text).toContain("Винагорода за бій:\n<b>+7 XP\n+2 золота</b>");
-    expect(text).toContain("Проти вас: <b>&lt;b&gt;Монстр&lt;/b&gt;</b> · рівень 3");
+    expect(text).not.toContain("Проти вас");
     expect(text).not.toContain("<b>Монстр</b>");
   });
 

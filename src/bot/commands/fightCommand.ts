@@ -29,7 +29,8 @@ import {
   presentFightStart,
   presentFightTrainingActive,
   presentPersistentFightDifficultyChoice,
-  presentPersistentFight
+  presentPersistentFight,
+  presentPersistentFightIntro
 } from "../presenters/fightPresenter";
 import { presentKorchmaDeepClosed } from "../presenters/tavernPresenter";
 import {
@@ -170,6 +171,16 @@ export async function sendFight(
   }
 
   if (result.state === "persistent-active") {
+    if (mode === "reply" && result.started) {
+      await sendResultText(presentPersistentFightIntro(result));
+      await sendText(ctx, "reply", presentPersistentFight(result), {
+        type: "persistent-fight",
+        character: result.character,
+        session: result.session
+      });
+      return;
+    }
+
     await sendResultText(presentPersistentFight(result), {
       type: "persistent-fight",
       character: result.character,

@@ -146,9 +146,12 @@ describe("fight command", () => {
       requireKorchmaInterior: true
     });
 
-    expect(replies[0]?.text).toContain("⚔️ Бій");
-    expect(replies[0]?.text).toContain("Павук дедлайнів");
-    expect(replies[0]?.text).toContain("поки не видає нагород");
+    expect(replies).toHaveLength(1);
+    expect(replies[0]?.text).toContain("❤️ Ви: 24/24 · мана 12/12");
+    expect(replies[0]?.text).toContain("👹 Монстр: 18/18");
+    expect(replies[0]?.text).toContain("⏳ На хід є 23 секунди");
+    expect(replies[0]?.text).not.toContain("⚔️ Бій");
+    expect(replies[0]?.text).not.toContain("Павук дедлайнів");
     expect(replies[0]?.text).not.toContain("Тринадцять дрібних проблем");
     expect(replies[0]?.text).not.toContain("Не зволікайте надто довго");
     const options = replies[0]?.options as {
@@ -220,9 +223,10 @@ describe("fight command", () => {
 
     await sendFight(makeContext(replies), fightService, "reply");
 
-    expect(replies[0]?.text).toContain("Цей бій уже завершився");
-    expect(replies[0]?.text).toContain("Павук дедлайнів");
+    expect(replies[0]?.text).toContain("🎉 Ви перемогли");
     expect(replies[0]?.text).toContain("Винагорода за бій");
+    expect(replies[0]?.text).not.toContain("Цей бій уже завершився");
+    expect(replies[0]?.text).not.toContain("Павук дедлайнів");
     expect(replies[0]?.text).not.toContain("За бочками в коморі є сходи");
     const options = replies[0]?.options as {
       parse_mode: string;
@@ -441,6 +445,7 @@ describe("fight command", () => {
             level: 3
           },
           session: persistentSession(),
+          started: true,
           monster: {
             id: "monster.deadline-spider",
             name: "Павук дедлайнів",
@@ -463,6 +468,9 @@ describe("fight command", () => {
 
     expect(startedDifficulties).toEqual(["easy"]);
     expect(replies[0]?.text).toContain("Павук дедлайнів");
+    expect(replies[0]?.text).toContain("поки не видає нагород");
+    expect(replies[1]?.text).toContain("❤️ Ви: 24/24 · мана 12/12");
+    expect(replies[1]?.text).toContain("⏳ На хід є 23 секунди");
   });
 
   it("routes unissued problem quests to the Шинок instead of starting a fight", async () => {

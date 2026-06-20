@@ -245,6 +245,7 @@ import {
   presentFightResult,
   presentFightStart,
   presentPersistentFight,
+  presentPersistentFightIntro,
   presentPersistentFightTurn
 } from "./presenters/fightPresenter";
 import {
@@ -2415,6 +2416,10 @@ async function handleAdventureCallback(
         complicationFight.state === "persistent-active" ||
         complicationFight.state === "persistent-terminal"
       ) {
+        if (complicationFight.state === "persistent-active" && complicationFight.started) {
+          await ctx.reply(presentPersistentFightIntro(complicationFight), HTML_MESSAGE_OPTIONS);
+        }
+
         await ctx.reply(presentPersistentFight(complicationFight), {
           ...HTML_MESSAGE_OPTIONS,
           reply_markup: buildPersistentFightResultKeyboard(
@@ -3067,6 +3072,10 @@ async function handleYegerCallback(
           tracking: result.tracking
         })
       });
+      if (result.fight.state === "persistent-active" && result.fight.started) {
+        await ctx.reply(presentPersistentFightIntro(result.fight), HTML_MESSAGE_OPTIONS);
+      }
+
       await ctx.reply(presentPersistentFight(result.fight), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPersistentFightResultKeyboard(result.fight.session, result.fight.character)
@@ -3113,6 +3122,10 @@ async function handleYegerCallback(
         : presentYegerTrackingBlockedByOtherFight();
 
       await safeEditMessageText(ctx, trackingIntro, HTML_MESSAGE_OPTIONS);
+      if (fight.state === "persistent-active" && fight.started) {
+        await ctx.reply(presentPersistentFightIntro(fight), HTML_MESSAGE_OPTIONS);
+      }
+
       await ctx.reply(presentPersistentFight(fight), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPersistentFightResultKeyboard(fight.session, fight.character)

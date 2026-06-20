@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.21] - 12026-06-20 - Combat Action Foundation
+## [0.1.21] - 12026-06-21 - Combat Action Foundation
 
 ### Added
 - Added the first shared combat ability foundation around existing actions: basic attack, basic defend, class skill and flee now resolve through a server-authoritative action/availability contract instead of presenter-only button assumptions.
@@ -19,6 +19,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Expanded the monster roster to 93 entries from the contextual monster package, keeping the current `MonsterContent` shape and existing reward/eligibility rules.
 - Added deterministic monster barks for the full 93-monster roster: every monster has five authored Ukrainian lines, and stored turn summaries render bark ids without rerolling old cards.
 - Added focused domain, service, callback, keyboard and presenter coverage for defend, unavailable skill no-op behavior, legacy cooldown loading, expired-turn auto-attacks and side-surface missed-turn skips.
+- Added a separate persistent-fight intro card for newly started monster fights; the active card below it now carries the buttons and updates each turn.
 
 ### Changed
 - Pressing a class action without enough mana, or while that action is still cooling down, no longer spends mana, advances the turn, ticks cooldowns, triggers a monster response or advances RNG.
@@ -29,6 +30,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Post-fight `Новий бій` now appears only for fights that started in `Низ`; adventure and Yeger handoff fights return to their origin surface instead of showing `До Низу`.
 - Contextual monster traits affect only combat texture and small stat modifiers. They do not change encounter eligibility, Yeger matching/progress, XP, gold, loot, authored monster level or stored rewards.
 - The contextual-monster package was adapted into the current content/runtime shape; the monster ability/loadout extension remains out of scope.
+- Active persistent monster fight cards now show HP/mana, turn number and the visible 23-second timeout rule directly on the button message.
+- Persistent monster barks now render as Telegram blockquotes after the `🗣️ Монстр` marker.
+- Fight and hunt result cards no longer append generic `Наступний крок` command prompts.
 
 ### Guardrails
 - No race ability catalog, signature/title ability catalog, monster ability catalog, item/consumable actions, schema migration, reward/economy change, wager, rating, tournament or broad combat coefficient rewrite was added.

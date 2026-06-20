@@ -9,7 +9,7 @@ import type {
   PersistentFightTurnResult,
   ThirteenSmallProblemsProgress
 } from "../../services/fightService";
-import { getCombatSkillDisplay } from "../../services/fightService";
+import { getCombatSkillDisplay, PERSISTENT_FIGHT_TURN_SECONDS } from "../../services/fightService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { findMonsterBark } from "../../content/monsterBarks";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
@@ -153,7 +153,29 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
     ...presentItemGrantBlock(result.reward.itemGrants)
   ];
 
-  lines.push("", "Наступний крок: /hero");
+  return lines.join("\n");
+}
+
+export function presentPersistentFightIntro(
+  result: Extract<FightLookupResult, { state: "persistent-active" }>
+): string {
+  const monsterLevel = result.monster?.level ? ` · рівень ${result.monster.level}` : "";
+  const lines = [
+    "⚔️ Бій",
+    presentCharacterHeader(result.character),
+    "",
+    "Бій триває. Корчма тримає рахунок ходів, але поки не видає нагород."
+  ];
+  const startTip = result.started ? presentBattleStartTip(result.character, result.session.id) : null;
+
+  if (startTip) {
+    lines.push("", startTip);
+  }
+
+  lines.push(
+    "",
+    `Проти вас: <b>${escapeHtml(result.monster?.name ?? "Невідомий монстр")}</b>${monsterLevel}`
+  );
 
   return lines.join("\n");
 }
@@ -161,23 +183,11 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
 export function presentPersistentFight(
   result: Extract<FightLookupResult, { state: "persistent-active" | "persistent-terminal" }>
 ): string {
-  const intro =
-    result.state === "persistent-active"
-      ? "Бій триває. Корчма тримає рахунок ходів, але поки не видає нагород."
-      : "Цей бій уже завершився. Корчма записала стан і не чіпає нагороди.";
-  const startTip = result.state === "persistent-active" && result.started
-    ? presentBattleStartTip(result.character, result.session.id)
-    : null;
-
   return presentPersistentFightState({
     character: result.character,
     session: result.session,
-    monsterName: result.monster?.name ?? "Невідомий монстр",
-    monsterLevel: result.monster?.level ?? null,
     questProgress: result.questProgress,
-    fightReward: result.state === "persistent-terminal" ? result.fightReward : null,
-    intro,
-    startTip
+    fightReward: result.state === "persistent-terminal" ? result.fightReward : null
   });
 }
 
@@ -213,11 +223,9 @@ export function presentPersistentFightTurn(
   return presentPersistentFightState({
     character: result.character,
     session: result.session,
-    monsterName: result.monster?.name ?? "Невідомий монстр",
-    monsterLevel: result.monster?.level ?? null,
     questProgress: result.questProgress,
     fightReward: result.state === "updated" || result.state === "terminal" ? result.fightReward : null,
-    intro
+    statusNote: intro
   });
 }
 
@@ -340,28 +348,24 @@ function presentItemGrantBlock(itemGrants: Array<{ name: string; quantity: numbe
 function presentPersistentFightState(input: {
   character: CharacterSummary;
   session: { state: Extract<PersistentFightTurnResult, { state: "updated" }>["session"]["state"] };
-  monsterName: string;
-  monsterLevel: number | null;
   questProgress: ThirteenSmallProblemsProgress | null;
   fightReward?: Extract<PersistentFightTurnResult, { state: "updated" }>["fightReward"];
-  intro: string;
-  startTip?: string | null;
+  statusNote?: string;
 }): string {
   const state = input.session.state;
-  const monsterLevel = input.monsterLevel ? ` · рівень ${input.monsterLevel}` : "";
   const lines = [
-    "⚔️ Бій",
-    presentCharacterHeader(input.character),
-    "",
-    input.intro,
-    ...(input.startTip ? ["", input.startTip] : []),
-    "",
-    `Проти вас: <b>${escapeHtml(input.monsterName)}</b>${monsterLevel}`,
-    "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
     `👹 Монстр: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
     `Хід: ${state?.turn ?? "?"}`
   ];
+
+  if (input.statusNote) {
+    lines.push("", input.statusNote);
+  }
+
+  if (state?.status === "active") {
+    lines.push(`⏳ На хід є ${PERSISTENT_FIGHT_TURN_SECONDS} секунди. Потім Корчма зарахує звичайну атаку.`);
+  }
 
   if (state?.status === "active" && state.cooldowns?.skill?.remainingTurns) {
     lines.push(`🫁 Вміння відсапується: ще ${formatTurns(state.cooldowns.skill.remainingTurns)}.`);
@@ -383,13 +387,16 @@ function presentPersistentFightState(input: {
     const readyQuestLine =
       input.questProgress?.completed && !input.questProgress.rewardClaimed
         ? "Корчмар уже чує, що проблем вистачило — занесіть це в шинок."
-        : "Наступний крок: /hero або /quest.";
+        : null;
 
     lines.push(
       "",
-      "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою.",
-      readyQuestLine
+      "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою."
     );
+
+    if (readyQuestLine) {
+      lines.push(readyQuestLine);
+    }
   } else if (state?.status === "lost") {
     const questLines = presentLostFightQuestLines(input.questProgress);
 
@@ -661,9 +668,19 @@ function withMonsterBark(summary: CombatTurnSummary, lines: string[]): string {
   const bark = summary.monsterBarkId ? findMonsterBark(summary.monsterBarkId) : null;
 
   return [
-    ...(bark ? [`🗣️ ${escapeHtml(bark.text)}`, ""] : []),
+    ...(bark ? [presentMonsterBarkBlockquote(bark.text), ""] : []),
     ...lines
   ].join("\n");
+}
+
+function presentMonsterBarkBlockquote(text: string): string {
+  const barkText = stripOuterUkrainianQuotes(text.trim());
+
+  return `🗣️ Монстр:\n<blockquote>${escapeHtml(barkText)}</blockquote>`;
+}
+
+function stripOuterUkrainianQuotes(text: string): string {
+  return text.startsWith("«") && text.endsWith("»") ? text.slice(1, -1).trim() : text;
 }
 
 function presentSkillAction(skillId: string | undefined): string {
