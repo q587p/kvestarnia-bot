@@ -25,7 +25,7 @@ export type FightCallback =
 const MIMIC_PREFIX = "v1:fight:mimic";
 const TURN_PREFIX = "v1:fight:turn";
 const fightActions = new Set<CombatProbeAction>(["attack", "receipt", "flee"]);
-const turnActions = new Set<CombatActionType>(["attack", "skill", "flee"]);
+const turnActions = new Set<CombatActionType>(["attack", "defend", "skill", "flee"]);
 const sessionIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function makeFightCallbackData(action: CombatProbeAction): string {

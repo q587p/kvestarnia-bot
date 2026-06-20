@@ -203,7 +203,7 @@ describe("combatSimulation", () => {
     const baseOptions = {
       levels: [2],
       monsterLevels: "same" as const,
-      runsPerMatchup: 20,
+      runsPerMatchup: 50,
       seed: "path-sensitive",
       classIds: ["class.rogue"],
       raceId: "race.human-ish",

@@ -42,15 +42,18 @@ spell_damage = spell_base + floor(INT * 0.9) + level_bonus - target_resist
 ```
 
 ### Бойові варіянти й мана
-Наступний combat pass має рахувати не одну кнопку `Вдарити`, а typed бойові варіянти:
+`0.1.21` починає переносити бій із однієї кнопки `Вдарити` до typed бойових варіянтів:
 - `physical`: сила/спритність/зброя, без витрати мани.
+- `guard`: захист поточного раунду без прямої шкоди як основного плану.
 - `spell`: розум/рівень/магічний focus, мала витрата мани.
 - `social` або `trick`: харизма, спритність чи вдача, менша пряма шкода, але debuff/control/reward flavor.
 - `class-special`: класова дія з власним cooldown або resource cost, якщо вона сильніша за базову атаку.
 
-Магічні й містичні дії мають показувати витрату в UI, наприклад `🔮 -2 мани`, і не зʼїдати ману, якщо reward callback уже зарахований або дія стала stale.
+Магічні й містичні дії мають показувати витрату в UI, наприклад `🔮 -2 мани`, і не зʼїдати ману, якщо reward callback уже зарахований, дія стала stale, бракує мани або вміння ще на cooldown. У таких випадках action attempt є no-op: без витрати ресурсу, без ходу ворога, без cooldown tick і без RNG advancement.
 
 Race/class/combo modifiers мають бути малими й симульованими. Вони можуть змінювати odds, damage band, crit flavor або доступну назву дії, але не мають робити мага без мани безпорадним чи воїна без spell-кнопки нудним.
+
+Foundation cooldown rule in `0.1.21`: existing class skills use ability-keyed cooldowns and become available after one subsequent own committed action. This replaces the older hidden non-mana `3..5` turn roll for current class actions. Longer milestone abilities should be introduced explicitly by future content, not by restoring a hidden random cooldown.
 
 Equipment effects для атак мають заходити через один effective-stats/equipment helper:
 - weapon впливає на physical base або spell focus, якщо це явно магічна зброя;
@@ -283,7 +286,7 @@ Junk, cosmetics, priceless trophies і quest badges не мають випадк
 
 Hunt Board лишається простим для входу: один контракт на годину і три дії. Після появи рівнів `4-13` дошка не повинна застрягати на старих рівнях `1-3`: вона обирає звичайних небосів поруч із рівнем героя (`рівень - 2 ... рівень`), а якщо persisted або fallback-контракт значно слабший, XP стискається до `1`. Це синхронізує `/hunt` із persistent solo fight selection без перетворення дошки на повний combat loop.
 
-`0.0.20` реалізує перший domain-only combat engine з цим fallback-ом. Поточні numbers навмисно прості: same-level ordinary fight має вкладатися приблизно в 2-5 ходів, skill damage витрачає ману там, де це доречно, flee завершує бій окремим статусом, а loss не означає reward win. До підключення persistent `/fight` ці формули не видають лут і не змінюють live HP/mana в БД.
+`0.0.20` реалізує перший domain-only combat engine з цим fallback-ом. Поточні numbers навмисно прості: same-level ordinary fight має вкладатися приблизно в 2-5 ходів, skill damage витрачає ману там, де це доречно, flee завершує бій окремим статусом, а loss не означає reward win. До підключення persistent `/fight` ці формули не видавали лут і не змінювали live HP/mana в БД. `0.1.21` adds `defend`: it reduces incoming damage for the current round and can rarely counter in PvE, but repeated defending fatigues the stance so it does not become a stall strategy.
 
 `0.0.16` піднімає raid reward math: Бочка дає deterministic roll `18-26 XP` і `8-14 золота`, плюс фартух і детермінований дрібний trophy item. У `0.0.19` це замінено на duration-based reward: рівень 1 лишається в діапазоні `5-8` хвилин, кожен рівень після першого додає `30` секунд до можливого максимуму, а XP/золото лінійно рахуються від фактичної тривалості pending-рейду. На 1 рівні максимум лишається `26 XP` і `14 золота`; на 13 рівні поточний максимум стає `42 XP` і `26 золота`. Фактичні `rewardXp`/`rewardGold` записуються в claim, тому repeated callback не перекидає нагороду й не дублює прогрес. Reliability-частина лишається важливою: period bucket, audit break, pending completion, notification dedupe і beer gate мають лишатися ідемпотентними, без нових шансів на дубль нагороди або безкоштовне частування.
 
@@ -363,6 +366,7 @@ Balance rules:
 - participant choices are hidden until both players choose or the timer fills missing choices, so HP/mana spending is applied at round reveal rather than at the first button press;
 - the turn-based resolver uses the same `resolveActorCombatAction(...)` primitive as PvE, so basic attack, class skill, mana cost, cooldown, armor/resist, weapon/spell/stat effects and HP clamping do not fork into a duel-only formula set;
 - PvP damage uses the normalized effective combat level from the duel progression tier, while visible level/remort in cards stays real;
+- the `0.1.21` defend action stays hidden as a participant choice and applies deterministic same-round incoming damage reduction at reveal time;
 - class skills with incoming-damage mitigation apply that mitigation to the opponent's damage in the same hidden reveal round, independent of Telegram button order;
 - timeout auto-actions are ordinary basic attacks for missing choices, not a separate penalty damage table;
 - max-turn safety resolves as a deterministic draw instead of creating an infinite session.

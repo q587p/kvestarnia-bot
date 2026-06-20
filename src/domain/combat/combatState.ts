@@ -1,12 +1,13 @@
 import type { CharacterStats } from "../characters/starterStats";
 
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
-export type CombatActionType = "attack" | "skill" | "flee";
+export type CombatActionType = "attack" | "defend" | "skill" | "flee";
 export type CombatDamageKind = "physical" | "spell" | "social" | "trick";
 export type CombatTurnOutcome =
   | "hit"
   | "critical-hit"
   | "miss"
+  | "defended"
   | "not-enough-mana"
   | "skill-on-cooldown"
   | "inactive"
@@ -74,6 +75,7 @@ export interface CombatState {
   id?: string;
   source?: "normal" | "yeger" | "adventure" | "training";
   completedAt?: string;
+  turnExpiresAt?: string;
   turn: number;
   status: CombatStatus;
   hero: {
@@ -102,11 +104,20 @@ export interface CombatState {
     debugTrace?: CombatDebugTrace;
   };
   cooldowns?: {
+    abilities?: Record<string, {
+      id: string;
+      remainingTurns: number;
+    }>;
+    /**
+     * Legacy mirror kept so old stored rows and older tests/cards remain readable.
+     * New combat logic reads `abilities` first and normalizes this field by ability id.
+     */
     skill?: {
       id: string;
       remainingTurns: number;
     };
   };
+  guard?: CombatGuardState;
   lastTurn?: CombatTurnSummary;
 }
 
@@ -123,7 +134,12 @@ export interface CombatTurnSummary {
   monsterAction?: "attack" | "skill";
   monsterSkillId?: string;
   monsterDamageKind?: CombatDamageKind;
+  heroCounterDamage?: number;
   debugTrace?: CombatDebugTrace;
+}
+
+export interface CombatGuardState {
+  consecutiveDefends: number;
 }
 
 export interface StartCombatInput {
@@ -177,6 +193,7 @@ export function cloneCombatState(state: CombatState): CombatState {
     ...(state.id ? { id: state.id } : {}),
     ...(state.source ? { source: state.source } : {}),
     ...(state.completedAt ? { completedAt: state.completedAt } : {}),
+    ...(state.turnExpiresAt ? { turnExpiresAt: state.turnExpiresAt } : {}),
     turn: state.turn,
     status: state.status,
     hero: { ...state.hero },
@@ -187,13 +204,12 @@ export function cloneCombatState(state: CombatState): CombatState {
         : {}),
       ...(state.monster.debugTrace ? { debugTrace: { ...state.monster.debugTrace } } : {})
     },
-    ...(state.cooldowns?.skill
+    ...(state.cooldowns
       ? {
-          cooldowns: {
-            skill: { ...state.cooldowns.skill }
-          }
+          cooldowns: cloneCombatCooldowns(state.cooldowns)
         }
       : {}),
+    ...(state.guard ? { guard: { ...state.guard } } : {}),
     ...(state.lastTurn
       ? {
           lastTurn: {
@@ -221,6 +237,24 @@ export function expireCombat(state: CombatState): CombatState {
       manaSpent: 0,
       critical: false
     }
+  };
+}
+
+export function cloneCombatCooldowns(
+  cooldowns: NonNullable<CombatState["cooldowns"]>
+): NonNullable<CombatState["cooldowns"]> {
+  return {
+    ...(cooldowns.abilities
+      ? {
+          abilities: Object.fromEntries(
+            Object.entries(cooldowns.abilities).map(([abilityId, cooldown]) => [
+              abilityId,
+              { ...cooldown }
+            ])
+          )
+        }
+      : {}),
+    ...(cooldowns.skill ? { skill: { ...cooldowns.skill } } : {})
   };
 }
 

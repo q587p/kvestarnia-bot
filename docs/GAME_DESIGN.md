@@ -50,6 +50,8 @@ Future path restrictions should sound like in-world folklore or institutions, no
 
 `0.1.20` робить цей принцип runtime-частиною малих справ: Adventure Choice, starter shawarma і льохова миша мають authored methods замість універсальної шкали `safe/flair/risky`. Метод має належати сцені або персонажу, використовувати deterministic bounded check, давати authored outcome і не показувати exact шансів чи майбутніх нагород до вибору. Канонічні деталі: `docs/QUEST_RESOLUTION_VARIETY.md`, `docs/QUEST_SKILLS_AND_CHECKS.md`, `docs/QUEST_RESOLUTION_CONTENT_SEEDS.md`.
 
+`0.1.21` робить перший combat-action foundation: у боях є атака, захист, класова дія й втеча як server-authoritative дії; недоступна класова дія не витрачає хід, а завислий бойовий екран рухається звичайною автоатакою, коли гравець повертається саме до бою.
+
 Hidden `path` може бути внутрішнім selector-ом, але назви `sun`, `moon`, `boundary` і великі «шляхи» не виходять у player-facing текст.
 
 ## Ачівки й титули

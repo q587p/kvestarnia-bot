@@ -3023,7 +3023,7 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
-  it("wastes the persistent turn when a current skill action lacks mana", async () => {
+  it("does not advance the persistent turn when a current skill action lacks mana", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25, classId: "class.mage", manaCurrent: 0, manaMax: 0 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -3048,12 +3048,49 @@ describe("FightService", () => {
       action: "skill"
     });
 
-    expect(result.state).toBe("updated");
-    if (result.state === "updated") {
+    expect(result.state).toBe("not-enough-mana");
+    if (result.state === "not-enough-mana") {
+      expect(result.reason).toBe("not-enough-mana");
+      expect(result.session.state?.turn).toBe(1);
+      expect(result.session.state?.lastTurn).toBeUndefined();
+    }
+    expect(sessions.updateCount).toBe(0);
+  });
+
+  it("uses a basic attack for an expired persistent combat turn before handling late buttons", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.6])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 80);
+    sessions.setTurnExpiresAt(started.session.id, new Date("2026-06-12T10:29:59.000Z"));
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "defend"
+    });
+
+    expect(result.state).toBe("stale-turn");
+    if (result.state === "stale-turn") {
       expect(result.session.state?.turn).toBe(2);
-      expect(result.session.state?.lastTurn?.heroOutcome).toBe("not-enough-mana");
+      expect(result.session.state?.lastTurn?.action).toBe("attack");
+      expect(result.session.state?.turnExpiresAt).toBe("2026-06-12T10:30:23.000Z");
     }
     expect(sessions.updateCount).toBe(1);
+    expect(dailyActions.createCount).toBe(0);
   });
 
   it("expires a stale persistent fight lazily without rewards", async () => {
@@ -3607,6 +3644,22 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     this.sessions.set(sessionId, {
       ...session,
       expiresAt
+    });
+  }
+
+  setTurnExpiresAt(sessionId: string, turnExpiresAt: Date): void {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return;
+    }
+
+    this.sessions.set(sessionId, {
+      ...session,
+      state: {
+        ...session.state,
+        turnExpiresAt: turnExpiresAt.toISOString()
+      }
     });
   }
 

@@ -106,6 +106,7 @@ export const THIRTEEN_SMALL_PROBLEMS_REWARD = {
 };
 export const MONSTER_REST_ELIGIBLE_FIGHT_COUNT = 3;
 export const MONSTER_REST_COOLDOWN_MS = 3 * 60 * 1000;
+export const PERSISTENT_FIGHT_TURN_SECONDS = 23;
 
 export type ProblemQuestStageId = "13" | "23" | "42" | "93";
 
@@ -318,6 +319,7 @@ export type PersistentFightTurnResult =
     }
   | {
       state: "not-enough-mana";
+      reason?: "not-enough-mana" | "skill-on-cooldown";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
@@ -422,6 +424,62 @@ export class FightService {
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly equipment?: EquipmentRepository
   ) {}
+
+  private async advanceExpiredPersistentTurn(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    character: CharacterSummary,
+    monster: MonsterContent
+  ): Promise<SoloCombatSessionRecord> {
+    if (!this.combatSessions || session.status !== "active" || session.state?.status !== "active") {
+      return session;
+    }
+
+    const now = this.clock();
+    if (!session.state.turnExpiresAt) {
+      const state = withNextTurnExpiry(session.state, now);
+      const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+        state,
+        status: state.status,
+        expiresAt: getSessionExpiry(now)
+      });
+
+      return updated ?? { ...session, state };
+    }
+
+    if (!isTurnExpired(session.state, now)) {
+      return session;
+    }
+
+    const resolved = resolveCombatTurn({
+      state: session.state,
+      action: "attack",
+      hero: buildHeroCombatStats(character),
+      monster: deriveMonsterCombatStats(monster),
+      rng: this.rng
+    });
+
+    if (!resolved.ok) {
+      return session;
+    }
+
+    const resolvedState = withNextTurnExpiry(stampCombatCompletedAt(resolved.state, now), now);
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+      state: resolvedState,
+      status: resolvedState.status,
+      expiresAt: getSessionExpiry(now)
+    });
+
+    if (!updated) {
+      return session;
+    }
+
+    if (updated.status !== "active") {
+      await this.persistCharacterResourcesFromSession(telegramUserId, updated);
+    }
+
+    return updated;
+  }
 
   async getOrStartPersistentFightForTelegramUser(
     telegramUserId: bigint,
@@ -572,10 +630,32 @@ export class FightService {
       };
     }
 
+    const refreshedSession = await this.advanceExpiredPersistentTurn(
+      telegramUserId,
+      activeSession,
+      characterSummary,
+      monster
+    );
+    if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
+      return {
+        state: "persistent-terminal",
+        character: characterSummary,
+        session: refreshedSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          refreshedSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
     return {
       state: "persistent-active",
       character: characterSummary,
-      session: activeSession,
+      session: refreshedSession,
       monster,
       questProgress
     };
@@ -710,10 +790,32 @@ export class FightService {
           };
         }
 
+        const refreshedSession = await this.advanceExpiredPersistentTurn(
+          telegramUserId,
+          activeSession,
+          characterSummary,
+          monster
+        );
+        if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
+          return {
+            state: "persistent-terminal",
+            character: characterSummary,
+            session: refreshedSession,
+            monster,
+            questProgress,
+            fightReward: await this.getOrRecoverPersistentFightReward(
+              telegramUserId,
+              refreshedSession,
+              monster,
+              characterSummary
+            )
+          };
+        }
+
         return {
           state: "persistent-active",
           character: characterSummary,
-          session: activeSession,
+          session: refreshedSession,
           monster,
           questProgress
         };
@@ -767,6 +869,7 @@ export class FightService {
       hero: buildHeroCombatStats(characterSummary),
       monster: deriveMonsterCombatStats(monster)
     });
+    state.turnExpiresAt = getTurnExpiry(this.clock()).toISOString();
     state.source = options.source ?? "normal";
     state.monster.debugTrace = buildPersistentFightInterventionTrace(
       baseMonster,
@@ -1063,25 +1166,75 @@ export class FightService {
       };
     }
 
-    if (session.state.turn !== input.turn) {
+    const deadlineSession = await this.advanceExpiredPersistentTurn(
+      telegramUserId,
+      session,
+      characterSummary,
+      monster
+    );
+    if (deadlineSession.id === session.id && deadlineSession.state?.turn !== session.state.turn) {
+      if (deadlineSession.status === "active" && deadlineSession.state?.status === "active") {
+        return {
+          state: "stale-turn",
+          character: characterSummary,
+          session: deadlineSession,
+          monster,
+          questProgress
+        };
+      }
+
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: deadlineSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          deadlineSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    const currentSession = deadlineSession;
+
+    if (!currentSession.state) {
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          currentSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    if (currentSession.state.turn !== input.turn) {
       return {
         state: "stale-turn",
         character: characterSummary,
-        session,
+        session: currentSession,
         monster,
         questProgress
       };
     }
 
     const resolved = resolveCombatTurn({
-      state: session.state,
+      state: currentSession.state,
       action: input.action,
       hero: buildHeroCombatStats(characterSummary),
       monster: deriveMonsterCombatStats(monster),
       rng: this.rng
     });
 
-    if (!resolved.ok) {
+    if (!resolved.ok && resolved.reason !== "not-enough-mana" && resolved.reason !== "skill-on-cooldown") {
       return {
         state: "terminal",
         character: characterSummary,
@@ -1097,8 +1250,19 @@ export class FightService {
       };
     }
 
-    const resolvedState = stampCombatCompletedAt(resolved.state, this.clock());
-    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, input.turn, {
+    if (!resolved.ok) {
+      return {
+        state: "not-enough-mana",
+        reason: resolved.reason === "skill-on-cooldown" ? "skill-on-cooldown" : "not-enough-mana",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress
+      };
+    }
+
+    const resolvedState = withNextTurnExpiry(stampCombatCompletedAt(resolved.state, this.clock()), this.clock());
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(currentSession.id, input.turn, {
       state: resolvedState,
       status: resolvedState.status,
       expiresAt: getSessionExpiry(this.clock())
@@ -1954,6 +2118,27 @@ function buildHeroCombatStats(
 
 function getSessionExpiry(now: Date): Date {
   return new Date(now.getTime() + 30 * 60 * 1000);
+}
+
+function getTurnExpiry(now: Date): Date {
+  return new Date(now.getTime() + PERSISTENT_FIGHT_TURN_SECONDS * 1000);
+}
+
+function isTurnExpired(state: CombatState | null | undefined, now: Date): boolean {
+  return Boolean(state?.turnExpiresAt && Date.parse(state.turnExpiresAt) <= now.getTime());
+}
+
+function withNextTurnExpiry(state: CombatState, now: Date): CombatState {
+  if (state.status !== "active") {
+    const next = { ...state };
+    delete next.turnExpiresAt;
+    return next;
+  }
+
+  return {
+    ...state,
+    turnExpiresAt: getTurnExpiry(now).toISOString()
+  };
 }
 
 function isExpired(session: SoloCombatSessionRecord, now: Date): boolean {

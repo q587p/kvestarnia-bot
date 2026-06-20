@@ -146,7 +146,9 @@ export function presentTrainingDoppelgangerTurn(
     }
 
     if (result.state === "not-enough-mana") {
-      return "Мани не стало навіть на драматичний жест. Копія записала це як навчальний матеріял.";
+      return result.reason === "skill-on-cooldown"
+        ? "Вміння ще відсапується. Копія чемно чекає справжнього ходу."
+        : "Мани не стало навіть на драматичний жест. Копія записала це як навчальний матеріял без удару.";
     }
 
     if (result.state === "terminal") {
@@ -279,6 +281,18 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
         ? `Копія відповіла на ${summary.monsterDamage} шкоди.`
         : "Копія промахнулась і теж назвала це тренуванням."
     ].join("\n");
+  }
+
+  if (summary.heroOutcome === "defended") {
+    return [
+      "Ви стали в захист: копії важче влучити, а удар буде слабшим.",
+      summary.monsterDamage > 0
+        ? `Копія таки дістала на ${summary.monsterDamage} шкоди.`
+        : "Копія не знайшла переконливого кута атаки.",
+      summary.heroCounterDamage
+        ? `Контрудар зачепив копію на ${summary.heroCounterDamage} шкоди.`
+        : ""
+    ].filter(Boolean).join("\n");
   }
 
   if (summary.heroOutcome === "fled") {

@@ -43,6 +43,10 @@ export function buildPersistentFightKeyboard(
     .text("🗡️ Вдарити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "attack" }))
     .row();
 
+  keyboard
+    .text("🛡 Захищатися", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "defend" }))
+    .row();
+
   if (availability?.available !== false) {
     keyboard.text(
       getPersistentFightSkillLabel(character),

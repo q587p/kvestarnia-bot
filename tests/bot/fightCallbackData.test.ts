@@ -20,7 +20,7 @@ describe("fight callback data", () => {
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
-  it.each(["attack", "skill", "flee"] as const)("parses persistent %s action", (action) => {
+  it.each(["attack", "defend", "skill", "flee"] as const)("parses persistent %s action", (action) => {
     const data = makeFightTurnCallbackData({
       sessionId: "123e4567-e89b-12d3-a456-426614174000",
       turn: 3,

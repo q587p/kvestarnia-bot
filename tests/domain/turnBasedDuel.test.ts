@@ -193,7 +193,7 @@ describe("turn-based duel domain", () => {
     expect(resolved.round.actions.map((action) => action.action)).toContain("timeout-attack");
   });
 
-  it("treats a repeated zero-mana class action as a cooldown turn without damage", () => {
+  it("rejects a repeated zero-mana class action without queueing a round", () => {
     const state = startTurnBasedDuel({
       challenger: makeDuelist({ id: "challenger", classId: "class.rogue", dexterity: 12, hpCurrent: 100, hpMax: 100 }),
       target: makeDuelist({ id: "target", classId: "class.rogue", dexterity: 12, hpCurrent: 100, hpMax: 100 }),
@@ -222,42 +222,80 @@ describe("turn-based duel domain", () => {
     }
     expect(firstResolved.state.participants.challenger.cooldowns?.skill).toEqual({
       id: "skill.trick-shot",
-      remainingTurns: 3
+      remainingTurns: 1
     });
 
-    const secondQueued = resolveTurnBasedDuelAction({
+    const rejected = resolveTurnBasedDuelAction({
       state: firstResolved.state,
       actorCharacterId: "challenger",
       action: "skill",
       rng: new FakeRandomSource([0.1, 0.9])
     });
-    if (!secondQueued.ok) {
-      throw new Error("Expected repeated skill to queue.");
-    }
+    expect(rejected).toMatchObject({
+      ok: false,
+      reason: "skill-on-cooldown",
+      state: firstResolved.state
+    });
+    expect(rejected.state.participants.challenger.cooldowns?.skill).toEqual({
+      id: "skill.trick-shot",
+      remainingTurns: 1
+    });
+  });
 
-    const secondResolved = resolveTurnBasedDuelAction({
-      state: secondQueued.state,
+  it("reduces incoming damage when defend is queued in a hidden round", () => {
+    const base = startTurnBasedDuel({
+      challenger: makeDuelist({ id: "challenger", classId: "class.warrior", strength: 12, hpCurrent: 100, hpMax: 100 }),
+      target: makeDuelist({ id: "target", classId: "class.warrior", strength: 12, hpCurrent: 100, hpMax: 100 }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    base.actingCharacterId = "challenger";
+
+    const baselineQueued = resolveTurnBasedDuelAction({
+      state: base,
+      actorCharacterId: "challenger",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!baselineQueued.ok) {
+      throw new Error("Expected baseline attack to queue.");
+    }
+    const baseline = resolveTurnBasedDuelAction({
+      state: baselineQueued.state,
       actorCharacterId: "target",
       action: "attack",
       rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
     });
-    if (!secondResolved.ok || secondResolved.resolution !== "resolved") {
-      throw new Error("Expected second round to resolve.");
+    if (!baseline.ok || baseline.resolution !== "resolved") {
+      throw new Error("Expected baseline round.");
     }
-
-    const repeatedSkill = secondResolved.round.actions.find(
+    const baselineDamage = baseline.round.actions.find(
       (action) => action.actorCharacterId === "challenger"
-    );
-    expect(repeatedSkill).toMatchObject({
-      action: "skill",
-      outcome: "skill-on-cooldown",
-      damage: 0,
-      manaSpent: 0
+    )?.damage ?? 0;
+
+    const defendedQueued = resolveTurnBasedDuelAction({
+      state: base,
+      actorCharacterId: "challenger",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9])
     });
-    expect(secondResolved.state.participants.challenger.cooldowns?.skill).toEqual({
-      id: "skill.trick-shot",
-      remainingTurns: 2
+    if (!defendedQueued.ok) {
+      throw new Error("Expected defended attack to queue.");
+    }
+    const defended = resolveTurnBasedDuelAction({
+      state: defendedQueued.state,
+      actorCharacterId: "target",
+      action: "defend",
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
     });
+    if (!defended.ok || defended.resolution !== "resolved") {
+      throw new Error("Expected defended round.");
+    }
+    const defendedDamage = defended.round.actions.find(
+      (action) => action.actorCharacterId === "challenger"
+    )?.damage ?? 0;
+
+    expect(baselineDamage).toBeGreaterThan(0);
+    expect(defendedDamage).toBeLessThan(baselineDamage);
   });
 
   it("applies defensive class skill mitigation to opponent damage in the same hidden round", () => {

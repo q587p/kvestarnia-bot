@@ -7,6 +7,7 @@ import { buildEffectiveCharacterStats } from "../domain/progression/effectiveSta
 import {
   deriveMonsterCombatStats,
   expireCombat,
+  getActorCombatActionAvailability,
   getCombatSkillProfile,
   resolveCombatTurn,
   startCombat,
@@ -397,7 +398,12 @@ function chooseAction(
     }
   }
 
-  if (state.hero.mana >= profile.manaCost) {
+  const availability = getActorCombatActionAvailability({
+    ...state.hero,
+    cooldowns: state.cooldowns
+  }, hero);
+
+  if (state.hero.mana >= profile.manaCost && availability.skill.available) {
     return "skill";
   }
 

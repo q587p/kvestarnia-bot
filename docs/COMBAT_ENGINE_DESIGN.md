@@ -1,8 +1,8 @@
 # Combat Engine Design — покрокові бійки Квестарні
 
 Created: 12026-06-13
-Status: design source-of-truth for future implementation PRs
-Scope: solo PvE combat first. Group raids, PvP, shops, trading, crafting, item-to-level sinks and full economy are future slices.
+Status: evolving combat design source-of-truth; `0.1.21` ships the first action-foundation subset.
+Scope: solo PvE combat first, with the shared primitive also reused by turn-based duels. Group raids, shops, trading, crafting, item-to-level sinks and full economy are future slices.
 
 ## Навіщо це потрібно
 
@@ -55,7 +55,7 @@ Scope: solo PvE combat first. Group raids, PvP, shops, trading, crafting, item-t
 
 ```text
 first_reaction_timeout = ~23 секунд
-normal_turn_timeout = 45 секунд
+normal_turn_timeout = ~23 секунд у поточному solo/training foundation slice
 elite_turn_timeout = 60 секунд
 hard_session_expiry = 10-15 хвилин
 max_auto_turns_before_escape_or_expire = 2
@@ -65,7 +65,7 @@ max_auto_turns_before_escape_or_expire = 2
 
 Timeout має бути **source-of-truth у service/domain**, а не в Telegram presenter-і:
 
-1. При створенні/оновленні ходу в `stateJson` пишеться `nextTimeoutAt`, `missedTurns`, `autoTurnCount`, `hardExpiresAt` і `expectedTurnToken`.
+1. При створенні/оновленні ходу в `stateJson` пишеться deadline поточного ходу. У `0.1.21` solo/training fights use `turnExpiresAt`; broader `missedTurns`/`autoTurnCount` ladders remain future work.
 2. In-process timer може викликати `advanceCombatTimeout(combatId)` і надіслати повідомлення, але це best-effort.
 3. Після restart/deploy будь-яка наступна команда/callback, яка бачить overdue combat, спочатку викликає lazy timeout advancement.
 4. Повторний timeout call з тим самим `expectedTurnToken` нічого не дублює.
@@ -73,7 +73,7 @@ Timeout має бути **source-of-truth у service/domain**, а не в Telegr
 Auto-action ladder:
 
 - **Якщо герой мовчить після старту бою приблизно 23 секунди:** service/domain спершу намагається безпечний auto-action з доступних, а не відразу прострочує бій. У типових випадках це `attack`, а якщо герой має мало HP або стоїть на `coward`-сценарії, можна підняти `guard` або `escape` як більш обережний варіант.
-- **Перший пропущений хід:** safe default. Воїн/орк/дрантогор бʼє, маг/мольфар/русалка робить дешевий cantrip, бард/бюрокромант запускає trick/debuff, low HP герой guards.
+- **Перший пропущений хід:** у `0.1.21` service commits a canonical basic attack when the player returns to the battle surface or presses an expired combat callback. Smarter class-shaped auto-actions remain future work.
 - **Другий пропущений хід:** guard або спроба втечі, залежно від HP і odds.
 - **Третій пропущений хід або hard expiry:** `expired` або auto-flee з мʼяким текстом. Reward не видавати.
 
@@ -150,7 +150,7 @@ Guard має мати кілька тематичних форм, але оди�
 
 ### Cooldowns for skills
 
-Сильні вміння не мають натискатися щохідно. Базове правило для першого slice: signature skill має cooldown `4-5` ходів, а дешеві cantrip/trick/support-дії можуть мати коротший cooldown або тільки mana cost.
+Сильні вміння не мають натискатися щохідно. `0.1.21` starts with ability-keyed cooldown state and keeps the current class actions on a short foundation rule: the class action becomes available after one subsequent own committed action. Longer milestone abilities can use larger cooldowns later.
 
 UI має показувати причину недоступности без фрустрації:
 

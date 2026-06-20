@@ -197,7 +197,9 @@ export function presentPersistentFightTurn(
     }
 
     if (result.state === "not-enough-mana") {
-      return "Мани не стало навіть на драматичний жест. Монстр помітив це першим.";
+      return result.reason === "skill-on-cooldown"
+        ? "Вміння ще відсапується. Корчма показує поточний стан без зайвого удару."
+        : "Мани не стало навіть на драматичний жест. Корчма показує поточний стан без зайвого удару.";
     }
 
     if (result.state === "terminal") {
@@ -596,6 +598,19 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
         ? `Монстр відповів на ${summary.monsterDamage} шкоди.`
         : "Монстр промахнувся й теж назвав це планом."
     ].join("\n");
+  }
+
+  if (summary.heroOutcome === "defended") {
+    return [
+      "Остання дія",
+      "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.",
+      summary.monsterDamage > 0
+        ? `Монстр таки дістав на ${summary.monsterDamage} шкоди.`
+        : "Монстр не знайшов переконливого кута атаки.",
+      summary.heroCounterDamage
+        ? `Контрудар зачепив монстра на ${summary.heroCounterDamage} шкоди.`
+        : ""
+    ].filter(Boolean).join("\n");
   }
 
   if (summary.heroOutcome === "fled") {

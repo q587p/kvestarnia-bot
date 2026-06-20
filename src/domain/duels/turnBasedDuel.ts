@@ -1,6 +1,8 @@
 import {
   getActorCombatActionAvailability,
+  cloneCombatCooldowns,
   getCombatSkillProfile,
+  getDefendStance,
   resolveActorCombatAction,
   type CombatActorStats,
   type CombatState,
@@ -21,7 +23,7 @@ export const TURN_BASED_DUEL_WIN_XP_RANGE = { min: 4, max: 8 } as const;
 
 export type DuelMode = "quick" | "turn-based";
 export type TurnBasedDuelStatus = "active" | "resolved" | "expired" | "forfeited";
-export type TurnBasedDuelAction = "attack" | "skill" | "surrender";
+export type TurnBasedDuelAction = "attack" | "defend" | "skill" | "surrender";
 
 export interface TurnBasedDuelParticipantSnapshot {
   characterId: string;
@@ -41,6 +43,7 @@ export interface TurnBasedDuelParticipantSnapshot {
   manaMax: number;
   combatStats: CombatActorStats;
   cooldowns?: CombatState["cooldowns"];
+  guard?: CombatState["guard"];
   balanceAudit: DuelistBalanceAudit;
 }
 
@@ -133,7 +136,11 @@ export function startTurnBasedDuel(input: StartTurnBasedDuelInput): TurnBasedDue
 export type ResolveTurnBasedDuelActionResult =
   | { ok: true; resolution: "queued"; state: TurnBasedDuelState; queuedAction: TurnBasedDuelQueuedAction }
   | { ok: true; resolution: "resolved"; state: TurnBasedDuelState; round: TurnBasedDuelRoundSummary }
-  | { ok: false; reason: "inactive" | "already-acted" | "not-participant"; state: TurnBasedDuelState };
+  | {
+      ok: false;
+      reason: "inactive" | "already-acted" | "not-participant" | "not-enough-mana" | "skill-on-cooldown";
+      state: TurnBasedDuelState;
+    };
 
 export function resolveTurnBasedDuelAction(input: {
   state: TurnBasedDuelState;
@@ -180,6 +187,24 @@ export function resolveTurnBasedDuelAction(input: {
 
   if (state.pendingActions?.[actorSide]) {
     return { ok: false, reason: "already-acted", state };
+  }
+
+  if (input.action === "skill") {
+    const availability = getActorCombatActionAvailability(
+      {
+        mana: actor.mana,
+        cooldowns: actor.cooldowns
+      },
+      actor.combatStats
+    ).skill;
+
+    if (!availability.available) {
+      return {
+        ok: false,
+        reason: availability.reason === "cooldown" ? "skill-on-cooldown" : "not-enough-mana",
+        state
+      };
+    }
   }
 
   const queuedAction = {
@@ -246,6 +271,10 @@ function resolveQueuedRound(
     challenger: getQueuedIncomingDamageReduction(state, "challenger"),
     target: getQueuedIncomingDamageReduction(state, "target")
   };
+  const mitigationMultiplier = {
+    challenger: getQueuedIncomingDamageMultiplier(state, "challenger"),
+    target: getQueuedIncomingDamageMultiplier(state, "target")
+  };
   delete state.pendingActions;
 
   const firstSide = findParticipantSide(state, state.actingCharacterId) ?? "challenger";
@@ -264,7 +293,8 @@ function resolveQueuedRound(
 
     actions.push(resolveQueuedCombatAction(state, side, queued.action, rng, {
       timeout: options.timeoutCharacterIds?.includes(queued.actorCharacterId) ?? false,
-      incomingDamageReduction: mitigation[defenderSideOf(side)]
+      incomingDamageReduction: mitigation[defenderSideOf(side)],
+      incomingDamageMultiplier: mitigationMultiplier[defenderSideOf(side)]
     }));
   }
 
@@ -312,7 +342,7 @@ function resolveQueuedCombatAction(
   actorSide: "challenger" | "target",
   action: Exclude<TurnBasedDuelAction, "surrender">,
   rng: RandomSource,
-  options: { timeout: boolean; incomingDamageReduction: number }
+  options: { timeout: boolean; incomingDamageReduction: number; incomingDamageMultiplier: number }
 ): TurnBasedDuelActionSummary {
   const defenderSide = actorSide === "challenger" ? "target" : "challenger";
   const actor = state.participants[actorSide];
@@ -341,10 +371,13 @@ function resolveQueuedCombatAction(
   actor.hp = resolved.actorState.hp;
   actor.mana = resolved.actorState.mana;
   actor.cooldowns = resolved.actorState.cooldowns;
-  const mitigatedDamage = Math.max(0, resolved.summary.actorDamage - options.incomingDamageReduction);
+  actor.guard = resolved.actorState.guard;
+  const reducedDamage = Math.floor(resolved.summary.actorDamage * options.incomingDamageMultiplier);
+  const mitigatedDamage = Math.max(0, reducedDamage - options.incomingDamageReduction);
   defender.hp = Math.min(defender.hpMax, resolved.defenderState.hp + (resolved.summary.actorDamage - mitigatedDamage));
   defender.mana = resolved.defenderState.mana;
   defender.cooldowns = resolved.defenderState.cooldowns;
+  defender.guard = resolved.defenderState.guard;
 
   const summary = {
     actorCharacterId: actor.characterId,
@@ -392,6 +425,22 @@ function getQueuedIncomingDamageReduction(
   ).skill;
 
   return availability.available ? skill.monsterDamageReduction : 0;
+}
+
+function getQueuedIncomingDamageMultiplier(
+  state: TurnBasedDuelState,
+  side: "challenger" | "target"
+): number {
+  const queued = state.pendingActions?.[side];
+
+  if (queued?.action !== "defend") {
+    return 1;
+  }
+
+  const participant = state.participants[side];
+  const stance = getDefendStance(participant.guard);
+
+  return 1 - stance.damageReduction;
 }
 
 function defenderSideOf(side: "challenger" | "target"): "challenger" | "target" {
@@ -612,8 +661,7 @@ function cloneParticipant(
     ...(participant.equipmentEffects
       ? { equipmentEffects: { ...participant.equipmentEffects } }
       : {}),
-    ...(participant.cooldowns?.skill
-      ? { cooldowns: { skill: { ...participant.cooldowns.skill } } }
-      : {})
+    ...(participant.cooldowns ? { cooldowns: cloneCombatCooldowns(participant.cooldowns) } : {}),
+    ...(participant.guard ? { guard: { ...participant.guard } } : {})
   };
 }

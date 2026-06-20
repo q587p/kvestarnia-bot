@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.21] - 12026-06-20 - Combat Action Foundation
+
+### Added
+- Added the first shared combat ability foundation around existing actions: basic attack, basic defend, class skill and flee now resolve through a server-authoritative action/availability contract instead of presenter-only button assumptions.
+- Added `🛡 Захищатися` to persistent solo fights, training doppelganger fights and turn-based duels.
+- Added ability-keyed cooldown state for combat skills while keeping legacy `cooldowns.skill` combat states readable and normalizing them on the next committed action.
+- Added 23-second turn deadlines to active persistent solo/training combat state. When a player returns to the battle screen or presses an expired combat button after the deadline, the service first commits a canonical basic attack for the missed turn and then shows the current state.
+- Added focused domain, service, callback, keyboard and presenter coverage for defend, unavailable skill no-op behavior, legacy cooldown loading and expired-turn auto-attacks.
+
+### Changed
+- Pressing a class action without enough mana, or while that action is still cooling down, no longer spends mana, advances the turn, ticks cooldowns, triggers a monster response or advances RNG.
+- Existing class skill labels and approximate damage remain in place, but cooldowns now last for one subsequent own committed action in this foundation slice instead of using the older hidden `3..5` non-mana skill roll.
+- Defend reduces incoming damage for the current round and can produce a small PvE counter, with repeated defend attempts fatiguing the stance so it cannot become an infinite best action.
+- Turn-based duel defend choices stay hidden like other round choices and apply deterministic same-round incoming damage reduction when the round resolves.
+- Opening safe side surfaces such as hero/inventory/manatky does not advance an overdue solo/training combat turn; only battle-surface restore/callback paths perform the lazy auto-attack.
+
+### Guardrails
+- No race ability catalog, signature/title ability catalog, monster ability catalog, item/consumable actions, schema migration, reward/economy change, wager, rating, tournament or broad combat coefficient rewrite was added.
+- Telegram callbacks still carry only compact action keys; mana, cooldowns, damage, mitigation and terminal results remain server-side.
+
 ## [0.1.20] - 12026-06-20 - Authored Quest Resolutions
 
 ### Added

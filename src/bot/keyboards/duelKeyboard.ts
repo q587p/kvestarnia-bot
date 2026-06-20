@@ -129,6 +129,8 @@ export function buildTurnBasedDuelKeyboard(
   if (canAct) {
     keyboard
       .text("⚔️ Атакувати", makeDuelTurnCallbackData(token, "attack", session.turn, session.version))
+      .row()
+      .text("🛡 Захищатися", makeDuelTurnCallbackData(token, "defend", session.turn, session.version))
       .row();
 
     if (skillAvailability?.available !== false) {
