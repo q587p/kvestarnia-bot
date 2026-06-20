@@ -200,6 +200,63 @@ describe("fight presenter", () => {
     expect(text).not.toContain("золота</b>");
   });
 
+  it("shows frozen monster context cues only on the opening active card", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        context: {
+          version: 1,
+          rulesVersion: "monster-context-v1",
+          monsterId: "monster.test",
+          traitIds: ["context.night-shift"],
+          world: {
+            version: 1,
+            timezone: "Europe/Kyiv",
+            utcStartedAt: "2026-06-20T00:30:00.000Z",
+            localStartedAt: "2026-06-20T03:30:00[Europe/Kyiv]",
+            localDate: "2026-06-20",
+            dayPhase: "night",
+            weekKind: "weekend",
+            season: "summer",
+            mealWindow: "none",
+            monthEdge: "middle",
+            calendarDay: 20,
+            locationTags: ["korchma"],
+            partySizeBand: "solo"
+          },
+          matchedBranches: [],
+          effects: {
+            outgoingDamageMultiplier: 1,
+            incomingDamageMultiplier: 1,
+            accuracyDeltaPp: 0,
+            evasionDeltaPp: 0,
+            abilityWeightDelta: 0,
+            signatureCooldownDelta: 0,
+            flatArmorDelta: 0,
+            flatResistDelta: 0,
+            flatDexterityDelta: 0
+          },
+          cue: {
+            id: "context-cue.test",
+            text: "<нічний> настрій монстра не лізе в HTML.",
+            tone: "behavior-shift"
+          }
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("🌗 <i>&lt;нічний&gt; настрій монстра не лізе в HTML.</i>");
+  });
+
   it("does not add new-fight hero guidance to terminal persistent results", () => {
     const text = presentPersistentFight({
       state: "persistent-terminal",
@@ -312,6 +369,37 @@ describe("fight presenter", () => {
     expect(text).not.toContain("критично:");
     expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
     expect(text).not.toContain("критично дала");
+  });
+
+  it("renders stored monster bark ids without rerolling copy", () => {
+    const text = presentPersistentFightTurn({
+      state: "updated",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 4,
+          monsterDamage: 1,
+          manaSpent: 0,
+          critical: false,
+          monsterBarkId: "bark.deadline-spider.early-turn"
+        }
+      }),
+      monster: {
+        id: "monster.deadline-spider",
+        name: "Павук дедлайнів",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["beast"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    });
+
+    expect(text).toContain("🗣️ «Ще один хід — і прострочення стане вашим титулом.»");
+    expect(text).toContain("Остання дія\nАтака влучає на 4 шкоди.");
   });
 
   it("points completed problem quest stages to Korchmar instead of auto-claiming", () => {

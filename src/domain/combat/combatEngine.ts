@@ -1,5 +1,6 @@
 import type { RandomSource } from "../../shared/random";
 import { BASIC_DEFEND_ABILITY_ID, getCombatSkillProfile } from "./combatActions";
+import { resolveMonsterBark } from "./combatBarks";
 import {
   rollBasicAttack,
   rollFleeSuccess,
@@ -326,6 +327,14 @@ function resolveHeroAttack(
   nextState.status = nextState.hero.hp <= 0 ? "lost" : nextState.monster.hp <= 0 ? "won" : "active";
   const monsterOutcome = monsterDamage > 0 ? "hit" : "miss";
   nextState.turn += 1;
+  const bark = resolveMonsterBark({
+    state: input.state,
+    monster: input.monster,
+    monsterCommittedAction: true,
+    monsterUsedAbility: Boolean(monsterSkill),
+    monsterHpAfterHeroAction: nextState.monster.hp
+  });
+  nextState.barks = bark.state;
 
   const debugTrace = buildTurnDebugTrace(input.monster, monsterSkill);
   const summary = buildSummary({
@@ -339,6 +348,7 @@ function resolveHeroAttack(
     critical: actorAction.summary.critical,
     ...(skill ? { skill } : {}),
     ...(monsterSkill ? { monsterSkill } : {}),
+    ...(bark.barkId ? { monsterBarkId: bark.barkId } : {}),
     ...(debugTrace ? { debugTrace } : {})
   });
   nextState.lastTurn = summary;
@@ -551,6 +561,7 @@ function buildSummary(input: {
   heroDamage: number;
   monsterDamage: number;
   heroCounterDamage?: number;
+  monsterBarkId?: string;
   manaSpent: number;
   critical: boolean;
   skill?: ReturnType<typeof getCombatSkillProfile>;
@@ -583,6 +594,7 @@ function buildSummary(input: {
         }
       : {}),
     ...(input.heroCounterDamage ? { heroCounterDamage: input.heroCounterDamage } : {}),
+    ...(input.monsterBarkId ? { monsterBarkId: input.monsterBarkId } : {}),
     ...(input.debugTrace ? { debugTrace: input.debugTrace } : {})
   };
 }

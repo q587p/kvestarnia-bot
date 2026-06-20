@@ -9,6 +9,8 @@ import {
 } from "../../src/bot/callbacks/onboardingCallbackData";
 import { activeRaces, classes, items, monsterFlavorLines, monsters, races } from "../../src/content";
 import { getComboTitle, pronounOptions } from "../../src/content/characterOptions";
+import { monsterBarks, monsterBarkTextByMonsterId } from "../../src/content/monsterBarks";
+import { monsterContextProfiles, monsterContextTraits } from "../../src/content/monsterContext";
 import { classSchema, itemSchema, monsterSchema, raceSchema } from "../../src/content/schema";
 
 const contentTables = [
@@ -42,6 +44,33 @@ describe("content tables", () => {
   it.each(contentTables)("keeps ids unique in $name", ({ rows }) => {
     const ids = rows.map((row) => row.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("covers the current monster roster with contextual profiles and five authored barks", () => {
+    const monsterIds = monsters.map((monster) => monster.id);
+    const traitIds = new Set(monsterContextTraits.map((trait) => trait.id));
+    const contextProfileIds = monsterContextProfiles.map((profile) => profile.monsterId);
+    const barkMonsterIds = Object.keys(monsterBarkTextByMonsterId);
+
+    expect(new Set(contextProfileIds).size).toBe(contextProfileIds.length);
+    expect(new Set(barkMonsterIds).size).toBe(barkMonsterIds.length);
+    expect(contextProfileIds.sort()).toEqual([...monsterIds].sort());
+    expect(barkMonsterIds.sort()).toEqual([...monsterIds].sort());
+
+    for (const profile of monsterContextProfiles) {
+      expect(profile.contextTraitIds.length).toBeGreaterThanOrEqual(1);
+      expect(profile.contextTraitIds.length).toBeLessThanOrEqual(2);
+      for (const traitId of profile.contextTraitIds) {
+        expect(traitIds.has(traitId), `${profile.monsterId} references ${traitId}`).toBe(true);
+      }
+    }
+
+    for (const [monsterId, barks] of Object.entries(monsterBarkTextByMonsterId)) {
+      expect(Object.values(barks), monsterId).toHaveLength(5);
+      expect(new Set(Object.values(barks)).size, monsterId).toBe(5);
+    }
+
+    expect(new Set(monsterBarks.map((bark) => bark.id)).size).toBe(monsterBarks.length);
   });
 
   it("includes first persistent loot item ids", () => {

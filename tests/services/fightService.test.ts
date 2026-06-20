@@ -687,6 +687,45 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
+  it("freezes monster context and bark state when a persistent fight starts", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    const stored = sessions.getById(started.session.id);
+
+    expect(stored?.state?.context).toMatchObject({
+      version: 1,
+      rulesVersion: "monster-context-v1",
+      monsterId: started.monster.id,
+      world: {
+        timezone: "Europe/Kyiv",
+        localDate: "2026-06-12",
+        partySizeBand: "solo"
+      }
+    });
+    expect(stored?.state?.barks).toMatchObject({
+      version: 1,
+      rulesVersion: "monster-barks-v1",
+      audience: "solo"
+    });
+    expect(stored?.state?.monster.contextModifiers).toEqual(stored?.state?.context?.effects);
+  });
+
   it("starts a targeted persistent fight at the highest suitable requested monster level", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { level: 4, xp: 45 });

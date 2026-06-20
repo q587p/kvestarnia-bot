@@ -55,6 +55,8 @@ Race/class/combo modifiers мають бути малими й симульов�
 
 Foundation cooldown rule in `0.1.21`: existing class skills use ability-keyed cooldowns and become available after one subsequent own committed action. This replaces the older hidden non-mana `3..5` turn roll for current class actions. Longer milestone abilities should be introduced explicitly by future content, not by restoring a hidden random cooldown.
 
+Monster context rule in `0.1.21`: persistent solo fights freeze a Kyiv-local context snapshot at combat start and may apply up to two small authored monster traits. The modifiers are capped texture for the fight itself; they must not alter XP, gold, loot, Yeger progress, encounter eligibility, authored monster level or replayed rewards. Starter encounters may use context as flavor-only by setting mechanical scale to zero.
+
 Equipment effects для атак мають заходити через один effective-stats/equipment helper:
 - weapon впливає на physical base або spell focus, якщо це явно магічна зброя;
 - armor впливає на виживання, але не має безкоштовно піднімати шкоду;

@@ -281,6 +281,18 @@ Personality archetypes:
 
 Monster actions мають бути простими, але не однаковими. Кожен ordinary monster у майбутньому combat-variety slice має отримати хоча б одну дію поза basic attack: guard, heavy wind-up, weak debuff, small self-shield, once-per-fight skill, surrender cue або backup call. Це має жити в content/domain data, не в presenter-і.
 
+### Context snapshots and barks
+
+`0.1.21` adds the first contextual texture layer for persistent monster fights without adding monster abilities yet:
+
+- combat start builds one `Europe/Kyiv` world snapshot from the service clock, location tags and party size;
+- the snapshot is stored in `CombatState.context` and must not be recomputed on resume, replay or when the real clock crosses a boundary mid-fight;
+- a monster can apply at most two authored `contextTraitIds`; effects are small, capped and restricted to combat stats such as damage multipliers, accuracy/evasion deltas and flat armor/resist/dexterity nudges;
+- context never changes encounter eligibility, Yeger matching/progress, XP, gold, loot, authored level or stored reward replay;
+- monster barks live in content/domain data, not presenter code; turn summaries store a `monsterBarkId`, and presenters resolve that stable id to Ukrainian copy.
+
+The current implementation adapts the package data to the existing monster roster. It does not import the future 93-monster roster expansion.
+
 ## Відмова, здача і backup
 
 ### Ворог відмовляється битися

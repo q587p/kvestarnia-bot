@@ -431,6 +431,7 @@ function parseCombatState(value: unknown): CombatState | null {
   const hero = parseResourceBlock(value.hero);
   const monster = parseMonsterBlock(value.monster);
   const completedAt = parseIsoDate(value.completedAt);
+  const turnExpiresAt = parseIsoDate(value.turnExpiresAt);
 
   if (turn === null || !status || !hero || !monster) {
     return null;
@@ -442,11 +443,14 @@ function parseCombatState(value: unknown): CombatState | null {
     ...(typeof value.id === "string" ? { id: value.id } : {}),
     ...(source ? { source } : {}),
     ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
+    ...(turnExpiresAt ? { turnExpiresAt: turnExpiresAt.toISOString() } : {}),
     turn,
     status,
     hero,
     monster,
     ...(cooldowns ? { cooldowns } : {}),
+    ...(parseMonsterContextSnapshot(value.context) ? { context: parseMonsterContextSnapshot(value.context)! } : {}),
+    ...(parseBarkState(value.barks) ? { barks: parseBarkState(value.barks)! } : {}),
     ...(isTurnSummary(value.lastTurn) ? { lastTurn: value.lastTurn } : {})
   };
 }
@@ -482,22 +486,49 @@ function parseCombatSource(value: unknown): CombatState["source"] | null {
 }
 
 function parseCooldowns(value: unknown): CombatState["cooldowns"] | null {
-  if (!isRecord(value) || !isRecord(value.skill)) {
+  if (!isRecord(value)) {
     return null;
   }
 
-  const remainingTurns = intOrNull(value.skill.remainingTurns);
+  const abilityEntries = isRecord(value.abilities)
+    ? Object.entries(value.abilities).flatMap(([abilityId, entry]) => {
+        if (!isRecord(entry) || typeof entry.id !== "string") {
+          return [];
+        }
 
-  if (typeof value.skill.id !== "string" || remainingTurns === null || remainingTurns <= 0) {
+        const remainingTurns = intOrNull(entry.remainingTurns);
+
+        return remainingTurns === null || remainingTurns <= 0
+          ? []
+          : [[abilityId, { id: entry.id, remainingTurns }] as const];
+      })
+    : [];
+  const skill = parseCooldown(value.skill);
+  const abilities = Object.fromEntries([
+    ...abilityEntries,
+    ...(skill ? [[skill.id, skill] as const] : [])
+  ]);
+
+  if (Object.keys(abilities).length === 0) {
     return null;
   }
 
   return {
-    skill: {
-      id: value.skill.id,
-      remainingTurns
-    }
+    abilities,
+    ...(skill ? { skill } : {})
   };
+}
+
+function parseCooldown(value: unknown): { id: string; remainingTurns: number } | null {
+  if (!isRecord(value) || typeof value.id !== "string") {
+    return null;
+  }
+
+  const remainingTurns = intOrNull(value.remainingTurns);
+
+  return remainingTurns === null || remainingTurns <= 0
+    ? null
+    : { id: value.id, remainingTurns };
 }
 
 function parseResourceBlock(value: unknown): CombatState["hero"] | null {
@@ -523,7 +554,28 @@ function parseMonsterBlock(value: unknown): CombatState["monster"] | null {
   const hp = intOrNull(value.hp);
   const hpMax = intOrNull(value.hpMax);
 
-  return hp === null || hpMax === null ? null : { id: value.id, hp, hpMax };
+  return hp === null || hpMax === null
+    ? null
+    : {
+        id: value.id,
+        ...(typeof value.name === "string" ? { name: value.name } : {}),
+        ...(intOrNull(value.level) !== null ? { level: intOrNull(value.level)! } : {}),
+        hp,
+        hpMax,
+        ...(intOrNull(value.attack) !== null ? { attack: intOrNull(value.attack)! } : {}),
+        ...(intOrNull(value.armor) !== null ? { armor: intOrNull(value.armor)! } : {}),
+        ...(intOrNull(value.resist) !== null ? { resist: intOrNull(value.resist)! } : {}),
+        ...(intOrNull(value.dexterity) !== null ? { dexterity: intOrNull(value.dexterity)! } : {}),
+        ...(typeof value.classId === "string" ? { classId: value.classId } : {}),
+        ...(typeof value.className === "string" ? { className: value.className } : {}),
+        ...(typeof value.raceId === "string" ? { raceId: value.raceId } : {}),
+        ...(typeof value.raceName === "string" ? { raceName: value.raceName } : {}),
+        ...(typeof value.title === "string" ? { title: value.title } : {}),
+        ...(intOrNull(value.spellPower) !== null ? { spellPower: intOrNull(value.spellPower)! } : {}),
+        ...(parseCombatContextModifiers(value.contextModifiers)
+          ? { contextModifiers: parseCombatContextModifiers(value.contextModifiers)! }
+          : {})
+      };
 }
 
 function parseStateStatus(value: unknown): CombatStatus | null {
@@ -535,13 +587,206 @@ function parseStateStatus(value: unknown): CombatStatus | null {
 function isTurnSummary(value: unknown): value is CombatTurnSummary {
   return (
     isRecord(value) &&
-    (value.action === "attack" || value.action === "skill" || value.action === "flee") &&
+    (value.action === "attack" || value.action === "defend" || value.action === "skill" || value.action === "flee") &&
     typeof value.heroOutcome === "string" &&
     typeof value.heroDamage === "number" &&
     typeof value.monsterDamage === "number" &&
     typeof value.manaSpent === "number" &&
     typeof value.critical === "boolean"
   );
+}
+
+function parseMonsterContextSnapshot(value: unknown): CombatState["context"] | null {
+  if (!isRecord(value) || value.version !== 1 || typeof value.rulesVersion !== "string") {
+    return null;
+  }
+
+  const world = parseCombatWorldContext(value.world);
+  const effects = parseCombatContextModifiers(value.effects);
+
+  if (typeof value.monsterId !== "string" || !world || !effects || !Array.isArray(value.traitIds)) {
+    return null;
+  }
+
+  return {
+    version: 1,
+    rulesVersion: "monster-context-v1",
+    monsterId: value.monsterId,
+    traitIds: value.traitIds.filter((entry): entry is string => typeof entry === "string"),
+    world,
+    matchedBranches: Array.isArray(value.matchedBranches)
+      ? value.matchedBranches.flatMap((entry) => {
+          if (
+            !isRecord(entry) ||
+            typeof entry.traitId !== "string" ||
+            typeof entry.branchId !== "string" ||
+            typeof entry.tone !== "string"
+          ) {
+            return [];
+          }
+
+          return [{
+            traitId: entry.traitId,
+            branchId: entry.branchId,
+            tone: entry.tone as NonNullable<CombatState["context"]>["matchedBranches"][number]["tone"]
+          }];
+        })
+      : [],
+    effects,
+    ...(isRecord(value.cue) && typeof value.cue.id === "string" && typeof value.cue.text === "string" && typeof value.cue.tone === "string"
+      ? {
+          cue: {
+            id: value.cue.id,
+            text: value.cue.text,
+            tone: value.cue.tone as NonNullable<NonNullable<CombatState["context"]>["cue"]>["tone"]
+          }
+        }
+      : {})
+  };
+}
+
+function parseCombatWorldContext(value: unknown): NonNullable<CombatState["context"]>["world"] | null {
+  if (!isRecord(value) || value.version !== 1 || value.timezone !== "Europe/Kyiv") {
+    return null;
+  }
+
+  if (
+    typeof value.localStartedAt !== "string" ||
+    typeof value.localDate !== "string" ||
+    !isDayPhase(value.dayPhase) ||
+    !isWeekKind(value.weekKind) ||
+    !isSeason(value.season) ||
+    !isMealWindow(value.mealWindow) ||
+    !isMonthEdge(value.monthEdge) ||
+    !isPartySizeBand(value.partySizeBand)
+  ) {
+    return null;
+  }
+
+  const calendarDay = intOrNull(value.calendarDay);
+
+  if (calendarDay === null) {
+    return null;
+  }
+
+  return {
+    version: 1,
+    timezone: "Europe/Kyiv",
+    localStartedAt: value.localStartedAt,
+    localDate: value.localDate,
+    dayPhase: value.dayPhase,
+    weekKind: value.weekKind,
+    season: value.season,
+    mealWindow: value.mealWindow,
+    monthEdge: value.monthEdge,
+    calendarDay,
+    partySizeBand: value.partySizeBand,
+    locationTags: Array.isArray(value.locationTags)
+      ? value.locationTags.filter((entry): entry is string => typeof entry === "string")
+      : []
+  };
+}
+
+function parseCombatContextModifiers(value: unknown): CombatState["monster"]["contextModifiers"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const entries = [
+    "outgoingDamageMultiplier",
+    "incomingDamageMultiplier",
+    "accuracyDeltaPp",
+    "evasionDeltaPp",
+    "abilityWeightDelta",
+    "signatureCooldownDelta",
+    "flatArmorDelta",
+    "flatResistDelta",
+    "flatDexterityDelta"
+  ] as const;
+  const parsed = Object.fromEntries(
+    entries.map((key) => [key, typeof value[key] === "number" ? value[key] : null])
+  ) as Record<(typeof entries)[number], number | null>;
+
+  return entries.some((key) => parsed[key] === null)
+    ? null
+    : {
+        outgoingDamageMultiplier: parsed.outgoingDamageMultiplier!,
+        incomingDamageMultiplier: parsed.incomingDamageMultiplier!,
+        accuracyDeltaPp: parsed.accuracyDeltaPp!,
+        evasionDeltaPp: parsed.evasionDeltaPp!,
+        abilityWeightDelta: parsed.abilityWeightDelta!,
+        signatureCooldownDelta: parsed.signatureCooldownDelta!,
+        flatArmorDelta: parsed.flatArmorDelta!,
+        flatResistDelta: parsed.flatResistDelta!,
+        flatDexterityDelta: parsed.flatDexterityDelta!
+      };
+}
+
+function parseBarkState(value: unknown): CombatState["barks"] | null {
+  if (!isRecord(value) || value.version !== 1) {
+    return null;
+  }
+
+  return {
+    version: 1,
+    rulesVersion: "monster-barks-v1",
+    audience: value.audience === "party" ? "party" : "solo",
+    selectedEarlyBarkByMonsterId: parseStringRecord(value.selectedEarlyBarkByMonsterId),
+    emittedBarkIds: Array.isArray(value.emittedBarkIds)
+      ? value.emittedBarkIds.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    lastBarkOwnActionByMonsterId: parseNumberRecord(value.lastBarkOwnActionByMonsterId),
+    encounterBarkCountByMonsterId: parseNumberRecord(value.encounterBarkCountByMonsterId),
+    ownActionCountByMonsterId: parseNumberRecord(value.ownActionCountByMonsterId)
+  };
+}
+
+function parseStringRecord(value: unknown): Record<string, string> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, entry]) =>
+      typeof entry === "string" ? [[key, entry]] : []
+    )
+  );
+}
+
+function parseNumberRecord(value: unknown): Record<string, number> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, entry]) =>
+      typeof entry === "number" && Number.isInteger(entry) ? [[key, entry]] : []
+    )
+  );
+}
+
+function isDayPhase(value: unknown): value is NonNullable<CombatState["context"]>["world"]["dayPhase"] {
+  return value === "morning" || value === "day" || value === "evening" || value === "night";
+}
+
+function isWeekKind(value: unknown): value is NonNullable<CombatState["context"]>["world"]["weekKind"] {
+  return value === "weekday" || value === "weekend";
+}
+
+function isSeason(value: unknown): value is NonNullable<CombatState["context"]>["world"]["season"] {
+  return value === "winter" || value === "spring" || value === "summer" || value === "autumn";
+}
+
+function isMealWindow(value: unknown): value is NonNullable<CombatState["context"]>["world"]["mealWindow"] {
+  return value === "lunch" || value === "dinner" || value === "none";
+}
+
+function isMonthEdge(value: unknown): value is NonNullable<CombatState["context"]>["world"]["monthEdge"] {
+  return value === "first-three-days" || value === "last-three-days" || value === "middle";
+}
+
+function isPartySizeBand(value: unknown): value is NonNullable<CombatState["context"]>["world"]["partySizeBand"] {
+  return value === "solo" || value === "duo" || value === "group";
 }
 
 function intOrNull(value: unknown): number | null {

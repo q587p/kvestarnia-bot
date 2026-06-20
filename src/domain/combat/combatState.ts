@@ -1,4 +1,6 @@
 import type { CharacterStats } from "../characters/starterStats";
+import type { CombatBarkStateV1 } from "./combatBarks";
+import type { MonsterContextSnapshotV1 } from "./monsterContext";
 
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
 export type CombatActionType = "attack" | "defend" | "skill" | "flee";
@@ -44,6 +46,7 @@ export interface MonsterCombatStats {
   spellPower?: number;
   copiedEquipment?: CombatCopiedEquipment[];
   debugTrace?: CombatDebugTrace;
+  contextModifiers?: CombatContextModifiers;
   tags: string[];
 }
 
@@ -69,6 +72,22 @@ export interface CombatDebugTrace {
   interventionSourceKey?: string;
   baseMonsterLevel?: number;
   effectiveMonsterLevel?: number;
+  contextRulesVersion?: string;
+  contextTraitIds?: string[];
+  contextBranchIds?: string[];
+  contextCueId?: string;
+}
+
+export interface CombatContextModifiers {
+  outgoingDamageMultiplier: number;
+  incomingDamageMultiplier: number;
+  accuracyDeltaPp: number;
+  evasionDeltaPp: number;
+  abilityWeightDelta: number;
+  signatureCooldownDelta: number;
+  flatArmorDelta: number;
+  flatResistDelta: number;
+  flatDexterityDelta: number;
 }
 
 export interface CombatState {
@@ -102,6 +121,7 @@ export interface CombatState {
     spellPower?: number;
     copiedEquipment?: CombatCopiedEquipment[];
     debugTrace?: CombatDebugTrace;
+    contextModifiers?: CombatContextModifiers;
   };
   cooldowns?: {
     abilities?: Record<string, {
@@ -118,6 +138,8 @@ export interface CombatState {
     };
   };
   guard?: CombatGuardState;
+  context?: MonsterContextSnapshotV1;
+  barks?: CombatBarkStateV1;
   lastTurn?: CombatTurnSummary;
 }
 
@@ -135,6 +157,7 @@ export interface CombatTurnSummary {
   monsterSkillId?: string;
   monsterDamageKind?: CombatDamageKind;
   heroCounterDamage?: number;
+  monsterBarkId?: string;
   debugTrace?: CombatDebugTrace;
 }
 
@@ -183,7 +206,10 @@ export function startCombat(input: StartCombatInput): CombatState {
       ...(input.monster.title ? { title: input.monster.title } : {}),
       ...(input.monster.spellPower ? { spellPower: input.monster.spellPower } : {}),
       ...(input.monster.copiedEquipment ? { copiedEquipment: input.monster.copiedEquipment } : {}),
-      ...(input.monster.debugTrace ? { debugTrace: { ...input.monster.debugTrace } } : {})
+      ...(input.monster.debugTrace ? { debugTrace: { ...input.monster.debugTrace } } : {}),
+      ...(input.monster.contextModifiers
+        ? { contextModifiers: { ...input.monster.contextModifiers } }
+        : {})
     }
   };
 }
@@ -202,7 +228,10 @@ export function cloneCombatState(state: CombatState): CombatState {
       ...(state.monster.copiedEquipment
         ? { copiedEquipment: state.monster.copiedEquipment.map((item) => ({ ...item })) }
         : {}),
-      ...(state.monster.debugTrace ? { debugTrace: { ...state.monster.debugTrace } } : {})
+      ...(state.monster.debugTrace ? { debugTrace: { ...state.monster.debugTrace } } : {}),
+      ...(state.monster.contextModifiers
+        ? { contextModifiers: { ...state.monster.contextModifiers } }
+        : {})
     },
     ...(state.cooldowns
       ? {
@@ -210,6 +239,8 @@ export function cloneCombatState(state: CombatState): CombatState {
         }
       : {}),
     ...(state.guard ? { guard: { ...state.guard } } : {}),
+    ...(state.context ? { context: cloneMonsterContextSnapshot(state.context) } : {}),
+    ...(state.barks ? { barks: cloneCombatBarkState(state.barks) } : {}),
     ...(state.lastTurn
       ? {
           lastTurn: {
@@ -255,6 +286,31 @@ export function cloneCombatCooldowns(
         }
       : {}),
     ...(cooldowns.skill ? { skill: { ...cooldowns.skill } } : {})
+  };
+}
+
+function cloneMonsterContextSnapshot(snapshot: MonsterContextSnapshotV1): MonsterContextSnapshotV1 {
+  return {
+    ...snapshot,
+    traitIds: [...snapshot.traitIds],
+    world: {
+      ...snapshot.world,
+      locationTags: [...snapshot.world.locationTags]
+    },
+    matchedBranches: snapshot.matchedBranches.map((branch) => ({ ...branch })),
+    effects: { ...snapshot.effects },
+    ...(snapshot.cue ? { cue: { ...snapshot.cue } } : {})
+  };
+}
+
+function cloneCombatBarkState(state: CombatBarkStateV1): CombatBarkStateV1 {
+  return {
+    ...state,
+    selectedEarlyBarkByMonsterId: { ...state.selectedEarlyBarkByMonsterId },
+    emittedBarkIds: [...state.emittedBarkIds],
+    lastBarkOwnActionByMonsterId: { ...state.lastBarkOwnActionByMonsterId },
+    encounterBarkCountByMonsterId: { ...state.encounterBarkCountByMonsterId },
+    ownActionCountByMonsterId: { ...state.ownActionCountByMonsterId }
   };
 }
 

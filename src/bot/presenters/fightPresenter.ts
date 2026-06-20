@@ -11,6 +11,7 @@ import type {
 } from "../../services/fightService";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
+import { findMonsterBark } from "../../content/monsterBarks";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
@@ -366,6 +367,10 @@ function presentPersistentFightState(input: {
     lines.push(`🫁 Вміння відсапується: ще ${formatTurns(state.cooldowns.skill.remainingTurns)}.`);
   }
 
+  if (state?.status === "active" && state.turn === 1 && !state.lastTurn && state.context?.cue) {
+    lines.push("", `🌗 <i>${escapeHtml(state.context.cue.text)}</i>`);
+  }
+
   if (state?.lastTurn) {
     lines.push("", presentTurnSummary(state.lastTurn));
   }
@@ -578,27 +583,27 @@ function presentProblemQuestIssueLine(
 
 function presentTurnSummary(summary: CombatTurnSummary): string {
   if (summary.heroOutcome === "not-enough-mana") {
-    return [
+    return withMonsterBark(summary, [
       "Остання дія",
       "Мани не стало навіть на драматичний жест.",
       summary.monsterDamage > 0
         ? `Монстр скористався паузою на ${summary.monsterDamage} шкоди.`
         : "Монстр скористався паузою, але перечепився об власну впевненість."
-    ].join("\n");
+    ]);
   }
 
   if (summary.heroOutcome === "skill-on-cooldown") {
-    return [
+    return withMonsterBark(summary, [
       "Остання дія",
       "Навичка ще відсапується. Пригодник зробив вигляд, що так і планував.",
       summary.monsterDamage > 0
         ? `Монстр відповів на ${summary.monsterDamage} шкоди.`
         : "Монстр промахнувся й теж назвав це планом."
-    ].join("\n");
+    ]);
   }
 
   if (summary.heroOutcome === "defended") {
-    return [
+    return withMonsterBark(summary, [
       "Остання дія",
       "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.",
       summary.monsterDamage > 0
@@ -607,23 +612,23 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
       summary.heroCounterDamage
         ? `Контрудар зачепив монстра на ${summary.heroCounterDamage} шкоди.`
         : ""
-    ].filter(Boolean).join("\n");
+    ].filter(Boolean));
   }
 
   if (summary.heroOutcome === "fled") {
-    return ["Останній хід", "Ви вийшли з бою без переможного фанфарства."].join("\n");
+    return withMonsterBark(summary, ["Останній хід", "Ви вийшли з бою без переможного фанфарства."]);
   }
 
   if (summary.heroOutcome === "flee-failed") {
-    return [
+    return withMonsterBark(summary, [
       "Останній хід",
       "Втеча не вдалася.",
       `Монстр відповів на ${summary.monsterDamage} шкоди.`
-    ].join("\n");
+    ]);
   }
 
   if (summary.heroOutcome === "inactive") {
-    return ["Останній хід", "Бій прострочився без героїчного підпису."].join("\n");
+    return withMonsterBark(summary, ["Останній хід", "Бій прострочився без героїчного підпису."]);
   }
 
   const action =
@@ -643,7 +648,16 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
         ? "Монстр промахнувся й зробив вигляд, що так і планував."
         : "";
 
-  return ["Остання дія", hit, response].filter(Boolean).join("\n");
+  return withMonsterBark(summary, ["Остання дія", hit, response].filter(Boolean));
+}
+
+function withMonsterBark(summary: CombatTurnSummary, lines: string[]): string {
+  const bark = summary.monsterBarkId ? findMonsterBark(summary.monsterBarkId) : null;
+
+  return [
+    ...(bark ? [`🗣️ ${escapeHtml(bark.text)}`, ""] : []),
+    ...lines
+  ].join("\n");
 }
 
 function presentSkillAction(skillId: string | undefined): string {

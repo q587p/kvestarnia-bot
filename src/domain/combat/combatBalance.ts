@@ -13,16 +13,16 @@ export function rollBasicAttack(
   monster: MonsterCombatStats,
   rng: RandomSource
 ): HeroAttackRoll {
-  return rollHeroDamage({
+  return applyMonsterIncomingModifier(rollHeroDamage({
     baseDamage: 2 + (hero.weaponDamage ?? 0),
     statValue: hero.strength,
     level: hero.level,
     armorOrResist: monster.armor,
-    accuracy: buildHitChance(hero.dexterity, monster.dexterity),
+    accuracy: buildHitChance(hero.dexterity, monster.dexterity) - getMonsterEvasionDelta(monster),
     critChance: buildCritChance(hero.dexterity, hero.luck),
     multiplier: 1,
     rng
-  });
+  }), monster);
 }
 
 export function rollSkillAttack(
@@ -34,16 +34,16 @@ export function rollSkillAttack(
   const targetDefense = skill.damageKind === "spell" ? monster.resist : monster.armor;
   const powerBonus = skill.damageKind === "spell" ? hero.spellPower ?? 0 : hero.weaponDamage ?? 0;
 
-  return rollHeroDamage({
+  return applyMonsterIncomingModifier(rollHeroDamage({
     baseDamage: skill.baseDamage + powerBonus,
     statValue: hero[skill.stat],
     level: hero.level,
     armorOrResist: targetDefense,
-    accuracy: buildHitChance(hero.dexterity, monster.dexterity) + skill.accuracyBonus,
+    accuracy: buildHitChance(hero.dexterity, monster.dexterity) + skill.accuracyBonus - getMonsterEvasionDelta(monster),
     critChance: buildCritChance(hero.dexterity, hero.luck) + skill.critBonus,
     multiplier: skill.multiplier,
     rng
-  });
+  }), monster);
 }
 
 export function rollMonsterDamage(
@@ -52,7 +52,11 @@ export function rollMonsterDamage(
   rng: RandomSource,
   damageReduction = 0
 ): number {
-  const hitChance = clamp(0.82 + (monster.dexterity - hero.dexterity) * 0.01, 0.65, 0.95);
+  const hitChance = clamp(
+    0.82 + (monster.dexterity - hero.dexterity) * 0.01 + getMonsterAccuracyDelta(monster),
+    0.65,
+    0.95
+  );
 
   if (rng.nextFloat() >= hitChance) {
     return 0;
@@ -61,7 +65,7 @@ export function rollMonsterDamage(
   const variance = rng.nextInt(0, 2);
   const rawDamage = monster.attack + variance - Math.floor((hero.armor ?? 0) * 0.8) - damageReduction;
 
-  return Math.max(1, rawDamage);
+  return applyMonsterOutgoingModifier(Math.max(1, rawDamage), monster);
 }
 
 export function rollMonsterSkillDamage(
@@ -72,7 +76,11 @@ export function rollMonsterSkillDamage(
   damageReduction = 0
 ): number {
   const targetDefense = skill.damageKind === "spell" ? hero.resist ?? 0 : hero.armor ?? 0;
-  const hitChance = clamp(0.8 + skill.accuracyBonus + (monster.dexterity - hero.dexterity) * 0.01, 0.65, 0.97);
+  const hitChance = clamp(
+    0.8 + skill.accuracyBonus + (monster.dexterity - hero.dexterity) * 0.01 + getMonsterAccuracyDelta(monster),
+    0.65,
+    0.97
+  );
 
   if (rng.nextFloat() >= hitChance) {
     return 0;
@@ -88,7 +96,7 @@ export function rollMonsterSkillDamage(
     Math.floor(targetDefense * 0.8) -
     damageReduction;
 
-  return Math.max(1, rawDamage);
+  return applyMonsterOutgoingModifier(Math.max(1, rawDamage), monster);
 }
 
 export function rollFleeSuccess(
@@ -141,6 +149,29 @@ function buildHitChance(heroDexterity: number, monsterDexterity: number): number
 
 function buildCritChance(heroDexterity: number, heroLuck: number): number {
   return clamp(0.05 + heroDexterity * 0.004 + heroLuck * 0.003, 0.05, 0.25);
+}
+
+function applyMonsterIncomingModifier(roll: HeroAttackRoll, monster: MonsterCombatStats): HeroAttackRoll {
+  if (!roll.hit || roll.damage <= 0) {
+    return roll;
+  }
+
+  return {
+    ...roll,
+    damage: Math.max(1, Math.floor(roll.damage * (monster.contextModifiers?.incomingDamageMultiplier ?? 1)))
+  };
+}
+
+function applyMonsterOutgoingModifier(damage: number, monster: MonsterCombatStats): number {
+  return Math.max(1, Math.floor(damage * (monster.contextModifiers?.outgoingDamageMultiplier ?? 1)));
+}
+
+function getMonsterAccuracyDelta(monster: MonsterCombatStats): number {
+  return (monster.contextModifiers?.accuracyDeltaPp ?? 0) / 100;
+}
+
+function getMonsterEvasionDelta(monster: MonsterCombatStats): number {
+  return (monster.contextModifiers?.evasionDeltaPp ?? 0) / 100;
 }
 
 function clamp(value: number, min: number, max: number): number {

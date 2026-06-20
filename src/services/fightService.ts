@@ -22,12 +22,17 @@ import {
 import {
   deriveMonsterCombatStats,
   expireCombat,
+  applyMonsterContextToStats,
+  buildCombatWorldContext,
+  createCombatBarkState,
   getCombatSkillProfile,
   resolveCombatTurn,
+  resolveMonsterContext,
   startCombat,
   type CombatActionType,
   type CombatActorStats,
-  type CombatState
+  type CombatState,
+  type MonsterCombatStats
 } from "../domain/combat";
 import { getItemDropChance, rollMonsterLoot } from "../domain/loot";
 import {
@@ -455,7 +460,7 @@ export class FightService {
       state: session.state,
       action: "attack",
       hero: buildHeroCombatStats(character),
-      monster: deriveMonsterCombatStats(monster),
+      monster: buildPersistentMonsterCombatStats(monster, session.state),
       rng: this.rng
     });
 
@@ -864,23 +869,37 @@ export class FightService {
       : selectSoloFightMonster(characterSummary, this.rng, difficulty);
     const monster = applyPersistentFightDifficulty(baseMonster, characterSummary, difficulty);
     const sessionId = randomUUID();
+    const now = this.clock();
+    const worldContext = buildCombatWorldContext({
+      now,
+      partySize: 1,
+      locationTags: buildPersistentFightLocationTags(options.source ?? "normal")
+    });
+    const monsterContext = resolveMonsterContext({ monster, world: worldContext });
+    const monsterStats = applyMonsterContextToStats(
+      deriveMonsterCombatStats(monster),
+      monsterContext
+    );
     const state = startCombat({
       id: sessionId,
       hero: buildHeroCombatStats(characterSummary),
-      monster: deriveMonsterCombatStats(monster)
+      monster: monsterStats
     });
-    state.turnExpiresAt = getTurnExpiry(this.clock()).toISOString();
+    state.turnExpiresAt = getTurnExpiry(now).toISOString();
     state.source = options.source ?? "normal";
-    state.monster.debugTrace = buildPersistentFightInterventionTrace(
-      baseMonster,
-      monster,
-      difficulty
-    );
+    if (monsterContext) {
+      state.context = monsterContext;
+    }
+    state.barks = createCombatBarkState({ monsterId: monster.id, seed: sessionId, audience: "solo" });
+    state.monster.debugTrace = {
+      ...state.monster.debugTrace,
+      ...buildPersistentFightInterventionTrace(baseMonster, monster, difficulty)
+    };
     const session = await this.combatSessions.createForTelegramUser(telegramUserId, {
       id: sessionId,
       monsterId: monster.id,
       state,
-      expiresAt: getSessionExpiry(this.clock())
+      expiresAt: getSessionExpiry(now)
     });
 
     if (!session) {
@@ -1230,7 +1249,7 @@ export class FightService {
       state: currentSession.state,
       action: input.action,
       hero: buildHeroCombatStats(characterSummary),
-      monster: deriveMonsterCombatStats(monster),
+      monster: buildPersistentMonsterCombatStats(monster, currentSession.state),
       rng: this.rng
     });
 
@@ -2231,6 +2250,43 @@ function buildPersistentFightInterventionTrace(
     interventionSourceKey: "prypichnyk",
     baseMonsterLevel: baseMonster.level,
     effectiveMonsterLevel: monster.level
+  };
+}
+
+function buildPersistentFightLocationTags(source: NonNullable<PersistentFightStartOptions["source"]>): string[] {
+  if (source === "yeger") {
+    return ["hunt", "outside"];
+  }
+
+  if (source === "adventure") {
+    return ["korchma", "adventure"];
+  }
+
+  return ["korchma", "nyz", "underground", "cellar"];
+}
+
+function buildPersistentMonsterCombatStats(
+  monster: MonsterContent,
+  state?: CombatState | null
+): MonsterCombatStats {
+  const derived = deriveMonsterCombatStats(monster);
+  const stored = state?.monster;
+
+  if (!stored) {
+    return derived;
+  }
+
+  return {
+    ...derived,
+    level: stored.level ?? derived.level,
+    hpMax: stored.hpMax,
+    attack: stored.attack ?? derived.attack,
+    armor: stored.armor ?? derived.armor,
+    resist: stored.resist ?? derived.resist,
+    dexterity: stored.dexterity ?? derived.dexterity,
+    ...(stored.spellPower !== undefined ? { spellPower: stored.spellPower } : {}),
+    ...(stored.contextModifiers ? { contextModifiers: { ...stored.contextModifiers } } : {}),
+    ...(stored.debugTrace ? { debugTrace: { ...stored.debugTrace } } : {})
   };
 }
 
