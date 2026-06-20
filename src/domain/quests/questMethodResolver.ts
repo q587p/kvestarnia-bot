@@ -3,23 +3,28 @@ import type { QuestMethodDefinition, QuestResolutionScene } from "../../content/
 
 export function resolveQuestMethodsForCharacter(
   scene: QuestResolutionScene,
-  _character: CharacterSummary,
-  options: { maxMethods?: number; minMethods?: number } = {}
+  character: CharacterSummary,
+  options: { maxMethods?: number; minMethods?: number; sceneSlotKey?: string } = {}
 ): QuestMethodDefinition[] {
-  const maxMethods = options.maxMethods ?? 4;
-  const minMethods = options.minMethods ?? Math.min(3, maxMethods);
+  const maxMethods = options.maxMethods ?? 7;
+  const minMethods = options.minMethods ?? Math.min(5, maxMethods);
   const priority: QuestMethodDefinition["source"][] = ["scene", "race", "class", "signature"];
   const selected: QuestMethodDefinition[] = [];
 
   for (const source of priority) {
-    const candidate = scene.methods.find((method) => method.source === source);
+    const candidates = orderCandidates(
+      scene.methods.filter((method) => method.source === source),
+      `${scene.sceneId}:${source}:${character.raceId}:${character.classId}:${character.title}:${options.sceneSlotKey ?? ""}`
+    );
 
-    if (candidate) {
-      pushIfDistinct(selected, candidate, source === "class" || source === "signature");
+    for (const candidate of candidates) {
+      if (pushIfDistinct(selected, candidate)) {
+        break;
+      }
     }
   }
 
-  for (const candidate of scene.methods) {
+  for (const candidate of orderCandidates(scene.methods, `${scene.sceneId}:fill:${character.raceId}:${character.classId}`)) {
     if (selected.length >= maxMethods) {
       break;
     }
@@ -37,19 +42,33 @@ export function resolveQuestMethodsForCharacter(
     }
   }
 
-  if (selected.length < minMethods) {
-    for (const candidate of scene.methods) {
-      if (selected.length >= minMethods) {
-        break;
-      }
-
-      if (!selected.includes(candidate)) {
-        selected.push(candidate);
-      }
-    }
-  }
-
   return selected.slice(0, maxMethods);
+}
+
+export function findVisibleQuestMethod(
+  scene: QuestResolutionScene,
+  character: CharacterSummary,
+  methodId: string,
+  options: { maxMethods?: number; minMethods?: number; sceneSlotKey?: string } = {}
+): QuestMethodDefinition | null {
+  return (
+    resolveQuestMethodsForCharacter(scene, character, options).find(
+      (method) => method.id === methodId || method.callbackKey === methodId
+    ) ?? null
+  );
+}
+
+export function findVisibleQuestMethodByCallbackKey(
+  scene: QuestResolutionScene,
+  character: CharacterSummary,
+  callbackKey: string,
+  options: { maxMethods?: number; minMethods?: number; sceneSlotKey?: string } = {}
+): QuestMethodDefinition | null {
+  return (
+    resolveQuestMethodsForCharacter(scene, character, options).find(
+      (method) => method.callbackKey === callbackKey
+    ) ?? null
+  );
 }
 
 export function findQuestMethod(
@@ -66,44 +85,38 @@ export function findQuestMethodByLegacyAction(
   return scene.methods.find((method) => method.legacyAction === legacyAction) ?? null;
 }
 
+export function getQuestMethodTacticKey(method: QuestMethodDefinition): string {
+  return `${method.intent}:${method.primaryStat}:${method.affordanceId}:${[...method.techniques].sort().join("+")}`;
+}
+
+export function getQuestMethodAffordanceKey(method: QuestMethodDefinition): string {
+  return method.affordanceId;
+}
+
 function pushIfDistinct(
   selected: QuestMethodDefinition[],
-  candidate: QuestMethodDefinition,
-  preferCandidate = false
-): void {
+  candidate: QuestMethodDefinition
+): boolean {
   const normalizedLabel = normalizeLabel(candidate.label);
   const duplicate = selected.some(
     (method) =>
+      method.id === candidate.id ||
+      method.affordanceId === candidate.affordanceId ||
       normalizeLabel(method.label) === normalizedLabel ||
-      (method.source === candidate.source &&
-        method.intent === candidate.intent &&
-        method.primaryStat === candidate.primaryStat)
+      getQuestMethodTacticKey(method) === getQuestMethodTacticKey(candidate)
   );
   const samePrimaryCount = selected.filter((method) => method.primaryStat === candidate.primaryStat).length;
 
   if (duplicate) {
-    return;
+    return false;
   }
 
-  if (samePrimaryCount >= 2 && preferCandidate) {
-    const replaceIndex = selected.findIndex(
-      (method) =>
-        method.primaryStat === candidate.primaryStat &&
-        method.source !== "scene" &&
-        method.source !== "class" &&
-        method.source !== "signature"
-    );
-
-    if (replaceIndex >= 0) {
-      selected.splice(replaceIndex, 1);
-    }
+  if (samePrimaryCount >= 2) {
+    return false;
   }
 
-  const updatedSamePrimaryCount = selected.filter((method) => method.primaryStat === candidate.primaryStat).length;
-
-  if (updatedSamePrimaryCount < 2) {
-    selected.push(candidate);
-  }
+  selected.push(candidate);
+  return true;
 }
 
 function normalizeLabel(label: string): string {
@@ -112,4 +125,40 @@ function normalizeLabel(label: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .toLocaleLowerCase("uk-UA");
+}
+
+function orderCandidates<T>(candidates: readonly T[], seed: string): T[] {
+  if (candidates.length <= 1) {
+    return [...candidates];
+  }
+
+  const preferred = candidates.findIndex(
+    (candidate) =>
+      typeof candidate === "object" &&
+      candidate !== null &&
+      "id" in candidate &&
+      typeof (candidate as { id?: unknown }).id === "string" &&
+      (seed === (candidate as { id: string }).id ||
+        seed.includes(`:${(candidate as { id: string }).id}:`) ||
+        seed.endsWith(`:${(candidate as { id: string }).id}`))
+  );
+
+  if (preferred >= 0) {
+    return [...candidates.slice(preferred), ...candidates.slice(0, preferred)];
+  }
+
+  const start = stableIndex(seed, candidates.length);
+
+  return [...candidates.slice(start), ...candidates.slice(0, start)];
+}
+
+function stableIndex(seed: string, modulo: number): number {
+  let hash = 0x811c9dc5;
+
+  for (const char of seed) {
+    hash ^= char.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+
+  return hash % modulo;
 }

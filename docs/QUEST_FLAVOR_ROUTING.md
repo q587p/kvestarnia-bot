@@ -66,7 +66,7 @@ export interface QuestFlavorHook {
 
 For MVP, action labels can be text-only aliases over existing action ids. Do not create new reward keys for every class variant.
 
-For authored methods shipped in `0.1.20`, the same idea is stricter: the player may see a scene-shaped, race-shaped, class-shaped or signature-shaped button, but the result card must not print the internal source label. Avoid player-facing lines like `Расовий спосіб`, `Класова техніка`, `Точна race+class signature`, `Підпис методу` or raw signature formulas. If a method needs a title/name flourish, make it part of the sentence and keep grammar neutral.
+For authored methods shipped in `0.1.20`, the same idea is stricter: the player-facing button names the scene action even when race, class or signature influence selected the affordance/check/outcome. Avoid player-facing lines like `Расовий спосіб`, `Класова техніка`, `Точна race+class signature`, `Підпис методу` or raw signature formulas. If a result needs a title/name flourish, make it part of the sentence and keep grammar neutral.
 
 Example:
 

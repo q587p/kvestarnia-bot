@@ -1,9 +1,14 @@
 import { err, ok, type Result } from "../../shared/result";
 import type { CellarErrandAction } from "../../services/cellarErrandService";
+import type { CellarGrownupQuestAction } from "../../services/cellarGrownupQuestService";
 import { isKnownQuestMethodId } from "../../content/questResolution";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
-export type CellarCallback = string;
+export type CellarCallback =
+  | { type: "legacy-action"; action: CellarErrandAction }
+  | { type: "method"; methodId: string }
+  | { type: "grownup"; action: CellarGrownupQuestAction }
+  | { type: "participants" };
 export type CellarCallbackError =
   | "invalid-version"
   | "invalid-prefix"
@@ -24,7 +29,7 @@ const cellarCallbacks = new Set<string>([
   "participants"
 ]);
 
-export function makeCellarCallbackData(action: CellarCallback): string {
+export function makeCellarCallbackData(action: string): string {
   return `${PREFIX}:${action}`;
 }
 
@@ -46,7 +51,7 @@ export function parseCellarCallbackData(
       return err("invalid-prefix");
     }
 
-    return isKnownQuestMethodId(action) ? ok(action) : err("invalid-action");
+    return isKnownQuestMethodId(action) ? ok({ type: "method", methodId: action }) : err("invalid-action");
   }
 
   if (!data?.startsWith("v1:")) {
@@ -67,9 +72,17 @@ export function parseCellarCallbackData(
     return err("invalid-prefix");
   }
 
-  if (!cellarCallbacks.has(action as CellarCallback)) {
+  if (!action || !cellarCallbacks.has(action)) {
     return err("invalid-action");
   }
 
-  return ok(action as CellarCallback);
+  if (action === "participants") {
+    return ok({ type: "participants" });
+  }
+
+  if (action.startsWith("grownup-")) {
+    return ok({ type: "grownup", action: action as CellarGrownupQuestAction });
+  }
+
+  return ok({ type: "legacy-action", action });
 }

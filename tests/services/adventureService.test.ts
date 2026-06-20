@@ -32,10 +32,13 @@ import {
   buildAdventureOffer,
   buildAdventureMethodOptions,
   buildAdventurePeriod,
+  buildStarterMethodOptions,
   getAdventureProblemPoolForProfile,
   getAdventureProblemIcon,
   type AdventureResult
 } from "../../src/services/adventureService";
+import { buildAdventureResolutionScene } from "../../src/content/adventureResolutionContent";
+import { buildStarterQuestResolutionScene } from "../../src/content/starterQuestResolutionContent";
 
 const telegramUserId = 42n;
 
@@ -188,7 +191,7 @@ describe("AdventureService", () => {
     expect(found.dailyActions.records[0]?.resultJson).toMatchObject({
       version: 1,
       sceneId: found.input.problemId,
-      methodId: found.input.methodId
+      methodId: found.result.state === "completed" ? found.result.approach.id : ""
     });
   });
 
@@ -207,6 +210,23 @@ describe("AdventureService", () => {
     expect(repeated.state).toBe("completed");
     if (repeated.state === "completed" && found.result.state === "completed") {
       expect(repeated.reward).toEqual(found.result.reward);
+    }
+  });
+
+  it("does not return gold from paid authored methods", async () => {
+    const found = await findResolvedAdventure(
+      (result) => !result.fightHandoff && result.spentGold > 0 && result.reward.xp > 0
+    );
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state === "completed") {
+      expect(found.result.spentGold).toBeGreaterThan(0);
+      expect(found.result.approach.reward.gold).toBe(0);
+      expect(found.result.reward.gold).toBe(0);
+      expect(found.dailyActions.records[0]).toMatchObject({
+        spentGold: found.result.spentGold,
+        rewardGold: 0
+      });
     }
   });
 
@@ -232,6 +252,25 @@ describe("AdventureService", () => {
     }
   });
 
+  it("can grant a mantok from a paid authored quest without adding gold reward", async () => {
+    const found = await findResolvedAdventure(
+      (result) =>
+        !result.fightHandoff &&
+        result.spentGold > 0 &&
+        result.reward.gold === 0 &&
+        result.reward.itemGrants.length > 0
+    );
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state === "completed") {
+      expect(found.result.reward.itemGrants).toHaveLength(1);
+      expect(found.result.reward.gold).toBe(0);
+      expect(found.dailyActions.records[0]).toMatchObject({
+        rewardGold: 0
+      });
+    }
+  });
+
   it("uses equipped item effects in the actual quest check snapshot", async () => {
     const equipment = new FakeEquipmentRepository({
       characterId: `character-${telegramUserId.toString()}`,
@@ -253,7 +292,7 @@ describe("AdventureService", () => {
     const result = await service.completeAdventureApproach(telegramUserId, {
       periodToken: offer.periodToken,
       problemId: selected.choice.id,
-      methodId: selected.approaches[0]?.id ?? ""
+      methodId: selected.approaches[0]?.callbackKey ?? selected.approaches[0]?.id ?? ""
     });
 
     expect(result.state).toBe("completed");
@@ -322,7 +361,7 @@ describe("AdventureService", () => {
     const completed = await found.service.completeAdventureApproach(found.userId, {
       periodToken: nextOffer.periodToken,
       problemId: nextOffer.choices[0].id,
-      methodId: nextSelected.approaches[0].id
+      methodId: nextSelected.approaches[0].callbackKey ?? nextSelected.approaches[0].id
     });
 
     expect(completed.state).toBe("completed");
@@ -348,6 +387,40 @@ describe("AdventureService", () => {
         periodToken: offer.periodToken,
         problemId: staleProblem ?? "spoon",
         methodId: "lower-fire"
+      })
+    ).resolves.toMatchObject({ state: "stale" });
+    expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("rejects authored methods that exist in content but were not rendered visible", async () => {
+    const { service, characters, dailyActions } = setup();
+    characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const offer = await readyOffer(service);
+    const choice = offer.choices[0];
+    const selected = await service.selectAdventureProblem(telegramUserId, {
+      periodToken: offer.periodToken,
+      problemId: choice.id
+    });
+
+    expect(selected.state).toBe("selected");
+    if (selected.state !== "selected") {
+      return;
+    }
+
+    const visible = selected.approaches.map((method) => method.id);
+    const scene = buildAdventureResolutionScene({
+      problemId: choice.id,
+      title: choice.title,
+      character: selected.character
+    });
+    const hidden = scene.methods.find((method) => !visible.includes(method.id));
+
+    expect(hidden).toBeDefined();
+    await expect(
+      service.completeAdventureApproach(telegramUserId, {
+        periodToken: offer.periodToken,
+        problemId: choice.id,
+        methodId: hidden?.id ?? "missing"
       })
     ).resolves.toMatchObject({ state: "stale" });
     expect(dailyActions.createCount).toBe(0);
@@ -433,6 +506,44 @@ describe("AdventureService", () => {
     expect(dailyActions.createCount).toBe(1);
   });
 
+  it("rejects hidden starter shawarma method ids without claiming", async () => {
+    const { service, characters, dailyActions } = setup();
+    characters.add(telegramUserId, { xp: 0 });
+    const summary = {
+      ...characterSummary(),
+      level: 1,
+      xp: 0,
+      classId: "class.bard",
+      className: "Бард"
+    };
+    const visible = buildStarterMethodOptions("shawarma", summary).map((method) => method.id);
+    const scene = buildStarterQuestResolutionScene("shawarma", summary);
+    const hidden = scene.methods.find((method) => !visible.includes(method.id));
+
+    expect(hidden).toBeDefined();
+    await expect(service.completeMimicShawarma(telegramUserId, {
+      type: "method",
+      methodId: hidden?.id ?? "missing"
+    })).resolves.toMatchObject({
+      state: "stale"
+    });
+    expect(dailyActions.createCount).toBe(0);
+  });
+
+  it.each(["receipt", "poke", "flee"] as const)(
+    "does not let v2 starter method %s fall through to legacy actions",
+    async (methodId) => {
+      const { service, characters, dailyActions } = setup();
+      characters.add(telegramUserId, { xp: 0 });
+
+      await expect(service.completeMimicShawarma(telegramUserId, {
+        type: "method",
+        methodId
+      })).resolves.toMatchObject({ state: "stale" });
+      expect(dailyActions.createCount).toBe(0);
+    }
+  );
+
   it("blocks fresh offers and claims while a live fight is active", async () => {
     const activeFight = fakeSession();
     const { service, characters, dailyActions } = setup(activeFight);
@@ -494,7 +605,8 @@ describe("AdventureService", () => {
       ])
     );
     expect(options.every((option) => [4, 7, 10].includes(option.reward.xp))).toBe(true);
-    expect(options.every((option) => [2, 4, 7].includes(option.reward.gold))).toBe(true);
+    expect(options.every((option) => [0, 2, 4, 7].includes(option.reward.gold))).toBe(true);
+    expect(options.filter((option) => option.goldCost).every((option) => option.reward.gold === 0)).toBe(true);
     expect(options.some((option) => option.source === "scene")).toBe(true);
     expect(options.some((option) => option.source === "race")).toBe(true);
     expect(options.some((option) => option.source === "class")).toBe(true);
@@ -577,7 +689,7 @@ async function findResolvedAdventure(
         const input = {
           periodToken: freshLookup.offer.periodToken,
           problemId: freshChoice.id,
-          methodId: approach.id
+          methodId: approach.callbackKey ?? approach.id
         };
         const result = await service.completeAdventureApproach(user, input);
 

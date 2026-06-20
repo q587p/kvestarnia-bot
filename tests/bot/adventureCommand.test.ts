@@ -162,8 +162,10 @@ describe("adventure command", () => {
     expect(replies[0]?.text).not.toContain("відкриється з 3 рівня");
     expect(replies[0]?.options).toMatchObject({ parse_mode: "HTML" });
     const callbacks = getReplyCallbacks(replies[0]?.options);
-    expect(callbacks.slice(0, 4).every((callback) => /^v2:adv:m:q[0-9a-z]+$/u.test(callback))).toBe(true);
-    expect(callbacks[4]).toBe("v1:place:quest-table");
+    const methodCallbacks = callbacks.filter((callback) => /^v2:adv:m:q[0-9a-z]+$/u.test(callback));
+    expect(methodCallbacks.length).toBeGreaterThanOrEqual(5);
+    expect(methodCallbacks.length).toBeLessThanOrEqual(7);
+    expect(callbacks.at(-1)).toBe("v1:place:quest-table");
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,

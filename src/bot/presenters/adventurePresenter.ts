@@ -83,6 +83,7 @@ export function presentAdventureProblem(
     escapeHtml(result.choice.hook),
     "",
     "Можливі способи:",
+    "",
     ...methodLines,
     "",
     npcQuote("Корчмар", "Метод оберіть самі. Потім не кажіть, що метод обрав вас.")

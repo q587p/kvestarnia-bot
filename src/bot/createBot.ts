@@ -2171,7 +2171,10 @@ async function handleAdventureCallback(
   }
 
   if (callback.type === "legacy") {
-    const result = await services.adventure.completeMimicShawarma(telegramUserId, callback.action);
+    const result = await services.adventure.completeMimicShawarma(telegramUserId, {
+      type: "legacy",
+      action: callback.action
+    });
 
     if (result.state === "no-character") {
       await safeAnswerCallbackQuery(ctx);
@@ -2198,7 +2201,10 @@ async function handleAdventureCallback(
   }
 
   if (callback.type === "method") {
-    const result = await services.adventure.completeMimicShawarma(telegramUserId, callback.methodId);
+    const result = await services.adventure.completeMimicShawarma(telegramUserId, {
+      type: "method",
+      methodId: callback.methodId
+    });
 
     if (result.state === "no-character") {
       await safeAnswerCallbackQuery(ctx);
@@ -2380,7 +2386,7 @@ async function handleAdventureCallback(
 
 async function handleCellarCallback(
   ctx: Context,
-  action: CellarCallback,
+  callback: CellarCallback,
   services: BotServices
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
@@ -2410,8 +2416,8 @@ async function handleCellarCallback(
 
   if (lookup.state === "level-retired") {
     if (services.cellarGrownup) {
-      if (isCellarGrownupAction(action)) {
-        await handleCellarGrownupCallback(ctx, action, services);
+      if (callback.type === "grownup") {
+        await handleCellarGrownupCallback(ctx, callback.action, services);
         return;
       }
 
@@ -2455,7 +2461,7 @@ async function handleCellarCallback(
     return;
   }
 
-  if (action === "participants") {
+  if (callback.type === "participants") {
     const snapshot = await services.presence.getAdventureParticipantsForTelegramUser(
       telegramUserId,
       PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
@@ -2477,12 +2483,17 @@ async function handleCellarCallback(
     return;
   }
 
-  if (isCellarGrownupAction(action)) {
+  if (callback.type === "grownup") {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
     return;
   }
 
-  const result = await services.cellarErrand.complete(telegramUserId, action);
+  const result = await services.cellarErrand.complete(
+    telegramUserId,
+    callback.type === "method"
+      ? { type: "method", methodId: callback.methodId }
+      : { type: "legacy-action", action: callback.action }
+  );
 
   if (result.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
@@ -2582,10 +2593,6 @@ async function handleCellarGrownupCallback(
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
   }
-}
-
-function isCellarGrownupAction(action: CellarCallback): action is CellarGrownupQuestAction {
-  return action.startsWith("grownup-");
 }
 
 function getCellarGrownupKeyboardState(

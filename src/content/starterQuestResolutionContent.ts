@@ -1,7 +1,10 @@
 import type { CharacterSummary } from "../domain/characters/characterSummary";
 import type {
+  QuestConsequenceKind,
+  QuestIntent,
   QuestMethodDefinition,
-  QuestResolutionScene
+  QuestResolutionScene,
+  QuestTechniqueProfile
 } from "./questResolution";
 import {
   classTechniqueProfiles,
@@ -23,197 +26,214 @@ export function buildStarterQuestResolutionScene(
 }
 
 function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
-  const race = getRaceProfile(character.raceId);
-  const heroClass = getClassProfile(character.classId);
+  const sceneMethods = [
+    method({
+      id: "inspect-folds",
+      source: "scene",
+      label: "🔎 Перевірити, чому лаваш дихає не в ритм",
+      hint: "Розслідування без поспіху.",
+      intent: "investigate",
+      primaryStat: "intelligence",
+      secondaryStat: "luck",
+      techniques: ["investigation"],
+      rewardProfile: "modest",
+      legacyAction: "receipt",
+      itemIntent: "receipt",
+      strong: "Лаваш сам розгорнув доказ раніше, ніж хтось сказав «вечеря».",
+      success: "Вечеря дала свідчення й перестала прикидатися гарніром.",
+      mixed: "Правда вийшла, соус записав героя свідком.",
+      complication: "Шаурма образилась на допит і залишила дуже юридичний запах."
+    }),
+    method({
+      id: "pin-wrapper",
+      source: "scene",
+      label: "🍴 Притиснути лаваш виделкою до зʼясування",
+      hint: "Сміливо й трохи липко.",
+      intent: "fight",
+      primaryStat: "strength",
+      secondaryStat: "dexterity",
+      techniques: ["force"],
+      rewardProfile: "standard",
+      legacyAction: "poke",
+      itemIntent: "wrapper",
+      strong: "Виделка втримала лаваш, а лаваш не втримав алібі.",
+      success: "Підозра перестала ворушитись і лишила обгортку як речовий доказ.",
+      mixed: "Лаваш притиснуто, але соус тепер має процесуальні претензії.",
+      complication: "Шаурма прикинулась слухняною, щоб зручніше лишити липкий коментар."
+    }),
+    method({
+      id: "demand-receipt",
+      source: "scene",
+      label: "📋 Вимагати чек і походження начинки",
+      hint: "Папери, походження й дуже ранній аудит.",
+      intent: "ritual",
+      primaryStat: "intelligence",
+      secondaryStat: "charisma",
+      techniques: ["authority", "investigation"],
+      rewardProfile: "standard",
+      legacyAction: "receipt",
+      itemIntent: "receipt",
+      strong: "Чек сам викрив зуби дрібним шрифтом.",
+      success: "Походження начинки стало зрозумілим, хоча начинка просила адвоката.",
+      mixed: "Чек знайшовся, але вписав героя як свідка вечері.",
+      complication: "Шаурма принесла чек на імʼя іншої вечері й зробила вигляд, що так і треба."
+    }),
+    method({
+      id: "offer-garlic",
+      source: "scene",
+      label: "🧄 Запропонувати зубчик часнику як примирення",
+      hint: "Мирна приманка без великої героїки.",
+      intent: "negotiate",
+      primaryStat: "charisma",
+      secondaryStat: "luck",
+      techniques: ["persuasion", "improvisation"],
+      rewardProfile: "modest",
+      legacyAction: "flee",
+      itemIntent: "none",
+      strong: "Часник спрацював як дипломат, хоч ніхто не давав йому мандат.",
+      success: "Шаурма відволіклась на запах і видала важливий хрускіт.",
+      mixed: "Примирення майже вдалось, але соус попросив окремий договір.",
+      complication: "Часник виявився її адвокатом і почав пахнути процедурою."
+    }),
+    method({
+      id: "name-retreat",
+      source: "scene",
+      label: "🗝️ Відступити так, щоб назва сама себе видала",
+      hint: "Обережний трюк без зайвої героїки.",
+      intent: "deceive",
+      primaryStat: "dexterity",
+      secondaryStat: "charisma",
+      techniques: ["deception"],
+      rewardProfile: "modest",
+      legacyAction: "flee",
+      itemIntent: "none",
+      strong: "Шаурма потягнулася за перемогою і випадково показала зуби.",
+      success: "Відступ спрацював: вечеря сама сказала зайве.",
+      mixed: "Доказ є, але герой ще довго пахне тактичним соусом.",
+      complication: "Шаурма повірила у свою перемогу й лишила сцену дуже самовдоволеною."
+    })
+  ];
 
   return {
     sceneId: "shawarma",
     sceneTitle: "Підозріла шаурма",
     sceneObject: "шаурму",
-    methods: [
-      method({
-        id: "inspect-folds",
-        source: "scene",
-        label: "🔎 Перевірити, чому лаваш дихає не в ритм",
-        hint: "Розслідування без поспіху.",
-        primaryStat: "intelligence",
-        secondaryStat: "luck",
-        techniques: ["investigation"],
-        rewardProfile: "modest",
-        legacyAction: "receipt",
-        itemIntent: "receipt",
-        strong: "Лаваш сам розгорнув доказ раніше, ніж хтось сказав «вечеря».",
-        success: "Вечеря дала свідчення й перестала прикидатися гарніром.",
-        mixed: "Правда вийшла, соус записав героя свідком.",
-        complication: "Шаурма образилась на допит і залишила дуже юридичний запах."
-      }),
-      method({
-        id: `r${getCompactRaceKey(character.raceId)}`,
-        source: "race",
-        label: `🧬 ${adaptProfileLabel(race.methodPrefix, "шаурму", "шаурми")}`,
-        buttonLabel: `🧬 ${adaptProfileLabel(race.shortButtonLabel ?? race.methodPrefix, "шаурму", "шаурми")}`,
-        hint: "Особистий підхід героя.",
-        primaryStat: race.primaryStat,
-        secondaryStat: race.secondaryStat,
-        techniques: race.techniques,
-        rewardProfile: "standard",
-        legacyAction: "receipt",
-        itemIntent: "receipt",
-        strong: "Особистий підхід розгорнув лаваш саме там, де ховалась правда.",
-        success: "Шаурма не витримала біографічного тиску й видала доказ.",
-        mixed: "Доказ є, але соус тепер має власну версію подій.",
-        complication: "Підхід вийшов стильний, а лаваш лишив липкий коментар."
-      }),
-      method({
-        id: `c${getCompactClassKey(character.classId)}`,
-        source: "class",
-        label: `🎭 ${adaptProfileLabel(heroClass.methodPrefix, "шаурму", "шаурми")}`,
-        buttonLabel: `🎭 ${adaptProfileLabel(heroClass.shortButtonLabel ?? heroClass.methodPrefix, "шаурму", "шаурми")}`,
-        hint: "Професійний підхід героя.",
-        primaryStat: heroClass.primaryStat,
-        secondaryStat: heroClass.secondaryStat,
-        techniques: heroClass.techniques,
-        rewardProfile: "standard",
-        legacyAction: "poke",
-        itemIntent: "wrapper",
-        combatSkillId: heroClass.combatSkillId,
-        strong: "Професійний підхід розкрив начинку так акуратно, що зуби самі вийшли в протокол.",
-        success: "Професійний підхід дав результат. Шаурма видала доказ і вдала простий лаваш.",
-        mixed: "Професійний підхід дав результат, але соус поставив зустрічне питання.",
-        complication: "Шаурма не розкрилась повністю, зате стала підозріло чемною."
-      }),
-      method({
-        id: `s${getCompactRaceKey(character.raceId)}${getCompactClassKey(character.classId)}`,
-        source: "signature",
-        label: `🏷️ «${character.title}»: викрити шаурму легендою`,
-        buttonLabel: `🏷️ Викрити: «${character.title}»`,
-        hint: "Непевніше, зате стильніше.",
-        primaryStat: heroClass.primaryStat,
-        secondaryStat: race.primaryStat,
-        techniques: [firstTechnique(race), firstTechnique(heroClass)],
-        rewardProfile: "generous",
-        legacyAction: "flee",
-        itemIntent: "none",
-        combatSkillId: heroClass.combatSkillId,
-        strong: `Підпис «${character.title}» витягнув з начинки правду раніше, ніж вона згадала про зуби.`,
-        success: "Геройська легенда стала доказом. Шаурма визнала, що це не випадкова вечеря.",
-        mixed: "Шаурма майже повірила, але соус лишив останню репліку собі.",
-        complication: "Біографічний аргумент вийшов красивий, результат — трохи липкий."
-      })
-    ]
+    methods: [...sceneMethods, ...buildPersonalMethods(character, "Підозріла шаурма", sceneMethods)]
   };
 }
 
 function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScene {
-  const race = getRaceProfile(character.raceId);
-  const heroClass = getClassProfile(character.classId);
+  const sceneMethods = [
+    method({
+      id: "cheese-trap",
+      source: "scene",
+      label: "🧀 Поставити пастку по маршруту крихт",
+      hint: "Пастка й сліди. Винагорода звичайна.",
+      intent: "craft",
+      primaryStat: "dexterity",
+      secondaryStat: "intelligence",
+      techniques: ["traps", "tracking"],
+      rewardProfile: "standard",
+      legacyAction: "cheese-trap",
+      itemIntent: "cheese-trap",
+      strong: "Миша підписала мир крихтою й лишила сир як доказ.",
+      success: "Сирна політика стала передбачуваною до наступної мишачої паузи.",
+      mixed: "Миша взяла сир, але забула забрати процедурний сумнів.",
+      complication: "Пастка клацнула по власній гідності. Миша аплодувала з-за шафи."
+    }),
+    method({
+      id: "sweep-evidence",
+      source: "scene",
+      label: "🧹 Вимести пил так, щоб лишився тільки слід",
+      hint: "Домашній лад і трохи дедукції.",
+      intent: "investigate",
+      primaryStat: "strength",
+      secondaryStat: "intelligence",
+      techniques: ["domesticity", "investigation"],
+      rewardProfile: "modest",
+      legacyAction: "sweep-bravely",
+      itemIntent: "sweep-bravely",
+      strong: "Пил відступив, слід лишився, миша визнала це майже чесною владою.",
+      success: "Льох став чистіший, а миша менш упевнена у власній таємності.",
+      mixed: "Льох чистіший, угода — ні.",
+      complication: "Миша не програла, а стратегічно перемістилась у чистіше місце."
+    }),
+    method({
+      id: "negotiate-shelf",
+      source: "scene",
+      label: "🤝 Поділити льох до наступної ревізії",
+      hint: "Переговори без пастки.",
+      intent: "negotiate",
+      primaryStat: "charisma",
+      secondaryStat: "intelligence",
+      techniques: ["persuasion"],
+      rewardProfile: "standard",
+      legacyAction: "negotiate",
+      itemIntent: "negotiate",
+      strong: "Миша прийняла полицю, умови й серветку як дипломатичний прапор.",
+      success: "Миша погодилась: таку угоду краще не гризти.",
+      mixed: "Угода чинна, але кожна крихта має окрему думку.",
+      complication: "Миша лишила собі право драматично пищати під час виконання."
+    }),
+    method({
+      id: "bribe-cheese",
+      source: "scene",
+      label: "🪙 Дати миші 1 золоту «на сирний фонд»",
+      hint: "Коштує 1 золото. Добрі шанси, винагорода скромніша.",
+      intent: "bribe",
+      primaryStat: "charisma",
+      secondaryStat: "luck",
+      techniques: ["bribery"],
+      rewardProfile: "modest",
+      goldCost: 1,
+      legacyAction: "bribe-cheese",
+      itemIntent: "negotiate",
+      strong: "Сирний фонд раптом став мирним договором.",
+      success: "Миша прийняла внесок і назвала це фінансовою дипломатією.",
+      mixed: "Миша взяла золото, угоду й право бурчати в протокол.",
+      complication: "Фонд спрацював, але миша скликала профспілку для урочистости."
+    }),
+    method({
+      id: "fake-cat-notice",
+      source: "scene",
+      label: "🐾 Підкинути оголошення про перевірку котом",
+      hint: "Непевний обман із гучним папірцем.",
+      intent: "deceive",
+      primaryStat: "dexterity",
+      secondaryStat: "charisma",
+      techniques: ["deception"],
+      rewardProfile: "standard",
+      legacyAction: "negotiate",
+      itemIntent: "negotiate",
+      strong: "Оголошення спрацювало ще до слова «кіт». Миша стала дипломаткою.",
+      success: "Миша повірила паперу рівно настільки, щоб вийти на переговори.",
+      mixed: "Оголошення прийняли, але полиця тепер вимагає печатку кота.",
+      complication: "Миша знайшла дрібний шрифт і попросила компенсацію сиром."
+    })
+  ];
 
   return {
     sceneId: "cellar-mouse",
     sceneTitle: "Льохова миша",
     sceneObject: "мишу",
-    methods: [
-      method({
-        id: "cheese-trap",
-        source: "scene",
-        label: "🧀 Поставити пастку по маршруту крихт",
-        hint: "Пастка й сліди. Винагорода звичайна.",
-        primaryStat: "dexterity",
-        secondaryStat: "intelligence",
-        techniques: ["traps", "tracking"],
-        rewardProfile: "standard",
-        legacyAction: "cheese-trap",
-        itemIntent: "cheese-trap",
-        strong: "Миша підписала мир крихтою й лишила сир як доказ.",
-        success: "Сирна політика стала передбачуваною до наступної мишачої паузи.",
-        mixed: "Миша взяла сир, але забула забрати процедурний сумнів.",
-        complication: "Пастка клацнула по власній гідності. Миша аплодувала з-за шафи."
-      }),
-      method({
-        id: "bribe-cheese",
-        source: "scene",
-        label: "🪙 Дати миші 1 золоту «на сирний фонд»",
-        hint: "Коштує 1 золото. Добрі шанси, винагорода скромніша.",
-        primaryStat: "charisma",
-        secondaryStat: "luck",
-        techniques: ["bribery"],
-        rewardProfile: "modest",
-        goldCost: 1,
-        legacyAction: "bribe-cheese",
-        itemIntent: "negotiate",
-        strong: "Сирний фонд раптом став мирним договором.",
-        success: "Миша прийняла внесок і назвала це фінансовою дипломатією.",
-        mixed: "Миша взяла золото, угоду й право бурчати в протокол.",
-        complication: "Фонд спрацював, але миша скликала профспілку для урочистости."
-      }),
-      method({
-        id: `r${getCompactRaceKey(character.raceId)}`,
-        source: "race",
-        label: `🧬 ${adaptProfileLabel(race.methodPrefix, "мишу", "миші")}`,
-        buttonLabel: `🧬 ${adaptProfileLabel(race.shortButtonLabel ?? race.methodPrefix, "мишу", "миші")}`,
-        hint: "Особистий підхід героя.",
-        primaryStat: race.primaryStat,
-        secondaryStat: race.secondaryStat,
-        techniques: race.techniques,
-        rewardProfile: "standard",
-        legacyAction: "sweep-bravely",
-        itemIntent: "sweep-bravely",
-        strong: "Особистий підхід навів у льосі такий лад, що миша сама попросила графік.",
-        success: "Особистий підхід дав результат. Льох визнав героя тимчасовою владою.",
-        mixed: "Льох чистіший, угода — ні.",
-        complication: "Миша не програла, а стратегічно перемістилась у чистіше місце."
-      }),
-      method({
-        id: `c${getCompactClassKey(character.classId)}`,
-        source: "class",
-        label: `🎭 ${adaptProfileLabel(heroClass.methodPrefix, "мишу", "миші")}`,
-        buttonLabel: `🎭 ${adaptProfileLabel(heroClass.shortButtonLabel ?? heroClass.methodPrefix, "мишу", "миші")}`,
-        hint: "Професійний підхід героя.",
-        primaryStat: heroClass.primaryStat,
-        secondaryStat: heroClass.secondaryStat,
-        techniques: heroClass.techniques,
-        rewardProfile: "standard",
-        legacyAction: "negotiate",
-        itemIntent: "negotiate",
-        combatSkillId: heroClass.combatSkillId,
-        strong: "Професійний підхід перетворив писк на переговорну позицію.",
-        success: "Миша погодилась: такий фаховий аргумент краще не гризти.",
-        mixed: "Аргумент спрацював, але миша лишила собі право драматично пищати.",
-        complication: "Фаховий підхід зачепив полицю, і полиця тепер теж хоче слово."
-      }),
-      method({
-        id: `s${getCompactRaceKey(character.raceId)}${getCompactClassKey(character.classId)}`,
-        source: "signature",
-        label: `🏷️ «${character.title}»: вирішити сирну політику`,
-        buttonLabel: `🏷️ Сирна політика: «${character.title}»`,
-        hint: "Непевніше, зате стильніше.",
-        primaryStat: heroClass.primaryStat,
-        secondaryStat: race.primaryStat,
-        techniques: [firstTechnique(race), firstTechnique(heroClass)],
-        rewardProfile: "generous",
-        legacyAction: "negotiate",
-        itemIntent: "negotiate",
-        combatSkillId: heroClass.combatSkillId,
-        strong: `Підпис «${character.title}» перетворив льох на малу мирну конференцію.`,
-        success: "Геройська легенда стала аргументом. Миша погодилась не гризти квестові дошки.",
-        mixed: "Угода чинна, але кожна крихта має окрему думку.",
-        complication: "Титул вразив мишу. Миша вразила титул зустрічним пунктом."
-      })
-    ]
+    methods: [...sceneMethods, ...buildPersonalMethods(character, "Льохова миша", sceneMethods)]
   };
 }
 
 function method(input: {
   id: string;
+  affordanceId?: string | undefined;
   source: QuestMethodDefinition["source"];
   label: string;
   buttonLabel?: string | undefined;
   hint: string;
+  intent: QuestIntent;
   primaryStat: QuestMethodDefinition["primaryStat"];
   secondaryStat?: QuestMethodDefinition["secondaryStat"] | undefined;
   techniques: readonly QuestMethodDefinition["techniques"][number][];
   rewardProfile: QuestMethodDefinition["rewardProfile"];
   goldCost?: number | undefined;
+  consequence?: QuestConsequenceKind | undefined;
   legacyAction: string;
   itemIntent: string;
   combatSkillId?: string | undefined;
@@ -225,11 +245,12 @@ function method(input: {
   return {
     id: input.id,
     callbackKey: toQuestCallbackKey(input.id),
+    affordanceId: input.affordanceId ?? input.id,
     source: input.source,
     label: input.label,
     ...(input.buttonLabel ? { buttonLabel: input.buttonLabel } : {}),
     hint: input.hint,
-    intent: input.goldCost ? "bribe" : input.source === "signature" ? "deceive" : "investigate",
+    intent: input.intent,
     techniques: input.techniques,
     primaryStat: input.primaryStat,
     ...(input.secondaryStat ? { secondaryStat: input.secondaryStat } : {}),
@@ -243,7 +264,7 @@ function method(input: {
       "strong-success": "full-reward",
       success: "full-reward",
       "mixed-success": input.goldCost ? "gold-cost-success" : "reduced-reward",
-      complication: input.goldCost ? "gold-cost-success" : "cosmetic-mess"
+      complication: input.consequence ?? (input.goldCost ? "gold-cost-success" : "cosmetic-mess")
     },
     outcomeText: {
       "strong-success": text("✨ Справу закрито блискуче", input.strong),
@@ -252,16 +273,6 @@ function method(input: {
       complication: text("⚠️ Метод лишив кумедний безлад", input.complication)
     }
   };
-}
-
-function adaptProfileLabel(prefix: string, object: string, objectGenitive: string): string {
-  return prefix
-    .replace(/справу/gu, object)
-    .replace(/справи/gu, objectGenitive)
-    .replace(/проблему/gu, object)
-    .replace(/проблеми/gu, objectGenitive)
-    .replace(/аргумент/gu, object)
-    .replace(/автора/gu, objectGenitive);
 }
 
 function text(
@@ -277,16 +288,100 @@ function text(
   };
 }
 
-type QuestTechniqueProfileLike = typeof raceTechniqueProfiles[string];
+function buildPersonalMethods(
+  character: CharacterSummary,
+  sceneTitle: string,
+  sceneMethods: readonly QuestMethodDefinition[]
+): QuestMethodDefinition[] {
+  const race = getRaceProfile(character.raceId);
+  const heroClass = getClassProfile(character.classId);
 
-function getRaceProfile(raceId: string): QuestTechniqueProfileLike {
+  return sceneMethods.flatMap((base) => [
+    method({
+      id: compactPersonalMethodId("r", getCompactRaceKey(character.raceId), base.id),
+      affordanceId: base.affordanceId,
+      source: "race",
+      label: base.label,
+      buttonLabel: base.label,
+      hint: "Особистий підхід героя.",
+      intent: base.intent,
+      primaryStat: base.primaryStat,
+      secondaryStat: race.primaryStat,
+      techniques: uniqueTechniques([firstTechnique(race), ...base.techniques]),
+      rewardProfile: "standard",
+      goldCost: base.goldCost,
+      legacyAction: base.legacyAction ?? base.id,
+      itemIntent: base.itemIntent ?? base.legacyAction ?? base.id,
+      strong: `Підхід «${race.label}» знаходить власний хід у «${stripIcon(base.label)}». ${sceneTitle} коротко припиняє сперечатись.`,
+      success: `Метод із мотивом «${race.label}» спрацював. «${stripIcon(base.label)}» лишається зрозумілим, а сцена — вирішеною.`,
+      mixed: `Особистий хід спрацював, але «${stripIcon(base.label)}» лишив дрібний хвіст для бурчання.`,
+      complication: `Хід із мотивом «${race.label}» дав результат із кумедним безладом. Корчмар записує це як стиль.`
+    }),
+    method({
+      id: compactPersonalMethodId("c", getCompactClassKey(character.classId), base.id),
+      affordanceId: base.affordanceId,
+      source: "class",
+      label: base.label,
+      buttonLabel: base.label,
+      hint: "Професійний підхід героя.",
+      intent: base.intent,
+      primaryStat: base.primaryStat,
+      secondaryStat: heroClass.primaryStat,
+      techniques: uniqueTechniques([firstTechnique(heroClass), ...base.techniques]),
+      rewardProfile: "standard",
+      goldCost: base.goldCost,
+      legacyAction: base.legacyAction ?? base.id,
+      itemIntent: base.itemIntent ?? base.legacyAction ?? base.id,
+      combatSkillId: heroClass.combatSkillId,
+      strong: `Підхід «${heroClass.label}» підсилює «${stripIcon(base.label)}» так чисто, що сцена здається майже навчальною.`,
+      success: `Метод «${heroClass.label}» дає результат. «${stripIcon(base.label)}» стає не подвигом, а робочим методом.`,
+      mixed: `Професійний хід спрацював, але «${stripIcon(base.label)}» залишив трохи сценічного пилу.`,
+      complication: `Хід «${heroClass.label}» зачепив зайву полицю реальности. Результат є, порядок ще сперечається.`
+    }),
+    method({
+      id: compactPersonalMethodId(`s${getCompactRaceKey(character.raceId)}`, getCompactClassKey(character.classId), base.id),
+      affordanceId: base.affordanceId,
+      source: "signature",
+      label: base.label,
+      buttonLabel: base.label,
+      hint: "Непевніше, зате стильніше.",
+      intent: base.intent,
+      primaryStat: base.primaryStat,
+      secondaryStat: heroClass.primaryStat,
+      techniques: uniqueTechniques([firstTechnique(race), firstTechnique(heroClass), ...base.techniques]),
+      rewardProfile: "generous",
+      goldCost: base.goldCost,
+      legacyAction: base.legacyAction ?? base.id,
+      itemIntent: base.itemIntent ?? base.legacyAction ?? base.id,
+      combatSkillId: heroClass.combatSkillId,
+      strong: `Обраний хід зводить кілька дрібних переваг в один точний рух. Сцена визнає, що це вже майже біографія.`,
+      success: `Метод спрацював: «${stripIcon(base.label)}» знаходить край і ставить крапку.`,
+      mixed: `Хід допомагає, але «${stripIcon(base.label)}» лишає маленький шурхіт для пізнішої легенди.`,
+      complication: `Метод виглядає переконливо. Сцена теж так думає, але додає власний безлад.`
+    })
+  ]);
+}
+
+function getRaceProfile(raceId: string): QuestTechniqueProfile {
   return raceTechniqueProfiles[raceId] ?? raceTechniqueProfiles["race.human-ish"]!;
 }
 
-function getClassProfile(classId: string): QuestTechniqueProfileLike {
+function getClassProfile(classId: string): QuestTechniqueProfile {
   return classTechniqueProfiles[classId] ?? classTechniqueProfiles["class.warrior"]!;
 }
 
-function firstTechnique(profile: QuestTechniqueProfileLike): QuestMethodDefinition["techniques"][number] {
+function firstTechnique(profile: QuestTechniqueProfile): QuestMethodDefinition["techniques"][number] {
   return profile.techniques[0] ?? "investigation";
+}
+
+function compactPersonalMethodId(prefix: string, profileKey: string, baseId: string): string {
+  return `${prefix}${profileKey}${toQuestCallbackKey(baseId).slice(1)}`;
+}
+
+function uniqueTechniques(techniques: readonly QuestMethodDefinition["techniques"][number][]): QuestMethodDefinition["techniques"][number][] {
+  return [...new Set(techniques)];
+}
+
+function stripIcon(label: string): string {
+  return label.replace(/^[^\p{L}\p{N}]+/u, "").trim();
 }

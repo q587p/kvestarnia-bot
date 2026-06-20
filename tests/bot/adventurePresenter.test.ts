@@ -128,6 +128,7 @@ describe("adventure presenter", () => {
     const text = presentAdventureProblem(result);
 
     expect(text).toContain("Казанок &lt;репетирує&gt;");
+    expect(text).toContain("Можливі способи:\n\n🛡️ Обережно");
     expect(text).toContain("Метод оберіть самі.");
     expect(text).toContain("🛡️ Обережно");
     expect(text).toContain("Майже без драматичних зубів.");
@@ -193,9 +194,11 @@ describe("adventure presenter", () => {
 
     const text = presentAdventureProblem(result);
 
-    expect(text).toContain("🧬 Підняти сухий приплив довкола форми");
-    expect(text).toContain("🎭 Переспівати форму, доки вона не зібʼється з ритму");
-    expect(text).toContain("🏷️ «Співачка Без Моря»: вписати форму у власну легенду");
+    expect(text).toContain("Підсунути запасне поле");
+    expect(text).toContain("Домовитися з канцелярським краєм");
+    expect(text).not.toContain("Підняти сухий приплив для");
+    expect(text).not.toContain("Переспівати ритм");
+    expect(text).not.toContain("«Співачка Без Моря» поєднує");
     expect(text).toContain("Особистий підхід героя.");
     expect(text).toContain("Професійний підхід героя.");
     expect(text).not.toContain("Надійне розслідування. Майже надійно.");
@@ -205,8 +208,8 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("race+class");
     expect(text).not.toContain("точну біографію");
     expect(text).not.toContain(": форму");
-    expect(text).toContain("</i>\n\n🎭");
-    expect(text).toContain("</i>\n\n🏷️");
+    expect(text).toContain("</i>\n\n");
+    expect(text.match(/<i>/gu)?.length ?? 0).toBeGreaterThanOrEqual(5);
   });
 
   it("shows non-complicated reward without level-up text", () => {

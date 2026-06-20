@@ -423,16 +423,15 @@ describe("main menu and scene keyboards", () => {
   });
 
   it("keeps character-aware adventure labels on the same callback actions", () => {
-    expect(flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
-      "🔎 Перевірити, чому лаваш дихає не в ритм",
-      "🧬 Звірити шаурму",
-      "🎭 Витягти доказ",
-      "🏷️ Викрити: «Пересічні Пригодники»",
-      "📋 До справ"
-    ]);
+    const labels = flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
+
+    expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
+    expect(labels).toContain("📋 Вимагати чек і походження начинки");
+    expect(labels.join("\n")).not.toMatch(/Звірити «|Витягти доказ|🏷️|Пересічні Пригодники/u);
+    expect(labels.at(-1)).toBe("📋 До справ");
     const callbacks = flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
-    expect(callbacks.slice(0, 4).every((callback) => /^v2:adv:m:q[0-9a-z]+$/u.test(callback))).toBe(true);
-    expect(callbacks[4]).toBe("v1:place:quest-table");
+    expect(callbacks.slice(0, -1).every((callback) => /^v2:adv:m:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks.at(-1)).toBe("v1:place:quest-table");
   });
 
   it("uses short authored method labels on selected adventure buttons", () => {
@@ -466,14 +465,12 @@ describe("main menu and scene keyboards", () => {
       approaches: buildAdventureMethodOptions(choice, bard)
     });
 
-    expect(flatInlineButtonTexts(keyboard)).toEqual([
-      "🔎 Переміряти вперту клітинку",
-      "🧬 Підняти сухий приплив",
-      "🎭 Переспівати форму",
-      "🏷️ «Співачка Без Моря»",
-      "⬅️ Інші справи"
-    ]);
-    expect(flatInlineButtonTexts(keyboard).join("\n")).not.toContain(": форму");
+    const labels = flatInlineButtonTexts(keyboard);
+
+    expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
+    expect(labels).toContain("🤝 Домовитися з канцелярським краєм");
+    expect(labels.join("\n")).not.toMatch(/Приплив|Куплет|Співачка Без Моря|🏷️|: форму/u);
+    expect(labels.at(-1)).toBe("⬅️ Інші справи");
   });
 
   it("keeps cellar inline buttons scoped to repeatable errand actions", () => {
@@ -499,23 +496,16 @@ describe("main menu and scene keyboards", () => {
   it("keeps character-aware cellar labels on the same callback actions", () => {
     const domovyk = { ...character, raceId: "race.domovyk", classId: "class.rogue" };
 
-    expect(flatInlineButtonTexts(buildCellarKeyboard(domovyk))).toEqual([
-      "🧀 Поставити пастку по маршруту крихт",
-      "🪙 Дати миші 1 золоту «на сирний фонд»",
-      "🧬 Оголосити територією",
-      "🎭 Витягти доказ",
-      "⬅️ До зали"
-    ]);
+    const cellarLabels = flatInlineButtonTexts(buildCellarKeyboard(domovyk));
+
+    expect(cellarLabels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
+    expect(cellarLabels).toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
+    expect(cellarLabels.join("\n")).not.toMatch(/Оголосити правилом|Витягти доказ|🏷️|Пересічні Пригодники/u);
+    expect(cellarLabels.at(-1)).toBe("⬅️ До зали");
     const callbacks = flatInlineButtonCallbacks(buildCellarKeyboard(domovyk));
-    expect(callbacks.slice(0, 4).every((callback) => /^v2:cellar:q[0-9a-z]+$/u.test(callback))).toBe(true);
-    expect(callbacks[4]).toBe("v1:place:hall");
-    expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual([
-      "🧀 Поставити пастку по маршруту крихт",
-      "🪙 Дати миші 1 золоту «на сирний фонд»",
-      "🧬 Оголосити територією",
-      "🎭 Витягти доказ",
-      "⬅️ До зали"
-    ]);
+    expect(callbacks.slice(0, -1).every((callback) => /^v2:cellar:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks.at(-1)).toBe("v1:place:hall");
+    expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual(cellarLabels);
   });
 
   it("keeps fight inline buttons scoped to fight actions", () => {

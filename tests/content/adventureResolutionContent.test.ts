@@ -6,8 +6,13 @@ import {
   buildAdventureResolutionScene,
   getGeneralAdventureResolutionProblemIds
 } from "../../src/content/adventureResolutionContent";
+import { buildStarterQuestResolutionScene } from "../../src/content/starterQuestResolutionContent";
 import { ADVENTURE_PROBLEM_IDS } from "../../src/services/adventureService";
-import { resolveQuestMethodsForCharacter } from "../../src/domain/quests/questMethodResolver";
+import {
+  getQuestMethodAffordanceKey,
+  getQuestMethodTacticKey,
+  resolveQuestMethodsForCharacter
+} from "../../src/domain/quests/questMethodResolver";
 
 describe("adventure resolution content", () => {
   it("covers every current general adventure problem with authored scene methods", () => {
@@ -122,6 +127,58 @@ describe("adventure resolution content", () => {
     }
   });
 
+  it("keeps the visible method matrix complete and constrained for active race/class combos", () => {
+    for (const problemId of ADVENTURE_PROBLEM_IDS) {
+      for (const race of activeRaces) {
+        for (const heroClass of classes) {
+          const profile = {
+            ...character,
+            raceId: race.id,
+            raceName: race.name,
+            classId: heroClass.id,
+            className: heroClass.name
+          };
+          const scene = buildAdventureResolutionScene({
+            problemId,
+            title: problemId,
+            character: profile
+          });
+          const methods = resolveQuestMethodsForCharacter(scene, profile);
+          const repeated = resolveQuestMethodsForCharacter(scene, profile);
+          const sources = new Set(methods.map((method) => method.source));
+
+          expect(methods.map((method) => method.id), problemId).toEqual(repeated.map((method) => method.id));
+          expect(methods.length, `${problemId}:${race.id}:${heroClass.id}`).toBeGreaterThanOrEqual(5);
+          expect(methods.length, `${problemId}:${race.id}:${heroClass.id}`).toBeLessThanOrEqual(7);
+          expect(sources.has("scene"), `${problemId}:${race.id}:${heroClass.id}`).toBe(true);
+          expect(new Set(methods.map((method) => normalize(method.label))).size, problemId).toBe(methods.length);
+          expect(new Set(methods.map(getQuestMethodTacticKey)).size, problemId).toBe(methods.length);
+          expect(new Set(methods.map(getQuestMethodAffordanceKey)).size, problemId).toBe(methods.length);
+
+          for (const primaryStat of ["strength", "dexterity", "intelligence", "charisma", "luck"] as const) {
+            expect(methods.filter((method) => method.primaryStat === primaryStat).length, primaryStat).toBeLessThanOrEqual(2);
+          }
+        }
+      }
+    }
+  });
+
+  it("keeps starter shawarma and cellar mouse slots represented without duplicate tactics", () => {
+    for (const sceneId of ["shawarma", "cellar-mouse"] as const) {
+      const scene = buildStarterQuestResolutionScene(sceneId, bard);
+      const methods = resolveQuestMethodsForCharacter(scene, bard, {
+        ...(sceneId === "cellar-mouse" ? { sceneSlotKey: "bribe-cheese" } : {})
+      });
+      const sources = new Set(methods.map((method) => method.source));
+
+      expect(methods.length, sceneId).toBeGreaterThanOrEqual(5);
+      expect(methods.length, sceneId).toBeLessThanOrEqual(7);
+      expect(sources.has("scene")).toBe(true);
+      expect(new Set(methods.map(getQuestMethodTacticKey)).size, sceneId).toBe(methods.length);
+      expect(new Set(methods.map(getQuestMethodAffordanceKey)).size, sceneId).toBe(methods.length);
+    }
+  });
+
   it("keeps generated profile methods free of internal mechanic labels and object suffixes", () => {
     const bard = {
       ...character,
@@ -142,6 +199,18 @@ describe("adventure resolution content", () => {
         method.source === "race" || method.source === "class" || method.source === "signature"
       );
 
+      for (const method of scene.methods) {
+        const methodCopy = [
+          method.label,
+          method.buttonLabel ?? "",
+          method.hint,
+          ...Object.values(method.outcomeText).flatMap((outcome) => [outcome.headline, ...outcome.body])
+        ].join("\n");
+        expect(methodCopy, `${problemId}:${method.id}`).not.toMatch(
+          /шаурмуу|формуу|кухольу|частину бочку|зі бочку|довкола бочку|до бочку/u
+        );
+      }
+
       for (const method of profileMethods) {
         expect(method.hint, `${problemId}:${method.id}`).not.toMatch(
           /Расовий спосіб|Класова техніка|race\+class|signature/u
@@ -152,6 +221,7 @@ describe("adventure resolution content", () => {
         expect(outcomeBody, `${problemId}:${method.id}`).not.toMatch(
           /Підпис методу|Расовий спосіб|Класова техніка|race\+class/u
         );
+        expect(outcomeBody, `${problemId}:${method.id}`).not.toContain("Обраний підхід дає потрібний кут");
         expect(outcomeBody, `${problemId}:${method.id}`).not.toMatch(/:\s*[^:\n]+:/u);
       }
 
@@ -161,6 +231,35 @@ describe("adventure resolution content", () => {
         expect(method.label, `${problemId}:${method.id}`).not.toMatch(/: [^\n]+$/u);
       }
     }
+  });
+
+  it("makes the same race and class adapt to unrelated scene affordances", () => {
+    const stew = resolveQuestMethodsForCharacter(
+      buildAdventureResolutionScene({
+        problemId: "stew",
+        title: "Казанок репетирує оперу",
+        character: bard
+      }),
+      bard
+    );
+    const door = resolveQuestMethodsForCharacter(
+      buildAdventureResolutionScene({
+        problemId: "door",
+        title: "Двері беруть плату за вихід",
+        character: bard
+      }),
+      bard
+    );
+
+    expect(stew.find((method) => method.source === "class")?.label).not.toBe(
+      door.find((method) => method.source === "class")?.label
+    );
+    expect(stew.find((method) => method.source === "race")?.label).not.toBe(
+      door.find((method) => method.source === "race")?.label
+    );
+    expect(stew.find((method) => method.source === "signature")?.outcomeText.success.body.join("\n")).not.toBe(
+      door.find((method) => method.source === "signature")?.outcomeText.success.body.join("\n")
+    );
   });
 });
 
@@ -207,3 +306,23 @@ const character = {
     }
   }
 } as const;
+
+const bard = {
+  ...character,
+  raceId: "race.dryland-rusalka",
+  raceName: "Русалка сухопутна",
+  classId: "class.bard",
+  className: "Бард",
+  title: "Співачка Без Моря",
+  stats: {
+    strength: 6,
+    dexterity: 6,
+    intelligence: 8,
+    charisma: 9,
+    luck: 7
+  }
+} as const;
+
+function normalize(label: string): string {
+  return label.replace(/^[^\p{L}\p{N}]+/u, "").trim().toLocaleLowerCase("uk-UA");
+}

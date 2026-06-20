@@ -262,7 +262,10 @@ describe("scene callback HTML options", () => {
     );
     const edit = calls.find((call) => call.method === "editMessageText");
 
-    expect(completeMimicShawarma).toHaveBeenCalledWith(42n, "inspect-folds");
+    expect(completeMimicShawarma).toHaveBeenCalledWith(42n, {
+      type: "method",
+      methodId: "inspect-folds"
+    });
     expect(completeAdventureApproach).not.toHaveBeenCalled();
     expect(String(edit?.payload.text)).toContain("Шаурма дала свідчення");
     expect(String(edit?.payload.text)).toContain("<i>Метод:</i> 🔎 Перевірити складки лаваша");

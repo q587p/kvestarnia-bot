@@ -49,7 +49,7 @@ import {
 } from "../domain/quests/questChecks";
 import { rollLootExpansionItem } from "../domain/loot/lootEngine";
 import {
-  findQuestMethod,
+  findVisibleQuestMethodByCallbackKey,
   findQuestMethodByLegacyAction,
   resolveQuestMethodsForCharacter
 } from "../domain/quests/questMethodResolver";
@@ -66,6 +66,9 @@ export const ADVENTURE_CHOICE_PERIOD_MINUTES = 93;
 export type AdventureApproach = "safe" | "flair" | "risky";
 export type AdventureMethodId = string;
 export type MimicShawarmaAction = "poke" | "receipt" | "flee";
+export type MimicShawarmaCompletionInput =
+  | { type: "legacy"; action: MimicShawarmaAction }
+  | { type: "method"; methodId: AdventureMethodId };
 const GENERAL_ADVENTURE_PROBLEM_IDS = [
   "stew",
   "barrel",
@@ -388,7 +391,7 @@ export class AdventureService {
       title: choice.title,
       character: characterSummary
     });
-    const method = findQuestMethod(scene, input.methodId);
+    const method = findVisibleQuestMethodByCallbackKey(scene, characterSummary, input.methodId);
 
     if (!method) {
       return {
@@ -548,8 +551,12 @@ export class AdventureService {
 
   async completeMimicShawarma(
     telegramUserId: bigint,
-    action: AdventureMethodId
+    input: AdventureMethodId | MimicShawarmaCompletionInput
   ): Promise<MimicShawarmaResult> {
+    const completionInput =
+      typeof input === "string"
+        ? { type: "legacy" as const, action: input as MimicShawarmaAction }
+        : input;
     const localDate = toIsoDate(this.clock());
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -570,7 +577,9 @@ export class AdventureService {
 
     const scene = buildStarterQuestResolutionScene("shawarma", characterSummary);
     const method =
-      findQuestMethod(scene, action) ?? findQuestMethodByLegacyAction(scene, action);
+      completionInput.type === "method"
+        ? findVisibleQuestMethodByCallbackKey(scene, characterSummary, completionInput.methodId)
+        : findQuestMethodByLegacyAction(scene, completionInput.action);
 
     if (!method) {
       return {
@@ -594,7 +603,9 @@ export class AdventureService {
       ...baseReward,
       xp: buildStarterLevelTwoXpReward({ remortCount: characterSummary.remortCount ?? 0 })
     };
-    const itemGrants = buildMimicShawarmaItemGrants(method.itemIntent ?? method.legacyAction ?? action);
+    const itemGrants = buildMimicShawarmaItemGrants(
+      method.itemIntent ?? method.legacyAction ?? (completionInput.type === "legacy" ? completionInput.action : completionInput.methodId)
+    );
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,
       localDate,
@@ -630,7 +641,7 @@ export class AdventureService {
 
     return {
       state: "completed",
-      action,
+      action: completionInput.type === "legacy" ? completionInput.action : completionInput.methodId,
       method: toAdventureApproachOption(method, characterSummary),
       grade: check.grade,
       outcome: method.outcomeText[check.grade],
@@ -1007,24 +1018,17 @@ export function buildAdventureMethodOptions(
 export function buildStarterMethodOptions(
   sceneId: "shawarma" | "cellar-mouse",
   character: CharacterSummary,
-  maxMethods = 4
+  maxMethods = 7
 ): AdventureApproachOption[] {
   const scene = buildStarterQuestResolutionScene(sceneId, character);
 
   if (sceneId === "cellar-mouse") {
-    const sceneMethods = scene.methods.filter((method) => method.source === "scene").slice(0, 2);
-    const shapedMethods = resolveQuestMethodsForCharacter(scene, character, {
-      maxMethods,
-      minMethods: 3
-    }).filter((method) => method.source !== "scene");
-    const selected = [...sceneMethods, ...shapedMethods]
-      .filter((method, index, methods) => methods.findIndex((candidate) => candidate.id === method.id) === index)
-      .slice(0, maxMethods);
-
-    return selected.map((method) => toAdventureApproachOption(method, character));
+    return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 5 }).map((method) =>
+      toAdventureApproachOption(method, character)
+    );
   }
 
-  return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 3 }).map((method) =>
+  return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 5 }).map((method) =>
     toAdventureApproachOption(method, character)
   );
 }
@@ -1045,7 +1049,7 @@ function toAdventureApproachOption(
   method: QuestMethodDefinition,
   character: CharacterSummary
 ): AdventureApproachOption {
-  const reward = QUEST_REWARD_PROFILES[method.rewardProfile];
+  const reward = getBaseQuestReward(method);
   const chance = qualitativeQuestChance(
     calculateQuestChance({
       method,
@@ -1075,7 +1079,7 @@ function buildQuestReward(
   grade: QuestResolutionGrade,
   consequence: QuestConsequenceKind
 ): { xp: number; gold: number } {
-  const reward = QUEST_REWARD_PROFILES[method.rewardProfile];
+  const reward = getBaseQuestReward(method);
 
   if (grade === "strong-success" || grade === "success" || consequence === "gold-cost-success") {
     return reward;
@@ -1100,6 +1104,12 @@ function buildQuestReward(
     xp: Math.max(1, Math.ceil(reward.xp * 0.35)),
     gold: 0
   };
+}
+
+function getBaseQuestReward(method: QuestMethodDefinition): { xp: number; gold: number } {
+  const reward = QUEST_REWARD_PROFILES[method.rewardProfile];
+
+  return method.goldCost ? { ...reward, gold: 0 } : reward;
 }
 
 function varyAdventureChoiceReward(
@@ -1158,7 +1168,12 @@ function buildAdventureChoiceItemGrants(input: {
   const rng = new SeededRandomSource(
     `adventure-choice-item:v1:${input.characterId}:${input.periodKey}:${input.sceneId}:${input.method.id}:${input.grade}`
   );
-  const dropChance = clamp(0.11 + (Math.floor(input.character.stats.luck) - 6) * 0.012, 0.07, 0.21);
+  const paidMethodBonus = input.method.goldCost ? 0.07 : 0;
+  const dropChance = clamp(
+    0.11 + paidMethodBonus + (Math.floor(input.character.stats.luck) - 6) * 0.012,
+    input.method.goldCost ? 0.12 : 0.07,
+    input.method.goldCost ? 0.29 : 0.21
+  );
 
   if (rng.nextFloat() >= dropChance) {
     return [];
