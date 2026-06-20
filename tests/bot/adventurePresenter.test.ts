@@ -128,6 +128,7 @@ describe("adventure presenter", () => {
     const text = presentAdventureProblem(result);
 
     expect(text).toContain("Казанок &lt;репетирує&gt;");
+    expect(text).toContain("Можливі способи:\n\n🛡️ Обережно");
     expect(text).toContain("Метод оберіть самі.");
     expect(text).toContain("🛡️ Обережно");
     expect(text).toContain("Майже без драматичних зубів.");
