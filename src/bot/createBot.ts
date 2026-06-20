@@ -236,6 +236,7 @@ import {
   presentFightLevelRetired,
   presentFightMonsterRest,
   presentFightNoCharacter,
+  presentFightTrainingActive,
   buildProblemQuestProgressAfterFightEntry,
   type QuestProgressAfterFightEntry,
   presentProblemQuestIssueNext,
@@ -2301,14 +2302,6 @@ async function handleAdventureCallback(
     return;
   }
 
-  if (result.state !== "active-fight") {
-    await markScenePresence(ctx, services.presence, {
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_CHOICE
-    });
-  }
-
   if (result.state === "completed") {
     let complicationFight:
       | Awaited<ReturnType<FightService["getOrStartPersistentFightForTelegramUser"]>>
@@ -2324,14 +2317,47 @@ async function handleAdventureCallback(
         }
       );
 
-      if (
-        complicationFight.state === "needs-rest" ||
-        complicationFight.state === "monster-rest" ||
-        complicationFight.state === "level-retired" ||
-        complicationFight.state === "no-character"
-      ) {
-        await services.adventure.rollbackCurrentAdventureClaimForTelegramUser(telegramUserId);
+      const handoffStarted =
+        complicationFight.state === "persistent-active" && complicationFight.started === true;
+
+      if (!handoffStarted) {
+        await services.adventure.rollbackCurrentAdventureClaimForTelegramUser(telegramUserId, result.claim);
         await safeAnswerCallbackQuery(ctx);
+
+        if (
+          complicationFight.state === "persistent-active" ||
+          complicationFight.state === "persistent-terminal"
+        ) {
+          await markScenePresence(ctx, services.presence, {
+            locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+            currentRaidId: null,
+            currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+          });
+          await safeEditMessageText(ctx, presentPersistentFight(complicationFight), {
+            ...HTML_MESSAGE_OPTIONS,
+            reply_markup: buildPersistentFightResultKeyboard(
+              complicationFight.session,
+              complicationFight.character
+            )
+          });
+          return;
+        }
+
+        if (complicationFight.state === "training-active") {
+          await markScenePresence(ctx, services.presence, {
+            locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+            currentRaidId: null,
+            currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
+          });
+          await safeEditMessageText(ctx, presentFightTrainingActive(complicationFight), {
+            ...HTML_MESSAGE_OPTIONS,
+            reply_markup: buildTrainingDoppelgangerKeyboard(
+              complicationFight.session,
+              complicationFight.character
+            )
+          });
+          return;
+        }
 
         if (complicationFight.state === "needs-rest") {
           await safeEditMessageText(
@@ -2363,6 +2389,18 @@ async function handleAdventureCallback(
         await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
         return;
       }
+
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
+    } else {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_CHOICE
+      });
     }
 
     await safeAnswerCallbackQuery(ctx);
@@ -2387,6 +2425,14 @@ async function handleAdventureCallback(
       }
     }
     return;
+  }
+
+  if (result.state !== "active-fight") {
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_CHOICE
+    });
   }
 
   await safeAnswerCallbackQuery(ctx);

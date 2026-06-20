@@ -291,6 +291,23 @@ export function presentCellarResult(
   return lines.join("\n");
 }
 
+function presentHpLossLines(
+  hpLoss: { lost: number; after: number; before: number; max: number } | null | undefined,
+  character?: Pick<CharacterSummary, "hpCurrent" | "hpMax">
+): string[] {
+  if (!hpLoss || hpLoss.lost <= 0) {
+    return [];
+  }
+
+  const currentHp = character?.hpCurrent ?? hpLoss.after;
+  const currentHpMax = character?.hpMax ?? hpLoss.max;
+
+  return [
+    `Втрачено здоров’я: ${hpLoss.lost}`,
+    `Здоров’я: ${currentHp}/${currentHpMax}`
+  ];
+}
+
 function presentCharacterFlavor(
   character: CharacterSummary,
   placement: "quest.start" | "quest.outcome",

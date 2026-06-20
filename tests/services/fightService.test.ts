@@ -762,6 +762,35 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(1);
   });
 
+  it("creates an adventure handoff fight with the selected monster id", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+    const adventureMonsterId = "monster.borshch-slime";
+
+    const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      source: "adventure",
+      difficulty: "normal",
+      target: { monsterIds: [adventureMonsterId] }
+    });
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.started).toBe(true);
+      expect(started.monster.id).toBe(adventureMonsterId);
+      expect(started.session.monsterId).toBe(adventureMonsterId);
+    }
+    expect(sessions.createCount).toBe(1);
+  });
+
   it("syncs passive resources before starting a new persistent fight", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, {

@@ -249,6 +249,48 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("+7 XP");
   });
 
+  it("shows bounded HP loss only when a quest injury happened", () => {
+    const result = {
+      ...completed(false),
+      character: {
+        ...character,
+        hpCurrent: 17
+      },
+      hpLoss: {
+        before: 20,
+        max: 28,
+        lost: 3,
+        after: 17
+      }
+    };
+    const text = presentAdventureResult(result);
+
+    expect(text).toContain("Втрачено здоров’я: 3");
+    expect(text).toContain("Здоров’я: 17/28");
+  });
+
+  it("uses the returned character summary for the current HP line after injury", () => {
+    const result = {
+      ...completed(false),
+      character: {
+        ...character,
+        hpCurrent: 17,
+        hpMax: 32
+      },
+      hpLoss: {
+        before: 20,
+        max: 28,
+        lost: 3,
+        after: 17
+      }
+    };
+    const text = presentAdventureResult(result);
+
+    expect(text).toContain("Втрачено здоров’я: 3");
+    expect(text).toContain("Здоров’я: 17/32");
+    expect(text).not.toContain("Здоров’я: 17/28");
+  });
+
   it("does not imply duplicate rewards for already-completed adventure", () => {
     const text = presentAdventureAlreadyCompleted();
 

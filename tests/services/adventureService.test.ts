@@ -11,6 +11,8 @@ import type {
 import type {
   ClaimDailyActionInput,
   ClaimDailyActionResult,
+  DailyActionClaimIdentity,
+  DailyActionRollbackInput,
   DailyActionRecord,
   DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
@@ -319,6 +321,153 @@ describe("AdventureService", () => {
       rewardXp: 0,
       rewardGold: 0
     });
+  });
+
+  it("rolls back a failed fight handoff through the stored claim identity", async () => {
+    const found = await findResolvedAdventure((result) => result.fightHandoff);
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state !== "completed") {
+      throw new Error("Expected completed adventure.");
+    }
+
+    await expect(
+      found.service.rollbackCurrentAdventureClaimForTelegramUser(found.userId, found.result.claim)
+    ).resolves.toBe("deleted");
+    expect(found.dailyActions.lastRollbackInput).toMatchObject(found.result.claim);
+    expect(found.dailyActions.lastRollbackInput?.currentEffectiveHpMax).toEqual(expect.any(Number));
+    expect(found.dailyActions.lastDeleteInput).toBeNull();
+    expect(found.dailyActions.records).toHaveLength(0);
+  });
+
+  it("passes the current effective HP max into rollback instead of claim-time state", async () => {
+    const equipment = new FakeEquipmentRepository({
+      characterId: `character-${telegramUserId.toString()}`,
+      equipment: [buildEquipment({ itemId: "item.apron-of-foam-resistance", slot: "armor" })]
+    });
+    const { service, characters, dailyActions } = setup(null, equipment);
+    characters.add(telegramUserId, { xp: 25, gold: 10, hpMax: 25 });
+    const offer = await readyOffer(service);
+    const selected = await service.selectAdventureProblem(telegramUserId, {
+      periodToken: offer.periodToken,
+      problemId: offer.choices[0]!.id
+    });
+
+    expect(selected.state).toBe("selected");
+    if (selected.state !== "selected") {
+      throw new Error(`Expected selected problem, got ${selected.state}.`);
+    }
+
+    const result = await service.completeAdventureApproach(telegramUserId, {
+      periodToken: offer.periodToken,
+      problemId: selected.choice.id,
+      methodId: selected.approaches[0]!.callbackKey ?? selected.approaches[0]!.id
+    });
+
+    expect(result.state).toBe("completed");
+    if (result.state !== "completed") {
+      throw new Error(`Expected completed adventure, got ${result.state}.`);
+    }
+
+    await expect(service.rollbackCurrentAdventureClaimForTelegramUser(telegramUserId, result.claim)).resolves.toBe("deleted");
+    expect(dailyActions.lastRollbackInput).toMatchObject({
+      key: result.claim.key,
+      localDate: result.claim.localDate,
+      currentEffectiveHpMax: result.character.hpMax
+    });
+    expect(dailyActions.lastRollbackInput).not.toHaveProperty("effectiveHpMax");
+  });
+
+  it("rolls back the original adventure claim identity across a 93-minute boundary", async () => {
+    let now = fixedClock();
+    const oldPeriod = buildAdventurePeriod(now);
+    const userId = 2_588n;
+    const characters = new FakeCharacterRepository();
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = new AdventureService(
+      characters,
+      dailyActions,
+      () => now,
+      { findActiveByTelegramUserId: () => Promise.resolve(null) }
+    );
+    characters.add(userId, { xp: 25, gold: 10 });
+    const lookup = await service.getAdventureOfferForTelegramUser(userId);
+
+    if (lookup.state !== "ready") {
+      throw new Error(`Expected ready offer, got ${lookup.state}.`);
+    }
+
+    const selected = await service.selectAdventureProblem(userId, {
+      periodToken: lookup.offer.periodToken,
+      problemId: lookup.offer.choices[0]!.id
+    });
+
+    if (selected.state !== "selected") {
+      throw new Error(`Expected selected problem, got ${selected.state}.`);
+    }
+
+    const result = await service.completeAdventureApproach(userId, {
+      periodToken: lookup.offer.periodToken,
+      problemId: selected.choice.id,
+      methodId: selected.approaches[0]!.callbackKey ?? selected.approaches[0]!.id
+    });
+
+    expect(result.state).toBe("completed");
+    if (result.state !== "completed") {
+      throw new Error(`Expected completed adventure, got ${result.state}.`);
+    }
+
+    now = new Date(oldPeriod.expiresAt.getTime() + 1);
+
+    await expect(service.rollbackCurrentAdventureClaimForTelegramUser(userId, result.claim)).resolves.toBe("deleted");
+    expect(dailyActions.lastRollbackInput).toMatchObject({
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: oldPeriod.storageKey
+    });
+    expect(dailyActions.lastDeleteInput).toBeNull();
+    expect(dailyActions.records).toHaveLength(0);
+  });
+
+  it.each([
+    {
+      name: "level-3 barrel",
+      problemId: "barrel",
+      character: { xp: 25, level: 3 }
+    },
+    {
+      name: "level-3 bell",
+      problemId: "bell",
+      character: { xp: 25, level: 3 }
+    },
+    {
+      name: "generated portrait",
+      problemId: "race-human-ish-portrait",
+      character: { xp: 25, level: 3, raceId: "race.human-ish" }
+    },
+    {
+      name: "higher-level handoff",
+      problemId: "barrel",
+      character: { xp: 250, level: 8 }
+    }
+  ])("stores the actual eligible fight handoff target for $name", async ({ problemId, character }) => {
+    const found = await findResolvedAdventureForProblem(problemId, character, (result) => result.fightHandoff);
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state !== "completed") {
+      return;
+    }
+
+    const monsterId = found.result.fightEncounter?.monsterId;
+    const audit = found.dailyActions.records[0]?.resultJson as
+      | { fightHandoff?: { monsterId?: string } }
+      | null
+      | undefined;
+    const monster = monsters.find((candidate) => candidate.id === monsterId);
+
+    expect(monsterId).toBeDefined();
+    expect(audit?.fightHandoff?.monsterId).toBe(monsterId);
+    expect(monster?.level).toBeLessThanOrEqual(Math.max(3, character.level ?? 3));
+    expect(monster?.tags ?? []).not.toEqual(expect.arrayContaining(["starter", "boss"]));
   });
 
   it("does not duplicate rewards when callback is replayed", async () => {
@@ -844,6 +993,8 @@ class FakeCharacterRepository implements CharacterRepository {
 class FakeDailyActionRepository implements DailyActionRepository {
   private readonly actions = new Map<string, DailyActionRecord>();
   createCount = 0;
+  lastDeleteInput: DailyActionClaimIdentity | null = null;
+  lastRollbackInput: DailyActionRollbackInput | null = null;
 
   constructor(private readonly characters: FakeCharacterRepository) {}
 
@@ -948,6 +1099,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
       action,
       character: updatedCharacter,
       itemGrants: input.itemGrants ?? [],
+      hpLoss: null,
       levelChange: {
         oldLevel: getLevelForXp(character.xp, { remortCount: character.remortCount ?? 0 }),
         newLevel: updatedCharacter.level,
@@ -959,8 +1111,9 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
   async deleteForTelegramUser(
     userTelegramId: bigint,
-    input: { key: string; localDate: string }
+    input: DailyActionClaimIdentity
   ): Promise<"deleted" | "missing" | "no-character"> {
+    this.lastDeleteInput = input;
     const character = await this.characters.findByTelegramUserId(userTelegramId);
 
     if (!character) {
@@ -969,6 +1122,22 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
     return this.actions.delete(`${character.id}:${input.key}:${input.localDate}`)
       ? "deleted"
+      : "missing";
+  }
+
+  async rollbackForTelegramUser(
+    userTelegramId: bigint,
+    input: DailyActionRollbackInput
+  ): Promise<"rolled-back" | "missing" | "no-character"> {
+    this.lastRollbackInput = input;
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return "no-character";
+    }
+
+    return this.actions.delete(`${character.id}:${input.key}:${input.localDate}`)
+      ? "rolled-back"
       : "missing";
   }
 

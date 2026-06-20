@@ -3,8 +3,11 @@ import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import type {
   ClaimDailyActionInput,
   ClaimDailyActionResult,
+  DailyActionClaimIdentity,
   DailyActionRecord,
   DailyActionRepository,
+  DailyActionRollbackInput,
+  HpLossAudit,
   ItemGrant
 } from "./dailyActionRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
@@ -47,8 +50,9 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     telegramUserId: bigint,
     input: ClaimDailyActionInput
   ): Promise<ClaimDailyActionResult | null> {
-    try {
-      return await this.prisma.$transaction(async (tx) => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
         const character = await tx.character.findFirst({
           where: {
             user: {
@@ -127,19 +131,48 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           }
         });
 
-        const rewardedCharacter = await tx.character.update({
-          where: {
-            id: character.id
+        const rewardUpdate = {
+          xp: {
+            increment: input.rewardXp
           },
-          data: {
-            xp: {
-              increment: input.rewardXp
+          gold: {
+            increment: input.rewardGold
+          },
+          ...(hpLoss
+            ? {
+                hpCurrent: hpLoss.after,
+                hpRegenAt: new Date()
+              }
+            : {})
+        };
+        let rewardedCharacter: typeof character;
+
+        if (hpLoss) {
+          const updated = await tx.character.updateMany({
+            where: {
+              id: character.id,
+              hpCurrent: hpLoss.before
             },
-            gold: {
-              increment: input.rewardGold
-            }
+            data: rewardUpdate
+          });
+
+          if (updated.count !== 1) {
+            throw new HpMutationConflictError();
           }
-        });
+
+          rewardedCharacter = await tx.character.findUniqueOrThrow({
+            where: {
+              id: character.id
+            }
+          });
+        } else {
+          rewardedCharacter = await tx.character.update({
+            where: {
+              id: character.id
+            },
+            data: rewardUpdate
+          });
+        }
         const remortCount = await countCharacterRemorts(tx, character.id);
         const rewardProgress = applyXpReward(character.xp, input.rewardXp, { remortCount });
         const oldLevel = Math.max(character.level, rewardProgress.oldLevel);
@@ -194,6 +227,17 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           });
         }
 
+        if (appliedItemGrants.length > 0 || itemGrants.length > 0) {
+          await tx.dailyAction.update({
+            where: {
+              id: action.id
+            },
+            data: {
+              resultJson: withAppliedItemGrants(action.resultJson, appliedItemGrants) as Prisma.InputJsonValue
+            }
+          });
+        }
+
         return {
           state: "created",
           action,
@@ -203,21 +247,29 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             newLevel,
             leveledUp: newLevel > oldLevel
           },
-          itemGrants: appliedItemGrants
+          itemGrants: appliedItemGrants,
+          hpLoss
         };
-      });
-    } catch (error) {
-      if (isUniqueConstraintError(error)) {
-        return this.findExistingClaim(telegramUserId, input);
-      }
+        });
+      } catch (error) {
+        if (error instanceof HpMutationConflictError && attempt < 2) {
+          continue;
+        }
 
-      throw error;
+        if (isUniqueConstraintError(error)) {
+          return this.findExistingClaim(telegramUserId, input);
+        }
+
+        throw error;
+      }
     }
+
+    throw new HpMutationConflictError();
   }
 
   async deleteForTelegramUser(
     telegramUserId: bigint,
-    input: { key: string; localDate: string }
+    input: DailyActionClaimIdentity
   ): Promise<"deleted" | "missing" | "no-character"> {
     const character = await this.prisma.character.findFirst({
       where: {
@@ -243,6 +295,154 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     });
 
     return deleted.count > 0 ? "deleted" : "missing";
+  }
+
+  async rollbackForTelegramUser(
+    telegramUserId: bigint,
+    input: DailyActionRollbackInput
+  ): Promise<"rolled-back" | "missing" | "no-character"> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          const character = await tx.character.findFirst({
+            where: {
+              user: {
+                telegramUserId
+              }
+            }
+          });
+
+          if (!character) {
+            return "no-character";
+          }
+
+          const action = await tx.dailyAction.findUnique({
+            where: {
+              characterId_key_localDate: {
+                characterId: character.id,
+                key: input.key,
+                localDate: input.localDate
+              }
+            }
+          });
+
+          if (!action) {
+            return "missing";
+          }
+
+          const hpLoss = readHpLossAudit(action.resultJson);
+          await tx.dailyAction.delete({
+            where: {
+              characterId_key_localDate: {
+                characterId: character.id,
+                key: input.key,
+                localDate: input.localDate
+              }
+            }
+          });
+
+          const remortCount = await countCharacterRemorts(tx, character.id);
+          const xpAfterRollback = Math.max(0, character.xp - action.rewardXp);
+          const levelAfterRollback = getLevelForXp(xpAfterRollback, { remortCount });
+          const rollbackHpCurrent =
+            hpLoss && hpLoss.lost > 0 && character.hpCurrent === hpLoss.after
+              ? Math.max(
+                  character.hpCurrent,
+                  Math.min(
+                    Math.max(1, Math.floor(input.currentEffectiveHpMax ?? character.hpMax)),
+                    hpLoss.after + hpLoss.lost
+                  )
+                )
+              : null;
+          const characterUpdate = await tx.character.updateMany({
+            where: {
+              id: character.id,
+              xp: character.xp,
+              level: character.level,
+              gold: character.gold,
+              ...(rollbackHpCurrent !== null ? { hpCurrent: character.hpCurrent } : {})
+            },
+            data: {
+              xp: xpAfterRollback,
+              level: levelAfterRollback,
+              gold: {
+                increment: action.spentGold - action.rewardGold
+              },
+              ...(rollbackHpCurrent !== null
+                ? {
+                    hpCurrent: rollbackHpCurrent,
+                    hpRegenAt: new Date()
+                  }
+                : {})
+            }
+          });
+
+          if (characterUpdate.count !== 1) {
+            throw new RollbackMutationConflictError();
+          }
+
+          const itemGrants = readItemGrants(action.resultJson);
+
+          for (const grant of itemGrants) {
+            if (grant.quantity <= 0) {
+              continue;
+            }
+
+            const existing = await tx.characterItem.findUnique({
+              where: {
+                characterId_itemId: {
+                  characterId: character.id,
+                  itemId: grant.itemId
+                }
+              }
+            });
+
+            if (!existing) {
+              continue;
+            }
+
+            const nextQuantity = existing.quantity - grant.quantity;
+
+            if (nextQuantity > 0) {
+              const itemUpdate = await tx.characterItem.updateMany({
+                where: {
+                  id: existing.id,
+                  quantity: existing.quantity
+                },
+                data: {
+                  quantity: nextQuantity
+                }
+              });
+
+              if (itemUpdate.count !== 1) {
+                throw new RollbackMutationConflictError();
+              }
+            } else {
+              const itemDelete = await tx.characterItem.deleteMany({
+                where: {
+                  id: existing.id,
+                  quantity: existing.quantity
+                }
+              });
+
+              if (itemDelete.count !== 1) {
+                throw new RollbackMutationConflictError();
+              }
+            }
+          }
+
+          return "rolled-back";
+        });
+      } catch (error) {
+        if (error instanceof RollbackMutationConflictError && attempt < 2) {
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    throw new RollbackMutationConflictError();
   }
 
   async countForTelegramUser(

@@ -235,6 +235,21 @@ export class CellarErrandService {
     const reward = buildCellarReward(method, check.grade);
     const spentGold = method.goldCost ?? 0;
     const availableAt = new Date(now.getTime() + CELLAR_MOUSE_ERRAND_COOLDOWN_MS);
+    const cycleKey = buildCellarCycleKey(current.cooldown);
+    const hpLoss = buildCellarHpLoss({
+      characterId: current.character.id,
+      cycleKey,
+      sceneId: scene.sceneId,
+      methodId: method.id,
+      grade: check.grade,
+      consequence,
+      hpMax: character.hpMax
+    });
+    const itemGrants = buildCellarItemGrants(
+      method.itemIntent ??
+        method.legacyAction ??
+        (completionInput.type === "legacy-action" ? completionInput.action : completionInput.methodId)
+    );
     const claim = await this.cooldowns.claimRewardForTelegramUser(telegramUserId, {
       key: CELLAR_MOUSE_ERRAND_KEY,
       now,

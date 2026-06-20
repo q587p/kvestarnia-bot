@@ -282,6 +282,23 @@ export function presentMimicShawarmaResult(
   return lines.join("\n");
 }
 
+function presentHpLossLines(
+  hpLoss: { lost: number; after: number; before: number; max: number } | null | undefined,
+  character?: Pick<CharacterSummary, "hpCurrent" | "hpMax">
+): string[] {
+  if (!hpLoss || hpLoss.lost <= 0) {
+    return [];
+  }
+
+  const currentHp = character?.hpCurrent ?? hpLoss.after;
+  const currentHpMax = character?.hpMax ?? hpLoss.max;
+
+  return [
+    `Втрачено здоров’я: ${hpLoss.lost}`,
+    `Здоров’я: ${currentHp}/${currentHpMax}`
+  ];
+}
+
 function presentAdventureStale(result: Extract<AdventureResult | AdventureProblemResult, { state: "stale" }>): string {
   return [
     "🪧 Цей папірець уже не актуальний.",

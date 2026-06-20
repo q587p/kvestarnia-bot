@@ -1,11 +1,12 @@
 import type { CharacterRecord } from "./characterRepository";
-import type { ItemGrant, RewardLevelChange } from "./dailyActionRepository";
+import type { HpLossAudit, HpLossRequest, ItemGrant, RewardLevelChange } from "./dailyActionRepository";
 
 export interface CharacterCooldownRecord {
   id: string;
   characterId: string;
   key: string;
   availableAt: Date;
+  resultJson: unknown;
   updatedAt: Date;
 }
 
@@ -26,6 +27,7 @@ export type ClaimCooldownRewardResult =
       character: CharacterRecord;
       levelChange: RewardLevelChange;
       itemGrants: ItemGrant[];
+      hpLoss: HpLossAudit | null;
     }
   | {
       state: "on-cooldown";

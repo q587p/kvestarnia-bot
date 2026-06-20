@@ -1,9 +1,12 @@
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import { classes } from "../content/classes";
 import { classIdToKey, getKnownComboTitleValues, raceIdToKey } from "../content/characterOptions";
+import { monsters } from "../content/monsters";
 import { activeRaces } from "../content/races";
 import type {
+  DailyActionClaimIdentity,
   DailyActionRepository,
+  HpLossAudit,
   RewardLevelChange
 } from "../db/repositories/dailyActionRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
@@ -151,6 +154,10 @@ export interface AdventureReward {
   itemGrants: RewardItemGrant[];
 }
 
+export interface AdventureFightHandoffTarget {
+  monsterId: string;
+}
+
 export const MIMIC_SHAWARMA_REWARDS = {
   poke: {
     xp: 8,
@@ -255,6 +262,8 @@ export type AdventureClaimRollbackResult =
   | "no-character"
   | "unavailable";
 
+export type AdventureClaimIdentity = DailyActionClaimIdentity;
+
 export class AdventureService {
   constructor(
     private readonly characters: CharacterRepository,
@@ -351,9 +360,13 @@ export class AdventureService {
     }
 
     const period = buildAdventurePeriod(this.clock());
-    const existing = await this.dailyActions.findForTelegramUser(telegramUserId, {
+    const claimIdentity: AdventureClaimIdentity = {
       key: ADVENTURE_CHOICE_KEY,
       localDate: period.storageKey
+    };
+    const existing = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: claimIdentity.key,
+      localDate: claimIdentity.localDate
     });
 
     if (existing) {
@@ -443,8 +456,8 @@ export class AdventureService {
     });
     const spentGold = method.goldCost ?? 0;
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
-      key: ADVENTURE_CHOICE_KEY,
-      localDate: period.storageKey,
+      key: claimIdentity.key,
+      localDate: claimIdentity.localDate,
       rewardXp: reward.xp,
       rewardGold: reward.gold,
       spentGold,
@@ -686,18 +699,34 @@ export class AdventureService {
   }
 
   async rollbackCurrentAdventureClaimForTelegramUser(
-    telegramUserId: bigint
+    telegramUserId: bigint,
+    claimIdentity?: AdventureClaimIdentity
   ): Promise<AdventureClaimRollbackResult> {
+    const input =
+      claimIdentity ?? {
+        key: ADVENTURE_CHOICE_KEY,
+        localDate: buildAdventurePeriod(this.clock()).storageKey
+      };
+
+    if (this.dailyActions.rollbackForTelegramUser) {
+      const currentCharacter = await this.characters.findByTelegramUserId(telegramUserId);
+      const equippedItems = currentCharacter ? await this.getEquippedItemContents(telegramUserId) : [];
+      const currentSummary = currentCharacter
+        ? summarizeCharacter(currentCharacter, { equippedItems })
+        : null;
+      const result = await this.dailyActions.rollbackForTelegramUser(telegramUserId, {
+        ...input,
+        ...(currentSummary ? { currentEffectiveHpMax: currentSummary.hpMax } : {})
+      });
+
+      return result === "rolled-back" ? "deleted" : result;
+    }
+
     if (!this.dailyActions.deleteForTelegramUser) {
       return "unavailable";
     }
 
-    const period = buildAdventurePeriod(this.clock());
-
-    return this.dailyActions.deleteForTelegramUser(telegramUserId, {
-      key: ADVENTURE_CHOICE_KEY,
-      localDate: period.storageKey
-    });
+    return this.dailyActions.deleteForTelegramUser(telegramUserId, input);
   }
 
   private async getAdventureContext(telegramUserId: bigint): Promise<AdventureLookupResult> {

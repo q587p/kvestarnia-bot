@@ -25,6 +25,18 @@ export interface ItemGrant {
   maxOwnedQuantity?: number;
 }
 
+export interface HpLossAudit {
+  before: number;
+  max: number;
+  lost: number;
+  after: number;
+}
+
+export interface HpLossRequest {
+  requested: number;
+  effectiveHpMax: number;
+}
+
 export interface ClaimDailyActionInput {
   key: string;
   localDate: string;
@@ -35,6 +47,15 @@ export interface ClaimDailyActionInput {
   itemGrants?: ItemGrant[];
 }
 
+export interface DailyActionClaimIdentity {
+  key: string;
+  localDate: string;
+}
+
+export interface DailyActionRollbackInput extends DailyActionClaimIdentity {
+  currentEffectiveHpMax?: number;
+}
+
 export type ClaimDailyActionResult =
   | {
       state: "created";
@@ -42,6 +63,7 @@ export type ClaimDailyActionResult =
       character: CharacterRecord;
       levelChange: RewardLevelChange;
       itemGrants: ItemGrant[];
+      hpLoss: HpLossAudit | null;
     }
   | {
       state: "existing";
@@ -69,8 +91,13 @@ export interface DailyActionRepository {
 
   deleteForTelegramUser?(
     telegramUserId: bigint,
-    input: { key: string; localDate: string }
+    input: DailyActionClaimIdentity
   ): Promise<"deleted" | "missing" | "no-character">;
+
+  rollbackForTelegramUser?(
+    telegramUserId: bigint,
+    input: DailyActionRollbackInput
+  ): Promise<"rolled-back" | "missing" | "no-character">;
 
   countForTelegramUser?(
     telegramUserId: bigint,
