@@ -6,7 +6,10 @@ import {
   makeMimicShawarmaMethodCallbackData,
   makeAdventureProblemCallbackData
 } from "../../src/bot/callbacks/adventureCallbackData";
-import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackData";
+import {
+  makeCellarCallbackData,
+  makeCellarMethodCallbackData
+} from "../../src/bot/callbacks/cellarCallbackData";
 import {
   makeFightCallbackData,
   makeFightTurnCallbackData
@@ -341,6 +344,160 @@ describe("scene callback HTML options", () => {
     expect(completeMimicShawarma).not.toHaveBeenCalled();
     expect(String(edit?.payload.text)).toContain("Казанок стишився");
     expect(String(edit?.payload.text)).toContain("<i>Метод:</i> 🎵 Продиригувати юшкою");
+  });
+
+  it("routes duplicate v2 adventure method taps through the bot without a second completion card", async () => {
+    const completeAdventureApproach = vi
+      .fn()
+      .mockResolvedValueOnce({
+        state: "completed" as const,
+        character,
+        choice: adventureChoice,
+        approach: adventureApproach,
+        reward: {
+          xp: 7,
+          gold: 4,
+          localDate: "12026-06-20",
+          itemGrants: []
+        },
+        levelChange: noLevelChange,
+        complication: false,
+        grade: "success" as const,
+        consequence: "full-reward" as const,
+        outcome: {
+          headline: "✅ Справу закрито",
+          body: ["Казанок стишився."]
+        },
+        spentGold: 0,
+        hpLoss: null,
+        fightHandoff: false,
+        fightEncounter: null,
+        claim: {
+          key: "adventure.choice",
+          localDate: "12026-06-20"
+        },
+        check: {
+          roll: 13,
+          target: 45,
+          total: 13,
+          statBonus: 0,
+          grade: "success"
+        }
+      })
+      .mockResolvedValueOnce({
+        state: "already-completed" as const,
+        character
+      });
+    const callbackData = makeAdventureApproachCallbackData({
+      periodToken: "period93",
+      problemId: "stew",
+      methodId: adventureApproach.id
+    });
+    const calls = await captureRepeatedApiCalls(
+      [callbackData, callbackData],
+      servicesWith({
+        adventure: {
+          completeAdventureApproach
+        }
+      })
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+
+    expect(completeAdventureApproach).toHaveBeenCalledTimes(2);
+    expect(completeAdventureApproach).toHaveBeenNthCalledWith(
+      1,
+      42n,
+      expect.objectContaining({
+        type: "approach",
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      })
+    );
+    expect(completeAdventureApproach).toHaveBeenNthCalledWith(
+      2,
+      42n,
+      expect.objectContaining({
+        type: "approach",
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      })
+    );
+    expect(String(edits[0]?.payload.text)).toContain("Казанок стишився");
+    expect(String(edits[0]?.payload.text)).toContain("XP");
+    expect(String(edits[1]?.payload.text)).toContain("/hero");
+    expect(String(edits[1]?.payload.text)).not.toContain("Казанок стишився");
+  });
+
+  it("routes duplicate v2 paid cellar method taps through cooldown after the first result", async () => {
+    const complete = vi
+      .fn()
+      .mockResolvedValueOnce({
+        state: "completed" as const,
+        action: "bribe-cheese",
+        method: {
+          id: "bribe-cheese",
+          callbackKey: toQuestCallbackKey("bribe-cheese"),
+          label: "🪙 Дати миші 1 золоту «на сирний фонд»",
+          hint: "Коштує 1 золото.",
+          goldCost: 1
+        },
+        grade: "success" as const,
+        outcome: {
+          headline: "✅ Льохову справу закрито",
+          body: ["Сирний фонд офіційно зашаршів."]
+        },
+        spentGold: 1,
+        hpLoss: null,
+        check: {
+          roll: 13,
+          target: 45,
+          total: 13,
+          statBonus: 0,
+          grade: "success"
+        },
+        character,
+        reward: {
+          xp: 2,
+          gold: 0,
+          itemGrants: []
+        },
+        availableAt: new Date("2026-06-13T10:03:00.000Z"),
+        now: new Date("2026-06-13T10:00:00.000Z"),
+        levelChange: noLevelChange
+      })
+      .mockResolvedValueOnce({
+        state: "on-cooldown" as const,
+        character,
+        availableAt: new Date("2026-06-13T10:03:00.000Z"),
+        now: new Date("2026-06-13T10:00:30.000Z")
+      });
+    const callbackData = makeCellarMethodCallbackData("bribe-cheese");
+    const calls = await captureRepeatedApiCalls(
+      [callbackData, callbackData],
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          complete
+        }
+      })
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(complete).toHaveBeenNthCalledWith(1, 42n, {
+      type: "method",
+      methodId: "bribe-cheese"
+    });
+    expect(complete).toHaveBeenNthCalledWith(2, 42n, {
+      type: "method",
+      methodId: "bribe-cheese"
+    });
+    expect(String(edits[0]?.payload.text)).toContain("Сирний фонд офіційно зашаршів");
+    expect(String(edits[0]?.payload.text)).toContain("1");
+    expect(String(edits[1]?.payload.text)).not.toContain("Сирний фонд офіційно зашаршів");
+    expect(String(edits[1]?.payload.text)).not.toContain("Списано");
   });
 
   it("renders stale state for hidden v2 adventure method callbacks", async () => {
@@ -2710,6 +2867,68 @@ async function captureApiCalls(callbackData: string, services: BotServices): Pro
       }
     }
   });
+
+  return calls;
+}
+
+async function captureRepeatedApiCalls(
+  callbackDataList: string[],
+  services: BotServices
+): Promise<ApiCall[]> {
+  const bot = createBot("123456:test-token", services);
+  const calls: ApiCall[] = [];
+
+  bot.api.config.use((_prev, method, payload) => {
+    calls.push({
+      method,
+      payload
+    });
+
+    if (method === "getMe") {
+      return Promise.resolve({
+        ok: true,
+        result: {
+          id: 123456,
+          is_bot: true,
+          first_name: "РљРІРµСЃС‚Р°СЂРЅСЏ",
+          username: "kvestarnia_bot"
+        }
+      });
+    }
+
+    return Promise.resolve({
+      ok: true,
+      result: true
+    });
+  });
+
+  await bot.init();
+
+  for (const [index, callbackData] of callbackDataList.entries()) {
+    await bot.handleUpdate({
+      update_id: index + 1,
+      callback_query: {
+        id: `callback-${index + 1}`,
+        from: {
+          id: 42,
+          is_bot: false,
+          first_name: "РўРµСЃС‚"
+        },
+        chat_instance: "chat-instance",
+        data: callbackData,
+        message: {
+          message_id: 10,
+          date: 0,
+          chat: {
+            id: 42,
+            type: "private",
+            first_name: "РўРµСЃС‚"
+          },
+          text: "old"
+        }
+      }
+    });
+  }
 
   return calls;
 }
