@@ -252,6 +252,8 @@ v2:adv:a:<period>:<problemKey>:<methodKey>
 - не більше двох methods з однаковим primary stat;
 - при неможливості зібрати чотири справді різні методи додати другий `scene` method, а не показувати декоративний дубль.
 
+Implementation note for `0.1.20`: race, class and signature slots must bind to an authored scene affordance candidate before rendering. Do not produce active labels by blindly replacing nouns inside a global profile phrase. The same deterministic visible-method resolver is the allowlist for both button rendering and completion; hidden authored scene methods are not valid callbacks unless they are in the current visible set or an explicit legacy starter/cellar action.
+
 ### 4.4. Combo і title
 
 Exact combo identity має будуватися з `raceId + classId`, не з player-facing title text. Title може:

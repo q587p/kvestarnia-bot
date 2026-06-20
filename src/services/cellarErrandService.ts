@@ -22,14 +22,15 @@ import { buildStarterQuestResolutionScene } from "../content/starterQuestResolut
 import { type QuestMethodDefinition, type QuestResolutionGrade } from "../content/questResolution";
 import { resolveQuestCheck, type QuestCheckResult } from "../domain/quests/questChecks";
 import {
-  findQuestMethod,
   findQuestMethodByLegacyAction,
+  findVisibleQuestMethod,
   resolveQuestMethodsForCharacter
 } from "../domain/quests/questMethodResolver";
 import { getEquippedItemContents } from "./equipmentService";
 
 export const CELLAR_MOUSE_ERRAND_KEY = "cellar.mouse-errand";
 export const CELLAR_MOUSE_ERRAND_COOLDOWN_MS = 3 * 60 * 1000;
+const CELLAR_DEFAULT_SCENE_SLOT = "bribe-cheese";
 
 export type CellarErrandAction = string;
 
@@ -203,7 +204,11 @@ export class CellarErrandService {
 
     const scene = buildStarterQuestResolutionScene("cellar-mouse", character);
     const method =
-      findQuestMethod(scene, action) ?? findQuestMethodByLegacyAction(scene, action);
+      findVisibleQuestMethod(scene, character, action, {
+        maxMethods: 4,
+        minMethods: 3,
+        sceneSlotKey: CELLAR_DEFAULT_SCENE_SLOT
+      }) ?? findQuestMethodByLegacyAction(scene, action);
 
     if (!method) {
       return {
@@ -285,14 +290,11 @@ export class CellarErrandService {
 
 export function buildCellarMethodOptions(character: CharacterSummary): CellarErrandMethodOption[] {
   const scene = buildStarterQuestResolutionScene("cellar-mouse", character);
-  const sceneMethods = scene.methods.filter((method) => method.source === "scene").slice(0, 2);
-  const shapedMethods = resolveQuestMethodsForCharacter(scene, character, { maxMethods: 4, minMethods: 3 })
-    .filter((method) => method.source !== "scene");
-  const selected = [...sceneMethods, ...shapedMethods]
-    .filter((method, index, methods) => methods.findIndex((candidate) => candidate.id === method.id) === index)
-    .slice(0, 4);
-
-  return selected.map(toCellarMethodOption);
+  return resolveQuestMethodsForCharacter(scene, character, {
+    maxMethods: 4,
+    minMethods: 3,
+    sceneSlotKey: CELLAR_DEFAULT_SCENE_SLOT
+  }).map(toCellarMethodOption);
 }
 
 function toCellarMethodOption(method: QuestMethodDefinition): CellarErrandMethodOption {

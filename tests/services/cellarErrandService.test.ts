@@ -13,6 +13,7 @@ import {
   CellarErrandService,
   buildCellarMethodOptions
 } from "../../src/services/cellarErrandService";
+import { buildStarterQuestResolutionScene } from "../../src/content/starterQuestResolutionContent";
 
 const telegramUserId = 42n;
 const startedAt = new Date("2026-06-13T10:00:00.000Z");
@@ -218,6 +219,33 @@ describe("CellarErrandService", () => {
 
     expect(result).toMatchObject({ state: "stale" });
     expect(cooldowns.claimCount).toBe(0);
+  });
+
+  it("rejects hidden authored cellar methods instead of consuming cooldown", async () => {
+    const cooldowns = new FakeCooldownRepository();
+    cooldowns.addCharacter(telegramUserId, { xp: 10, gold: 3 });
+    const character = await cooldowns.findCharacter(telegramUserId);
+
+    expect(character).not.toBeNull();
+    const summary = summarizeCharacter(character!);
+    const visible = buildCellarMethodOptions(summary).map((method) => method.id);
+    const hidden = buildStarterQuestResolutionScene("cellar-mouse", summary).methods.find(
+      (method) =>
+        !visible.includes(method.id) &&
+        method.id !== "cheese-trap" &&
+        method.id !== "sweep-bravely" &&
+        method.id !== "negotiate" &&
+        method.id !== "bribe-cheese"
+    );
+    const service = new CellarErrandService(cooldowns, () => startedAt);
+    const result = await service.complete(telegramUserId, hidden?.id ?? "missing");
+
+    expect(hidden).toBeDefined();
+    expect(result).toMatchObject({ state: "stale" });
+    expect(cooldowns.claimCount).toBe(0);
+    await expect(cooldowns.findForTelegramUser(telegramUserId, "cellar.mouse-errand")).resolves.toMatchObject({
+      cooldown: null
+    });
   });
 
   it("keeps every visible cellar method inside the conservative mouse reward envelope", async () => {

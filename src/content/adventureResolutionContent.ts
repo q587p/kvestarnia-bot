@@ -7,7 +7,8 @@ import type {
   QuestResolutionGrade,
   QuestResolutionScene,
   QuestRewardProfile,
-  QuestTechniqueId
+  QuestTechniqueId,
+  QuestTechniqueProfile
 } from "./questResolution";
 import {
   classTechniqueProfiles,
@@ -195,9 +196,9 @@ export function buildAdventureResolutionScene(input: {
   const seed = GENERAL_SCENE_SEEDS[input.problemId] ?? buildGeneratedSceneSeed(input.problemId);
   const methods = [
     ...seed.methods.map((methodSeed) => materializeSceneMethod(input.title, seed, methodSeed)),
-    buildRaceMethod(input.character, input.title, seed),
-    buildClassMethod(input.character, input.title, seed),
-    buildSignatureMethod(input.character, input.title, seed.object)
+    ...buildRaceMethods(input.character, input.title, seed),
+    ...buildClassMethods(input.character, input.title, seed),
+    ...buildSignatureMethods(input.character, input.title, seed)
   ];
 
   return {
@@ -370,69 +371,84 @@ function materializeSceneMethod(
   };
 }
 
-function buildRaceMethod(character: CharacterSummary, sceneTitle: string, sceneSeed: AdventureSceneSeed): QuestMethodDefinition {
+function buildRaceMethods(character: CharacterSummary, sceneTitle: string, sceneSeed: AdventureSceneSeed): QuestMethodDefinition[] {
   const profile = getRaceProfile(character.raceId);
-  const id = `r${getCompactRaceKey(character.raceId)}`;
+  const raceKey = getCompactRaceKey(character.raceId);
 
-  return buildProfileMethod({
-    id,
+  return sceneSeed.methods.map((seed) => buildProfileMethod({
+    id: compactPersonalMethodId("r", raceKey, seed.id),
     source: "race",
-    label: `🧬 ${adaptProfileLabel(profile.methodPrefix, sceneSeed.object, sceneSeed.objectGenitive)}`,
-    buttonLabel: `🧬 ${adaptProfileLabel(profile.shortButtonLabel ?? profile.methodPrefix, sceneSeed.object, sceneSeed.objectGenitive)}`,
+    label: `${profileIcon(character.raceId)} ${buildRaceActionLabel(character.raceId, profile, seed)}`,
+    buttonLabel: `${profileIcon(character.raceId)} ${buildRaceButtonLabel(character.raceId, profile, seed)}`,
     hint: "Особистий підхід героя. Винагорода звичайна.",
     sceneTitle,
     profile,
-    rewardProfile: "standard"
-  });
+    seed,
+    rewardProfile: "standard",
+    profileKind: "race"
+  }));
 }
 
-function buildClassMethod(character: CharacterSummary, sceneTitle: string, sceneSeed: AdventureSceneSeed): QuestMethodDefinition {
+function buildClassMethods(character: CharacterSummary, sceneTitle: string, sceneSeed: AdventureSceneSeed): QuestMethodDefinition[] {
   const profile = getClassProfile(character.classId);
-  const id = `c${getCompactClassKey(character.classId)}`;
+  const classKey = getCompactClassKey(character.classId);
 
-  return buildProfileMethod({
-    id,
+  return sceneSeed.methods.map((seed) => buildProfileMethod({
+    id: compactPersonalMethodId("c", classKey, seed.id),
     source: "class",
-    label: `🎭 ${adaptProfileLabel(profile.methodPrefix, sceneSeed.object, sceneSeed.objectGenitive)}`,
-    buttonLabel: `🎭 ${adaptProfileLabel(profile.shortButtonLabel ?? profile.methodPrefix, sceneSeed.object, sceneSeed.objectGenitive)}`,
+    label: `${classIcon(character.classId)} ${buildClassActionLabel(character.classId, profile, seed)}`,
+    buttonLabel: `${classIcon(character.classId)} ${buildClassButtonLabel(character.classId, profile, seed)}`,
     hint: "Професійний підхід героя. Винагорода звичайна.",
     sceneTitle,
     profile,
-    rewardProfile: "standard"
-  });
+    seed,
+    rewardProfile: "standard",
+    profileKind: "class"
+  }));
 }
 
-function buildSignatureMethod(character: CharacterSummary, sceneTitle: string, object: string): QuestMethodDefinition {
+function buildSignatureMethods(character: CharacterSummary, sceneTitle: string, sceneSeed: AdventureSceneSeed): QuestMethodDefinition[] {
   const raceProfile = getRaceProfile(character.raceId);
   const classProfile = getClassProfile(character.classId);
-  const id = `s${getCompactRaceKey(character.raceId)}${getCompactClassKey(character.classId)}`;
   const title = character.title ? `«${character.title}»` : "геройський підпис";
-  const techniques = [...new Set([firstTechnique(raceProfile), firstTechnique(classProfile)])] as QuestTechniqueId[];
+  const raceKey = getCompactRaceKey(character.raceId);
+  const classKey = getCompactClassKey(character.classId);
 
-  return {
-    id,
-    callbackKey: toQuestCallbackKey(id),
-    source: "signature",
-    label: `🏷️ ${title}: вписати ${object} у власну легенду`,
-    buttonLabel: `🏷️ ${title}`,
-    hint: "Непевніше, зате стильніше.",
-    intent: chooseIntent(techniques),
-    techniques,
-    primaryStat: classProfile.primaryStat,
-    ...(raceProfile.primaryStat !== classProfile.primaryStat ? { secondaryStat: raceProfile.primaryStat } : {}),
-    baseChance: 61,
-    rewardProfile: "generous",
-    ...(classProfile.combatSkillId ? { combatSkillId: classProfile.combatSkillId } : {}),
-    consequenceByGrade: consequences("cosmetic-mess"),
-    outcomeText: buildOutcomeText({
-      sceneTitle,
-      label: title,
-      strong: `${title} перетворює сцену на малий доказ власної легенди. Корчма коротко вірить у долю.`,
-      success: "Легенда героя стала аргументом. Корчма визнала, що такий збіг надто стильний для випадку.",
-      mixed: "Сцена погодилась, але попросила не повторювати легенду вдруге.",
-      complication: "Титул заплутав протокол і лишив трохи кумедного безладу."
-    })
-  };
+  return sceneSeed.methods.map((seed) => {
+    const id = compactPersonalMethodId(`s${raceKey}`, classKey, seed.id);
+    const action = stripIcon(seed.label);
+    const techniques = uniqueTechniques([
+      firstTechnique(raceProfile),
+      firstTechnique(classProfile),
+      ...seed.techniques
+    ]);
+
+    return {
+      id,
+      callbackKey: toQuestCallbackKey(id),
+      source: "signature",
+      label: `🏷️ ${title} поєднує ${raceProfile.label} і ${classProfile.label} для «${action}»`,
+      buttonLabel: `🏷️ ${title}`,
+      hint: "Непевніше, зате стильніше.",
+      intent: seed.intent,
+      techniques,
+      primaryStat: seed.primaryStat,
+      ...(classProfile.primaryStat !== seed.primaryStat ? { secondaryStat: classProfile.primaryStat } : {}),
+      baseChance: Math.max(54, Math.min(66, seed.baseChance - 4)),
+      rewardProfile: "generous",
+      ...(seed.cost ? { goldCost: seed.cost } : {}),
+      ...(classProfile.combatSkillId ?? seed.combatSkillId ? { combatSkillId: classProfile.combatSkillId ?? seed.combatSkillId } : {}),
+      consequenceByGrade: consequences(seed.consequence ?? "cosmetic-mess"),
+      outcomeText: buildOutcomeText({
+        sceneTitle,
+        label: title,
+        strong: `${title} сплітає ${raceProfile.label} з ${classProfile.label}. Сцена «${action}» здається до того, як зрозуміє, хто саме її переконав.`,
+        success: `${raceProfile.label} знаходить край сцени, а ${classProfile.label} ставить крапку. «${action}» лишається в корчемному протоколі як підозріло влучний збіг.`,
+        mixed: `${title} спрацьовує, але сцена «${action}» залишає дрібний хвіст для пізнішого бурчання.`,
+        complication: `${raceProfile.label} і ${classProfile.label} зійшлися красиво, та сцена «${action}» зачепила сусідню проблему. Корчмар записує це як характер, не як провину.`
+      })
+    };
+  });
 }
 
 function buildProfileMethod(input: {
@@ -442,9 +458,14 @@ function buildProfileMethod(input: {
   buttonLabel: string;
   hint: string;
   sceneTitle: string;
-  profile: QuestTechniqueProfileLike;
+  profile: QuestTechniqueProfile;
+  seed: AdventureMethodSeed;
   rewardProfile: QuestRewardProfile;
+  profileKind: "race" | "class";
 }): QuestMethodDefinition {
+  const action = stripIcon(input.seed.label);
+  const techniques = uniqueTechniques([firstTechnique(input.profile), ...input.seed.techniques]);
+
   return {
     id: input.id,
     callbackKey: toQuestCallbackKey(input.id),
@@ -452,62 +473,40 @@ function buildProfileMethod(input: {
     label: input.label,
     buttonLabel: input.buttonLabel,
     hint: input.hint,
-    intent: chooseIntent(input.profile.techniques),
-    techniques: input.profile.techniques,
-    primaryStat: input.profile.primaryStat,
-    ...(input.profile.secondaryStat ? { secondaryStat: input.profile.secondaryStat } : {}),
-    baseChance: 64,
+    intent: input.seed.intent,
+    techniques,
+    primaryStat: input.seed.primaryStat,
+    ...(input.profile.primaryStat !== input.seed.primaryStat ? { secondaryStat: input.profile.primaryStat } : {}),
+    baseChance: Math.max(54, Math.min(72, input.seed.baseChance + (input.profileKind === "class" ? 1 : 0))),
     rewardProfile: input.rewardProfile,
-    ...(input.profile.combatSkillId ? { combatSkillId: input.profile.combatSkillId } : {}),
-    consequenceByGrade: consequences("cosmetic-mess"),
+    ...(input.seed.cost ? { goldCost: input.seed.cost } : {}),
+    ...(input.profile.combatSkillId ?? input.seed.combatSkillId ? { combatSkillId: input.profile.combatSkillId ?? input.seed.combatSkillId } : {}),
+    consequenceByGrade: consequences(input.seed.consequence ?? "cosmetic-mess"),
     outcomeText: buildOutcomeText({
       sceneTitle: input.sceneTitle,
       label: input.profile.label,
-      strong: `${input.label.replace(/^[^\p{L}\p{N}]+/u, "")} спрацьовує чисто. Корчма визнає авторський стиль.`,
-      success: "Метод спрацював без зайвої вистави. Корчма занотовує результат і ховає чорнило.",
-      mixed: "Сцена погодилась, але лишила невеликий слід власної гордости.",
-      complication: "Метод зачепив сусідній край проблеми, зате всі бачать характер."
+      strong: `${stripIcon(input.label)} спрацьовує чисто. Сцена «${action}» визнає, що такий підхід важко назвати випадковим.`,
+      success: `${input.profile.label} дає потрібний кут до «${action}». Корчма занотовує результат і ховає чорнило.`,
+      mixed: `Сцена «${action}» погодилась, але лишила невеликий слід власної гордости.`,
+      complication: `${input.profile.label} зачепила сусідній край сцени «${action}». Результат є, безлад теж має свідків.`
     })
   };
-}
-
-function adaptProfileLabel(prefix: string, object: string, objectGenitive: string): string {
-  return prefix
-    .replace(/справу/gu, object)
-    .replace(/справи/gu, objectGenitive)
-    .replace(/проблему/gu, object)
-    .replace(/проблеми/gu, objectGenitive)
-    .replace(/аргумент/gu, object)
-    .replace(/автора/gu, objectGenitive);
 }
 
 function stripIcon(label: string): string {
   return label.replace(/^[^\p{L}\p{N}]+/u, "").trim();
 }
 
-type QuestTechniqueProfileLike = typeof raceTechniqueProfiles[string];
-
-function getRaceProfile(raceId: string): QuestTechniqueProfileLike {
+function getRaceProfile(raceId: string): QuestTechniqueProfile {
   return raceTechniqueProfiles[raceId] ?? raceTechniqueProfiles["race.human-ish"]!;
 }
 
-function getClassProfile(classId: string): QuestTechniqueProfileLike {
+function getClassProfile(classId: string): QuestTechniqueProfile {
   return classTechniqueProfiles[classId] ?? classTechniqueProfiles["class.warrior"]!;
 }
 
-function firstTechnique(profile: QuestTechniqueProfileLike): QuestTechniqueId {
+function firstTechnique(profile: QuestTechniqueProfile): QuestTechniqueId {
   return profile.techniques[0] ?? "investigation";
-}
-
-function chooseIntent(techniques: readonly QuestTechniqueId[]): QuestIntent {
-  if (techniques.includes("bribery")) return "bribe";
-  if (techniques.includes("deception")) return "deceive";
-  if (techniques.includes("force")) return "fight";
-  if (techniques.includes("ritual") || techniques.includes("arcana")) return "ritual";
-  if (techniques.includes("craft")) return "craft";
-  if (techniques.includes("tracking") || techniques.includes("investigation")) return "investigate";
-  if (techniques.includes("finesse")) return "sneak";
-  return "negotiate";
 }
 
 function consequences(complication: QuestConsequenceKind): Record<QuestResolutionGrade, QuestConsequenceKind> {
@@ -545,4 +544,104 @@ function buildOutcomeText(input: {
       body: [input.sceneTitle, "", input.complication]
     }
   };
+}
+
+function compactPersonalMethodId(prefix: string, profileKey: string, seedId: string): string {
+  return `${prefix}${profileKey}${toQuestCallbackKey(seedId).slice(1)}`;
+}
+
+function uniqueTechniques(techniques: readonly QuestTechniqueId[]): QuestTechniqueId[] {
+  return [...new Set(techniques)];
+}
+
+function buildRaceActionLabel(raceId: string, profile: QuestTechniqueProfile, seed: AdventureMethodSeed): string {
+  const action = stripIcon(seed.label);
+  const motifs: Record<string, string> = {
+    "race.human-ish": `Звірити з практикою «${action}»`,
+    "race.dwarf": `Простукати основу «${action}»`,
+    "race.elf": `Виправити форму «${action}»`,
+    "race.bisyny": `Оскаржити назву «${action}»`,
+    "race.drantohor": `Піти хибною картою до «${action}»`,
+    "race.domovyk": `Оголосити хатнім правилом «${action}»`,
+    "race.dryland-rusalka": `Підняти сухий приплив для «${action}»`,
+    "race.intellectual-orc": `Провести рецензію на «${action}»`,
+    "race.molfar-soul": `Поставити оберіг біля «${action}»`
+  };
+
+  return motifs[raceId] ?? `${profile.label} для «${action}»`;
+}
+
+function buildRaceButtonLabel(raceId: string, profile: QuestTechniqueProfile, seed: AdventureMethodSeed): string {
+  const action = stripIcon(seed.label);
+  const motifs: Record<string, string> = {
+    "race.human-ish": `Звірити «${action}»`,
+    "race.dwarf": `Простукати «${action}»`,
+    "race.elf": `Виправити «${action}»`,
+    "race.bisyny": `Оскаржити «${action}»`,
+    "race.drantohor": `Піти картою до «${action}»`,
+    "race.domovyk": `Оголосити правилом`,
+    "race.dryland-rusalka": `Підняти сухий приплив`,
+    "race.intellectual-orc": `Провести рецензію`,
+    "race.molfar-soul": `Поставити оберіг`
+  };
+
+  return motifs[raceId] ?? profile.shortButtonLabel ?? profile.label;
+}
+
+function buildClassActionLabel(classId: string, profile: QuestTechniqueProfile, seed: AdventureMethodSeed): string {
+  const action = stripIcon(seed.label);
+  const motifs: Record<string, string> = {
+    "class.warrior": `Притиснути до чесности «${action}»`,
+    "class.mage": `Розігріти прихований шар «${action}»`,
+    "class.bard": `Переспівати ритм «${action}»`,
+    "class.rogue": `Витягти доказ із «${action}»`,
+    "class.priest": `Благословити умови «${action}»`,
+    "class.varenyk-mancer": `Запечатати начинкою «${action}»`,
+    "class.bureaucramancer": `Оформити акт на «${action}»`,
+    "class.ranger": `Прочитати слід у «${action}»`,
+    "class.kharakternyk": `Подивитися боком на «${action}»`
+  };
+
+  return motifs[classId] ?? `${profile.label} для «${action}»`;
+}
+
+function buildClassButtonLabel(classId: string, profile: QuestTechniqueProfile, seed: AdventureMethodSeed): string {
+  const action = stripIcon(seed.label);
+  const motifs: Record<string, string> = {
+    "class.warrior": `Притиснути «${action}»`,
+    "class.mage": `Розігріти шар`,
+    "class.bard": `Переспівати хід`,
+    "class.rogue": `Витягти доказ`,
+    "class.priest": `Благословити умови`,
+    "class.varenyk-mancer": `Запечатати начинкою`,
+    "class.bureaucramancer": `Оформити акт`,
+    "class.ranger": `Прочитати слід`,
+    "class.kharakternyk": `Подивитися боком`
+  };
+
+  return motifs[classId] ?? profile.shortButtonLabel ?? action;
+}
+
+function profileIcon(id: string): string {
+  if (id === "race.domovyk") return "🏠";
+  if (id === "race.dryland-rusalka") return "🫖";
+  if (id === "race.intellectual-orc") return "📚";
+  if (id === "race.molfar-soul") return "🧿";
+  if (id === "race.dwarf") return "⛏️";
+  if (id === "race.elf") return "🪡";
+  if (id === "race.bisyny") return "✍️";
+  if (id === "race.drantohor") return "🗺️";
+  return "🧬";
+}
+
+function classIcon(id: string): string {
+  if (id === "class.warrior") return "🛡️";
+  if (id === "class.mage") return "🔥";
+  if (id === "class.bard") return "🎭";
+  if (id === "class.rogue") return "🗝️";
+  if (id === "class.priest") return "🕯️";
+  if (id === "class.varenyk-mancer") return "🥟";
+  if (id === "class.bureaucramancer") return "📋";
+  if (id === "class.ranger") return "🏹";
+  return "🌾";
 }

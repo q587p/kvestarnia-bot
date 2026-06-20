@@ -424,10 +424,10 @@ describe("main menu and scene keyboards", () => {
 
   it("keeps character-aware adventure labels on the same callback actions", () => {
     expect(flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }))).toEqual([
-      "🔎 Перевірити, чому лаваш дихає не в ритм",
-      "🧬 Звірити шаурму",
-      "🎭 Витягти доказ",
-      "🏷️ Викрити: «Пересічні Пригодники»",
+      "🍴 Притиснути лаваш виделкою до зʼясування",
+      "🧬 Звірити «Притиснути лаваш виделкою до зʼясування»",
+      "🗝️ Витягти доказ",
+      "🏷️ «Пересічні Пригодники»",
       "📋 До справ"
     ]);
     const callbacks = flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
@@ -467,9 +467,9 @@ describe("main menu and scene keyboards", () => {
     });
 
     expect(flatInlineButtonTexts(keyboard)).toEqual([
-      "🔎 Переміряти вперту клітинку",
-      "🧬 Підняти сухий приплив",
-      "🎭 Переспівати форму",
+      "🤝 Домовитися з канцелярським краєм",
+      "🫖 Підняти сухий приплив",
+      "🎭 Переспівати хід",
       "🏷️ «Співачка Без Моря»",
       "⬅️ Інші справи"
     ]);
@@ -500,20 +500,20 @@ describe("main menu and scene keyboards", () => {
     const domovyk = { ...character, raceId: "race.domovyk", classId: "class.rogue" };
 
     expect(flatInlineButtonTexts(buildCellarKeyboard(domovyk))).toEqual([
-      "🧀 Поставити пастку по маршруту крихт",
       "🪙 Дати миші 1 золоту «на сирний фонд»",
-      "🧬 Оголосити територією",
-      "🎭 Витягти доказ",
+      "🏠 Оголосити правилом",
+      "🗝️ Витягти доказ",
+      "🏷️ «Пересічні Пригодники»",
       "⬅️ До зали"
     ]);
     const callbacks = flatInlineButtonCallbacks(buildCellarKeyboard(domovyk));
     expect(callbacks.slice(0, 4).every((callback) => /^v2:cellar:q[0-9a-z]+$/u.test(callback))).toBe(true);
     expect(callbacks[4]).toBe("v1:place:hall");
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual([
-      "🧀 Поставити пастку по маршруту крихт",
       "🪙 Дати миші 1 золоту «на сирний фонд»",
-      "🧬 Оголосити територією",
-      "🎭 Витягти доказ",
+      "🏠 Оголосити правилом",
+      "🗝️ Витягти доказ",
+      "🏷️ «Пересічні Пригодники»",
       "⬅️ До зали"
     ]);
   });

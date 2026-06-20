@@ -32,10 +32,13 @@ import {
   buildAdventureOffer,
   buildAdventureMethodOptions,
   buildAdventurePeriod,
+  buildStarterMethodOptions,
   getAdventureProblemPoolForProfile,
   getAdventureProblemIcon,
   type AdventureResult
 } from "../../src/services/adventureService";
+import { buildAdventureResolutionScene } from "../../src/content/adventureResolutionContent";
+import { buildStarterQuestResolutionScene } from "../../src/content/starterQuestResolutionContent";
 
 const telegramUserId = 42n;
 
@@ -353,6 +356,40 @@ describe("AdventureService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
+  it("rejects authored methods that exist in content but were not rendered visible", async () => {
+    const { service, characters, dailyActions } = setup();
+    characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const offer = await readyOffer(service);
+    const choice = offer.choices[0];
+    const selected = await service.selectAdventureProblem(telegramUserId, {
+      periodToken: offer.periodToken,
+      problemId: choice.id
+    });
+
+    expect(selected.state).toBe("selected");
+    if (selected.state !== "selected") {
+      return;
+    }
+
+    const visible = selected.approaches.map((method) => method.id);
+    const scene = buildAdventureResolutionScene({
+      problemId: choice.id,
+      title: choice.title,
+      character: selected.character
+    });
+    const hidden = scene.methods.find((method) => !visible.includes(method.id));
+
+    expect(hidden).toBeDefined();
+    await expect(
+      service.completeAdventureApproach(telegramUserId, {
+        periodToken: offer.periodToken,
+        problemId: choice.id,
+        methodId: hidden?.id ?? "missing"
+      })
+    ).resolves.toMatchObject({ state: "stale" });
+    expect(dailyActions.createCount).toBe(0);
+  });
+
   it("level-gates the adventure choice loop", async () => {
     const { service, characters, dailyActions } = setup();
     characters.add(telegramUserId, { xp: 15 });
@@ -431,6 +468,27 @@ describe("AdventureService", () => {
     expect(first.state).toBe("completed");
     expect(replay.state).toBe("already-completed");
     expect(dailyActions.createCount).toBe(1);
+  });
+
+  it("rejects hidden starter shawarma method ids without claiming", async () => {
+    const { service, characters, dailyActions } = setup();
+    characters.add(telegramUserId, { xp: 0 });
+    const summary = {
+      ...characterSummary(),
+      level: 1,
+      xp: 0,
+      classId: "class.bard",
+      className: "Бард"
+    };
+    const visible = buildStarterMethodOptions("shawarma", summary, 4).map((method) => method.id);
+    const scene = buildStarterQuestResolutionScene("shawarma", summary);
+    const hidden = scene.methods.find((method) => !visible.includes(method.id));
+
+    expect(hidden).toBeDefined();
+    await expect(service.completeMimicShawarma(telegramUserId, hidden?.id ?? "missing")).resolves.toMatchObject({
+      state: "stale"
+    });
+    expect(dailyActions.createCount).toBe(0);
   });
 
   it("blocks fresh offers and claims while a live fight is active", async () => {

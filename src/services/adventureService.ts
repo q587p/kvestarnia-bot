@@ -49,8 +49,8 @@ import {
 } from "../domain/quests/questChecks";
 import { rollLootExpansionItem } from "../domain/loot/lootEngine";
 import {
-  findQuestMethod,
   findQuestMethodByLegacyAction,
+  findVisibleQuestMethod,
   resolveQuestMethodsForCharacter
 } from "../domain/quests/questMethodResolver";
 import { getEquippedItemContents } from "./equipmentService";
@@ -388,7 +388,7 @@ export class AdventureService {
       title: choice.title,
       character: characterSummary
     });
-    const method = findQuestMethod(scene, input.methodId);
+    const method = findVisibleQuestMethod(scene, characterSummary, input.methodId);
 
     if (!method) {
       return {
@@ -570,7 +570,8 @@ export class AdventureService {
 
     const scene = buildStarterQuestResolutionScene("shawarma", characterSummary);
     const method =
-      findQuestMethod(scene, action) ?? findQuestMethodByLegacyAction(scene, action);
+      findVisibleQuestMethod(scene, characterSummary, action) ??
+      findQuestMethodByLegacyAction(scene, action);
 
     if (!method) {
       return {
@@ -1012,16 +1013,9 @@ export function buildStarterMethodOptions(
   const scene = buildStarterQuestResolutionScene(sceneId, character);
 
   if (sceneId === "cellar-mouse") {
-    const sceneMethods = scene.methods.filter((method) => method.source === "scene").slice(0, 2);
-    const shapedMethods = resolveQuestMethodsForCharacter(scene, character, {
-      maxMethods,
-      minMethods: 3
-    }).filter((method) => method.source !== "scene");
-    const selected = [...sceneMethods, ...shapedMethods]
-      .filter((method, index, methods) => methods.findIndex((candidate) => candidate.id === method.id) === index)
-      .slice(0, maxMethods);
-
-    return selected.map((method) => toAdventureApproachOption(method, character));
+    return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 3 }).map((method) =>
+      toAdventureApproachOption(method, character)
+    );
   }
 
   return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 3 }).map((method) =>

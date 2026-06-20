@@ -193,9 +193,9 @@ describe("adventure presenter", () => {
 
     const text = presentAdventureProblem(result);
 
-    expect(text).toContain("🧬 Підняти сухий приплив довкола форми");
-    expect(text).toContain("🎭 Переспівати форму, доки вона не зібʼється з ритму");
-    expect(text).toContain("🏷️ «Співачка Без Моря»: вписати форму у власну легенду");
+    expect(text).toContain("🫖 Підняти сухий приплив для «Підсунути запасне поле»");
+    expect(text).toContain("🎭 Переспівати ритм «Домовитися з канцелярським краєм»");
+    expect(text).toContain("🏷️ «Співачка Без Моря» поєднує чайниковий приплив і небезпечний куплет");
     expect(text).toContain("Особистий підхід героя.");
     expect(text).toContain("Професійний підхід героя.");
     expect(text).not.toContain("Надійне розслідування. Майже надійно.");
