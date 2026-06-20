@@ -622,8 +622,8 @@ function buildRaceMethods(character: CharacterSummary, sceneTitle: string, scene
   return sceneSeed.methods.map((seed) => buildProfileMethod({
     id: compactPersonalMethodId("r", raceKey, seed.id),
     source: "race",
-    label: seed.label,
-    buttonLabel: seed.label,
+    label: buildPersonalMethodLabel(seed.label, firstTechnique(profile)),
+    buttonLabel: buildPersonalMethodLabel(seed.label, firstTechnique(profile)),
     hint: buildProfileHint(seed, "race"),
     sceneTitle,
     sceneSeed,
@@ -641,8 +641,8 @@ function buildClassMethods(character: CharacterSummary, sceneTitle: string, scen
   return sceneSeed.methods.map((seed) => buildProfileMethod({
     id: compactPersonalMethodId("c", classKey, seed.id),
     source: "class",
-    label: seed.label,
-    buttonLabel: seed.label,
+    label: buildPersonalMethodLabel(seed.label, firstTechnique(profile)),
+    buttonLabel: buildPersonalMethodLabel(seed.label, firstTechnique(profile)),
     hint: buildProfileHint(seed, "class"),
     sceneTitle,
     sceneSeed,
@@ -670,10 +670,10 @@ function buildSignatureMethods(character: CharacterSummary, sceneTitle: string, 
     return {
       id,
       callbackKey: toQuestCallbackKey(id),
-      affordanceId: seed.id,
+      affordanceId: `${seed.id}:signature:${raceKey}:${classKey}`,
       source: "signature",
-      label: seed.label,
-      buttonLabel: seed.label,
+      label: buildSignatureMethodLabel(seed.label, firstTechnique(raceProfile), firstTechnique(classProfile)),
+      buttonLabel: buildSignatureMethodLabel(seed.label, firstTechnique(raceProfile), firstTechnique(classProfile)),
       hint: buildProfileHint(seed, "signature"),
       intent: seed.intent,
       techniques,
@@ -712,7 +712,7 @@ function buildProfileMethod(input: {
   return {
     id: input.id,
     callbackKey: toQuestCallbackKey(input.id),
-    affordanceId: input.seed.id,
+    affordanceId: `${input.seed.id}:${input.source}:${input.id}`,
     source: input.source,
     label: input.label,
     buttonLabel: input.buttonLabel,
@@ -733,6 +733,48 @@ function buildProfileMethod(input: {
       identity: buildTechniqueIdentityBeat(input.profile, input.profileKind)
     })
   };
+}
+
+function buildPersonalMethodLabel(
+  label: string,
+  technique: QuestMethodDefinition["techniques"][number]
+): string {
+  return `${label} ${techniqueButtonSuffix(technique)}`;
+}
+
+function buildSignatureMethodLabel(
+  label: string,
+  raceTechnique: QuestMethodDefinition["techniques"][number],
+  classTechnique: QuestMethodDefinition["techniques"][number]
+): string {
+  const raceSuffix = techniqueButtonSuffix(raceTechnique);
+  const classSuffix = techniqueButtonSuffix(classTechnique);
+
+  return raceSuffix === classSuffix
+    ? `${label} ${raceSuffix}`
+    : `${label} ${raceSuffix} і ${classSuffix.replace(/^з /u, "")}`;
+}
+
+function techniqueButtonSuffix(technique: QuestMethodDefinition["techniques"][number]): string {
+  const suffixes: Partial<Record<QuestMethodDefinition["techniques"][number], string>> = {
+    authority: "з печаткою",
+    bribery: "через внесок",
+    craft: "дрібним ремонтом",
+    deception: "обхідним ходом",
+    domesticity: "по-домашньому",
+    force: "силовим підпором",
+    improvisation: "на випадку",
+    investigation: "через ревізію",
+    performance: "у ритм",
+    persuasion: "мирною умовою",
+    ritual: "малим обрядом",
+    tracking: "за слідом",
+    traps: "через пастку",
+    arcana: "тихим чаром",
+    finesse: "точним рухом"
+  };
+
+  return suffixes[technique] ?? "практичним нахилом";
 }
 
 function getRaceProfile(raceId: string): QuestTechniqueProfile {

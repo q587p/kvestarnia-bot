@@ -40,6 +40,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Personalized starter and Adventure result flavor now varies by concrete method focus instead of appending one universal identity paragraph everywhere.
 - Generated race/class/title problem families now use scene-native method sets for анкета/кухоль/портрет/підручник/форма/іспит/титул instead of one universal generated template.
 - Race, class and signature methods now bind to concrete scene affordances instead of blind profile-noun substitution, while visible labels/buttons keep only the scene action; the same hero gets different verbs/outcomes across unrelated problems and malformed forms such as doubled object suffixes are covered by tests.
+- Race, class and signature variants now use distinct scene-action labels and affordance ids, so the authoritative visible-method resolver can actually surface character-shaped methods instead of deduplicating them behind scene-native base methods.
 - Adventure complications can now resolve to full reward, reduced reward, XP-only, cosmetic mess, paid success or existing persistent-fight handoff where authored.
 - Adventure and starter/cellar complications can now include method-owned minor/serious injury where allowed; direct quest injury is applied atomically with claim/cost/reward/item/cooldown mutations and clamped to leave at least `1 HP`.
 - Failed or blocked Adventure fight handoff now rolls back claim, spent gold, rewards, item grants and HP mutation together; replay cannot spawn a second fight.
@@ -57,6 +58,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Starter shawarma and the starter combat probe now each grant `75%` of the level 1-to-2 XP gap rounded up, using the remort-adjusted XP curve, so doing both starter activities guarantees level 2.
 - The quest archive now shows completed starter shawarma alongside the completed starter combat probe instead of losing the first half of the starter chain.
 - Legacy `v1` starter and cellar callbacks continue to replay safely; old Adventure Choice `safe/flair/risky` callbacks no longer reinterpret into new methods.
+- Starter shawarma and cellar mouse legacy actions now resolve through explicit canonical alias maps, so duplicated legacy labels such as `flee` or `negotiate` no longer depend on method list order.
 - Quest checks now use the same effective stat snapshot as the summary card, including equipped manatky/item effects, instead of resolving against base-only stats.
 - Cellar mouse rewards stay deliberately conservative, and stale/unknown current-version method ids no longer claim, charge, start cooldowns or grant rewards.
 - `🎒 Манчкін-скупник` now requires at least `587` gold value from eligible manatky before wallet gold can fill the rest of the level-barter cost.

@@ -259,6 +259,8 @@ v2:adv:a:<period>:<problemKey>:<methodKey>
 
 Implementation note for `0.1.20`: race, class and signature slots must bind to an authored scene affordance candidate before rendering. Do not produce active labels by blindly replacing nouns inside a global profile phrase, and do not expose the selected source/technique in player-facing buttons. The same deterministic visible-method resolver is the allowlist for both button rendering and completion; hidden authored scene methods are not valid callbacks unless they are in the current visible set or an explicit legacy starter/cellar action.
 
+Character-shaped variants must remain visible when selected: give them distinct concise scene-action labels and distinct affordance ids rather than cloning the base scene method with only hidden stat/outcome metadata. The label may add a natural action modifier such as `з печаткою`, `за слідом`, `у ритм` or `по-домашньому`, but it must not expose `race`, `class`, `signature` or similar source captions.
+
 ### 4.4. Combo і title
 
 Exact combo identity має будуватися з `raceId + classId`, не з player-facing title text. Title може:
@@ -538,6 +540,7 @@ for every active problem
 - Старі `safe/flair/risky` callbacks не повинні silently map-итися на новий випадковий метод.
 - Legacy callback відкриває поточний selected problem/offer із поясненням, що старий папірець замінено.
 - Старі шаурма/миша callbacks лишаються idempotent.
+- Якщо старий starter/cellar action має кілька authored методів, legacy replay іде через explicit canonical alias map, а не через перший збіг у списку.
 
 ### 12.3. Fight handoff
 

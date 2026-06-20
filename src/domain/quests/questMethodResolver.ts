@@ -42,7 +42,7 @@ export function resolveQuestMethodsForCharacter(
     }
   }
 
-  return selected.slice(0, maxMethods);
+  return ensureRiskyMethod(selected, scene.methods, maxMethods).slice(0, maxMethods);
 }
 
 export function findVisibleQuestMethod(
@@ -82,6 +82,16 @@ export function findQuestMethodByLegacyAction(
   scene: QuestResolutionScene,
   legacyAction: string
 ): QuestMethodDefinition | null {
+  const aliasMethodId = scene.legacyActionAliases?.[legacyAction];
+
+  if (aliasMethodId) {
+    const aliased = findQuestMethod(scene, aliasMethodId);
+
+    if (aliased) {
+      return aliased;
+    }
+  }
+
   return scene.methods.find((method) => method.legacyAction === legacyAction) ?? null;
 }
 
@@ -94,6 +104,18 @@ export function getQuestMethodAffordanceKey(method: QuestMethodDefinition): stri
 }
 
 function pushIfDistinct(
+  selected: QuestMethodDefinition[],
+  candidate: QuestMethodDefinition
+): boolean {
+  if (!canAddDistinct(selected, candidate)) {
+    return false;
+  }
+
+  selected.push(candidate);
+  return true;
+}
+
+function canAddDistinct(
   selected: QuestMethodDefinition[],
   candidate: QuestMethodDefinition
 ): boolean {
@@ -115,8 +137,75 @@ function pushIfDistinct(
     return false;
   }
 
-  selected.push(candidate);
   return true;
+}
+
+function ensureRiskyMethod(
+  selected: QuestMethodDefinition[],
+  allMethods: readonly QuestMethodDefinition[],
+  maxMethods: number
+): QuestMethodDefinition[] {
+  if (selected.some(isRiskyMethod)) {
+    return selected;
+  }
+
+  const riskyCandidates = allMethods.filter(isRiskyMethod);
+
+  if (riskyCandidates.length === 0) {
+    return selected;
+  }
+
+  for (const candidate of riskyCandidates) {
+    if (canAddDistinct(selected, candidate)) {
+      return selected.length < maxMethods ? [...selected, candidate] : replaceLastPersonalMethod(selected, candidate);
+    }
+  }
+
+  for (let index = selected.length - 1; index >= 0; index -= 1) {
+    const candidateToReplace = selected[index];
+
+    if (!candidateToReplace || candidateToReplace.source === "scene") {
+      continue;
+    }
+
+    const withoutCandidate = selected.filter((_, candidateIndex) => candidateIndex !== index);
+    const replacement = riskyCandidates.find((candidate) => canAddDistinct(withoutCandidate, candidate));
+
+    if (replacement) {
+      return [
+        ...withoutCandidate.slice(0, index),
+        replacement,
+        ...withoutCandidate.slice(index)
+      ];
+    }
+  }
+
+  return selected;
+}
+
+function replaceLastPersonalMethod(
+  selected: QuestMethodDefinition[],
+  replacement: QuestMethodDefinition
+): QuestMethodDefinition[] {
+  for (let index = selected.length - 1; index >= 0; index -= 1) {
+    const candidateToReplace = selected[index];
+
+    if (candidateToReplace && candidateToReplace.source !== "scene") {
+      return [
+        ...selected.slice(0, index),
+        replacement,
+        ...selected.slice(index + 1)
+      ];
+    }
+  }
+
+  return selected;
+}
+
+function isRiskyMethod(method: QuestMethodDefinition): boolean {
+  const consequence = method.consequenceByGrade.complication;
+
+  return consequence === "minor-injury" || consequence === "serious-injury" || consequence === "fight-handoff";
 }
 
 function normalizeLabel(label: string): string {

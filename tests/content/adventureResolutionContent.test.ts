@@ -9,6 +9,7 @@ import {
 import { buildStarterQuestResolutionScene } from "../../src/content/starterQuestResolutionContent";
 import { ADVENTURE_PROBLEM_IDS } from "../../src/services/adventureService";
 import {
+  findQuestMethodByLegacyAction,
   getQuestMethodAffordanceKey,
   getQuestMethodTacticKey,
   resolveQuestMethodsForCharacter
@@ -564,6 +565,35 @@ describe("adventure resolution content", () => {
     expect(uniqueSets.size).toBeGreaterThan(1);
   });
 
+  it("surfaces character-shaped methods as visible scene actions", () => {
+    const profile = {
+      ...character,
+      raceId: "race.domovyk",
+      raceName: "Домовик",
+      classId: "class.bureaucramancer",
+      className: "Бюрокромант",
+      title: "Домовий Аудитор",
+      stats: { ...character.stats, intelligence: 9, charisma: 8 }
+    };
+    const scene = buildAdventureResolutionScene({
+      problemId: "barrel",
+      title: "Бочка вимагає орендну угоду",
+      character: profile
+    });
+    const methods = resolveQuestMethodsForCharacter(scene, profile);
+    const sources = new Set(methods.map((method) => method.source));
+
+    expect(sources.has("race")).toBe(true);
+    expect(sources.has("class")).toBe(true);
+    expect(sources.has("signature")).toBe(true);
+    expect(new Set(methods.map((method) => normalize(method.label))).size).toBe(methods.length);
+    expect(new Set(methods.map(getQuestMethodAffordanceKey)).size).toBe(methods.length);
+    for (const method of methods.filter((candidate) => candidate.source !== "scene")) {
+      expect(method.label).not.toMatch(/Расовий спосіб|Класова техніка|signature|race\+class/u);
+      expect(method.label).toMatch(/по-домашньому|з печаткою|мирною умовою|через ревізію/u);
+    }
+  });
+
   it("keeps starter shawarma and cellar mouse slots represented without duplicate tactics", () => {
     for (const sceneId of ["shawarma", "cellar-mouse"] as const) {
       const scene = buildStarterQuestResolutionScene(sceneId, bard);
@@ -578,11 +608,31 @@ describe("adventure resolution content", () => {
       expect(methods.length, sceneId).toBeGreaterThanOrEqual(5);
       expect(methods.length, sceneId).toBeLessThanOrEqual(7);
       expect(sources.has("scene")).toBe(true);
+      expect(
+        methods.some((method) => method.source === "race" || method.source === "class" || method.source === "signature"),
+        sceneId
+      ).toBe(true);
       expect(new Set(methods.map(getQuestMethodTacticKey)).size, sceneId).toBe(methods.length);
       expect(new Set(methods.map(getQuestMethodAffordanceKey)).size, sceneId).toBe(methods.length);
       expect(injuryConsequences, sceneId).toContain("minor-injury");
       expect(injuryConsequences, sceneId).not.toContain("serious-injury");
     }
+  });
+
+  it("resolves duplicated legacy starter aliases through explicit canonical methods", () => {
+    const shawarma = buildStarterQuestResolutionScene("shawarma", bard);
+    const cellar = buildStarterQuestResolutionScene("cellar-mouse", bard);
+
+    expect(shawarma.methods.filter((method) => method.legacyAction === "receipt").length).toBeGreaterThan(1);
+    expect(shawarma.methods.filter((method) => method.legacyAction === "flee").length).toBeGreaterThan(1);
+    expect(cellar.methods.filter((method) => method.legacyAction === "negotiate").length).toBeGreaterThan(1);
+    expect(findQuestMethodByLegacyAction(shawarma, "receipt")?.id).toBe("demand-receipt");
+    expect(findQuestMethodByLegacyAction(shawarma, "poke")?.id).toBe("pin-wrapper");
+    expect(findQuestMethodByLegacyAction(shawarma, "flee")?.id).toBe("name-retreat");
+    expect(findQuestMethodByLegacyAction(cellar, "cheese-trap")?.id).toBe("cheese-trap");
+    expect(findQuestMethodByLegacyAction(cellar, "sweep-bravely")?.id).toBe("sweep-evidence");
+    expect(findQuestMethodByLegacyAction(cellar, "negotiate")?.id).toBe("negotiate-shelf");
+    expect(findQuestMethodByLegacyAction(cellar, "bribe-cheese")?.id).toBe("bribe-cheese");
   });
 
   it("keeps generated profile methods free of internal mechanic labels and object suffixes", () => {

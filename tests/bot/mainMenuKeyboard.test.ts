@@ -426,7 +426,7 @@ describe("main menu and scene keyboards", () => {
     const labels = flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
 
     expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
-    expect(labels).toContain("📋 Вимагати чек і походження начинки");
+    expect(labels.join("\n")).toMatch(/з печаткою|точним рухом|обхідним ходом|мирною умовою/u);
     expect(labels.join("\n")).not.toMatch(/Звірити «|Витягти доказ|🏷️|Пересічні Пригодники/u);
     expect(labels.at(-1)).toBe("📋 До справ");
     const callbacks = flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
@@ -468,7 +468,7 @@ describe("main menu and scene keyboards", () => {
     const labels = flatInlineButtonTexts(keyboard);
 
     expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
-    expect(labels).toContain("🤝 Домовитися з канцелярським краєм");
+    expect(labels.join("\n")).toMatch(/у ритм|точним рухом|мирною умовою|через ревізію/u);
     expect(labels.join("\n")).not.toMatch(/Приплив|Куплет|Співачка Без Моря|🏷️|: форму/u);
     expect(labels.at(-1)).toBe("⬅️ Інші справи");
   });

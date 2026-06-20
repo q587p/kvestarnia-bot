@@ -120,6 +120,11 @@ function buildShawarmaScene(character: CharacterSummary): QuestResolutionScene {
     sceneId: "shawarma",
     sceneTitle: "Підозріла шаурма",
     sceneObject: "шаурму",
+    legacyActionAliases: {
+      receipt: "demand-receipt",
+      poke: "pin-wrapper",
+      flee: "name-retreat"
+    },
     methods: [...sceneMethods, ...buildPersonalMethods(character, "Підозріла шаурма", sceneMethods)]
   };
 }
@@ -220,6 +225,12 @@ function buildCellarMouseScene(character: CharacterSummary): QuestResolutionScen
     sceneId: "cellar-mouse",
     sceneTitle: "Льохова миша",
     sceneObject: "мишу",
+    legacyActionAliases: {
+      "cheese-trap": "cheese-trap",
+      "sweep-bravely": "sweep-evidence",
+      negotiate: "negotiate-shelf",
+      "bribe-cheese": "bribe-cheese"
+    },
     methods: [...sceneMethods, ...buildPersonalMethods(character, "Льохова миша", sceneMethods)]
   };
 }
@@ -303,10 +314,10 @@ function buildPersonalMethods(
   return sceneMethods.flatMap((base) => [
     method({
       id: compactPersonalMethodId("r", getCompactRaceKey(character.raceId), base.id),
-      affordanceId: base.affordanceId,
+      affordanceId: `${base.affordanceId}:race:${getCompactRaceKey(character.raceId)}:${base.id}`,
       source: "race",
-      label: base.label,
-      buttonLabel: base.label,
+      label: buildPersonalMethodLabel(base.label, firstTechnique(race)),
+      buttonLabel: buildPersonalMethodLabel(base.label, firstTechnique(race)),
       hint: buildPersonalHint(base, "race"),
       intent: base.intent,
       primaryStat: base.primaryStat,
@@ -324,10 +335,10 @@ function buildPersonalMethods(
     }),
     method({
       id: compactPersonalMethodId("c", getCompactClassKey(character.classId), base.id),
-      affordanceId: base.affordanceId,
+      affordanceId: `${base.affordanceId}:class:${getCompactClassKey(character.classId)}:${base.id}`,
       source: "class",
-      label: base.label,
-      buttonLabel: base.label,
+      label: buildPersonalMethodLabel(base.label, firstTechnique(heroClass)),
+      buttonLabel: buildPersonalMethodLabel(base.label, firstTechnique(heroClass)),
       hint: buildPersonalHint(base, "class"),
       intent: base.intent,
       primaryStat: base.primaryStat,
@@ -346,10 +357,10 @@ function buildPersonalMethods(
     }),
     method({
       id: compactPersonalMethodId(`s${getCompactRaceKey(character.raceId)}`, getCompactClassKey(character.classId), base.id),
-      affordanceId: base.affordanceId,
+      affordanceId: `${base.affordanceId}:signature:${getCompactRaceKey(character.raceId)}:${getCompactClassKey(character.classId)}:${base.id}`,
       source: "signature",
-      label: base.label,
-      buttonLabel: base.label,
+      label: buildSignatureMethodLabel(base.label, firstTechnique(race), firstTechnique(heroClass)),
+      buttonLabel: buildSignatureMethodLabel(base.label, firstTechnique(race), firstTechnique(heroClass)),
       hint: buildPersonalHint(base, "signature"),
       intent: base.intent,
       primaryStat: base.primaryStat,
@@ -367,6 +378,48 @@ function buildPersonalMethods(
       complication: appendSignatureBeat(base, "complication", race, heroClass, character.title ?? null)
     })
   ]);
+}
+
+function buildPersonalMethodLabel(
+  label: string,
+  technique: QuestMethodDefinition["techniques"][number]
+): string {
+  return `${label} ${techniqueButtonSuffix(technique)}`;
+}
+
+function buildSignatureMethodLabel(
+  label: string,
+  raceTechnique: QuestMethodDefinition["techniques"][number],
+  classTechnique: QuestMethodDefinition["techniques"][number]
+): string {
+  const raceSuffix = techniqueButtonSuffix(raceTechnique);
+  const classSuffix = techniqueButtonSuffix(classTechnique);
+
+  return raceSuffix === classSuffix
+    ? `${label} ${raceSuffix}`
+    : `${label} ${raceSuffix} і ${classSuffix.replace(/^з /u, "")}`;
+}
+
+function techniqueButtonSuffix(technique: QuestMethodDefinition["techniques"][number]): string {
+  const suffixes: Partial<Record<QuestMethodDefinition["techniques"][number], string>> = {
+    authority: "з печаткою",
+    bribery: "через внесок",
+    craft: "дрібним ремонтом",
+    deception: "обхідним ходом",
+    domesticity: "по-домашньому",
+    force: "силовим підпором",
+    improvisation: "на випадку",
+    investigation: "через ревізію",
+    performance: "у ритм",
+    persuasion: "мирною умовою",
+    ritual: "малим обрядом",
+    tracking: "за слідом",
+    traps: "через пастку",
+    arcana: "тихим чаром",
+    finesse: "точним рухом"
+  };
+
+  return suffixes[technique] ?? "практичним нахилом";
 }
 
 function getRaceProfile(raceId: string): QuestTechniqueProfile {
