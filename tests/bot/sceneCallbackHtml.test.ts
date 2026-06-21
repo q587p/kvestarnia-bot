@@ -1364,7 +1364,7 @@ describe("scene callback HTML options", () => {
     expect(keyboard).toContain("v1:tavern:round");
   });
 
-  it("keeps the reply-keyboard refresh message after place callbacks", async () => {
+  it("does not send a standalone reply-keyboard refresh message after place callbacks", async () => {
     const calls = await captureApiCalls(
       makePlaceCallbackData("bar"),
       servicesWith({
@@ -1397,22 +1397,21 @@ describe("scene callback HTML options", () => {
       }),
       { messageResults: true }
     );
-    const keyboardRefresh = calls.find(
+    const replyKeyboardRefreshes = calls.filter(
       (call) =>
         call.method === "sendMessage" &&
-        String(call.payload.text).includes(mainMenuLocationButtons.bar)
+        Array.isArray((call.payload.reply_markup as { keyboard?: unknown } | undefined)?.keyboard)
     );
 
-    expect(keyboardRefresh).toBeDefined();
-    expect(JSON.stringify(keyboardRefresh?.payload.reply_markup)).toContain(mainMenuLocationButtons.bar);
+    expect(replyKeyboardRefreshes).toEqual([]);
     expect(calls.some((call) => call.method === "deleteMessage")).toBe(false);
   });
 
   it.each([
-    ["deep-left", mainMenuLocationButtons.deepLeft],
-    ["deep-straight", mainMenuLocationButtons.deepStraight],
-    ["deep-right", mainMenuLocationButtons.deepRight]
-  ] as const)("refreshes the persistent location label after %s place callbacks", async (place, label) => {
+    ["deep-left"],
+    ["deep-straight"],
+    ["deep-right"]
+  ] as const)("does not send a standalone reply-keyboard refresh after %s place callbacks", async (place) => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
       Promise.resolve({
@@ -1473,12 +1472,14 @@ describe("scene callback HTML options", () => {
       }),
       { messageResults: true }
     );
-    const keyboardRefresh = calls.find(
-      (call) => call.method === "sendMessage" && String(call.payload.text).includes(label)
+    const replyKeyboardRefreshes = calls.filter(
+      (call) =>
+        call.method === "sendMessage" &&
+        Array.isArray((call.payload.reply_markup as { keyboard?: unknown } | undefined)?.keyboard)
     );
 
-    expect(keyboardRefresh).toBeDefined();
-    expect(JSON.stringify(keyboardRefresh?.payload.reply_markup)).toContain(label);
+    expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalled();
+    expect(replyKeyboardRefreshes).toEqual([]);
     expect(calls.some((call) => call.method === "deleteMessage")).toBe(false);
   });
 
@@ -2111,7 +2112,11 @@ describe("scene callback HTML options", () => {
       })
     );
     const descent = calls.find((call) => call.method === "sendMessage");
-    const keyboardRefresh = calls.filter((call) => call.method === "sendMessage").at(-1);
+    const replyKeyboardRefreshes = calls.filter(
+      (call) =>
+        call.method === "sendMessage" &&
+        Array.isArray((call.payload.reply_markup as { keyboard?: unknown } | undefined)?.keyboard)
+    );
 
     expect(getOrStartPersistentFightForTelegramUser).not.toHaveBeenCalled();
     expect(markAction).toHaveBeenCalledWith(
@@ -2120,8 +2125,7 @@ describe("scene callback HTML options", () => {
         currentAdventureId: "adventure.solo-fight"
       })
     );
-    expect(String(keyboardRefresh?.payload.text)).toContain(mainMenuLocationButtons.deep);
-    expect(JSON.stringify(keyboardRefresh?.payload.reply_markup)).toContain(mainMenuLocationButtons.deep);
+    expect(replyKeyboardRefreshes).toEqual([]);
     expect(String(descent?.payload.text)).toContain("🪜 Спуск до Низу");
     expect(String(descent?.payload.text)).toContain("За бочками в коморі є сходи.");
     expect(JSON.stringify(descent?.payload.reply_markup)).toContain("Спуститися");

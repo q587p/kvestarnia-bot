@@ -34,7 +34,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `Хто поруч` now hides the `Кинути виклик присутнім` button when the current location has no other active duel target.
 - Active fight cards now place the 23-second timeout note directly under the named `що робимо?` prompt instead of above it or after an empty spacer.
 - Active persistent fight and training cards now keep `Вдарити` and `Захищатися` in one compact first button row.
-- The persistent reply keyboard now labels its place button with the current known location where possible; location-changing inline callbacks refresh that label immediately, and location reply buttons reopen the current place/actions instead of always jumping to the generic korchma entry.
+- The persistent reply keyboard now labels its place button with the current known location where possible; location-changing inline callbacks no longer send standalone `📍 <location>` refresh messages, and location reply buttons reopen the current place/actions instead of always jumping to the generic korchma entry.
 - Active persistent fight cards no longer show the service-note `Хід записано` or an `Остання дія` heading, skill cooldown rows name the exact skill, and basic monster counterattacks say what they attacked in response to.
 - Monster skill summaries now include visible mechanical consequences: damage, effect text, or an explicit no-direct-damage line.
 - Monster ability parameters now compile through a central runtime audit. Unsupported, invalid, effectless or semantically contradictory parameters fail validation instead of silently becoming flavor-only fields.

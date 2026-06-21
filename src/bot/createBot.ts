@@ -207,7 +207,6 @@ import {
 } from "./keyboards/onboardingKeyboard";
 import {
   buildMainMenuKeyboard,
-  getMainMenuLocationButtonText,
   isMainMenuLocationButtonText,
   mainMenuButtons,
   mainMenuLocationButtonTexts
@@ -2205,19 +2204,17 @@ async function refreshCurrentMainMenuLocationKeyboard(
   await refreshMainMenuLocationKeyboard(ctx, locationId);
 }
 
-async function refreshMainMenuLocationKeyboard(
+function refreshMainMenuLocationKeyboard(
   ctx: Context,
   locationId: string | null
 ): Promise<void> {
-  const label = getMainMenuLocationButtonText(locationId);
+  void ctx;
+  void locationId;
 
-  try {
-    await ctx.reply(`📍 ${label}`, {
-      reply_markup: buildMainMenuKeyboard({ locationId })
-    });
-  } catch {
-    // Best effort: location rendering must not fail because Telegram refused a keyboard refresh.
-  }
+  // Telegram custom reply keyboards can only be refreshed by sending a visible message.
+  // Keep inline place/fight cards clean; the next regular reply-keyboard render carries
+  // the current location label, and location-button presses still resolve via presence.
+  return Promise.resolve();
 }
 
 async function sendCurrentLocation(ctx: Context, services: BotServices): Promise<void> {
