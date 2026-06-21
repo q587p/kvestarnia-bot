@@ -199,7 +199,8 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
     expect(text).toContain("👹 Монстр: 18/18");
-    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?\n\n⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
+    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?\n⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
+    expect(text).not.toContain("що робимо?\n\n⏳");
     expect(text).toContain("⏳ На хід є 23 секунди");
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("Не зволікайте надто довго");

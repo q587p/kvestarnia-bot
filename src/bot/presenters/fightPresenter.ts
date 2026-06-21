@@ -467,10 +467,7 @@ function presentPersistentFightState(input: {
       `<b>${escapeHtml(input.character.name)}</b>, що робимо?`
     );
 
-    lines.push(
-      "",
-      `⏳ На хід є ${PERSISTENT_FIGHT_TURN_SECONDS} секунди. Потім Корчма поставить вас у захист.`
-    );
+    lines.push(`⏳ На хід є ${PERSISTENT_FIGHT_TURN_SECONDS} секунди. Потім Корчма поставить вас у захист.`);
   }
 
   return lines.join("\n");
