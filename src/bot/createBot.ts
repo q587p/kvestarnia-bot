@@ -2212,27 +2212,12 @@ async function refreshMainMenuLocationKeyboard(
   const label = getMainMenuLocationButtonText(locationId);
 
   try {
-    const message = await ctx.reply(`📍 ${label}`, {
+    await ctx.reply(`📍 ${label}`, {
       reply_markup: buildMainMenuKeyboard({ locationId })
     });
-    const messageId = getMessageId(message);
-
-    if (ctx.chat?.id && messageId !== null) {
-      await ctx.api.deleteMessage(ctx.chat.id, messageId).catch(() => undefined);
-    }
   } catch {
     // Best effort: location rendering must not fail because Telegram refused a keyboard refresh.
   }
-}
-
-function getMessageId(message: unknown): number | null {
-  if (!message || typeof message !== "object" || !("message_id" in message)) {
-    return null;
-  }
-
-  const messageId = (message as { message_id?: unknown }).message_id;
-
-  return typeof messageId === "number" ? messageId : null;
 }
 
 async function sendCurrentLocation(ctx: Context, services: BotServices): Promise<void> {

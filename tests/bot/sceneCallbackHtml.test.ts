@@ -1364,6 +1364,50 @@ describe("scene callback HTML options", () => {
     expect(keyboard).toContain("v1:tavern:round");
   });
 
+  it("keeps the reply-keyboard refresh message after place callbacks", async () => {
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("bar"),
+      servicesWith({
+        presence: {
+          markAction: () => Promise.resolve(),
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.bar",
+              locationName: "Шинок",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({ state: "none" })
+        },
+        fight: {
+          getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        }
+      }),
+      { messageResults: true }
+    );
+    const keyboardRefresh = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes(mainMenuLocationButtons.bar)
+    );
+
+    expect(keyboardRefresh).toBeDefined();
+    expect(JSON.stringify(keyboardRefresh?.payload.reply_markup)).toContain(mainMenuLocationButtons.bar);
+    expect(calls.some((call) => call.method === "deleteMessage")).toBe(false);
+  });
+
   it.each([
     ["inventory keyboard button", mainMenuButtons.inventory, false],
     ["inventory command", "/inventory", true]
@@ -3140,7 +3184,11 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
   } as unknown as BotServices;
 }
 
-async function captureApiCalls(callbackData: string, services: BotServices): Promise<ApiCall[]> {
+async function captureApiCalls(
+  callbackData: string,
+  services: BotServices,
+  options: { messageResults?: boolean } = {}
+): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services);
   const calls: ApiCall[] = [];
 
@@ -3158,6 +3206,20 @@ async function captureApiCalls(callbackData: string, services: BotServices): Pro
           is_bot: true,
           first_name: "Квестарня",
           username: "kvestarnia_bot"
+        }
+      });
+    }
+
+    if (options.messageResults && method === "sendMessage") {
+      return Promise.resolve({
+        ok: true,
+        result: {
+          message_id: calls.length,
+          date: 0,
+          chat: {
+            id: 42,
+            type: "private"
+          }
         }
       });
     }
