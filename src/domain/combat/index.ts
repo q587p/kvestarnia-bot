@@ -1,4 +1,5 @@
 export * from "./combatActions";
+export * from "./combatBalanceAnalytics";
 export * from "./combatBarks";
 export * from "./combatBalance";
 export * from "./combatEngine";

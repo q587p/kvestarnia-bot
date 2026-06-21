@@ -33,6 +33,7 @@ import {
   startCombat,
   type CombatActionType,
   type CombatActorStats,
+  type CombatBalanceSource,
   type CombatState,
   type MonsterCombatStats
 } from "../domain/combat";
@@ -49,6 +50,7 @@ import {
   summarizeAndSyncCharacterResources,
   type ResourceRecoveryNotice
 } from "./characterResourceService";
+import type { CombatBalanceAnalyticsService } from "./combatBalanceAnalyticsService";
 import {
   normalizePresenceLocationId,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
@@ -462,7 +464,8 @@ export class FightService {
     private readonly clock: Clock = systemClock,
     private readonly combatSessions?: SoloCombatSessionRepository,
     private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly equipment?: EquipmentRepository
+    private readonly equipment?: EquipmentRepository,
+    private readonly combatAnalytics?: CombatBalanceAnalyticsService
   ) {}
 
   private async advanceExpiredPersistentTurn(
@@ -1032,6 +1035,20 @@ export class FightService {
       ...state.monster.debugTrace,
       ...buildPersistentFightInterventionTrace(baseMonster, monster, difficulty)
     };
+    const analytics = this.combatAnalytics?.createInitialState({
+      characterId: character.id,
+      character: characterSummary,
+      monster: monsterStats,
+      combatSource: mapPersistentFightSourceToAnalyticsSource(options.source ?? "normal"),
+      startedAt: now,
+      monsterType: getLootExpansionSourceForMonster(monster),
+      difficultyTier: difficulty.id,
+      baseMonsterLevel: baseMonster.level,
+      effectiveMonsterLevel: monster.level
+    });
+    if (analytics) {
+      state.analytics = analytics;
+    }
     const session = await this.combatSessions.createForTelegramUser(telegramUserId, {
       id: sessionId,
       monsterId: monster.id,
@@ -1783,6 +1800,7 @@ export class FightService {
     monster: MonsterContent | null,
     character: CharacterSummary
   ): Promise<PersistentFightReward | null> {
+    await this.combatAnalytics?.recordTerminalSession(session);
     const replay = buildPersistentFightRewardReplay(session);
 
     if (replay) {
@@ -1938,6 +1956,7 @@ export class FightService {
       hpRegenAt: this.clock(),
       manaRegenAt: this.clock()
     });
+    await this.combatAnalytics?.recordTerminalSession(session);
   }
 
   private async getMonsterRestCooldown(
@@ -2416,6 +2435,20 @@ function buildPersistentFightLocationTags(source: NonNullable<PersistentFightSta
   }
 
   return ["korchma", "nyz", "underground", "cellar"];
+}
+
+function mapPersistentFightSourceToAnalyticsSource(
+  source: NonNullable<PersistentFightStartOptions["source"]>
+): CombatBalanceSource {
+  if (source === "adventure") {
+    return "adventure";
+  }
+
+  if (source === "yeger") {
+    return "yeger";
+  }
+
+  return "regular_mob";
 }
 
 function buildPersistentMonsterCombatStats(

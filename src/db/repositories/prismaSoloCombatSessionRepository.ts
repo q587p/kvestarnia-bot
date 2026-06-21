@@ -9,6 +9,7 @@ import type {
   CombatTurnOutcome,
   CombatTurnSummary
 } from "../../domain/combat";
+import { parseCombatAnalyticsState } from "../../domain/combat";
 import type {
   CreateSoloCombatSessionInput,
   DueSoloCombatSessionRecord,
@@ -485,6 +486,7 @@ function parseCombatState(value: unknown): CombatState | null {
   const guard = parseGuardState(value.guard);
   const context = parseMonsterContextSnapshot(value.context);
   const barks = parseBarkState(value.barks);
+  const analytics = parseCombatAnalyticsState(value.analytics);
   const lastTurn = parseTurnSummary(value.lastTurn);
 
   if (turn === null || !status || !hero || !monster) {
@@ -508,6 +510,7 @@ function parseCombatState(value: unknown): CombatState | null {
     ...(guard ? { guard } : {}),
     ...(context ? { context } : {}),
     ...(barks ? { barks } : {}),
+    ...(analytics ? { analytics } : {}),
     ...(lastTurn ? { lastTurn } : {})
   };
 }

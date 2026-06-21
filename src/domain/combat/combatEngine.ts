@@ -1,5 +1,6 @@
 import type { RandomSource } from "../../shared/random";
 import { BASIC_DEFEND_ABILITY_ID, getCombatSkillProfile } from "./combatActions";
+import { recordCombatAnalyticsTurn } from "./combatBalanceAnalytics";
 import { resolveMonsterBark } from "./combatBarks";
 import {
   rollBasicAttack,
@@ -281,7 +282,7 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
 
   return {
     ok: true,
-    state: nextState,
+    state: recordCombatAnalyticsTurn(nextState, summary),
     summary
   };
 }
@@ -336,7 +337,7 @@ function resolveHeroAttack(
 
     return {
       ok: true,
-      state: nextState,
+      state: recordCombatAnalyticsTurn(nextState, summary),
       summary
     };
   }
@@ -399,7 +400,7 @@ function resolveHeroAttack(
 
   return {
     ok: true,
-    state: nextState,
+    state: recordCombatAnalyticsTurn(nextState, summary),
     summary
   };
 }
@@ -449,7 +450,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
 
   return {
     ok: true,
-    state: nextState,
+    state: recordCombatAnalyticsTurn(nextState, summary),
     summary
   };
 }

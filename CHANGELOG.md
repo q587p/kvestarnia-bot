@@ -21,6 +21,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added focused domain, service, repository, scheduler, callback, keyboard and presenter coverage for defend, unavailable skill no-op behavior, legacy cooldown loading, expired-turn auto-attacks, active-card message tracking and side-surface missed-turn skips.
 - Added a separate persistent-fight intro card for newly started monster fights; the active card below it now carries the buttons and updates each turn.
 - Added a best-effort in-process resource recovery scheduler that can send the existing full-HP notice proactively when passive regeneration fills a character's health, instead of waiting for the next `/hero` or `/fight` sync.
+- Added opt-in PvE combat balance analytics behind `COMBAT_BALANCE_ANALYTICS_ENABLED`: completed solo/training combats can write one idempotent battle summary plus ability usage rows for class/remort, monster/source and ability reports.
+- Added `npm run report:combat-balance` with class, mob, ability and data-quality views, defaulting to levels 10-15 and excluding test/admin rows.
 
 ### Changed
 - Pressing a class action without enough mana, or while that action is still cooling down, no longer spends mana, advances the turn, ticks cooldowns, triggers a monster response or advances RNG.
@@ -35,6 +37,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Active persistent monster fight cards now leave a visual gap before the 23-second timeout note, address the character by name before the next-action prompt and show whether the previous overdue turn became an auto-attack or a skipped hero action.
 - Persistent monster barks now render as Telegram blockquotes after the `🗣️ Монстр` marker.
 - Fight and hunt result cards no longer append generic `Наступний крок` command prompts.
+- Combat state now carries a compact analytics accumulator when the feature flag is enabled; old in-flight combats without an analytics snapshot remain readable and are skipped by the collector instead of being backfilled with guessed totals.
 
 ### Fixed
 - Hardened persisted solo/training combat state parsing so current runtime JSON fields round-trip through Prisma mapping, including origin, defend streaks, skipped-turn summaries, monster debug/equipment traces, ability cooldowns, context and bark state.
@@ -43,6 +46,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Guardrails
 - No race ability catalog, signature/title ability catalog, monster ability catalog, item/consumable actions, schema migration, reward/economy change, wager, rating, tournament or broad combat coefficient rewrite was added.
+- Combat analytics stores no Telegram ids, usernames, display names, chat ids or message ids in report rows, and analytics write failures are logged without blocking combat resolution, rewards or resource persistence.
 - Telegram callbacks still carry only compact action keys; mana, cooldowns, damage, mitigation and terminal results remain server-side.
 - The combat timeout and HP recovery schedulers are best-effort and in-process: persisted combat/resource state remains canonical, and no Redis/BullMQ dependency, schema migration or proactive notification table was added.
 

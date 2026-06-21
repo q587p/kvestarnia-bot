@@ -225,6 +225,36 @@ describe("Prisma schema", () => {
     expect(rewardReplayMigration).toContain("ADD COLUMN \"reward_claimed_at\"");
   });
 
+  it("stores combat balance analytics battle and ability rows", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260621100000_add_combat_balance_analytics",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model CombatBalanceBattle");
+    expect(schema).toContain("combatBalanceBattles CombatBalanceBattle[]");
+    expect(schema).toContain("@map(\"combat_id\")");
+    expect(schema).toContain("@unique @map(\"combat_id\")");
+    expect(schema).toContain("@map(\"player_analysis_key\")");
+    expect(schema).toContain("@map(\"remort_count\")");
+    expect(schema).toContain("@@index([balanceVersion, classKey, playerLevel, remortCount])");
+    expect(schema).toContain("model CombatBalanceAbilityUsage");
+    expect(schema).toContain("@@unique([combatId, abilityKey, abilityRank])");
+    expect(schema).toContain("@@map(\"combat_balance_ability_usages\")");
+    expect(migration).toContain("CREATE TABLE \"combat_balance_battles\"");
+    expect(migration).toContain("CREATE TABLE \"combat_balance_ability_usages\"");
+    expect(migration).toContain("combat_balance_battles_combat_id_key");
+    expect(migration).toContain("combat_balance_battles_balance_version_class_key_player_level_remort_count_idx");
+    expect(migration).toContain("combat_balance_ability_usages_combat_id_ability_key_ability_rank_key");
+  });
+
   it("stores Mantok Chest audit runs for inventory recycling", () => {
     const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
     const migration = readFileSync(

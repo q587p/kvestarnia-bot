@@ -11,6 +11,7 @@ import { prisma } from "./db/prisma";
 import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepository";
 import { PrismaBarrelRaidNotificationRepository } from "./db/repositories/prismaBarrelRaidNotificationRepository";
 import { PrismaCellarGrownupQuestRepository } from "./db/repositories/prismaCellarGrownupQuestRepository";
+import { PrismaCombatBalanceAnalyticsRepository } from "./db/repositories/prismaCombatBalanceAnalyticsRepository";
 import { PrismaCooldownRepository } from "./db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "./db/repositories/prismaDailyActionRepository";
 import { PrismaDevGrantRepository } from "./db/repositories/prismaDevGrantRepository";
@@ -31,6 +32,7 @@ import { readAppVersion } from "./shared/appVersion";
 import { AdventureService } from "./services/adventureService";
 import { CellarErrandService } from "./services/cellarErrandService";
 import { CellarGrownupQuestService } from "./services/cellarGrownupQuestService";
+import { CombatBalanceAnalyticsService } from "./services/combatBalanceAnalyticsService";
 import { DevResetService } from "./services/devResetService";
 import { DevGrantService } from "./services/devGrantService";
 import { DeployNotificationService } from "./services/deployNotificationService";
@@ -71,7 +73,19 @@ const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
 const remorts = new PrismaRemortRepository(prisma);
 const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
-const fight = new FightService(characters, dailyActions, undefined, soloCombatSessions, undefined, equipment);
+const combatBalanceAnalytics = new CombatBalanceAnalyticsService(
+  new PrismaCombatBalanceAnalyticsRepository(prisma),
+  { enabled: config.combatBalanceAnalyticsEnabled }
+);
+const fight = new FightService(
+  characters,
+  dailyActions,
+  undefined,
+  soloCombatSessions,
+  undefined,
+  equipment,
+  combatBalanceAnalytics
+);
 const presenceService = new PresenceService(presence);
 const resourceRecoveryNotifications = new ResourceRecoveryNotificationService(characters, equipment);
 const services = {
@@ -105,7 +119,8 @@ const services = {
     undefined,
     undefined,
     {},
-    duelChallenges
+    duelChallenges,
+    combatBalanceAnalytics
   )
 };
 const supportJarOptions = config.supportJarUrl

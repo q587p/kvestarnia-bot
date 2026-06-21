@@ -1,4 +1,8 @@
 import type { CharacterStats } from "../characters/starterStats";
+import {
+  cloneCombatAnalyticsState,
+  type CombatAnalyticsStateV1
+} from "./combatBalanceAnalytics";
 import type { CombatBarkStateV1 } from "./combatBarks";
 import type { MonsterContextSnapshotV1 } from "./monsterContext";
 
@@ -145,6 +149,7 @@ export interface CombatState {
   guard?: CombatGuardState;
   context?: MonsterContextSnapshotV1;
   barks?: CombatBarkStateV1;
+  analytics?: CombatAnalyticsStateV1;
   lastTurn?: CombatTurnSummary;
 }
 
@@ -252,6 +257,7 @@ export function cloneCombatState(state: CombatState): CombatState {
     ...(state.guard ? { guard: { ...state.guard } } : {}),
     ...(state.context ? { context: cloneMonsterContextSnapshot(state.context) } : {}),
     ...(state.barks ? { barks: cloneCombatBarkState(state.barks) } : {}),
+    ...(state.analytics ? { analytics: cloneCombatAnalyticsState(state.analytics) } : {}),
     ...(state.lastTurn
       ? {
           lastTurn: {

@@ -35,6 +35,7 @@ import {
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { getEquippedItemContents } from "./equipmentService";
+import type { CombatBalanceAnalyticsService } from "./combatBalanceAnalyticsService";
 
 export const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
 export const TRAINING_DOPPELGANGER_REWARD_KEY = "training.doppelganger.reward";
@@ -177,7 +178,8 @@ export class TrainingDoppelgangerService {
     private readonly clock: Clock = systemClock,
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly spawnConfig: TrainingDoppelgangerSpawnConfig = {},
-    private readonly championSource?: TrainingDoppelgangerChampionSource
+    private readonly championSource?: TrainingDoppelgangerChampionSource,
+    private readonly combatAnalytics?: CombatBalanceAnalyticsService
   ) {}
 
   private async advanceExpiredTrainingTurn(
@@ -287,6 +289,19 @@ export class TrainingDoppelgangerService {
       monster: spawn.monster
     });
     state.turnExpiresAt = getTrainingTurnExpiry(now).toISOString();
+    state.source = "training";
+    const analytics = this.combatAnalytics?.createInitialState({
+      characterId: base.characterId,
+      character,
+      monster: spawn.monster,
+      combatSource: "training",
+      startedAt: now,
+      monsterType: "training_doppelganger",
+      difficultyTier: spawnInput.spawnMode.toLowerCase().replace(/_/g, "-")
+    });
+    if (analytics) {
+      state.analytics = analytics;
+    }
     const session = await this.combatSessions.createForTelegramUser(telegramUserId, {
       id: sessionId,
       monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
@@ -579,8 +594,9 @@ export class TrainingDoppelgangerService {
     telegramUserId: bigint,
     options: { expiredTurnMode?: "auto-attack" | "skip" } = {}
   ): Promise<
-    | {
+      | {
         state: "startable";
+        characterId: string;
         character: CharacterSummary;
         equippedItems: Awaited<ReturnType<TrainingDoppelgangerService["getEquippedItemContents"]>>;
       }
@@ -635,7 +651,7 @@ export class TrainingDoppelgangerService {
       return { state: "blocked", result: { state: "needs-rest", character } };
     }
 
-    return { state: "startable", character, equippedItems };
+    return { state: "startable", characterId: current.character.id, character, equippedItems };
   }
 
   private async buildStartChoices(
@@ -903,6 +919,7 @@ export class TrainingDoppelgangerService {
     telegramUserId: bigint,
     session: SoloCombatSessionRecord
   ): Promise<TrainingDoppelgangerRewardClaim | null> {
+    await this.combatAnalytics?.recordTerminalSession(session);
     const replay = buildRewardReplay(session);
 
     if (replay) {
@@ -953,6 +970,7 @@ export class TrainingDoppelgangerService {
       hpRegenAt: this.clock(),
       manaRegenAt: this.clock()
     });
+    await this.combatAnalytics?.recordTerminalSession(session);
   }
 }
 
