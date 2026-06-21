@@ -549,6 +549,11 @@ describe("main menu and scene keyboards", () => {
       "💪 Силовий удар",
       "🏃 Відступити"
     ]);
+    expect(inlineButtonRows(buildPersistentFightKeyboard(session, character))).toEqual([
+      ["🗡️ Вдарити", "🛡 Захищатися"],
+      ["💪 Силовий удар"],
+      ["🏃 Відступити"]
+    ]);
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard())).toEqual([
       "⬆️ Повернутися до зали",
       "⬇️ Спуститися"
@@ -631,6 +636,11 @@ describe("main menu and scene keyboards", () => {
       "🛡 Захищатися",
       "💪 Силовий удар",
       "🏃 Відступити"
+    ]);
+    expect(inlineButtonRows(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
+      ["🗡️ Вдарити", "🛡 Захищатися"],
+      ["💪 Силовий удар"],
+      ["🏃 Відступити"]
     ]);
     expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
