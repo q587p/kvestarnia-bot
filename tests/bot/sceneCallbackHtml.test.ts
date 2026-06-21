@@ -18,7 +18,10 @@ import {
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeTrainingDoppelgangerTurnCallbackData } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
 import { makeEquipItemCallbackData } from "../../src/bot/callbacks/itemCallbackData";
-import { makeLevelBarterAutoCallbackData } from "../../src/bot/callbacks/levelBarterCallbackData";
+import {
+  makeLevelBarterAutoCallbackData,
+  makeLevelBarterOpenCallbackData
+} from "../../src/bot/callbacks/levelBarterCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import {
@@ -2476,6 +2479,34 @@ describe("scene callback HTML options", () => {
     const edit = calls.find((call) => call.method === "editMessageText");
 
     expect(String(edit?.payload.text)).toContain("Ви зараз у рейді");
+  });
+
+  it("returns from night Munchkin barter to the Nyz descent", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-19T18:30:00.000Z"));
+
+    const calls = await captureApiCalls(
+      makeLevelBarterOpenCallbackData(),
+      servicesWith({
+        levelBarter: {
+          getOfferForTelegramUser: () =>
+            Promise.resolve({
+              state: "insufficient",
+              character,
+              eligibleTotalValue: 800,
+              gold: 70,
+              combinedValue: 870,
+              cost: 1000
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(keyboard).toContain("↩️ До Низу");
+    expect(keyboard).toContain(makePlaceCallbackData("deep"));
+    expect(keyboard).not.toContain(makePlaceCallbackData("front"));
   });
 
   it("blocks remort callbacks while the Barrel raid is pending", async () => {

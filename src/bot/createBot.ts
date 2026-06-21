@@ -55,6 +55,7 @@ import type { TavernRaidService } from "../services/tavernRaidService";
 import type { TrainingDoppelgangerService } from "../services/trainingDoppelgangerService";
 import type { CharacterPath } from "../domain/characters/path";
 import { createBarrelRaidCompletionScheduler } from "./barrelRaidCompletionNotifier";
+import { getMunchkinLocationAt } from "../domain/levelBarter/munchkinSchedule";
 import { parseAdventureCallbackData, type AdventureCallback } from "./callbacks/adventureCallbackData";
 import { parseBestiaryCallbackData, type BestiaryCallback } from "./callbacks/bestiaryCallbackData";
 import { parseCellarCallbackData, type CellarCallback } from "./callbacks/cellarCallbackData";
@@ -1528,13 +1529,17 @@ async function handleLevelBarterCallback(
     return;
   }
 
+  const levelBarterReturnOptions = {
+    munchkinLocation: getMunchkinLocationAt(new Date())
+  };
+
   if (action.type === "open") {
     const offer = await services.levelBarter.getOfferForTelegramUser(telegramUserId);
 
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentLevelBarterOffer(offer), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildLevelBarterOfferKeyboard()
+      reply_markup: buildLevelBarterOfferKeyboard(levelBarterReturnOptions)
     });
     return;
   }
@@ -1550,7 +1555,7 @@ async function handleLevelBarterCallback(
     );
     await safeEditMessageText(ctx, presentLevelBarterPreview(preview), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildLevelBarterPreviewKeyboard(preview)
+      reply_markup: buildLevelBarterPreviewKeyboard(preview, levelBarterReturnOptions)
     });
     return;
   }
@@ -1568,7 +1573,7 @@ async function handleLevelBarterCallback(
   );
   await safeEditMessageText(ctx, presentLevelBarterConfirmResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildLevelBarterResultKeyboard()
+    reply_markup: buildLevelBarterResultKeyboard(levelBarterReturnOptions)
   });
 }
 

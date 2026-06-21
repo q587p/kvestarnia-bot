@@ -354,6 +354,43 @@ describe("main menu and scene keyboards", () => {
     ]);
   });
 
+  it("returns from night Munchkin barter to the Nyz descent", () => {
+    const returnOptions = { munchkinLocation: "nyz-descent" as const };
+
+    expect(flatInlineButtonTexts(buildLevelBarterOfferKeyboard(returnOptions))).toEqual([
+      "🧮 Автопідібрати манатки й золото",
+      "↩️ До Низу"
+    ]);
+    expect(flatInlineButtonCallbacks(buildLevelBarterOfferKeyboard(returnOptions))).toEqual([
+      "v1:lvlx:auto",
+      "v1:place:deep"
+    ]);
+    expect(flatInlineButtonTexts(buildLevelBarterPreviewKeyboard({
+      state: "insufficient",
+      character,
+      eligibleTotalValue: 800,
+      gold: 70,
+      combinedValue: 870,
+      cost: 1000
+    }, returnOptions))).toEqual(["↩️ До Низу"]);
+    expect(flatInlineButtonCallbacks(buildLevelBarterPreviewKeyboard({
+      state: "insufficient",
+      character,
+      eligibleTotalValue: 800,
+      gold: 70,
+      combinedValue: 870,
+      cost: 1000
+    }, returnOptions))).toEqual(["v1:place:deep"]);
+    expect(flatInlineButtonTexts(buildLevelBarterResultKeyboard(returnOptions))).toEqual([
+      "👤 Персонаж",
+      "↩️ До Низу"
+    ]);
+    expect(flatInlineButtonCallbacks(buildLevelBarterResultKeyboard(returnOptions))).toEqual([
+      "v1:menu:hero",
+      "v1:place:deep"
+    ]);
+  });
+
   it("links to the Barrel and hall when korchma rounds are blocked by an active raid", () => {
     const blockedByBarrel = {
       state: "raid-required" as const,

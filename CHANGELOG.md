@@ -54,6 +54,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Target accuracy/evasion penalties now affect later target rolls instead of being accidentally folded into the monster's current ability accuracy.
 - Positive monster accuracy context now raises current runtime ability hit chance instead of lowering it.
 - Persistent fight turn callbacks, result replays, journal views and combat-lock redirects now restore the stored fight passage/location instead of stamping the quest table.
+- Night Munchkin level-barter cards now return to `Спуск до Низу` instead of sending the player outside to the front door.
 - Deterministic fallback loadouts now skip unsupported recipes and avoid low-level strong/ultimate fallback picks.
 
 ### Guardrails
