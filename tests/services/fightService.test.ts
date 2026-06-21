@@ -3445,6 +3445,44 @@ describe("FightService", () => {
     expect(second.state).toBe("skipped");
     expect(sessions.updateCount).toBe(1);
   });
+
+  it("preserves the latest persistent fight message reference during stale due timeout recovery", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.99, 0.9, 0.99, 0.9])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 80);
+    sessions.setTurnExpiresAt(started.session.id, new Date("2026-06-12T10:29:59.000Z"));
+    const staleDue = {
+      ...started.session,
+      state: {
+        ...started.session.state!,
+        turnExpiresAt: "2026-06-12T10:29:59.000Z"
+      },
+      telegramUserId
+    } as DueSoloCombatSessionRecord;
+    sessions.setMessageReference(started.session.id, { chatId: "42", messageId: 999 });
+
+    const result = await service.resolveDuePersistentFightTurn(staleDue);
+
+    expect(result.state).toBe("updated");
+    expect(sessions.getById(started.session.id)?.state?.message).toEqual({
+      chatId: "42",
+      messageId: 999
+    });
+  });
 });
 
 function fixedClock(): Date {

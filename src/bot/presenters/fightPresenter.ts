@@ -1,6 +1,6 @@
 import { MIMIC_SHAWARMA_HP } from "../../domain/combat/combatProbe";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import type { CombatTurnSummary } from "../../domain/combat";
+import type { CombatTurnLogEntry, CombatTurnSummary } from "../../domain/combat";
 import type {
   FightLookupResult,
   FightResult,
@@ -245,7 +245,7 @@ export function presentPersistentFightJournal(
   result: Extract<PersistentFightSnapshotResult, { state: "found" }>,
   requestedPage: number
 ): string {
-  const log = result.session.state?.turnLog ?? [];
+  const log = getPersistentFightJournalEntries(result.session.state ?? null);
 
   if (log.length === 0) {
     return [
@@ -412,10 +412,6 @@ function presentPersistentFightState(input: {
     lines.push("", timeoutNotice);
   }
 
-  if (state?.status === "active") {
-    lines.push("", `⏳ На хід є ${PERSISTENT_FIGHT_TURN_SECONDS} секунди. Потім Корчма поставить вас у захист.`);
-  }
-
   if (state?.status === "active" && state.cooldowns?.skill?.remainingTurns) {
     lines.push(presentSkillCooldown(state.cooldowns.skill));
   }
@@ -470,9 +466,45 @@ function presentPersistentFightState(input: {
       "",
       `<b>${escapeHtml(input.character.name)}</b>, що робимо?`
     );
+
+    lines.push(
+      "",
+      `⏳ На хід є ${PERSISTENT_FIGHT_TURN_SECONDS} секунди. Потім Корчма поставить вас у захист.`
+    );
   }
 
   return lines.join("\n");
+}
+
+function getPersistentFightJournalEntries(
+  state: Extract<PersistentFightTurnResult, { state: "updated" }>["session"]["state"] | null
+): CombatTurnLogEntry[] {
+  const entries = [...(state?.turnLog ?? [])];
+
+  if (!state?.lastTurn || state.status === "active") {
+    return entries;
+  }
+
+  const expectedFinalTurn = Math.max(1, state.turn - 1);
+  const lastLoggedTurn = entries[entries.length - 1]?.turn;
+
+  if (lastLoggedTurn === expectedFinalTurn) {
+    return entries;
+  }
+
+  entries.push({
+    turn: expectedFinalTurn,
+    summary: state.lastTurn,
+    hero: {
+      hp: state.hero.hp,
+      mana: state.hero.mana
+    },
+    monster: {
+      hp: state.monster.hp
+    }
+  });
+
+  return entries;
 }
 
 function presentTimeoutNotice(summary: CombatTurnSummary | undefined): string | null {

@@ -237,6 +237,7 @@ describe("fight command", () => {
 
     expect(options.parse_mode).toBe("HTML");
     expect(options.reply_markup.inline_keyboard.flat()).toEqual([
+      { text: "📜 Журнал бою", callback_data: "v1:fight:log:123e4567-e89b-12d3-a456-426614174000:0" },
       { text: "⚔️ Новий бій", callback_data: makePlaceCallbackData("deep-straight") },
       { text: "↩️ Повернутися до Низу", callback_data: makePlaceCallbackData("deep") }
     ]);

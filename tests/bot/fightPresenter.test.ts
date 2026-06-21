@@ -199,7 +199,7 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
     expect(text).toContain("👹 Монстр: 18/18");
-    expect(text).toContain("Хід: 1\n\n⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
+    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?\n\n⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
     expect(text).toContain("⏳ На хід є 23 секунди");
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("Не зволікайте надто довго");
@@ -546,6 +546,68 @@ describe("fight presenter", () => {
     expect(text).toContain("👹 Монстр після ходу: 14/18");
     expect(text).toContain("Ви стали в захист");
     expect(text).not.toContain("Хід записано");
+  });
+
+  it("adds the terminal last turn to the journal when it is missing from stored turns", () => {
+    const session = persistentSession({
+      status: "won",
+      turn: 3,
+      hero: {
+        hp: 19,
+        hpMax: 24,
+        mana: 11,
+        manaMax: 12
+      },
+      monster: {
+        id: "monster.test",
+        hp: 0,
+        hpMax: 18
+      },
+      turnLog: [
+        {
+          turn: 1,
+          hero: { hp: 22, mana: 12 },
+          monster: { hp: 14 },
+          summary: {
+            action: "attack",
+            heroOutcome: "hit",
+            heroDamage: 4,
+            monsterDamage: 2,
+            manaSpent: 0,
+            critical: false,
+            monsterAction: "attack"
+          }
+        }
+      ],
+      lastTurn: {
+        action: "skill",
+        heroOutcome: "won",
+        heroDamage: 14,
+        monsterDamage: 0,
+        manaSpent: 1,
+        critical: false,
+        skillId: "skill.strict-blessing"
+      }
+    });
+    const text = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session,
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    }, 1);
+
+    expect(text).toContain("Хід <b>2</b> · запис 2/2");
+    expect(text).toContain("❤️ Ви після ходу: 19/24 · мана 11/12");
+    expect(text).toContain("👹 Монстр після ходу: 0/18");
+    expect(text).toContain("Вміння 🙏 <i>Суворе благословення</i> влучає на 14 шкоди.");
   });
 
   it("shows monster ability consequences instead of only naming the ability", () => {

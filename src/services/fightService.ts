@@ -497,33 +497,43 @@ export class FightService {
       return session;
     }
 
+    const currentSession = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, session.id);
+    const currentState = currentSession?.state;
+    if (!currentSession || currentSession.status !== "active" || !currentState || currentState.status !== "active") {
+      return currentSession ?? session;
+    }
+    const activeSession: SoloCombatSessionRecord & { state: CombatState } = {
+      ...currentSession,
+      state: currentState
+    };
+
     const now = this.clock();
-    if (isExpired(session, now)) {
-      return this.expirePersistentSession(telegramUserId, session, now);
+    if (isExpired(activeSession, now)) {
+      return this.expirePersistentSession(telegramUserId, activeSession, now);
     }
 
-    if (!session.state.turnExpiresAt) {
-      const state = withNextTurnExpiry(session.state, now);
-      const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+    if (!activeSession.state.turnExpiresAt) {
+      const state = withNextTurnExpiry(activeSession.state, now);
+      const updated = await this.combatSessions.updateByIdIfActiveTurn(activeSession.id, activeSession.state.turn, {
         state,
         status: state.status
       });
 
-      return updated ?? { ...session, state };
+      return updated ?? { ...activeSession, state };
     }
 
-    if (!isTurnExpired(session.state, now)) {
-      return session;
+    if (!isTurnExpired(activeSession.state, now)) {
+      return activeSession;
     }
 
     const timeoutMode = getNextTimeoutMode(mode);
 
     const resolved = resolveCombatTurn({
-      state: session.state,
+      state: activeSession.state,
       action: timeoutMode === "skip" ? "skip" : "defend",
       actionOrigin: timeoutMode === "skip" ? "timeout-skip" : "timeout-auto-defend",
       hero: buildHeroCombatStats(character),
-      monster: buildPersistentMonsterCombatStats(monster, session.state),
+      monster: buildPersistentMonsterCombatStats(monster, activeSession.state),
       rng: this.rng
     });
     const resolvedState = resolved.ok
@@ -534,15 +544,15 @@ export class FightService {
       : null;
 
     if (!resolvedState) {
-      return session;
+      return activeSession;
     }
-    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(activeSession.id, activeSession.state.turn, {
       state: resolvedState,
       status: resolvedState.status
     });
 
     if (!updated) {
-      return session;
+      return activeSession;
     }
 
     if (updated.status !== "active") {
@@ -786,6 +796,15 @@ export class FightService {
     const character = await this.characters.findByTelegramUserId(due.telegramUserId);
 
     if (!character || !due.state || due.status !== "active" || due.state.status !== "active") {
+      return { state: "skipped" };
+    }
+
+    const currentSession = await this.combatSessions?.findByIdForTelegramUserId(due.telegramUserId, due.id);
+    if (
+      currentSession?.status === "active" &&
+      currentSession.state?.status === "active" &&
+      currentSession.state.turn !== due.state.turn
+    ) {
       return { state: "skipped" };
     }
 

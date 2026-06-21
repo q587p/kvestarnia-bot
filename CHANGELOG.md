@@ -17,7 +17,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added monster action-mix and ability-usage metrics to the production combat simulator, with default coverage through level 23.
 - Added authored combo-title triples for all 54 currently selectable race/class pairs, so active onboarding combinations no longer fall back to generic local-significance titles.
 - Added distinct class skill identities for Varenyk-mancer (`skill.boiling-filling`, `🥟 Кипляча начинка`) and Rogue (`skill.shadow-cut`, `🌘 Тіньовий різ`) while preserving their previous numeric combat profiles.
-- Added durable persistent-fight `turnLog` entries in combat state JSON plus `📜 Журнал бою` paging with first/previous/next/last navigation and a return to the current fight card.
+- Added durable persistent-fight `turnLog` entries in combat state JSON plus terminal `📜 Журнал бою` paging with first/previous/next/last navigation and a return to the result card.
 - Added separate presence locations for the Nyz left, straight and right passages.
 - Added focused coverage for content totals, loadout gates, frozen runtime state, legacy no-runtime fights, ordinary anti-spam, telegraph impact, shields/effects and Prisma JSON round-trip.
 
@@ -30,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Mage and Ranger keep their existing `skill.hot-spell` and `skill.trick-shot` identities; Varenyk-mancer and Rogue now render their own class action labels in persistent fights, training doppelganger fights and turn-based duels.
 - Persistent PvE timeout recovery now commits `defend` with `timeout-auto-defend` instead of a basic attack; legacy `timeout-auto-attack` JSON/debug values remain readable.
 - Nyz passage buttons now enter `Лівий прохід`, `Прямий прохід` or `Правий прохід` as separate locations; `Хто поруч`, nearby duel validation and post-fight `Новий бій` preserve the selected passage.
+- Active fight cards now place the 23-second timeout note under the named `що робимо?` prompt instead of above it.
 - Active persistent fight cards no longer show the service-note `Хід записано` or an `Остання дія` heading, skill cooldown rows name the exact skill, and basic monster counterattacks say what they attacked in response to.
 - Monster skill summaries now include visible mechanical consequences: damage, effect text, or an explicit no-direct-damage line.
 
@@ -37,6 +38,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Old active combat JSON without `monsterRuntime` remains readable and keeps legacy basic-attack behavior until that fight ends.
 - Old active cooldown JSON that still contains Varenyk-mancer `skill.hot-spell` or Rogue `skill.trick-shot` cooldowns remains authoritative until the cooldown naturally ticks away; future class skill use stores only the renamed IDs.
 - Fixed two corrupted monster context cue lines that could render as `????`, and added content coverage against placeholder mojibake in context cues.
+- Battle journal buttons now appear only on terminal/result cards, include a terminal `lastTurn` page when older state has not stored it in `turnLog`, and return with `↩️ До результатів`.
+- Timeout auto-turn recovery refreshes the current combat row before committing, so stale scheduler due records do not overwrite a newer active-card message reference.
 - Training doppelganger fights keep the copied class-skill behavior from `0.1.21` instead of being silently converted into ordinary-monster AI.
 - Monster class-skill locks are server-authoritative no-ops: pressing a locked/unavailable class skill does not spend mana, advance the turn, tick cooldowns, trigger monster AI, select a bark or advance RNG.
 - Telegraphs persist the promised ability before impact; if the monster dies first, the pending impact never resolves.

@@ -75,10 +75,8 @@ export function buildPersistentFightKeyboard(
     ).row();
   }
 
-  keyboard
+  return keyboard
     .text("🏃 Відступити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" }));
-
-  return addPersistentFightJournalButton(keyboard, session);
 }
 
 export function buildPersistentFightResultKeyboard(
@@ -125,30 +123,49 @@ export function buildPersistentFightJournalKeyboard(
     }
   }
 
-  return keyboard.text("↩️ До бою", makeFightViewCallbackData(session.id));
+  return keyboard.text(getPersistentFightJournalReturnLabel(session), makeFightViewCallbackData(session.id));
 }
 
 function addPersistentFightJournalButton(
   keyboard: InlineKeyboard,
   session: SoloCombatSessionRecord
 ): InlineKeyboard {
-  const log = session.state?.turnLog ?? [];
+  const logLength = getPersistentFightJournalPageCount(session);
 
-  if (log.length === 0) {
+  if (logLength === 0) {
     return keyboard;
   }
 
   return keyboard
     .row()
-    .text("📜 Журнал бою", makeFightJournalCallbackData({ sessionId: session.id, page: log.length - 1 }));
+    .text("📜 Журнал бою", makeFightJournalCallbackData({ sessionId: session.id, page: logLength - 1 }));
 }
 
 function getPersistentFightJournalPageCount(session: SoloCombatSessionRecord): number {
-  return Math.max(1, session.state?.turnLog?.length ?? 0);
+  const logLength = session.state?.turnLog?.length ?? 0;
+
+  return logLength + getMissingTerminalTurnLogCount(session);
 }
 
 function clampJournalPage(requestedPage: number, totalPages: number): number {
   return Math.max(0, Math.min(Math.floor(requestedPage), totalPages - 1));
+}
+
+function getMissingTerminalTurnLogCount(session: SoloCombatSessionRecord): number {
+  const state = session.state;
+
+  if (!state?.lastTurn || state.status === "active") {
+    return 0;
+  }
+
+  const expectedFinalTurn = Math.max(1, state.turn - 1);
+  const lastLoggedTurn = state.turnLog?.[state.turnLog.length - 1]?.turn;
+
+  return lastLoggedTurn === expectedFinalTurn ? 0 : 1;
+}
+
+function getPersistentFightJournalReturnLabel(session: SoloCombatSessionRecord): string {
+  return session.state?.status === "active" ? "↩️ До бою" : "↩️ До результатів";
 }
 
 export function getPersistentFightOriginLocationId(session: SoloCombatSessionRecord): string {

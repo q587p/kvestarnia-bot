@@ -627,7 +627,7 @@ describe("main menu and scene keyboards", () => {
     }, character))).toEqual(["v1:place:quest-table"]);
   });
 
-  it("adds journal navigation when persistent fight turns are stored", () => {
+  it("adds journal navigation only on persistent fight results", () => {
     const session = {
       ...persistentFightSession(),
       state: {
@@ -662,9 +662,18 @@ describe("main menu and scene keyboards", () => {
         ]
       }
     };
+    const terminalSession = {
+      ...session,
+      status: "won" as const,
+      state: {
+        ...session.state,
+        status: "won" as const
+      }
+    };
 
-    expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, character))).toContain("📜 Журнал бою");
-    expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toContain(
+    expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, character))).not.toContain("📜 Журнал бою");
+    expect(flatInlineButtonTexts(buildPersistentFightResultKeyboard(terminalSession, character))).toContain("📜 Журнал бою");
+    expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard(terminalSession, character))).toContain(
       "v1:fight:log:123e4567-e89b-12d3-a456-426614174000:1"
     );
     expect(flatInlineButtonTexts(buildPersistentFightJournalKeyboard(session, 0))).toEqual([
@@ -685,6 +694,7 @@ describe("main menu and scene keyboards", () => {
       "2/2",
       "↩️ До бою"
     ]);
+    expect(flatInlineButtonTexts(buildPersistentFightJournalKeyboard(terminalSession, 1))).toContain("↩️ До результатів");
   });
 
   it("keeps active training doppelganger buttons scoped to turn callbacks", () => {
