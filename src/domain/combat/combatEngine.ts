@@ -901,22 +901,22 @@ function resolveMonsterResponse(input: {
           input.damageReduction
         )
       : 0;
-    const modifiedBasicAttack = consumeMonsterRuntimeDirectHitModifiers({
-      state: input.state,
-      damage: basicAttackDamage
-    });
     const defendedBasicAttack = applyDefendStance({
       defenderGuard: input.state.guard,
-      damage: modifiedBasicAttack.damage,
+      damage: basicAttackDamage,
       rng: input.input.rng
     });
-    if (defendedBasicAttack.damage > 0) {
-      input.state.hero.hp = Math.max(0, input.state.hero.hp - defendedBasicAttack.damage);
+    const modifiedBasicAttack = consumeMonsterRuntimeDirectHitModifiers({
+      state: input.state,
+      damage: defendedBasicAttack.damage
+    });
+    if (modifiedBasicAttack.damage > 0) {
+      input.state.hero.hp = Math.max(0, input.state.hero.hp - modifiedBasicAttack.damage);
     }
     const monsterSkill = response.ability ? monsterAbilityAsCombatSkill(response.ability) : undefined;
 
     return {
-      damage: response.damage + defendedBasicAttack.damage,
+      damage: response.damage + modifiedBasicAttack.damage,
       ...(response.actionKind
         ? { monsterAction: response.actionKind === "ability" ? "skill" : response.actionKind }
         : {}),

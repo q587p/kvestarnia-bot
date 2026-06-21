@@ -488,13 +488,15 @@ function getPersistentFightJournalEntries(
   }
 
   const expectedFinalTurn = Math.max(1, state.turn - 1);
-  const lastLoggedTurn = entries[entries.length - 1]?.turn;
+  const lastLoggedEntry = entries[entries.length - 1];
+  const lastLoggedTurn = lastLoggedEntry?.turn;
 
-  if (lastLoggedTurn === expectedFinalTurn) {
+  if (lastLoggedTurn === expectedFinalTurn && areCombatTurnSummariesEquivalent(lastLoggedEntry?.summary, state.lastTurn)) {
     return entries;
   }
 
   entries.push({
+    eventId: terminalEventId,
     turn: expectedFinalTurn,
     summary: state.lastTurn,
     hero: {
@@ -507,6 +509,13 @@ function getPersistentFightJournalEntries(
   });
 
   return entries;
+}
+
+function areCombatTurnSummariesEquivalent(
+  left: CombatTurnSummary | undefined,
+  right: CombatTurnSummary
+): boolean {
+  return Boolean(left) && JSON.stringify(left) === JSON.stringify(right);
 }
 
 function presentTimeoutNotice(summary: CombatTurnSummary | undefined): string | null {

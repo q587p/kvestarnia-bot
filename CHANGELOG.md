@@ -20,6 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added durable persistent-fight `turnLog` entries in combat state JSON plus terminal `📜 Журнал бою` paging with first/previous/next/last navigation and a return to the result card.
 - Added separate presence locations for the Nyz left, straight and right passages.
 - Added focused coverage for content totals, loadout gates, frozen runtime state, legacy no-runtime fights, ordinary anti-spam, telegraph impact, shields/effects and Prisma JSON round-trip.
+- Added an explicit per-component monster ability execution plan used by validation, AI legality and resolution. Components now record their source parameter, target actor, condition, duration/charges, direct-hit requirement and applied-result key.
 
 ### Changed
 - New ordinary monster fights now freeze authored ability loadouts at encounter start. Explicit authored IDs fill identity slots first; deterministic fallback can fill only missing legal slots created by effective-level scaling.
@@ -36,7 +37,12 @@ This project follows a simple pre-1.0 versioning policy:
 - The persistent reply keyboard now labels its place button with the current known location where possible; location-changing inline callbacks refresh that label immediately, and location reply buttons reopen the current place/actions instead of always jumping to the generic korchma entry.
 - Active persistent fight cards no longer show the service-note `Хід записано` or an `Остання дія` heading, skill cooldown rows name the exact skill, and basic monster counterattacks say what they attacked in response to.
 - Monster skill summaries now include visible mechanical consequences: damage, effect text, or an explicit no-direct-damage line.
-- Monster ability parameters now compile through a central runtime audit. Unsupported, invalid or effectless parameters fail validation instead of silently becoming flavor-only fields.
+- Monster ability parameters now compile through a central runtime audit. Unsupported, invalid, effectless or semantically contradictory parameters fail validation instead of silently becoming flavor-only fields.
+- Optional self-heals no longer make the whole ability illegal when the monster is healthy; other actionable components such as shields, self-buffs, damage and eligible purge riders still resolve normally.
+- Low-HP damage parameters now apply as additive bonuses to the base multiplier instead of replacing the multiplier.
+- Turn-cycle riders now resolve only the selected branch for the current persisted monster activation count; unselected fire, shield and potency-down riders no longer leak into each other.
+- Direct-hit marks and next-attack bonuses now use the same basic/ability pipeline and are consumed only by a real landed direct monster hit after defend evasion is known.
+- Repeated-action prediction now tracks eligible committed hero misses and defense, ignores rejected/no-op skills and expires by activation duration even if the player avoids repeating the action.
 - Runtime monster shields now report only HP damage actually applied after absorption and no longer heal/revive the monster while accounting shield points.
 - Runtime basic attacks now use the same defend stance contract as legacy basic monster attacks, including evasion, mitigation fatigue and bounded counters; runtime ability mitigation applies defend once.
 - Runtime monster evasion now affects the hero hit roll only; it no longer also reduces damage after a successful hit.
@@ -54,6 +60,10 @@ This project follows a simple pre-1.0 versioning policy:
 - Telegraphs persist the promised ability before impact; if the monster dies first, the pending impact never resolves.
 - One-charge marks survive committed hero actions and are consumed only when a later direct monster hit uses them; reflect charges are consumed only when actual reflected HP damage occurs.
 - One-charge marks can now be consumed by the ordinary forced basic attack after a setup ability, while missed basics and non-damaging monster actions leave the mark intact.
+- Mixed-scope monster buffs now route by parameter intent: `monster.mountain-on-installments` marks the hero, buffs the monster's outgoing damage and never grants the hero a positive outgoing-damage multiplier.
+- Race-source ability locks now use a safe solo fallback instead of disabling the class skill; class-source locks still block the current class action as before.
+- Applied-result text is now generated only from components that changed state, so purge, cooldown, heal, shield, cleanse and reapply claims do not appear when nothing happened.
+- Legacy eventless terminal journals now synthesize one final `terminal:*` entry when an old same-turn log row has a different summary, while semantically identical old rows still avoid duplicates.
 - Reactive reflect/counter/shield-break damage now resolves before the early victory return; if it drops the hero to zero HP, the combat is recorded as a loss even when the same hit also drops the monster to zero.
 - Terminal persistent combat journal entries now carry stable `terminal:*` event IDs, so `won`, `lost`, `fled` and hard `expired` results appear exactly once after repository round-trip and repeated journal opens.
 - Target accuracy/evasion penalties now affect later target rolls instead of being accidentally folded into the monster's current ability accuracy.

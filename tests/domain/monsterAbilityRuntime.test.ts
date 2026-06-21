@@ -6,7 +6,9 @@ import {
   cloneCombatState,
   createMonsterAbilityRuntime,
   getMonsterAbilitySlotCount,
+  applyHeroActivationMonsterEffects,
   applyMonsterRuntimeHeroDamage,
+  isHeroClassSkillLockedByMonster,
   resolveMonsterShieldDamage,
   resolveCombatTurn,
   resolveMonsterLoadoutIds,
@@ -251,6 +253,92 @@ describe("monster ability runtime", () => {
     expect(result.state.monsterRuntime?.effects.some((effect) => effect.kind === "reflect")).toBe(true);
   });
 
+  it("keeps optional heal from gating other actionable components", () => {
+    const cabbage = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.cabbage-plate"),
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0, 0, 0])
+    });
+    const compound = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.compound-interest"),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0])
+    });
+    const archive = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.archive-chew"),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(cabbage.ability?.id).toBe("monster.cabbage-plate");
+    expect(cabbage.state.monsterRuntime?.shield?.sourceAbilityId).toBe("monster.cabbage-plate");
+    expect(compound.ability?.id).toBe("monster.compound-interest");
+    expect(compound.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
+      target: "monster",
+      kind: "outgoing-damage",
+      value: 1.2
+    }));
+    expect(archive.ability?.id).toBe("monster.archive-chew");
+    expect(archive.damage).toBeGreaterThan(0);
+    expect(archive.effectText).toBeUndefined();
+  });
+
+  it("treats low-HP damage parameters as bonuses at the half-HP boundary", () => {
+    const crumbAbove = resolveMonsterRuntimeAction({
+      state: {
+        ...startRuntimeAbilityState("monster.crumb-ambush"),
+        monster: { id: taxDragon.monsterId, hp: 41, hpMax: 80 }
+      },
+      hero,
+      monster: { ...taxDragon, hpMax: 80, attack: 11 },
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+    const crumbAtHalf = resolveMonsterRuntimeAction({
+      state: {
+        ...startRuntimeAbilityState("monster.crumb-ambush"),
+        monster: { id: taxDragon.monsterId, hp: 40, hpMax: 80 }
+      },
+      hero,
+      monster: { ...taxDragon, hpMax: 80, attack: 11 },
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+    const crumbBelow = resolveMonsterRuntimeAction({
+      state: {
+        ...startRuntimeAbilityState("monster.crumb-ambush"),
+        monster: { id: taxDragon.monsterId, hp: 20, hpMax: 80 }
+      },
+      hero,
+      monster: { ...taxDragon, hpMax: 80, attack: 11 },
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+    const timesheetAbove = resolveMonsterRuntimeAction({
+      state: {
+        ...startRuntimeAbilityState("monster.timesheet-maul"),
+        monster: { id: taxDragon.monsterId, hp: 41, hpMax: 80 }
+      },
+      hero,
+      monster: { ...taxDragon, hpMax: 80, attack: 11 },
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+    const timesheetAtHalf = resolveMonsterRuntimeAction({
+      state: {
+        ...startRuntimeAbilityState("monster.timesheet-maul"),
+        monster: { id: taxDragon.monsterId, hp: 40, hpMax: 80 }
+      },
+      hero,
+      monster: { ...taxDragon, hpMax: 80, attack: 11 },
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(crumbAbove.state.monster.hp).toBe(41);
+    expect(crumbAtHalf.damage).toBeGreaterThan(crumbAbove.damage);
+    expect(crumbBelow.damage).toBeGreaterThan(crumbAbove.damage);
+    expect(timesheetAtHalf.damage).toBeGreaterThan(timesheetAbove.damage);
+  });
+
   it("applies parity riders from the committed combat turn", () => {
     const state = startRuntimeAbilityState("monster.temperature-offense");
     const odd = resolveMonsterRuntimeAction({
@@ -293,10 +381,23 @@ describe("monster ability runtime", () => {
     });
 
     expect(first.state.monsterRuntime?.effects.some((effect) => effect.kind === "burn")).toBe(true);
+    expect(first.damage).toBeGreaterThan(0);
+    expect(first.state.monsterRuntime?.shield).toBeUndefined();
+    expect(first.state.monsterRuntime?.effects.some((effect) => (
+      effect.target === "hero" && effect.kind === "outgoing-damage" && effect.value < 1
+    ))).toBe(false);
     expect(second.state.monsterRuntime?.shield?.sourceAbilityId).toBe("monster.fire-safety-cycle");
+    expect(second.damage).toBe(0);
+    expect(second.state.monsterRuntime?.effects.some((effect) => effect.kind === "burn")).toBe(false);
+    expect(second.state.monsterRuntime?.effects.some((effect) => (
+      effect.target === "hero" && effect.kind === "outgoing-damage" && effect.value < 1
+    ))).toBe(false);
     expect(third.state.monsterRuntime?.effects.some((effect) => (
       effect.target === "hero" && effect.kind === "outgoing-damage" && effect.value < 1
     ))).toBe(true);
+    expect(third.damage).toBe(0);
+    expect(third.state.monsterRuntime?.shield).toBeUndefined();
+    expect(third.state.monsterRuntime?.effects.some((effect) => effect.kind === "burn")).toBe(false);
   });
 
   it("applies repeat penalty only when the committed hero action repeats", () => {
@@ -331,6 +432,62 @@ describe("monster ability runtime", () => {
     expect(changed.monsterRuntime?.effects.some((effect) => effect.kind === "repeat-penalty")).toBe(true);
   });
 
+  it("records eligible committed misses and defend for repeat prediction without letting it persist forever", () => {
+    const missed = startRuntimeAbilityState("monster.mirror-doubt", {
+      effects: [{
+        id: "repeat:test",
+        sourceAbilityId: "monster.mirror-doubt",
+        target: "hero",
+        kind: "repeat-penalty",
+        value: 20,
+        remainingTargetActivations: 2,
+        charges: 1
+      }]
+    });
+
+    expect(applyMonsterRuntimeHeroDamage({
+      state: missed,
+      heroDamage: 0,
+      monsterHpBeforeDamage: 80,
+      heroAction: "defend"
+    }).heroDamage).toBe(0);
+    expect(missed.monsterRuntime?.lastHeroAction).toBe("defend");
+    expect(missed.monsterRuntime?.effects.find((effect) => effect.kind === "repeat-penalty")?.charges).toBe(1);
+
+    applyHeroActivationMonsterEffects(missed);
+    expect(missed.monsterRuntime?.effects.find((effect) => effect.kind === "repeat-penalty")?.remainingTargetActivations).toBe(1);
+
+    expect(applyMonsterRuntimeHeroDamage({
+      state: missed,
+      heroDamage: 0,
+      monsterHpBeforeDamage: 80,
+      heroAction: "attack"
+    }).heroDamage).toBe(0);
+    expect(missed.monsterRuntime?.lastHeroAction).toBe("attack");
+    applyHeroActivationMonsterEffects(missed);
+    expect(missed.monsterRuntime?.effects.some((effect) => effect.kind === "repeat-penalty")).toBe(false);
+
+    const rejected = resolveCombatTurn({
+      state: startRuntimeAbilityState("monster.mirror-doubt", {
+        effects: [{
+          id: "lock:test",
+          sourceAbilityId: "monster.stamp-denied",
+          target: "hero",
+          kind: "ability-lock",
+          value: 1,
+          remainingTargetActivations: 1,
+          charges: 1
+        }]
+      }),
+      action: "skill",
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0])
+    });
+    expect(rejected.ok).toBe(false);
+    expect(rejected.state.monsterRuntime?.lastHeroAction).toBeUndefined();
+  });
+
   it("reapplies the actual last expired negative effect snapshot", () => {
     const result = resolveMonsterRuntimeAction({
       state: startRuntimeAbilityState("monster.reopen-case", {
@@ -354,6 +511,51 @@ describe("monster ability runtime", () => {
       remainingTargetActivations: 2
     }));
     expect(result.state.monsterRuntime?.effects.some((effect) => effect.kind === "repeat-penalty")).toBe(false);
+  });
+
+  it("routes mixed-scope buffs to their authored actors", () => {
+    const result = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.mountain-on-installments"),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(result.ability?.id).toBe("monster.mountain-on-installments");
+    expect(result.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
+      target: "hero",
+      kind: "mark",
+      value: 1.15
+    }));
+    expect(result.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
+      target: "monster",
+      kind: "outgoing-damage",
+      value: 1.1
+    }));
+    expect(result.state.monsterRuntime?.effects.some((effect) => (
+      effect.target === "hero" && effect.kind === "outgoing-damage" && effect.value > 1
+    ))).toBe(false);
+  });
+
+  it("does not map race-source locks to class-skill locks", () => {
+    const raceLock = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.denied-closure"),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+    const classLock = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.stamp-denied"),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(raceLock.ability?.id).toBe("monster.denied-closure");
+    expect(raceLock.damage).toBeGreaterThan(0);
+    expect(isHeroClassSkillLockedByMonster(raceLock.state)).toBe(false);
+    expect(classLock.ability?.id).toBe("monster.stamp-denied");
+    expect(isHeroClassSkillLockedByMonster(classLock.state)).toBe(true);
   });
 
   it("arms shield-survival next attack bonus only after shield survives damage", () => {
@@ -592,6 +794,66 @@ describe("monster ability runtime", () => {
     expect(missed.summary.monsterDamage).toBe(0);
     const mark = missed.state.monsterRuntime?.effects.find((effect) => effect.kind === "mark");
     expect(mark?.charges).toBe(1);
+  });
+
+  it("does not consume direct-hit charges when defend evades a runtime basic attack", () => {
+    const state: CombatState = {
+      ...startCombat({ id: "mark-basic-defend-evade", hero, monster: taxDragon }),
+      monster: {
+        ...startCombat({ hero, monster: taxDragon }).monster,
+        hp: 120,
+        hpMax: 120
+      },
+      monsterRuntime: {
+        version: 1,
+        rulesVersion: "monster-abilities-v1",
+        aiProfile: "brute",
+        loadoutIds: [],
+        cooldowns: {},
+        onceUsedAbilityIds: [],
+        lastActionKind: "ability",
+        lastAbilityId: "monster.asset-freeze",
+        consecutiveAbilityUses: 1,
+        effects: [
+          {
+            id: "mark:defend",
+            sourceAbilityId: "monster.asset-freeze",
+            target: "hero",
+            kind: "mark",
+            value: 1.4,
+            remainingTargetActivations: 3,
+            charges: 1
+          },
+          {
+            id: "next:defend",
+            sourceAbilityId: "monster.echo-of-audit",
+            target: "monster",
+            kind: "next-attack-bonus",
+            value: 1.4,
+            remainingOwnActivations: 3,
+            charges: 1
+          }
+        ],
+        ownActionCount: 1
+      }
+    };
+
+    const evaded = resolveCombatTurn({
+      state,
+      action: "defend",
+      hero,
+      monster: { ...taxDragon, hpMax: 120 },
+      rng: new FakeRandomSource([0.9, 0.1, 0, 0, 0])
+    });
+
+    expect(evaded.ok).toBe(true);
+    if (!evaded.ok) {
+      throw new Error("Expected defended runtime basic attack to resolve.");
+    }
+    expect(evaded.summary.monsterAction).toBe("attack");
+    expect(evaded.summary.monsterDamage).toBe(0);
+    expect(evaded.state.monsterRuntime?.effects.find((effect) => effect.kind === "mark")?.charges).toBe(1);
+    expect(evaded.state.monsterRuntime?.effects.find((effect) => effect.kind === "next-attack-bonus")?.charges).toBe(1);
   });
 
   it("applies reflect only when hero damage reaches monster HP", () => {

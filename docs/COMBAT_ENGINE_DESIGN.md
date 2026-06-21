@@ -282,6 +282,8 @@ Monster actions мають бути простими, але не однаков
 
 Runtime rules stay solo-ready: group/party scope fields from content degrade to the current single hero/monster, no multi-enemy or raid runtime ships here, and training doppelganger keeps copied class-skill behavior. Ordinary monsters must answer an ability with a basic attack or defend before using another ability; boss-like profiles may chain at most two different abilities; heavy telegraphed abilities spend one monster activation on warning text before impact. Failed flee responses and timeout recovery call the same AI resolver once, but rewards, Yeger matching, loot, monster eligibility and analytics schema do not change in this slice.
 
+Monster ability parameters compile into explicit execution components before AI legality and resolution: each component owns its target actor, condition, duration/charges, direct-hit requirement and applied-result key. Optional riders do not disable the whole ability when they have no target, cycle/parity riders apply only the selected branch, race-source locks do not become class-skill locks, and direct-hit marks/next-hit bonuses spend only on actual landed monster hits after defend evasion is known.
+
 ### Context snapshots and barks
 
 `0.1.21` adds the first contextual texture layer for persistent monster fights:

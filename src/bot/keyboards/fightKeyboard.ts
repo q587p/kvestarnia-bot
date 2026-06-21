@@ -161,9 +161,10 @@ function getMissingTerminalTurnLogCount(session: SoloCombatSessionRecord): numbe
   }
 
   const expectedFinalTurn = Math.max(1, state.turn - 1);
-  const lastLoggedTurn = state.turnLog?.[state.turnLog.length - 1]?.turn;
+  const lastLoggedEntry = state.turnLog?.[state.turnLog.length - 1];
+  const lastLoggedTurn = lastLoggedEntry?.turn;
 
-  return lastLoggedTurn === expectedFinalTurn ? 0 : 1;
+  return lastLoggedTurn === expectedFinalTurn && JSON.stringify(lastLoggedEntry?.summary) === JSON.stringify(state.lastTurn) ? 0 : 1;
 }
 
 function getPersistentFightJournalReturnLabel(session: SoloCombatSessionRecord): string {

@@ -686,6 +686,68 @@ describe("fight presenter", () => {
     expect(text).not.toContain("запис 2/3");
   });
 
+  it("adds one legacy eventless terminal entry when the same turn stored a different summary", () => {
+    const session = persistentSession({
+      status: "expired",
+      turn: 3,
+      hero: {
+        hp: 7,
+        hpMax: 24,
+        mana: 10,
+        manaMax: 12
+      },
+      monster: {
+        id: "monster.test",
+        hp: 6,
+        hpMax: 18
+      },
+      turnLog: [
+        {
+          turn: 2,
+          hero: { hp: 8, mana: 10 },
+          monster: { hp: 6 },
+          summary: {
+            action: "attack",
+            heroOutcome: "miss",
+            heroDamage: 0,
+            monsterDamage: 1,
+            manaSpent: 0,
+            critical: false,
+            monsterAction: "attack"
+          }
+        }
+      ],
+      lastTurn: {
+        action: "skip",
+        actionOrigin: "timeout-expired",
+        heroOutcome: "miss",
+        monsterOutcome: "miss",
+        heroDamage: 0,
+        monsterDamage: 0,
+        manaSpent: 0,
+        critical: false
+      }
+    });
+    const text = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session,
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    }, 1);
+
+    expect(text).toContain("Хід <b>2</b> · запис 2/2");
+    expect(text).toContain("Відступ не влучає.");
+    expect(text).toContain("Монстр промахнувся");
+  });
+
   it("shows monster ability consequences instead of only naming the ability", () => {
     const damaging = presentPersistentFightTurn({
       state: "updated",

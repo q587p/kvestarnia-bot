@@ -232,10 +232,42 @@ interface CompiledMonsterAbilityRecipe {
   };
 }
 
+type MonsterAbilityPlanComponentKind =
+  | "runtime-effect"
+  | "heal"
+  | "shield"
+  | "mana-drain"
+  | "cleanse"
+  | "remove-positive"
+  | "cooldown-pressure"
+  | "reapply-expired";
+
+interface MonsterAbilityPlanComponent {
+  kind: MonsterAbilityPlanComponentKind;
+  sourceParameter: MonsterAbilityParameterKey | `rider:${string}`;
+  target: MonsterAbilityEffectTarget;
+  effectKind?: MonsterAbilityEffectKind;
+  value?: number;
+  condition?: string;
+  durationOwnActivations?: number;
+  durationTargetActivations?: number;
+  charges?: number;
+  directHitRequired: boolean;
+  optional: boolean;
+  onlyEffect: boolean;
+  appliedResultKey: string;
+}
+
+interface CompiledMonsterAbilityExecutionPlan {
+  directDamage: boolean;
+  selectedRider: string | null;
+  components: readonly MonsterAbilityPlanComponent[];
+}
+
 export function compileMonsterAbilityRecipe(
   ability: MonsterAbilityDefinition
 ): CompiledMonsterAbilityRecipe {
-  const params = ability.parameters;
+  const plan = compileMonsterAbilityExecutionPlan({ ability });
   const heroEffects: MonsterAbilityEffectKind[] = [];
   const monsterEffects: MonsterAbilityEffectKind[] = [];
   const addHeroEffect = (kind: MonsterAbilityEffectKind): void => {
@@ -249,45 +281,502 @@ export function compileMonsterAbilityRecipe(
     }
   };
 
-  if (numberParam(params.markIncomingDamageMultiplier) > 0) addHeroEffect("mark");
-  if (numberParam(params.burnDamageMultiplier) > 0) addHeroEffect("burn");
-  if (numberParam(params.bleedDamageMultiplier) > 0) addHeroEffect("bleed");
-  if (typeof params.lockAbilitySource === "string" || params.lockAnyOneAbility === true) addHeroEffect("ability-lock");
-  if (numberParam(params.outgoingDamageMultiplier) > 0 && numberParam(params.outgoingDamageMultiplier) !== 1) addHeroEffect("outgoing-damage");
-  if (numberParam(params.targetAccuracyPenaltyPp) > 0 || numberParam(params.accuracyAndEvasionPenaltyPp) > 0) addHeroEffect("accuracy");
-  if (numberParam(params.evasionPenaltyPp) > 0 || numberParam(params.accuracyAndEvasionPenaltyPp) > 0) addHeroEffect("evasion");
-  if (numberParam(params.manaCostIncrease) > 0) addHeroEffect("mana-cost-pressure");
-  if (numberParam(params.fleeChancePenaltyPp) > 0) addHeroEffect("flee");
-  if (numberParam(params.critPenaltyPp) > 0) addHeroEffect("crit");
-  if (numberParam(params.slowAttackerPp) > 0) addHeroEffect("slow");
-  if (params.groupTargetConfusion === true) addHeroEffect("confusion");
-  if (numberParam(params.extendLongestCooldownBy) > 0) addHeroEffect("cooldown-pressure");
-  if (params.predictRepeatedLastAction === true || numberParam(params.repeatLastActionPenalty) > 0) addHeroEffect("repeat-penalty");
+  for (const component of plan.components) {
+    if (!component.effectKind) {
+      continue;
+    }
 
-  if (numberParam(params.damageReduction) > 0 || numberParam(params.selfDamageReduction) > 0) addMonsterEffect("incoming-damage");
-  if (numberParam(params.evasionBonusPp) > 0 || numberParam(params.selfEvasionBonusPp) > 0) addMonsterEffect("evasion");
-  if (numberParam(params.reflectFlatDamage) > 0) addMonsterEffect("reflect");
-  if (numberParam(params.counterChance) > 0) addMonsterEffect("reflect");
-  if (numberParam(params.statusResistancePp) > 0) addMonsterEffect("status-resistance");
-  if (numberParam(params.nextAttackBonusIfShieldSurvives) > 0 || numberParam(params.copyLastDirectActionPotency) > 0) addMonsterEffect("next-attack-bonus");
+    if (component.target === "hero") {
+      addHeroEffect(component.effectKind);
+    } else {
+      addMonsterEffect(component.effectKind);
+    }
+  }
 
   return {
-    directDamage: getRawDamageMultiplier(ability) > 0 || directDamageRoles.has(ability.role),
+    directDamage: plan.directDamage,
     heroEffects,
     monsterEffects,
     immediate: {
-      heal: numberParam(params.selfHealMaxHpFraction) > 0 || numberParam(params.healTargetMaxHpFraction) > 0,
-      shield:
-        numberParam(params.shieldMaxHpFraction) > 0 ||
-        numberParam(params.fallbackShieldMaxHpFraction) > 0 ||
-        numberParam(params.soloFallbackShieldMaxHpFraction) > 0,
-      manaDrain: numberParam(params.manaDrain) > 0,
-      cleanse: isTruthyParameter(params.cleanseNegativeEffects),
-      removePositive: isTruthyParameter(params.removePositiveEffects),
-      reapplyExpired: params.reapplyLastExpiredNegativeEffect === true,
-      cooldownPressure: numberParam(params.extendLongestCooldownBy) > 0
+      heal: plan.components.some((component) => component.kind === "heal"),
+      shield: plan.components.some((component) => component.kind === "shield"),
+      manaDrain: plan.components.some((component) => component.kind === "mana-drain"),
+      cleanse: plan.components.some((component) => component.kind === "cleanse"),
+      removePositive: plan.components.some((component) => component.kind === "remove-positive"),
+      reapplyExpired: plan.components.some((component) => component.kind === "reapply-expired"),
+      cooldownPressure: plan.components.some((component) => component.kind === "cooldown-pressure")
     }
   };
+}
+
+function compileMonsterAbilityExecutionPlan(input: {
+  ability: MonsterAbilityDefinition;
+  state?: CombatState;
+  runtime?: MonsterAbilityRuntimeStateV1;
+}): CompiledMonsterAbilityExecutionPlan {
+  const params = input.ability.parameters;
+  const components: MonsterAbilityPlanComponent[] = [];
+  const targetDuration = Math.max(1, Math.floor(numberParam(params.durationTargetActivations)));
+  const ownDuration = Math.max(1, Math.floor(numberParam(params.durationOwnActivations)));
+  const selectedRider = input.state && input.runtime
+    ? selectTurnRider({ state: input.state, runtime: input.runtime, ability: input.ability })
+    : null;
+  const cycleRiders = getStringParameters(params.riderByTurnCycle);
+  const parityRiders = getStringParameters(params.riderByTurnParity);
+  const authoredRiders = new Set([...cycleRiders, ...parityRiders]);
+  const hasCycleRiders = cycleRiders.length > 0;
+  const includeRider = (rider: string): boolean =>
+    authoredRiders.has(rider) && (selectedRider === null || selectedRider === rider);
+  const includeGenericComponents = !hasCycleRiders;
+  const addComponent = (component: MonsterAbilityPlanComponent): void => {
+    components.push(component);
+  };
+  const addRuntimeEffect = (inputEffect: {
+    sourceParameter: MonsterAbilityPlanComponent["sourceParameter"];
+    target: MonsterAbilityEffectTarget;
+    effectKind: MonsterAbilityEffectKind;
+    value?: number;
+    condition?: string;
+    durationOwnActivations?: number;
+    durationTargetActivations?: number;
+    charges?: number;
+    appliedResultKey: string;
+  }): void => {
+    addComponent({
+      kind: "runtime-effect",
+      directHitRequired: false,
+      optional: true,
+      onlyEffect: false,
+      ...inputEffect
+    });
+  };
+
+  if (includeRider("minor-burn")) {
+    addRuntimeEffect({
+      sourceParameter: "rider:minor-burn",
+      target: "hero",
+      effectKind: "burn",
+      value: 0.1,
+      durationTargetActivations: targetDuration,
+      condition: "selected-rider",
+      appliedResultKey: "minor-burn"
+    });
+  }
+
+  if (includeRider("fire-damage")) {
+    addRuntimeEffect({
+      sourceParameter: "rider:fire-damage",
+      target: "hero",
+      effectKind: "burn",
+      value: 0.16,
+      durationTargetActivations: targetDuration,
+      condition: "selected-rider",
+      appliedResultKey: "fire-damage"
+    });
+  }
+
+  if (includeRider("minor-chill")) {
+    addRuntimeEffect({
+      sourceParameter: "rider:minor-chill",
+      target: "hero",
+      effectKind: "slow",
+      value: 10,
+      durationTargetActivations: targetDuration,
+      condition: "selected-rider",
+      appliedResultKey: "minor-chill"
+    });
+  }
+
+  if (includeRider("enemy-potency-down")) {
+    addRuntimeEffect({
+      sourceParameter: "rider:enemy-potency-down",
+      target: "hero",
+      effectKind: "outgoing-damage",
+      value: 0.85,
+      durationTargetActivations: targetDuration,
+      condition: "selected-rider",
+      appliedResultKey: "enemy-potency-down"
+    });
+  }
+
+  const healFraction = Math.max(
+    numberParam(params.selfHealMaxHpFraction),
+    numberParam(params.healTargetMaxHpFraction)
+  );
+  if (healFraction > 0) {
+    addComponent({
+      kind: "heal",
+      sourceParameter: numberParam(params.selfHealMaxHpFraction) > 0 ? "selfHealMaxHpFraction" : "healTargetMaxHpFraction",
+      target: "monster",
+      value: healFraction,
+      condition: "monster-missing-hp",
+      directHitRequired: false,
+      optional: true,
+      onlyEffect: false,
+      appliedResultKey: "heal"
+    });
+  }
+
+  const shieldFraction = Math.max(
+    numberParam(params.shieldMaxHpFraction),
+    numberParam(params.fallbackShieldMaxHpFraction),
+    numberParam(params.soloFallbackShieldMaxHpFraction)
+  );
+  if (shieldFraction > 0 && (!hasCycleRiders || selectedRider === null || selectedRider === "self-shield")) {
+    addComponent({
+      kind: "shield",
+      sourceParameter: numberParam(params.shieldMaxHpFraction) > 0
+        ? "shieldMaxHpFraction"
+        : numberParam(params.fallbackShieldMaxHpFraction) > 0
+          ? "fallbackShieldMaxHpFraction"
+          : "soloFallbackShieldMaxHpFraction",
+      target: "monster",
+      value: shieldFraction,
+      condition: hasCycleRiders ? "selected-rider:self-shield" : "stronger-than-current-shield",
+      directHitRequired: false,
+      optional: true,
+      onlyEffect: false,
+      appliedResultKey: "shield"
+    });
+  }
+
+  const manaDrain = Math.max(0, Math.floor(numberParam(params.manaDrain)));
+  if (manaDrain > 0) {
+    addComponent({
+      kind: "mana-drain",
+      sourceParameter: "manaDrain",
+      target: "hero",
+      value: manaDrain,
+      condition: "hero-has-mana",
+      directHitRequired: false,
+      optional: true,
+      onlyEffect: false,
+      appliedResultKey: "mana-drain"
+    });
+  }
+
+  if (isTruthyParameter(params.cleanseNegativeEffects)) {
+    addComponent({
+      kind: "cleanse",
+      sourceParameter: "cleanseNegativeEffects",
+      target: "monster",
+      condition: "monster-has-negative-effect",
+      directHitRequired: false,
+      optional: true,
+      onlyEffect: false,
+      appliedResultKey: "cleanse"
+    });
+  }
+
+  if (isTruthyParameter(params.removePositiveEffects)) {
+    addComponent({
+      kind: "remove-positive",
+      sourceParameter: "removePositiveEffects",
+      target: "hero",
+      condition: "hero-has-positive-effect",
+      directHitRequired: false,
+      optional: true,
+      onlyEffect: false,
+      appliedResultKey: "remove-positive"
+    });
+  }
+
+  const cooldownExtension = Math.max(0, Math.floor(numberParam(params.extendLongestCooldownBy)));
+  if (cooldownExtension > 0) {
+    addComponent({
+      kind: "cooldown-pressure",
+      sourceParameter: "extendLongestCooldownBy",
+      target: "hero",
+      value: cooldownExtension,
+      condition: "hero-has-cooldown",
+      directHitRequired: false,
+      optional: true,
+      onlyEffect: false,
+      appliedResultKey: "cooldown-pressure"
+    });
+  }
+
+  if (params.reapplyLastExpiredNegativeEffect === true) {
+    addComponent({
+      kind: "reapply-expired",
+      sourceParameter: "reapplyLastExpiredNegativeEffect",
+      target: "hero",
+      condition: "expired-negative-effect-exists",
+      directHitRequired: false,
+      optional: true,
+      onlyEffect: false,
+      appliedResultKey: "reapply-expired"
+    });
+  }
+
+  if (includeGenericComponents) {
+    const markMultiplier = numberParam(params.markIncomingDamageMultiplier);
+    if (markMultiplier > 0) {
+      addRuntimeEffect({
+        sourceParameter: "markIncomingDamageMultiplier",
+        target: "hero",
+        effectKind: "mark",
+        value: Math.min(1.75, Math.max(1, markMultiplier)),
+        durationTargetActivations: targetDuration,
+        charges: Math.max(1, Math.floor(numberParam(params.charges) || 1)),
+        appliedResultKey: "mark"
+      });
+    }
+
+    const burn = numberParam(params.burnDamageMultiplier);
+    if (burn > 0) {
+      addRuntimeEffect({
+        sourceParameter: "burnDamageMultiplier",
+        target: "hero",
+        effectKind: "burn",
+        value: Math.min(0.35, burn),
+        durationTargetActivations: Math.max(1, Math.floor(numberParam(params.burnTicks) || targetDuration)),
+        appliedResultKey: "burn"
+      });
+    }
+
+    const bleed = numberParam(params.bleedDamageMultiplier);
+    if (bleed > 0) {
+      addRuntimeEffect({
+        sourceParameter: "bleedDamageMultiplier",
+        target: "hero",
+        effectKind: "bleed",
+        value: Math.min(0.35, bleed),
+        durationTargetActivations: Math.max(1, Math.floor(numberParam(params.bleedTicks) || targetDuration)),
+        appliedResultKey: "bleed"
+      });
+    }
+
+    if (params.lockAnyOneAbility === true || params.lockAbilitySource === "class") {
+      addRuntimeEffect({
+        sourceParameter: params.lockAnyOneAbility === true ? "lockAnyOneAbility" : "lockAbilitySource",
+        target: "hero",
+        effectKind: "ability-lock",
+        value: 1,
+        durationTargetActivations: targetDuration,
+        charges: 1,
+        appliedResultKey: "ability-lock"
+      });
+    }
+
+    const outgoing = numberParam(params.outgoingDamageMultiplier);
+    if (outgoing > 0 && outgoing !== 1) {
+      const target = getOutgoingDamageEffectTarget(input.ability, outgoing);
+      addRuntimeEffect({
+        sourceParameter: "outgoingDamageMultiplier",
+        target,
+        effectKind: "outgoing-damage",
+        value: Math.min(1.35, Math.max(0.65, outgoing)),
+        ...(target === "monster"
+          ? { durationOwnActivations: ownDuration }
+          : { durationTargetActivations: targetDuration }),
+        appliedResultKey: target === "monster" ? "monster-outgoing-damage" : "hero-outgoing-damage"
+      });
+    }
+
+    const targetAccuracyPenalty = Math.max(
+      numberParam(params.targetAccuracyPenaltyPp),
+      numberParam(params.accuracyAndEvasionPenaltyPp)
+    );
+    if (targetAccuracyPenalty > 0) {
+      addRuntimeEffect({
+        sourceParameter: numberParam(params.targetAccuracyPenaltyPp) > 0 ? "targetAccuracyPenaltyPp" : "accuracyAndEvasionPenaltyPp",
+        target: "hero",
+        effectKind: "accuracy",
+        value: Math.min(35, targetAccuracyPenalty),
+        durationTargetActivations: targetDuration,
+        appliedResultKey: "accuracy"
+      });
+    }
+
+    const evasionPenalty = Math.max(
+      numberParam(params.evasionPenaltyPp),
+      numberParam(params.accuracyAndEvasionPenaltyPp)
+    );
+    if (evasionPenalty > 0) {
+      addRuntimeEffect({
+        sourceParameter: numberParam(params.evasionPenaltyPp) > 0 ? "evasionPenaltyPp" : "accuracyAndEvasionPenaltyPp",
+        target: "hero",
+        effectKind: "evasion",
+        value: Math.min(35, evasionPenalty),
+        durationTargetActivations: targetDuration,
+        appliedResultKey: "evasion"
+      });
+    }
+
+    const reduction = Math.max(numberParam(params.damageReduction), numberParam(params.selfDamageReduction));
+    if (reduction > 0) {
+      addRuntimeEffect({
+        sourceParameter: numberParam(params.damageReduction) > 0 ? "damageReduction" : "selfDamageReduction",
+        target: "monster",
+        effectKind: "incoming-damage",
+        value: Math.min(0.5, reduction),
+        durationOwnActivations: ownDuration,
+        appliedResultKey: "incoming-damage"
+      });
+    }
+
+    const reflect = numberParam(params.reflectFlatDamage);
+    if (reflect > 0) {
+      addRuntimeEffect({
+        sourceParameter: "reflectFlatDamage",
+        target: "monster",
+        effectKind: "reflect",
+        value: Math.min(13, reflect),
+        durationOwnActivations: ownDuration,
+        charges: 1,
+        appliedResultKey: "reflect"
+      });
+    }
+
+    const counterChance = numberParam(params.counterChance);
+    if (counterChance > 0) {
+      addRuntimeEffect({
+        sourceParameter: "counterChance",
+        target: "monster",
+        effectKind: "reflect",
+        value: counterChance,
+        durationOwnActivations: ownDuration,
+        charges: 1,
+        appliedResultKey: "counter"
+      });
+    }
+
+    const evasionBonus = Math.max(numberParam(params.evasionBonusPp), numberParam(params.selfEvasionBonusPp));
+    if (evasionBonus > 0) {
+      addRuntimeEffect({
+        sourceParameter: numberParam(params.evasionBonusPp) > 0 ? "evasionBonusPp" : "selfEvasionBonusPp",
+        target: "monster",
+        effectKind: "evasion",
+        value: Math.min(35, evasionBonus),
+        durationOwnActivations: ownDuration,
+        appliedResultKey: "monster-evasion"
+      });
+    }
+
+    const manaCostIncrease = numberParam(params.manaCostIncrease);
+    if (manaCostIncrease > 0) {
+      addRuntimeEffect({
+        sourceParameter: "manaCostIncrease",
+        target: "hero",
+        effectKind: "mana-cost-pressure",
+        value: Math.min(13, manaCostIncrease),
+        durationTargetActivations: targetDuration,
+        appliedResultKey: "mana-cost-pressure"
+      });
+    }
+
+    const fleePenalty = numberParam(params.fleeChancePenaltyPp);
+    if (fleePenalty > 0) {
+      addRuntimeEffect({
+        sourceParameter: "fleeChancePenaltyPp",
+        target: "hero",
+        effectKind: "flee",
+        value: Math.min(35, fleePenalty),
+        durationTargetActivations: targetDuration,
+        appliedResultKey: "flee"
+      });
+    }
+
+    const critPenalty = numberParam(params.critPenaltyPp);
+    if (critPenalty > 0) {
+      addRuntimeEffect({
+        sourceParameter: "critPenaltyPp",
+        target: "hero",
+        effectKind: "crit",
+        value: Math.min(35, critPenalty),
+        durationTargetActivations: targetDuration,
+        appliedResultKey: "crit"
+      });
+    }
+
+    const slow = numberParam(params.slowAttackerPp);
+    if (slow > 0) {
+      addRuntimeEffect({
+        sourceParameter: "slowAttackerPp",
+        target: "hero",
+        effectKind: "slow",
+        value: Math.min(35, slow),
+        durationTargetActivations: targetDuration,
+        appliedResultKey: "slow"
+      });
+    }
+
+    if (params.groupTargetConfusion === true) {
+      addRuntimeEffect({
+        sourceParameter: "groupTargetConfusion",
+        target: "hero",
+        effectKind: "confusion",
+        value: 1,
+        durationTargetActivations: targetDuration,
+        appliedResultKey: "confusion"
+      });
+    }
+
+    if (params.predictRepeatedLastAction === true || numberParam(params.repeatLastActionPenalty) > 0) {
+      addRuntimeEffect({
+        sourceParameter: params.predictRepeatedLastAction === true ? "predictRepeatedLastAction" : "repeatLastActionPenalty",
+        target: "hero",
+        effectKind: "repeat-penalty",
+        value: Math.max(12, Math.floor((numberParam(params.repeatLastActionPenalty) || 0.12) * 100)),
+        durationTargetActivations: targetDuration,
+        charges: 1,
+        appliedResultKey: "repeat-penalty"
+      });
+    }
+
+    const statusResistance = numberParam(params.statusResistancePp);
+    if (statusResistance > 0) {
+      addRuntimeEffect({
+        sourceParameter: "statusResistancePp",
+        target: "monster",
+        effectKind: "incoming-damage",
+        value: Math.min(0.25, Math.max(0.05, statusResistance / 400)),
+        durationOwnActivations: ownDuration,
+        appliedResultKey: "status-resistance"
+      });
+    }
+
+    if (numberParam(params.nextAttackBonusIfShieldSurvives) > 0 || numberParam(params.copyLastDirectActionPotency) > 0) {
+      addRuntimeEffect({
+        sourceParameter: numberParam(params.nextAttackBonusIfShieldSurvives) > 0
+          ? "nextAttackBonusIfShieldSurvives"
+          : "copyLastDirectActionPotency",
+        target: "monster",
+        effectKind: "next-attack-bonus",
+        value: 1,
+        durationOwnActivations: ownDuration,
+        charges: 1,
+        appliedResultKey: "next-attack-bonus"
+      });
+    }
+  }
+
+  return {
+    directDamage: hasPlannedDirectDamage({
+      ability: input.ability,
+      selectedRider,
+      hasCycleRiders
+    }),
+    selectedRider,
+    components
+  };
+}
+
+function hasPlannedDirectDamage(input: {
+  ability: MonsterAbilityDefinition;
+  selectedRider: string | null;
+  hasCycleRiders: boolean;
+}): boolean {
+  if (input.hasCycleRiders && input.selectedRider !== null && input.selectedRider !== "fire-damage") {
+    return false;
+  }
+
+  if (input.hasCycleRiders && input.selectedRider === null) {
+    return getStringParameters(input.ability.parameters.riderByTurnCycle).includes("fire-damage");
+  }
+
+  return getRawDamageMultiplier(input.ability) > 0 || directDamageRoles.has(input.ability.role);
 }
 
 function validateMonsterAbilityRecipe(
@@ -329,6 +818,25 @@ function validateMonsterAbilityRecipe(
       message: `Monster ability ${ability.id} compiles to no runtime effect.`,
       abilityId: ability.id
     });
+  }
+
+  const plan = compileMonsterAbilityExecutionPlan({ ability });
+  for (const component of plan.components) {
+    if (component.target === "hero" && component.effectKind === "outgoing-damage" && (component.value ?? 1) > 1) {
+      issues.push({
+        code: "positive-hostile-hero-multiplier",
+        message: `Monster ability ${ability.id} would grant the hero a positive outgoing-damage multiplier.`,
+        abilityId: ability.id
+      });
+    }
+
+    if (component.effectKind === "ability-lock" && component.sourceParameter === "lockAbilitySource" && ability.parameters.lockAbilitySource !== "class") {
+      issues.push({
+        code: "wrong-source-ability-lock",
+        message: `Monster ability ${ability.id} maps a non-class lock source to class-skill lock.`,
+        abilityId: ability.id
+      });
+    }
   }
 
   if (hasAllyOnlyTarget(ability) && !hasSoloFallback(ability)) {
@@ -723,11 +1231,6 @@ export function applyHeroActivationMonsterEffects(state: CombatState): {
       damage += tickDamage;
     }
 
-    if (effect.kind === "repeat-penalty") {
-      effects.push(effect);
-      continue;
-    }
-
     const remainingTargetActivations = Math.max(0, (effect.remainingTargetActivations ?? 1) - 1);
 
     if (remainingTargetActivations > 0 && (effect.charges === undefined || effect.charges > 0)) {
@@ -784,17 +1287,21 @@ export function applyMonsterRuntimeHeroDamage(input: {
   rng?: RandomSource;
 }): { heroDamage: number; reflectedDamage: number } {
   const runtime = input.state.monsterRuntime;
-  if (!runtime || input.heroDamage <= 0) {
+  if (!runtime) {
     return { heroDamage: input.heroDamage, reflectedDamage: 0 };
   }
 
-  let incomingDamage = input.heroDamage;
+  let incomingDamage = Math.max(0, input.heroDamage);
   incomingDamage = applyHeroOutgoingDamageEffects(runtime, incomingDamage, input.heroAction);
   if (input.heroAction && incomingDamage > 0) {
     runtime.lastDirectHeroDamage = incomingDamage;
   }
   if (input.heroAction) {
     runtime.lastHeroAction = input.heroAction;
+  }
+
+  if (incomingDamage <= 0) {
+    return { heroDamage: 0, reflectedDamage: 0 };
   }
 
   const shield = runtime.shield;
@@ -1124,31 +1631,84 @@ function isAbilityConditionLegal(input: {
   monster: MonsterCombatStats;
   ability: MonsterAbilityDefinition;
 }): boolean {
-  const params = input.ability.parameters;
+  const plannedRuntime = {
+    ...input.runtime,
+    ownActionCount: input.runtime.ownActionCount + 1
+  };
+  const plan = compileMonsterAbilityExecutionPlan({
+    ...input,
+    runtime: plannedRuntime
+  });
 
-  if (numberParam(params.selfHealMaxHpFraction) > 0 && input.state.monster.hp / input.state.monster.hpMax > 0.75) {
-    return false;
+  if (plan.directDamage) {
+    return true;
   }
 
-  const shieldFraction = Math.max(
-    numberParam(params.shieldMaxHpFraction),
-    numberParam(params.fallbackShieldMaxHpFraction),
-    numberParam(params.soloFallbackShieldMaxHpFraction)
-  );
-  const turnRider = selectTurnRider(input);
-  const cycleControlsShield = Array.isArray(params.riderByTurnCycle);
-  if (shieldFraction > 0 && (!cycleControlsShield || turnRider === "self-shield")) {
-    const proposedShield = Math.floor(input.state.monster.hpMax * shieldFraction);
-    if ((input.runtime.shield?.points ?? 0) >= proposedShield) {
-      return false;
+  return plan.components.some((component) => canMonsterAbilityComponentChangeState(component, input));
+}
+
+function canMonsterAbilityComponentChangeState(
+  component: MonsterAbilityPlanComponent,
+  input: {
+    state: CombatState;
+    runtime: MonsterAbilityRuntimeStateV1;
+  }
+): boolean {
+  switch (component.kind) {
+    case "heal":
+      return input.state.monster.hp < input.state.monster.hpMax;
+    case "shield": {
+      const points = Math.max(
+        1,
+        Math.floor(input.state.monster.hpMax * Math.min(0.4, component.value ?? 0))
+      );
+      return (input.runtime.shield?.points ?? 0) < points;
     }
+    case "mana-drain":
+      return input.state.hero.mana > 0;
+    case "cleanse":
+      return input.runtime.effects.some(
+        (effect) => effect.target === "monster" && effect.kind !== "reflect" && effect.kind !== "status-resistance"
+      );
+    case "remove-positive":
+      return input.runtime.effects.some(
+        (effect) => effect.target === "hero" && effect.kind === "outgoing-damage" && effect.value > 1
+      );
+    case "cooldown-pressure":
+      return Object.keys(input.state.cooldowns?.abilities ?? {}).length > 0 || Boolean(input.state.cooldowns?.skill);
+    case "reapply-expired":
+      return (input.runtime.expiredEffects?.length ?? 0) > 0;
+    case "runtime-effect":
+      if (!component.effectKind) {
+        return false;
+      }
+      return wouldRuntimeEffectChange(input.runtime, component);
+  }
+}
+
+function wouldRuntimeEffectChange(
+  runtime: MonsterAbilityRuntimeStateV1,
+  component: MonsterAbilityPlanComponent
+): boolean {
+  const existing = runtime.effects.find(
+    (effect) => effect.target === component.target && effect.kind === component.effectKind
+  );
+
+  if (!existing) {
+    return true;
   }
 
-  if (numberParam(params.markIncomingDamageMultiplier) > 0 && hasHeroEffect(input.runtime, "mark")) {
-    return false;
-  }
+  const value = component.value ?? existing.value;
+  const strongerValue = component.effectKind === "outgoing-damage" && value < 1
+    ? value < existing.value
+    : value > existing.value;
 
-  return true;
+  return (
+    strongerValue ||
+    (component.durationOwnActivations ?? 0) > (existing.remainingOwnActivations ?? 0) ||
+    (component.durationTargetActivations ?? 0) > (existing.remainingTargetActivations ?? 0) ||
+    (component.charges ?? 0) > (existing.charges ?? 0)
+  );
 }
 
 function commitMonsterAbility(input: {
@@ -1214,14 +1774,9 @@ function resolveMonsterAbilityEffects(input: {
   if (multiplier > 0 && input.rng.nextFloat() < hitChance) {
     if (!input.defendStance || input.rng.nextFloat() >= input.defendStance.evasionChance) {
       const variance = input.rng.nextInt(0, 2);
-      const mark = consumeMonsterRuntimeDirectHitModifiers({
-        state: input.state,
-        damage: 1
-      }).markMultiplier;
       const raw =
         (input.monster.attack + variance + getPowerBandDamageBonus(input.ability.powerBand)) *
         multiplier *
-        mark *
         (input.monster.contextModifiers?.outgoingDamageMultiplier ?? 1);
       const defense = getHeroDefenseForAbility(input.ability, input.hero);
       damage = Math.max(1, Math.floor(raw) - defense - input.damageReduction);
@@ -1233,6 +1788,11 @@ function resolveMonsterAbilityEffects(input: {
       if (input.wasTelegraphed) {
         damage = Math.max(1, Math.floor(damage * 1.18));
       }
+
+      damage = consumeMonsterRuntimeDirectHitModifiers({
+        state: input.state,
+        damage
+      }).damage;
     }
   }
 
@@ -1260,8 +1820,11 @@ function resolveMonsterAbilityEffects(input: {
     numberParam(params.soloFallbackShieldMaxHpFraction)
   );
   if (shieldFraction > 0) {
+    const shieldPlan = compileMonsterAbilityExecutionPlan(input).components.find(
+      (component) => component.kind === "shield"
+    );
     const points = Math.max(1, Math.floor(input.state.monster.hpMax * Math.min(0.4, shieldFraction)));
-    if ((input.runtime.shield?.points ?? 0) < points) {
+    if (shieldPlan && (input.runtime.shield?.points ?? 0) < points) {
       input.runtime.shield = {
         sourceAbilityId: input.ability.id,
         points
@@ -1285,7 +1848,7 @@ function resolveMonsterAbilityEffects(input: {
     input.runtime.effects = input.runtime.effects.filter(
       (effect) => !(effect.target === "hero" && effect.kind === "outgoing-damage" && effect.value > 1)
     );
-    if (input.runtime.effects.length !== before || damage > 0) {
+    if (input.runtime.effects.length !== before) {
       effectTexts.push("ваші підсилення збилися");
     }
   }
@@ -1297,9 +1860,8 @@ function resolveMonsterAbilityEffects(input: {
     }
   }
 
-  const effectsBefore = input.runtime.effects.length;
-  addRuntimeEffects(input);
-  if (input.runtime.effects.length !== effectsBefore && effectTexts.length === 0) {
+  const effectsChanged = addRuntimeEffects(input);
+  if (effectsChanged && effectTexts.length === 0) {
     effectTexts.push("ефект зачепився й уже працює");
   }
 
@@ -1313,11 +1875,13 @@ function addRuntimeEffects(input: {
   state: CombatState;
   runtime: MonsterAbilityRuntimeStateV1;
   ability: MonsterAbilityDefinition;
-}): void {
+}): boolean {
   const params = input.ability.parameters;
   const targetDuration = Math.max(1, Math.floor(numberParam(params.durationTargetActivations)));
   const ownDuration = Math.max(1, Math.floor(numberParam(params.durationOwnActivations)));
   const turnRider = selectTurnRider(input);
+  const hasCycleRiders = getStringParameters(params.riderByTurnCycle).length > 0;
+  let changed = false;
   const addEffect = (effect: Omit<MonsterAbilityRuntimeEffect, "id" | "sourceAbilityId">): void => {
     const replacement: MonsterAbilityRuntimeEffect = {
       id: `${input.ability.id}:${input.runtime.ownActionCount}:${input.runtime.effects.length}`,
@@ -1329,14 +1893,19 @@ function addRuntimeEffects(input: {
     );
 
     if (duplicateIndex >= 0) {
-      input.runtime.effects[duplicateIndex] = mergeRuntimeEffects(
+      const merged = mergeRuntimeEffects(
         input.runtime.effects[duplicateIndex]!,
         replacement
       );
+      if (!areRuntimeEffectsEquivalent(input.runtime.effects[duplicateIndex]!, merged)) {
+        input.runtime.effects[duplicateIndex] = merged;
+        changed = true;
+      }
       return;
     }
 
     input.runtime.effects.push(replacement);
+    changed = true;
   };
 
   if (turnRider === "minor-burn" || turnRider === "fire-damage") {
@@ -1366,7 +1935,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const markMultiplier = numberParam(params.markIncomingDamageMultiplier);
+  const markMultiplier = hasCycleRiders ? 0 : numberParam(params.markIncomingDamageMultiplier);
   if (markMultiplier > 0) {
     addEffect({
       target: "hero",
@@ -1377,7 +1946,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const burn = numberParam(params.burnDamageMultiplier);
+  const burn = hasCycleRiders ? 0 : numberParam(params.burnDamageMultiplier);
   if (burn > 0) {
     addEffect({
       target: "hero",
@@ -1387,7 +1956,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const bleed = numberParam(params.bleedDamageMultiplier);
+  const bleed = hasCycleRiders ? 0 : numberParam(params.bleedDamageMultiplier);
   if (bleed > 0) {
     addEffect({
       target: "hero",
@@ -1397,7 +1966,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  if (typeof params.lockAbilitySource === "string" || params.lockAnyOneAbility === true) {
+  if (!hasCycleRiders && (params.lockAbilitySource === "class" || params.lockAnyOneAbility === true)) {
     addEffect({
       target: "hero",
       kind: "ability-lock",
@@ -1407,7 +1976,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const targetAccuracyPenalty = Math.max(
+  const targetAccuracyPenalty = hasCycleRiders ? 0 : Math.max(
     numberParam(params.targetAccuracyPenaltyPp),
     numberParam(params.accuracyAndEvasionPenaltyPp)
   );
@@ -1420,7 +1989,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const evasionPenalty = Math.max(
+  const evasionPenalty = hasCycleRiders ? 0 : Math.max(
     numberParam(params.evasionPenaltyPp),
     numberParam(params.accuracyAndEvasionPenaltyPp)
   );
@@ -1433,9 +2002,9 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const outgoing = numberParam(params.outgoingDamageMultiplier);
+  const outgoing = hasCycleRiders ? 0 : numberParam(params.outgoingDamageMultiplier);
   if (outgoing > 0 && outgoing !== 1) {
-    if (targetsOnlySelf(input.ability)) {
+    if (getOutgoingDamageEffectTarget(input.ability, outgoing) === "monster") {
       addEffect({
         target: "monster",
         kind: "outgoing-damage",
@@ -1452,7 +2021,7 @@ function addRuntimeEffects(input: {
     }
   }
 
-  const reduction = Math.max(numberParam(params.damageReduction), numberParam(params.selfDamageReduction));
+  const reduction = hasCycleRiders ? 0 : Math.max(numberParam(params.damageReduction), numberParam(params.selfDamageReduction));
   if (reduction > 0) {
     addEffect({
       target: "monster",
@@ -1462,7 +2031,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const reflect = numberParam(params.reflectFlatDamage);
+  const reflect = hasCycleRiders ? 0 : numberParam(params.reflectFlatDamage);
   if (reflect > 0) {
     addEffect({
       target: "monster",
@@ -1473,7 +2042,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const counterChance = numberParam(params.counterChance);
+  const counterChance = hasCycleRiders ? 0 : numberParam(params.counterChance);
   if (counterChance > 0) {
     addEffect({
       target: "monster",
@@ -1484,7 +2053,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const evasionBonus = Math.max(numberParam(params.evasionBonusPp), numberParam(params.selfEvasionBonusPp));
+  const evasionBonus = hasCycleRiders ? 0 : Math.max(numberParam(params.evasionBonusPp), numberParam(params.selfEvasionBonusPp));
   if (evasionBonus > 0) {
     addEffect({
       target: "monster",
@@ -1494,7 +2063,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const manaCostIncrease = numberParam(params.manaCostIncrease);
+  const manaCostIncrease = hasCycleRiders ? 0 : numberParam(params.manaCostIncrease);
   if (manaCostIncrease > 0) {
     addEffect({
       target: "hero",
@@ -1504,7 +2073,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const cooldownPressure = numberParam(params.extendLongestCooldownBy);
+  const cooldownPressure = hasCycleRiders ? 0 : numberParam(params.extendLongestCooldownBy);
   if (cooldownPressure > 0) {
     addEffect({
       target: "hero",
@@ -1514,7 +2083,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const fleePenalty = numberParam(params.fleeChancePenaltyPp);
+  const fleePenalty = hasCycleRiders ? 0 : numberParam(params.fleeChancePenaltyPp);
   if (fleePenalty > 0) {
     addEffect({
       target: "hero",
@@ -1524,7 +2093,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const critPenalty = numberParam(params.critPenaltyPp);
+  const critPenalty = hasCycleRiders ? 0 : numberParam(params.critPenaltyPp);
   if (critPenalty > 0) {
     addEffect({
       target: "hero",
@@ -1534,7 +2103,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const slow = numberParam(params.slowAttackerPp);
+  const slow = hasCycleRiders ? 0 : numberParam(params.slowAttackerPp);
   if (slow > 0) {
     addEffect({
       target: "hero",
@@ -1544,7 +2113,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  if (params.groupTargetConfusion === true) {
+  if (!hasCycleRiders && params.groupTargetConfusion === true) {
     addEffect({
       target: "hero",
       kind: "confusion",
@@ -1553,7 +2122,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  if (params.predictRepeatedLastAction === true || numberParam(params.repeatLastActionPenalty) > 0) {
+  if (!hasCycleRiders && (params.predictRepeatedLastAction === true || numberParam(params.repeatLastActionPenalty) > 0)) {
     addEffect({
       target: "hero",
       kind: "repeat-penalty",
@@ -1563,7 +2132,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  if (params.reapplyLastExpiredNegativeEffect === true) {
+  if (!hasCycleRiders && params.reapplyLastExpiredNegativeEffect === true) {
     const expired = input.runtime.expiredEffects?.[input.runtime.expiredEffects.length - 1];
     if (expired) {
       addEffect({
@@ -1577,7 +2146,7 @@ function addRuntimeEffects(input: {
     }
   }
 
-  const statusResistance = numberParam(params.statusResistancePp);
+  const statusResistance = hasCycleRiders ? 0 : numberParam(params.statusResistancePp);
   if (statusResistance > 0) {
     addEffect({
       target: "monster",
@@ -1587,7 +2156,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const copiedPotency = numberParam(params.copyLastDirectActionPotency);
+  const copiedPotency = hasCycleRiders ? 0 : numberParam(params.copyLastDirectActionPotency);
   if (copiedPotency > 0) {
     const copiedDamage = input.runtime.lastDirectHeroDamage ?? input.state.monster.attack ?? 1;
     const attack = Math.max(1, input.state.monster.attack ?? 1);
@@ -1600,6 +2169,8 @@ function addRuntimeEffects(input: {
       charges: 1
     });
   }
+
+  return changed;
 }
 
 function selectTurnRider(input: {
@@ -1891,6 +2462,31 @@ function targetsOnlySelf(ability: MonsterAbilityDefinition): boolean {
   return ability.targetScopes.every((scope) => scope === "self" || scope === "lowest-hp-ally" || scope === "all-allies");
 }
 
+function getOutgoingDamageEffectTarget(
+  ability: MonsterAbilityDefinition,
+  outgoingDamageMultiplier: number
+): MonsterAbilityEffectTarget {
+  if (ability.targetScopes.includes("self") && outgoingDamageMultiplier > 1) {
+    return "monster";
+  }
+
+  return targetsOnlySelf(ability) ? "monster" : "hero";
+}
+
+function areRuntimeEffectsEquivalent(
+  left: MonsterAbilityRuntimeEffect,
+  right: MonsterAbilityRuntimeEffect
+): boolean {
+  return (
+    left.target === right.target &&
+    left.kind === right.kind &&
+    left.value === right.value &&
+    (left.remainingOwnActivations ?? null) === (right.remainingOwnActivations ?? null) &&
+    (left.remainingTargetActivations ?? null) === (right.remainingTargetActivations ?? null) &&
+    (left.charges ?? null) === (right.charges ?? null)
+  );
+}
+
 function getHeroDefenseForAbility(
   ability: MonsterAbilityDefinition,
   hero: CombatActorStats
@@ -1972,8 +2568,13 @@ function getDamageMultiplier(input: {
   const params = input.ability.parameters;
   let multiplier = getRawDamageMultiplier(input.ability);
 
+  if (getStringParameters(params.riderByTurnCycle).length > 0 && selectTurnRider(input) !== "fire-damage") {
+    return 0;
+  }
+
   if (numberParam(params.bonusDamageMultiplierBelowHalfHp) > 0 && input.state.monster.hp * 2 <= input.state.monster.hpMax) {
-    multiplier *= numberParam(params.bonusDamageMultiplierBelowHalfHp);
+    const bonus = Math.min(0.75, Math.max(0, numberParam(params.bonusDamageMultiplierBelowHalfHp)));
+    multiplier *= 1 + bonus;
   }
 
   if (isTruthyParameter(params.bonusAgainstDebuffedTargets) && input.runtime.effects.some((effect) => effect.target === "hero")) {
@@ -2092,13 +2693,6 @@ function armNextAttackBonusIfShieldSurvives(
   });
 }
 
-function hasHeroEffect(
-  runtime: MonsterAbilityRuntimeStateV1,
-  kind: MonsterAbilityEffectKind
-): boolean {
-  return runtime.effects.some((effect) => effect.target === "hero" && effect.kind === kind);
-}
-
 function shouldDeprioritizeDefend(runtime: MonsterAbilityRuntimeStateV1): boolean {
   return Boolean(runtime.shield?.points && runtime.shield.points > 0);
 }
@@ -2151,6 +2745,10 @@ function isSafeFallbackAbility(
 
 function numberParam(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function getStringParameters(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
 }
 
 function isTruthyParameter(value: unknown): boolean {
