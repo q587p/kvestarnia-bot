@@ -1,6 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
 import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbackData";
+import { makeMemorialRemortCallbackData } from "../callbacks/memorialCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
@@ -158,9 +159,35 @@ export function buildKorchmaArrivalBoardKeyboard(): InlineKeyboard {
     .text("⬅️ До дверей", makePlaceCallbackData("front"));
 }
 
-export function buildKorchmaMemorialBoardKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
+export function buildKorchmaMemorialBoardKeyboard(
+  options: { remortNumbers?: readonly number[] } = {}
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  const remortNumbers = [...new Set(options.remortNumbers ?? [])]
+    .filter((remortNumber) => Number.isInteger(remortNumber) && remortNumber >= 1)
+    .sort((left, right) => left - right);
+
+  remortNumbers.forEach((remortNumber, index) => {
+    if (index > 0 && index % 3 === 0) {
+      keyboard.row();
+    }
+
+    keyboard.text(`Реморт ${remortNumber}`, makeMemorialRemortCallbackData(remortNumber));
+  });
+
+  if (remortNumbers.length > 0) {
+    keyboard.row();
+  }
+
+  return keyboard
     .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
+    .row()
+    .text("⬅️ До дверей", makePlaceCallbackData("front"));
+}
+
+export function buildKorchmaRemortMilestoneBoardKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🏅 До пропамʼятної дошки", makePlaceCallbackData("memorial"))
     .row()
     .text("⬅️ До дверей", makePlaceCallbackData("front"));
 }

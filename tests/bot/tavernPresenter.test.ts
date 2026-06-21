@@ -11,6 +11,7 @@ import {
   presentKorchmaFront,
   presentKorchmaHall,
   presentKorchmaMemorialBoard,
+  presentKorchmaRemortMilestoneBoard,
   presentPendingRaidActionBlock,
   presentTavernNoCharacter,
   presentTavernRaidAuditBreak,
@@ -203,6 +204,30 @@ describe("tavern presenter", () => {
       {
         remorts: [
           {
+            remortNumber: 4,
+            entries: [
+              {
+                rank: 1,
+                characterId: "character-body-4",
+                name: "Тіло",
+                remortNumber: 4,
+                reachedAt: new Date("2026-06-16T12:00:00.000Z")
+              }
+            ]
+          },
+          {
+            remortNumber: 3,
+            entries: [
+              {
+                rank: 1,
+                characterId: "character-body-3",
+                name: "Тіло",
+                remortNumber: 3,
+                reachedAt: new Date("2026-06-16T11:00:00.000Z")
+              }
+            ]
+          },
+          {
             remortNumber: 2,
             entries: [
               {
@@ -240,6 +265,8 @@ describe("tavern presenter", () => {
     );
 
     expect(text).toContain("🕯️ Реморти Тринадцятки");
+    expect(text).toContain("• реморт 4: 🥇 Тіло");
+    expect(text).toContain("• реморт 3: 🥇 Тіло");
     expect(text).toContain("• реморт 2: 🥇 &lt;b&gt;Дара&lt;/b&gt; · 🥈 Нестор Межовий · 🥉 Shannar de Kassal");
     expect(text).not.toContain("Зайвий Рядок");
     expect(text).not.toContain("<b>Дара</b>");
@@ -270,6 +297,56 @@ describe("tavern presenter", () => {
     expect(text).toContain("🕯️ Реморти Тринадцятки");
     expect(text).toContain("🥇 Astery Tey");
     expect(text).not.toContain("реморт 1:");
+  });
+
+  it("shows level firsts for a selected remort", () => {
+    const text = presentKorchmaRemortMilestoneBoard(
+      character,
+      1,
+      {
+        levels: [
+          {
+            level: 13,
+            entries: [
+              {
+                rank: 1,
+                telegramUserId: 77n,
+                characterId: "character-astery",
+                name: "Astery Tey",
+                level: 13,
+                reachedAt: new Date("2026-06-16T10:00:00.000Z")
+              },
+              {
+                rank: 2,
+                telegramUserId: 88n,
+                characterId: "character-body",
+                name: "<b>Тіло</b>",
+                level: 13,
+                reachedAt: new Date("2026-06-16T10:05:00.000Z")
+              }
+            ]
+          },
+          {
+            level: 1,
+            entries: [
+              {
+                rank: 1,
+                telegramUserId: 99n,
+                characterId: "character-similacrest",
+                name: "Similacrest",
+                level: 1,
+                reachedAt: new Date("2026-06-14T10:00:00.000Z")
+              }
+            ]
+          }
+        ]
+      }
+    );
+
+    expect(text).toContain("Перші зарубки за рівні на реморт 1:");
+    expect(text).toContain("• рівень 13: 🥇 Astery Tey · 🥈 &lt;b&gt;Тіло&lt;/b&gt;");
+    expect(text).toContain("• рівень 1: 🥇 Similacrest");
+    expect(text).not.toContain("<b>Тіло</b>");
   });
 
   it("shows the korchma hall as the hub", () => {

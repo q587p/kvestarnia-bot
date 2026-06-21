@@ -84,6 +84,7 @@ import {
   parseMantokChestCallbackData,
   type MantokChestCallback
 } from "./callbacks/mantokChestCallbackData";
+import { parseMemorialCallbackData, type MemorialCallback } from "./callbacks/memorialCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import { parseNearbyDuelCallbackData } from "./callbacks/nearbyDuelCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
@@ -157,6 +158,7 @@ import {
   sendKorchmaFightingCorner,
   sendKorchmaFront,
   sendKorchmaMemorialBoard,
+  sendKorchmaRemortMilestoneBoard,
   sendTavern,
   sendTavernBarrel
 } from "./commands/tavernCommand";
@@ -570,6 +572,17 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     }
 
     await handlePlaceCallback(ctx, parsed.value, services);
+  });
+
+  bot.callbackQuery(/^v1:mem:/, async (ctx) => {
+    const parsed = parseMemorialCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleMemorialCallback(ctx, parsed.value, services);
   });
 
   bot.callbackQuery(/^v1:quest:/, async (ctx) => {
@@ -1905,6 +1918,34 @@ function persistentFightDifficultyToPassageLocationId(
   }
 
   return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT;
+}
+
+async function handleMemorialCallback(
+  ctx: Context,
+  action: MemorialCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
+  }
+
+  await safeAnswerCallbackQuery(ctx);
+
+  await sendKorchmaRemortMilestoneBoard(
+    ctx,
+    services.tavern,
+    services.presence,
+    "edit",
+    action.remortNumber,
+    services.levelMilestones
+  );
 }
 
 async function handleQuestCallback(

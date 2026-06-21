@@ -403,7 +403,7 @@ export class PrismaRemortRepository implements RemortRepository {
   }
 
   async listBoard(input: { maxGroups?: number; maxEntriesPerGroup?: number } = {}): Promise<RemortBoard> {
-    const maxGroups = input.maxGroups ?? 3;
+    const maxGroups = input.maxGroups ?? Number.POSITIVE_INFINITY;
     const maxEntries = input.maxEntriesPerGroup ?? 3;
     const rows = await this.prisma.characterRemort.findMany({
       orderBy: [

@@ -28,6 +28,7 @@ import {
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
   buildKorchmaMemorialBoardKeyboard,
+  buildKorchmaRemortMilestoneBoardKeyboard,
   buildTavernKeyboard,
   buildTavernResultKeyboard
 } from "../keyboards/tavernKeyboard";
@@ -42,6 +43,7 @@ import {
   presentKorchmaFront,
   presentKorchmaHall,
   presentKorchmaMemorialBoard,
+  presentKorchmaRemortMilestoneBoard,
   presentTavern,
   presentTavernAlreadyRaided,
   presentTavernNoCharacter,
@@ -65,7 +67,8 @@ type TavernCommandKeyboard =
   | "back-to-fighting-corner"
   | "back-to-hall"
   | "arrivals"
-  | "memorial"
+  | { state: "memorial"; remortNumbers?: readonly number[] }
+  | "remort-milestones"
   | "barrel-result"
   | "barrel-pending"
   | "barrel-participants";
@@ -252,7 +255,62 @@ export async function sendKorchmaMemorialBoard(
     remortService ? remortService.listBoard() : Promise.resolve(undefined)
   ]);
 
-  await sendText(ctx, mode, presentKorchmaMemorialBoard(result.character, milestones, remorts), "memorial");
+  await sendText(
+    ctx,
+    mode,
+    presentKorchmaMemorialBoard(result.character, milestones, remorts),
+    {
+      state: "memorial",
+      remortNumbers: remorts?.remorts.map((group) => group.remortNumber) ?? []
+    }
+  );
+}
+
+export async function sendKorchmaRemortMilestoneBoard(
+  ctx: Context,
+  tavernRaidService: TavernRaidService,
+  presenceService: PresenceService,
+  mode: "reply" | "edit",
+  remortNumber: number,
+  levelMilestoneService?: LevelMilestoneService
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
+
+  if (result.state === "no-character") {
+    await sendText(ctx, mode, presentTavernNoCharacter());
+    return;
+  }
+
+  if (result.state === "pending") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
+    return;
+  }
+
+  if (result.state === "pending-complete") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
+    return;
+  }
+
+  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FRONT);
+  const milestones = levelMilestoneService
+    ? await levelMilestoneService.getBoardForRemort(remortNumber)
+    : undefined;
+
+  await sendText(
+    ctx,
+    mode,
+    presentKorchmaRemortMilestoneBoard(result.character, remortNumber, milestones),
+    "remort-milestones"
+  );
 }
 
 export async function sendKorchmaFightingCorner(
@@ -547,8 +605,14 @@ async function sendText(
               ? buildKorchmaFrontKeyboard()
             : keyboard === "arrivals"
               ? buildKorchmaArrivalBoardKeyboard()
-              : keyboard === "memorial"
-                ? buildKorchmaMemorialBoardKeyboard()
+              : isMemorialKeyboard(keyboard)
+                ? buildKorchmaMemorialBoardKeyboard(
+                    keyboard.remortNumbers === undefined
+                      ? {}
+                      : { remortNumbers: keyboard.remortNumbers }
+                  )
+                : keyboard === "remort-milestones"
+                  ? buildKorchmaRemortMilestoneBoardKeyboard()
                 : keyboard === "barrel-result"
                   ? buildTavernResultKeyboard("already-completed")
                   : keyboard === "barrel-pending"
@@ -575,6 +639,12 @@ function isBarKeyboard(
   keyboard: TavernCommandKeyboard
 ): keyboard is { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "bar";
+}
+
+function isMemorialKeyboard(
+  keyboard: TavernCommandKeyboard
+): keyboard is { state: "memorial"; remortNumbers?: readonly number[] } {
+  return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "memorial";
 }
 
 function isHallKeyboard(
