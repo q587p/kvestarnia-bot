@@ -207,6 +207,7 @@ import {
 } from "./keyboards/onboardingKeyboard";
 import {
   buildMainMenuKeyboard,
+  getMainMenuLocationButtonText,
   isMainMenuLocationButtonText,
   mainMenuButtons,
   mainMenuLocationButtonTexts
@@ -1615,11 +1616,13 @@ async function handlePlaceCallback(
 
   if (action === "hall") {
     await sendTavern(ctx, services.tavern, services.presence, "edit");
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "front") {
     await sendKorchmaFront(ctx, services.tavern, services.presence, "edit", services.yeger);
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
@@ -1630,6 +1633,7 @@ async function handlePlaceCallback(
       services.presence,
       "edit"
     );
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
@@ -1642,21 +1646,25 @@ async function handlePlaceCallback(
       services.levelMilestones,
       services.remort
     );
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "barrel") {
     await sendTavernBarrel(ctx, services.tavern, services.presence, "reply");
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "bar") {
     await sendKorchmaBar(ctx, services.tavern, services.presence, "edit", services.cellarGrownup, services.fight);
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "fighting-corner") {
     await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "edit");
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
@@ -1667,6 +1675,7 @@ async function handlePlaceCallback(
     }
 
     await sendDuelWinnersBoard(ctx, services.tavern, services.presence, services.duel, "edit");
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
@@ -1675,6 +1684,7 @@ async function handlePlaceCallback(
       presence: services.presence,
       tavernRaid: services.tavern
     });
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
@@ -1684,11 +1694,13 @@ async function handlePlaceCallback(
       buildQuestHubCommandOptions(services),
       "edit"
     );
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "deep") {
     await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "edit");
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
@@ -1712,6 +1724,7 @@ async function handlePlaceCallback(
       requireKorchmaInterior: true,
       openDifficulty: true
     });
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
@@ -1743,6 +1756,7 @@ async function handlePlaceCallback(
       difficulty: passageFight.difficulty,
       originLocationId: passageFight.locationId
     });
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
@@ -1757,10 +1771,17 @@ async function handlePlaceCallback(
         ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {})
       }
     );
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
+  await markScenePresence(ctx, services.presence, {
+    locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+    currentRaidId: null,
+    currentAdventureId: null
+  });
   await sendNewsList(ctx, 0);
+  await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
 }
 
 function placeCallbackToPersistentFightPassage(action: PlaceCallback): {
@@ -1907,6 +1928,7 @@ async function handleQuestCallback(
         ...(action === "fight-descend" ? { openDifficulty: true } : {}),
         ...(fightDifficulty ? { difficulty: fightDifficulty, originLocationId: targetLocationId } : {})
       });
+      await refreshMainMenuLocationKeyboard(ctx, targetLocationId);
       return;
     }
 
@@ -1917,6 +1939,7 @@ async function handleQuestCallback(
       ...(action === "fight-descend" ? { openDifficulty: true } : {}),
       ...(fightDifficulty ? { difficulty: fightDifficulty, originLocationId: targetLocationId } : {})
     });
+    await refreshMainMenuLocationKeyboard(ctx, targetLocationId);
     return;
   }
 
@@ -1943,6 +1966,7 @@ async function handleQuestCallback(
 
     if (place.locationId !== PRESENCE_LOCATION_KORCHMA_BAR) {
       await sendKorchmaBar(ctx, services.tavern, services.presence, "edit", services.cellarGrownup, services.fight);
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
     }
 
@@ -1963,6 +1987,7 @@ async function handleQuestCallback(
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildKorchmaBarKeyboard(getProblemQuestIssueNextBarKeyboardOptions(result))
       });
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
     }
 
@@ -1986,6 +2011,7 @@ async function handleQuestCallback(
           : {})
       })
     });
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
@@ -1995,6 +2021,7 @@ async function handleQuestCallback(
       tavernRaid: services.tavern,
       requireKorchmaInterior: false
     });
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
@@ -2008,6 +2035,7 @@ async function handleQuestCallback(
       ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {})
     }
   );
+  await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
 }
 
 function getProblemQuestIssueNextBarKeyboardOptions(
@@ -2157,11 +2185,62 @@ async function buildCurrentMainMenuKeyboard(
   });
 }
 
+async function refreshCurrentMainMenuLocationKeyboard(
+  ctx: Context,
+  presenceService: PresenceService
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    return;
+  }
+
+  if (typeof presenceService.getCurrentPlaceForTelegramUser !== "function") {
+    return;
+  }
+
+  const place = await presenceService.getCurrentPlaceForTelegramUser(telegramUserId);
+  const locationId = place.state === "ready" ? normalizePresenceLocationId(place.locationId) : null;
+
+  await refreshMainMenuLocationKeyboard(ctx, locationId);
+}
+
+async function refreshMainMenuLocationKeyboard(
+  ctx: Context,
+  locationId: string | null
+): Promise<void> {
+  const label = getMainMenuLocationButtonText(locationId);
+
+  try {
+    const message = await ctx.reply(`📍 ${label}`, {
+      reply_markup: buildMainMenuKeyboard({ locationId })
+    });
+    const messageId = getMessageId(message);
+
+    if (ctx.chat?.id && messageId !== null) {
+      await ctx.api.deleteMessage(ctx.chat.id, messageId).catch(() => undefined);
+    }
+  } catch {
+    // Best effort: location rendering must not fail because Telegram refused a keyboard refresh.
+  }
+}
+
+function getMessageId(message: unknown): number | null {
+  if (!message || typeof message !== "object" || !("message_id" in message)) {
+    return null;
+  }
+
+  const messageId = (message as { message_id?: unknown }).message_id;
+
+  return typeof messageId === "number" ? messageId : null;
+}
+
 async function sendCurrentLocation(ctx: Context, services: BotServices): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
     await sendTavern(ctx, services.tavern, services.presence, "reply");
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
@@ -2169,10 +2248,12 @@ async function sendCurrentLocation(ctx: Context, services: BotServices): Promise
 
   if (place.state === "no-character") {
     await sendTavern(ctx, services.tavern, services.presence, "reply");
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   await sendCurrentPresenceLocation(ctx, normalizePresenceLocationId(place.locationId), services);
+  await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
 }
 
 async function sendCurrentPresenceLocation(

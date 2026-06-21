@@ -1907,6 +1907,7 @@ describe("scene callback HTML options", () => {
       })
     );
     const descent = calls.find((call) => call.method === "sendMessage");
+    const keyboardRefresh = calls.filter((call) => call.method === "sendMessage").at(-1);
 
     expect(getOrStartPersistentFightForTelegramUser).not.toHaveBeenCalled();
     expect(markAction).toHaveBeenCalledWith(
@@ -1915,6 +1916,8 @@ describe("scene callback HTML options", () => {
         currentAdventureId: "adventure.solo-fight"
       })
     );
+    expect(String(keyboardRefresh?.payload.text)).toContain(mainMenuLocationButtons.deep);
+    expect(JSON.stringify(keyboardRefresh?.payload.reply_markup)).toContain(mainMenuLocationButtons.deep);
     expect(String(descent?.payload.text)).toContain("🪜 Спуск до Низу");
     expect(String(descent?.payload.text)).toContain("За бочками в коморі є сходи.");
     expect(JSON.stringify(descent?.payload.reply_markup)).toContain("Спуститися");
