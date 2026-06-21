@@ -47,7 +47,7 @@ import {
   THIRTEEN_SMALL_PROBLEMS_QUEST_KEY
 } from "../../src/services/fightService";
 import {
-  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
 } from "../../src/services/presenceService";
@@ -1164,7 +1164,7 @@ describe("FightService", () => {
     expect(ordinary.state).toBe("persistent-active");
     expect(yeger.state).toBe("persistent-active");
     if (ordinary.state === "persistent-active") {
-      expect(ordinary.session.state?.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1);
+      expect(ordinary.session.state?.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT);
     }
     if (yeger.state === "persistent-active") {
       expect(yeger.session.state?.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_RANGER_CORNER);

@@ -595,7 +595,16 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["v1:place:deep-level1", "v1:place:deep"]);
+    }, character))).toEqual(["v1:place:deep-straight", "v1:place:deep"]);
+    expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
+      ...session,
+      status: "won",
+      state: {
+        ...session.state!,
+        originLocationId: "location.korchma.deep.level1.left",
+        status: "won"
+      }
+    }, character))).toEqual(["v1:place:deep-left", "v1:place:deep-level1"]);
     expect(flatInlineButtonTexts(buildPersistentFightResultKeyboard({
       ...session,
       status: "won",

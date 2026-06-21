@@ -57,6 +57,9 @@ import type { CombatBalanceAnalyticsService } from "./combatBalanceAnalyticsServ
 import {
   normalizePresenceLocationId,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
 } from "./presenceService";
@@ -2106,6 +2109,18 @@ function resolvePersistentFightOriginLocationId(options: PersistentFightStartOpt
 
   if (options.source === "yeger") {
     return PRESENCE_LOCATION_KORCHMA_RANGER_CORNER;
+  }
+
+  if (options.difficulty === "hard") {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT;
+  }
+
+  if (options.difficulty === "easy") {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT;
+  }
+
+  if (options.difficulty === "normal") {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT;
   }
 
   return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1;

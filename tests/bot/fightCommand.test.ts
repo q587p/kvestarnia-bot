@@ -2,7 +2,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { sendFight } from "../../src/bot/commands/fightCommand";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
-import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
@@ -238,7 +237,7 @@ describe("fight command", () => {
 
     expect(options.parse_mode).toBe("HTML");
     expect(options.reply_markup.inline_keyboard.flat()).toEqual([
-      { text: "⚔️ Новий бій", callback_data: makePlaceCallbackData("deep-level1") },
+      { text: "⚔️ Новий бій", callback_data: makePlaceCallbackData("deep-straight") },
       { text: "↩️ Повернутися до Низу", callback_data: makePlaceCallbackData("deep") }
     ]);
     expect(recordPersistentFightMessageReference).toHaveBeenCalledWith(42n, terminalSession.id, {
@@ -368,19 +367,19 @@ describe("fight command", () => {
           [
             {
               text: "⬅️ Лівий прохід",
-              callback_data: makeQuestCallbackData("fight-hard")
+              callback_data: makePlaceCallbackData("deep-left")
             }
           ],
           [
             {
               text: "🚪 Прямий прохід",
-              callback_data: makeQuestCallbackData("fight-normal")
+              callback_data: makePlaceCallbackData("deep-straight")
             }
           ],
           [
             {
               text: "➡️ Правий прохід",
-              callback_data: makeQuestCallbackData("fight-easy")
+              callback_data: makePlaceCallbackData("deep-right")
             }
           ],
           [
@@ -438,13 +437,13 @@ describe("fight command", () => {
 
   it("starts the selected persistent fight difficulty through the existing session path", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
-    const startedDifficulties: string[] = [];
+    const startOptions: Array<{ difficulty?: string; originLocationId?: string }> = [];
     const fightService = {
       getOrStartPersistentFightForTelegramUser: (
         _telegramUserId: bigint,
-        options: { difficulty?: string }
+        options: { difficulty?: string; originLocationId?: string }
       ) => {
-        startedDifficulties.push(options.difficulty ?? "none");
+        startOptions.push(options);
         return Promise.resolve({
           state: "persistent-active",
           character: {
@@ -473,7 +472,12 @@ describe("fight command", () => {
       difficulty: "easy"
     });
 
-    expect(startedDifficulties).toEqual(["easy"]);
+    expect(startOptions).toEqual([
+      {
+        difficulty: "easy",
+        originLocationId: "location.korchma.deep.level1.right"
+      }
+    ]);
     expect(replies[0]?.text).toContain("Павук дедлайнів");
     expect(replies[0]?.text).toContain("поки не видає нагород");
     expect(replies[1]?.text).toContain("❤️ Ви: 24/24 · мана 12/12");

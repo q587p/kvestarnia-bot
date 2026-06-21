@@ -13,6 +13,7 @@ import type { DevGrantService } from "../services/devGrantService";
 import type { DuelChallengeService } from "../services/duelChallengeService";
 import type {
   FightService,
+  PersistentFightDifficultyId,
   PersistentFightTurnResult,
   ProblemQuestIssueNextLookupResult
 } from "../services/fightService";
@@ -40,6 +41,9 @@ import {
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_DEEP,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
   PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
@@ -1691,6 +1695,37 @@ async function handlePlaceCallback(
     return;
   }
 
+  const passageFight = placeCallbackToPersistentFightPassage(action);
+
+  if (passageFight) {
+    const gate =
+      typeof services.fight.getFightOverviewForTelegramUser === "function"
+        ? await services.fight.getFightOverviewForTelegramUser(telegramUserId)
+        : await services.fight.getFightForTelegramUser(telegramUserId);
+
+    if ("character" in gate && gate.character.level < 3) {
+      await safeEditMessageText(ctx, presentKorchmaDeepLevelLocked(gate.character), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildBackToKorchmaHallKeyboard()
+      });
+      return;
+    }
+
+    await markScenePresence(ctx, services.presence, {
+      locationId: passageFight.locationId,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+    });
+    await sendFight(ctx, services.fight, "reply", {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      requireKorchmaInterior: false,
+      difficulty: passageFight.difficulty,
+      originLocationId: passageFight.locationId
+    });
+    return;
+  }
+
   if (action === "cellar") {
     await sendCellarErrandRouted(
       ctx,
@@ -1706,6 +1741,48 @@ async function handlePlaceCallback(
   }
 
   await sendNewsList(ctx, 0);
+}
+
+function placeCallbackToPersistentFightPassage(action: PlaceCallback): {
+  difficulty: PersistentFightDifficultyId;
+  locationId: string;
+} | null {
+  if (action === "deep-left") {
+    return {
+      difficulty: "hard",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    };
+  }
+
+  if (action === "deep-straight") {
+    return {
+      difficulty: "normal",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    };
+  }
+
+  if (action === "deep-right") {
+    return {
+      difficulty: "easy",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT
+    };
+  }
+
+  return null;
+}
+
+function persistentFightDifficultyToPassageLocationId(
+  difficulty: PersistentFightDifficultyId
+): string {
+  if (difficulty === "hard") {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT;
+  }
+
+  if (difficulty === "easy") {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT;
+  }
+
+  return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT;
 }
 
 async function handleQuestCallback(
@@ -1764,8 +1841,9 @@ async function handleQuestCallback(
       return;
     }
 
-    const targetLocationId =
-      action === "fight-descend" || fightDifficulty
+    const targetLocationId = fightDifficulty
+      ? persistentFightDifficultyToPassageLocationId(fightDifficulty)
+      : action === "fight-descend"
         ? PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1
         : PRESENCE_LOCATION_KORCHMA_DEEP;
 
@@ -1779,7 +1857,7 @@ async function handleQuestCallback(
         presence: services.presence,
         requireKorchmaInterior: false,
         ...(action === "fight-descend" ? { openDifficulty: true } : {}),
-        ...(fightDifficulty ? { difficulty: fightDifficulty } : {})
+        ...(fightDifficulty ? { difficulty: fightDifficulty, originLocationId: targetLocationId } : {})
       });
       return;
     }
@@ -1789,7 +1867,7 @@ async function handleQuestCallback(
       tavernRaid: services.tavern,
       requireKorchmaInterior: true,
       ...(action === "fight-descend" ? { openDifficulty: true } : {}),
-      ...(fightDifficulty ? { difficulty: fightDifficulty } : {})
+      ...(fightDifficulty ? { difficulty: fightDifficulty, originLocationId: targetLocationId } : {})
     });
     return;
   }

@@ -16,6 +16,8 @@ import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
   PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
@@ -84,6 +86,48 @@ describe("PresenceService", () => {
       locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
       locationName: "Сутерени Корчми",
       insideKorchma: true
+    });
+  });
+
+  it("keeps Nyz passages as separate nearby duel locations", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT),
+      player(2n, "Дара", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT),
+      player(3n, "Нестор Прямоход", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT)
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    const left = await service.getNearbyDuelCandidatesForTelegramUser(1n);
+    const straight = await service.getNearbyDuelCandidatesForTelegramUser(3n);
+
+    expect(getPublicPresenceLocation(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT)).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      title: "Лівий прохід",
+      regionName: "Сутерени Корчми"
+    });
+    expect(isKorchmaInteriorLocation(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT)).toBe(true);
+    expect(left).toMatchObject({
+      state: "ready",
+      location: {
+        id: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+        name: "Лівий прохід"
+      },
+      total: 1,
+      visible: [
+        {
+          telegramUserId: 2n,
+          name: "Дара"
+        }
+      ]
+    });
+    expect(straight).toMatchObject({
+      state: "ready",
+      location: {
+        id: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
+        name: "Прямий прохід"
+      },
+      total: 0,
+      visible: []
     });
   });
 

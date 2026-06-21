@@ -139,7 +139,13 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
-  if (data === "v1:place:deep" || data === "v1:place:deep-level1") {
+  if (
+    data === "v1:place:deep" ||
+    data === "v1:place:deep-level1" ||
+    data === "v1:place:deep-left" ||
+    data === "v1:place:deep-straight" ||
+    data === "v1:place:deep-right"
+  ) {
     return {};
   }
 

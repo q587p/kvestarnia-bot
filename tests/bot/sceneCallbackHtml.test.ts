@@ -1955,7 +1955,7 @@ describe("scene callback HTML options", () => {
     expect(calls.some((call) => call.method === "sendMessage" && String(call.payload.text).includes("Борщовий слиз"))).toBe(true);
   });
 
-  it("starts selected problem fight difficulty after moving from the hall to the Nyz", async () => {
+  it("starts the selected Nyz passage as its own location", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
       Promise.resolve({
@@ -1976,9 +1976,18 @@ describe("scene callback HTML options", () => {
       })
     );
     const calls = await captureApiCalls(
-      makeQuestCallbackData("fight-normal"),
+      makePlaceCallbackData("deep-straight"),
       servicesWith({
         fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-ready" as const,
+              character: {
+                ...character,
+                level: 3
+              },
+              questProgress: null
+            }),
           getOrStartPersistentFightForTelegramUser
         },
         presence: {
@@ -1996,11 +2005,12 @@ describe("scene callback HTML options", () => {
     const fight = calls.find((call) => call.method === "sendMessage");
 
     expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
-      difficulty: "normal"
+      difficulty: "normal",
+      originLocationId: "location.korchma.deep.level1.straight"
     });
     expect(markAction).toHaveBeenCalledWith(
       expect.objectContaining({
-        locationId: "location.korchma.deep.level1",
+        locationId: "location.korchma.deep.level1.straight",
         currentAdventureId: "adventure.solo-fight"
       })
     );

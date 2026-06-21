@@ -7,7 +7,11 @@ import {
   PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_LOCATION_KORCHMA_DEEP,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  normalizePresenceLocationId,
   type PresenceService
 } from "../../services/presenceService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
@@ -15,7 +19,8 @@ import {
   buildFightKeyboard,
   buildPersistentFightDifficultyKeyboard,
   buildPersistentFightReadyKeyboard,
-  buildPersistentFightResultKeyboard
+  buildPersistentFightResultKeyboard,
+  getPersistentFightOriginLocationId
 } from "../keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import { buildEnterKorchmaKeyboard, buildKorchmaDeepKeyboard } from "../keyboards/tavernKeyboard";
@@ -72,6 +77,7 @@ export async function sendFight(
     requireKorchmaInterior?: boolean;
     openDifficulty?: boolean;
     difficulty?: PersistentFightDifficultyId;
+    originLocationId?: string;
     now?: Date;
   }
 ): Promise<void> {
@@ -104,7 +110,8 @@ export async function sendFight(
 
   const result = options?.difficulty
     ? await fightService.getOrStartPersistentFightForTelegramUser(telegramUserId, {
-        difficulty: options.difficulty
+        difficulty: options.difficulty,
+        originLocationId: options.originLocationId ?? getDefaultPassageLocationId(options.difficulty)
       })
     : typeof fightService.getFightOverviewForTelegramUser === "function"
       ? await fightService.getFightOverviewForTelegramUser(telegramUserId)
@@ -152,16 +159,14 @@ export async function sendFight(
   }
 
   if (options?.presence) {
+    const persistentLocationId = getPersistentPresenceLocationId(result, options);
+
     await markFightPresence(ctx, options.presence, {
       persistent:
         result.state === "persistent-ready" ||
         result.state === "persistent-active" ||
         result.state === "persistent-terminal",
-      deepLevel1: Boolean(
-        options.openDifficulty ||
-        options.difficulty ||
-        result.state === "persistent-active"
-      )
+      locationId: persistentLocationId
     });
   }
 
@@ -262,7 +267,7 @@ async function recordPersistentFightMessage(
 async function markFightPresence(
   ctx: Context,
   presence: PresenceService,
-  options?: { persistent?: boolean; deepLevel1?: boolean }
+  options?: { persistent?: boolean; locationId?: string }
 ): Promise<void> {
   const player = playerFromContext(ctx.from);
 
@@ -273,15 +278,52 @@ async function markFightPresence(
   await presence.markAction({
     user: player,
     locationId: options?.persistent
-      ? options.deepLevel1
-        ? PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1
-        : PRESENCE_LOCATION_KORCHMA_DEEP
+      ? options.locationId ?? PRESENCE_LOCATION_KORCHMA_DEEP
       : PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
     currentRaidId: null,
     currentAdventureId: options?.persistent
       ? PRESENCE_ADVENTURE_SOLO_FIGHT
       : PRESENCE_ADVENTURE_MIMIC_FIGHT
   });
+}
+
+function getPersistentPresenceLocationId(
+  result: Awaited<ReturnType<FightService["getFightOverviewForTelegramUser"]>>,
+  options: {
+    openDifficulty?: boolean;
+    difficulty?: PersistentFightDifficultyId;
+    originLocationId?: string;
+  }
+): string {
+  if (result.state === "persistent-active" || result.state === "persistent-terminal") {
+    return getPersistentFightOriginLocationId(result.session);
+  }
+
+  if (options.originLocationId) {
+    return normalizePresenceLocationId(options.originLocationId);
+  }
+
+  if (options.difficulty) {
+    return getDefaultPassageLocationId(options.difficulty);
+  }
+
+  if (options.openDifficulty) {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1;
+  }
+
+  return PRESENCE_LOCATION_KORCHMA_DEEP;
+}
+
+function getDefaultPassageLocationId(difficulty: PersistentFightDifficultyId): string {
+  if (difficulty === "hard") {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT;
+  }
+
+  if (difficulty === "easy") {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT;
+  }
+
+  return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT;
 }
 
 async function sendText(
