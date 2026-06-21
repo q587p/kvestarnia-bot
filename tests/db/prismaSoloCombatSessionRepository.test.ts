@@ -184,6 +184,24 @@ describe("PrismaSoloCombatSessionRepository", () => {
           remainingTurns: 1
         }
       },
+      monsterRuntime: {
+        loadoutIds: ["monster.deadline-web"],
+        cooldowns: {
+          "monster.deadline-web": {
+            remainingOwnActions: 2
+          }
+        },
+        pendingTelegraph: {
+          abilityId: "monster.tax-breath"
+        },
+        shield: {
+          points: 4
+        },
+        effects: [{
+          kind: "ability-lock",
+          remainingTargetActivations: 1
+        }]
+      },
       monster: {
         copiedEquipment: [{
           sourceItemId: "item.borrowed-pan",
@@ -206,8 +224,10 @@ describe("PrismaSoloCombatSessionRepository", () => {
         heroOutcome: "inactive",
         monsterOutcome: "hit",
         monsterAction: "skill",
-        monsterSkillId: "skill.forceful-strike",
-        monsterDamageKind: "physical",
+        monsterSkillId: "monster.deadline-web",
+        monsterDamageKind: "trick",
+        monsterEffectText: "мана просіла на 1",
+        monsterTelegraphAbilityId: "monster.tax-breath",
         monsterBarkId: "bark.deadline-spider.early-turn",
         debugTrace: {
           chosenAbilityId: "skill.forceful-strike",
@@ -599,6 +619,41 @@ function runtimeRoundTripState(): CombatState {
         effectiveMonsterLevel: 3
       }
     },
+    monsterRuntime: {
+      version: 1,
+      rulesVersion: "monster-abilities-v1",
+      aiProfile: "controller",
+      loadoutIds: ["monster.deadline-web"],
+      cooldowns: {
+        "monster.deadline-web": {
+          id: "monster.deadline-web",
+          remainingOwnActions: 2
+        }
+      },
+      onceUsedAbilityIds: ["monster.reopen-case"],
+      lastActionKind: "ability",
+      lastAbilityId: "monster.deadline-web",
+      consecutiveAbilityUses: 1,
+      pendingTelegraph: {
+        abilityId: "monster.tax-breath",
+        announcedAtTurn: 2
+      },
+      shield: {
+        sourceAbilityId: "monster.transparent-report",
+        points: 4
+      },
+      effects: [{
+        id: "monster.deadline-web:1:0",
+        sourceAbilityId: "monster.deadline-web",
+        target: "hero",
+        kind: "ability-lock",
+        value: 1,
+        remainingTargetActivations: 1,
+        charges: 1
+      }],
+      expiredEffectIds: ["monster.old-effect"],
+      ownActionCount: 1
+    },
     lastTurn: {
       action: "skip",
       actionOrigin: "timeout-skip",
@@ -609,8 +664,10 @@ function runtimeRoundTripState(): CombatState {
       manaSpent: 0,
       critical: false,
       monsterAction: "skill",
-      monsterSkillId: "skill.forceful-strike",
-      monsterDamageKind: "physical",
+      monsterSkillId: "monster.deadline-web",
+      monsterDamageKind: "trick",
+      monsterEffectText: "мана просіла на 1",
+      monsterTelegraphAbilityId: "monster.tax-breath",
       monsterBarkId: "bark.deadline-spider.early-turn",
       debugTrace: {
         legalAbilityIds: ["skill.forceful-strike"],

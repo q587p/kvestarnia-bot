@@ -2249,6 +2249,7 @@ describe("FightService", () => {
     }
     sessions.setHeroHp(started.session.id, 1);
     sessions.setMonsterHp(started.session.id, 999);
+    sessions.clearMonsterRuntime(started.session.id);
 
     const result = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: started.session.id,
@@ -4064,6 +4065,21 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
           hp
         }
       }
+    });
+  }
+
+  clearMonsterRuntime(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return;
+    }
+
+    const stateWithoutRuntime = { ...session.state };
+    delete stateWithoutRuntime.monsterRuntime;
+    this.sessions.set(sessionId, {
+      ...session,
+      state: stateWithoutRuntime
     });
   }
 

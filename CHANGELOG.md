@@ -7,6 +7,33 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.22] - 12026-06-21 - Monster Abilities & AI
+
+### Added
+- Added typed monster ability and combat profile catalogs: 132 stable monster ability definitions and 93 monster loadout profiles are now validated against the current roster.
+- Added a backward-compatible `monsterRuntime` block in combat state for newly started ordinary monster fights. It freezes selected ability IDs, AI profile, cooldowns, once-per-fight use, telegraphs, shields and short-lived runtime effects.
+- Added a pure monster AI/effect resolver for ordinary PvE monsters. It supports basic attacks, monster defend, content-driven abilities, actor-local cooldowns, once-per-fight abilities, class-skill locks, shields, self-heals, simple marks, burn/bleed ticks, mana pressure and telegraphed heavy actions.
+- Added compact active-fight presentation for named monster abilities, telegraph warnings and one concise effect consequence.
+- Added monster action-mix and ability-usage metrics to the production combat simulator, with default coverage through level 23.
+- Added focused coverage for content totals, loadout gates, frozen runtime state, legacy no-runtime fights, ordinary anti-spam, telegraph impact, shields/effects and Prisma JSON round-trip.
+
+### Changed
+- New ordinary monster fights now freeze authored ability loadouts at encounter start. Explicit authored IDs fill identity slots first; deterministic fallback can fill only missing legal slots created by effective-level scaling.
+- Ordinary monsters cannot use an ability immediately after a monster ability. Boss profiles may chain at most two different abilities, never repeat the same ability consecutively, then owe a basic attack or defend.
+- Failed flee responses, timeout auto-attacks and timeout skip recovery now call the same monster AI path as manual combat turns.
+- The existing `first-ability` bark trigger now fires from real ordinary-monster ability use, while stored bark IDs still replay deterministically.
+- Group-ready target scopes degrade safely to the current one-hero, one-monster runtime; no party, raid or multi-enemy runtime was added.
+
+### Fixed
+- Old active combat JSON without `monsterRuntime` remains readable and keeps legacy basic-attack behavior until that fight ends.
+- Training doppelganger fights keep the copied class-skill behavior from `0.1.21` instead of being silently converted into ordinary-monster AI.
+- Monster class-skill locks are server-authoritative no-ops: pressing a locked/unavailable class skill does not spend mana, advance the turn, tick cooldowns, trigger monster AI, select a bark or advance RNG.
+- Telegraphs persist the promised ability before impact; if the monster dies first, the pending impact never resolves.
+
+### Guardrails
+- No player race/signature/title ability catalog, item active ability, multi-enemy runtime, Yeger rule change, reward/economy/loot rebalance, timeout cap, participation gate, auto-victory reward suppression or new analytics migration was added.
+- The imported proposal values are normalized centrally in the monster ability resolver; unsafe effects such as gold/item destruction, permanent stat loss and punitive reward changes are not implemented.
+
 ## [0.1.21] - 12026-06-21 - Combat Action Foundation
 
 ### Added

@@ -4,6 +4,11 @@ import {
   type CombatAnalyticsStateV1
 } from "./combatBalanceAnalytics";
 import type { CombatBarkStateV1 } from "./combatBarks";
+import {
+  cloneMonsterAbilityRuntimeState,
+  createMonsterAbilityRuntime,
+  type MonsterAbilityRuntimeStateV1
+} from "./monsterAbilityRuntime";
 import type { MonsterContextSnapshotV1 } from "./monsterContext";
 
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
@@ -151,6 +156,7 @@ export interface CombatState {
   context?: MonsterContextSnapshotV1;
   barks?: CombatBarkStateV1;
   analytics?: CombatAnalyticsStateV1;
+  monsterRuntime?: MonsterAbilityRuntimeStateV1;
   lastTurn?: CombatTurnSummary;
 }
 
@@ -177,9 +183,11 @@ export interface CombatTurnSummary {
   critical: boolean;
   skillId?: string;
   damageKind?: CombatDamageKind;
-  monsterAction?: "attack" | "skill";
+  monsterAction?: "attack" | "skill" | "defend" | "telegraph";
   monsterSkillId?: string;
   monsterDamageKind?: CombatDamageKind;
+  monsterEffectText?: string;
+  monsterTelegraphAbilityId?: string;
   heroCounterDamage?: number;
   monsterBarkId?: string;
   debugTrace?: CombatDebugTrace;
@@ -202,6 +210,10 @@ export function startCombat(input: StartCombatInput): CombatState {
   const heroHpMax = safePositiveInt(input.hero.hpMax);
   const heroManaMax = safeNonNegativeInt(input.hero.manaMax);
   const monsterHpMax = safePositiveInt(input.monster.hpMax);
+  const monsterRuntime = createMonsterAbilityRuntime({
+    monster: input.monster,
+    seed: input.id ?? input.monster.monsterId
+  });
 
   return {
     ...(input.id ? { id: input.id } : {}),
@@ -234,11 +246,14 @@ export function startCombat(input: StartCombatInput): CombatState {
       ...(input.monster.contextModifiers
         ? { contextModifiers: { ...input.monster.contextModifiers } }
         : {})
-    }
+    },
+    ...(monsterRuntime ? { monsterRuntime } : {})
   };
 }
 
 export function cloneCombatState(state: CombatState): CombatState {
+  const monsterRuntime = cloneMonsterAbilityRuntimeState(state.monsterRuntime);
+
   return {
     ...(state.id ? { id: state.id } : {}),
     ...(state.source ? { source: state.source } : {}),
@@ -269,6 +284,7 @@ export function cloneCombatState(state: CombatState): CombatState {
     ...(state.context ? { context: cloneMonsterContextSnapshot(state.context) } : {}),
     ...(state.barks ? { barks: cloneCombatBarkState(state.barks) } : {}),
     ...(state.analytics ? { analytics: cloneCombatAnalyticsState(state.analytics) } : {}),
+    ...(monsterRuntime ? { monsterRuntime } : {}),
     ...(state.lastTurn
       ? {
           lastTurn: {

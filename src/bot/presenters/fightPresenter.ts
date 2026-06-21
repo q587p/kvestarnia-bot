@@ -606,13 +606,13 @@ function presentProblemQuestIssueLine(
 }
 
 function presentTurnSummary(summary: CombatTurnSummary): string {
+  const monsterResponse = presentMonsterResponse(summary);
+
   if (summary.heroOutcome === "not-enough-mana") {
     return withMonsterBark(summary, [
       "Остання дія",
       "Мани не стало навіть на драматичний жест.",
-      summary.monsterDamage > 0
-        ? `Монстр скористався паузою на ${summary.monsterDamage} шкоди.`
-        : "Монстр скористався паузою, але перечепився об власну впевненість."
+      monsterResponse || "Монстр скористався паузою, але перечепився об власну впевненість."
     ]);
   }
 
@@ -620,9 +620,7 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
     return withMonsterBark(summary, [
       "Остання дія",
       "Навичка ще відсапується. Пригодник зробив вигляд, що так і планував.",
-      summary.monsterDamage > 0
-        ? `Монстр відповів на ${summary.monsterDamage} шкоди.`
-        : "Монстр промахнувся й теж назвав це планом."
+      monsterResponse || "Монстр промахнувся й теж назвав це планом."
     ]);
   }
 
@@ -630,9 +628,7 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
     return withMonsterBark(summary, [
       "Остання дія",
       "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.",
-      summary.monsterDamage > 0
-        ? `Монстр таки дістав на ${summary.monsterDamage} шкоди.`
-        : "Монстр не знайшов переконливого кута атаки.",
+      monsterResponse || "Монстр не знайшов переконливого кута атаки.",
       summary.heroCounterDamage
         ? `Контрудар зачепив монстра на ${summary.heroCounterDamage} шкоди.`
         : ""
@@ -655,9 +651,7 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
     return withMonsterBark(summary, [
       "Останній хід",
       "Ви не встигли обрати дію.",
-      summary.monsterDamage > 0
-        ? `Монстр скористався паузою на ${summary.monsterDamage} шкоди.`
-        : "Монстр скористався паузою, але не знайшов переконливого кута."
+      monsterResponse || "Монстр скористався паузою, але не знайшов переконливого кута."
     ]);
   }
 
@@ -672,13 +666,36 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
       ? `${action} не влучає.`
       : `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
   const response =
-    summary.monsterDamage > 0
-      ? `Монстр відповів на ${summary.monsterDamage} шкоди.`
-      : summary.monsterOutcome === "miss"
-        ? "Монстр промахнувся й зробив вигляд, що так і планував."
-        : "";
+    monsterResponse ||
+    (summary.monsterOutcome === "miss"
+      ? "Монстр промахнувся й зробив вигляд, що так і планував."
+      : "");
 
   return withMonsterBark(summary, ["Остання дія", hit, response].filter(Boolean));
+}
+
+function presentMonsterResponse(summary: CombatTurnSummary): string {
+  if (summary.monsterAction === "telegraph" && summary.monsterTelegraphAbilityId) {
+    const skill = getCombatSkillDisplay(summary.monsterTelegraphAbilityId);
+    return `⚠️ Монстр готує ${skill.icon} <i>${escapeHtml(skill.name)}</i>. Захист може помʼякшити удар.`;
+  }
+
+  if (summary.monsterAction === "defend") {
+    return summary.monsterEffectText || "Монстр став у захист.";
+  }
+
+  if (summary.monsterAction === "skill" && summary.monsterSkillId) {
+    const skill = getCombatSkillDisplay(summary.monsterSkillId);
+    const damage = summary.monsterDamage > 0 ? ` на ${summary.monsterDamage} шкоди` : "";
+    const effect = summary.monsterEffectText ? ` ${escapeHtml(summary.monsterEffectText)}.` : "";
+    return `Монстр застосував ${skill.icon} <i>${escapeHtml(skill.name)}</i>${damage}.${effect}`;
+  }
+
+  if (summary.monsterDamage > 0) {
+    return `Монстр відповів на ${summary.monsterDamage} шкоди.`;
+  }
+
+  return "";
 }
 
 function withMonsterBark(summary: CombatTurnSummary, lines: string[]): string {

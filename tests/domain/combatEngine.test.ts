@@ -413,6 +413,7 @@ describe("combat domain engine", () => {
       ...startCombat({ id: "flee-bark-session", hero: warrior, monster: barkingMonster }),
       id: "flee-bark-session"
     };
+    delete initialState.monsterRuntime;
 
     const first = resolveCombatTurn({
       state: initialState,

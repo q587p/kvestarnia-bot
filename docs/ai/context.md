@@ -8,7 +8,7 @@ Keep this file compact. Target: under 250 lines.
 - Player-facing name: `Квестарня`.
 - Technical slug/package/repo prefix: `kvestarnia`.
 - Bot username target: `@kvestarnia_bot`.
-- Current package version in this repository snapshot: `0.1.21`.
+- Current package version in this repository snapshot: `0.1.22`.
 
 ## Language split
 
@@ -127,6 +127,8 @@ For Telegram/gameplay changes, always consider:
 - `0.1.21` combat hardening follow-up: Prisma solo-combat state mapping preserves current runtime JSON fields such as origin, guard streaks, skipped-turn summaries, monster debug/equipment traces, ability cooldowns, context and bark state while keeping legacy `cooldowns.skill` readable; turn-based duel defend uses the next consecutive-defend tier and clears on non-defend actions; failed flee monster responses advance deterministic bark state, while successful flee does not count as a monster action.
 - `0.1.21` combat scheduler hardening: solo/training timeout state preserves the active Telegram card reference through real resolver/service transitions; terminal `/fight` renders and scheduler edit-fallback replacement cards record the new canonical message reference, including terminal outcomes; training combat-lock redirects after expiry render the terminal training result instead of generic active-training copy; scheduler overdue handling repeats the canonical basic auto-attack, skip-mode lazy handling repeats the skipped hero action, hard-expired sessions close without auto-attacking or refreshing expiry, duplicate due ticks stay CAS-safe, and due discovery paginates active rows with kind filters so legacy/future/other-kind prefixes do not starve due fights. Proactive HP-full notifications are deferred; lazy `/hero` and `/fight` recovery notices remain.
 - `0.1.21` combat balance analytics follow-up: an opt-in `COMBAT_BALANCE_ANALYTICS_ENABLED` collector stores one idempotent compact battle row per completed PvE solo/training combat plus ability usage rows for class/remort balance reports; combat state accumulates analytics totals from a frozen start snapshot, reports exclude Telegram ids/usernames/display names, failures never block combat completion, and old in-flight combats without snapshots are skipped rather than guessed.
+
+- `0.1.22` monster abilities and AI: ordinary non-training monster fights now freeze a `monsterRuntime` block at encounter start with selected ability ids, AI profile, cooldowns, once-per-fight usage, telegraphs, shields and short-lived effects; old active fights without the block stay on legacy basic-attack behavior. The typed content catalogs cover 132 monster ability definitions and 93 current monster profiles. Explicit authored ability ids fill identity slots before deterministic tag fallback fills missing legal slots from effective-level scaling. Ordinary monsters owe a basic/defend after any ability, bosses may chain at most two different abilities, and telegraphed heavy actions spend one monster activation warning before impact. Failed flee responses, timeout auto-attacks and timeout skip recovery call the same monster AI once. Training doppelganger keeps copied class-skill behavior. No player race/signature/title abilities, item actions, party/multi-enemy runtime, Yeger rule change, reward/economy/loot rebalance or new analytics migration ships in this slice.
 
 ## Current product direction
 

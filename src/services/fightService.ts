@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { items, monsterLoot } from "../content";
+import { findMonsterAbility } from "../content/monsterAbilities";
 import { monsters } from "../content/monsters";
 import type { MonsterContent } from "../content/schema";
 import type { LootExpansionSourceId } from "../content/lootExpansionV1";
@@ -2682,6 +2683,15 @@ export interface CombatSkillDisplay {
 }
 
 export function getCombatSkillDisplay(skillId: string | undefined): CombatSkillDisplay {
+  const monsterAbility = skillId ? findMonsterAbility(skillId) : null;
+  if (monsterAbility) {
+    const [icon, ...nameParts] = monsterAbility.label.split(" ");
+    return {
+      icon: icon ?? "👹",
+      name: nameParts.join(" ") || monsterAbility.label
+    };
+  }
+
   switch (skillId) {
     case "skill.forceful-strike":
       return { icon: "💪", name: "Силовий удар" };

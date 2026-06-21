@@ -9,7 +9,7 @@ import type {
   CombatTurnOutcome,
   CombatTurnSummary
 } from "../../domain/combat";
-import { parseCombatAnalyticsState } from "../../domain/combat";
+import { parseCombatAnalyticsState, parseMonsterAbilityRuntimeState } from "../../domain/combat";
 import type {
   CreateSoloCombatSessionInput,
   DueSoloCombatSessionRecord,
@@ -533,6 +533,7 @@ function parseCombatState(value: unknown): CombatState | null {
   const context = parseMonsterContextSnapshot(value.context);
   const barks = parseBarkState(value.barks);
   const analytics = parseCombatAnalyticsState(value.analytics);
+  const monsterRuntime = parseMonsterAbilityRuntimeState(value.monsterRuntime);
   const lastTurn = parseTurnSummary(value.lastTurn);
 
   if (turn === null || !status || !hero || !monster) {
@@ -558,6 +559,7 @@ function parseCombatState(value: unknown): CombatState | null {
     ...(context ? { context } : {}),
     ...(barks ? { barks } : {}),
     ...(analytics ? { analytics } : {}),
+    ...(monsterRuntime ? { monsterRuntime } : {}),
     ...(lastTurn ? { lastTurn } : {})
   };
 }
@@ -744,6 +746,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const monsterDamageKind = parseDamageKind(value.monsterDamageKind);
   const debugTrace = parseCombatDebugTrace(value.debugTrace);
   const actionOrigin = parseActionOrigin(value.actionOrigin);
+  const monsterAction = parseMonsterAction(value.monsterAction);
 
   if (
     !action ||
@@ -767,11 +770,11 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     critical: value.critical,
     ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {}),
     ...(damageKind ? { damageKind } : {}),
-    ...(value.monsterAction === "attack" || value.monsterAction === "skill"
-      ? { monsterAction: value.monsterAction }
-      : {}),
+    ...(monsterAction ? { monsterAction } : {}),
     ...(typeof value.monsterSkillId === "string" ? { monsterSkillId: value.monsterSkillId } : {}),
     ...(monsterDamageKind ? { monsterDamageKind } : {}),
+    ...(typeof value.monsterEffectText === "string" ? { monsterEffectText: value.monsterEffectText } : {}),
+    ...(typeof value.monsterTelegraphAbilityId === "string" ? { monsterTelegraphAbilityId: value.monsterTelegraphAbilityId } : {}),
     ...(heroCounterDamage !== null ? { heroCounterDamage } : {}),
     ...(typeof value.monsterBarkId === "string" ? { monsterBarkId: value.monsterBarkId } : {}),
     ...(debugTrace ? { debugTrace } : {})
@@ -780,6 +783,12 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
 
 function parseCombatAction(value: unknown): CombatActionType | null {
   return value === "attack" || value === "defend" || value === "skill" || value === "flee" || value === "skip"
+    ? value
+    : null;
+}
+
+function parseMonsterAction(value: unknown): CombatTurnSummary["monsterAction"] | null {
+  return value === "attack" || value === "skill" || value === "defend" || value === "telegraph"
     ? value
     : null;
 }
