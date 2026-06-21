@@ -10,6 +10,9 @@ import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type MarkPlayerPresenceInput
 } from "../../src/services/presenceService";
@@ -244,6 +247,93 @@ describe("fight command", () => {
     expect(recordPersistentFightMessageReference).toHaveBeenCalledWith(42n, terminalSession.id, {
       chatId: "42",
       messageId: 777
+    });
+  });
+
+  it.each([
+    [PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT, "deep-left"],
+    [PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT, "deep-straight"],
+    [PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT, "deep-right"]
+  ])("keeps terminal persistent fight navigation scoped to %s", async (originLocationId, newFightPlace) => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const terminalSession = terminalPersistentSession(originLocationId);
+    const fightService = {
+      getFightOverviewForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-terminal" as const,
+          character: {
+            ...character,
+            level: 3
+          },
+          session: terminalSession,
+          monster: {
+            id: "monster.deadline-spider",
+            name: "Павук дедлайнів",
+            description: "Плете павутину з «сьогодні швиденько».",
+            level: 2,
+            tags: ["beast", "time", "web"]
+          },
+          questProgress: questProgress(3),
+          fightReward: null
+        })
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply");
+
+    const options = replies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+    const buttons = options.reply_markup.inline_keyboard.flat();
+
+    expect(replies[0]?.text).toContain("🎉 Ви перемогли");
+    expect(buttons).toContainEqual({
+      text: "⚔️ Новий бій",
+      callback_data: makePlaceCallbackData(newFightPlace)
+    });
+    expect(buttons).toContainEqual({
+      text: "↩️ Повернутися до Сутеренів",
+      callback_data: makePlaceCallbackData("deep-level1")
+    });
+  });
+
+  it("pins legacy terminal persistent fights without originLocationId to the neutral straight fallback", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const terminalSession = terminalPersistentSession();
+    const fightService = {
+      getFightOverviewForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-terminal" as const,
+          character: {
+            ...character,
+            level: 3
+          },
+          session: terminalSession,
+          monster: {
+            id: "monster.deadline-spider",
+            name: "Павук дедлайнів",
+            description: "Плете павутину з «сьогодні швиденько».",
+            level: 2,
+            tags: ["beast", "time", "web"]
+          },
+          questProgress: questProgress(3),
+          fightReward: null
+        })
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply");
+
+    const options = replies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+    const buttons = options.reply_markup.inline_keyboard.flat();
+
+    expect(buttons).toContainEqual({
+      text: "⚔️ Новий бій",
+      callback_data: makePlaceCallbackData("deep-straight")
+    });
+    expect(buttons).toContainEqual({
+      text: "↩️ Повернутися до Низу",
+      callback_data: makePlaceCallbackData("deep")
     });
   });
 
@@ -679,5 +769,34 @@ function persistentSession(monsterId = "monster.deadline-spider"): SoloCombatSes
     createdAt: new Date("2026-06-12T10:30:00.000Z"),
     updatedAt: new Date("2026-06-12T10:30:00.000Z"),
     expiresAt: new Date("2026-06-12T11:00:00.000Z")
+  };
+}
+
+function terminalPersistentSession(originLocationId?: string): SoloCombatSessionRecord {
+  const session = persistentSession();
+
+  return {
+    ...session,
+    status: "won",
+    turn: 4,
+    state: {
+      ...session.state!,
+      ...(originLocationId ? { originLocationId } : {}),
+      status: "won",
+      turn: 4,
+      monster: {
+        id: "monster.deadline-spider",
+        hp: 0,
+        hpMax: 18
+      },
+      lastTurn: {
+        action: "attack",
+        heroOutcome: "won",
+        heroDamage: 18,
+        monsterDamage: 0,
+        manaSpent: 0,
+        critical: false
+      }
+    }
   };
 }

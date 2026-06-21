@@ -1409,6 +1409,80 @@ describe("scene callback HTML options", () => {
   });
 
   it.each([
+    ["deep-left", mainMenuLocationButtons.deepLeft],
+    ["deep-straight", mainMenuLocationButtons.deepStraight],
+    ["deep-right", mainMenuLocationButtons.deepRight]
+  ] as const)("refreshes the persistent location label after %s place callbacks", async (place, label) => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-active" as const,
+        started: true,
+        character: {
+          ...character,
+          level: 3
+        },
+        session: persistentSessionWithOrigin(
+          place === "deep-left"
+            ? "location.korchma.deep.level1.left"
+            : place === "deep-right"
+              ? "location.korchma.deep.level1.right"
+              : "location.korchma.deep.level1.straight"
+        ),
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null
+      })
+    );
+    const calls = await captureApiCalls(
+      makePlaceCallbackData(place),
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-ready" as const,
+              character: {
+                ...character,
+                level: 3
+              },
+              questProgress: null
+            }),
+          getOrStartPersistentFightForTelegramUser,
+          recordPersistentFightMessageReference: () => Promise.resolve()
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId:
+                place === "deep-left"
+                  ? "location.korchma.deep.level1.left"
+                  : place === "deep-right"
+                    ? "location.korchma.deep.level1.right"
+                    : "location.korchma.deep.level1.straight",
+              locationName: "Прохід",
+              insideKorchma: true
+            })
+        }
+      }),
+      { messageResults: true }
+    );
+    const keyboardRefresh = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes(label)
+    );
+
+    expect(keyboardRefresh).toBeDefined();
+    expect(JSON.stringify(keyboardRefresh?.payload.reply_markup)).toContain(label);
+    expect(calls.some((call) => call.method === "deleteMessage")).toBe(false);
+  });
+
+  it.each([
     ["inventory keyboard button", mainMenuButtons.inventory, false],
     ["inventory command", "/inventory", true]
   ])("lets %s through during an active persistent fight", async (_name, text, asCommand) => {
@@ -1815,6 +1889,92 @@ describe("scene callback HTML options", () => {
       currentRaidId: null,
       currentAdventureId: "adventure.solo-fight"
     });
+  });
+
+  it("keeps duplicate persistent fight turn callbacks stale without duplicate side effects", async () => {
+    const session = {
+      ...persistentSessionWithOrigin("location.korchma.deep.level1.right"),
+      status: "won" as const,
+      turn: 2,
+      state: {
+        ...persistentSessionWithOrigin("location.korchma.deep.level1.right").state,
+        status: "won" as const,
+        turn: 2,
+        monster: {
+          id: "monster.deadline-spider",
+          hp: 0,
+          hpMax: 12
+        },
+        lastTurn: {
+          action: "attack" as const,
+          heroOutcome: "won" as const,
+          heroDamage: 12,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false
+        }
+      }
+    };
+    const resolvePersistentFightTurn = vi
+      .fn()
+      .mockResolvedValueOnce({
+        state: "updated" as const,
+        character,
+        session,
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null,
+        fightReward: {
+          state: "claimed" as const,
+          reward: {
+            xp: 20,
+            gold: 0,
+            localDate: "12026-06-21",
+            itemGrants: []
+          },
+          levelChange
+        }
+      })
+      .mockResolvedValueOnce({
+        state: "stale-turn" as const,
+        character,
+        session,
+        monster: null,
+        questProgress: null
+      });
+    const calls = await captureRepeatedApiCalls(
+      [
+        makeFightTurnCallbackData({
+          sessionId: session.id,
+          turn: 1,
+          action: "attack"
+        }),
+        makeFightTurnCallbackData({
+          sessionId: session.id,
+          turn: 1,
+          action: "attack"
+        })
+      ],
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn
+        }
+      })
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+    const levelUps = calls.filter(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("🎉 Рівень підріс!")
+    );
+
+    expect(resolvePersistentFightTurn).toHaveBeenCalledTimes(2);
+    expect(String(edits[0]?.payload.text)).toContain("🎉 Ви перемогли");
+    expect(String(edits[1]?.payload.text)).toContain("поточний стан");
+    expect(levelUps).toHaveLength(1);
   });
 
   it.each([
