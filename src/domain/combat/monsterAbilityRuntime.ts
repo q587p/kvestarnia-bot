@@ -750,7 +750,6 @@ export function applyMonsterRuntimeHeroDamage(input: {
 
   let incomingDamage = input.heroDamage;
   incomingDamage = applyHeroOutgoingDamageEffects(runtime, incomingDamage);
-  incomingDamage = applyMonsterIncomingDamageEffects(runtime, incomingDamage);
 
   const shield = runtime.shield;
   const shieldResult = shield
@@ -1050,6 +1049,35 @@ function isAbilityConditionLegal(input: {
     return false;
   }
 
+  if (
+    isTruthyParameter(params.cleanseNegativeEffects) &&
+    !input.runtime.effects.some(
+      (effect) => effect.target === "monster" && effect.kind !== "reflect" && effect.kind !== "status-resistance"
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    isTruthyParameter(params.removePositiveEffects) &&
+    !input.runtime.effects.some(
+      (effect) => effect.target === "hero" && effect.kind === "outgoing-damage" && effect.value > 1
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    numberParam(params.extendLongestCooldownBy) > 0 &&
+    Object.keys(input.state.cooldowns?.abilities ?? {}).length === 0
+  ) {
+    return false;
+  }
+
+  if (params.reapplyLastExpiredNegativeEffect === true && (input.runtime.expiredEffectIds?.length ?? 0) === 0) {
+    return false;
+  }
+
   const shieldFraction = Math.max(
     numberParam(params.shieldMaxHpFraction),
     numberParam(params.fallbackShieldMaxHpFraction),
@@ -1123,7 +1151,7 @@ function resolveMonsterAbilityEffects(input: {
       0.97,
       0.8 +
         (input.monster.dexterity - input.hero.dexterity) * 0.01 -
-        numberParam(params.accuracyPenaltyPp) / 100 -
+        numberParam(params.accuracyPenaltyPp) / 100 +
         (input.monster.contextModifiers?.accuracyDeltaPp ?? 0) / 100
     )
   );
@@ -1176,11 +1204,13 @@ function resolveMonsterAbilityEffects(input: {
   );
   if (shieldFraction > 0) {
     const points = Math.max(1, Math.floor(input.state.monster.hpMax * Math.min(0.4, shieldFraction)));
-    input.runtime.shield = {
-      sourceAbilityId: input.ability.id,
-      points
-    };
-    effectTexts.push(`щит тримає ${points} шкоди`);
+    if ((input.runtime.shield?.points ?? 0) < points) {
+      input.runtime.shield = {
+        sourceAbilityId: input.ability.id,
+        points
+      };
+      effectTexts.push(`щит тримає ${points} шкоди`);
+    }
   }
 
   if (isTruthyParameter(params.cleanseNegativeEffects)) {
@@ -1205,8 +1235,9 @@ function resolveMonsterAbilityEffects(input: {
 
   const cooldownExtension = Math.max(0, Math.floor(numberParam(params.extendLongestCooldownBy)));
   if (cooldownExtension > 0) {
-    extendHeroLongestCooldown(input.state, cooldownExtension);
-    effectTexts.push(`відсап здібності затягнувся на ${cooldownExtension}`);
+    if (extendHeroLongestCooldown(input.state, cooldownExtension)) {
+      effectTexts.push(`відсап здібності затягнувся на ${cooldownExtension}`);
+    }
   }
 
   addRuntimeEffects(input);
@@ -1576,16 +1607,6 @@ function consumeShieldBreakDamage(input: {
   return Math.max(1, Math.floor((input.state.monster.attack ?? 1) * multiplier));
 }
 
-function applyMonsterIncomingDamageEffects(
-  runtime: MonsterAbilityRuntimeStateV1,
-  damage: number
-): number {
-  const evasionReduction = Math.min(0.5, sumEffects(runtime, "monster", "evasion") / 100);
-  const adjusted = Math.floor(damage * (1 - evasionReduction));
-
-  return damage > 0 ? Math.max(1, adjusted) : 0;
-}
-
 function consumeReflectDamage(
   runtime: MonsterAbilityRuntimeStateV1,
   appliedDamage: number
@@ -1673,14 +1694,14 @@ function defaultCombatContextModifiers(
       };
 }
 
-function extendHeroLongestCooldown(state: CombatState, extension: number): void {
+function extendHeroLongestCooldown(state: CombatState, extension: number): boolean {
   const entries = Object.entries(state.cooldowns?.abilities ?? {});
   const longest = entries.sort(
     ([, left], [, right]) => right.remainingTurns - left.remainingTurns
   )[0];
 
   if (!longest) {
-    return;
+    return false;
   }
 
   const [abilityId, cooldown] = longest;
@@ -1696,6 +1717,7 @@ function extendHeroLongestCooldown(state: CombatState, extension: number): void 
     },
     ...(state.cooldowns?.skill?.id === abilityId ? { skill: nextCooldown } : state.cooldowns?.skill ? { skill: state.cooldowns.skill } : {})
   };
+  return true;
 }
 
 function boundExpiredEffectIds(effectIds: readonly string[]): string[] {

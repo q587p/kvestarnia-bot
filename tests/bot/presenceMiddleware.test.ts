@@ -23,7 +23,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
-  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
   PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
@@ -214,7 +214,7 @@ describe("presence middleware", () => {
 
     expect(presence.marks).toHaveLength(1);
     expect(presence.marks[0]).toMatchObject({
-      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
     });
@@ -937,7 +937,7 @@ function activePersistentFightService(): Partial<BotServices>["fight"] {
       Promise.resolve({
         state: "persistent-active",
         character,
-        session: activePersistentSession(),
+        session: activePersistentSession(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT),
         monster: {
           id: "monster.deadline-spider",
           name: "Павук дедлайнів",
@@ -952,7 +952,7 @@ function activePersistentFightService(): Partial<BotServices>["fight"] {
   } as Partial<BotServices>["fight"];
 }
 
-function activePersistentSession() {
+function activePersistentSession(originLocationId?: string) {
   return {
     id: "123e4567-e89b-42d3-a456-426614174000",
     characterId: "character-42",
@@ -966,6 +966,7 @@ function activePersistentSession() {
     state: {
       id: "123e4567-e89b-42d3-a456-426614174000",
       source: "normal" as const,
+      ...(originLocationId ? { originLocationId } : {}),
       status: "active" as const,
       turn: 1,
       hero: {

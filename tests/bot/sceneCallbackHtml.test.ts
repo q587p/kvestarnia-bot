@@ -12,7 +12,9 @@ import {
 } from "../../src/bot/callbacks/cellarCallbackData";
 import {
   makeFightCallbackData,
-  makeFightTurnCallbackData
+  makeFightJournalCallbackData,
+  makeFightTurnCallbackData,
+  makeFightViewCallbackData
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeTrainingDoppelgangerTurnCallbackData } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
 import { makeEquipItemCallbackData } from "../../src/bot/callbacks/itemCallbackData";
@@ -1674,6 +1676,95 @@ describe("scene callback HTML options", () => {
     expect(completeMimicShawarma).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps selected passage presence after persistent fight turn callbacks", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const session = persistentSessionWithOrigin("location.korchma.deep.level1.right");
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: session.id,
+        turn: 1,
+        action: "attack"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn: () =>
+            Promise.resolve({
+              state: "updated" as const,
+              character,
+              session,
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null,
+              fightReward: null
+            })
+        },
+        presence: { markAction }
+      })
+    );
+
+    expect(calls.some((call) => call.method === "editMessageText")).toBe(true);
+    const presenceInput = markAction.mock.calls
+      .map(([input]) => input as MarkPresenceInput)
+      .find((input) => input.locationId);
+    if (!presenceInput) {
+      throw new Error("Expected fight turn callback to mark a concrete presence location.");
+    }
+    expect(presenceInput).toMatchObject({
+      locationId: "location.korchma.deep.level1.right",
+      currentRaidId: null,
+      currentAdventureId: "adventure.solo-fight"
+    });
+  });
+
+  it.each([
+    ["result replay", makeFightViewCallbackData("123e4567-e89b-42d3-a456-426614174321")],
+    ["journal page", makeFightJournalCallbackData({ sessionId: "123e4567-e89b-42d3-a456-426614174321", page: 0 })]
+  ])("keeps selected passage presence after persistent fight %s callbacks", async (_name, callbackData) => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const session = persistentSessionWithOrigin("location.korchma.deep.level1.left");
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        fight: {
+          getPersistentFightSnapshotForTelegramUser: () =>
+            Promise.resolve({
+              state: "found" as const,
+              character,
+              session,
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null,
+              fightReward: null
+            })
+        },
+        presence: { markAction }
+      })
+    );
+
+    expect(calls.some((call) => call.method === "editMessageText")).toBe(true);
+    const presenceInput = markAction.mock.calls
+      .map(([input]) => input as MarkPresenceInput)
+      .find((input) => input.locationId);
+    if (!presenceInput) {
+      throw new Error("Expected fight replay callback to mark a concrete presence location.");
+    }
+    expect(presenceInput).toMatchObject({
+      locationId: "location.korchma.deep.level1.left",
+      currentRaidId: null,
+      currentAdventureId: "adventure.solo-fight"
+    });
+  });
+
   it("keeps starter mimic fight routes inside the active starter battle", async () => {
     const calls = await captureApiCalls(
       makePlaceCallbackData("hall"),
@@ -2703,6 +2794,41 @@ function persistentSession(monsterId: string) {
         hp: 12,
         hpMax: 12
       }
+    }
+  };
+}
+
+function persistentSessionWithOrigin(originLocationId: string) {
+  const session = persistentSession("monster.deadline-spider");
+  const id = "123e4567-e89b-42d3-a456-426614174321";
+
+  return {
+    ...session,
+    id,
+    state: {
+      ...session.state,
+      id,
+      originLocationId,
+      turnLog: [
+        {
+          turn: 1,
+          summary: {
+            action: "attack" as const,
+            heroOutcome: "hit" as const,
+            heroDamage: 3,
+            monsterDamage: 1,
+            manaSpent: 0,
+            critical: false
+          },
+          hero: {
+            hp: 19,
+            mana: 10
+          },
+          monster: {
+            hp: 9
+          }
+        }
+      ]
     }
   };
 }

@@ -403,4 +403,100 @@ describe("monster ability runtime", () => {
     expect(defended.summary.monsterDamage).toBeLessThan(8);
     expect(defended.state.guard).toEqual({ consecutiveDefends: 1 });
   });
+
+  it("uses positive monster accuracy context as a higher ability hit chance", () => {
+    const state: CombatState = {
+      ...startCombat({ id: "runtime-accuracy-context", hero, monster: mimic }),
+      monsterRuntime: {
+        version: 1,
+        rulesVersion: "monster-abilities-v1",
+        aiProfile: "trickster",
+        loadoutIds: ["monster.sauce-spit"],
+        cooldowns: {},
+        onceUsedAbilityIds: [],
+        consecutiveAbilityUses: 0,
+        effects: [],
+        ownActionCount: 0
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "defend",
+      hero,
+      monster: {
+        ...mimic,
+        contextModifiers: {
+          outgoingDamageMultiplier: 1,
+          incomingDamageMultiplier: 1,
+          accuracyDeltaPp: 20,
+          evasionDeltaPp: 0,
+          abilityWeightDelta: 0,
+          barkWeightDelta: 0,
+          signatureCooldownDelta: 0,
+          flatArmorDelta: 0,
+          flatResistDelta: 0,
+          flatDexterityDelta: 0
+        }
+      },
+      rng: new FakeRandomSource([0.1, 0.1, 0.7, 0.99, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected contextual ability turn to resolve.");
+    }
+    expect(result.summary.monsterAction).toBe("skill");
+    expect(result.summary.monsterSkillId).toBe("monster.sauce-spit");
+    expect(result.summary.monsterDamage).toBeGreaterThan(0);
+  });
+
+  it("does not reduce successful hero damage by monster evasion after the hit roll", () => {
+    const state: CombatState = {
+      ...startCombat({ id: "runtime-evasion-hit-only", hero, monster: mimic }),
+      monster: {
+        ...startCombat({ hero, monster: mimic }).monster,
+        hp: 80,
+        hpMax: 80
+      },
+      monsterRuntime: {
+        version: 1,
+        rulesVersion: "monster-abilities-v1",
+        aiProfile: "trickster",
+        loadoutIds: ["monster.sauce-spit"],
+        cooldowns: {
+          "monster.sauce-spit": {
+            id: "monster.sauce-spit",
+            remainingOwnActions: 2
+          }
+        },
+        onceUsedAbilityIds: [],
+        consecutiveAbilityUses: 0,
+        effects: [{
+          id: "evasion:test",
+          sourceAbilityId: "monster.sauce-spit",
+          target: "monster",
+          kind: "evasion",
+          value: 35,
+          remainingOwnActivations: 2
+        }],
+        ownActionCount: 0
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero,
+      monster: { ...mimic, hpMax: 80 },
+      rng: new FakeRandomSource([0.1, 0.99, 0.99, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected evasive monster turn to resolve.");
+    }
+    expect(result.summary.heroOutcome).toBe("hit");
+    expect(result.summary.heroDamage).toBe(15);
+  });
 });

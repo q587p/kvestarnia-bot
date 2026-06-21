@@ -165,6 +165,10 @@ function getPersistentFightJournalReturnLabel(session: SoloCombatSessionRecord):
   return session.state?.status === "active" ? "↩️ До бою" : "↩️ До результатів";
 }
 
+export function resolvePersistentFightPresenceLocation(session: SoloCombatSessionRecord): string {
+  return getPersistentFightOriginLocationId(session);
+}
+
 export function getPersistentFightOriginLocationId(session: SoloCombatSessionRecord): string {
   const stored = session.state?.originLocationId;
 

@@ -171,7 +171,7 @@ import {
   buildFightResultKeyboard,
   buildPersistentFightJournalKeyboard,
   buildPersistentFightResultKeyboard,
-  getPersistentFightOriginLocationId
+  resolvePersistentFightPresenceLocation
 } from "./keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "./keyboards/trainingDoppelgangerKeyboard";
 import { buildTurnBasedDuelKeyboard } from "./keyboards/duelKeyboard";
@@ -877,7 +877,7 @@ async function redirectCombatLockIfNeeded(
   if (lock.state === "persistent-active") {
     await answerCombatLockCallback(ctx);
     await refreshCombatLockPresence(ctx, services.presence, {
-      locationId: getPersistentFightOriginLocationId(lock.session),
+      locationId: resolvePersistentFightPresenceLocation(lock.session),
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
     });
@@ -2821,7 +2821,7 @@ async function handleFightCallback(
     }
 
     await markScenePresence(ctx, services.presence, {
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      locationId: resolvePersistentFightPresenceLocation(result.session),
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
     });
@@ -2859,7 +2859,7 @@ async function handleFightCallback(
 
     if (result.state !== "not-found") {
       await markScenePresence(ctx, services.presence, {
-        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        locationId: resolvePersistentFightPresenceLocation(result.session),
         currentRaidId: null,
         currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
       });

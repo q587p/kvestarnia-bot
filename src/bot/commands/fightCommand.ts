@@ -20,7 +20,7 @@ import {
   buildPersistentFightDifficultyKeyboard,
   buildPersistentFightReadyKeyboard,
   buildPersistentFightResultKeyboard,
-  getPersistentFightOriginLocationId
+  resolvePersistentFightPresenceLocation
 } from "../keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import { buildEnterKorchmaKeyboard, buildKorchmaDeepKeyboard } from "../keyboards/tavernKeyboard";
@@ -296,7 +296,7 @@ function getPersistentPresenceLocationId(
   }
 ): string {
   if (result.state === "persistent-active" || result.state === "persistent-terminal") {
-    return getPersistentFightOriginLocationId(result.session);
+    return resolvePersistentFightPresenceLocation(result.session);
   }
 
   if (options.originLocationId) {

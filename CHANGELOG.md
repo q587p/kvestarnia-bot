@@ -38,6 +38,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Monster ability parameters now compile through a central runtime audit. Unsupported, invalid or effectless parameters fail validation instead of silently becoming flavor-only fields.
 - Runtime monster shields now report only HP damage actually applied after absorption and no longer heal/revive the monster while accounting shield points.
 - Runtime basic attacks now use the same defend stance contract as legacy basic monster attacks, including evasion, mitigation fatigue and bounded counters; runtime ability mitigation applies defend once.
+- Runtime monster evasion now affects the hero hit roll only; it no longer also reduces damage after a successful hit.
+- Runtime support/control abilities now skip state-less cases such as equal-or-stronger shields, empty cleanses, missing cooldown targets, missing positive effects and missing expired effects.
 
 ### Fixed
 - Old active combat JSON without `monsterRuntime` remains readable and keeps legacy basic-attack behavior until that fight ends.
@@ -50,6 +52,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Telegraphs persist the promised ability before impact; if the monster dies first, the pending impact never resolves.
 - One-charge marks survive committed hero actions and are consumed only when a later direct monster hit uses them; reflect charges are consumed only when actual reflected HP damage occurs.
 - Target accuracy/evasion penalties now affect later target rolls instead of being accidentally folded into the monster's current ability accuracy.
+- Positive monster accuracy context now raises current runtime ability hit chance instead of lowering it.
+- Persistent fight turn callbacks, result replays, journal views and combat-lock redirects now restore the stored fight passage/location instead of stamping the quest table.
 - Deterministic fallback loadouts now skip unsupported recipes and avoid low-level strong/ultimate fallback picks.
 
 ### Guardrails
