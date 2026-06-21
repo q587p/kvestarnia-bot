@@ -505,6 +505,7 @@ export class FightService {
     const resolved = resolveCombatTurn({
       state: session.state,
       action: timeoutMode === "skip" ? "skip" : "attack",
+      actionOrigin: timeoutMode === "skip" ? "timeout-skip" : "timeout-auto-attack",
       hero: buildHeroCombatStats(character),
       monster: buildPersistentMonsterCombatStats(monster, session.state),
       rng: this.rng

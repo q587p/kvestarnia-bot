@@ -4,7 +4,12 @@ import {
   BASIC_ATTACK_ABILITY_ID,
   BASIC_DEFEND_ABILITY_ID
 } from "./combatActions";
-import type { CombatState, CombatTurnSummary, MonsterCombatStats } from "./combatState";
+import type {
+  CombatActionOrigin,
+  CombatState,
+  CombatTurnSummary,
+  MonsterCombatStats
+} from "./combatState";
 
 export const COMBAT_BALANCE_ANALYTICS_SCHEMA_VERSION = 1;
 export const COMBAT_BALANCE_VERSION = "combat-balance-0.1.21";
@@ -30,6 +35,7 @@ export type CombatBalanceSource =
 
 export interface CombatAnalyticsAbilityAccumulatorV1 {
   abilityKey: string;
+  actionOrigin: CombatActionOrigin;
   abilityRank: number;
   isClassAbility: boolean;
   usesCount: number;
@@ -39,7 +45,6 @@ export interface CombatAnalyticsAbilityAccumulatorV1 {
   missCount: number;
   totalDamage: number;
   totalHealing: number;
-  totalShieldOrPrevented: number;
   resourceSpent: number;
 }
 
@@ -80,11 +85,13 @@ export interface CombatAnalyticsStateV1 {
   };
   totals: {
     playerActionsCount: number;
+    manualPlayerActionsCount: number;
+    timeoutAutoActionsCount: number;
+    timeoutSkipActionsCount: number;
     enemyActionsCount: number;
     damageDealt: number;
     damageTaken: number;
     healingDone: number;
-    shieldOrDamagePrevented: number;
     criticalHits: number;
     misses: number;
   };
@@ -188,7 +195,9 @@ export function recordCombatAnalyticsTurn(
 
   const analytics = cloneCombatAnalyticsState(state.analytics);
   const abilityKey = getAbilityKey(summary);
-  const ability = analytics.abilities[abilityKey] ?? emptyAbility(abilityKey, summary);
+  const actionOrigin = summary.actionOrigin ?? "manual";
+  const abilityRecordKey = getAbilityRecordKey(actionOrigin, abilityKey);
+  const ability = analytics.abilities[abilityRecordKey] ?? emptyAbility(abilityKey, actionOrigin);
   const heroDamage = Math.max(0, summary.heroDamage + (summary.heroCounterDamage ?? 0));
   const monsterDamage = Math.max(0, summary.monsterDamage);
 
@@ -200,8 +209,15 @@ export function recordCombatAnalyticsTurn(
   ability.totalDamage += heroDamage;
   ability.resourceSpent += Math.max(0, summary.manaSpent);
 
-  analytics.abilities[abilityKey] = ability;
+  analytics.abilities[abilityRecordKey] = ability;
   analytics.totals.playerActionsCount += 1;
+  if (actionOrigin === "manual") {
+    analytics.totals.manualPlayerActionsCount += 1;
+  } else if (actionOrigin === "timeout-auto-attack") {
+    analytics.totals.timeoutAutoActionsCount += 1;
+  } else {
+    analytics.totals.timeoutSkipActionsCount += 1;
+  }
   analytics.totals.enemyActionsCount += summary.monsterAction ? 1 : 0;
   analytics.totals.damageDealt += heroDamage;
   analytics.totals.damageTaken += monsterDamage;
@@ -311,10 +327,11 @@ function getAbilityKey(summary: CombatTurnSummary): string {
 
 function emptyAbility(
   abilityKey: string,
-  summary: CombatTurnSummary
+  actionOrigin: CombatActionOrigin
 ): CombatAnalyticsAbilityAccumulatorV1 {
   return {
     abilityKey,
+    actionOrigin,
     abilityRank: 0,
     isClassAbility: abilityKey.startsWith("skill."),
     usesCount: 0,
@@ -324,9 +341,12 @@ function emptyAbility(
     missCount: 0,
     totalDamage: 0,
     totalHealing: 0,
-    totalShieldOrPrevented: summary.action === "defend" ? 0 : 0,
     resourceSpent: 0
   };
+}
+
+function getAbilityRecordKey(actionOrigin: CombatActionOrigin, abilityKey: string): string {
+  return `${actionOrigin}:${abilityKey}`;
 }
 
 function isSuccessfulHeroUse(summary: CombatTurnSummary): boolean {
@@ -374,11 +394,13 @@ function inferDifficultyTier(monster: MonsterCombatStats): string {
 function emptyTotals(): CombatAnalyticsStateV1["totals"] {
   return {
     playerActionsCount: 0,
+    manualPlayerActionsCount: 0,
+    timeoutAutoActionsCount: 0,
+    timeoutSkipActionsCount: 0,
     enemyActionsCount: 0,
     damageDealt: 0,
     damageTaken: 0,
     healingDone: 0,
-    shieldOrDamagePrevented: 0,
     criticalHits: 0,
     misses: 0
   };
@@ -462,13 +484,26 @@ function parseTotals(value: unknown): CombatAnalyticsStateV1["totals"] | null {
   }
 
   const totals = emptyTotals();
-  for (const key of Object.keys(totals) as Array<keyof typeof totals>) {
+  const requiredKeys = [
+    "playerActionsCount",
+    "enemyActionsCount",
+    "damageDealt",
+    "damageTaken",
+    "healingDone",
+    "criticalHits",
+    "misses"
+  ] as const;
+  for (const key of requiredKeys) {
     const parsed = intOrNull(value[key]);
     if (parsed === null) {
       return null;
     }
     totals[key] = parsed;
   }
+  totals.manualPlayerActionsCount =
+    intOrNull(value.manualPlayerActionsCount) ?? totals.playerActionsCount;
+  totals.timeoutAutoActionsCount = intOrNull(value.timeoutAutoActionsCount) ?? 0;
+  totals.timeoutSkipActionsCount = intOrNull(value.timeoutSkipActionsCount) ?? 0;
 
   return totals;
 }
@@ -479,9 +514,9 @@ function parseAbilityRecord(value: unknown): CombatAnalyticsStateV1["abilities"]
   }
 
   return Object.fromEntries(
-    Object.entries(value).flatMap(([key, entry]) => {
+    Object.values(value).flatMap((entry) => {
       const parsed = parseAbility(entry);
-      return parsed ? [[key, parsed]] : [];
+      return parsed ? [[getAbilityRecordKey(parsed.actionOrigin, parsed.abilityKey), parsed]] : [];
     })
   );
 }
@@ -491,6 +526,7 @@ function parseAbility(value: unknown): CombatAnalyticsAbilityAccumulatorV1 | nul
     return null;
   }
 
+  const actionOrigin = parseActionOrigin(value.actionOrigin) ?? "manual";
   const numericKeys = [
     "abilityRank",
     "usesCount",
@@ -500,7 +536,6 @@ function parseAbility(value: unknown): CombatAnalyticsAbilityAccumulatorV1 | nul
     "missCount",
     "totalDamage",
     "totalHealing",
-    "totalShieldOrPrevented",
     "resourceSpent"
   ] as const;
   const numbers = Object.fromEntries(
@@ -513,6 +548,7 @@ function parseAbility(value: unknown): CombatAnalyticsAbilityAccumulatorV1 | nul
 
   return {
     abilityKey: value.abilityKey,
+    actionOrigin,
     abilityRank: numbers.abilityRank!,
     isClassAbility: value.isClassAbility,
     usesCount: numbers.usesCount!,
@@ -522,9 +558,14 @@ function parseAbility(value: unknown): CombatAnalyticsAbilityAccumulatorV1 | nul
     missCount: numbers.missCount!,
     totalDamage: numbers.totalDamage!,
     totalHealing: numbers.totalHealing!,
-    totalShieldOrPrevented: numbers.totalShieldOrPrevented!,
     resourceSpent: numbers.resourceSpent!
   };
+}
+
+function parseActionOrigin(value: unknown): CombatActionOrigin | null {
+  return value === "manual" || value === "timeout-auto-attack" || value === "timeout-skip"
+    ? value
+    : null;
 }
 
 function parseStats(value: unknown): CharacterStats | null {

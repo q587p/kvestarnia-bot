@@ -21,6 +21,7 @@ async function main(): Promise<void> {
     view: args.view,
     format: args.format,
     minSample: args.minSample,
+    abilityActionScope: args.abilityActionScope,
     filters: args.filters
   }));
 }
@@ -28,6 +29,7 @@ async function main(): Promise<void> {
 interface ParsedArgs {
   view: CombatBalanceReportView;
   format: CombatBalanceReportFormat;
+  abilityActionScope: "manual" | "all";
   minSample: number;
   filters: CombatBalanceReportFilters;
 }
@@ -52,6 +54,7 @@ function parseArgs(args: string[]): ParsedArgs {
   return {
     view: parseChoice(values.get("view"), ["class", "mob", "ability", "data-quality"], "class"),
     format: parseChoice(values.get("format"), ["table", "json", "csv"], "table"),
+    abilityActionScope: parseChoice(values.get("ability-actions"), ["manual", "all"], "manual"),
     minSample: parseIntOption(values.get("min-sample"), 30),
     filters: {
       from: parseDate(values.get("from")),

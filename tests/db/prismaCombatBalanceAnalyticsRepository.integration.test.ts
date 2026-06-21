@@ -36,7 +36,8 @@ describe("PrismaCombatBalanceAnalyticsRepository", () => {
     await expect(repository.recordBattle(input)).resolves.toBe("duplicate");
 
     const battles = await repository.listBattles({ levels: { min: 10, max: 15 } });
-    const abilities = await repository.listAbilitiesForCombatIds(["combat-db-1"]);
+    const abilities = await repository.listAbilitiesForCombatIds(["combat-db-1"], { actionOrigin: "all" });
+    const manualAbilities = await repository.listAbilitiesForCombatIds(["combat-db-1"]);
     const quality = await repository.getDataQuality({ levels: { min: 10, max: 15 } });
 
     expect(battles).toHaveLength(1);
@@ -45,14 +46,24 @@ describe("PrismaCombatBalanceAnalyticsRepository", () => {
       outcome: "win",
       classKey: "class.warrior",
       playerLevel: 12,
-      remortCount: 2
+      remortCount: 2,
+      manualPlayerActionsCount: 1,
+      timeoutAutoActionsCount: 1
     });
-    expect(abilities).toHaveLength(1);
-    expect(abilities[0]).toMatchObject({
+    expect(abilities).toHaveLength(2);
+    expect(manualAbilities).toHaveLength(1);
+    expect(manualAbilities[0]).toMatchObject({
       combatId: "combat-db-1",
       abilityKey: "ability.basic.attack",
-      usesCount: 2,
-      totalDamage: 12
+      actionOrigin: "manual",
+      usesCount: 1,
+      totalDamage: 7
+    });
+    expect(abilities.find((ability) => ability.actionOrigin === "timeout-auto-attack")).toMatchObject({
+      combatId: "combat-db-1",
+      abilityKey: "ability.basic.attack",
+      usesCount: 1,
+      totalDamage: 5
     });
     expect(quality).toMatchObject({
       analyticsBattles: 1,
@@ -130,26 +141,44 @@ function makeInput() {
     mobHpAtEnd: 0,
     roundsCount: 2,
     playerActionsCount: 2,
+    manualPlayerActionsCount: 1,
+    timeoutAutoActionsCount: 1,
+    timeoutSkipActionsCount: 0,
     enemyActionsCount: 1,
     damageDealt: 12,
     damageTaken: 5,
     healingDone: 0,
-    shieldOrDamagePrevented: 0,
     criticalHits: 0,
     misses: 0,
-    abilities: [{
-      abilityKey: "ability.basic.attack",
-      abilityRank: 0,
-      isClassAbility: false,
-      usesCount: 2,
-      successfulUsesCount: 2,
-      hitCount: 2,
-      critCount: 0,
-      missCount: 0,
-      totalDamage: 12,
-      totalHealing: 0,
-      totalShieldOrPrevented: 0,
-      resourceSpent: 0
-    }]
+    abilities: [
+      {
+        abilityKey: "ability.basic.attack",
+        actionOrigin: "manual" as const,
+        abilityRank: 0,
+        isClassAbility: false,
+        usesCount: 1,
+        successfulUsesCount: 1,
+        hitCount: 1,
+        critCount: 0,
+        missCount: 0,
+        totalDamage: 7,
+        totalHealing: 0,
+        resourceSpent: 0
+      },
+      {
+        abilityKey: "ability.basic.attack",
+        actionOrigin: "timeout-auto-attack" as const,
+        abilityRank: 0,
+        isClassAbility: false,
+        usesCount: 1,
+        successfulUsesCount: 1,
+        hitCount: 1,
+        critCount: 0,
+        missCount: 0,
+        totalDamage: 5,
+        totalHealing: 0,
+        resourceSpent: 0
+      }
+    ]
   };
 }

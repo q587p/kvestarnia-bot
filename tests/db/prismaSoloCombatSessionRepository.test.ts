@@ -277,6 +277,7 @@ describe("PrismaSoloCombatSessionRepository", () => {
       lastMissedAt: "2026-06-20T00:00:24.000Z"
     });
     expect(mapped?.state?.lastTurn?.action).toBe("skip");
+    expect(mapped?.state?.lastTurn?.actionOrigin).toBe("timeout-skip");
     expect(mapped?.state?.lastTurn?.debugTrace?.chosenAbilityId).toBe("skill.forceful-strike");
     expect(mapped?.state?.monster.copiedEquipment?.[0]?.sourceItemId).toBe("item.borrowed-pan");
     expect(mapped?.state?.monster.debugTrace?.copiedEquipmentCount).toBe(1);
@@ -600,6 +601,7 @@ function runtimeRoundTripState(): CombatState {
     },
     lastTurn: {
       action: "skip",
+      actionOrigin: "timeout-skip",
       heroOutcome: "inactive",
       monsterOutcome: "hit",
       heroDamage: 0,

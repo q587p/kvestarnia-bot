@@ -743,6 +743,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const damageKind = parseDamageKind(value.damageKind);
   const monsterDamageKind = parseDamageKind(value.monsterDamageKind);
   const debugTrace = parseCombatDebugTrace(value.debugTrace);
+  const actionOrigin = parseActionOrigin(value.actionOrigin);
 
   if (
     !action ||
@@ -757,6 +758,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
 
   return {
     action,
+    ...(actionOrigin ? { actionOrigin } : {}),
     heroOutcome,
     ...(monsterOutcome ? { monsterOutcome } : {}),
     heroDamage,
@@ -778,6 +780,12 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
 
 function parseCombatAction(value: unknown): CombatActionType | null {
   return value === "attack" || value === "defend" || value === "skill" || value === "flee" || value === "skip"
+    ? value
+    : null;
+}
+
+function parseActionOrigin(value: unknown): CombatTurnSummary["actionOrigin"] | null {
+  return value === "manual" || value === "timeout-auto-attack" || value === "timeout-skip"
     ? value
     : null;
 }

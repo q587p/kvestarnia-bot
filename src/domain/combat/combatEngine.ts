@@ -13,6 +13,7 @@ import {
   clampResource,
   cloneCombatCooldowns,
   cloneCombatState,
+  type CombatActionOrigin,
   type CombatActionType,
   type CombatActorStats,
   type CombatGuardState,
@@ -25,6 +26,7 @@ import {
 export interface ResolveCombatTurnInput {
   state: CombatState;
   action: CombatActionType;
+  actionOrigin?: CombatActionOrigin;
   hero: CombatActorStats;
   monster: MonsterCombatStats;
   rng: RandomSource;
@@ -195,6 +197,7 @@ export function resolveCombatTurn(input: ResolveCombatTurnInput): ResolveCombatT
   if (input.state.status !== "active") {
     const summary: CombatTurnSummary = {
       action: input.action,
+      ...summaryActionOrigin(input),
       heroOutcome: "inactive",
       heroDamage: 0,
       monsterDamage: 0,
@@ -225,6 +228,7 @@ export function resolveCombatTurn(input: ResolveCombatTurnInput): ResolveCombatT
     if (!availability.available) {
       const summary = buildSummary({
         action: "skill",
+        ...summaryActionOrigin(input),
         heroOutcome: availability.reason === "cooldown" ? "skill-on-cooldown" : "not-enough-mana",
         heroDamage: 0,
         monsterDamage: 0,
@@ -268,6 +272,7 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
   const debugTrace = buildTurnDebugTrace(input.monster, monsterSkill);
   const summary = buildSummary({
     action: "skip",
+    ...summaryActionOrigin(input),
     heroOutcome: "inactive",
     monsterOutcome: nextState.status === "lost" ? "lost" : monsterDamage > 0 ? "hit" : "miss",
     heroDamage: 0,
@@ -326,6 +331,7 @@ function resolveHeroAttack(
     nextState.turn += 1;
     const summary = buildSummary({
       action: input.action,
+      ...summaryActionOrigin(input),
       heroOutcome: "won",
       heroDamage: actorAction.summary.actorDamage,
       monsterDamage,
@@ -384,6 +390,7 @@ function resolveHeroAttack(
   const debugTrace = buildTurnDebugTrace(input.monster, monsterSkill);
   const summary = buildSummary({
     action: input.action,
+    ...summaryActionOrigin(input),
     heroOutcome: actorAction.summary.actorOutcome,
     monsterOutcome: nextState.status === "lost" ? "lost" : monsterOutcome,
     heroDamage: actorAction.summary.actorDamage,
@@ -438,6 +445,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
 
   const summary = buildSummary({
     action: "flee",
+    ...summaryActionOrigin(input),
     heroOutcome: fled ? "fled" : "flee-failed",
     monsterOutcome: nextState.status === "lost" ? "lost" : monsterOutcome,
     heroDamage: 0,
@@ -614,6 +622,7 @@ function cloneActorResourceState(state: CombatActorResourceState): CombatActorRe
 
 function buildSummary(input: {
   action: CombatActionType;
+  actionOrigin?: CombatActionOrigin;
   heroOutcome: CombatTurnSummary["heroOutcome"];
   monsterOutcome?: CombatTurnSummary["monsterOutcome"];
   heroDamage: number;
@@ -628,6 +637,7 @@ function buildSummary(input: {
 }): CombatTurnSummary {
   return {
     action: input.action,
+    ...(input.actionOrigin && input.actionOrigin !== "manual" ? { actionOrigin: input.actionOrigin } : {}),
     heroOutcome: input.heroOutcome,
     ...(input.monsterOutcome ? { monsterOutcome: input.monsterOutcome } : {}),
     heroDamage: input.heroDamage,
@@ -695,6 +705,12 @@ export function getNextDefendGuard(guard: CombatGuardState | undefined): CombatG
   return {
     consecutiveDefends: Math.max(0, guard?.consecutiveDefends ?? 0) + 1
   };
+}
+
+function summaryActionOrigin(input: ResolveCombatTurnInput): { actionOrigin?: CombatActionOrigin } {
+  return input.actionOrigin && input.actionOrigin !== "manual"
+    ? { actionOrigin: input.actionOrigin }
+    : {};
 }
 
 function applyDefendStance(input: {

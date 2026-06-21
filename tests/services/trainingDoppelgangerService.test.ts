@@ -293,7 +293,142 @@ describe("TrainingDoppelgangerService", () => {
     if (result.state === "terminal") {
       expect(result.session.state?.status).toBe("won");
       expect(result.session.state?.timeout?.consecutiveMissedTurns).toBe(3);
+      expect(result.reward).toMatchObject({
+        reward: {
+          gold: 0,
+          localDate: started.session.id
+        }
+      });
     }
+    expect(world.actions.get(`${TRAINING_DOPPELGANGER_REWARD_KEY}:${started.session.id}`)).toBeDefined();
+    expect(world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)).toBeDefined();
+    expect(world.sessions.get(started.session.id)?.reward).toMatchObject({ gold: 0 });
+  });
+
+  it("claims a training reward when lazy timeout recovery auto-wins", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world, new FakeRandomSource([0.1, 0.9, 0.1, 0.9, 0.1, 0.1, 0.1]));
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+
+    if (started.state !== "active" || !started.session.state) {
+      throw new Error(`Expected active training, got ${started.state}`);
+    }
+    world.sessions.set(started.session.id, {
+      ...started.session,
+      state: {
+        ...started.session.state,
+        monster: {
+          ...started.session.state.monster,
+          hp: 1
+        },
+        turnExpiresAt: new Date("2026-06-17T09:29:59.000Z").toISOString()
+      }
+    });
+
+    const result = await service.getStartOptionsForTelegramUser(telegramUserId);
+
+    expect(result.state).toBe("terminal");
+    if (result.state === "terminal") {
+      expect(result.session.state?.status).toBe("won");
+      expect(result.reward?.state).toBe("claimed");
+      expect(result.reward?.reward.localDate).toBe(started.session.id);
+    }
+    expect(world.actions.size).toBe(1);
+    expect(world.cooldowns.size).toBe(1);
+    expect(world.sessions.get(started.session.id)?.reward).toBeDefined();
+  });
+
+  it("claims a training reward when scheduled timeout auto-loses", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId, { hpCurrent: 1 });
+    const service = buildService(world, new FakeRandomSource([0.9, 0.9, 0.1, 0.9]));
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+
+    if (started.state !== "active" || !started.session.state) {
+      throw new Error(`Expected active training, got ${started.state}`);
+    }
+    world.sessions.set(started.session.id, {
+      ...started.session,
+      state: {
+        ...started.session.state,
+        hero: {
+          ...started.session.state.hero,
+          hp: 1
+        },
+        monster: {
+          ...started.session.state.monster,
+          hp: 999,
+          attack: 50
+        },
+        turnExpiresAt: new Date("2026-06-17T09:29:59.000Z").toISOString()
+      }
+    });
+
+    const result = await service.resolveDueTrainingTurn({
+      ...started.session,
+      state: world.sessions.get(started.session.id)?.state ?? null,
+      telegramUserId
+    });
+
+    expect(result.state).toBe("terminal");
+    if (result.state === "terminal") {
+      expect(result.session.state?.status).toBe("lost");
+      expect(result.reward).toMatchObject({
+        reward: {
+          xp: 1,
+          gold: 0,
+          localDate: started.session.id
+        }
+      });
+    }
+    expect(world.actions.size).toBe(1);
+    expect(world.cooldowns.size).toBe(1);
+    expect(world.resourceMutations).toBe(1);
+  });
+
+  it("replays a scheduled terminal reward without granting XP or cooldown twice", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world, new FakeRandomSource([0.1, 0.9, 0.1, 0.9, 0.1, 0.1, 0.1]));
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+
+    if (started.state !== "active" || !started.session.state) {
+      throw new Error(`Expected active training, got ${started.state}`);
+    }
+    world.sessions.set(started.session.id, {
+      ...started.session,
+      state: {
+        ...started.session.state,
+        monster: {
+          ...started.session.state.monster,
+          hp: 1
+        },
+        turnExpiresAt: new Date("2026-06-17T09:29:59.000Z").toISOString()
+      }
+    });
+    const scheduled = await service.resolveDueTrainingTurn({
+      ...started.session,
+      state: world.sessions.get(started.session.id)?.state ?? null,
+      telegramUserId
+    });
+    const xpAfterScheduled = world.findCharacter(telegramUserId)?.xp;
+
+    const replay = await service.resolveTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: started.session.state.turn,
+      action: "attack"
+    });
+
+    expect(scheduled.state).toBe("terminal");
+    expect(replay.state).toBe("terminal");
+    if (replay.state === "terminal") {
+      expect(replay.reward?.state).toBe("replayed");
+      expect(replay.reward?.reward.localDate).toBe(started.session.id);
+    }
+    expect(world.findCharacter(telegramUserId)?.xp).toBe(xpAfterScheduled);
+    expect(world.actions.size).toBe(1);
+    expect(world.cooldowns.size).toBe(1);
   });
 
   it("resets the training timeout streak after an explicit player action", async () => {
@@ -370,6 +505,7 @@ describe("TrainingDoppelgangerService", () => {
       expect(result.reward).toBeNull();
     }
     expect(world.actions.has(`${TRAINING_DOPPELGANGER_REWARD_KEY}:${started.session.id}`)).toBe(false);
+    expect(world.cooldowns.has(TRAINING_DOPPELGANGER_COOLDOWN_KEY)).toBe(false);
   });
 
   it("keeps random-build source for terminal replay copy text", async () => {
@@ -546,6 +682,10 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
       },
       ...overrides
     });
+  }
+
+  findCharacter(userTelegramId: bigint): CharacterRecord | undefined {
+    return this.charactersByTelegramUserId.get(userTelegramId);
   }
 
   findByUserId(userId: string): Promise<CharacterRecord | null> {

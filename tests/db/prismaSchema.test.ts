@@ -244,15 +244,26 @@ describe("Prisma schema", () => {
     expect(schema).toContain("@unique @map(\"combat_id\")");
     expect(schema).toContain("@map(\"player_analysis_key\")");
     expect(schema).toContain("@map(\"remort_count\")");
+    expect(schema).toContain("@map(\"manual_player_actions_count\")");
+    expect(schema).toContain("@map(\"timeout_auto_actions_count\")");
+    expect(schema).not.toContain("shieldOrDamagePrevented");
+    expect(schema).not.toContain("writeErrorCount");
     expect(schema).toContain("@@index([balanceVersion, classKey, playerLevel, remortCount])");
     expect(schema).toContain("model CombatBalanceAbilityUsage");
-    expect(schema).toContain("@@unique([combatId, abilityKey, abilityRank])");
+    expect(schema).toContain("@map(\"action_origin\")");
+    expect(schema).not.toContain("totalShieldOrPrevented");
+    expect(schema).toContain("@@unique([combatId, abilityKey, abilityRank, actionOrigin])");
     expect(schema).toContain("@@map(\"combat_balance_ability_usages\")");
     expect(migration).toContain("CREATE TABLE \"combat_balance_battles\"");
     expect(migration).toContain("CREATE TABLE \"combat_balance_ability_usages\"");
     expect(migration).toContain("combat_balance_battles_combat_id_key");
     expect(migration).toContain("combat_balance_battles_balance_version_class_key_player_level_remort_count_idx");
-    expect(migration).toContain("combat_balance_ability_usages_combat_id_ability_key_ability_rank_key");
+    expect(migration).toContain("manual_player_actions_count");
+    expect(migration).toContain("action_origin");
+    expect(migration).not.toContain("shield_or_damage_prevented");
+    expect(migration).not.toContain("write_error_count");
+    expect(migration).not.toContain("total_shield_or_prevented");
+    expect(migration).toContain("combat_balance_ability_usages_combat_id_ability_key_ability_rank_action_origin_key");
   });
 
   it("stores Mantok Chest audit runs for inventory recycling", () => {

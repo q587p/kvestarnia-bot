@@ -13,6 +13,7 @@ export interface CombatBalanceReportOptions {
   filters: CombatBalanceReportFilters;
   minSample: number;
   format: CombatBalanceReportFormat;
+  abilityActionScope?: "manual" | "all";
 }
 
 interface AggregateRow {
@@ -30,11 +31,15 @@ interface AggregateRow {
   medianWinHpRatio: number;
   avgDamageDealt: number;
   avgDamageTaken: number;
+  manualActions: number;
+  timeoutAutoActions: number;
+  timeoutSkipActions: number;
   insufficientSample: boolean;
 }
 
 interface AbilityAggregateRow {
   abilityKey: string;
+  actionOrigin: string;
   battles: number;
   uses: number;
   usageRate: number;
@@ -43,7 +48,6 @@ interface AbilityAggregateRow {
   winRateWithout: number;
   totalDamage: number;
   totalHealing: number;
-  totalShieldOrPrevented: number;
   resourceSpent: number;
   insufficientSample: boolean;
 }
@@ -60,7 +64,8 @@ export class CombatBalanceReportService {
     const battles = await this.repository.listBattles(options.filters);
     if (options.view === "ability") {
       const abilities = await this.repository.listAbilitiesForCombatIds(
-        battles.map((battle) => battle.combatId)
+        battles.map((battle) => battle.combatId),
+        { actionOrigin: options.abilityActionScope === "all" ? "all" : "manual" }
       );
       return renderRows(buildAbilityRows(battles, abilities, options.minSample), options.format);
     }
@@ -105,6 +110,9 @@ function buildAggregateRows(
         medianWinHpRatio: median(winRows.map((row) => ratio(row.playerHpAtEnd, row.playerMaxHp))),
         avgDamageDealt: average(rows.map((row) => row.damageDealt)),
         avgDamageTaken: average(rows.map((row) => row.damageTaken)),
+        manualActions: sum(rows.map((row) => row.manualPlayerActionsCount)),
+        timeoutAutoActions: sum(rows.map((row) => row.timeoutAutoActionsCount)),
+        timeoutSkipActions: sum(rows.map((row) => row.timeoutSkipActionsCount)),
         insufficientSample: rows.length < minSample
       };
     })
@@ -117,10 +125,13 @@ function buildAbilityRows(
   minSample: number
 ): AbilityAggregateRow[] {
   const battleById = new Map(battles.map((battle) => [battle.combatId, battle]));
-  const groups = groupBy(abilities, (ability) => ability.abilityKey);
+  const groups = groupBy(abilities, (ability) => `${ability.actionOrigin}:${ability.abilityKey}`);
 
   return [...groups.entries()]
-    .map(([abilityKey, rows]) => {
+    .map(([, rows]) => {
+      const first = rows[0];
+      const abilityKey = first?.abilityKey ?? "";
+      const actionOrigin = first?.actionOrigin ?? "manual";
       const combatIds = new Set(rows.map((row) => row.combatId));
       const withAbility = [...combatIds].flatMap((combatId) => {
         const battle = battleById.get(combatId);
@@ -133,6 +144,7 @@ function buildAbilityRows(
 
       return {
         abilityKey,
+        actionOrigin,
         battles: withAbility.length,
         uses,
         usageRate: ratio(withAbility.length, battles.length),
@@ -141,7 +153,6 @@ function buildAbilityRows(
         winRateWithout: ratio(winsWithout, withoutAbility.length),
         totalDamage: sum(rows.map((row) => row.totalDamage)),
         totalHealing: sum(rows.map((row) => row.totalHealing)),
-        totalShieldOrPrevented: sum(rows.map((row) => row.totalShieldOrPrevented)),
         resourceSpent: sum(rows.map((row) => row.resourceSpent)),
         insufficientSample: withAbility.length < minSample
       };

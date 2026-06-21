@@ -42,11 +42,15 @@ describe("combat balance analytics state", () => {
     expect(updated.hero).toEqual(state.hero);
     expect(updated.analytics?.totals).toMatchObject({
       playerActionsCount: 1,
+      manualPlayerActionsCount: 1,
+      timeoutAutoActionsCount: 0,
+      timeoutSkipActionsCount: 0,
       enemyActionsCount: 1,
       damageDealt: 7,
       damageTaken: 3
     });
-    expect(updated.analytics?.abilities[BASIC_ATTACK_ABILITY_ID]).toMatchObject({
+    expect(updated.analytics?.abilities[`manual:${BASIC_ATTACK_ABILITY_ID}`]).toMatchObject({
+      actionOrigin: "manual",
       usesCount: 1,
       successfulUsesCount: 1,
       hitCount: 1,
@@ -80,14 +84,71 @@ describe("combat balance analytics state", () => {
       manaSpent: 0,
       critical: false,
       monsterAction: "attack",
-      debugTrace: { timeoutMode: "skip" }
+      actionOrigin: "timeout-skip"
     });
 
-    expect(updated.analytics?.abilities[SYSTEM_SKIP_ABILITY_ID]).toMatchObject({
+    expect(updated.analytics?.totals).toMatchObject({
+      manualPlayerActionsCount: 0,
+      timeoutAutoActionsCount: 0,
+      timeoutSkipActionsCount: 1
+    });
+    expect(updated.analytics?.abilities[`timeout-skip:${SYSTEM_SKIP_ABILITY_ID}`]).toMatchObject({
+      actionOrigin: "timeout-skip",
       usesCount: 1,
       successfulUsesCount: 0
     });
-    expect(updated.analytics?.abilities[BASIC_ATTACK_ABILITY_ID]).toBeUndefined();
+    expect(updated.analytics?.abilities[`manual:${BASIC_ATTACK_ABILITY_ID}`]).toBeUndefined();
+  });
+
+  it("separates timeout auto-attacks from player-selected basic attacks", () => {
+    const state: CombatState = {
+      id: "combat-3",
+      turn: 2,
+      status: "active",
+      hero: { hp: 30, hpMax: 40, mana: 8, manaMax: 10 },
+      monster: { id: "monster.rat", hp: 10, hpMax: 20 },
+      analytics: createCombatAnalyticsState({
+        characterId: "character-1",
+        playerAnalysisKey: "analysis-key",
+        character: makeCharacter(),
+        monster: makeMonster(),
+        combatSource: "regular_mob",
+        startedAt: new Date("2026-06-21T10:00:00.000Z")
+      })
+    };
+
+    const manual = recordCombatAnalyticsTurn(state, {
+      action: "attack",
+      heroOutcome: "hit",
+      heroDamage: 5,
+      monsterDamage: 0,
+      manaSpent: 0,
+      critical: false
+    });
+    const updated = recordCombatAnalyticsTurn(manual, {
+      action: "attack",
+      actionOrigin: "timeout-auto-attack",
+      heroOutcome: "hit",
+      heroDamage: 6,
+      monsterDamage: 0,
+      manaSpent: 0,
+      critical: false
+    });
+
+    expect(updated.analytics?.totals).toMatchObject({
+      playerActionsCount: 2,
+      manualPlayerActionsCount: 1,
+      timeoutAutoActionsCount: 1,
+      timeoutSkipActionsCount: 0
+    });
+    expect(updated.analytics?.abilities[`manual:${BASIC_ATTACK_ABILITY_ID}`]).toMatchObject({
+      actionOrigin: "manual",
+      totalDamage: 5
+    });
+    expect(updated.analytics?.abilities[`timeout-auto-attack:${BASIC_ATTACK_ABILITY_ID}`]).toMatchObject({
+      actionOrigin: "timeout-auto-attack",
+      totalDamage: 6
+    });
   });
 
   it("maps terminal combat statuses to report outcomes", () => {

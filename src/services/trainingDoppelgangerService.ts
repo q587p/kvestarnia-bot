@@ -218,6 +218,7 @@ export class TrainingDoppelgangerService {
     const resolved = resolveCombatTurn({
       state: session.state,
       action: timeoutMode === "skip" ? "skip" : "attack",
+      actionOrigin: timeoutMode === "skip" ? "timeout-skip" : "timeout-auto-attack",
       hero: buildHeroCombatStats(character),
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
       rng: this.rng
@@ -406,7 +407,7 @@ export class TrainingDoppelgangerService {
         character,
         doppelganger,
         session: refreshedSession,
-        reward: await this.getOrRecoverReward(due.telegramUserId, refreshedSession)
+        reward: await this.claimOrRecoverTerminalReward(due.telegramUserId, character, refreshedSession)
       };
     }
 
@@ -486,7 +487,7 @@ export class TrainingDoppelgangerService {
         character,
         doppelganger,
         session,
-        reward: await this.getOrRecoverReward(telegramUserId, session)
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, session)
       };
     }
 
@@ -534,7 +535,7 @@ export class TrainingDoppelgangerService {
         character,
         doppelganger: refreshedDoppelganger,
         session: deadlineSession,
-        reward: await this.getOrRecoverReward(telegramUserId, deadlineSession)
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, deadlineSession)
       };
     }
 
@@ -564,7 +565,7 @@ export class TrainingDoppelgangerService {
         character,
         doppelganger,
         session,
-        reward: await this.getOrRecoverReward(telegramUserId, session)
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, session)
       };
     }
 
@@ -606,13 +607,13 @@ export class TrainingDoppelgangerService {
         character,
         doppelganger: buildDoppelgangerCopy(character, fallbackSession.state),
         session: fallbackSession,
-        reward: await this.getOrRecoverReward(telegramUserId, fallbackSession)
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, fallbackSession)
       };
     }
 
     const reward =
       updated.status === "won" || updated.status === "lost"
-      ? await this.claimRewardAndCooldown(telegramUserId, character, updated)
+      ? await this.claimOrRecoverTerminalReward(telegramUserId, character, updated)
       : null;
 
     if (updated.status !== "active") {
@@ -841,7 +842,7 @@ export class TrainingDoppelgangerService {
         character,
         doppelganger: buildDoppelgangerCopy(character, session.state),
         session,
-        reward: await this.getOrRecoverReward(telegramUserId, session)
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, session)
       };
     }
 
@@ -857,7 +858,7 @@ export class TrainingDoppelgangerService {
         character,
         doppelganger: buildDoppelgangerCopy(character, refreshedSession.state),
         session: refreshedSession,
-        reward: await this.getOrRecoverReward(telegramUserId, refreshedSession)
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, refreshedSession)
       };
     }
 
@@ -867,6 +868,21 @@ export class TrainingDoppelgangerService {
       doppelganger: buildDoppelgangerCopy(character, refreshedSession.state),
       session: refreshedSession
     };
+  }
+
+  private async claimOrRecoverTerminalReward(
+    telegramUserId: bigint,
+    character: CharacterSummary,
+    session: SoloCombatSessionRecord
+  ): Promise<TrainingDoppelgangerRewardClaim | null> {
+    await this.combatAnalytics?.recordTerminalSession(session);
+    const terminalStatus = session.state?.status ?? session.status;
+
+    if (terminalStatus === "won" || terminalStatus === "lost") {
+      return this.claimRewardAndCooldown(telegramUserId, character, session);
+    }
+
+    return this.getStoredRewardReplay(telegramUserId, session);
   }
 
   private async claimRewardAndCooldown(
@@ -904,6 +920,12 @@ export class TrainingDoppelgangerService {
     }
 
     if (claim.state === "existing") {
+      await this.combatSessions.recordRewardById(session.id, {
+        rewardXp: claim.action.rewardXp,
+        rewardGold: 0,
+        itemGrants: [],
+        claimedAt: this.clock()
+      });
       return {
         state: "already-claimed",
         reward: {
@@ -953,11 +975,10 @@ export class TrainingDoppelgangerService {
     };
   }
 
-  private async getOrRecoverReward(
+  private async getStoredRewardReplay(
     telegramUserId: bigint,
     session: SoloCombatSessionRecord
   ): Promise<TrainingDoppelgangerRewardClaim | null> {
-    await this.combatAnalytics?.recordTerminalSession(session);
     const replay = buildRewardReplay(session);
 
     if (replay) {

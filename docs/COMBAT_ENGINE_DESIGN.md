@@ -58,7 +58,6 @@ first_reaction_timeout = ~23 секунд
 normal_turn_timeout = ~23 секунд у поточному solo/training foundation slice
 elite_turn_timeout = 60 секунд
 hard_session_expiry = 10-15 хвилин
-max_auto_turns_before_escape_or_expire = 2
 ```
 
 Точні timestamp-и не показувати. Player-facing текст має бути приблизним: «ще трохи», «корчмар уже дивиться», «герой замислився надто героїчно».
@@ -461,7 +460,7 @@ Never let repeated callback reroll damage, loot, surrender, backup call, XP or g
 - Stale action for old turn returns current state.
 - Spell with no mana does not spend turn.
 - Auto-timeout for same turn is idempotent.
-- First auto action can finish; repeated auto farm expires/no reward.
+- Repeated missed solo/training turns keep using the canonical auto-action until combat ends or hard session expiry is reached; hard-expired sessions give no reward.
 - Surrender/refusal gives no XP.
 - Backup call caps at one extra enemy in solo MVP.
 - Equipment effects only from intended metadata.

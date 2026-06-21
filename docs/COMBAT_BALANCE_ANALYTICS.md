@@ -4,7 +4,7 @@
 
 ## What Is Stored
 
-Each completed PvE solo/training combat can write one `combat_balance_battles` row keyed by `combat_id`, plus one `combat_balance_ability_usages` row for each distinct player ability used.
+Each completed PvE solo/training combat can write one `combat_balance_battles` row keyed by `combat_id`, plus one `combat_balance_ability_usages` row for each distinct ability/origin pair used. The tables are created by `20260621100000_add_combat_balance_analytics`; collection remains opt-in and disabled by default.
 
 Battle rows store:
 
@@ -14,9 +14,9 @@ Battle rows store:
 - pseudonymized player analysis key plus internal character id;
 - class key, level, remort count, starting HP/mana, ending HP and stat/equipment snapshots;
 - monster template/type/level/difficulty/max HP/end HP;
-- round/action counts and compact totals for damage, healing, shield/prevention, crits and misses.
+- round/action counts, separate manual/timeout action counts and compact totals for damage, healing, crits and misses.
 
-Ability rows store use/success/hit/crit/miss counts, total damage/healing/shield/prevention and resource spend per ability key.
+Ability rows store `action_origin` (`manual`, `timeout-auto-attack` or `timeout-skip`) plus use/success/hit/crit/miss counts, total damage/healing and resource spend per ability key. Shield/prevented damage and durable write-error counters are intentionally omitted from analytics schema v1 until there is a deterministic source of truth.
 
 ## Privacy
 
@@ -26,13 +26,15 @@ Reports and analytics tables do not store Telegram user ids, usernames, display 
 
 - Combat start freezes an analytics snapshot inside `CombatState.analytics`.
 - Each successful committed turn updates a compact accumulator in combat state.
+- Timeout auto-actions are intentional committed actions. The collector stores them separately from manual choices so class/ability reports can default to player-selected usage while all-action totals remain available.
 - Terminal recording is best-effort and idempotent through the `combat_id` unique key.
 - Analytics failures are logged and must never block combat completion, resource persistence or rewards.
+- Training doppelganger terminal timeout wins/losses claim the same XP reward and recovery cooldown as manual terminal actions; `expired` and `fled` remain non-rewarding.
 - Old or already-running combats without an analytics snapshot are left readable but skipped by the collector instead of being backfilled with guessed totals.
 
 ## Report Command
 
-Default report: levels 10-15, non-test rows only, grouped by class/level/remort.
+Default report: levels 10-15, grouped by class/level/remort. Rows explicitly flagged as test/admin by the service constructor are hidden unless `--include-test` is passed; production wiring currently records rows as normal player rows.
 
 ```bash
 npm run report:combat-balance -- --view class
@@ -48,6 +50,7 @@ Useful options:
 - `--source regular_mob`
 - `--balance-version combat-balance-0.1.21`
 - `--mob monster.some-id`
+- `--ability-actions manual|all` for ability reports; default is `manual`
 - `--from 2026-06-21`
 - `--to 2026-06-22`
 - `--min-sample 30`

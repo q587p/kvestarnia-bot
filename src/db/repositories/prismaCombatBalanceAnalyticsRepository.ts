@@ -17,7 +17,6 @@ interface DataQualityRow {
   analytics_battles: number | bigint;
   terminal_solo_sessions: number | bigint;
   duplicate_write_attempts: number | bigint | null;
-  write_error_count: number | bigint | null;
 }
 
 interface BattleRow {
@@ -40,11 +39,13 @@ interface BattleRow {
   mob_hp_at_end: number | bigint;
   rounds_count: number | bigint;
   player_actions_count: number | bigint;
+  manual_player_actions_count: number | bigint;
+  timeout_auto_actions_count: number | bigint;
+  timeout_skip_actions_count: number | bigint;
   enemy_actions_count: number | bigint;
   damage_dealt: number | bigint;
   damage_taken: number | bigint;
   healing_done: number | bigint;
-  shield_or_damage_prevented: number | bigint;
   critical_hits: number | bigint;
   misses: number | bigint;
   is_test_or_admin: boolean | number | bigint;
@@ -53,6 +54,7 @@ interface BattleRow {
 interface AbilityRow {
   combat_id: string;
   ability_key: string;
+  action_origin: string;
   ability_rank: number | bigint;
   is_class_ability: boolean | number | bigint;
   uses_count: number | bigint;
@@ -62,7 +64,6 @@ interface AbilityRow {
   miss_count: number | bigint;
   total_damage: number | bigint;
   total_healing: number | bigint;
-  total_shield_or_prevented: number | bigint;
   resource_spent: number | bigint;
 }
 
@@ -97,7 +98,8 @@ export class PrismaCombatBalanceAnalyticsRepository implements CombatBalanceAnal
           player_stats_json, player_equipment_json, mob_template_key, mob_type,
           mob_level, mob_base_level, mob_difficulty_tier, mob_max_hp, mob_hp_at_end,
           rounds_count, player_actions_count, enemy_actions_count, damage_dealt,
-          damage_taken, healing_done, shield_or_damage_prevented, critical_hits, misses
+          damage_taken, healing_done, manual_player_actions_count,
+          timeout_auto_actions_count, timeout_skip_actions_count, critical_hits, misses
         ) VALUES (
           ${battleId}, ${input.combatId}, ${input.combatSource}, ${input.outcome},
           ${input.startedAt}, ${input.finishedAt}, ${input.balanceVersion},
@@ -111,7 +113,8 @@ export class PrismaCombatBalanceAnalyticsRepository implements CombatBalanceAnal
           ${input.mobBaseLevel ?? null}, ${input.mobDifficultyTier}, ${input.mobMaxHp},
           ${input.mobHpAtEnd}, ${input.roundsCount}, ${input.playerActionsCount},
           ${input.enemyActionsCount}, ${input.damageDealt}, ${input.damageTaken},
-          ${input.healingDone}, ${input.shieldOrDamagePrevented}, ${input.criticalHits},
+          ${input.healingDone}, ${input.manualPlayerActionsCount},
+          ${input.timeoutAutoActionsCount}, ${input.timeoutSkipActionsCount}, ${input.criticalHits},
           ${input.misses}
         )
       `;
@@ -119,15 +122,15 @@ export class PrismaCombatBalanceAnalyticsRepository implements CombatBalanceAnal
       for (const ability of input.abilities) {
         await tx.$executeRaw`
           INSERT OR IGNORE INTO combat_balance_ability_usages (
-            id, battle_id, combat_id, ability_key, ability_rank, is_class_ability,
+            id, battle_id, combat_id, ability_key, action_origin, ability_rank, is_class_ability,
             uses_count, successful_uses_count, hit_count, crit_count, miss_count,
-            total_damage, total_healing, total_shield_or_prevented, resource_spent
+            total_damage, total_healing, resource_spent
           ) VALUES (
             ${randomUUID()}, ${battleId}, ${input.combatId}, ${ability.abilityKey},
-            ${ability.abilityRank}, ${ability.isClassAbility ? 1 : 0}, ${ability.usesCount},
+            ${ability.actionOrigin}, ${ability.abilityRank}, ${ability.isClassAbility ? 1 : 0}, ${ability.usesCount},
             ${ability.successfulUsesCount}, ${ability.hitCount}, ${ability.critCount},
             ${ability.missCount}, ${ability.totalDamage}, ${ability.totalHealing},
-            ${ability.totalShieldOrPrevented}, ${ability.resourceSpent}
+            ${ability.resourceSpent}
           )
         `;
       }
@@ -143,8 +146,8 @@ export class PrismaCombatBalanceAnalyticsRepository implements CombatBalanceAnal
         class_key, player_level, remort_count, player_max_hp, player_hp_at_end,
         mob_template_key, mob_type, mob_level, mob_difficulty_tier, mob_max_hp,
         mob_hp_at_end, rounds_count, player_actions_count, enemy_actions_count,
-        damage_dealt, damage_taken, healing_done, shield_or_damage_prevented,
-        critical_hits, misses, is_test_or_admin
+        manual_player_actions_count, timeout_auto_actions_count, timeout_skip_actions_count,
+        damage_dealt, damage_taken, healing_done, critical_hits, misses, is_test_or_admin
       FROM combat_balance_battles
       ${buildWhere(filters)}
       ORDER BY finished_at DESC
@@ -154,7 +157,10 @@ export class PrismaCombatBalanceAnalyticsRepository implements CombatBalanceAnal
     return rows.map(mapBattleRow);
   }
 
-  async listAbilitiesForCombatIds(combatIds: string[]): Promise<CombatBalanceAbilityReportRow[]> {
+  async listAbilitiesForCombatIds(
+    combatIds: string[],
+    options: { actionOrigin?: CombatBalanceAbilityReportRow["actionOrigin"] | "all" } = { actionOrigin: "manual" }
+  ): Promise<CombatBalanceAbilityReportRow[]> {
     if (combatIds.length === 0) {
       return [];
     }
@@ -162,11 +168,15 @@ export class PrismaCombatBalanceAnalyticsRepository implements CombatBalanceAnal
     const rows = await this.prisma.$queryRaw<AbilityRow[]>(Prisma.sql`
       SELECT
         combat_id, ability_key, ability_rank, is_class_ability, uses_count,
+        action_origin,
         successful_uses_count, hit_count, crit_count, miss_count, total_damage,
-        total_healing, total_shield_or_prevented, resource_spent
+        total_healing, resource_spent
       FROM combat_balance_ability_usages
       WHERE combat_id IN (${Prisma.join(combatIds)})
-      ORDER BY ability_key ASC
+        ${options.actionOrigin && options.actionOrigin !== "all"
+          ? Prisma.sql`AND action_origin = ${options.actionOrigin}`
+          : Prisma.empty}
+      ORDER BY action_origin ASC, ability_key ASC
     `);
 
     return rows.map(mapAbilityRow);
@@ -184,17 +194,14 @@ export class PrismaCombatBalanceAnalyticsRepository implements CombatBalanceAnal
             ${filters.to ? Prisma.sql`AND updated_at < ${filters.to}` : Prisma.empty}
         ) AS terminal_solo_sessions,
         COALESCE((SELECT SUM(duplicate_write_attempts) FROM combat_balance_battles ${buildWhere(filters)}), 0)
-          AS duplicate_write_attempts,
-        COALESCE((SELECT SUM(write_error_count) FROM combat_balance_battles ${buildWhere(filters)}), 0)
-          AS write_error_count
+          AS duplicate_write_attempts
     `);
     const row = rows[0];
 
     return {
       analyticsBattles: toInt(row?.analytics_battles),
       terminalSoloSessions: toInt(row?.terminal_solo_sessions),
-      duplicateWriteAttempts: toInt(row?.duplicate_write_attempts),
-      writeErrorCount: toInt(row?.write_error_count)
+      duplicateWriteAttempts: toInt(row?.duplicate_write_attempts)
     };
   }
 }
@@ -256,11 +263,13 @@ function mapBattleRow(row: BattleRow): CombatBalanceBattleReportRow {
     mobHpAtEnd: toInt(row.mob_hp_at_end),
     roundsCount: toInt(row.rounds_count),
     playerActionsCount: toInt(row.player_actions_count),
+    manualPlayerActionsCount: toInt(row.manual_player_actions_count),
+    timeoutAutoActionsCount: toInt(row.timeout_auto_actions_count),
+    timeoutSkipActionsCount: toInt(row.timeout_skip_actions_count),
     enemyActionsCount: toInt(row.enemy_actions_count),
     damageDealt: toInt(row.damage_dealt),
     damageTaken: toInt(row.damage_taken),
     healingDone: toInt(row.healing_done),
-    shieldOrDamagePrevented: toInt(row.shield_or_damage_prevented),
     criticalHits: toInt(row.critical_hits),
     misses: toInt(row.misses),
     isTestOrAdmin: toBoolean(row.is_test_or_admin)
@@ -271,6 +280,7 @@ function mapAbilityRow(row: AbilityRow): CombatBalanceAbilityReportRow {
   return {
     combatId: row.combat_id,
     abilityKey: row.ability_key,
+    actionOrigin: row.action_origin as CombatBalanceAbilityReportRow["actionOrigin"],
     abilityRank: toInt(row.ability_rank),
     isClassAbility: toBoolean(row.is_class_ability),
     usesCount: toInt(row.uses_count),
@@ -280,7 +290,6 @@ function mapAbilityRow(row: AbilityRow): CombatBalanceAbilityReportRow {
     missCount: toInt(row.miss_count),
     totalDamage: toInt(row.total_damage),
     totalHealing: toInt(row.total_healing),
-    totalShieldOrPrevented: toInt(row.total_shield_or_prevented),
     resourceSpent: toInt(row.resource_spent)
   };
 }

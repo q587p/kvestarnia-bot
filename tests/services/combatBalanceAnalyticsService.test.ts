@@ -32,6 +32,9 @@ describe("CombatBalanceAnalyticsService", () => {
       playerLevel: 12,
       remortCount: 2,
       mobTemplateKey: "monster.rat",
+      manualPlayerActionsCount: 1,
+      timeoutAutoActionsCount: 1,
+      timeoutSkipActionsCount: 0,
       damageDealt: 9,
       damageTaken: 3
     });
@@ -59,8 +62,7 @@ class FakeCombatBalanceAnalyticsRepository implements CombatBalanceAnalyticsRepo
     return Promise.resolve({
       analyticsBattles: 0,
       terminalSoloSessions: 0,
-      duplicateWriteAttempts: 0,
-      writeErrorCount: 0
+      duplicateWriteAttempts: 0
     });
   }
 }
@@ -77,6 +79,8 @@ function makeSession(): SoloCombatSessionRecord {
   analytics.totals.damageDealt = 9;
   analytics.totals.damageTaken = 3;
   analytics.totals.playerActionsCount = 2;
+  analytics.totals.manualPlayerActionsCount = 1;
+  analytics.totals.timeoutAutoActionsCount = 1;
   analytics.totals.enemyActionsCount = 1;
 
   return {

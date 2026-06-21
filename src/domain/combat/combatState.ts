@@ -164,8 +164,11 @@ export interface CombatTimeoutState {
   lastMissedAt?: string;
 }
 
+export type CombatActionOrigin = "manual" | "timeout-auto-attack" | "timeout-skip";
+
 export interface CombatTurnSummary {
   action: CombatActionType;
+  actionOrigin?: CombatActionOrigin;
   heroOutcome: CombatTurnOutcome;
   monsterOutcome?: CombatTurnOutcome;
   heroDamage: number;

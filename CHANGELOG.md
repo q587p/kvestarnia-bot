@@ -20,8 +20,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added deterministic monster barks for the full 93-monster roster: every monster has five authored Ukrainian lines, and stored turn summaries render bark ids without rerolling old cards.
 - Added focused domain, service, repository, scheduler, callback, keyboard and presenter coverage for defend, unavailable skill no-op behavior, legacy cooldown loading, repeated timeout handling and active-card message tracking.
 - Added a separate persistent-fight intro card for newly started monster fights; the active card below it now carries the buttons and updates each turn.
-- Added opt-in PvE combat balance analytics behind `COMBAT_BALANCE_ANALYTICS_ENABLED`: completed solo/training combats can write one idempotent battle summary plus ability usage rows for class/remort, monster/source and ability reports.
-- Added `npm run report:combat-balance` with class, mob, ability and data-quality views, defaulting to levels 10-15 and excluding test/admin rows.
+- Added opt-in PvE combat balance analytics behind `COMBAT_BALANCE_ANALYTICS_ENABLED`: completed solo/training combats can write one idempotent battle summary plus ability usage rows for class/remort, monster/source and ability reports through the `20260621100000_add_combat_balance_analytics` Prisma migration.
+- Added `npm run report:combat-balance` with class, mob, ability and data-quality views, defaulting to levels 10-15; ability reports default to manual choices and can include timeout auto-actions with `--ability-actions all`.
 
 ### Changed
 - Pressing a class action without enough mana, or while that action is still cooling down, no longer spends mana, advances the turn, ticks cooldowns, triggers a monster response or advances RNG.
@@ -43,12 +43,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Turn-based duels now carry each participant's defend streak into the shared combat resolver, so repeated hidden-round defend choices use the next fatigue tier and non-defend actions clear the streak.
 - Failed flee attempts now count the monster response for deterministic bark state and can store the mandatory early bark by the second committed monster action; successful flee still ends combat without a monster action.
 - Combat timeout handling now preserves the stored Telegram battle-card reference through real resolver/service transitions, records replacement card references after edit fallback, avoids refreshing hard session expiry from scheduler/lazy timeout actions, and paginates due-session discovery so legacy, future or other-kind active rows cannot starve due fights.
+- Scheduled and lazy training doppelganger timeout wins/losses now claim the same XP reward and recovery cooldown as manual terminal turns, persist that reward on the combat session, and replay it idempotently without duplicating XP or cooldowns. Hard expiry remains non-rewarding.
+- Combat analytics now stores action origin (`manual`, `timeout-auto-attack` or `timeout-skip`) before accumulation, separates manual and automatic action counts in battle rows, and avoids presenting timeout basic attacks as player-selected ability usage in default reports.
 
 ### Guardrails
-- No race ability catalog, signature/title ability catalog, monster ability catalog, item/consumable actions, schema migration, reward/economy change, wager, rating, tournament or broad combat coefficient rewrite was added.
+- No race ability catalog, signature/title ability catalog, monster ability catalog, item/consumable actions, reward formula change, economy change, wager, rating, tournament or broad combat coefficient rewrite was added. The only schema migration in this release is the opt-in combat balance analytics tables.
 - Combat analytics stores no Telegram ids, usernames, display names, chat ids or message ids in report rows, and analytics write failures are logged without blocking combat resolution, rewards or resource persistence.
 - Telegram callbacks still carry only compact action keys; mana, cooldowns, damage, mitigation and terminal results remain server-side.
-- The combat timeout scheduler is best-effort and in-process: persisted combat state remains canonical, and no Redis/BullMQ dependency, schema migration or proactive notification table was added.
+- The combat timeout scheduler is best-effort and in-process: persisted combat state remains canonical, repeated unattended turns keep resolving the canonical auto-action until combat ends or hard session expiry is reached, and no Redis/BullMQ dependency or proactive notification table was added.
 
 ## [0.1.20] - 12026-06-20 - Authored Quest Resolutions
 
