@@ -207,7 +207,8 @@ describe("PrismaSoloCombatSessionRepository", () => {
         monsterBarkId: "bark.deadline-spider.early-turn",
         debugTrace: {
           chosenAbilityId: "skill.forceful-strike",
-          legalAbilityIds: ["skill.forceful-strike"]
+          legalAbilityIds: ["skill.forceful-strike"],
+          timeoutMode: "skip"
         }
       }
     });
@@ -530,7 +531,8 @@ function runtimeRoundTripState(): CombatState {
       monsterBarkId: "bark.deadline-spider.early-turn",
       debugTrace: {
         legalAbilityIds: ["skill.forceful-strike"],
-        chosenAbilityId: "skill.forceful-strike"
+        chosenAbilityId: "skill.forceful-strike",
+        timeoutMode: "skip"
       }
     }
   };

@@ -15,6 +15,7 @@ import type {
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   expireCombat,
+  markCombatTurnTimeoutMode,
   resolveCombatTurn,
   startCombat,
   type CombatActionType
@@ -212,7 +213,9 @@ export class TrainingDoppelgangerService {
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
       rng: this.rng
     });
-    const state = resolved.ok ? withNextTrainingTurnExpiry(resolved.state, now) : null;
+    const state = resolved.ok
+      ? markCombatTurnTimeoutMode(withNextTrainingTurnExpiry(resolved.state, now), mode)
+      : null;
 
     if (!state) {
       return session;

@@ -150,6 +150,7 @@ describe("fight command", () => {
     expect(replies[0]?.text).toContain("❤️ Ви: 24/24 · мана 12/12");
     expect(replies[0]?.text).toContain("👹 Монстр: 18/18");
     expect(replies[0]?.text).toContain("⏳ На хід є 23 секунди");
+    expect(replies[0]?.text).toContain("<b>Мандрівник</b>, що робимо?");
     expect(replies[0]?.text).not.toContain("⚔️ Бій");
     expect(replies[0]?.text).not.toContain("Павук дедлайнів");
     expect(replies[0]?.text).not.toContain("Тринадцять дрібних проблем");

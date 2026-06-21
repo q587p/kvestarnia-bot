@@ -363,8 +363,13 @@ function presentPersistentFightState(input: {
     lines.push("", input.statusNote);
   }
 
+  const timeoutNotice = presentTimeoutNotice(state?.lastTurn);
+  if (timeoutNotice) {
+    lines.push("", timeoutNotice);
+  }
+
   if (state?.status === "active") {
-    lines.push(`⏳ На хід є ${PERSISTENT_FIGHT_TURN_SECONDS} секунди. Потім Корчма зарахує звичайну атаку.`);
+    lines.push("", `⏳ На хід є ${PERSISTENT_FIGHT_TURN_SECONDS} секунди. Потім Корчма зарахує звичайну атаку.`);
   }
 
   if (state?.status === "active" && state.cooldowns?.skill?.remainingTurns) {
@@ -419,11 +424,23 @@ function presentPersistentFightState(input: {
   } else {
     lines.push(
       "",
-      "Що робимо?"
+      `<b>${escapeHtml(input.character.name)}</b>, що робимо?`
     );
   }
 
   return lines.join("\n");
+}
+
+function presentTimeoutNotice(summary: CombatTurnSummary | undefined): string | null {
+  if (summary?.debugTrace?.timeoutMode === "auto-attack") {
+    return "⏱️ Попередній хід прострочено: Корчма зарахувала звичайну атаку.";
+  }
+
+  if (summary?.debugTrace?.timeoutMode === "skip") {
+    return "⏱️ Попередній хід прострочено: дію пропущено, а монстр не чекав.";
+  }
+
+  return null;
 }
 
 function presentLostFightQuestLines(progress: ThirteenSmallProblemsProgress | null): string[] {

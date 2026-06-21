@@ -1172,7 +1172,7 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).not.toContain("Щось неупокоєне знайшлося");
     expect(String(fight?.payload.text)).toContain("❤️ Ви:");
     expect(String(fight?.payload.text)).toContain("⏳ На хід є 23 секунди.");
-    expect(String(fight?.payload.text)).toContain("Що робимо?");
+    expect(String(fight?.payload.text)).toContain("<b>Мандрівник</b>, що робимо?");
   });
 
   it.each([
@@ -1961,7 +1961,7 @@ describe("scene callback HTML options", () => {
     );
     expect(String(fight?.payload.text)).toContain("❤️ Ви:");
     expect(String(fight?.payload.text)).toContain("⏳ На хід є 23 секунди.");
-    expect(String(fight?.payload.text)).toContain("Що робимо?");
+    expect(String(fight?.payload.text)).toContain("<b>Мандрівник</b>, що робимо?");
   });
 
   it("rolls back a complication claim when the follow-up fight needs rest", async () => {

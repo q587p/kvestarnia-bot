@@ -243,7 +243,10 @@ describe("TrainingDoppelgangerService", () => {
       expect(result.session.state?.lastTurn).toMatchObject({
         action: "skip",
         heroOutcome: "inactive",
-        heroDamage: 0
+        heroDamage: 0,
+        debugTrace: {
+          timeoutMode: "skip"
+        }
       });
       expect(result.session.state?.lastTurn?.monsterDamage ?? 0).toBeGreaterThan(0);
       expect(result.session.state?.monster.hp).toBe(started.session.state.monster.hp);

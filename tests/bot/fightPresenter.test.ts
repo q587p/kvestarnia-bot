@@ -191,14 +191,16 @@ describe("fight presenter", () => {
     expect(intro).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
     expect(intro).toContain("Проти вас: <b>&lt;i&gt;Монстр&lt;/i&gt;</b> · рівень 3");
     expect(intro).toContain("поки не видає нагород");
-    expect(text).not.toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
+    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
+    expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
     expect(text).not.toContain("Проти вас");
     expect(text).not.toContain("📋 <b>Тринадцять дрібних проблем</b>");
     expect(text).not.toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
     expect(text).toContain("👹 Монстр: 18/18");
+    expect(text).toContain("Хід: 1\n\n⏳ На хід є 23 секунди");
     expect(text).toContain("⏳ На хід є 23 секунди");
-    expect(text).toContain("Що робимо?");
+    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("Не зволікайте надто довго");
     expect(text).not.toContain("Нагорода");
     expect(text).not.toContain("XP");
@@ -374,6 +376,58 @@ describe("fight presenter", () => {
     expect(text).toContain("⏳ На хід є 23 секунди");
     expect(text).not.toContain("Проти вас");
     expect(text).not.toContain("критично дала");
+  });
+
+  it("shows timeout notices for auto-attack and skipped expired turns", () => {
+    const autoAttack = presentPersistentFightTurn({
+      state: "stale-turn",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 4,
+          monsterDamage: 1,
+          manaSpent: 0,
+          critical: false,
+          debugTrace: {
+            timeoutMode: "auto-attack"
+          }
+        }
+      }),
+      monster: null,
+      questProgress: questProgress(4)
+    });
+    const skipped = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "skip",
+          heroOutcome: "inactive",
+          heroDamage: 0,
+          monsterDamage: 3,
+          manaSpent: 0,
+          critical: false,
+          debugTrace: {
+            timeoutMode: "skip"
+          }
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(autoAttack).toContain("Попередній хід прострочено: Корчма зарахувала звичайну атаку.");
+    expect(skipped).toContain("Попередній хід прострочено: дію пропущено, а монстр не чекав.");
   });
 
   it("renders stored monster bark ids without rerolling copy", () => {

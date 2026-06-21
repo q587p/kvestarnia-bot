@@ -31,6 +31,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Contextual monster traits affect only combat texture and small stat modifiers. They do not change encounter eligibility, Yeger matching/progress, XP, gold, loot, authored monster level or stored rewards.
 - The contextual-monster package was adapted into the current content/runtime shape; the monster ability/loadout extension remains out of scope.
 - Active persistent monster fight cards now show HP/mana, turn number and the visible 23-second timeout rule directly on the button message, and active solo/training cards store their Telegram message reference for scheduled edits.
+- Active persistent monster fight cards now leave a visual gap before the 23-second timeout note, address the character by name before the next-action prompt and show whether the previous overdue turn became an auto-attack or a skipped hero action.
 - Persistent monster barks now render as Telegram blockquotes after the `🗣️ Монстр` marker.
 - Fight and hunt result cards no longer append generic `Наступний крок` command prompts.
 

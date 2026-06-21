@@ -6,6 +6,7 @@ export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
 export type CombatActionType = "attack" | "defend" | "skill" | "flee" | "skip";
 export type PlayerCombatActionType = Exclude<CombatActionType, "skip">;
 export type CombatDamageKind = "physical" | "spell" | "social" | "trick";
+export type CombatTimeoutMode = "auto-attack" | "skip";
 export type CombatTurnOutcome =
   | "hit"
   | "critical-hit"
@@ -77,6 +78,7 @@ export interface CombatDebugTrace {
   contextTraitIds?: string[];
   contextBranchIds?: string[];
   contextCueId?: string;
+  timeoutMode?: CombatTimeoutMode;
 }
 
 export interface CombatContextModifiers {
@@ -276,6 +278,26 @@ export function expireCombat(state: CombatState): CombatState {
       monsterDamage: 0,
       manaSpent: 0,
       critical: false
+    }
+  };
+}
+
+export function markCombatTurnTimeoutMode(
+  state: CombatState,
+  timeoutMode: CombatTimeoutMode
+): CombatState {
+  if (!state.lastTurn) {
+    return state;
+  }
+
+  return {
+    ...state,
+    lastTurn: {
+      ...state.lastTurn,
+      debugTrace: {
+        ...state.lastTurn.debugTrace,
+        timeoutMode
+      }
     }
   };
 }

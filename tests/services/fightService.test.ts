@@ -3218,6 +3218,7 @@ describe("FightService", () => {
     if (result.state === "stale-turn") {
       expect(result.session.state?.turn).toBe(2);
       expect(result.session.state?.lastTurn?.action).toBe("attack");
+      expect(result.session.state?.lastTurn?.debugTrace?.timeoutMode).toBe("auto-attack");
       expect(result.session.state?.turnExpiresAt).toBe("2026-06-12T10:30:23.000Z");
     }
     expect(sessions.updateCount).toBe(1);
@@ -3252,7 +3253,10 @@ describe("FightService", () => {
       expect(result.session.state?.lastTurn).toMatchObject({
         action: "skip",
         heroOutcome: "inactive",
-        heroDamage: 0
+        heroDamage: 0,
+        debugTrace: {
+          timeoutMode: "skip"
+        }
       });
       expect(result.session.state?.lastTurn?.monsterDamage ?? 0).toBeGreaterThan(0);
       expect(result.session.state?.monster.hp).toBe(80);

@@ -27,6 +27,7 @@ import {
   buildCombatWorldContext,
   createCombatBarkState,
   getCombatSkillProfile,
+  markCombatTurnTimeoutMode,
   resolveCombatTurn,
   resolveMonsterContext,
   startCombat,
@@ -499,7 +500,10 @@ export class FightService {
       rng: this.rng
     });
     const resolvedState = resolved.ok
-      ? withNextTurnExpiry(stampCombatCompletedAt(resolved.state, now), now)
+      ? markCombatTurnTimeoutMode(
+          withNextTurnExpiry(stampCombatCompletedAt(resolved.state, now), now),
+          mode
+        )
       : null;
 
     if (!resolvedState) {

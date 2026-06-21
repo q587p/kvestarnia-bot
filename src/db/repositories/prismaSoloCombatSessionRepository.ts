@@ -789,6 +789,9 @@ function parseCombatDebugTrace(value: unknown): CombatDebugTrace | null {
   const interventionKind = value.interventionKind === "help" || value.interventionKind === "none" || value.interventionKind === "hinder"
     ? value.interventionKind
     : null;
+  const timeoutMode = value.timeoutMode === "auto-attack" || value.timeoutMode === "skip"
+    ? value.timeoutMode
+    : null;
   const copiedEquipmentCount = intOrNull(value.copiedEquipmentCount);
   const baseMonsterLevel = intOrNull(value.baseMonsterLevel);
   const effectiveMonsterLevel = intOrNull(value.effectiveMonsterLevel);
@@ -818,7 +821,8 @@ function parseCombatDebugTrace(value: unknown): CombatDebugTrace | null {
     ...(Array.isArray(value.contextBranchIds)
       ? { contextBranchIds: parseStringArray(value.contextBranchIds) }
       : {}),
-    ...(typeof value.contextCueId === "string" ? { contextCueId: value.contextCueId } : {})
+    ...(typeof value.contextCueId === "string" ? { contextCueId: value.contextCueId } : {}),
+    ...(timeoutMode ? { timeoutMode } : {})
   };
 
   return Object.keys(trace).length > 0 ? trace : null;
