@@ -31,6 +31,10 @@ export interface SoloCombatSessionCompletionRecord {
   state: CombatState | null;
 }
 
+export interface DueSoloCombatSessionRecord extends SoloCombatSessionRecord {
+  telegramUserId: bigint;
+}
+
 export interface CreateSoloCombatSessionInput {
   id?: string;
   monsterId: string;
@@ -53,6 +57,14 @@ export interface RecordSoloCombatRewardInput {
 
 export interface SoloCombatSessionRepository {
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<SoloCombatSessionRecord | null>;
+  listDueActiveSessions?(
+    now: Date,
+    options?: {
+      limit?: number;
+      monsterIds?: readonly string[];
+      excludeMonsterIds?: readonly string[];
+    }
+  ): Promise<DueSoloCombatSessionRecord[]>;
   countWonByTelegramUserId(
     telegramUserId: bigint,
     options?: { excludeMonsterIds?: readonly string[]; since?: Date }

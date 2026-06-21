@@ -42,15 +42,20 @@ spell_damage = spell_base + floor(INT * 0.9) + level_bonus - target_resist
 ```
 
 ### Бойові варіянти й мана
-Наступний combat pass має рахувати не одну кнопку `Вдарити`, а typed бойові варіянти:
+`0.1.21` починає переносити бій із однієї кнопки `Вдарити` до typed бойових варіянтів:
 - `physical`: сила/спритність/зброя, без витрати мани.
+- `guard`: захист поточного раунду без прямої шкоди як основного плану.
 - `spell`: розум/рівень/магічний focus, мала витрата мани.
 - `social` або `trick`: харизма, спритність чи вдача, менша пряма шкода, але debuff/control/reward flavor.
 - `class-special`: класова дія з власним cooldown або resource cost, якщо вона сильніша за базову атаку.
 
-Магічні й містичні дії мають показувати витрату в UI, наприклад `🔮 -2 мани`, і не зʼїдати ману, якщо reward callback уже зарахований або дія стала stale.
+Магічні й містичні дії мають показувати витрату в UI, наприклад `🔮 -2 мани`, і не зʼїдати ману, якщо reward callback уже зарахований, дія стала stale, бракує мани або вміння ще на cooldown. У таких випадках action attempt є no-op: без витрати ресурсу, без ходу ворога, без cooldown tick і без RNG advancement.
 
 Race/class/combo modifiers мають бути малими й симульованими. Вони можуть змінювати odds, damage band, crit flavor або доступну назву дії, але не мають робити мага без мани безпорадним чи воїна без spell-кнопки нудним.
+
+Foundation cooldown rule in `0.1.21`: existing class skills use ability-keyed cooldowns and become available after one subsequent own committed action. This replaces the older hidden non-mana `3..5` turn roll for current class actions. Longer milestone abilities should be introduced explicitly by future content, not by restoring a hidden random cooldown.
+
+Monster context rule in `0.1.21`: persistent solo fights freeze a Kyiv-local context snapshot at combat start and may apply up to two small authored monster traits. The modifiers are capped texture for the fight itself; they must not alter XP, gold, loot, Yeger progress, encounter eligibility, authored monster level or replayed rewards. Starter encounters may use context as flavor-only by setting mechanical scale to zero.
 
 Equipment effects для атак мають заходити через один effective-stats/equipment helper:
 - weapon впливає на physical base або spell focus, якщо це явно магічна зброя;
@@ -123,12 +128,6 @@ level 13: 1300
 `0.1.20` replaces the active Adventure Choice `safe/flair/risky` ladder with authored scene/race/class/signature methods. Quest-resolution checks use the canonical effective stat snapshot, deterministic character/period/scene/method seeding, bounded qualitative chance bands and four grades: `strong-success`, `success`, `mixed-success`, `complication`. Player-facing pre-commit copy stays qualitative: no exact percentages and no exact future rewards.
 
 Reward profiles remain conservative (`modest`, `standard`, `generous`) and consequences vary by authored method: full reward, reduced reward, XP-only, cosmetic mess, paid success or persistent-fight handoff. Small paid methods may cost visible `1..3` gold and must check affordability before claim; `daily_actions.spent_gold` and `result_json` record the chosen method, grade, consequence, cost and check at claim time. Paid adventure/cellar claims debit gold only inside guarded repository transactions, so insufficient gold, stale method ids and duplicate callbacks do not leave partial claims or second charges.
-
-Direct quest injury is conservative and authored per method: minor injury is a small bounded HP loss, serious injury is available only for level 3+ Adventure Choice methods whose fiction supports real physical danger, and both are clamped to leave at least `1 HP`. The stored result payload records HP before/lost/after/max, so duplicate callbacks replay the same audit and do not damage twice. Failed or blocked fight handoff rolls back claim, cost, reward, item grants and HP mutation together.
-
-Follow-up hardening keeps that risk method-owned and makes the audit transactionally precise. Daily and cooldown claims store the exact committed HP audit; cooldown rows also store the cellar result payload for audit and duplicate safety, while the ordinary on-cooldown card remains the player-facing repeat surface. HP loss uses the effective max supplied by the resolver, while the mutation itself is based on fresh database state so two different accepted claims cannot overwrite one another's injury. Result cards keep that audit but render the current health line from the returned post-claim character summary. Rollback compensates the committed HP delta against the current effective max supplied by the service instead of restoring an old absolute HP value, never reduces later HP, and uses guarded retries plus exact applied item grants so later XP/gold/item changes survive the rollback.
-
-Adventure fight handoff targets are selected from scene-fitting eligible monster candidates for the current hero and persisted after selection. The audit id is the id passed into the existing persistent-fight service; if a different already-active fight wins the race, the quest claim rolls back instead of consuming the adventure.
 
 Level 3+ authored Adventure Choice rewards apply a small deterministic post-resolution XP/gold variance around the selected profile and consequence, with bounded LUCK influence. The exact stored reward is written into the daily claim and never rerolled on replay. Non-fight authored Adventure Choice results also have a low LUCK-influenced chance to grant one eligible loot-expansion manatka through the normal item-grant path; starter shawarma keeps its fixed teaching item grants, while the level 2-3 cellar mouse stays intentionally tiny and cannot become a better farm through paid methods.
 
@@ -289,7 +288,7 @@ Junk, cosmetics, priceless trophies і quest badges не мають випадк
 
 Hunt Board лишається простим для входу: один контракт на годину і три дії. Після появи рівнів `4-13` дошка не повинна застрягати на старих рівнях `1-3`: вона обирає звичайних небосів поруч із рівнем героя (`рівень - 2 ... рівень`), а якщо persisted або fallback-контракт значно слабший, XP стискається до `1`. Це синхронізує `/hunt` із persistent solo fight selection без перетворення дошки на повний combat loop.
 
-`0.0.20` реалізує перший domain-only combat engine з цим fallback-ом. Поточні numbers навмисно прості: same-level ordinary fight має вкладатися приблизно в 2-5 ходів, skill damage витрачає ману там, де це доречно, flee завершує бій окремим статусом, а loss не означає reward win. До підключення persistent `/fight` ці формули не видають лут і не змінюють live HP/mana в БД.
+`0.0.20` реалізує перший domain-only combat engine з цим fallback-ом. Поточні numbers навмисно прості: same-level ordinary fight має вкладатися приблизно в 2-5 ходів, skill damage витрачає ману там, де це доречно, flee завершує бій окремим статусом, а loss не означає reward win. До підключення persistent `/fight` ці формули не видавали лут і не змінювали live HP/mana в БД. `0.1.21` adds `defend`: it reduces incoming damage for the current round and can rarely counter in PvE, but repeated defending fatigues the stance so it does not become a stall strategy.
 
 `0.0.16` піднімає raid reward math: Бочка дає deterministic roll `18-26 XP` і `8-14 золота`, плюс фартух і детермінований дрібний trophy item. У `0.0.19` це замінено на duration-based reward: рівень 1 лишається в діапазоні `5-8` хвилин, кожен рівень після першого додає `30` секунд до можливого максимуму, а XP/золото лінійно рахуються від фактичної тривалості pending-рейду. На 1 рівні максимум лишається `26 XP` і `14 золота`; на 13 рівні поточний максимум стає `42 XP` і `26 золота`. Фактичні `rewardXp`/`rewardGold` записуються в claim, тому repeated callback не перекидає нагороду й не дублює прогрес. Reliability-частина лишається важливою: period bucket, audit break, pending completion, notification dedupe і beer gate мають лишатися ідемпотентними, без нових шансів на дубль нагороди або безкоштовне частування.
 
@@ -369,6 +368,7 @@ Balance rules:
 - participant choices are hidden until both players choose or the timer fills missing choices, so HP/mana spending is applied at round reveal rather than at the first button press;
 - the turn-based resolver uses the same `resolveActorCombatAction(...)` primitive as PvE, so basic attack, class skill, mana cost, cooldown, armor/resist, weapon/spell/stat effects and HP clamping do not fork into a duel-only formula set;
 - PvP damage uses the normalized effective combat level from the duel progression tier, while visible level/remort in cards stays real;
+- the `0.1.21` defend action stays hidden as a participant choice and applies deterministic same-round incoming damage reduction at reveal time;
 - class skills with incoming-damage mitigation apply that mitigation to the opponent's damage in the same hidden reveal round, independent of Telegram button order;
 - timeout auto-actions are ordinary basic attacks for missing choices, not a separate penalty damage table;
 - max-turn safety resolves as a deterministic draw instead of creating an infinite session.

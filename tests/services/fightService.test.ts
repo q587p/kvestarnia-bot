@@ -13,6 +13,7 @@ import type {
 } from "../../src/db/repositories/dailyActionRepository";
 import type {
   CreateSoloCombatSessionInput,
+  DueSoloCombatSessionRecord,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository,
   SoloCombatSessionStatus,
@@ -45,6 +46,11 @@ import {
   selectPersistentFightMonsterLevel,
   THIRTEEN_SMALL_PROBLEMS_QUEST_KEY
 } from "../../src/services/fightService";
+import {
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
+} from "../../src/services/presenceService";
 
 const telegramUserId = 42n;
 
@@ -687,6 +693,45 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
+  it("freezes monster context and bark state when a persistent fight starts", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    const stored = sessions.getById(started.session.id);
+
+    expect(stored?.state?.context).toMatchObject({
+      version: 1,
+      rulesVersion: "monster-context-v1",
+      monsterId: started.monster.id,
+      world: {
+        timezone: "Europe/Kyiv",
+        localDate: "2026-06-12",
+        partySizeBand: "solo"
+      }
+    });
+    expect(stored?.state?.barks).toMatchObject({
+      version: 1,
+      rulesVersion: "monster-barks-v1",
+      audience: "solo"
+    });
+    expect(stored?.state?.monster.contextModifiers).toEqual(stored?.state?.context?.effects);
+  });
+
   it("starts a targeted persistent fight at the highest suitable requested monster level", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { level: 4, xp: 45 });
@@ -1041,7 +1086,7 @@ describe("FightService", () => {
 
   it("falls back to a clamped right-passage monster level when the lower band has no content", async () => {
     const characters = new FakeCharacterRepository();
-    characters.add(telegramUserId, { level: 19, xp: 13_000 });
+    characters.add(telegramUserId, { level: 29, xp: 130_000 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const service = new FightService(
@@ -1058,13 +1103,71 @@ describe("FightService", () => {
 
     expect(started.state).toBe("persistent-active");
     if (started.state === "persistent-active") {
-      expect(started.character.level).toBe(19);
-      expect(started.monster.level).toBe(14);
+      expect(started.character.level).toBe(29);
+      expect(started.monster.level).toBe(24);
       expect(started.session.state?.monster.debugTrace).toMatchObject({
         interventionKind: "help",
-        baseMonsterLevel: 13,
-        effectiveMonsterLevel: 14
+        baseMonsterLevel: 23,
+        effectiveMonsterLevel: 24
       });
+    }
+  });
+
+  it("stores persistent fight origin location in combat state", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      source: "adventure",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      difficulty: "normal"
+    });
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.session.state?.source).toBe("adventure");
+      expect(started.session.state?.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+    }
+  });
+
+  it("defaults ordinary and Yeger persistent fight origins without caller input", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    characters.add(99n, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    const ordinary = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal"
+    });
+    const yeger = await service.getOrStartPersistentFightForTelegramUser(99n, {
+      source: "yeger",
+      target: { tagsAny: ["undead"] }
+    });
+
+    expect(ordinary.state).toBe("persistent-active");
+    expect(yeger.state).toBe("persistent-active");
+    if (ordinary.state === "persistent-active") {
+      expect(ordinary.session.state?.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1);
+    }
+    if (yeger.state === "persistent-active") {
+      expect(yeger.session.state?.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_RANGER_CORNER);
     }
   });
 
@@ -3052,7 +3155,7 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
-  it("wastes the persistent turn when a current skill action lacks mana", async () => {
+  it("does not advance the persistent turn when a current skill action lacks mana", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25, classId: "class.mage", manaCurrent: 0, manaMax: 0 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -3077,12 +3180,94 @@ describe("FightService", () => {
       action: "skill"
     });
 
-    expect(result.state).toBe("updated");
-    if (result.state === "updated") {
+    expect(result.state).toBe("not-enough-mana");
+    if (result.state === "not-enough-mana") {
+      expect(result.reason).toBe("not-enough-mana");
+      expect(result.session.state?.turn).toBe(1);
+      expect(result.session.state?.lastTurn).toBeUndefined();
+    }
+    expect(sessions.updateCount).toBe(0);
+  });
+
+  it("uses a basic attack for an expired persistent combat turn before handling late buttons", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.6])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 80);
+    sessions.setTurnExpiresAt(started.session.id, new Date("2026-06-12T10:29:59.000Z"));
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "defend"
+    });
+
+    expect(result.state).toBe("stale-turn");
+    if (result.state === "stale-turn") {
       expect(result.session.state?.turn).toBe(2);
-      expect(result.session.state?.lastTurn?.heroOutcome).toBe("not-enough-mana");
+      expect(result.session.state?.lastTurn?.action).toBe("attack");
+      expect(result.session.state?.lastTurn?.debugTrace?.timeoutMode).toBe("auto-attack");
+      expect(result.session.state?.timeout?.consecutiveMissedTurns).toBe(1);
+      expect(result.session.state?.turnExpiresAt).toBe("2026-06-12T10:30:23.000Z");
     }
     expect(sessions.updateCount).toBe(1);
+    expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("skips the hero action on the second consecutive timeout recovered from overview", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.6])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 80);
+    sessions.setTurnExpiresAt(started.session.id, new Date("2026-06-12T10:29:59.000Z"));
+    sessions.setTimeoutStreak(started.session.id, 1);
+
+    const result = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(result.state).toBe("persistent-active");
+    if (result.state === "persistent-active") {
+      expect(result.session.state?.turn).toBe(2);
+      expect(result.session.state?.lastTurn).toMatchObject({
+        action: "skip",
+        heroOutcome: "inactive",
+        heroDamage: 0,
+        debugTrace: {
+          timeoutMode: "skip"
+        }
+      });
+      expect(result.session.state?.timeout?.consecutiveMissedTurns).toBe(2);
+      expect(result.session.state?.lastTurn?.monsterDamage ?? 0).toBeGreaterThan(0);
+      expect(result.session.state?.monster.hp).toBe(80);
+      expect(result.session.state?.hero.hp ?? 0).toBeLessThan(started.session.state?.hero.hp ?? 0);
+      expect(result.session.state?.turnExpiresAt).toBe("2026-06-12T10:30:23.000Z");
+    }
+    expect(dailyActions.createCount).toBe(0);
   });
 
   it("expires a stale persistent fight lazily without rewards", async () => {
@@ -3115,6 +3300,142 @@ describe("FightService", () => {
       expect(result.session.state?.status).toBe("expired");
     }
     expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("does not expire the third consecutive unattended persistent turn", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 1);
+    sessions.setTurnExpiresAt(started.session.id, new Date("2026-06-12T10:29:59.000Z"));
+    sessions.setTimeoutStreak(started.session.id, 2);
+
+    const due = {
+      ...started.session,
+      state: sessions.getById(started.session.id)?.state,
+      telegramUserId
+    } as DueSoloCombatSessionRecord;
+    const result = await service.resolveDuePersistentFightTurn(due);
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.state?.status).toBe("active");
+      expect(result.session.state?.timeout?.consecutiveMissedTurns).toBe(3);
+      expect(result.session.state?.lastTurn?.action).toBe("attack");
+      expect(result.session.state?.lastTurn?.debugTrace).toMatchObject({
+        timeoutMode: "auto-attack"
+      });
+    }
+    expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("resets the persistent timeout streak after an explicit player action", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.99, 0.9, 0.99, 0.9])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 80);
+    sessions.setTimeoutStreak(started.session.id, 1);
+    sessions.setMessageReference(started.session.id, { chatId: "42", messageId: 587 });
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: started.session.state?.turn ?? 1,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.state?.timeout).toBeUndefined();
+      expect(result.session.state?.message).toEqual({ chatId: "42", messageId: 587 });
+    }
+  });
+
+  it("does not reset the persistent timeout streak for an unavailable skill no-op", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25, classId: "class.mage", manaCurrent: 0, manaMax: 0 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setTimeoutStreak(started.session.id, 1);
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: started.session.state?.turn ?? 1,
+      action: "skill"
+    });
+
+    expect(result.state).toBe("not-enough-mana");
+    expect(sessions.getById(started.session.id)?.state?.timeout?.consecutiveMissedTurns).toBe(1);
+  });
+
+  it("commits only one persistent transition for duplicate due timeout ticks", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.99, 0.9, 0.99, 0.9])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 80);
+    sessions.setTurnExpiresAt(started.session.id, new Date("2026-06-12T10:29:59.000Z"));
+    const due = {
+      ...started.session,
+      state: sessions.getById(started.session.id)?.state,
+      telegramUserId
+    } as DueSoloCombatSessionRecord;
+
+    const first = await service.resolveDuePersistentFightTurn(due);
+    const second = await service.resolveDuePersistentFightTurn(due);
+
+    expect(first.state).toBe("updated");
+    expect(second.state).toBe("skipped");
+    expect(sessions.updateCount).toBe(1);
   });
 });
 
@@ -3636,6 +3957,56 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     this.sessions.set(sessionId, {
       ...session,
       expiresAt
+    });
+  }
+
+  setTurnExpiresAt(sessionId: string, turnExpiresAt: Date): void {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return;
+    }
+
+    this.sessions.set(sessionId, {
+      ...session,
+      state: {
+        ...session.state,
+        turnExpiresAt: turnExpiresAt.toISOString()
+      }
+    });
+  }
+
+  setTimeoutStreak(sessionId: string, consecutiveMissedTurns: number): void {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return;
+    }
+
+    this.sessions.set(sessionId, {
+      ...session,
+      state: {
+        ...session.state,
+        timeout: {
+          consecutiveMissedTurns
+        }
+      }
+    });
+  }
+
+  setMessageReference(sessionId: string, message: NonNullable<CombatState["message"]>): void {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return;
+    }
+
+    this.sessions.set(sessionId, {
+      ...session,
+      state: {
+        ...session.state,
+        message: { ...message }
+      }
     });
   }
 

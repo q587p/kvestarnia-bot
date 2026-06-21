@@ -165,7 +165,8 @@ import {
 import {
   buildFightKeyboard,
   buildFightResultKeyboard,
-  buildPersistentFightResultKeyboard
+  buildPersistentFightResultKeyboard,
+  getPersistentFightOriginLocationId
 } from "./keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "./keyboards/trainingDoppelgangerKeyboard";
 import { buildTurnBasedDuelKeyboard } from "./keyboards/duelKeyboard";
@@ -244,6 +245,7 @@ import {
   presentFightResult,
   presentFightStart,
   presentPersistentFight,
+  presentPersistentFightIntro,
   presentPersistentFightTurn
 } from "./presenters/fightPresenter";
 import {
@@ -868,7 +870,7 @@ async function redirectCombatLockIfNeeded(
   if (lock.state === "persistent-active") {
     await answerCombatLockCallback(ctx);
     await refreshCombatLockPresence(ctx, services.presence, {
-      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+      locationId: getPersistentFightOriginLocationId(lock.session),
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
     });
@@ -880,7 +882,9 @@ async function redirectCombatLockIfNeeded(
 
   if (lock.state === "training-active") {
     const training = services.trainingDoppelganger
-      ? await services.trainingDoppelganger.getStartOptionsForTelegramUser(telegramUserId)
+      ? await services.trainingDoppelganger.getStartOptionsForTelegramUser(telegramUserId, {
+          expiredTurnMode: "skip"
+        })
       : null;
 
     await answerCombatLockCallback(ctx);
@@ -897,11 +901,18 @@ async function redirectCombatLockIfNeeded(
       return true;
     }
 
+    if (training?.state === "terminal") {
+      await sendCombatLockText(ctx, presentCombatLockRedirect(presentTrainingDoppelganger(training)), {
+        reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character)
+      });
+      return true;
+    }
+
     await sendCombatLockText(
       ctx,
       "🥊 Тренування вже триває.\n\nСпершу завершіть цей бій, тоді корчма знову відпустить вас до інших справ.",
       {
-      reply_markup: buildTrainingDoppelgangerKeyboard(lock.session, lock.character)
+        reply_markup: buildTrainingDoppelgangerKeyboard(lock.session, lock.character)
       }
     );
     return true;
@@ -1632,6 +1643,14 @@ async function handlePlaceCallback(
     return;
   }
 
+  if (action === "ranger-corner") {
+    await sendHuntBoard(ctx, services.yeger, "edit", {
+      presence: services.presence,
+      tavernRaid: services.tavern
+    });
+    return;
+  }
+
   if (action === "quest-table") {
     await sendQuestHub(
       ctx,
@@ -2301,6 +2320,7 @@ async function handleAdventureCallback(
         telegramUserId,
         {
           source: "adventure",
+          originLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
           difficulty: "normal",
           ...(result.fightEncounter
             ? { target: { monsterIds: [result.fightEncounter.monsterId] } }
@@ -2406,6 +2426,10 @@ async function handleAdventureCallback(
         complicationFight.state === "persistent-active" ||
         complicationFight.state === "persistent-terminal"
       ) {
+        if (complicationFight.state === "persistent-active" && complicationFight.started) {
+          await ctx.reply(presentPersistentFightIntro(complicationFight), HTML_MESSAGE_OPTIONS);
+        }
+
         await ctx.reply(presentPersistentFight(complicationFight), {
           ...HTML_MESSAGE_OPTIONS,
           reply_markup: buildPersistentFightResultKeyboard(
@@ -3058,6 +3082,10 @@ async function handleYegerCallback(
           tracking: result.tracking
         })
       });
+      if (result.fight.state === "persistent-active" && result.fight.started) {
+        await ctx.reply(presentPersistentFightIntro(result.fight), HTML_MESSAGE_OPTIONS);
+      }
+
       await ctx.reply(presentPersistentFight(result.fight), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPersistentFightResultKeyboard(result.fight.session, result.fight.character)
@@ -3104,6 +3132,10 @@ async function handleYegerCallback(
         : presentYegerTrackingBlockedByOtherFight();
 
       await safeEditMessageText(ctx, trackingIntro, HTML_MESSAGE_OPTIONS);
+      if (fight.state === "persistent-active" && fight.started) {
+        await ctx.reply(presentPersistentFightIntro(fight), HTML_MESSAGE_OPTIONS);
+      }
+
       await ctx.reply(presentPersistentFight(fight), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPersistentFightResultKeyboard(fight.session, fight.character)

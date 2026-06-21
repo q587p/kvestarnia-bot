@@ -4,6 +4,7 @@ import { monsters } from "../../src/content/monsters";
 import {
   deriveMonsterCombatStats,
   expireCombat,
+  cloneCombatState,
   getCombatSkillProfile,
   getCombatActionAvailability,
   rollBasicAttack,
@@ -344,6 +345,132 @@ describe("combat domain engine", () => {
     });
   });
 
+  it("preserves the active Telegram card reference when cloning combat state", () => {
+    const state: CombatState = {
+      ...startCombat({ hero: warrior, monster }),
+      message: {
+        chatId: "42",
+        messageId: 587
+      }
+    };
+    const cloned = cloneCombatState(state);
+
+    expect(cloned.message).toEqual({
+      chatId: "42",
+      messageId: 587
+    });
+    expect(cloned.message).not.toBe(state.message);
+  });
+
+  it.each(["attack", "defend", "skill", "flee", "skip"] as const)(
+    "preserves the active Telegram card reference through a %s transition",
+    (action) => {
+      const state: CombatState = {
+        ...startCombat({
+          hero: {
+            ...warrior,
+            manaCurrent: warrior.manaMax
+          },
+          monster: {
+            ...monster,
+            hpMax: 80
+          }
+        }),
+        message: {
+          chatId: "42",
+          messageId: 587
+        }
+      };
+
+      const result = resolveCombatTurn({
+        state,
+        action,
+        hero: warrior,
+        monster: {
+          ...monster,
+          hpMax: 80
+        },
+        rng: new FakeRandomSource([0.99, 0.9, 0.99, 0.9, 0.99, 0.9])
+      });
+
+      expect(result.state.message).toEqual({
+        chatId: "42",
+        messageId: 587
+      });
+      expect(result.state.message).not.toBe(state.message);
+    }
+  );
+
+  it("counts failed flee responses as monster actions for mandatory early barks", () => {
+    const barkingMonster: MonsterCombatStats = {
+      ...monster,
+      monsterId: "monster.basement-mouse-with-title",
+      level: 1,
+      hpMax: 18,
+      tags: ["beast", "title"]
+    };
+    const initialState: CombatState = {
+      ...startCombat({ id: "flee-bark-session", hero: warrior, monster: barkingMonster }),
+      id: "flee-bark-session"
+    };
+
+    const first = resolveCombatTurn({
+      state: initialState,
+      action: "flee",
+      hero: warrior,
+      monster: barkingMonster,
+      rng: new FakeRandomSource([0.99, 0.1, 0.5])
+    });
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error("Expected first failed flee.");
+    }
+    expect(first.state.status).toBe("active");
+    expect(first.state.barks?.ownActionCountByMonsterId[barkingMonster.monsterId]).toBe(1);
+    expect(first.summary.monsterBarkId).toBeUndefined();
+
+    const second = resolveCombatTurn({
+      state: first.state,
+      action: "flee",
+      hero: warrior,
+      monster: barkingMonster,
+      rng: new FakeRandomSource([0.99, 0.1, 0.5])
+    });
+    expect(second.ok).toBe(true);
+    if (!second.ok) {
+      throw new Error("Expected second failed flee.");
+    }
+    expect(second.state.barks?.ownActionCountByMonsterId[barkingMonster.monsterId]).toBe(2);
+    expect(second.summary.monsterBarkId).toBe("bark.basement-mouse-with-title.early-turn");
+    expect(second.state.barks?.emittedBarkIds).toContain("bark.basement-mouse-with-title.early-turn");
+  });
+
+  it("does not count a successful flee as a monster action for bark state", () => {
+    const barkingMonster: MonsterCombatStats = {
+      ...monster,
+      monsterId: "monster.basement-mouse-with-title",
+      level: 1,
+      hpMax: 18,
+      tags: ["beast", "title"]
+    };
+
+    const result = resolveCombatTurn({
+      state: startCombat({ id: "successful-flee-session", hero: warrior, monster: barkingMonster }),
+      action: "flee",
+      hero: warrior,
+      monster: barkingMonster,
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected successful flee.");
+    }
+    expect(result.state.status).toBe("fled");
+    expect(result.state.barks).toBeUndefined();
+    expect(result.summary.monsterBarkId).toBeUndefined();
+  });
+
   it("spends mana for class-shaped skills", () => {
     const result = resolveCombatTurn({
       state: startCombat({ hero: unarmedMage, monster }),
@@ -363,7 +490,7 @@ describe("combat domain engine", () => {
     });
   });
 
-  it("wastes the turn when a current skill action lacks mana", () => {
+  it("leaves state byte-equivalent when a current skill action lacks mana", () => {
     const state = startCombat({
       hero: {
         ...unarmedMage,
@@ -381,9 +508,10 @@ describe("combat domain engine", () => {
       rng: new FakeRandomSource([0])
     });
 
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("not-enough-mana");
     expect(state).toEqual(before);
-    expect(result.state.turn).toBe(2);
+    expect(result.state).toEqual(before);
     expect(result.summary).toMatchObject({
       heroOutcome: "not-enough-mana",
       heroDamage: 0,
@@ -422,40 +550,164 @@ describe("combat domain engine", () => {
     });
   });
 
-  it("puts zero-mana class skills on deterministic cooldown and treats cooldown presses as failed turns", () => {
+  it("puts class skills on one intervening own action cooldown and treats cooldown presses as no-op", () => {
+    const sturdyMonster = { ...monster, hpMax: 80 };
     const first = resolveCombatTurn({
-      state: startCombat({ hero: warrior, monster }),
+      state: startCombat({ hero: warrior, monster: sturdyMonster }),
       action: "skill",
       hero: warrior,
-      monster,
+      monster: sturdyMonster,
       rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
     });
 
     expect(first.ok).toBe(true);
     expect(first.state.cooldowns?.skill).toEqual({
       id: "skill.forceful-strike",
-      remainingTurns: 3
+      remainingTurns: 1
+    });
+    expect(first.state.cooldowns?.abilities?.["skill.forceful-strike"]).toEqual({
+      id: "skill.forceful-strike",
+      remainingTurns: 1
     });
 
     const second = resolveCombatTurn({
       state: first.state,
       action: "skill",
       hero: warrior,
-      monster,
+      monster: sturdyMonster,
       rng: new FakeRandomSource([0])
     });
 
-    expect(second.ok).toBe(true);
-    expect(second.state.turn).toBe(first.state.turn + 1);
-    expect(second.state.cooldowns?.skill).toEqual({
-      id: "skill.forceful-strike",
-      remainingTurns: 2
+    expect(second.ok).toBe(false);
+    expect(second.reason).toBe("skill-on-cooldown");
+    expect(second.state).toEqual(first.state);
+    const attack = resolveCombatTurn({
+      state: first.state,
+      action: "attack",
+      hero: warrior,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
     });
-    expect(second.summary).toMatchObject({
-      heroOutcome: "skill-on-cooldown",
+    expect(attack.ok).toBe(true);
+    if (!attack.ok) {
+      throw new Error("Expected attack to resolve.");
+    }
+    expect(attack.state.cooldowns?.skill).toBeUndefined();
+    const third = resolveCombatTurn({
+      state: attack.state,
+      action: "skill",
+      hero: warrior,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
+    });
+    expect(third.ok).toBe(true);
+    if (!third.ok) {
+      throw new Error("Expected class action to resolve after one intervening action.");
+    }
+    expect(third.state.cooldowns?.skill).toEqual({
+      id: "skill.forceful-strike",
+      remainingTurns: 1
+    });
+  });
+
+  it("normalizes legacy skill cooldown into the ability map", () => {
+    const state: CombatState = {
+      ...startCombat({ hero: warrior, monster }),
+      cooldowns: {
+        skill: {
+          id: "skill.forceful-strike",
+          remainingTurns: 1
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected attack to resolve.");
+    }
+    expect(result.state.cooldowns).toBeUndefined();
+  });
+
+  it("defends against the next hostile action and tracks guard fatigue", () => {
+    const first = resolveCombatTurn({
+      state: startCombat({ hero: warrior, monster }),
+      action: "defend",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.2, 0.1, 0.9])
+    });
+
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error("Expected defend to resolve.");
+    }
+    expect(first.summary).toMatchObject({
+      action: "defend",
+      heroOutcome: "defended",
       heroDamage: 0,
       manaSpent: 0
     });
+    expect(first.state.guard).toEqual({ consecutiveDefends: 1 });
+    expect(first.summary.monsterDamage).toBeLessThan(rollMonsterDamage(warrior, monster, new FakeRandomSource([0.1, 0.9])));
+
+    const second = resolveCombatTurn({
+      state: first.state,
+      action: "defend",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    });
+    expect(second.ok).toBe(true);
+    if (!second.ok) {
+      throw new Error("Expected second defend to resolve.");
+    }
+    expect(second.state.guard).toEqual({ consecutiveDefends: 2 });
+
+    const attack = resolveCombatTurn({
+      state: second.state,
+      action: "attack",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
+    });
+    expect(attack.ok).toBe(true);
+    if (!attack.ok) {
+      throw new Error("Expected attack to resolve.");
+    }
+    expect(attack.state.guard).toBeUndefined();
+  });
+
+  it("does not counter after a lethal monster hit through defend", () => {
+    const state = {
+      ...startCombat({ hero: warrior, monster }),
+      hero: {
+        ...startCombat({ hero: warrior, monster }).hero,
+        hp: 1
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "defend",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.9, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected defend to resolve.");
+    }
+    expect(result.state.status).toBe("lost");
+    expect(result.summary.heroCounterDamage).toBeUndefined();
   });
 
   it("does not resolve inactive combat", () => {

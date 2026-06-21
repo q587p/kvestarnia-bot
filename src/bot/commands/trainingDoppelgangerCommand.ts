@@ -125,18 +125,37 @@ export async function sendTrainingDoppelganger(
   await markTrainingPresence(ctx, options.presence);
   if (result.state === "active") {
     await sendText(ctx, mode, presentTrainingDoppelgangerIntro(result));
-    await sendText(ctx, "reply", presentTrainingDoppelganger(result), {
+    const messageId = await sendText(ctx, "reply", presentTrainingDoppelganger(result), {
       type: "session",
       session: result.session,
       character: result.character
     });
+    await recordTrainingMessage(ctx, service, telegramUserId, result.session.id, messageId);
     return;
   }
 
-  await sendText(ctx, mode, presentTrainingDoppelganger(result), {
+  const messageId = await sendText(ctx, mode, presentTrainingDoppelganger(result), {
     type: "session",
     session: result.session,
     character: result.character
+  });
+  await recordTrainingMessage(ctx, service, telegramUserId, result.session.id, messageId);
+}
+
+async function recordTrainingMessage(
+  ctx: Context,
+  service: TrainingDoppelgangerService,
+  telegramUserId: bigint,
+  sessionId: string,
+  messageId: number | null
+): Promise<void> {
+  if (!messageId || !ctx.chat?.id) {
+    return;
+  }
+
+  await service.recordTrainingDoppelgangerMessageReference(telegramUserId, sessionId, {
+    chatId: String(ctx.chat.id),
+    messageId
   });
 }
 
@@ -172,7 +191,7 @@ async function sendText(
         session: Parameters<typeof buildTrainingDoppelgangerKeyboard>[0];
         character: Parameters<typeof buildTrainingDoppelgangerKeyboard>[1];
       } = false
-): Promise<void> {
+): Promise<number | null> {
   const options = keyboard
     ? {
         parse_mode: "HTML" as const,
@@ -189,8 +208,10 @@ async function sendText(
 
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, options);
-    return;
+    return ctx.callbackQuery?.message?.message_id ?? ctx.message?.message_id ?? null;
   }
 
-  await ctx.reply(text, options);
+  const sent = await ctx.reply(text, options);
+
+  return sent.message_id;
 }

@@ -140,9 +140,7 @@ export function presentHuntResult(result: Exclude<HuntResult, { state: "no-chara
     ...presentRewardScaleHint(result),
     "",
     presentRewardAmount({ ...result.reward, label: "Нагорода" }),
-    ...presentItemGrantBlock(result.reward.itemGrants),
-    "",
-    "Наступний крок: /hero"
+    ...presentItemGrantBlock(result.reward.itemGrants)
   ];
 
   return lines.join("\n");

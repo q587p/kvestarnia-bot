@@ -246,6 +246,7 @@ export class PrismaCharacterRepository implements CharacterRepository {
 const characterRecordInclude = {
   user: {
     select: {
+      telegramUserId: true,
       lastSeenLocationId: true
     }
   },
@@ -257,7 +258,10 @@ const characterRecordInclude = {
 } satisfies Prisma.CharacterInclude;
 
 function toCharacterRecord(
-  character: Character & { user: { lastSeenLocationId: string | null }; _count?: { remorts?: number } }
+  character: Character & {
+    user: { telegramUserId: bigint; lastSeenLocationId: string | null };
+    _count?: { remorts?: number };
+  }
 ): CharacterRecord {
   const { user, ...record } = character;
   delete (record as { _count?: unknown })._count;

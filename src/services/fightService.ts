@@ -9,6 +9,7 @@ import type {
 } from "../db/repositories/characterRepository";
 import type { DailyActionRepository, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import type {
+  DueSoloCombatSessionRecord,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository
 } from "../db/repositories/soloCombatSessionRepository";
@@ -22,12 +23,21 @@ import {
 import {
   deriveMonsterCombatStats,
   expireCombat,
+  applyMonsterContextToStats,
+  buildCombatWorldContext,
+  createCombatBarkState,
   getCombatSkillProfile,
+  markCombatTurnTimeoutMode,
+  recordCombatTimeout,
+  resetCombatTimeout,
   resolveCombatTurn,
+  resolveMonsterContext,
   startCombat,
   type CombatActionType,
   type CombatActorStats,
-  type CombatState
+  type CombatBalanceSource,
+  type CombatState,
+  type MonsterCombatStats
 } from "../domain/combat";
 import { getItemDropChance, rollMonsterLoot } from "../domain/loot";
 import {
@@ -42,6 +52,13 @@ import {
   summarizeAndSyncCharacterResources,
   type ResourceRecoveryNotice
 } from "./characterResourceService";
+import type { CombatBalanceAnalyticsService } from "./combatBalanceAnalyticsService";
+import {
+  normalizePresenceLocationId,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
+} from "./presenceService";
 import {
   MIMIC_SHAWARMA_ADVENTURE_KEY,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
@@ -106,6 +123,7 @@ export const THIRTEEN_SMALL_PROBLEMS_REWARD = {
 };
 export const MONSTER_REST_ELIGIBLE_FIGHT_COUNT = 3;
 export const MONSTER_REST_COOLDOWN_MS = 3 * 60 * 1000;
+export const PERSISTENT_FIGHT_TURN_SECONDS = 23;
 
 export type ProblemQuestStageId = "13" | "23" | "42" | "93";
 
@@ -318,6 +336,7 @@ export type PersistentFightTurnResult =
     }
   | {
       state: "not-enough-mana";
+      reason?: "not-enough-mana" | "skill-on-cooldown";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
@@ -339,6 +358,32 @@ export type PersistentFightTurnResult =
       questProgress: ThirteenSmallProblemsProgress;
       fightReward: PersistentFightReward | null;
     };
+
+export type PersistentFightTimeoutResult =
+  | { state: "skipped" }
+  | {
+      state: "updated";
+      telegramUserId: bigint;
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      monster: MonsterContent;
+      questProgress: ThirteenSmallProblemsProgress;
+      fightReward: PersistentFightReward | null;
+    }
+  | {
+      state: "terminal";
+      telegramUserId: bigint;
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      monster: MonsterContent | null;
+      questProgress: ThirteenSmallProblemsProgress;
+      fightReward: PersistentFightReward | null;
+    };
+
+export interface CombatMessageReferenceInput {
+  chatId: string;
+  messageId: number;
+}
 
 export interface FightReward {
   xp: number;
@@ -406,6 +451,7 @@ const ZERO_GOLD_ITEM_DROP_CHANCE = 0.93;
 
 export interface PersistentFightStartOptions {
   source?: "normal" | "yeger" | "adventure";
+  originLocationId?: string;
   difficulty?: PersistentFightDifficultyId;
   target?: {
     tagsAny?: string[];
@@ -420,8 +466,106 @@ export class FightService {
     private readonly clock: Clock = systemClock,
     private readonly combatSessions?: SoloCombatSessionRepository,
     private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly equipment?: EquipmentRepository
+    private readonly equipment?: EquipmentRepository,
+    private readonly combatAnalytics?: CombatBalanceAnalyticsService
   ) {}
+
+  private async advanceExpiredPersistentTurn(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    character: CharacterSummary,
+    monster: MonsterContent,
+    mode: "auto-attack" | "skip" = "auto-attack"
+  ): Promise<SoloCombatSessionRecord> {
+    if (!this.combatSessions || session.status !== "active" || session.state?.status !== "active") {
+      return session;
+    }
+
+    const now = this.clock();
+    if (isExpired(session, now)) {
+      return this.expirePersistentSession(telegramUserId, session, now);
+    }
+
+    if (!session.state.turnExpiresAt) {
+      const state = withNextTurnExpiry(session.state, now);
+      const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+        state,
+        status: state.status
+      });
+
+      return updated ?? { ...session, state };
+    }
+
+    if (!isTurnExpired(session.state, now)) {
+      return session;
+    }
+
+    const timeoutMode = getNextTimeoutMode(mode);
+
+    const resolved = resolveCombatTurn({
+      state: session.state,
+      action: timeoutMode === "skip" ? "skip" : "attack",
+      actionOrigin: timeoutMode === "skip" ? "timeout-skip" : "timeout-auto-attack",
+      hero: buildHeroCombatStats(character),
+      monster: buildPersistentMonsterCombatStats(monster, session.state),
+      rng: this.rng
+    });
+    const resolvedState = resolved.ok
+      ? markCombatTurnTimeoutMode(
+          withNextTurnExpiry(stampCombatCompletedAt(recordCombatTimeout(resolved.state, now), now), now),
+          timeoutMode
+        )
+      : null;
+
+    if (!resolvedState) {
+      return session;
+    }
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+      state: resolvedState,
+      status: resolvedState.status
+    });
+
+    if (!updated) {
+      return session;
+    }
+
+    if (updated.status !== "active") {
+      await this.persistCharacterResourcesFromSession(telegramUserId, updated);
+    }
+
+    return updated;
+  }
+
+  private async expirePersistentSession(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    now: Date
+  ): Promise<SoloCombatSessionRecord> {
+    if (!this.combatSessions) {
+      return session;
+    }
+
+    if (!session.state) {
+      return await this.combatSessions.markStatusById(session.id, "expired") ?? {
+        ...session,
+        status: "expired"
+      };
+    }
+
+    const expiredState = stampCombatCompletedAt(expireCombat(session.state), now);
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+      state: expiredState,
+      status: expiredState.status
+    });
+
+    if (!updated) {
+      return session;
+    }
+
+    await this.persistCharacterResourcesFromSession(telegramUserId, updated);
+
+    return updated;
+  }
 
   async getOrStartPersistentFightForTelegramUser(
     telegramUserId: bigint,
@@ -572,13 +716,134 @@ export class FightService {
       };
     }
 
+    const refreshedSession = await this.advanceExpiredPersistentTurn(
+      telegramUserId,
+      activeSession,
+      characterSummary,
+      monster,
+      "skip"
+    );
+    if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
+      return {
+        state: "persistent-terminal",
+        character: characterSummary,
+        session: refreshedSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          refreshedSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
     return {
       state: "persistent-active",
       character: characterSummary,
-      session: activeSession,
+      session: refreshedSession,
       monster,
       questProgress
     };
+  }
+
+  async listDuePersistentFightTurns(options: { limit?: number } = {}): Promise<DueSoloCombatSessionRecord[]> {
+    if (!this.combatSessions?.listDueActiveSessions) {
+      return [];
+    }
+
+    const due = await this.combatSessions.listDueActiveSessions(this.clock(), {
+      ...options,
+      excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID]
+    });
+
+    return due.filter((session) =>
+      session.status === "active" &&
+      session.state?.status === "active" &&
+      !isTrainingDoppelgangerMonsterId(session.monsterId)
+    );
+  }
+
+  async resolveDuePersistentFightTurn(
+    due: DueSoloCombatSessionRecord
+  ): Promise<PersistentFightTimeoutResult> {
+    const character = await this.characters.findByTelegramUserId(due.telegramUserId);
+
+    if (!character || !due.state || due.status !== "active" || due.state.status !== "active") {
+      return { state: "skipped" };
+    }
+
+    const characterSummary = await this.summarizeCharacterWithEquipment(due.telegramUserId, character);
+    const monster = findPersistentFightMonster(due);
+
+    if (!monster) {
+      return { state: "skipped" };
+    }
+
+    const questProgress = await this.getThirteenSmallProblemsProgress(due.telegramUserId);
+    const refreshedSession = await this.advanceExpiredPersistentTurn(
+      due.telegramUserId,
+      due,
+      characterSummary,
+      monster
+    );
+
+    if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
+      return {
+        state: "terminal",
+        telegramUserId: due.telegramUserId,
+        character: characterSummary,
+        session: refreshedSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          due.telegramUserId,
+          refreshedSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    if (refreshedSession.id === due.id && refreshedSession.state?.turn === due.state.turn) {
+      return { state: "skipped" };
+    }
+
+    return {
+      state: "updated",
+      telegramUserId: due.telegramUserId,
+      character: characterSummary,
+      session: refreshedSession,
+      monster,
+      questProgress,
+      fightReward: null
+    };
+  }
+
+  async recordPersistentFightMessageReference(
+    telegramUserId: bigint,
+    sessionId: string,
+    reference: CombatMessageReferenceInput
+  ): Promise<void> {
+    if (!this.combatSessions) {
+      return;
+    }
+
+    const session = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, sessionId);
+
+    if (session?.status !== "active" || session.state?.status !== "active") {
+      return;
+    }
+
+    await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+      state: {
+        ...session.state,
+        message: reference
+      },
+      status: session.state.status,
+      expiresAt: session.expiresAt
+    });
   }
 
   async getProblemQuestProgressForTelegramUser(
@@ -710,10 +975,32 @@ export class FightService {
           };
         }
 
+        const refreshedSession = await this.advanceExpiredPersistentTurn(
+          telegramUserId,
+          activeSession,
+          characterSummary,
+          monster
+        );
+        if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
+          return {
+            state: "persistent-terminal",
+            character: characterSummary,
+            session: refreshedSession,
+            monster,
+            questProgress,
+            fightReward: await this.getOrRecoverPersistentFightReward(
+              telegramUserId,
+              refreshedSession,
+              monster,
+              characterSummary
+            )
+          };
+        }
+
         return {
           state: "persistent-active",
           character: characterSummary,
-          session: activeSession,
+          session: refreshedSession,
           monster,
           questProgress
         };
@@ -762,22 +1049,52 @@ export class FightService {
       : selectSoloFightMonster(characterSummary, this.rng, difficulty);
     const monster = applyPersistentFightDifficulty(baseMonster, characterSummary, difficulty);
     const sessionId = randomUUID();
+    const now = this.clock();
+    const worldContext = buildCombatWorldContext({
+      now,
+      partySize: 1,
+      locationTags: buildPersistentFightLocationTags(options.source ?? "normal")
+    });
+    const monsterContext = resolveMonsterContext({ monster, world: worldContext });
+    const monsterStats = applyMonsterContextToStats(
+      deriveMonsterCombatStats(monster),
+      monsterContext
+    );
     const state = startCombat({
       id: sessionId,
       hero: buildHeroCombatStats(characterSummary),
-      monster: deriveMonsterCombatStats(monster)
+      monster: monsterStats
     });
+    state.turnExpiresAt = getTurnExpiry(now).toISOString();
     state.source = options.source ?? "normal";
-    state.monster.debugTrace = buildPersistentFightInterventionTrace(
-      baseMonster,
-      monster,
-      difficulty
-    );
+    state.originLocationId = resolvePersistentFightOriginLocationId(options);
+    if (monsterContext) {
+      state.context = monsterContext;
+    }
+    state.barks = createCombatBarkState({ monsterId: monster.id, seed: sessionId, audience: "solo" });
+    state.monster.debugTrace = {
+      ...state.monster.debugTrace,
+      ...buildPersistentFightInterventionTrace(baseMonster, monster, difficulty)
+    };
+    const analytics = this.combatAnalytics?.createInitialState({
+      characterId: character.id,
+      character: characterSummary,
+      monster: monsterStats,
+      combatSource: mapPersistentFightSourceToAnalyticsSource(options.source ?? "normal"),
+      startedAt: now,
+      monsterType: getLootExpansionSourceForMonster(monster),
+      difficultyTier: difficulty.id,
+      baseMonsterLevel: baseMonster.level,
+      effectiveMonsterLevel: monster.level
+    });
+    if (analytics) {
+      state.analytics = analytics;
+    }
     const session = await this.combatSessions.createForTelegramUser(telegramUserId, {
       id: sessionId,
       monsterId: monster.id,
       state,
-      expiresAt: getSessionExpiry(this.clock())
+      expiresAt: getSessionExpiry(now)
     });
 
     if (!session) {
@@ -1063,25 +1380,75 @@ export class FightService {
       };
     }
 
-    if (session.state.turn !== input.turn) {
+    const deadlineSession = await this.advanceExpiredPersistentTurn(
+      telegramUserId,
+      session,
+      characterSummary,
+      monster
+    );
+    if (deadlineSession.id === session.id && deadlineSession.state?.turn !== session.state.turn) {
+      if (deadlineSession.status === "active" && deadlineSession.state?.status === "active") {
+        return {
+          state: "stale-turn",
+          character: characterSummary,
+          session: deadlineSession,
+          monster,
+          questProgress
+        };
+      }
+
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: deadlineSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          deadlineSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    const currentSession = deadlineSession;
+
+    if (!currentSession.state) {
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          currentSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    if (currentSession.state.turn !== input.turn) {
       return {
         state: "stale-turn",
         character: characterSummary,
-        session,
+        session: currentSession,
         monster,
         questProgress
       };
     }
 
     const resolved = resolveCombatTurn({
-      state: session.state,
+      state: currentSession.state,
       action: input.action,
       hero: buildHeroCombatStats(characterSummary),
-      monster: deriveMonsterCombatStats(monster),
+      monster: buildPersistentMonsterCombatStats(monster, currentSession.state),
       rng: this.rng
     });
 
-    if (!resolved.ok) {
+    if (!resolved.ok && resolved.reason !== "not-enough-mana" && resolved.reason !== "skill-on-cooldown") {
       return {
         state: "terminal",
         character: characterSummary,
@@ -1097,8 +1464,22 @@ export class FightService {
       };
     }
 
-    const resolvedState = stampCombatCompletedAt(resolved.state, this.clock());
-    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, input.turn, {
+    if (!resolved.ok) {
+      return {
+        state: "not-enough-mana",
+        reason: resolved.reason === "skill-on-cooldown" ? "skill-on-cooldown" : "not-enough-mana",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress
+      };
+    }
+
+    const resolvedState = withNextTurnExpiry(
+      stampCombatCompletedAt(resetCombatTimeout(resolved.state), this.clock()),
+      this.clock()
+    );
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(currentSession.id, input.turn, {
       state: resolvedState,
       status: resolvedState.status,
       expiresAt: getSessionExpiry(this.clock())
@@ -1463,6 +1844,7 @@ export class FightService {
     monster: MonsterContent | null,
     character: CharacterSummary
   ): Promise<PersistentFightReward | null> {
+    await this.combatAnalytics?.recordTerminalSession(session);
     const replay = buildPersistentFightRewardReplay(session);
 
     if (replay) {
@@ -1618,6 +2000,7 @@ export class FightService {
       hpRegenAt: this.clock(),
       manaRegenAt: this.clock()
     });
+    await this.combatAnalytics?.recordTerminalSession(session);
   }
 
   private async getMonsterRestCooldown(
@@ -1650,6 +2033,22 @@ export class FightService {
 
     return availableAt > now ? { availableAt, now } : null;
   }
+}
+
+function resolvePersistentFightOriginLocationId(options: PersistentFightStartOptions): string {
+  if (options.originLocationId) {
+    return normalizePresenceLocationId(options.originLocationId);
+  }
+
+  if (options.source === "adventure") {
+    return PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
+  }
+
+  if (options.source === "yeger") {
+    return PRESENCE_LOCATION_KORCHMA_RANGER_CORNER;
+  }
+
+  return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1;
 }
 
 function isMonsterRestEligibleSession(
@@ -1956,6 +2355,33 @@ function getSessionExpiry(now: Date): Date {
   return new Date(now.getTime() + 30 * 60 * 1000);
 }
 
+function getTurnExpiry(now: Date): Date {
+  return new Date(now.getTime() + PERSISTENT_FIGHT_TURN_SECONDS * 1000);
+}
+
+function isTurnExpired(state: CombatState | null | undefined, now: Date): boolean {
+  return Boolean(state?.turnExpiresAt && Date.parse(state.turnExpiresAt) <= now.getTime());
+}
+
+function getNextTimeoutMode(
+  fallbackMode: "auto-attack" | "skip"
+): "auto-attack" | "skip" {
+  return fallbackMode;
+}
+
+function withNextTurnExpiry(state: CombatState, now: Date): CombatState {
+  if (state.status !== "active") {
+    const next = { ...state };
+    delete next.turnExpiresAt;
+    return next;
+  }
+
+  return {
+    ...state,
+    turnExpiresAt: getTurnExpiry(now).toISOString()
+  };
+}
+
 function isExpired(session: SoloCombatSessionRecord, now: Date): boolean {
   return session.expiresAt.getTime() <= now.getTime();
 }
@@ -2046,6 +2472,57 @@ function buildPersistentFightInterventionTrace(
     interventionSourceKey: "prypichnyk",
     baseMonsterLevel: baseMonster.level,
     effectiveMonsterLevel: monster.level
+  };
+}
+
+function buildPersistentFightLocationTags(source: NonNullable<PersistentFightStartOptions["source"]>): string[] {
+  if (source === "yeger") {
+    return ["hunt", "outside"];
+  }
+
+  if (source === "adventure") {
+    return ["korchma", "adventure"];
+  }
+
+  return ["korchma", "nyz", "underground", "cellar"];
+}
+
+function mapPersistentFightSourceToAnalyticsSource(
+  source: NonNullable<PersistentFightStartOptions["source"]>
+): CombatBalanceSource {
+  if (source === "adventure") {
+    return "adventure";
+  }
+
+  if (source === "yeger") {
+    return "yeger";
+  }
+
+  return "regular_mob";
+}
+
+function buildPersistentMonsterCombatStats(
+  monster: MonsterContent,
+  state?: CombatState | null
+): MonsterCombatStats {
+  const derived = deriveMonsterCombatStats(monster);
+  const stored = state?.monster;
+
+  if (!stored) {
+    return derived;
+  }
+
+  return {
+    ...derived,
+    level: stored.level ?? derived.level,
+    hpMax: stored.hpMax,
+    attack: stored.attack ?? derived.attack,
+    armor: stored.armor ?? derived.armor,
+    resist: stored.resist ?? derived.resist,
+    dexterity: stored.dexterity ?? derived.dexterity,
+    ...(stored.spellPower !== undefined ? { spellPower: stored.spellPower } : {}),
+    ...(stored.contextModifiers ? { contextModifiers: { ...stored.contextModifiers } } : {}),
+    ...(stored.debugTrace ? { debugTrace: { ...stored.debugTrace } } : {})
   };
 }
 

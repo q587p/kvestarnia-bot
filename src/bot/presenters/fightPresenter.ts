@@ -9,8 +9,9 @@ import type {
   PersistentFightTurnResult,
   ThirteenSmallProblemsProgress
 } from "../../services/fightService";
-import { getCombatSkillDisplay } from "../../services/fightService";
+import { getCombatSkillDisplay, PERSISTENT_FIGHT_TURN_SECONDS } from "../../services/fightService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
+import { findMonsterBark } from "../../content/monsterBarks";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
@@ -152,7 +153,29 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
     ...presentItemGrantBlock(result.reward.itemGrants)
   ];
 
-  lines.push("", "Наступний крок: /hero");
+  return lines.join("\n");
+}
+
+export function presentPersistentFightIntro(
+  result: Extract<FightLookupResult, { state: "persistent-active" }>
+): string {
+  const monsterLevel = result.monster?.level ? ` · рівень ${result.monster.level}` : "";
+  const lines = [
+    "⚔️ Бій",
+    presentCharacterHeader(result.character),
+    "",
+    "Бій триває. Корчма тримає рахунок ходів, але поки не видає нагород."
+  ];
+  const startTip = result.started ? presentBattleStartTip(result.character, result.session.id) : null;
+
+  if (startTip) {
+    lines.push("", startTip);
+  }
+
+  lines.push(
+    "",
+    `Проти вас: <b>${escapeHtml(result.monster?.name ?? "Невідомий монстр")}</b>${monsterLevel}`
+  );
 
   return lines.join("\n");
 }
@@ -160,23 +183,11 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
 export function presentPersistentFight(
   result: Extract<FightLookupResult, { state: "persistent-active" | "persistent-terminal" }>
 ): string {
-  const intro =
-    result.state === "persistent-active"
-      ? "Бій триває. Корчма тримає рахунок ходів, але поки не видає нагород."
-      : "Цей бій уже завершився. Корчма записала стан і не чіпає нагороди.";
-  const startTip = result.state === "persistent-active" && result.started
-    ? presentBattleStartTip(result.character, result.session.id)
-    : null;
-
   return presentPersistentFightState({
     character: result.character,
     session: result.session,
-    monsterName: result.monster?.name ?? "Невідомий монстр",
-    monsterLevel: result.monster?.level ?? null,
     questProgress: result.questProgress,
-    fightReward: result.state === "persistent-terminal" ? result.fightReward : null,
-    intro,
-    startTip
+    fightReward: result.state === "persistent-terminal" ? result.fightReward : null
   });
 }
 
@@ -197,7 +208,9 @@ export function presentPersistentFightTurn(
     }
 
     if (result.state === "not-enough-mana") {
-      return "Мани не стало навіть на драматичний жест. Монстр помітив це першим.";
+      return result.reason === "skill-on-cooldown"
+        ? "Вміння ще відсапується. Корчма показує поточний стан без зайвого удару."
+        : "Мани не стало навіть на драматичний жест. Корчма показує поточний стан без зайвого удару.";
     }
 
     if (result.state === "terminal") {
@@ -210,11 +223,9 @@ export function presentPersistentFightTurn(
   return presentPersistentFightState({
     character: result.character,
     session: result.session,
-    monsterName: result.monster?.name ?? "Невідомий монстр",
-    monsterLevel: result.monster?.level ?? null,
     questProgress: result.questProgress,
     fightReward: result.state === "updated" || result.state === "terminal" ? result.fightReward : null,
-    intro
+    statusNote: intro
   });
 }
 
@@ -337,31 +348,36 @@ function presentItemGrantBlock(itemGrants: Array<{ name: string; quantity: numbe
 function presentPersistentFightState(input: {
   character: CharacterSummary;
   session: { state: Extract<PersistentFightTurnResult, { state: "updated" }>["session"]["state"] };
-  monsterName: string;
-  monsterLevel: number | null;
   questProgress: ThirteenSmallProblemsProgress | null;
   fightReward?: Extract<PersistentFightTurnResult, { state: "updated" }>["fightReward"];
-  intro: string;
-  startTip?: string | null;
+  statusNote?: string;
 }): string {
   const state = input.session.state;
-  const monsterLevel = input.monsterLevel ? ` · рівень ${input.monsterLevel}` : "";
   const lines = [
-    "⚔️ Бій",
-    presentCharacterHeader(input.character),
-    "",
-    input.intro,
-    ...(input.startTip ? ["", input.startTip] : []),
-    "",
-    `Проти вас: <b>${escapeHtml(input.monsterName)}</b>${monsterLevel}`,
-    "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
     `👹 Монстр: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
     `Хід: ${state?.turn ?? "?"}`
   ];
 
+  if (input.statusNote) {
+    lines.push("", input.statusNote);
+  }
+
+  const timeoutNotice = presentTimeoutNotice(state?.lastTurn);
+  if (timeoutNotice) {
+    lines.push("", timeoutNotice);
+  }
+
+  if (state?.status === "active") {
+    lines.push("", `⏳ На хід є ${PERSISTENT_FIGHT_TURN_SECONDS} секунди. Потім Корчма зарахує звичайну атаку.`);
+  }
+
   if (state?.status === "active" && state.cooldowns?.skill?.remainingTurns) {
     lines.push(`🫁 Вміння відсапується: ще ${formatTurns(state.cooldowns.skill.remainingTurns)}.`);
+  }
+
+  if (state?.status === "active" && state.turn === 1 && !state.lastTurn && state.context?.cue) {
+    lines.push("", `🌗 <i>${escapeHtml(state.context.cue.text)}</i>`);
   }
 
   if (state?.lastTurn) {
@@ -376,43 +392,55 @@ function presentPersistentFightState(input: {
     const readyQuestLine =
       input.questProgress?.completed && !input.questProgress.rewardClaimed
         ? "Корчмар уже чує, що проблем вистачило — занесіть це в шинок."
-        : "Наступний крок: /hero або /quest.";
+        : null;
 
     lines.push(
       "",
-      "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою.",
-      readyQuestLine
+      "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою."
     );
+
+    if (readyQuestLine) {
+      lines.push(readyQuestLine);
+    }
   } else if (state?.status === "lost") {
     const questLines = presentLostFightQuestLines(input.questProgress);
 
     lines.push(
       "",
-      questLines.length > 0 ? `💤 Ви програли. ${questLines[0]}` : "💤 Ви програли.",
-      "Спершу /hero, тоді новий бій."
+      questLines.length > 0 ? `💤 Ви програли. ${questLines[0]}` : "💤 Ви програли."
     );
   } else if (state?.status === "fled") {
     lines.push(
       "",
       "🏃 Ви відступили. Тактичний вітер підтримав ваше рішення.",
-      "Справу не зараховано: проблема лишилась дрібною, нахабною і живою.",
-      "Спершу /hero, тоді новий бій."
+      "Справу не зараховано: проблема лишилась дрібною, нахабною і живою."
     );
   } else if (state?.status === "expired") {
     lines.push(
       "",
       "⌛ Бій видихнувся. Монстр теж мав справи.",
-      "Корчмар не ставить галочку за бій, який розійшовся на перерву.",
-      "Спершу /hero, тоді новий бій."
+      "Корчмар не ставить галочку за бій, який розійшовся на перерву."
     );
   } else {
     lines.push(
       "",
-      "Що робимо?"
+      `<b>${escapeHtml(input.character.name)}</b>, що робимо?`
     );
   }
 
   return lines.join("\n");
+}
+
+function presentTimeoutNotice(summary: CombatTurnSummary | undefined): string | null {
+  if (summary?.debugTrace?.timeoutMode === "auto-attack") {
+    return "⏱️ Попередній хід прострочено: Корчма зарахувала звичайну атаку.";
+  }
+
+  if (summary?.debugTrace?.timeoutMode === "skip") {
+    return "⏱️ Попередній хід прострочено: дію пропущено, а монстр не чекав.";
+  }
+
+  return null;
 }
 
 function presentLostFightQuestLines(progress: ThirteenSmallProblemsProgress | null): string[] {
@@ -579,39 +607,58 @@ function presentProblemQuestIssueLine(
 
 function presentTurnSummary(summary: CombatTurnSummary): string {
   if (summary.heroOutcome === "not-enough-mana") {
-    return [
+    return withMonsterBark(summary, [
       "Остання дія",
       "Мани не стало навіть на драматичний жест.",
       summary.monsterDamage > 0
         ? `Монстр скористався паузою на ${summary.monsterDamage} шкоди.`
         : "Монстр скористався паузою, але перечепився об власну впевненість."
-    ].join("\n");
+    ]);
   }
 
   if (summary.heroOutcome === "skill-on-cooldown") {
-    return [
+    return withMonsterBark(summary, [
       "Остання дія",
       "Навичка ще відсапується. Пригодник зробив вигляд, що так і планував.",
       summary.monsterDamage > 0
         ? `Монстр відповів на ${summary.monsterDamage} шкоди.`
         : "Монстр промахнувся й теж назвав це планом."
-    ].join("\n");
+    ]);
+  }
+
+  if (summary.heroOutcome === "defended") {
+    return withMonsterBark(summary, [
+      "Остання дія",
+      "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.",
+      summary.monsterDamage > 0
+        ? `Монстр таки дістав на ${summary.monsterDamage} шкоди.`
+        : "Монстр не знайшов переконливого кута атаки.",
+      summary.heroCounterDamage
+        ? `Контрудар зачепив монстра на ${summary.heroCounterDamage} шкоди.`
+        : ""
+    ].filter(Boolean));
   }
 
   if (summary.heroOutcome === "fled") {
-    return ["Останній хід", "Ви вийшли з бою без переможного фанфарства."].join("\n");
+    return withMonsterBark(summary, ["Останній хід", "Ви вийшли з бою без переможного фанфарства."]);
   }
 
   if (summary.heroOutcome === "flee-failed") {
-    return [
+    return withMonsterBark(summary, [
       "Останній хід",
       "Втеча не вдалася.",
       `Монстр відповів на ${summary.monsterDamage} шкоди.`
-    ].join("\n");
+    ]);
   }
 
   if (summary.heroOutcome === "inactive") {
-    return ["Останній хід", "Бій прострочився без героїчного підпису."].join("\n");
+    return withMonsterBark(summary, [
+      "Останній хід",
+      "Ви не встигли обрати дію.",
+      summary.monsterDamage > 0
+        ? `Монстр скористався паузою на ${summary.monsterDamage} шкоди.`
+        : "Монстр скористався паузою, але не знайшов переконливого кута."
+    ]);
   }
 
   const action =
@@ -631,7 +678,26 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
         ? "Монстр промахнувся й зробив вигляд, що так і планував."
         : "";
 
-  return ["Остання дія", hit, response].filter(Boolean).join("\n");
+  return withMonsterBark(summary, ["Остання дія", hit, response].filter(Boolean));
+}
+
+function withMonsterBark(summary: CombatTurnSummary, lines: string[]): string {
+  const bark = summary.monsterBarkId ? findMonsterBark(summary.monsterBarkId) : null;
+
+  return [
+    ...(bark ? [presentMonsterBarkBlockquote(bark.text), ""] : []),
+    ...lines
+  ].join("\n");
+}
+
+function presentMonsterBarkBlockquote(text: string): string {
+  const barkText = stripOuterUkrainianQuotes(text.trim());
+
+  return `🗣️ Монстр:\n<blockquote>${escapeHtml(barkText)}</blockquote>`;
+}
+
+function stripOuterUkrainianQuotes(text: string): string {
+  return text.startsWith("«") && text.endsWith("»") ? text.slice(1, -1).trim() : text;
 }
 
 function presentSkillAction(skillId: string | undefined): string {

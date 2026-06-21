@@ -29,7 +29,8 @@ import {
   presentFightStart,
   presentFightTrainingActive,
   presentPersistentFightDifficultyChoice,
-  presentPersistentFight
+  presentPersistentFight,
+  presentPersistentFightIntro
 } from "../presenters/fightPresenter";
 import { presentKorchmaDeepClosed } from "../presenters/tavernPresenter";
 import {
@@ -170,11 +171,23 @@ export async function sendFight(
   }
 
   if (result.state === "persistent-active") {
-    await sendResultText(presentPersistentFight(result), {
+    if (mode === "reply" && result.started) {
+      await sendResultText(presentPersistentFightIntro(result));
+      const messageId = await sendText(ctx, "reply", presentPersistentFight(result), {
+        type: "persistent-fight",
+        character: result.character,
+        session: result.session
+      });
+      await recordPersistentFightMessage(ctx, fightService, telegramUserId, result.session.id, messageId);
+      return;
+    }
+
+    const messageId = await sendResultText(presentPersistentFight(result), {
       type: "persistent-fight",
       character: result.character,
       session: result.session
     });
+    await recordPersistentFightMessage(ctx, fightService, telegramUserId, result.session.id, messageId);
     return;
   }
 
@@ -196,11 +209,12 @@ export async function sendFight(
   }
 
   if (result.state === "persistent-terminal") {
-    await sendResultText(presentPersistentFight(result), {
+    const messageId = await sendResultText(presentPersistentFight(result), {
       type: "persistent-fight",
       character: result.character,
       session: result.session
     });
+    await recordPersistentFightMessage(ctx, fightService, telegramUserId, result.session.id, messageId);
     return;
   }
 
@@ -212,12 +226,12 @@ export async function sendFight(
   async function sendResultText(
     text: string,
     keyboard: Parameters<typeof sendText>[3] = false
-  ): Promise<void> {
+  ): Promise<number | null> {
     if (result.state !== "no-character" && result.recoveryNotice && mode === "reply") {
       await sendText(ctx, "reply", presentResourceRecoveryNotice(result.recoveryNotice));
     }
 
-    await sendText(
+    return sendText(
       ctx,
       mode,
       result.state !== "no-character" && mode === "edit"
@@ -226,6 +240,23 @@ export async function sendFight(
       keyboard
     );
   }
+}
+
+async function recordPersistentFightMessage(
+  ctx: Context,
+  fightService: FightService,
+  telegramUserId: bigint,
+  sessionId: string,
+  messageId: number | null
+): Promise<void> {
+  if (!messageId || !ctx.chat?.id) {
+    return;
+  }
+
+  await fightService.recordPersistentFightMessageReference(telegramUserId, sessionId, {
+    chatId: String(ctx.chat.id),
+    messageId
+  });
 }
 
 async function markFightPresence(
@@ -276,7 +307,7 @@ async function sendText(
         character: CharacterSummary;
         session: Parameters<typeof buildPersistentFightResultKeyboard>[0];
       } = false
-): Promise<void> {
+): Promise<number | null> {
   const options = keyboard
     ? {
         parse_mode: "HTML" as const,
@@ -312,8 +343,10 @@ async function sendText(
 
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, options);
-    return;
+    return ctx.callbackQuery?.message?.message_id ?? ctx.message?.message_id ?? null;
   }
 
-  await ctx.reply(text, options);
+  const sent = await ctx.reply(text, options);
+
+  return sent.message_id;
 }

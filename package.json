@@ -1,6 +1,6 @@
 {
   "name": "kvestarnia-bot",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "private": true,
   "description": "Квестарня — гумористична фентезі-РПҐ у Telegram.",
   "main": "dist/bot.js",
@@ -17,6 +17,7 @@
     "db:deploy": "node scripts/prisma-migrate-deploy.cjs",
     "db:studio": "prisma studio",
     "simulate:combat": "ts-node scripts/simulate-combat.ts",
+    "report:combat-balance": "ts-node scripts/combat-balance-report.ts",
     "sample:loot": "ts-node scripts/sample-loot.ts",
     "grant:gift": "ts-node scripts/grant-gift-campaign.ts",
     "maintenance:cleanup-remort-daily-actions": "ts-node scripts/cleanup-remort-daily-actions.ts",

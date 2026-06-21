@@ -15,6 +15,7 @@ describe("place callback data", () => {
     "deep",
     "deep-level1",
     "news-corner",
+    "ranger-corner",
     "cellar",
     "front",
     "arrivals",

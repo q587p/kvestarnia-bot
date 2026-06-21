@@ -7,6 +7,53 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.21] - 12026-06-21 - Combat Action Foundation
+
+### Added
+- Added the first shared combat ability foundation around existing actions: basic attack, basic defend, class skill and flee now resolve through a server-authoritative action/availability contract instead of presenter-only button assumptions.
+- Added `🛡 Захищатися` to persistent solo fights, training doppelganger fights and turn-based duels.
+- Added ability-keyed cooldown state for combat skills while keeping legacy `cooldowns.skill` combat states readable and normalizing them on the next committed action.
+- Added 23-second turn deadlines to active persistent solo/training combat state plus an in-process combat turn timeout scheduler. Scheduled overdue turns keep committing the canonical basic auto-attack, while skip-mode lazy fallbacks keep committing the existing skipped hero action.
+- Added persistent-fight monster context snapshots: combat start now freezes a `Europe/Kyiv` world context, applies at most two small capped monster traits, stores the context in combat state and reuses it on resume/replay.
+- Added persistent-fight origin tracking in combat state, so non-Низ fight handoffs can return to the place where the fight started.
+- Expanded the monster roster to 93 entries from the contextual monster package, keeping the current `MonsterContent` shape and existing reward/eligibility rules.
+- Added deterministic monster barks for the full 93-monster roster: every monster has five authored Ukrainian lines, and stored turn summaries render bark ids without rerolling old cards.
+- Added focused domain, service, repository, scheduler, callback, keyboard and presenter coverage for defend, unavailable skill no-op behavior, legacy cooldown loading, repeated timeout handling and active-card message tracking.
+- Added a separate persistent-fight intro card for newly started monster fights; the active card below it now carries the buttons and updates each turn.
+- Added opt-in PvE combat balance analytics behind `COMBAT_BALANCE_ANALYTICS_ENABLED`: completed solo/training combats can write one idempotent battle summary plus ability usage rows for class/remort, monster/source and ability reports through the `20260621100000_add_combat_balance_analytics` Prisma migration.
+- Added `npm run report:combat-balance` with class, mob, ability and data-quality views, defaulting to levels 10-15; ability reports default to manual choices and can include timeout auto-actions with `--ability-actions all`.
+
+### Changed
+- Pressing a class action without enough mana, or while that action is still cooling down, no longer spends mana, advances the turn, ticks cooldowns, triggers a monster response or advances RNG.
+- Existing class skill labels and approximate damage remain in place, but cooldowns now last for one subsequent own committed action in this foundation slice instead of using the older hidden `3..5` non-mana skill roll.
+- Defend reduces incoming damage for the current round and can produce a small PvE counter, with repeated defend attempts fatiguing the stance so it cannot become an infinite best action.
+- Turn-based duel defend choices stay hidden like other round choices and apply deterministic same-round incoming damage reduction when the round resolves.
+- Opening safe side surfaces such as hero/inventory/manatky uses the same overdue solo/training combat ladder as battle callbacks and the scheduler, so one old turn can still commit at most once.
+- Post-fight `Новий бій` now appears only for fights that started in `Низ`; adventure and Yeger handoff fights return to their origin surface instead of showing `До Низу`.
+- Contextual monster traits affect only combat texture and small stat modifiers. They do not change encounter eligibility, Yeger matching/progress, XP, gold, loot, authored monster level or stored rewards.
+- The contextual-monster package was adapted into the current content/runtime shape; the monster ability/loadout extension remains out of scope.
+- Active persistent monster fight cards now show HP/mana, turn number and the visible 23-second timeout rule directly on the button message, and active solo/training cards store their Telegram message reference for scheduled edits.
+- Active persistent monster fight cards now leave a visual gap before the 23-second timeout note, address the character by name before the next-action prompt and show whether the previous overdue turn became an auto-attack or a skipped hero action.
+- Persistent monster barks now render as Telegram blockquotes after the `🗣️ Монстр` marker.
+- Fight and hunt result cards no longer append generic `Наступний крок` command prompts.
+- Combat state now carries a compact analytics accumulator when the feature flag is enabled; old in-flight combats without an analytics snapshot remain readable and are skipped by the collector instead of being backfilled with guessed totals.
+
+### Fixed
+- Hardened persisted solo/training combat state parsing so current runtime JSON fields round-trip through Prisma mapping, including origin, defend streaks, skipped-turn summaries, monster debug/equipment traces, ability cooldowns, context and bark state.
+- Turn-based duels now carry each participant's defend streak into the shared combat resolver, so repeated hidden-round defend choices use the next fatigue tier and non-defend actions clear the streak.
+- Failed flee attempts now count the monster response for deterministic bark state and can store the mandatory early bark by the second committed monster action; successful flee still ends combat without a monster action.
+- Combat timeout handling now preserves the stored Telegram battle-card reference through real resolver/service transitions, records replacement card references after edit fallback, avoids refreshing hard session expiry from scheduler/lazy timeout actions, and paginates due-session discovery so legacy, future or other-kind active rows cannot starve due fights.
+- Terminal persistent fight cards rendered from `/fight` or scheduler edit fallback now replace the stored canonical Telegram card reference, so stale callbacks and timeout recovery do not keep targeting an older active-card message.
+- Training combat-lock redirects now surface a refreshed terminal training result after expiry instead of falling back to generic active-training copy and action buttons.
+- Scheduled and lazy training doppelganger timeout wins/losses now claim the same XP reward and recovery cooldown as manual terminal turns, persist that reward on the combat session, and replay it idempotently without duplicating XP or cooldowns. Hard expiry remains non-rewarding.
+- Combat analytics now stores action origin (`manual`, `timeout-auto-attack` or `timeout-skip`) before accumulation, separates manual and automatic action counts in battle rows, and avoids presenting timeout basic attacks as player-selected ability usage in default reports.
+
+### Guardrails
+- No race ability catalog, signature/title ability catalog, monster ability catalog, item/consumable actions, reward formula change, economy change, wager, rating, tournament or broad combat coefficient rewrite was added. The only schema migration in this release is the opt-in combat balance analytics tables.
+- Combat analytics stores no Telegram ids, usernames, display names, chat ids or message ids in report rows, and analytics write failures are logged without blocking combat resolution, rewards or resource persistence.
+- Telegram callbacks still carry only compact action keys; mana, cooldowns, damage, mitigation and terminal results remain server-side.
+- The combat timeout scheduler is best-effort and in-process: persisted combat state remains canonical, repeated unattended turns keep resolving the canonical auto-action until combat ends or hard session expiry is reached, and no Redis/BullMQ dependency or proactive notification table was added.
+
 ## [0.1.20] - 12026-06-20 - Authored Quest Resolutions
 
 ### Added

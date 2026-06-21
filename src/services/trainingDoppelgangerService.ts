@@ -8,12 +8,16 @@ import type {
 } from "../db/repositories/duelChallengeRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import type {
+  DueSoloCombatSessionRecord,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository
 } from "../db/repositories/soloCombatSessionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   expireCombat,
+  markCombatTurnTimeoutMode,
+  recordCombatTimeout,
+  resetCombatTimeout,
   resolveCombatTurn,
   startCombat,
   type CombatActionType
@@ -33,11 +37,13 @@ import {
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { getEquippedItemContents } from "./equipmentService";
+import type { CombatBalanceAnalyticsService } from "./combatBalanceAnalyticsService";
 
 export const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
 export const TRAINING_DOPPELGANGER_REWARD_KEY = "training.doppelganger.reward";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const TRAINING_FIGHT_TURN_SECONDS = 23;
 
 export type TrainingDoppelgangerStartMode =
   | "copy-target"
@@ -99,6 +105,7 @@ export type TrainingDoppelgangerTurnResult =
     }
   | {
       state: "not-enough-mana";
+      reason?: "not-enough-mana" | "skill-on-cooldown";
       character: CharacterSummary;
       doppelganger: TrainingDoppelgangerCopy;
       session: SoloCombatSessionRecord;
@@ -117,6 +124,30 @@ export type TrainingDoppelgangerTurnResult =
       session: SoloCombatSessionRecord;
       reward: TrainingDoppelgangerRewardClaim | null;
     };
+
+export type TrainingDoppelgangerTimeoutResult =
+  | { state: "skipped" }
+  | {
+      state: "updated";
+      telegramUserId: bigint;
+      character: CharacterSummary;
+      doppelganger: TrainingDoppelgangerCopy;
+      session: SoloCombatSessionRecord;
+      reward: TrainingDoppelgangerRewardClaim | null;
+    }
+  | {
+      state: "terminal";
+      telegramUserId: bigint;
+      character: CharacterSummary;
+      doppelganger: TrainingDoppelgangerCopy;
+      session: SoloCombatSessionRecord;
+      reward: TrainingDoppelgangerRewardClaim | null;
+    };
+
+export interface TrainingCombatMessageReferenceInput {
+  chatId: string;
+  messageId: number;
+}
 
 export interface TrainingDoppelgangerCopy {
   name: string;
@@ -149,13 +180,102 @@ export class TrainingDoppelgangerService {
     private readonly clock: Clock = systemClock,
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly spawnConfig: TrainingDoppelgangerSpawnConfig = {},
-    private readonly championSource?: TrainingDoppelgangerChampionSource
+    private readonly championSource?: TrainingDoppelgangerChampionSource,
+    private readonly combatAnalytics?: CombatBalanceAnalyticsService
   ) {}
 
+  private async advanceExpiredTrainingTurn(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    character: CharacterSummary,
+    mode: "auto-attack" | "skip" = "auto-attack"
+  ): Promise<SoloCombatSessionRecord> {
+    if (session.status !== "active" || session.state?.status !== "active") {
+      return session;
+    }
+
+    const now = this.clock();
+    if (session.expiresAt <= now) {
+      return this.expireTrainingSession(telegramUserId, session);
+    }
+
+    if (!session.state.turnExpiresAt) {
+      const state = withNextTrainingTurnExpiry(session.state, now);
+      const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+        state,
+        status: state.status
+      });
+
+      return updated ?? { ...session, state };
+    }
+
+    if (!isTrainingTurnExpired(session.state, now)) {
+      return session;
+    }
+
+    const timeoutMode = getNextTrainingTimeoutMode(mode);
+
+    const resolved = resolveCombatTurn({
+      state: session.state,
+      action: timeoutMode === "skip" ? "skip" : "attack",
+      actionOrigin: timeoutMode === "skip" ? "timeout-skip" : "timeout-auto-attack",
+      hero: buildHeroCombatStats(character),
+      monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
+      rng: this.rng
+    });
+    const state = resolved.ok
+      ? markCombatTurnTimeoutMode(
+          withNextTrainingTurnExpiry(recordCombatTimeout(resolved.state, now), now),
+          timeoutMode
+        )
+      : null;
+
+    if (!state) {
+      return session;
+    }
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+      state,
+      status: state.status
+    });
+
+    if (updated && updated.status !== "active") {
+      await this.persistCharacterResources(telegramUserId, updated);
+    }
+
+    return updated ?? session;
+  }
+
+  private async expireTrainingSession(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord
+  ): Promise<SoloCombatSessionRecord> {
+    if (!session.state) {
+      return await this.combatSessions.markStatusById(session.id, "expired") ?? {
+        ...session,
+        status: "expired"
+      };
+    }
+
+    const expiredState = expireCombat(session.state);
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+      state: expiredState,
+      status: expiredState.status
+    });
+
+    if (!updated) {
+      return session;
+    }
+
+    await this.persistCharacterResources(telegramUserId, updated);
+
+    return updated;
+  }
+
   async getStartOptionsForTelegramUser(
-    telegramUserId: bigint
+    telegramUserId: bigint,
+    options: { expiredTurnMode?: "auto-attack" | "skip" } = {}
   ): Promise<TrainingDoppelgangerLookupResult> {
-    const base = await this.getStartBaseForTelegramUser(telegramUserId);
+    const base = await this.getStartBaseForTelegramUser(telegramUserId, options);
 
     if (base.state !== "startable") {
       return base.result;
@@ -204,6 +324,20 @@ export class TrainingDoppelgangerService {
       hero: buildHeroCombatStats(character),
       monster: spawn.monster
     });
+    state.turnExpiresAt = getTrainingTurnExpiry(now).toISOString();
+    state.source = "training";
+    const analytics = this.combatAnalytics?.createInitialState({
+      characterId: base.characterId,
+      character,
+      monster: spawn.monster,
+      combatSource: "training",
+      startedAt: now,
+      monsterType: "training_doppelganger",
+      difficultyTier: spawnInput.spawnMode.toLowerCase().replace(/_/g, "-")
+    });
+    if (analytics) {
+      state.analytics = analytics;
+    }
     const session = await this.combatSessions.createForTelegramUser(telegramUserId, {
       id: sessionId,
       monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
@@ -221,6 +355,99 @@ export class TrainingDoppelgangerService {
       doppelganger: buildDoppelgangerCopy(spawn.character, session.state),
       session
     };
+  }
+
+  async listDueTrainingTurns(options: { limit?: number } = {}): Promise<DueSoloCombatSessionRecord[]> {
+    if (!this.combatSessions.listDueActiveSessions) {
+      return [];
+    }
+
+    const due = await this.combatSessions.listDueActiveSessions(this.clock(), {
+      ...options,
+      monsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID]
+    });
+
+    return due.filter((session) =>
+      session.status === "active" &&
+      session.state?.status === "active" &&
+      isTrainingDoppelgangerMonsterId(session.monsterId)
+    );
+  }
+
+  async resolveDueTrainingTurn(
+    due: DueSoloCombatSessionRecord
+  ): Promise<TrainingDoppelgangerTimeoutResult> {
+    if (!due.state || due.status !== "active" || due.state.status !== "active") {
+      return { state: "skipped" };
+    }
+
+    const current = await this.cooldowns.findForTelegramUser(
+      due.telegramUserId,
+      TRAINING_DOPPELGANGER_COOLDOWN_KEY
+    );
+
+    if (!current) {
+      return { state: "skipped" };
+    }
+
+    const equippedItems = await this.getEquippedItemContents(due.telegramUserId);
+    const character = summarizeCharacter(current.character, { equippedItems });
+    const refreshedSession = await this.advanceExpiredTrainingTurn(
+      due.telegramUserId,
+      due,
+      character
+    );
+
+    const doppelganger = buildDoppelgangerCopy(character, refreshedSession.state);
+
+    if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
+      return {
+        state: "terminal",
+        telegramUserId: due.telegramUserId,
+        character,
+        doppelganger,
+        session: refreshedSession,
+        reward: await this.claimOrRecoverTerminalReward(due.telegramUserId, character, refreshedSession)
+      };
+    }
+
+    if (refreshedSession.id === due.id && refreshedSession.state?.turn === due.state.turn) {
+      return { state: "skipped" };
+    }
+
+    return {
+      state: "updated",
+      telegramUserId: due.telegramUserId,
+      character,
+      doppelganger,
+      session: refreshedSession,
+      reward: null
+    };
+  }
+
+  async recordTrainingDoppelgangerMessageReference(
+    telegramUserId: bigint,
+    sessionId: string,
+    reference: TrainingCombatMessageReferenceInput
+  ): Promise<void> {
+    const session = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, sessionId);
+
+    if (
+      session?.status !== "active" ||
+      session.state?.status !== "active" ||
+      !isTrainingDoppelgangerMonsterId(session.monsterId)
+    ) {
+      return;
+    }
+
+    await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+      state: {
+        ...session.state,
+        message: reference
+      },
+      status: session.state.status,
+      expiresAt: session.expiresAt
+    });
   }
 
   async resolveTurn(
@@ -260,7 +487,7 @@ export class TrainingDoppelgangerService {
         character,
         doppelganger,
         session,
-        reward: await this.getOrRecoverReward(telegramUserId, session)
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, session)
       };
     }
 
@@ -291,36 +518,71 @@ export class TrainingDoppelgangerService {
       };
     }
 
-    if (session.state.turn !== input.turn) {
+    const deadlineSession = await this.advanceExpiredTrainingTurn(telegramUserId, session, character);
+    if (deadlineSession.state?.turn !== session.state.turn) {
+      const refreshedDoppelganger = buildDoppelgangerCopy(character, deadlineSession.state);
+      if (deadlineSession.status === "active" && deadlineSession.state?.status === "active") {
+        return {
+          state: "stale-turn",
+          character,
+          doppelganger: refreshedDoppelganger,
+          session: deadlineSession
+        };
+      }
+
+      return {
+        state: "terminal",
+        character,
+        doppelganger: refreshedDoppelganger,
+        session: deadlineSession,
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, deadlineSession)
+      };
+    }
+
+    const currentSession = deadlineSession;
+    const currentDoppelganger = buildDoppelgangerCopy(character, currentSession.state);
+
+    if (currentSession.state?.turn !== input.turn) {
       return {
         state: "stale-turn",
         character,
-        doppelganger,
-        session
+        doppelganger: currentDoppelganger,
+        session: currentSession
       };
     }
 
     const resolved = resolveCombatTurn({
-      state: session.state,
+      state: currentSession.state,
       action: input.action,
       hero: buildHeroCombatStats(character),
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
       rng: this.rng
     });
 
-    if (!resolved.ok) {
+    if (!resolved.ok && resolved.reason !== "not-enough-mana" && resolved.reason !== "skill-on-cooldown") {
       return {
         state: "terminal",
         character,
         doppelganger,
         session,
-        reward: await this.getOrRecoverReward(telegramUserId, session)
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, session)
       };
     }
 
-    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, input.turn, {
-      state: resolved.state,
-      status: resolved.state.status,
+    if (!resolved.ok) {
+      return {
+        state: "not-enough-mana",
+        reason: resolved.reason === "skill-on-cooldown" ? "skill-on-cooldown" : "not-enough-mana",
+        character,
+        doppelganger: currentDoppelganger,
+        session: currentSession
+      };
+    }
+
+    const resolvedState = withNextTrainingTurnExpiry(resetCombatTimeout(resolved.state), this.clock());
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(currentSession.id, input.turn, {
+      state: resolvedState,
+      status: resolvedState.status,
       expiresAt: getTrainingSessionExpiry(this.clock())
     });
 
@@ -335,7 +597,7 @@ export class TrainingDoppelgangerService {
         return {
           state: "stale-turn",
           character,
-          doppelganger,
+          doppelganger: buildDoppelgangerCopy(character, fallbackSession.state),
           session: fallbackSession
         };
       }
@@ -343,15 +605,15 @@ export class TrainingDoppelgangerService {
       return {
         state: "terminal",
         character,
-        doppelganger,
+        doppelganger: buildDoppelgangerCopy(character, fallbackSession.state),
         session: fallbackSession,
-        reward: await this.getOrRecoverReward(telegramUserId, fallbackSession)
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, fallbackSession)
       };
     }
 
     const reward =
       updated.status === "won" || updated.status === "lost"
-      ? await this.claimRewardAndCooldown(telegramUserId, character, updated)
+      ? await this.claimOrRecoverTerminalReward(telegramUserId, character, updated)
       : null;
 
     if (updated.status !== "active") {
@@ -361,15 +623,19 @@ export class TrainingDoppelgangerService {
     return {
       state: "updated",
       character,
-      doppelganger,
+      doppelganger: buildDoppelgangerCopy(character, updated.state),
       session: updated,
       reward
     };
   }
 
-  private async getStartBaseForTelegramUser(telegramUserId: bigint): Promise<
-    | {
+  private async getStartBaseForTelegramUser(
+    telegramUserId: bigint,
+    options: { expiredTurnMode?: "auto-attack" | "skip" } = {}
+  ): Promise<
+      | {
         state: "startable";
+        characterId: string;
         character: CharacterSummary;
         equippedItems: Awaited<ReturnType<TrainingDoppelgangerService["getEquippedItemContents"]>>;
       }
@@ -404,7 +670,7 @@ export class TrainingDoppelgangerService {
 
       return {
         state: "blocked",
-        result: await this.getExistingTrainingSession(telegramUserId, character, activeSession)
+      result: await this.getExistingTrainingSession(telegramUserId, character, activeSession, options)
       };
     }
 
@@ -424,7 +690,7 @@ export class TrainingDoppelgangerService {
       return { state: "blocked", result: { state: "needs-rest", character } };
     }
 
-    return { state: "startable", character, equippedItems };
+    return { state: "startable", characterId: current.character.id, character, equippedItems };
   }
 
   private async buildStartChoices(
@@ -538,7 +804,8 @@ export class TrainingDoppelgangerService {
   private async getExistingTrainingSession(
     telegramUserId: bigint,
     character: CharacterSummary,
-    session: SoloCombatSessionRecord
+    session: SoloCombatSessionRecord,
+    options: { expiredTurnMode?: "auto-attack" | "skip" } = {}
   ): Promise<Extract<TrainingDoppelgangerLookupResult, { state: "active" | "terminal" }>> {
     if (!session.state) {
       const expired = await this.combatSessions.markStatusById(session.id, "expired");
@@ -575,16 +842,47 @@ export class TrainingDoppelgangerService {
         character,
         doppelganger: buildDoppelgangerCopy(character, session.state),
         session,
-        reward: await this.getOrRecoverReward(telegramUserId, session)
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, session)
+      };
+    }
+
+    const refreshedSession = await this.advanceExpiredTrainingTurn(
+      telegramUserId,
+      session,
+      character,
+      options.expiredTurnMode ?? "auto-attack"
+    );
+    if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
+      return {
+        state: "terminal",
+        character,
+        doppelganger: buildDoppelgangerCopy(character, refreshedSession.state),
+        session: refreshedSession,
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, refreshedSession)
       };
     }
 
     return {
       state: "active",
       character,
-      doppelganger: buildDoppelgangerCopy(character, session.state),
-      session
+      doppelganger: buildDoppelgangerCopy(character, refreshedSession.state),
+      session: refreshedSession
     };
+  }
+
+  private async claimOrRecoverTerminalReward(
+    telegramUserId: bigint,
+    character: CharacterSummary,
+    session: SoloCombatSessionRecord
+  ): Promise<TrainingDoppelgangerRewardClaim | null> {
+    await this.combatAnalytics?.recordTerminalSession(session);
+    const terminalStatus = session.state?.status ?? session.status;
+
+    if (terminalStatus === "won" || terminalStatus === "lost") {
+      return this.claimRewardAndCooldown(telegramUserId, character, session);
+    }
+
+    return this.getStoredRewardReplay(telegramUserId, session);
   }
 
   private async claimRewardAndCooldown(
@@ -622,6 +920,12 @@ export class TrainingDoppelgangerService {
     }
 
     if (claim.state === "existing") {
+      await this.combatSessions.recordRewardById(session.id, {
+        rewardXp: claim.action.rewardXp,
+        rewardGold: 0,
+        itemGrants: [],
+        claimedAt: this.clock()
+      });
       return {
         state: "already-claimed",
         reward: {
@@ -671,7 +975,7 @@ export class TrainingDoppelgangerService {
     };
   }
 
-  private async getOrRecoverReward(
+  private async getStoredRewardReplay(
     telegramUserId: bigint,
     session: SoloCombatSessionRecord
   ): Promise<TrainingDoppelgangerRewardClaim | null> {
@@ -725,6 +1029,7 @@ export class TrainingDoppelgangerService {
       hpRegenAt: this.clock(),
       manaRegenAt: this.clock()
     });
+    await this.combatAnalytics?.recordTerminalSession(session);
   }
 }
 
@@ -811,6 +1116,36 @@ function buildRewardReplay(
 
 function getTrainingSessionExpiry(now: Date): Date {
   return new Date(now.getTime() + 30 * 60 * 1000);
+}
+
+function getTrainingTurnExpiry(now: Date): Date {
+  return new Date(now.getTime() + TRAINING_FIGHT_TURN_SECONDS * 1000);
+}
+
+function isTrainingTurnExpired(state: SoloCombatSessionRecord["state"], now: Date): boolean {
+  return Boolean(state?.turnExpiresAt && Date.parse(state.turnExpiresAt) <= now.getTime());
+}
+
+function getNextTrainingTimeoutMode(
+  fallbackMode: "auto-attack" | "skip"
+): "auto-attack" | "skip" {
+  return fallbackMode;
+}
+
+function withNextTrainingTurnExpiry(
+  state: NonNullable<SoloCombatSessionRecord["state"]>,
+  now: Date
+): NonNullable<SoloCombatSessionRecord["state"]> {
+  if (state.status !== "active") {
+    const next = { ...state };
+    delete next.turnExpiresAt;
+    return next;
+  }
+
+  return {
+    ...state,
+    turnExpiresAt: getTrainingTurnExpiry(now).toISOString()
+  };
 }
 
 function getChampionSince(now: Date, period: TrainingDoppelgangerChampionPeriod): Date {

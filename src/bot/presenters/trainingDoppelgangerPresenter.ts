@@ -146,7 +146,9 @@ export function presentTrainingDoppelgangerTurn(
     }
 
     if (result.state === "not-enough-mana") {
-      return "Мани не стало навіть на драматичний жест. Копія записала це як навчальний матеріял.";
+      return result.reason === "skill-on-cooldown"
+        ? "Вміння ще відсапується. Копія чемно чекає справжнього ходу."
+        : "Мани не стало навіть на драматичний жест. Копія записала це як навчальний матеріял без удару.";
     }
 
     if (result.state === "terminal") {
@@ -281,6 +283,18 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
     ].join("\n");
   }
 
+  if (summary.heroOutcome === "defended") {
+    return [
+      "Ви стали в захист: копії важче влучити, а удар буде слабшим.",
+      summary.monsterDamage > 0
+        ? `Копія таки дістала на ${summary.monsterDamage} шкоди.`
+        : "Копія не знайшла переконливого кута атаки.",
+      summary.heroCounterDamage
+        ? `Контрудар зачепив копію на ${summary.heroCounterDamage} шкоди.`
+        : ""
+    ].filter(Boolean).join("\n");
+  }
+
   if (summary.heroOutcome === "fled") {
     return "Ви вийшли з тренування без переможного фанфарства.";
   }
@@ -293,7 +307,12 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
   }
 
   if (summary.heroOutcome === "inactive") {
-    return "Тренування прострочилось без героїчного підпису.";
+    return [
+      "Ви не встигли обрати дію.",
+      summary.monsterDamage > 0
+        ? `Копія використала паузу на ${summary.monsterDamage} шкоди.`
+        : "Копія використала паузу, але промахнулась із педагогічною впевненістю."
+    ].join("\n");
   }
 
   const action =

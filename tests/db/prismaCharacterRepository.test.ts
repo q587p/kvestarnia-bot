@@ -68,6 +68,7 @@ class FakeCharacterPrisma {
           createdAt: fixedNow,
           updatedAt: fixedNow,
           user: {
+            telegramUserId,
             lastSeenLocationId: "location.korchma.hall"
           },
           _count: {

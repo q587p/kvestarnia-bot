@@ -35,6 +35,10 @@ export function buildTrainingDoppelgangerKeyboard(
       .text("🗡️ Вдарити", makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "attack" }))
       .row();
 
+    keyboard
+      .text("🛡 Захищатися", makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "defend" }))
+      .row();
+
     if (availability.available) {
       keyboard.text(
         getPersistentFightSkillLabel(character),

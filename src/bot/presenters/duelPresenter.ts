@@ -525,6 +525,8 @@ function presentTurnBasedRoundState(
 function presentQueuedDuelAction(action: string): string {
   return action === "skill"
     ? "класова дія"
+    : action === "defend"
+      ? "захист"
     : action === "surrender"
       ? "здатися"
       : "звичайна атака";
@@ -543,6 +545,8 @@ function presentTurnBasedLastAction(action: {
       ? "🏳️ Учасник здався. Корчмар записав це без зайвих запитань."
       : action.action === "timeout-attack"
         ? "⏳ Тиша зробила звичайну атаку замість гравця."
+        : action.action === "defend"
+          ? "🛡 Захист записано в протокол."
         : action.action === "skill"
           ? "✨ Класова дія записана в протокол."
           : "⚔️ Звичайна атака записана в протокол.";

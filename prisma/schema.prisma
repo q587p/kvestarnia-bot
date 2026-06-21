@@ -40,6 +40,7 @@ model Character {
   korchmaRoundPurchases KorchmaRoundPurchase[]
   huntContracts HuntContract[]
   soloCombatSessions SoloCombatSession[]
+  combatBalanceBattles CombatBalanceBattle[]
   barrelRaidNotifications BarrelRaidNotification[]
   mantokChestRuns MantokChestRun[]
   levelBarterExchanges LevelBarterExchange[]
@@ -93,6 +94,85 @@ model SoloCombatSession {
   @@index([monsterId])
   @@index([expiresAt])
   @@map("solo_combat_sessions")
+}
+
+model CombatBalanceBattle {
+  id                       String    @id @default(uuid())
+  combatId                 String    @unique @map("combat_id")
+  combatSource             String    @map("combat_source")
+  outcome                  String
+  startedAt                DateTime  @map("started_at")
+  finishedAt               DateTime  @map("finished_at")
+  balanceVersion           String    @map("balance_version")
+  combatEngineVersion      String    @map("combat_engine_version")
+  analyticsSchemaVersion   Int       @map("analytics_schema_version")
+  playerAnalysisKey        String    @map("player_analysis_key")
+  characterId              String    @map("character_id")
+  character                Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  isTestOrAdmin            Boolean   @default(false) @map("is_test_or_admin")
+  classKey                 String    @map("class_key")
+  playerLevel              Int       @map("player_level")
+  remortCount              Int       @map("remort_count")
+  playerMaxHp              Int       @map("player_max_hp")
+  playerHpAtStart          Int       @map("player_hp_at_start")
+  playerHpAtEnd            Int       @map("player_hp_at_end")
+  playerManaMax            Int       @map("player_mana_max")
+  playerManaAtStart        Int       @map("player_mana_at_start")
+  playerStatsJson          Json      @map("player_stats_json")
+  playerEquipmentJson      Json      @map("player_equipment_json")
+  mobTemplateKey           String    @map("mob_template_key")
+  mobType                  String    @map("mob_type")
+  mobLevel                 Int       @map("mob_level")
+  mobBaseLevel             Int?      @map("mob_base_level")
+  mobDifficultyTier        String    @map("mob_difficulty_tier")
+  mobMaxHp                 Int       @map("mob_max_hp")
+  mobHpAtEnd               Int       @map("mob_hp_at_end")
+  roundsCount              Int       @map("rounds_count")
+  playerActionsCount       Int       @map("player_actions_count")
+  manualPlayerActionsCount Int       @default(0) @map("manual_player_actions_count")
+  timeoutAutoActionsCount  Int       @default(0) @map("timeout_auto_actions_count")
+  timeoutSkipActionsCount  Int       @default(0) @map("timeout_skip_actions_count")
+  enemyActionsCount        Int       @map("enemy_actions_count")
+  damageDealt              Int       @map("damage_dealt")
+  damageTaken              Int       @map("damage_taken")
+  healingDone              Int       @default(0) @map("healing_done")
+  criticalHits             Int       @default(0) @map("critical_hits")
+  misses                   Int       @default(0)
+  duplicateWriteAttempts   Int       @default(0) @map("duplicate_write_attempts")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+  abilities                CombatBalanceAbilityUsage[]
+
+  @@index([finishedAt])
+  @@index([balanceVersion, classKey, playerLevel, remortCount])
+  @@index([combatSource, finishedAt])
+  @@index([mobTemplateKey, mobLevel])
+  @@map("combat_balance_battles")
+}
+
+model CombatBalanceAbilityUsage {
+  id                      String               @id @default(uuid())
+  battleId                String               @map("battle_id")
+  battle                  CombatBalanceBattle  @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  combatId                String               @map("combat_id")
+  abilityKey              String               @map("ability_key")
+  actionOrigin            String               @default("manual") @map("action_origin")
+  abilityRank             Int                  @default(0) @map("ability_rank")
+  isClassAbility          Boolean              @default(false) @map("is_class_ability")
+  usesCount               Int                  @map("uses_count")
+  successfulUsesCount     Int                  @map("successful_uses_count")
+  hitCount                Int                  @default(0) @map("hit_count")
+  critCount               Int                  @default(0) @map("crit_count")
+  missCount               Int                  @default(0) @map("miss_count")
+  totalDamage             Int                  @default(0) @map("total_damage")
+  totalHealing            Int                  @default(0) @map("total_healing")
+  resourceSpent           Int                  @default(0) @map("resource_spent")
+  createdAt               DateTime             @default(now()) @map("created_at")
+
+  @@unique([combatId, abilityKey, abilityRank, actionOrigin])
+  @@index([battleId])
+  @@index([abilityKey, actionOrigin])
+  @@map("combat_balance_ability_usages")
 }
 
 model ActiveCombatLease {

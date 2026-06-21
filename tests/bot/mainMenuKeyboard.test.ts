@@ -426,7 +426,7 @@ describe("main menu and scene keyboards", () => {
     const labels = flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
 
     expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
-    expect(labels.join("\n")).not.toMatch(/з печаткою|через внесок|дрібним ремонтом|обхідним ходом|по-домашньому|силовим підпором|на випадку|через ревізію|у ритм|мирною умовою|малим обрядом|за слідом|через пастку|тихим чаром|точним рухом/u);
+    expect(labels).toContain("📋 Вимагати чек і походження начинки");
     expect(labels.join("\n")).not.toMatch(/Звірити «|Витягти доказ|🏷️|Пересічні Пригодники/u);
     expect(labels.at(-1)).toBe("📋 До справ");
     const callbacks = flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
@@ -468,7 +468,7 @@ describe("main menu and scene keyboards", () => {
     const labels = flatInlineButtonTexts(keyboard);
 
     expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
-    expect(labels.join("\n")).not.toMatch(/з печаткою|через внесок|дрібним ремонтом|обхідним ходом|по-домашньому|силовим підпором|на випадку|через ревізію|у ритм|мирною умовою|малим обрядом|за слідом|через пастку|тихим чаром|точним рухом/u);
+    expect(labels).toContain("🤝 Домовитися з канцелярським краєм");
     expect(labels.join("\n")).not.toMatch(/Приплив|Куплет|Співачка Без Моря|🏷️|: форму/u);
     expect(labels.at(-1)).toBe("⬅️ Інші справи");
   });
@@ -545,6 +545,7 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, character))).toEqual([
       "🗡️ Вдарити",
+      "🛡 Захищатися",
       "💪 Силовий удар",
       "🏃 Відступити"
     ]);
@@ -568,6 +569,7 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toEqual([
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
+      "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:defend",
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:skill",
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:flee"
     ]);
@@ -578,7 +580,7 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["⚔️ Новий бій", "🪜 До Низу"]);
+    }, character))).toEqual(["⚔️ Новий бій", "↩️ Повернутися до Низу"]);
     expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
       ...session,
       status: "won",
@@ -587,6 +589,26 @@ describe("main menu and scene keyboards", () => {
         status: "won"
       }
     }, character))).toEqual(["v1:place:deep-level1", "v1:place:deep"]);
+    expect(flatInlineButtonTexts(buildPersistentFightResultKeyboard({
+      ...session,
+      status: "won",
+      state: {
+        ...session.state!,
+        source: "adventure",
+        originLocationId: "location.korchma.quest_table",
+        status: "won"
+      }
+    }, character))).toEqual(["↩️ Повернутися до столу"]);
+    expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
+      ...session,
+      status: "won",
+      state: {
+        ...session.state!,
+        source: "adventure",
+        originLocationId: "location.korchma.quest_table",
+        status: "won"
+      }
+    }, character))).toEqual(["v1:place:quest-table"]);
   });
 
   it("keeps active training doppelganger buttons scoped to turn callbacks", () => {
@@ -606,11 +628,13 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
       "🗡️ Вдарити",
+      "🛡 Захищатися",
       "💪 Силовий удар",
       "🏃 Відступити"
     ]);
     expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
+      "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:defend",
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:skill",
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:flee"
     ]);
@@ -679,6 +703,7 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-2", "💪 Силовий удар"))).toEqual([
       "⚔️ Атакувати",
+      "🛡 Захищатися",
       "💪 Силовий удар",
       "🏳️ Здатися",
       "🔎 Оновити"
@@ -705,6 +730,7 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-1", "💪 Силовий удар"))).toEqual([
       "⚔️ Атакувати",
+      "🛡 Захищатися",
       "🏳️ Здатися",
       "🔎 Оновити"
     ]);

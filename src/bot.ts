@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import type { Bot } from "grammy";
 import { getTelegramMenuCommands } from "./bot/botCommandCatalog";
+import { createCombatTurnTimeoutScheduler } from "./bot/combatTurnTimeoutScheduler";
 import { createBot } from "./bot/createBot";
 import { createDuelTurnTimeoutScheduler } from "./bot/duelTurnTimeoutScheduler";
 import { loadConfig } from "./config/env";
@@ -9,6 +10,7 @@ import { prisma } from "./db/prisma";
 import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepository";
 import { PrismaBarrelRaidNotificationRepository } from "./db/repositories/prismaBarrelRaidNotificationRepository";
 import { PrismaCellarGrownupQuestRepository } from "./db/repositories/prismaCellarGrownupQuestRepository";
+import { PrismaCombatBalanceAnalyticsRepository } from "./db/repositories/prismaCombatBalanceAnalyticsRepository";
 import { PrismaCooldownRepository } from "./db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "./db/repositories/prismaDailyActionRepository";
 import { PrismaDevGrantRepository } from "./db/repositories/prismaDevGrantRepository";
@@ -29,6 +31,7 @@ import { readAppVersion } from "./shared/appVersion";
 import { AdventureService } from "./services/adventureService";
 import { CellarErrandService } from "./services/cellarErrandService";
 import { CellarGrownupQuestService } from "./services/cellarGrownupQuestService";
+import { CombatBalanceAnalyticsService } from "./services/combatBalanceAnalyticsService";
 import { DevResetService } from "./services/devResetService";
 import { DevGrantService } from "./services/devGrantService";
 import { DeployNotificationService } from "./services/deployNotificationService";
@@ -68,7 +71,19 @@ const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
 const remorts = new PrismaRemortRepository(prisma);
 const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
-const fight = new FightService(characters, dailyActions, undefined, soloCombatSessions, undefined, equipment);
+const combatBalanceAnalytics = new CombatBalanceAnalyticsService(
+  new PrismaCombatBalanceAnalyticsRepository(prisma),
+  { enabled: config.combatBalanceAnalyticsEnabled }
+);
+const fight = new FightService(
+  characters,
+  dailyActions,
+  undefined,
+  soloCombatSessions,
+  undefined,
+  equipment,
+  combatBalanceAnalytics
+);
 const presenceService = new PresenceService(presence);
 const services = {
   adventure: new AdventureService(characters, dailyActions, undefined, soloCombatSessions, equipment),
@@ -101,7 +116,8 @@ const services = {
     undefined,
     undefined,
     {},
-    duelChallenges
+    duelChallenges,
+    combatBalanceAnalytics
   )
 };
 const supportJarOptions = config.supportJarUrl
@@ -117,8 +133,10 @@ const healthServer = startHealthServer({
 });
 let bot: Bot | null = null;
 let duelTurnTimeoutScheduler: ReturnType<typeof createDuelTurnTimeoutScheduler> | null = null;
+let combatTurnTimeoutScheduler: ReturnType<typeof createCombatTurnTimeoutScheduler> | null = null;
 
 function shutdown(): void {
+  combatTurnTimeoutScheduler?.stop();
   duelTurnTimeoutScheduler?.stop();
   if (bot) {
     void bot.stop();
@@ -140,6 +158,11 @@ if (!config.botToken) {
   });
   duelTurnTimeoutScheduler = createDuelTurnTimeoutScheduler(services.duel, bot);
   duelTurnTimeoutScheduler.start();
+  combatTurnTimeoutScheduler = createCombatTurnTimeoutScheduler({
+    fight: services.fight,
+    trainingDoppelganger: services.trainingDoppelganger
+  }, bot);
+  combatTurnTimeoutScheduler.start();
 
   void services.mantokChest.cleanupExpiredPendingRuns().catch((error) => {
     console.error("Квестарня: старі бланки Дружньої Скрині не прибрались.", error);

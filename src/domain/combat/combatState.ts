@@ -1,12 +1,21 @@
 import type { CharacterStats } from "../characters/starterStats";
+import {
+  cloneCombatAnalyticsState,
+  type CombatAnalyticsStateV1
+} from "./combatBalanceAnalytics";
+import type { CombatBarkStateV1 } from "./combatBarks";
+import type { MonsterContextSnapshotV1 } from "./monsterContext";
 
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
-export type CombatActionType = "attack" | "skill" | "flee";
+export type CombatActionType = "attack" | "defend" | "skill" | "flee" | "skip";
+export type PlayerCombatActionType = Exclude<CombatActionType, "skip">;
 export type CombatDamageKind = "physical" | "spell" | "social" | "trick";
+export type CombatTimeoutMode = "auto-attack" | "skip";
 export type CombatTurnOutcome =
   | "hit"
   | "critical-hit"
   | "miss"
+  | "defended"
   | "not-enough-mana"
   | "skill-on-cooldown"
   | "inactive"
@@ -43,6 +52,7 @@ export interface MonsterCombatStats {
   spellPower?: number;
   copiedEquipment?: CombatCopiedEquipment[];
   debugTrace?: CombatDebugTrace;
+  contextModifiers?: CombatContextModifiers;
   tags: string[];
 }
 
@@ -68,12 +78,33 @@ export interface CombatDebugTrace {
   interventionSourceKey?: string;
   baseMonsterLevel?: number;
   effectiveMonsterLevel?: number;
+  contextRulesVersion?: string;
+  contextTraitIds?: string[];
+  contextBranchIds?: string[];
+  contextCueId?: string;
+  timeoutMode?: CombatTimeoutMode;
+}
+
+export interface CombatContextModifiers {
+  outgoingDamageMultiplier: number;
+  incomingDamageMultiplier: number;
+  accuracyDeltaPp: number;
+  evasionDeltaPp: number;
+  abilityWeightDelta: number;
+  signatureCooldownDelta: number;
+  flatArmorDelta: number;
+  flatResistDelta: number;
+  flatDexterityDelta: number;
 }
 
 export interface CombatState {
   id?: string;
   source?: "normal" | "yeger" | "adventure" | "training";
+  originLocationId?: string;
   completedAt?: string;
+  turnExpiresAt?: string;
+  message?: CombatMessageReference;
+  timeout?: CombatTimeoutState;
   turn: number;
   status: CombatStatus;
   hero: {
@@ -100,18 +131,44 @@ export interface CombatState {
     spellPower?: number;
     copiedEquipment?: CombatCopiedEquipment[];
     debugTrace?: CombatDebugTrace;
+    contextModifiers?: CombatContextModifiers;
   };
   cooldowns?: {
+    abilities?: Record<string, {
+      id: string;
+      remainingTurns: number;
+    }>;
+    /**
+     * Legacy mirror kept so old stored rows and older tests/cards remain readable.
+     * New combat logic reads `abilities` first and normalizes this field by ability id.
+     */
     skill?: {
       id: string;
       remainingTurns: number;
     };
   };
+  guard?: CombatGuardState;
+  context?: MonsterContextSnapshotV1;
+  barks?: CombatBarkStateV1;
+  analytics?: CombatAnalyticsStateV1;
   lastTurn?: CombatTurnSummary;
 }
 
+export interface CombatMessageReference {
+  chatId: string;
+  messageId: number;
+}
+
+export interface CombatTimeoutState {
+  consecutiveMissedTurns: number;
+  lastMissedAt?: string;
+}
+
+export type CombatActionOrigin = "manual" | "timeout-auto-attack" | "timeout-skip";
+
 export interface CombatTurnSummary {
   action: CombatActionType;
+  actionOrigin?: CombatActionOrigin;
   heroOutcome: CombatTurnOutcome;
   monsterOutcome?: CombatTurnOutcome;
   heroDamage: number;
@@ -123,7 +180,13 @@ export interface CombatTurnSummary {
   monsterAction?: "attack" | "skill";
   monsterSkillId?: string;
   monsterDamageKind?: CombatDamageKind;
+  heroCounterDamage?: number;
+  monsterBarkId?: string;
   debugTrace?: CombatDebugTrace;
+}
+
+export interface CombatGuardState {
+  consecutiveDefends: number;
 }
 
 export interface StartCombatInput {
@@ -167,7 +230,10 @@ export function startCombat(input: StartCombatInput): CombatState {
       ...(input.monster.title ? { title: input.monster.title } : {}),
       ...(input.monster.spellPower ? { spellPower: input.monster.spellPower } : {}),
       ...(input.monster.copiedEquipment ? { copiedEquipment: input.monster.copiedEquipment } : {}),
-      ...(input.monster.debugTrace ? { debugTrace: { ...input.monster.debugTrace } } : {})
+      ...(input.monster.debugTrace ? { debugTrace: { ...input.monster.debugTrace } } : {}),
+      ...(input.monster.contextModifiers
+        ? { contextModifiers: { ...input.monster.contextModifiers } }
+        : {})
     }
   };
 }
@@ -176,7 +242,11 @@ export function cloneCombatState(state: CombatState): CombatState {
   return {
     ...(state.id ? { id: state.id } : {}),
     ...(state.source ? { source: state.source } : {}),
+    ...(state.originLocationId ? { originLocationId: state.originLocationId } : {}),
     ...(state.completedAt ? { completedAt: state.completedAt } : {}),
+    ...(state.turnExpiresAt ? { turnExpiresAt: state.turnExpiresAt } : {}),
+    ...(state.message ? { message: { ...state.message } } : {}),
+    ...(state.timeout ? { timeout: { ...state.timeout } } : {}),
     turn: state.turn,
     status: state.status,
     hero: { ...state.hero },
@@ -185,15 +255,20 @@ export function cloneCombatState(state: CombatState): CombatState {
       ...(state.monster.copiedEquipment
         ? { copiedEquipment: state.monster.copiedEquipment.map((item) => ({ ...item })) }
         : {}),
-      ...(state.monster.debugTrace ? { debugTrace: { ...state.monster.debugTrace } } : {})
+      ...(state.monster.debugTrace ? { debugTrace: { ...state.monster.debugTrace } } : {}),
+      ...(state.monster.contextModifiers
+        ? { contextModifiers: { ...state.monster.contextModifiers } }
+        : {})
     },
-    ...(state.cooldowns?.skill
+    ...(state.cooldowns
       ? {
-          cooldowns: {
-            skill: { ...state.cooldowns.skill }
-          }
+          cooldowns: cloneCombatCooldowns(state.cooldowns)
         }
       : {}),
+    ...(state.guard ? { guard: { ...state.guard } } : {}),
+    ...(state.context ? { context: cloneMonsterContextSnapshot(state.context) } : {}),
+    ...(state.barks ? { barks: cloneCombatBarkState(state.barks) } : {}),
+    ...(state.analytics ? { analytics: cloneCombatAnalyticsState(state.analytics) } : {}),
     ...(state.lastTurn
       ? {
           lastTurn: {
@@ -203,6 +278,31 @@ export function cloneCombatState(state: CombatState): CombatState {
         }
       : {})
   };
+}
+
+export function getCombatTimeoutStreak(state: CombatState): number {
+  return Math.max(0, Math.floor(state.timeout?.consecutiveMissedTurns ?? 0));
+}
+
+export function recordCombatTimeout(state: CombatState, now: Date): CombatState {
+  const next = cloneCombatState(state);
+  next.timeout = {
+    consecutiveMissedTurns: getCombatTimeoutStreak(state) + 1,
+    lastMissedAt: now.toISOString()
+  };
+
+  return next;
+}
+
+export function resetCombatTimeout(state: CombatState): CombatState {
+  if (!state.timeout) {
+    return state;
+  }
+
+  const next = cloneCombatState(state);
+  delete next.timeout;
+
+  return next;
 }
 
 export function expireCombat(state: CombatState): CombatState {
@@ -221,6 +321,69 @@ export function expireCombat(state: CombatState): CombatState {
       manaSpent: 0,
       critical: false
     }
+  };
+}
+
+export function markCombatTurnTimeoutMode(
+  state: CombatState,
+  timeoutMode: CombatTimeoutMode
+): CombatState {
+  if (!state.lastTurn) {
+    return state;
+  }
+
+  return {
+    ...state,
+    lastTurn: {
+      ...state.lastTurn,
+      debugTrace: {
+        ...state.lastTurn.debugTrace,
+        timeoutMode
+      }
+    }
+  };
+}
+
+export function cloneCombatCooldowns(
+  cooldowns: NonNullable<CombatState["cooldowns"]>
+): NonNullable<CombatState["cooldowns"]> {
+  return {
+    ...(cooldowns.abilities
+      ? {
+          abilities: Object.fromEntries(
+            Object.entries(cooldowns.abilities).map(([abilityId, cooldown]) => [
+              abilityId,
+              { ...cooldown }
+            ])
+          )
+        }
+      : {}),
+    ...(cooldowns.skill ? { skill: { ...cooldowns.skill } } : {})
+  };
+}
+
+function cloneMonsterContextSnapshot(snapshot: MonsterContextSnapshotV1): MonsterContextSnapshotV1 {
+  return {
+    ...snapshot,
+    traitIds: [...snapshot.traitIds],
+    world: {
+      ...snapshot.world,
+      locationTags: [...snapshot.world.locationTags]
+    },
+    matchedBranches: snapshot.matchedBranches.map((branch) => ({ ...branch })),
+    effects: { ...snapshot.effects },
+    ...(snapshot.cue ? { cue: { ...snapshot.cue } } : {})
+  };
+}
+
+function cloneCombatBarkState(state: CombatBarkStateV1): CombatBarkStateV1 {
+  return {
+    ...state,
+    selectedEarlyBarkByMonsterId: { ...state.selectedEarlyBarkByMonsterId },
+    emittedBarkIds: [...state.emittedBarkIds],
+    lastBarkOwnActionByMonsterId: { ...state.lastBarkOwnActionByMonsterId },
+    encounterBarkCountByMonsterId: { ...state.encounterBarkCountByMonsterId },
+    ownActionCountByMonsterId: { ...state.ownActionCountByMonsterId }
   };
 }
 

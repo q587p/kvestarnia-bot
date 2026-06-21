@@ -10,6 +10,7 @@ import {
   presentProblemQuestTurnIn,
   presentQuestProgressAfterFight,
   presentPersistentFight,
+  presentPersistentFightIntro,
   presentPersistentFightTurn
 } from "../../src/bot/presenters/fightPresenter";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
@@ -128,11 +129,10 @@ describe("fight presenter", () => {
         "<b>+9 XP",
         "+3 золота</b>",
         "",
-        "Здобуто: <i>Підозрілий лавашний доказ</i>",
-        "",
-        "Наступний крок: /hero"
+        "Здобуто: <i>Підозрілий лавашний доказ</i>"
       ].join("\n")
     );
+    expect(text).not.toContain("Наступний крок");
     expect(text).not.toContain("×1");
   });
 
@@ -169,7 +169,7 @@ describe("fight presenter", () => {
   });
 
   it("renders a persistent fight state without reward promises", () => {
-    const text = presentPersistentFight({
+    const result = {
       state: "persistent-active",
       character: {
         ...character,
@@ -184,23 +184,87 @@ describe("fight presenter", () => {
         tags: ["test"]
       },
       questProgress: questProgress(4)
-    });
+    } as const;
+    const intro = presentPersistentFightIntro(result);
+    const text = presentPersistentFight(result);
 
-    expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
-    expect(text).toContain("&lt;i&gt;Монстр&lt;/i&gt;");
-    expect(text).toContain("Проти вас: <b>&lt;i&gt;Монстр&lt;/i&gt;</b> · рівень 3");
+    expect(intro).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
+    expect(intro).toContain("Проти вас: <b>&lt;i&gt;Монстр&lt;/i&gt;</b> · рівень 3");
+    expect(intro).toContain("поки не видає нагород");
+    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
+    expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
+    expect(text).not.toContain("Проти вас");
     expect(text).not.toContain("📋 <b>Тринадцять дрібних проблем</b>");
     expect(text).not.toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
     expect(text).toContain("👹 Монстр: 18/18");
-    expect(text).toContain("Що робимо?");
+    expect(text).toContain("Хід: 1\n\n⏳ На хід є 23 секунди");
+    expect(text).toContain("⏳ На хід є 23 секунди");
+    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("Не зволікайте надто довго");
     expect(text).not.toContain("Нагорода");
     expect(text).not.toContain("XP");
     expect(text).not.toContain("золота</b>");
   });
 
-  it("guides wounded persistent fighters back to /hero after a terminal result", () => {
+  it("shows frozen monster context cues only on the opening active card", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        context: {
+          version: 1,
+          rulesVersion: "monster-context-v1",
+          monsterId: "monster.test",
+          traitIds: ["context.night-shift"],
+          world: {
+            version: 1,
+            timezone: "Europe/Kyiv",
+            utcStartedAt: "2026-06-20T00:30:00.000Z",
+            localStartedAt: "2026-06-20T03:30:00[Europe/Kyiv]",
+            localDate: "2026-06-20",
+            dayPhase: "night",
+            weekKind: "weekend",
+            season: "summer",
+            mealWindow: "none",
+            monthEdge: "middle",
+            calendarDay: 20,
+            locationTags: ["korchma"],
+            partySizeBand: "solo"
+          },
+          matchedBranches: [],
+          effects: {
+            outgoingDamageMultiplier: 1,
+            incomingDamageMultiplier: 1,
+            accuracyDeltaPp: 0,
+            evasionDeltaPp: 0,
+            abilityWeightDelta: 0,
+            signatureCooldownDelta: 0,
+            flatArmorDelta: 0,
+            flatResistDelta: 0,
+            flatDexterityDelta: 0
+          },
+          cue: {
+            id: "context-cue.test",
+            text: "<нічний> настрій монстра не лізе в HTML.",
+            tone: "behavior-shift"
+          }
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("🌗 <i>&lt;нічний&gt; настрій монстра не лізе в HTML.</i>");
+  });
+
+  it("does not add new-fight hero guidance to terminal persistent results", () => {
     const text = presentPersistentFight({
       state: "persistent-terminal",
       character,
@@ -224,7 +288,8 @@ describe("fight presenter", () => {
       fightReward: null
     });
 
-    expect(text).toContain("Спершу /hero, тоді новий бій.");
+    expect(text).toContain("💤 Ви програли.");
+    expect(text).not.toContain("Спершу /hero, тоді новий бій.");
   });
 
   it("shows stale and mana failure persistent turns without mutating reward copy", () => {
@@ -267,8 +332,7 @@ describe("fight presenter", () => {
     });
 
     expect(stale).toContain("поточний стан");
-    expect(stale).toContain("Невідомий монстр");
-    expect(stale).not.toContain("Невідомий монстр</b> · рівень");
+    expect(stale).not.toContain("Проти вас");
     expect(noMana).toContain("Мани не стало навіть на драматичний жест");
     expect(noMana).not.toContain("Нагорода");
   });
@@ -309,8 +373,94 @@ describe("fight presenter", () => {
     );
     expect(text).not.toContain("Останній хід: вміння");
     expect(text).not.toContain("критично:");
-    expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
+    expect(text).toContain("⏳ На хід є 23 секунди");
+    expect(text).not.toContain("Проти вас");
     expect(text).not.toContain("критично дала");
+  });
+
+  it("shows timeout notices for auto-attack and skipped expired turns", () => {
+    const autoAttack = presentPersistentFightTurn({
+      state: "stale-turn",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 4,
+          monsterDamage: 1,
+          manaSpent: 0,
+          critical: false,
+          debugTrace: {
+            timeoutMode: "auto-attack"
+          }
+        }
+      }),
+      monster: null,
+      questProgress: questProgress(4)
+    });
+    const skipped = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "skip",
+          heroOutcome: "inactive",
+          heroDamage: 0,
+          monsterDamage: 3,
+          manaSpent: 0,
+          critical: false,
+          debugTrace: {
+            timeoutMode: "skip"
+          }
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(autoAttack).toContain("Попередній хід прострочено: Корчма зарахувала звичайну атаку.");
+    expect(skipped).toContain("Попередній хід прострочено: дію пропущено, а монстр не чекав.");
+  });
+
+  it("renders stored monster bark ids without rerolling copy", () => {
+    const text = presentPersistentFightTurn({
+      state: "updated",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 4,
+          monsterDamage: 1,
+          manaSpent: 0,
+          critical: false,
+          monsterBarkId: "bark.deadline-spider.early-turn"
+        }
+      }),
+      monster: {
+        id: "monster.deadline-spider",
+        name: "Павук дедлайнів",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["beast"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    });
+
+    expect(text).toContain(
+      "🗣️ Монстр:\n<blockquote>Ще один хід — і прострочення стане вашим титулом.</blockquote>"
+    );
+    expect(text).toContain("Остання дія\nАтака влучає на 4 шкоди.");
   });
 
   it("points completed problem quest stages to Korchmar instead of auto-claiming", () => {
@@ -492,7 +642,7 @@ describe("fight presenter", () => {
 
     expect(text).toContain("Винагорода вже видана");
     expect(text).toContain("Винагорода за бій:\n<b>+7 XP\n+2 золота</b>");
-    expect(text).toContain("Проти вас: <b>&lt;b&gt;Монстр&lt;/b&gt;</b> · рівень 3");
+    expect(text).not.toContain("Проти вас");
     expect(text).not.toContain("<b>Монстр</b>");
   });
 

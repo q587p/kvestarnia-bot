@@ -3,8 +3,22 @@ import type { CharacterSummary } from "../../domain/characters/characterSummary"
 import type { SoloCombatSessionRecord } from "../../db/repositories/soloCombatSessionRepository";
 import { getCombatActionAvailability } from "../../domain/combat";
 import { getPersistentFightSkillLabel } from "../../services/fightService";
+import {
+  normalizePresenceLocationId,
+  PRESENCE_LOCATION_KORCHMA_BAR,
+  PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_DEEP,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+  PRESENCE_LOCATION_KORCHMA_FRONT,
+  PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
+} from "../../services/presenceService";
 import { makeFightCallbackData, makeFightTurnCallbackData } from "../callbacks/fightCallbackData";
-import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { makePlaceCallbackData, type PlaceCallback } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 
 export type FightResultKeyboardState = "completed" | "already-completed";
@@ -43,6 +57,10 @@ export function buildPersistentFightKeyboard(
     .text("🗡️ Вдарити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "attack" }))
     .row();
 
+  keyboard
+    .text("🛡 Захищатися", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "defend" }))
+    .row();
+
   if (availability?.available !== false) {
     keyboard.text(
       getPersistentFightSkillLabel(character),
@@ -59,13 +77,68 @@ export function buildPersistentFightResultKeyboard(
   character: CharacterSummary
 ): InlineKeyboard {
   if (session.state?.status !== "active") {
-    return new InlineKeyboard()
-      .text("⚔️ Новий бій", makePlaceCallbackData("deep-level1"))
-      .row()
-      .text("🪜 До Низу", makePlaceCallbackData("deep"));
+    const navigation = getPersistentFightReturnNavigation(session);
+    const keyboard = new InlineKeyboard();
+
+    if (navigation.allowNewFight) {
+      keyboard.text("⚔️ Новий бій", makePlaceCallbackData("deep-level1")).row();
+    }
+
+    return keyboard.text(navigation.returnLabel, makePlaceCallbackData(navigation.returnPlace));
   }
 
   return buildPersistentFightKeyboard(session, character);
+}
+
+export function getPersistentFightOriginLocationId(session: SoloCombatSessionRecord): string {
+  const stored = session.state?.originLocationId;
+
+  if (stored) {
+    return normalizePresenceLocationId(stored);
+  }
+
+  if (session.state?.source === "adventure") {
+    return PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
+  }
+
+  if (session.state?.source === "yeger") {
+    return PRESENCE_LOCATION_KORCHMA_RANGER_CORNER;
+  }
+
+  return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1;
+}
+
+function getPersistentFightReturnNavigation(session: SoloCombatSessionRecord): {
+  allowNewFight: boolean;
+  returnLabel: string;
+  returnPlace: PlaceCallback;
+} {
+  const origin = getPersistentFightOriginLocationId(session);
+
+  switch (origin) {
+    case PRESENCE_LOCATION_KORCHMA_HALL:
+      return { allowNewFight: false, returnLabel: "↩️ Повернутися до зали", returnPlace: "hall" };
+    case PRESENCE_LOCATION_KORCHMA_QUEST_TABLE:
+      return { allowNewFight: false, returnLabel: "↩️ Повернутися до столу", returnPlace: "quest-table" };
+    case PRESENCE_LOCATION_KORCHMA_BAR:
+      return { allowNewFight: false, returnLabel: "↩️ Повернутися до шинку", returnPlace: "bar" };
+    case PRESENCE_LOCATION_KORCHMA_BARREL:
+      return { allowNewFight: false, returnLabel: "↩️ Повернутися до Бочки", returnPlace: "barrel" };
+    case PRESENCE_LOCATION_KORCHMA_CELLAR:
+      return { allowNewFight: false, returnLabel: "↩️ Повернутися до льоху", returnPlace: "cellar" };
+    case PRESENCE_LOCATION_KORCHMA_NEWS_CORNER:
+      return { allowNewFight: false, returnLabel: "↩️ Повернутися до вістей", returnPlace: "news-corner" };
+    case PRESENCE_LOCATION_KORCHMA_RANGER_CORNER:
+      return { allowNewFight: false, returnLabel: "↩️ Повернутися до Єгеря", returnPlace: "ranger-corner" };
+    case PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER:
+      return { allowNewFight: false, returnLabel: "↩️ Повернутися до кутка", returnPlace: "fighting-corner" };
+    case PRESENCE_LOCATION_KORCHMA_FRONT:
+      return { allowNewFight: false, returnLabel: "↩️ Повернутися надвір", returnPlace: "front" };
+    case PRESENCE_LOCATION_KORCHMA_DEEP:
+    case PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1:
+    default:
+      return { allowNewFight: true, returnLabel: "↩️ Повернутися до Низу", returnPlace: "deep" };
+  }
 }
 
 export function buildPersistentFightReadyKeyboard(): InlineKeyboard {

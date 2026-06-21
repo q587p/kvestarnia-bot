@@ -126,7 +126,7 @@ Deliverables:
 - Trading/gifting MVP: transfer one eligible манатка or stack unit with explicit confirmation and audit row.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
 - Remort follow-ups after the `0.1.2` base loop: remort-only advanced options, richer legacy flavor and future cosmetic/social records, without hidden wipe or power snowball.
-- Multi-enemy combat foundation: ordinary monster fights can escalate after `5+` consecutive eligible wins, add extra enemies that each act on enemy turns, scale rewards conservatively per enemy, and de-escalate after repeated losses; see `docs/tasks/0.1.16-threat-streak-multi-enemy-fights.md`.
+- Multi-enemy combat foundation: ordinary monster fights should replace the three-win monster-rest block with threat escalation. After `3` eligible one-enemy wins the next fight brings a second monster; at higher enemy counts, `2` more wins add another monster, while each defeat steps the future enemy count down by one. Extra enemies each act on enemy turns, rewards scale conservatively, and fight intros draw from 13 authored gossip/escalation lines; see `docs/tasks/archive/queued-threat-streak-multi-enemy-fights.md`.
 - Party combat and real raids after duel/session/invite and multi-enemy primitives are proven, with capped contribution-aware rare/serious manatky rewards.
 
 Done when:

@@ -48,6 +48,7 @@ The shipped `0.0.x` and `0.1.x` versions have compact historical records generat
 They are not active tasks unless a human explicitly reopens a follow-up.
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
+- [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
 
 ## Closeout
 

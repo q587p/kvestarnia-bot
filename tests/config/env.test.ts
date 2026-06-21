@@ -95,6 +95,12 @@ describe("loadConfig", () => {
     expect(config.devGrantCommandsEnabled).toBe(false);
   });
 
+  it("keeps combat balance analytics disabled by default", () => {
+    const config = loadConfig(validEnv);
+
+    expect(config.combatBalanceAnalyticsEnabled).toBe(false);
+  });
+
   it("can enable deploy notifications explicitly", () => {
     const config = loadConfig({
       ...validEnv,
@@ -118,6 +124,15 @@ describe("loadConfig", () => {
         DEV_GRANT_COMMANDS_ENABLED: value
       }).devGrantCommandsEnabled).toBe(false);
     }
+  });
+
+  it("can enable combat balance analytics explicitly", () => {
+    const config = loadConfig({
+      ...validEnv,
+      COMBAT_BALANCE_ANALYTICS_ENABLED: "on"
+    });
+
+    expect(config.combatBalanceAnalyticsEnabled).toBe(true);
   });
 
   it("parses the dev grant flag in production but leaves production blocking to the service", () => {

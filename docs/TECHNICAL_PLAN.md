@@ -220,8 +220,10 @@ Rules:
 - Callback data contains `sessionId`, `turn`, and `action`. The service rejects stale turns without mutating state, and turn resolution writes through a repository-level conditional update: only the still-active row with the expected turn may advance.
 - In `0.0.21`, per-fight rewards were deliberately absent. `0.0.23` adds a small won-session reward path: `daily_actions` with key `combat.solo-fight.reward` and `local_date = solo_combat_sessions.id` remains the idempotent reward authority, while nullable reward fields on `solo_combat_sessions` store replay/audit details for repeated callbacks.
 - The narrow problem-chain wrapper stays separate from per-session rewards. `quest.thirteen-small-problems` remains the first compatibility reward key; `0.1.6` adds explicit `quest.problem-chain.*.issued` issue keys for every stage, later `quest.problem-chain.*.reward` reward keys and no replacement of the per-session fight reward. `0.1.7` preserves old ordinary won solo fights only for the first `13`-problem paper; later stages keep fresh counters from issue time.
-- Lazy expiry happens when `/fight` or a fight callback touches an old active session; no Redis/job worker is required for this slice.
+- Long-session cleanup expiry still happens when `/fight` or a fight callback touches an old active session. Per-turn player-facing deadlines are handled by durable turn state plus best-effort in-process schedulers; no Redis/job worker is required for the current slices.
 - `0.1.18` ships the first durable per-round deadline for turn-based duels: around `23` seconds, persisted on the session row and consumed by expected turn/version. Player-action CAS requires `turn_expires_at > now`; timeout CAS requires `turn_expires_at <= now`, so callback-vs-timeout races have one database winner. The timeout path applies deterministic basic attacks for missing choices, reveals the resolved round, renders private cards best-effort and preserves idempotency. Ordinary monster fights and `/spar` can reuse the model later; long session expiry can remain a cleanup fallback, but it should not be the player-facing wait model for a stuck turn.
+- `0.1.21` reuses the short-turn idea for solo/training fights without a combat-session schema column: active `CombatState` stores `turnExpiresAt` and the active Telegram card reference, new turns set the deadline to about `23` seconds, and an in-process scheduler scans due rows to commit the canonical basic auto-attack and best-effort edit the active card. Battle-surface restore/callback paths keep the same auto-attack as a restart/delivery/race fallback. Safe side-surface redirects after the deadline do not auto-attack for the hero if they win the overdue-turn CAS first; they commit a missed-turn skip where the monster still acts and the next turn opens. Repeated unattended turns keep resolving this canonical action until combat ends or hard session expiry is reached; auto-resolved victories may grant normal rewards. Long `expires_at` remains a session cleanup boundary, not the per-turn timer.
+- `0.1.21` also stores persistent monster-fight context and bark state inside `CombatState`: `context` freezes the `Europe/Kyiv` world snapshot and applied trait effects at start, while `barks` stores deterministic line selection/emission state and turn summaries store `monsterBarkId`. Combat-state parser compatibility must keep old rows readable and preserve the new optional fields when present. The release additionally adds opt-in combat balance analytics tables through `20260621100000_add_combat_balance_analytics`; collection is disabled by default, and reports separate manual choices from timeout auto-actions.
 
 ### duel_challenges
 Shipped in `0.1.10` for the first rewardless Phase 2 social-combat slice.
@@ -604,7 +606,7 @@ Callback data коротка, версіонована.
 - `v1:fight:mimic:attack`
 - `v1:fight:mimic:receipt`
 - `v1:fight:mimic:flee`
-- `v1:fight:turn:{sessionId}:{turn}:{action}`
+- `v1:fight:turn:{sessionId}:{turn}:{action}` where current persistent actions are `attack`, `defend`, `skill`, `flee`
 - `v1:hunt:view:{localPeriodId}:{contractToken}`
 - `v1:hunt:act:{localPeriodId}:{contractToken}:strike`
 - `v1:hunt:act:{localPeriodId}:{contractToken}:trick`
@@ -674,6 +676,7 @@ Domain result → presenter → Telegram text/buttons.
 - `combatActions.ts` дає broad class-shaped skill profiles, не повні class kits.
 - `monsterCombatStats.ts` derivation бере existing monster content без schema migration.
 - `0.0.21` підключає runtime `/fight` для level 3+ через `solo_combat_sessions`, `v1:fight:turn:{sessionId}:{turn}:{action}`, ownership/turn validation і presenter layer. Persistent fight стартував без per-fight XP/gold/items, але має problem-chain wrapper, який у `0.1.6` став explicit `13 -> 23 -> 42 -> 93` stage flow через Корчмаря; `0.0.23` додає окремий small per-session reward/loot path із replay fields.
+- `0.1.21` adds the first ability foundation on top of that engine: basic attack, basic defend, class skill and flee are represented as server-side actions; class cooldowns are keyed by ability id while legacy `cooldowns.skill` remains readable; unavailable skill attempts are no-ops that do not spend mana, advance turns, tick cooldowns, trigger monster actions or advance RNG.
 
 ## Progression helper
 `0.0.4` вводить маленький deterministic helper для рівнів:

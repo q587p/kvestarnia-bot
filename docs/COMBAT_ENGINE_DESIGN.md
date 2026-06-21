@@ -1,8 +1,8 @@
 # Combat Engine Design — покрокові бійки Квестарні
 
 Created: 12026-06-13
-Status: design source-of-truth for future implementation PRs
-Scope: solo PvE combat first. Group raids, PvP, shops, trading, crafting, item-to-level sinks and full economy are future slices.
+Status: evolving combat design source-of-truth; `0.1.21` ships the first action-foundation subset.
+Scope: solo PvE combat first, with the shared primitive also reused by turn-based duels. Group raids, shops, trading, crafting, item-to-level sinks and full economy are future slices.
 
 ## Навіщо це потрібно
 
@@ -55,29 +55,28 @@ Scope: solo PvE combat first. Group raids, PvP, shops, trading, crafting, item-t
 
 ```text
 first_reaction_timeout = ~23 секунд
-normal_turn_timeout = 45 секунд
+normal_turn_timeout = ~23 секунд у поточному solo/training foundation slice
 elite_turn_timeout = 60 секунд
 hard_session_expiry = 10-15 хвилин
-max_auto_turns_before_escape_or_expire = 2
 ```
 
 Точні timestamp-и не показувати. Player-facing текст має бути приблизним: «ще трохи», «корчмар уже дивиться», «герой замислився надто героїчно».
 
 Timeout має бути **source-of-truth у service/domain**, а не в Telegram presenter-і:
 
-1. При створенні/оновленні ходу в `stateJson` пишеться `nextTimeoutAt`, `missedTurns`, `autoTurnCount`, `hardExpiresAt` і `expectedTurnToken`.
-2. In-process timer може викликати `advanceCombatTimeout(combatId)` і надіслати повідомлення, але це best-effort.
+1. При створенні/оновленні ходу в `stateJson` пишеться deadline поточного ходу. У `0.1.21` solo/training fights use `turnExpiresAt`; scheduled missed turns repeat the canonical basic attack while skip-mode lazy catch-up repeats the skipped hero action.
+2. In-process timer може викликати timeout advancement і оновити активну бойову картку, але це best-effort. У `0.1.21` solo/training scheduler сканує overdue `CombatState.turnExpiresAt` rows and edits/sends through the stored Telegram message reference.
 3. Після restart/deploy будь-яка наступна команда/callback, яка бачить overdue combat, спочатку викликає lazy timeout advancement.
 4. Повторний timeout call з тим самим `expectedTurnToken` нічого не дублює.
 
 Auto-action ladder:
 
 - **Якщо герой мовчить після старту бою приблизно 23 секунди:** service/domain спершу намагається безпечний auto-action з доступних, а не відразу прострочує бій. У типових випадках це `attack`, а якщо герой має мало HP або стоїть на `coward`-сценарії, можна підняти `guard` або `escape` як більш обережний варіант.
-- **Перший пропущений хід:** safe default. Воїн/орк/дрантогор бʼє, маг/мольфар/русалка робить дешевий cantrip, бард/бюрокромант запускає trick/debuff, low HP герой guards.
-- **Другий пропущений хід:** guard або спроба втечі, залежно від HP і odds.
-- **Третій пропущений хід або hard expiry:** `expired` або auto-flee з мʼяким текстом. Reward не видавати.
+- **Перший пропущений хід:** у `0.1.21` scheduler normally commits a canonical basic attack and updates the active card after the deadline; if restart, delivery failure or callback race wins instead, battle-surface restore/callback paths commit the same canonical basic attack. Smarter class-shaped auto-actions remain future work.
+- **Наступні пропущені ходи:** repeat the same safe timeout action for that path: scheduler/lazy battle catch-up uses `attack`, skip-mode side-surface catch-up uses `skip`.
+- **Hard expiry:** `expired` або auto-flee з мʼяким текстом. Reward не видавати.
 
-Auto-action може перемогти ворога, якщо це перший/другий auto turn і стан бою нормальний. Але combat із переважно auto-turns не має ставати фармом без участі.
+Auto-action може перемогти ворога, якщо стан бою нормальний. Hard session expiry is the backstop that prevents reviving very old sessions without turning repeated missed turns into their own reward-blocking ladder.
 
 ## Дії гравця
 
@@ -150,7 +149,7 @@ Guard має мати кілька тематичних форм, але оди�
 
 ### Cooldowns for skills
 
-Сильні вміння не мають натискатися щохідно. Базове правило для першого slice: signature skill має cooldown `4-5` ходів, а дешеві cantrip/trick/support-дії можуть мати коротший cooldown або тільки mana cost.
+Сильні вміння не мають натискатися щохідно. `0.1.21` starts with ability-keyed cooldown state and keeps the current class actions on a short foundation rule: the class action becomes available after one subsequent own committed action. Longer milestone abilities can use larger cooldowns later.
 
 UI має показувати причину недоступности без фрустрації:
 
@@ -280,6 +279,18 @@ Personality archetypes:
 - `beast` — єгер має зрозумілий edge.
 
 Monster actions мають бути простими, але не однаковими. Кожен ordinary monster у майбутньому combat-variety slice має отримати хоча б одну дію поза basic attack: guard, heavy wind-up, weak debuff, small self-shield, once-per-fight skill, surrender cue або backup call. Це має жити в content/domain data, не в presenter-і.
+
+### Context snapshots and barks
+
+`0.1.21` adds the first contextual texture layer for persistent monster fights without adding monster abilities yet:
+
+- combat start builds one `Europe/Kyiv` world snapshot from the service clock, location tags and party size;
+- the snapshot is stored in `CombatState.context` and must not be recomputed on resume, replay or when the real clock crosses a boundary mid-fight;
+- a monster can apply at most two authored `contextTraitIds`; effects are small, capped and restricted to combat stats such as damage multipliers, accuracy/evasion deltas and flat armor/resist/dexterity nudges;
+- context never changes encounter eligibility, Yeger matching/progress, XP, gold, loot, authored level or stored reward replay;
+- monster barks live in content/domain data, not presenter code; turn summaries store a `monsterBarkId`, and presenters resolve that stable id to Ukrainian copy.
+
+The current implementation imports the package's 93-monster roster into the existing `MonsterContent` shape, plus context profiles and five authored bark lines per monster. It still does not import the monster ability/loadout extension.
 
 ## Відмова, здача і backup
 
@@ -449,7 +460,7 @@ Never let repeated callback reroll damage, loot, surrender, backup call, XP or g
 - Stale action for old turn returns current state.
 - Spell with no mana does not spend turn.
 - Auto-timeout for same turn is idempotent.
-- First auto action can finish; repeated auto farm expires/no reward.
+- Repeated missed solo/training turns keep using the canonical auto-action until combat ends or hard session expiry is reached; hard-expired sessions give no reward.
 - Surrender/refusal gives no XP.
 - Backup call caps at one extra enemy in solo MVP.
 - Equipment effects only from intended metadata.

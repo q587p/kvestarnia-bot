@@ -1,5 +1,5 @@
 ﻿import type { Context } from "grammy";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { sendFight } from "../../src/bot/commands/fightCommand";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
@@ -146,9 +146,13 @@ describe("fight command", () => {
       requireKorchmaInterior: true
     });
 
-    expect(replies[0]?.text).toContain("⚔️ Бій");
-    expect(replies[0]?.text).toContain("Павук дедлайнів");
-    expect(replies[0]?.text).toContain("поки не видає нагород");
+    expect(replies).toHaveLength(1);
+    expect(replies[0]?.text).toContain("❤️ Ви: 24/24 · мана 12/12");
+    expect(replies[0]?.text).toContain("👹 Монстр: 18/18");
+    expect(replies[0]?.text).toContain("⏳ На хід є 23 секунди");
+    expect(replies[0]?.text).toContain("<b>Мандрівник</b>, що робимо?");
+    expect(replies[0]?.text).not.toContain("⚔️ Бій");
+    expect(replies[0]?.text).not.toContain("Павук дедлайнів");
     expect(replies[0]?.text).not.toContain("Тринадцять дрібних проблем");
     expect(replies[0]?.text).not.toContain("Не зволікайте надто довго");
     const options = replies[0]?.options as {
@@ -165,6 +169,7 @@ describe("fight command", () => {
 
   it("restores a terminal persistent fight through the canonical reward screen", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
+    const recordPersistentFightMessageReference = vi.fn(() => Promise.resolve());
     const terminalSession = {
       ...persistentSession(),
       status: "won" as const,
@@ -215,14 +220,16 @@ describe("fight command", () => {
             },
             levelChange: null
           }
-        })
+        }),
+      recordPersistentFightMessageReference
     } as unknown as FightService;
 
-    await sendFight(makeContext(replies), fightService, "reply");
+    await sendFight(makeContextWithMessage(replies, 777), fightService, "reply");
 
-    expect(replies[0]?.text).toContain("Цей бій уже завершився");
-    expect(replies[0]?.text).toContain("Павук дедлайнів");
+    expect(replies[0]?.text).toContain("🎉 Ви перемогли");
     expect(replies[0]?.text).toContain("Винагорода за бій");
+    expect(replies[0]?.text).not.toContain("Цей бій уже завершився");
+    expect(replies[0]?.text).not.toContain("Павук дедлайнів");
     expect(replies[0]?.text).not.toContain("За бочками в коморі є сходи");
     const options = replies[0]?.options as {
       parse_mode: string;
@@ -232,8 +239,12 @@ describe("fight command", () => {
     expect(options.parse_mode).toBe("HTML");
     expect(options.reply_markup.inline_keyboard.flat()).toEqual([
       { text: "⚔️ Новий бій", callback_data: makePlaceCallbackData("deep-level1") },
-      { text: "🪜 До Низу", callback_data: makePlaceCallbackData("deep") }
+      { text: "↩️ Повернутися до Низу", callback_data: makePlaceCallbackData("deep") }
     ]);
+    expect(recordPersistentFightMessageReference).toHaveBeenCalledWith(42n, terminalSession.id, {
+      chatId: "42",
+      messageId: 777
+    });
   });
 
   it("keeps /fight cosmetic-safe while a training doppelganger session is active", async () => {
@@ -441,6 +452,7 @@ describe("fight command", () => {
             level: 3
           },
           session: persistentSession(),
+          started: true,
           monster: {
             id: "monster.deadline-spider",
             name: "Павук дедлайнів",
@@ -463,6 +475,9 @@ describe("fight command", () => {
 
     expect(startedDifficulties).toEqual(["easy"]);
     expect(replies[0]?.text).toContain("Павук дедлайнів");
+    expect(replies[0]?.text).toContain("поки не видає нагород");
+    expect(replies[1]?.text).toContain("❤️ Ви: 24/24 · мана 12/12");
+    expect(replies[1]?.text).toContain("⏳ На хід є 23 секунди");
   });
 
   it("routes unissued problem quests to the Шинок instead of starting a fight", async () => {
@@ -571,6 +586,27 @@ function makeContext(replies: Array<{ text: string; options: unknown }>): Contex
     reply: (text: string, options: unknown) => {
       replies.push({ text, options });
       return Promise.resolve({});
+    }
+  } as unknown as Context;
+}
+
+function makeContextWithMessage(
+  replies: Array<{ text: string; options: unknown }>,
+  messageId: number
+): Context {
+  return {
+    chat: {
+      id: 42,
+      type: "private"
+    },
+    from: {
+      id: 42,
+      is_bot: false,
+      first_name: "Тест"
+    },
+    reply: (text: string, options: unknown) => {
+      replies.push({ text, options });
+      return Promise.resolve({ message_id: messageId });
     }
   } as unknown as Context;
 }

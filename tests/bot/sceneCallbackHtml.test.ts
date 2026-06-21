@@ -1170,7 +1170,9 @@ describe("scene callback HTML options", () => {
 
     expect(String(edit?.payload.text)).toContain("У вас уже триває інша сутичка.");
     expect(String(edit?.payload.text)).not.toContain("Щось неупокоєне знайшлося");
-    expect(String(fight?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(fight?.payload.text)).toContain("❤️ Ви:");
+    expect(String(fight?.payload.text)).toContain("⏳ На хід є 23 секунди.");
+    expect(String(fight?.payload.text)).toContain("<b>Мандрівник</b>, що робимо?");
   });
 
   it.each([
@@ -1230,6 +1232,7 @@ describe("scene callback HTML options", () => {
   });
 
   it("shows a visible combat-lock explanation when a place button is pressed during a fight", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
     const calls = await captureApiCalls(
       makePlaceCallbackData("hall"),
       servicesWith({
@@ -1238,7 +1241,14 @@ describe("scene callback HTML options", () => {
             Promise.resolve({
               state: "persistent-active" as const,
               character,
-              session: persistentSession("monster.deadline-spider"),
+              session: {
+                ...persistentSession("monster.deadline-spider"),
+                state: {
+                  ...persistentSession("monster.deadline-spider").state,
+                  source: "adventure",
+                  originLocationId: "location.korchma.quest_table"
+                }
+              },
               monster: {
                 id: "monster.deadline-spider",
                 name: "Павук дедлайнів",
@@ -1248,14 +1258,24 @@ describe("scene callback HTML options", () => {
               },
               questProgress: null
             })
+        },
+        presence: {
+          markAction
         }
       })
     );
     const edit = calls.find((call) => call.method === "editMessageText");
 
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.quest_table",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
     expect(String(edit?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
     expect(String(edit?.payload.text)).toContain("Спершу завершіть цю сутичку");
-    expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(edit?.payload.text)).toContain("❤️ Ви:");
+    expect(String(edit?.payload.text)).toContain("⏳ На хід є 23 секунди.");
   });
 
   it.each([
@@ -1286,7 +1306,8 @@ describe("scene callback HTML options", () => {
     const reply = calls.find((call) => call.method === "sendMessage");
 
     expect(String(reply?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
-    expect(String(reply?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(reply?.payload.text)).toContain("❤️ Ви:");
+    expect(String(reply?.payload.text)).toContain("⏳ На хід є 23 секунди.");
   });
 
   it.each([
@@ -1469,6 +1490,51 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
     expect(String(reply?.payload.text)).toContain("🪞 Копія");
     expect(JSON.stringify(reply?.payload.reply_markup)).not.toContain("До справ");
+  });
+
+  it("renders a terminal training result when the combat lock catches an expired turn", async () => {
+    const calls = await captureTextApiCalls(
+      mainMenuButtons.tavern,
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "training-active" as const,
+              character,
+              session: trainingSession(),
+              questProgress: null
+            })
+        },
+        trainingDoppelganger: {
+          getStartOptionsForTelegramUser: () =>
+            Promise.resolve({
+              state: "terminal" as const,
+              character,
+              session: terminalTrainingSession(),
+              doppelganger: trainingMonster(),
+              reward: {
+                state: "claimed" as const,
+                reward: {
+                  xp: 4,
+                  gold: 0,
+                  localDate: "12026-06-15",
+                  itemGrants: []
+                },
+                levelChange: null,
+                availableAt: new Date("2026-06-15T10:30:00.000Z"),
+                now: new Date("2026-06-15T10:00:00.000Z")
+              }
+            })
+        }
+      })
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+    const keyboard = JSON.stringify(reply?.payload.reply_markup);
+
+    expect(String(reply?.payload.text)).toContain("Це тренування вже завершилось");
+    expect(String(reply?.payload.text)).not.toContain("Тренування вже триває");
+    expect(keyboard).toContain("fighting-corner");
+    expect(keyboard).not.toContain("v1:spar:turn");
   });
 
   it("keeps main-menu text inside an active starter mimic fight", async () => {
@@ -1938,7 +2004,9 @@ describe("scene callback HTML options", () => {
         currentAdventureId: "adventure.solo-fight"
       })
     );
-    expect(String(fight?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(fight?.payload.text)).toContain("❤️ Ви:");
+    expect(String(fight?.payload.text)).toContain("⏳ На хід є 23 секунди.");
+    expect(String(fight?.payload.text)).toContain("<b>Мандрівник</b>, що робимо?");
   });
 
   it("rolls back a complication claim when the follow-up fight needs rest", async () => {
@@ -2010,6 +2078,7 @@ describe("scene callback HTML options", () => {
 
     expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
       source: "adventure",
+      originLocationId: "location.korchma.quest_table",
       difficulty: "normal",
       target: { monsterIds: ["monster.borshch-slime"] }
     });
@@ -2101,6 +2170,7 @@ describe("scene callback HTML options", () => {
 
     expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
       source: "adventure",
+      originLocationId: "location.korchma.quest_table",
       difficulty: "normal",
       target: { monsterIds: ["monster.borshch-slime"] }
     });
@@ -2115,7 +2185,8 @@ describe("scene callback HTML options", () => {
       currentRaidId: null,
       currentAdventureId: "adventure.solo-fight"
     });
-    expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(edit?.payload.text)).toContain("❤️ Ви:");
+    expect(String(edit?.payload.text)).toContain("⏳ На хід є 23 секунди.");
     expect(String(edit?.payload.text)).not.toContain("Нагорода не видана");
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
   });
@@ -2274,7 +2345,9 @@ describe("scene callback HTML options", () => {
       currentRaidId: null,
       currentAdventureId: "adventure.solo-fight"
     });
-    expect(String(edit?.payload.text)).toContain("Павук дедлайнів");
+    expect(String(edit?.payload.text)).toContain("❤️ Ви:");
+    expect(String(edit?.payload.text)).toContain("🎉 Ви перемогли.");
+    expect(String(edit?.payload.text)).not.toContain("⏳ На хід є 23 секунди.");
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 
@@ -2660,6 +2733,40 @@ function trainingSession() {
         id: TRAINING_DOPPELGANGER_MONSTER_ID,
         hp: 12,
         hpMax: 12
+      }
+    }
+  };
+}
+
+function terminalTrainingSession() {
+  const session = trainingSession();
+
+  return {
+    ...session,
+    status: "won" as const,
+    turn: 3,
+    reward: {
+      xp: 4,
+      gold: 0,
+      localDate: "12026-06-15",
+      itemGrants: []
+    },
+    state: {
+      ...session.state,
+      status: "won" as const,
+      turn: 3,
+      monster: {
+        ...session.state.monster,
+        hp: 0
+      },
+      lastTurn: {
+        action: "attack" as const,
+        heroOutcome: "won" as const,
+        monsterOutcome: "inactive" as const,
+        heroDamage: 12,
+        monsterDamage: 0,
+        manaSpent: 0,
+        critical: false
       }
     }
   };
