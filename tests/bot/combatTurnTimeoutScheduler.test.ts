@@ -26,6 +26,10 @@ import type { CharacterSummary } from "../../src/domain/characters/characterSumm
 import type { CombatState } from "../../src/domain/combat";
 import type { MonsterContent } from "../../src/content/schema";
 import { FightService, type PersistentFightTimeoutResult } from "../../src/services/fightService";
+import type {
+  TrainingDoppelgangerService,
+  TrainingDoppelgangerTimeoutResult
+} from "../../src/services/trainingDoppelgangerService";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { FakeRandomSource } from "../../src/shared/random";
 
@@ -202,6 +206,91 @@ describe("combat turn timeout scheduler", () => {
       messageId: 588
     });
   });
+
+  it("records a replacement terminal card reference when Telegram cannot edit the old persistent card", async () => {
+    const dueSession = persistentSession();
+    const session = terminalPersistentSession();
+    const result: PersistentFightTimeoutResult = {
+      state: "terminal",
+      telegramUserId: 42n,
+      character,
+      session,
+      monster,
+      questProgress: null,
+      fightReward: null
+    };
+    const fight = {
+      listDuePersistentFightTurns: vi.fn(() => Promise.resolve([dueSession])),
+      resolveDuePersistentFightTurn: vi.fn(() => Promise.resolve(result)),
+      recordPersistentFightMessageReference: vi.fn(() => Promise.resolve())
+    };
+    const editMessageText = vi.fn(() => Promise.reject(new Error("message is gone")));
+    const sendMessage = vi.fn(() => Promise.resolve({ message_id: 589 }));
+    const { bot } = fakeBot({
+      editMessageText,
+      sendMessage
+    });
+    const scheduler = createCombatTurnTimeoutScheduler(
+      { fight: fight as unknown as FightService },
+      bot,
+      { intervalMs: 60_000 }
+    );
+
+    scheduler.start();
+
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalled());
+    scheduler.stop();
+
+    expect(fight.recordPersistentFightMessageReference).toHaveBeenCalledWith(42n, "session-1", {
+      chatId: "42",
+      messageId: 589
+    });
+  });
+
+  it("records a replacement terminal card reference when Telegram cannot edit the old training card", async () => {
+    const dueSession = trainingSession();
+    const session = terminalTrainingSession();
+    const result: TrainingDoppelgangerTimeoutResult = {
+      state: "terminal",
+      telegramUserId: 42n,
+      character,
+      doppelganger: trainingDoppelganger(),
+      session,
+      reward: null
+    };
+    const fight = {
+      listDuePersistentFightTurns: vi.fn(() => Promise.resolve([]))
+    };
+    const training = {
+      listDueTrainingTurns: vi.fn(() => Promise.resolve([dueSession])),
+      resolveDueTrainingTurn: vi.fn(() => Promise.resolve(result)),
+      recordTrainingDoppelgangerMessageReference: vi.fn(() => Promise.resolve())
+    };
+    const editMessageText = vi.fn(() => Promise.reject(new Error("message is gone")));
+    const sendMessage = vi.fn(() => Promise.resolve({ message_id: 590 }));
+    const { bot } = fakeBot({
+      editMessageText,
+      sendMessage
+    });
+    const scheduler = createCombatTurnTimeoutScheduler(
+      {
+        fight: fight as unknown as FightService,
+        trainingDoppelganger: training as unknown as TrainingDoppelgangerService
+      },
+      bot,
+      { intervalMs: 60_000 }
+    );
+
+    scheduler.start();
+
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalled());
+    scheduler.stop();
+
+    expect(training.recordTrainingDoppelgangerMessageReference).toHaveBeenCalledWith(42n, "session-1", {
+      chatId: "42",
+      messageId: 590
+    });
+  });
 });
 
 type EditMessageTextCall = [
@@ -296,6 +385,96 @@ function persistentSession(): DueSoloCombatSessionRecord {
     updatedAt: new Date("2026-06-20T00:00:23.000Z"),
     expiresAt: new Date("2026-06-20T00:30:00.000Z"),
     telegramUserId: 42n
+  };
+}
+
+function terminalPersistentSession(): DueSoloCombatSessionRecord {
+  const session = persistentSession();
+  const state: CombatState = {
+    ...session.state!,
+    status: "won",
+    turn: 3,
+    monster: {
+      ...session.state!.monster,
+      hp: 0
+    },
+    lastTurn: {
+      action: "attack",
+      heroOutcome: "won",
+      monsterOutcome: "inactive",
+      heroDamage: 7,
+      monsterDamage: 0,
+      manaSpent: 0,
+      critical: false
+    }
+  };
+
+  return {
+    ...session,
+    status: "won",
+    turn: state.turn,
+    state
+  };
+}
+
+function trainingSession(): DueSoloCombatSessionRecord {
+  const session = persistentSession();
+  const state: CombatState = {
+    ...session.state!,
+    source: "training",
+    monster: {
+      ...session.state!.monster,
+      id: "monster.training-doppelganger",
+      name: trainingDoppelganger().name
+    }
+  };
+
+  return {
+    ...session,
+    monsterId: "monster.training-doppelganger",
+    state
+  };
+}
+
+function terminalTrainingSession(): DueSoloCombatSessionRecord {
+  const session = trainingSession();
+  const state: CombatState = {
+    ...session.state!,
+    status: "won",
+    turn: 3,
+    monster: {
+      ...session.state!.monster,
+      hp: 0
+    },
+    lastTurn: {
+      action: "attack",
+      heroOutcome: "won",
+      monsterOutcome: "inactive",
+      heroDamage: 7,
+      monsterDamage: 0,
+      manaSpent: 0,
+      critical: false
+    }
+  };
+
+  return {
+    ...session,
+    status: "won",
+    turn: state.turn,
+    state
+  };
+}
+
+function trainingDoppelganger() {
+  return {
+    name: "РњР°РЅРґСЂС–РІРЅРёРє Р· РґР·РµСЂРєР°Р»Р°",
+    raceName: character.raceName,
+    className: character.className,
+    title: character.title,
+    level: character.level,
+    spawnMode: "COPY_TARGET" as const,
+    source: "target" as const,
+    copiedEquipmentCount: 0
   };
 }
 

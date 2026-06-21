@@ -901,11 +901,18 @@ async function redirectCombatLockIfNeeded(
       return true;
     }
 
+    if (training?.state === "terminal") {
+      await sendCombatLockText(ctx, presentCombatLockRedirect(presentTrainingDoppelganger(training)), {
+        reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character)
+      });
+      return true;
+    }
+
     await sendCombatLockText(
       ctx,
       "🥊 Тренування вже триває.\n\nСпершу завершіть цей бій, тоді корчма знову відпустить вас до інших справ.",
       {
-      reply_markup: buildTrainingDoppelgangerKeyboard(lock.session, lock.character)
+        reply_markup: buildTrainingDoppelgangerKeyboard(lock.session, lock.character)
       }
     );
     return true;

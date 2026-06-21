@@ -1492,6 +1492,51 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(reply?.payload.reply_markup)).not.toContain("До справ");
   });
 
+  it("renders a terminal training result when the combat lock catches an expired turn", async () => {
+    const calls = await captureTextApiCalls(
+      mainMenuButtons.tavern,
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "training-active" as const,
+              character,
+              session: trainingSession(),
+              questProgress: null
+            })
+        },
+        trainingDoppelganger: {
+          getStartOptionsForTelegramUser: () =>
+            Promise.resolve({
+              state: "terminal" as const,
+              character,
+              session: terminalTrainingSession(),
+              doppelganger: trainingMonster(),
+              reward: {
+                state: "claimed" as const,
+                reward: {
+                  xp: 4,
+                  gold: 0,
+                  localDate: "12026-06-15",
+                  itemGrants: []
+                },
+                levelChange: null,
+                availableAt: new Date("2026-06-15T10:30:00.000Z"),
+                now: new Date("2026-06-15T10:00:00.000Z")
+              }
+            })
+        }
+      })
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+    const keyboard = JSON.stringify(reply?.payload.reply_markup);
+
+    expect(String(reply?.payload.text)).toContain("Це тренування вже завершилось");
+    expect(String(reply?.payload.text)).not.toContain("Тренування вже триває");
+    expect(keyboard).toContain("fighting-corner");
+    expect(keyboard).not.toContain("v1:spar:turn");
+  });
+
   it("keeps main-menu text inside an active starter mimic fight", async () => {
     const calls = await captureTextApiCalls(
       mainMenuButtons.tavern,
@@ -2688,6 +2733,40 @@ function trainingSession() {
         id: TRAINING_DOPPELGANGER_MONSTER_ID,
         hp: 12,
         hpMax: 12
+      }
+    }
+  };
+}
+
+function terminalTrainingSession() {
+  const session = trainingSession();
+
+  return {
+    ...session,
+    status: "won" as const,
+    turn: 3,
+    reward: {
+      xp: 4,
+      gold: 0,
+      localDate: "12026-06-15",
+      itemGrants: []
+    },
+    state: {
+      ...session.state,
+      status: "won" as const,
+      turn: 3,
+      monster: {
+        ...session.state.monster,
+        hp: 0
+      },
+      lastTurn: {
+        action: "attack" as const,
+        heroOutcome: "won" as const,
+        monsterOutcome: "inactive" as const,
+        heroDamage: 12,
+        monsterDamage: 0,
+        manaSpent: 0,
+        critical: false
       }
     }
   };

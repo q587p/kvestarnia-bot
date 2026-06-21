@@ -101,7 +101,7 @@ async function notifyPersistentFight(
       }
     });
 
-    if (result.state === "updated" && deliveredMessageId !== reference.messageId) {
+    if (deliveredMessageId !== reference.messageId) {
       await service.recordPersistentFightMessageReference(result.telegramUserId, result.session.id, {
         chatId: reference.chatId,
         messageId: deliveredMessageId
@@ -134,7 +134,7 @@ async function notifyTrainingFight(
       }
     });
 
-    if (result.state === "updated" && deliveredMessageId !== reference.messageId) {
+    if (deliveredMessageId !== reference.messageId) {
       await service.recordTrainingDoppelgangerMessageReference(result.telegramUserId, result.session.id, {
         chatId: reference.chatId,
         messageId: deliveredMessageId

@@ -1,5 +1,5 @@
 ﻿import type { Context } from "grammy";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { sendFight } from "../../src/bot/commands/fightCommand";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
@@ -169,6 +169,7 @@ describe("fight command", () => {
 
   it("restores a terminal persistent fight through the canonical reward screen", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
+    const recordPersistentFightMessageReference = vi.fn(() => Promise.resolve());
     const terminalSession = {
       ...persistentSession(),
       status: "won" as const,
@@ -219,10 +220,11 @@ describe("fight command", () => {
             },
             levelChange: null
           }
-        })
+        }),
+      recordPersistentFightMessageReference
     } as unknown as FightService;
 
-    await sendFight(makeContext(replies), fightService, "reply");
+    await sendFight(makeContextWithMessage(replies, 777), fightService, "reply");
 
     expect(replies[0]?.text).toContain("🎉 Ви перемогли");
     expect(replies[0]?.text).toContain("Винагорода за бій");
@@ -239,6 +241,10 @@ describe("fight command", () => {
       { text: "⚔️ Новий бій", callback_data: makePlaceCallbackData("deep-level1") },
       { text: "↩️ Повернутися до Низу", callback_data: makePlaceCallbackData("deep") }
     ]);
+    expect(recordPersistentFightMessageReference).toHaveBeenCalledWith(42n, terminalSession.id, {
+      chatId: "42",
+      messageId: 777
+    });
   });
 
   it("keeps /fight cosmetic-safe while a training doppelganger session is active", async () => {
@@ -580,6 +586,27 @@ function makeContext(replies: Array<{ text: string; options: unknown }>): Contex
     reply: (text: string, options: unknown) => {
       replies.push({ text, options });
       return Promise.resolve({});
+    }
+  } as unknown as Context;
+}
+
+function makeContextWithMessage(
+  replies: Array<{ text: string; options: unknown }>,
+  messageId: number
+): Context {
+  return {
+    chat: {
+      id: 42,
+      type: "private"
+    },
+    from: {
+      id: 42,
+      is_bot: false,
+      first_name: "Тест"
+    },
+    reply: (text: string, options: unknown) => {
+      replies.push({ text, options });
+      return Promise.resolve({ message_id: messageId });
     }
   } as unknown as Context;
 }

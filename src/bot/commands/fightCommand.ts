@@ -209,11 +209,12 @@ export async function sendFight(
   }
 
   if (result.state === "persistent-terminal") {
-    await sendResultText(presentPersistentFight(result), {
+    const messageId = await sendResultText(presentPersistentFight(result), {
       type: "persistent-fight",
       character: result.character,
       session: result.session
     });
+    await recordPersistentFightMessage(ctx, fightService, telegramUserId, result.session.id, messageId);
     return;
   }
 
