@@ -165,6 +165,7 @@ import {
 import {
   buildFightKeyboard,
   buildFightResultKeyboard,
+  buildPersistentFightJournalKeyboard,
   buildPersistentFightResultKeyboard,
   getPersistentFightOriginLocationId
 } from "./keyboards/fightKeyboard";
@@ -246,6 +247,8 @@ import {
   presentFightStart,
   presentPersistentFight,
   presentPersistentFightIntro,
+  presentPersistentFightJournal,
+  presentPersistentFightSnapshot,
   presentPersistentFightTurn
 } from "./presenters/fightPresenter";
 import {
@@ -2714,6 +2717,51 @@ async function handleFightCallback(
   }
 
   if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
+  }
+
+  if (callback.type === "view" || callback.type === "journal") {
+    const result = await services.fight.getPersistentFightSnapshotForTelegramUser(
+      telegramUserId,
+      callback.sessionId
+    );
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentFightNoCharacter());
+      return;
+    }
+
+    if (result.state === "not-found") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, [
+        "⚔️ Бій не знайшовся.",
+        "",
+        "Можливо, старий сувій уже прибрали зі столу. Спробуйте /fight ще раз."
+      ].join("\n"));
+      return;
+    }
+
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+    });
+
+    await safeAnswerCallbackQuery(ctx);
+
+    if (callback.type === "journal") {
+      await safeEditMessageText(ctx, presentPersistentFightJournal(result, callback.page), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPersistentFightJournalKeyboard(result.session, callback.page)
+      });
+      return;
+    }
+
+    await safeEditMessageText(ctx, presentPersistentFightSnapshot(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
+    });
     return;
   }
 

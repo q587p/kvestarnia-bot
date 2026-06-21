@@ -663,6 +663,56 @@ describe("combat domain engine", () => {
     expect(renamed.state.cooldowns?.abilities?.["skill.hot-spell"]).toBeUndefined();
   });
 
+  it("stores successful turn summaries in a durable combat turn log", () => {
+    const sturdyMonster = { ...monster, hpMax: 80 };
+    const first = resolveCombatTurn({
+      state: startCombat({ hero: warrior, monster: sturdyMonster }),
+      action: "attack",
+      hero: warrior,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
+    });
+
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error("Expected attack to resolve.");
+    }
+    expect(first.state.turnLog).toHaveLength(1);
+    expect(first.state.turnLog?.[0]).toMatchObject({
+      turn: 1,
+      summary: {
+        action: "attack",
+        heroOutcome: "hit"
+      },
+      hero: {
+        hp: first.state.hero.hp,
+        mana: first.state.hero.mana
+      },
+      monster: {
+        hp: first.state.monster.hp
+      }
+    });
+
+    const blocked = resolveCombatTurn({
+      state: {
+        ...first.state,
+        cooldowns: {
+          skill: {
+            id: "skill.forceful-strike",
+            remainingTurns: 1
+          }
+        }
+      },
+      action: "skill",
+      hero: warrior,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(blocked.ok).toBe(false);
+    expect(blocked.state.turnLog).toEqual(first.state.turnLog);
+  });
+
   it("puts class skills on one intervening own action cooldown and treats cooldown presses as no-op", () => {
     const sturdyMonster = { ...monster, hpMax: 80 };
     const first = resolveCombatTurn({

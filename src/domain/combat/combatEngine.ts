@@ -24,6 +24,7 @@ import {
   clampResource,
   cloneCombatCooldowns,
   cloneCombatState,
+  cloneCombatTurnSummary,
   type CombatActionOrigin,
   type CombatActionType,
   type CombatActorStats,
@@ -331,6 +332,7 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
     ...(debugTrace ? { debugTrace } : {})
   });
   nextState.lastTurn = summary;
+  appendCombatTurnLog(nextState, input.state.turn, summary);
 
   return {
     ok: true,
@@ -396,6 +398,7 @@ function resolveHeroAttack(
       ...(skill ? { skill } : {})
     });
     nextState.lastTurn = summary;
+    appendCombatTurnLog(nextState, input.state.turn, summary);
 
     return {
       ok: true,
@@ -453,6 +456,7 @@ function resolveHeroAttack(
     ...(debugTrace ? { debugTrace } : {})
   });
   nextState.lastTurn = summary;
+  appendCombatTurnLog(nextState, input.state.turn, summary);
 
   return {
     ok: true,
@@ -516,6 +520,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
     ...(bark?.barkId ? { monsterBarkId: bark.barkId } : {})
   });
   nextState.lastTurn = summary;
+  appendCombatTurnLog(nextState, input.state.turn, summary);
 
   return {
     ok: true,
@@ -567,6 +572,27 @@ function resolveActorAttack(
         : {})
     }
   };
+}
+
+function appendCombatTurnLog(
+  state: CombatState,
+  turn: number,
+  summary: CombatTurnSummary
+): void {
+  state.turnLog = [
+    ...(state.turnLog ?? []),
+    {
+      turn,
+      summary: cloneCombatTurnSummary(summary),
+      hero: {
+        hp: state.hero.hp,
+        mana: state.hero.mana
+      },
+      monster: {
+        hp: state.monster.hp
+      }
+    }
+  ];
 }
 
 export function getNonManaSkillCooldownTurns(

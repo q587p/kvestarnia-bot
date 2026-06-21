@@ -213,7 +213,7 @@ export function recordCombatAnalyticsTurn(
   analytics.totals.playerActionsCount += 1;
   if (actionOrigin === "manual") {
     analytics.totals.manualPlayerActionsCount += 1;
-  } else if (actionOrigin === "timeout-auto-attack") {
+  } else if (actionOrigin === "timeout-auto-attack" || actionOrigin === "timeout-auto-defend") {
     analytics.totals.timeoutAutoActionsCount += 1;
   } else {
     analytics.totals.timeoutSkipActionsCount += 1;
@@ -563,7 +563,10 @@ function parseAbility(value: unknown): CombatAnalyticsAbilityAccumulatorV1 | nul
 }
 
 function parseActionOrigin(value: unknown): CombatActionOrigin | null {
-  return value === "manual" || value === "timeout-auto-attack" || value === "timeout-skip"
+  return value === "manual" ||
+    value === "timeout-auto-attack" ||
+    value === "timeout-auto-defend" ||
+    value === "timeout-skip"
     ? value
     : null;
 }

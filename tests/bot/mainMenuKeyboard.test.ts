@@ -15,6 +15,7 @@ import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloComb
 import {
   buildFightKeyboard,
   buildFightResultKeyboard,
+  buildPersistentFightJournalKeyboard,
   buildPersistentFightKeyboard,
   buildPersistentFightResultKeyboard
 } from "../../src/bot/keyboards/fightKeyboard";
@@ -615,6 +616,66 @@ describe("main menu and scene keyboards", () => {
         status: "won"
       }
     }, character))).toEqual(["v1:place:quest-table"]);
+  });
+
+  it("adds journal navigation when persistent fight turns are stored", () => {
+    const session = {
+      ...persistentFightSession(),
+      state: {
+        ...persistentFightSession().state!,
+        turnLog: [
+          {
+            turn: 1,
+            hero: { hp: 21, mana: 12 },
+            monster: { hp: 14 },
+            summary: {
+              action: "attack" as const,
+              heroOutcome: "hit" as const,
+              heroDamage: 4,
+              monsterDamage: 2,
+              manaSpent: 0,
+              critical: false
+            }
+          },
+          {
+            turn: 2,
+            hero: { hp: 21, mana: 12 },
+            monster: { hp: 14 },
+            summary: {
+              action: "defend" as const,
+              heroOutcome: "defended" as const,
+              heroDamage: 0,
+              monsterDamage: 0,
+              manaSpent: 0,
+              critical: false
+            }
+          }
+        ]
+      }
+    };
+
+    expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, character))).toContain("📜 Журнал бою");
+    expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toContain(
+      "v1:fight:log:123e4567-e89b-12d3-a456-426614174000:1"
+    );
+    expect(flatInlineButtonTexts(buildPersistentFightJournalKeyboard(session, 0))).toEqual([
+      "1/2",
+      "Далі ▶️",
+      "Кінець ⏭️",
+      "↩️ До бою"
+    ]);
+    expect(flatInlineButtonCallbacks(buildPersistentFightJournalKeyboard(session, 0))).toEqual([
+      "v1:fight:log:123e4567-e89b-12d3-a456-426614174000:0",
+      "v1:fight:log:123e4567-e89b-12d3-a456-426614174000:1",
+      "v1:fight:log:123e4567-e89b-12d3-a456-426614174000:1",
+      "v1:fight:view:123e4567-e89b-12d3-a456-426614174000"
+    ]);
+    expect(flatInlineButtonTexts(buildPersistentFightJournalKeyboard(session, 1))).toEqual([
+      "⏮️ Початок",
+      "◀️ Назад",
+      "2/2",
+      "↩️ До бою"
+    ]);
   });
 
   it("keeps active training doppelganger buttons scoped to turn callbacks", () => {

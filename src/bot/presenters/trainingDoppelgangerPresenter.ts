@@ -182,7 +182,7 @@ function presentTrainingDoppelgangerState(input: {
   ];
 
   if (state?.status === "active" && state.cooldowns?.skill?.remainingTurns) {
-    lines.push(`🫁 Вміння відсапується: ще ${formatTurns(state.cooldowns.skill.remainingTurns)}.`);
+    lines.push(presentSkillCooldown(state.cooldowns.skill));
   }
 
   if (input.intro) {
@@ -335,6 +335,12 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
         : "";
 
   return [hit, response].filter(Boolean).join("\n");
+}
+
+function presentSkillCooldown(cooldown: { id: string; remainingTurns: number }): string {
+  const skill = getCombatSkillDisplay(cooldown.id);
+
+  return `🫁 ${skill.icon} ${escapeHtml(skill.name)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
 }
 
 function presentTrainingCounterFlavor(

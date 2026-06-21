@@ -14,6 +14,7 @@ import {
   pronounOptions
 } from "../../src/content/characterOptions";
 import { monsterBarks, monsterBarkTextByMonsterId } from "../../src/content/monsterBarks";
+import { monsterContextTraits } from "../../src/content/monsterContext";
 import { monsterContextProfiles, monsterContextTraits } from "../../src/content/monsterContext";
 import { classSchema, itemSchema, monsterSchema, raceSchema } from "../../src/content/schema";
 
@@ -288,6 +289,17 @@ describe("content tables", () => {
     expect(getComboTitle("race.unknown", "class.unknown", "they")).toBe(
       "Пригодники місцевого значення"
     );
+  });
+
+  it("does not ship mojibake placeholder question marks in monster context cues", () => {
+    const cues = monsterContextTraits.flatMap((trait) =>
+      trait.branches.flatMap((branch) => branch.cue ? [branch.cue] : [])
+    );
+
+    expect(cues.length).toBeGreaterThan(0);
+    for (const cue of cues) {
+      expect(cue).not.toMatch(/\?{4,}/);
+    }
   });
 
   it("covers the ordinary solo-fight ladder from level 4 through 13", () => {

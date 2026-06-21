@@ -15,7 +15,7 @@ export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
 export type CombatActionType = "attack" | "defend" | "skill" | "flee" | "skip";
 export type PlayerCombatActionType = Exclude<CombatActionType, "skip">;
 export type CombatDamageKind = "physical" | "spell" | "social" | "trick";
-export type CombatTimeoutMode = "auto-attack" | "skip";
+export type CombatTimeoutMode = "auto-attack" | "auto-defend" | "skip";
 export type CombatTurnOutcome =
   | "hit"
   | "critical-hit"
@@ -158,6 +158,7 @@ export interface CombatState {
   analytics?: CombatAnalyticsStateV1;
   monsterRuntime?: MonsterAbilityRuntimeStateV1;
   lastTurn?: CombatTurnSummary;
+  turnLog?: CombatTurnLogEntry[];
 }
 
 export interface CombatMessageReference {
@@ -170,7 +171,11 @@ export interface CombatTimeoutState {
   lastMissedAt?: string;
 }
 
-export type CombatActionOrigin = "manual" | "timeout-auto-attack" | "timeout-skip";
+export type CombatActionOrigin =
+  | "manual"
+  | "timeout-auto-attack"
+  | "timeout-auto-defend"
+  | "timeout-skip";
 
 export interface CombatTurnSummary {
   action: CombatActionType;
@@ -191,6 +196,18 @@ export interface CombatTurnSummary {
   heroCounterDamage?: number;
   monsterBarkId?: string;
   debugTrace?: CombatDebugTrace;
+}
+
+export interface CombatTurnLogEntry {
+  turn: number;
+  summary: CombatTurnSummary;
+  hero: {
+    hp: number;
+    mana: number;
+  };
+  monster: {
+    hp: number;
+  };
 }
 
 export interface CombatGuardState {
@@ -287,12 +304,10 @@ export function cloneCombatState(state: CombatState): CombatState {
     ...(monsterRuntime ? { monsterRuntime } : {}),
     ...(state.lastTurn
       ? {
-          lastTurn: {
-            ...state.lastTurn,
-            ...(state.lastTurn.debugTrace ? { debugTrace: { ...state.lastTurn.debugTrace } } : {})
-          }
+          lastTurn: cloneCombatTurnSummary(state.lastTurn)
         }
-      : {})
+      : {}),
+    ...(state.turnLog ? { turnLog: state.turnLog.map(cloneCombatTurnLogEntry) } : {})
   };
 }
 
@@ -375,6 +390,22 @@ export function cloneCombatCooldowns(
         }
       : {}),
     ...(cooldowns.skill ? { skill: { ...cooldowns.skill } } : {})
+  };
+}
+
+export function cloneCombatTurnSummary(summary: CombatTurnSummary): CombatTurnSummary {
+  return {
+    ...summary,
+    ...(summary.debugTrace ? { debugTrace: { ...summary.debugTrace } } : {})
+  };
+}
+
+export function cloneCombatTurnLogEntry(entry: CombatTurnLogEntry): CombatTurnLogEntry {
+  return {
+    turn: entry.turn,
+    summary: cloneCombatTurnSummary(entry.summary),
+    hero: { ...entry.hero },
+    monster: { ...entry.monster }
   };
 }
 

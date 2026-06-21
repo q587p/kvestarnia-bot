@@ -381,6 +381,18 @@ export type PersistentFightTimeoutResult =
       fightReward: PersistentFightReward | null;
     };
 
+export type PersistentFightSnapshotResult =
+  | { state: "no-character" }
+  | { state: "not-found"; character: CharacterSummary }
+  | {
+      state: "found";
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      monster: MonsterContent | null;
+      questProgress: ThirteenSmallProblemsProgress;
+      fightReward: PersistentFightReward | null;
+    };
+
 export interface CombatMessageReferenceInput {
   chatId: string;
   messageId: number;
@@ -476,7 +488,7 @@ export class FightService {
     session: SoloCombatSessionRecord,
     character: CharacterSummary,
     monster: MonsterContent,
-    mode: "auto-attack" | "skip" = "auto-attack"
+    mode: "auto-defend" | "skip" = "auto-defend"
   ): Promise<SoloCombatSessionRecord> {
     if (!this.combatSessions || session.status !== "active" || session.state?.status !== "active") {
       return session;
@@ -505,8 +517,8 @@ export class FightService {
 
     const resolved = resolveCombatTurn({
       state: session.state,
-      action: timeoutMode === "skip" ? "skip" : "attack",
-      actionOrigin: timeoutMode === "skip" ? "timeout-skip" : "timeout-auto-attack",
+      action: timeoutMode === "skip" ? "skip" : "defend",
+      actionOrigin: timeoutMode === "skip" ? "timeout-skip" : "timeout-auto-defend",
       hero: buildHeroCombatStats(character),
       monster: buildPersistentMonsterCombatStats(monster, session.state),
       rng: this.rng
@@ -721,8 +733,7 @@ export class FightService {
       telegramUserId,
       activeSession,
       characterSummary,
-      monster,
-      "skip"
+      monster
     );
     if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
       return {
@@ -845,6 +856,54 @@ export class FightService {
       status: session.state.status,
       expiresAt: session.expiresAt
     });
+  }
+
+  async getPersistentFightSnapshotForTelegramUser(
+    telegramUserId: bigint,
+    sessionId: string
+  ): Promise<PersistentFightSnapshotResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+
+    if (!this.combatSessions) {
+      return {
+        state: "not-found",
+        character: characterSummary
+      };
+    }
+
+    const session = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, sessionId);
+
+    if (!session || isTrainingDoppelgangerMonsterId(session.monsterId)) {
+      return {
+        state: "not-found",
+        character: characterSummary
+      };
+    }
+
+    const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+    const monster = findPersistentFightMonster(session);
+
+    return {
+      state: "found",
+      character: characterSummary,
+      session,
+      monster,
+      questProgress,
+      fightReward: session.status === "active"
+        ? null
+        : await this.getOrRecoverPersistentFightReward(
+            telegramUserId,
+            session,
+            monster,
+            characterSummary
+          )
+    };
   }
 
   async getProblemQuestProgressForTelegramUser(
@@ -2365,8 +2424,8 @@ function isTurnExpired(state: CombatState | null | undefined, now: Date): boolea
 }
 
 function getNextTimeoutMode(
-  fallbackMode: "auto-attack" | "skip"
-): "auto-attack" | "skip" {
+  fallbackMode: "auto-defend" | "skip"
+): "auto-defend" | "skip" {
   return fallbackMode;
 }
 

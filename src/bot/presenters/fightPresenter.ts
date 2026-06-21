@@ -4,6 +4,7 @@ import type { CombatTurnSummary } from "../../domain/combat";
 import type {
   FightLookupResult,
   FightResult,
+  PersistentFightSnapshotResult,
   ProblemQuestIssueNextLookupResult,
   ProblemQuestTurnInLookupResult,
   PersistentFightTurnResult,
@@ -217,7 +218,7 @@ export function presentPersistentFightTurn(
       return "Цей бій уже завершився. Повторні натискання не переписують історію.";
     }
 
-    return "Хід записано. Корчма звіряє винагороду без зайвого дзенькоту.";
+    return null;
   })();
 
   return presentPersistentFightState({
@@ -225,8 +226,51 @@ export function presentPersistentFightTurn(
     session: result.session,
     questProgress: result.questProgress,
     fightReward: result.state === "updated" || result.state === "terminal" ? result.fightReward : null,
-    statusNote: intro
+    ...(intro ? { statusNote: intro } : {})
   });
+}
+
+export function presentPersistentFightSnapshot(
+  result: Extract<PersistentFightSnapshotResult, { state: "found" }>
+): string {
+  return presentPersistentFightState({
+    character: result.character,
+    session: result.session,
+    questProgress: result.questProgress,
+    fightReward: result.fightReward
+  });
+}
+
+export function presentPersistentFightJournal(
+  result: Extract<PersistentFightSnapshotResult, { state: "found" }>,
+  requestedPage: number
+): string {
+  const log = result.session.state?.turnLog ?? [];
+
+  if (log.length === 0) {
+    return [
+      "📜 <b>Журнал бою</b>",
+      presentCharacterHeader(result.character),
+      "",
+      "У цьому бою ще немає записаних ходів. Журнал робить вигляд, що це мінімалізм."
+    ].join("\n");
+  }
+
+  const page = Math.max(0, Math.min(Math.floor(requestedPage), log.length - 1));
+  const entry = log[page] ?? log[log.length - 1]!;
+  const state = result.session.state;
+  const lines = [
+    "📜 <b>Журнал бою</b>",
+    presentCharacterHeader(result.character),
+    "",
+    `Хід <b>${entry.turn}</b> · запис ${page + 1}/${log.length}`,
+    `❤️ Ви після ходу: ${entry.hero.hp}/${state?.hero.hpMax ?? "?"} · мана ${entry.hero.mana}/${state?.hero.manaMax ?? "?"}`,
+    `👹 Монстр після ходу: ${entry.monster.hp}/${state?.monster.hpMax ?? "?"}`,
+    "",
+    presentTurnSummary(entry.summary, { includeHeading: false })
+  ];
+
+  return lines.join("\n");
 }
 
 export function presentProblemQuestProgressAfterFight(
@@ -369,11 +413,11 @@ function presentPersistentFightState(input: {
   }
 
   if (state?.status === "active") {
-    lines.push("", `⏳ На хід є ${PERSISTENT_FIGHT_TURN_SECONDS} секунди. Потім Корчма зарахує звичайну атаку.`);
+    lines.push("", `⏳ На хід є ${PERSISTENT_FIGHT_TURN_SECONDS} секунди. Потім Корчма поставить вас у захист.`);
   }
 
   if (state?.status === "active" && state.cooldowns?.skill?.remainingTurns) {
-    lines.push(`🫁 Вміння відсапується: ще ${formatTurns(state.cooldowns.skill.remainingTurns)}.`);
+    lines.push(presentSkillCooldown(state.cooldowns.skill));
   }
 
   if (state?.status === "active" && state.turn === 1 && !state.lastTurn && state.context?.cue) {
@@ -381,7 +425,7 @@ function presentPersistentFightState(input: {
   }
 
   if (state?.lastTurn) {
-    lines.push("", presentTurnSummary(state.lastTurn));
+    lines.push("", presentTurnSummary(state.lastTurn, { includeHeading: false }));
   }
 
   if (input.fightReward) {
@@ -434,6 +478,10 @@ function presentPersistentFightState(input: {
 function presentTimeoutNotice(summary: CombatTurnSummary | undefined): string | null {
   if (summary?.debugTrace?.timeoutMode === "auto-attack") {
     return "⏱️ Попередній хід прострочено: Корчма зарахувала звичайну атаку.";
+  }
+
+  if (summary?.debugTrace?.timeoutMode === "auto-defend") {
+    return "⏱️ Попередній хід прострочено: Корчма поставила вас у захист.";
   }
 
   if (summary?.debugTrace?.timeoutMode === "skip") {
@@ -605,12 +653,16 @@ function presentProblemQuestIssueLine(
   return `Справу «<i>${title}</i>» видано. Лічильник починається з нуля, без старих подвигів у кишені.`;
 }
 
-function presentTurnSummary(summary: CombatTurnSummary): string {
+function presentTurnSummary(
+  summary: CombatTurnSummary,
+  options: { includeHeading?: boolean } = {}
+): string {
+  const heading = options.includeHeading === false ? [] : ["Остання дія"];
   const monsterResponse = presentMonsterResponse(summary);
 
   if (summary.heroOutcome === "not-enough-mana") {
     return withMonsterBark(summary, [
-      "Остання дія",
+      ...heading,
       "Мани не стало навіть на драматичний жест.",
       monsterResponse || "Монстр скористався паузою, але перечепився об власну впевненість."
     ]);
@@ -618,7 +670,7 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
 
   if (summary.heroOutcome === "skill-on-cooldown") {
     return withMonsterBark(summary, [
-      "Остання дія",
+      ...heading,
       "Навичка ще відсапується. Пригодник зробив вигляд, що так і планував.",
       monsterResponse || "Монстр промахнувся й теж назвав це планом."
     ]);
@@ -626,7 +678,7 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
 
   if (summary.heroOutcome === "defended") {
     return withMonsterBark(summary, [
-      "Остання дія",
+      ...heading,
       "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.",
       monsterResponse || "Монстр не знайшов переконливого кута атаки.",
       summary.heroCounterDamage
@@ -636,20 +688,20 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
   }
 
   if (summary.heroOutcome === "fled") {
-    return withMonsterBark(summary, ["Останній хід", "Ви вийшли з бою без переможного фанфарства."]);
+    return withMonsterBark(summary, [...heading, "Ви вийшли з бою без переможного фанфарства."]);
   }
 
   if (summary.heroOutcome === "flee-failed") {
     return withMonsterBark(summary, [
-      "Останній хід",
+      ...heading,
       "Втеча не вдалася.",
-      `Монстр відповів на ${summary.monsterDamage} шкоди.`
+      presentBasicMonsterAttack(summary)
     ]);
   }
 
   if (summary.heroOutcome === "inactive") {
     return withMonsterBark(summary, [
-      "Останній хід",
+      ...heading,
       "Ви не встигли обрати дію.",
       monsterResponse || "Монстр скористався паузою, але не знайшов переконливого кута."
     ]);
@@ -671,7 +723,7 @@ function presentTurnSummary(summary: CombatTurnSummary): string {
       ? "Монстр промахнувся й зробив вигляд, що так і планував."
       : "");
 
-  return withMonsterBark(summary, ["Остання дія", hit, response].filter(Boolean));
+  return withMonsterBark(summary, [...heading, hit, response].filter(Boolean));
 }
 
 function presentMonsterResponse(summary: CombatTurnSummary): string {
@@ -686,16 +738,41 @@ function presentMonsterResponse(summary: CombatTurnSummary): string {
 
   if (summary.monsterAction === "skill" && summary.monsterSkillId) {
     const skill = getCombatSkillDisplay(summary.monsterSkillId);
-    const damage = summary.monsterDamage > 0 ? ` на ${summary.monsterDamage} шкоди` : "";
-    const effect = summary.monsterEffectText ? ` ${escapeHtml(summary.monsterEffectText)}.` : "";
-    return `Монстр застосував ${skill.icon} <i>${escapeHtml(skill.name)}</i>${damage}.${effect}`;
+    const consequences = [
+      ...(summary.monsterDamage > 0 ? [`завдав ${summary.monsterDamage} шкоди`] : []),
+      ...(summary.monsterEffectText ? [escapeHtml(trimTerminalPunctuation(summary.monsterEffectText))] : [])
+    ];
+
+    if (consequences.length === 0) {
+      return `Монстр застосував ${skill.icon} <i>${escapeHtml(skill.name)}</i> без прямої шкоди цього ходу.`;
+    }
+
+    return `Монстр застосував ${skill.icon} <i>${escapeHtml(skill.name)}</i>: ${consequences.join("; ")}.`;
   }
 
   if (summary.monsterDamage > 0) {
-    return `Монстр відповів на ${summary.monsterDamage} шкоди.`;
+    return presentBasicMonsterAttack(summary);
   }
 
   return "";
+}
+
+function presentBasicMonsterAttack(summary: CombatTurnSummary): string {
+  if (summary.monsterDamage <= 0) {
+    return "Монстр не завдав шкоди.";
+  }
+
+  return `Монстр атакував у відповідь на ваш хід і завдав ${summary.monsterDamage} шкоди.`;
+}
+
+function presentSkillCooldown(cooldown: { id: string; remainingTurns: number }): string {
+  const skill = getCombatSkillDisplay(cooldown.id);
+
+  return `🫁 ${skill.icon} ${escapeHtml(skill.name)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
+}
+
+function trimTerminalPunctuation(text: string): string {
+  return text.trim().replace(/[.!?]+$/u, "");
 }
 
 function withMonsterBark(summary: CombatTurnSummary, lines: string[]): string {

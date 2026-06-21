@@ -95,8 +95,8 @@ describe("combat turn timeout scheduler", () => {
 
     const updated = world.getSession("session-1");
     expect(updated?.state?.turn).toBe(3);
-    expect(updated?.state?.lastTurn?.action).toBe("attack");
-    expect(updated?.state?.lastTurn?.debugTrace?.timeoutMode).toBe("auto-attack");
+    expect(updated?.state?.lastTurn?.action).toBe("defend");
+    expect(updated?.state?.lastTurn?.debugTrace?.timeoutMode).toBe("auto-defend");
     expect(updated?.state?.message).toEqual({
       chatId: "42",
       messageId: 587

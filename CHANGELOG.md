@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.22] - 12026-06-21 - Monster Abilities & AI
+## [0.1.22] - 12026-06-21 - Monster Abilities, Titles & Battle Journal
 
 ### Added
 - Added typed monster ability and combat profile catalogs: 132 stable monster ability definitions and 93 monster loadout profiles are now validated against the current roster.
@@ -17,19 +17,24 @@ This project follows a simple pre-1.0 versioning policy:
 - Added monster action-mix and ability-usage metrics to the production combat simulator, with default coverage through level 23.
 - Added authored combo-title triples for all 54 currently selectable race/class pairs, so active onboarding combinations no longer fall back to generic local-significance titles.
 - Added distinct class skill identities for Varenyk-mancer (`skill.boiling-filling`, `🥟 Кипляча начинка`) and Rogue (`skill.shadow-cut`, `🌘 Тіньовий різ`) while preserving their previous numeric combat profiles.
+- Added durable persistent-fight `turnLog` entries in combat state JSON plus `📜 Журнал бою` paging with first/previous/next/last navigation and a return to the current fight card.
 - Added focused coverage for content totals, loadout gates, frozen runtime state, legacy no-runtime fights, ordinary anti-spam, telegraph impact, shields/effects and Prisma JSON round-trip.
 
 ### Changed
 - New ordinary monster fights now freeze authored ability loadouts at encounter start. Explicit authored IDs fill identity slots first; deterministic fallback can fill only missing legal slots created by effective-level scaling.
 - Ordinary monsters cannot use an ability immediately after a monster ability. Boss profiles may chain at most two different abilities, never repeat the same ability consecutively, then owe a basic attack or defend.
-- Failed flee responses, timeout auto-attacks and timeout skip recovery now call the same monster AI path as manual combat turns.
+- Failed flee responses and timeout auto-defend recovery now call the same monster AI path as manual combat turns.
 - The existing `first-ability` bark trigger now fires from real ordinary-monster ability use, while stored bark IDs still replay deterministically.
 - Group-ready target scopes degrade safely to the current one-hero, one-monster runtime; no party, raid or multi-enemy runtime was added.
 - Mage and Ranger keep their existing `skill.hot-spell` and `skill.trick-shot` identities; Varenyk-mancer and Rogue now render their own class action labels in persistent fights, training doppelganger fights and turn-based duels.
+- Persistent PvE timeout recovery now commits `defend` with `timeout-auto-defend` instead of a basic attack; legacy `timeout-auto-attack` JSON/debug values remain readable.
+- Active persistent fight cards no longer show the service-note `Хід записано` or an `Остання дія` heading, skill cooldown rows name the exact skill, and basic monster counterattacks say what they attacked in response to.
+- Monster skill summaries now include visible mechanical consequences: damage, effect text, or an explicit no-direct-damage line.
 
 ### Fixed
 - Old active combat JSON without `monsterRuntime` remains readable and keeps legacy basic-attack behavior until that fight ends.
 - Old active cooldown JSON that still contains Varenyk-mancer `skill.hot-spell` or Rogue `skill.trick-shot` cooldowns remains authoritative until the cooldown naturally ticks away; future class skill use stores only the renamed IDs.
+- Fixed two corrupted monster context cue lines that could render as `????`, and added content coverage against placeholder mojibake in context cues.
 - Training doppelganger fights keep the copied class-skill behavior from `0.1.21` instead of being silently converted into ordinary-monster AI.
 - Monster class-skill locks are server-authoritative no-ops: pressing a locked/unavailable class skill does not spend mana, advance the turn, tick cooldowns, trigger monster AI, select a bark or advance RNG.
 - Telegraphs persist the promised ability before impact; if the monster dies first, the pending impact never resolves.

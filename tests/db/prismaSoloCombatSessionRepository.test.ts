@@ -299,6 +299,20 @@ describe("PrismaSoloCombatSessionRepository", () => {
     expect(mapped?.state?.lastTurn?.action).toBe("skip");
     expect(mapped?.state?.lastTurn?.actionOrigin).toBe("timeout-skip");
     expect(mapped?.state?.lastTurn?.debugTrace?.chosenAbilityId).toBe("skill.forceful-strike");
+    expect(mapped?.state?.turnLog?.[0]).toMatchObject({
+      turn: 3,
+      summary: {
+        action: "skip",
+        actionOrigin: "timeout-skip"
+      },
+      hero: {
+        hp: 17,
+        mana: 9
+      },
+      monster: {
+        hp: 21
+      }
+    });
     expect(mapped?.state?.monster.copiedEquipment?.[0]?.sourceItemId).toBe("item.borrowed-pan");
     expect(mapped?.state?.monster.debugTrace?.copiedEquipmentCount).toBe(1);
   });
@@ -674,6 +688,26 @@ function runtimeRoundTripState(): CombatState {
         chosenAbilityId: "skill.forceful-strike",
         timeoutMode: "skip"
       }
-    }
+    },
+    turnLog: [{
+      turn: 3,
+      summary: {
+        action: "skip",
+        actionOrigin: "timeout-skip",
+        heroOutcome: "inactive",
+        monsterOutcome: "hit",
+        heroDamage: 0,
+        monsterDamage: 7,
+        manaSpent: 0,
+        critical: false
+      },
+      hero: {
+        hp: 17,
+        mana: 9
+      },
+      monster: {
+        hp: 21
+      }
+    }]
   };
 }

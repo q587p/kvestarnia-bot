@@ -17,7 +17,12 @@ import {
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
 } from "../../services/presenceService";
-import { makeFightCallbackData, makeFightTurnCallbackData } from "../callbacks/fightCallbackData";
+import {
+  makeFightCallbackData,
+  makeFightJournalCallbackData,
+  makeFightTurnCallbackData,
+  makeFightViewCallbackData
+} from "../callbacks/fightCallbackData";
 import { makePlaceCallbackData, type PlaceCallback } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 
@@ -68,8 +73,10 @@ export function buildPersistentFightKeyboard(
     ).row();
   }
 
-  return keyboard
+  keyboard
     .text("🏃 Відступити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" }));
+
+  return addPersistentFightJournalButton(keyboard, session);
 }
 
 export function buildPersistentFightResultKeyboard(
@@ -80,6 +87,8 @@ export function buildPersistentFightResultKeyboard(
     const navigation = getPersistentFightReturnNavigation(session);
     const keyboard = new InlineKeyboard();
 
+    addPersistentFightJournalButton(keyboard, session);
+
     if (navigation.allowNewFight) {
       keyboard.text("⚔️ Новий бій", makePlaceCallbackData("deep-level1")).row();
     }
@@ -88,6 +97,56 @@ export function buildPersistentFightResultKeyboard(
   }
 
   return buildPersistentFightKeyboard(session, character);
+}
+
+export function buildPersistentFightJournalKeyboard(
+  session: SoloCombatSessionRecord,
+  requestedPage: number
+): InlineKeyboard {
+  const totalPages = getPersistentFightJournalPageCount(session);
+  const page = clampJournalPage(requestedPage, totalPages);
+  const keyboard = new InlineKeyboard();
+
+  if (totalPages > 1) {
+    if (page > 0) {
+      keyboard.text("⏮️ Початок", makeFightJournalCallbackData({ sessionId: session.id, page: 0 }));
+      keyboard.text("◀️ Назад", makeFightJournalCallbackData({ sessionId: session.id, page: page - 1 }));
+      keyboard.row();
+    }
+
+    keyboard.text(`${page + 1}/${totalPages}`, makeFightJournalCallbackData({ sessionId: session.id, page })).row();
+
+    if (page < totalPages - 1) {
+      keyboard.text("Далі ▶️", makeFightJournalCallbackData({ sessionId: session.id, page: page + 1 }));
+      keyboard.text("Кінець ⏭️", makeFightJournalCallbackData({ sessionId: session.id, page: totalPages - 1 }));
+      keyboard.row();
+    }
+  }
+
+  return keyboard.text("↩️ До бою", makeFightViewCallbackData(session.id));
+}
+
+function addPersistentFightJournalButton(
+  keyboard: InlineKeyboard,
+  session: SoloCombatSessionRecord
+): InlineKeyboard {
+  const log = session.state?.turnLog ?? [];
+
+  if (log.length === 0) {
+    return keyboard;
+  }
+
+  return keyboard
+    .row()
+    .text("📜 Журнал бою", makeFightJournalCallbackData({ sessionId: session.id, page: log.length - 1 }));
+}
+
+function getPersistentFightJournalPageCount(session: SoloCombatSessionRecord): number {
+  return Math.max(1, session.state?.turnLog?.length ?? 0);
+}
+
+function clampJournalPage(requestedPage: number, totalPages: number): number {
+  return Math.max(0, Math.min(Math.floor(requestedPage), totalPages - 1));
 }
 
 export function getPersistentFightOriginLocationId(session: SoloCombatSessionRecord): string {
