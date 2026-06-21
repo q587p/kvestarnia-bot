@@ -30,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Mage and Ranger keep their existing `skill.hot-spell` and `skill.trick-shot` identities; Varenyk-mancer and Rogue now render their own class action labels in persistent fights, training doppelganger fights and turn-based duels.
 - Persistent PvE timeout recovery now commits `defend` with `timeout-auto-defend` instead of a basic attack; legacy `timeout-auto-attack` JSON/debug values remain readable.
 - Nyz passage buttons now enter `Лівий прохід`, `Прямий прохід` or `Правий прохід` as separate locations; `Хто поруч`, nearby duel validation and post-fight `Новий бій` preserve the selected passage.
+- `Хто поруч` now hides the `Кинути виклик присутнім` button when the current location has no other active duel target.
 - Active fight cards now place the 23-second timeout note under the named `що робимо?` prompt instead of above it.
 - Active persistent fight cards no longer show the service-note `Хід записано` or an `Остання дія` heading, skill cooldown rows name the exact skill, and basic monster counterattacks say what they attacked in response to.
 - Monster skill summaries now include visible mechanical consequences: damage, effect text, or an explicit no-direct-damage line.
