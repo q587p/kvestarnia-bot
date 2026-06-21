@@ -8,7 +8,11 @@ import {
   TELEGRAM_CALLBACK_DATA_LIMIT
 } from "../../src/bot/callbacks/onboardingCallbackData";
 import { activeRaces, classes, items, monsterFlavorLines, monsters, races } from "../../src/content";
-import { getComboTitle, pronounOptions } from "../../src/content/characterOptions";
+import {
+  getComboTitle,
+  isClassAvailableForChoice,
+  pronounOptions
+} from "../../src/content/characterOptions";
 import { monsterBarks, monsterBarkTextByMonsterId } from "../../src/content/monsterBarks";
 import { monsterContextProfiles, monsterContextTraits } from "../../src/content/monsterContext";
 import { classSchema, itemSchema, monsterSchema, raceSchema } from "../../src/content/schema";
@@ -237,6 +241,52 @@ describe("content tables", () => {
     );
     expect(getComboTitle("race.molfar-soul", "class.bureaucramancer", "they")).toBe(
       "Писарі Оберегових Справ"
+    );
+  });
+
+  it("keeps every active race and class pair on authored titles", () => {
+    const fallbackTitles = [
+      "Пригодник місцевого значення",
+      "Пригодниця місцевого значення",
+      "Пригодники місцевого значення"
+    ];
+    const validPairs = activeRaces.flatMap((race) =>
+      classes.flatMap((characterClass) => {
+        const allowedPronouns = pronounOptions
+          .map((pronoun) => pronoun.id)
+          .filter((pronoun) => isClassAvailableForChoice(pronoun, race.id, characterClass.id));
+
+        return allowedPronouns.length > 0
+          ? [{ raceId: race.id, classId: characterClass.id, allowedPronouns }]
+          : [];
+      })
+    );
+
+    expect(validPairs).toHaveLength(54);
+    expect(validPairs.every((pair) => pair.allowedPronouns.length > 0)).toBe(true);
+
+    for (const { raceId, classId, allowedPronouns } of validPairs) {
+      for (const pronoun of allowedPronouns) {
+        expect(fallbackTitles).not.toContain(getComboTitle(raceId, classId, pronoun));
+      }
+    }
+
+    for (const pronoun of pronounOptions.map((option) => option.id)) {
+      const titles = validPairs
+        .filter((pair) => pair.allowedPronouns.includes(pronoun))
+        .map((pair) => getComboTitle(pair.raceId, pair.classId, pronoun));
+
+      expect(new Set(titles).size).toBe(titles.length);
+    }
+
+    expect(getComboTitle("race.unknown", "class.mage", "he")).toBe(
+      "Пригодник місцевого значення"
+    );
+    expect(getComboTitle("race.human-ish", "class.unknown", "she")).toBe(
+      "Пригодниця місцевого значення"
+    );
+    expect(getComboTitle("race.unknown", "class.unknown", "they")).toBe(
+      "Пригодники місцевого значення"
     );
   });
 

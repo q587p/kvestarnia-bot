@@ -26,8 +26,20 @@ const comboTitles = new Map<string, ComboTitle>([
     title("Пересічний Пригодник", "Пересічна Пригодниця", "Пересічні Пригодники")
   ],
   [
+    comboKey("race.human-ish", "class.mage"),
+    title("Побутовий Теоретик Іскор", "Побутова Теоретикиня Іскор", "Побутові Теоретики Іскор")
+  ],
+  [
     comboKey("race.human-ish", "class.bard"),
     title("Самозваний Куплетоносець", "Самозвана Куплетоносиця", "Самозвані Куплетоносці")
+  ],
+  [
+    comboKey("race.human-ish", "class.rogue"),
+    title("Власник Випадкової Відмички", "Власниця Випадкової Відмички", "Власники Випадкової Відмички")
+  ],
+  [
+    comboKey("race.human-ish", "class.priest"),
+    title("Черговий Благословитель", "Чергова Благословителька", "Чергові Благословителі")
   ],
   [
     comboKey("race.human-ish", "class.kharakternyk"),
@@ -42,8 +54,20 @@ const comboTitles = new Map<string, ComboTitle>([
     title("Молодший Паперорухач", "Молодша Паперорухачка", "Молодші Паперорухачі")
   ],
   [
+    comboKey("race.human-ish", "class.ranger"),
+    title("Слідознавець за Обставинами", "Слідознавиця за Обставинами", "Слідознавці за Обставинами")
+  ],
+  [
     comboKey("race.dwarf", "class.warrior"),
     title("Молотковий Аргумент", "Молоткова Аргументація", "Молоткові Аргументи")
+  ],
+  [
+    comboKey("race.dwarf", "class.mage"),
+    title("Шахтний Іскрознавець", "Шахтна Іскрознавиця", "Шахтні Іскрознавці")
+  ],
+  [
+    comboKey("race.dwarf", "class.rogue"),
+    title("Тунельний Майстер Відмички", "Тунельна Майстриня Відмички", "Тунельні Майстри Відмички")
   ],
   [
     comboKey("race.dwarf", "class.ranger"),
@@ -67,12 +91,28 @@ const comboTitles = new Map<string, ComboTitle>([
     title("Жрець Довгих Пояснень", "Жриця Довгих Пояснень", "Жерці Довгих Пояснень")
   ],
   [
+    comboKey("race.elf", "class.ranger"),
+    title("Лісовий Картограф Чужих Слідів", "Лісова Картографка Чужих Слідів", "Лісові Картографи Чужих Слідів")
+  ],
+  [
+    comboKey("race.bisyny", "class.warrior"),
+    title("Редактор Бойових Аргументів", "Редакторка Бойових Аргументів", "Редактори Бойових Аргументів")
+  ],
+  [
+    comboKey("race.bisyny", "class.mage"),
+    title("Заклинач Коментарів на Полях", "Заклиначка Коментарів на Полях", "Заклиначі Коментарів на Полях")
+  ],
+  [
     comboKey("race.bisyny", "class.bard"),
     title("Редакторський Жах Куплетів", "Редакторська Кара Куплетів", "Редакторські Жахи Куплетів")
   ],
   [
     comboKey("race.bisyny", "class.rogue"),
     title("Коментатор Тіньового Проходу", "Коментаторка Тіньового Проходу", "Коментатори Тіньового Проходу")
+  ],
+  [
+    comboKey("race.bisyny", "class.priest"),
+    title("Тлумач Підозрілих Благословень", "Тлумачка Підозрілих Благословень", "Тлумачі Підозрілих Благословень")
   ],
   [
     comboKey("race.bisyny", "class.kharakternyk"),
@@ -85,6 +125,10 @@ const comboTitles = new Map<string, ComboTitle>([
   [
     comboKey("race.bisyny", "class.bureaucramancer"),
     title("Бісова Правка Форми", "Бісова Правка Форми", "Бісові Правки Форми")
+  ],
+  [
+    comboKey("race.bisyny", "class.ranger"),
+    title("Слідознавець Зайвої Правки", "Слідознавиця Зайвої Правки", "Слідознавці Зайвої Правки")
   ],
   [
     comboKey("race.drantohor", "class.warrior"),
@@ -149,6 +193,10 @@ const comboTitles = new Map<string, ComboTitle>([
   [
     comboKey("race.intellectual-orc", "class.mage"),
     title("Кандидат Бойових Наук", "Кандидатка Бойових Наук", "Кандидати Бойових Наук")
+  ],
+  [
+    comboKey("race.intellectual-orc", "class.bard"),
+    title("Рецензент Бойового Куплету", "Рецензентка Бойового Куплету", "Рецензенти Бойового Куплету")
   ],
   [
     comboKey("race.intellectual-orc", "class.priest"),

@@ -56,6 +56,30 @@ const monster: MonsterCombatStats = {
   tags: ["test"]
 };
 
+const oldHotSpellNumbers = {
+  damageKind: "spell",
+  stat: "intelligence",
+  manaCost: 3,
+  cooldownOwnActions: 1,
+  baseDamage: 5,
+  multiplier: 1.2,
+  accuracyBonus: 0.06,
+  critBonus: 0.01,
+  monsterDamageReduction: 0
+} as const;
+
+const oldTrickShotNumbers = {
+  damageKind: "trick",
+  stat: "dexterity",
+  manaCost: 0,
+  cooldownOwnActions: 1,
+  baseDamage: 4,
+  multiplier: 1.15,
+  accuracyBonus: 0.06,
+  critBonus: 0.08,
+  monsterDamageReduction: 0
+} as const;
+
 describe("combat domain engine", () => {
   it("maps every supported class to the intended MVP skill profile", () => {
     const expectedProfiles = {
@@ -67,9 +91,7 @@ describe("combat domain engine", () => {
       },
       "class.mage": {
         id: "skill.hot-spell",
-        damageKind: "spell",
-        manaCost: 3,
-        stat: "intelligence"
+        ...oldHotSpellNumbers
       },
       "class.bard": {
         id: "skill.dangerous-couplet",
@@ -78,10 +100,9 @@ describe("combat domain engine", () => {
         stat: "charisma"
       },
       "class.rogue": {
-        id: "skill.trick-shot",
-        damageKind: "trick",
-        manaCost: 0,
-        stat: "dexterity"
+        id: "skill.shadow-cut",
+        legacyCooldownIds: ["skill.trick-shot"],
+        ...oldTrickShotNumbers
       },
       "class.priest": {
         id: "skill.strict-blessing",
@@ -90,10 +111,9 @@ describe("combat domain engine", () => {
         stat: "charisma"
       },
       "class.varenyk-mancer": {
-        id: "skill.hot-spell",
-        damageKind: "spell",
-        manaCost: 3,
-        stat: "intelligence"
+        id: "skill.boiling-filling",
+        legacyCooldownIds: ["skill.hot-spell"],
+        ...oldHotSpellNumbers
       },
       "class.bureaucramancer": {
         id: "skill.form-thirteen-b",
@@ -103,9 +123,7 @@ describe("combat domain engine", () => {
       },
       "class.ranger": {
         id: "skill.trick-shot",
-        damageKind: "trick",
-        manaCost: 0,
-        stat: "dexterity"
+        ...oldTrickShotNumbers
       },
       "class.kharakternyk": {
         id: "skill.steppe-side-eye",
@@ -117,6 +135,9 @@ describe("combat domain engine", () => {
 
     expect(classes.map((characterClass) => characterClass.id).sort()).toEqual(
       Object.keys(expectedProfiles).sort()
+    );
+    expect(new Set(classes.map((characterClass) => getCombatSkillProfile(characterClass.id).id)).size).toBe(
+      classes.length
     );
 
     for (const [classId, expectedProfile] of Object.entries(expectedProfiles)) {
@@ -549,6 +570,97 @@ describe("combat domain engine", () => {
       reason: "cooldown",
       cooldownRemainingTurns: 3
     });
+  });
+
+  it("honors legacy cooldown ids for renamed class skills without storing them again", () => {
+    const sturdyMonster = { ...monster, hpMax: 80 };
+    const varenyky = {
+      ...unarmedMage,
+      classId: "class.varenyk-mancer",
+      manaCurrent: unarmedMage.manaMax
+    };
+    const rogue = {
+      ...warrior,
+      classId: "class.rogue",
+      dexterity: 12,
+      manaCurrent: warrior.manaMax
+    };
+    const legacyVarenykyState: CombatState = {
+      ...startCombat({ hero: varenyky, monster: sturdyMonster }),
+      cooldowns: {
+        abilities: {
+          "skill.hot-spell": {
+            id: "skill.hot-spell",
+            remainingTurns: 1
+          }
+        }
+      }
+    };
+    const legacyRogueState: CombatState = {
+      ...startCombat({ hero: rogue, monster: sturdyMonster }),
+      cooldowns: {
+        skill: {
+          id: "skill.trick-shot",
+          remainingTurns: 1
+        }
+      }
+    };
+
+    expect(getCombatActionAvailability(legacyVarenykyState, varenyky).skill).toMatchObject({
+      available: false,
+      reason: "cooldown",
+      cooldownRemainingTurns: 1
+    });
+    expect(getCombatActionAvailability(legacyRogueState, rogue).skill).toMatchObject({
+      available: false,
+      reason: "cooldown",
+      cooldownRemainingTurns: 1
+    });
+
+    const blocked = resolveCombatTurn({
+      state: legacyVarenykyState,
+      action: "skill",
+      hero: varenyky,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0])
+    });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.reason).toBe("skill-on-cooldown");
+    expect(blocked.state).toEqual(legacyVarenykyState);
+
+    const ticked = resolveCombatTurn({
+      state: legacyVarenykyState,
+      action: "attack",
+      hero: varenyky,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
+    });
+    expect(ticked.ok).toBe(true);
+    if (!ticked.ok) {
+      throw new Error("Expected attack to resolve.");
+    }
+    expect(ticked.state.cooldowns).toBeUndefined();
+
+    const renamed = resolveCombatTurn({
+      state: ticked.state,
+      action: "skill",
+      hero: varenyky,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
+    });
+    expect(renamed.ok).toBe(true);
+    if (!renamed.ok) {
+      throw new Error("Expected renamed class skill to resolve.");
+    }
+    expect(renamed.state.cooldowns?.skill).toEqual({
+      id: "skill.boiling-filling",
+      remainingTurns: 1
+    });
+    expect(renamed.state.cooldowns?.abilities?.["skill.boiling-filling"]).toEqual({
+      id: "skill.boiling-filling",
+      remainingTurns: 1
+    });
+    expect(renamed.state.cooldowns?.abilities?.["skill.hot-spell"]).toBeUndefined();
   });
 
   it("puts class skills on one intervening own action cooldown and treats cooldown presses as no-op", () => {

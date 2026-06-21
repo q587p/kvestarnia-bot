@@ -221,7 +221,7 @@ describe("turn-based duel domain", () => {
       throw new Error("Expected first round to resolve.");
     }
     expect(firstResolved.state.participants.challenger.cooldowns?.skill).toEqual({
-      id: "skill.trick-shot",
+      id: "skill.shadow-cut",
       remainingTurns: 1
     });
 
@@ -237,7 +237,7 @@ describe("turn-based duel domain", () => {
       state: firstResolved.state
     });
     expect(rejected.state.participants.challenger.cooldowns?.skill).toEqual({
-      id: "skill.trick-shot",
+      id: "skill.shadow-cut",
       remainingTurns: 1
     });
   });

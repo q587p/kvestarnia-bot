@@ -27,14 +27,14 @@ LUCK не має заміняти primary stat. Це малий adjustment аб�
 | Воїн | `skill.forceful-strike` | STR | `force`, `intimidation` | притримати двері, викликати шолом на чесний двобій, переконати меблі вагою аргументу |
 | Маг | `skill.hot-spell` | INT | `arcana`, `alteration`, `investigation` | розплутати портал, переписати закляття, нагріти/охолодити проблему |
 | Бард | `skill.dangerous-couplet` | CHA | `performance`, `persuasion`, `deception` | переспівати казанок, підмінити пророцтво римою, відволікти аудиторію |
-| Злодій | `skill.trick-shot` | DEX | `finesse`, `deception`, `sneak` | витягти ключ із власної брехні, підмінити чек, замести слід |
+| Злодій | `skill.shadow-cut` | DEX | `finesse`, `deception`, `sneak` | витягти ключ із власної брехні, підмінити чек, замести слід |
 | Жрець | `skill.strict-blessing` | CHA | `ritual`, `authority`, `insight` | благословити контракт, вигнати дрібну нечисть, змусити предмет присягнути |
-| Вареник-мант | `skill.hot-spell` | INT | `food-magic`, `craft`, `arcana` | домовитись із тістом, запечатати проблему начинкою, провести тістологічну експертизу |
+| Вареник-мант | `skill.boiling-filling` | INT | `food-magic`, `craft`, `arcana` | домовитись із тістом, запечатати проблему начинкою, провести тістологічну експертизу |
 | Бюрокромант | `skill.form-thirteen-b` | INT | `authority`, `investigation`, `paperwork` | оформити форму, провести інвентаризацію, знерухомити суперечку додатком |
 | Єгер | `skill.trick-shot` | DEX | `tracking`, `traps`, `finesse` | прочитати слід у пилюці, поставити пастку, знайти справжній напрямок |
 | Козак-характерник | `skill.steppe-side-eye` | LUCK | `improvisation`, `intuition`, `intimidation` | подивитися так, щоб предмет передумав, порадитися з туманом, обійти правило боком |
 
-Для Вареник-манта й Мага спільний combat profile не означає спільний player-facing quest text. Quest technique resolver повинен знати class id, а не лише skill id.
+Для Вареник-манта й Мага, а також Злодія й Єгеря, близька бойова математика не означає спільний player-facing quest text. Quest technique resolver повинен знати class id, а не лише родину техніки.
 
 ## 3. Похідні quest techniques
 

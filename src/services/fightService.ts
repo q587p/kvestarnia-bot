@@ -2697,12 +2697,16 @@ export function getCombatSkillDisplay(skillId: string | undefined): CombatSkillD
       return { icon: "💪", name: "Силовий удар" };
     case "skill.hot-spell":
       return { icon: "🪄", name: "Гаряче закляття" };
+    case "skill.boiling-filling":
+      return { icon: "🥟", name: "Кипляча начинка" };
     case "skill.form-thirteen-b":
       return { icon: "📎", name: "Форма 13-Б" };
     case "skill.dangerous-couplet":
       return { icon: "🎼", name: "Небезпечний куплет" };
     case "skill.trick-shot":
       return { icon: "🎯", name: "Хитрий постріл" };
+    case "skill.shadow-cut":
+      return { icon: "🌘", name: "Тіньовий різ" };
     case "skill.strict-blessing":
       return { icon: "🙏", name: "Суворе благословення" };
     case "skill.steppe-side-eye":

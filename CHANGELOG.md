@@ -15,6 +15,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a pure monster AI/effect resolver for ordinary PvE monsters. It supports basic attacks, monster defend, content-driven abilities, actor-local cooldowns, once-per-fight abilities, class-skill locks, shields, self-heals, simple marks, burn/bleed ticks, mana pressure and telegraphed heavy actions.
 - Added compact active-fight presentation for named monster abilities, telegraph warnings and one concise effect consequence.
 - Added monster action-mix and ability-usage metrics to the production combat simulator, with default coverage through level 23.
+- Added authored combo-title triples for all 54 currently selectable race/class pairs, so active onboarding combinations no longer fall back to generic local-significance titles.
+- Added distinct class skill identities for Varenyk-mancer (`skill.boiling-filling`, `🥟 Кипляча начинка`) and Rogue (`skill.shadow-cut`, `🌘 Тіньовий різ`) while preserving their previous numeric combat profiles.
 - Added focused coverage for content totals, loadout gates, frozen runtime state, legacy no-runtime fights, ordinary anti-spam, telegraph impact, shields/effects and Prisma JSON round-trip.
 
 ### Changed
@@ -23,9 +25,11 @@ This project follows a simple pre-1.0 versioning policy:
 - Failed flee responses, timeout auto-attacks and timeout skip recovery now call the same monster AI path as manual combat turns.
 - The existing `first-ability` bark trigger now fires from real ordinary-monster ability use, while stored bark IDs still replay deterministically.
 - Group-ready target scopes degrade safely to the current one-hero, one-monster runtime; no party, raid or multi-enemy runtime was added.
+- Mage and Ranger keep their existing `skill.hot-spell` and `skill.trick-shot` identities; Varenyk-mancer and Rogue now render their own class action labels in persistent fights, training doppelganger fights and turn-based duels.
 
 ### Fixed
 - Old active combat JSON without `monsterRuntime` remains readable and keeps legacy basic-attack behavior until that fight ends.
+- Old active cooldown JSON that still contains Varenyk-mancer `skill.hot-spell` or Rogue `skill.trick-shot` cooldowns remains authoritative until the cooldown naturally ticks away; future class skill use stores only the renamed IDs.
 - Training doppelganger fights keep the copied class-skill behavior from `0.1.21` instead of being silently converted into ordinary-monster AI.
 - Monster class-skill locks are server-authoritative no-ops: pressing a locked/unavailable class skill does not spend mana, advance the turn, tick cooldowns, trigger monster AI, select a bark or advance RNG.
 - Telegraphs persist the promised ability before impact; if the monster dies first, the pending impact never resolves.

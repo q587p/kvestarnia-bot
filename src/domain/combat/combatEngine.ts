@@ -126,9 +126,9 @@ export function getActorCombatActionAvailability(
   actor: Pick<CombatActorStats, "classId">
 ): CombatActionAvailability {
   const skill = getCombatSkillProfile(actor.classId);
-  const cooldown = getAbilityCooldown(actorState.cooldowns, skill.id);
+  const cooldown = getSkillCooldown(actorState.cooldowns, skill);
 
-  if (cooldown?.id === skill.id && cooldown.remainingTurns > 0) {
+  if (cooldown && cooldown.remainingTurns > 0) {
     return {
       attack: { available: true },
       defend: { available: true },
@@ -740,6 +740,15 @@ function getAbilityCooldown(
   abilityId: string
 ): { id: string; remainingTurns: number } | undefined {
   return cooldowns?.abilities?.[abilityId] ?? (cooldowns?.skill?.id === abilityId ? cooldowns.skill : undefined);
+}
+
+function getSkillCooldown(
+  cooldowns: CombatState["cooldowns"] | undefined,
+  skill: CombatSkillProfile
+): { id: string; remainingTurns: number } | undefined {
+  return [skill.id, ...(skill.legacyCooldownIds ?? [])]
+    .map((abilityId) => getAbilityCooldown(cooldowns, abilityId))
+    .find((cooldown) => cooldown !== undefined);
 }
 
 function normalizeCooldownAbilities(

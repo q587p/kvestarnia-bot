@@ -549,6 +549,12 @@ describe("main menu and scene keyboards", () => {
       "💪 Силовий удар",
       "🏃 Відступити"
     ]);
+    expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, { ...character, classId: "class.varenyk-mancer" }))).toContain(
+      "🥟 Кипляча начинка · 3 мани"
+    );
+    expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, { ...character, classId: "class.rogue" }))).toContain(
+      "🌘 Тіньовий різ"
+    );
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard())).toEqual([
       "⬆️ Повернутися до зали",
       "⬇️ Спуститися"
@@ -632,6 +638,12 @@ describe("main menu and scene keyboards", () => {
       "💪 Силовий удар",
       "🏃 Відступити"
     ]);
+    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, { ...character, classId: "class.varenyk-mancer" }))).toContain(
+      "🥟 Кипляча начинка · 3 мани"
+    );
+    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, { ...character, classId: "class.rogue" }))).toContain(
+      "🌘 Тіньовий різ"
+    );
     expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:defend",
@@ -740,8 +752,10 @@ describe("main menu and scene keyboards", () => {
     const skillIds = [
       "skill.forceful-strike",
       "skill.hot-spell",
+      "skill.boiling-filling",
       "skill.form-thirteen-b",
       "skill.dangerous-couplet",
+      "skill.shadow-cut",
       "skill.trick-shot",
       "skill.strict-blessing",
       "skill.steppe-side-eye",
@@ -752,6 +766,23 @@ describe("main menu and scene keyboards", () => {
 
     expect(new Set(displays.map((display) => display.icon)).size).toBe(displays.length);
     expect(displays.filter((display) => reservedActionIcons.has(display.icon))).toEqual([]);
+    expect(getCombatSkillDisplay("skill.boiling-filling")).toEqual({
+      icon: "🥟",
+      name: "Кипляча начинка"
+    });
+    expect(getCombatSkillDisplay("skill.shadow-cut")).toEqual({
+      icon: "🌘",
+      name: "Тіньовий різ"
+    });
+    expect(getPersistentFightSkillLabel({ ...character, classId: "class.varenyk-mancer" })).toBe(
+      "🥟 Кипляча начинка · 3 мани"
+    );
+    expect(getPersistentFightSkillLabel({ ...character, classId: "class.rogue" })).toBe(
+      "🌘 Тіньовий різ"
+    );
+    expect(getPersistentFightSkillLabel({ ...character, classId: "class.ranger" })).toBe(
+      "🎯 Хитрий постріл"
+    );
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.priest" })).toBe(
       "🙏 Суворе благословення · 2 мани"
     );
