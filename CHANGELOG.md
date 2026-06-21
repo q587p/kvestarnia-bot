@@ -33,6 +33,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Active fight cards now place the 23-second timeout note under the named `що робимо?` prompt instead of above it.
 - Active persistent fight cards no longer show the service-note `Хід записано` or an `Остання дія` heading, skill cooldown rows name the exact skill, and basic monster counterattacks say what they attacked in response to.
 - Monster skill summaries now include visible mechanical consequences: damage, effect text, or an explicit no-direct-damage line.
+- Monster ability parameters now compile through a central runtime audit. Unsupported, invalid or effectless parameters fail validation instead of silently becoming flavor-only fields.
+- Runtime monster shields now report only HP damage actually applied after absorption and no longer heal/revive the monster while accounting shield points.
+- Runtime basic attacks now use the same defend stance contract as legacy basic monster attacks, including evasion, mitigation fatigue and bounded counters; runtime ability mitigation applies defend once.
 
 ### Fixed
 - Old active combat JSON without `monsterRuntime` remains readable and keeps legacy basic-attack behavior until that fight ends.
@@ -43,6 +46,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Training doppelganger fights keep the copied class-skill behavior from `0.1.21` instead of being silently converted into ordinary-monster AI.
 - Monster class-skill locks are server-authoritative no-ops: pressing a locked/unavailable class skill does not spend mana, advance the turn, tick cooldowns, trigger monster AI, select a bark or advance RNG.
 - Telegraphs persist the promised ability before impact; if the monster dies first, the pending impact never resolves.
+- One-charge marks survive committed hero actions and are consumed only when a later direct monster hit uses them; reflect charges are consumed only when actual reflected HP damage occurs.
+- Target accuracy/evasion penalties now affect later target rolls instead of being accidentally folded into the monster's current ability accuracy.
+- Deterministic fallback loadouts now skip unsupported recipes and avoid low-level strong/ultimate fallback picks.
 
 ### Guardrails
 - No player race/signature/title ability catalog, item active ability, multi-enemy runtime, Yeger rule change, reward/economy/loot rebalance, timeout cap, participation gate, auto-victory reward suppression or new analytics migration was added.

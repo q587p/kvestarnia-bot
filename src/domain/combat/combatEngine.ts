@@ -8,7 +8,11 @@ import { recordCombatAnalyticsTurn } from "./combatBalanceAnalytics";
 import { resolveMonsterBark } from "./combatBarks";
 import {
   applyHeroActivationMonsterEffects,
-  applyMonsterShieldToHeroDamage,
+  applyMonsterRuntimeFleePenalty,
+  applyMonsterRuntimeHeroAttackModifiers,
+  applyMonsterRuntimeHeroDamage,
+  applyMonsterRuntimeMonsterActionModifiers,
+  getMonsterRuntimeSkillManaCostIncrease,
   isHeroClassSkillLockedByMonster,
   monsterAbilityAsCombatSkill,
   resolveMonsterRuntimeAction
@@ -265,8 +269,9 @@ export function resolveCombatTurn(input: ResolveCombatTurnInput): ResolveCombatT
     }
 
     const availability = getCombatActionAvailability(input.state, input.hero).skill;
+    const manaPressure = getMonsterRuntimeSkillManaCostIncrease(input.state);
 
-    if (!availability.available) {
+    if (!availability.available || input.state.hero.mana < skill.manaCost + manaPressure) {
       const summary = buildSummary({
         action: "skill",
         ...summaryActionOrigin(input),
@@ -347,6 +352,8 @@ function resolveHeroAttack(
 ): ResolveCombatTurnResult {
   const nextState = cloneCombatState(input.state);
   const action = skill ? "skill" : input.action === "defend" ? "defend" : "attack";
+  const monsterHpBeforeHeroAction = nextState.monster.hp;
+  const defenderStats = applyMonsterRuntimeHeroAttackModifiers(nextState, input.monster);
   const actorAction = resolveActorCombatAction({
     actorState: {
       ...nextState.hero,
@@ -360,23 +367,29 @@ function resolveHeroAttack(
       manaMax: 0
     },
     actorStats: input.hero,
-    defenderStats: input.monster,
+    defenderStats,
     action,
     rng: input.rng
   });
   nextState.hero.hp = actorAction.actorState.hp;
   nextState.hero.mana = actorAction.actorState.mana;
+  const manaPressure = skill ? getMonsterRuntimeSkillManaCostIncrease(nextState) : 0;
+  if (manaPressure > 0) {
+    nextState.hero.mana = clampResource(nextState.hero.mana - manaPressure, nextState.hero.manaMax);
+  }
   setStateGuard(nextState, actorAction.actorState.guard);
   setStateCooldowns(nextState, actorAction.actorState.cooldowns);
   nextState.monster.hp = actorAction.defenderState.hp;
-  const heroDamage = applyMonsterShieldToHeroDamage({
+  const runtimeHeroDamage = applyMonsterRuntimeHeroDamage({
     state: nextState,
-    heroDamage: actorAction.summary.actorDamage
+    heroDamage: actorAction.summary.actorDamage,
+    monsterHpBeforeDamage: monsterHpBeforeHeroAction
   });
+  const heroDamage = runtimeHeroDamage.heroDamage;
   const monsterHp = nextState.monster.hp;
-  const manaSpent = actorAction.summary.manaSpent;
+  const manaSpent = actorAction.summary.manaSpent + manaPressure;
 
-  let monsterDamage = 0;
+  let monsterDamage = runtimeHeroDamage.reflectedDamage;
   let monsterResponse: MonsterResponseResult = { damage: 0 };
   const heroOutcome = nextState.monster.hp <= 0 && actorAction.summary.actorOutcome === "won"
     ? "won"
@@ -413,9 +426,7 @@ function resolveHeroAttack(
     monsterResponse = resolveMonsterResponse({
       state: nextState,
       input,
-      damageReduction:
-        (skill?.monsterDamageReduction ?? 0) +
-        (nextState.monsterRuntime ? getRuntimeDefendReduction(nextState.guard, input.monster) : 0)
+      damageReduction: skill?.monsterDamageReduction ?? 0
     });
     monsterDamage += monsterResponse.damage;
   }
@@ -467,7 +478,11 @@ function resolveHeroAttack(
 
 function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
   const nextState = cloneCombatState(input.state);
-  const fled = rollFleeSuccess(input.hero, input.monster, input.rng);
+  const fled = rollFleeSuccess(
+    applyMonsterRuntimeFleePenalty(nextState, input.hero),
+    input.monster,
+    input.rng
+  );
   let monsterDamage = 0;
   let monsterResponse: MonsterResponseResult = { damage: 0 };
   tickSkillCooldown(nextState);
@@ -842,34 +857,42 @@ function resolveMonsterResponse(input: {
   damageReduction: number;
 }): MonsterResponseResult {
   if (input.state.monsterRuntime) {
+    const runtimeMonster = applyMonsterRuntimeMonsterActionModifiers(input.state, input.input.monster);
     const response = resolveMonsterRuntimeAction({
       state: input.state,
       hero: input.input.hero,
-      monster: input.input.monster,
+      monster: runtimeMonster,
       rng: input.input.rng,
-      damageReduction: input.damageReduction
+      damageReduction: input.damageReduction,
+      defendStance: input.state.guard ? getDefendStance(input.state.guard) : undefined
     });
     const basicAttackDamage = response.actionKind === "attack"
       ? rollMonsterDamage(
           input.input.hero,
-          input.input.monster,
+          runtimeMonster,
           input.input.rng,
           input.damageReduction
         )
       : 0;
-    if (basicAttackDamage > 0) {
-      input.state.hero.hp = Math.max(0, input.state.hero.hp - basicAttackDamage);
+    const defendedBasicAttack = applyDefendStance({
+      defenderGuard: input.state.guard,
+      damage: basicAttackDamage,
+      rng: input.input.rng
+    });
+    if (defendedBasicAttack.damage > 0) {
+      input.state.hero.hp = Math.max(0, input.state.hero.hp - defendedBasicAttack.damage);
     }
     const monsterSkill = response.ability ? monsterAbilityAsCombatSkill(response.ability) : undefined;
 
     return {
-      damage: response.damage + basicAttackDamage,
+      damage: response.damage + defendedBasicAttack.damage,
       ...(response.actionKind
         ? { monsterAction: response.actionKind === "ability" ? "skill" : response.actionKind }
         : {}),
       ...(monsterSkill ? { monsterSkill } : {}),
       ...(response.effectText ? { monsterEffectText: response.effectText } : {}),
-      ...(response.telegraphAbility ? { monsterTelegraphAbilityId: response.telegraphAbility.id } : {})
+      ...(response.telegraphAbility ? { monsterTelegraphAbilityId: response.telegraphAbility.id } : {}),
+      ...(response.actionKind === "attack" ? { defendCounter: defendedBasicAttack.counter } : {})
     };
   }
 
@@ -909,18 +932,6 @@ function resolveMonsterResponse(input: {
     monsterAction: "attack",
     defendCounter: defendedMonsterAttack.counter
   };
-}
-
-function getRuntimeDefendReduction(
-  guard: CombatGuardState | undefined,
-  monster: MonsterCombatStats
-): number {
-  if (!guard) {
-    return 0;
-  }
-
-  const stance = getDefendStance(guard);
-  return Math.max(1, Math.floor(monster.attack * stance.damageReduction));
 }
 
 function rollDefendCounterDamage(

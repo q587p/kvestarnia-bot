@@ -6,6 +6,7 @@ import {
   cloneCombatState,
   createMonsterAbilityRuntime,
   getMonsterAbilitySlotCount,
+  resolveMonsterShieldDamage,
   resolveCombatTurn,
   resolveMonsterLoadoutIds,
   startCombat,
@@ -246,5 +247,160 @@ describe("monster ability runtime", () => {
     }
     expect(result.state.monsterRuntime?.shield?.sourceAbilityId).toBe("monster.transparent-report");
     expect(result.state.monsterRuntime?.effects.some((effect) => effect.kind === "reflect")).toBe(true);
+  });
+
+  it("accounts shield absorption without healing or reviving the monster", () => {
+    expect(resolveMonsterShieldDamage({
+      hpBefore: 6,
+      hpMax: 40,
+      shieldPoints: 5,
+      incomingDamage: 9
+    })).toEqual({
+      hpAfter: 2,
+      shieldAfter: 0,
+      absorbed: 5,
+      appliedDamage: 4
+    });
+
+    expect(resolveMonsterShieldDamage({
+      hpBefore: 0,
+      hpMax: 40,
+      shieldPoints: 5,
+      incomingDamage: 2
+    })).toEqual({
+      hpAfter: 0,
+      shieldAfter: 3,
+      absorbed: 2,
+      appliedDamage: 0
+    });
+  });
+
+  it("keeps one-charge marks through the hero action and consumes them only on a later direct hit", () => {
+    const state: CombatState = {
+      ...startCombat({ id: "mark-lifecycle", hero, monster: taxDragon }),
+      monsterRuntime: {
+        version: 1,
+        rulesVersion: "monster-abilities-v1",
+        aiProfile: "boss",
+        loadoutIds: ["monster.asset-freeze"],
+        cooldowns: {},
+        onceUsedAbilityIds: [],
+        consecutiveAbilityUses: 0,
+        effects: [{
+          id: "mark:test",
+          sourceAbilityId: "monster.asset-freeze",
+          target: "hero",
+          kind: "mark",
+          value: 1.4,
+          remainingTargetActivations: 2,
+          charges: 1
+        }],
+        ownActionCount: 0
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.1, 0.5])
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected marked turn to resolve.");
+    }
+
+    const mark = result.state.monsterRuntime?.effects.find((effect) => effect.kind === "mark");
+    expect(mark?.charges).toBe(1);
+  });
+
+  it("applies reflect only when hero damage reaches monster HP", () => {
+    const state: CombatState = {
+      ...startCombat({ id: "reflect", hero, monster: mimic }),
+      monsterRuntime: {
+        version: 1,
+        rulesVersion: "monster-abilities-v1",
+        aiProfile: "defender",
+        loadoutIds: ["monster.transparent-report"],
+        cooldowns: {},
+        onceUsedAbilityIds: [],
+        consecutiveAbilityUses: 0,
+        shield: {
+          sourceAbilityId: "monster.transparent-report",
+          points: 30
+        },
+        effects: [{
+          id: "reflect:test",
+          sourceAbilityId: "monster.transparent-report",
+          target: "monster",
+          kind: "reflect",
+          value: 4,
+          remainingOwnActivations: 2,
+          charges: 1
+        }],
+        ownActionCount: 0
+      }
+    };
+
+    const blocked = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.1])
+    });
+    expect(blocked.ok).toBe(true);
+    if (!blocked.ok) {
+      throw new Error("Expected shielded turn to resolve.");
+    }
+    expect(blocked.summary.heroDamage).toBe(0);
+    expect(blocked.state.monsterRuntime?.effects.some((effect) => effect.kind === "reflect")).toBe(true);
+  });
+
+  it("routes runtime basic attacks through the ordinary defend stance", () => {
+    const state: CombatState = {
+      ...startCombat({ id: "runtime-basic-defend", hero, monster: mimic }),
+      monster: {
+        ...startCombat({ hero, monster: mimic }).monster,
+        hp: 80,
+        hpMax: 80
+      },
+      monsterRuntime: {
+        version: 1,
+        rulesVersion: "monster-abilities-v1",
+        aiProfile: "trickster",
+        loadoutIds: ["monster.sauce-spit"],
+        cooldowns: {
+          "monster.sauce-spit": {
+            id: "monster.sauce-spit",
+            remainingOwnActions: 2
+          }
+        },
+        onceUsedAbilityIds: [],
+        consecutiveAbilityUses: 0,
+        shield: {
+          sourceAbilityId: "monster.basic-defend",
+          points: 1
+        },
+        effects: [],
+        ownActionCount: 0
+      }
+    };
+
+    const defended = resolveCombatTurn({
+      state,
+      action: "defend",
+      hero,
+      monster: { ...mimic, hpMax: 80, attack: 8 },
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.99, 0.99])
+    });
+    expect(defended.ok).toBe(true);
+    if (!defended.ok) {
+      throw new Error("Expected defended runtime basic attack.");
+    }
+    expect(defended.summary.monsterAction).toBe("attack");
+    expect(defended.summary.monsterDamage).toBeLessThan(8);
+    expect(defended.state.guard).toEqual({ consecutiveDefends: 1 });
   });
 });

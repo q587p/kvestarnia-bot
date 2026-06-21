@@ -2,6 +2,7 @@ import {
   findMonsterAbility,
   monsterAbilities,
   type MonsterAbilityDefinition,
+  type MonsterAbilityParameterKey,
   type MonsterAbilityPowerBand,
   type MonsterAbilityRole
 } from "../../content/monsterAbilities";
@@ -37,7 +38,14 @@ export type MonsterAbilityEffectKind =
   | "ability-lock"
   | "mana-cost-pressure"
   | "reflect"
-  | "status-resistance";
+  | "status-resistance"
+  | "flee"
+  | "crit"
+  | "slow"
+  | "confusion"
+  | "cooldown-pressure"
+  | "next-attack-bonus"
+  | "repeat-penalty";
 
 export interface MonsterAbilityRuntimeCooldown {
   id: string;
@@ -100,6 +108,13 @@ export interface ResolveMonsterRuntimeActionInput {
   monster: MonsterCombatStats;
   rng: RandomSource;
   damageReduction?: number;
+  defendStance?: MonsterRuntimeDefendStance | undefined;
+}
+
+export interface MonsterRuntimeDefendStance {
+  evasionChance: number;
+  damageReduction: number;
+  counterChance: number;
 }
 
 export interface ResolvedMonsterRuntimeAction {
@@ -129,6 +144,221 @@ const directDamageRoles = new Set<MonsterAbilityRole>([
   "striker",
   "trickster"
 ]);
+
+const supportedParameterKeys = new Set<MonsterAbilityParameterKey>([
+  "abilityPotencyMultiplier",
+  "accuracyAndEvasionPenaltyPp",
+  "accuracyPenaltyPp",
+  "bleedDamageMultiplier",
+  "bleedTicks",
+  "bonusAgainstDebuffedTargets",
+  "bonusDamageMultiplierBelowHalfHp",
+  "bossFallbackAbilityPotencyMultiplier",
+  "burnDamageMultiplier",
+  "burnTicks",
+  "charges",
+  "cleanseNegativeEffects",
+  "copyLastDirectActionPotency",
+  "counterChance",
+  "critPenaltyPp",
+  "damageMultiplier",
+  "damageMultiplierWhenShieldBreaks",
+  "damageReduction",
+  "durationOwnActivations",
+  "durationTargetActivations",
+  "evasionBonusPp",
+  "evasionPenaltyPp",
+  "extendLongestCooldownBy",
+  "fallbackShieldMaxHpFraction",
+  "fleeChancePenaltyPp",
+  "groupTargetConfusion",
+  "healTargetMaxHpFraction",
+  "lockAbilitySource",
+  "lockAnyOneAbility",
+  "manaCostIncrease",
+  "manaDrain",
+  "markIncomingDamageMultiplier",
+  "nextAttackBonusIfShieldSurvives",
+  "outgoingDamageMultiplier",
+  "predictRepeatedLastAction",
+  "reapplyLastExpiredNegativeEffect",
+  "reflectFlatDamage",
+  "removePositiveEffects",
+  "repeatLastActionPenalty",
+  "riderByTurnCycle",
+  "riderByTurnParity",
+  "selfDamageReduction",
+  "selfEvasionBonusPp",
+  "selfHealMaxHpFraction",
+  "shieldMaxHpFraction",
+  "slowAttackerPp",
+  "soloFallbackShieldMaxHpFraction",
+  "statusResistancePp",
+  "targetAccuracyPenaltyPp"
+]);
+
+interface CompiledMonsterAbilityRecipe {
+  directDamage: boolean;
+  heroEffects: readonly MonsterAbilityEffectKind[];
+  monsterEffects: readonly MonsterAbilityEffectKind[];
+  immediate: {
+    heal: boolean;
+    shield: boolean;
+    manaDrain: boolean;
+    cleanse: boolean;
+    removePositive: boolean;
+    reapplyExpired: boolean;
+    cooldownPressure: boolean;
+  };
+}
+
+export function compileMonsterAbilityRecipe(
+  ability: MonsterAbilityDefinition
+): CompiledMonsterAbilityRecipe {
+  const params = ability.parameters;
+  const heroEffects: MonsterAbilityEffectKind[] = [];
+  const monsterEffects: MonsterAbilityEffectKind[] = [];
+  const addHeroEffect = (kind: MonsterAbilityEffectKind): void => {
+    if (!heroEffects.includes(kind)) {
+      heroEffects.push(kind);
+    }
+  };
+  const addMonsterEffect = (kind: MonsterAbilityEffectKind): void => {
+    if (!monsterEffects.includes(kind)) {
+      monsterEffects.push(kind);
+    }
+  };
+
+  if (numberParam(params.markIncomingDamageMultiplier) > 0) addHeroEffect("mark");
+  if (numberParam(params.burnDamageMultiplier) > 0) addHeroEffect("burn");
+  if (numberParam(params.bleedDamageMultiplier) > 0) addHeroEffect("bleed");
+  if (typeof params.lockAbilitySource === "string" || params.lockAnyOneAbility === true) addHeroEffect("ability-lock");
+  if (numberParam(params.outgoingDamageMultiplier) > 0 && numberParam(params.outgoingDamageMultiplier) !== 1) addHeroEffect("outgoing-damage");
+  if (numberParam(params.targetAccuracyPenaltyPp) > 0 || numberParam(params.accuracyAndEvasionPenaltyPp) > 0) addHeroEffect("accuracy");
+  if (numberParam(params.evasionPenaltyPp) > 0 || numberParam(params.accuracyAndEvasionPenaltyPp) > 0) addHeroEffect("evasion");
+  if (numberParam(params.manaCostIncrease) > 0) addHeroEffect("mana-cost-pressure");
+  if (numberParam(params.fleeChancePenaltyPp) > 0) addHeroEffect("flee");
+  if (numberParam(params.critPenaltyPp) > 0) addHeroEffect("crit");
+  if (numberParam(params.slowAttackerPp) > 0) addHeroEffect("slow");
+  if (params.groupTargetConfusion === true) addHeroEffect("confusion");
+  if (numberParam(params.extendLongestCooldownBy) > 0) addHeroEffect("cooldown-pressure");
+  if (params.predictRepeatedLastAction === true || numberParam(params.repeatLastActionPenalty) > 0) addHeroEffect("repeat-penalty");
+
+  if (numberParam(params.damageReduction) > 0 || numberParam(params.selfDamageReduction) > 0) addMonsterEffect("incoming-damage");
+  if (numberParam(params.evasionBonusPp) > 0 || numberParam(params.selfEvasionBonusPp) > 0) addMonsterEffect("evasion");
+  if (numberParam(params.reflectFlatDamage) > 0) addMonsterEffect("reflect");
+  if (numberParam(params.counterChance) > 0) addMonsterEffect("reflect");
+  if (numberParam(params.statusResistancePp) > 0) addMonsterEffect("status-resistance");
+  if (numberParam(params.nextAttackBonusIfShieldSurvives) > 0 || numberParam(params.copyLastDirectActionPotency) > 0) addMonsterEffect("next-attack-bonus");
+
+  return {
+    directDamage: getRawDamageMultiplier(ability) > 0 || directDamageRoles.has(ability.role),
+    heroEffects,
+    monsterEffects,
+    immediate: {
+      heal: numberParam(params.selfHealMaxHpFraction) > 0 || numberParam(params.healTargetMaxHpFraction) > 0,
+      shield:
+        numberParam(params.shieldMaxHpFraction) > 0 ||
+        numberParam(params.fallbackShieldMaxHpFraction) > 0 ||
+        numberParam(params.soloFallbackShieldMaxHpFraction) > 0,
+      manaDrain: numberParam(params.manaDrain) > 0,
+      cleanse: isTruthyParameter(params.cleanseNegativeEffects),
+      removePositive: isTruthyParameter(params.removePositiveEffects),
+      reapplyExpired: params.reapplyLastExpiredNegativeEffect === true,
+      cooldownPressure: numberParam(params.extendLongestCooldownBy) > 0
+    }
+  };
+}
+
+function validateMonsterAbilityRecipe(
+  ability: MonsterAbilityDefinition
+): MonsterContentValidationIssue[] {
+  const issues: MonsterContentValidationIssue[] = [];
+  const parameterKeys = Object.keys(ability.parameters) as MonsterAbilityParameterKey[];
+
+  for (const key of parameterKeys) {
+    if (!supportedParameterKeys.has(key)) {
+      issues.push({
+        code: "unsupported-ability-parameter",
+        message: `Monster ability ${ability.id} uses unsupported parameter ${key}.`,
+        abilityId: ability.id
+      });
+    }
+  }
+
+  for (const [key, value] of Object.entries(ability.parameters)) {
+    if (!isLegalParameterValue(key as MonsterAbilityParameterKey, value)) {
+      issues.push({
+        code: "invalid-ability-parameter",
+        message: `Monster ability ${ability.id} has invalid value for ${key}.`,
+        abilityId: ability.id
+      });
+    }
+  }
+
+  const recipe = compileMonsterAbilityRecipe(ability);
+  const hasObservableEffect =
+    recipe.directDamage ||
+    recipe.heroEffects.length > 0 ||
+    recipe.monsterEffects.length > 0 ||
+    Object.values(recipe.immediate).some(Boolean);
+
+  if (!hasObservableEffect) {
+    issues.push({
+      code: "effectless-ability",
+      message: `Monster ability ${ability.id} compiles to no runtime effect.`,
+      abilityId: ability.id
+    });
+  }
+
+  if (hasAllyOnlyTarget(ability) && !hasSoloFallback(ability)) {
+    issues.push({
+      code: "unsupported-ally-target",
+      message: `Monster ability ${ability.id} has only ally targets without a solo fallback.`,
+      abilityId: ability.id
+    });
+  }
+
+  return issues;
+}
+
+function isLegalParameterValue(key: MonsterAbilityParameterKey, value: unknown): boolean {
+  switch (key) {
+    case "bonusAgainstDebuffedTargets":
+    case "cleanseNegativeEffects":
+    case "groupTargetConfusion":
+    case "lockAnyOneAbility":
+    case "predictRepeatedLastAction":
+    case "reapplyLastExpiredNegativeEffect":
+    case "removePositiveEffects":
+      return typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value) && value > 0);
+    case "lockAbilitySource":
+      return typeof value === "string" && value.length > 0;
+    case "riderByTurnCycle":
+    case "riderByTurnParity":
+      return Array.isArray(value);
+    default:
+      return typeof value === "number" && Number.isFinite(value);
+  }
+}
+
+function hasAllyOnlyTarget(ability: MonsterAbilityDefinition): boolean {
+  return ability.targetScopes.every(
+    (scope) => scope === "all-allies" || scope === "lowest-hp-ally"
+  );
+}
+
+function hasSoloFallback(ability: MonsterAbilityDefinition): boolean {
+  const params = ability.parameters;
+  return (
+    numberParam(params.fallbackShieldMaxHpFraction) > 0 ||
+    numberParam(params.soloFallbackShieldMaxHpFraction) > 0 ||
+    numberParam(params.shieldMaxHpFraction) > 0 ||
+    numberParam(params.selfHealMaxHpFraction) > 0 ||
+    numberParam(params.damageReduction) > 0 ||
+    numberParam(params.selfDamageReduction) > 0
+  );
+}
 
 export function validateMonsterAbilityContent(): MonsterContentValidationIssue[] {
   const issues: MonsterContentValidationIssue[] = [];
@@ -170,6 +400,8 @@ export function validateMonsterAbilityContent(): MonsterContentValidationIssue[]
         abilityId: ability.id
       });
     }
+
+    issues.push(...validateMonsterAbilityRecipe(ability));
   }
 
   if (profileCount !== 93) {
@@ -316,6 +548,7 @@ export function resolveMonsterLoadoutIds(input: {
 
   const fallback = selectFallbackAbilities({
     existingIds: selected,
+    effectiveLevel: input.monster.level,
     monsterTags: input.monster.tags,
     seed: input.seed,
     desiredCount
@@ -459,13 +692,11 @@ export function applyHeroActivationMonsterEffects(state: CombatState): {
     }
 
     const remainingTargetActivations = Math.max(0, (effect.remainingTargetActivations ?? 1) - 1);
-    const charges = effect.charges === undefined ? undefined : Math.max(0, effect.charges - 1);
 
-    if (remainingTargetActivations > 0 && (charges === undefined || charges > 0)) {
+    if (remainingTargetActivations > 0 && (effect.charges === undefined || effect.charges > 0)) {
       effects.push({
         ...effect,
-        remainingTargetActivations,
-        ...(charges !== undefined ? { charges } : {})
+        remainingTargetActivations
       });
     } else {
       expired.push(effect.id);
@@ -473,34 +704,185 @@ export function applyHeroActivationMonsterEffects(state: CombatState): {
   }
 
   runtime.effects = effects;
-  runtime.expiredEffectIds = expired;
+  runtime.expiredEffectIds = boundExpiredEffectIds(expired);
   state.monsterRuntime = runtime;
   state.hero.hp = Math.max(0, state.hero.hp - damage);
 
   return { state, damage };
 }
 
-export function applyMonsterShieldToHeroDamage(input: {
+export interface MonsterShieldDamageResult {
+  hpAfter: number;
+  shieldAfter: number;
+  absorbed: number;
+  appliedDamage: number;
+}
+
+export function resolveMonsterShieldDamage(input: {
+  hpBefore: number;
+  hpMax: number;
+  shieldPoints: number;
+  incomingDamage: number;
+}): MonsterShieldDamageResult {
+  const hpBefore = Math.max(0, Math.min(input.hpMax, Math.floor(input.hpBefore)));
+  const shieldBefore = Math.max(0, Math.floor(input.shieldPoints));
+  const incomingDamage = Math.max(0, Math.floor(input.incomingDamage));
+  const absorbed = Math.min(shieldBefore, incomingDamage);
+  const hpDamage = Math.min(hpBefore, Math.max(0, incomingDamage - absorbed));
+
+  return {
+    hpAfter: Math.max(0, hpBefore - hpDamage),
+    shieldAfter: Math.max(0, shieldBefore - absorbed),
+    absorbed,
+    appliedDamage: hpDamage
+  };
+}
+
+export function applyMonsterRuntimeHeroDamage(input: {
   state: CombatState;
   heroDamage: number;
-}): number {
+  monsterHpBeforeDamage: number;
+}): { heroDamage: number; reflectedDamage: number } {
   const runtime = input.state.monsterRuntime;
-  const shield = runtime?.shield;
-  if (!runtime || !shield || input.heroDamage <= 0) {
-    return input.heroDamage;
+  if (!runtime || input.heroDamage <= 0) {
+    return { heroDamage: input.heroDamage, reflectedDamage: 0 };
   }
 
-  const absorbed = Math.min(shield.points, input.heroDamage);
-  const remainingShield = shield.points - absorbed;
-  input.state.monster.hp = Math.min(input.state.monster.hpMax, input.state.monster.hp + absorbed);
+  let incomingDamage = input.heroDamage;
+  incomingDamage = applyHeroOutgoingDamageEffects(runtime, incomingDamage);
+  incomingDamage = applyMonsterIncomingDamageEffects(runtime, incomingDamage);
 
-  if (remainingShield > 0) {
-    runtime.shield = { ...shield, points: remainingShield };
-  } else {
+  const shield = runtime.shield;
+  const shieldResult = shield
+    ? resolveMonsterShieldDamage({
+        hpBefore: input.monsterHpBeforeDamage,
+        hpMax: input.state.monster.hpMax,
+        shieldPoints: shield.points,
+        incomingDamage
+      })
+    : {
+        hpAfter: Math.max(0, input.monsterHpBeforeDamage - incomingDamage),
+        shieldAfter: 0,
+        absorbed: 0,
+        appliedDamage: Math.min(input.monsterHpBeforeDamage, incomingDamage)
+      };
+
+  input.state.monster.hp = shieldResult.hpAfter;
+
+  if (shield && shieldResult.shieldAfter > 0) {
+    runtime.shield = { ...shield, points: shieldResult.shieldAfter };
+  } else if (shield) {
     delete runtime.shield;
   }
 
-  return input.heroDamage - absorbed;
+  const reflectedDamage = consumeReflectDamage(runtime, shieldResult.appliedDamage);
+  const shieldBreakDamage = consumeShieldBreakDamage({
+    state: input.state,
+    sourceAbilityId: shield?.sourceAbilityId,
+    shieldBroke: Boolean(shield && shield.points > 0 && shieldResult.shieldAfter <= 0)
+  });
+  const totalReflectedDamage = reflectedDamage + shieldBreakDamage;
+  if (totalReflectedDamage > 0) {
+    input.state.hero.hp = Math.max(0, input.state.hero.hp - totalReflectedDamage);
+  }
+
+  return { heroDamage: shieldResult.appliedDamage, reflectedDamage: totalReflectedDamage };
+}
+
+export function applyMonsterShieldToHeroDamage(input: {
+  state: CombatState;
+  heroDamage: number;
+  monsterHpBeforeDamage?: number;
+}): number {
+  return applyMonsterRuntimeHeroDamage({
+    state: input.state,
+    heroDamage: input.heroDamage,
+    monsterHpBeforeDamage: input.monsterHpBeforeDamage ?? input.state.monster.hp
+  }).heroDamage;
+}
+
+export function applyMonsterRuntimeHeroAttackModifiers(
+  state: CombatState,
+  monster: MonsterCombatStats
+): MonsterCombatStats {
+  const runtime = state.monsterRuntime;
+  if (!runtime) {
+    return monster;
+  }
+
+  const heroAccuracyPenalty = sumEffects(runtime, "hero", "accuracy");
+  const monsterEvasionBonus = sumEffects(runtime, "monster", "evasion");
+  const evasionDeltaPp = heroAccuracyPenalty + monsterEvasionBonus;
+
+  if (evasionDeltaPp === 0) {
+    return monster;
+  }
+
+  return addMonsterContextDelta(monster, { evasionDeltaPp });
+}
+
+export function applyMonsterRuntimeMonsterActionModifiers(
+  state: CombatState,
+  monster: MonsterCombatStats
+): MonsterCombatStats {
+  const runtime = state.monsterRuntime;
+  if (!runtime) {
+    return monster;
+  }
+
+  const heroEvasionPenalty = sumEffects(runtime, "hero", "evasion");
+  const outgoingMultiplier = multiplyEffects(runtime, "monster", "outgoing-damage");
+  const nextAttackBonus = getMonsterEffect(runtime, "monster", "next-attack-bonus");
+  const damageMultiplier = outgoingMultiplier * (nextAttackBonus ? Math.max(1, nextAttackBonus.value) : 1);
+
+  let modified = heroEvasionPenalty === 0
+    ? monster
+    : addMonsterContextDelta(monster, { accuracyDeltaPp: heroEvasionPenalty });
+
+  if (damageMultiplier !== 1) {
+    modified = {
+      ...modified,
+      contextModifiers: {
+        ...defaultCombatContextModifiers(modified),
+        outgoingDamageMultiplier:
+          defaultCombatContextModifiers(modified).outgoingDamageMultiplier * damageMultiplier
+      }
+    };
+  }
+
+  return modified;
+}
+
+export function applyMonsterRuntimeFleePenalty(
+  state: CombatState,
+  hero: CombatActorStats
+): CombatActorStats {
+  const runtime = state.monsterRuntime;
+  if (!runtime) {
+    return hero;
+  }
+
+  const penaltyPp = sumEffects(runtime, "hero", "flee");
+  if (penaltyPp <= 0) {
+    return hero;
+  }
+
+  const statPenalty = Math.max(1, Math.floor(penaltyPp / 4));
+
+  return {
+    ...hero,
+    dexterity: Math.max(0, hero.dexterity - statPenalty),
+    luck: Math.max(0, hero.luck - statPenalty)
+  };
+}
+
+export function getMonsterRuntimeSkillManaCostIncrease(state: CombatState): number {
+  const runtime = state.monsterRuntime;
+  if (!runtime) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(sumEffects(runtime, "hero", "mana-cost-pressure")));
 }
 
 export function resolveMonsterRuntimeAction(
@@ -528,6 +910,7 @@ export function resolveMonsterRuntimeAction(
       monster: input.monster,
       rng: input.rng,
       damageReduction: input.damageReduction ?? 0,
+      defendStance: input.defendStance,
       wasTelegraphed: true
     });
   }
@@ -580,6 +963,7 @@ export function resolveMonsterRuntimeAction(
       monster: input.monster,
       rng: input.rng,
       damageReduction: input.damageReduction ?? 0,
+      defendStance: input.defendStance,
       wasTelegraphed: false
     });
   }
@@ -693,6 +1077,7 @@ function commitMonsterAbility(input: {
   monster: MonsterCombatStats;
   rng: RandomSource;
   damageReduction: number;
+  defendStance?: MonsterRuntimeDefendStance | undefined;
   wasTelegraphed: boolean;
 }): ResolvedMonsterRuntimeAction {
   tickMonsterRuntimeOwnAction(input.runtime);
@@ -727,6 +1112,7 @@ function resolveMonsterAbilityEffects(input: {
   monster: MonsterCombatStats;
   rng: RandomSource;
   damageReduction: number;
+  defendStance?: MonsterRuntimeDefendStance | undefined;
   wasTelegraphed: boolean;
 }): { damage: number; text?: string } {
   const params = input.ability.parameters;
@@ -738,23 +1124,30 @@ function resolveMonsterAbilityEffects(input: {
       0.8 +
         (input.monster.dexterity - input.hero.dexterity) * 0.01 -
         numberParam(params.accuracyPenaltyPp) / 100 -
-        numberParam(params.targetAccuracyPenaltyPp) / 100 +
         (input.monster.contextModifiers?.accuracyDeltaPp ?? 0) / 100
     )
   );
   let damage = 0;
 
   if (multiplier > 0 && input.rng.nextFloat() < hitChance) {
-    const variance = input.rng.nextInt(0, 2);
-    const mark = consumeHeroMark(input.runtime);
-    const raw =
-      (input.monster.attack + variance + getPowerBandDamageBonus(input.ability.powerBand)) *
-      multiplier *
-      mark;
-    damage = Math.max(1, Math.floor(raw) - Math.floor((input.hero.armor ?? 0) * 0.65) - input.damageReduction);
+    if (!input.defendStance || input.rng.nextFloat() >= input.defendStance.evasionChance) {
+      const variance = input.rng.nextInt(0, 2);
+      const mark = consumeHeroMark(input.runtime);
+      const raw =
+        (input.monster.attack + variance + getPowerBandDamageBonus(input.ability.powerBand)) *
+        multiplier *
+        mark *
+        (input.monster.contextModifiers?.outgoingDamageMultiplier ?? 1);
+      const defense = getHeroDefenseForAbility(input.ability, input.hero);
+      damage = Math.max(1, Math.floor(raw) - defense - input.damageReduction);
 
-    if (input.wasTelegraphed) {
-      damage = Math.max(1, Math.floor(damage * 1.18));
+      if (input.defendStance) {
+        damage = Math.max(1, Math.floor(damage * (1 - input.defendStance.damageReduction)));
+      }
+
+      if (input.wasTelegraphed) {
+        damage = Math.max(1, Math.floor(damage * 1.18));
+      }
     }
   }
 
@@ -765,7 +1158,10 @@ function resolveMonsterAbilityEffects(input: {
     effectTexts.push(`мана просіла на ${manaDrain}`);
   }
 
-  const healFraction = numberParam(params.selfHealMaxHpFraction);
+  const healFraction = Math.max(
+    numberParam(params.selfHealMaxHpFraction),
+    numberParam(params.healTargetMaxHpFraction)
+  );
   if (healFraction > 0) {
     const healed = healMonster(input.state, healFraction);
     if (healed > 0) {
@@ -787,6 +1183,32 @@ function resolveMonsterAbilityEffects(input: {
     effectTexts.push(`щит тримає ${points} шкоди`);
   }
 
+  if (isTruthyParameter(params.cleanseNegativeEffects)) {
+    const before = input.runtime.effects.length;
+    input.runtime.effects = input.runtime.effects.filter(
+      (effect) => effect.target !== "monster" || effect.kind === "reflect" || effect.kind === "status-resistance"
+    );
+    if (input.runtime.effects.length !== before) {
+      effectTexts.push("монстр струсив із себе слабкість");
+    }
+  }
+
+  if (isTruthyParameter(params.removePositiveEffects)) {
+    const before = input.runtime.effects.length;
+    input.runtime.effects = input.runtime.effects.filter(
+      (effect) => !(effect.target === "hero" && effect.kind === "outgoing-damage" && effect.value > 1)
+    );
+    if (input.runtime.effects.length !== before || damage > 0) {
+      effectTexts.push("ваші підсилення збилися");
+    }
+  }
+
+  const cooldownExtension = Math.max(0, Math.floor(numberParam(params.extendLongestCooldownBy)));
+  if (cooldownExtension > 0) {
+    extendHeroLongestCooldown(input.state, cooldownExtension);
+    effectTexts.push(`відсап здібності затягнувся на ${cooldownExtension}`);
+  }
+
   addRuntimeEffects(input);
 
   return {
@@ -804,11 +1226,24 @@ function addRuntimeEffects(input: {
   const targetDuration = Math.max(1, Math.floor(numberParam(params.durationTargetActivations)));
   const ownDuration = Math.max(1, Math.floor(numberParam(params.durationOwnActivations)));
   const addEffect = (effect: Omit<MonsterAbilityRuntimeEffect, "id" | "sourceAbilityId">): void => {
-    input.runtime.effects.push({
+    const replacement: MonsterAbilityRuntimeEffect = {
       id: `${input.ability.id}:${input.runtime.ownActionCount}:${input.runtime.effects.length}`,
       sourceAbilityId: input.ability.id,
       ...effect
-    });
+    };
+    const duplicateIndex = input.runtime.effects.findIndex(
+      (existing) => existing.target === replacement.target && existing.kind === replacement.kind
+    );
+
+    if (duplicateIndex >= 0) {
+      input.runtime.effects[duplicateIndex] = mergeRuntimeEffects(
+        input.runtime.effects[duplicateIndex]!,
+        replacement
+      );
+      return;
+    }
+
+    input.runtime.effects.push(replacement);
   };
 
   const markMultiplier = numberParam(params.markIncomingDamageMultiplier);
@@ -842,7 +1277,7 @@ function addRuntimeEffects(input: {
     });
   }
 
-  if (params.lockAbilitySource === "class" || params.lockAnyOneAbility === true) {
+  if (typeof params.lockAbilitySource === "string" || params.lockAnyOneAbility === true) {
     addEffect({
       target: "hero",
       kind: "ability-lock",
@@ -852,14 +1287,49 @@ function addRuntimeEffects(input: {
     });
   }
 
-  const outgoing = numberParam(params.outgoingDamageMultiplier);
-  if (outgoing > 0 && outgoing !== 1) {
+  const targetAccuracyPenalty = Math.max(
+    numberParam(params.targetAccuracyPenaltyPp),
+    numberParam(params.accuracyAndEvasionPenaltyPp)
+  );
+  if (targetAccuracyPenalty > 0) {
     addEffect({
       target: "hero",
-      kind: "outgoing-damage",
-      value: Math.min(1.35, Math.max(0.65, outgoing)),
+      kind: "accuracy",
+      value: Math.min(35, targetAccuracyPenalty),
       remainingTargetActivations: targetDuration
     });
+  }
+
+  const evasionPenalty = Math.max(
+    numberParam(params.evasionPenaltyPp),
+    numberParam(params.accuracyAndEvasionPenaltyPp)
+  );
+  if (evasionPenalty > 0) {
+    addEffect({
+      target: "hero",
+      kind: "evasion",
+      value: Math.min(35, evasionPenalty),
+      remainingTargetActivations: targetDuration
+    });
+  }
+
+  const outgoing = numberParam(params.outgoingDamageMultiplier);
+  if (outgoing > 0 && outgoing !== 1) {
+    if (targetsOnlySelf(input.ability)) {
+      addEffect({
+        target: "monster",
+        kind: "outgoing-damage",
+        value: Math.min(1.35, Math.max(0.65, outgoing)),
+        remainingOwnActivations: ownDuration
+      });
+    } else {
+      addEffect({
+        target: "hero",
+        kind: "outgoing-damage",
+        value: Math.min(1.35, Math.max(0.65, outgoing)),
+        remainingTargetActivations: targetDuration
+      });
+    }
   }
 
   const reduction = Math.max(numberParam(params.damageReduction), numberParam(params.selfDamageReduction));
@@ -878,6 +1348,128 @@ function addRuntimeEffects(input: {
       target: "monster",
       kind: "reflect",
       value: Math.min(13, reflect),
+      remainingOwnActivations: ownDuration,
+      charges: 1
+    });
+  }
+
+  const counterChance = numberParam(params.counterChance);
+  if (counterChance > 0) {
+    addEffect({
+      target: "monster",
+      kind: "reflect",
+      value: Math.max(1, Math.floor(counterChance * (input.state.monster.attack ?? 1))),
+      remainingOwnActivations: ownDuration,
+      charges: 1
+    });
+  }
+
+  const evasionBonus = Math.max(numberParam(params.evasionBonusPp), numberParam(params.selfEvasionBonusPp));
+  if (evasionBonus > 0) {
+    addEffect({
+      target: "monster",
+      kind: "evasion",
+      value: Math.min(35, evasionBonus),
+      remainingOwnActivations: ownDuration
+    });
+  }
+
+  const manaCostIncrease = numberParam(params.manaCostIncrease);
+  if (manaCostIncrease > 0) {
+    addEffect({
+      target: "hero",
+      kind: "mana-cost-pressure",
+      value: Math.min(13, manaCostIncrease),
+      remainingTargetActivations: targetDuration
+    });
+  }
+
+  const cooldownPressure = numberParam(params.extendLongestCooldownBy);
+  if (cooldownPressure > 0) {
+    addEffect({
+      target: "hero",
+      kind: "cooldown-pressure",
+      value: Math.min(13, cooldownPressure),
+      remainingTargetActivations: targetDuration
+    });
+  }
+
+  const fleePenalty = numberParam(params.fleeChancePenaltyPp);
+  if (fleePenalty > 0) {
+    addEffect({
+      target: "hero",
+      kind: "flee",
+      value: Math.min(35, fleePenalty),
+      remainingTargetActivations: targetDuration
+    });
+  }
+
+  const critPenalty = numberParam(params.critPenaltyPp);
+  if (critPenalty > 0) {
+    addEffect({
+      target: "hero",
+      kind: "crit",
+      value: Math.min(35, critPenalty),
+      remainingTargetActivations: targetDuration
+    });
+  }
+
+  const slow = numberParam(params.slowAttackerPp);
+  if (slow > 0) {
+    addEffect({
+      target: "hero",
+      kind: "slow",
+      value: Math.min(35, slow),
+      remainingTargetActivations: targetDuration
+    });
+  }
+
+  if (params.groupTargetConfusion === true) {
+    addEffect({
+      target: "hero",
+      kind: "confusion",
+      value: 1,
+      remainingTargetActivations: targetDuration
+    });
+  }
+
+  if (params.predictRepeatedLastAction === true || numberParam(params.repeatLastActionPenalty) > 0) {
+    addEffect({
+      target: "hero",
+      kind: "repeat-penalty",
+      value: Math.max(1, numberParam(params.repeatLastActionPenalty)),
+      remainingTargetActivations: targetDuration
+    });
+  }
+
+  if (params.reapplyLastExpiredNegativeEffect === true) {
+    addEffect({
+      target: "hero",
+      kind: "repeat-penalty",
+      value: Math.max(1, numberParam(params.repeatLastActionPenalty)),
+      remainingTargetActivations: targetDuration
+    });
+  }
+
+  const statusResistance = numberParam(params.statusResistancePp);
+  if (statusResistance > 0) {
+    addEffect({
+      target: "monster",
+      kind: "status-resistance",
+      value: Math.min(50, statusResistance),
+      remainingOwnActivations: ownDuration
+    });
+  }
+
+  const nextAttackBonus = Math.max(
+    numberParam(params.nextAttackBonusIfShieldSurvives),
+    numberParam(params.copyLastDirectActionPotency)
+  );
+  if (nextAttackBonus > 0) {
+    addEffect({
+      target: "monster",
+      kind: "next-attack-bonus",
+      value: Math.min(1.6, Math.max(1, nextAttackBonus)),
       remainingOwnActivations: ownDuration,
       charges: 1
     });
@@ -905,12 +1497,228 @@ function tickMonsterRuntimeOwnAction(runtime: MonsterAbilityRuntimeStateV1): voi
 
     const remaining = Math.max(0, effect.remainingOwnActivations - 1);
     if (remaining <= 0) {
-      runtime.expiredEffectIds = [...(runtime.expiredEffectIds ?? []), effect.id];
+      runtime.expiredEffectIds = boundExpiredEffectIds([...(runtime.expiredEffectIds ?? []), effect.id]);
       return [];
     }
 
     return [{ ...effect, remainingOwnActivations: remaining }];
   });
+}
+
+function mergeRuntimeEffects(
+  current: MonsterAbilityRuntimeEffect,
+  next: MonsterAbilityRuntimeEffect
+): MonsterAbilityRuntimeEffect {
+  return {
+    ...current,
+    sourceAbilityId: next.sourceAbilityId,
+    value:
+      next.kind === "outgoing-damage" && next.value < 1
+        ? Math.min(current.value, next.value)
+        : Math.max(current.value, next.value),
+    ...(current.remainingOwnActivations !== undefined || next.remainingOwnActivations !== undefined
+      ? {
+          remainingOwnActivations: Math.max(
+            current.remainingOwnActivations ?? 0,
+            next.remainingOwnActivations ?? 0
+          )
+        }
+      : {}),
+    ...(current.remainingTargetActivations !== undefined || next.remainingTargetActivations !== undefined
+      ? {
+          remainingTargetActivations: Math.max(
+            current.remainingTargetActivations ?? 0,
+            next.remainingTargetActivations ?? 0
+          )
+        }
+      : {}),
+    ...(current.charges !== undefined || next.charges !== undefined
+      ? { charges: Math.max(current.charges ?? 0, next.charges ?? 0) }
+      : {})
+  };
+}
+
+function applyHeroOutgoingDamageEffects(
+  runtime: MonsterAbilityRuntimeStateV1,
+  damage: number
+): number {
+  const multiplier = multiplyEffects(runtime, "hero", "outgoing-damage");
+  const reduction = sumEffects(runtime, "monster", "incoming-damage");
+  const slowReduction = Math.min(0.35, sumEffects(runtime, "hero", "slow") / 100);
+  const critPenaltyReduction = Math.min(0.2, sumEffects(runtime, "hero", "crit") / 200);
+  const confusionReduction = getMonsterEffect(runtime, "hero", "confusion") ? 0.1 : 0;
+  const repeatPenaltyReduction = Math.min(0.25, sumEffects(runtime, "hero", "repeat-penalty") / 100);
+  const adjusted = Math.floor(
+    damage *
+      multiplier *
+      (1 - Math.min(0.75, reduction)) *
+      (1 - slowReduction - critPenaltyReduction - confusionReduction - repeatPenaltyReduction)
+  );
+
+  return damage > 0 ? Math.max(1, adjusted) : 0;
+}
+
+function consumeShieldBreakDamage(input: {
+  state: CombatState;
+  sourceAbilityId: string | undefined;
+  shieldBroke: boolean;
+}): number {
+  if (!input.sourceAbilityId || !input.shieldBroke) {
+    return 0;
+  }
+
+  const sourceAbility = findMonsterAbility(input.sourceAbilityId);
+  const multiplier = numberParam(sourceAbility?.parameters.damageMultiplierWhenShieldBreaks);
+  if (multiplier <= 0) {
+    return 0;
+  }
+
+  return Math.max(1, Math.floor((input.state.monster.attack ?? 1) * multiplier));
+}
+
+function applyMonsterIncomingDamageEffects(
+  runtime: MonsterAbilityRuntimeStateV1,
+  damage: number
+): number {
+  const evasionReduction = Math.min(0.5, sumEffects(runtime, "monster", "evasion") / 100);
+  const adjusted = Math.floor(damage * (1 - evasionReduction));
+
+  return damage > 0 ? Math.max(1, adjusted) : 0;
+}
+
+function consumeReflectDamage(
+  runtime: MonsterAbilityRuntimeStateV1,
+  appliedDamage: number
+): number {
+  if (appliedDamage <= 0) {
+    return 0;
+  }
+
+  const reflect = getMonsterEffect(runtime, "monster", "reflect");
+  if (!reflect) {
+    return 0;
+  }
+
+  const reflectedDamage = Math.max(1, Math.floor(reflect.value));
+  reflect.charges = Math.max(0, (reflect.charges ?? 1) - 1);
+  if (reflect.charges <= 0) {
+    runtime.effects = runtime.effects.filter((effect) => effect !== reflect);
+    runtime.expiredEffectIds = boundExpiredEffectIds([...(runtime.expiredEffectIds ?? []), reflect.id]);
+  }
+
+  return reflectedDamage;
+}
+
+function getMonsterEffect(
+  runtime: MonsterAbilityRuntimeStateV1,
+  target: MonsterAbilityEffectTarget,
+  kind: MonsterAbilityEffectKind
+): MonsterAbilityRuntimeEffect | undefined {
+  return runtime.effects.find(
+    (effect) => effect.target === target && effect.kind === kind
+  );
+}
+
+function sumEffects(
+  runtime: MonsterAbilityRuntimeStateV1,
+  target: MonsterAbilityEffectTarget,
+  kind: MonsterAbilityEffectKind
+): number {
+  return runtime.effects
+    .filter((effect) => effect.target === target && effect.kind === kind)
+    .reduce((sum, effect) => sum + effect.value, 0);
+}
+
+function multiplyEffects(
+  runtime: MonsterAbilityRuntimeStateV1,
+  target: MonsterAbilityEffectTarget,
+  kind: MonsterAbilityEffectKind
+): number {
+  return runtime.effects
+    .filter((effect) => effect.target === target && effect.kind === kind)
+    .reduce((multiplier, effect) => multiplier * effect.value, 1);
+}
+
+function addMonsterContextDelta(
+  monster: MonsterCombatStats,
+  delta: Partial<Pick<NonNullable<MonsterCombatStats["contextModifiers"]>, "accuracyDeltaPp" | "evasionDeltaPp">>
+): MonsterCombatStats {
+  const context = defaultCombatContextModifiers(monster);
+
+  return {
+    ...monster,
+    contextModifiers: {
+      ...context,
+      accuracyDeltaPp: context.accuracyDeltaPp + (delta.accuracyDeltaPp ?? 0),
+      evasionDeltaPp: context.evasionDeltaPp + (delta.evasionDeltaPp ?? 0)
+    }
+  };
+}
+
+function defaultCombatContextModifiers(
+  monster: MonsterCombatStats
+): NonNullable<MonsterCombatStats["contextModifiers"]> {
+  return monster.contextModifiers
+    ? { ...monster.contextModifiers }
+    : {
+        outgoingDamageMultiplier: 1,
+        incomingDamageMultiplier: 1,
+        accuracyDeltaPp: 0,
+        evasionDeltaPp: 0,
+        abilityWeightDelta: 0,
+        signatureCooldownDelta: 0,
+        flatArmorDelta: 0,
+        flatResistDelta: 0,
+        flatDexterityDelta: 0
+      };
+}
+
+function extendHeroLongestCooldown(state: CombatState, extension: number): void {
+  const entries = Object.entries(state.cooldowns?.abilities ?? {});
+  const longest = entries.sort(
+    ([, left], [, right]) => right.remainingTurns - left.remainingTurns
+  )[0];
+
+  if (!longest) {
+    return;
+  }
+
+  const [abilityId, cooldown] = longest;
+  const nextCooldown = {
+    ...cooldown,
+    remainingTurns: cooldown.remainingTurns + extension
+  };
+  state.cooldowns = {
+    ...state.cooldowns,
+    abilities: {
+      ...state.cooldowns?.abilities,
+      [abilityId]: nextCooldown
+    },
+    ...(state.cooldowns?.skill?.id === abilityId ? { skill: nextCooldown } : state.cooldowns?.skill ? { skill: state.cooldowns.skill } : {})
+  };
+}
+
+function boundExpiredEffectIds(effectIds: readonly string[]): string[] {
+  return effectIds.slice(-23);
+}
+
+function targetsOnlySelf(ability: MonsterAbilityDefinition): boolean {
+  return ability.targetScopes.every((scope) => scope === "self" || scope === "lowest-hp-ally" || scope === "all-allies");
+}
+
+function getHeroDefenseForAbility(
+  ability: MonsterAbilityDefinition,
+  hero: CombatActorStats
+): number {
+  const damageKind = getAbilityDamageKind(ability);
+  const defense =
+    damageKind === "spell"
+      ? hero.resist ?? 0
+      : damageKind === "physical"
+        ? hero.armor ?? 0
+        : Math.floor(((hero.armor ?? 0) + (hero.resist ?? 0)) / 2);
+
+  return Math.floor(defense * 0.8);
 }
 
 function setRuntimeAbilityCooldown(
@@ -977,15 +1785,14 @@ function getDamageMultiplier(input: {
   ability: MonsterAbilityDefinition;
 }): number {
   const params = input.ability.parameters;
-  let multiplier = numberParam(params.damageMultiplier);
-  multiplier *= numberParam(params.abilityPotencyMultiplier) || 1;
+  let multiplier = getRawDamageMultiplier(input.ability);
 
   if (numberParam(params.bonusDamageMultiplierBelowHalfHp) > 0 && input.state.monster.hp * 2 <= input.state.monster.hpMax) {
     multiplier *= numberParam(params.bonusDamageMultiplierBelowHalfHp);
   }
 
-  if (params.bonusAgainstDebuffedTargets === true && input.runtime.effects.some((effect) => effect.target === "hero")) {
-    multiplier *= 1.15;
+  if (isTruthyParameter(params.bonusAgainstDebuffedTargets) && input.runtime.effects.some((effect) => effect.target === "hero")) {
+    multiplier *= 1 + Math.max(0.15, numberParam(params.bonusAgainstDebuffedTargets));
   }
 
   if (multiplier <= 0 && directDamageRoles.has(input.ability.role)) {
@@ -993,6 +1800,15 @@ function getDamageMultiplier(input: {
   }
 
   return Math.min(1.85, Math.max(0, multiplier));
+}
+
+function getRawDamageMultiplier(ability: MonsterAbilityDefinition): number {
+  const params = ability.parameters;
+  let multiplier = numberParam(params.damageMultiplier);
+  multiplier *= numberParam(params.abilityPotencyMultiplier) || 1;
+  multiplier *= numberParam(params.bossFallbackAbilityPotencyMultiplier) || 1;
+
+  return multiplier;
 }
 
 function getDefaultRoleMultiplier(role: MonsterAbilityRole, powerBand: MonsterAbilityPowerBand): number {
@@ -1065,6 +1881,7 @@ function shouldDeprioritizeDefend(runtime: MonsterAbilityRuntimeStateV1): boolea
 
 function selectFallbackAbilities(input: {
   existingIds: readonly string[];
+  effectiveLevel: number;
   monsterTags: readonly string[];
   seed: string;
   desiredCount: number;
@@ -1077,6 +1894,7 @@ function selectFallbackAbilities(input: {
   const tags = new Set(input.monsterTags);
   const candidates = monsterAbilities
     .filter((ability) => !existing.has(ability.id))
+    .filter((ability) => isSafeFallbackAbility(ability, input.effectiveLevel))
     .map((ability) => ({
       ability,
       matches: ability.tags.filter((tag) => tags.has(tag)).length
@@ -1088,8 +1906,31 @@ function selectFallbackAbilities(input: {
   return candidates.slice(0, input.desiredCount - input.existingIds.length);
 }
 
+function isSafeFallbackAbility(
+  ability: MonsterAbilityDefinition,
+  effectiveLevel: number
+): boolean {
+  if (validateMonsterAbilityRecipe(ability).length > 0) {
+    return false;
+  }
+
+  if (effectiveLevel < 7 && (ability.powerBand === "strong" || ability.powerBand === "ultimate")) {
+    return false;
+  }
+
+  if (effectiveLevel < 4 && ability.telegraphOneEnemyAction) {
+    return false;
+  }
+
+  return true;
+}
+
 function numberParam(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function isTruthyParameter(value: unknown): boolean {
+  return value === true || (typeof value === "number" && Number.isFinite(value) && value > 0);
 }
 
 function stableHash(seed: string): number {
@@ -1199,7 +2040,14 @@ function isEffectKind(value: unknown): value is MonsterAbilityEffectKind {
     value === "ability-lock" ||
     value === "mana-cost-pressure" ||
     value === "reflect" ||
-    value === "status-resistance"
+    value === "status-resistance" ||
+    value === "flee" ||
+    value === "crit" ||
+    value === "slow" ||
+    value === "confusion" ||
+    value === "cooldown-pressure" ||
+    value === "next-attack-bonus" ||
+    value === "repeat-penalty"
   );
 }
 
