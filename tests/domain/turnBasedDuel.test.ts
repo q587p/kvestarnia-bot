@@ -298,6 +298,94 @@ describe("turn-based duel domain", () => {
     expect(defendedDamage).toBeLessThan(baselineDamage);
   });
 
+  it("uses the next defend fatigue tier for repeated hidden-round defends", () => {
+    let state = startTurnBasedDuel({
+      challenger: makeDuelist({ id: "challenger", classId: "class.warrior", strength: 12, hpCurrent: 100, hpMax: 100 }),
+      target: makeDuelist({ id: "target", classId: "class.warrior", strength: 12, hpCurrent: 100, hpMax: 100 }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+
+    const damages: number[] = [];
+    for (let index = 0; index < 3; index += 1) {
+      state.actingCharacterId = "target";
+      const queued = resolveTurnBasedDuelAction({
+        state,
+        actorCharacterId: "challenger",
+        action: "defend",
+        rng: new FakeRandomSource([0.1, 0.9])
+      });
+      if (!queued.ok) {
+        throw new Error("Expected defend to queue.");
+      }
+      const resolved = resolveTurnBasedDuelAction({
+        state: queued.state,
+        actorCharacterId: "target",
+        action: "attack",
+        rng: new FakeRandomSource([0.1, 0.9])
+      });
+      if (!resolved.ok || resolved.resolution !== "resolved") {
+        throw new Error("Expected defended round.");
+      }
+
+      damages.push(resolved.round.actions.find((action) => action.actorCharacterId === "target")?.damage ?? 0);
+      state = resolved.state;
+    }
+
+    expect(damages).toEqual([6, 7, 8]);
+    expect(state.participants.challenger.guard).toEqual({ consecutiveDefends: 3 });
+  });
+
+  it("clears a duel defend streak when the participant commits a non-defend action", () => {
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({ id: "challenger", classId: "class.warrior", strength: 12, hpCurrent: 100, hpMax: 100 }),
+      target: makeDuelist({ id: "target", classId: "class.warrior", strength: 12, hpCurrent: 100, hpMax: 100 }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = "target";
+
+    const defended = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "challenger",
+      action: "defend",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!defended.ok) {
+      throw new Error("Expected defend to queue.");
+    }
+    const firstRound = resolveTurnBasedDuelAction({
+      state: defended.state,
+      actorCharacterId: "target",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!firstRound.ok || firstRound.resolution !== "resolved") {
+      throw new Error("Expected first round.");
+    }
+    expect(firstRound.state.participants.challenger.guard).toEqual({ consecutiveDefends: 1 });
+
+    firstRound.state.actingCharacterId = "challenger";
+    const attackQueued = resolveTurnBasedDuelAction({
+      state: firstRound.state,
+      actorCharacterId: "challenger",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!attackQueued.ok) {
+      throw new Error("Expected attack to queue.");
+    }
+    const secondRound = resolveTurnBasedDuelAction({
+      state: attackQueued.state,
+      actorCharacterId: "target",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    });
+    if (!secondRound.ok || secondRound.resolution !== "resolved") {
+      throw new Error("Expected second round.");
+    }
+
+    expect(secondRound.state.participants.challenger.guard).toBeUndefined();
+  });
+
   it("applies defensive class skill mitigation to opponent damage in the same hidden round", () => {
     const base = startTurnBasedDuel({
       challenger: makeDuelist({

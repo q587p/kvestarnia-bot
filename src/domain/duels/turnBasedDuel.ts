@@ -3,6 +3,7 @@ import {
   cloneCombatCooldowns,
   getCombatSkillProfile,
   getDefendStance,
+  getNextDefendGuard,
   resolveActorCombatAction,
   type CombatActorStats,
   type CombatState,
@@ -353,14 +354,16 @@ function resolveQueuedCombatAction(
       hpMax: actor.hpMax,
       mana: actor.mana,
       manaMax: actor.manaMax,
-      cooldowns: actor.cooldowns
+      cooldowns: actor.cooldowns,
+      ...(actor.guard ? { guard: actor.guard } : {})
     },
     defenderState: {
       hp: defender.hp,
       hpMax: defender.hpMax,
       mana: defender.mana,
       manaMax: defender.manaMax,
-      cooldowns: defender.cooldowns
+      cooldowns: defender.cooldowns,
+      ...(defender.guard ? { guard: defender.guard } : {})
     },
     actorStats: actor.combatStats,
     defenderStats: buildDefenderStats(defender),
@@ -438,7 +441,7 @@ function getQueuedIncomingDamageMultiplier(
   }
 
   const participant = state.participants[side];
-  const stance = getDefendStance(participant.guard);
+  const stance = getDefendStance(getNextDefendGuard(participant.guard));
 
   return 1 - stance.damageReduction;
 }

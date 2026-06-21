@@ -1,7 +1,13 @@
 import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import { PrismaSoloCombatSessionRepository } from "../../src/db/repositories/prismaSoloCombatSessionRepository";
-import type { CombatState } from "../../src/domain/combat";
+import {
+  resolveCombatTurn,
+  type CombatActorStats,
+  type CombatState,
+  type MonsterCombatStats
+} from "../../src/domain/combat";
+import { FakeRandomSource } from "../../src/shared/random";
 
 describe("PrismaSoloCombatSessionRepository", () => {
   it("returns null when updating a disappeared solo fight row", async () => {
@@ -146,6 +152,162 @@ describe("PrismaSoloCombatSessionRepository", () => {
     });
   });
 
+  it("round-trips current runtime combat state fields from stored JSON", async () => {
+    const state = runtimeRoundTripState();
+    const repository = new PrismaSoloCombatSessionRepository({
+      soloCombatSession: {
+        findFirst: () => Promise.resolve(makeSoloCombatRow(state))
+      }
+    } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
+
+    const mapped = await repository.findByIdForTelegramUserId(42n, "session-round-trip");
+
+    expect(mapped?.state).toMatchObject({
+      id: "session-round-trip",
+      originLocationId: "location.korchma.deep.level1",
+      guard: {
+        consecutiveDefends: 2
+      },
+      cooldowns: {
+        abilities: {
+          "skill.forceful-strike": {
+            id: "skill.forceful-strike",
+            remainingTurns: 1
+          }
+        },
+        skill: {
+          id: "skill.forceful-strike",
+          remainingTurns: 1
+        }
+      },
+      monster: {
+        copiedEquipment: [{
+          sourceItemId: "item.borrowed-pan",
+          name: "Позичена пательня",
+          slot: "weapon",
+          effectKeys: ["weaponDamage"]
+        }],
+        debugTrace: {
+          source: "target",
+          copiedEquipmentCount: 1,
+          appliedEffectKeys: ["weaponDamage"],
+          legalAbilityIds: ["skill.forceful-strike"],
+          chosenAbilityId: "skill.forceful-strike",
+          baseMonsterLevel: 2,
+          effectiveMonsterLevel: 3
+        }
+      },
+      lastTurn: {
+        action: "skip",
+        heroOutcome: "inactive",
+        monsterOutcome: "hit",
+        monsterAction: "skill",
+        monsterSkillId: "skill.forceful-strike",
+        monsterDamageKind: "physical",
+        monsterBarkId: "bark.deadline-spider.early-turn",
+        debugTrace: {
+          chosenAbilityId: "skill.forceful-strike",
+          legalAbilityIds: ["skill.forceful-strike"]
+        }
+      }
+    });
+  });
+
+  it("keeps legacy combat JSON with cooldowns.skill readable", async () => {
+    const state: CombatState = {
+      ...activeCombatState,
+      cooldowns: {
+        skill: {
+          id: "skill.forceful-strike",
+          remainingTurns: 1
+        }
+      }
+    };
+    const repository = new PrismaSoloCombatSessionRepository({
+      soloCombatSession: {
+        findFirst: () => Promise.resolve(makeSoloCombatRow(state))
+      }
+    } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
+
+    const mapped = await repository.findByIdForTelegramUserId(42n, "missing-session");
+
+    expect(mapped?.state?.cooldowns).toEqual({
+      abilities: {
+        "skill.forceful-strike": {
+          id: "skill.forceful-strike",
+          remainingTurns: 1
+        }
+      },
+      skill: {
+        id: "skill.forceful-strike",
+        remainingTurns: 1
+      }
+    });
+  });
+
+  it("maps updateByIdIfActiveTurn results without dropping current runtime fields", async () => {
+    const state = runtimeRoundTripState();
+    const repository = new PrismaSoloCombatSessionRepository({
+      $transaction: (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          soloCombatSession: {
+            updateMany: () => Promise.resolve({ count: 1 }),
+            findUnique: () => Promise.resolve(makeSoloCombatRow(state))
+          },
+          activeCombatLease: {
+            deleteMany: () => Promise.resolve({ count: 0 })
+          }
+        })
+    } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
+
+    const mapped = await repository.updateByIdIfActiveTurn("session-round-trip", 3, {
+      state,
+      status: "active"
+    });
+
+    expect(mapped?.state?.originLocationId).toBe("location.korchma.deep.level1");
+    expect(mapped?.state?.guard).toEqual({ consecutiveDefends: 2 });
+    expect(mapped?.state?.lastTurn?.action).toBe("skip");
+    expect(mapped?.state?.lastTurn?.debugTrace?.chosenAbilityId).toBe("skill.forceful-strike");
+    expect(mapped?.state?.monster.copiedEquipment?.[0]?.sourceItemId).toBe("item.borrowed-pan");
+    expect(mapped?.state?.monster.debugTrace?.copiedEquipmentCount).toBe(1);
+  });
+
+  it("preserves a reloaded defend streak so the next persistent turn uses the second fatigue tier", async () => {
+    const state: CombatState = {
+      ...activeCombatState,
+      guard: {
+        consecutiveDefends: 1
+      },
+      monster: {
+        ...activeCombatState.monster,
+        hp: 30,
+        hpMax: 30
+      }
+    };
+    const repository = new PrismaSoloCombatSessionRepository({
+      soloCombatSession: {
+        findFirst: () => Promise.resolve(makeSoloCombatRow(state))
+      }
+    } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
+
+    const mapped = await repository.findByIdForTelegramUserId(42n, "missing-session");
+    const result = resolveCombatTurn({
+      state: mapped?.state ?? state,
+      action: "defend",
+      hero: combatHero,
+      monster: combatMonster,
+      rng: new FakeRandomSource([0.1, 0.5, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected reloaded defend to resolve.");
+    }
+    expect(result.state.guard).toEqual({ consecutiveDefends: 2 });
+    expect(result.summary.monsterDamage).toBe(7);
+  });
+
   it("lists due active sessions with telegram ids for the combat scheduler", async () => {
     const dueState: CombatState = {
       ...activeCombatState,
@@ -282,3 +444,94 @@ const activeCombatState: CombatState = {
     hpMax: 18
   }
 };
+
+const combatHero: CombatActorStats = {
+  level: 3,
+  hpMax: 40,
+  manaMax: 10,
+  strength: 9,
+  dexterity: 7,
+  intelligence: 5,
+  charisma: 5,
+  luck: 6,
+  classId: "class.warrior",
+  armor: 0,
+  resist: 0,
+  weaponDamage: 2
+};
+
+const combatMonster: MonsterCombatStats = {
+  monsterId: "monster.deadline-spider",
+  level: 2,
+  hpMax: 30,
+  attack: 10,
+  armor: 1,
+  resist: 1,
+  dexterity: 6,
+  tags: ["beast", "time", "web"]
+};
+
+function runtimeRoundTripState(): CombatState {
+  return {
+    ...activeCombatState,
+    id: "session-round-trip",
+    originLocationId: "location.korchma.deep.level1",
+    turn: 3,
+    guard: {
+      consecutiveDefends: 2
+    },
+    cooldowns: {
+      abilities: {
+        "skill.forceful-strike": {
+          id: "skill.forceful-strike",
+          remainingTurns: 1
+        }
+      },
+      skill: {
+        id: "skill.forceful-strike",
+        remainingTurns: 1
+      }
+    },
+    monster: {
+      ...activeCombatState.monster,
+      level: 2,
+      attack: 10,
+      armor: 1,
+      resist: 1,
+      dexterity: 6,
+      spellPower: 0,
+      copiedEquipment: [{
+        sourceItemId: "item.borrowed-pan",
+        name: "Позичена пательня",
+        slot: "weapon",
+        effectKeys: ["weaponDamage"]
+      }],
+      debugTrace: {
+        source: "target",
+        copiedEquipmentCount: 1,
+        appliedEffectKeys: ["weaponDamage"],
+        legalAbilityIds: ["skill.forceful-strike"],
+        chosenAbilityId: "skill.forceful-strike",
+        baseMonsterLevel: 2,
+        effectiveMonsterLevel: 3
+      }
+    },
+    lastTurn: {
+      action: "skip",
+      heroOutcome: "inactive",
+      monsterOutcome: "hit",
+      heroDamage: 0,
+      monsterDamage: 7,
+      manaSpent: 0,
+      critical: false,
+      monsterAction: "skill",
+      monsterSkillId: "skill.forceful-strike",
+      monsterDamageKind: "physical",
+      monsterBarkId: "bark.deadline-spider.early-turn",
+      debugTrace: {
+        legalAbilityIds: ["skill.forceful-strike"],
+        chosenAbilityId: "skill.forceful-strike"
+      }
+    }
+  };
+}

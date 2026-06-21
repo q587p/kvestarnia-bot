@@ -123,6 +123,8 @@ For Telegram/gameplay changes, always consider:
 
 - `0.1.21` combat UI follow-up: newly started persistent monster fights send a separate static intro card and then one active button card that updates each turn, including scheduled timeout edits when the active card reference is still deliverable. The active card shows HP/mana, turn number and the visible `23` second auto-action rule; stored monster barks render as Telegram `<blockquote>` speech; generic `Наступний крок` prompts were removed from fight/hunt result templates.
 
+- `0.1.21` combat hardening follow-up: Prisma solo-combat state mapping preserves current runtime JSON fields such as origin, guard streaks, skipped-turn summaries, monster debug/equipment traces, ability cooldowns, context and bark state while keeping legacy `cooldowns.skill` readable; turn-based duel defend uses the next consecutive-defend tier and clears on non-defend actions; failed flee monster responses advance deterministic bark state, while successful flee does not count as a monster action.
+
 ## Current product direction
 
 - `0.0.x` foundation is closed after `0.0.30`.

@@ -1,5 +1,14 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
-import type { CombatState, CombatStatus, CombatTurnSummary } from "../../domain/combat";
+import type {
+  CombatActionType,
+  CombatCopiedEquipment,
+  CombatDamageKind,
+  CombatDebugTrace,
+  CombatState,
+  CombatStatus,
+  CombatTurnOutcome,
+  CombatTurnSummary
+} from "../../domain/combat";
 import type {
   CreateSoloCombatSessionInput,
   DueSoloCombatSessionRecord,
@@ -472,6 +481,11 @@ function parseCombatState(value: unknown): CombatState | null {
   const monster = parseMonsterBlock(value.monster);
   const completedAt = parseIsoDate(value.completedAt);
   const turnExpiresAt = parseIsoDate(value.turnExpiresAt);
+  const message = parseMessageReference(value.message);
+  const guard = parseGuardState(value.guard);
+  const context = parseMonsterContextSnapshot(value.context);
+  const barks = parseBarkState(value.barks);
+  const lastTurn = parseTurnSummary(value.lastTurn);
 
   if (turn === null || !status || !hero || !monster) {
     return null;
@@ -482,17 +496,19 @@ function parseCombatState(value: unknown): CombatState | null {
   return {
     ...(typeof value.id === "string" ? { id: value.id } : {}),
     ...(source ? { source } : {}),
+    ...(typeof value.originLocationId === "string" ? { originLocationId: value.originLocationId } : {}),
     ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
     ...(turnExpiresAt ? { turnExpiresAt: turnExpiresAt.toISOString() } : {}),
-    ...(parseMessageReference(value.message) ? { message: parseMessageReference(value.message)! } : {}),
+    ...(message ? { message } : {}),
     turn,
     status,
     hero,
     monster,
     ...(cooldowns ? { cooldowns } : {}),
-    ...(parseMonsterContextSnapshot(value.context) ? { context: parseMonsterContextSnapshot(value.context)! } : {}),
-    ...(parseBarkState(value.barks) ? { barks: parseBarkState(value.barks)! } : {}),
-    ...(isTurnSummary(value.lastTurn) ? { lastTurn: value.lastTurn } : {})
+    ...(guard ? { guard } : {}),
+    ...(context ? { context } : {}),
+    ...(barks ? { barks } : {}),
+    ...(lastTurn ? { lastTurn } : {})
   };
 }
 
@@ -606,28 +622,37 @@ function parseMonsterBlock(value: unknown): CombatState["monster"] | null {
 
   const hp = intOrNull(value.hp);
   const hpMax = intOrNull(value.hpMax);
+  const level = intOrNull(value.level);
+  const attack = intOrNull(value.attack);
+  const armor = intOrNull(value.armor);
+  const resist = intOrNull(value.resist);
+  const dexterity = intOrNull(value.dexterity);
+  const spellPower = intOrNull(value.spellPower);
+  const copiedEquipment = parseCopiedEquipment(value.copiedEquipment);
+  const debugTrace = parseCombatDebugTrace(value.debugTrace);
+  const contextModifiers = parseCombatContextModifiers(value.contextModifiers);
 
   return hp === null || hpMax === null
     ? null
     : {
         id: value.id,
         ...(typeof value.name === "string" ? { name: value.name } : {}),
-        ...(intOrNull(value.level) !== null ? { level: intOrNull(value.level)! } : {}),
+        ...(level !== null ? { level } : {}),
         hp,
         hpMax,
-        ...(intOrNull(value.attack) !== null ? { attack: intOrNull(value.attack)! } : {}),
-        ...(intOrNull(value.armor) !== null ? { armor: intOrNull(value.armor)! } : {}),
-        ...(intOrNull(value.resist) !== null ? { resist: intOrNull(value.resist)! } : {}),
-        ...(intOrNull(value.dexterity) !== null ? { dexterity: intOrNull(value.dexterity)! } : {}),
+        ...(attack !== null ? { attack } : {}),
+        ...(armor !== null ? { armor } : {}),
+        ...(resist !== null ? { resist } : {}),
+        ...(dexterity !== null ? { dexterity } : {}),
         ...(typeof value.classId === "string" ? { classId: value.classId } : {}),
         ...(typeof value.className === "string" ? { className: value.className } : {}),
         ...(typeof value.raceId === "string" ? { raceId: value.raceId } : {}),
         ...(typeof value.raceName === "string" ? { raceName: value.raceName } : {}),
         ...(typeof value.title === "string" ? { title: value.title } : {}),
-        ...(intOrNull(value.spellPower) !== null ? { spellPower: intOrNull(value.spellPower)! } : {}),
-        ...(parseCombatContextModifiers(value.contextModifiers)
-          ? { contextModifiers: parseCombatContextModifiers(value.contextModifiers)! }
-          : {})
+        ...(spellPower !== null ? { spellPower } : {}),
+        ...(copiedEquipment ? { copiedEquipment } : {}),
+        ...(debugTrace ? { debugTrace } : {}),
+        ...(contextModifiers ? { contextModifiers } : {})
       };
 }
 
@@ -637,16 +662,166 @@ function parseStateStatus(value: unknown): CombatStatus | null {
     : null;
 }
 
-function isTurnSummary(value: unknown): value is CombatTurnSummary {
+function parseTurnSummary(value: unknown): CombatTurnSummary | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const action = parseCombatAction(value.action);
+  const heroOutcome = parseTurnOutcome(value.heroOutcome);
+  const monsterOutcome = parseTurnOutcome(value.monsterOutcome);
+  const heroDamage = intOrNull(value.heroDamage);
+  const monsterDamage = intOrNull(value.monsterDamage);
+  const manaSpent = intOrNull(value.manaSpent);
+  const heroCounterDamage = intOrNull(value.heroCounterDamage);
+  const damageKind = parseDamageKind(value.damageKind);
+  const monsterDamageKind = parseDamageKind(value.monsterDamageKind);
+  const debugTrace = parseCombatDebugTrace(value.debugTrace);
+
+  if (
+    !action ||
+    !heroOutcome ||
+    heroDamage === null ||
+    monsterDamage === null ||
+    manaSpent === null ||
+    typeof value.critical !== "boolean"
+  ) {
+    return null;
+  }
+
+  return {
+    action,
+    heroOutcome,
+    ...(monsterOutcome ? { monsterOutcome } : {}),
+    heroDamage,
+    monsterDamage,
+    manaSpent,
+    critical: value.critical,
+    ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {}),
+    ...(damageKind ? { damageKind } : {}),
+    ...(value.monsterAction === "attack" || value.monsterAction === "skill"
+      ? { monsterAction: value.monsterAction }
+      : {}),
+    ...(typeof value.monsterSkillId === "string" ? { monsterSkillId: value.monsterSkillId } : {}),
+    ...(monsterDamageKind ? { monsterDamageKind } : {}),
+    ...(heroCounterDamage !== null ? { heroCounterDamage } : {}),
+    ...(typeof value.monsterBarkId === "string" ? { monsterBarkId: value.monsterBarkId } : {}),
+    ...(debugTrace ? { debugTrace } : {})
+  };
+}
+
+function parseCombatAction(value: unknown): CombatActionType | null {
+  return value === "attack" || value === "defend" || value === "skill" || value === "flee" || value === "skip"
+    ? value
+    : null;
+}
+
+function parseTurnOutcome(value: unknown): CombatTurnOutcome | null {
   return (
-    isRecord(value) &&
-    (value.action === "attack" || value.action === "defend" || value.action === "skill" || value.action === "flee") &&
-    typeof value.heroOutcome === "string" &&
-    typeof value.heroDamage === "number" &&
-    typeof value.monsterDamage === "number" &&
-    typeof value.manaSpent === "number" &&
-    typeof value.critical === "boolean"
-  );
+    value === "hit" ||
+    value === "critical-hit" ||
+    value === "miss" ||
+    value === "defended" ||
+    value === "not-enough-mana" ||
+    value === "skill-on-cooldown" ||
+    value === "inactive" ||
+    value === "fled" ||
+    value === "flee-failed" ||
+    value === "won" ||
+    value === "lost"
+  )
+    ? value
+    : null;
+}
+
+function parseDamageKind(value: unknown): CombatDamageKind | null {
+  return value === "physical" || value === "spell" || value === "social" || value === "trick"
+    ? value
+    : null;
+}
+
+function parseGuardState(value: unknown): CombatState["guard"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const consecutiveDefends = intOrNull(value.consecutiveDefends);
+
+  return consecutiveDefends === null || consecutiveDefends < 0
+    ? null
+    : { consecutiveDefends };
+}
+
+function parseCopiedEquipment(value: unknown): CombatCopiedEquipment[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const copiedEquipment = value.flatMap((entry) => {
+    if (
+      !isRecord(entry) ||
+      typeof entry.sourceItemId !== "string" ||
+      typeof entry.name !== "string" ||
+      typeof entry.slot !== "string"
+    ) {
+      return [];
+    }
+
+    return [{
+      sourceItemId: entry.sourceItemId,
+      name: entry.name,
+      slot: entry.slot,
+      effectKeys: parseStringArray(entry.effectKeys)
+    }];
+  });
+
+  return copiedEquipment.length > 0 ? copiedEquipment : null;
+}
+
+function parseCombatDebugTrace(value: unknown): CombatDebugTrace | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const source = value.source === "target" || value.source === "random-build" || value.source === "champion-fallback"
+    ? value.source
+    : null;
+  const interventionKind = value.interventionKind === "help" || value.interventionKind === "none" || value.interventionKind === "hinder"
+    ? value.interventionKind
+    : null;
+  const copiedEquipmentCount = intOrNull(value.copiedEquipmentCount);
+  const baseMonsterLevel = intOrNull(value.baseMonsterLevel);
+  const effectiveMonsterLevel = intOrNull(value.effectiveMonsterLevel);
+  const trace: CombatDebugTrace = {
+    ...(typeof value.spawnMode === "string" ? { spawnMode: value.spawnMode } : {}),
+    ...(source ? { source } : {}),
+    ...(typeof value.championPeriod === "string" ? { championPeriod: value.championPeriod } : {}),
+    ...(typeof value.championName === "string" ? { championName: value.championName } : {}),
+    ...(copiedEquipmentCount !== null ? { copiedEquipmentCount } : {}),
+    ...(Array.isArray(value.appliedEffectKeys)
+      ? { appliedEffectKeys: parseStringArray(value.appliedEffectKeys) }
+      : {}),
+    ...(Array.isArray(value.legalAbilityIds)
+      ? { legalAbilityIds: parseStringArray(value.legalAbilityIds) }
+      : {}),
+    ...(typeof value.chosenAbilityId === "string" ? { chosenAbilityId: value.chosenAbilityId } : {}),
+    ...(typeof value.lineId === "string" ? { lineId: value.lineId } : {}),
+    ...(typeof value.lineCategory === "string" ? { lineCategory: value.lineCategory } : {}),
+    ...(interventionKind ? { interventionKind } : {}),
+    ...(typeof value.interventionSourceKey === "string" ? { interventionSourceKey: value.interventionSourceKey } : {}),
+    ...(baseMonsterLevel !== null ? { baseMonsterLevel } : {}),
+    ...(effectiveMonsterLevel !== null ? { effectiveMonsterLevel } : {}),
+    ...(typeof value.contextRulesVersion === "string" ? { contextRulesVersion: value.contextRulesVersion } : {}),
+    ...(Array.isArray(value.contextTraitIds)
+      ? { contextTraitIds: parseStringArray(value.contextTraitIds) }
+      : {}),
+    ...(Array.isArray(value.contextBranchIds)
+      ? { contextBranchIds: parseStringArray(value.contextBranchIds) }
+      : {}),
+    ...(typeof value.contextCueId === "string" ? { contextCueId: value.contextCueId } : {})
+  };
+
+  return Object.keys(trace).length > 0 ? trace : null;
 }
 
 function parseMonsterContextSnapshot(value: unknown): CombatState["context"] | null {
@@ -804,6 +979,12 @@ function parseStringRecord(value: unknown): Record<string, string> {
       typeof entry === "string" ? [[key, entry]] : []
     )
   );
+}
+
+function parseStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
 }
 
 function parseNumberRecord(value: unknown): Record<string, number> {

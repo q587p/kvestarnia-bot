@@ -344,6 +344,76 @@ describe("combat domain engine", () => {
     });
   });
 
+  it("counts failed flee responses as monster actions for mandatory early barks", () => {
+    const barkingMonster: MonsterCombatStats = {
+      ...monster,
+      monsterId: "monster.basement-mouse-with-title",
+      level: 1,
+      hpMax: 18,
+      tags: ["beast", "title"]
+    };
+    const initialState: CombatState = {
+      ...startCombat({ id: "flee-bark-session", hero: warrior, monster: barkingMonster }),
+      id: "flee-bark-session"
+    };
+
+    const first = resolveCombatTurn({
+      state: initialState,
+      action: "flee",
+      hero: warrior,
+      monster: barkingMonster,
+      rng: new FakeRandomSource([0.99, 0.1, 0.5])
+    });
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error("Expected first failed flee.");
+    }
+    expect(first.state.status).toBe("active");
+    expect(first.state.barks?.ownActionCountByMonsterId[barkingMonster.monsterId]).toBe(1);
+    expect(first.summary.monsterBarkId).toBeUndefined();
+
+    const second = resolveCombatTurn({
+      state: first.state,
+      action: "flee",
+      hero: warrior,
+      monster: barkingMonster,
+      rng: new FakeRandomSource([0.99, 0.1, 0.5])
+    });
+    expect(second.ok).toBe(true);
+    if (!second.ok) {
+      throw new Error("Expected second failed flee.");
+    }
+    expect(second.state.barks?.ownActionCountByMonsterId[barkingMonster.monsterId]).toBe(2);
+    expect(second.summary.monsterBarkId).toBe("bark.basement-mouse-with-title.early-turn");
+    expect(second.state.barks?.emittedBarkIds).toContain("bark.basement-mouse-with-title.early-turn");
+  });
+
+  it("does not count a successful flee as a monster action for bark state", () => {
+    const barkingMonster: MonsterCombatStats = {
+      ...monster,
+      monsterId: "monster.basement-mouse-with-title",
+      level: 1,
+      hpMax: 18,
+      tags: ["beast", "title"]
+    };
+
+    const result = resolveCombatTurn({
+      state: startCombat({ id: "successful-flee-session", hero: warrior, monster: barkingMonster }),
+      action: "flee",
+      hero: warrior,
+      monster: barkingMonster,
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected successful flee.");
+    }
+    expect(result.state.status).toBe("fled");
+    expect(result.state.barks).toBeUndefined();
+    expect(result.summary.monsterBarkId).toBeUndefined();
+  });
+
   it("spends mana for class-shaped skills", () => {
     const result = resolveCombatTurn({
       state: startCombat({ hero: unarmedMage, monster }),

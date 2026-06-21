@@ -34,6 +34,11 @@ This project follows a simple pre-1.0 versioning policy:
 - Persistent monster barks now render as Telegram blockquotes after the `🗣️ Монстр` marker.
 - Fight and hunt result cards no longer append generic `Наступний крок` command prompts.
 
+### Fixed
+- Hardened persisted solo/training combat state parsing so current runtime JSON fields round-trip through Prisma mapping, including origin, defend streaks, skipped-turn summaries, monster debug/equipment traces, ability cooldowns, context and bark state.
+- Turn-based duels now carry each participant's defend streak into the shared combat resolver, so repeated hidden-round defend choices use the next fatigue tier and non-defend actions clear the streak.
+- Failed flee attempts now count the monster response for deterministic bark state and can store the mandatory early bark by the second committed monster action; successful flee still ends combat without a monster action.
+
 ### Guardrails
 - No race ability catalog, signature/title ability catalog, monster ability catalog, item/consumable actions, schema migration, reward/economy change, wager, rating, tournament or broad combat coefficient rewrite was added.
 - Telegram callbacks still carry only compact action keys; mana, cooldowns, damage, mitigation and terminal results remain server-side.

@@ -148,9 +148,7 @@ export function resolveActorCombatAction(
 
   if (input.action === "defend") {
     const nextActor = tickActorCooldowns(actorState);
-    nextActor.guard = {
-      consecutiveDefends: Math.max(0, actorState.guard?.consecutiveDefends ?? 0) + 1
-    };
+    nextActor.guard = getNextDefendGuard(actorState.guard);
 
     return {
       actorState: nextActor,
@@ -424,6 +422,18 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
 
   const monsterOutcome: CombatTurnSummary["monsterOutcome"] | undefined =
     fled ? undefined : monsterDamage > 0 ? "hit" : "miss";
+  const bark = fled
+    ? null
+    : resolveMonsterBark({
+        state: input.state,
+        monster: input.monster,
+        monsterCommittedAction: true,
+        monsterUsedAbility: false,
+        monsterHpAfterHeroAction: nextState.monster.hp
+      });
+  if (bark) {
+    nextState.barks = bark.state;
+  }
 
   const summary = buildSummary({
     action: "flee",
@@ -432,7 +442,8 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
     heroDamage: 0,
     monsterDamage,
     manaSpent: 0,
-    critical: false
+    critical: false,
+    ...(bark?.barkId ? { monsterBarkId: bark.barkId } : {})
   });
   nextState.lastTurn = summary;
 
@@ -677,6 +688,12 @@ export function getDefendStance(guard: CombatGuardState | undefined): {
   }
 
   return { evasionChance: 0.05, damageReduction: 0.2, counterChance: 0 };
+}
+
+export function getNextDefendGuard(guard: CombatGuardState | undefined): CombatGuardState {
+  return {
+    consecutiveDefends: Math.max(0, guard?.consecutiveDefends ?? 0) + 1
+  };
 }
 
 function applyDefendStance(input: {
