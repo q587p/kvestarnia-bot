@@ -4,6 +4,7 @@ import type {
   CharacterRepository,
   CreateCharacterInput,
   CreateCharacterResult,
+  RecoverableHpCharacterRecord,
   UpdateCharacterResourcesInput
 } from "./characterRepository";
 import type { TelegramUserProfile } from "./userRepository";
@@ -42,6 +43,35 @@ export class PrismaCharacterRepository implements CharacterRepository {
     });
 
     return character ? toCharacterRecord(character) : null;
+  }
+
+  async listRecoverableHpCharacters(
+    _now: Date,
+    options: { limit?: number } = {}
+  ): Promise<RecoverableHpCharacterRecord[]> {
+    const limit = clampRecoveryCandidateLimit(options.limit);
+    const characters = await this.prisma.character.findMany({
+      where: {
+        hpRegenAt: {
+          not: null
+        }
+      },
+      orderBy: {
+        hpRegenAt: "asc"
+      },
+      take: limit * 5,
+      include: {
+        ...characterRecordInclude
+      }
+    });
+
+    return characters
+      .filter((character) => character.hpCurrent < character.hpMax)
+      .map((character) => ({
+        telegramUserId: character.user.telegramUserId,
+        character: toCharacterRecord(character)
+      }))
+      .slice(0, limit);
   }
 
   async deleteByTelegramUserId(telegramUserId: bigint): Promise<boolean> {
@@ -246,6 +276,7 @@ export class PrismaCharacterRepository implements CharacterRepository {
 const characterRecordInclude = {
   user: {
     select: {
+      telegramUserId: true,
       lastSeenLocationId: true
     }
   },
@@ -257,7 +288,10 @@ const characterRecordInclude = {
 } satisfies Prisma.CharacterInclude;
 
 function toCharacterRecord(
-  character: Character & { user: { lastSeenLocationId: string | null }; _count?: { remorts?: number } }
+  character: Character & {
+    user: { telegramUserId: bigint; lastSeenLocationId: string | null };
+    _count?: { remorts?: number };
+  }
 ): CharacterRecord {
   const { user, ...record } = character;
   delete (record as { _count?: unknown })._count;
@@ -267,4 +301,12 @@ function toCharacterRecord(
     currentLocationId: user.lastSeenLocationId,
     remortCount: getIncludedRemortCount(character)
   };
+}
+
+function clampRecoveryCandidateLimit(limit: number | undefined): number {
+  if (!Number.isFinite(limit)) {
+    return 50;
+  }
+
+  return Math.min(100, Math.max(1, Math.trunc(limit ?? 50)));
 }

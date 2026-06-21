@@ -51,6 +51,11 @@ export interface UpdateCharacterResourcesInput {
   };
 }
 
+export interface RecoverableHpCharacterRecord {
+  telegramUserId: bigint;
+  character: CharacterRecord;
+}
+
 export interface CreateCharacterResult {
   character: CharacterRecord;
   created: boolean;
@@ -59,6 +64,10 @@ export interface CreateCharacterResult {
 export interface CharacterRepository {
   findByUserId(userId: string): Promise<CharacterRecord | null>;
   findByTelegramUserId(telegramUserId: bigint): Promise<CharacterRecord | null>;
+  listRecoverableHpCharacters?(
+    now: Date,
+    options?: { limit?: number }
+  ): Promise<RecoverableHpCharacterRecord[]>;
   updateResourcesForTelegramUser?(
     telegramUserId: bigint,
     input: UpdateCharacterResourcesInput

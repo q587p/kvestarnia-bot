@@ -125,6 +125,7 @@ For Telegram/gameplay changes, always consider:
 - `0.1.21` combat UI hardening: persistent active fight cards separate the timeout note with a blank line, prompt by character name (`<b>Name</b>, що робимо?`) and persist `lastTurn.debugTrace.timeoutMode` so the next card can say whether an overdue turn auto-attacked or skipped the hero action.
 
 - `0.1.21` combat hardening follow-up: Prisma solo-combat state mapping preserves current runtime JSON fields such as origin, guard streaks, skipped-turn summaries, monster debug/equipment traces, ability cooldowns, context and bark state while keeping legacy `cooldowns.skill` readable; turn-based duel defend uses the next consecutive-defend tier and clears on non-defend actions; failed flee monster responses advance deterministic bark state, while successful flee does not count as a monster action.
+- `0.1.21` resource recovery follow-up: passive HP recovery can now send the existing full-health Telegram notice proactively through an in-process best-effort scheduler when HP becomes full; `/hero` and `/fight` resource sync remain the restart/delivery fallback and no schema migration or durable notification queue ships.
 
 ## Current product direction
 

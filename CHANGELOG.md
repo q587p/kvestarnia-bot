@@ -20,6 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added deterministic monster barks for the full 93-monster roster: every monster has five authored Ukrainian lines, and stored turn summaries render bark ids without rerolling old cards.
 - Added focused domain, service, repository, scheduler, callback, keyboard and presenter coverage for defend, unavailable skill no-op behavior, legacy cooldown loading, expired-turn auto-attacks, active-card message tracking and side-surface missed-turn skips.
 - Added a separate persistent-fight intro card for newly started monster fights; the active card below it now carries the buttons and updates each turn.
+- Added a best-effort in-process resource recovery scheduler that can send the existing full-HP notice proactively when passive regeneration fills a character's health, instead of waiting for the next `/hero` or `/fight` sync.
 
 ### Changed
 - Pressing a class action without enough mana, or while that action is still cooling down, no longer spends mana, advances the turn, ticks cooldowns, triggers a monster response or advances RNG.
@@ -43,7 +44,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Guardrails
 - No race ability catalog, signature/title ability catalog, monster ability catalog, item/consumable actions, schema migration, reward/economy change, wager, rating, tournament or broad combat coefficient rewrite was added.
 - Telegram callbacks still carry only compact action keys; mana, cooldowns, damage, mitigation and terminal results remain server-side.
-- The combat timeout scheduler is best-effort and in-process: persisted combat state remains canonical, and no Redis/BullMQ dependency, schema migration or proactive notification table was added.
+- The combat timeout and HP recovery schedulers are best-effort and in-process: persisted combat/resource state remains canonical, and no Redis/BullMQ dependency, schema migration or proactive notification table was added.
 
 ## [0.1.20] - 12026-06-20 - Authored Quest Resolutions
 
