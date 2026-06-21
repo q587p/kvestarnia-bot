@@ -62,9 +62,6 @@ export function buildPersistentFightKeyboard(
     : null;
   const keyboard = new InlineKeyboard()
     .text("🗡️ Вдарити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "attack" }))
-    .row();
-
-  keyboard
     .text("🛡 Захищатися", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "defend" }))
     .row();
 

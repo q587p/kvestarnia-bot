@@ -550,6 +550,11 @@ describe("main menu and scene keyboards", () => {
       "💪 Силовий удар",
       "🏃 Відступити"
     ]);
+    expect(inlineButtonRows(buildPersistentFightKeyboard(session, character))).toEqual([
+      ["🗡️ Вдарити", "🛡 Захищатися"],
+      ["💪 Силовий удар"],
+      ["🏃 Відступити"]
+    ]);
     expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, { ...character, classId: "class.varenyk-mancer" }))).toContain(
       "🥟 Кипляча начинка · 3 мани"
     );
@@ -717,6 +722,11 @@ describe("main menu and scene keyboards", () => {
       "🛡 Захищатися",
       "💪 Силовий удар",
       "🏃 Відступити"
+    ]);
+    expect(inlineButtonRows(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
+      ["🗡️ Вдарити", "🛡 Захищатися"],
+      ["💪 Силовий удар"],
+      ["🏃 Відступити"]
     ]);
     expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, { ...character, classId: "class.varenyk-mancer" }))).toContain(
       "🥟 Кипляча начинка · 3 мани"
