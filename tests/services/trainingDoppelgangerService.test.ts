@@ -229,7 +229,10 @@ describe("TrainingDoppelgangerService", () => {
       ...started.session,
       state: {
         ...started.session.state,
-        turnExpiresAt: new Date("2026-06-17T09:29:59.000Z").toISOString()
+        turnExpiresAt: new Date("2026-06-17T09:29:59.000Z").toISOString(),
+        timeout: {
+          consecutiveMissedTurns: 1
+        }
       }
     });
 
@@ -251,8 +254,122 @@ describe("TrainingDoppelgangerService", () => {
       expect(result.session.state?.lastTurn?.monsterDamage ?? 0).toBeGreaterThan(0);
       expect(result.session.state?.monster.hp).toBe(started.session.state.monster.hp);
       expect(result.session.state?.hero.hp ?? 0).toBeLessThan(started.session.state.hero.hp);
+      expect(result.session.state?.timeout?.consecutiveMissedTurns).toBe(2);
       expect(result.session.state?.turnExpiresAt).toBe("2026-06-17T09:30:23.000Z");
     }
+  });
+
+  it("does not expire the third consecutive unattended training turn", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world, new FakeRandomSource([0.1, 0.9, 0.1, 0.9]));
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+
+    if (started.state !== "active" || !started.session.state) {
+      throw new Error(`Expected active training, got ${started.state}`);
+    }
+    world.sessions.set(started.session.id, {
+      ...started.session,
+      state: {
+        ...started.session.state,
+        monster: {
+          ...started.session.state.monster,
+          hp: 1
+        },
+        turnExpiresAt: new Date("2026-06-17T09:29:59.000Z").toISOString(),
+        timeout: {
+          consecutiveMissedTurns: 2
+        }
+      }
+    });
+
+    const result = await service.resolveDueTrainingTurn({
+      ...started.session,
+      state: world.sessions.get(started.session.id)?.state ?? null,
+      telegramUserId
+    });
+
+    expect(result.state).toBe("terminal");
+    if (result.state === "terminal") {
+      expect(result.session.state?.status).toBe("won");
+      expect(result.session.state?.timeout?.consecutiveMissedTurns).toBe(3);
+    }
+  });
+
+  it("resets the training timeout streak after an explicit player action", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world, new FakeRandomSource([0.99, 0.9, 0.99, 0.9]));
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+
+    if (started.state !== "active" || !started.session.state) {
+      throw new Error(`Expected active training, got ${started.state}`);
+    }
+    world.sessions.set(started.session.id, {
+      ...started.session,
+      state: {
+        ...started.session.state,
+        monster: {
+          ...started.session.state.monster,
+          hp: 80
+        },
+        timeout: {
+          consecutiveMissedTurns: 1
+        },
+        message: {
+          chatId: "42",
+          messageId: 587
+        }
+      }
+    });
+
+    const result = await service.resolveTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: started.session.state.turn,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.state?.timeout).toBeUndefined();
+      expect(result.session.state?.message).toEqual({ chatId: "42", messageId: 587 });
+    }
+  });
+
+  it("hard-expires overdue training without auto-attacking or granting a reward", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world, new FakeRandomSource([0.1, 0.9]));
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+
+    if (started.state !== "active" || !started.session.state) {
+      throw new Error(`Expected active training, got ${started.state}`);
+    }
+    world.sessions.set(started.session.id, {
+      ...started.session,
+      expiresAt: new Date("2026-06-17T09:00:00.000Z"),
+      state: {
+        ...started.session.state,
+        monster: {
+          ...started.session.state.monster,
+          hp: 1
+        },
+        turnExpiresAt: new Date("2026-06-17T09:29:59.000Z").toISOString()
+      }
+    });
+
+    const result = await service.resolveTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: started.session.state.turn,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("terminal");
+    if (result.state === "terminal") {
+      expect(result.session.state?.status).toBe("expired");
+      expect(result.reward).toBeNull();
+    }
+    expect(world.actions.has(`${TRAINING_DOPPELGANGER_REWARD_KEY}:${started.session.id}`)).toBe(false);
   });
 
   it("keeps random-build source for terminal replay copy text", async () => {

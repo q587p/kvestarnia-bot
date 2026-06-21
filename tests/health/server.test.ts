@@ -82,8 +82,8 @@ describe("health server", () => {
     expect(text).toContain("герої тиснуть уміння без мани");
     expect(text).toContain("🛡 Захищатися");
     expect(text).toContain("хід більше не згорає сам собою");
-    expect(text).toContain("пішли дивитися персонажа чи манатки");
-    expect(text).toContain("монстр чемно не чекатиме");
+    expect(text).toContain("протерміновані ходи й далі стають звичайними атаками");
+    expect(text).toContain("картка прямо скаже, чи Корчма зарахувала звичайну атаку");
     expect(text).toContain("Расові трюки, предметні дії, монстрячі фокуси");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");

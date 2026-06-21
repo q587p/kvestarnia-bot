@@ -26,6 +26,9 @@ type PrismaSoloCombatSessionRecord = Awaited<
 >;
 
 const terminalStatuses = new Set<CombatStatus>(["won", "lost", "fled", "expired"]);
+const DEFAULT_DUE_SESSION_LIMIT = 20;
+const DUE_SESSION_PAGE_SIZE = 100;
+const DUE_SESSION_SCAN_CAP = 1000;
 
 export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -52,41 +55,75 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
   async listDueActiveSessions(
     now: Date,
-    options: { limit?: number } = {}
+    options: {
+      limit?: number;
+      monsterIds?: readonly string[];
+      excludeMonsterIds?: readonly string[];
+    } = {}
   ): Promise<DueSoloCombatSessionRecord[]> {
-    const records = await this.prisma.soloCombatSession.findMany({
-      where: {
-        status: "active"
-      },
-      include: {
-        character: {
-          select: {
-            user: {
-              select: {
-                telegramUserId: true
+    const limit = clampDueSessionLimit(options.limit);
+    const due: DueSoloCombatSessionRecord[] = [];
+    let scanned = 0;
+
+    while (due.length < limit && scanned < DUE_SESSION_SCAN_CAP) {
+      const records = await this.prisma.soloCombatSession.findMany({
+        where: {
+          status: "active",
+          ...(options.monsterIds && options.monsterIds.length > 0
+            ? { monsterId: { in: [...options.monsterIds] } }
+            : {}),
+          ...(options.excludeMonsterIds && options.excludeMonsterIds.length > 0
+            ? { monsterId: { notIn: [...options.excludeMonsterIds] } }
+            : {})
+        },
+        include: {
+          character: {
+            select: {
+              user: {
+                select: {
+                  telegramUserId: true
+                }
               }
             }
           }
-        }
-      },
-      orderBy: {
-        updatedAt: "asc"
-      },
-      take: Math.max(options.limit ?? 20, 100)
-    });
+        },
+        orderBy: [
+          { updatedAt: "asc" },
+          { id: "asc" }
+        ],
+        skip: scanned,
+        take: Math.min(DUE_SESSION_PAGE_SIZE, DUE_SESSION_SCAN_CAP - scanned)
+      });
 
-    return records.flatMap((record) => {
-      const mapped = mapRecord(record);
-
-      if (!mapped?.state?.turnExpiresAt || Date.parse(mapped.state.turnExpiresAt) > now.getTime()) {
-        return [];
+      if (records.length === 0) {
+        break;
       }
 
-      return [{
-        ...mapped,
-        telegramUserId: record.character.user.telegramUserId
-      }];
-    }).slice(0, options.limit ?? 20);
+      scanned += records.length;
+
+      for (const record of records) {
+        if (due.length >= limit) {
+          break;
+        }
+
+        if (record.expiresAt.getTime() <= now.getTime()) {
+          continue;
+        }
+
+        const mapped = mapRecord(record);
+
+        if (!mapped?.state?.turnExpiresAt || Date.parse(mapped.state.turnExpiresAt) > now.getTime()) {
+          continue;
+        }
+
+        due.push({
+          ...mapped,
+          telegramUserId: record.character.user.telegramUserId
+        });
+      }
+    }
+
+    return due;
   }
 
   async countWonByTelegramUserId(
@@ -470,6 +507,14 @@ function parseStatus(value: string): SoloCombatSessionStatus {
     : "expired";
 }
 
+function clampDueSessionLimit(value: number | undefined): number {
+  if (value === undefined) {
+    return DEFAULT_DUE_SESSION_LIMIT;
+  }
+
+  return Math.min(100, Math.max(1, Math.floor(value)));
+}
+
 function parseCombatState(value: unknown): CombatState | null {
   if (!isRecord(value)) {
     return null;
@@ -483,6 +528,7 @@ function parseCombatState(value: unknown): CombatState | null {
   const completedAt = parseIsoDate(value.completedAt);
   const turnExpiresAt = parseIsoDate(value.turnExpiresAt);
   const message = parseMessageReference(value.message);
+  const timeout = parseTimeoutState(value.timeout);
   const guard = parseGuardState(value.guard);
   const context = parseMonsterContextSnapshot(value.context);
   const barks = parseBarkState(value.barks);
@@ -502,6 +548,7 @@ function parseCombatState(value: unknown): CombatState | null {
     ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
     ...(turnExpiresAt ? { turnExpiresAt: turnExpiresAt.toISOString() } : {}),
     ...(message ? { message } : {}),
+    ...(timeout ? { timeout } : {}),
     turn,
     status,
     hero,
@@ -513,6 +560,22 @@ function parseCombatState(value: unknown): CombatState | null {
     ...(analytics ? { analytics } : {}),
     ...(lastTurn ? { lastTurn } : {})
   };
+}
+
+function parseTimeoutState(value: unknown): CombatState["timeout"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const consecutiveMissedTurns = intOrNull(value.consecutiveMissedTurns);
+  const lastMissedAt = parseIsoDate(value.lastMissedAt);
+
+  return consecutiveMissedTurns === null || consecutiveMissedTurns < 0
+    ? null
+    : {
+        consecutiveMissedTurns,
+        ...(lastMissedAt ? { lastMissedAt: lastMissedAt.toISOString() } : {})
+      };
 }
 
 function parseMessageReference(value: unknown): CombatState["message"] | null {

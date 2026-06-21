@@ -104,6 +104,7 @@ export interface CombatState {
   completedAt?: string;
   turnExpiresAt?: string;
   message?: CombatMessageReference;
+  timeout?: CombatTimeoutState;
   turn: number;
   status: CombatStatus;
   hero: {
@@ -156,6 +157,11 @@ export interface CombatState {
 export interface CombatMessageReference {
   chatId: string;
   messageId: number;
+}
+
+export interface CombatTimeoutState {
+  consecutiveMissedTurns: number;
+  lastMissedAt?: string;
 }
 
 export interface CombatTurnSummary {
@@ -236,6 +242,8 @@ export function cloneCombatState(state: CombatState): CombatState {
     ...(state.originLocationId ? { originLocationId: state.originLocationId } : {}),
     ...(state.completedAt ? { completedAt: state.completedAt } : {}),
     ...(state.turnExpiresAt ? { turnExpiresAt: state.turnExpiresAt } : {}),
+    ...(state.message ? { message: { ...state.message } } : {}),
+    ...(state.timeout ? { timeout: { ...state.timeout } } : {}),
     turn: state.turn,
     status: state.status,
     hero: { ...state.hero },
@@ -267,6 +275,31 @@ export function cloneCombatState(state: CombatState): CombatState {
         }
       : {})
   };
+}
+
+export function getCombatTimeoutStreak(state: CombatState): number {
+  return Math.max(0, Math.floor(state.timeout?.consecutiveMissedTurns ?? 0));
+}
+
+export function recordCombatTimeout(state: CombatState, now: Date): CombatState {
+  const next = cloneCombatState(state);
+  next.timeout = {
+    consecutiveMissedTurns: getCombatTimeoutStreak(state) + 1,
+    lastMissedAt: now.toISOString()
+  };
+
+  return next;
+}
+
+export function resetCombatTimeout(state: CombatState): CombatState {
+  if (!state.timeout) {
+    return state;
+  }
+
+  const next = cloneCombatState(state);
+  delete next.timeout;
+
+  return next;
 }
 
 export function expireCombat(state: CombatState): CombatState {

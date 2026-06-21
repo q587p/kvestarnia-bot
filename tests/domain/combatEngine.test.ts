@@ -4,6 +4,7 @@ import { monsters } from "../../src/content/monsters";
 import {
   deriveMonsterCombatStats,
   expireCombat,
+  cloneCombatState,
   getCombatSkillProfile,
   getCombatActionAvailability,
   rollBasicAttack,
@@ -343,6 +344,62 @@ describe("combat domain engine", () => {
       monsterDamage: 0
     });
   });
+
+  it("preserves the active Telegram card reference when cloning combat state", () => {
+    const state: CombatState = {
+      ...startCombat({ hero: warrior, monster }),
+      message: {
+        chatId: "42",
+        messageId: 587
+      }
+    };
+    const cloned = cloneCombatState(state);
+
+    expect(cloned.message).toEqual({
+      chatId: "42",
+      messageId: 587
+    });
+    expect(cloned.message).not.toBe(state.message);
+  });
+
+  it.each(["attack", "defend", "skill", "flee", "skip"] as const)(
+    "preserves the active Telegram card reference through a %s transition",
+    (action) => {
+      const state: CombatState = {
+        ...startCombat({
+          hero: {
+            ...warrior,
+            manaCurrent: warrior.manaMax
+          },
+          monster: {
+            ...monster,
+            hpMax: 80
+          }
+        }),
+        message: {
+          chatId: "42",
+          messageId: 587
+        }
+      };
+
+      const result = resolveCombatTurn({
+        state,
+        action,
+        hero: warrior,
+        monster: {
+          ...monster,
+          hpMax: 80
+        },
+        rng: new FakeRandomSource([0.99, 0.9, 0.99, 0.9, 0.99, 0.9])
+      });
+
+      expect(result.state.message).toEqual({
+        chatId: "42",
+        messageId: 587
+      });
+      expect(result.state.message).not.toBe(state.message);
+    }
+  );
 
   it("counts failed flee responses as monster actions for mandatory early barks", () => {
     const barkingMonster: MonsterCombatStats = {

@@ -65,7 +65,7 @@ max_auto_turns_before_escape_or_expire = 2
 
 Timeout має бути **source-of-truth у service/domain**, а не в Telegram presenter-і:
 
-1. При створенні/оновленні ходу в `stateJson` пишеться deadline поточного ходу. У `0.1.21` solo/training fights use `turnExpiresAt`; broader `missedTurns`/`autoTurnCount` ladders remain future work.
+1. При створенні/оновленні ходу в `stateJson` пишеться deadline поточного ходу. У `0.1.21` solo/training fights use `turnExpiresAt`; scheduled missed turns repeat the canonical basic attack while skip-mode lazy catch-up repeats the skipped hero action.
 2. In-process timer може викликати timeout advancement і оновити активну бойову картку, але це best-effort. У `0.1.21` solo/training scheduler сканує overdue `CombatState.turnExpiresAt` rows and edits/sends through the stored Telegram message reference.
 3. Після restart/deploy будь-яка наступна команда/callback, яка бачить overdue combat, спочатку викликає lazy timeout advancement.
 4. Повторний timeout call з тим самим `expectedTurnToken` нічого не дублює.
@@ -74,10 +74,10 @@ Auto-action ladder:
 
 - **Якщо герой мовчить після старту бою приблизно 23 секунди:** service/domain спершу намагається безпечний auto-action з доступних, а не відразу прострочує бій. У типових випадках це `attack`, а якщо герой має мало HP або стоїть на `coward`-сценарії, можна підняти `guard` або `escape` як більш обережний варіант.
 - **Перший пропущений хід:** у `0.1.21` scheduler normally commits a canonical basic attack and updates the active card after the deadline; if restart, delivery failure or callback race wins instead, battle-surface restore/callback paths commit the same canonical basic attack. Smarter class-shaped auto-actions remain future work.
-- **Другий пропущений хід:** guard або спроба втечі, залежно від HP і odds.
-- **Третій пропущений хід або hard expiry:** `expired` або auto-flee з мʼяким текстом. Reward не видавати.
+- **Наступні пропущені ходи:** repeat the same safe timeout action for that path: scheduler/lazy battle catch-up uses `attack`, skip-mode side-surface catch-up uses `skip`.
+- **Hard expiry:** `expired` або auto-flee з мʼяким текстом. Reward не видавати.
 
-Auto-action може перемогти ворога, якщо це перший/другий auto turn і стан бою нормальний. Але combat із переважно auto-turns не має ставати фармом без участі.
+Auto-action може перемогти ворога, якщо стан бою нормальний. Hard session expiry is the backstop that prevents reviving very old sessions without turning repeated missed turns into their own reward-blocking ladder.
 
 ## Дії гравця
 

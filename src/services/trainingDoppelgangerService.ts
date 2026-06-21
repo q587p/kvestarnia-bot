@@ -16,6 +16,8 @@ import { summarizeCharacter, type CharacterSummary } from "../domain/characters/
 import {
   expireCombat,
   markCombatTurnTimeoutMode,
+  recordCombatTimeout,
+  resetCombatTimeout,
   resolveCombatTurn,
   startCombat,
   type CombatActionType
@@ -193,12 +195,15 @@ export class TrainingDoppelgangerService {
     }
 
     const now = this.clock();
+    if (session.expiresAt <= now) {
+      return this.expireTrainingSession(telegramUserId, session);
+    }
+
     if (!session.state.turnExpiresAt) {
       const state = withNextTrainingTurnExpiry(session.state, now);
       const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
         state,
-        status: state.status,
-        expiresAt: getTrainingSessionExpiry(now)
+        status: state.status
       });
 
       return updated ?? { ...session, state };
@@ -208,15 +213,20 @@ export class TrainingDoppelgangerService {
       return session;
     }
 
+    const timeoutMode = getNextTrainingTimeoutMode(mode);
+
     const resolved = resolveCombatTurn({
       state: session.state,
-      action: mode === "skip" ? "skip" : "attack",
+      action: timeoutMode === "skip" ? "skip" : "attack",
       hero: buildHeroCombatStats(character),
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
       rng: this.rng
     });
     const state = resolved.ok
-      ? markCombatTurnTimeoutMode(withNextTrainingTurnExpiry(resolved.state, now), mode)
+      ? markCombatTurnTimeoutMode(
+          withNextTrainingTurnExpiry(recordCombatTimeout(resolved.state, now), now),
+          timeoutMode
+        )
       : null;
 
     if (!state) {
@@ -224,8 +234,7 @@ export class TrainingDoppelgangerService {
     }
     const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
       state,
-      status: state.status,
-      expiresAt: getTrainingSessionExpiry(now)
+      status: state.status
     });
 
     if (updated && updated.status !== "active") {
@@ -233,6 +242,32 @@ export class TrainingDoppelgangerService {
     }
 
     return updated ?? session;
+  }
+
+  private async expireTrainingSession(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord
+  ): Promise<SoloCombatSessionRecord> {
+    if (!session.state) {
+      return await this.combatSessions.markStatusById(session.id, "expired") ?? {
+        ...session,
+        status: "expired"
+      };
+    }
+
+    const expiredState = expireCombat(session.state);
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+      state: expiredState,
+      status: expiredState.status
+    });
+
+    if (!updated) {
+      return session;
+    }
+
+    await this.persistCharacterResources(telegramUserId, updated);
+
+    return updated;
   }
 
   async getStartOptionsForTelegramUser(
@@ -326,7 +361,10 @@ export class TrainingDoppelgangerService {
       return [];
     }
 
-    const due = await this.combatSessions.listDueActiveSessions(this.clock(), options);
+    const due = await this.combatSessions.listDueActiveSessions(this.clock(), {
+      ...options,
+      monsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID]
+    });
 
     return due.filter((session) =>
       session.status === "active" &&
@@ -359,10 +397,6 @@ export class TrainingDoppelgangerService {
       character
     );
 
-    if (refreshedSession.id === due.id && refreshedSession.state?.turn === due.state.turn) {
-      return { state: "skipped" };
-    }
-
     const doppelganger = buildDoppelgangerCopy(character, refreshedSession.state);
 
     if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
@@ -374,6 +408,10 @@ export class TrainingDoppelgangerService {
         session: refreshedSession,
         reward: await this.getOrRecoverReward(due.telegramUserId, refreshedSession)
       };
+    }
+
+    if (refreshedSession.id === due.id && refreshedSession.state?.turn === due.state.turn) {
+      return { state: "skipped" };
     }
 
     return {
@@ -540,7 +578,7 @@ export class TrainingDoppelgangerService {
       };
     }
 
-    const resolvedState = withNextTrainingTurnExpiry(resolved.state, this.clock());
+    const resolvedState = withNextTrainingTurnExpiry(resetCombatTimeout(resolved.state), this.clock());
     const updated = await this.combatSessions.updateByIdIfActiveTurn(currentSession.id, input.turn, {
       state: resolvedState,
       status: resolvedState.status,
@@ -1065,6 +1103,12 @@ function getTrainingTurnExpiry(now: Date): Date {
 
 function isTrainingTurnExpired(state: SoloCombatSessionRecord["state"], now: Date): boolean {
   return Boolean(state?.turnExpiresAt && Date.parse(state.turnExpiresAt) <= now.getTime());
+}
+
+function getNextTrainingTimeoutMode(
+  fallbackMode: "auto-attack" | "skip"
+): "auto-attack" | "skip" {
+  return fallbackMode;
 }
 
 function withNextTrainingTurnExpiry(

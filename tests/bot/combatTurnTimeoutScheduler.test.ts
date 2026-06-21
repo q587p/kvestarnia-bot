@@ -1,11 +1,33 @@
 import type { Bot } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { createCombatTurnTimeoutScheduler } from "../../src/bot/combatTurnTimeoutScheduler";
+import type {
+  CharacterRecord,
+  CharacterRepository,
+  CreateCharacterInput,
+  CreateCharacterResult
+} from "../../src/db/repositories/characterRepository";
+import type {
+  ClaimDailyActionInput,
+  ClaimDailyActionResult,
+  DailyActionRecord,
+  DailyActionRepository
+} from "../../src/db/repositories/dailyActionRepository";
 import type { DueSoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
+import type {
+  CreateSoloCombatSessionInput,
+  RecordSoloCombatRewardInput,
+  SoloCombatSessionRecord,
+  SoloCombatSessionRepository,
+  SoloCombatSessionStatus,
+  UpdateSoloCombatSessionInput
+} from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { CombatState } from "../../src/domain/combat";
 import type { MonsterContent } from "../../src/content/schema";
-import type { FightService, PersistentFightTimeoutResult } from "../../src/services/fightService";
+import { FightService, type PersistentFightTimeoutResult } from "../../src/services/fightService";
+import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
+import { FakeRandomSource } from "../../src/shared/random";
 
 const character: CharacterSummary = {
   name: "Мандрівник",
@@ -52,6 +74,58 @@ const monster: MonsterContent = {
 };
 
 describe("combat turn timeout scheduler", () => {
+  it("uses the real fight service timeout result to edit the persisted active card", async () => {
+    const world = new SchedulerFightWorld(persistentSession());
+    const fight = world.buildFightService();
+    const { bot, editMessageText } = fakeBot();
+    const scheduler = createCombatTurnTimeoutScheduler(
+      { fight },
+      bot,
+      { intervalMs: 60_000 }
+    );
+
+    scheduler.start();
+
+    await vi.waitFor(() => expect(editMessageText).toHaveBeenCalled());
+    scheduler.stop();
+
+    const updated = world.getSession("session-1");
+    expect(updated?.state?.turn).toBe(3);
+    expect(updated?.state?.lastTurn?.action).toBe("attack");
+    expect(updated?.state?.lastTurn?.debugTrace?.timeoutMode).toBe("auto-attack");
+    expect(updated?.state?.message).toEqual({
+      chatId: "42",
+      messageId: 587
+    });
+    expect(firstEditCall(editMessageText)?.[1]).toBe(587);
+  });
+
+  it("records a replacement card reference after a real timeout result falls back to sendMessage", async () => {
+    const world = new SchedulerFightWorld(persistentSession());
+    const fight = world.buildFightService();
+    const editMessageText = vi.fn(() => Promise.reject(new Error("message is gone")));
+    const sendMessage = vi.fn(() => Promise.resolve({ message_id: 588 }));
+    const { bot } = fakeBot({
+      editMessageText,
+      sendMessage
+    });
+    const scheduler = createCombatTurnTimeoutScheduler(
+      { fight },
+      bot,
+      { intervalMs: 60_000 }
+    );
+
+    scheduler.start();
+
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalled());
+    scheduler.stop();
+
+    expect(world.getSession("session-1")?.state?.message).toEqual({
+      chatId: "42",
+      messageId: 588
+    });
+  });
+
   it("edits the active persistent fight card after a due timeout turn resolves", async () => {
     const session = persistentSession();
     const result: PersistentFightTimeoutResult = {
@@ -222,5 +296,225 @@ function persistentSession(): DueSoloCombatSessionRecord {
     updatedAt: new Date("2026-06-20T00:00:23.000Z"),
     expiresAt: new Date("2026-06-20T00:30:00.000Z"),
     telegramUserId: 42n
+  };
+}
+
+class SchedulerFightWorld implements CharacterRepository, DailyActionRepository, SoloCombatSessionRepository {
+  private readonly character: CharacterRecord = {
+    id: "character-1",
+    userId: "user-1",
+    currentLocationId: "location.korchma.deep.level1",
+    name: "Мандрівник",
+    pronoun: "they",
+    path: "boundary",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 3,
+    xp: 30,
+    gold: 9,
+    hpCurrent: 20,
+    hpMax: 20,
+    manaCurrent: 10,
+    manaMax: 10,
+    statsJson: {
+      strength: 9,
+      dexterity: 6,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6
+    }
+  };
+  private readonly sessions = new Map<string, SoloCombatSessionRecord>();
+
+  constructor(session: DueSoloCombatSessionRecord) {
+    this.sessions.set(session.id, cloneSession(session));
+  }
+
+  buildFightService(): FightService {
+    return new FightService(
+      this,
+      this,
+      () => new Date("2026-06-20T00:00:47.000Z"),
+      this,
+      new FakeRandomSource([0.99, 0.9, 0.99, 0.9, 0.99, 0.9])
+    );
+  }
+
+  getSession(sessionId: string): SoloCombatSessionRecord | null {
+    const session = this.sessions.get(sessionId);
+
+    return session ? cloneSession(session) : null;
+  }
+
+  findByUserId(userId: string): Promise<CharacterRecord | null> {
+    return Promise.resolve(userId === this.character.userId ? this.character : null);
+  }
+
+  findByTelegramUserId(telegramUserId: bigint): Promise<CharacterRecord | null> {
+    return Promise.resolve(telegramUserId === 42n ? this.character : null);
+  }
+
+  updateResourcesForTelegramUser(): Promise<CharacterRecord | null> {
+    return Promise.resolve(this.character);
+  }
+
+  deleteByTelegramUserId(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+
+  createForTelegramUserIfMissing(
+    _user: TelegramUserProfile,
+    _input: CreateCharacterInput
+  ): Promise<CreateCharacterResult> {
+    void _user;
+    void _input;
+
+    return Promise.resolve({
+      character: this.character,
+      created: false
+    });
+  }
+
+  findForTelegramUser(
+    _telegramUserId: bigint,
+    _input: { key: string; localDate: string }
+  ): Promise<DailyActionRecord | null> {
+    void _telegramUserId;
+    void _input;
+
+    return Promise.resolve(null);
+  }
+
+  claimForTelegramUser(
+    _telegramUserId: bigint,
+    _input: ClaimDailyActionInput
+  ): Promise<ClaimDailyActionResult | null> {
+    void _telegramUserId;
+    void _input;
+
+    return Promise.resolve(null);
+  }
+
+  findActiveByTelegramUserId(): Promise<SoloCombatSessionRecord | null> {
+    return Promise.resolve(
+      [...this.sessions.values()].find((session) => session.status === "active") ?? null
+    );
+  }
+
+  listDueActiveSessions(): Promise<DueSoloCombatSessionRecord[]> {
+    return Promise.resolve(
+      [...this.sessions.values()].flatMap((session) =>
+        session.status === "active"
+          ? [{
+              ...cloneSession(session),
+              telegramUserId: 42n
+            }]
+          : []
+      )
+    );
+  }
+
+  countWonByTelegramUserId(): Promise<number> {
+    return Promise.resolve(0);
+  }
+
+  listCompletedByTelegramUserIdSince(): Promise<[]> {
+    return Promise.resolve([]);
+  }
+
+  findByIdForTelegramUserId(
+    _telegramUserId: bigint,
+    sessionId: string
+  ): Promise<SoloCombatSessionRecord | null> {
+    return Promise.resolve(this.getSession(sessionId));
+  }
+
+  createForTelegramUser(
+    _telegramUserId: bigint,
+    _input: CreateSoloCombatSessionInput
+  ): Promise<SoloCombatSessionRecord | null> {
+    void _telegramUserId;
+    void _input;
+
+    return Promise.resolve(null);
+  }
+
+  updateById(
+    sessionId: string,
+    input: UpdateSoloCombatSessionInput
+  ): Promise<SoloCombatSessionRecord | null> {
+    const session = this.sessions.get(sessionId);
+
+    if (!session) {
+      return Promise.resolve(null);
+    }
+
+    const updated: SoloCombatSessionRecord = {
+      ...session,
+      status: input.status,
+      turn: input.state.turn,
+      state: structuredClone(input.state),
+      updatedAt: new Date("2026-06-20T00:00:47.000Z"),
+      expiresAt: input.expiresAt ?? session.expiresAt
+    };
+    this.sessions.set(sessionId, updated);
+
+    return Promise.resolve(cloneSession(updated));
+  }
+
+  updateByIdIfActiveTurn(
+    sessionId: string,
+    expectedTurn: number,
+    input: UpdateSoloCombatSessionInput
+  ): Promise<SoloCombatSessionRecord | null> {
+    const session = this.sessions.get(sessionId);
+
+    if (!session || session.status !== "active" || session.turn !== expectedTurn) {
+      return Promise.resolve(null);
+    }
+
+    return this.updateById(sessionId, input);
+  }
+
+  recordRewardById(
+    _sessionId: string,
+    _input: RecordSoloCombatRewardInput
+  ): Promise<SoloCombatSessionRecord | null> {
+    void _sessionId;
+    void _input;
+
+    return Promise.resolve(null);
+  }
+
+  markStatusById(
+    sessionId: string,
+    status: SoloCombatSessionStatus
+  ): Promise<SoloCombatSessionRecord | null> {
+    const session = this.sessions.get(sessionId);
+
+    if (!session) {
+      return Promise.resolve(null);
+    }
+
+    const updated = {
+      ...session,
+      status
+    };
+    this.sessions.set(sessionId, updated);
+
+    return Promise.resolve(cloneSession(updated));
+  }
+}
+
+function cloneSession<T extends SoloCombatSessionRecord>(session: T): T {
+  return {
+    ...session,
+    state: session.state ? structuredClone(session.state) : null,
+    reward: session.reward
+      ? {
+          ...session.reward,
+          itemGrants: session.reward.itemGrants.map((item) => ({ ...item }))
+        }
+      : null
   };
 }

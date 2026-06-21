@@ -28,6 +28,8 @@ import {
   createCombatBarkState,
   getCombatSkillProfile,
   markCombatTurnTimeoutMode,
+  recordCombatTimeout,
+  resetCombatTimeout,
   resolveCombatTurn,
   resolveMonsterContext,
   startCombat,
@@ -480,12 +482,15 @@ export class FightService {
     }
 
     const now = this.clock();
+    if (isExpired(session, now)) {
+      return this.expirePersistentSession(telegramUserId, session, now);
+    }
+
     if (!session.state.turnExpiresAt) {
       const state = withNextTurnExpiry(session.state, now);
       const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
         state,
-        status: state.status,
-        expiresAt: getSessionExpiry(now)
+        status: state.status
       });
 
       return updated ?? { ...session, state };
@@ -495,17 +500,19 @@ export class FightService {
       return session;
     }
 
+    const timeoutMode = getNextTimeoutMode(mode);
+
     const resolved = resolveCombatTurn({
       state: session.state,
-      action: mode === "skip" ? "skip" : "attack",
+      action: timeoutMode === "skip" ? "skip" : "attack",
       hero: buildHeroCombatStats(character),
       monster: buildPersistentMonsterCombatStats(monster, session.state),
       rng: this.rng
     });
     const resolvedState = resolved.ok
       ? markCombatTurnTimeoutMode(
-          withNextTurnExpiry(stampCombatCompletedAt(resolved.state, now), now),
-          mode
+          withNextTurnExpiry(stampCombatCompletedAt(recordCombatTimeout(resolved.state, now), now), now),
+          timeoutMode
         )
       : null;
 
@@ -514,8 +521,7 @@ export class FightService {
     }
     const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
       state: resolvedState,
-      status: resolvedState.status,
-      expiresAt: getSessionExpiry(now)
+      status: resolvedState.status
     });
 
     if (!updated) {
@@ -525,6 +531,37 @@ export class FightService {
     if (updated.status !== "active") {
       await this.persistCharacterResourcesFromSession(telegramUserId, updated);
     }
+
+    return updated;
+  }
+
+  private async expirePersistentSession(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    now: Date
+  ): Promise<SoloCombatSessionRecord> {
+    if (!this.combatSessions) {
+      return session;
+    }
+
+    if (!session.state) {
+      return await this.combatSessions.markStatusById(session.id, "expired") ?? {
+        ...session,
+        status: "expired"
+      };
+    }
+
+    const expiredState = stampCombatCompletedAt(expireCombat(session.state), now);
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+      state: expiredState,
+      status: expiredState.status
+    });
+
+    if (!updated) {
+      return session;
+    }
+
+    await this.persistCharacterResourcesFromSession(telegramUserId, updated);
 
     return updated;
   }
@@ -715,7 +752,10 @@ export class FightService {
       return [];
     }
 
-    const due = await this.combatSessions.listDueActiveSessions(this.clock(), options);
+    const due = await this.combatSessions.listDueActiveSessions(this.clock(), {
+      ...options,
+      excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID]
+    });
 
     return due.filter((session) =>
       session.status === "active" &&
@@ -748,10 +788,6 @@ export class FightService {
       monster
     );
 
-    if (refreshedSession.id === due.id && refreshedSession.state?.turn === due.state.turn) {
-      return { state: "skipped" };
-    }
-
     if (refreshedSession.status !== "active" || refreshedSession.state?.status !== "active") {
       return {
         state: "terminal",
@@ -767,6 +803,10 @@ export class FightService {
           characterSummary
         )
       };
+    }
+
+    if (refreshedSession.id === due.id && refreshedSession.state?.turn === due.state.turn) {
+      return { state: "skipped" };
     }
 
     return {
@@ -1434,7 +1474,10 @@ export class FightService {
       };
     }
 
-    const resolvedState = withNextTurnExpiry(stampCombatCompletedAt(resolved.state, this.clock()), this.clock());
+    const resolvedState = withNextTurnExpiry(
+      stampCombatCompletedAt(resetCombatTimeout(resolved.state), this.clock()),
+      this.clock()
+    );
     const updated = await this.combatSessions.updateByIdIfActiveTurn(currentSession.id, input.turn, {
       state: resolvedState,
       status: resolvedState.status,
@@ -2317,6 +2360,12 @@ function getTurnExpiry(now: Date): Date {
 
 function isTurnExpired(state: CombatState | null | undefined, now: Date): boolean {
   return Boolean(state?.turnExpiresAt && Date.parse(state.turnExpiresAt) <= now.getTime());
+}
+
+function getNextTimeoutMode(
+  fallbackMode: "auto-attack" | "skip"
+): "auto-attack" | "skip" {
+  return fallbackMode;
 }
 
 function withNextTurnExpiry(state: CombatState, now: Date): CombatState {

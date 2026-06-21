@@ -13,6 +13,7 @@ import type {
 } from "../../src/db/repositories/dailyActionRepository";
 import type {
   CreateSoloCombatSessionInput,
+  DueSoloCombatSessionRecord,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository,
   SoloCombatSessionStatus,
@@ -3219,13 +3220,14 @@ describe("FightService", () => {
       expect(result.session.state?.turn).toBe(2);
       expect(result.session.state?.lastTurn?.action).toBe("attack");
       expect(result.session.state?.lastTurn?.debugTrace?.timeoutMode).toBe("auto-attack");
+      expect(result.session.state?.timeout?.consecutiveMissedTurns).toBe(1);
       expect(result.session.state?.turnExpiresAt).toBe("2026-06-12T10:30:23.000Z");
     }
     expect(sessions.updateCount).toBe(1);
     expect(dailyActions.createCount).toBe(0);
   });
 
-  it("skips the hero action but lets the monster act when an expired turn is recovered from overview", async () => {
+  it("skips the hero action on the second consecutive timeout recovered from overview", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -3244,6 +3246,7 @@ describe("FightService", () => {
     }
     sessions.setMonsterHp(started.session.id, 80);
     sessions.setTurnExpiresAt(started.session.id, new Date("2026-06-12T10:29:59.000Z"));
+    sessions.setTimeoutStreak(started.session.id, 1);
 
     const result = await service.getFightOverviewForTelegramUser(telegramUserId);
 
@@ -3258,6 +3261,7 @@ describe("FightService", () => {
           timeoutMode: "skip"
         }
       });
+      expect(result.session.state?.timeout?.consecutiveMissedTurns).toBe(2);
       expect(result.session.state?.lastTurn?.monsterDamage ?? 0).toBeGreaterThan(0);
       expect(result.session.state?.monster.hp).toBe(80);
       expect(result.session.state?.hero.hp ?? 0).toBeLessThan(started.session.state?.hero.hp ?? 0);
@@ -3296,6 +3300,142 @@ describe("FightService", () => {
       expect(result.session.state?.status).toBe("expired");
     }
     expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("does not expire the third consecutive unattended persistent turn", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 1);
+    sessions.setTurnExpiresAt(started.session.id, new Date("2026-06-12T10:29:59.000Z"));
+    sessions.setTimeoutStreak(started.session.id, 2);
+
+    const due = {
+      ...started.session,
+      state: sessions.getById(started.session.id)?.state,
+      telegramUserId
+    } as DueSoloCombatSessionRecord;
+    const result = await service.resolveDuePersistentFightTurn(due);
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.state?.status).toBe("active");
+      expect(result.session.state?.timeout?.consecutiveMissedTurns).toBe(3);
+      expect(result.session.state?.lastTurn?.action).toBe("attack");
+      expect(result.session.state?.lastTurn?.debugTrace).toMatchObject({
+        timeoutMode: "auto-attack"
+      });
+    }
+    expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("resets the persistent timeout streak after an explicit player action", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.99, 0.9, 0.99, 0.9])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 80);
+    sessions.setTimeoutStreak(started.session.id, 1);
+    sessions.setMessageReference(started.session.id, { chatId: "42", messageId: 587 });
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: started.session.state?.turn ?? 1,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.state?.timeout).toBeUndefined();
+      expect(result.session.state?.message).toEqual({ chatId: "42", messageId: 587 });
+    }
+  });
+
+  it("does not reset the persistent timeout streak for an unavailable skill no-op", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25, classId: "class.mage", manaCurrent: 0, manaMax: 0 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setTimeoutStreak(started.session.id, 1);
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: started.session.state?.turn ?? 1,
+      action: "skill"
+    });
+
+    expect(result.state).toBe("not-enough-mana");
+    expect(sessions.getById(started.session.id)?.state?.timeout?.consecutiveMissedTurns).toBe(1);
+  });
+
+  it("commits only one persistent transition for duplicate due timeout ticks", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.99, 0.9, 0.99, 0.9])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 80);
+    sessions.setTurnExpiresAt(started.session.id, new Date("2026-06-12T10:29:59.000Z"));
+    const due = {
+      ...started.session,
+      state: sessions.getById(started.session.id)?.state,
+      telegramUserId
+    } as DueSoloCombatSessionRecord;
+
+    const first = await service.resolveDuePersistentFightTurn(due);
+    const second = await service.resolveDuePersistentFightTurn(due);
+
+    expect(first.state).toBe("updated");
+    expect(second.state).toBe("skipped");
+    expect(sessions.updateCount).toBe(1);
   });
 });
 
@@ -3832,6 +3972,40 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
       state: {
         ...session.state,
         turnExpiresAt: turnExpiresAt.toISOString()
+      }
+    });
+  }
+
+  setTimeoutStreak(sessionId: string, consecutiveMissedTurns: number): void {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return;
+    }
+
+    this.sessions.set(sessionId, {
+      ...session,
+      state: {
+        ...session.state,
+        timeout: {
+          consecutiveMissedTurns
+        }
+      }
+    });
+  }
+
+  setMessageReference(sessionId: string, message: NonNullable<CombatState["message"]>): void {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return;
+    }
+
+    this.sessions.set(sessionId, {
+      ...session,
+      state: {
+        ...session.state,
+        message: { ...message }
       }
     });
   }

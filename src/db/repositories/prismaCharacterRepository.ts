@@ -4,7 +4,6 @@ import type {
   CharacterRepository,
   CreateCharacterInput,
   CreateCharacterResult,
-  RecoverableHpCharacterRecord,
   UpdateCharacterResourcesInput
 } from "./characterRepository";
 import type { TelegramUserProfile } from "./userRepository";
@@ -43,35 +42,6 @@ export class PrismaCharacterRepository implements CharacterRepository {
     });
 
     return character ? toCharacterRecord(character) : null;
-  }
-
-  async listRecoverableHpCharacters(
-    _now: Date,
-    options: { limit?: number } = {}
-  ): Promise<RecoverableHpCharacterRecord[]> {
-    const limit = clampRecoveryCandidateLimit(options.limit);
-    const characters = await this.prisma.character.findMany({
-      where: {
-        hpRegenAt: {
-          not: null
-        }
-      },
-      orderBy: {
-        hpRegenAt: "asc"
-      },
-      take: limit * 5,
-      include: {
-        ...characterRecordInclude
-      }
-    });
-
-    return characters
-      .filter((character) => character.hpCurrent < character.hpMax)
-      .map((character) => ({
-        telegramUserId: character.user.telegramUserId,
-        character: toCharacterRecord(character)
-      }))
-      .slice(0, limit);
   }
 
   async deleteByTelegramUserId(telegramUserId: bigint): Promise<boolean> {
@@ -301,12 +271,4 @@ function toCharacterRecord(
     currentLocationId: user.lastSeenLocationId,
     remortCount: getIncludedRemortCount(character)
   };
-}
-
-function clampRecoveryCandidateLimit(limit: number | undefined): number {
-  if (!Number.isFinite(limit)) {
-    return 50;
-  }
-
-  return Math.min(100, Math.max(1, Math.trunc(limit ?? 50)));
 }

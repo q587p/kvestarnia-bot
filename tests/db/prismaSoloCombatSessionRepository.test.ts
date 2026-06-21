@@ -168,6 +168,10 @@ describe("PrismaSoloCombatSessionRepository", () => {
       guard: {
         consecutiveDefends: 2
       },
+      timeout: {
+        consecutiveMissedTurns: 1,
+        lastMissedAt: "2026-06-20T00:00:24.000Z"
+      },
       cooldowns: {
         abilities: {
           "skill.forceful-strike": {
@@ -268,6 +272,10 @@ describe("PrismaSoloCombatSessionRepository", () => {
 
     expect(mapped?.state?.originLocationId).toBe("location.korchma.deep.level1");
     expect(mapped?.state?.guard).toEqual({ consecutiveDefends: 2 });
+    expect(mapped?.state?.timeout).toEqual({
+      consecutiveMissedTurns: 1,
+      lastMissedAt: "2026-06-20T00:00:24.000Z"
+    });
     expect(mapped?.state?.lastTurn?.action).toBe("skip");
     expect(mapped?.state?.lastTurn?.debugTrace?.chosenAbilityId).toBe("skill.forceful-strike");
     expect(mapped?.state?.monster.copiedEquipment?.[0]?.sourceItemId).toBe("item.borrowed-pan");
@@ -332,7 +340,9 @@ describe("PrismaSoloCombatSessionRepository", () => {
       }
     } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
 
-    const due = await repository.listDueActiveSessions(new Date("2026-06-20T00:00:24.000Z"));
+    const due = await repository.listDueActiveSessions(new Date("2026-06-20T00:00:24.000Z"), {
+      limit: 1
+    });
 
     expect(due).toHaveLength(1);
     expect(due[0]).toMatchObject({
@@ -345,6 +355,70 @@ describe("PrismaSoloCombatSessionRepository", () => {
         }
       }
     });
+  });
+
+  it("paginates due discovery so legacy, future, and other-kind rows do not starve due fights", async () => {
+    const records = [
+      ...Array.from({ length: 110 }, (_, index) =>
+        makeSoloCombatRow({
+          ...activeCombatState,
+          id: `legacy-${index}`
+        }, {
+          telegramUserId: BigInt(1000 + index),
+          updatedAt: new Date(`2026-06-20T00:00:${String(index % 60).padStart(2, "0")}.000Z`)
+        })
+      ),
+      makeSoloCombatRow({
+        ...activeCombatState,
+        id: "future-session",
+        turnExpiresAt: "2026-06-20T00:05:00.000Z"
+      }, {
+        telegramUserId: 5000n,
+        updatedAt: new Date("2026-06-20T00:01:51.000Z")
+      }),
+      makeSoloCombatRow({
+        ...activeCombatState,
+        id: "training-due",
+        turnExpiresAt: "2026-06-20T00:00:23.000Z"
+      }, {
+        monsterId: "monster.training-doppelganger",
+        telegramUserId: 5001n,
+        updatedAt: new Date("2026-06-20T00:01:52.000Z")
+      }),
+      makeSoloCombatRow({
+        ...activeCombatState,
+        id: "solo-due",
+        turnExpiresAt: "2026-06-20T00:00:23.000Z"
+      }, {
+        telegramUserId: 42n,
+        updatedAt: new Date("2026-06-20T00:01:53.000Z")
+      })
+    ].sort((left, right) =>
+      left.updatedAt.getTime() - right.updatedAt.getTime() ||
+      left.id.localeCompare(right.id)
+    );
+    const findManyInputs: Array<{ skip?: number; take?: number }> = [];
+    const repository = new PrismaSoloCombatSessionRepository({
+      soloCombatSession: {
+        findMany: (input: { skip?: number; take?: number; where?: { monsterId?: { notIn?: string[] } } }) => {
+          findManyInputs.push(input);
+          const excluded = new Set(input.where?.monsterId?.notIn ?? []);
+          const filtered = records.filter((record) => !excluded.has(record.monsterId));
+
+          return Promise.resolve(filtered.slice(input.skip ?? 0, (input.skip ?? 0) + (input.take ?? filtered.length)));
+        }
+      }
+    } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
+
+    const due = await repository.listDueActiveSessions(new Date("2026-06-20T00:02:00.000Z"), {
+      limit: 1,
+      excludeMonsterIds: ["monster.training-doppelganger"]
+    });
+
+    expect(findManyInputs.length).toBeGreaterThan(1);
+    expect(due).toHaveLength(1);
+    expect(due[0]?.id).toBe("solo-due");
+    expect(due[0]?.telegramUserId).toBe(42n);
   });
 
   it("counts won sessions after the issue timestamp while excluding training monsters", async () => {
@@ -402,11 +476,14 @@ function prismaNotFoundError(): Prisma.PrismaClientKnownRequestError {
   });
 }
 
-function makeSoloCombatRow(state: CombatState, options: { telegramUserId?: bigint } = {}) {
+function makeSoloCombatRow(
+  state: CombatState,
+  options: { telegramUserId?: bigint; monsterId?: string; updatedAt?: Date; expiresAt?: Date } = {}
+) {
   return {
     id: state.id ?? "session-context",
     characterId: "character-42",
-    monsterId: "monster.deadline-spider",
+    monsterId: options.monsterId ?? "monster.deadline-spider",
     status: "active",
     turn: state.turn,
     stateJson: state,
@@ -415,8 +492,8 @@ function makeSoloCombatRow(state: CombatState, options: { telegramUserId?: bigin
     rewardItemsJson: null,
     rewardClaimedAt: null,
     createdAt: new Date("2026-06-20T00:00:00.000Z"),
-    updatedAt: new Date("2026-06-20T00:00:01.000Z"),
-    expiresAt: new Date("2026-06-20T00:10:00.000Z"),
+    updatedAt: options.updatedAt ?? new Date("2026-06-20T00:00:01.000Z"),
+    expiresAt: options.expiresAt ?? new Date("2026-06-20T00:10:00.000Z"),
     ...(options.telegramUserId
       ? {
           character: {
@@ -478,10 +555,14 @@ function runtimeRoundTripState(): CombatState {
     id: "session-round-trip",
     originLocationId: "location.korchma.deep.level1",
     turn: 3,
-    guard: {
-      consecutiveDefends: 2
-    },
-    cooldowns: {
+      guard: {
+        consecutiveDefends: 2
+      },
+      timeout: {
+        consecutiveMissedTurns: 1,
+        lastMissedAt: "2026-06-20T00:00:24.000Z"
+      },
+      cooldowns: {
       abilities: {
         "skill.forceful-strike": {
           id: "skill.forceful-strike",

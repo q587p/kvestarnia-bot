@@ -5,7 +5,6 @@ import { getTelegramMenuCommands } from "./bot/botCommandCatalog";
 import { createCombatTurnTimeoutScheduler } from "./bot/combatTurnTimeoutScheduler";
 import { createBot } from "./bot/createBot";
 import { createDuelTurnTimeoutScheduler } from "./bot/duelTurnTimeoutScheduler";
-import { createResourceRecoveryNotificationScheduler } from "./bot/resourceRecoveryNotificationScheduler";
 import { loadConfig } from "./config/env";
 import { prisma } from "./db/prisma";
 import { PrismaCharacterRepository } from "./db/repositories/prismaCharacterRepository";
@@ -49,7 +48,6 @@ import { OnboardingService } from "./services/onboardingService";
 import { PresenceService } from "./services/presenceService";
 import { RemortService } from "./services/remortService";
 import { RestartService } from "./services/restartService";
-import { ResourceRecoveryNotificationService } from "./services/resourceRecoveryNotificationService";
 import { TavernRaidService } from "./services/tavernRaidService";
 import { TrainingDoppelgangerService } from "./services/trainingDoppelgangerService";
 import { YegerQuestService } from "./services/yegerQuestService";
@@ -87,7 +85,6 @@ const fight = new FightService(
   combatBalanceAnalytics
 );
 const presenceService = new PresenceService(presence);
-const resourceRecoveryNotifications = new ResourceRecoveryNotificationService(characters, equipment);
 const services = {
   adventure: new AdventureService(characters, dailyActions, undefined, soloCombatSessions, equipment),
   barrelRaidNotifications,
@@ -137,12 +134,8 @@ const healthServer = startHealthServer({
 let bot: Bot | null = null;
 let duelTurnTimeoutScheduler: ReturnType<typeof createDuelTurnTimeoutScheduler> | null = null;
 let combatTurnTimeoutScheduler: ReturnType<typeof createCombatTurnTimeoutScheduler> | null = null;
-let resourceRecoveryNotificationScheduler: ReturnType<
-  typeof createResourceRecoveryNotificationScheduler
-> | null = null;
 
 function shutdown(): void {
-  resourceRecoveryNotificationScheduler?.stop();
   combatTurnTimeoutScheduler?.stop();
   duelTurnTimeoutScheduler?.stop();
   if (bot) {
@@ -170,11 +163,6 @@ if (!config.botToken) {
     trainingDoppelganger: services.trainingDoppelganger
   }, bot);
   combatTurnTimeoutScheduler.start();
-  resourceRecoveryNotificationScheduler = createResourceRecoveryNotificationScheduler(
-    resourceRecoveryNotifications,
-    bot
-  );
-  resourceRecoveryNotificationScheduler.start();
 
   void services.mantokChest.cleanupExpiredPendingRuns().catch((error) => {
     console.error("Квестарня: старі бланки Дружньої Скрині не прибрались.", error);
