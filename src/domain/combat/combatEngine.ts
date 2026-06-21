@@ -115,6 +115,7 @@ export interface ResolveActorCombatActionResult {
 
 interface MonsterResponseResult {
   damage: number;
+  outcome?: CombatTurnSummary["monsterOutcome"];
   monsterAction?: CombatTurnSummary["monsterAction"];
   monsterSkill?: CombatSkillProfile;
   monsterEffectText?: string;
@@ -465,7 +466,7 @@ function resolveHeroAttack(
     nextState.monster.hp = Math.max(0, nextState.monster.hp - counterDamage);
   }
   nextState.status = nextState.hero.hp <= 0 ? "lost" : nextState.monster.hp <= 0 ? "won" : "active";
-  const monsterOutcome = monsterDamage > 0 ? "hit" : "miss";
+  const monsterOutcome = monsterResponse.outcome ?? (monsterDamage > 0 ? "hit" : "miss");
   nextState.turn += 1;
   const bark = resolveMonsterBark({
     state: input.state,
@@ -534,7 +535,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
   }
 
   const monsterOutcome: CombatTurnSummary["monsterOutcome"] | undefined =
-    fled ? undefined : monsterDamage > 0 ? "hit" : "miss";
+    fled ? undefined : monsterResponse.outcome ?? (monsterDamage > 0 ? "hit" : "miss");
   const bark = fled
     ? null
     : resolveMonsterBark({
@@ -917,6 +918,7 @@ function resolveMonsterResponse(input: {
 
     return {
       damage: response.damage + modifiedBasicAttack.damage,
+      ...(response.outcome ? { outcome: response.outcome } : {}),
       ...(response.actionKind
         ? { monsterAction: response.actionKind === "ability" ? "skill" : response.actionKind }
         : {}),

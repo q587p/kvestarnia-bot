@@ -21,6 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added separate presence locations for the Nyz left, straight and right passages.
 - Added focused coverage for content totals, loadout gates, frozen runtime state, legacy no-runtime fights, ordinary anti-spam, telegraph impact, shields/effects and Prisma JSON round-trip.
 - Added an explicit per-component monster ability execution plan used by validation, AI legality and resolution. Components now record their source parameter, target actor, condition, duration/charges, direct-hit requirement and applied-result key.
+- Added an explicit runtime-effect polarity/removability/source contract in combat-state JSON, with safe derivation for old effect rows that lack the new metadata.
 
 ### Changed
 - New ordinary monster fights now freeze authored ability loadouts at encounter start. Explicit authored IDs fill identity slots first; deterministic fallback can fill only missing legal slots created by effective-level scaling.
@@ -48,6 +49,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Runtime monster evasion now affects the hero hit roll only; it no longer also reduces damage after a successful hit.
 - Runtime support/control abilities now skip state-less cases such as equal-or-stronger shields, empty cleanses, missing cooldown targets, missing positive effects and missing expired effects.
 - Authored turn parity/cycle riders, repeated-action prediction, expired-effect reapply, copied potency, shield-survival setup bonuses, status-resistance solo fallback and counter-chance parameters now resolve through persisted runtime state instead of inert validation-only fields.
+- Monster ability resolution now applies compiled plan components through shared handlers for immediate support/control effects, so legality and execution use the same target/condition decisions for heal, shield, mana drain, cleanse, purge, cooldown pressure, reapply-expired and runtime effects.
+- `statusResistancePp` now resolves as an explicit non-removable `status-resistance` monster effect fallback instead of being stored as an unrelated incoming-damage modifier.
+- Zero-damage monster support abilities that actually change state now persist a successful monster outcome in `lastTurn`, `turnLog`, journal replay and analytics rather than being inferred as misses from damage alone.
 
 ### Fixed
 - Old active combat JSON without `monsterRuntime` remains readable and keeps legacy basic-attack behavior until that fight ends.
@@ -63,6 +67,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Mixed-scope monster buffs now route by parameter intent: `monster.mountain-on-installments` marks the hero, buffs the monster's outgoing damage and never grants the hero a positive outgoing-damage multiplier.
 - Race-source ability locks now use a safe solo fallback instead of disabling the class skill; class-source locks still block the current class action as before.
 - Applied-result text is now generated only from components that changed state, so purge, cooldown, heal, shield, cleanse and reapply claims do not appear when nothing happened.
+- Monster cleanse now removes only harmful removable effects on the monster, so beneficial monster shields, evasion, outgoing-damage buffs, next-hit bonuses, reflect and status resistance survive cleanup.
+- Monster purge now removes only real removable beneficial hero effects. Direct-damage abilities such as Archive Chew keep dealing damage when no purge target exists and do not claim a purge that did not happen.
 - Legacy eventless terminal journals now synthesize one final `terminal:*` entry when an old same-turn log row has a different summary, while semantically identical old rows still avoid duplicates.
 - Reactive reflect/counter/shield-break damage now resolves before the early victory return; if it drops the hero to zero HP, the combat is recorded as a loss even when the same hit also drops the monster to zero.
 - Terminal persistent combat journal entries now carry stable `terminal:*` event IDs, so `won`, `lost`, `fled` and hard `expired` results appear exactly once after repository round-trip and repeated journal opens.

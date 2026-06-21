@@ -5,6 +5,7 @@ import { monsters } from "../../src/content/monsters";
 import {
   cloneCombatState,
   createMonsterAbilityRuntime,
+  getMonsterAbilityEffectContract,
   getMonsterAbilitySlotCount,
   applyHeroActivationMonsterEffects,
   applyMonsterRuntimeHeroDamage,
@@ -284,6 +285,170 @@ describe("monster ability runtime", () => {
     expect(archive.ability?.id).toBe("monster.archive-chew");
     expect(archive.damage).toBeGreaterThan(0);
     expect(archive.effectText).toBeUndefined();
+  });
+
+  it("keeps beneficial monster effects when cleanse/status fallback resolves", () => {
+    const coldRind = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.cold-rind"),
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+    const coldEffect = coldRind.state.monsterRuntime?.effects.find(
+      (effect) => effect.target === "monster" && effect.kind === "incoming-damage"
+    );
+
+    expect(coldEffect).toMatchObject({
+      sourceAbilityId: "monster.cold-rind",
+      polarity: "beneficial"
+    });
+
+    const napkin = resolveMonsterRuntimeAction({
+      state: {
+        ...startRuntimeAbilityState("monster.napkin-denial"),
+        monsterRuntime: {
+          ...startRuntimeAbilityState("monster.napkin-denial").monsterRuntime!,
+          effects: coldRind.state.monsterRuntime?.effects ?? []
+        }
+      },
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(napkin.ability?.id).toBe("monster.napkin-denial");
+    expect(napkin.effectText).toBe("ефект зачепився й уже працює");
+    expect(napkin.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
+      sourceAbilityId: "monster.cold-rind",
+      target: "monster",
+      kind: "incoming-damage",
+      polarity: "beneficial"
+    }));
+    expect(napkin.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
+      sourceAbilityId: "monster.napkin-denial",
+      target: "monster",
+      kind: "status-resistance",
+      polarity: "beneficial",
+      removable: false
+    }));
+  });
+
+  it("cleanses harmful monster effects while beneficial effects survive", () => {
+    const state = startRuntimeAbilityState("monster.napkin-denial", {
+      effects: [
+        {
+          id: "positive-outgoing",
+          sourceAbilityId: "monster.compound-interest",
+          sourceActor: "monster",
+          target: "monster",
+          kind: "outgoing-damage",
+          value: 1.2,
+          polarity: "beneficial",
+          removable: true,
+          remainingOwnActivations: 2
+        },
+        {
+          id: "harmful-outgoing",
+          sourceAbilityId: "test.hero-debuff",
+          sourceActor: "hero",
+          target: "monster",
+          kind: "outgoing-damage",
+          value: 0.75,
+          polarity: "harmful",
+          removable: true,
+          remainingOwnActivations: 2
+        }
+      ]
+    });
+
+    const result = resolveMonsterRuntimeAction({
+      state,
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(result.ability?.id).toBe("monster.napkin-denial");
+    expect(result.effectText).toBe("монстр струсив із себе слабкість");
+    expect(result.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
+      id: "positive-outgoing",
+      polarity: "beneficial"
+    }));
+    expect(result.state.monsterRuntime?.effects.some((effect) => effect.id === "harmful-outgoing")).toBe(false);
+  });
+
+  it("purges real removable positive hero effects without inventing unreachable purge text", () => {
+    const noTarget = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.archive-chew"),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+    const purged = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.archive-chew", {
+        effects: [{
+          id: "hero-positive",
+          sourceAbilityId: "test.hero-buff",
+          sourceActor: "hero",
+          target: "hero",
+          kind: "outgoing-damage",
+          value: 1.2,
+          polarity: "beneficial",
+          removable: true,
+          remainingTargetActivations: 2
+        }]
+      }),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(noTarget.ability?.id).toBe("monster.archive-chew");
+    expect(noTarget.damage).toBeGreaterThan(0);
+    expect(noTarget.effectText).toBeUndefined();
+    expect(purged.effectText).toBe("ваші підсилення збилися");
+    expect(purged.state.monsterRuntime?.effects.some((effect) => effect.id === "hero-positive")).toBe(false);
+  });
+
+  it("stores zero-damage support abilities as successful monster outcomes", () => {
+    const result = resolveCombatTurn({
+      state: startRuntimeAbilityState("monster.transparent-report"),
+      action: "defend",
+      hero,
+      monster: { ...mimic, attack: 4 },
+      rng: new FakeRandomSource([0, 0.99, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected support ability turn to resolve.");
+    }
+    expect(result.summary.monsterAction).toBe("skill");
+    expect(result.summary.monsterDamage).toBe(0);
+    expect(result.summary.monsterOutcome).toBe("hit");
+    expect(result.state.lastTurn?.monsterOutcome).toBe("hit");
+    expect(result.state.turnLog?.[0]?.summary.monsterOutcome).toBe("hit");
+  });
+
+  it("derives polarity metadata for legacy effects without broad target assumptions", () => {
+    expect(getMonsterAbilityEffectContract({
+      sourceAbilityId: "legacy",
+      target: "monster",
+      kind: "outgoing-damage",
+      value: 1.2
+    })).toMatchObject({ polarity: "beneficial", removable: true });
+    expect(getMonsterAbilityEffectContract({
+      sourceAbilityId: "legacy",
+      target: "monster",
+      kind: "outgoing-damage",
+      value: 0.8
+    })).toMatchObject({ polarity: "harmful", removable: true });
+    expect(getMonsterAbilityEffectContract({
+      sourceAbilityId: "legacy",
+      target: "monster",
+      kind: "status-resistance",
+      value: 40
+    })).toMatchObject({ polarity: "beneficial", removable: false });
   });
 
   it("treats low-HP damage parameters as bonuses at the half-HP boundary", () => {

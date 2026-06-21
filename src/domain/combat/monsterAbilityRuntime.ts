@@ -28,6 +28,8 @@ export const MONSTER_ABILITY_RUNTIME_RULES_VERSION = "monster-abilities-v1" as c
 
 export type MonsterAbilityRuntimeActionKind = "attack" | "defend" | "ability" | "telegraph";
 export type MonsterAbilityEffectTarget = "hero" | "monster";
+export type MonsterAbilityEffectPolarity = "beneficial" | "harmful" | "neutral";
+export type MonsterAbilityEffectSourceActor = "monster" | "hero";
 export type MonsterAbilityEffectKind =
   | "accuracy"
   | "evasion"
@@ -56,18 +58,25 @@ export interface MonsterAbilityRuntimeCooldown {
 export interface MonsterAbilityRuntimeEffect {
   id: string;
   sourceAbilityId: string;
+  sourceActor?: MonsterAbilityEffectSourceActor;
   target: MonsterAbilityEffectTarget;
   kind: MonsterAbilityEffectKind;
   value: number;
+  polarity?: MonsterAbilityEffectPolarity;
+  removable?: boolean;
   remainingOwnActivations?: number;
   remainingTargetActivations?: number;
   charges?: number;
 }
 
 export interface MonsterAbilityExpiredEffectSnapshot {
+  sourceAbilityId?: string;
+  sourceActor?: MonsterAbilityEffectSourceActor;
   kind: MonsterAbilityEffectKind;
   target: MonsterAbilityEffectTarget;
   value: number;
+  polarity?: MonsterAbilityEffectPolarity;
+  removable?: boolean;
   remainingOwnActivations?: number;
   remainingTargetActivations?: number;
   charges?: number;
@@ -217,6 +226,65 @@ const supportedParameterKeys = new Set<MonsterAbilityParameterKey>([
   "targetAccuracyPenaltyPp"
 ]);
 
+const effectKindsWithDefaultRemovability = new Set<MonsterAbilityEffectKind>([
+  "accuracy",
+  "evasion",
+  "outgoing-damage",
+  "incoming-damage",
+  "mark",
+  "burn",
+  "bleed",
+  "ability-lock",
+  "mana-cost-pressure",
+  "reflect",
+  "flee",
+  "crit",
+  "slow",
+  "confusion",
+  "cooldown-pressure",
+  "next-attack-bonus",
+  "repeat-penalty"
+]);
+
+function deriveRuntimeEffectPolarity(
+  effect: Pick<MonsterAbilityRuntimeEffect, "target" | "kind" | "value">
+): MonsterAbilityEffectPolarity {
+  switch (effect.kind) {
+    case "outgoing-damage":
+      if (effect.value === 1) {
+        return "neutral";
+      }
+      return effect.target === "monster"
+        ? effect.value > 1 ? "beneficial" : "harmful"
+        : effect.value > 1 ? "beneficial" : "harmful";
+    case "incoming-damage":
+      if (effect.value === 0) {
+        return "neutral";
+      }
+      return effect.target === "monster"
+        ? effect.value > 0 && effect.value < 1 ? "beneficial" : "harmful"
+        : effect.value > 1 ? "harmful" : "beneficial";
+    case "accuracy":
+    case "evasion":
+    case "crit":
+    case "flee":
+    case "slow":
+    case "confusion":
+    case "cooldown-pressure":
+    case "mana-cost-pressure":
+    case "repeat-penalty":
+    case "ability-lock":
+    case "mark":
+    case "burn":
+    case "bleed":
+      return effect.target === "hero" ? "harmful" : "beneficial";
+    case "reflect":
+    case "next-attack-bonus":
+    case "status-resistance":
+      return effect.target === "monster" ? "beneficial" : "neutral";
+  }
+}
+
 interface CompiledMonsterAbilityRecipe {
   directDamage: boolean;
   heroEffects: readonly MonsterAbilityEffectKind[];
@@ -256,6 +324,37 @@ interface MonsterAbilityPlanComponent {
   optional: boolean;
   onlyEffect: boolean;
   appliedResultKey: string;
+}
+
+export interface MonsterAbilityEffectContract {
+  target: MonsterAbilityEffectTarget;
+  polarity: MonsterAbilityEffectPolarity;
+  removable: boolean;
+  sourceActor: MonsterAbilityEffectSourceActor;
+  sourceAbilityId?: string;
+}
+
+export function getMonsterAbilityEffectContract(
+  effect: Pick<
+    MonsterAbilityRuntimeEffect,
+    "target" | "kind" | "value" | "sourceAbilityId" | "sourceActor" | "polarity" | "removable"
+  >
+): MonsterAbilityEffectContract {
+  const polarity = isEffectPolarity(effect.polarity)
+    ? effect.polarity
+    : deriveRuntimeEffectPolarity(effect);
+  const removable = typeof effect.removable === "boolean"
+    ? effect.removable
+    : effectKindsWithDefaultRemovability.has(effect.kind) && effect.kind !== "status-resistance";
+  const sourceActor = effect.sourceActor === "hero" ? "hero" : "monster";
+
+  return {
+    target: effect.target,
+    polarity,
+    removable,
+    sourceActor,
+    ...(effect.sourceAbilityId ? { sourceAbilityId: effect.sourceAbilityId } : {})
+  };
 }
 
 interface CompiledMonsterAbilityExecutionPlan {
@@ -730,8 +829,8 @@ function compileMonsterAbilityExecutionPlan(input: {
       addRuntimeEffect({
         sourceParameter: "statusResistancePp",
         target: "monster",
-        effectKind: "incoming-damage",
-        value: Math.min(0.25, Math.max(0.05, statusResistance / 400)),
+        effectKind: "status-resistance",
+        value: Math.min(95, Math.max(5, statusResistance)),
         durationOwnActivations: ownDuration,
         appliedResultKey: "status-resistance"
       });
@@ -822,6 +921,24 @@ function validateMonsterAbilityRecipe(
 
   const plan = compileMonsterAbilityExecutionPlan({ ability });
   for (const component of plan.components) {
+    if (component.kind === "runtime-effect" && component.effectKind) {
+      const contract = getMonsterAbilityEffectContract({
+        sourceAbilityId: ability.id,
+        sourceActor: "monster",
+        target: component.target,
+        kind: component.effectKind,
+        value: component.value ?? 0
+      });
+
+      if (contract.target !== component.target || contract.polarity === "neutral") {
+        issues.push({
+          code: "invalid-effect-contract",
+          message: `Monster ability ${ability.id} has an invalid effect contract for ${String(component.sourceParameter)}.`,
+          abilityId: ability.id
+        });
+      }
+    }
+
     if (component.target === "hero" && component.effectKind === "outgoing-damage" && (component.value ?? 1) > 1) {
       issues.push({
         code: "positive-hostile-hero-multiplier",
@@ -1667,17 +1784,13 @@ function canMonsterAbilityComponentChangeState(
     case "mana-drain":
       return input.state.hero.mana > 0;
     case "cleanse":
-      return input.runtime.effects.some(
-        (effect) => effect.target === "monster" && effect.kind !== "reflect" && effect.kind !== "status-resistance"
-      );
+      return input.runtime.effects.some(isCleanseTarget);
     case "remove-positive":
-      return input.runtime.effects.some(
-        (effect) => effect.target === "hero" && effect.kind === "outgoing-damage" && effect.value > 1
-      );
+      return input.runtime.effects.some(isPurgeTarget);
     case "cooldown-pressure":
       return Object.keys(input.state.cooldowns?.abilities ?? {}).length > 0 || Boolean(input.state.cooldowns?.skill);
     case "reapply-expired":
-      return (input.runtime.expiredEffects?.length ?? 0) > 0;
+      return (input.runtime.expiredEffects ?? []).some(isReapplicableExpiredEffect);
     case "runtime-effect":
       if (!component.effectKind) {
         return false;
@@ -1709,6 +1822,30 @@ function wouldRuntimeEffectChange(
     (component.durationTargetActivations ?? 0) > (existing.remainingTargetActivations ?? 0) ||
     (component.charges ?? 0) > (existing.charges ?? 0)
   );
+}
+
+function isCleanseTarget(effect: MonsterAbilityRuntimeEffect): boolean {
+  const contract = getMonsterAbilityEffectContract(effect);
+  return contract.target === "monster" && contract.polarity === "harmful" && contract.removable;
+}
+
+function isPurgeTarget(effect: MonsterAbilityRuntimeEffect): boolean {
+  const contract = getMonsterAbilityEffectContract(effect);
+  return contract.target === "hero" && contract.polarity === "beneficial" && contract.removable;
+}
+
+function isReapplicableExpiredEffect(effect: MonsterAbilityExpiredEffectSnapshot): boolean {
+  const contract = getMonsterAbilityEffectContract({
+    sourceAbilityId: effect.sourceAbilityId ?? "expired",
+    target: effect.target,
+    kind: effect.kind,
+    value: effect.value,
+    ...(effect.sourceActor ? { sourceActor: effect.sourceActor } : {}),
+    ...(effect.polarity ? { polarity: effect.polarity } : {}),
+    ...(effect.removable !== undefined ? { removable: effect.removable } : {})
+  });
+
+  return contract.target === "hero" && contract.polarity === "harmful" && contract.removable;
 }
 
 function commitMonsterAbility(input: {
@@ -1796,74 +1933,11 @@ function resolveMonsterAbilityEffects(input: {
     }
   }
 
-  const effectTexts: string[] = [];
-  const manaDrain = Math.min(input.state.hero.mana, Math.max(0, Math.floor(numberParam(params.manaDrain))));
-  if (manaDrain > 0) {
-    input.state.hero.mana = Math.max(0, input.state.hero.mana - manaDrain);
-    effectTexts.push(`мана просіла на ${manaDrain}`);
-  }
-
-  const healFraction = Math.max(
-    numberParam(params.selfHealMaxHpFraction),
-    numberParam(params.healTargetMaxHpFraction)
-  );
-  if (healFraction > 0) {
-    const healed = healMonster(input.state, healFraction);
-    if (healed > 0) {
-      effectTexts.push(`монстр відновив ${healed} HP`);
-    }
-  }
-
-  const shieldFraction = Math.max(
-    numberParam(params.shieldMaxHpFraction),
-    numberParam(params.fallbackShieldMaxHpFraction),
-    numberParam(params.soloFallbackShieldMaxHpFraction)
-  );
-  if (shieldFraction > 0) {
-    const shieldPlan = compileMonsterAbilityExecutionPlan(input).components.find(
-      (component) => component.kind === "shield"
-    );
-    const points = Math.max(1, Math.floor(input.state.monster.hpMax * Math.min(0.4, shieldFraction)));
-    if (shieldPlan && (input.runtime.shield?.points ?? 0) < points) {
-      input.runtime.shield = {
-        sourceAbilityId: input.ability.id,
-        points
-      };
-      effectTexts.push(`щит тримає ${points} шкоди`);
-    }
-  }
-
-  if (isTruthyParameter(params.cleanseNegativeEffects)) {
-    const before = input.runtime.effects.length;
-    input.runtime.effects = input.runtime.effects.filter(
-      (effect) => effect.target !== "monster" || effect.kind === "reflect" || effect.kind === "status-resistance"
-    );
-    if (input.runtime.effects.length !== before) {
-      effectTexts.push("монстр струсив із себе слабкість");
-    }
-  }
-
-  if (isTruthyParameter(params.removePositiveEffects)) {
-    const before = input.runtime.effects.length;
-    input.runtime.effects = input.runtime.effects.filter(
-      (effect) => !(effect.target === "hero" && effect.kind === "outgoing-damage" && effect.value > 1)
-    );
-    if (input.runtime.effects.length !== before) {
-      effectTexts.push("ваші підсилення збилися");
-    }
-  }
-
-  const cooldownExtension = Math.max(0, Math.floor(numberParam(params.extendLongestCooldownBy)));
-  if (cooldownExtension > 0) {
-    if (extendHeroLongestCooldown(input.state, cooldownExtension)) {
-      effectTexts.push(`відсап здібності затягнувся на ${cooldownExtension}`);
-    }
-  }
-
-  const effectsChanged = addRuntimeEffects(input);
-  if (effectsChanged && effectTexts.length === 0) {
-    effectTexts.push("ефект зачепився й уже працює");
-  }
+  const plan = compileMonsterAbilityExecutionPlan(input);
+  const effectTexts = plan.components
+    .map((component) => applyMonsterAbilityPlanComponent(input, component))
+    .filter((result) => result.applied)
+    .map((result) => result.text ?? "ефект зачепився й уже працює");
 
   return {
     damage,
@@ -1871,306 +1945,144 @@ function resolveMonsterAbilityEffects(input: {
   };
 }
 
-function addRuntimeEffects(input: {
-  state: CombatState;
-  runtime: MonsterAbilityRuntimeStateV1;
-  ability: MonsterAbilityDefinition;
-}): boolean {
-  const params = input.ability.parameters;
-  const targetDuration = Math.max(1, Math.floor(numberParam(params.durationTargetActivations)));
-  const ownDuration = Math.max(1, Math.floor(numberParam(params.durationOwnActivations)));
-  const turnRider = selectTurnRider(input);
-  const hasCycleRiders = getStringParameters(params.riderByTurnCycle).length > 0;
-  let changed = false;
-  const addEffect = (effect: Omit<MonsterAbilityRuntimeEffect, "id" | "sourceAbilityId">): void => {
-    const replacement: MonsterAbilityRuntimeEffect = {
-      id: `${input.ability.id}:${input.runtime.ownActionCount}:${input.runtime.effects.length}`,
-      sourceAbilityId: input.ability.id,
-      ...effect
-    };
-    const duplicateIndex = input.runtime.effects.findIndex(
-      (existing) => existing.target === replacement.target && existing.kind === replacement.kind
-    );
-
-    if (duplicateIndex >= 0) {
-      const merged = mergeRuntimeEffects(
-        input.runtime.effects[duplicateIndex]!,
-        replacement
-      );
-      if (!areRuntimeEffectsEquivalent(input.runtime.effects[duplicateIndex]!, merged)) {
-        input.runtime.effects[duplicateIndex] = merged;
-        changed = true;
+function applyMonsterAbilityPlanComponent(
+  input: {
+    state: CombatState;
+    runtime: MonsterAbilityRuntimeStateV1;
+    ability: MonsterAbilityDefinition;
+  },
+  component: MonsterAbilityPlanComponent
+): { applied: boolean; text?: string } {
+  switch (component.kind) {
+    case "heal": {
+      const healed = healMonster(input.state, component.value ?? 0);
+      return healed > 0
+        ? { applied: true, text: `монстр відновив ${healed} HP` }
+        : { applied: false };
+    }
+    case "shield": {
+      const points = Math.max(1, Math.floor(input.state.monster.hpMax * Math.min(0.4, component.value ?? 0)));
+      if ((input.runtime.shield?.points ?? 0) >= points) {
+        return { applied: false };
       }
-      return;
+
+      input.runtime.shield = {
+        sourceAbilityId: input.ability.id,
+        points
+      };
+      return { applied: true, text: `щит тримає ${points} шкоди` };
     }
+    case "mana-drain": {
+      const manaDrain = Math.min(input.state.hero.mana, Math.max(0, Math.floor(component.value ?? 0)));
+      if (manaDrain <= 0) {
+        return { applied: false };
+      }
 
-    input.runtime.effects.push(replacement);
-    changed = true;
-  };
-
-  if (turnRider === "minor-burn" || turnRider === "fire-damage") {
-    addEffect({
-      target: "hero",
-      kind: "burn",
-      value: turnRider === "fire-damage" ? 0.16 : 0.1,
-      remainingTargetActivations: targetDuration
-    });
-  }
-
-  if (turnRider === "minor-chill") {
-    addEffect({
-      target: "hero",
-      kind: "slow",
-      value: 10,
-      remainingTargetActivations: targetDuration
-    });
-  }
-
-  if (turnRider === "enemy-potency-down") {
-    addEffect({
-      target: "hero",
-      kind: "outgoing-damage",
-      value: 0.85,
-      remainingTargetActivations: targetDuration
-    });
-  }
-
-  const markMultiplier = hasCycleRiders ? 0 : numberParam(params.markIncomingDamageMultiplier);
-  if (markMultiplier > 0) {
-    addEffect({
-      target: "hero",
-      kind: "mark",
-      value: Math.min(1.75, Math.max(1, markMultiplier)),
-      remainingTargetActivations: targetDuration,
-      charges: Math.max(1, Math.floor(numberParam(params.charges) || 1))
-    });
-  }
-
-  const burn = hasCycleRiders ? 0 : numberParam(params.burnDamageMultiplier);
-  if (burn > 0) {
-    addEffect({
-      target: "hero",
-      kind: "burn",
-      value: Math.min(0.35, burn),
-      remainingTargetActivations: Math.max(1, Math.floor(numberParam(params.burnTicks) || targetDuration))
-    });
-  }
-
-  const bleed = hasCycleRiders ? 0 : numberParam(params.bleedDamageMultiplier);
-  if (bleed > 0) {
-    addEffect({
-      target: "hero",
-      kind: "bleed",
-      value: Math.min(0.35, bleed),
-      remainingTargetActivations: Math.max(1, Math.floor(numberParam(params.bleedTicks) || targetDuration))
-    });
-  }
-
-  if (!hasCycleRiders && (params.lockAbilitySource === "class" || params.lockAnyOneAbility === true)) {
-    addEffect({
-      target: "hero",
-      kind: "ability-lock",
-      value: 1,
-      remainingTargetActivations: targetDuration,
-      charges: 1
-    });
-  }
-
-  const targetAccuracyPenalty = hasCycleRiders ? 0 : Math.max(
-    numberParam(params.targetAccuracyPenaltyPp),
-    numberParam(params.accuracyAndEvasionPenaltyPp)
-  );
-  if (targetAccuracyPenalty > 0) {
-    addEffect({
-      target: "hero",
-      kind: "accuracy",
-      value: Math.min(35, targetAccuracyPenalty),
-      remainingTargetActivations: targetDuration
-    });
-  }
-
-  const evasionPenalty = hasCycleRiders ? 0 : Math.max(
-    numberParam(params.evasionPenaltyPp),
-    numberParam(params.accuracyAndEvasionPenaltyPp)
-  );
-  if (evasionPenalty > 0) {
-    addEffect({
-      target: "hero",
-      kind: "evasion",
-      value: Math.min(35, evasionPenalty),
-      remainingTargetActivations: targetDuration
-    });
-  }
-
-  const outgoing = hasCycleRiders ? 0 : numberParam(params.outgoingDamageMultiplier);
-  if (outgoing > 0 && outgoing !== 1) {
-    if (getOutgoingDamageEffectTarget(input.ability, outgoing) === "monster") {
-      addEffect({
-        target: "monster",
-        kind: "outgoing-damage",
-        value: Math.min(1.35, Math.max(0.65, outgoing)),
-        remainingOwnActivations: ownDuration
-      });
-    } else {
-      addEffect({
-        target: "hero",
-        kind: "outgoing-damage",
-        value: Math.min(1.35, Math.max(0.65, outgoing)),
-        remainingTargetActivations: targetDuration
-      });
+      input.state.hero.mana = Math.max(0, input.state.hero.mana - manaDrain);
+      return { applied: true, text: `мана просіла на ${manaDrain}` };
     }
-  }
+    case "cleanse": {
+      const before = input.runtime.effects.length;
+      input.runtime.effects = input.runtime.effects.filter((effect) => !isCleanseTarget(effect));
+      return input.runtime.effects.length !== before
+        ? { applied: true, text: "монстр струсив із себе слабкість" }
+        : { applied: false };
+    }
+    case "remove-positive": {
+      const before = input.runtime.effects.length;
+      input.runtime.effects = input.runtime.effects.filter((effect) => !isPurgeTarget(effect));
+      return input.runtime.effects.length !== before
+        ? { applied: true, text: "ваші підсилення збилися" }
+        : { applied: false };
+    }
+    case "cooldown-pressure": {
+      const extension = Math.max(0, Math.floor(component.value ?? 0));
+      return extension > 0 && extendHeroLongestCooldown(input.state, extension)
+        ? { applied: true, text: `відсап здібності затягнувся на ${extension}` }
+        : { applied: false };
+    }
+    case "reapply-expired": {
+      const expired = [...(input.runtime.expiredEffects ?? [])].reverse().find(isReapplicableExpiredEffect);
+      if (!expired) {
+        return { applied: false };
+      }
 
-  const reduction = hasCycleRiders ? 0 : Math.max(numberParam(params.damageReduction), numberParam(params.selfDamageReduction));
-  if (reduction > 0) {
-    addEffect({
-      target: "monster",
-      kind: "incoming-damage",
-      value: Math.min(0.5, reduction),
-      remainingOwnActivations: ownDuration
-    });
-  }
-
-  const reflect = hasCycleRiders ? 0 : numberParam(params.reflectFlatDamage);
-  if (reflect > 0) {
-    addEffect({
-      target: "monster",
-      kind: "reflect",
-      value: Math.min(13, reflect),
-      remainingOwnActivations: ownDuration,
-      charges: 1
-    });
-  }
-
-  const counterChance = hasCycleRiders ? 0 : numberParam(params.counterChance);
-  if (counterChance > 0) {
-    addEffect({
-      target: "monster",
-      kind: "reflect",
-      value: Math.max(1, Math.floor(counterChance * (input.state.monster.attack ?? 1))),
-      remainingOwnActivations: ownDuration,
-      charges: 1
-    });
-  }
-
-  const evasionBonus = hasCycleRiders ? 0 : Math.max(numberParam(params.evasionBonusPp), numberParam(params.selfEvasionBonusPp));
-  if (evasionBonus > 0) {
-    addEffect({
-      target: "monster",
-      kind: "evasion",
-      value: Math.min(35, evasionBonus),
-      remainingOwnActivations: ownDuration
-    });
-  }
-
-  const manaCostIncrease = hasCycleRiders ? 0 : numberParam(params.manaCostIncrease);
-  if (manaCostIncrease > 0) {
-    addEffect({
-      target: "hero",
-      kind: "mana-cost-pressure",
-      value: Math.min(13, manaCostIncrease),
-      remainingTargetActivations: targetDuration
-    });
-  }
-
-  const cooldownPressure = hasCycleRiders ? 0 : numberParam(params.extendLongestCooldownBy);
-  if (cooldownPressure > 0) {
-    addEffect({
-      target: "hero",
-      kind: "cooldown-pressure",
-      value: Math.min(13, cooldownPressure),
-      remainingTargetActivations: targetDuration
-    });
-  }
-
-  const fleePenalty = hasCycleRiders ? 0 : numberParam(params.fleeChancePenaltyPp);
-  if (fleePenalty > 0) {
-    addEffect({
-      target: "hero",
-      kind: "flee",
-      value: Math.min(35, fleePenalty),
-      remainingTargetActivations: targetDuration
-    });
-  }
-
-  const critPenalty = hasCycleRiders ? 0 : numberParam(params.critPenaltyPp);
-  if (critPenalty > 0) {
-    addEffect({
-      target: "hero",
-      kind: "crit",
-      value: Math.min(35, critPenalty),
-      remainingTargetActivations: targetDuration
-    });
-  }
-
-  const slow = hasCycleRiders ? 0 : numberParam(params.slowAttackerPp);
-  if (slow > 0) {
-    addEffect({
-      target: "hero",
-      kind: "slow",
-      value: Math.min(35, slow),
-      remainingTargetActivations: targetDuration
-    });
-  }
-
-  if (!hasCycleRiders && params.groupTargetConfusion === true) {
-    addEffect({
-      target: "hero",
-      kind: "confusion",
-      value: 1,
-      remainingTargetActivations: targetDuration
-    });
-  }
-
-  if (!hasCycleRiders && (params.predictRepeatedLastAction === true || numberParam(params.repeatLastActionPenalty) > 0)) {
-    addEffect({
-      target: "hero",
-      kind: "repeat-penalty",
-      value: Math.max(12, Math.floor((numberParam(params.repeatLastActionPenalty) || 0.12) * 100)),
-      remainingTargetActivations: targetDuration,
-      charges: 1
-    });
-  }
-
-  if (!hasCycleRiders && params.reapplyLastExpiredNegativeEffect === true) {
-    const expired = input.runtime.expiredEffects?.[input.runtime.expiredEffects.length - 1];
-    if (expired) {
-      addEffect({
+      return addRuntimeEffectFromComponent(input, {
+        kind: "runtime-effect",
+        sourceParameter: component.sourceParameter,
         target: expired.target,
-        kind: expired.kind,
+        effectKind: expired.kind,
         value: expired.value,
-        ...(expired.remainingOwnActivations ? { remainingOwnActivations: expired.remainingOwnActivations } : {}),
-        remainingTargetActivations: Math.max(1, expired.remainingTargetActivations ?? targetDuration),
+        directHitRequired: false,
+        optional: true,
+        onlyEffect: false,
+        appliedResultKey: component.appliedResultKey,
+        ...(expired.remainingOwnActivations ? { durationOwnActivations: expired.remainingOwnActivations } : {}),
+        ...(expired.remainingTargetActivations ? { durationTargetActivations: expired.remainingTargetActivations } : { durationTargetActivations: 1 }),
         ...(expired.charges ? { charges: expired.charges } : {})
       });
     }
+    case "runtime-effect":
+      return addRuntimeEffectFromComponent(input, component);
+  }
+}
+
+function addRuntimeEffectFromComponent(
+  input: {
+    state: CombatState;
+    runtime: MonsterAbilityRuntimeStateV1;
+    ability: MonsterAbilityDefinition;
+  },
+  component: MonsterAbilityPlanComponent
+): { applied: boolean; text?: string } {
+  if (!component.effectKind || !wouldRuntimeEffectChange(input.runtime, component)) {
+    return { applied: false };
   }
 
-  const statusResistance = hasCycleRiders ? 0 : numberParam(params.statusResistancePp);
-  if (statusResistance > 0) {
-    addEffect({
-      target: "monster",
-      kind: "incoming-damage",
-      value: Math.min(0.25, Math.max(0.05, statusResistance / 400)),
-      remainingOwnActivations: ownDuration
-    });
+  const replacement = createRuntimeEffectFromComponent(input, component);
+  const duplicateIndex = input.runtime.effects.findIndex(
+    (existing) => existing.target === replacement.target && existing.kind === replacement.kind
+  );
+
+  if (duplicateIndex >= 0) {
+    const merged = mergeRuntimeEffects(input.runtime.effects[duplicateIndex]!, replacement);
+    if (areRuntimeEffectsEquivalent(input.runtime.effects[duplicateIndex]!, merged)) {
+      return { applied: false };
+    }
+
+    input.runtime.effects[duplicateIndex] = merged;
+    return { applied: true };
   }
 
-  const copiedPotency = hasCycleRiders ? 0 : numberParam(params.copyLastDirectActionPotency);
-  if (copiedPotency > 0) {
-    const copiedDamage = input.runtime.lastDirectHeroDamage ?? input.state.monster.attack ?? 1;
-    const attack = Math.max(1, input.state.monster.attack ?? 1);
-    const nextAttackBonus = 1 + Math.min(0.6, Math.max(0.1, (copiedDamage / attack) * copiedPotency * 0.25));
-    addEffect({
-      target: "monster",
-      kind: "next-attack-bonus",
-      value: nextAttackBonus,
-      remainingOwnActivations: ownDuration,
-      charges: 1
-    });
-  }
+  input.runtime.effects.push(replacement);
+  return { applied: true };
+}
 
-  return changed;
+function createRuntimeEffectFromComponent(
+  input: {
+    runtime: MonsterAbilityRuntimeStateV1;
+    ability: MonsterAbilityDefinition;
+  },
+  component: MonsterAbilityPlanComponent
+): MonsterAbilityRuntimeEffect {
+  const effect: MonsterAbilityRuntimeEffect = {
+    id: `${input.ability.id}:${input.runtime.ownActionCount}:${input.runtime.effects.length}`,
+    sourceAbilityId: input.ability.id,
+    sourceActor: "monster",
+    target: component.target,
+    kind: component.effectKind!,
+    value: component.value ?? 0,
+    ...(component.durationOwnActivations ? { remainingOwnActivations: component.durationOwnActivations } : {}),
+    ...(component.durationTargetActivations ? { remainingTargetActivations: component.durationTargetActivations } : {}),
+    ...(component.charges ? { charges: component.charges } : {})
+  };
+  const contract = getMonsterAbilityEffectContract(effect);
+
+  return {
+    ...effect,
+    polarity: contract.polarity,
+    removable: contract.removable
+  };
 }
 
 function selectTurnRider(input: {
@@ -2226,9 +2138,10 @@ function mergeRuntimeEffects(
   current: MonsterAbilityRuntimeEffect,
   next: MonsterAbilityRuntimeEffect
 ): MonsterAbilityRuntimeEffect {
-  return {
+  const merged: MonsterAbilityRuntimeEffect = {
     ...current,
     sourceAbilityId: next.sourceAbilityId,
+    ...(next.sourceActor ?? current.sourceActor ? { sourceActor: next.sourceActor ?? current.sourceActor } : {}),
     value:
       next.kind === "outgoing-damage" && next.value < 1
         ? Math.min(current.value, next.value)
@@ -2252,6 +2165,13 @@ function mergeRuntimeEffects(
     ...(current.charges !== undefined || next.charges !== undefined
       ? { charges: Math.max(current.charges ?? 0, next.charges ?? 0) }
       : {})
+  };
+  const contract = getMonsterAbilityEffectContract(merged);
+
+  return {
+    ...merged,
+    polarity: contract.polarity,
+    removable: contract.removable
   };
 }
 
@@ -2440,9 +2360,13 @@ function recordExpiredRuntimeEffect(
   }
 
   const snapshot: MonsterAbilityExpiredEffectSnapshot = {
+    sourceAbilityId: effect.sourceAbilityId,
+    sourceActor: getMonsterAbilityEffectContract(effect).sourceActor,
     target: effect.target,
     kind: effect.kind,
     value: effect.value,
+    polarity: getMonsterAbilityEffectContract(effect).polarity,
+    removable: getMonsterAbilityEffectContract(effect).removable,
     ...(effect.remainingOwnActivations !== undefined && effect.remainingOwnActivations > 0
       ? { remainingOwnActivations: Math.min(3, effect.remainingOwnActivations) }
       : {}),
@@ -2792,7 +2716,8 @@ function parseRuntimeEffect(value: unknown): MonsterAbilityRuntimeEffect[] {
     typeof value.sourceAbilityId !== "string" ||
     !isEffectTarget(value.target) ||
     !isEffectKind(value.kind) ||
-    typeof value.value !== "number"
+    typeof value.value !== "number" ||
+    !Number.isFinite(value.value)
   ) {
     return [];
   }
@@ -2800,16 +2725,30 @@ function parseRuntimeEffect(value: unknown): MonsterAbilityRuntimeEffect[] {
   const remainingOwnActivations = intOrNull(value.remainingOwnActivations);
   const remainingTargetActivations = intOrNull(value.remainingTargetActivations);
   const charges = intOrNull(value.charges);
+  const sourceActor = isEffectSourceActor(value.sourceActor) ? value.sourceActor : undefined;
+  const polarity = isEffectPolarity(value.polarity) ? value.polarity : undefined;
+  const removable = typeof value.removable === "boolean" ? value.removable : undefined;
 
-  return [{
+  const effect: MonsterAbilityRuntimeEffect = {
     id: value.id,
     sourceAbilityId: value.sourceAbilityId,
+    ...(sourceActor ? { sourceActor } : {}),
     target: value.target,
     kind: value.kind,
     value: value.value,
+    ...(polarity ? { polarity } : {}),
+    ...(removable !== undefined ? { removable } : {}),
     ...(remainingOwnActivations !== null ? { remainingOwnActivations } : {}),
     ...(remainingTargetActivations !== null ? { remainingTargetActivations } : {}),
     ...(charges !== null ? { charges } : {})
+  };
+  const contract = getMonsterAbilityEffectContract(effect);
+
+  return [{
+    ...effect,
+    sourceActor: contract.sourceActor,
+    polarity: contract.polarity,
+    removable: contract.removable
   }];
 }
 
@@ -2827,14 +2766,37 @@ function parseExpiredEffectSnapshot(value: unknown): MonsterAbilityExpiredEffect
   const remainingOwnActivations = intOrNull(value.remainingOwnActivations);
   const remainingTargetActivations = intOrNull(value.remainingTargetActivations);
   const charges = intOrNull(value.charges);
+  const sourceActor = isEffectSourceActor(value.sourceActor) ? value.sourceActor : undefined;
+  const polarity = isEffectPolarity(value.polarity) ? value.polarity : undefined;
+  const removable = typeof value.removable === "boolean" ? value.removable : undefined;
 
-  return [{
+  const snapshot: MonsterAbilityExpiredEffectSnapshot = {
+    ...(typeof value.sourceAbilityId === "string" ? { sourceAbilityId: value.sourceAbilityId } : {}),
+    ...(sourceActor ? { sourceActor } : {}),
     target: value.target,
     kind: value.kind,
     value: value.value,
+    ...(polarity ? { polarity } : {}),
+    ...(removable !== undefined ? { removable } : {}),
     ...(remainingOwnActivations !== null && remainingOwnActivations > 0 ? { remainingOwnActivations } : {}),
     ...(remainingTargetActivations !== null && remainingTargetActivations > 0 ? { remainingTargetActivations } : {}),
     ...(charges !== null && charges > 0 ? { charges } : {})
+  };
+  const contract = getMonsterAbilityEffectContract({
+    sourceAbilityId: snapshot.sourceAbilityId ?? "expired",
+    target: snapshot.target,
+    kind: snapshot.kind,
+    value: snapshot.value,
+    ...(snapshot.sourceActor ? { sourceActor: snapshot.sourceActor } : {}),
+    ...(snapshot.polarity ? { polarity: snapshot.polarity } : {}),
+    ...(snapshot.removable !== undefined ? { removable: snapshot.removable } : {})
+  });
+
+  return [{
+    ...snapshot,
+    sourceActor: contract.sourceActor,
+    polarity: contract.polarity,
+    removable: contract.removable
   }];
 }
 
@@ -2879,6 +2841,14 @@ function parseCombatAction(value: unknown): CombatActionType | null {
 
 function isEffectTarget(value: unknown): value is MonsterAbilityEffectTarget {
   return value === "hero" || value === "monster";
+}
+
+function isEffectSourceActor(value: unknown): value is MonsterAbilityEffectSourceActor {
+  return value === "monster" || value === "hero";
+}
+
+function isEffectPolarity(value: unknown): value is MonsterAbilityEffectPolarity {
+  return value === "beneficial" || value === "harmful" || value === "neutral";
 }
 
 function isEffectKind(value: unknown): value is MonsterAbilityEffectKind {
