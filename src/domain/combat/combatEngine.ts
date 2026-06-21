@@ -12,6 +12,7 @@ import {
   applyMonsterRuntimeHeroAttackModifiers,
   applyMonsterRuntimeHeroDamage,
   applyMonsterRuntimeMonsterActionModifiers,
+  consumeMonsterRuntimeDirectHitModifiers,
   getMonsterRuntimeSkillManaCostIncrease,
   isHeroClassSkillLockedByMonster,
   monsterAbilityAsCombatSkill,
@@ -29,6 +30,8 @@ import {
   cloneCombatCooldowns,
   cloneCombatState,
   cloneCombatTurnSummary,
+  appendCombatTurnLogEntry,
+  getTerminalCombatTurnLogEventId,
   type CombatActionOrigin,
   type CombatActionType,
   type CombatActorStats,
@@ -383,7 +386,9 @@ function resolveHeroAttack(
   const runtimeHeroDamage = applyMonsterRuntimeHeroDamage({
     state: nextState,
     heroDamage: actorAction.summary.actorDamage,
-    monsterHpBeforeDamage: monsterHpBeforeHeroAction
+    monsterHpBeforeDamage: monsterHpBeforeHeroAction,
+    heroAction: action,
+    rng: input.rng
   });
   const heroDamage = runtimeHeroDamage.heroDamage;
   const monsterHp = nextState.monster.hp;
@@ -396,6 +401,30 @@ function resolveHeroAttack(
     : actorAction.summary.actorOutcome === "won"
       ? "hit"
       : actorAction.summary.actorOutcome;
+
+  if (nextState.hero.hp <= 0) {
+    nextState.status = "lost";
+    nextState.turn += 1;
+    const summary = buildSummary({
+      action: input.action,
+      ...summaryActionOrigin(input),
+      heroOutcome: actorAction.summary.actorOutcome === "won" ? "hit" : actorAction.summary.actorOutcome,
+      monsterOutcome: "lost",
+      heroDamage,
+      monsterDamage,
+      manaSpent,
+      critical: actorAction.summary.critical,
+      ...(skill ? { skill } : {})
+    });
+    nextState.lastTurn = summary;
+    appendCombatTurnLog(nextState, input.state.turn, summary);
+
+    return {
+      ok: true,
+      state: recordCombatAnalyticsTurn(nextState, summary),
+      summary
+    };
+  }
 
   if (monsterHp <= 0) {
     nextState.status = "won";
@@ -594,20 +623,18 @@ function appendCombatTurnLog(
   turn: number,
   summary: CombatTurnSummary
 ): void {
-  state.turnLog = [
-    ...(state.turnLog ?? []),
-    {
-      turn,
-      summary: cloneCombatTurnSummary(summary),
-      hero: {
-        hp: state.hero.hp,
-        mana: state.hero.mana
-      },
-      monster: {
-        hp: state.monster.hp
-      }
+  appendCombatTurnLogEntry(state, {
+    ...(state.status !== "active" ? { eventId: getTerminalCombatTurnLogEventId(state.status) } : {}),
+    turn,
+    summary: cloneCombatTurnSummary(summary),
+    hero: {
+      hp: state.hero.hp,
+      mana: state.hero.mana
+    },
+    monster: {
+      hp: state.monster.hp
     }
-  ];
+  });
 }
 
 export function getNonManaSkillCooldownTurns(
@@ -874,9 +901,13 @@ function resolveMonsterResponse(input: {
           input.damageReduction
         )
       : 0;
+    const modifiedBasicAttack = consumeMonsterRuntimeDirectHitModifiers({
+      state: input.state,
+      damage: basicAttackDamage
+    });
     const defendedBasicAttack = applyDefendStance({
       defenderGuard: input.state.guard,
-      damage: basicAttackDamage,
+      damage: modifiedBasicAttack.damage,
       rng: input.input.rng
     });
     if (defendedBasicAttack.damage > 0) {

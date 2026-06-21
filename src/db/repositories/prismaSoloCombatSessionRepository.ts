@@ -798,11 +798,24 @@ function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
     const summary = parseTurnSummary(entry.summary);
     const hero = parseTurnLogHero(entry.hero);
     const monster = parseTurnLogMonster(entry.monster);
+    const eventId = parseTurnLogEventId(entry.eventId);
 
     return turn === null || turn < 1 || !summary || !hero || !monster
       ? []
-      : [{ turn, summary, hero, monster }];
+      : [{
+          ...(eventId ? { eventId } : {}),
+          turn,
+          summary,
+          hero,
+          monster
+        }];
   });
+}
+
+function parseTurnLogEventId(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 && value.length <= 80
+    ? value
+    : null;
 }
 
 function parseTurnLogHero(value: unknown): CombatTurnLogEntry["hero"] | null {

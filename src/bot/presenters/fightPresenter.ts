@@ -1,6 +1,6 @@
 import { MIMIC_SHAWARMA_HP } from "../../domain/combat/combatProbe";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import type { CombatTurnLogEntry, CombatTurnSummary } from "../../domain/combat";
+import { getTerminalCombatTurnLogEventId, type CombatTurnLogEntry, type CombatTurnSummary } from "../../domain/combat";
 import type {
   FightLookupResult,
   FightResult,
@@ -479,6 +479,11 @@ function getPersistentFightJournalEntries(
   const entries = [...(state?.turnLog ?? [])];
 
   if (!state?.lastTurn || state.status === "active") {
+    return entries;
+  }
+
+  const terminalEventId = getTerminalCombatTurnLogEventId(state.status);
+  if (entries.some((entry) => entry.eventId === terminalEventId)) {
     return entries;
   }
 

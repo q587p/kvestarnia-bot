@@ -1,7 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { SoloCombatSessionRecord } from "../../db/repositories/soloCombatSessionRepository";
-import { getCombatActionAvailability } from "../../domain/combat";
+import { getCombatActionAvailability, getTerminalCombatTurnLogEventId } from "../../domain/combat";
 import { getPersistentFightSkillLabel } from "../../services/fightService";
 import {
   normalizePresenceLocationId,
@@ -152,6 +152,11 @@ function getMissingTerminalTurnLogCount(session: SoloCombatSessionRecord): numbe
   const state = session.state;
 
   if (!state?.lastTurn || state.status === "active") {
+    return 0;
+  }
+
+  const terminalEventId = getTerminalCombatTurnLogEventId(state.status);
+  if (state.turnLog?.some((entry) => entry.eventId === terminalEventId)) {
     return 0;
   }
 

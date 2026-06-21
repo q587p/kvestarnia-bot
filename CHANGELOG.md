@@ -41,6 +41,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Runtime basic attacks now use the same defend stance contract as legacy basic monster attacks, including evasion, mitigation fatigue and bounded counters; runtime ability mitigation applies defend once.
 - Runtime monster evasion now affects the hero hit roll only; it no longer also reduces damage after a successful hit.
 - Runtime support/control abilities now skip state-less cases such as equal-or-stronger shields, empty cleanses, missing cooldown targets, missing positive effects and missing expired effects.
+- Authored turn parity/cycle riders, repeated-action prediction, expired-effect reapply, copied potency, shield-survival setup bonuses, status-resistance solo fallback and counter-chance parameters now resolve through persisted runtime state instead of inert validation-only fields.
 
 ### Fixed
 - Old active combat JSON without `monsterRuntime` remains readable and keeps legacy basic-attack behavior until that fight ends.
@@ -52,6 +53,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Monster class-skill locks are server-authoritative no-ops: pressing a locked/unavailable class skill does not spend mana, advance the turn, tick cooldowns, trigger monster AI, select a bark or advance RNG.
 - Telegraphs persist the promised ability before impact; if the monster dies first, the pending impact never resolves.
 - One-charge marks survive committed hero actions and are consumed only when a later direct monster hit uses them; reflect charges are consumed only when actual reflected HP damage occurs.
+- One-charge marks can now be consumed by the ordinary forced basic attack after a setup ability, while missed basics and non-damaging monster actions leave the mark intact.
+- Reactive reflect/counter/shield-break damage now resolves before the early victory return; if it drops the hero to zero HP, the combat is recorded as a loss even when the same hit also drops the monster to zero.
+- Terminal persistent combat journal entries now carry stable `terminal:*` event IDs, so `won`, `lost`, `fled` and hard `expired` results appear exactly once after repository round-trip and repeated journal opens.
 - Target accuracy/evasion penalties now affect later target rolls instead of being accidentally folded into the monster's current ability accuracy.
 - Positive monster accuracy context now raises current runtime ability hit chance instead of lowering it.
 - Persistent fight turn callbacks, result replays, journal views and combat-lock redirects now restore the stored fight passage/location instead of stamping the quest table.

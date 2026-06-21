@@ -2367,6 +2367,12 @@ describe("FightService", () => {
     if (expired.state === "terminal") {
       expect(expired.session.state?.status).toBe("expired");
       expect(expired.fightReward).toBeNull();
+      expect(expired.session.state?.turnLog).toHaveLength(1);
+      expect(expired.session.state?.turnLog?.[0]).toMatchObject({
+        eventId: "terminal:expired",
+        turn: 1,
+        summary: expired.session.state.lastTurn
+      });
     }
     expect(expiredDailyActions.createCount).toBe(0);
   });
@@ -3229,6 +3235,7 @@ describe("FightService", () => {
           actionOrigin: "timeout-auto-defend"
         }
       });
+      expect(result.session.state?.turnLog?.[0]?.summary).toEqual(result.session.state.lastTurn);
       expect(result.session.state?.timeout?.consecutiveMissedTurns).toBe(1);
       expect(result.session.state?.turnExpiresAt).toBe("2026-06-12T10:30:23.000Z");
     }

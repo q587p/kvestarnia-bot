@@ -611,6 +611,81 @@ describe("fight presenter", () => {
     expect(text).toContain("Вміння 🙏 <i>Суворе благословення</i> влучає на 14 шкоди.");
   });
 
+  it("does not duplicate an explicit terminal journal event", () => {
+    const session = persistentSession({
+      status: "won",
+      turn: 3,
+      hero: {
+        hp: 19,
+        hpMax: 24,
+        mana: 11,
+        manaMax: 12
+      },
+      monster: {
+        id: "monster.test",
+        hp: 0,
+        hpMax: 18
+      },
+      turnLog: [
+        {
+          turn: 1,
+          hero: { hp: 22, mana: 12 },
+          monster: { hp: 14 },
+          summary: {
+            action: "attack",
+            heroOutcome: "hit",
+            heroDamage: 4,
+            monsterDamage: 2,
+            manaSpent: 0,
+            critical: false,
+            monsterAction: "attack"
+          }
+        },
+        {
+          eventId: "terminal:won",
+          turn: 2,
+          hero: { hp: 19, mana: 11 },
+          monster: { hp: 0 },
+          summary: {
+            action: "skill",
+            heroOutcome: "won",
+            heroDamage: 14,
+            monsterDamage: 0,
+            manaSpent: 1,
+            critical: false,
+            skillId: "skill.strict-blessing"
+          }
+        }
+      ],
+      lastTurn: {
+        action: "skill",
+        heroOutcome: "won",
+        heroDamage: 14,
+        monsterDamage: 0,
+        manaSpent: 1,
+        critical: false,
+        skillId: "skill.strict-blessing"
+      }
+    });
+    const text = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session,
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    }, 1);
+
+    expect(text).toContain("Хід <b>2</b> · запис 2/2");
+    expect(text).not.toContain("запис 2/3");
+  });
+
   it("shows monster ability consequences instead of only naming the ability", () => {
     const damaging = presentPersistentFightTurn({
       state: "updated",

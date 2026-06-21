@@ -186,6 +186,14 @@ describe("PrismaSoloCombatSessionRepository", () => {
       },
       monsterRuntime: {
         loadoutIds: ["monster.deadline-web"],
+        lastHeroAction: "attack",
+        lastDirectHeroDamage: 7,
+        expiredEffects: [{
+          target: "hero",
+          kind: "bleed",
+          value: 0.22,
+          remainingTargetActivations: 2
+        }],
         cooldowns: {
           "monster.deadline-web": {
             remainingOwnActions: 2
@@ -300,6 +308,7 @@ describe("PrismaSoloCombatSessionRepository", () => {
     expect(mapped?.state?.lastTurn?.actionOrigin).toBe("timeout-skip");
     expect(mapped?.state?.lastTurn?.debugTrace?.chosenAbilityId).toBe("skill.forceful-strike");
     expect(mapped?.state?.turnLog?.[0]).toMatchObject({
+      eventId: "turn:3:timeout-skip",
       turn: 3,
       summary: {
         action: "skip",
@@ -666,6 +675,14 @@ function runtimeRoundTripState(): CombatState {
         charges: 1
       }],
       expiredEffectIds: ["monster.old-effect"],
+      expiredEffects: [{
+        target: "hero",
+        kind: "bleed",
+        value: 0.22,
+        remainingTargetActivations: 2
+      }],
+      lastHeroAction: "attack",
+      lastDirectHeroDamage: 7,
       ownActionCount: 1
     },
     lastTurn: {
@@ -690,6 +707,7 @@ function runtimeRoundTripState(): CombatState {
       }
     },
     turnLog: [{
+      eventId: "turn:3:timeout-skip",
       turn: 3,
       summary: {
         action: "skip",

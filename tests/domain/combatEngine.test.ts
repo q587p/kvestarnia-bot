@@ -713,6 +713,60 @@ describe("combat domain engine", () => {
     expect(blocked.state.turnLog).toEqual(first.state.turnLog);
   });
 
+  it("treats reactive mutual KO as a hero loss before rewards can resolve", () => {
+    const state: CombatState = {
+      ...startCombat({ hero: warrior, monster }),
+      hero: {
+        hp: 1,
+        hpMax: warrior.hpMax,
+        mana: warrior.manaMax,
+        manaMax: warrior.manaMax
+      },
+      monster: {
+        id: monster.monsterId,
+        hp: 3,
+        hpMax: monster.hpMax
+      },
+      monsterRuntime: {
+        version: 1,
+        rulesVersion: "monster-abilities-v1",
+        aiProfile: "defender",
+        loadoutIds: ["monster.transparent-report"],
+        cooldowns: {},
+        onceUsedAbilityIds: [],
+        consecutiveAbilityUses: 0,
+        effects: [{
+          id: "reflect:terminal",
+          sourceAbilityId: "monster.transparent-report",
+          target: "monster",
+          kind: "reflect",
+          value: 3,
+          charges: 1
+        }],
+        ownActionCount: 0
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.1, 0.1, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected reactive terminal turn to resolve.");
+    }
+    expect(result.state.status).toBe("lost");
+    expect(result.state.hero.hp).toBe(0);
+    expect(result.state.monster.hp).toBe(0);
+    expect(result.summary.heroDamage).toBeGreaterThan(0);
+    expect(result.summary.monsterDamage).toBe(3);
+    expect(result.state.turnLog?.[0]?.eventId).toBe("terminal:lost");
+  });
+
   it("puts class skills on one intervening own action cooldown and treats cooldown presses as no-op", () => {
     const sturdyMonster = { ...monster, hpMax: 80 };
     const first = resolveCombatTurn({
@@ -935,6 +989,20 @@ describe("combat domain engine", () => {
         critical: false
       }
     });
+    expect(expired.turnLog).toHaveLength(1);
+    expect(expired.turnLog?.[0]).toMatchObject({
+      eventId: "terminal:expired",
+      turn: activeState.turn,
+      summary: expired.lastTurn,
+      hero: {
+        hp: activeState.hero.hp,
+        mana: activeState.hero.mana
+      },
+      monster: {
+        hp: activeState.monster.hp
+      }
+    });
+    expect(expireCombat(expired).turnLog).toHaveLength(1);
 
     const result = resolveCombatTurn({
       state: expired,

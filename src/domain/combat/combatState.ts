@@ -12,6 +12,7 @@ import {
 import type { MonsterContextSnapshotV1 } from "./monsterContext";
 
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
+export const COMBAT_TURN_LOG_MAX_ENTRIES = 587;
 export type CombatActionType = "attack" | "defend" | "skill" | "flee" | "skip";
 export type PlayerCombatActionType = Exclude<CombatActionType, "skip">;
 export type CombatDamageKind = "physical" | "spell" | "social" | "trick";
@@ -199,6 +200,7 @@ export interface CombatTurnSummary {
 }
 
 export interface CombatTurnLogEntry {
+  eventId?: string;
   turn: number;
   summary: CombatTurnSummary;
   hero: {
@@ -341,18 +343,47 @@ export function expireCombat(state: CombatState): CombatState {
     return cloneCombatState(state);
   }
 
-  return {
+  const lastTurn: CombatTurnSummary = {
+    action: "flee",
+    heroOutcome: "inactive",
+    heroDamage: 0,
+    monsterDamage: 0,
+    manaSpent: 0,
+    critical: false
+  };
+  const next: CombatState = {
     ...cloneCombatState(state),
     status: "expired",
-    lastTurn: {
-      action: "flee",
-      heroOutcome: "inactive",
-      heroDamage: 0,
-      monsterDamage: 0,
-      manaSpent: 0,
-      critical: false
-    }
+    lastTurn
   };
+  appendCombatTurnLogEntry(next, {
+    eventId: getTerminalCombatTurnLogEventId("expired"),
+    turn: Math.max(1, state.turn),
+    summary: lastTurn,
+    hero: {
+      hp: next.hero.hp,
+      mana: next.hero.mana
+    },
+    monster: {
+      hp: next.monster.hp
+    }
+  });
+
+  return next;
+}
+
+export function getTerminalCombatTurnLogEventId(status: Exclude<CombatStatus, "active">): string {
+  return `terminal:${status}`;
+}
+
+export function appendCombatTurnLogEntry(state: CombatState, entry: CombatTurnLogEntry): void {
+  const existing = state.turnLog ?? [];
+
+  if (entry.eventId && existing.some((candidate) => candidate.eventId === entry.eventId)) {
+    return;
+  }
+
+  state.turnLog = [...existing, cloneCombatTurnLogEntry(entry)].slice(-COMBAT_TURN_LOG_MAX_ENTRIES);
 }
 
 export function markCombatTurnTimeoutMode(
@@ -363,15 +394,33 @@ export function markCombatTurnTimeoutMode(
     return state;
   }
 
+  const lastTurn = {
+    ...state.lastTurn,
+    debugTrace: {
+      ...state.lastTurn.debugTrace,
+      timeoutMode
+    }
+  };
+  const existingTurnLog = state.turnLog;
+  const turnLog = existingTurnLog
+    ? existingTurnLog.map((entry, index) => index === existingTurnLog.length - 1
+      ? {
+          ...entry,
+          summary: {
+            ...entry.summary,
+            debugTrace: {
+              ...entry.summary.debugTrace,
+              timeoutMode
+            }
+          }
+        }
+      : entry)
+    : undefined;
+
   return {
     ...state,
-    lastTurn: {
-      ...state.lastTurn,
-      debugTrace: {
-        ...state.lastTurn.debugTrace,
-        timeoutMode
-      }
-    }
+    lastTurn,
+    ...(turnLog ? { turnLog } : {})
   };
 }
 
@@ -402,6 +451,7 @@ export function cloneCombatTurnSummary(summary: CombatTurnSummary): CombatTurnSu
 
 export function cloneCombatTurnLogEntry(entry: CombatTurnLogEntry): CombatTurnLogEntry {
   return {
+    ...(entry.eventId ? { eventId: entry.eventId } : {}),
     turn: entry.turn,
     summary: cloneCombatTurnSummary(entry.summary),
     hero: { ...entry.hero },
