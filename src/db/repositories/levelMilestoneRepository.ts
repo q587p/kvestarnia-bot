@@ -5,6 +5,9 @@ export const LEVEL_MILESTONE_LOCAL_DATE = "once";
 export const LEVEL_MILESTONE_MIN_LEVEL = 2;
 export const LEVEL_MILESTONE_MAX_LEVEL = 13;
 export const LEVEL_MILESTONE_VISIBLE_LEVELS = LEVEL_MILESTONE_MAX_LEVEL - LEVEL_MILESTONE_MIN_LEVEL + 1;
+export const REMORT_LEVEL_MILESTONE_MIN_LEVEL = 1;
+export const REMORT_LEVEL_MILESTONE_VISIBLE_LEVELS =
+  LEVEL_MILESTONE_MAX_LEVEL - REMORT_LEVEL_MILESTONE_MIN_LEVEL + 1;
 
 export interface LevelMilestoneEntry {
   rank: number;
@@ -30,6 +33,13 @@ export interface LevelMilestoneRepository {
     maxLevels?: number;
     maxEntriesPerLevel?: number;
   }): Promise<LevelMilestoneBoard>;
+  listFirstReachedLevelsForRemort(
+    remortNumber: number,
+    input?: {
+      maxLevels?: number;
+      maxEntriesPerLevel?: number;
+    }
+  ): Promise<LevelMilestoneBoard>;
 }
 
 type LevelMilestoneWriter = Pick<Prisma.TransactionClient, "dailyAction">;

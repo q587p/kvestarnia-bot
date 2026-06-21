@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildLevelMilestoneKey,
   LEVEL_MILESTONE_VISIBLE_LEVELS,
+  REMORT_LEVEL_MILESTONE_VISIBLE_LEVELS,
   parseLevelMilestoneKey,
   recordLevelMilestones
 } from "../../src/db/repositories/levelMilestoneRepository";
@@ -65,5 +66,9 @@ describe("level milestone repository helpers", () => {
 
   it("keeps the public board range wide enough to show levels 13 down to 2", () => {
     expect(LEVEL_MILESTONE_VISIBLE_LEVELS).toBe(12);
+  });
+
+  it("keeps the remort detail range wide enough to show levels 13 down to 1", () => {
+    expect(REMORT_LEVEL_MILESTONE_VISIBLE_LEVELS).toBe(13);
   });
 });
