@@ -348,7 +348,7 @@ describe("presence middleware", () => {
     });
   });
 
-  it("marks the korchma menu button as the hall", async () => {
+  it("marks the legacy korchma menu button as the current place", async () => {
     const presence = new CapturingPresenceService();
     const bot = createTestBot(presence, {
       tavern: readyTavernService()
@@ -364,7 +364,7 @@ describe("presence middleware", () => {
       }
     });
     expect(presence.marks[1]).toMatchObject({
-      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
       currentRaidId: null,
       currentAdventureId: null
     });

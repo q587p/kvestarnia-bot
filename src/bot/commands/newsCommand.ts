@@ -5,13 +5,22 @@ import { safeEditMessageText } from "../safeEditMessageText";
 
 export function registerNewsCommand(bot: Bot): void {
   bot.command("news", async (ctx) => {
-    const page = await buildNewsIndexPage();
-    await ctx.reply(page.text, keyboardOptions(page));
+    await sendNewsList(ctx, 0, "reply");
   });
 }
 
-export async function sendNewsList(ctx: Context, page: number): Promise<void> {
+export async function sendNewsList(
+  ctx: Context,
+  page: number,
+  mode: "reply" | "edit" = "edit"
+): Promise<void> {
   const newsPage = await buildNewsIndexPage(page);
+
+  if (mode === "reply") {
+    await ctx.reply(newsPage.text, keyboardOptions(newsPage));
+    return;
+  }
+
   await safeEditMessageText(ctx, newsPage.text, keyboardOptions(newsPage));
 }
 

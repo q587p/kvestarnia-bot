@@ -8,7 +8,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
-import { mainMenuButtons } from "../keyboards/mainMenuKeyboard";
+import { isMainMenuLocationButtonText, mainMenuButtons } from "../keyboards/mainMenuKeyboard";
 import { parseStartPayload } from "../startPayload";
 
 export type PresenceContext = Omit<MarkPlayerPresenceInput, "user">;
@@ -197,7 +197,7 @@ export function getTextPresenceContext(text: string): PresenceContext | null {
     return getCommandPresenceContext(command);
   }
 
-  if (text === mainMenuButtons.tavern) {
+  if (isMainMenuLocationButtonText(text)) {
     return {};
   }
 

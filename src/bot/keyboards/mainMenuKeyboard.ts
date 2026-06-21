@@ -1,6 +1,23 @@
 import { InlineKeyboard, Keyboard } from "grammy";
 import { makeDevResetCallbackData } from "../callbacks/devResetCallbackData";
 import { makeRestartCallbackData } from "../callbacks/restartCallbackData";
+import {
+  PRESENCE_LOCATION_KORCHMA_BAR,
+  PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_DEEP,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
+  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+  PRESENCE_LOCATION_KORCHMA_FRONT,
+  PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+  normalizePresenceLocationId
+} from "../../services/presenceService";
 
 export const mainMenuButtons = {
   hero: "👤 Персонаж",
@@ -11,10 +28,56 @@ export const mainMenuButtons = {
   help: "📖 Допомога"
 } as const;
 
-export function buildMainMenuKeyboard(): Keyboard {
+export const mainMenuLocationButtons = {
+  fallback: mainMenuButtons.tavern,
+  front: "🚪 Перед корчмою",
+  hall: "🍺 Зала корчми",
+  questTable: "📋 Стіл зі справами",
+  bar: "🍻 Шинок",
+  cellar: "🧹 Льох корчми",
+  barrel: "🛢️ Біля Бочки",
+  newsCorner: "📰 Дошка вістей",
+  rangerCorner: "🏹 Єгерський куток",
+  fightingCorner: "🥊 Бійцівський куток",
+  deep: "🪜 Низ",
+  deepLevel1: "🧱 Сутерени Корчми",
+  deepLeft: "⬅️ Лівий прохід",
+  deepStraight: "🚪 Прямий прохід",
+  deepRight: "➡️ Правий прохід"
+} as const;
+
+const locationButtonByPresenceId = new Map<string, string>([
+  [PRESENCE_LOCATION_KORCHMA_FRONT, mainMenuLocationButtons.front],
+  [PRESENCE_LOCATION_KORCHMA_HALL, mainMenuLocationButtons.hall],
+  [PRESENCE_LOCATION_KORCHMA_QUEST_TABLE, mainMenuLocationButtons.questTable],
+  [PRESENCE_LOCATION_KORCHMA_BAR, mainMenuLocationButtons.bar],
+  [PRESENCE_LOCATION_KORCHMA_CELLAR, mainMenuLocationButtons.cellar],
+  [PRESENCE_LOCATION_KORCHMA_BARREL, mainMenuLocationButtons.barrel],
+  [PRESENCE_LOCATION_KORCHMA_NEWS_CORNER, mainMenuLocationButtons.newsCorner],
+  [PRESENCE_LOCATION_KORCHMA_RANGER_CORNER, mainMenuLocationButtons.rangerCorner],
+  [PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER, mainMenuLocationButtons.fightingCorner],
+  [PRESENCE_LOCATION_KORCHMA_DEEP, mainMenuLocationButtons.deep],
+  [PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1, mainMenuLocationButtons.deepLevel1],
+  [PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT, mainMenuLocationButtons.deepLeft],
+  [PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT, mainMenuLocationButtons.deepStraight],
+  [PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT, mainMenuLocationButtons.deepRight]
+]);
+
+export const mainMenuLocationButtonTexts: readonly string[] = [
+  mainMenuButtons.tavern,
+  ...new Set(Object.values(mainMenuLocationButtons))
+];
+
+export interface MainMenuKeyboardOptions {
+  locationId?: string | null;
+}
+
+export function buildMainMenuKeyboard(options: MainMenuKeyboardOptions = {}): Keyboard {
+  const locationButton = getMainMenuLocationButtonText(options.locationId);
+
   return new Keyboard()
     .text(mainMenuButtons.hero)
-    .text(mainMenuButtons.tavern)
+    .text(locationButton)
     .row()
     .text(mainMenuButtons.quest)
     .text(mainMenuButtons.inventory)
@@ -24,6 +87,20 @@ export function buildMainMenuKeyboard(): Keyboard {
     .resized()
     .persistent()
     .placeholder("Що робимо далі?");
+}
+
+export function getMainMenuLocationButtonText(locationId: string | null | undefined): string {
+  if (!locationId) {
+    return mainMenuButtons.tavern;
+  }
+
+  const normalized = normalizePresenceLocationId(locationId);
+
+  return locationButtonByPresenceId.get(normalized) ?? mainMenuButtons.tavern;
+}
+
+export function isMainMenuLocationButtonText(text: string | undefined): boolean {
+  return Boolean(text && mainMenuLocationButtonTexts.includes(text));
 }
 
 export function buildDevResetKeyboard(): InlineKeyboard {

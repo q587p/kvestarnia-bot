@@ -37,7 +37,8 @@ import {
   buildDevResetKeyboard,
   buildMainMenuKeyboard,
   buildRestartKeyboard,
-  mainMenuButtons
+  mainMenuButtons,
+  mainMenuLocationButtons
 } from "../../src/bot/keyboards/mainMenuKeyboard";
 import {
   buildLevelBarterOfferKeyboard,
@@ -79,6 +80,17 @@ describe("main menu and scene keyboards", () => {
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
     expect(keyboard.is_persistent).toBe(true);
+  });
+
+  it("labels the persistent location button with the current place", () => {
+    const keyboard = buildMainMenuKeyboard({
+      locationId: "location.korchma.deep.level1.left"
+    });
+
+    expect(replyKeyboardTexts(keyboard.keyboard)[0]).toEqual([
+      mainMenuButtons.hero,
+      mainMenuLocationButtons.deepLeft
+    ]);
   });
 
   it("builds korchma place navigation", () => {

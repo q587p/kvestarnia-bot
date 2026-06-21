@@ -32,7 +32,7 @@ import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackDa
 import { makeYegerTrackCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
-import { mainMenuButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
+import { mainMenuButtons, mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
 
 type MarkPresenceInput = Parameters<NonNullable<BotServices["presence"]>["markAction"]>[0];
 
@@ -1285,7 +1285,8 @@ describe("scene callback HTML options", () => {
 
   it.each([
     mainMenuButtons.tavern,
-    mainMenuButtons.quest
+    mainMenuButtons.quest,
+    mainMenuLocationButtons.deepLeft
   ])("keeps main-menu text %s inside an active persistent fight", async (text) => {
     const calls = await captureTextApiCalls(
       text,
@@ -1313,6 +1314,54 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
     expect(String(reply?.payload.text)).toContain("❤️ Ви:");
     expect(String(reply?.payload.text)).toContain("⏳ На хід є 23 секунди.");
+  });
+
+  it("opens the current place from the persistent location reply button", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const calls = await captureTextApiCalls(
+      mainMenuLocationButtons.bar,
+      servicesWith({
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.bar",
+              locationName: "Шинок",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({ state: "none" })
+        },
+        fight: {
+          getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        }
+      })
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+    const keyboard = JSON.stringify(reply?.payload.reply_markup);
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.bar",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(String(reply?.payload.text)).toContain("🍻 Шинок");
+    expect(keyboard).toContain("🍻 Всім пива");
+    expect(keyboard).toContain("v1:tavern:round");
   });
 
   it.each([

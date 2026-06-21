@@ -12,6 +12,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../src/services/presenceService";
+import { mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
 
 describe("presence routing", () => {
   it.each([
@@ -201,4 +202,14 @@ describe("presence routing", () => {
       expect(getTextPresenceContext(text)).toEqual({});
     }
   );
+
+  it.each([
+    mainMenuLocationButtons.bar,
+    mainMenuLocationButtons.deepLeft,
+    mainMenuLocationButtons.deepStraight,
+    mainMenuLocationButtons.deepRight,
+    mainMenuLocationButtons.newsCorner
+  ])("routes location reply text %s without moving place before the handler opens it", (text) => {
+    expect(getTextPresenceContext(text)).toEqual({});
+  });
 });
