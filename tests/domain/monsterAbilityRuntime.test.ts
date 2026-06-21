@@ -410,6 +410,48 @@ describe("monster ability runtime", () => {
     expect(purged.state.monsterRuntime?.effects.some((effect) => effect.id === "hero-positive")).toBe(false);
   });
 
+  it("applies hit-required bleed only when the direct attack lands", () => {
+    const missed = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.conditional-knife"),
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0, 0.99])
+    });
+    const landed = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.conditional-knife"),
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(missed.ability?.id).toBe("monster.conditional-knife");
+    expect(missed.damage).toBe(0);
+    expect(missed.state.monsterRuntime?.effects.some((effect) => effect.kind === "bleed")).toBe(false);
+    expect(landed.damage).toBeGreaterThan(0);
+    expect(landed.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
+      sourceAbilityId: "monster.conditional-knife",
+      target: "hero",
+      kind: "bleed"
+    }));
+  });
+
+  it("still applies independent support effects without direct damage", () => {
+    const result = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.transparent-report"),
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0, 0.99, 0.99])
+    });
+
+    expect(result.damage).toBe(0);
+    expect(result.outcome).toBe("hit");
+    expect(result.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
+      sourceAbilityId: "monster.transparent-report",
+      target: "monster",
+      kind: "reflect"
+    }));
+  });
+
   it("stores zero-damage support abilities as successful monster outcomes", () => {
     const result = resolveCombatTurn({
       state: startRuntimeAbilityState("monster.transparent-report"),
@@ -428,6 +470,50 @@ describe("monster ability runtime", () => {
     expect(result.summary.monsterOutcome).toBe("hit");
     expect(result.state.lastTurn?.monsterOutcome).toBe("hit");
     expect(result.state.turnLog?.[0]?.summary.monsterOutcome).toBe("hit");
+  });
+
+  it("preserves applied support outcome on timeout skip paths", () => {
+    const result = resolveCombatTurn({
+      state: startRuntimeAbilityState("monster.transparent-report"),
+      action: "skip",
+      actionOrigin: "timeout-skip",
+      hero,
+      monster: { ...mimic, attack: 4 },
+      rng: new FakeRandomSource([0, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected timeout skip turn to resolve.");
+    }
+    expect(result.summary.action).toBe("skip");
+    expect(result.summary.actionOrigin).toBe("timeout-skip");
+    expect(result.summary.monsterAction).toBe("skill");
+    expect(result.summary.monsterDamage).toBe(0);
+    expect(result.summary.monsterOutcome).toBe("hit");
+  });
+
+  it("does not classify monster defend or telegraph as accidental misses", () => {
+    const defended = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.sauce-spit", {
+        aiProfile: "defender",
+        loadoutIds: []
+      }),
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0.1])
+    });
+    const telegraph = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.ledger-charge"),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(defended.actionKind).toBe("defend");
+    expect(defended.outcome).toBe("defended");
+    expect(telegraph.actionKind).toBe("telegraph");
+    expect(telegraph.outcome).toBe("defended");
   });
 
   it("derives polarity metadata for legacy effects without broad target assumptions", () => {
@@ -724,12 +810,17 @@ describe("monster ability runtime", () => {
   });
 
   it("arms shield-survival next attack bonus only after shield survives damage", () => {
-    const shielded = startRuntimeAbilityState("monster.no-change", {
-      shield: {
-        sourceAbilityId: "monster.no-change",
-        points: 10
-      }
+    const cast = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.no-change"),
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0, 0, 0])
     });
+    expect(cast.ability?.id).toBe("monster.no-change");
+    expect(cast.state.monsterRuntime?.shield?.sourceAbilityId).toBe("monster.no-change");
+    expect(cast.state.monsterRuntime?.effects.some((effect) => effect.kind === "next-attack-bonus")).toBe(false);
+
+    const shielded = cloneCombatState(cast.state);
     const broken = cloneCombatState(shielded);
 
     applyMonsterRuntimeHeroDamage({
@@ -740,20 +831,139 @@ describe("monster ability runtime", () => {
     });
     applyMonsterRuntimeHeroDamage({
       state: broken,
-      heroDamage: 12,
+      heroDamage: 30,
       monsterHpBeforeDamage: 80,
       heroAction: "attack"
     });
 
-    expect(shielded.monsterRuntime?.effects.some((effect) => effect.kind === "next-attack-bonus")).toBe(true);
+    const bonus = shielded.monsterRuntime?.effects.find((effect) => effect.kind === "next-attack-bonus");
+    expect(bonus).toMatchObject({
+      sourceAbilityId: "monster.no-change",
+      charges: 1
+    });
+    expect(typeof bonus?.value).toBe("number");
+    expect(bonus?.value).toBeGreaterThan(1);
     expect(broken.monsterRuntime?.effects.some((effect) => effect.kind === "next-attack-bonus")).toBe(false);
   });
 
-  it("rolls counter chance with injected RNG instead of guaranteed reflect", () => {
-    const counterState = startRuntimeAbilityState("monster.salted-oath", {
+  it("does not consume armed next attack bonuses on miss, defend evasion, telegraph or support", () => {
+    const baseRuntime = {
+      version: 1 as const,
+      rulesVersion: "monster-abilities-v1" as const,
+      aiProfile: "boss" as const,
+      loadoutIds: ["monster.asset-freeze"],
+      cooldowns: {},
+      onceUsedAbilityIds: [],
+      consecutiveAbilityUses: 1,
       effects: [{
-        id: "counter:test",
-        sourceAbilityId: "monster.salted-oath",
+        id: "bonus:test",
+        sourceAbilityId: "monster.no-change",
+        sourceActor: "monster" as const,
+        target: "monster" as const,
+        kind: "next-attack-bonus" as const,
+        value: 1.2,
+        polarity: "beneficial" as const,
+        removable: true,
+        remainingOwnActivations: 2,
+        charges: 1
+      }],
+      ownActionCount: 1
+    };
+    const miss = resolveCombatTurn({
+      state: {
+        ...startCombat({ id: "bonus-basic-miss", hero, monster: taxDragon }),
+        monsterRuntime: baseRuntime
+      },
+      action: "attack",
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0.1, 0.9, 0.9, 0.99])
+    });
+    const defended = resolveCombatTurn({
+      state: {
+        ...startCombat({ id: "bonus-basic-defend", hero, monster: taxDragon }),
+        guard: { consecutiveDefends: 0 },
+        monsterRuntime: baseRuntime
+      },
+      action: "defend",
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1])
+    });
+    const telegraph = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.ledger-charge", {
+        ...baseRuntime,
+        loadoutIds: ["monster.ledger-charge"]
+      }),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0])
+    });
+    const support = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.transparent-report", {
+        ...baseRuntime,
+        loadoutIds: ["monster.transparent-report"]
+      }),
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(miss.ok && miss.state.monsterRuntime?.effects.find((effect) => effect.id === "bonus:test")?.charges).toBe(1);
+    expect(defended.ok && defended.state.monsterRuntime?.effects.find((effect) => effect.id === "bonus:test")?.charges).toBe(1);
+    expect(telegraph.state.monsterRuntime?.effects.find((effect) => effect.id === "bonus:test")?.charges).toBe(1);
+    expect(support.state.monsterRuntime?.effects.find((effect) => effect.id === "bonus:test")?.charges).toBe(1);
+  });
+
+  it("copies last direct hero damage into bounded next-hit potency", () => {
+    const missing = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.mirror-doubt"),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0.99])
+    });
+    const low = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.mirror-doubt", { lastDirectHeroDamage: 4 }),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0.99])
+    });
+    const ordinary = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.mirror-doubt", { lastDirectHeroDamage: 20 }),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0.99])
+    });
+    const high = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.mirror-doubt", { lastDirectHeroDamage: 90 }),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0.99])
+    });
+    const valueOf = (state: CombatState): number =>
+      state.monsterRuntime?.effects.find((effect) => effect.kind === "next-attack-bonus")?.value ?? 0;
+
+    expect(valueOf(missing.state)).toBeGreaterThan(1);
+    expect(valueOf(low.state)).toBeGreaterThan(valueOf(missing.state));
+    expect(valueOf(ordinary.state)).toBeGreaterThan(valueOf(low.state));
+    expect(valueOf(high.state)).toBeGreaterThan(valueOf(ordinary.state));
+    expect(valueOf(high.state)).toBeLessThanOrEqual(1.75);
+  });
+
+  it("rolls real counter chance with injected RNG while flat reflect stays deterministic", () => {
+    const castCounter = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.salted-oath"),
+      hero,
+      monster: { ...mimic, attack: 12 },
+      rng: new FakeRandomSource([0, 0, 0])
+    });
+    castCounter.state.monster.attack = 12;
+    const missedCounter = cloneCombatState(castCounter.state);
+    const landedCounter = cloneCombatState(castCounter.state);
+    const flatReflect = startRuntimeAbilityState("monster.asset-freeze", {
+      effects: [{
+        id: "reflect:test",
+        sourceAbilityId: "monster.asset-freeze",
         target: "monster",
         kind: "reflect",
         value: 3,
@@ -761,22 +971,36 @@ describe("monster ability runtime", () => {
         charges: 1
       }]
     });
-    const missedCounter = cloneCombatState(counterState);
-    const landedCounter = cloneCombatState(counterState);
+
+    expect(castCounter.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
+      sourceAbilityId: "monster.salted-oath",
+      kind: "counter",
+      value: 0.25,
+      charges: 1
+    }));
 
     expect(applyMonsterRuntimeHeroDamage({
       state: missedCounter,
-      heroDamage: 6,
+      heroDamage: 30,
       monsterHpBeforeDamage: 80,
       heroAction: "attack",
       rng: new FakeRandomSource([0.99])
     }).reflectedDamage).toBe(0);
+    expect(missedCounter.monsterRuntime?.effects.find((effect) => effect.kind === "counter")?.charges).toBe(1);
     expect(applyMonsterRuntimeHeroDamage({
       state: landedCounter,
-      heroDamage: 6,
+      heroDamage: 30,
       monsterHpBeforeDamage: 80,
       heroAction: "attack",
       rng: new FakeRandomSource([0.01])
+    }).reflectedDamage).toBe(5);
+    expect(landedCounter.monsterRuntime?.effects.some((effect) => effect.kind === "counter")).toBe(false);
+    expect(applyMonsterRuntimeHeroDamage({
+      state: flatReflect,
+      heroDamage: 6,
+      monsterHpBeforeDamage: 80,
+      heroAction: "attack",
+      rng: new FakeRandomSource([0.99])
     }).reflectedDamage).toBe(3);
   });
 

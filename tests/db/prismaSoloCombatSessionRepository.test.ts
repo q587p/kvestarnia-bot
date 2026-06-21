@@ -208,6 +208,12 @@ describe("PrismaSoloCombatSessionRepository", () => {
         effects: [{
           kind: "ability-lock",
           remainingTargetActivations: 1
+        }, {
+          kind: "counter",
+          sourceAbilityId: "monster.salted-oath",
+          value: 0.25,
+          remainingOwnActivations: 2,
+          charges: 1
         }]
       },
       monster: {
@@ -665,15 +671,26 @@ function runtimeRoundTripState(): CombatState {
         sourceAbilityId: "monster.transparent-report",
         points: 4
       },
-      effects: [{
-        id: "monster.deadline-web:1:0",
-        sourceAbilityId: "monster.deadline-web",
-        target: "hero",
-        kind: "ability-lock",
-        value: 1,
-        remainingTargetActivations: 1,
-        charges: 1
-      }],
+      effects: [
+        {
+          id: "monster.deadline-web:1:0",
+          sourceAbilityId: "monster.deadline-web",
+          target: "hero",
+          kind: "ability-lock",
+          value: 1,
+          remainingTargetActivations: 1,
+          charges: 1
+        },
+        {
+          id: "monster.salted-oath:1:1",
+          sourceAbilityId: "monster.salted-oath",
+          target: "monster",
+          kind: "counter",
+          value: 0.25,
+          remainingOwnActivations: 2,
+          charges: 1
+        }
+      ],
       expiredEffectIds: ["monster.old-effect"],
       expiredEffects: [{
         target: "hero",

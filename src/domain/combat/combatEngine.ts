@@ -328,7 +328,9 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
     action: "skip",
     ...summaryActionOrigin(input),
     heroOutcome: "inactive",
-    monsterOutcome: nextState.status === "lost" ? "lost" : monsterDamage > 0 ? "hit" : "miss",
+    monsterOutcome: nextState.status === "lost"
+      ? "lost"
+      : monsterResponse.outcome ?? (monsterDamage > 0 ? "hit" : "miss"),
     heroDamage: 0,
     monsterDamage,
     manaSpent: 0,
