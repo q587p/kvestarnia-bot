@@ -51,7 +51,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       }
     });
 
-    return mapRecord(record);
+    return mapSoloCombatSessionRecord(record);
   }
 
   async listDueActiveSessions(
@@ -111,7 +111,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           continue;
         }
 
-        const mapped = mapRecord(record);
+        const mapped = mapSoloCombatSessionRecord(record);
 
         if (!mapped?.state?.turnExpiresAt || Date.parse(mapped.state.turnExpiresAt) > now.getTime()) {
           continue;
@@ -196,6 +196,49 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     });
   }
 
+  async listRecentOrdinaryMonsterIdsByTelegramUserId(
+    telegramUserId: bigint,
+    limit: number
+  ): Promise<string[]> {
+    const scanLimit = Math.min(50, Math.max(1, Math.floor(limit) * 4));
+    const records = await this.prisma.soloCombatSession.findMany({
+      where: {
+        character: {
+          user: {
+            telegramUserId
+          }
+        }
+      },
+      orderBy: [
+        { updatedAt: "desc" },
+        { id: "desc" }
+      ],
+      take: scanLimit,
+      select: {
+        monsterId: true,
+        stateJson: true
+      }
+    });
+
+    const result: string[] = [];
+    const seen = new Set<string>();
+
+    for (const record of records) {
+      const state = parseCombatState(record.stateJson);
+      if (state?.source !== "normal" || seen.has(record.monsterId)) {
+        continue;
+      }
+
+      result.push(record.monsterId);
+      seen.add(record.monsterId);
+      if (result.length >= limit) {
+        break;
+      }
+    }
+
+    return result;
+  }
+
   async findByIdForTelegramUserId(
     telegramUserId: bigint,
     sessionId: string
@@ -211,7 +254,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       }
     });
 
-    return mapRecord(record);
+    return mapSoloCombatSessionRecord(record);
   }
 
   async createForTelegramUser(
@@ -267,7 +310,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       throw error;
     });
 
-    return record ? mapRecord(record) : this.findActiveByTelegramUserId(telegramUserId);
+    return record ? mapSoloCombatSessionRecord(record) : this.findActiveByTelegramUserId(telegramUserId);
   }
 
   async markStatusById(
@@ -290,7 +333,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         throw error;
       });
 
-      return mapRecord(record);
+      return mapSoloCombatSessionRecord(record);
     }
 
     const record = await this.prisma.$transaction(async (tx) => {
@@ -320,7 +363,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       throw error;
     });
 
-    return mapRecord(record);
+    return mapSoloCombatSessionRecord(record);
   }
 
   async updateById(
@@ -346,7 +389,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         throw error;
       });
 
-      return mapRecord(record);
+      return mapSoloCombatSessionRecord(record);
     }
 
     const record = await this.prisma.$transaction(async (tx) => {
@@ -379,7 +422,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       throw error;
     });
 
-    return mapRecord(record);
+    return mapSoloCombatSessionRecord(record);
   }
 
   async updateByIdIfActiveTurn(
@@ -421,7 +464,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
     });
 
-    return mapRecord(record);
+    return mapSoloCombatSessionRecord(record);
   }
 
   async recordRewardById(
@@ -446,11 +489,11 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       throw error;
     });
 
-    return mapRecord(record);
+    return mapSoloCombatSessionRecord(record);
   }
 }
 
-function mapRecord(record: PrismaSoloCombatSessionRecord): SoloCombatSessionRecord | null {
+export function mapSoloCombatSessionRecord(record: PrismaSoloCombatSessionRecord): SoloCombatSessionRecord | null {
   if (!record) {
     return null;
   }

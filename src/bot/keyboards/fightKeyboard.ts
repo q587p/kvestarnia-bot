@@ -283,7 +283,7 @@ export function buildPersistentFightDifficultyKeyboard(): InlineKeyboard {
 
 export function buildPersistentFightPassagePreviewKeyboard(input: {
   passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
-  encounterSeed: string;
+  encounterToken: string;
 }): InlineKeyboard {
   return new InlineKeyboard()
     .text("⚔️ Атакувати", makeFightPassageAttackCallbackData(input))

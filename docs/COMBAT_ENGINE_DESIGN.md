@@ -284,6 +284,8 @@ Runtime rules stay solo-ready: group/party scope fields from content degrade to 
 
 Monster ability parameters compile into explicit execution components before AI legality and resolution: each component owns its target actor, condition, duration/charges, direct-hit requirement and applied-result key. Optional riders do not disable the whole ability when they have no target, cycle/parity riders apply only the selected branch, race-source locks do not become class-skill locks, and direct-hit marks/next-hit bonuses spend only on actual landed monster hits after defend evasion is known.
 
+`0.1.23` moves ordinary Nyz passage previews into durable `pending_passage_encounters` rows before combat starts. The pending row owns the opaque attack token, passage/origin, difficulty, selected monster id, frozen base/effective levels, rules version, expiry and consumed combat-session link. Reopening a passage reuses the live pending row; attacking consumes that row into one solo combat session; expired or stale preview buttons refresh visibly instead of rerolling a hidden client seed.
+
 ### Context snapshots and barks
 
 `0.1.21` adds the first contextual texture layer for persistent monster fights:

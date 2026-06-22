@@ -40,6 +40,7 @@ model Character {
   korchmaRoundPurchases KorchmaRoundPurchase[]
   huntContracts HuntContract[]
   soloCombatSessions SoloCombatSession[]
+  pendingPassageEncounters PendingPassageEncounter[]
   combatBalanceBattles CombatBalanceBattle[]
   barrelRaidNotifications BarrelRaidNotification[]
   mantokChestRuns MantokChestRun[]
@@ -94,6 +95,36 @@ model SoloCombatSession {
   @@index([monsterId])
   @@index([expiresAt])
   @@map("solo_combat_sessions")
+}
+
+model PendingPassageEncounter {
+  id                    String    @id @default(uuid())
+  token                 String    @unique
+  characterId           String    @map("character_id")
+  character             Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  originLocationId      String    @map("origin_location_id")
+  passage               String
+  difficulty            String
+  monsterId             String    @map("monster_id")
+  baseMonsterLevel      Int       @map("base_monster_level")
+  effectiveMonsterLevel Int       @map("effective_monster_level")
+  rulesVersion          String    @map("rules_version")
+  seedHash              String    @map("seed_hash")
+  status                String    @default("pending")
+  activeKey             String?   @unique @map("active_key")
+  version               Int       @default(1)
+  combatSessionId       String?   @map("combat_session_id")
+  expiresAt             DateTime  @map("expires_at")
+  consumedAt            DateTime? @map("consumed_at")
+  cancelledAt           DateTime? @map("cancelled_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([characterId, status, expiresAt])
+  @@index([originLocationId])
+  @@index([monsterId])
+  @@index([combatSessionId])
+  @@map("pending_passage_encounters")
 }
 
 model CombatBalanceBattle {

@@ -23,6 +23,7 @@ import { PrismaKorchmaRoundPurchaseRepository } from "./db/repositories/prismaKo
 import { PrismaLevelMilestoneRepository } from "./db/repositories/prismaLevelMilestoneRepository";
 import { PrismaMantokChestRepository } from "./db/repositories/prismaMantokChestRepository";
 import { PrismaPresenceRepository } from "./db/repositories/prismaPresenceRepository";
+import { PrismaPendingPassageEncounterRepository } from "./db/repositories/prismaPendingPassageEncounterRepository";
 import { PrismaRemortRepository } from "./db/repositories/prismaRemortRepository";
 import { PrismaSoloCombatSessionRepository } from "./db/repositories/prismaSoloCombatSessionRepository";
 import { PrismaUserRepository } from "./db/repositories/prismaUserRepository";
@@ -69,6 +70,7 @@ const levelMilestones = new PrismaLevelMilestoneRepository(prisma);
 const mantokChestRuns = new PrismaMantokChestRepository(prisma);
 const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
+const pendingPassageEncounters = new PrismaPendingPassageEncounterRepository(prisma);
 const remorts = new PrismaRemortRepository(prisma);
 const soloCombatSessions = new PrismaSoloCombatSessionRepository(prisma);
 const combatBalanceAnalytics = new CombatBalanceAnalyticsService(
@@ -82,7 +84,8 @@ const fight = new FightService(
   soloCombatSessions,
   undefined,
   equipment,
-  combatBalanceAnalytics
+  combatBalanceAnalytics,
+  pendingPassageEncounters
 );
 const presenceService = new PresenceService(presence);
 const services = {

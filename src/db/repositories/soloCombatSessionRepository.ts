@@ -73,6 +73,10 @@ export interface SoloCombatSessionRepository {
     telegramUserId: bigint,
     since: Date
   ): Promise<SoloCombatSessionCompletionRecord[]>;
+  listRecentOrdinaryMonsterIdsByTelegramUserId?(
+    telegramUserId: bigint,
+    limit: number
+  ): Promise<string[]>;
   findByIdForTelegramUserId(
     telegramUserId: bigint,
     sessionId: string

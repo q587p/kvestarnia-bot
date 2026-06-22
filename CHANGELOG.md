@@ -7,6 +7,24 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.23] - 12026-06-22 - Encounter Preview Memory and Anti-Repetition
+
+### Added
+- Added durable `pending_passage_encounters` storage for ordinary Nyz passage previews. Each pending row stores a server-owned token, character ownership, passage/origin, difficulty, frozen monster ID, frozen base/effective levels, rules version, seed metadata, expiry and consumed combat-session link.
+- Added a nullable unique active key so one character can keep one live pending preview per passage while consumed/expired rows remain historical.
+- Added focused service coverage for same-passage sticky previews, expired-token refresh, exact frozen monster consumption and ordinary anti-repeat fallback order.
+
+### Changed
+- Nyz passage `Атакувати` buttons now carry compact opaque server tokens instead of Telegram-returned encounter seeds.
+- Reopening the same passage before preview expiry returns the same monster and effective level; opening another passage can keep its own pending preview.
+- Pressing an expired, stale or catalog-invalid preview button now refreshes the preview with a short explanation instead of silently starting a different monster.
+- Consuming a pending preview atomically links it to at most one persistent solo combat session; duplicate attack callbacks recover the linked session when available.
+- Ordinary Nyz monster selection now checks bounded recent ordinary fight history before choosing: it avoids the immediately previous monster when alternatives exist, avoids the last three distinct monsters when the legal pool is large enough, and falls back to the original deterministic pool for small candidate sets.
+- Legacy seed-shaped passage callbacks no longer select or start a client-chosen monster; they refresh a current server-owned preview instead.
+
+### Unchanged
+- Yeger targeted encounters, adventure handoff fights, training doppelgangers, starter fights, monster ability loadouts, timeout auto-defend and reward/Yeger progression rules are unchanged.
+
 ## [0.1.22] - 12026-06-21 - Monster Abilities, Titles & Battle Journal
 
 ### Added

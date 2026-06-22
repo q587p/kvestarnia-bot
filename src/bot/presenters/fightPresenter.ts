@@ -140,13 +140,28 @@ export function presentPersistentFightPassagePreview(
   result: Extract<PersistentFightPreviewResult, { state: "persistent-preview" }>
 ): string {
   const passage = getPersistentFightPassagePreviewCopy(result.originLocationId);
+  const refreshLine = getPassagePreviewRefreshLine(result.refreshed);
 
   return [
     `${passage.icon} <b>${escapeHtml(passage.title)}</b>`,
     presentCharacterHeader(result.character),
     "",
+    ...(refreshLine ? [refreshLine, ""] : []),
     `Ви у ${passage.locative}. Бачите перед собою <b>${escapeHtml(result.monster.name)}</b>. Він вас ще не побачив.`
   ].join("\n");
+}
+
+function getPassagePreviewRefreshLine(reason: Extract<PersistentFightPreviewResult, { state: "persistent-preview" }>["refreshed"]): string | null {
+  switch (reason) {
+    case "expired":
+      return "Старий слід розсипався. Низ показав іншу підозрілу тінь.";
+    case "missing-monster":
+      return "Попередня тінь зникла з корчемного обліку. Корчма показала свіжу.";
+    case "stale":
+      return "Цей сувій уже не веде в бій. Ось поточний слід.";
+    default:
+      return null;
+  }
 }
 
 function getPersistentFightPassagePreviewCopy(originLocationId: string): {

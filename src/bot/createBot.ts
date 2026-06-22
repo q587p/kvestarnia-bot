@@ -1841,7 +1841,7 @@ async function sendPersistentFightPassagePreview(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildPersistentFightPassagePreviewKeyboard({
       passage: passageFight.passage,
-      encounterSeed: preview.encounterSeed
+      encounterToken: preview.encounterToken
     })
   });
 }
@@ -3109,19 +3109,44 @@ async function handleFightCallback(
       return;
     }
 
+    const place = await services.presence.getCurrentPlaceForTelegramUser(telegramUserId);
+    if (place.state !== "ready" || place.locationId !== passageFight.locationId) {
+      await safeAnswerCallbackQuery(ctx);
+      await sendPersistentFightPassagePreview(ctx, services, passageFight, "edit");
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    const result = await services.fight.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      callback.encounterToken
+    );
+
+    if (result.state === "persistent-preview") {
+      await safeEditMessageText(ctx, presentPersistentFightPassagePreview(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPersistentFightPassagePreviewKeyboard({
+          passage: passageFight.passage,
+          encounterToken: result.encounterToken
+        })
+      });
+      return;
+    }
+
+    if (result.state === "invalid-preview") {
+      await sendPersistentFightPassagePreview(ctx, services, passageFight, "edit");
+      return;
+    }
+
     await markScenePresence(ctx, services.presence, {
       locationId: passageFight.locationId,
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
     });
-    await safeAnswerCallbackQuery(ctx);
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
-      requireKorchmaInterior: false,
-      difficulty: passageFight.difficulty,
-      originLocationId: passageFight.locationId,
-      encounterSeed: callback.encounterSeed
+      requireKorchmaInterior: false
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
