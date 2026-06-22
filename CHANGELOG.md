@@ -18,6 +18,8 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Nyz passage `Атакувати` buttons now carry compact opaque server tokens instead of Telegram-returned encounter seeds.
 - Reopening the same passage before preview expiry returns the same monster and effective level; opening another passage can keep its own pending preview.
+- Passage previews now stay reusable for 93 minutes when not attacked, then expire into a fresh server-owned preview instead of leaving the same monster parked for hours or days.
+- Nyz passage preview copy now includes the shown monster's level before the player commits to attacking.
 - Pressing an expired, stale or catalog-invalid preview button now refreshes the preview with a short explanation instead of silently starting a different monster.
 - Consuming a pending preview atomically links it to at most one persistent solo combat session; duplicate attack callbacks recover the linked session when available.
 - Ordinary Nyz monster selection now checks bounded recent ordinary fight history before choosing: it avoids the immediately previous monster when alternatives exist, avoids the last three distinct monsters when the legal pool is large enough, and falls back to the original deterministic pool for small candidate sets.
@@ -30,6 +32,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Post-remort level milestones now use remort-specific daily-action keys instead of reusing base-life `milestone.level.N` keys, so remort detail boards can show levels 2-13 reached in the current life.
 - Memorial-board backfill now writes missing current-life remort milestones separately from base-life milestones, so already-remorted characters who have climbed again are no longer stuck showing only the remort's level 1 row.
 - Location-changing inline callbacks now send a short persistent-keyboard refresh when the stored place changes, so the main place button no longer stays on an older location such as `Перед корчмою` after descending into `Сутерени Корчми`.
+- Active persistent fight cards now repeat the fight header, opponent name and monster level, and show the start tip on the card that keeps the combat buttons.
 
 ### Unchanged
 - Yeger targeted encounters, adventure handoff fights, training doppelgangers, starter fights, monster ability loadouts, timeout auto-defend and reward/Yeger progression rules are unchanged.

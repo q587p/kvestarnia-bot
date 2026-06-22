@@ -48,6 +48,7 @@ import {
   getGoldSensitiveItemDropChance,
   getPersistentFightDifficultyConfig,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
+  PENDING_PASSAGE_ENCOUNTER_TTL_MS,
   PERSISTENT_SOLO_FIGHT_REWARD_KEY,
   PROBLEM_QUEST_BUCKET,
   PROBLEM_QUEST_STAGES,
@@ -1095,6 +1096,8 @@ describe("FightService", () => {
       expect(second.encounterToken).toBe(first.encounterToken);
       expect(second.monster.id).toBe(first.monster.id);
       expect(second.monster.level).toBe(first.monster.level);
+      expect(first.expiresAt.getTime() - fixedClock().getTime()).toBe(PENDING_PASSAGE_ENCOUNTER_TTL_MS);
+      expect(PENDING_PASSAGE_ENCOUNTER_TTL_MS).toBe(93 * 60 * 1000);
     }
     expect(pending.createCount).toBe(1);
   });

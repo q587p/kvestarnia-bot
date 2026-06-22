@@ -132,7 +132,7 @@ export const THIRTEEN_SMALL_PROBLEMS_REWARD = {
 export const MONSTER_REST_ELIGIBLE_FIGHT_COUNT = 3;
 export const MONSTER_REST_COOLDOWN_MS = 3 * 60 * 1000;
 export const PERSISTENT_FIGHT_TURN_SECONDS = 23;
-export const PENDING_PASSAGE_ENCOUNTER_TTL_MS = 13 * 60 * 1000;
+export const PENDING_PASSAGE_ENCOUNTER_TTL_MS = 93 * 60 * 1000;
 export const PENDING_PASSAGE_ENCOUNTER_RULES_VERSION = "nyz-passage-preview-v1";
 
 export type ProblemQuestStageId = "13" | "23" | "42" | "93";
