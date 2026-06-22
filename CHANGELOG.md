@@ -29,6 +29,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Fixed
 - Post-remort level milestones now use remort-specific daily-action keys instead of reusing base-life `milestone.level.N` keys, so remort detail boards can show levels 2-13 reached in the current life.
 - Memorial-board backfill now writes missing current-life remort milestones separately from base-life milestones, so already-remorted characters who have climbed again are no longer stuck showing only the remort's level 1 row.
+- Location-changing inline callbacks now send a short persistent-keyboard refresh when the stored place changes, so the main place button no longer stays on an older location such as `Перед корчмою` after descending into `Сутерени Корчми`.
 
 ### Unchanged
 - Yeger targeted encounters, adventure handoff fights, training doppelgangers, starter fights, monster ability loadouts, timeout auto-defend and reward/Yeger progression rules are unchanged.

@@ -210,6 +210,7 @@ import {
 } from "./keyboards/onboardingKeyboard";
 import {
   buildMainMenuKeyboard,
+  getMainMenuLocationButtonText,
   getMainMenuLocationButtonPresenceId,
   isMainMenuLocationButtonText,
   mainMenuButtons,
@@ -456,6 +457,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   registerTavernCommand(bot, services.tavern, services.presence);
   registerPlannedCommands(bot);
   registerMainMenuKeyboard(bot, services);
+  registerCallbackMainMenuLocationRefresh(bot, services.presence);
 
   bot.callbackQuery(/^v1:onb:/, async (ctx) => {
     const parsed = parseOnboardingCallbackData(ctx.callbackQuery.data);
@@ -2279,37 +2281,81 @@ async function buildCurrentMainMenuKeyboard(
   });
 }
 
+function registerCallbackMainMenuLocationRefresh(bot: Bot, presenceService: PresenceService): void {
+  bot.on("callback_query:data", async (ctx, next) => {
+    const previousLocationId = await getCurrentMainMenuLocationId(ctx, presenceService);
+
+    await next();
+
+    if (previousLocationId === undefined) {
+      return;
+    }
+
+    await refreshCurrentMainMenuLocationKeyboard(ctx, presenceService, {
+      previousLocationId
+    });
+  });
+}
+
 async function refreshCurrentMainMenuLocationKeyboard(
   ctx: Context,
-  presenceService: PresenceService
+  presenceService: PresenceService,
+  options: { previousLocationId?: string | null } = {}
 ): Promise<void> {
+  if (options.previousLocationId === undefined) {
+    return;
+  }
+
+  const locationId = await getCurrentMainMenuLocationId(ctx, presenceService);
+
+  if (locationId === undefined) {
+    return;
+  }
+
+  await refreshMainMenuLocationKeyboard(ctx, locationId, options);
+}
+
+async function getCurrentMainMenuLocationId(
+  ctx: Context,
+  presenceService: PresenceService
+): Promise<string | null | undefined> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
-    return;
+    return undefined;
   }
 
   if (typeof presenceService.getCurrentPlaceForTelegramUser !== "function") {
-    return;
+    return undefined;
   }
 
   const place = await presenceService.getCurrentPlaceForTelegramUser(telegramUserId);
-  const locationId = place.state === "ready" ? normalizePresenceLocationId(place.locationId) : null;
 
-  await refreshMainMenuLocationKeyboard(ctx, locationId);
+  return place.state === "ready" ? normalizePresenceLocationId(place.locationId) : null;
 }
 
-function refreshMainMenuLocationKeyboard(
+async function refreshMainMenuLocationKeyboard(
   ctx: Context,
-  locationId: string | null
+  locationId: string | null,
+  options: { previousLocationId?: string | null } = {}
 ): Promise<void> {
-  void ctx;
-  void locationId;
+  if (options.previousLocationId === undefined) {
+    return;
+  }
 
-  // Telegram custom reply keyboards can only be refreshed by sending a visible message.
-  // Keep inline place/fight cards clean; the next regular reply-keyboard render carries
-  // the current location label, and location-button presses still resolve via presence.
-  return Promise.resolve();
+  const previousLocationId =
+    options.previousLocationId === null ? null : normalizePresenceLocationId(options.previousLocationId);
+  const normalizedLocationId = locationId === null ? null : normalizePresenceLocationId(locationId);
+
+  if (previousLocationId === normalizedLocationId) {
+    return;
+  }
+
+  await ctx.reply(`📍 Тепер: ${getMainMenuLocationButtonText(normalizedLocationId)}`, {
+    reply_markup: buildMainMenuKeyboard({
+      locationId: normalizedLocationId
+    })
+  });
 }
 
 async function sendCurrentLocation(ctx: Context, services: BotServices): Promise<void> {

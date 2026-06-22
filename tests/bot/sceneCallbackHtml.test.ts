@@ -1411,7 +1411,7 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).not.toContain("📋 Стіл зі справами");
   });
 
-  it("does not send a standalone reply-keyboard refresh message after place callbacks", async () => {
+  it("does not send a standalone reply-keyboard refresh message when a place callback keeps the same location", async () => {
     const calls = await captureApiCalls(
       makePlaceCallbackData("bar"),
       servicesWith({
@@ -1458,7 +1458,7 @@ describe("scene callback HTML options", () => {
     ["deep-left"],
     ["deep-straight"],
     ["deep-right"]
-  ] as const)("does not send a standalone reply-keyboard refresh after %s place callbacks", async (place) => {
+  ] as const)("does not send a standalone reply-keyboard refresh when %s keeps the same location", async (place) => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn();
     const previewPersistentFightForTelegramUser = vi.fn(() =>
@@ -2175,6 +2175,25 @@ describe("scene callback HTML options", () => {
   it("opens the first Nyz tier from the descent place callback", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn();
+    const getCurrentPlaceForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({
+        state: "ready" as const,
+        locationId: "location.korchma.deep",
+        locationName: "Низ",
+        insideKorchma: true
+      })
+      .mockResolvedValueOnce({
+        state: "ready" as const,
+        locationId: "location.korchma.deep.level1",
+        locationName: "Сутерени Корчми",
+        insideKorchma: true
+      })
+      .mockResolvedValue({
+        state: "ready" as const,
+        locationId: "location.korchma.deep.level1",
+        locationName: "Сутерени Корчми",
+        insideKorchma: true
+      });
     const calls = await captureApiCalls(
       makePlaceCallbackData("deep-level1"),
       servicesWith({
@@ -2192,17 +2211,16 @@ describe("scene callback HTML options", () => {
         },
         presence: {
           markAction,
-          getCurrentPlaceForTelegramUser: () =>
-            Promise.resolve({
-              state: "ready",
-              locationId: "location.korchma.deep",
-              locationName: "Низ",
-              insideKorchma: true
-            })
+          getCurrentPlaceForTelegramUser
         }
       })
     );
     const tier = calls.find((call) => call.method === "sendMessage");
+    const keyboardRefresh = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Тепер")
+    );
 
     expect(getOrStartPersistentFightForTelegramUser).not.toHaveBeenCalled();
     expect(markAction).toHaveBeenCalledWith(
@@ -2214,6 +2232,8 @@ describe("scene callback HTML options", () => {
     expect(String(tier?.payload.text)).toContain("Ярус I: Сутерени Корчми");
     expect(String(tier?.payload.text)).toContain("Підсходник");
     expect(JSON.stringify(tier?.payload.reply_markup)).toContain("🚪 Прямий прохід");
+    expect(String(keyboardRefresh?.payload.text)).toContain(mainMenuLocationButtons.deepLevel1);
+    expect(JSON.stringify(keyboardRefresh?.payload.reply_markup)).toContain(mainMenuLocationButtons.deepLevel1);
   });
 
   it("blocks lower-level stale Nyz descent place callbacks", async () => {
