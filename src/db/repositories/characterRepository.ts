@@ -43,6 +43,9 @@ export interface UpdateCharacterResourcesInput {
   manaCurrent: number;
   hpRegenAt: Date;
   manaRegenAt: Date;
+  expectedLife?: {
+    remortCount: number;
+  };
   expected?: {
     hpCurrent: number;
     manaCurrent: number;

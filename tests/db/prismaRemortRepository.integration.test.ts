@@ -121,6 +121,11 @@ describe("PrismaRemortRepository integration", () => {
     expect(state.status).toBe("expired");
     expect(state.completedAt).toBe(now.toISOString());
     expect(state.turnExpiresAt).toBeUndefined();
+    expect(state.settlement).toMatchObject({
+      status: "forfeited-by-remort",
+      reason: "remort",
+      settledAt: now.toISOString()
+    });
     expect(state.hero.hp).toBe(9);
     expect(state.monster.hp).toBe(17);
     expect(state.turnLog?.filter((entry) => entry.eventId === "terminal:expired")).toHaveLength(1);
@@ -159,6 +164,77 @@ describe("PrismaRemortRepository integration", () => {
     const replayedSession = await prisma.soloCombatSession.findUnique({ where: { id: "session-remort-solo" } });
     const replayedState = replayedSession?.stateJson as unknown as CombatState;
     expect(replayedState.turnLog?.filter((entry) => entry.eventId === "terminal:expired")).toHaveLength(1);
+  });
+
+  it("marks a terminal pending solo settlement as forfeited when remort wins first", async () => {
+    const now = new Date("2026-06-22T10:30:00.000Z");
+    await seedCharacter(prisma, {
+      userId: "user-remort-terminal-pending",
+      characterId: "character-remort-terminal-pending",
+      telegramUserId: 9305n
+    });
+    await seedDraft(prisma, "character-remort-terminal-pending", "token-remort-terminal-pending", now);
+    const terminalState: CombatState = {
+      ...makeCombatState("session-remort-terminal-pending"),
+      status: "won",
+      completedAt: now.toISOString(),
+      settlement: {
+        status: "pending",
+        version: 1
+      }
+    };
+    await prisma.soloCombatSession.create({
+      data: {
+        id: "session-remort-terminal-pending",
+        characterId: "character-remort-terminal-pending",
+        monsterId: "monster.deadline-spider",
+        status: "won",
+        turn: 3,
+        stateJson: terminalState,
+        expiresAt: new Date(now.getTime() + 30 * 60_000)
+      }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-remort-terminal-pending",
+        characterId: "character-remort-terminal-pending",
+        kind: "solo-combat",
+        referenceId: "session-remort-terminal-pending"
+      }
+    });
+
+    await expect(repository.completeDraftForTelegramUser(
+      9305n,
+      makeCompletionInput("token-remort-terminal-pending", now)
+    )).resolves.toMatchObject({ state: "completed" });
+
+    const session = await prisma.soloCombatSession.findUnique({
+      where: { id: "session-remort-terminal-pending" }
+    });
+    const state = session?.stateJson as unknown as CombatState;
+    expect(session).toMatchObject({
+      status: "won",
+      rewardXp: null,
+      rewardGold: null,
+      rewardClaimedAt: null
+    });
+    expect(state.settlement).toMatchObject({
+      status: "forfeited-by-remort",
+      reason: "remort",
+      settledAt: now.toISOString()
+    });
+    await expect(prisma.activeCombatLease.count({
+      where: { characterId: "character-remort-terminal-pending" }
+    })).resolves.toBe(0);
+    await expect(prisma.character.findUnique({
+      where: { id: "character-remort-terminal-pending" }
+    })).resolves.toMatchObject({
+      level: 1,
+      xp: 0,
+      gold: 0,
+      hpCurrent: 31,
+      manaCurrent: 12
+    });
   });
 
   it("blocks unsupported active leases without mutating remort state", async () => {

@@ -4,6 +4,8 @@ import type {
   CombatCopiedEquipment,
   CombatDamageKind,
   CombatDebugTrace,
+  CombatLifeState,
+  CombatSettlementState,
   CombatState,
   CombatStatus,
   CombatTurnLogEntry,
@@ -15,6 +17,7 @@ import type {
   CreateSoloCombatSessionInput,
   DueSoloCombatSessionRecord,
   RecordSoloCombatRewardInput,
+  SoloCombatSessionLifeRecord,
   SoloCombatSessionCompletionRecord,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository,
@@ -446,7 +449,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         }
       });
 
-      if (input.status !== "active") {
+      if (input.status !== "active" && input.releaseLease) {
         await tx.activeCombatLease.deleteMany({
           where: {
             referenceId: sessionId
@@ -490,7 +493,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         return null;
       }
 
-      if (input.status !== "active") {
+      if (input.status !== "active" && input.releaseLease) {
         await tx.activeCombatLease.deleteMany({
           where: {
             referenceId: sessionId
@@ -512,16 +515,31 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     sessionId: string,
     input: RecordSoloCombatRewardInput
   ): Promise<SoloCombatSessionRecord | null> {
-    const record = await this.prisma.soloCombatSession.update({
-      where: {
-        id: sessionId
-      },
-      data: {
-        rewardXp: input.rewardXp,
-        rewardGold: input.rewardGold,
-        rewardItemsJson: input.itemGrants,
-        rewardClaimedAt: input.claimedAt
+    const record = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.soloCombatSession.update({
+        where: {
+          id: sessionId
+        },
+        data: {
+          rewardXp: input.rewardXp,
+          rewardGold: input.rewardGold,
+          rewardItemsJson: input.itemGrants,
+          rewardClaimedAt: input.claimedAt,
+          ...(input.state ? { stateJson: input.state as unknown as Prisma.InputJsonValue } : {}),
+          ...(input.status ? { status: input.status } : {}),
+          ...(input.state ? { turn: input.state.turn } : {})
+        }
+      });
+
+      if (input.releaseLease) {
+        await tx.activeCombatLease.deleteMany({
+          where: {
+            referenceId: sessionId
+          }
+        });
       }
+
+      return updated;
     }).catch((error: unknown) => {
       if (isPrismaNotFound(error)) {
         return null;
@@ -531,6 +549,33 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     });
 
     return mapSoloCombatSessionRecord(record);
+  }
+
+  async resolveLifeById(sessionId: string): Promise<SoloCombatSessionLifeRecord | null> {
+    const session = await this.prisma.soloCombatSession.findUnique({
+      where: {
+        id: sessionId
+      },
+      select: {
+        characterId: true,
+        createdAt: true
+      }
+    });
+
+    if (!session) {
+      return null;
+    }
+
+    const remortCount = await this.prisma.characterRemort.count({
+      where: {
+        characterId: session.characterId,
+        createdAt: {
+          lte: session.createdAt
+        }
+      }
+    });
+
+    return { remortCount };
   }
 }
 
@@ -608,6 +653,8 @@ function parseCombatState(value: unknown): CombatState | null {
   const turn = intOrNull(value.turn);
   const status = parseStateStatus(value.status);
   const source = parseCombatSource(value.source);
+  const life = parseCombatLife(value.life);
+  const settlement = parseCombatSettlement(value.settlement);
   const hero = parseResourceBlock(value.hero);
   const monster = parseMonsterBlock(value.monster);
   const completedAt = parseIsoDate(value.completedAt);
@@ -631,6 +678,8 @@ function parseCombatState(value: unknown): CombatState | null {
   return {
     ...(typeof value.id === "string" ? { id: value.id } : {}),
     ...(source ? { source } : {}),
+    ...(life ? { life } : {}),
+    ...(settlement ? { settlement } : {}),
     ...(typeof value.originLocationId === "string" ? { originLocationId: value.originLocationId } : {}),
     ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
     ...(turnExpiresAt ? { turnExpiresAt: turnExpiresAt.toISOString() } : {}),
@@ -649,6 +698,58 @@ function parseCombatState(value: unknown): CombatState | null {
     ...(lastTurn ? { lastTurn } : {}),
     ...(turnLog.length > 0 ? { turnLog } : {})
   };
+}
+
+function parseCombatLife(value: unknown): CombatLifeState | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const remortCount = intOrNull(value.remortCount);
+  const startedAt = parseIsoDate(value.startedAt);
+
+  return remortCount === null || remortCount < 0
+    ? null
+    : {
+        ...(typeof value.characterId === "string" ? { characterId: value.characterId } : {}),
+        remortCount,
+        ...(startedAt ? { startedAt: startedAt.toISOString() } : {})
+      };
+}
+
+function parseCombatSettlement(value: unknown): CombatSettlementState | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const status = parseSettlementStatus(value.status);
+  const settledAt = parseIsoDate(value.settledAt);
+  const version = intOrNull(value.version);
+  const reason = parseSettlementReason(value.reason);
+
+  return status
+    ? {
+        status,
+        ...(settledAt ? { settledAt: settledAt.toISOString() } : {}),
+        ...(reason ? { reason } : {}),
+        ...(version !== null && version > 0 ? { version } : {})
+      }
+    : null;
+}
+
+function parseSettlementStatus(value: unknown): CombatSettlementState["status"] | null {
+  return value === "pending" || value === "completed" || value === "forfeited-by-remort"
+    ? value
+    : null;
+}
+
+function parseSettlementReason(value: unknown): CombatSettlementState["reason"] | null {
+  return value === "terminal" ||
+    value === "remort" ||
+    value === "legacy-life-mismatch" ||
+    value === "life-mismatch"
+    ? value
+    : null;
 }
 
 function parseTimeoutState(value: unknown): CombatState["timeout"] | null {

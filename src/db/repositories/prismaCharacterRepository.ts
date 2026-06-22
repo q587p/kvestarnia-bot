@@ -7,7 +7,7 @@ import type {
   UpdateCharacterResourcesInput
 } from "./characterRepository";
 import type { TelegramUserProfile } from "./userRepository";
-import { getIncludedRemortCount } from "./prismaRemortCount";
+import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 
 export type SpendGoldForTelegramUserResult =
   | { state: "spent"; character: CharacterRecord }
@@ -75,6 +75,70 @@ export class PrismaCharacterRepository implements CharacterRepository {
     telegramUserId: bigint,
     input: UpdateCharacterResourcesInput
   ): Promise<CharacterRecord | null> {
+    if (input.expectedLife) {
+      const expectedLife = input.expectedLife;
+      return this.prisma.$transaction(async (tx) => {
+        const character = await tx.character.findFirst({
+          where: {
+            user: {
+              telegramUserId
+            }
+          },
+          select: {
+            id: true
+          }
+        });
+
+        if (!character) {
+          return null;
+        }
+
+        const remortCount = await countCharacterRemorts(tx, character.id);
+        if (remortCount !== expectedLife.remortCount) {
+          return null;
+        }
+
+        const updated = await tx.character.updateMany({
+          where: {
+            id: character.id,
+            ...(input.expected
+              ? {
+                  hpCurrent: input.expected.hpCurrent,
+                  manaCurrent: input.expected.manaCurrent,
+                  ...(input.expected.hpRegenAt === undefined
+                    ? {}
+                    : { hpRegenAt: input.expected.hpRegenAt }),
+                  ...(input.expected.manaRegenAt === undefined
+                    ? {}
+                    : { manaRegenAt: input.expected.manaRegenAt })
+                }
+              : {})
+          },
+          data: {
+            hpCurrent: input.hpCurrent,
+            manaCurrent: input.manaCurrent,
+            hpRegenAt: input.hpRegenAt,
+            manaRegenAt: input.manaRegenAt
+          }
+        });
+
+        if (updated.count !== 1) {
+          return null;
+        }
+
+        const record = await tx.character.findUnique({
+          where: {
+            id: character.id
+          },
+          include: {
+            ...characterRecordInclude
+          }
+        });
+
+        return record ? toCharacterRecord(record) : null;
+      });
+    }
+
     if (input.expected) {
       const updated = await this.prisma.character.updateMany({
         where: {

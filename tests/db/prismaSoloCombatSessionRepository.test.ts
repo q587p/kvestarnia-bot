@@ -307,6 +307,15 @@ describe("PrismaSoloCombatSessionRepository", () => {
     });
 
     expect(mapped?.state?.originLocationId).toBe("location.korchma.deep.level1");
+    expect(mapped?.state?.life).toEqual({
+      characterId: "character-42",
+      remortCount: 1,
+      startedAt: "2026-06-20T00:00:00.000Z"
+    });
+    expect(mapped?.state?.settlement).toEqual({
+      status: "pending",
+      version: 1
+    });
     expect(mapped?.state?.guard).toEqual({ consecutiveDefends: 2 });
     expect(mapped?.state?.timeout).toEqual({
       consecutiveMissedTurns: 1,
@@ -606,6 +615,15 @@ function runtimeRoundTripState(): CombatState {
     ...activeCombatState,
     id: "session-round-trip",
     originLocationId: "location.korchma.deep.level1",
+    life: {
+      characterId: "character-42",
+      remortCount: 1,
+      startedAt: "2026-06-20T00:00:00.000Z"
+    },
+    settlement: {
+      status: "pending",
+      version: 1
+    },
     turn: 3,
       guard: {
         consecutiveDefends: 2

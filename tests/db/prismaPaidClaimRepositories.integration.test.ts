@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getLevelForXp } from "../../src/domain/progression/level";
+import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
 import { PrismaCooldownRepository } from "../../src/db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "../../src/db/repositories/prismaDailyActionRepository";
 
@@ -12,6 +13,7 @@ describe("paid Prisma claim repositories", () => {
   let prisma: PrismaClient;
   let dailyActions: PrismaDailyActionRepository;
   let cooldowns: PrismaCooldownRepository;
+  let characters: PrismaCharacterRepository;
 
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), "kvestarnia-paid-claim-repos-"));
@@ -26,6 +28,7 @@ describe("paid Prisma claim repositories", () => {
     await createMinimalSchema(prisma);
     dailyActions = new PrismaDailyActionRepository(prisma);
     cooldowns = new PrismaCooldownRepository(prisma);
+    characters = new PrismaCharacterRepository(prisma);
   }, 60_000);
 
   afterAll(async () => {
@@ -59,6 +62,78 @@ describe("paid Prisma claim repositories", () => {
     await expect(
       prisma.character.findUniqueOrThrow({ where: { id: "character-daily-poor" } })
     ).resolves.toMatchObject({ xp: 0, gold: 0, hpCurrent: 25 });
+  });
+
+  it("guards daily reward claims with the expected combat life", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-daily-life-guard",
+      characterId: "character-daily-life-guard",
+      telegramUserId: 9041n,
+      gold: 0
+    });
+    await seedRemort(prisma, "character-daily-life-guard", 1);
+
+    await expect(dailyActions.claimForTelegramUser(9041n, {
+      key: "combat.reward.old-life",
+      localDate: "session-old-life",
+      rewardXp: 23,
+      rewardGold: 13,
+      itemGrants: [{ itemId: "item.old-life", quantity: 1 }],
+      expectedLife: { remortCount: 0 }
+    })).resolves.toBeNull();
+    await expect(prisma.dailyAction.count({
+      where: { characterId: "character-daily-life-guard" }
+    })).resolves.toBe(0);
+    await expect(prisma.characterItem.count({
+      where: { characterId: "character-daily-life-guard" }
+    })).resolves.toBe(0);
+    await expect(prisma.character.findUniqueOrThrow({
+      where: { id: "character-daily-life-guard" }
+    })).resolves.toMatchObject({ xp: 0, gold: 0 });
+  });
+
+  it("guards cooldown reward claims with the expected combat life", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-cooldown-life-guard",
+      characterId: "character-cooldown-life-guard",
+      telegramUserId: 9042n,
+      gold: 0
+    });
+    await seedRemort(prisma, "character-cooldown-life-guard", 1);
+
+    await expect(cooldowns.claimRewardForTelegramUser(9042n, {
+      key: "training.doppelganger.spar",
+      now: new Date("2026-06-22T10:00:00.000Z"),
+      availableAt: new Date("2026-06-22T11:00:00.000Z"),
+      rewardXp: 0,
+      rewardGold: 0,
+      expectedLife: { remortCount: 0 }
+    })).resolves.toBeNull();
+    await expect(prisma.characterCooldown.count({
+      where: { characterId: "character-cooldown-life-guard" }
+    })).resolves.toBe(0);
+  });
+
+  it("guards direct combat resource persistence with the expected combat life", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-resource-life-guard",
+      characterId: "character-resource-life-guard",
+      telegramUserId: 9043n,
+      gold: 0,
+      hpCurrent: 25
+    });
+    await seedRemort(prisma, "character-resource-life-guard", 1);
+
+    await expect(characters.updateResourcesForTelegramUser(9043n, {
+      hpCurrent: 3,
+      manaCurrent: 1,
+      hpRegenAt: new Date("2026-06-22T10:00:00.000Z"),
+      manaRegenAt: new Date("2026-06-22T10:00:00.000Z"),
+      expectedLife: { remortCount: 0 }
+    })).resolves.toBeNull();
+    await expect(prisma.character.findUniqueOrThrow({
+      where: { id: "character-resource-life-guard" }
+    })).resolves.toMatchObject({ hpCurrent: 25, manaCurrent: 10 });
   });
 
   it("stores and applies daily HP loss once while clamping at 1 HP", async () => {
@@ -1014,6 +1089,33 @@ async function seedCharacter(
         intelligence: 6,
         charisma: 6,
         luck: 6
+      }
+    }
+  });
+}
+
+async function seedRemort(
+  prisma: PrismaClient,
+  characterId: string,
+  remortNumber: number
+): Promise<void> {
+  await prisma.characterRemort.create({
+    data: {
+      characterId,
+      token: `token-${characterId}-${remortNumber}`,
+      remortNumber,
+      previousLevel: 13,
+      previousXp: 1300,
+      previousGold: 587,
+      displayNameSnapshot: "Shannar de Kassal",
+      preservedPayloadJson: {
+        identity: {
+          pronoun: "they",
+          raceId: "race.human-ish",
+          classId: "class.warrior"
+        },
+        items: [],
+        memoryRank: remortNumber
       }
     }
   });

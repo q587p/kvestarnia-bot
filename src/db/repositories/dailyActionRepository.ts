@@ -46,6 +46,9 @@ export interface ClaimDailyActionInput {
   hpLoss?: number | HpLossRequest;
   resultJson?: unknown;
   itemGrants?: ItemGrant[];
+  expectedLife?: {
+    remortCount: number;
+  };
 }
 
 export interface DailyActionClaimIdentity {

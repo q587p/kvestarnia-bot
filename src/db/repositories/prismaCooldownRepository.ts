@@ -88,6 +88,14 @@ export class PrismaCooldownRepository implements CooldownRepository {
           };
         }
 
+        const characterRecord = toCharacterRecord(character);
+        if (
+          input.expectedLife &&
+          characterRecord.remortCount !== input.expectedLife.remortCount
+        ) {
+          return null;
+        }
+
         const spentGold = normalizeSpentGold(input.spentGold);
 
         if (spentGold > 0) {
@@ -108,7 +116,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
           if (debit.count !== 1) {
             return {
               state: "insufficient-gold",
-              character: toCharacterRecord(character),
+              character: characterRecord,
               requiredGold: spentGold
             };
           }
@@ -137,7 +145,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
             }
           });
 
-          return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
+          return this.rewardCharacter(tx, characterRecord, cooldown, input);
         }
 
         const cooldown = await tx.characterCooldown.create({
@@ -148,7 +156,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
           }
         });
 
-        return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
+        return this.rewardCharacter(tx, characterRecord, cooldown, input);
         });
       } catch (error) {
         if (error instanceof HpMutationConflictError && attempt < 2) {

@@ -28,10 +28,14 @@ import {
 import {
   deriveMonsterCombatStats,
   expireCombat,
+  freezeCombatLife,
   applyMonsterContextToStats,
   buildCombatWorldContext,
   createCombatBarkState,
   getCombatSkillProfile,
+  isCombatSettlementTerminal,
+  markCombatSettlementCompleted,
+  markCombatSettlementForfeitedByRemort,
   markCombatTurnTimeoutMode,
   recordCombatTimeout,
   resetCombatTimeout,
@@ -591,7 +595,7 @@ export class FightService {
     }
 
     if (updated.status !== "active") {
-      await this.persistCharacterResourcesFromSession(telegramUserId, updated);
+      await this.getOrRecoverPersistentFightReward(telegramUserId, updated, monster, character);
     }
 
     return updated;
@@ -623,7 +627,12 @@ export class FightService {
       return session;
     }
 
-    await this.persistCharacterResourcesFromSession(telegramUserId, updated);
+    await this.persistCharacterResourcesFromSession(
+      telegramUserId,
+      updated,
+      await this.resolveSessionExpectedLife(updated),
+      { finalizeSettlement: true }
+    );
 
     return updated;
   }
@@ -1061,7 +1070,6 @@ export class FightService {
         state: expiredState,
         status: expiredState.status
       });
-      await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
       const fallbackSession = expiredSession ?? activeSession;
       const monster = findPersistentFightMonster(fallbackSession);
 
@@ -1091,20 +1099,22 @@ export class FightService {
         state: expiredState,
         status: expiredState.status
       });
-      await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
+      const fallbackSession = expiredSession ?? activeSession;
+      const fightReward = await this.getOrRecoverPersistentFightReward(
+        telegramUserId,
+        fallbackSession,
+        monster,
+        characterSummary
+      );
+      const settledSession = await this.reloadSessionAfterSettlement(telegramUserId, fallbackSession);
 
       return {
         state: "persistent-terminal",
         character: characterSummary,
-        session: expiredSession ?? { ...activeSession, state: expiredState, status: expiredState.status },
+        session: settledSession ?? { ...activeSession, state: expiredState, status: expiredState.status },
         monster,
         questProgress,
-        fightReward: await this.getOrRecoverPersistentFightReward(
-          telegramUserId,
-          expiredSession ?? activeSession,
-          monster,
-          characterSummary
-        )
+        fightReward
       };
     }
 
@@ -1364,7 +1374,6 @@ export class FightService {
           state: expiredState,
           status: expiredState.status
         });
-        await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
         const fallbackSession = expiredSession ?? activeSession;
         const monster = findPersistentFightMonster(fallbackSession);
 
@@ -1390,7 +1399,6 @@ export class FightService {
             state: expiredState,
             status: expiredState.status
           });
-          await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
 
           return {
             state: "persistent-terminal",
@@ -1805,7 +1813,6 @@ export class FightService {
         state: expiredState,
         status: expiredState.status
       });
-      await this.persistCharacterResourcesFromSession(telegramUserId, updated ?? session);
 
       return {
         state: "terminal",
@@ -1977,12 +1984,14 @@ export class FightService {
     }
 
     const fightReward =
-      updated.status === "won" || updated.status === "lost"
-        ? await this.claimPersistentFightReward(telegramUserId, updated, monster, characterSummary)
+      updated.status !== "active"
+        ? await this.getOrRecoverPersistentFightReward(
+            telegramUserId,
+            updated,
+            monster,
+            characterSummary
+          )
         : null;
-    if (updated.status !== "active") {
-      await this.persistCharacterResourcesFromSession(telegramUserId, updated);
-    }
 
     const refreshedQuestProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
 
@@ -2143,7 +2152,8 @@ export class FightService {
     telegramUserId: bigint,
     session: SoloCombatSessionRecord,
     monster: MonsterContent,
-    character: CharacterSummary
+    character: CharacterSummary,
+    expectedLife?: { remortCount: number }
   ): Promise<PersistentFightReward | null> {
     const replay = buildPersistentFightRewardReplay(session);
 
@@ -2163,7 +2173,8 @@ export class FightService {
       localDate: session.id,
       rewardXp: reward.xp,
       rewardGold: reward.gold,
-      itemGrants: reward.itemGrants
+      itemGrants: reward.itemGrants,
+      ...(expectedLife ? { expectedLife } : {})
     });
 
     if (!claim) {
@@ -2175,6 +2186,17 @@ export class FightService {
     }
 
     if (claim.state === "existing") {
+      const completedState = session.state
+        ? markCombatSettlementCompleted(session.state, this.clock())
+        : null;
+      await this.combatSessions?.recordRewardById(session.id, {
+        rewardXp: claim.action.rewardXp,
+        rewardGold: claim.action.rewardGold,
+        itemGrants: [],
+        claimedAt: this.clock(),
+        ...(completedState ? { state: completedState, status: completedState.status } : {}),
+        releaseLease: true
+      });
       return {
         state: "already-claimed",
         reward: {
@@ -2193,7 +2215,14 @@ export class FightService {
         rewardXp: claim.action.rewardXp,
         rewardGold: claim.action.rewardGold,
         itemGrants: claim.itemGrants,
-        claimedAt: this.clock()
+        claimedAt: this.clock(),
+        ...(session.state
+          ? {
+              state: markCombatSettlementCompleted(session.state, this.clock()),
+              status: session.state.status
+            }
+          : {}),
+        releaseLease: true
       });
 
     return {
@@ -2302,14 +2331,29 @@ export class FightService {
     monster: MonsterContent | null,
     character: CharacterSummary
   ): Promise<PersistentFightReward | null> {
-    await this.combatAnalytics?.recordTerminalSession(session);
     const replay = buildPersistentFightRewardReplay(session);
 
     if (replay) {
+      await this.completeCombatSettlement(session);
       return replay;
     }
 
     const terminalStatus = session.state?.status ?? session.status;
+    if (session.state?.settlement?.status === "forfeited-by-remort") {
+      return null;
+    }
+
+    const expectedLife = await this.resolveSessionExpectedLife(session);
+    const resources = await this.persistCharacterResourcesFromSession(
+      telegramUserId,
+      session,
+      expectedLife,
+      { finalizeSettlement: terminalStatus !== "won" && terminalStatus !== "lost" }
+    );
+
+    if (resources === "forfeited") {
+      return null;
+    }
 
     if (terminalStatus !== "won" && terminalStatus !== "lost") {
       return null;
@@ -2321,10 +2365,30 @@ export class FightService {
     });
 
     if (!action) {
-      return monster
-        ? this.claimPersistentFightReward(telegramUserId, session, monster, character)
-        : null;
+      if (!monster) {
+        return null;
+      }
+
+      const claimed = await this.claimPersistentFightReward(
+        telegramUserId,
+        session,
+        monster,
+        character,
+        expectedLife
+      );
+
+      if (!claimed && expectedLife) {
+        await this.forfeitCombatSettlement(session, "life-mismatch");
+      }
+
+      return claimed;
     }
+
+    await this.completeCombatSettlement(session, {
+      rewardXp: action.rewardXp,
+      rewardGold: action.rewardGold,
+      itemGrants: []
+    });
 
     return {
       state: "already-claimed",
@@ -2446,19 +2510,115 @@ export class FightService {
 
   private async persistCharacterResourcesFromSession(
     telegramUserId: bigint,
-    session: SoloCombatSessionRecord
-  ): Promise<void> {
+    session: SoloCombatSessionRecord,
+    expectedLife?: { remortCount: number },
+    options: { finalizeSettlement?: boolean } = {}
+  ): Promise<"completed" | "forfeited" | "skipped"> {
     if (!session.state) {
-      return;
+      return "skipped";
     }
 
-    await this.characters.updateResourcesForTelegramUser?.(telegramUserId, {
+    if (session.state.settlement?.status === "forfeited-by-remort") {
+      return "forfeited";
+    }
+
+    if (isCombatSettlementTerminal(session.state)) {
+      return "completed";
+    }
+
+    const life = expectedLife ?? await this.resolveSessionExpectedLife(session);
+    const updated = await this.characters.updateResourcesForTelegramUser?.(telegramUserId, {
       hpCurrent: session.state.hero.hp,
       manaCurrent: session.state.hero.mana,
       hpRegenAt: this.clock(),
-      manaRegenAt: this.clock()
+      manaRegenAt: this.clock(),
+      ...(life ? { expectedLife: life } : {})
     });
-    await this.combatAnalytics?.recordTerminalSession(session);
+
+    if (!updated && life) {
+      await this.forfeitCombatSettlement(session, "life-mismatch");
+      return "forfeited";
+    }
+
+    const shouldFinalizeSettlement =
+      options.finalizeSettlement ??
+      (session.state.status !== "won" && session.state.status !== "lost");
+
+    if (shouldFinalizeSettlement) {
+      await this.completeCombatSettlement(session);
+    }
+
+    return "completed";
+  }
+
+  private async resolveSessionExpectedLife(
+    session: SoloCombatSessionRecord
+  ): Promise<{ remortCount: number } | undefined> {
+    if (session.state?.life) {
+      return { remortCount: session.state.life.remortCount };
+    }
+
+    const legacyLife = await this.combatSessions?.resolveLifeById?.(session.id);
+
+    return legacyLife ? { remortCount: legacyLife.remortCount } : undefined;
+  }
+
+  private async completeCombatSettlement(
+    session: SoloCombatSessionRecord,
+    reward?: { rewardXp: number; rewardGold: number; itemGrants: Array<{ itemId: string; quantity: number }> }
+  ): Promise<SoloCombatSessionRecord | null> {
+    if (!session.state || session.state.settlement?.status === "completed") {
+      await this.combatAnalytics?.recordTerminalSession(session);
+      return session;
+    }
+
+    if (session.state.settlement?.status === "forfeited-by-remort") {
+      return session;
+    }
+
+    const state = markCombatSettlementCompleted(session.state, this.clock());
+    const updated = reward
+      ? await this.combatSessions?.recordRewardById(session.id, {
+          ...reward,
+          claimedAt: this.clock(),
+          state,
+          status: state.status,
+          releaseLease: true
+        })
+      : await this.combatSessions?.updateById(session.id, {
+          state,
+          status: state.status,
+          releaseLease: true
+        });
+
+    await this.combatAnalytics?.recordTerminalSession(updated ?? { ...session, state });
+
+    return updated ?? { ...session, state };
+  }
+
+  private async forfeitCombatSettlement(
+    session: SoloCombatSessionRecord,
+    reason: "life-mismatch" | "legacy-life-mismatch"
+  ): Promise<SoloCombatSessionRecord | null> {
+    if (!session.state || session.state.settlement?.status === "forfeited-by-remort") {
+      return session;
+    }
+
+    const state = markCombatSettlementForfeitedByRemort(session.state, this.clock(), reason);
+    const updated = await this.combatSessions?.updateById(session.id, {
+      state,
+      status: state.status,
+      releaseLease: true
+    });
+
+    return updated ?? { ...session, state };
+  }
+
+  private async reloadSessionAfterSettlement(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord
+  ): Promise<SoloCombatSessionRecord | null> {
+    return this.combatSessions?.findByIdForTelegramUserId(telegramUserId, session.id) ?? null;
   }
 
   private async createPendingPassageEncounter(
@@ -2591,6 +2751,15 @@ export class FightService {
     }
     state.turnExpiresAt = getTurnExpiry(input.now).toISOString();
     state.source = input.source;
+    state.life = freezeCombatLife({
+      characterId: input.character.id,
+      remortCount: input.character.remortCount ?? 0,
+      now: input.now
+    });
+    state.settlement = {
+      status: "pending",
+      version: 1
+    };
     state.originLocationId = input.originLocationId;
     if (monsterContext) {
       state.context = monsterContext;

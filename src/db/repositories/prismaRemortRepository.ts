@@ -20,7 +20,11 @@ import type {
   RemortSnapshot
 } from "./remortRepository";
 import { mapSoloCombatSessionRecord } from "./prismaSoloCombatSessionRepository";
-import { expireCombat, type CombatState } from "../../domain/combat";
+import {
+  expireCombat,
+  markCombatSettlementForfeitedByRemort,
+  type CombatState
+} from "../../domain/combat";
 
 type TxClient = Prisma.TransactionClient;
 type CharacterWithLocation = Character & { user: { lastSeenLocationId: string | null } };
@@ -483,8 +487,9 @@ async function prepareActiveCombatForRemort(
     return { state: "ready" };
   }
 
+  const mapped = mapSoloCombatSessionRecord(session);
+
   if (session.status === "active") {
-    const mapped = mapSoloCombatSessionRecord(session);
     const state = mapped?.state ? expireRemortCombatState(mapped.state, now) : null;
     await tx.soloCombatSession.update({
       where: {
@@ -494,6 +499,21 @@ async function prepareActiveCombatForRemort(
         status: "expired",
         turn: state?.turn ?? session.turn,
         ...(state ? { stateJson: state as unknown as Prisma.InputJsonValue } : {})
+      }
+    });
+  } else if (
+    mapped?.state &&
+    mapped.state.settlement?.status !== "completed" &&
+    mapped.state.settlement?.status !== "forfeited-by-remort"
+  ) {
+    const state = markCombatSettlementForfeitedByRemort(mapped.state, now, "remort");
+    await tx.soloCombatSession.update({
+      where: {
+        id: session.id
+      },
+      data: {
+        stateJson: state as unknown as Prisma.InputJsonValue,
+        turn: state.turn
       }
     });
   }
@@ -512,10 +532,10 @@ async function prepareActiveCombatForRemort(
 function expireRemortCombatState(state: CombatState, now: Date): CombatState {
   const expired = expireCombat(state);
   const completedAt = expired.completedAt ?? now.toISOString();
-  const next = {
+  const next = markCombatSettlementForfeitedByRemort({
     ...expired,
     completedAt
-  };
+  }, now, "remort");
   delete next.turnExpiresAt;
 
   return next;

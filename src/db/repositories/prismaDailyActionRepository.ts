@@ -89,6 +89,11 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           };
         }
 
+        const remortCount = await countCharacterRemorts(tx, character.id);
+        if (input.expectedLife && remortCount !== input.expectedLife.remortCount) {
+          return null;
+        }
+
         const spentGold = normalizeSpentGold(input.spentGold);
 
         if (spentGold > 0) {
@@ -107,8 +112,6 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           });
 
           if (debit.count !== 1) {
-            const remortCount = await countCharacterRemorts(tx, character.id);
-
             return {
               state: "insufficient-gold",
               character: { ...character, remortCount },
@@ -180,7 +183,6 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             data: rewardUpdate
           });
         }
-        const remortCount = await countCharacterRemorts(tx, character.id);
         const rewardProgress = applyXpReward(character.xp, input.rewardXp, { remortCount });
         const oldLevel = Math.max(character.level, rewardProgress.oldLevel);
         const newLevel = Math.max(rewardedCharacter.level, getLevelForXp(rewardedCharacter.xp, { remortCount }));

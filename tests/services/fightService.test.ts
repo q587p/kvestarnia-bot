@@ -1736,8 +1736,9 @@ describe("FightService", () => {
     if (overview.state === "persistent-terminal") {
       expect(overview.monster).toBeNull();
       expect(overview.session.state?.status).toBe("expired");
+      expect(overview.session.state?.settlement?.status).toBe("completed");
     }
-    expect(sessions.updateCount).toBe(1);
+    expect(sessions.updateCount).toBe(2);
     expect(dailyActions.createCount).toBe(0);
   });
 

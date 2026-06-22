@@ -46,6 +46,7 @@ export interface UpdateSoloCombatSessionInput {
   state: CombatState;
   status: SoloCombatSessionStatus;
   expiresAt?: Date;
+  releaseLease?: boolean;
 }
 
 export interface RecordSoloCombatRewardInput {
@@ -53,6 +54,13 @@ export interface RecordSoloCombatRewardInput {
   rewardGold: number;
   itemGrants: Array<{ itemId: string; quantity: number }>;
   claimedAt: Date;
+  state?: CombatState;
+  status?: SoloCombatSessionStatus;
+  releaseLease?: boolean;
+}
+
+export interface SoloCombatSessionLifeRecord {
+  remortCount: number;
 }
 
 export interface SoloCombatSessionRepository {
@@ -98,6 +106,7 @@ export interface SoloCombatSessionRepository {
     sessionId: string,
     input: RecordSoloCombatRewardInput
   ): Promise<SoloCombatSessionRecord | null>;
+  resolveLifeById?(sessionId: string): Promise<SoloCombatSessionLifeRecord | null>;
   markStatusById(
     sessionId: string,
     status: SoloCombatSessionStatus
