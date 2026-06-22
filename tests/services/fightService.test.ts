@@ -33,7 +33,11 @@ import type {
   EquipmentRepository
 } from "../../src/db/repositories/equipmentRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
-import type { CombatState } from "../../src/domain/combat";
+import {
+  markCombatSettlementCompleted,
+  markCombatSettlementForfeitedByRemort,
+  type CombatState
+} from "../../src/domain/combat";
 import { getLevelForXp } from "../../src/domain/progression/level";
 import { buildStarterLevelTwoXpReward } from "../../src/domain/progression/starterRewards";
 import { getItemDropChance } from "../../src/domain/loot";
@@ -4604,6 +4608,88 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     };
     this.sessions.set(sessionId, updated);
     return Promise.resolve(cloneSession(updated));
+  }
+
+  completeSettlementById(
+    sessionId: string,
+    input: {
+      settledAt: Date;
+      reward?: {
+        rewardXp: number;
+        rewardGold: number;
+        itemGrants: Array<{ itemId: string; quantity: number }>;
+        claimedAt: Date;
+      };
+    }
+  ): Promise<{ outcome: "completed" | "already-completed" | "already-forfeited"; session: SoloCombatSessionRecord | null }> {
+    const session = this.sessions.get(sessionId);
+
+    if (!session) {
+      return Promise.resolve({ outcome: "completed", session: null });
+    }
+
+    if (session.state?.settlement?.status === "completed") {
+      return Promise.resolve({ outcome: "already-completed", session: cloneSession(session) });
+    }
+
+    if (session.state?.settlement?.status === "forfeited-by-remort") {
+      return Promise.resolve({ outcome: "already-forfeited", session: cloneSession(session) });
+    }
+
+    if (!input.reward) {
+      this.updateCount += 1;
+    }
+    const state = session.state
+      ? markCombatSettlementCompleted(session.state, input.settledAt)
+      : session.state;
+    const updated: SoloCombatSessionRecord = {
+      ...session,
+      ...(state ? { state, status: state.status, turn: state.turn } : {}),
+      ...(input.reward && this.persistRewardReplay
+        ? {
+            reward: {
+              xp: input.reward.rewardXp,
+              gold: input.reward.rewardGold,
+              itemGrants: input.reward.itemGrants,
+              claimedAt: input.reward.claimedAt
+            }
+          }
+        : {}),
+      updatedAt: fixedClock()
+    };
+    this.sessions.set(sessionId, updated);
+    return Promise.resolve({ outcome: "completed", session: cloneSession(updated) });
+  }
+
+  forfeitSettlementById(
+    sessionId: string,
+    input: { settledAt: Date; reason: "remort" | "life-mismatch" | "legacy-life-mismatch" }
+  ): Promise<{ outcome: "forfeited" | "already-completed" | "already-forfeited"; session: SoloCombatSessionRecord | null }> {
+    const session = this.sessions.get(sessionId);
+
+    if (!session) {
+      return Promise.resolve({ outcome: "forfeited", session: null });
+    }
+
+    if (session.state?.settlement?.status === "completed") {
+      return Promise.resolve({ outcome: "already-completed", session: cloneSession(session) });
+    }
+
+    if (session.state?.settlement?.status === "forfeited-by-remort") {
+      return Promise.resolve({ outcome: "already-forfeited", session: cloneSession(session) });
+    }
+
+    this.updateCount += 1;
+    const state = session.state
+      ? markCombatSettlementForfeitedByRemort(session.state, input.settledAt, input.reason)
+      : session.state;
+    const updated: SoloCombatSessionRecord = {
+      ...session,
+      ...(state ? { state, status: state.status, turn: state.turn } : {}),
+      updatedAt: fixedClock()
+    };
+    this.sessions.set(sessionId, updated);
+    return Promise.resolve({ outcome: "forfeited", session: cloneSession(updated) });
   }
 
   dropRewardReplayWrites(): void {

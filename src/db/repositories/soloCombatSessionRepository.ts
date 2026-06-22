@@ -1,4 +1,4 @@
-import type { CombatState, CombatStatus } from "../../domain/combat";
+import type { CombatLifeState, CombatSettlementStatus, CombatState, CombatStatus } from "../../domain/combat";
 
 export type SoloCombatSessionStatus = CombatStatus;
 
@@ -63,8 +63,58 @@ export interface SoloCombatSessionLifeRecord {
   remortCount: number;
 }
 
+export type SoloCombatLeaseLookupResult =
+  | { state: "none" }
+  | { state: "unsupported"; kind: string; referenceId: string }
+  | { state: "missing-session"; referenceId: string }
+  | { state: "active"; session: SoloCombatSessionRecord }
+  | { state: "terminal-pending"; session: SoloCombatSessionRecord }
+  | { state: "terminal-completed"; session: SoloCombatSessionRecord }
+  | { state: "terminal-forfeited"; session: SoloCombatSessionRecord };
+
+export type GuardedSettlementOutcome =
+  | "completed"
+  | "forfeited"
+  | "already-completed"
+  | "already-forfeited"
+  | "version-changed"
+  | "missing";
+
+export interface GuardedSettlementExpectation {
+  settlementStatus?: CombatSettlementStatus;
+  settlementVersion?: number;
+  combatStatus?: SoloCombatSessionStatus;
+  life?: Pick<CombatLifeState, "remortCount">;
+}
+
+export interface CompleteSoloCombatSettlementInput {
+  expected?: GuardedSettlementExpectation;
+  settledAt: Date;
+  reward?: {
+    rewardXp: number;
+    rewardGold: number;
+    itemGrants: Array<{ itemId: string; quantity: number }>;
+    claimedAt: Date;
+  };
+  releaseLease?: boolean;
+}
+
+export interface ForfeitSoloCombatSettlementInput {
+  expected?: GuardedSettlementExpectation;
+  settledAt: Date;
+  reason: "remort" | "life-mismatch" | "legacy-life-mismatch";
+  releaseLease?: boolean;
+}
+
+export interface GuardedSettlementResult {
+  outcome: GuardedSettlementOutcome;
+  session: SoloCombatSessionRecord | null;
+}
+
 export interface SoloCombatSessionRepository {
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<SoloCombatSessionRecord | null>;
+  findLeasedByTelegramUserId?(telegramUserId: bigint): Promise<SoloCombatLeaseLookupResult>;
+  releaseLeaseBySessionId?(sessionId: string): Promise<boolean>;
   listDueActiveSessions?(
     now: Date,
     options?: {
@@ -106,6 +156,14 @@ export interface SoloCombatSessionRepository {
     sessionId: string,
     input: RecordSoloCombatRewardInput
   ): Promise<SoloCombatSessionRecord | null>;
+  completeSettlementById?(
+    sessionId: string,
+    input: CompleteSoloCombatSettlementInput
+  ): Promise<GuardedSettlementResult>;
+  forfeitSettlementById?(
+    sessionId: string,
+    input: ForfeitSoloCombatSettlementInput
+  ): Promise<GuardedSettlementResult>;
   resolveLifeById?(sessionId: string): Promise<SoloCombatSessionLifeRecord | null>;
   markStatusById(
     sessionId: string,

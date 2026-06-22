@@ -273,7 +273,10 @@ export class AdventureService {
     private readonly characters: CharacterRepository,
     private readonly dailyActions: DailyActionRepository,
     private readonly clock: Clock = systemClock,
-    private readonly combatSessions?: Pick<SoloCombatSessionRepository, "findActiveByTelegramUserId">,
+    private readonly combatSessions?: Pick<
+      SoloCombatSessionRepository,
+      "findActiveByTelegramUserId" | "findLeasedByTelegramUserId" | "releaseLeaseBySessionId"
+    >,
     private readonly equipment?: EquipmentRepository
   ) {}
 
@@ -816,6 +819,28 @@ export class AdventureService {
   private async findLiveActiveFight(
     telegramUserId: bigint
   ): Promise<SoloCombatSessionRecord | null> {
+    const lookup = await this.combatSessions?.findLeasedByTelegramUserId?.(telegramUserId);
+
+    if (lookup?.state === "active" || lookup?.state === "terminal-pending") {
+      return lookup.session.expiresAt.getTime() <= this.clock().getTime()
+        ? null
+        : lookup.session;
+    }
+
+    if (lookup?.state === "terminal-completed" || lookup?.state === "terminal-forfeited") {
+      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.session.id);
+      return null;
+    }
+
+    if (lookup?.state === "missing-session") {
+      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.referenceId);
+      return null;
+    }
+
+    if (lookup?.state === "unsupported") {
+      return null;
+    }
+
     const session = await this.combatSessions?.findActiveByTelegramUserId(telegramUserId);
 
     if (!session || session.expiresAt.getTime() <= this.clock().getTime()) {

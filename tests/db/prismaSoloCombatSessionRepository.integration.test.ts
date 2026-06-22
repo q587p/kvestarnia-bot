@@ -71,6 +71,286 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     expect(activeSessions[0]?.id).toBe(first?.id);
   });
 
+  it("follows a live lease to a terminal pending session and returns it on create conflict", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-terminal-pending",
+      characterId: "character-terminal-pending",
+      telegramUserId: 4250n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeSoloSessionData({
+        id: "terminal-pending-session",
+        characterId: "character-terminal-pending",
+        monsterId: "monster.deadline-spider",
+        status: "won",
+        source: "normal",
+        completedAt: new Date("2026-06-22T10:00:00.000Z"),
+        updatedAt: new Date("2026-06-22T10:00:00.000Z"),
+        settlementStatus: "pending"
+      })
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-terminal-pending",
+        characterId: "character-terminal-pending",
+        kind: "solo-combat",
+        referenceId: "terminal-pending-session"
+      }
+    });
+
+    await expect(repository.findLeasedByTelegramUserId(4250n)).resolves.toMatchObject({
+      state: "terminal-pending",
+      session: {
+        id: "terminal-pending-session",
+        status: "won",
+        state: {
+          settlement: {
+            status: "pending"
+          }
+        }
+      }
+    });
+
+    const recovered = await repository.createForTelegramUser(
+      4250n,
+      makeCreateInput("new-session-after-conflict", "monster.preapproval-dragonling")
+    );
+
+    expect(recovered?.id).toBe("terminal-pending-session");
+    await expect(prisma.soloCombatSession.count({
+      where: {
+        characterId: "character-terminal-pending"
+      }
+    })).resolves.toBe(1);
+  });
+
+  it("cleans exact stale supported leases without replaying completed or forfeited settlements", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-stale-lease",
+      characterId: "character-stale-lease",
+      telegramUserId: 4251n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeSoloSessionData({
+        id: "completed-stale-session",
+        characterId: "character-stale-lease",
+        monsterId: "monster.deadline-spider",
+        status: "won",
+        source: "normal",
+        completedAt: new Date("2026-06-22T10:10:00.000Z"),
+        updatedAt: new Date("2026-06-22T10:10:00.000Z"),
+        settlementStatus: "completed"
+      })
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-completed-stale",
+        characterId: "character-stale-lease",
+        kind: "solo-combat",
+        referenceId: "completed-stale-session"
+      }
+    });
+
+    await expect(repository.findLeasedByTelegramUserId(4251n)).resolves.toMatchObject({
+      state: "terminal-completed",
+      session: {
+        id: "completed-stale-session"
+      }
+    });
+    await expect(repository.releaseLeaseBySessionId("completed-stale-session")).resolves.toBe(true);
+    await expect(prisma.activeCombatLease.count({
+      where: {
+        characterId: "character-stale-lease"
+      }
+    })).resolves.toBe(0);
+
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-missing-stale",
+        characterId: "character-stale-lease",
+        kind: "solo-combat",
+        referenceId: "missing-stale-session"
+      }
+    });
+    await expect(repository.findLeasedByTelegramUserId(4251n)).resolves.toEqual({
+      state: "missing-session",
+      referenceId: "missing-stale-session"
+    });
+    await expect(repository.releaseLeaseBySessionId("missing-stale-session")).resolves.toBe(true);
+  });
+
+  it("keeps unsupported leases visible and untouched", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-unsupported-lease",
+      characterId: "character-unsupported-lease",
+      telegramUserId: 4252n
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-unsupported",
+        characterId: "character-unsupported-lease",
+        kind: "turn-duel",
+        referenceId: "duel-session"
+      }
+    });
+
+    await expect(repository.findLeasedByTelegramUserId(4252n)).resolves.toEqual({
+      state: "unsupported",
+      kind: "turn-duel",
+      referenceId: "duel-session"
+    });
+    await expect(repository.releaseLeaseBySessionId("duel-session")).resolves.toBe(false);
+    await expect(prisma.activeCombatLease.count({
+      where: {
+        characterId: "character-unsupported-lease"
+      }
+    })).resolves.toBe(1);
+  });
+
+  it("guards settlement completion and forfeit so a stale copy cannot overwrite the winner", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-settlement-race",
+      characterId: "character-settlement-race",
+      telegramUserId: 4253n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeSoloSessionData({
+        id: "settlement-race-session",
+        characterId: "character-settlement-race",
+        monsterId: "monster.deadline-spider",
+        status: "won",
+        source: "normal",
+        completedAt: new Date("2026-06-22T10:20:00.000Z"),
+        updatedAt: new Date("2026-06-22T10:20:00.000Z"),
+        settlementStatus: "pending"
+      })
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-settlement-race",
+        characterId: "character-settlement-race",
+        kind: "solo-combat",
+        referenceId: "settlement-race-session"
+      }
+    });
+
+    const forfeited = await repository.forfeitSettlementById("settlement-race-session", {
+      expected: {
+        settlementStatus: "pending",
+        settlementVersion: 1,
+        combatStatus: "won",
+        life: {
+          remortCount: 0
+        }
+      },
+      settledAt: new Date("2026-06-22T10:21:00.000Z"),
+      reason: "remort",
+      releaseLease: true
+    });
+    const completed = await repository.completeSettlementById("settlement-race-session", {
+      expected: {
+        settlementStatus: "pending",
+        settlementVersion: 1,
+        combatStatus: "won",
+        life: {
+          remortCount: 0
+        }
+      },
+      settledAt: new Date("2026-06-22T10:22:00.000Z"),
+      reward: {
+        rewardXp: 23,
+        rewardGold: 13,
+        itemGrants: [],
+        claimedAt: new Date("2026-06-22T10:22:00.000Z")
+      },
+      releaseLease: true
+    });
+
+    expect(forfeited.outcome).toBe("forfeited");
+    expect(completed.outcome).toBe("already-forfeited");
+    const stored = await prisma.soloCombatSession.findUniqueOrThrow({
+      where: {
+        id: "settlement-race-session"
+      }
+    });
+    expect((stored.stateJson as { settlement?: { status?: string } }).settlement?.status).toBe("forfeited-by-remort");
+    expect(stored.rewardXp).toBeNull();
+    await expect(prisma.activeCombatLease.count({
+      where: {
+        characterId: "character-settlement-race"
+      }
+    })).resolves.toBe(0);
+  });
+
+  it("excludes pending and forfeited wins from victory progress while counting completed and legacy wins", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-progress-settlement",
+      characterId: "character-progress-settlement",
+      telegramUserId: 4254n
+    });
+    const base = new Date("2026-06-22T11:00:00.000Z").getTime();
+    await prisma.soloCombatSession.createMany({
+      data: [
+        makeSoloSessionData({
+          id: "progress-completed",
+          characterId: "character-progress-settlement",
+          monsterId: "monster.deadline-spider",
+          status: "won",
+          source: "normal",
+          completedAt: new Date(base),
+          updatedAt: new Date(base),
+          settlementStatus: "completed"
+        }),
+        makeSoloSessionData({
+          id: "progress-legacy",
+          characterId: "character-progress-settlement",
+          monsterId: "monster.preapproval-dragonling",
+          status: "won",
+          source: "normal",
+          completedAt: new Date(base + 60_000),
+          updatedAt: new Date(base + 60_000)
+        }),
+        makeSoloSessionData({
+          id: "progress-pending",
+          characterId: "character-progress-settlement",
+          monsterId: "monster.paper-golem",
+          status: "won",
+          source: "normal",
+          completedAt: new Date(base + 120_000),
+          updatedAt: new Date(base + 120_000),
+          settlementStatus: "pending"
+        }),
+        makeSoloSessionData({
+          id: "progress-forfeited",
+          characterId: "character-progress-settlement",
+          monsterId: "monster.unquiet-potato",
+          status: "won",
+          source: "yeger",
+          completedAt: new Date(base + 180_000),
+          updatedAt: new Date(base + 180_000),
+          settlementStatus: "forfeited-by-remort"
+        }),
+        makeSoloSessionData({
+          id: "progress-loss",
+          characterId: "character-progress-settlement",
+          monsterId: "monster.loss",
+          status: "lost",
+          source: "normal",
+          completedAt: new Date(base + 240_000),
+          updatedAt: new Date(base + 240_000),
+          settlementStatus: "forfeited-by-remort"
+        })
+      ]
+    });
+
+    await expect(repository.countWonByTelegramUserId(4254n)).resolves.toBe(2);
+    await expect(repository.listCompletedByTelegramUserIdSince(4254n, new Date(base - 1))).resolves.toMatchObject([
+      { monsterId: "monster.deadline-spider", status: "won" },
+      { monsterId: "monster.preapproval-dragonling", status: "won" },
+      { monsterId: "monster.loss", status: "lost" }
+    ]);
+  });
+
   it("scans past newer active and non-ordinary sessions for recent ordinary monsters", async () => {
     await seedCharacter(prisma, {
       userId: "user-history",
@@ -275,11 +555,28 @@ function makeSoloSessionData(input: {
   source: NonNullable<CombatState["source"]>;
   completedAt: Date;
   updatedAt: Date;
+  settlementStatus?: "pending" | "completed" | "forfeited-by-remort";
 }) {
   const state = {
     ...makeCombatState(input.id, input.monsterId),
     status: input.status,
     source: input.source,
+    life: {
+      characterId: input.characterId,
+      remortCount: 0,
+      startedAt: input.completedAt.toISOString()
+    },
+    ...(input.settlementStatus
+      ? {
+          settlement: {
+            status: input.settlementStatus,
+            ...(input.settlementStatus === "pending"
+              ? {}
+              : { settledAt: input.updatedAt.toISOString(), reason: input.settlementStatus === "completed" ? "terminal" : "remort" }),
+            version: 1
+          }
+        }
+      : {}),
     ...(input.status === "active" ? {} : { completedAt: input.completedAt.toISOString() })
   };
 

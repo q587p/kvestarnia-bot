@@ -486,9 +486,14 @@ describe("PrismaSoloCombatSessionRepository", () => {
     const calls: unknown[] = [];
     const repository = new PrismaSoloCombatSessionRepository({
       soloCombatSession: {
-        count: (input: unknown) => {
+        findMany: (input: unknown) => {
           calls.push(input);
-          return Promise.resolve(23);
+          return Promise.resolve([
+            { stateJson: { ...activeCombatState, status: "won", settlement: { status: "completed", version: 1 } } },
+            { stateJson: { ...activeCombatState, status: "won" } },
+            { stateJson: { ...activeCombatState, status: "won", settlement: { status: "pending", version: 1 } } },
+            { stateJson: { ...activeCombatState, status: "won", settlement: { status: "forfeited-by-remort", version: 1 } } }
+          ]);
         }
       }
     } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
@@ -499,7 +504,7 @@ describe("PrismaSoloCombatSessionRepository", () => {
         excludeMonsterIds: ["monster.training-doppelganger"],
         since
       })
-    ).resolves.toBe(23);
+    ).resolves.toBe(2);
 
     expect(calls[0]).toEqual({
       where: {
@@ -515,6 +520,9 @@ describe("PrismaSoloCombatSessionRepository", () => {
             telegramUserId: 42n
           }
         }
+      },
+      select: {
+        stateJson: true
       }
     });
   });

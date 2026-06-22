@@ -12,11 +12,20 @@ import type {
   CombatTurnOutcome,
   CombatTurnSummary
 } from "../../domain/combat";
-import { parseCombatAnalyticsState, parseMonsterAbilityRuntimeState } from "../../domain/combat";
+import {
+  markCombatSettlementCompleted,
+  markCombatSettlementForfeitedByRemort,
+  parseCombatAnalyticsState,
+  parseMonsterAbilityRuntimeState
+} from "../../domain/combat";
 import type {
+  CompleteSoloCombatSettlementInput,
   CreateSoloCombatSessionInput,
   DueSoloCombatSessionRecord,
+  ForfeitSoloCombatSettlementInput,
+  GuardedSettlementResult,
   RecordSoloCombatRewardInput,
+  SoloCombatLeaseLookupResult,
   SoloCombatSessionLifeRecord,
   SoloCombatSessionCompletionRecord,
   SoloCombatSessionRecord,
@@ -35,6 +44,7 @@ const DUE_SESSION_PAGE_SIZE = 100;
 const DUE_SESSION_SCAN_CAP = 1000;
 const RECENT_ORDINARY_PAGE_SIZE = 50;
 const RECENT_ORDINARY_SCAN_CAP = 200;
+const RETRY_SOLO_COMBAT_CREATE = Symbol("retry-solo-combat-create");
 
 export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -136,7 +146,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     telegramUserId: bigint,
     options: { excludeMonsterIds?: readonly string[]; since?: Date } = {}
   ): Promise<number> {
-    return this.prisma.soloCombatSession.count({
+    const records = await this.prisma.soloCombatSession.findMany({
       where: {
         status: "won",
         ...(options.since ? { createdAt: { gt: options.since } } : {}),
@@ -148,8 +158,15 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
             telegramUserId
           }
         }
+      },
+      select: {
+        stateJson: true
       }
     });
+
+    return records.filter((record) =>
+      isVictoryProgressEligible("won", parseCombatState(record.stateJson))
+    ).length;
   }
 
   async listCompletedByTelegramUserIdSince(
@@ -187,6 +204,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
 
       if (!completedAt || completedAt < since) {
+        return [];
+      }
+
+      if (status === "won" && !isVictoryProgressEligible(status, state)) {
         return [];
       }
 
@@ -303,7 +324,8 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
   async createForTelegramUser(
     telegramUserId: bigint,
-    input: CreateSoloCombatSessionInput
+    input: CreateSoloCombatSessionInput,
+    retryAttempt = 0
   ): Promise<SoloCombatSessionRecord | null> {
     const sessionId = input.id;
     const record = await this.prisma.$transaction(async (tx) => {
@@ -343,18 +365,41 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
 
       return session;
-    }).catch((error: unknown) => {
+    }).catch(async (error: unknown) => {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"
       ) {
-        return null;
+        const leased = await this.findLeasedByTelegramUserId(telegramUserId);
+
+        if (
+          leased.state === "active" ||
+          leased.state === "terminal-pending" ||
+          leased.state === "terminal-completed" ||
+          leased.state === "terminal-forfeited"
+        ) {
+          return leased.session;
+        }
+
+        if (leased.state === "missing-session" || leased.state === "none") {
+          return RETRY_SOLO_COMBAT_CREATE;
+        }
       }
 
       throw error;
     });
 
-    return record ? mapSoloCombatSessionRecord(record) : this.findActiveByTelegramUserId(telegramUserId);
+    if (record === RETRY_SOLO_COMBAT_CREATE) {
+      return retryAttempt >= 1
+        ? null
+        : this.createForTelegramUser(telegramUserId, input, retryAttempt + 1);
+    }
+
+    return record
+      ? isSoloCombatSessionRecord(record)
+        ? record
+        : mapSoloCombatSessionRecord(record)
+      : null;
   }
 
   async markStatusById(
@@ -549,6 +594,209 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     });
 
     return mapSoloCombatSessionRecord(record);
+  }
+
+  async findLeasedByTelegramUserId(
+    telegramUserId: bigint
+  ): Promise<SoloCombatLeaseLookupResult> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true,
+        activeCombatLease: {
+          select: {
+            kind: true,
+            referenceId: true
+          }
+        }
+      }
+    });
+
+    const lease = character?.activeCombatLease;
+
+    if (!character || !lease) {
+      return { state: "none" };
+    }
+
+    if (lease.kind !== "solo-combat") {
+      return {
+        state: "unsupported",
+        kind: lease.kind,
+        referenceId: lease.referenceId
+      };
+    }
+
+    const record = await this.prisma.soloCombatSession.findFirst({
+      where: {
+        id: lease.referenceId,
+        characterId: character.id
+      }
+    });
+
+    if (!record) {
+      return {
+        state: "missing-session",
+        referenceId: lease.referenceId
+      };
+    }
+
+    const session = mapSoloCombatSessionRecord(record);
+
+    if (!session) {
+      return {
+        state: "missing-session",
+        referenceId: lease.referenceId
+      };
+    }
+
+    if (session.status === "active") {
+      return { state: "active", session };
+    }
+
+    if (session.state?.settlement?.status === "completed") {
+      return { state: "terminal-completed", session };
+    }
+
+    if (session.state?.settlement?.status === "forfeited-by-remort") {
+      return { state: "terminal-forfeited", session };
+    }
+
+    return { state: "terminal-pending", session };
+  }
+
+  async releaseLeaseBySessionId(sessionId: string): Promise<boolean> {
+    const deleted = await this.prisma.activeCombatLease.deleteMany({
+      where: {
+        kind: "solo-combat",
+        referenceId: sessionId
+      }
+    });
+
+    return deleted.count > 0;
+  }
+
+  async completeSettlementById(
+    sessionId: string,
+    input: CompleteSoloCombatSettlementInput
+  ): Promise<GuardedSettlementResult> {
+    return this.guardSettlementById(sessionId, "completed", input);
+  }
+
+  async forfeitSettlementById(
+    sessionId: string,
+    input: ForfeitSoloCombatSettlementInput
+  ): Promise<GuardedSettlementResult> {
+    return this.guardSettlementById(sessionId, "forfeited", input);
+  }
+
+  private async guardSettlementById(
+    sessionId: string,
+    target: "completed" | "forfeited",
+    input: CompleteSoloCombatSettlementInput | ForfeitSoloCombatSettlementInput
+  ): Promise<GuardedSettlementResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.soloCombatSession.findUnique({
+        where: {
+          id: sessionId
+        }
+      });
+
+      if (!current) {
+        return { outcome: "missing", session: null };
+      }
+
+      const state = parseCombatState(current.stateJson);
+
+      if (state?.settlement?.status === "completed") {
+        if (input.releaseLease) {
+          await tx.activeCombatLease.deleteMany({
+            where: {
+              kind: "solo-combat",
+              referenceId: sessionId
+            }
+          });
+        }
+
+        return {
+          outcome: "already-completed",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      if (state?.settlement?.status === "forfeited-by-remort") {
+        if (input.releaseLease) {
+          await tx.activeCombatLease.deleteMany({
+            where: {
+              kind: "solo-combat",
+              referenceId: sessionId
+            }
+          });
+        }
+
+        return {
+          outcome: "already-forfeited",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      if (!settlementExpectationMatches(current, state, input.expected)) {
+        return {
+          outcome: "version-changed",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      const nextState = state
+        ? target === "completed"
+          ? markCombatSettlementCompleted(state, input.settledAt)
+          : markCombatSettlementForfeitedByRemort(
+              state,
+              input.settledAt,
+              (input as ForfeitSoloCombatSettlementInput).reason
+            )
+        : null;
+
+      const updated = await tx.soloCombatSession.update({
+        where: {
+          id: sessionId
+        },
+        data: {
+          ...(nextState
+            ? {
+                stateJson: nextState as unknown as Prisma.InputJsonValue,
+                status: nextState.status,
+                turn: nextState.turn
+              }
+            : {}),
+          ...(target === "completed" && "reward" in input && input.reward
+            ? {
+                rewardXp: input.reward.rewardXp,
+                rewardGold: input.reward.rewardGold,
+                rewardItemsJson: input.reward.itemGrants,
+                rewardClaimedAt: input.reward.claimedAt
+              }
+            : {})
+        }
+      });
+
+      if (input.releaseLease) {
+        await tx.activeCombatLease.deleteMany({
+          where: {
+            kind: "solo-combat",
+            referenceId: sessionId
+          }
+        });
+      }
+
+      return {
+        outcome: target,
+        session: mapSoloCombatSessionRecord(updated)
+      };
+    });
   }
 
   async resolveLifeById(sessionId: string): Promise<SoloCombatSessionLifeRecord | null> {
@@ -790,6 +1038,59 @@ function getSessionCompletionTime(input: {
   }
 
   return parseIsoDate(input.state?.completedAt) ?? input.createdAt;
+}
+
+function isVictoryProgressEligible(
+  status: SoloCombatSessionStatus,
+  state: CombatState | null
+): boolean {
+  if (status !== "won") {
+    return false;
+  }
+
+  if (!state?.settlement) {
+    return true;
+  }
+
+  return state.settlement.status === "completed";
+}
+
+function settlementExpectationMatches(
+  record: NonNullable<PrismaSoloCombatSessionRecord>,
+  state: CombatState | null,
+  expected: CompleteSoloCombatSettlementInput["expected"]
+): boolean {
+  if (!expected) {
+    return true;
+  }
+
+  if (expected.combatStatus && parseStatus(record.status) !== expected.combatStatus) {
+    return false;
+  }
+
+  if (
+    expected.settlementStatus &&
+    (state?.settlement?.status ?? "pending") !== expected.settlementStatus
+  ) {
+    return false;
+  }
+
+  if (
+    expected.settlementVersion !== undefined &&
+    state?.settlement?.version !== expected.settlementVersion
+  ) {
+    return false;
+  }
+
+  if (
+    expected.life &&
+    state?.life &&
+    state.life.remortCount !== expected.life.remortCount
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 function parseIsoDate(value: unknown): Date | null {
@@ -1364,6 +1665,14 @@ function intOrNull(value: unknown): number | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isSoloCombatSessionRecord(value: unknown): value is SoloCombatSessionRecord {
+  return isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.characterId === "string" &&
+    "state" in value &&
+    "reward" in value;
 }
 
 function isPrismaNotFound(error: unknown): boolean {

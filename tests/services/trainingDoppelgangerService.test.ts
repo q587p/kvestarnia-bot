@@ -33,6 +33,10 @@ import {
   TRAINING_DOPPELGANGER_MIN_LEVEL,
   TRAINING_DOPPELGANGER_MONSTER_ID
 } from "../../src/domain/trainingDoppelganger";
+import {
+  markCombatSettlementCompleted,
+  markCombatSettlementForfeitedByRemort
+} from "../../src/domain/combat";
 import { FakeRandomSource } from "../../src/shared/random";
 import {
   TrainingDoppelgangerService,
@@ -996,6 +1000,86 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
     this.sessions.set(sessionId, updated);
 
     return Promise.resolve(updated);
+  }
+
+  completeSettlementById(
+    sessionId: string,
+    input: {
+      settledAt: Date;
+      reward?: {
+        rewardXp: number;
+        rewardGold: number;
+        itemGrants: Array<{ itemId: string; quantity: number }>;
+        claimedAt: Date;
+      };
+    }
+  ): Promise<{ outcome: "completed" | "already-completed" | "already-forfeited"; session: SoloCombatSessionRecord | null }> {
+    const existing = this.sessions.get(sessionId);
+
+    if (!existing) {
+      return Promise.resolve({ outcome: "completed", session: null });
+    }
+
+    if (existing.state?.settlement?.status === "completed") {
+      return Promise.resolve({ outcome: "already-completed", session: existing });
+    }
+
+    if (existing.state?.settlement?.status === "forfeited-by-remort") {
+      return Promise.resolve({ outcome: "already-forfeited", session: existing });
+    }
+
+    const state = existing.state
+      ? markCombatSettlementCompleted(existing.state, input.settledAt)
+      : existing.state;
+    const updated = {
+      ...existing,
+      ...(state ? { state, status: state.status, turn: state.turn } : {}),
+      ...(input.reward
+        ? {
+            reward: {
+              xp: input.reward.rewardXp,
+              gold: input.reward.rewardGold,
+              itemGrants: input.reward.itemGrants,
+              claimedAt: input.reward.claimedAt
+            }
+          }
+        : {}),
+      updatedAt: fixedNow()
+    };
+    this.sessions.set(sessionId, updated);
+
+    return Promise.resolve({ outcome: "completed", session: updated });
+  }
+
+  forfeitSettlementById(
+    sessionId: string,
+    input: { settledAt: Date; reason: "remort" | "life-mismatch" | "legacy-life-mismatch" }
+  ): Promise<{ outcome: "forfeited" | "already-completed" | "already-forfeited"; session: SoloCombatSessionRecord | null }> {
+    const existing = this.sessions.get(sessionId);
+
+    if (!existing) {
+      return Promise.resolve({ outcome: "forfeited", session: null });
+    }
+
+    if (existing.state?.settlement?.status === "completed") {
+      return Promise.resolve({ outcome: "already-completed", session: existing });
+    }
+
+    if (existing.state?.settlement?.status === "forfeited-by-remort") {
+      return Promise.resolve({ outcome: "already-forfeited", session: existing });
+    }
+
+    const state = existing.state
+      ? markCombatSettlementForfeitedByRemort(existing.state, input.settledAt, input.reason)
+      : existing.state;
+    const updated = {
+      ...existing,
+      ...(state ? { state, status: state.status, turn: state.turn } : {}),
+      updatedAt: fixedNow()
+    };
+    this.sessions.set(sessionId, updated);
+
+    return Promise.resolve({ outcome: "forfeited", session: updated });
   }
 
   markStatusById(

@@ -34,8 +34,6 @@ import {
   createCombatBarkState,
   getCombatSkillProfile,
   isCombatSettlementTerminal,
-  markCombatSettlementCompleted,
-  markCombatSettlementForfeitedByRemort,
   markCombatTurnTimeoutMode,
   recordCombatTimeout,
   resetCombatTimeout,
@@ -999,7 +997,7 @@ export class FightService {
     }
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
-    const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+    const activeSession = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
     const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
       syncResources: !activeSession
     });
@@ -1350,7 +1348,7 @@ export class FightService {
     }
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
-    const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+    const activeSession = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
 
     if (activeSession) {
       const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character, {
@@ -2186,16 +2184,10 @@ export class FightService {
     }
 
     if (claim.state === "existing") {
-      const completedState = session.state
-        ? markCombatSettlementCompleted(session.state, this.clock())
-        : null;
-      await this.combatSessions?.recordRewardById(session.id, {
+      await this.completeCombatSettlement(session, {
         rewardXp: claim.action.rewardXp,
         rewardGold: claim.action.rewardGold,
-        itemGrants: [],
-        claimedAt: this.clock(),
-        ...(completedState ? { state: completedState, status: completedState.status } : {}),
-        releaseLease: true
+        itemGrants: []
       });
       return {
         state: "already-claimed",
@@ -2211,18 +2203,10 @@ export class FightService {
     }
 
     const stored =
-      await this.combatSessions?.recordRewardById(session.id, {
+      await this.completeCombatSettlement(session, {
         rewardXp: claim.action.rewardXp,
         rewardGold: claim.action.rewardGold,
-        itemGrants: claim.itemGrants,
-        claimedAt: this.clock(),
-        ...(session.state
-          ? {
-              state: markCombatSettlementCompleted(session.state, this.clock()),
-              status: session.state.status
-            }
-          : {}),
-        releaseLease: true
+        itemGrants: claim.itemGrants
       });
 
     return {
@@ -2508,6 +2492,35 @@ export class FightService {
     };
   }
 
+  private async findLeasedSoloCombatSessionForTelegramUser(
+    telegramUserId: bigint,
+    attempts = 0
+  ): Promise<SoloCombatSessionRecord | null> {
+    const lookup = await this.combatSessions?.findLeasedByTelegramUserId?.(telegramUserId);
+
+    if (!lookup) {
+      return this.combatSessions?.findActiveByTelegramUserId(telegramUserId) ?? null;
+    }
+
+    if (lookup.state === "active" || lookup.state === "terminal-pending") {
+      return lookup.session;
+    }
+
+    if (lookup.state === "terminal-completed" || lookup.state === "terminal-forfeited") {
+      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.session.id);
+    } else if (lookup.state === "missing-session") {
+      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.referenceId);
+    } else if (lookup.state === "unsupported") {
+      return null;
+    } else {
+      return null;
+    }
+
+    return attempts >= 1
+      ? null
+      : this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId, attempts + 1);
+  }
+
   private async persistCharacterResourcesFromSession(
     telegramUserId: bigint,
     session: SoloCombatSessionRecord,
@@ -2576,24 +2589,31 @@ export class FightService {
       return session;
     }
 
-    const state = markCombatSettlementCompleted(session.state, this.clock());
-    const updated = reward
-      ? await this.combatSessions?.recordRewardById(session.id, {
-          ...reward,
-          claimedAt: this.clock(),
-          state,
-          status: state.status,
-          releaseLease: true
-        })
-      : await this.combatSessions?.updateById(session.id, {
-          state,
-          status: state.status,
-          releaseLease: true
-        });
+    const guarded = await this.combatSessions?.completeSettlementById?.(session.id, {
+      expected: {
+        settlementStatus: "pending",
+        ...(session.state.settlement?.version !== undefined
+          ? { settlementVersion: session.state.settlement.version }
+          : {}),
+        combatStatus: session.state.status,
+        ...(session.state.life ? { life: { remortCount: session.state.life.remortCount } } : {})
+      },
+      settledAt: this.clock(),
+      ...(reward
+        ? {
+            reward: {
+              ...reward,
+              claimedAt: this.clock()
+            }
+          }
+        : {}),
+      releaseLease: true
+    });
+    const updated = guarded?.session ?? session;
 
-    await this.combatAnalytics?.recordTerminalSession(updated ?? { ...session, state });
+    await this.combatAnalytics?.recordTerminalSession(updated);
 
-    return updated ?? { ...session, state };
+    return updated;
   }
 
   private async forfeitCombatSettlement(
@@ -2604,14 +2624,21 @@ export class FightService {
       return session;
     }
 
-    const state = markCombatSettlementForfeitedByRemort(session.state, this.clock(), reason);
-    const updated = await this.combatSessions?.updateById(session.id, {
-      state,
-      status: state.status,
+    const guarded = await this.combatSessions?.forfeitSettlementById?.(session.id, {
+      expected: {
+        settlementStatus: "pending",
+        ...(session.state.settlement?.version !== undefined
+          ? { settlementVersion: session.state.settlement.version }
+          : {}),
+        combatStatus: session.state.status,
+        ...(session.state.life ? { life: { remortCount: session.state.life.remortCount } } : {})
+      },
+      settledAt: this.clock(),
+      reason,
       releaseLease: true
     });
 
-    return updated ?? { ...session, state };
+    return guarded?.session ?? session;
   }
 
   private async reloadSessionAfterSettlement(

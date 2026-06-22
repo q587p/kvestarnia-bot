@@ -17,8 +17,6 @@ import {
   expireCombat,
   freezeCombatLife,
   isCombatSettlementTerminal,
-  markCombatSettlementCompleted,
-  markCombatSettlementForfeitedByRemort,
   markCombatTurnTimeoutMode,
   recordCombatTimeout,
   resetCombatTimeout,
@@ -666,7 +664,7 @@ export class TrainingDoppelgangerService {
       };
     }
 
-    const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+    const activeSession = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
 
     if (activeSession) {
       if (!isTrainingDoppelgangerMonsterId(activeSession.monsterId)) {
@@ -806,6 +804,35 @@ export class TrainingDoppelgangerService {
     return result;
   }
 
+  private async findLeasedSoloCombatSessionForTelegramUser(
+    telegramUserId: bigint,
+    attempts = 0
+  ): Promise<SoloCombatSessionRecord | null> {
+    const lookup = await this.combatSessions.findLeasedByTelegramUserId?.(telegramUserId);
+
+    if (!lookup) {
+      return this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+    }
+
+    if (lookup.state === "active" || lookup.state === "terminal-pending") {
+      return lookup.session;
+    }
+
+    if (lookup.state === "terminal-completed" || lookup.state === "terminal-forfeited") {
+      await this.combatSessions.releaseLeaseBySessionId?.(lookup.session.id);
+    } else if (lookup.state === "missing-session") {
+      await this.combatSessions.releaseLeaseBySessionId?.(lookup.referenceId);
+    } else if (lookup.state === "unsupported") {
+      return null;
+    } else {
+      return null;
+    }
+
+    return attempts >= 1
+      ? null
+      : this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId, attempts + 1);
+  }
+
   private async getExistingTrainingSession(
     telegramUserId: bigint,
     character: CharacterSummary,
@@ -942,16 +969,10 @@ export class TrainingDoppelgangerService {
     }
 
     if (claim.state === "existing") {
-      const completedState = session.state
-        ? markCombatSettlementCompleted(session.state, this.clock())
-        : null;
-      await this.combatSessions.recordRewardById(session.id, {
+      await this.completeCombatSettlement(session, {
         rewardXp: claim.action.rewardXp,
         rewardGold: 0,
-        itemGrants: [],
-        claimedAt: this.clock(),
-        ...(completedState ? { state: completedState, status: completedState.status } : {}),
-        releaseLease: true
+        itemGrants: []
       });
       return {
         state: "already-claimed",
@@ -987,18 +1008,10 @@ export class TrainingDoppelgangerService {
       await this.forfeitCombatSettlement(session, "life-mismatch");
       return null;
     }
-    const stored = await this.combatSessions.recordRewardById(session.id, {
+    const stored = await this.completeCombatSettlement(session, {
       rewardXp: claim.action.rewardXp,
       rewardGold: 0,
-      itemGrants: [],
-      claimedAt: this.clock(),
-      ...(session.state
-        ? {
-            state: markCombatSettlementCompleted(session.state, this.clock()),
-            status: session.state.status
-          }
-        : {}),
-      releaseLease: true
+      itemGrants: []
     });
 
     return {
@@ -1113,7 +1126,8 @@ export class TrainingDoppelgangerService {
   }
 
   private async completeCombatSettlement(
-    session: SoloCombatSessionRecord
+    session: SoloCombatSessionRecord,
+    reward?: { rewardXp: number; rewardGold: number; itemGrants: Array<{ itemId: string; quantity: number }> }
   ): Promise<SoloCombatSessionRecord | null> {
     if (!session.state || session.state.settlement?.status === "completed") {
       await this.combatAnalytics?.recordTerminalSession(session);
@@ -1124,15 +1138,31 @@ export class TrainingDoppelgangerService {
       return session;
     }
 
-    const state = markCombatSettlementCompleted(session.state, this.clock());
-    const updated = await this.combatSessions.updateById(session.id, {
-      state,
-      status: state.status,
+    const guarded = await this.combatSessions.completeSettlementById?.(session.id, {
+      expected: {
+        settlementStatus: "pending",
+        ...(session.state.settlement?.version !== undefined
+          ? { settlementVersion: session.state.settlement.version }
+          : {}),
+        combatStatus: session.state.status,
+        ...(session.state.life ? { life: { remortCount: session.state.life.remortCount } } : {})
+      },
+      settledAt: this.clock(),
+      ...(reward
+        ? {
+            reward: {
+              ...reward,
+              claimedAt: this.clock()
+            }
+          }
+        : {}),
       releaseLease: true
     });
-    await this.combatAnalytics?.recordTerminalSession(updated ?? { ...session, state });
+    const updated = guarded?.session ?? session;
 
-    return updated ?? { ...session, state };
+    await this.combatAnalytics?.recordTerminalSession(updated);
+
+    return updated;
   }
 
   private async forfeitCombatSettlement(
@@ -1143,14 +1173,21 @@ export class TrainingDoppelgangerService {
       return session;
     }
 
-    const state = markCombatSettlementForfeitedByRemort(session.state, this.clock(), reason);
-    const updated = await this.combatSessions.updateById(session.id, {
-      state,
-      status: state.status,
+    const guarded = await this.combatSessions.forfeitSettlementById?.(session.id, {
+      expected: {
+        settlementStatus: "pending",
+        ...(session.state.settlement?.version !== undefined
+          ? { settlementVersion: session.state.settlement.version }
+          : {}),
+        combatStatus: session.state.status,
+        ...(session.state.life ? { life: { remortCount: session.state.life.remortCount } } : {})
+      },
+      settledAt: this.clock(),
+      reason,
       releaseLease: true
     });
 
-    return updated ?? { ...session, state };
+    return guarded?.session ?? session;
   }
 }
 
