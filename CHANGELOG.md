@@ -14,6 +14,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a nullable unique active key so one character can keep one live pending preview per passage while consumed/expired rows remain historical.
 - Added focused service coverage for same-passage sticky previews, expired-token refresh, exact frozen monster consumption and ordinary anti-repeat fallback order.
 - Added remort detail buttons on the memorial board so visible `Реморти Тринадцятки` groups can open a remort-specific level-first board.
+- Added Prisma-backed pending encounter repository coverage for same-passage reuse, distinct passages, consume/expiry races, wrong-owner and stale-version rejection, active-lease conflicts, and wounded re-attack relinking.
+- Added bounded-history repository coverage proving ordinary anti-repeat scans past newer active, Yeger and adventure sessions instead of starving on the first page.
 
 ### Changed
 - Nyz passage `Атакувати` buttons now carry compact opaque server tokens instead of Telegram-returned encounter seeds.
@@ -24,6 +26,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Wounded passage previews now show the monster's current recovered HP so fast player recovery can matter before the monster fully heals.
 - Pressing an expired, stale or catalog-invalid preview button now refreshes the preview with a short explanation instead of silently starting a different monster.
 - Consuming a pending preview atomically links it to at most one persistent solo combat session; duplicate attack callbacks recover the linked session when available.
+- Pending preview expiry and consumption now use guarded status/version transitions. Stale callers reread the current row instead of overwriting consumed session links or turning duplicate races into new fights.
+- Consumed wounded-trail re-attacks now validate the prior linked terminal non-win session in the same transaction before relinking a fresh combat session.
 - Ordinary Nyz monster selection now checks bounded recent ordinary fight history before choosing: it avoids the immediately previous monster when alternatives exist, avoids the last three distinct monsters when the legal pool is large enough, and falls back to the original deterministic pool for small candidate sets.
 - Legacy seed-shaped passage callbacks no longer select or start a client-chosen monster; they refresh a current server-owned preview instead.
 - Nyz passage preview copy now avoids monster gender pronouns and accusative-name wording until monster grammar metadata is added.
@@ -33,7 +37,9 @@ This project follows a simple pre-1.0 versioning policy:
 ### Fixed
 - Post-remort level milestones now use remort-specific daily-action keys instead of reusing base-life `milestone.level.N` keys, so remort detail boards can show levels 2-13 reached in the current life.
 - Memorial-board backfill now writes missing current-life remort milestones separately from base-life milestones, so already-remorted characters who have climbed again are no longer stuck showing only the remort's level 1 row.
+- Memorial-board remort detail rows now deduplicate legacy and backfilled milestone rows for the same character/level, preferring real recorded rows and preserving provenance in `daily_actions.resultJson`.
 - Location-changing place callbacks now send a short movement line with the updated persistent keyboard before rendering the new place card, so the main place button catches up without a debug-like `📍 Тепер:` status message.
+- Passage attack callbacks are now bound to the server-owned encounter and the player's current passage location; old buttons from another passage refresh the current place instead of moving presence or starting combat.
 - Active persistent fight cards now repeat the fight header, opponent name and monster level, and show the start tip on the card that keeps the combat buttons.
 
 ### Unchanged

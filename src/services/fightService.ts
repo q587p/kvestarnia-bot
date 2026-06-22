@@ -670,7 +670,12 @@ export class FightService {
 
     const baseMonster = findMonster(encounter.monsterId);
     if (!baseMonster) {
-      await this.pendingPassageEncounters?.expireById(encounter.id, now);
+      await this.pendingPassageEncounters?.expireById({
+        id: encounter.id,
+        expectedStatus: "pending",
+        expectedVersion: encounter.version,
+        now
+      });
       return this.previewPersistentFightForTelegramUser(telegramUserId, {
         difficulty: difficulty.id,
         originLocationId,
@@ -700,7 +705,11 @@ export class FightService {
 
   async attackPersistentPassageEncounterForTelegramUser(
     telegramUserId: bigint,
-    token: string
+    token: string,
+    options: {
+      callbackOriginLocationId?: string;
+      currentLocationId?: string;
+    } = {}
   ): Promise<PersistentFightPassageAttackResult> {
     if (!this.pendingPassageEncounters || !this.combatSessions) {
       return { state: "invalid-preview" };
@@ -708,6 +717,15 @@ export class FightService {
 
     const encounter = await this.pendingPassageEncounters.findByTokenForTelegramUser(telegramUserId, token);
     if (!encounter) {
+      return { state: "invalid-preview" };
+    }
+
+    if (
+      (options.callbackOriginLocationId &&
+        normalizePresenceLocationId(options.callbackOriginLocationId) !== normalizePresenceLocationId(encounter.originLocationId)) ||
+      (options.currentLocationId &&
+        normalizePresenceLocationId(options.currentLocationId) !== normalizePresenceLocationId(encounter.originLocationId))
+    ) {
       return { state: "invalid-preview" };
     }
 
@@ -760,6 +778,8 @@ export class FightService {
         });
         const restarted = await this.pendingPassageEncounters.createSessionForConsumedEncounter(telegramUserId, token, {
           sessionId,
+          expectedEncounterVersion: encounter.version,
+          expectedLinkedSessionId: encounter.combatSessionId,
           monsterId: monster.id,
           state,
           sessionExpiresAt: getSessionExpiry(now),
@@ -802,6 +822,18 @@ export class FightService {
               }
             : await this.getFightOverviewForTelegramUser(telegramUserId);
         }
+
+        if (restarted.state === "version-changed" || restarted.state === "not-pending") {
+          return this.previewPersistentFightForTelegramUser(telegramUserId, {
+            difficulty: encounter.difficulty,
+            originLocationId: encounter.originLocationId,
+            refreshed: "stale"
+          }) as Promise<PersistentFightPassageAttackResult>;
+        }
+
+        if (restarted.state === "active-lease-conflict") {
+          return this.getFightOverviewForTelegramUser(telegramUserId);
+        }
       }
     }
 
@@ -814,7 +846,12 @@ export class FightService {
     }
 
     if (encounter.expiresAt.getTime() <= now.getTime()) {
-      await this.pendingPassageEncounters.expireById(encounter.id, now);
+      await this.pendingPassageEncounters.expireById({
+        id: encounter.id,
+        expectedStatus: "pending",
+        expectedVersion: encounter.version,
+        now
+      });
       return this.previewPersistentFightForTelegramUser(telegramUserId, {
         difficulty: encounter.difficulty,
         originLocationId: encounter.originLocationId,
@@ -823,7 +860,12 @@ export class FightService {
     }
 
     if (!baseMonster) {
-      await this.pendingPassageEncounters.expireById(encounter.id, now);
+      await this.pendingPassageEncounters.expireById({
+        id: encounter.id,
+        expectedStatus: "pending",
+        expectedVersion: encounter.version,
+        now
+      });
       return this.previewPersistentFightForTelegramUser(telegramUserId, {
         difficulty: encounter.difficulty,
         originLocationId: encounter.originLocationId,
@@ -856,6 +898,8 @@ export class FightService {
     });
     const consumed = await this.pendingPassageEncounters.consumeForTelegramUser(telegramUserId, token, {
       sessionId,
+      expectedEncounterVersion: encounter.version,
+      expectedLinkedSessionId: null,
       monsterId: monster.id,
       state,
       sessionExpiresAt: getSessionExpiry(now),
@@ -905,6 +949,18 @@ export class FightService {
             questProgress: gate.questProgress
           }
         : await this.getFightOverviewForTelegramUser(telegramUserId);
+    }
+
+    if (consumed.state === "version-changed" || consumed.state === "not-pending") {
+      return this.previewPersistentFightForTelegramUser(telegramUserId, {
+        difficulty: encounter.difficulty,
+        originLocationId: encounter.originLocationId,
+        refreshed: "stale"
+      }) as Promise<PersistentFightPassageAttackResult>;
+    }
+
+    if (consumed.state === "active-lease-conflict") {
+      return this.getFightOverviewForTelegramUser(telegramUserId);
     }
 
     return { state: "invalid-preview" };
@@ -2455,6 +2511,7 @@ export class FightService {
     const monster = applyPersistentFightDifficulty(baseMonster, character, difficulty);
 
     return this.pendingPassageEncounters.createForTelegramUser(telegramUserId, {
+      now,
       token: createPendingEncounterToken(),
       originLocationId,
       passage: passageFromOriginLocationId(originLocationId),

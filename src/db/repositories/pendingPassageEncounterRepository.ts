@@ -27,6 +27,7 @@ export interface PendingPassageEncounterRecord {
 }
 
 export interface CreatePendingPassageEncounterInput {
+  now: Date;
   token: string;
   originLocationId: string;
   passage: "deep-left" | "deep-straight" | "deep-right";
@@ -41,6 +42,8 @@ export interface CreatePendingPassageEncounterInput {
 
 export interface ConsumePendingPassageEncounterInput {
   sessionId: string;
+  expectedEncounterVersion: number;
+  expectedLinkedSessionId?: string | null;
   monsterId: string;
   state: CombatState;
   sessionExpiresAt: Date;
@@ -56,8 +59,17 @@ export type ConsumePendingPassageEncounterResult =
   | { state: "consumed"; encounter: PendingPassageEncounterRecord; session: SoloCombatSessionRecord }
   | { state: "already-consumed"; encounter: PendingPassageEncounterRecord; session: SoloCombatSessionRecord | null }
   | { state: "invalid" }
+  | { state: "version-changed"; encounter: PendingPassageEncounterRecord }
   | { state: "not-pending"; encounter: PendingPassageEncounterRecord }
-  | { state: "active-fight"; session: SoloCombatSessionRecord };
+  | { state: "active-fight"; session: SoloCombatSessionRecord }
+  | { state: "active-lease-conflict" };
+
+export type ExpirePendingPassageEncounterResult =
+  | { state: "expired"; encounter: PendingPassageEncounterRecord }
+  | { state: "already-consumed"; encounter: PendingPassageEncounterRecord }
+  | { state: "already-terminal"; encounter: PendingPassageEncounterRecord }
+  | { state: "version-changed"; encounter: PendingPassageEncounterRecord }
+  | { state: "missing" };
 
 export interface PendingPassageEncounterRepository {
   findReusableForTelegramUser(
@@ -78,7 +90,12 @@ export interface PendingPassageEncounterRepository {
     telegramUserId: bigint,
     input: CreatePendingPassageEncounterInput
   ): Promise<PendingPassageEncounterRecord | null>;
-  expireById(id: string, now: Date): Promise<PendingPassageEncounterRecord | null>;
+  expireById(input: {
+    id: string;
+    expectedStatus: "pending";
+    expectedVersion: number;
+    now: Date;
+  }): Promise<ExpirePendingPassageEncounterResult>;
   consumeForTelegramUser(
     telegramUserId: bigint,
     token: string,

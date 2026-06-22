@@ -76,7 +76,8 @@ export async function recordLevelMilestones(
       characterId,
       level,
       ...(reachedAt ? { reachedAt } : {}),
-      remortCount: options.remortCount ?? 0
+      remortCount: options.remortCount ?? 0,
+      provenance: "recorded"
     });
   }
 }
@@ -88,6 +89,7 @@ export async function createLevelMilestone(
     level: number;
     reachedAt?: Date;
     remortCount?: number;
+    provenance?: "recorded" | "backfill-current-level";
   }
 ): Promise<void> {
   const remortCount = input.remortCount ?? 0;
@@ -103,6 +105,14 @@ export async function createLevelMilestone(
         localDate: LEVEL_MILESTONE_LOCAL_DATE,
         rewardXp: 0,
         rewardGold: 0,
+        resultJson: {
+          milestone: {
+            kind: "level",
+            provenance: input.provenance ?? "recorded",
+            remortCount,
+            level: input.level
+          }
+        },
         ...(input.reachedAt ? { createdAt: input.reachedAt } : {})
       }
     });

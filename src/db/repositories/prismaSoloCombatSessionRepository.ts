@@ -30,6 +30,8 @@ const terminalStatuses = new Set<CombatStatus>(["won", "lost", "fled", "expired"
 const DEFAULT_DUE_SESSION_LIMIT = 20;
 const DUE_SESSION_PAGE_SIZE = 100;
 const DUE_SESSION_SCAN_CAP = 1000;
+const RECENT_ORDINARY_PAGE_SIZE = 50;
+const RECENT_ORDINARY_SCAN_CAP = 200;
 
 export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -200,38 +202,77 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     telegramUserId: bigint,
     limit: number
   ): Promise<string[]> {
-    const scanLimit = Math.min(50, Math.max(1, Math.floor(limit) * 4));
-    const records = await this.prisma.soloCombatSession.findMany({
-      where: {
-        character: {
-          user: {
-            telegramUserId
+    const resultLimit = Math.max(1, Math.floor(limit));
+    const ordinary: Array<{ monsterId: string; completedAt: Date; id: string }> = [];
+    let scanned = 0;
+
+    while (scanned < RECENT_ORDINARY_SCAN_CAP) {
+      const records = await this.prisma.soloCombatSession.findMany({
+        where: {
+          character: {
+            user: {
+              telegramUserId
+            }
           }
+        },
+        orderBy: [
+          { updatedAt: "desc" },
+          { id: "desc" }
+        ],
+        skip: scanned,
+        take: Math.min(RECENT_ORDINARY_PAGE_SIZE, RECENT_ORDINARY_SCAN_CAP - scanned),
+        select: {
+          id: true,
+          monsterId: true,
+          stateJson: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true
         }
-      },
-      orderBy: [
-        { updatedAt: "desc" },
-        { id: "desc" }
-      ],
-      take: scanLimit,
-      select: {
-        monsterId: true,
-        stateJson: true
+      });
+
+      if (records.length === 0) {
+        break;
       }
-    });
 
-    const result: string[] = [];
+      scanned += records.length;
+
+      for (const record of records) {
+        const state = parseCombatState(record.stateJson);
+        const status = parseStatus(record.status);
+        const completedAt = getSessionCompletionTime({
+          status,
+          state,
+          createdAt: record.createdAt
+        });
+
+        if (!completedAt || state?.source !== "normal") {
+          continue;
+        }
+
+        ordinary.push({
+          monsterId: record.monsterId,
+          completedAt,
+          id: record.id
+        });
+      }
+    }
+
     const seen = new Set<string>();
+    const result: string[] = [];
 
-    for (const record of records) {
-      const state = parseCombatState(record.stateJson);
-      if (state?.source !== "normal" || seen.has(record.monsterId)) {
+    for (const record of ordinary.sort(
+      (left, right) =>
+        right.completedAt.getTime() - left.completedAt.getTime() ||
+        right.id.localeCompare(left.id)
+    )) {
+      if (seen.has(record.monsterId)) {
         continue;
       }
 
       result.push(record.monsterId);
       seen.add(record.monsterId);
-      if (result.length >= limit) {
+      if (result.length >= resultLimit) {
         break;
       }
     }

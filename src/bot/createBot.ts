@@ -178,6 +178,7 @@ import {
 import {
   buildFightKeyboard,
   buildFightResultKeyboard,
+  buildPersistentFightDifficultyKeyboard,
   buildPersistentFightPassagePreviewKeyboard,
   buildPersistentFightJournalKeyboard,
   buildPersistentFightResultKeyboard,
@@ -267,6 +268,7 @@ import {
   presentFightResult,
   presentFightStart,
   presentPersistentFight,
+  presentPersistentFightDifficultyChoice,
   presentPersistentFightIntro,
   presentPersistentFightJournal,
   presentPersistentFightPassagePreview,
@@ -3287,21 +3289,44 @@ async function handleFightCallback(
     const place = await services.presence.getCurrentPlaceForTelegramUser(telegramUserId);
     if (place.state !== "ready" || place.locationId !== passageFight.locationId) {
       await safeAnswerCallbackQuery(ctx);
-      await sendPersistentFightPassagePreview(ctx, services, passageFight, "edit");
+      const currentPassage = place.state === "ready"
+        ? presenceLocationToPersistentFightPassage(place.locationId)
+        : null;
+      if (currentPassage) {
+        await sendPersistentFightPassagePreview(ctx, services, currentPassage, "edit");
+        return;
+      }
+      if (gate.state === "persistent-ready") {
+        await safeEditMessageText(ctx, presentPersistentFightDifficultyChoice(gate), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPersistentFightDifficultyKeyboard()
+        });
+        return;
+      }
+      await sendFight(ctx, services.fight, "reply", {
+        presence: services.presence,
+        tavernRaid: services.tavern,
+        requireKorchmaInterior: false
+      });
       return;
     }
 
     await safeAnswerCallbackQuery(ctx);
     const result = await services.fight.attackPersistentPassageEncounterForTelegramUser(
       telegramUserId,
-      callback.encounterToken
+      callback.encounterToken,
+      {
+        callbackOriginLocationId: passageFight.locationId,
+        currentLocationId: place.locationId
+      }
     );
 
     if (result.state === "persistent-preview") {
+      const resultPassage = presenceLocationToPersistentFightPassage(result.originLocationId) ?? passageFight;
       await safeEditMessageText(ctx, presentPersistentFightPassagePreview(result), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPersistentFightPassagePreviewKeyboard({
-          passage: passageFight.passage,
+          passage: resultPassage.passage,
           encounterToken: result.encounterToken
         })
       });
@@ -3309,15 +3334,33 @@ async function handleFightCallback(
     }
 
     if (result.state === "invalid-preview") {
-      await sendPersistentFightPassagePreview(ctx, services, passageFight, "edit");
+      const currentPassage = presenceLocationToPersistentFightPassage(place.locationId);
+      if (currentPassage) {
+        await sendPersistentFightPassagePreview(ctx, services, currentPassage, "edit");
+        return;
+      }
+      if (gate.state === "persistent-ready") {
+        await safeEditMessageText(ctx, presentPersistentFightDifficultyChoice(gate), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPersistentFightDifficultyKeyboard()
+        });
+        return;
+      }
+      await sendFight(ctx, services.fight, "reply", {
+        presence: services.presence,
+        tavernRaid: services.tavern,
+        requireKorchmaInterior: false
+      });
       return;
     }
 
-    await markScenePresence(ctx, services.presence, {
-      locationId: passageFight.locationId,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
-    });
+    if (result.state === "persistent-active") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: resolvePersistentFightPresenceLocation(result.session),
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
+    }
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,

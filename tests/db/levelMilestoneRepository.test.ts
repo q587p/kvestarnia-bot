@@ -32,6 +32,14 @@ describe("level milestone repository helpers", () => {
           localDate: "once",
           rewardXp: 0,
           rewardGold: 0,
+          resultJson: {
+            milestone: {
+              kind: "level",
+              provenance: "recorded",
+              remortCount: 0,
+              level: 2
+            }
+          },
           createdAt: new Date("2026-06-15T10:00:00.000Z")
         }
       },
@@ -42,6 +50,14 @@ describe("level milestone repository helpers", () => {
           localDate: "once",
           rewardXp: 0,
           rewardGold: 0,
+          resultJson: {
+            milestone: {
+              kind: "level",
+              provenance: "recorded",
+              remortCount: 0,
+              level: 3
+            }
+          },
           createdAt: new Date("2026-06-15T10:00:00.000Z")
         }
       },
@@ -52,6 +68,14 @@ describe("level milestone repository helpers", () => {
           localDate: "once",
           rewardXp: 0,
           rewardGold: 0,
+          resultJson: {
+            milestone: {
+              kind: "level",
+              provenance: "recorded",
+              remortCount: 0,
+              level: 4
+            }
+          },
           createdAt: new Date("2026-06-15T10:00:00.000Z")
         }
       }
@@ -86,6 +110,14 @@ describe("level milestone repository helpers", () => {
           localDate: "once",
           rewardXp: 0,
           rewardGold: 0,
+          resultJson: {
+            milestone: {
+              kind: "level",
+              provenance: "recorded",
+              remortCount: 1,
+              level: 2
+            }
+          },
           createdAt: new Date("2026-06-16T10:00:00.000Z")
         }
       },
@@ -96,6 +128,14 @@ describe("level milestone repository helpers", () => {
           localDate: "once",
           rewardXp: 0,
           rewardGold: 0,
+          resultJson: {
+            milestone: {
+              kind: "level",
+              provenance: "recorded",
+              remortCount: 1,
+              level: 3
+            }
+          },
           createdAt: new Date("2026-06-16T10:00:00.000Z")
         }
       }
@@ -162,6 +202,14 @@ describe("level milestone repository helpers", () => {
         localDate: "once",
         rewardXp: 0,
         rewardGold: 0,
+        resultJson: {
+          milestone: {
+            kind: "level",
+            provenance: "backfill-current-level",
+            remortCount: 1,
+            level: 2
+          }
+        },
         createdAt: new Date("2026-06-16T10:30:00.000Z")
       }
     });
@@ -172,6 +220,14 @@ describe("level milestone repository helpers", () => {
         localDate: "once",
         rewardXp: 0,
         rewardGold: 0,
+        resultJson: {
+          milestone: {
+            kind: "level",
+            provenance: "backfill-current-level",
+            remortCount: 1,
+            level: 3
+          }
+        },
         createdAt: new Date("2026-06-16T10:30:00.000Z")
       }
     });
@@ -202,6 +258,7 @@ describe("level milestone repository helpers", () => {
               characterId: "character-base",
               name: "Базова Зарубка",
               telegramUserId: 101n,
+              key: buildLevelMilestoneKey(2),
               reachedAt: baseLevelAt,
               remorts: [
                 {
@@ -214,6 +271,7 @@ describe("level milestone repository helpers", () => {
               characterId: "character-remort-one",
               name: "Після Першого",
               telegramUserId: 102n,
+              key: buildRemortLevelMilestoneKey(1, 2),
               reachedAt: afterFirstRemortAt,
               remorts: [
                 {
@@ -226,6 +284,7 @@ describe("level milestone repository helpers", () => {
               characterId: "character-remort-two",
               name: "Після Другого",
               telegramUserId: 103n,
+              key: buildRemortLevelMilestoneKey(1, 2),
               reachedAt: afterSecondRemortAt,
               remorts: [
                 {
@@ -302,18 +361,90 @@ describe("level milestone repository helpers", () => {
       })
     ]);
   });
+
+  it("deduplicates remort board rows before ranking", async () => {
+    const firstRemortAt = new Date("2026-06-16T10:00:00.000Z");
+    const legacyAt = new Date("2026-06-16T10:05:00.000Z");
+    const backfillAt = new Date("2026-06-16T10:30:00.000Z");
+    const realAt = new Date("2026-06-16T10:13:00.000Z");
+    const prisma = {
+      dailyAction: {
+        findMany: vi.fn(() =>
+          Promise.resolve([
+            makeMilestoneRecord({
+              characterId: "character-both",
+              name: "Both Rows",
+              telegramUserId: 202n,
+              key: buildLevelMilestoneKey(2),
+              reachedAt: legacyAt,
+              remorts: [{ remortNumber: 1, createdAt: firstRemortAt }]
+            }),
+            makeMilestoneRecord({
+              characterId: "character-both",
+              name: "Both Rows",
+              telegramUserId: 202n,
+              key: buildRemortLevelMilestoneKey(1, 2),
+              reachedAt: backfillAt,
+              resultJson: {
+                milestone: {
+                  provenance: "backfill-current-level"
+                }
+              },
+              remorts: [{ remortNumber: 1, createdAt: firstRemortAt }]
+            }),
+            makeMilestoneRecord({
+              characterId: "character-real",
+              name: "Real Row",
+              telegramUserId: 203n,
+              key: buildRemortLevelMilestoneKey(1, 2),
+              reachedAt: realAt,
+              remorts: [{ remortNumber: 1, createdAt: firstRemortAt }]
+            })
+          ])
+        )
+      },
+      characterRemort: {
+        findMany: vi.fn(() => Promise.resolve([]))
+      }
+    };
+    const repository = new PrismaLevelMilestoneRepository(
+      prisma as unknown as ConstructorParameters<typeof PrismaLevelMilestoneRepository>[0]
+    );
+
+    const board = await repository.listFirstReachedLevelsForRemort(1, {
+      maxLevels: 12,
+      maxEntriesPerLevel: 5
+    });
+
+    expect(board.levels.find((group) => group.level === 2)?.entries).toEqual([
+      expect.objectContaining({
+        rank: 1,
+        characterId: "character-both",
+        reachedAt: legacyAt
+      }),
+      expect.objectContaining({
+        rank: 2,
+        characterId: "character-real",
+        reachedAt: realAt
+      })
+    ]);
+  });
 });
 
 function makeMilestoneRecord(input: {
   characterId: string;
   name: string;
   telegramUserId: bigint;
+  key: string;
   reachedAt: Date;
+  resultJson?: unknown;
   remorts: Array<{ remortNumber: number; createdAt: Date }>;
 }) {
   return {
+    key: input.key,
     characterId: input.characterId,
     createdAt: input.reachedAt,
+    resultJson: input.resultJson ?? null,
     character: {
       name: input.name,
       remorts: input.remorts,

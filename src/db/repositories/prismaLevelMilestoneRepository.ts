@@ -88,7 +88,8 @@ export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository 
           characterId: character.id,
           level,
           reachedAt,
-          remortCount
+          remortCount,
+          provenance: "backfill-current-level"
         });
         existingKeys.add(`${character.id}:${key}`);
       }
@@ -188,8 +189,10 @@ export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository 
       ],
       take: limit,
       select: {
+        key: true,
         characterId: true,
         createdAt: true,
+        resultJson: true,
         character: {
           select: {
             name: true,
@@ -258,8 +261,10 @@ export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository 
         }
       ],
       select: {
+        key: true,
         characterId: true,
         createdAt: true,
+        resultJson: true,
         character: {
           select: {
             name: true,
@@ -281,28 +286,26 @@ export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository 
         }
       }
     });
-    const entries: LevelMilestoneEntry[] = [];
+    const candidates: Array<LevelMilestoneEntry & { milestoneKey: string; backfilled: boolean }> = [];
 
     for (const record of records) {
       if (!isMilestoneInRemortLife(record.createdAt, record.character.remorts, remortNumber)) {
         continue;
       }
 
-      entries.push({
-        rank: entries.length + 1,
+      candidates.push({
+        rank: 0,
         telegramUserId: record.character.user.telegramUserId,
         characterId: record.characterId,
         name: record.character.name,
         level,
-        reachedAt: record.createdAt
+        reachedAt: record.createdAt,
+        milestoneKey: record.key,
+        backfilled: isBackfilledMilestone(record.resultJson)
       });
-
-      if (entries.length >= limit) {
-        break;
-      }
     }
 
-    return entries;
+    return dedupeRemortMilestoneEntries(candidates, remortNumber, level, limit);
   }
 
   private async findLevelOneEntriesForRemort(
@@ -455,4 +458,86 @@ function mergeMilestoneEntries(
   }
 
   return merged;
+}
+
+function dedupeRemortMilestoneEntries(
+  entries: Array<LevelMilestoneEntry & { milestoneKey: string; backfilled: boolean }>,
+  remortNumber: number,
+  level: number,
+  limit: number
+): LevelMilestoneEntry[] {
+  const explicitKey = buildRemortLevelMilestoneKey(remortNumber, level);
+  const byCharacter = new Map<string, LevelMilestoneEntry & { milestoneKey: string; backfilled: boolean }>();
+
+  for (const entry of entries.sort(compareMilestoneCandidates)) {
+    const current = byCharacter.get(entry.characterId);
+    if (!current || compareMilestonePreference(entry, current, explicitKey) < 0) {
+      byCharacter.set(entry.characterId, entry);
+    }
+  }
+
+  return [...byCharacter.values()]
+    .sort((left, right) =>
+      left.reachedAt.getTime() - right.reachedAt.getTime() ||
+      left.characterId.localeCompare(right.characterId)
+    )
+    .slice(0, limit)
+    .map((entry, index) => ({
+      rank: index + 1,
+      telegramUserId: entry.telegramUserId,
+      characterId: entry.characterId,
+      name: entry.name,
+      level: entry.level,
+      reachedAt: entry.reachedAt
+    }));
+}
+
+function compareMilestoneCandidates(
+  left: LevelMilestoneEntry & { milestoneKey: string; backfilled: boolean },
+  right: LevelMilestoneEntry & { milestoneKey: string; backfilled: boolean }
+): number {
+  return left.reachedAt.getTime() - right.reachedAt.getTime() ||
+    left.characterId.localeCompare(right.characterId) ||
+    left.milestoneKey.localeCompare(right.milestoneKey);
+}
+
+function compareMilestonePreference(
+  left: LevelMilestoneEntry & { milestoneKey: string; backfilled: boolean },
+  right: LevelMilestoneEntry & { milestoneKey: string; backfilled: boolean },
+  explicitKey: string
+): number {
+  const leftScore = milestonePreferenceScore(left, explicitKey);
+  const rightScore = milestonePreferenceScore(right, explicitKey);
+
+  return leftScore - rightScore ||
+    left.reachedAt.getTime() - right.reachedAt.getTime() ||
+    left.milestoneKey.localeCompare(right.milestoneKey);
+}
+
+function milestonePreferenceScore(
+  entry: { milestoneKey: string; backfilled: boolean },
+  explicitKey: string
+): number {
+  if (entry.milestoneKey === explicitKey && !entry.backfilled) {
+    return 0;
+  }
+
+  if (entry.milestoneKey !== explicitKey) {
+    return 1;
+  }
+
+  return 2;
+}
+
+function isBackfilledMilestone(resultJson: unknown): boolean {
+  if (!resultJson || typeof resultJson !== "object" || Array.isArray(resultJson)) {
+    return false;
+  }
+
+  const milestone = (resultJson as { milestone?: unknown }).milestone;
+  if (!milestone || typeof milestone !== "object" || Array.isArray(milestone)) {
+    return false;
+  }
+
+  return (milestone as { provenance?: unknown }).provenance === "backfill-current-level";
 }

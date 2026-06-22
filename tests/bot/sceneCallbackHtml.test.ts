@@ -1610,7 +1610,7 @@ describe("scene callback HTML options", () => {
       Promise.resolve({
         state: "persistent-active" as const,
         character,
-        session: persistentSession("monster.deadline-spider"),
+        session: persistentSessionWithOrigin("location.korchma.deep.level1.straight"),
         monster: {
           id: "monster.deadline-spider",
           name: "Павук дедлайнів",
@@ -2468,7 +2468,7 @@ describe("scene callback HTML options", () => {
           ...character,
           level: 3
         },
-        session: persistentSession("monster.deadline-spider"),
+        session: persistentSessionWithOrigin("location.korchma.deep.level1.straight"),
         monster: {
           id: "monster.deadline-spider",
           name: "Павук дедлайнів",
@@ -2527,7 +2527,10 @@ describe("scene callback HTML options", () => {
     );
     const fight = calls.find((call) => call.method === "sendMessage" && String(call.payload.text).includes("❤️ Ви:"));
 
-    expect(attackPersistentPassageEncounterForTelegramUser).toHaveBeenCalledWith(42n, "token13");
+    expect(attackPersistentPassageEncounterForTelegramUser).toHaveBeenCalledWith(42n, "token13", {
+      callbackOriginLocationId: "location.korchma.deep.level1.straight",
+      currentLocationId: "location.korchma.deep.level1.straight"
+    });
     expect(markAction).toHaveBeenCalledWith(
       expect.objectContaining({
         locationId: "location.korchma.deep.level1.straight",

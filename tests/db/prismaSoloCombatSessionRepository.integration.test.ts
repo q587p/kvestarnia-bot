@@ -70,6 +70,73 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     expect(leases[0]?.referenceId).toBe(activeSessions[0]?.id);
     expect(activeSessions[0]?.id).toBe(first?.id);
   });
+
+  it("scans past newer active and non-ordinary sessions for recent ordinary monsters", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-history",
+      characterId: "character-history",
+      telegramUserId: 4243n
+    });
+
+    const base = new Date("2026-06-22T10:00:00.000Z").getTime();
+    const sessions = [];
+    for (let index = 0; index < 55; index += 1) {
+      const source = index % 2 === 0 ? "yeger" : "adventure";
+      sessions.push(makeSoloSessionData({
+        id: `noise-${String(index).padStart(2, "0")}`,
+        characterId: "character-history",
+        monsterId: `monster.noise-${index}`,
+        status: index % 5 === 0 ? "active" : "won",
+        source,
+        completedAt: new Date(base + (90 + index) * 60_000),
+        updatedAt: new Date(base + (90 + index) * 60_000)
+      }));
+    }
+
+    sessions.push(makeSoloSessionData({
+      id: "ordinary-old-duplicate",
+      characterId: "character-history",
+      monsterId: "monster.normal-a",
+      status: "won",
+      source: "normal",
+      completedAt: new Date(base + 10 * 60_000),
+      updatedAt: new Date(base + 10 * 60_000)
+    }));
+    sessions.push(makeSoloSessionData({
+      id: "ordinary-c",
+      characterId: "character-history",
+      monsterId: "monster.normal-c",
+      status: "lost",
+      source: "normal",
+      completedAt: new Date(base + 20 * 60_000),
+      updatedAt: new Date(base + 20 * 60_000)
+    }));
+    sessions.push(makeSoloSessionData({
+      id: "ordinary-b",
+      characterId: "character-history",
+      monsterId: "monster.normal-b",
+      status: "won",
+      source: "normal",
+      completedAt: new Date(base + 30 * 60_000),
+      updatedAt: new Date(base + 30 * 60_000)
+    }));
+    sessions.push(makeSoloSessionData({
+      id: "ordinary-a",
+      characterId: "character-history",
+      monsterId: "monster.normal-a",
+      status: "won",
+      source: "normal",
+      completedAt: new Date(base + 40 * 60_000),
+      updatedAt: new Date(base + 40 * 60_000)
+    }));
+    await prisma.soloCombatSession.createMany({ data: sessions });
+
+    await expect(repository.listRecentOrdinaryMonsterIdsByTelegramUserId(4243n, 3)).resolves.toEqual([
+      "monster.normal-a",
+      "monster.normal-b",
+      "monster.normal-c"
+    ]);
+  });
 });
 
 async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
@@ -183,6 +250,7 @@ function makeCreateInput(id: string, monsterId: string): CreateSoloCombatSession
 function makeCombatState(id: string, monsterId: string): CombatState {
   return {
     id,
+    source: "normal",
     turn: 1,
     status: "active",
     hero: {
@@ -196,5 +264,34 @@ function makeCombatState(id: string, monsterId: string): CombatState {
       hp: 18,
       hpMax: 18
     }
+  };
+}
+
+function makeSoloSessionData(input: {
+  id: string;
+  characterId: string;
+  monsterId: string;
+  status: "active" | "won" | "lost" | "fled" | "expired";
+  source: NonNullable<CombatState["source"]>;
+  completedAt: Date;
+  updatedAt: Date;
+}) {
+  const state = {
+    ...makeCombatState(input.id, input.monsterId),
+    status: input.status,
+    source: input.source,
+    ...(input.status === "active" ? {} : { completedAt: input.completedAt.toISOString() })
+  };
+
+  return {
+    id: input.id,
+    characterId: input.characterId,
+    monsterId: input.monsterId,
+    stateJson: state,
+    status: input.status,
+    turn: 1,
+    expiresAt: new Date(input.updatedAt.getTime() + 30 * 60_000),
+    createdAt: input.completedAt,
+    updatedAt: input.updatedAt
   };
 }

@@ -4191,20 +4191,44 @@ class FakePendingPassageEncounterRepository implements PendingPassageEncounterRe
     return clonePendingEncounter(encounter);
   }
 
-  expireById(id: string, now: Date): Promise<PendingPassageEncounterRecord | null> {
-    const encounter = [...this.encounters.values()].find((candidate) => candidate.id === id);
+  expireById(input: {
+    id: string;
+    expectedStatus: "pending";
+    expectedVersion: number;
+    now: Date;
+  }): Promise<
+    | { state: "expired"; encounter: PendingPassageEncounterRecord }
+    | { state: "already-consumed"; encounter: PendingPassageEncounterRecord }
+    | { state: "already-terminal"; encounter: PendingPassageEncounterRecord }
+    | { state: "version-changed"; encounter: PendingPassageEncounterRecord }
+    | { state: "missing" }
+  > {
+    const encounter = [...this.encounters.values()].find((candidate) => candidate.id === input.id);
     if (!encounter) {
-      return Promise.resolve(null);
+      return Promise.resolve({ state: "missing" });
+    }
+
+    if (encounter.status === "consumed") {
+      return Promise.resolve({ state: "already-consumed", encounter: clonePendingEncounter(encounter)! });
+    }
+
+    if (encounter.status === "expired" || encounter.status === "cancelled") {
+      return Promise.resolve({ state: "already-terminal", encounter: clonePendingEncounter(encounter)! });
+    }
+
+    if (encounter.status !== input.expectedStatus || encounter.version !== input.expectedVersion) {
+      return Promise.resolve({ state: "version-changed", encounter: clonePendingEncounter(encounter)! });
     }
 
     const updated: PendingPassageEncounterRecord = {
       ...encounter,
       status: "expired",
-      cancelledAt: now,
-      updatedAt: now
+      version: encounter.version + 1,
+      cancelledAt: input.now,
+      updatedAt: input.now
     };
     this.encounters.set(updated.token, updated);
-    return Promise.resolve(clonePendingEncounter(updated));
+    return Promise.resolve({ state: "expired", encounter: clonePendingEncounter(updated)! });
   }
 
   async consumeForTelegramUser(
@@ -4237,6 +4261,10 @@ class FakePendingPassageEncounterRepository implements PendingPassageEncounterRe
     }
 
     this.consumeCount += 1;
+    if (encounter.version !== input.expectedEncounterVersion) {
+      return { state: "version-changed", encounter: clonePendingEncounter(encounter)! };
+    }
+
     if (expectedStatus === "pending" && encounter.status === "consumed") {
       return {
         state: "already-consumed",
@@ -4247,6 +4275,10 @@ class FakePendingPassageEncounterRepository implements PendingPassageEncounterRe
 
     if (encounter.status !== expectedStatus) {
       return { state: "not-pending", encounter: clonePendingEncounter(encounter)! };
+    }
+
+    if (expectedStatus === "consumed" && encounter.combatSessionId !== input.expectedLinkedSessionId) {
+      return { state: "version-changed", encounter: clonePendingEncounter(encounter)! };
     }
 
     const session = this.sessions.addSession({
