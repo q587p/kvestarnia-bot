@@ -2637,6 +2637,120 @@ describe("scene callback HTML options", () => {
     expect(String(fight?.payload.text)).toContain("⏳ На хід є 23 секунди.");
   });
 
+  it("routes a repeated passage attack callback through the same survivor token", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getOrStartPersistentFightForTelegramUser = vi.fn();
+    const survivorMonster = {
+      id: "monster.deadline-spider",
+      name: "Павук дедлайнів",
+      description: "Плете павутину з «сьогодні швиденько».",
+      level: 2,
+      tags: ["beast", "time", "web"]
+    };
+    const firstSession = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
+    const secondSession = {
+      ...persistentSessionWithOrigin("location.korchma.deep.level1.straight"),
+      id: "123e4567-e89b-42d3-a456-426614174333",
+      state: {
+        ...persistentSessionWithOrigin("location.korchma.deep.level1.straight").state,
+        id: "123e4567-e89b-42d3-a456-426614174333",
+        monster: {
+          hp: 7,
+          hpMax: 12
+        }
+      }
+    };
+    const attackPersistentPassageEncounterForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({
+        state: "persistent-active" as const,
+        started: true,
+        character: {
+          ...character,
+          level: 3
+        },
+        session: firstSession,
+        monster: survivorMonster,
+        questProgress: null
+      })
+      .mockResolvedValueOnce({
+        state: "persistent-active" as const,
+        started: true,
+        character: {
+          ...character,
+          level: 3
+        },
+        session: secondSession,
+        monster: survivorMonster,
+        questProgress: null
+      });
+    const servicesForPress = (session: ReturnType<typeof persistentSessionWithOrigin>) =>
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser: vi.fn()
+            .mockResolvedValueOnce({
+              state: "persistent-ready" as const,
+              character: {
+                ...character,
+                level: 3
+              },
+              questProgress: null
+            })
+            .mockResolvedValue({
+              state: "persistent-active" as const,
+              started: true,
+              character: {
+                ...character,
+                level: 3
+              },
+              session,
+              monster: survivorMonster,
+              questProgress: null
+            }),
+          getOrStartPersistentFightForTelegramUser,
+          attackPersistentPassageEncounterForTelegramUser,
+          recordPersistentFightMessageReference: () => Promise.resolve()
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.deep.level1.straight",
+              locationName: "Прямий прохід",
+              insideKorchma: true
+            })
+        }
+      });
+
+    await captureApiCalls("v1:fight:pass:deep-straight:token13", servicesForPress(firstSession));
+    const repeatedCalls = await captureApiCalls(
+      "v1:fight:pass:deep-straight:token13",
+      servicesForPress(secondSession)
+    );
+    const fightTexts = repeatedCalls
+      .filter((call) => call.method === "sendMessage")
+      .map((call) => String(call.payload.text));
+
+    expect(attackPersistentPassageEncounterForTelegramUser).toHaveBeenCalledTimes(2);
+    expect(attackPersistentPassageEncounterForTelegramUser).toHaveBeenNthCalledWith(1, 42n, "token13", {
+      callbackOriginLocationId: "location.korchma.deep.level1.straight",
+      currentLocationId: "location.korchma.deep.level1.straight"
+    });
+    expect(attackPersistentPassageEncounterForTelegramUser).toHaveBeenNthCalledWith(2, 42n, "token13", {
+      callbackOriginLocationId: "location.korchma.deep.level1.straight",
+      currentLocationId: "location.korchma.deep.level1.straight"
+    });
+    expect(getOrStartPersistentFightForTelegramUser).not.toHaveBeenCalled();
+    expect(markAction).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep.level1.straight",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(fightTexts.some((text) => text.includes("Павук дедлайнів"))).toBe(true);
+    expect(fightTexts.some((text) => text.includes("Павук дедлайнів") && text.includes("7/12"))).toBe(true);
+  });
+
   it("rolls back a complication claim when the follow-up fight needs rest", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
