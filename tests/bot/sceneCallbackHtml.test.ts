@@ -2256,6 +2256,58 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(movement?.payload.reply_markup)).toContain(mainMenuLocationButtons.deepLevel1);
   });
 
+  it("uses an ascent movement notice when returning from a Nyz tier to the descent", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("deep"),
+      servicesWith({
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.deep.level1.straight",
+              locationName: "Прямий прохід",
+              insideKorchma: true
+            })
+        },
+        tavern: {
+          getTavernForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: {
+                ...character,
+                level: 3
+              }
+            }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({ state: "none" as const })
+        }
+      })
+    );
+    const movement = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Ви піднялися до спуску до Низу.")
+    );
+    const descent = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("🪜 Спуск до Низу")
+    );
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(String(movement?.payload.text)).not.toContain("Ви пішли до Низу.");
+    expect(JSON.stringify(movement?.payload.reply_markup)).toContain(mainMenuLocationButtons.deep);
+    expect(String(descent?.payload.text)).toContain("🪜 Спуск до Низу");
+  });
+
   it("blocks lower-level stale Nyz descent place callbacks", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const calls = await captureApiCalls(

@@ -2371,7 +2371,7 @@ async function refreshMainMenuLocationKeyboard(
     return;
   }
 
-  await ctx.reply(getLocationMovementNoticeText(normalizedLocationId), {
+  await ctx.reply(getLocationMovementNoticeText(normalizedLocationId, previousLocationId), {
     reply_markup: buildMainMenuKeyboard({
       locationId: normalizedLocationId
     })
@@ -2394,19 +2394,26 @@ async function sendPlaceMovementNotice(
     return;
   }
 
-  await ctx.reply(getLocationMovementNoticeText(normalizedTargetLocationId), {
+  await ctx.reply(getLocationMovementNoticeText(normalizedTargetLocationId, previousLocationId), {
     reply_markup: buildMainMenuKeyboard({
       locationId: normalizedTargetLocationId
     })
   });
 }
 
-function getLocationMovementNoticeText(locationId: string | null): string {
+function getLocationMovementNoticeText(
+  locationId: string | null,
+  previousLocationId?: string | null
+): string {
   if (!locationId) {
     return "Ви озирнулися до корчми.";
   }
 
   const normalizedLocationId = normalizePresenceLocationId(locationId);
+  const normalizedPreviousLocationId =
+    previousLocationId === undefined || previousLocationId === null
+      ? previousLocationId
+      : normalizePresenceLocationId(previousLocationId);
 
   switch (normalizedLocationId) {
     case PRESENCE_LOCATION_KORCHMA_HALL:
@@ -2428,6 +2435,10 @@ function getLocationMovementNoticeText(locationId: string | null): string {
     case PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER:
       return "Ви рушили до бійцівського кутка.";
     case PRESENCE_LOCATION_KORCHMA_DEEP:
+      if (isKorchmaDeepLowerLocationId(normalizedPreviousLocationId)) {
+        return "Ви піднялися до спуску до Низу.";
+      }
+
       return "Ви пішли до Низу.";
     case PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1:
       return "Ви спустилися до Сутеренів Корчми.";
@@ -2440,6 +2451,15 @@ function getLocationMovementNoticeText(locationId: string | null): string {
     default:
       return `Ви рушили: ${getMainMenuLocationButtonText(normalizedLocationId)}.`;
   }
+}
+
+function isKorchmaDeepLowerLocationId(locationId: string | null | undefined): boolean {
+  return (
+    locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1 ||
+    locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT ||
+    locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT ||
+    locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT
+  );
 }
 
 async function sendCurrentLocation(ctx: Context, services: BotServices): Promise<void> {
