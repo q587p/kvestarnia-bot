@@ -20,7 +20,23 @@ describe("cellar presenter", () => {
     expect(text).toContain("<blockquote>");
     expect(text).toContain("Миша:");
     expect(text).toContain("що робимо?");
-    expect(text.split("\n").length).toBeLessThanOrEqual(13);
+    expect(text.split("\n").length).toBeLessThanOrEqual(15);
+  });
+
+  it("separates cellar combo title flavor from the following beat", () => {
+    const text = presentCellarStart({
+      state: "ready",
+      character: {
+        ...character,
+        raceId: "race.intellectual-orc",
+        raceName: "Орк-інтелігент",
+        classId: "class.mage",
+        className: "Маг",
+        title: "Кандидати Бойових Наук"
+      }
+    });
+
+    expect(text).toContain("Кандидати Бойових Наук у льосі.\n\n");
   });
 
   it("adds character-aware flavor to cellar start and outcome scenes", () => {
