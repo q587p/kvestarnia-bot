@@ -63,6 +63,10 @@ const locationButtonByPresenceId = new Map<string, string>([
   [PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT, mainMenuLocationButtons.deepRight]
 ]);
 
+const presenceIdByLocationButton = new Map<string, string>(
+  [...locationButtonByPresenceId.entries()].map(([locationId, button]) => [button, locationId])
+);
+
 export const mainMenuLocationButtonTexts: readonly string[] = [
   mainMenuButtons.tavern,
   ...new Set(Object.values(mainMenuLocationButtons))
@@ -101,6 +105,14 @@ export function getMainMenuLocationButtonText(locationId: string | null | undefi
 
 export function isMainMenuLocationButtonText(text: string | undefined): boolean {
   return Boolean(text && mainMenuLocationButtonTexts.includes(text));
+}
+
+export function getMainMenuLocationButtonPresenceId(text: string | undefined): string | null {
+  if (!text || text === mainMenuButtons.tavern) {
+    return null;
+  }
+
+  return presenceIdByLocationButton.get(text) ?? null;
 }
 
 export function buildDevResetKeyboard(): InlineKeyboard {

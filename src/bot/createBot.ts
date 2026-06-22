@@ -208,6 +208,7 @@ import {
 } from "./keyboards/onboardingKeyboard";
 import {
   buildMainMenuKeyboard,
+  getMainMenuLocationButtonPresenceId,
   isMainMenuLocationButtonText,
   mainMenuButtons,
   mainMenuLocationButtonTexts
@@ -2272,6 +2273,7 @@ function refreshMainMenuLocationKeyboard(
 
 async function sendCurrentLocation(ctx: Context, services: BotServices): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+  const requestedLocationId = getMainMenuLocationButtonPresenceId(ctx.message?.text?.trim());
 
   if (!telegramUserId) {
     await sendTavern(ctx, services.tavern, services.presence, "reply");
@@ -2287,7 +2289,11 @@ async function sendCurrentLocation(ctx: Context, services: BotServices): Promise
     return;
   }
 
-  await sendCurrentPresenceLocation(ctx, normalizePresenceLocationId(place.locationId), services);
+  await sendCurrentPresenceLocation(
+    ctx,
+    normalizePresenceLocationId(requestedLocationId ?? place.locationId),
+    services
+  );
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
 }
 

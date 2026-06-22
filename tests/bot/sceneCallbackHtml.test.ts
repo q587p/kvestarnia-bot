@@ -1364,6 +1364,53 @@ describe("scene callback HTML options", () => {
     expect(keyboard).toContain("v1:tavern:round");
   });
 
+  it("opens the pressed location label when the persistent reply keyboard is stale", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const calls = await captureTextApiCalls(
+      mainMenuLocationButtons.deep,
+      servicesWith({
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.quest_table",
+              locationName: "Стіл зі справами",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
+        tavern: {
+          getTavernForTelegramUser: () =>
+            Promise.resolve({ state: "ready", character: { ...character, level: 3 } }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({ state: "none" })
+        },
+        fight: {
+          getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        }
+      })
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(String(reply?.payload.text)).toContain("🪜 Спуск до Низу");
+    expect(String(reply?.payload.text)).not.toContain("📋 Стіл зі справами");
+  });
+
   it("does not send a standalone reply-keyboard refresh message after place callbacks", async () => {
     const calls = await captureApiCalls(
       makePlaceCallbackData("bar"),
