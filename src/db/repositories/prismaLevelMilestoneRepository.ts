@@ -208,7 +208,7 @@ export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository 
       return milestoneEntries;
     }
 
-    const completionEntries = await this.findRemortCompletionEntries(remortNumber, limit);
+    const completionEntries = await this.findRemortCompletionEntries(remortNumber + 1, limit);
 
     return mergeMilestoneEntries(milestoneEntries, completionEntries, limit);
   }
@@ -283,42 +283,9 @@ export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository 
     remortNumber: number,
     limit: number
   ): Promise<LevelMilestoneEntry[]> {
-    if (remortNumber === 1) {
-      const characters = await this.prisma.character.findMany({
-        orderBy: [
-          {
-            createdAt: "asc"
-          },
-          {
-            id: "asc"
-          }
-        ],
-        take: limit,
-        select: {
-          id: true,
-          name: true,
-          createdAt: true,
-          user: {
-            select: {
-              telegramUserId: true
-            }
-          }
-        }
-      });
-
-      return characters.map((character, index) => ({
-        rank: index + 1,
-        telegramUserId: character.user.telegramUserId,
-        characterId: character.id,
-        name: character.name,
-        level: 1,
-        reachedAt: character.createdAt
-      }));
-    }
-
     const rows = await this.prisma.characterRemort.findMany({
       where: {
-        remortNumber: remortNumber - 1
+        remortNumber
       },
       orderBy: [
         {
@@ -415,18 +382,18 @@ function isMilestoneInRemortLife(
   remorts: Array<{ remortNumber: number; createdAt: Date }>,
   remortNumber: number
 ): boolean {
-  const previousRemort = remorts.find((remort) => remort.remortNumber === remortNumber - 1);
-  const currentRemort = remorts.find((remort) => remort.remortNumber === remortNumber);
+  const selectedRemort = remorts.find((remort) => remort.remortNumber === remortNumber);
+  const nextRemort = remorts.find((remort) => remort.remortNumber === remortNumber + 1);
 
-  if (remortNumber > 1 && !previousRemort) {
+  if (!selectedRemort) {
     return false;
   }
 
-  if (previousRemort && reachedAt < previousRemort.createdAt) {
+  if (reachedAt < selectedRemort.createdAt) {
     return false;
   }
 
-  if (currentRemort && reachedAt > currentRemort.createdAt) {
+  if (nextRemort && reachedAt > nextRemort.createdAt) {
     return false;
   }
 

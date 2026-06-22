@@ -13,6 +13,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added durable `pending_passage_encounters` storage for ordinary Nyz passage previews. Each pending row stores a server-owned token, character ownership, passage/origin, difficulty, frozen monster ID, frozen base/effective levels, rules version, seed metadata, expiry and consumed combat-session link.
 - Added a nullable unique active key so one character can keep one live pending preview per passage while consumed/expired rows remain historical.
 - Added focused service coverage for same-passage sticky previews, expired-token refresh, exact frozen monster consumption and ordinary anti-repeat fallback order.
+- Added remort detail buttons on the memorial board so visible `Реморти Тринадцятки` groups can open a remort-specific level-first board.
 
 ### Changed
 - Nyz passage `Атакувати` buttons now carry compact opaque server tokens instead of Telegram-returned encounter seeds.
@@ -23,6 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Legacy seed-shaped passage callbacks no longer select or start a client-chosen monster; they refresh a current server-owned preview instead.
 - Nyz passage preview copy now avoids monster gender pronouns and accusative-name wording until monster grammar metadata is added.
 - Cellar start combo flavor now separates the title-in-cellar sentence from the following race/class beat with a blank line.
+- Remort-specific memorial details now treat `Реморт N` as the life after remort N: level 1 comes from that remort ledger start, level rows ignore base-life milestones before it, and level 13 can be derived from the next remort completion when milestone rows are not available.
 
 ### Unchanged
 - Yeger targeted encounters, adventure handoff fights, training doppelgangers, starter fights, monster ability loadouts, timeout auto-defend and reward/Yeger progression rules are unchanged.

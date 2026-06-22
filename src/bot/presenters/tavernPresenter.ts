@@ -87,7 +87,7 @@ export function presentKorchmaRemortMilestoneBoard(
     "🏅 Пропамʼятна дошка",
     presentCharacterHeader(character),
     "",
-    `Перші зарубки за рівні на реморт ${remortNumber}:`,
+    `Перші зарубки за рівні після реморту ${remortNumber}:`,
     "",
     ...presentRemortLevelMilestoneEntries(milestones),
     "",

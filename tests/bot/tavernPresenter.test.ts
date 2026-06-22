@@ -343,7 +343,7 @@ describe("tavern presenter", () => {
       }
     );
 
-    expect(text).toContain("Перші зарубки за рівні на реморт 1:");
+    expect(text).toContain("Перші зарубки за рівні після реморту 1:");
     expect(text).toContain("• рівень 13: 🥇 Astery Tey · 🥈 &lt;b&gt;Тіло&lt;/b&gt;");
     expect(text).toContain("• рівень 1: 🥇 Similacrest");
     expect(text).not.toContain("<b>Тіло</b>");

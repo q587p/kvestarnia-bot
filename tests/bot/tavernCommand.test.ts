@@ -592,7 +592,7 @@ describe("tavern command screens", () => {
       levelMilestoneService()
     );
 
-    expect(replies[0]?.text).toContain("Перші зарубки за рівні на реморт 1:");
+    expect(replies[0]?.text).toContain("Перші зарубки за рівні після реморту 1:");
     expect(replies[0]?.text).toContain("рівень 13: 🥇 Astery Tey");
     expect(replies[0]?.text).toContain("рівень 1: 🥇 Similacrest");
     expect(replies[0]?.options).toMatchObject({

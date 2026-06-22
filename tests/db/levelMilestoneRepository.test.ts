@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { PrismaLevelMilestoneRepository } from "../../src/db/repositories/prismaLevelMilestoneRepository";
 import {
   buildLevelMilestoneKey,
   LEVEL_MILESTONE_VISIBLE_LEVELS,
@@ -71,4 +72,163 @@ describe("level milestone repository helpers", () => {
   it("keeps the remort detail range wide enough to show levels 13 down to 1", () => {
     expect(REMORT_LEVEL_MILESTONE_VISIBLE_LEVELS).toBe(13);
   });
+
+  it("reads remort detail levels from the life after the selected remort", async () => {
+    const firstRemortAt = new Date("2026-06-16T10:00:00.000Z");
+    const secondRemortAt = new Date("2026-06-17T10:00:00.000Z");
+    const baseLevelAt = new Date("2026-06-15T10:00:00.000Z");
+    const afterFirstRemortAt = new Date("2026-06-16T10:13:00.000Z");
+    const afterSecondRemortAt = new Date("2026-06-17T10:13:00.000Z");
+    const prisma = {
+      dailyAction: {
+        findMany: vi.fn((input: { where?: { key?: string } }) => {
+          if (input.where?.key !== buildLevelMilestoneKey(2)) {
+            return Promise.resolve([]);
+          }
+
+          return Promise.resolve([
+            makeMilestoneRecord({
+              characterId: "character-base",
+              name: "Базова Зарубка",
+              telegramUserId: 101n,
+              reachedAt: baseLevelAt,
+              remorts: [
+                {
+                  remortNumber: 1,
+                  createdAt: firstRemortAt
+                }
+              ]
+            }),
+            makeMilestoneRecord({
+              characterId: "character-remort-one",
+              name: "Після Першого",
+              telegramUserId: 102n,
+              reachedAt: afterFirstRemortAt,
+              remorts: [
+                {
+                  remortNumber: 1,
+                  createdAt: firstRemortAt
+                }
+              ]
+            }),
+            makeMilestoneRecord({
+              characterId: "character-remort-two",
+              name: "Після Другого",
+              telegramUserId: 103n,
+              reachedAt: afterSecondRemortAt,
+              remorts: [
+                {
+                  remortNumber: 1,
+                  createdAt: firstRemortAt
+                },
+                {
+                  remortNumber: 2,
+                  createdAt: secondRemortAt
+                }
+              ]
+            })
+          ]);
+        })
+      },
+      characterRemort: {
+        findMany: vi.fn((input: { where?: { remortNumber?: number } }) => {
+          if (input.where?.remortNumber === 1) {
+            return Promise.resolve([
+              makeRemortRow({
+                characterId: "character-remort-one",
+                name: "Після Першого",
+                displayNameSnapshot: "До Першого",
+                telegramUserId: 102n,
+                reachedAt: firstRemortAt
+              })
+            ]);
+          }
+
+          if (input.where?.remortNumber === 2) {
+            return Promise.resolve([
+              makeRemortRow({
+                characterId: "character-remort-two",
+                name: "Після Другого",
+                displayNameSnapshot: "Після Першого",
+                telegramUserId: 103n,
+                reachedAt: secondRemortAt
+              })
+            ]);
+          }
+
+          return Promise.resolve([]);
+        })
+      }
+    };
+    const repository = new PrismaLevelMilestoneRepository(
+      prisma as unknown as ConstructorParameters<typeof PrismaLevelMilestoneRepository>[0]
+    );
+
+    const board = await repository.listFirstReachedLevelsForRemort(1, {
+      maxLevels: REMORT_LEVEL_MILESTONE_VISIBLE_LEVELS,
+      maxEntriesPerLevel: 5
+    });
+
+    expect(board.levels.find((group) => group.level === 1)?.entries).toEqual([
+      expect.objectContaining({
+        characterId: "character-remort-one",
+        name: "Після Першого",
+        reachedAt: firstRemortAt
+      })
+    ]);
+    expect(board.levels.find((group) => group.level === 2)?.entries).toEqual([
+      expect.objectContaining({
+        characterId: "character-remort-one",
+        name: "Після Першого",
+        reachedAt: afterFirstRemortAt
+      })
+    ]);
+    expect(board.levels.find((group) => group.level === 13)?.entries).toEqual([
+      expect.objectContaining({
+        characterId: "character-remort-two",
+        name: "Після Першого",
+        reachedAt: secondRemortAt
+      })
+    ]);
+  });
 });
+
+function makeMilestoneRecord(input: {
+  characterId: string;
+  name: string;
+  telegramUserId: bigint;
+  reachedAt: Date;
+  remorts: Array<{ remortNumber: number; createdAt: Date }>;
+}) {
+  return {
+    characterId: input.characterId,
+    createdAt: input.reachedAt,
+    character: {
+      name: input.name,
+      remorts: input.remorts,
+      user: {
+        telegramUserId: input.telegramUserId
+      }
+    }
+  };
+}
+
+function makeRemortRow(input: {
+  characterId: string;
+  name: string;
+  displayNameSnapshot: string;
+  telegramUserId: bigint;
+  reachedAt: Date;
+}) {
+  return {
+    characterId: input.characterId,
+    createdAt: input.reachedAt,
+    displayNameSnapshot: input.displayNameSnapshot,
+    character: {
+      name: input.name,
+      user: {
+        telegramUserId: input.telegramUserId
+      }
+    }
+  };
+}
