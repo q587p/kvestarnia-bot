@@ -142,13 +142,17 @@ export function presentPersistentFightPassagePreview(
   const passage = getPersistentFightPassagePreviewCopy(result.originLocationId);
   const refreshLine = getPassagePreviewRefreshLine(result.refreshed);
   const monsterLevel = ` · рівень ${result.monster.level}`;
+  const monsterHpLine = result.monsterHp
+    ? `Поранений слід: ${result.monsterHp.current}/${result.monsterHp.max} здоров’я.`
+    : null;
 
   return [
     `${passage.icon} <b>${escapeHtml(passage.title)}</b>`,
     presentCharacterHeader(result.character),
     "",
     ...(refreshLine ? [refreshLine, ""] : []),
-    `Ви у ${passage.locative}. Попереду — <b>${escapeHtml(result.monster.name)}</b>${monsterLevel}. Увага ще не впала на вас.`
+    `Ви у ${passage.locative}. Попереду — <b>${escapeHtml(result.monster.name)}</b>${monsterLevel}. Увага ще не впала на вас.`,
+    ...(monsterHpLine ? [monsterHpLine] : [])
   ].join("\n");
 }
 

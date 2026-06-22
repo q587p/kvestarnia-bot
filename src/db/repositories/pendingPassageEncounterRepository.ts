@@ -47,6 +47,11 @@ export interface ConsumePendingPassageEncounterInput {
   now: Date;
 }
 
+export interface ConsumedPendingPassageEncounterRecord {
+  encounter: PendingPassageEncounterRecord;
+  session: SoloCombatSessionRecord | null;
+}
+
 export type ConsumePendingPassageEncounterResult =
   | { state: "consumed"; encounter: PendingPassageEncounterRecord; session: SoloCombatSessionRecord }
   | { state: "already-consumed"; encounter: PendingPassageEncounterRecord; session: SoloCombatSessionRecord | null }
@@ -64,12 +69,22 @@ export interface PendingPassageEncounterRepository {
     telegramUserId: bigint,
     token: string
   ): Promise<PendingPassageEncounterRecord | null>;
+  findLatestConsumedForTelegramUser(
+    telegramUserId: bigint,
+    originLocationId: string,
+    now: Date
+  ): Promise<ConsumedPendingPassageEncounterRecord | null>;
   createForTelegramUser(
     telegramUserId: bigint,
     input: CreatePendingPassageEncounterInput
   ): Promise<PendingPassageEncounterRecord | null>;
   expireById(id: string, now: Date): Promise<PendingPassageEncounterRecord | null>;
   consumeForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    input: ConsumePendingPassageEncounterInput
+  ): Promise<ConsumePendingPassageEncounterResult>;
+  createSessionForConsumedEncounter(
     telegramUserId: bigint,
     token: string,
     input: ConsumePendingPassageEncounterInput

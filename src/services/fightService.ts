@@ -57,6 +57,7 @@ import {
   summarizeAndSyncCharacterResources,
   type ResourceRecoveryNotice
 } from "./characterResourceService";
+import { HP_BASE_FULL_REGEN_SECONDS } from "../domain/resources/resourceRegeneration";
 import type { CombatBalanceAnalyticsService } from "./combatBalanceAnalyticsService";
 import {
   normalizePresenceLocationId,
@@ -133,6 +134,7 @@ export const MONSTER_REST_ELIGIBLE_FIGHT_COUNT = 3;
 export const MONSTER_REST_COOLDOWN_MS = 3 * 60 * 1000;
 export const PERSISTENT_FIGHT_TURN_SECONDS = 23;
 export const PENDING_PASSAGE_ENCOUNTER_TTL_MS = 93 * 60 * 1000;
+export const PENDING_PASSAGE_MONSTER_FULL_REGEN_SECONDS = HP_BASE_FULL_REGEN_SECONDS;
 export const PENDING_PASSAGE_ENCOUNTER_RULES_VERSION = "nyz-passage-preview-v1";
 
 export type ProblemQuestStageId = "13" | "23" | "42" | "93";
@@ -495,6 +497,10 @@ export type PersistentFightPreviewResult =
       originLocationId: string;
       encounterToken: string;
       expiresAt: Date;
+      monsterHp?: {
+        current: number;
+        max: number;
+      };
       refreshed?: PassagePreviewRefreshReason;
     } & RecoveryNoticeField);
 
@@ -647,7 +653,10 @@ export class FightService {
     const existing = this.pendingPassageEncounters
       ? await this.pendingPassageEncounters.findReusableForTelegramUser(telegramUserId, originLocationId, now)
       : null;
-    const encounter = existing ?? await this.createPendingPassageEncounter(
+    const recoveredEncounter = existing
+      ? null
+      : await this.findRecoverableConsumedPassageEncounter(telegramUserId, originLocationId, now);
+    const encounter = existing ?? recoveredEncounter?.encounter ?? await this.createPendingPassageEncounter(
       telegramUserId,
       overview.character,
       difficulty,
@@ -684,6 +693,7 @@ export class FightService {
       originLocationId,
       encounterToken: encounter.token,
       expiresAt: encounter.expiresAt,
+      ...(recoveredEncounter ? { monsterHp: recoveredEncounter.monsterHp } : {}),
       ...(options.refreshed ? { refreshed: options.refreshed } : {})
     };
   }
@@ -713,6 +723,85 @@ export class FightService {
           monster: snapshot.monster,
           questProgress: snapshot.questProgress
         };
+      }
+
+      const recovered = snapshot.state === "found"
+        ? getRecoverablePassageMonsterHp(snapshot.session, now)
+        : null;
+      if (
+        recovered &&
+        baseMonster &&
+        encounter.expiresAt.getTime() > now.getTime() &&
+        snapshot.state === "found"
+      ) {
+        const gate = await this.getFightOverviewForTelegramUser(telegramUserId);
+        if (gate.state !== "persistent-ready") {
+          return gate;
+        }
+
+        const character = await this.characters.findByTelegramUserId(telegramUserId);
+        if (!character) {
+          return { state: "no-character" };
+        }
+
+        const monster = { ...baseMonster, level: encounter.effectiveMonsterLevel };
+        const sessionId = randomUUID();
+        const state = this.buildPersistentFightCombatState({
+          sessionId,
+          character,
+          characterSummary: gate.character,
+          baseMonster,
+          monster,
+          difficulty: getPersistentFightDifficultyConfig(encounter.difficulty),
+          originLocationId: encounter.originLocationId,
+          source: "normal",
+          now,
+          initialMonsterHp: recovered.current
+        });
+        const restarted = await this.pendingPassageEncounters.createSessionForConsumedEncounter(telegramUserId, token, {
+          sessionId,
+          monsterId: monster.id,
+          state,
+          sessionExpiresAt: getSessionExpiry(now),
+          now
+        });
+
+        if (restarted.state === "consumed") {
+          return {
+            state: "persistent-active",
+            character: gate.character,
+            session: restarted.session,
+            monster,
+            questProgress: gate.questProgress,
+            started: true,
+            ...(gate.recoveryNotice ? { recoveryNotice: gate.recoveryNotice } : {})
+          };
+        }
+
+        if (restarted.state === "already-consumed" && restarted.session) {
+          const activeMonster = findPersistentFightMonster(restarted.session) ?? monster;
+          return {
+            state: "persistent-active",
+            character: gate.character,
+            session: restarted.session,
+            monster: activeMonster,
+            questProgress: gate.questProgress,
+            ...(gate.recoveryNotice ? { recoveryNotice: gate.recoveryNotice } : {})
+          };
+        }
+
+        if (restarted.state === "active-fight") {
+          const activeMonster = findPersistentFightMonster(restarted.session);
+          return activeMonster
+            ? {
+                state: "persistent-active",
+                character: gate.character,
+                session: restarted.session,
+                monster: activeMonster,
+                questProgress: gate.questProgress
+              }
+            : await this.getFightOverviewForTelegramUser(telegramUserId);
+        }
       }
     }
 
@@ -2379,6 +2468,32 @@ export class FightService {
     });
   }
 
+  private async findRecoverableConsumedPassageEncounter(
+    telegramUserId: bigint,
+    originLocationId: string,
+    now: Date
+  ): Promise<{
+    encounter: PendingPassageEncounterRecord;
+    monsterHp: { current: number; max: number };
+  } | null> {
+    if (!this.pendingPassageEncounters) {
+      return null;
+    }
+
+    const consumed = await this.pendingPassageEncounters.findLatestConsumedForTelegramUser(
+      telegramUserId,
+      originLocationId,
+      now
+    );
+    if (!consumed?.session || !findMonster(consumed.encounter.monsterId)) {
+      return null;
+    }
+
+    const monsterHp = getRecoverablePassageMonsterHp(consumed.session, now);
+
+    return monsterHp ? { encounter: consumed.encounter, monsterHp } : null;
+  }
+
   private buildPersistentFightCombatState(input: {
     sessionId: string;
     character: CharacterRecord;
@@ -2389,6 +2504,7 @@ export class FightService {
     originLocationId: string;
     source: NonNullable<PersistentFightStartOptions["source"]>;
     now: Date;
+    initialMonsterHp?: number;
   }): CombatState {
     const worldContext = buildCombatWorldContext({
       now: input.now,
@@ -2405,6 +2521,12 @@ export class FightService {
       hero: buildHeroCombatStats(input.characterSummary),
       monster: monsterStats
     });
+    if (input.initialMonsterHp !== undefined) {
+      state.monster.hp = Math.min(
+        state.monster.hpMax,
+        Math.max(1, Math.floor(input.initialMonsterHp))
+      );
+    }
     state.turnExpiresAt = getTurnExpiry(input.now).toISOString();
     state.source = input.source;
     state.originLocationId = input.originLocationId;
@@ -2792,6 +2914,32 @@ function buildHeroCombatStats(
     weaponDamage: equipment.weaponDamage,
     spellPower: equipment.spellPower
   };
+}
+
+function getRecoverablePassageMonsterHp(
+  session: SoloCombatSessionRecord,
+  now: Date
+): { current: number; max: number } | null {
+  const state = session.state;
+  if (!state || state.status === "active" || state.status === "won") {
+    return null;
+  }
+
+  const hpMax = Math.max(1, Math.floor(state.monster.hpMax));
+  const hpAtEnd = Math.min(hpMax, Math.max(0, Math.floor(state.monster.hp)));
+  if (hpAtEnd <= 0 || hpAtEnd >= hpMax) {
+    return null;
+  }
+
+  const marker = state.completedAt ? new Date(state.completedAt) : session.updatedAt;
+  const markerTime = Number.isFinite(marker.getTime()) ? marker.getTime() : session.updatedAt.getTime();
+  const elapsedSeconds = Math.max(0, (now.getTime() - markerTime) / 1000);
+  const restored = Math.floor(
+    elapsedSeconds * (hpMax / PENDING_PASSAGE_MONSTER_FULL_REGEN_SECONDS)
+  );
+  const current = Math.min(hpMax, hpAtEnd + restored);
+
+  return current >= hpMax ? null : { current, max: hpMax };
 }
 
 function getSessionExpiry(now: Date): Date {

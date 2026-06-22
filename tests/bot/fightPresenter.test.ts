@@ -91,10 +91,15 @@ describe("fight presenter", () => {
       difficulty: "easy",
       originLocationId: "location.korchma.deep.level1.right",
       encounterToken: "token13",
-      expiresAt: new Date("2026-06-22T10:00:00.000Z")
+      expiresAt: new Date("2026-06-22T10:00:00.000Z"),
+      monsterHp: {
+        current: 7,
+        max: 18
+      }
     });
 
     expect(text).toContain("Ви у правому проході. Попереду — <b>Льохова Миша з Титулом</b> · рівень 3.");
+    expect(text).toContain("Поранений слід: 7/18 здоров’я.");
     expect(text).toContain("Увага ще не впала на вас.");
     expect(text).not.toContain("Він вас");
     expect(text).not.toContain("Бачите перед собою");

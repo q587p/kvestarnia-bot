@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type {
+  ConsumedPendingPassageEncounterRecord,
   ConsumePendingPassageEncounterInput,
   ConsumePendingPassageEncounterResult,
   CreatePendingPassageEncounterInput,
@@ -46,6 +47,36 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
     });
 
     return mapPending(record);
+  }
+
+  async findLatestConsumedForTelegramUser(
+    telegramUserId: bigint,
+    originLocationId: string,
+    now: Date
+  ): Promise<ConsumedPendingPassageEncounterRecord | null> {
+    const encounter = await this.prisma.pendingPassageEncounter.findFirst({
+      where: {
+        status: "consumed",
+        originLocationId,
+        expiresAt: { gt: now },
+        character: { user: { telegramUserId } }
+      },
+      orderBy: { updatedAt: "desc" }
+    });
+    const mappedEncounter = mapPending(encounter);
+
+    if (!mappedEncounter) {
+      return null;
+    }
+
+    const session = mappedEncounter.combatSessionId
+      ? await this.prisma.soloCombatSession.findFirst({ where: { id: mappedEncounter.combatSessionId } })
+      : null;
+
+    return {
+      encounter: mappedEncounter,
+      session: mapSoloCombatSessionRecord(session)
+    };
   }
 
   async createForTelegramUser(
@@ -135,6 +166,23 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
     token: string,
     input: ConsumePendingPassageEncounterInput
   ): Promise<ConsumePendingPassageEncounterResult> {
+    return this.createSessionForEncounter(telegramUserId, token, input, "pending");
+  }
+
+  async createSessionForConsumedEncounter(
+    telegramUserId: bigint,
+    token: string,
+    input: ConsumePendingPassageEncounterInput
+  ): Promise<ConsumePendingPassageEncounterResult> {
+    return this.createSessionForEncounter(telegramUserId, token, input, "consumed");
+  }
+
+  private async createSessionForEncounter(
+    telegramUserId: bigint,
+    token: string,
+    input: ConsumePendingPassageEncounterInput,
+    expectedStatus: "pending" | "consumed"
+  ): Promise<ConsumePendingPassageEncounterResult> {
     const result = await this.prisma.$transaction(async (tx): Promise<ConsumePendingPassageEncounterResult> => {
       const encounter = await tx.pendingPassageEncounter.findFirst({
         where: { token, character: { user: { telegramUserId } } }
@@ -145,14 +193,14 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
         return { state: "invalid" };
       }
 
-      if (mappedEncounter.status === "consumed") {
+      if (expectedStatus === "pending" && mappedEncounter.status === "consumed") {
         const session = mappedEncounter.combatSessionId
           ? await tx.soloCombatSession.findFirst({ where: { id: mappedEncounter.combatSessionId } })
           : null;
         return { state: "already-consumed", encounter: mappedEncounter, session: mapSoloCombatSessionRecord(session) };
       }
 
-      if (mappedEncounter.status !== "pending") {
+      if (mappedEncounter.status !== expectedStatus) {
         return { state: "not-pending", encounter: mappedEncounter };
       }
 
@@ -171,7 +219,7 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
       const update = await tx.pendingPassageEncounter.updateMany({
         where: {
           id: encounter.id,
-          status: "pending",
+          status: expectedStatus,
           version: encounter.version
         },
         data: {

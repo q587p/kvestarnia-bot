@@ -19,7 +19,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Nyz passage `Атакувати` buttons now carry compact opaque server tokens instead of Telegram-returned encounter seeds.
 - Reopening the same passage before preview expiry returns the same monster and effective level; opening another passage can keep its own pending preview.
 - Passage previews now stay reusable for 93 minutes when not attacked, then expire into a fresh server-owned preview instead of leaving the same monster parked for hours or days.
+- If an ordinary Nyz passage monster survives a lost, fled or expired fight, the same consumed preview token can show that wounded monster again until the original 93-minute trail expires or the monster passively recovers to full HP; re-attacking starts a fresh combat session at the recovered monster HP.
 - Nyz passage preview copy now includes the shown monster's level before the player commits to attacking.
+- Wounded passage previews now show the monster's current recovered HP so fast player recovery can matter before the monster fully heals.
 - Pressing an expired, stale or catalog-invalid preview button now refreshes the preview with a short explanation instead of silently starting a different monster.
 - Consuming a pending preview atomically links it to at most one persistent solo combat session; duplicate attack callbacks recover the linked session when available.
 - Ordinary Nyz monster selection now checks bounded recent ordinary fight history before choosing: it avoids the immediately previous monster when alternatives exist, avoids the last three distinct monsters when the legal pool is large enough, and falls back to the original deterministic pool for small candidate sets.
