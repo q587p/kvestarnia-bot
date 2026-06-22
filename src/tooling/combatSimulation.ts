@@ -113,50 +113,53 @@ export function runCombatSimulation(options: Partial<CombatSimulationOptions> = 
       normalized.monsterLevels === "same" ? [heroLevel] : normalized.monsterLevels;
 
     for (const monsterLevel of monsterLevelTargets) {
-      const monsterTemplate = selectMonsterTemplate(monsterLevel);
-      const monster = materializeMonsterAtLevel(monsterTemplate, monsterLevel);
-      const monsterStats = deriveMonsterCombatStats(monster);
+      const monsterTemplates = selectMonsterTemplates(monsterLevel);
 
-      for (const classId of normalized.classIds) {
-        const classContent = getClassContent(classId);
-        const raceId = resolveRaceForClass(classContent.id, normalized.raceId);
-        const raceContent = getRaceContent(raceId);
-        const hero = buildSimulationHero({
-          raceId,
-          path: normalized.path,
-          classId,
-          level: heroLevel
-        });
-        const runResults = Array.from({ length: normalized.runsPerMatchup }, (_, runIndex) =>
-          simulateSingleFight({
-            hero,
-            monster: monsterStats,
-            policy: normalized.policy,
-            maxTurns: normalized.maxTurns,
-            seed: `${normalized.seed}:${heroLevel}:${monsterLevel}:${classId}:${runIndex}`
-          })
-        );
-        const summary = summarizeCombatRuns(runResults);
+      for (const monsterTemplate of monsterTemplates) {
+        const monster = materializeMonsterAtLevel(monsterTemplate, monsterLevel);
+        const monsterStats = deriveMonsterCombatStats(monster);
 
-        rows.push({
-          heroLevel,
-          monsterLevel,
-          classId,
-          className: classContent.name,
-          raceId,
-          raceName: raceContent.name,
-          monsterId: monster.id,
-          monsterName: monster.name,
-          summary,
-          warnings: buildSummaryWarnings(summary, {
-            sameLevelOrdinaryFight: heroLevel === monsterLevel,
+        for (const classId of normalized.classIds) {
+          const classContent = getClassContent(classId);
+          const raceId = resolveRaceForClass(classContent.id, normalized.raceId);
+          const raceContent = getRaceContent(raceId);
+          const hero = buildSimulationHero({
+            raceId,
+            path: normalized.path,
+            classId,
+            level: heroLevel
+          });
+          const runResults = Array.from({ length: normalized.runsPerMatchup }, (_, runIndex) =>
+            simulateSingleFight({
+              hero,
+              monster: monsterStats,
+              policy: normalized.policy,
+              maxTurns: normalized.maxTurns,
+              seed: `${normalized.seed}:${heroLevel}:${monsterLevel}:${monster.id}:${classId}:${runIndex}`
+            })
+          );
+          const summary = summarizeCombatRuns(runResults);
+
+          rows.push({
             heroLevel,
             monsterLevel,
             classId,
             className: classContent.name,
-            monsterLabel: `${monster.name} (${monster.id})`
-          })
-        });
+            raceId,
+            raceName: raceContent.name,
+            monsterId: monster.id,
+            monsterName: monster.name,
+            summary,
+            warnings: buildSummaryWarnings(summary, {
+              sameLevelOrdinaryFight: heroLevel === monsterLevel && isOrdinaryBalanceMonster(monster),
+              heroLevel,
+              monsterLevel,
+              classId,
+              className: classContent.name,
+              monsterLabel: `${monster.name} (${monster.id})`
+            })
+          });
+        }
       }
     }
   }
@@ -615,25 +618,20 @@ function getRaceContent(raceId: string) {
   return race;
 }
 
-function selectMonsterTemplate(level: number): MonsterContent {
-  const ordinaryMonsters = monsters.filter(
-    (monster) =>
-      !monster.tags.includes("boss") &&
-      !monster.tags.includes("mini-boss") &&
-      !monster.tags.includes("tiny-boss")
-  );
-
-  if (ordinaryMonsters.length === 0) {
-    throw new Error("No ordinary monsters are available for simulation.");
+function selectMonsterTemplates(level: number): MonsterContent[] {
+  if (monsters.length === 0) {
+    throw new Error("No monsters are available for simulation.");
   }
 
-  const exactMatch = ordinaryMonsters.filter((monster) => monster.level === level);
+  const exactMatches = monsters
+    .filter((monster) => monster.level === level)
+    .sort((left, right) => left.id.localeCompare(right.id));
 
-  if (exactMatch.length > 0) {
-    return exactMatch[0]!;
+  if (exactMatches.length > 0) {
+    return exactMatches;
   }
 
-  return [...ordinaryMonsters].sort((left, right) => {
+  return [[...monsters].sort((left, right) => {
     const delta = Math.abs(left.level - level) - Math.abs(right.level - level);
 
     if (delta !== 0) {
@@ -641,7 +639,13 @@ function selectMonsterTemplate(level: number): MonsterContent {
     }
 
     return left.level - right.level || left.id.localeCompare(right.id);
-  })[0]!;
+  })[0]!];
+}
+
+function isOrdinaryBalanceMonster(monster: MonsterContent): boolean {
+  return !monster.tags.includes("boss") &&
+    !monster.tags.includes("mini-boss") &&
+    !monster.tags.includes("tiny-boss");
 }
 
 function materializeMonsterAtLevel(monster: MonsterContent, level: number): MonsterContent {
@@ -665,7 +669,7 @@ function groupRows(rows: readonly CombatSimulationRow[]): Map<string, CombatSimu
 }
 
 function buildRowKey(row: CombatSimulationRow): string {
-  return `${row.heroLevel}:${row.monsterLevel}:${row.classId}`;
+  return `${row.heroLevel}:${row.monsterLevel}:${row.monsterId}:${row.classId}`;
 }
 
 function createSeededRandomSource(seed: string): RandomSource {

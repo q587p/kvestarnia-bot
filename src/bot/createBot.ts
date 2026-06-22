@@ -3349,11 +3349,13 @@ async function handleFightCallback(
       return;
     }
 
-    await markScenePresence(ctx, services.presence, {
-      locationId: resolvePersistentFightPresenceLocation(result.session),
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
-    });
+    if ((result.session.state?.status ?? result.session.status) === "active") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: resolvePersistentFightPresenceLocation(result.session),
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
+    }
 
     await safeAnswerCallbackQuery(ctx);
 

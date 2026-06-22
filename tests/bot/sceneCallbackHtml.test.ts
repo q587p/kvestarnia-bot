@@ -2024,9 +2024,31 @@ describe("scene callback HTML options", () => {
   it.each([
     ["result replay", makeFightViewCallbackData("123e4567-e89b-42d3-a456-426614174321")],
     ["journal page", makeFightJournalCallbackData({ sessionId: "123e4567-e89b-42d3-a456-426614174321", page: 0 })]
-  ])("keeps selected passage presence after persistent fight %s callbacks", async (_name, callbackData) => {
+  ])("does not move presence when viewing historical persistent fight %s callbacks", async (_name, callbackData) => {
     const markAction = vi.fn(() => Promise.resolve());
-    const session = persistentSessionWithOrigin("location.korchma.deep.level1.left");
+    const activeSession = persistentSessionWithOrigin("location.korchma.deep.level1.left");
+    const session = {
+      ...activeSession,
+      status: "won" as const,
+      turn: 2,
+      state: {
+        ...activeSession.state,
+        status: "won" as const,
+        turn: 2,
+        monster: {
+          hp: 0,
+          hpMax: 12
+        },
+        lastTurn: {
+          action: "attack" as const,
+          heroOutcome: "won" as const,
+          heroDamage: 9,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false
+        }
+      }
+    };
     const calls = await captureApiCalls(
       callbackData,
       servicesWith({
@@ -2052,17 +2074,9 @@ describe("scene callback HTML options", () => {
     );
 
     expect(calls.some((call) => call.method === "editMessageText")).toBe(true);
-    const presenceInput = markAction.mock.calls
+    expect(markAction.mock.calls
       .map(([input]) => input as MarkPresenceInput)
-      .find((input) => input.locationId);
-    if (!presenceInput) {
-      throw new Error("Expected fight replay callback to mark a concrete presence location.");
-    }
-    expect(presenceInput).toMatchObject({
-      locationId: "location.korchma.deep.level1.left",
-      currentRaidId: null,
-      currentAdventureId: "adventure.solo-fight"
-    });
+      .some((input) => input.locationId === "location.korchma.deep.level1.left")).toBe(false);
   });
 
   it("keeps starter mimic fight routes inside the active starter battle", async () => {
