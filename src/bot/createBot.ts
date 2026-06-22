@@ -2419,7 +2419,7 @@ function getLocationMovementNoticeText(
     case PRESENCE_LOCATION_KORCHMA_HALL:
       return "Ви повернулися до зали корчми.";
     case PRESENCE_LOCATION_KORCHMA_FRONT:
-      return "Ви вийшли перед корчму.";
+      return "Ви вийшли надвір.";
     case PRESENCE_LOCATION_KORCHMA_QUEST_TABLE:
       return "Ви підійшли до столу зі справами.";
     case PRESENCE_LOCATION_KORCHMA_BAR:

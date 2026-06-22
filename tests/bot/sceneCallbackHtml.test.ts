@@ -1413,6 +1413,51 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).not.toContain("📋 Стіл зі справами");
   });
 
+  it("uses an outdoor movement notice when leaving the korchma", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("front"),
+      servicesWith({
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.hall",
+              locationName: "Зала корчми",
+              insideKorchma: true
+            })
+        },
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "ready" as const, character }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({ state: "none" as const })
+        }
+      })
+    );
+    const movement = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Ви вийшли надвір.")
+    );
+    const front = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("🚪 Перед корчмою")
+    );
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.front",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(String(movement?.payload.text)).not.toContain("перед корчму");
+    expect(JSON.stringify(movement?.payload.reply_markup)).toContain(mainMenuLocationButtons.front);
+    expect(String(front?.payload.text)).toContain("🚪 Перед корчмою");
+  });
+
   it("does not send a standalone reply-keyboard refresh message when a place callback keeps the same location", async () => {
     const calls = await captureApiCalls(
       makePlaceCallbackData("bar"),
