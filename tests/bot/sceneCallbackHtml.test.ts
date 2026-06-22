@@ -772,7 +772,9 @@ describe("scene callback HTML options", () => {
     }
   ])("opens $name as a fresh message so old action taps do not hit new choices", async ({ callbackData, services, expectedText }) => {
     const calls = await captureApiCalls(callbackData, services);
-    const message = calls.find((call) => call.method === "sendMessage");
+    const message = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes(expectedText)
+    );
 
     expect(calls.some((call) => call.method === "editMessageText")).toBe(false);
     expect(message?.payload).toMatchObject({
@@ -2215,11 +2217,15 @@ describe("scene callback HTML options", () => {
         }
       })
     );
-    const tier = calls.find((call) => call.method === "sendMessage");
-    const keyboardRefresh = calls.find(
+    const tier = calls.find(
       (call) =>
         call.method === "sendMessage" &&
-        String(call.payload.text).includes("Тепер")
+        String(call.payload.text).includes("Ярус I: Сутерени Корчми")
+    );
+    const movement = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Ви спустилися до Сутеренів Корчми.")
     );
 
     expect(getOrStartPersistentFightForTelegramUser).not.toHaveBeenCalled();
@@ -2232,8 +2238,8 @@ describe("scene callback HTML options", () => {
     expect(String(tier?.payload.text)).toContain("Ярус I: Сутерени Корчми");
     expect(String(tier?.payload.text)).toContain("Підсходник");
     expect(JSON.stringify(tier?.payload.reply_markup)).toContain("🚪 Прямий прохід");
-    expect(String(keyboardRefresh?.payload.text)).toContain(mainMenuLocationButtons.deepLevel1);
-    expect(JSON.stringify(keyboardRefresh?.payload.reply_markup)).toContain(mainMenuLocationButtons.deepLevel1);
+    expect(String(movement?.payload.text)).not.toContain("Тепер");
+    expect(JSON.stringify(movement?.payload.reply_markup)).toContain(mainMenuLocationButtons.deepLevel1);
   });
 
   it("blocks lower-level stale Nyz descent place callbacks", async () => {
@@ -2258,15 +2264,19 @@ describe("scene callback HTML options", () => {
         }
       })
     );
-    const edit = calls.find((call) => call.method === "editMessageText");
+    const locked = calls.find(
+      (call) =>
+        (call.method === "sendMessage" || call.method === "editMessageText") &&
+        String(call.payload.text).includes("Низ відкриється з 3 рівня")
+    );
 
     expect(markAction).toHaveBeenCalledWith(
       expect.objectContaining({
         locationId: "location.korchma.hall"
       })
     );
-    expect(String(edit?.payload.text)).toContain("Низ відкриється з 3 рівня");
-    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("deep-level1");
+    expect(String(locked?.payload.text)).toContain("Низ відкриється з 3 рівня");
+    expect(JSON.stringify(locked?.payload.reply_markup)).not.toContain("deep-level1");
   });
 
   it("blocks lower-level stale Nyz tier callbacks before fight difficulty", async () => {
@@ -2412,7 +2422,11 @@ describe("scene callback HTML options", () => {
         }
       })
     );
-    const preview = calls.find((call) => call.method === "editMessageText");
+    const preview = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Павук дедлайнів")
+    );
 
     expect(previewPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
       difficulty: "normal",

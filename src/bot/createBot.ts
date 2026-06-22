@@ -1632,13 +1632,15 @@ async function handlePlaceCallback(
   await safeAnswerCallbackQuery(ctx);
 
   if (action === "hall") {
-    await sendTavern(ctx, services.tavern, services.presence, "edit");
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_HALL);
+    await sendTavern(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "front") {
-    await sendKorchmaFront(ctx, services.tavern, services.presence, "edit", services.yeger);
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_FRONT);
+    await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger);
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -1668,19 +1670,22 @@ async function handlePlaceCallback(
   }
 
   if (action === "barrel") {
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_BARREL);
     await sendTavernBarrel(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "bar") {
-    await sendKorchmaBar(ctx, services.tavern, services.presence, "edit", services.cellarGrownup, services.fight);
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_BAR);
+    await sendKorchmaBar(ctx, services.tavern, services.presence, "reply", services.cellarGrownup, services.fight);
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "fighting-corner") {
-    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "edit");
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
+    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -1697,7 +1702,8 @@ async function handlePlaceCallback(
   }
 
   if (action === "ranger-corner") {
-    await sendHuntBoard(ctx, services.yeger, "edit", {
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_RANGER_CORNER);
+    await sendHuntBoard(ctx, services.yeger, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern
     });
@@ -1706,17 +1712,19 @@ async function handlePlaceCallback(
   }
 
   if (action === "quest-table") {
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
     await sendQuestHub(
       ctx,
       buildQuestHubCommandOptions(services),
-      "edit"
+      "reply"
     );
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "deep") {
-    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "edit");
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_DEEP);
+    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -1735,6 +1743,7 @@ async function handlePlaceCallback(
       return;
     }
 
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1);
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
@@ -1748,12 +1757,14 @@ async function handlePlaceCallback(
   const passageFight = placeCallbackToPersistentFightPassage(action);
 
   if (passageFight) {
-    await sendPersistentFightPassagePreview(ctx, services, passageFight, "edit");
+    await sendPlaceMovementNotice(ctx, services.presence, passageFight.locationId);
+    await sendPersistentFightPassagePreview(ctx, services, passageFight, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "cellar") {
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_CELLAR);
     await sendCellarErrandRouted(
       ctx,
       services.cellarErrand,
@@ -1768,6 +1779,7 @@ async function handlePlaceCallback(
     return;
   }
 
+  await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_NEWS_CORNER);
   await markScenePresence(ctx, services.presence, {
     locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
     currentRaidId: null,
@@ -2283,6 +2295,12 @@ async function buildCurrentMainMenuKeyboard(
 
 function registerCallbackMainMenuLocationRefresh(bot: Bot, presenceService: PresenceService): void {
   bot.on("callback_query:data", async (ctx, next) => {
+    const isPlaceCallback = parsePlaceCallbackData(ctx.callbackQuery.data).ok;
+    if (isPlaceCallback) {
+      await next();
+      return;
+    }
+
     const previousLocationId = await getCurrentMainMenuLocationId(ctx, presenceService);
 
     await next();
@@ -2351,11 +2369,75 @@ async function refreshMainMenuLocationKeyboard(
     return;
   }
 
-  await ctx.reply(`📍 Тепер: ${getMainMenuLocationButtonText(normalizedLocationId)}`, {
+  await ctx.reply(getLocationMovementNoticeText(normalizedLocationId), {
     reply_markup: buildMainMenuKeyboard({
       locationId: normalizedLocationId
     })
   });
+}
+
+async function sendPlaceMovementNotice(
+  ctx: Context,
+  presenceService: PresenceService,
+  targetLocationId: string
+): Promise<void> {
+  const previousLocationId = await getCurrentMainMenuLocationId(ctx, presenceService);
+  const normalizedTargetLocationId = normalizePresenceLocationId(targetLocationId);
+
+  if (
+    previousLocationId !== undefined &&
+    previousLocationId !== null &&
+    normalizePresenceLocationId(previousLocationId) === normalizedTargetLocationId
+  ) {
+    return;
+  }
+
+  await ctx.reply(getLocationMovementNoticeText(normalizedTargetLocationId), {
+    reply_markup: buildMainMenuKeyboard({
+      locationId: normalizedTargetLocationId
+    })
+  });
+}
+
+function getLocationMovementNoticeText(locationId: string | null): string {
+  if (!locationId) {
+    return "Ви озирнулися до корчми.";
+  }
+
+  const normalizedLocationId = normalizePresenceLocationId(locationId);
+
+  switch (normalizedLocationId) {
+    case PRESENCE_LOCATION_KORCHMA_HALL:
+      return "Ви повернулися до зали корчми.";
+    case PRESENCE_LOCATION_KORCHMA_FRONT:
+      return "Ви вийшли перед корчму.";
+    case PRESENCE_LOCATION_KORCHMA_QUEST_TABLE:
+      return "Ви підійшли до столу зі справами.";
+    case PRESENCE_LOCATION_KORCHMA_BAR:
+      return "Ви зайшли до шинку.";
+    case PRESENCE_LOCATION_KORCHMA_BARREL:
+      return "Ви підійшли до Бочки Пінного Міражу.";
+    case PRESENCE_LOCATION_KORCHMA_CELLAR:
+      return "Ви спустилися до льоху корчми.";
+    case PRESENCE_LOCATION_KORCHMA_NEWS_CORNER:
+      return "Ви підійшли до дошки вістей.";
+    case PRESENCE_LOCATION_KORCHMA_RANGER_CORNER:
+      return "Ви підійшли до єгерського кутка.";
+    case PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER:
+      return "Ви рушили до бійцівського кутка.";
+    case PRESENCE_LOCATION_KORCHMA_DEEP:
+      return "Ви пішли до Низу.";
+    case PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1:
+      return "Ви спустилися до Сутеренів Корчми.";
+    case PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT:
+      return "Ви пішли у лівий прохід.";
+    case PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT:
+      return "Ви пішли у прямий прохід.";
+    case PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT:
+      return "Ви пішли у правий прохід.";
+    default:
+      return `Ви рушили: ${getMainMenuLocationButtonText(normalizedLocationId)}.`;
+  }
 }
 
 async function sendCurrentLocation(ctx: Context, services: BotServices): Promise<void> {

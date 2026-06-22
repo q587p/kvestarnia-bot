@@ -33,7 +33,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Fixed
 - Post-remort level milestones now use remort-specific daily-action keys instead of reusing base-life `milestone.level.N` keys, so remort detail boards can show levels 2-13 reached in the current life.
 - Memorial-board backfill now writes missing current-life remort milestones separately from base-life milestones, so already-remorted characters who have climbed again are no longer stuck showing only the remort's level 1 row.
-- Location-changing inline callbacks now send a short persistent-keyboard refresh when the stored place changes, so the main place button no longer stays on an older location such as `Перед корчмою` after descending into `Сутерени Корчми`.
+- Location-changing place callbacks now send a short movement line with the updated persistent keyboard before rendering the new place card, so the main place button catches up without a debug-like `📍 Тепер:` status message.
 - Active persistent fight cards now repeat the fight header, opponent name and monster level, and show the start tip on the card that keeps the combat buttons.
 
 ### Unchanged
