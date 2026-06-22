@@ -146,7 +146,8 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
           snapshot.character.id,
           plan.levelBefore,
           plan.levelAfter,
-          input.now
+          input.now,
+          { remortCount: snapshot.remortCount }
         );
 
         await tx.levelBarterExchange.update({

@@ -38,7 +38,11 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
         },
         include: currentLocationInclude
       });
-      await recordLevelMilestones(tx, character.id, oldLevel, newLevel);
+      const remortCount = await countCharacterRemorts(tx, character.id);
+
+      await recordLevelMilestones(tx, character.id, oldLevel, newLevel, undefined, {
+        remortCount
+      });
 
       return {
         character: toCharacterRecord(updated),
@@ -76,7 +80,9 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
         },
         include: currentLocationInclude
       });
-      await recordLevelMilestones(tx, character.id, oldLevel, nextLevel);
+      await recordLevelMilestones(tx, character.id, oldLevel, nextLevel, undefined, {
+        remortCount
+      });
 
       return {
         character: toCharacterRecord(updated),

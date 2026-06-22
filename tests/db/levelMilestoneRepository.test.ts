@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PrismaLevelMilestoneRepository } from "../../src/db/repositories/prismaLevelMilestoneRepository";
 import {
   buildLevelMilestoneKey,
+  buildRemortLevelMilestoneKey,
   LEVEL_MILESTONE_VISIBLE_LEVELS,
   REMORT_LEVEL_MILESTONE_VISIBLE_LEVELS,
   parseLevelMilestoneKey,
@@ -57,6 +58,50 @@ describe("level milestone repository helpers", () => {
     ]);
   });
 
+  it("records remort life level milestones with separate keys", async () => {
+    const created: unknown[] = [];
+    const tx = {
+      dailyAction: {
+        create: vi.fn((input: unknown) => {
+          created.push(input);
+          return Promise.resolve(input);
+        })
+      }
+    };
+
+    await recordLevelMilestones(
+      tx,
+      "character-1",
+      1,
+      3,
+      new Date("2026-06-16T10:00:00.000Z"),
+      { remortCount: 1 }
+    );
+
+    expect(created).toEqual([
+      {
+        data: {
+          characterId: "character-1",
+          key: "milestone.remort.1.level.2",
+          localDate: "once",
+          rewardXp: 0,
+          rewardGold: 0,
+          createdAt: new Date("2026-06-16T10:00:00.000Z")
+        }
+      },
+      {
+        data: {
+          characterId: "character-1",
+          key: "milestone.remort.1.level.3",
+          localDate: "once",
+          rewardXp: 0,
+          rewardGold: 0,
+          createdAt: new Date("2026-06-16T10:00:00.000Z")
+        }
+      }
+    ]);
+  });
+
   it("parses only valid level milestone keys", () => {
     expect(buildLevelMilestoneKey(7)).toBe("milestone.level.7");
     expect(parseLevelMilestoneKey("milestone.level.7")).toBe(7);
@@ -73,6 +118,68 @@ describe("level milestone repository helpers", () => {
     expect(REMORT_LEVEL_MILESTONE_VISIBLE_LEVELS).toBe(13);
   });
 
+  it("backfills current remort life levels separately from base-life milestones", async () => {
+    const create = vi.fn((input: unknown) => Promise.resolve(input));
+    const prisma = {
+      character: {
+        findMany: vi.fn(() =>
+          Promise.resolve([
+            {
+              id: "character-remort-one",
+              level: 3,
+              updatedAt: new Date("2026-06-16T10:30:00.000Z"),
+              remorts: [{ remortNumber: 1 }]
+            }
+          ])
+        )
+      },
+      dailyAction: {
+        findMany: vi.fn(() =>
+          Promise.resolve([
+            {
+              characterId: "character-remort-one",
+              key: buildLevelMilestoneKey(2)
+            }
+          ])
+        ),
+        create
+      }
+    };
+    const repository = new PrismaLevelMilestoneRepository(
+      prisma as unknown as ConstructorParameters<typeof PrismaLevelMilestoneRepository>[0]
+    );
+
+    await repository.backfillCurrentLevels();
+
+    expect(create).toHaveBeenCalledWith({
+      data: {
+        characterId: "character-remort-one",
+        key: buildRemortLevelMilestoneKey(1, 2),
+        localDate: "once",
+        rewardXp: 0,
+        rewardGold: 0,
+        createdAt: new Date("2026-06-16T10:30:00.000Z")
+      }
+    });
+    expect(create).toHaveBeenCalledWith({
+      data: {
+        characterId: "character-remort-one",
+        key: buildRemortLevelMilestoneKey(1, 3),
+        localDate: "once",
+        rewardXp: 0,
+        rewardGold: 0,
+        createdAt: new Date("2026-06-16T10:30:00.000Z")
+      }
+    });
+    expect(create).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          key: buildLevelMilestoneKey(3)
+        })
+      })
+    );
+  });
+
   it("reads remort detail levels from the life after the selected remort", async () => {
     const firstRemortAt = new Date("2026-06-16T10:00:00.000Z");
     const secondRemortAt = new Date("2026-06-17T10:00:00.000Z");
@@ -81,8 +188,14 @@ describe("level milestone repository helpers", () => {
     const afterSecondRemortAt = new Date("2026-06-17T10:13:00.000Z");
     const prisma = {
       dailyAction: {
-        findMany: vi.fn((input: { where?: { key?: string } }) => {
-          if (input.where?.key !== buildLevelMilestoneKey(2)) {
+        findMany: vi.fn((input: { where?: { key?: string | { in?: string[] } } }) => {
+          const key = input.where?.key;
+          const requestedKeys = typeof key === "string" ? [key] : (key?.in ?? []);
+
+          if (
+            !requestedKeys.includes(buildLevelMilestoneKey(2)) &&
+            !requestedKeys.includes(buildRemortLevelMilestoneKey(1, 2))
+          ) {
             return Promise.resolve([]);
           }
 

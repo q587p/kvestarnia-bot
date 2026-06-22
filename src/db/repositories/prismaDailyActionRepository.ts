@@ -195,7 +195,9 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
                   level: newLevel
                 }
               });
-        await recordLevelMilestones(tx, character.id, oldLevel, newLevel);
+        await recordLevelMilestones(tx, character.id, oldLevel, newLevel, undefined, {
+          remortCount
+        });
         const itemGrants = input.itemGrants ?? [];
         const appliedItemGrants: ItemGrant[] = [];
 

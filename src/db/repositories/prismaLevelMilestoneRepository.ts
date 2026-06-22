@@ -7,7 +7,9 @@ import {
   REMORT_LEVEL_MILESTONE_MIN_LEVEL,
   REMORT_LEVEL_MILESTONE_VISIBLE_LEVELS,
   LEVEL_MILESTONE_KEY_PREFIX,
+  REMORT_LEVEL_MILESTONE_KEY_PREFIX,
   buildLevelMilestoneKey,
+  buildRemortLevelMilestoneKey,
   createLevelMilestone,
   type LevelMilestoneBoard,
   type LevelMilestoneEntry,
@@ -31,14 +33,31 @@ export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository 
       select: {
         id: true,
         level: true,
-        updatedAt: true
+        updatedAt: true,
+        remorts: {
+          select: {
+            remortNumber: true
+          },
+          orderBy: {
+            remortNumber: "asc"
+          }
+        }
       }
     });
     const existingRecords = await this.prisma.dailyAction.findMany({
       where: {
-        key: {
-          startsWith: LEVEL_MILESTONE_KEY_PREFIX
-        },
+        OR: [
+          {
+            key: {
+              startsWith: LEVEL_MILESTONE_KEY_PREFIX
+            }
+          },
+          {
+            key: {
+              startsWith: REMORT_LEVEL_MILESTONE_KEY_PREFIX
+            }
+          }
+        ],
         localDate: LEVEL_MILESTONE_LOCAL_DATE
       },
       select: {
@@ -53,9 +72,13 @@ export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository 
     for (const character of characters) {
       const reachedAt = character.updatedAt;
       const highestLevel = Math.min(character.level, LEVEL_MILESTONE_MAX_LEVEL);
+      const remortCount = character.remorts.at(-1)?.remortNumber ?? 0;
 
       for (let level = LEVEL_MILESTONE_MIN_LEVEL; level <= highestLevel; level += 1) {
-        const key = buildLevelMilestoneKey(level);
+        const key =
+          remortCount > 0
+            ? buildRemortLevelMilestoneKey(remortCount, level)
+            : buildLevelMilestoneKey(level);
 
         if (existingKeys.has(`${character.id}:${key}`)) {
           continue;
@@ -64,7 +87,8 @@ export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository 
         await createLevelMilestone(this.prisma, {
           characterId: character.id,
           level,
-          reachedAt
+          reachedAt,
+          remortCount
         });
         existingKeys.add(`${character.id}:${key}`);
       }
@@ -220,7 +244,9 @@ export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository 
   ): Promise<LevelMilestoneEntry[]> {
     const records = await this.prisma.dailyAction.findMany({
       where: {
-        key: buildLevelMilestoneKey(level),
+        key: {
+          in: [buildRemortLevelMilestoneKey(remortNumber, level), buildLevelMilestoneKey(level)]
+        },
         localDate: LEVEL_MILESTONE_LOCAL_DATE
       },
       orderBy: [

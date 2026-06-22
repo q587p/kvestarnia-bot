@@ -26,6 +26,10 @@ This project follows a simple pre-1.0 versioning policy:
 - Cellar start combo flavor now separates the title-in-cellar sentence from the following race/class beat with a blank line.
 - Remort-specific memorial details now treat `Реморт N` as the life after remort N: level 1 comes from that remort ledger start, level rows ignore base-life milestones before it, and level 13 can be derived from the next remort completion when milestone rows are not available.
 
+### Fixed
+- Post-remort level milestones now use remort-specific daily-action keys instead of reusing base-life `milestone.level.N` keys, so remort detail boards can show levels 2-13 reached in the current life.
+- Memorial-board backfill now writes missing current-life remort milestones separately from base-life milestones, so already-remorted characters who have climbed again are no longer stuck showing only the remort's level 1 row.
+
 ### Unchanged
 - Yeger targeted encounters, adventure handoff fights, training doppelgangers, starter fights, monster ability loadouts, timeout auto-defend and reward/Yeger progression rules are unchanged.
 

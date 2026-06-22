@@ -289,7 +289,9 @@ export class PrismaCooldownRepository implements CooldownRepository {
               level: newLevel
             }
           });
-    await recordLevelMilestones(tx, character.id, oldLevel, newLevel);
+    await recordLevelMilestones(tx, character.id, oldLevel, newLevel, undefined, {
+      remortCount
+    });
     const itemGrants = input.itemGrants ?? [];
 
     const appliedItemGrants = await grantItems(tx, character.id, itemGrants);

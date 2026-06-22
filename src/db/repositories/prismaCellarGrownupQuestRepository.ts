@@ -183,7 +183,9 @@ export class PrismaCellarGrownupQuestRepository implements CellarGrownupQuestRep
             }
           });
         }
-        await recordLevelMilestones(tx, snapshot.character.id, oldLevel, newLevel);
+        await recordLevelMilestones(tx, snapshot.character.id, oldLevel, newLevel, undefined, {
+          remortCount
+        });
 
         const updated = await getSnapshot(tx, telegramUserId, input.keys);
 
