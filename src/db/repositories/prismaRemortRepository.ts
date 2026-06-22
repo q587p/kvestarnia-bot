@@ -19,9 +19,12 @@ import type {
   RemortRepository,
   RemortSnapshot
 } from "./remortRepository";
+import { mapSoloCombatSessionRecord } from "./prismaSoloCombatSessionRepository";
+import { expireCombat, type CombatState } from "../../domain/combat";
 
 type TxClient = Prisma.TransactionClient;
 type CharacterWithLocation = Character & { user: { lastSeenLocationId: string | null } };
+const SUPPORTED_REMORT_COMBAT_LEASE_KIND = "solo-combat";
 
 export class PrismaRemortRepository implements RemortRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -224,6 +227,11 @@ export class PrismaRemortRepository implements RemortRepository {
         return validation;
       }
 
+      const activeCombat = await prepareActiveCombatForRemort(tx, character.id, input.now);
+      if (activeCombat.state === "locked") {
+        return { state: "active-combat" };
+      }
+
       const remort = await tx.characterRemort.create({
         data: {
           characterId: character.id,
@@ -301,15 +309,7 @@ export class PrismaRemortRepository implements RemortRepository {
         });
       }
 
-      await tx.soloCombatSession.updateMany({
-        where: {
-          characterId: character.id,
-          status: "active"
-        },
-        data: {
-          status: "expired"
-        }
-      });
+      await cancelLivePendingPassageEncountersForRemort(tx, character.id, input.now);
 
       await tx.mantokChestRun.updateMany({
         where: {
@@ -444,6 +444,107 @@ export class PrismaRemortRepository implements RemortRepository {
       }))
     };
   }
+}
+
+async function prepareActiveCombatForRemort(
+  tx: TxClient,
+  characterId: string,
+  now: Date
+): Promise<{ state: "ready" } | { state: "locked" }> {
+  const lease = await tx.activeCombatLease.findUnique({
+    where: {
+      characterId
+    }
+  });
+
+  if (!lease) {
+    return { state: "ready" };
+  }
+
+  if (lease.kind !== SUPPORTED_REMORT_COMBAT_LEASE_KIND) {
+    return { state: "locked" };
+  }
+
+  const session = await tx.soloCombatSession.findFirst({
+    where: {
+      id: lease.referenceId,
+      characterId
+    }
+  });
+
+  if (!session) {
+    await tx.activeCombatLease.deleteMany({
+      where: {
+        characterId,
+        kind: lease.kind,
+        referenceId: lease.referenceId
+      }
+    });
+    return { state: "ready" };
+  }
+
+  if (session.status === "active") {
+    const mapped = mapSoloCombatSessionRecord(session);
+    const state = mapped?.state ? expireRemortCombatState(mapped.state, now) : null;
+    await tx.soloCombatSession.update({
+      where: {
+        id: session.id
+      },
+      data: {
+        status: "expired",
+        turn: state?.turn ?? session.turn,
+        ...(state ? { stateJson: state as unknown as Prisma.InputJsonValue } : {})
+      }
+    });
+  }
+
+  await tx.activeCombatLease.deleteMany({
+    where: {
+      characterId,
+      kind: lease.kind,
+      referenceId: lease.referenceId
+    }
+  });
+
+  return { state: "ready" };
+}
+
+function expireRemortCombatState(state: CombatState, now: Date): CombatState {
+  const expired = expireCombat(state);
+  const completedAt = expired.completedAt ?? now.toISOString();
+  const next = {
+    ...expired,
+    completedAt
+  };
+  delete next.turnExpiresAt;
+
+  return next;
+}
+
+async function cancelLivePendingPassageEncountersForRemort(
+  tx: TxClient,
+  characterId: string,
+  now: Date
+): Promise<void> {
+  await tx.pendingPassageEncounter.updateMany({
+    where: {
+      characterId,
+      status: {
+        in: ["pending", "consumed"]
+      },
+      expiresAt: {
+        gt: now
+      }
+    },
+    data: {
+      status: "cancelled",
+      activeKey: null,
+      cancelledAt: now,
+      version: {
+        increment: 1
+      }
+    }
+  });
 }
 
 async function getSnapshot(

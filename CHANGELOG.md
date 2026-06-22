@@ -41,6 +41,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Location-changing place callbacks now send a short movement line with the updated persistent keyboard before rendering the new place card, so the main place button catches up without a debug-like `📍 Тепер:` status message.
 - Passage attack callbacks are now bound to the server-owned encounter and the player's current passage location; old buttons from another passage refresh the current place instead of moving presence or starting combat.
 - Active persistent fight cards now repeat the fight header, opponent name and monster level, and show the start tip on the card that keeps the combat buttons.
+- Successful remort during active solo or training combat now canonically expires the old session, releases the active combat lease and cancels live pending/consumed passage trails without granting combat rewards or overwriting the new-life starter HP/mana; unsupported turn-based duel leases still block remort without mutation.
 
 ### Unchanged
 - Yeger targeted encounters, adventure handoff fights, training doppelgangers, starter fights, monster ability loadouts, timeout auto-defend and reward/Yeger progression rules are unchanged.

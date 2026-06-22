@@ -65,6 +65,10 @@ export function presentRemortConfirm(result: RemortConfirmResult): string {
     return "🕯️ Цей реморт не впізнали. Можливо, свічка вже догоріла. Відкрийте /remort ще раз.";
   }
 
+  if (result.state === "active-combat") {
+    return "🕯️ Реморт поки не пускає: у вас є активний бій, який не можна закрити свічкою. Завершіть його й поверніться до /remort.";
+  }
+
   if (result.state === "locked") {
     return `🕯️ Реморт відкривається на <b>${result.requiredLevel}</b> рівні. Зараз у вас рівень ${result.level}.`;
   }

@@ -64,6 +64,7 @@ export type RemortUpdateResult =
 export type RemortConfirmResult =
   | { state: "no-character" }
   | { state: "invalid-token" }
+  | { state: "active-combat" }
   | { state: "locked"; level: number; requiredLevel: number }
   | { state: "invalid-draft"; reason: string }
   | {
@@ -361,6 +362,10 @@ export class RemortService {
         level: result.level,
         requiredLevel: REMORT_REQUIRED_LEVEL
       };
+    }
+
+    if (result.state === "active-combat") {
+      return result;
     }
 
     return result;
