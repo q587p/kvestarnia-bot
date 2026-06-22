@@ -78,6 +78,7 @@ export async function sendFight(
     openDifficulty?: boolean;
     difficulty?: PersistentFightDifficultyId;
     originLocationId?: string;
+    encounterSeed?: string;
     now?: Date;
   }
 ): Promise<void> {
@@ -111,7 +112,8 @@ export async function sendFight(
   const result = options?.difficulty
     ? await fightService.getOrStartPersistentFightForTelegramUser(telegramUserId, {
         difficulty: options.difficulty,
-        originLocationId: options.originLocationId ?? getDefaultPassageLocationId(options.difficulty)
+        originLocationId: options.originLocationId ?? getDefaultPassageLocationId(options.difficulty),
+        ...(options.encounterSeed ? { encounterSeed: options.encounterSeed } : {})
       })
     : typeof fightService.getFightOverviewForTelegramUser === "function"
       ? await fightService.getFightOverviewForTelegramUser(telegramUserId)

@@ -19,6 +19,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added distinct class skill identities for Varenyk-mancer (`skill.boiling-filling`, `🥟 Кипляча начинка`) and Rogue (`skill.shadow-cut`, `🌘 Тіньовий різ`) while preserving their previous numeric combat profiles.
 - Added durable persistent-fight `turnLog` entries in combat state JSON plus terminal `📜 Журнал бою` paging with first/previous/next/last navigation and a return to the result card.
 - Added separate presence locations for the Nyz left, straight and right passages.
+- Added Nyz passage pre-fight previews: selecting a passage now shows the spotted monster and starts combat only after `Атакувати`, with the preview encounter seed carried into the created fight.
 - Added focused coverage for content totals, loadout gates, frozen runtime state, legacy no-runtime fights, ordinary anti-spam, telegraph impact, shields/effects and Prisma JSON round-trip.
 - Added an explicit per-component monster ability execution plan used by validation, AI legality and resolution. Components now record their source parameter, target actor, condition, duration/charges, direct-hit requirement and applied-result key.
 - Added an explicit runtime-effect polarity/removability/source contract in combat-state JSON, with safe derivation for old effect rows that lack the new metadata.

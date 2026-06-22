@@ -5,6 +5,7 @@ import type {
   FightLookupResult,
   FightResult,
   PersistentFightSnapshotResult,
+  PersistentFightPreviewResult,
   ProblemQuestIssueNextLookupResult,
   ProblemQuestTurnInLookupResult,
   PersistentFightTurnResult,
@@ -133,6 +134,47 @@ export function presentPersistentFightDifficultyChoice(
     "🚪 Прямий прохід — як є: чесний корчмарський хаос.",
     "➡️ Правий прохід — обережніше: нижчий рівень і скромніша винагорода."
   ].join("\n");
+}
+
+export function presentPersistentFightPassagePreview(
+  result: Extract<PersistentFightPreviewResult, { state: "persistent-preview" }>
+): string {
+  const passage = getPersistentFightPassagePreviewCopy(result.originLocationId);
+
+  return [
+    `${passage.icon} <b>${escapeHtml(passage.title)}</b>`,
+    presentCharacterHeader(result.character),
+    "",
+    `Ви у ${passage.locative}. Бачите перед собою <b>${escapeHtml(result.monster.name)}</b>. Він вас ще не побачив.`
+  ].join("\n");
+}
+
+function getPersistentFightPassagePreviewCopy(originLocationId: string): {
+  icon: string;
+  title: string;
+  locative: string;
+} {
+  if (originLocationId.endsWith(".left")) {
+    return {
+      icon: "⬅️",
+      title: "Лівий прохід",
+      locative: "лівому проході"
+    };
+  }
+
+  if (originLocationId.endsWith(".right")) {
+    return {
+      icon: "➡️",
+      title: "Правий прохід",
+      locative: "правому проході"
+    };
+  }
+
+  return {
+    icon: "🚪",
+    title: "Прямий прохід",
+    locative: "прямому проході"
+  };
 }
 
 export function presentFightResult(result: Exclude<FightResult, { state: "no-character" }>): string {

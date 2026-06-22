@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   makeFightCallbackData,
   makeFightJournalCallbackData,
+  makeFightPassageAttackCallbackData,
   makeFightTurnCallbackData,
   makeFightViewCallbackData,
   parseFightCallbackData
@@ -65,6 +66,23 @@ describe("fight callback data", () => {
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
+  it("parses persistent passage attack callbacks", () => {
+    const data = makeFightPassageAttackCallbackData({
+      passage: "deep-right",
+      encounterSeed: "kvest13"
+    });
+
+    expect(parseFightCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "passage",
+        passage: "deep-right",
+        encounterSeed: "kvest13"
+      }
+    });
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
+
   it("rejects invalid versions and actions", () => {
     expect(parseFightCallbackData("v2:fight:mimic:attack")).toEqual({
       ok: false,
@@ -77,6 +95,10 @@ describe("fight callback data", () => {
     expect(
       parseFightCallbackData("v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:3:dance")
     ).toEqual({
+      ok: false,
+      error: "invalid-action"
+    });
+    expect(parseFightCallbackData("v1:fight:pass:deep:seed")).toEqual({
       ok: false,
       error: "invalid-action"
     });
@@ -106,6 +128,10 @@ describe("fight callback data", () => {
     ).toEqual({
       ok: false,
       error: "invalid-turn"
+    });
+    expect(parseFightCallbackData("v1:fight:pass:deep-right:bad_seed")).toEqual({
+      ok: false,
+      error: "invalid-prefix"
     });
   });
 });

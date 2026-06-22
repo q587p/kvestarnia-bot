@@ -47,7 +47,7 @@ import {
 } from "../domain/progression/activityGates";
 import { buildStarterLevelTwoXpReward } from "../domain/progression/starterRewards";
 import { createEmptyEquipmentEffectSummary } from "../domain/progression/effectiveStats";
-import { CryptoRandomSource, type RandomSource } from "../shared/random";
+import { CryptoRandomSource, SeededRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, toIsoDate, type Clock } from "../shared/time";
 import {
   summarizeAndSyncCharacterResources,
@@ -469,11 +469,24 @@ export interface PersistentFightStartOptions {
   source?: "normal" | "yeger" | "adventure";
   originLocationId?: string;
   difficulty?: PersistentFightDifficultyId;
+  encounterSeed?: string;
   target?: {
     tagsAny?: string[];
     monsterIds?: string[];
   };
 }
+
+export type PersistentFightPreviewResult =
+  | Exclude<FightLookupResult, { state: "persistent-ready" }>
+  | ({
+      state: "persistent-preview";
+      character: CharacterSummary;
+      questProgress: ThirteenSmallProblemsProgress;
+      monster: MonsterContent;
+      difficulty: PersistentFightDifficultyId;
+      originLocationId: string;
+      encounterSeed: string;
+    } & RecoveryNoticeField);
 
 export class FightService {
   constructor(
@@ -598,6 +611,38 @@ export class FightService {
     options: PersistentFightStartOptions = {}
   ): Promise<FightLookupResult> {
     return this.getFightForTelegramUser(telegramUserId, options);
+  }
+
+  async previewPersistentFightForTelegramUser(
+    telegramUserId: bigint,
+    options: Pick<PersistentFightStartOptions, "difficulty" | "originLocationId" | "encounterSeed"> = {}
+  ): Promise<PersistentFightPreviewResult> {
+    const overview = await this.getFightOverviewForTelegramUser(telegramUserId);
+
+    if (overview.state !== "persistent-ready") {
+      return overview;
+    }
+
+    const difficulty = getPersistentFightDifficultyConfig(options.difficulty);
+    const originLocationId = options.originLocationId ?? getDefaultPassageLocationId(difficulty.id);
+    const encounterSeed = options.encounterSeed ?? createPersistentFightEncounterSeed(this.rng);
+    const baseMonster = selectSoloFightMonster(
+      overview.character,
+      buildPersistentFightEncounterRng(encounterSeed, difficulty, originLocationId),
+      difficulty
+    );
+    const monster = applyPersistentFightDifficulty(baseMonster, overview.character, difficulty);
+
+    return {
+      state: "persistent-preview",
+      character: overview.character,
+      questProgress: overview.questProgress,
+      ...(overview.recoveryNotice ? { recoveryNotice: overview.recoveryNotice } : {}),
+      monster,
+      difficulty: difficulty.id,
+      originLocationId,
+      encounterSeed
+    };
   }
 
   async getFightOverviewForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
@@ -1126,9 +1171,16 @@ export class FightService {
     const difficulty = options.target
       ? PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
       : getPersistentFightDifficultyConfig(options.difficulty);
+    const encounterRng = options.encounterSeed
+      ? buildPersistentFightEncounterRng(
+          options.encounterSeed,
+          difficulty,
+          resolvePersistentFightOriginLocationId(options)
+        )
+      : this.rng;
     const baseMonster = options.target
       ? selectTargetedSoloFightMonster(characterSummary, this.rng, options.target)
-      : selectSoloFightMonster(characterSummary, this.rng, difficulty);
+      : selectSoloFightMonster(characterSummary, encounterRng, difficulty);
     const monster = applyPersistentFightDifficulty(baseMonster, characterSummary, difficulty);
     const sessionId = randomUUID();
     const now = this.clock();
@@ -2517,6 +2569,30 @@ export function getPersistentFightDifficultyConfig(
   difficulty: PersistentFightDifficultyId = "normal"
 ): PersistentFightDifficultyConfig {
   return PERSISTENT_FIGHT_DIFFICULTY_CONFIG[difficulty] ?? PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal;
+}
+
+function createPersistentFightEncounterSeed(rng: RandomSource): string {
+  return rng.nextInt(0, 0x7fffffff).toString(36);
+}
+
+function buildPersistentFightEncounterRng(
+  encounterSeed: string,
+  difficulty: PersistentFightDifficultyConfig,
+  originLocationId: string
+): RandomSource {
+  return new SeededRandomSource(`persistent-fight:${difficulty.id}:${originLocationId}:${encounterSeed}`);
+}
+
+function getDefaultPassageLocationId(difficulty: PersistentFightDifficultyId): string {
+  if (difficulty === "hard") {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT;
+  }
+
+  if (difficulty === "easy") {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT;
+  }
+
+  return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT;
 }
 
 export function selectPersistentFightMonsterLevel(input: {

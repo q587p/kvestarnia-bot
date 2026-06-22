@@ -176,6 +176,7 @@ import {
 import {
   buildFightKeyboard,
   buildFightResultKeyboard,
+  buildPersistentFightPassagePreviewKeyboard,
   buildPersistentFightJournalKeyboard,
   buildPersistentFightResultKeyboard,
   resolvePersistentFightPresenceLocation
@@ -264,6 +265,7 @@ import {
   presentPersistentFight,
   presentPersistentFightIntro,
   presentPersistentFightJournal,
+  presentPersistentFightPassagePreview,
   presentPersistentFightSnapshot,
   presentPersistentFightTurn
 } from "./presenters/fightPresenter";
@@ -1730,31 +1732,7 @@ async function handlePlaceCallback(
   const passageFight = placeCallbackToPersistentFightPassage(action);
 
   if (passageFight) {
-    const gate =
-      typeof services.fight.getFightOverviewForTelegramUser === "function"
-        ? await services.fight.getFightOverviewForTelegramUser(telegramUserId)
-        : await services.fight.getFightForTelegramUser(telegramUserId);
-
-    if ("character" in gate && gate.character.level < 3) {
-      await safeEditMessageText(ctx, presentKorchmaDeepLevelLocked(gate.character), {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildBackToKorchmaHallKeyboard()
-      });
-      return;
-    }
-
-    await markScenePresence(ctx, services.presence, {
-      locationId: passageFight.locationId,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
-    });
-    await sendFight(ctx, services.fight, "reply", {
-      presence: services.presence,
-      tavernRaid: services.tavern,
-      requireKorchmaInterior: false,
-      difficulty: passageFight.difficulty,
-      originLocationId: passageFight.locationId
-    });
+    await sendPersistentFightPassagePreview(ctx, services, passageFight, "edit");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -1786,53 +1764,128 @@ async function handlePlaceCallback(
 function placeCallbackToPersistentFightPassage(action: PlaceCallback): {
   difficulty: PersistentFightDifficultyId;
   locationId: string;
+  passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
 } | null {
   if (action === "deep-left") {
     return {
       difficulty: "hard",
-      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      passage: action
     };
   }
 
   if (action === "deep-straight") {
     return {
       difficulty: "normal",
-      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
+      passage: action
     };
   }
 
   if (action === "deep-right") {
     return {
       difficulty: "easy",
-      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
+      passage: action
     };
   }
 
   return null;
 }
 
+async function sendPersistentFightPassagePreview(
+  ctx: Context,
+  services: BotServices,
+  passageFight: {
+    difficulty: PersistentFightDifficultyId;
+    locationId: string;
+    passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
+  },
+  mode: "reply" | "edit"
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeEditOrReply(ctx, mode, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
+  const preview = await services.fight.previewPersistentFightForTelegramUser(telegramUserId, {
+    difficulty: passageFight.difficulty,
+    originLocationId: passageFight.locationId
+  });
+
+  if ("character" in preview && preview.character.level < 3) {
+    await safeEditOrReply(ctx, mode, presentKorchmaDeepLevelLocked(preview.character), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildBackToKorchmaHallKeyboard()
+    });
+    return;
+  }
+
+  if (preview.state !== "persistent-preview") {
+    await sendFight(ctx, services.fight, "reply", {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      requireKorchmaInterior: false
+    });
+    return;
+  }
+
+  await markScenePresence(ctx, services.presence, {
+    locationId: passageFight.locationId,
+    currentRaidId: null,
+    currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+  });
+  await safeEditOrReply(ctx, mode, presentPersistentFightPassagePreview(preview), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildPersistentFightPassagePreviewKeyboard({
+      passage: passageFight.passage,
+      encounterSeed: preview.encounterSeed
+    })
+  });
+}
+
+async function safeEditOrReply(
+  ctx: Context,
+  mode: "reply" | "edit",
+  text: string,
+  options?: Parameters<Context["editMessageText"]>[1]
+): Promise<void> {
+  if (mode === "edit") {
+    await safeEditMessageText(ctx, text, options);
+    return;
+  }
+
+  await ctx.reply(text, options);
+}
+
 function presenceLocationToPersistentFightPassage(locationId: string): {
   difficulty: PersistentFightDifficultyId;
   locationId: string;
+  passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
 } | null {
   if (locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT) {
     return {
       difficulty: "hard",
-      locationId
+      locationId,
+      passage: "deep-left"
     };
   }
 
   if (locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT) {
     return {
       difficulty: "normal",
-      locationId
+      locationId,
+      passage: "deep-straight"
     };
   }
 
   if (locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT) {
     return {
       difficulty: "easy",
-      locationId
+      locationId,
+      passage: "deep-right"
     };
   }
 
@@ -2317,13 +2370,7 @@ async function sendCurrentPresenceLocation(
   const passageFight = presenceLocationToPersistentFightPassage(locationId);
 
   if (passageFight) {
-    await sendFight(ctx, services.fight, "reply", {
-      presence: services.presence,
-      tavernRaid: services.tavern,
-      requireKorchmaInterior: false,
-      difficulty: passageFight.difficulty,
-      originLocationId: passageFight.locationId
-    });
+    await sendPersistentFightPassagePreview(ctx, services, passageFight, "reply");
     return;
   }
 
@@ -3037,6 +3084,46 @@ async function handleFightCallback(
   }
 
   if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
+  }
+
+  if (callback.type === "passage") {
+    const passageFight = placeCallbackToPersistentFightPassage(callback.passage);
+
+    if (!passageFight) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const gate =
+      typeof services.fight.getFightOverviewForTelegramUser === "function"
+        ? await services.fight.getFightOverviewForTelegramUser(telegramUserId)
+        : await services.fight.getFightForTelegramUser(telegramUserId);
+
+    if ("character" in gate && gate.character.level < 3) {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentKorchmaDeepLevelLocked(gate.character), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildBackToKorchmaHallKeyboard()
+      });
+      return;
+    }
+
+    await markScenePresence(ctx, services.presence, {
+      locationId: passageFight.locationId,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+    });
+    await safeAnswerCallbackQuery(ctx);
+    await sendFight(ctx, services.fight, "reply", {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      requireKorchmaInterior: false,
+      difficulty: passageFight.difficulty,
+      originLocationId: passageFight.locationId,
+      encounterSeed: callback.encounterSeed
+    });
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 

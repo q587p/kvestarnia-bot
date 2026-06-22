@@ -23,6 +23,7 @@ import {
 import {
   makeFightCallbackData,
   makeFightJournalCallbackData,
+  makeFightPassageAttackCallbackData,
   makeFightTurnCallbackData,
   makeFightViewCallbackData
 } from "../callbacks/fightCallbackData";
@@ -278,6 +279,16 @@ export function buildPersistentFightDifficultyKeyboard(): InlineKeyboard {
     .text("➡️ Правий прохід", makePlaceCallbackData("deep-right"))
     .row()
     .text("⬆️ Піднятися назад", makePlaceCallbackData("deep"));
+}
+
+export function buildPersistentFightPassagePreviewKeyboard(input: {
+  passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
+  encounterSeed: string;
+}): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("⚔️ Атакувати", makeFightPassageAttackCallbackData(input))
+    .row()
+    .text("↩️ Повернутися до Сутеренів", makePlaceCallbackData("deep-level1"));
 }
 
 function getFightActionLabels(character?: CharacterSummary): {

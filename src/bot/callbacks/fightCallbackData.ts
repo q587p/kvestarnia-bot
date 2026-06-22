@@ -1,6 +1,7 @@
 import type { CombatProbeAction } from "../../domain/combat/combatProbe";
 import type { PlayerCombatActionType } from "../../domain/combat";
 import { err, ok, type Result } from "../../shared/result";
+import type { PlaceCallback } from "./placeCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type FightCallbackError =
@@ -29,15 +30,27 @@ export type FightCallback =
       type: "journal";
       sessionId: string;
       page: number;
+    }
+  | {
+      type: "passage";
+      passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
+      encounterSeed: string;
     };
 
 const MIMIC_PREFIX = "v1:fight:mimic";
 const TURN_PREFIX = "v1:fight:turn";
 const VIEW_PREFIX = "v1:fight:view";
 const JOURNAL_PREFIX = "v1:fight:log";
+const PASSAGE_PREFIX = "v1:fight:pass";
 const fightActions = new Set<CombatProbeAction>(["attack", "receipt", "flee"]);
 const turnActions = new Set<PlayerCombatActionType>(["attack", "defend", "skill", "flee"]);
+const passageActions = new Set<Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">>([
+  "deep-left",
+  "deep-straight",
+  "deep-right"
+]);
 const sessionIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const encounterSeedPattern = /^[a-z0-9]{1,16}$/i;
 
 export function makeFightCallbackData(action: CombatProbeAction): string {
   return `${MIMIC_PREFIX}:${action}`;
@@ -60,6 +73,13 @@ export function makeFightJournalCallbackData(input: {
   page: number;
 }): string {
   return `${JOURNAL_PREFIX}:${input.sessionId}:${normalizePage(input.page)}`;
+}
+
+export function makeFightPassageAttackCallbackData(input: {
+  passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
+  encounterSeed: string;
+}): string {
+  return `${PASSAGE_PREFIX}:${input.passage}:${input.encounterSeed}`;
 }
 
 export function parseFightCallbackData(
@@ -157,6 +177,28 @@ export function parseFightCallbackData(
       type: "journal",
       sessionId,
       page
+    });
+  }
+
+  if (data.startsWith(`${PASSAGE_PREFIX}:`)) {
+    const [, section, scene, passage, encounterSeed, ...rest] = data.split(":");
+
+    if (section !== "fight" || scene !== "pass" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (!passageActions.has(passage as Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">)) {
+      return err("invalid-action");
+    }
+
+    if (!encounterSeed || !encounterSeedPattern.test(encounterSeed)) {
+      return err("invalid-prefix");
+    }
+
+    return ok({
+      type: "passage",
+      passage: passage as Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">,
+      encounterSeed
     });
   }
 
