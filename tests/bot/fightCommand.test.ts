@@ -153,8 +153,8 @@ describe("fight command", () => {
     expect(replies[0]?.text).toContain("👹 Монстр: 18/18");
     expect(replies[0]?.text).toContain("⏳ На хід є 23 секунди");
     expect(replies[0]?.text).toContain("<b>Мандрівник</b>, що робимо?");
-    expect(replies[0]?.text).not.toContain("⚔️ Бій");
-    expect(replies[0]?.text).not.toContain("Павук дедлайнів");
+    expect(replies[0]?.text).toContain("⚔️ <b>Бій</b>");
+    expect(replies[0]?.text).toContain("Проти вас: <b>Павук дедлайнів</b> · рівень 2");
     expect(replies[0]?.text).not.toContain("Тринадцять дрібних проблем");
     expect(replies[0]?.text).not.toContain("Не зволікайте надто довго");
     const options = replies[0]?.options as {
@@ -182,6 +182,8 @@ describe("fight command", () => {
         turn: 4,
         monster: {
           id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          level: 2,
           hp: 0,
           hpMax: 18
         },
@@ -231,7 +233,7 @@ describe("fight command", () => {
     expect(replies[0]?.text).toContain("🎉 Ви перемогли");
     expect(replies[0]?.text).toContain("Винагорода за бій");
     expect(replies[0]?.text).not.toContain("Цей бій уже завершився");
-    expect(replies[0]?.text).not.toContain("Павук дедлайнів");
+    expect(replies[0]?.text).toContain("Проти вас: <b>Павук дедлайнів</b> · рівень 2");
     expect(replies[0]?.text).not.toContain("За бочками в коморі є сходи");
     const options = replies[0]?.options as {
       parse_mode: string;
