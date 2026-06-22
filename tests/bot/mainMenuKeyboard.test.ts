@@ -15,6 +15,7 @@ import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloComb
 import {
   buildFightKeyboard,
   buildFightResultKeyboard,
+  buildPersistentFightJournalKeyboard,
   buildPersistentFightKeyboard,
   buildPersistentFightResultKeyboard
 } from "../../src/bot/keyboards/fightKeyboard";
@@ -36,7 +37,8 @@ import {
   buildDevResetKeyboard,
   buildMainMenuKeyboard,
   buildRestartKeyboard,
-  mainMenuButtons
+  mainMenuButtons,
+  mainMenuLocationButtons
 } from "../../src/bot/keyboards/mainMenuKeyboard";
 import {
   buildLevelBarterOfferKeyboard,
@@ -78,6 +80,17 @@ describe("main menu and scene keyboards", () => {
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
     expect(keyboard.is_persistent).toBe(true);
+  });
+
+  it("labels the persistent location button with the current place", () => {
+    const keyboard = buildMainMenuKeyboard({
+      locationId: "location.korchma.deep.level1.left"
+    });
+
+    expect(replyKeyboardTexts(keyboard.keyboard)[0]).toEqual([
+      mainMenuButtons.hero,
+      mainMenuLocationButtons.deepLeft
+    ]);
   });
 
   it("builds korchma place navigation", () => {
@@ -353,6 +366,43 @@ describe("main menu and scene keyboards", () => {
     ]);
   });
 
+  it("returns from night Munchkin barter to the Nyz descent", () => {
+    const returnOptions = { munchkinLocation: "nyz-descent" as const };
+
+    expect(flatInlineButtonTexts(buildLevelBarterOfferKeyboard(returnOptions))).toEqual([
+      "🧮 Автопідібрати манатки й золото",
+      "↩️ До Низу"
+    ]);
+    expect(flatInlineButtonCallbacks(buildLevelBarterOfferKeyboard(returnOptions))).toEqual([
+      "v1:lvlx:auto",
+      "v1:place:deep"
+    ]);
+    expect(flatInlineButtonTexts(buildLevelBarterPreviewKeyboard({
+      state: "insufficient",
+      character,
+      eligibleTotalValue: 800,
+      gold: 70,
+      combinedValue: 870,
+      cost: 1000
+    }, returnOptions))).toEqual(["↩️ До Низу"]);
+    expect(flatInlineButtonCallbacks(buildLevelBarterPreviewKeyboard({
+      state: "insufficient",
+      character,
+      eligibleTotalValue: 800,
+      gold: 70,
+      combinedValue: 870,
+      cost: 1000
+    }, returnOptions))).toEqual(["v1:place:deep"]);
+    expect(flatInlineButtonTexts(buildLevelBarterResultKeyboard(returnOptions))).toEqual([
+      "👤 Персонаж",
+      "↩️ До Низу"
+    ]);
+    expect(flatInlineButtonCallbacks(buildLevelBarterResultKeyboard(returnOptions))).toEqual([
+      "v1:menu:hero",
+      "v1:place:deep"
+    ]);
+  });
+
   it("links to the Barrel and hall when korchma rounds are blocked by an active raid", () => {
     const blockedByBarrel = {
       state: "raid-required" as const,
@@ -549,6 +599,17 @@ describe("main menu and scene keyboards", () => {
       "💪 Силовий удар",
       "🏃 Відступити"
     ]);
+    expect(inlineButtonRows(buildPersistentFightKeyboard(session, character))).toEqual([
+      ["🗡️ Вдарити", "🛡 Захищатися"],
+      ["💪 Силовий удар"],
+      ["🏃 Відступити"]
+    ]);
+    expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, { ...character, classId: "class.varenyk-mancer" }))).toContain(
+      "🥟 Кипляча начинка · 3 мани"
+    );
+    expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, { ...character, classId: "class.rogue" }))).toContain(
+      "🌘 Тіньовий різ"
+    );
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard())).toEqual([
       "⬆️ Повернутися до зали",
       "⬇️ Спуститися"
@@ -588,7 +649,16 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["v1:place:deep-level1", "v1:place:deep"]);
+    }, character))).toEqual(["v1:place:deep-straight", "v1:place:deep"]);
+    expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
+      ...session,
+      status: "won",
+      state: {
+        ...session.state!,
+        originLocationId: "location.korchma.deep.level1.left",
+        status: "won"
+      }
+    }, character))).toEqual(["v1:place:deep-left", "v1:place:deep-level1"]);
     expect(flatInlineButtonTexts(buildPersistentFightResultKeyboard({
       ...session,
       status: "won",
@@ -609,6 +679,76 @@ describe("main menu and scene keyboards", () => {
         status: "won"
       }
     }, character))).toEqual(["v1:place:quest-table"]);
+  });
+
+  it("adds journal navigation only on persistent fight results", () => {
+    const session = {
+      ...persistentFightSession(),
+      state: {
+        ...persistentFightSession().state!,
+        turnLog: [
+          {
+            turn: 1,
+            hero: { hp: 21, mana: 12 },
+            monster: { hp: 14 },
+            summary: {
+              action: "attack" as const,
+              heroOutcome: "hit" as const,
+              heroDamage: 4,
+              monsterDamage: 2,
+              manaSpent: 0,
+              critical: false
+            }
+          },
+          {
+            turn: 2,
+            hero: { hp: 21, mana: 12 },
+            monster: { hp: 14 },
+            summary: {
+              action: "defend" as const,
+              heroOutcome: "defended" as const,
+              heroDamage: 0,
+              monsterDamage: 0,
+              manaSpent: 0,
+              critical: false
+            }
+          }
+        ]
+      }
+    };
+    const terminalSession = {
+      ...session,
+      status: "won" as const,
+      state: {
+        ...session.state,
+        status: "won" as const
+      }
+    };
+
+    expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, character))).not.toContain("📜 Журнал бою");
+    expect(flatInlineButtonTexts(buildPersistentFightResultKeyboard(terminalSession, character))).toContain("📜 Журнал бою");
+    expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard(terminalSession, character))).toContain(
+      "v1:fight:log:123e4567-e89b-12d3-a456-426614174000:1"
+    );
+    expect(flatInlineButtonTexts(buildPersistentFightJournalKeyboard(session, 0))).toEqual([
+      "1/2",
+      "Далі ▶️",
+      "Кінець ⏭️",
+      "↩️ До бою"
+    ]);
+    expect(flatInlineButtonCallbacks(buildPersistentFightJournalKeyboard(session, 0))).toEqual([
+      "v1:fight:log:123e4567-e89b-12d3-a456-426614174000:0",
+      "v1:fight:log:123e4567-e89b-12d3-a456-426614174000:1",
+      "v1:fight:log:123e4567-e89b-12d3-a456-426614174000:1",
+      "v1:fight:view:123e4567-e89b-12d3-a456-426614174000"
+    ]);
+    expect(flatInlineButtonTexts(buildPersistentFightJournalKeyboard(session, 1))).toEqual([
+      "⏮️ Початок",
+      "◀️ Назад",
+      "2/2",
+      "↩️ До бою"
+    ]);
+    expect(flatInlineButtonTexts(buildPersistentFightJournalKeyboard(terminalSession, 1))).toContain("↩️ До результатів");
   });
 
   it("keeps active training doppelganger buttons scoped to turn callbacks", () => {
@@ -632,6 +772,17 @@ describe("main menu and scene keyboards", () => {
       "💪 Силовий удар",
       "🏃 Відступити"
     ]);
+    expect(inlineButtonRows(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
+      ["🗡️ Вдарити", "🛡 Захищатися"],
+      ["💪 Силовий удар"],
+      ["🏃 Відступити"]
+    ]);
+    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, { ...character, classId: "class.varenyk-mancer" }))).toContain(
+      "🥟 Кипляча начинка · 3 мани"
+    );
+    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, { ...character, classId: "class.rogue" }))).toContain(
+      "🌘 Тіньовий різ"
+    );
     expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:defend",
@@ -740,8 +891,10 @@ describe("main menu and scene keyboards", () => {
     const skillIds = [
       "skill.forceful-strike",
       "skill.hot-spell",
+      "skill.boiling-filling",
       "skill.form-thirteen-b",
       "skill.dangerous-couplet",
+      "skill.shadow-cut",
       "skill.trick-shot",
       "skill.strict-blessing",
       "skill.steppe-side-eye",
@@ -752,6 +905,23 @@ describe("main menu and scene keyboards", () => {
 
     expect(new Set(displays.map((display) => display.icon)).size).toBe(displays.length);
     expect(displays.filter((display) => reservedActionIcons.has(display.icon))).toEqual([]);
+    expect(getCombatSkillDisplay("skill.boiling-filling")).toEqual({
+      icon: "🥟",
+      name: "Кипляча начинка"
+    });
+    expect(getCombatSkillDisplay("skill.shadow-cut")).toEqual({
+      icon: "🌘",
+      name: "Тіньовий різ"
+    });
+    expect(getPersistentFightSkillLabel({ ...character, classId: "class.varenyk-mancer" })).toBe(
+      "🥟 Кипляча начинка · 3 мани"
+    );
+    expect(getPersistentFightSkillLabel({ ...character, classId: "class.rogue" })).toBe(
+      "🌘 Тіньовий різ"
+    );
+    expect(getPersistentFightSkillLabel({ ...character, classId: "class.ranger" })).toBe(
+      "🎯 Хитрий постріл"
+    );
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.priest" })).toBe(
       "🙏 Суворе благословення · 2 мани"
     );

@@ -8,5 +8,6 @@ export * from "./doppelgangerLines";
 export * from "./combatProbe";
 export * from "./combatState";
 export * from "./combatWorldContext";
+export * from "./monsterAbilityRuntime";
 export * from "./monsterCombatStats";
 export * from "./monsterContext";

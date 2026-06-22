@@ -1,4 +1,4 @@
-import type { Bot, Context } from "grammy";
+import type { Bot, Context, Keyboard } from "grammy";
 import type { HeroService } from "../../services/heroService";
 import { telegramUserIdFromContext } from "../context";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
@@ -9,16 +9,33 @@ import {
 } from "../presenters/resourceRecoveryPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
-export function registerHeroCommand(bot: Bot, heroService: HeroService): void {
+export interface HeroCommandOptions {
+  buildMainMenuKeyboard?: (ctx: Context) => Promise<Keyboard>;
+}
+
+export interface SendHeroOptions {
+  mainMenuKeyboard?: Keyboard;
+}
+
+export function registerHeroCommand(
+  bot: Bot,
+  heroService: HeroService,
+  options: HeroCommandOptions = {}
+): void {
   bot.command(["hero", "profile", "me"], async (ctx) => {
-    await sendHero(ctx, heroService, "reply");
+    await sendHero(ctx, heroService, "reply", {
+      ...(options.buildMainMenuKeyboard
+        ? { mainMenuKeyboard: await options.buildMainMenuKeyboard(ctx) }
+        : {})
+    });
   });
 }
 
 export async function sendHero(
   ctx: Context,
   heroService: HeroService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  options: SendHeroOptions = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -42,7 +59,8 @@ export async function sendHero(
       mode === "edit"
         ? prefixResourceRecoveryNotice(heroText, result.recoveryNotice)
         : heroText,
-      true
+      true,
+      options.mainMenuKeyboard
     );
     return;
   }
@@ -54,7 +72,8 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  includeMenu = false
+  includeMenu = false,
+  mainMenuKeyboard?: Keyboard
 ): Promise<void> {
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, {
@@ -65,6 +84,6 @@ async function sendText(
 
   await ctx.reply(text, {
     parse_mode: "HTML" as const,
-    ...(includeMenu ? { reply_markup: buildMainMenuKeyboard() } : {})
+    ...(includeMenu ? { reply_markup: mainMenuKeyboard ?? buildMainMenuKeyboard() } : {})
   });
 }

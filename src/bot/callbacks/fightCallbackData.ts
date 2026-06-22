@@ -1,6 +1,7 @@
 import type { CombatProbeAction } from "../../domain/combat/combatProbe";
 import type { PlayerCombatActionType } from "../../domain/combat";
 import { err, ok, type Result } from "../../shared/result";
+import type { PlaceCallback } from "./placeCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type FightCallbackError =
@@ -20,13 +21,36 @@ export type FightCallback =
       sessionId: string;
       turn: number;
       action: PlayerCombatActionType;
+    }
+  | {
+      type: "view";
+      sessionId: string;
+    }
+  | {
+      type: "journal";
+      sessionId: string;
+      page: number;
+    }
+  | {
+      type: "passage";
+      passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
+      encounterSeed: string;
     };
 
 const MIMIC_PREFIX = "v1:fight:mimic";
 const TURN_PREFIX = "v1:fight:turn";
+const VIEW_PREFIX = "v1:fight:view";
+const JOURNAL_PREFIX = "v1:fight:log";
+const PASSAGE_PREFIX = "v1:fight:pass";
 const fightActions = new Set<CombatProbeAction>(["attack", "receipt", "flee"]);
 const turnActions = new Set<PlayerCombatActionType>(["attack", "defend", "skill", "flee"]);
+const passageActions = new Set<Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">>([
+  "deep-left",
+  "deep-straight",
+  "deep-right"
+]);
 const sessionIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const encounterSeedPattern = /^[a-z0-9]{1,16}$/i;
 
 export function makeFightCallbackData(action: CombatProbeAction): string {
   return `${MIMIC_PREFIX}:${action}`;
@@ -38,6 +62,24 @@ export function makeFightTurnCallbackData(input: {
   action: PlayerCombatActionType;
 }): string {
   return `${TURN_PREFIX}:${input.sessionId}:${input.turn}:${input.action}`;
+}
+
+export function makeFightViewCallbackData(sessionId: string): string {
+  return `${VIEW_PREFIX}:${sessionId}`;
+}
+
+export function makeFightJournalCallbackData(input: {
+  sessionId: string;
+  page: number;
+}): string {
+  return `${JOURNAL_PREFIX}:${input.sessionId}:${normalizePage(input.page)}`;
+}
+
+export function makeFightPassageAttackCallbackData(input: {
+  passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
+  encounterSeed: string;
+}): string {
+  return `${PASSAGE_PREFIX}:${input.passage}:${input.encounterSeed}`;
 }
 
 export function parseFightCallbackData(
@@ -97,5 +139,72 @@ export function parseFightCallbackData(
     });
   }
 
+  if (data.startsWith(`${VIEW_PREFIX}:`)) {
+    const [, section, scene, sessionId, ...rest] = data.split(":");
+
+    if (section !== "fight" || scene !== "view" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (!sessionId || !sessionIdPattern.test(sessionId)) {
+      return err("invalid-prefix");
+    }
+
+    return ok({
+      type: "view",
+      sessionId
+    });
+  }
+
+  if (data.startsWith(`${JOURNAL_PREFIX}:`)) {
+    const [, section, scene, sessionId, pageRaw, ...rest] = data.split(":");
+
+    if (section !== "fight" || scene !== "log" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (!sessionId || !sessionIdPattern.test(sessionId)) {
+      return err("invalid-prefix");
+    }
+
+    const page = Number(pageRaw);
+
+    if (!Number.isInteger(page) || page < 0) {
+      return err("invalid-turn");
+    }
+
+    return ok({
+      type: "journal",
+      sessionId,
+      page
+    });
+  }
+
+  if (data.startsWith(`${PASSAGE_PREFIX}:`)) {
+    const [, section, scene, passage, encounterSeed, ...rest] = data.split(":");
+
+    if (section !== "fight" || scene !== "pass" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (!passageActions.has(passage as Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">)) {
+      return err("invalid-action");
+    }
+
+    if (!encounterSeed || !encounterSeedPattern.test(encounterSeed)) {
+      return err("invalid-prefix");
+    }
+
+    return ok({
+      type: "passage",
+      passage: passage as Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">,
+      encounterSeed
+    });
+  }
+
   return err("invalid-prefix");
+}
+
+function normalizePage(page: number): number {
+  return Math.max(0, Math.floor(Number.isFinite(page) ? page : 0));
 }

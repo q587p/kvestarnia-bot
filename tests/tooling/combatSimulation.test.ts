@@ -47,7 +47,14 @@ describe("combatSimulation", () => {
       expiredRate: 0.25,
       averageTurns: 2.5,
       averageEndingHp: 4.5,
-      averageManaSpent: 2
+      averageManaSpent: 2,
+      basicAttackShare: 0,
+      defendShare: 0,
+      abilityShare: 0,
+      telegraphCount: 0,
+      shieldUses: 0,
+      healingUses: 0,
+      abilityUsage: {}
     });
   });
 

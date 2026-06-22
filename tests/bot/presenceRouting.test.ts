@@ -12,6 +12,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../src/services/presenceService";
+import { mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
 
 describe("presence routing", () => {
   it.each([
@@ -67,6 +68,9 @@ describe("presence routing", () => {
     ["v1:place:barrel", {}],
     ["v1:place:deep", {}],
     ["v1:place:deep-level1", {}],
+    ["v1:place:deep-left", {}],
+    ["v1:place:deep-straight", {}],
+    ["v1:place:deep-right", {}],
     ["v1:place:cellar", {}],
     ["v1:place:news-corner", {}],
     ["v1:place:arrivals", {}],
@@ -122,6 +126,9 @@ describe("presence routing", () => {
     "v1:place:barrel",
     "v1:place:deep",
     "v1:place:deep-level1",
+    "v1:place:deep-left",
+    "v1:place:deep-straight",
+    "v1:place:deep-right",
     "v1:place:cellar",
     "v1:place:news-corner",
     "v1:place:duel-winners"
@@ -195,4 +202,14 @@ describe("presence routing", () => {
       expect(getTextPresenceContext(text)).toEqual({});
     }
   );
+
+  it.each([
+    mainMenuLocationButtons.bar,
+    mainMenuLocationButtons.deepLeft,
+    mainMenuLocationButtons.deepStraight,
+    mainMenuLocationButtons.deepRight,
+    mainMenuLocationButtons.newsCorner
+  ])("routes location reply text %s without moving place before the handler opens it", (text) => {
+    expect(getTextPresenceContext(text)).toEqual({});
+  });
 });

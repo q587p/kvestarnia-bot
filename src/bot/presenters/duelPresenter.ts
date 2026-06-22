@@ -16,6 +16,7 @@ import {
   renderDuelInviteTemplate
 } from "../../content/duelInviteFlavor";
 import { pickDuelDrawFlavor, pickDuelResultFlavor } from "../../content/duelResultFlavor";
+import { getCombatSkillDisplay } from "../../services/fightService";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export function presentDuelEntry(): string {
@@ -374,7 +375,7 @@ export function presentTurnBasedDuel(
     result.session.status === "active" &&
     viewerParticipant?.cooldowns?.skill?.remainingTurns
   ) {
-    lines.push(`🫁 Вміння відсапується: ще ${formatTurns(viewerParticipant.cooldowns.skill.remainingTurns)}.`);
+    lines.push(presentSkillCooldown(viewerParticipant.cooldowns.skill));
   }
 
   lines.push(
@@ -717,6 +718,12 @@ function formatTurns(count: number): string {
   }
 
   return `${count} ходів`;
+}
+
+function presentSkillCooldown(cooldown: { id: string; remainingTurns: number }): string {
+  const skill = getCombatSkillDisplay(cooldown.id);
+
+  return `🫁 ${skill.icon} ${escapeHtml(skill.name)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
 }
 
 function formatHourMinute(date: Date): string {

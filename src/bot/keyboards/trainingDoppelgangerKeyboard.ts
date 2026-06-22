@@ -33,9 +33,6 @@ export function buildTrainingDoppelgangerKeyboard(
     }).skill;
     const keyboard = new InlineKeyboard()
       .text("🗡️ Вдарити", makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "attack" }))
-      .row();
-
-    keyboard
       .text("🛡 Захищатися", makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "defend" }))
       .row();
 

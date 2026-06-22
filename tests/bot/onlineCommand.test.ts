@@ -4,7 +4,7 @@ import { sendOnline } from "../../src/bot/commands/onlineCommand";
 import type { PresenceService } from "../../src/services/presenceService";
 
 describe("online command", () => {
-  it("shows current online snapshot", async () => {
+  it("shows current online snapshot without nearby duel button when only the player is active nearby", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const ctx = {
       from: {
@@ -43,6 +43,46 @@ describe("online command", () => {
     expect(replies[0]?.options).toMatchObject({
       parse_mode: "HTML"
     });
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:nd:open");
+  });
+
+  it("shows nearby duel button when another active player is nearby", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const ctx = {
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const presenceService = {
+      getOnlineForTelegramUser: () =>
+        Promise.resolve({
+          state: "ready",
+          globalTotal: 2,
+          location: {
+            id: "location.korchma.hall",
+            name: "Зала корчми",
+            people: {
+              active: [
+                { telegramUserId: 42n, name: "Тестовий Герой", status: "active" },
+                { telegramUserId: 93n, name: "Сусідній Дуеліст", status: "active" }
+              ],
+              idle: [],
+              total: 2
+            }
+          },
+          activity: null
+        })
+    } as unknown as PresenceService;
+
+    await sendOnline(ctx, presenceService, { duelEnabled: true });
+
+    expect(replies).toHaveLength(1);
     expect(JSON.stringify(replies[0]?.options)).toContain("🥊 Кинути виклик присутнім");
     expect(JSON.stringify(replies[0]?.options)).toContain("v1:nd:open");
   });

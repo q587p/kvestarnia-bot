@@ -12,11 +12,16 @@ import {
 } from "../../src/bot/callbacks/cellarCallbackData";
 import {
   makeFightCallbackData,
-  makeFightTurnCallbackData
+  makeFightJournalCallbackData,
+  makeFightTurnCallbackData,
+  makeFightViewCallbackData
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeTrainingDoppelgangerTurnCallbackData } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
 import { makeEquipItemCallbackData } from "../../src/bot/callbacks/itemCallbackData";
-import { makeLevelBarterAutoCallbackData } from "../../src/bot/callbacks/levelBarterCallbackData";
+import {
+  makeLevelBarterAutoCallbackData,
+  makeLevelBarterOpenCallbackData
+} from "../../src/bot/callbacks/levelBarterCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import {
@@ -27,7 +32,7 @@ import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackDa
 import { makeYegerTrackCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
-import { mainMenuButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
+import { mainMenuButtons, mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
 
 type MarkPresenceInput = Parameters<NonNullable<BotServices["presence"]>["markAction"]>[0];
 
@@ -1280,7 +1285,8 @@ describe("scene callback HTML options", () => {
 
   it.each([
     mainMenuButtons.tavern,
-    mainMenuButtons.quest
+    mainMenuButtons.quest,
+    mainMenuLocationButtons.deepLeft
   ])("keeps main-menu text %s inside an active persistent fight", async (text) => {
     const calls = await captureTextApiCalls(
       text,
@@ -1308,6 +1314,167 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
     expect(String(reply?.payload.text)).toContain("❤️ Ви:");
     expect(String(reply?.payload.text)).toContain("⏳ На хід є 23 секунди.");
+  });
+
+  it("opens the current place from the persistent location reply button", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const calls = await captureTextApiCalls(
+      mainMenuLocationButtons.bar,
+      servicesWith({
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.bar",
+              locationName: "Шинок",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({ state: "none" })
+        },
+        fight: {
+          getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        }
+      })
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+    const keyboard = JSON.stringify(reply?.payload.reply_markup);
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.bar",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(String(reply?.payload.text)).toContain("🍻 Шинок");
+    expect(keyboard).toContain("🍻 Всім пива");
+    expect(keyboard).toContain("v1:tavern:round");
+  });
+
+  it("does not send a standalone reply-keyboard refresh message after place callbacks", async () => {
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("bar"),
+      servicesWith({
+        presence: {
+          markAction: () => Promise.resolve(),
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.bar",
+              locationName: "Шинок",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({ state: "none" })
+        },
+        fight: {
+          getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        }
+      }),
+      { messageResults: true }
+    );
+    const replyKeyboardRefreshes = calls.filter(
+      (call) =>
+        call.method === "sendMessage" &&
+        Array.isArray((call.payload.reply_markup as { keyboard?: unknown } | undefined)?.keyboard)
+    );
+
+    expect(replyKeyboardRefreshes).toEqual([]);
+    expect(calls.some((call) => call.method === "deleteMessage")).toBe(false);
+  });
+
+  it.each([
+    ["deep-left"],
+    ["deep-straight"],
+    ["deep-right"]
+  ] as const)("does not send a standalone reply-keyboard refresh after %s place callbacks", async (place) => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getOrStartPersistentFightForTelegramUser = vi.fn();
+    const previewPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-preview" as const,
+        character: {
+          ...character,
+          level: 3
+        },
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null,
+        difficulty: place === "deep-left" ? "hard" as const : place === "deep-right" ? "easy" as const : "normal" as const,
+        originLocationId:
+          place === "deep-left"
+            ? "location.korchma.deep.level1.left"
+            : place === "deep-right"
+              ? "location.korchma.deep.level1.right"
+              : "location.korchma.deep.level1.straight",
+        encounterSeed: "seed13"
+      })
+    );
+    const calls = await captureApiCalls(
+      makePlaceCallbackData(place),
+      servicesWith({
+        fight: {
+          previewPersistentFightForTelegramUser,
+          getOrStartPersistentFightForTelegramUser,
+          recordPersistentFightMessageReference: () => Promise.resolve()
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId:
+                place === "deep-left"
+                  ? "location.korchma.deep.level1.left"
+                  : place === "deep-right"
+                    ? "location.korchma.deep.level1.right"
+                    : "location.korchma.deep.level1.straight",
+              locationName: "Прохід",
+              insideKorchma: true
+            })
+        }
+      }),
+      { messageResults: true }
+    );
+    const replyKeyboardRefreshes = calls.filter(
+      (call) =>
+        call.method === "sendMessage" &&
+        Array.isArray((call.payload.reply_markup as { keyboard?: unknown } | undefined)?.keyboard)
+    );
+
+    expect(previewPersistentFightForTelegramUser).toHaveBeenCalled();
+    expect(getOrStartPersistentFightForTelegramUser).not.toHaveBeenCalled();
+    expect(replyKeyboardRefreshes).toEqual([]);
+    expect(calls.some((call) => call.method === "deleteMessage")).toBe(false);
   });
 
   it.each([
@@ -1674,6 +1841,181 @@ describe("scene callback HTML options", () => {
     expect(completeMimicShawarma).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps selected passage presence after persistent fight turn callbacks", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const session = persistentSessionWithOrigin("location.korchma.deep.level1.right");
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: session.id,
+        turn: 1,
+        action: "attack"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn: () =>
+            Promise.resolve({
+              state: "updated" as const,
+              character,
+              session,
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null,
+              fightReward: null
+            })
+        },
+        presence: { markAction }
+      })
+    );
+
+    expect(calls.some((call) => call.method === "editMessageText")).toBe(true);
+    const presenceInput = markAction.mock.calls
+      .map(([input]) => input as MarkPresenceInput)
+      .find((input) => input.locationId);
+    if (!presenceInput) {
+      throw new Error("Expected fight turn callback to mark a concrete presence location.");
+    }
+    expect(presenceInput).toMatchObject({
+      locationId: "location.korchma.deep.level1.right",
+      currentRaidId: null,
+      currentAdventureId: "adventure.solo-fight"
+    });
+  });
+
+  it("keeps duplicate persistent fight turn callbacks stale without duplicate side effects", async () => {
+    const session = {
+      ...persistentSessionWithOrigin("location.korchma.deep.level1.right"),
+      status: "won" as const,
+      turn: 2,
+      state: {
+        ...persistentSessionWithOrigin("location.korchma.deep.level1.right").state,
+        status: "won" as const,
+        turn: 2,
+        monster: {
+          id: "monster.deadline-spider",
+          hp: 0,
+          hpMax: 12
+        },
+        lastTurn: {
+          action: "attack" as const,
+          heroOutcome: "won" as const,
+          heroDamage: 12,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false
+        }
+      }
+    };
+    const resolvePersistentFightTurn = vi
+      .fn()
+      .mockResolvedValueOnce({
+        state: "updated" as const,
+        character,
+        session,
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null,
+        fightReward: {
+          state: "claimed" as const,
+          reward: {
+            xp: 20,
+            gold: 0,
+            localDate: "12026-06-21",
+            itemGrants: []
+          },
+          levelChange
+        }
+      })
+      .mockResolvedValueOnce({
+        state: "stale-turn" as const,
+        character,
+        session,
+        monster: null,
+        questProgress: null
+      });
+    const calls = await captureRepeatedApiCalls(
+      [
+        makeFightTurnCallbackData({
+          sessionId: session.id,
+          turn: 1,
+          action: "attack"
+        }),
+        makeFightTurnCallbackData({
+          sessionId: session.id,
+          turn: 1,
+          action: "attack"
+        })
+      ],
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn
+        }
+      })
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+    const levelUps = calls.filter(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("🎉 Рівень підріс!")
+    );
+
+    expect(resolvePersistentFightTurn).toHaveBeenCalledTimes(2);
+    expect(String(edits[0]?.payload.text)).toContain("🎉 Ви перемогли");
+    expect(String(edits[1]?.payload.text)).toContain("поточний стан");
+    expect(levelUps).toHaveLength(1);
+  });
+
+  it.each([
+    ["result replay", makeFightViewCallbackData("123e4567-e89b-42d3-a456-426614174321")],
+    ["journal page", makeFightJournalCallbackData({ sessionId: "123e4567-e89b-42d3-a456-426614174321", page: 0 })]
+  ])("keeps selected passage presence after persistent fight %s callbacks", async (_name, callbackData) => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const session = persistentSessionWithOrigin("location.korchma.deep.level1.left");
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        fight: {
+          getPersistentFightSnapshotForTelegramUser: () =>
+            Promise.resolve({
+              state: "found" as const,
+              character,
+              session,
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null,
+              fightReward: null
+            })
+        },
+        presence: { markAction }
+      })
+    );
+
+    expect(calls.some((call) => call.method === "editMessageText")).toBe(true);
+    const presenceInput = markAction.mock.calls
+      .map(([input]) => input as MarkPresenceInput)
+      .find((input) => input.locationId);
+    if (!presenceInput) {
+      throw new Error("Expected fight replay callback to mark a concrete presence location.");
+    }
+    expect(presenceInput).toMatchObject({
+      locationId: "location.korchma.deep.level1.left",
+      currentRaidId: null,
+      currentAdventureId: "adventure.solo-fight"
+    });
+  });
+
   it("keeps starter mimic fight routes inside the active starter battle", async () => {
     const calls = await captureApiCalls(
       makePlaceCallbackData("hall"),
@@ -1764,6 +2106,11 @@ describe("scene callback HTML options", () => {
       })
     );
     const descent = calls.find((call) => call.method === "sendMessage");
+    const replyKeyboardRefreshes = calls.filter(
+      (call) =>
+        call.method === "sendMessage" &&
+        Array.isArray((call.payload.reply_markup as { keyboard?: unknown } | undefined)?.keyboard)
+    );
 
     expect(getOrStartPersistentFightForTelegramUser).not.toHaveBeenCalled();
     expect(markAction).toHaveBeenCalledWith(
@@ -1772,6 +2119,7 @@ describe("scene callback HTML options", () => {
         currentAdventureId: "adventure.solo-fight"
       })
     );
+    expect(replyKeyboardRefreshes).toEqual([]);
     expect(String(descent?.payload.text)).toContain("🪜 Спуск до Низу");
     expect(String(descent?.payload.text)).toContain("За бочками в коморі є сходи.");
     expect(JSON.stringify(descent?.payload.reply_markup)).toContain("Спуститися");
@@ -1955,11 +2303,72 @@ describe("scene callback HTML options", () => {
     expect(calls.some((call) => call.method === "sendMessage" && String(call.payload.text).includes("Борщовий слиз"))).toBe(true);
   });
 
-  it("starts selected problem fight difficulty after moving from the hall to the Nyz", async () => {
+  it("opens the selected Nyz passage preview without starting a fight", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getOrStartPersistentFightForTelegramUser = vi.fn();
+    const previewPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-preview" as const,
+        character: {
+          ...character,
+          level: 3
+        },
+        questProgress: null,
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast", "time", "web"]
+        },
+        difficulty: "normal" as const,
+        originLocationId: "location.korchma.deep.level1.straight",
+        encounterSeed: "seed13"
+      })
+    );
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("deep-straight"),
+      servicesWith({
+        fight: {
+          previewPersistentFightForTelegramUser,
+          getOrStartPersistentFightForTelegramUser
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.hall",
+              locationName: "Зала корчми",
+              insideKorchma: true
+            })
+        }
+      })
+    );
+    const preview = calls.find((call) => call.method === "editMessageText");
+
+    expect(previewPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
+      difficulty: "normal",
+      originLocationId: "location.korchma.deep.level1.straight"
+    });
+    expect(getOrStartPersistentFightForTelegramUser).not.toHaveBeenCalled();
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep.level1.straight",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(String(preview?.payload.text)).toContain("Павук дедлайнів");
+    expect(JSON.stringify(preview?.payload.reply_markup)).toContain("v1:fight:pass:deep-straight:seed13");
+    expect(JSON.stringify(preview?.payload.reply_markup)).toContain("v1:place:deep-level1");
+  });
+
+  it("starts a passage preview encounter only after Attack", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
       Promise.resolve({
         state: "persistent-active" as const,
+        started: true,
         character: {
           ...character,
           level: 3
@@ -1976,37 +2385,40 @@ describe("scene callback HTML options", () => {
       })
     );
     const calls = await captureApiCalls(
-      makeQuestCallbackData("fight-normal"),
+      "v1:fight:pass:deep-straight:seed13",
       servicesWith({
         fight: {
-          getOrStartPersistentFightForTelegramUser
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-ready" as const,
+              character: {
+                ...character,
+                level: 3
+              },
+              questProgress: null
+            }),
+          getOrStartPersistentFightForTelegramUser,
+          recordPersistentFightMessageReference: () => Promise.resolve()
         },
         presence: {
-          markAction,
-          getCurrentPlaceForTelegramUser: () =>
-            Promise.resolve({
-              state: "ready",
-              locationId: "location.korchma.hall",
-              locationName: "Зала корчми",
-              insideKorchma: true
-            })
+          markAction
         }
       })
     );
-    const fight = calls.find((call) => call.method === "sendMessage");
+    const fight = calls.find((call) => call.method === "sendMessage" && String(call.payload.text).includes("❤️ Ви:"));
 
     expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
-      difficulty: "normal"
+      difficulty: "normal",
+      originLocationId: "location.korchma.deep.level1.straight",
+      encounterSeed: "seed13"
     });
     expect(markAction).toHaveBeenCalledWith(
       expect.objectContaining({
-        locationId: "location.korchma.deep.level1",
+        locationId: "location.korchma.deep.level1.straight",
         currentAdventureId: "adventure.solo-fight"
       })
     );
-    expect(String(fight?.payload.text)).toContain("❤️ Ви:");
     expect(String(fight?.payload.text)).toContain("⏳ На хід є 23 секунди.");
-    expect(String(fight?.payload.text)).toContain("<b>Мандрівник</b>, що робимо?");
   });
 
   it("rolls back a complication claim when the follow-up fight needs rest", async () => {
@@ -2377,6 +2789,34 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("Ви зараз у рейді");
   });
 
+  it("returns from night Munchkin barter to the Nyz descent", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-19T18:30:00.000Z"));
+
+    const calls = await captureApiCalls(
+      makeLevelBarterOpenCallbackData(),
+      servicesWith({
+        levelBarter: {
+          getOfferForTelegramUser: () =>
+            Promise.resolve({
+              state: "insufficient",
+              character,
+              eligibleTotalValue: 800,
+              gold: 70,
+              combinedValue: 870,
+              cost: 1000
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(keyboard).toContain("↩️ До Низу");
+    expect(keyboard).toContain(makePlaceCallbackData("deep"));
+    expect(keyboard).not.toContain(makePlaceCallbackData("front"));
+  });
+
   it("blocks remort callbacks while the Barrel raid is pending", async () => {
     const calls = await captureApiCalls(
       makeRemortConfirmCallbackData("0123456789abcdef"),
@@ -2697,6 +3137,41 @@ function persistentSession(monsterId: string) {
   };
 }
 
+function persistentSessionWithOrigin(originLocationId: string) {
+  const session = persistentSession("monster.deadline-spider");
+  const id = "123e4567-e89b-42d3-a456-426614174321";
+
+  return {
+    ...session,
+    id,
+    state: {
+      ...session.state,
+      id,
+      originLocationId,
+      turnLog: [
+        {
+          turn: 1,
+          summary: {
+            action: "attack" as const,
+            heroOutcome: "hit" as const,
+            heroDamage: 3,
+            monsterDamage: 1,
+            manaSpent: 0,
+            critical: false
+          },
+          hero: {
+            hp: 19,
+            mana: 10
+          },
+          monster: {
+            hp: 9
+          }
+        }
+      ]
+    }
+  };
+}
+
 function activeFightServiceThatShouldNotBeChecked(): NonNullable<Partial<BotServices>["fight"]> {
   return {
     getFightOverviewForTelegramUser: () => {
@@ -2921,7 +3396,11 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
   } as unknown as BotServices;
 }
 
-async function captureApiCalls(callbackData: string, services: BotServices): Promise<ApiCall[]> {
+async function captureApiCalls(
+  callbackData: string,
+  services: BotServices,
+  options: { messageResults?: boolean } = {}
+): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services);
   const calls: ApiCall[] = [];
 
@@ -2939,6 +3418,20 @@ async function captureApiCalls(callbackData: string, services: BotServices): Pro
           is_bot: true,
           first_name: "Квестарня",
           username: "kvestarnia_bot"
+        }
+      });
+    }
+
+    if (options.messageResults && method === "sendMessage") {
+      return Promise.resolve({
+        ok: true,
+        result: {
+          message_id: calls.length,
+          date: 0,
+          chat: {
+            id: 42,
+            type: "private"
+          }
         }
       });
     }

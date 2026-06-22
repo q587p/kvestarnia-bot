@@ -73,6 +73,13 @@ export interface CombatOutcomeSummary {
   averageTurns: number;
   averageEndingHp: number;
   averageManaSpent: number;
+  basicAttackShare: number;
+  defendShare: number;
+  abilityShare: number;
+  telegraphCount: number;
+  shieldUses: number;
+  healingUses: number;
+  abilityUsage: Record<string, number>;
 }
 
 export interface CombatSimulationRunResult {
@@ -80,6 +87,13 @@ export interface CombatSimulationRunResult {
   turns: number;
   endingHp: number;
   manaSpent: number;
+  monsterBasicAttacks: number;
+  monsterDefends: number;
+  monsterAbilities: number;
+  monsterTelegraphs: number;
+  shieldUses: number;
+  healingUses: number;
+  abilityUsage: Record<string, number>;
 }
 
 export type CombatSimulationHero = CombatActorStats & {
@@ -197,8 +211,15 @@ export function formatCombatSimulationReport(report: CombatSimulationReport): st
       `Lv ${row.heroLevel} vs monster Lv ${row.monsterLevel} — ${row.className} (${row.classId}) vs ${row.monsterName} (${row.monsterId})`
     );
     lines.push(
-      `  win ${formatPercent(row.summary.winRate)} | loss ${formatPercent(row.summary.lossRate)} | flee ${formatPercent(row.summary.fleeRate)} | expired ${formatPercent(row.summary.expiredRate)} | turns ${formatNumber(row.summary.averageTurns)} | ending HP ${formatNumber(row.summary.averageEndingHp)} | mana spent ${formatNumber(row.summary.averageManaSpent)}`
+    `  win ${formatPercent(row.summary.winRate)} | loss ${formatPercent(row.summary.lossRate)} | flee ${formatPercent(row.summary.fleeRate)} | expired ${formatPercent(row.summary.expiredRate)} | turns ${formatNumber(row.summary.averageTurns)} | ending HP ${formatNumber(row.summary.averageEndingHp)} | mana spent ${formatNumber(row.summary.averageManaSpent)}`
     );
+    lines.push(
+      `  monster mix basic ${formatPercent(row.summary.basicAttackShare)} | defend ${formatPercent(row.summary.defendShare)} | ability ${formatPercent(row.summary.abilityShare)} | telegraphs ${row.summary.telegraphCount} | shields ${row.summary.shieldUses} | heals ${row.summary.healingUses}`
+    );
+    const abilityUsage = formatAbilityUsage(row.summary.abilityUsage);
+    if (abilityUsage) {
+      lines.push(`  abilities ${abilityUsage}`);
+    }
 
     if (row.warnings.length > 0) {
       for (const warning of row.warnings) {
@@ -233,6 +254,12 @@ export function summarizeCombatRuns(
   const totalTurns = runs.reduce((sum, run) => sum + run.turns, 0);
   const totalEndingHp = runs.reduce((sum, run) => sum + run.endingHp, 0);
   const totalManaSpent = runs.reduce((sum, run) => sum + run.manaSpent, 0);
+  const monsterBasicAttacks = runs.reduce((sum, run) => sum + (run.monsterBasicAttacks ?? 0), 0);
+  const monsterDefends = runs.reduce((sum, run) => sum + (run.monsterDefends ?? 0), 0);
+  const monsterAbilities = runs.reduce((sum, run) => sum + (run.monsterAbilities ?? 0), 0);
+  const monsterTelegraphs = runs.reduce((sum, run) => sum + (run.monsterTelegraphs ?? 0), 0);
+  const totalMonsterActions = monsterBasicAttacks + monsterDefends + monsterAbilities + monsterTelegraphs;
+  const abilityUsage = mergeAbilityUsage(runs);
 
   return {
     totalRuns,
@@ -246,7 +273,14 @@ export function summarizeCombatRuns(
     expiredRate: totalRuns === 0 ? 0 : expired / totalRuns,
     averageTurns: totalRuns === 0 ? 0 : totalTurns / totalRuns,
     averageEndingHp: totalRuns === 0 ? 0 : totalEndingHp / totalRuns,
-    averageManaSpent: totalRuns === 0 ? 0 : totalManaSpent / totalRuns
+    averageManaSpent: totalRuns === 0 ? 0 : totalManaSpent / totalRuns,
+    basicAttackShare: totalMonsterActions === 0 ? 0 : monsterBasicAttacks / totalMonsterActions,
+    defendShare: totalMonsterActions === 0 ? 0 : monsterDefends / totalMonsterActions,
+    abilityShare: totalMonsterActions === 0 ? 0 : monsterAbilities / totalMonsterActions,
+    telegraphCount: monsterTelegraphs,
+    shieldUses: runs.reduce((sum, run) => sum + (run.shieldUses ?? 0), 0),
+    healingUses: runs.reduce((sum, run) => sum + (run.healingUses ?? 0), 0),
+    abilityUsage
   };
 }
 
@@ -356,6 +390,13 @@ function simulateSingleFight(input: {
   let state = startCombat({ hero: input.hero, monster: input.monster });
   let manaSpent = 0;
   let turns = 0;
+  let monsterBasicAttacks = 0;
+  let monsterDefends = 0;
+  let monsterAbilities = 0;
+  let monsterTelegraphs = 0;
+  let shieldUses = 0;
+  let healingUses = 0;
+  const abilityUsage: Record<string, number> = {};
 
   while (state.status === "active" && turns < input.maxTurns) {
     const action = chooseAction(state, input.hero, profile, input.policy);
@@ -369,6 +410,28 @@ function simulateSingleFight(input: {
 
     state = result.state;
     manaSpent += result.summary.manaSpent;
+    if (result.summary.monsterAction === "attack") {
+      monsterBasicAttacks += 1;
+    } else if (result.summary.monsterAction === "defend") {
+      monsterDefends += 1;
+    } else if (result.summary.monsterAction === "skill") {
+      monsterAbilities += 1;
+    } else if (result.summary.monsterAction === "telegraph") {
+      monsterTelegraphs += 1;
+    }
+    if (result.summary.monsterSkillId) {
+      abilityUsage[result.summary.monsterSkillId] = (abilityUsage[result.summary.monsterSkillId] ?? 0) + 1;
+    }
+    if (result.summary.monsterTelegraphAbilityId) {
+      abilityUsage[result.summary.monsterTelegraphAbilityId] =
+        (abilityUsage[result.summary.monsterTelegraphAbilityId] ?? 0) + 1;
+    }
+    if (result.summary.monsterEffectText?.includes("щит")) {
+      shieldUses += 1;
+    }
+    if (result.summary.monsterEffectText?.includes("відновив")) {
+      healingUses += 1;
+    }
     turns += 1;
   }
 
@@ -380,7 +443,14 @@ function simulateSingleFight(input: {
     outcome: state.status,
     turns: Math.max(0, state.turn - 1),
     endingHp: state.hero.hp,
-    manaSpent
+    manaSpent,
+    monsterBasicAttacks,
+    monsterDefends,
+    monsterAbilities,
+    monsterTelegraphs,
+    shieldUses,
+    healingUses,
+    abilityUsage
   };
 }
 
@@ -441,7 +511,7 @@ function buildSimulationHero(input: {
 }
 
 function normalizeOptions(options: Partial<CombatSimulationOptions>): CombatSimulationOptions {
-  const defaultLevels = Array.from({ length: 13 }, (_, index) => index + 1);
+  const defaultLevels = Array.from({ length: 23 }, (_, index) => index + 1);
   const levels = normalizeNumberList(options.levels ?? defaultLevels, defaultLevels);
   const classIds = normalizeClassIds(options.classIds ?? classes.map((characterClass) => characterClass.id));
   const raceId = resolveDefaultRaceId(options.raceId);
@@ -458,6 +528,26 @@ function normalizeOptions(options: Partial<CombatSimulationOptions>): CombatSimu
     policy: options.policy ?? DEFAULT_POLICY,
     maxTurns: normalizePositiveInteger(options.maxTurns ?? DEFAULT_MAX_TURNS)
   };
+}
+
+function mergeAbilityUsage(runs: readonly CombatSimulationRunResult[]): Record<string, number> {
+  const usage: Record<string, number> = {};
+
+  for (const run of runs) {
+    for (const [abilityId, count] of Object.entries(run.abilityUsage ?? {})) {
+      usage[abilityId] = (usage[abilityId] ?? 0) + count;
+    }
+  }
+
+  return usage;
+}
+
+function formatAbilityUsage(usage: Record<string, number>): string {
+  return Object.entries(usage)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 6)
+    .map(([abilityId, count]) => `${abilityId}:${count}`)
+    .join(", ");
 }
 
 function normalizePath(path: CharacterPath | undefined): CharacterPath {

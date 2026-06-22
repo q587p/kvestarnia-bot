@@ -8,7 +8,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
-import { mainMenuButtons } from "../keyboards/mainMenuKeyboard";
+import { isMainMenuLocationButtonText, mainMenuButtons } from "../keyboards/mainMenuKeyboard";
 import { parseStartPayload } from "../startPayload";
 
 export type PresenceContext = Omit<MarkPlayerPresenceInput, "user">;
@@ -139,7 +139,13 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
-  if (data === "v1:place:deep" || data === "v1:place:deep-level1") {
+  if (
+    data === "v1:place:deep" ||
+    data === "v1:place:deep-level1" ||
+    data === "v1:place:deep-left" ||
+    data === "v1:place:deep-straight" ||
+    data === "v1:place:deep-right"
+  ) {
     return {};
   }
 
@@ -191,7 +197,7 @@ export function getTextPresenceContext(text: string): PresenceContext | null {
     return getCommandPresenceContext(command);
   }
 
-  if (text === mainMenuButtons.tavern) {
+  if (isMainMenuLocationButtonText(text)) {
     return {};
   }
 

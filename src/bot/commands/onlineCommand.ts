@@ -33,8 +33,18 @@ export async function sendOnline(
   const snapshot = await presenceService.getOnlineForTelegramUser(telegramUserId);
   await ctx.reply(presentOnline(snapshot), {
     ...HTML_MESSAGE_OPTIONS,
-    ...(options.duelEnabled && snapshot.state === "ready"
+    ...(options.duelEnabled && canOpenNearbyDuel(snapshot, telegramUserId)
       ? { reply_markup: buildNearbyDuelOpenKeyboard() }
       : {})
   });
+}
+
+function canOpenNearbyDuel(
+  snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
+  telegramUserId: bigint
+): boolean {
+  return (
+    snapshot.state === "ready" &&
+    snapshot.location.people.active.some((person) => person.telegramUserId !== telegramUserId)
+  );
 }

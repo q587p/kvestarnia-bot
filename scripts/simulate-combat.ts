@@ -166,7 +166,7 @@ function printUsage(): void {
       "Usage: npm run simulate:combat -- -- [options]",
       "",
       "Options:",
-      "  --levels 1-10         Hero levels to simulate.",
+      "  --levels 1-23         Hero levels to simulate.",
       "  --monster-levels same  Monster levels to simulate, or a range like 1-3.",
       "  --runs 1000           Runs per matchup.",
       "  --seed 123            Base seed for deterministic output.",

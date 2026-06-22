@@ -6,10 +6,11 @@ import type {
   CombatDebugTrace,
   CombatState,
   CombatStatus,
+  CombatTurnLogEntry,
   CombatTurnOutcome,
   CombatTurnSummary
 } from "../../domain/combat";
-import { parseCombatAnalyticsState } from "../../domain/combat";
+import { parseCombatAnalyticsState, parseMonsterAbilityRuntimeState } from "../../domain/combat";
 import type {
   CreateSoloCombatSessionInput,
   DueSoloCombatSessionRecord,
@@ -533,7 +534,9 @@ function parseCombatState(value: unknown): CombatState | null {
   const context = parseMonsterContextSnapshot(value.context);
   const barks = parseBarkState(value.barks);
   const analytics = parseCombatAnalyticsState(value.analytics);
+  const monsterRuntime = parseMonsterAbilityRuntimeState(value.monsterRuntime);
   const lastTurn = parseTurnSummary(value.lastTurn);
+  const turnLog = parseTurnLog(value.turnLog);
 
   if (turn === null || !status || !hero || !monster) {
     return null;
@@ -558,7 +561,9 @@ function parseCombatState(value: unknown): CombatState | null {
     ...(context ? { context } : {}),
     ...(barks ? { barks } : {}),
     ...(analytics ? { analytics } : {}),
-    ...(lastTurn ? { lastTurn } : {})
+    ...(monsterRuntime ? { monsterRuntime } : {}),
+    ...(lastTurn ? { lastTurn } : {}),
+    ...(turnLog.length > 0 ? { turnLog } : {})
   };
 }
 
@@ -744,6 +749,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const monsterDamageKind = parseDamageKind(value.monsterDamageKind);
   const debugTrace = parseCombatDebugTrace(value.debugTrace);
   const actionOrigin = parseActionOrigin(value.actionOrigin);
+  const monsterAction = parseMonsterAction(value.monsterAction);
 
   if (
     !action ||
@@ -767,15 +773,70 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     critical: value.critical,
     ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {}),
     ...(damageKind ? { damageKind } : {}),
-    ...(value.monsterAction === "attack" || value.monsterAction === "skill"
-      ? { monsterAction: value.monsterAction }
-      : {}),
+    ...(monsterAction ? { monsterAction } : {}),
     ...(typeof value.monsterSkillId === "string" ? { monsterSkillId: value.monsterSkillId } : {}),
     ...(monsterDamageKind ? { monsterDamageKind } : {}),
+    ...(typeof value.monsterEffectText === "string" ? { monsterEffectText: value.monsterEffectText } : {}),
+    ...(typeof value.monsterTelegraphAbilityId === "string" ? { monsterTelegraphAbilityId: value.monsterTelegraphAbilityId } : {}),
     ...(heroCounterDamage !== null ? { heroCounterDamage } : {}),
     ...(typeof value.monsterBarkId === "string" ? { monsterBarkId: value.monsterBarkId } : {}),
     ...(debugTrace ? { debugTrace } : {})
   };
+}
+
+function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return [];
+    }
+
+    const turn = intOrNull(entry.turn);
+    const summary = parseTurnSummary(entry.summary);
+    const hero = parseTurnLogHero(entry.hero);
+    const monster = parseTurnLogMonster(entry.monster);
+    const eventId = parseTurnLogEventId(entry.eventId);
+
+    return turn === null || turn < 1 || !summary || !hero || !monster
+      ? []
+      : [{
+          ...(eventId ? { eventId } : {}),
+          turn,
+          summary,
+          hero,
+          monster
+        }];
+  });
+}
+
+function parseTurnLogEventId(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 && value.length <= 80
+    ? value
+    : null;
+}
+
+function parseTurnLogHero(value: unknown): CombatTurnLogEntry["hero"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const hp = intOrNull(value.hp);
+  const mana = intOrNull(value.mana);
+
+  return hp === null || mana === null ? null : { hp, mana };
+}
+
+function parseTurnLogMonster(value: unknown): CombatTurnLogEntry["monster"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const hp = intOrNull(value.hp);
+
+  return hp === null ? null : { hp };
 }
 
 function parseCombatAction(value: unknown): CombatActionType | null {
@@ -784,8 +845,17 @@ function parseCombatAction(value: unknown): CombatActionType | null {
     : null;
 }
 
+function parseMonsterAction(value: unknown): CombatTurnSummary["monsterAction"] | null {
+  return value === "attack" || value === "skill" || value === "defend" || value === "telegraph"
+    ? value
+    : null;
+}
+
 function parseActionOrigin(value: unknown): CombatTurnSummary["actionOrigin"] | null {
-  return value === "manual" || value === "timeout-auto-attack" || value === "timeout-skip"
+  return value === "manual" ||
+    value === "timeout-auto-attack" ||
+    value === "timeout-auto-defend" ||
+    value === "timeout-skip"
     ? value
     : null;
 }
@@ -863,7 +933,9 @@ function parseCombatDebugTrace(value: unknown): CombatDebugTrace | null {
   const interventionKind = value.interventionKind === "help" || value.interventionKind === "none" || value.interventionKind === "hinder"
     ? value.interventionKind
     : null;
-  const timeoutMode = value.timeoutMode === "auto-attack" || value.timeoutMode === "skip"
+  const timeoutMode = value.timeoutMode === "auto-attack" ||
+    value.timeoutMode === "auto-defend" ||
+    value.timeoutMode === "skip"
     ? value.timeoutMode
     : null;
   const copiedEquipmentCount = intOrNull(value.copiedEquipmentCount);

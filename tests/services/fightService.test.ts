@@ -47,7 +47,7 @@ import {
   THIRTEEN_SMALL_PROBLEMS_QUEST_KEY
 } from "../../src/services/fightService";
 import {
-  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
 } from "../../src/services/presenceService";
@@ -1164,7 +1164,7 @@ describe("FightService", () => {
     expect(ordinary.state).toBe("persistent-active");
     expect(yeger.state).toBe("persistent-active");
     if (ordinary.state === "persistent-active") {
-      expect(ordinary.session.state?.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1);
+      expect(ordinary.session.state?.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT);
     }
     if (yeger.state === "persistent-active") {
       expect(yeger.session.state?.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_RANGER_CORNER);
@@ -2249,6 +2249,7 @@ describe("FightService", () => {
     }
     sessions.setHeroHp(started.session.id, 1);
     sessions.setMonsterHp(started.session.id, 999);
+    sessions.clearMonsterRuntime(started.session.id);
 
     const result = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: started.session.id,
@@ -2366,6 +2367,12 @@ describe("FightService", () => {
     if (expired.state === "terminal") {
       expect(expired.session.state?.status).toBe("expired");
       expect(expired.fightReward).toBeNull();
+      expect(expired.session.state?.turnLog).toHaveLength(1);
+      expect(expired.session.state?.turnLog?.[0]).toMatchObject({
+        eventId: "terminal:expired",
+        turn: 1,
+        summary: expired.session.state.lastTurn
+      });
     }
     expect(expiredDailyActions.createCount).toBe(0);
   });
@@ -3189,7 +3196,7 @@ describe("FightService", () => {
     expect(sessions.updateCount).toBe(0);
   });
 
-  it("uses a basic attack for an expired persistent combat turn before handling late buttons", async () => {
+  it("uses a basic defend for an expired persistent combat turn before handling late buttons", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -3218,8 +3225,17 @@ describe("FightService", () => {
     expect(result.state).toBe("stale-turn");
     if (result.state === "stale-turn") {
       expect(result.session.state?.turn).toBe(2);
-      expect(result.session.state?.lastTurn?.action).toBe("attack");
-      expect(result.session.state?.lastTurn?.debugTrace?.timeoutMode).toBe("auto-attack");
+      expect(result.session.state?.lastTurn?.action).toBe("defend");
+      expect(result.session.state?.lastTurn?.debugTrace?.timeoutMode).toBe("auto-defend");
+      expect(result.session.state?.lastTurn?.actionOrigin).toBe("timeout-auto-defend");
+      expect(result.session.state?.turnLog?.[0]).toMatchObject({
+        turn: 1,
+        summary: {
+          action: "defend",
+          actionOrigin: "timeout-auto-defend"
+        }
+      });
+      expect(result.session.state?.turnLog?.[0]?.summary).toEqual(result.session.state.lastTurn);
       expect(result.session.state?.timeout?.consecutiveMissedTurns).toBe(1);
       expect(result.session.state?.turnExpiresAt).toBe("2026-06-12T10:30:23.000Z");
     }
@@ -3227,7 +3243,7 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
-  it("skips the hero action on the second consecutive timeout recovered from overview", async () => {
+  it("defends on the second consecutive timeout recovered from overview", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -3254,17 +3270,16 @@ describe("FightService", () => {
     if (result.state === "persistent-active") {
       expect(result.session.state?.turn).toBe(2);
       expect(result.session.state?.lastTurn).toMatchObject({
-        action: "skip",
-        heroOutcome: "inactive",
+        action: "defend",
+        heroOutcome: "defended",
         heroDamage: 0,
         debugTrace: {
-          timeoutMode: "skip"
+          timeoutMode: "auto-defend"
         }
       });
       expect(result.session.state?.timeout?.consecutiveMissedTurns).toBe(2);
-      expect(result.session.state?.lastTurn?.monsterDamage ?? 0).toBeGreaterThan(0);
+      expect(result.session.state?.lastTurn?.actionOrigin).toBe("timeout-auto-defend");
       expect(result.session.state?.monster.hp).toBe(80);
-      expect(result.session.state?.hero.hp ?? 0).toBeLessThan(started.session.state?.hero.hp ?? 0);
       expect(result.session.state?.turnExpiresAt).toBe("2026-06-12T10:30:23.000Z");
     }
     expect(dailyActions.createCount).toBe(0);
@@ -3334,9 +3349,9 @@ describe("FightService", () => {
     if (result.state === "updated") {
       expect(result.session.state?.status).toBe("active");
       expect(result.session.state?.timeout?.consecutiveMissedTurns).toBe(3);
-      expect(result.session.state?.lastTurn?.action).toBe("attack");
+      expect(result.session.state?.lastTurn?.action).toBe("defend");
       expect(result.session.state?.lastTurn?.debugTrace).toMatchObject({
-        timeoutMode: "auto-attack"
+        timeoutMode: "auto-defend"
       });
     }
     expect(dailyActions.createCount).toBe(0);
@@ -3436,6 +3451,44 @@ describe("FightService", () => {
     expect(first.state).toBe("updated");
     expect(second.state).toBe("skipped");
     expect(sessions.updateCount).toBe(1);
+  });
+
+  it("preserves the latest persistent fight message reference during stale due timeout recovery", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.99, 0.9, 0.99, 0.9])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 80);
+    sessions.setTurnExpiresAt(started.session.id, new Date("2026-06-12T10:29:59.000Z"));
+    const staleDue = {
+      ...started.session,
+      state: {
+        ...started.session.state!,
+        turnExpiresAt: "2026-06-12T10:29:59.000Z"
+      },
+      telegramUserId
+    } as DueSoloCombatSessionRecord;
+    sessions.setMessageReference(started.session.id, { chatId: "42", messageId: 999 });
+
+    const result = await service.resolveDuePersistentFightTurn(staleDue);
+
+    expect(result.state).toBe("updated");
+    expect(sessions.getById(started.session.id)?.state?.message).toEqual({
+      chatId: "42",
+      messageId: 999
+    });
   });
 });
 
@@ -4064,6 +4117,21 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
           hp
         }
       }
+    });
+  }
+
+  clearMonsterRuntime(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return;
+    }
+
+    const stateWithoutRuntime = { ...session.state };
+    delete stateWithoutRuntime.monsterRuntime;
+    this.sessions.set(sessionId, {
+      ...session,
+      state: stateWithoutRuntime
     });
   }
 

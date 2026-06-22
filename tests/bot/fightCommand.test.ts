@@ -2,7 +2,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { sendFight } from "../../src/bot/commands/fightCommand";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
-import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
@@ -11,6 +10,9 @@ import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type MarkPlayerPresenceInput
 } from "../../src/services/presenceService";
@@ -238,12 +240,100 @@ describe("fight command", () => {
 
     expect(options.parse_mode).toBe("HTML");
     expect(options.reply_markup.inline_keyboard.flat()).toEqual([
-      { text: "⚔️ Новий бій", callback_data: makePlaceCallbackData("deep-level1") },
+      { text: "📜 Журнал бою", callback_data: "v1:fight:log:123e4567-e89b-12d3-a456-426614174000:0" },
+      { text: "⚔️ Новий бій", callback_data: makePlaceCallbackData("deep-straight") },
       { text: "↩️ Повернутися до Низу", callback_data: makePlaceCallbackData("deep") }
     ]);
     expect(recordPersistentFightMessageReference).toHaveBeenCalledWith(42n, terminalSession.id, {
       chatId: "42",
       messageId: 777
+    });
+  });
+
+  it.each([
+    [PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT, "deep-left"],
+    [PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT, "deep-straight"],
+    [PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT, "deep-right"]
+  ])("keeps terminal persistent fight navigation scoped to %s", async (originLocationId, newFightPlace) => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const terminalSession = terminalPersistentSession(originLocationId);
+    const fightService = {
+      getFightOverviewForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-terminal" as const,
+          character: {
+            ...character,
+            level: 3
+          },
+          session: terminalSession,
+          monster: {
+            id: "monster.deadline-spider",
+            name: "Павук дедлайнів",
+            description: "Плете павутину з «сьогодні швиденько».",
+            level: 2,
+            tags: ["beast", "time", "web"]
+          },
+          questProgress: questProgress(3),
+          fightReward: null
+        })
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply");
+
+    const options = replies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+    const buttons = options.reply_markup.inline_keyboard.flat();
+
+    expect(replies[0]?.text).toContain("🎉 Ви перемогли");
+    expect(buttons).toContainEqual({
+      text: "⚔️ Новий бій",
+      callback_data: makePlaceCallbackData(newFightPlace)
+    });
+    expect(buttons).toContainEqual({
+      text: "↩️ Повернутися до Сутеренів",
+      callback_data: makePlaceCallbackData("deep-level1")
+    });
+  });
+
+  it("pins legacy terminal persistent fights without originLocationId to the neutral straight fallback", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const terminalSession = terminalPersistentSession();
+    const fightService = {
+      getFightOverviewForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-terminal" as const,
+          character: {
+            ...character,
+            level: 3
+          },
+          session: terminalSession,
+          monster: {
+            id: "monster.deadline-spider",
+            name: "Павук дедлайнів",
+            description: "Плете павутину з «сьогодні швиденько».",
+            level: 2,
+            tags: ["beast", "time", "web"]
+          },
+          questProgress: questProgress(3),
+          fightReward: null
+        })
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply");
+
+    const options = replies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+    const buttons = options.reply_markup.inline_keyboard.flat();
+
+    expect(buttons).toContainEqual({
+      text: "⚔️ Новий бій",
+      callback_data: makePlaceCallbackData("deep-straight")
+    });
+    expect(buttons).toContainEqual({
+      text: "↩️ Повернутися до Низу",
+      callback_data: makePlaceCallbackData("deep")
     });
   });
 
@@ -368,19 +458,19 @@ describe("fight command", () => {
           [
             {
               text: "⬅️ Лівий прохід",
-              callback_data: makeQuestCallbackData("fight-hard")
+              callback_data: makePlaceCallbackData("deep-left")
             }
           ],
           [
             {
               text: "🚪 Прямий прохід",
-              callback_data: makeQuestCallbackData("fight-normal")
+              callback_data: makePlaceCallbackData("deep-straight")
             }
           ],
           [
             {
               text: "➡️ Правий прохід",
-              callback_data: makeQuestCallbackData("fight-easy")
+              callback_data: makePlaceCallbackData("deep-right")
             }
           ],
           [
@@ -438,13 +528,13 @@ describe("fight command", () => {
 
   it("starts the selected persistent fight difficulty through the existing session path", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
-    const startedDifficulties: string[] = [];
+    const startOptions: Array<{ difficulty?: string; originLocationId?: string }> = [];
     const fightService = {
       getOrStartPersistentFightForTelegramUser: (
         _telegramUserId: bigint,
-        options: { difficulty?: string }
+        options: { difficulty?: string; originLocationId?: string }
       ) => {
-        startedDifficulties.push(options.difficulty ?? "none");
+        startOptions.push(options);
         return Promise.resolve({
           state: "persistent-active",
           character: {
@@ -473,7 +563,12 @@ describe("fight command", () => {
       difficulty: "easy"
     });
 
-    expect(startedDifficulties).toEqual(["easy"]);
+    expect(startOptions).toEqual([
+      {
+        difficulty: "easy",
+        originLocationId: "location.korchma.deep.level1.right"
+      }
+    ]);
     expect(replies[0]?.text).toContain("Павук дедлайнів");
     expect(replies[0]?.text).toContain("поки не видає нагород");
     expect(replies[1]?.text).toContain("❤️ Ви: 24/24 · мана 12/12");
@@ -674,5 +769,34 @@ function persistentSession(monsterId = "monster.deadline-spider"): SoloCombatSes
     createdAt: new Date("2026-06-12T10:30:00.000Z"),
     updatedAt: new Date("2026-06-12T10:30:00.000Z"),
     expiresAt: new Date("2026-06-12T11:00:00.000Z")
+  };
+}
+
+function terminalPersistentSession(originLocationId?: string): SoloCombatSessionRecord {
+  const session = persistentSession();
+
+  return {
+    ...session,
+    status: "won",
+    turn: 4,
+    state: {
+      ...session.state!,
+      ...(originLocationId ? { originLocationId } : {}),
+      status: "won",
+      turn: 4,
+      monster: {
+        id: "monster.deadline-spider",
+        hp: 0,
+        hpMax: 18
+      },
+      lastTurn: {
+        action: "attack",
+        heroOutcome: "won",
+        heroDamage: 18,
+        monsterDamage: 0,
+        manaSpent: 0,
+        critical: false
+      }
+    }
   };
 }

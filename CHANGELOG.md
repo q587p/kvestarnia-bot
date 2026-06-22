@@ -7,6 +7,91 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.22] - 12026-06-21 - Monster Abilities, Titles & Battle Journal
+
+### Added
+- Added typed monster ability and combat profile catalogs: 132 stable monster ability definitions and 93 monster loadout profiles are now validated against the current roster.
+- Added a backward-compatible `monsterRuntime` block in combat state for newly started ordinary monster fights. It freezes selected ability IDs, AI profile, cooldowns, once-per-fight use, telegraphs, shields and short-lived runtime effects.
+- Added a pure monster AI/effect resolver for ordinary PvE monsters. It supports basic attacks, monster defend, content-driven abilities, actor-local cooldowns, once-per-fight abilities, class-skill locks, shields, self-heals, simple marks, burn/bleed ticks, mana pressure and telegraphed heavy actions.
+- Added compact active-fight presentation for named monster abilities, telegraph warnings and one concise effect consequence.
+- Added monster action-mix and ability-usage metrics to the production combat simulator, with default coverage through level 23.
+- Added authored combo-title triples for all 54 currently selectable race/class pairs, so active onboarding combinations no longer fall back to generic local-significance titles.
+- Added distinct class skill identities for Varenyk-mancer (`skill.boiling-filling`, `🥟 Кипляча начинка`) and Rogue (`skill.shadow-cut`, `🌘 Тіньовий різ`) while preserving their previous numeric combat profiles.
+- Added durable persistent-fight `turnLog` entries in combat state JSON plus terminal `📜 Журнал бою` paging with first/previous/next/last navigation and a return to the result card.
+- Added separate presence locations for the Nyz left, straight and right passages.
+- Added Nyz passage pre-fight previews: selecting a passage now shows the spotted monster and starts combat only after `Атакувати`, with the preview encounter seed carried into the created fight.
+- Added focused coverage for content totals, loadout gates, frozen runtime state, legacy no-runtime fights, ordinary anti-spam, telegraph impact, shields/effects and Prisma JSON round-trip.
+- Added an explicit per-component monster ability execution plan used by validation, AI legality and resolution. Components now record their source parameter, target actor, condition, duration/charges, direct-hit requirement and applied-result key.
+- Added an explicit runtime-effect polarity/removability/source contract in combat-state JSON, with safe derivation for old effect rows that lack the new metadata.
+
+### Changed
+- New ordinary monster fights now freeze authored ability loadouts at encounter start. Explicit authored IDs fill identity slots first; deterministic fallback can fill only missing legal slots created by effective-level scaling.
+- Ordinary monsters cannot use an ability immediately after a monster ability. Boss profiles may chain at most two different abilities, never repeat the same ability consecutively, then owe a basic attack or defend.
+- Failed flee responses and timeout auto-defend recovery now call the same monster AI path as manual combat turns.
+- The existing `first-ability` bark trigger now fires from real ordinary-monster ability use, while stored bark IDs still replay deterministically.
+- Group-ready target scopes degrade safely to the current one-hero, one-monster runtime; no party, raid or multi-enemy runtime was added.
+- Mage and Ranger keep their existing `skill.hot-spell` and `skill.trick-shot` identities; Varenyk-mancer and Rogue now render their own class action labels in persistent fights, training doppelganger fights and turn-based duels.
+- Persistent PvE timeout recovery now commits `defend` with `timeout-auto-defend` instead of a basic attack; legacy `timeout-auto-attack` JSON/debug values remain readable.
+- Nyz passage buttons now enter `Лівий прохід`, `Прямий прохід` or `Правий прохід` as separate locations; `Хто поруч`, nearby duel validation and post-fight `Новий бій` preserve the selected passage.
+- `Хто поруч` now hides the `Кинути виклик присутнім` button when the current location has no other active duel target.
+- Active fight cards now place the 23-second timeout note directly under the named `що робимо?` prompt instead of above it or after an empty spacer.
+- Active persistent fight and training cards now keep `Вдарити` and `Захищатися` in one compact first button row.
+- The persistent reply keyboard now labels its place button with the current known location where possible; location-changing inline callbacks no longer send standalone `📍 <location>` refresh messages, and location reply buttons reopen the current place/actions instead of always jumping to the generic korchma entry.
+- Active persistent fight cards no longer show the service-note `Хід записано` or an `Остання дія` heading, skill cooldown rows name the exact skill, and basic monster counterattacks say what they attacked in response to.
+- Monster skill summaries now include visible mechanical consequences: damage, effect text, or an explicit no-direct-damage line.
+- Monster ability parameters now compile through a central runtime audit. Unsupported, invalid, effectless or semantically contradictory parameters fail validation instead of silently becoming flavor-only fields.
+- Optional self-heals no longer make the whole ability illegal when the monster is healthy; other actionable components such as shields, self-buffs, damage and eligible purge riders still resolve normally.
+- Low-HP damage parameters now apply as additive bonuses to the base multiplier instead of replacing the multiplier.
+- Turn-cycle riders now resolve only the selected branch for the current persisted monster activation count; unselected fire, shield and potency-down riders no longer leak into each other.
+- Direct-hit marks and next-attack bonuses now use the same basic/ability pipeline and are consumed only by a real landed direct monster hit after defend evasion is known.
+- Repeated-action prediction now tracks eligible committed hero misses and defense, ignores rejected/no-op skills and expires by activation duration even if the player avoids repeating the action.
+- Runtime monster shields now report only HP damage actually applied after absorption and no longer heal/revive the monster while accounting shield points.
+- Runtime basic attacks now use the same defend stance contract as legacy basic monster attacks, including evasion, mitigation fatigue and bounded counters; runtime ability mitigation applies defend once.
+- Runtime monster evasion now affects the hero hit roll only; it no longer also reduces damage after a successful hit.
+- Runtime support/control abilities now skip state-less cases such as equal-or-stronger shields, empty cleanses, missing cooldown targets, missing positive effects and missing expired effects.
+- Authored turn parity/cycle riders, repeated-action prediction, expired-effect reapply, copied potency, shield-survival setup bonuses, status-resistance solo fallback and counter-chance parameters now resolve through persisted runtime state instead of inert validation-only fields.
+- Monster ability resolution now applies compiled plan components through shared handlers for immediate support/control effects, so legality and execution use the same target/condition decisions for heal, shield, mana drain, cleanse, purge, cooldown pressure, reapply-expired and runtime effects.
+- `statusResistancePp` now resolves as an explicit non-removable `status-resistance` monster effect fallback instead of being stored as an unrelated incoming-damage modifier.
+- Zero-damage monster support abilities that actually change state now persist a successful monster outcome in `lastTurn`, `turnLog`, journal replay and analytics rather than being inferred as misses from damage alone.
+- Direct-hit-required monster components now require a real landed direct hit before applying or consuming their rider effects.
+- Monster ability components now carry an explicit trigger classification, so equivalent hostile riders such as chill, burn and outgoing-damage reductions follow the same landed-hit rule while setup/support branches stay on-cast.
+- Runtime effect consumers now use the polarity contract for debuff checks, accuracy/evasion/flee penalties, slow/confusion/repeat penalties, marks and next-hit bonuses instead of treating every matching target/kind as harmful.
+- Deferred next-hit bonuses now arm only from their real trigger: surviving authored shields or copied persisted direct hero damage. Neutral value-1 placeholders no longer make abilities look actionable, block later bonuses or consume charges.
+- `counterChance` now uses an explicit probabilistic counter runtime effect with injected RNG and damage derived from the authored source/current monster attack, while flat reflect remains deterministic and separate.
+- Monster defend, telegraph and retained timeout-skip paths now preserve resolver outcomes instead of classifying every zero-damage monster action as a miss.
+
+### Fixed
+- Old active combat JSON without `monsterRuntime` remains readable and keeps legacy basic-attack behavior until that fight ends.
+- Old active cooldown JSON that still contains Varenyk-mancer `skill.hot-spell` or Rogue `skill.trick-shot` cooldowns remains authoritative until the cooldown naturally ticks away; future class skill use stores only the renamed IDs.
+- Fixed two corrupted monster context cue lines that could render as `????`, and added content coverage against placeholder mojibake in context cues.
+- Battle journal buttons now appear only on terminal/result cards, include a terminal `lastTurn` page when older state has not stored it in `turnLog`, and return with `↩️ До результатів`.
+- Timeout auto-turn recovery refreshes the current combat row before committing, so stale scheduler due records do not overwrite a newer active-card message reference.
+- Training doppelganger fights keep the copied class-skill behavior from `0.1.21` instead of being silently converted into ordinary-monster AI.
+- Monster class-skill locks are server-authoritative no-ops: pressing a locked/unavailable class skill does not spend mana, advance the turn, tick cooldowns, trigger monster AI, select a bark or advance RNG.
+- Telegraphs persist the promised ability before impact; if the monster dies first, the pending impact never resolves.
+- One-charge marks survive committed hero actions and are consumed only when a later direct monster hit uses them; reflect charges are consumed only when actual reflected HP damage occurs.
+- One-charge marks can now be consumed by the ordinary forced basic attack after a setup ability, while missed basics and non-damaging monster actions leave the mark intact.
+- Mixed-scope monster buffs now route by parameter intent: `monster.mountain-on-installments` marks the hero, buffs the monster's outgoing damage and never grants the hero a positive outgoing-damage multiplier.
+- Race-source ability locks now use a safe solo fallback instead of disabling the class skill; class-source locks still block the current class action as before.
+- Applied-result text is now generated only from components that changed state, so purge, cooldown, heal, shield, cleanse and reapply claims do not appear when nothing happened.
+- Monster cleanse now removes only harmful removable effects on the monster, so beneficial monster shields, evasion, outgoing-damage buffs, next-hit bonuses, reflect and status resistance survive cleanup.
+- Monster purge now removes only real removable beneficial hero effects. Direct-damage abilities such as Archive Chew keep dealing damage when no purge target exists and do not claim a purge that did not happen.
+- Damaging bleed/burn/control riders no longer apply after ordinary misses, defend evasion, telegraph announcements, monster defend, support-only actions or zero-damage outcomes.
+- `bonusAgainstDebuffedTargets` now counts only active harmful hero effects; beneficial hero buffs, neutral effects, monster self-effects and expired/zero-charge rows do not trigger the bonus.
+- Multiple next-hit bonus sources now use source/trigger identity, so copied-potency and shield-survival bonuses can coexist without duplicate same-source shield charges or accidental shadowing.
+- Legacy eventless terminal journals now synthesize one final `terminal:*` entry when an old same-turn log row has a different summary, while semantically identical old rows still avoid duplicates.
+- Reactive reflect/counter/shield-break damage now resolves before the early victory return; if it drops the hero to zero HP, the combat is recorded as a loss even when the same hit also drops the monster to zero.
+- Terminal persistent combat journal entries now carry stable `terminal:*` event IDs, so `won`, `lost`, `fled` and hard `expired` results appear exactly once after repository round-trip and repeated journal opens.
+- Target accuracy/evasion penalties now affect later target rolls instead of being accidentally folded into the monster's current ability accuracy.
+- Positive monster accuracy context now raises current runtime ability hit chance instead of lowering it.
+- Persistent fight turn callbacks, result replays, journal views and combat-lock redirects now restore the stored fight passage/location instead of stamping the quest table.
+- Night Munchkin level-barter cards now return to `Спуск до Низу` instead of sending the player outside to the front door.
+- Deterministic fallback loadouts now skip unsupported recipes and avoid low-level strong/ultimate fallback picks.
+
+### Guardrails
+- No player race/signature/title ability catalog, item active ability, multi-enemy runtime, Yeger rule change, reward/economy/loot rebalance, timeout cap, participation gate, auto-victory reward suppression or new analytics migration was added.
+- The imported proposal values are normalized centrally in the monster ability resolver; unsafe effects such as gold/item destruction, permanent stat loss and punitive reward changes are not implemented.
+
 ## [0.1.21] - 12026-06-21 - Combat Action Foundation
 
 ### Added

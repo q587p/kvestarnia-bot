@@ -11,6 +11,7 @@ import {
   presentQuestProgressAfterFight,
   presentPersistentFight,
   presentPersistentFightIntro,
+  presentPersistentFightJournal,
   presentPersistentFightTurn
 } from "../../src/bot/presenters/fightPresenter";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
@@ -198,13 +199,40 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
     expect(text).toContain("👹 Монстр: 18/18");
-    expect(text).toContain("Хід: 1\n\n⏳ На хід є 23 секунди");
+    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?\n⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
+    expect(text).not.toContain("що робимо?\n\n⏳");
     expect(text).toContain("⏳ На хід є 23 секунди");
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("Не зволікайте надто довго");
     expect(text).not.toContain("Нагорода");
     expect(text).not.toContain("XP");
     expect(text).not.toContain("золота</b>");
+  });
+
+  it("names the skill that is still on cooldown", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        cooldowns: {
+          skill: {
+            id: "skill.strict-blessing",
+            remainingTurns: 1
+          }
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("🫁 🙏 Суворе благословення відсапується: ще 1 хід.");
+    expect(text).not.toContain("🫁 Вміння відсапується");
   });
 
   it("shows frozen monster context cues only on the opening active card", () => {
@@ -337,7 +365,7 @@ describe("fight presenter", () => {
     expect(noMana).not.toContain("Нагорода");
   });
 
-  it("uses neutral grammar for skill turn summaries", () => {
+  it("uses neutral grammar for skill turn summaries without service-log clutter", () => {
     const text = presentPersistentFightTurn({
       state: "updated",
       character,
@@ -366,14 +394,15 @@ describe("fight presenter", () => {
 
     expect(text).toContain(
       [
-        "Остання дія",
         "Вміння 🙏 <i>Суворе благословення</i> влучає критично на 17 шкоди.",
-        "Монстр відповів на 8 шкоди."
+        "Монстр атакував у відповідь на ваш хід і завдав 8 шкоди."
       ].join("\n")
     );
+    expect(text).not.toContain("Хід записано");
+    expect(text).not.toContain("Остання дія");
     expect(text).not.toContain("Останній хід: вміння");
     expect(text).not.toContain("критично:");
-    expect(text).toContain("⏳ На хід є 23 секунди");
+    expect(text).toContain("⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
     expect(text).not.toContain("Проти вас");
     expect(text).not.toContain("критично дала");
   });
@@ -430,6 +459,356 @@ describe("fight presenter", () => {
     expect(skipped).toContain("Попередній хід прострочено: дію пропущено, а монстр не чекав.");
   });
 
+  it("shows the new auto-defend timeout notice", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "defend",
+          heroOutcome: "defended",
+          heroDamage: 0,
+          monsterDamage: 1,
+          manaSpent: 0,
+          critical: false,
+          debugTrace: {
+            timeoutMode: "auto-defend"
+          }
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("Попередній хід прострочено: Корчма поставила вас у захист.");
+    expect(text).toContain("Ви стали в захист");
+  });
+
+  it("renders a paged persistent fight journal from stored turns", () => {
+    const session = persistentSession({
+      turn: 3,
+      turnLog: [
+        {
+          turn: 1,
+          hero: { hp: 22, mana: 12 },
+          monster: { hp: 14 },
+          summary: {
+            action: "attack",
+            heroOutcome: "hit",
+            heroDamage: 4,
+            monsterDamage: 2,
+            manaSpent: 0,
+            critical: false,
+            monsterAction: "attack"
+          }
+        },
+        {
+          turn: 2,
+          hero: { hp: 22, mana: 12 },
+          monster: { hp: 14 },
+          summary: {
+            action: "defend",
+            heroOutcome: "defended",
+            heroDamage: 0,
+            monsterDamage: 0,
+            manaSpent: 0,
+            critical: false,
+            monsterAction: "defend",
+            monsterEffectText: "Монстр прикрився щитом."
+          }
+        }
+      ]
+    });
+    const text = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session,
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    }, 1);
+
+    expect(text).toContain("📜 <b>Журнал бою</b>");
+    expect(text).toContain("Хід <b>2</b> · запис 2/2");
+    expect(text).toContain("❤️ Ви після ходу: 22/24 · мана 12/12");
+    expect(text).toContain("👹 Монстр після ходу: 14/18");
+    expect(text).toContain("Ви стали в захист");
+    expect(text).not.toContain("Хід записано");
+  });
+
+  it("adds the terminal last turn to the journal when it is missing from stored turns", () => {
+    const session = persistentSession({
+      status: "won",
+      turn: 3,
+      hero: {
+        hp: 19,
+        hpMax: 24,
+        mana: 11,
+        manaMax: 12
+      },
+      monster: {
+        id: "monster.test",
+        hp: 0,
+        hpMax: 18
+      },
+      turnLog: [
+        {
+          turn: 1,
+          hero: { hp: 22, mana: 12 },
+          monster: { hp: 14 },
+          summary: {
+            action: "attack",
+            heroOutcome: "hit",
+            heroDamage: 4,
+            monsterDamage: 2,
+            manaSpent: 0,
+            critical: false,
+            monsterAction: "attack"
+          }
+        }
+      ],
+      lastTurn: {
+        action: "skill",
+        heroOutcome: "won",
+        heroDamage: 14,
+        monsterDamage: 0,
+        manaSpent: 1,
+        critical: false,
+        skillId: "skill.strict-blessing"
+      }
+    });
+    const text = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session,
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    }, 1);
+
+    expect(text).toContain("Хід <b>2</b> · запис 2/2");
+    expect(text).toContain("❤️ Ви після ходу: 19/24 · мана 11/12");
+    expect(text).toContain("👹 Монстр після ходу: 0/18");
+    expect(text).toContain("Вміння 🙏 <i>Суворе благословення</i> влучає на 14 шкоди.");
+  });
+
+  it("does not duplicate an explicit terminal journal event", () => {
+    const session = persistentSession({
+      status: "won",
+      turn: 3,
+      hero: {
+        hp: 19,
+        hpMax: 24,
+        mana: 11,
+        manaMax: 12
+      },
+      monster: {
+        id: "monster.test",
+        hp: 0,
+        hpMax: 18
+      },
+      turnLog: [
+        {
+          turn: 1,
+          hero: { hp: 22, mana: 12 },
+          monster: { hp: 14 },
+          summary: {
+            action: "attack",
+            heroOutcome: "hit",
+            heroDamage: 4,
+            monsterDamage: 2,
+            manaSpent: 0,
+            critical: false,
+            monsterAction: "attack"
+          }
+        },
+        {
+          eventId: "terminal:won",
+          turn: 2,
+          hero: { hp: 19, mana: 11 },
+          monster: { hp: 0 },
+          summary: {
+            action: "skill",
+            heroOutcome: "won",
+            heroDamage: 14,
+            monsterDamage: 0,
+            manaSpent: 1,
+            critical: false,
+            skillId: "skill.strict-blessing"
+          }
+        }
+      ],
+      lastTurn: {
+        action: "skill",
+        heroOutcome: "won",
+        heroDamage: 14,
+        monsterDamage: 0,
+        manaSpent: 1,
+        critical: false,
+        skillId: "skill.strict-blessing"
+      }
+    });
+    const text = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session,
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    }, 1);
+
+    expect(text).toContain("Хід <b>2</b> · запис 2/2");
+    expect(text).not.toContain("запис 2/3");
+  });
+
+  it("adds one legacy eventless terminal entry when the same turn stored a different summary", () => {
+    const session = persistentSession({
+      status: "expired",
+      turn: 3,
+      hero: {
+        hp: 7,
+        hpMax: 24,
+        mana: 10,
+        manaMax: 12
+      },
+      monster: {
+        id: "monster.test",
+        hp: 6,
+        hpMax: 18
+      },
+      turnLog: [
+        {
+          turn: 2,
+          hero: { hp: 8, mana: 10 },
+          monster: { hp: 6 },
+          summary: {
+            action: "attack",
+            heroOutcome: "miss",
+            heroDamage: 0,
+            monsterDamage: 1,
+            manaSpent: 0,
+            critical: false,
+            monsterAction: "attack"
+          }
+        }
+      ],
+      lastTurn: {
+        action: "skip",
+        actionOrigin: "timeout-expired",
+        heroOutcome: "miss",
+        monsterOutcome: "miss",
+        heroDamage: 0,
+        monsterDamage: 0,
+        manaSpent: 0,
+        critical: false
+      }
+    });
+    const text = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session,
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    }, 1);
+
+    expect(text).toContain("Хід <b>2</b> · запис 2/2");
+    expect(text).toContain("Відступ не влучає.");
+    expect(text).toContain("Монстр промахнувся");
+  });
+
+  it("shows monster ability consequences instead of only naming the ability", () => {
+    const damaging = presentPersistentFightTurn({
+      state: "updated",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 4,
+          monsterDamage: 5,
+          manaSpent: 0,
+          critical: false,
+          monsterAction: "skill",
+          monsterSkillId: "monster.split-sprint",
+          monsterEffectText: "захист героя просів на 1"
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    });
+    const noDamage = presentPersistentFightTurn({
+      state: "updated",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 4,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false,
+          monsterAction: "skill",
+          monsterSkillId: "monster.split-sprint"
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    });
+
+    expect(damaging).toContain("Монстр застосував");
+    expect(damaging).toContain("завдав 5 шкоди");
+    expect(damaging).toContain("захист героя просів на 1");
+    expect(noDamage).toContain("без прямої шкоди цього ходу");
+  });
+
   it("renders stored monster bark ids without rerolling copy", () => {
     const text = presentPersistentFightTurn({
       state: "updated",
@@ -460,7 +839,8 @@ describe("fight presenter", () => {
     expect(text).toContain(
       "🗣️ Монстр:\n<blockquote>Ще один хід — і прострочення стане вашим титулом.</blockquote>"
     );
-    expect(text).toContain("Остання дія\nАтака влучає на 4 шкоди.");
+    expect(text).toContain("Атака влучає на 4 шкоди.");
+    expect(text).not.toContain("Остання дія");
   });
 
   it("points completed problem quest stages to Korchmar instead of auto-claiming", () => {

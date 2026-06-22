@@ -278,11 +278,15 @@ Personality archetypes:
 - `undead` — вразливий до жреця, байдужий до частини social checks.
 - `beast` — єгер має зрозумілий edge.
 
-Monster actions мають бути простими, але не однаковими. Кожен ordinary monster у майбутньому combat-variety slice має отримати хоча б одну дію поза basic attack: guard, heavy wind-up, weak debuff, small self-shield, once-per-fight skill, surrender cue або backup call. Це має жити в content/domain data, не в presenter-і.
+Monster actions мають бути простими, але не однаковими. `0.1.22` імпортує package extension із 132 monster ability definitions і 93 monster combat profiles у typed content/domain data. Нові ordinary persistent fights freeze `monsterRuntime` at combat start: loadout ids, AI profile, cooldowns, once-per-fight usage, pending telegraph, shield and short effects live in `CombatState`, so resume/replay/old callbacks never reroll a monster personality mid-fight.
+
+Runtime rules stay solo-ready: group/party scope fields from content degrade to the current single hero/monster, no multi-enemy or raid runtime ships here, and training doppelganger keeps copied class-skill behavior. Ordinary monsters must answer an ability with a basic attack or defend before using another ability; boss-like profiles may chain at most two different abilities; heavy telegraphed abilities spend one monster activation on warning text before impact. Failed flee responses and timeout recovery call the same AI resolver once, but rewards, Yeger matching, loot, monster eligibility and analytics schema do not change in this slice.
+
+Monster ability parameters compile into explicit execution components before AI legality and resolution: each component owns its target actor, condition, duration/charges, direct-hit requirement and applied-result key. Optional riders do not disable the whole ability when they have no target, cycle/parity riders apply only the selected branch, race-source locks do not become class-skill locks, and direct-hit marks/next-hit bonuses spend only on actual landed monster hits after defend evasion is known.
 
 ### Context snapshots and barks
 
-`0.1.21` adds the first contextual texture layer for persistent monster fights without adding monster abilities yet:
+`0.1.21` adds the first contextual texture layer for persistent monster fights:
 
 - combat start builds one `Europe/Kyiv` world snapshot from the service clock, location tags and party size;
 - the snapshot is stored in `CombatState.context` and must not be recomputed on resume, replay or when the real clock crosses a boundary mid-fight;
@@ -290,7 +294,7 @@ Monster actions мають бути простими, але не однаков
 - context never changes encounter eligibility, Yeger matching/progress, XP, gold, loot, authored level or stored reward replay;
 - monster barks live in content/domain data, not presenter code; turn summaries store a `monsterBarkId`, and presenters resolve that stable id to Ukrainian copy.
 
-The current implementation imports the package's 93-monster roster into the existing `MonsterContent` shape, plus context profiles and five authored bark lines per monster. It still does not import the monster ability/loadout extension.
+The current implementation imports the package's 93-monster roster into the existing `MonsterContent` shape, plus context profiles, five authored bark lines per monster and the `0.1.22` monster ability/loadout extension.
 
 ## Відмова, здача і backup
 

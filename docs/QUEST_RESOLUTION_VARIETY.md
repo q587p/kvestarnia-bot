@@ -416,10 +416,12 @@ Direct HP loss is method-owned, not a global random punishment after resolution.
 Class methods мають використовувати stable skill identity як content affinity:
 
 - `skill.forceful-strike` → force/intimidation;
-- `skill.hot-spell` → arcana/alteration; для Вареник-манта player-facing method лишається тістологічним, навіть якщо combat profile спільний;
+- `skill.hot-spell` → arcana/alteration;
+- `skill.boiling-filling` → food-magic/craft/arcana;
 - `skill.form-thirteen-b` → authority/investigation;
 - `skill.dangerous-couplet` → performance/persuasion;
-- `skill.trick-shot` → finesse/deception/traps/tracking залежно від класу;
+- `skill.shadow-cut` → finesse/deception/sneak;
+- `skill.trick-shot` → tracking/traps/finesse;
 - `skill.strict-blessing` → ritual/authority;
 - `skill.steppe-side-eye` → improvisation/intuition/intimidation.
 

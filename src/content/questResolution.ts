@@ -217,7 +217,7 @@ export const classTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
     techniques: ["finesse", "deception", "sneak"],
     primaryStat: "dexterity",
     secondaryStat: "charisma",
-    combatSkillId: "skill.trick-shot"
+    combatSkillId: "skill.shadow-cut"
   },
   "class.priest": {
     label: "суворе благословення",
@@ -235,7 +235,7 @@ export const classTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
     techniques: ["arcana", "craft"],
     primaryStat: "intelligence",
     secondaryStat: "charisma",
-    combatSkillId: "skill.hot-spell"
+    combatSkillId: "skill.boiling-filling"
   },
   "class.bureaucramancer": {
     label: "форма 13-Б",

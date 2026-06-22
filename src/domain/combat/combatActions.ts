@@ -24,6 +24,7 @@ export interface CombatAbilityDefinition {
 
 export interface CombatSkillProfile {
   id: string;
+  legacyCooldownIds?: readonly string[];
   damageKind: CombatDamageKind;
   stat: StatKey;
   manaCost: number;
@@ -64,9 +65,22 @@ export function getCombatSkillProfile(classId: string | undefined): CombatSkillP
         monsterDamageReduction: 0
       };
     case "class.mage":
-    case "class.varenyk-mancer":
       return {
         id: "skill.hot-spell",
+        damageKind: "spell",
+        stat: "intelligence",
+        manaCost: 3,
+        cooldownOwnActions: 1,
+        baseDamage: 5,
+        multiplier: 1.2,
+        accuracyBonus: 0.06,
+        critBonus: 0.01,
+        monsterDamageReduction: 0
+      };
+    case "class.varenyk-mancer":
+      return {
+        id: "skill.boiling-filling",
+        legacyCooldownIds: ["skill.hot-spell"],
         damageKind: "spell",
         stat: "intelligence",
         manaCost: 3,
@@ -104,6 +118,19 @@ export function getCombatSkillProfile(classId: string | undefined): CombatSkillP
         monsterDamageReduction: 1
       };
     case "class.rogue":
+      return {
+        id: "skill.shadow-cut",
+        legacyCooldownIds: ["skill.trick-shot"],
+        damageKind: "trick",
+        stat: "dexterity",
+        manaCost: 0,
+        cooldownOwnActions: 1,
+        baseDamage: 4,
+        multiplier: 1.15,
+        accuracyBonus: 0.06,
+        critBonus: 0.08,
+        monsterDamageReduction: 0
+      };
     case "class.ranger":
       return {
         id: "skill.trick-shot",

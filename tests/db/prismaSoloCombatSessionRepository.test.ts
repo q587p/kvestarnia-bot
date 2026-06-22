@@ -184,6 +184,40 @@ describe("PrismaSoloCombatSessionRepository", () => {
           remainingTurns: 1
         }
       },
+      monsterRuntime: {
+        loadoutIds: ["monster.deadline-web"],
+        lastHeroAction: "attack",
+        lastDirectHeroDamage: 7,
+        expiredEffects: [{
+          target: "hero",
+          kind: "bleed",
+          value: 0.22,
+          remainingTargetActivations: 2
+        }],
+        cooldowns: {
+          "monster.deadline-web": {
+            remainingOwnActions: 2
+          }
+        },
+        pendingTelegraph: {
+          abilityId: "monster.tax-breath"
+        },
+        shield: {
+          points: 4
+        },
+        effects: [{
+          kind: "ability-lock",
+          remainingTargetActivations: 1
+        }, {
+          kind: "counter",
+          sourceAbilityId: "monster.salted-oath",
+          value: 0.25,
+          trigger: "on-hero-damaged-monster",
+          triggerId: "monster.salted-oath:counterChance:on-hero-damaged-monster",
+          remainingOwnActivations: 2,
+          charges: 1
+        }]
+      },
       monster: {
         copiedEquipment: [{
           sourceItemId: "item.borrowed-pan",
@@ -206,8 +240,10 @@ describe("PrismaSoloCombatSessionRepository", () => {
         heroOutcome: "inactive",
         monsterOutcome: "hit",
         monsterAction: "skill",
-        monsterSkillId: "skill.forceful-strike",
-        monsterDamageKind: "physical",
+        monsterSkillId: "monster.deadline-web",
+        monsterDamageKind: "trick",
+        monsterEffectText: "мана просіла на 1",
+        monsterTelegraphAbilityId: "monster.tax-breath",
         monsterBarkId: "bark.deadline-spider.early-turn",
         debugTrace: {
           chosenAbilityId: "skill.forceful-strike",
@@ -279,6 +315,21 @@ describe("PrismaSoloCombatSessionRepository", () => {
     expect(mapped?.state?.lastTurn?.action).toBe("skip");
     expect(mapped?.state?.lastTurn?.actionOrigin).toBe("timeout-skip");
     expect(mapped?.state?.lastTurn?.debugTrace?.chosenAbilityId).toBe("skill.forceful-strike");
+    expect(mapped?.state?.turnLog?.[0]).toMatchObject({
+      eventId: "turn:3:timeout-skip",
+      turn: 3,
+      summary: {
+        action: "skip",
+        actionOrigin: "timeout-skip"
+      },
+      hero: {
+        hp: 17,
+        mana: 9
+      },
+      monster: {
+        hp: 21
+      }
+    });
     expect(mapped?.state?.monster.copiedEquipment?.[0]?.sourceItemId).toBe("item.borrowed-pan");
     expect(mapped?.state?.monster.debugTrace?.copiedEquipmentCount).toBe(1);
   });
@@ -599,6 +650,62 @@ function runtimeRoundTripState(): CombatState {
         effectiveMonsterLevel: 3
       }
     },
+    monsterRuntime: {
+      version: 1,
+      rulesVersion: "monster-abilities-v1",
+      aiProfile: "controller",
+      loadoutIds: ["monster.deadline-web"],
+      cooldowns: {
+        "monster.deadline-web": {
+          id: "monster.deadline-web",
+          remainingOwnActions: 2
+        }
+      },
+      onceUsedAbilityIds: ["monster.reopen-case"],
+      lastActionKind: "ability",
+      lastAbilityId: "monster.deadline-web",
+      consecutiveAbilityUses: 1,
+      pendingTelegraph: {
+        abilityId: "monster.tax-breath",
+        announcedAtTurn: 2
+      },
+      shield: {
+        sourceAbilityId: "monster.transparent-report",
+        points: 4
+      },
+      effects: [
+        {
+          id: "monster.deadline-web:1:0",
+          sourceAbilityId: "monster.deadline-web",
+          target: "hero",
+          kind: "ability-lock",
+          value: 1,
+          remainingTargetActivations: 1,
+          charges: 1
+        },
+        {
+          id: "monster.salted-oath:1:1",
+          sourceAbilityId: "monster.salted-oath",
+          target: "monster",
+          kind: "counter",
+          value: 0.25,
+          trigger: "on-hero-damaged-monster",
+          triggerId: "monster.salted-oath:counterChance:on-hero-damaged-monster",
+          remainingOwnActivations: 2,
+          charges: 1
+        }
+      ],
+      expiredEffectIds: ["monster.old-effect"],
+      expiredEffects: [{
+        target: "hero",
+        kind: "bleed",
+        value: 0.22,
+        remainingTargetActivations: 2
+      }],
+      lastHeroAction: "attack",
+      lastDirectHeroDamage: 7,
+      ownActionCount: 1
+    },
     lastTurn: {
       action: "skip",
       actionOrigin: "timeout-skip",
@@ -609,14 +716,37 @@ function runtimeRoundTripState(): CombatState {
       manaSpent: 0,
       critical: false,
       monsterAction: "skill",
-      monsterSkillId: "skill.forceful-strike",
-      monsterDamageKind: "physical",
+      monsterSkillId: "monster.deadline-web",
+      monsterDamageKind: "trick",
+      monsterEffectText: "мана просіла на 1",
+      monsterTelegraphAbilityId: "monster.tax-breath",
       monsterBarkId: "bark.deadline-spider.early-turn",
       debugTrace: {
         legalAbilityIds: ["skill.forceful-strike"],
         chosenAbilityId: "skill.forceful-strike",
         timeoutMode: "skip"
       }
-    }
+    },
+    turnLog: [{
+      eventId: "turn:3:timeout-skip",
+      turn: 3,
+      summary: {
+        action: "skip",
+        actionOrigin: "timeout-skip",
+        heroOutcome: "inactive",
+        monsterOutcome: "hit",
+        heroDamage: 0,
+        monsterDamage: 7,
+        manaSpent: 0,
+        critical: false
+      },
+      hero: {
+        hp: 17,
+        mana: 9
+      },
+      monster: {
+        hp: 21
+      }
+    }]
   };
 }
