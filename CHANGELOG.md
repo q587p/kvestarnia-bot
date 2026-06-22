@@ -14,20 +14,20 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a nullable unique active key so one character can keep one live pending preview per passage while consumed/expired rows remain historical.
 - Added focused service coverage for same-passage sticky previews, expired-token refresh, exact frozen monster consumption and ordinary anti-repeat fallback order.
 - Added remort detail buttons on the memorial board so visible `Реморти Тринадцятки` groups can open a remort-specific level-first board.
-- Added Prisma-backed pending encounter repository coverage for same-passage reuse, distinct passages, consume/expiry races, wrong-owner and stale-version rejection, active-lease conflicts, and wounded re-attack relinking.
+- Added Prisma-backed pending encounter repository coverage for same-passage reuse, distinct passages, consume/expiry races, wrong-owner and stale-version rejection, active-lease conflicts, wounded re-attack relinking, and full-health survivor relinking.
 - Added bounded-history repository coverage proving ordinary anti-repeat scans past newer active, Yeger and adventure sessions instead of starving on the first page.
 
 ### Changed
 - Nyz passage `Атакувати` buttons now carry compact opaque server tokens instead of Telegram-returned encounter seeds.
 - Reopening the same passage before preview expiry returns the same monster and effective level; opening another passage can keep its own pending preview.
 - Passage previews now stay reusable for 93 minutes when not attacked, then expire into a fresh server-owned preview instead of leaving the same monster parked for hours or days.
-- If an ordinary Nyz passage monster survives a lost, fled or expired fight, the same consumed preview token can show that wounded monster again until the original 93-minute trail expires or the monster passively recovers to full HP; re-attacking starts a fresh combat session at the recovered monster HP.
+- If an ordinary Nyz passage monster survives a lost, fled or expired fight, the same consumed preview token can show that same survivor again until the original 93-minute trail expires, even when the player dealt no damage; re-attacking starts a fresh combat session at the monster's recovered HP.
 - Nyz passage preview copy now includes the shown monster's level before the player commits to attacking.
-- Wounded passage previews now show the monster's current recovered HP so fast player recovery can matter before the monster fully heals.
+- Wounded passage previews now show the monster's current recovered HP while it is below full health, so fast player recovery can matter before the wound closes.
 - Pressing an expired, stale or catalog-invalid preview button now refreshes the preview with a short explanation instead of silently starting a different monster.
 - Consuming a pending preview atomically links it to at most one persistent solo combat session; duplicate attack callbacks recover the linked session when available.
 - Pending preview expiry and consumption now use guarded status/version transitions. Stale callers reread the current row instead of overwriting consumed session links or turning duplicate races into new fights.
-- Consumed wounded-trail re-attacks now validate the prior linked terminal non-win session in the same transaction before relinking a fresh combat session.
+- Consumed survivor-trail re-attacks now validate the prior linked terminal non-win session in the same transaction before relinking a fresh combat session.
 - Ordinary Nyz monster selection now checks bounded recent ordinary fight history before choosing: it avoids the immediately previous monster when alternatives exist, avoids the last three distinct monsters when the legal pool is large enough, and falls back to the original deterministic pool for small candidate sets.
 - Legacy seed-shaped passage callbacks no longer select or start a client-chosen monster; they refresh a current server-owned preview instead.
 - Nyz passage preview copy now avoids monster gender pronouns and accusative-name wording until monster grammar metadata is added.

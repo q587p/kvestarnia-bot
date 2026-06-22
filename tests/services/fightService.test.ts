@@ -1224,7 +1224,7 @@ describe("FightService", () => {
     }
   });
 
-  it("rerolls after the consumed passage monster fully heals", async () => {
+  it("keeps a full-health surviving passage monster recoverable before trail expiry", async () => {
     let now = fixedClock();
     const clock = () => now;
     const characters = new FakeCharacterRepository();
@@ -1256,7 +1256,7 @@ describe("FightService", () => {
     if (started.state !== "persistent-active" || !started.session.state) {
       throw new Error("Expected active fight");
     }
-    const woundedState = {
+    const lostState = {
       ...started.session.state,
       status: "lost" as const,
       completedAt: now.toISOString(),
@@ -1266,12 +1266,86 @@ describe("FightService", () => {
       },
       monster: {
         ...started.session.state.monster,
-        hp: 1
+        hp: started.session.state.monster.hpMax
       }
     };
-    await sessions.updateById(started.session.id, { state: woundedState, status: "lost" });
+    await sessions.updateById(started.session.id, { state: lostState, status: "lost" });
 
-    now = addSeconds(fixedClock(), PENDING_PASSAGE_MONSTER_FULL_REGEN_SECONDS + 1);
+    now = addSeconds(fixedClock(), 60);
+    const survivorPreview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+
+    expect(survivorPreview.state).toBe("persistent-preview");
+    if (survivorPreview.state !== "persistent-preview") {
+      throw new Error("Expected full-health survivor preview");
+    }
+    expect(survivorPreview.encounterToken).toBe(preview.encounterToken);
+    expect(survivorPreview.monster.id).toBe(preview.monster.id);
+    expect(survivorPreview.monsterHp).toBeUndefined();
+
+    const restarted = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      survivorPreview.encounterToken
+    );
+
+    expect(restarted.state).toBe("persistent-active");
+    if (restarted.state === "persistent-active") {
+      expect(restarted.monster.id).toBe(preview.monster.id);
+      expect(restarted.session.id).not.toBe(started.session.id);
+      expect(restarted.session.state?.monster.hp).toBe(started.session.state.monster.hpMax);
+    }
+  });
+
+  it("rerolls after the consumed passage trail expires", async () => {
+    let now = fixedClock();
+    const clock = () => now;
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 12, xp: 52 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      clock,
+      sessions,
+      new FakeRandomSource([0.1, 0.2]),
+      undefined,
+      undefined,
+      pending
+    );
+    const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (preview.state !== "persistent-preview") {
+      throw new Error("Expected preview");
+    }
+    const started = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      preview.encounterToken
+    );
+    if (started.state !== "persistent-active" || !started.session.state) {
+      throw new Error("Expected active fight");
+    }
+    const lostState = {
+      ...started.session.state,
+      status: "lost" as const,
+      completedAt: now.toISOString(),
+      hero: {
+        ...started.session.state.hero,
+        hp: 0
+      },
+      monster: {
+        ...started.session.state.monster,
+        hp: started.session.state.monster.hpMax
+      }
+    };
+    await sessions.updateById(started.session.id, { state: lostState, status: "lost" });
+
+    now = new Date(fixedClock().getTime() + PENDING_PASSAGE_ENCOUNTER_TTL_MS + 1);
     const freshPreview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "normal",
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
@@ -1280,7 +1354,6 @@ describe("FightService", () => {
     expect(freshPreview.state).toBe("persistent-preview");
     if (freshPreview.state === "persistent-preview") {
       expect(freshPreview.encounterToken).not.toBe(preview.encounterToken);
-      expect(freshPreview.monsterHp).toBeUndefined();
     }
   });
 

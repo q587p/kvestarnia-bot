@@ -698,7 +698,7 @@ export class FightService {
       originLocationId,
       encounterToken: encounter.token,
       expiresAt: encounter.expiresAt,
-      ...(recoveredEncounter ? { monsterHp: recoveredEncounter.monsterHp } : {}),
+      ...(recoveredEncounter?.monsterHp ? { monsterHp: recoveredEncounter.monsterHp } : {}),
       ...(options.refreshed ? { refreshed: options.refreshed } : {})
     };
   }
@@ -743,11 +743,11 @@ export class FightService {
         };
       }
 
-      const recovered = snapshot.state === "found"
-        ? getRecoverablePassageMonsterHp(snapshot.session, now)
+      const survivingHp = snapshot.state === "found"
+        ? getSurvivingPassageMonsterHp(snapshot.session, now)
         : null;
       if (
-        recovered &&
+        survivingHp &&
         baseMonster &&
         encounter.expiresAt.getTime() > now.getTime() &&
         snapshot.state === "found"
@@ -774,7 +774,7 @@ export class FightService {
           originLocationId: encounter.originLocationId,
           source: "normal",
           now,
-          initialMonsterHp: recovered.current
+          initialMonsterHp: survivingHp.current
         });
         const restarted = await this.pendingPassageEncounters.createSessionForConsumedEncounter(telegramUserId, token, {
           sessionId,
@@ -2531,7 +2531,7 @@ export class FightService {
     now: Date
   ): Promise<{
     encounter: PendingPassageEncounterRecord;
-    monsterHp: { current: number; max: number };
+    monsterHp?: { current: number; max: number };
   } | null> {
     if (!this.pendingPassageEncounters) {
       return null;
@@ -2546,9 +2546,14 @@ export class FightService {
       return null;
     }
 
-    const monsterHp = getRecoverablePassageMonsterHp(consumed.session, now);
+    const monsterHp = getSurvivingPassageMonsterHp(consumed.session, now);
 
-    return monsterHp ? { encounter: consumed.encounter, monsterHp } : null;
+    return monsterHp
+      ? {
+          encounter: consumed.encounter,
+          ...(monsterHp.current < monsterHp.max ? { monsterHp } : {})
+        }
+      : null;
   }
 
   private buildPersistentFightCombatState(input: {
@@ -2973,7 +2978,7 @@ function buildHeroCombatStats(
   };
 }
 
-function getRecoverablePassageMonsterHp(
+function getSurvivingPassageMonsterHp(
   session: SoloCombatSessionRecord,
   now: Date
 ): { current: number; max: number } | null {
@@ -2984,7 +2989,7 @@ function getRecoverablePassageMonsterHp(
 
   const hpMax = Math.max(1, Math.floor(state.monster.hpMax));
   const hpAtEnd = Math.min(hpMax, Math.max(0, Math.floor(state.monster.hp)));
-  if (hpAtEnd <= 0 || hpAtEnd >= hpMax) {
+  if (hpAtEnd <= 0) {
     return null;
   }
 
@@ -2996,7 +3001,7 @@ function getRecoverablePassageMonsterHp(
   );
   const current = Math.min(hpMax, hpAtEnd + restored);
 
-  return current >= hpMax ? null : { current, max: hpMax };
+  return { current, max: hpMax };
 }
 
 function getSessionExpiry(now: Date): Date {

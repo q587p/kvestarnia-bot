@@ -159,6 +159,38 @@ describe("PrismaPendingPassageEncounterRepository integration", () => {
     }, now, relinked.combatSessionId))).resolves.toMatchObject({ state: "not-pending" });
   });
 
+  it("allows a consumed trail re-attack after a full-health monster win", async () => {
+    await seedCharacter(prisma, "user-full-hp-survivor", "character-full-hp-survivor", 9216n);
+    const now = new Date("2026-06-22T10:00:00.000Z");
+    const encounter = await repository.createForTelegramUser(9216n, makeEncounterInput("full-hp-survivor", "location.korchma.deep.level1.left", now));
+    if (!encounter) throw new Error("missing encounter");
+    const consumed = await repository.consumeForTelegramUser(9216n, encounter.token, makeConsumeInput("session-full-hp-original", encounter, now));
+    if (consumed.state !== "consumed") throw new Error("not consumed");
+    await prisma.activeCombatLease.deleteMany({ where: { characterId: "character-full-hp-survivor" } });
+    await prisma.soloCombatSession.update({
+      where: { id: consumed.session.id },
+      data: {
+        status: "lost",
+        stateJson: makeCombatState("session-full-hp-original", encounter, {
+          status: "lost",
+          monsterHp: 18,
+          completedAt: now
+        })
+      }
+    });
+    const current = await repository.findByTokenForTelegramUser(9216n, encounter.token);
+    if (!current?.combatSessionId) throw new Error("missing linked session");
+
+    await expect(
+      repository.createSessionForConsumedEncounter(
+        9216n,
+        encounter.token,
+        makeConsumeInput("session-full-hp-rematch", current, now, current.combatSessionId)
+      )
+    ).resolves.toMatchObject({ state: "consumed" });
+    await expect(prisma.soloCombatSession.count({ where: { characterId: "character-full-hp-survivor" } })).resolves.toBe(2);
+  });
+
   it("leaves the encounter pending when a conflicting active lease blocks session creation", async () => {
     await seedCharacter(prisma, "user-lease", "character-lease", 9207n);
     const now = new Date("2026-06-22T10:00:00.000Z");

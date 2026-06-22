@@ -443,9 +443,8 @@ function isRecoverablePriorSession(
   }
 
   const hp = Math.floor(state.monster.hp);
-  const hpMax = Math.max(1, Math.floor(state.monster.hpMax));
 
-  return hp > 0 && hp < hpMax;
+  return hp > 0;
 }
 
 function normalizeOrigin(value: string | undefined): string {
