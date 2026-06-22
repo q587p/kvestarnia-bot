@@ -177,6 +177,7 @@ export type AdventureLookupResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
   | { state: "active-fight"; character: CharacterSummary; session: SoloCombatSessionRecord }
+  | { state: "combat-blocked"; character: CharacterSummary }
   | { state: "ready"; character: CharacterSummary; offer: AdventureOffer }
   | { state: "already-completed"; character: CharacterSummary };
 
@@ -190,6 +191,7 @@ export type AdventureProblemResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
   | { state: "active-fight"; character: CharacterSummary; session: SoloCombatSessionRecord }
+  | { state: "combat-blocked"; character: CharacterSummary }
   | { state: "stale"; character: CharacterSummary; offer: AdventureOffer }
   | { state: "already-completed"; character: CharacterSummary }
   | {
@@ -204,6 +206,7 @@ export type AdventureResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
   | { state: "active-fight"; character: CharacterSummary; session: SoloCombatSessionRecord }
+  | { state: "combat-blocked"; character: CharacterSummary }
   | { state: "stale"; character: CharacterSummary; offer: AdventureOffer }
   | { state: "already-completed"; character: CharacterSummary }
   | {
@@ -267,6 +270,11 @@ export type AdventureClaimRollbackResult =
   | "unavailable";
 
 export type AdventureClaimIdentity = DailyActionClaimIdentity;
+
+type LiveActiveFightLookup =
+  | { state: "none" }
+  | { state: "unsupported"; kind: string; referenceId: string }
+  | { state: "session"; session: SoloCombatSessionRecord };
 
 export class AdventureService {
   constructor(
@@ -358,11 +366,18 @@ export class AdventureService {
 
     const activeFight = await this.findLiveActiveFight(telegramUserId);
 
-    if (activeFight) {
+    if (activeFight.state === "unsupported") {
+      return {
+        state: "combat-blocked",
+        character: characterSummary
+      };
+    }
+
+    if (activeFight.state === "session") {
       return {
         state: "active-fight",
         character: characterSummary,
-        session: activeFight
+        session: activeFight.session
       };
     }
 
@@ -787,11 +802,18 @@ export class AdventureService {
 
     const activeFight = await this.findLiveActiveFight(telegramUserId);
 
-    if (activeFight) {
+    if (activeFight.state === "unsupported") {
+      return {
+        state: "combat-blocked",
+        character: characterSummary
+      };
+    }
+
+    if (activeFight.state === "session") {
       return {
         state: "active-fight",
         character: characterSummary,
-        session: activeFight
+        session: activeFight.session
       };
     }
 
@@ -818,36 +840,40 @@ export class AdventureService {
 
   private async findLiveActiveFight(
     telegramUserId: bigint
-  ): Promise<SoloCombatSessionRecord | null> {
+  ): Promise<LiveActiveFightLookup> {
     const lookup = await this.combatSessions?.findLeasedByTelegramUserId?.(telegramUserId);
 
-    if (lookup?.state === "active" || lookup?.state === "terminal-pending") {
+    if (lookup?.state === "active") {
       return lookup.session.expiresAt.getTime() <= this.clock().getTime()
-        ? null
-        : lookup.session;
+        ? { state: "none" }
+        : { state: "session", session: lookup.session };
+    }
+
+    if (lookup?.state === "terminal-pending") {
+      return { state: "session", session: lookup.session };
     }
 
     if (lookup?.state === "terminal-completed" || lookup?.state === "terminal-forfeited") {
       await this.combatSessions?.releaseLeaseBySessionId?.(lookup.session.id);
-      return null;
+      return { state: "none" };
     }
 
     if (lookup?.state === "missing-session") {
       await this.combatSessions?.releaseLeaseBySessionId?.(lookup.referenceId);
-      return null;
+      return { state: "none" };
     }
 
     if (lookup?.state === "unsupported") {
-      return null;
+      return { state: "unsupported", kind: lookup.kind, referenceId: lookup.referenceId };
     }
 
     const session = await this.combatSessions?.findActiveByTelegramUserId(telegramUserId);
 
     if (!session || session.expiresAt.getTime() <= this.clock().getTime()) {
-      return null;
+      return { state: "none" };
     }
 
-    return session;
+    return { state: "session", session };
   }
 
   private async getEquippedItemContents(telegramUserId: bigint) {

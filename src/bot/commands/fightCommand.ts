@@ -27,6 +27,7 @@ import { buildEnterKorchmaKeyboard, buildKorchmaDeepKeyboard } from "../keyboard
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
   presentFightAlreadyCompleted,
+  presentFightCombatBlocked,
   presentFightLevelRetired,
   presentFightMonsterRest,
   presentFightNeedsRest,
@@ -131,6 +132,11 @@ export async function sendFight(
 
   if (result.state === "needs-rest") {
     await sendResultText(presentFightNeedsRest(result));
+    return;
+  }
+
+  if (result.state === "combat-blocked") {
+    await sendResultText(presentFightCombatBlocked(result));
     return;
   }
 

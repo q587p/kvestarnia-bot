@@ -277,6 +277,7 @@ export type ProblemQuestProgressLookupResult =
 
 export type FightLookupResult =
   | { state: "no-character" }
+  | ({ state: "combat-blocked"; character: CharacterSummary } & RecoveryNoticeField)
   | ({ state: "level-retired"; character: CharacterSummary; maxLevel: number } & RecoveryNoticeField)
   | ({ state: "needs-rest"; character: CharacterSummary } & RecoveryNoticeField)
   | ({
@@ -320,6 +321,11 @@ export type FightLookupResult =
     } & RecoveryNoticeField)
   | ({ state: "ready"; character: CharacterSummary } & RecoveryNoticeField)
   | ({ state: "already-completed"; character: CharacterSummary; questAvailable: boolean } & RecoveryNoticeField);
+
+type LeasedSoloCombatSessionLookup =
+  | { state: "none" }
+  | { state: "unsupported"; kind: string; referenceId: string }
+  | { state: "session"; session: SoloCombatSessionRecord };
 
 export type FightResult =
   | { state: "no-character" }
@@ -997,14 +1003,22 @@ export class FightService {
     }
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
-    const activeSession = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
+    const leasedSession = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
     const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
-      syncResources: !activeSession
+      syncResources: leasedSession.state === "none"
     });
     const characterSummary = resourceAware.character;
     const recoveryNotice = resourceAware.recoveryNotice;
 
-    if (!activeSession) {
+    if (leasedSession.state === "unsupported") {
+      return {
+        state: "combat-blocked",
+        character: characterSummary,
+        ...(recoveryNotice ? { recoveryNotice } : {})
+      };
+    }
+
+    if (leasedSession.state === "none") {
       if (!questProgress.issued) {
         return {
           state: "persistent-not-issued",
@@ -1032,6 +1046,8 @@ export class FightService {
         ...(recoveryNotice ? { recoveryNotice } : {})
       };
     }
+
+    const activeSession = leasedSession.session;
 
     if (isTrainingDoppelgangerMonsterId(activeSession.monsterId)) {
       return {
@@ -1348,9 +1364,22 @@ export class FightService {
     }
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
-    const activeSession = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
+    const leasedSession = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
 
-    if (activeSession) {
+    if (leasedSession.state === "unsupported") {
+      const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
+        syncResources: false
+      });
+
+      return {
+        state: "combat-blocked",
+        character: resourceAware.character,
+        ...(resourceAware.recoveryNotice ? { recoveryNotice: resourceAware.recoveryNotice } : {})
+      };
+    }
+
+    if (leasedSession.state === "session") {
+      const activeSession = leasedSession.session;
       const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character, {
         syncResources: false
       });
@@ -2184,11 +2213,14 @@ export class FightService {
     }
 
     if (claim.state === "existing") {
-      await this.completeCombatSettlement(session, {
+      const stored = await this.completeCombatSettlement(session, {
         rewardXp: claim.action.rewardXp,
         rewardGold: claim.action.rewardGold,
         itemGrants: []
       });
+      if (stored?.state?.settlement?.status === "forfeited-by-remort") {
+        return null;
+      }
       return {
         state: "already-claimed",
         reward: {
@@ -2208,6 +2240,9 @@ export class FightService {
         rewardGold: claim.action.rewardGold,
         itemGrants: claim.itemGrants
       });
+    if (stored?.state?.settlement?.status === "forfeited-by-remort") {
+      return null;
+    }
 
     return {
       state: "claimed",
@@ -2318,7 +2353,10 @@ export class FightService {
     const replay = buildPersistentFightRewardReplay(session);
 
     if (replay) {
-      await this.completeCombatSettlement(session);
+      const stored = await this.completeCombatSettlement(session);
+      if (stored?.state?.settlement?.status === "forfeited-by-remort") {
+        return null;
+      }
       return replay;
     }
 
@@ -2368,11 +2406,14 @@ export class FightService {
       return claimed;
     }
 
-    await this.completeCombatSettlement(session, {
+    const stored = await this.completeCombatSettlement(session, {
       rewardXp: action.rewardXp,
       rewardGold: action.rewardGold,
       itemGrants: []
     });
+    if (stored?.state?.settlement?.status === "forfeited-by-remort") {
+      return null;
+    }
 
     return {
       state: "already-claimed",
@@ -2495,15 +2536,17 @@ export class FightService {
   private async findLeasedSoloCombatSessionForTelegramUser(
     telegramUserId: bigint,
     attempts = 0
-  ): Promise<SoloCombatSessionRecord | null> {
+  ): Promise<LeasedSoloCombatSessionLookup> {
     const lookup = await this.combatSessions?.findLeasedByTelegramUserId?.(telegramUserId);
 
     if (!lookup) {
-      return this.combatSessions?.findActiveByTelegramUserId(telegramUserId) ?? null;
+      const session = await this.combatSessions?.findActiveByTelegramUserId(telegramUserId);
+
+      return session ? { state: "session", session } : { state: "none" };
     }
 
     if (lookup.state === "active" || lookup.state === "terminal-pending") {
-      return lookup.session;
+      return { state: "session", session: lookup.session };
     }
 
     if (lookup.state === "terminal-completed" || lookup.state === "terminal-forfeited") {
@@ -2511,13 +2554,15 @@ export class FightService {
     } else if (lookup.state === "missing-session") {
       await this.combatSessions?.releaseLeaseBySessionId?.(lookup.referenceId);
     } else if (lookup.state === "unsupported") {
-      return null;
+      return { state: "unsupported", kind: lookup.kind, referenceId: lookup.referenceId };
     } else {
-      return null;
+      const session = await this.combatSessions?.findActiveByTelegramUserId(telegramUserId);
+
+      return session ? { state: "session", session } : { state: "none" };
     }
 
     return attempts >= 1
-      ? null
+      ? { state: "none" }
       : this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId, attempts + 1);
   }
 
@@ -2539,13 +2584,37 @@ export class FightService {
       return "completed";
     }
 
+    if (session.state.settlement?.resources?.status === "applied") {
+      const shouldFinalizeSettlement =
+        options.finalizeSettlement ??
+        (session.state.status !== "won" && session.state.status !== "lost");
+
+      if (shouldFinalizeSettlement) {
+        await this.completeCombatSettlement(session);
+      }
+
+      return "completed";
+    }
+
     const life = expectedLife ?? await this.resolveSessionExpectedLife(session);
+    const appliedAt = getTerminalResourceSettlementDate(session);
+    const currentCharacter = await this.characters.findByTelegramUserId(telegramUserId);
     const updated = await this.characters.updateResourcesForTelegramUser?.(telegramUserId, {
       hpCurrent: session.state.hero.hp,
       manaCurrent: session.state.hero.mana,
-      hpRegenAt: this.clock(),
-      manaRegenAt: this.clock(),
-      ...(life ? { expectedLife: life } : {})
+      hpRegenAt: appliedAt,
+      manaRegenAt: appliedAt,
+      ...(life ? { expectedLife: life } : {}),
+      ...(currentCharacter
+        ? {
+            expected: {
+              hpCurrent: currentCharacter.hpCurrent,
+              manaCurrent: currentCharacter.manaCurrent,
+              hpRegenAt: currentCharacter.hpRegenAt ?? null,
+              manaRegenAt: currentCharacter.manaRegenAt ?? null
+            }
+          }
+        : {})
     });
 
     if (!updated && life) {
@@ -2553,12 +2622,24 @@ export class FightService {
       return "forfeited";
     }
 
+    if (!updated) {
+      return "skipped";
+    }
+
+    const markedState = markTerminalResourcesApplied(session.state, appliedAt);
+    const markedSession =
+      await this.combatSessions?.updateById(session.id, {
+        state: markedState,
+        status: markedState.status
+      });
+    const settlementSession = markedSession ?? { ...session, state: markedState };
+
     const shouldFinalizeSettlement =
       options.finalizeSettlement ??
       (session.state.status !== "won" && session.state.status !== "lost");
 
     if (shouldFinalizeSettlement) {
-      await this.completeCombatSettlement(session);
+      await this.completeCombatSettlement(settlementSession);
     }
 
     return "completed";
@@ -3233,6 +3314,42 @@ function withNextTurnExpiry(state: CombatState, now: Date): CombatState {
 
 function isExpired(session: SoloCombatSessionRecord, now: Date): boolean {
   return session.expiresAt.getTime() <= now.getTime();
+}
+
+function getTerminalResourceSettlementDate(session: SoloCombatSessionRecord): Date {
+  return parseStoredDate(session.state?.settlement?.resources?.appliedAt) ??
+    parseStoredDate(session.state?.completedAt) ??
+    session.updatedAt;
+}
+
+function markTerminalResourcesApplied(
+  state: CombatState,
+  appliedAt: Date
+): CombatState {
+  return {
+    ...state,
+    settlement: {
+      ...(state.settlement ?? { status: "pending" as const, version: 1 }),
+      resources: {
+        status: "applied",
+        appliedAt: appliedAt.toISOString(),
+        hpCurrent: state.hero.hp,
+        manaCurrent: state.hero.mana,
+        hpRegenAt: appliedAt.toISOString(),
+        manaRegenAt: appliedAt.toISOString()
+      }
+    }
+  };
+}
+
+function parseStoredDate(value: string | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function stampCombatCompletedAt(state: CombatState, now: Date): CombatState {

@@ -207,6 +207,32 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     })).resolves.toBe(1);
   });
 
+  it("propagates duplicate session-id unique conflicts instead of treating them as lease races", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-duplicate-session-id",
+      characterId: "character-duplicate-session-id",
+      telegramUserId: 4258n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeSoloSessionData({
+        id: "duplicate-session-id",
+        characterId: "character-duplicate-session-id",
+        monsterId: "monster.deadline-spider",
+        status: "expired",
+        source: "normal",
+        completedAt: new Date("2026-06-22T10:20:00.000Z"),
+        updatedAt: new Date("2026-06-22T10:20:00.000Z")
+      })
+    });
+
+    await expect(repository.createForTelegramUser(
+      4258n,
+      makeCreateInput("duplicate-session-id", "monster.preapproval-dragonling")
+    )).rejects.toMatchObject({
+      code: "P2002"
+    });
+  });
+
   it("guards settlement completion and forfeit so a stale copy cannot overwrite the winner", async () => {
     await seedCharacter(prisma, {
       userId: "user-settlement-race",

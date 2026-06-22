@@ -24,6 +24,7 @@ import type {
 import type {
   CreateSoloCombatSessionInput,
   RecordSoloCombatRewardInput,
+  SoloCombatLeaseLookupResult,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository,
   UpdateSoloCombatSessionInput
@@ -91,6 +92,24 @@ describe("TrainingDoppelgangerService", () => {
         { mode: "copy-target" },
         { mode: "random-build" }
       ]
+    });
+    expect(world.sessions.size).toBe(0);
+  });
+
+  it("blocks training start under an unsupported active combat lease", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    world.leaseLookup = {
+      state: "unsupported",
+      kind: "turn-duel",
+      referenceId: "duel-session"
+    };
+    const service = buildService(world);
+
+    const result = await service.getStartOptionsForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "another-fight-active"
     });
     expect(world.sessions.size).toBe(0);
   });
@@ -391,6 +410,75 @@ describe("TrainingDoppelgangerService", () => {
     expect(world.resourceMutations).toBe(1);
   });
 
+  it("repairs a missing cooldown when XP was committed before training settlement completion", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId, { hpCurrent: 10 });
+    const session = makeTerminalTrainingSession("training-crash-after-xp", "won");
+    world.sessions.set(session.id, session);
+    world.actions.set(`${TRAINING_DOPPELGANGER_REWARD_KEY}:${session.id}`, {
+      id: "action-crash-after-xp",
+      characterId: session.characterId,
+      key: TRAINING_DOPPELGANGER_REWARD_KEY,
+      localDate: session.id,
+      rewardXp: 13,
+      rewardGold: 0,
+      spentGold: 0,
+      resultJson: null,
+      createdAt: fixedNow()
+    });
+    const service = buildService(world);
+
+    const result = await service.getStartOptionsForTelegramUser(telegramUserId);
+
+    expect(result.state).toBe("terminal");
+    expect(world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)).toBeDefined();
+    expect(world.sessions.get(session.id)?.reward).toMatchObject({ xp: 13, gold: 0 });
+    const settlement = world.sessions.get(session.id)?.state?.settlement;
+    expect(settlement).toMatchObject({
+      status: "completed",
+      training: {}
+    });
+    expect(typeof settlement?.training?.availableAt).toBe("string");
+    expect(typeof settlement?.training?.cooldownClaimedAt).toBe("string");
+  });
+
+  it("does not extend an already-claimed training cooldown during duplicate recovery", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId, { hpCurrent: 10 });
+    const session = makeTerminalTrainingSession("training-crash-after-cooldown", "lost");
+    world.sessions.set(session.id, session);
+    world.actions.set(`${TRAINING_DOPPELGANGER_REWARD_KEY}:${session.id}`, {
+      id: "action-crash-after-cooldown",
+      characterId: session.characterId,
+      key: TRAINING_DOPPELGANGER_REWARD_KEY,
+      localDate: session.id,
+      rewardXp: 7,
+      rewardGold: 0,
+      spentGold: 0,
+      resultJson: null,
+      createdAt: fixedNow()
+    });
+    world.cooldowns.set(TRAINING_DOPPELGANGER_COOLDOWN_KEY, {
+      id: "cooldown-crash-after-cooldown",
+      characterId: session.characterId,
+      key: TRAINING_DOPPELGANGER_COOLDOWN_KEY,
+      availableAt: new Date("2026-06-17T10:13:00.000Z"),
+      resultJson: null,
+      updatedAt: new Date("2026-06-17T09:31:00.000Z")
+    });
+    const service = buildService(world);
+
+    await service.getStartOptionsForTelegramUser(telegramUserId);
+    const firstAvailableAt = world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)?.availableAt.toISOString();
+    await service.getStartOptionsForTelegramUser(telegramUserId);
+
+    expect(world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)?.availableAt.toISOString()).toBe(
+      firstAvailableAt
+    );
+    expect(world.sessions.get(session.id)?.state?.settlement?.status).toBe("completed");
+    expect(world.sessions.get(session.id)?.reward).toMatchObject({ xp: 7, gold: 0 });
+  });
+
   it("replays a scheduled terminal reward without granting XP or cooldown twice", async () => {
     const world = new FakeWorld();
     world.addCharacter(telegramUserId);
@@ -582,6 +670,54 @@ function buildService(
   );
 }
 
+function makeTerminalTrainingSession(
+  id: string,
+  status: "won" | "lost"
+): SoloCombatSessionRecord {
+  const completedAt = new Date("2026-06-17T09:30:00.000Z");
+
+  return {
+    id,
+    characterId: `character-${telegramUserId.toString()}`,
+    monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
+    status: "active",
+    turn: 3,
+    state: {
+      id,
+      source: "training",
+      life: {
+        characterId: `character-${telegramUserId.toString()}`,
+        remortCount: 0,
+        startedAt: new Date("2026-06-17T09:20:00.000Z").toISOString()
+      },
+      settlement: {
+        status: "pending",
+        version: 1
+      },
+      completedAt: completedAt.toISOString(),
+      turn: 3,
+      status,
+      hero: {
+        hp: status === "won" ? 8 : 0,
+        hpMax: 66,
+        mana: 20,
+        manaMax: 32
+      },
+      monster: {
+        id: TRAINING_DOPPELGANGER_MONSTER_ID,
+        name: "Сумлінний Допельґанґер",
+        level: 9,
+        hp: status === "won" ? 0 : 12,
+        hpMax: 42
+      }
+    },
+    reward: null,
+    createdAt: new Date("2026-06-17T09:20:00.000Z"),
+    updatedAt: completedAt,
+    expiresAt: new Date("2026-06-17T09:25:00.000Z")
+  };
+}
+
 class FakeChampionSource implements TrainingDoppelgangerChampionSource {
   constructor(private readonly records: ResolvedDuelChallengeRecord[]) {}
 
@@ -659,6 +795,7 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
   readonly cooldowns = new Map<string, CharacterCooldownRecord>();
   readonly actions = new Map<string, DailyActionRecord>();
   readonly sessions = new Map<string, SoloCombatSessionRecord>();
+  leaseLookup: SoloCombatLeaseLookupResult | null = null;
   resourceMutations = 0;
 
   addCharacter(userTelegramId: bigint, overrides: Partial<CharacterRecord> = {}): void {
@@ -888,6 +1025,10 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
     return Promise.resolve(
       [...this.sessions.values()].find((session) => session.status === "active") ?? null
     );
+  }
+
+  findLeasedByTelegramUserId(): Promise<SoloCombatLeaseLookupResult> {
+    return Promise.resolve(this.leaseLookup ?? { state: "none" });
   }
 
   countWonByTelegramUserId(

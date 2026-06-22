@@ -158,6 +158,17 @@ export function presentPersistentFightPassagePreview(
   ].join("\n");
 }
 
+export function presentFightCombatBlocked(
+  result: Extract<FightLookupResult, { state: "combat-blocked" }>
+): string {
+  return [
+    "⚔️ <b>Бій уже тримає місце</b>",
+    presentCharacterHeader(result.character),
+    "",
+    "Спершу завершіть поточну бійку. Корчма не ставить другий стіл на той самий лікоть."
+  ].join("\n");
+}
+
 function getPassagePreviewRefreshLine(reason: Extract<PersistentFightPreviewResult, { state: "persistent-preview" }>["refreshed"]): string | null {
   switch (reason) {
     case "expired":

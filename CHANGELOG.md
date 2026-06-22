@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.23] - 12026-06-22 - Encounter Preview Memory and Anti-Repetition
+## [0.1.23] - 12026-06-23 - Encounter Preview Memory and Anti-Repetition
 
 ### Added
 - Added durable `pending_passage_encounters` storage for ordinary Nyz passage previews. Each pending row stores a server-owned token, character ownership, passage/origin, difficulty, frozen monster ID, frozen base/effective levels, rules version, seed metadata, expiry and consumed combat-session link.
@@ -35,6 +35,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Remort-specific memorial details now treat `Реморт N` as the life after remort N: level 1 comes from that remort ledger start, level rows ignore base-life milestones before it, and level 13 can be derived from the next remort completion when milestone rows are not available.
 
 ### Fixed
+- Terminal ordinary and training fight settlement now stores durable resource/training substeps before final completion, so crash/replay recovery can finish rewards without spending HP/mana recovery anchors or training cooldowns twice.
 - Post-remort level milestones now use remort-specific daily-action keys instead of reusing base-life `milestone.level.N` keys, so remort detail boards can show levels 2-13 reached in the current life.
 - Memorial-board backfill now writes missing current-life remort milestones separately from base-life milestones, so already-remorted characters who have climbed again are no longer stuck showing only the remort's level 1 row.
 - Memorial-board remort detail rows now deduplicate legacy and backfilled milestone rows for the same character/level, preferring real recorded rows and preserving provenance in `daily_actions.resultJson`.
@@ -42,6 +43,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Passage attack callbacks are now bound to the server-owned encounter and the player's current passage location; old buttons from another passage refresh the current place instead of moving presence or starting combat.
 - Active persistent fight cards now repeat the fight header, opponent name and monster level, and show the start tip on the card that keeps the combat buttons.
 - Successful remort during active solo or training combat now canonically expires the old session, releases the active combat lease and cancels live pending/consumed passage trails without granting combat rewards or overwriting the new-life starter HP/mana; unsupported turn-based duel leases still block remort without mutation.
+- Ordinary fight, training and Adventure entry points now preserve unsupported active combat leases as blockers instead of treating them as no fight; terminal pending sessions remain recoverable even after wall-clock expiry.
 
 ### Unchanged
 - Yeger targeted encounters, adventure handoff fights, training doppelgangers, starter fights, monster ability loadouts, timeout auto-defend and reward/Yeger progression rules are unchanged.

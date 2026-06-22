@@ -1742,7 +1742,7 @@ describe("FightService", () => {
       expect(overview.session.state?.status).toBe("expired");
       expect(overview.session.state?.settlement?.status).toBe("completed");
     }
-    expect(sessions.updateCount).toBe(2);
+    expect(sessions.updateCount).toBe(3);
     expect(dailyActions.createCount).toBe(0);
   });
 
@@ -1789,7 +1789,7 @@ describe("FightService", () => {
         completed: false
       });
     }
-    expect(sessions.updateCount).toBe(1);
+    expect(sessions.updateCount).toBe(2);
     const rewardRecords = dailyActions.records.filter(
       (record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY
     );
@@ -1805,6 +1805,12 @@ describe("FightService", () => {
       manaCurrent: result.state === "updated" ? result.session.state?.hero.mana : undefined
     });
     expect(characters.resourceUpdateCount).toBeGreaterThan(0);
+    expect(sessions.getById(started.session.id)?.state?.settlement?.resources).toMatchObject({
+      status: "applied",
+      appliedAt: "2026-06-12T10:30:00.000Z"
+    });
+    const resourceUpdateCountAfterClaim = characters.resourceUpdateCount;
+    const characterAfterClaim = await characters.findByTelegramUserId(telegramUserId);
 
     const repeated = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: started.session.id,
@@ -1824,6 +1830,11 @@ describe("FightService", () => {
         }
       });
     }
+    expect(characters.resourceUpdateCount).toBe(resourceUpdateCountAfterClaim);
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      hpRegenAt: characterAfterClaim?.hpRegenAt,
+      manaRegenAt: characterAfterClaim?.manaRegenAt
+    });
     expect(rewardRecords).toHaveLength(1);
   });
 

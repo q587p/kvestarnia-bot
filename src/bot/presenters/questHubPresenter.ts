@@ -91,7 +91,7 @@ function presentAdventureArchiveRows(
     ];
   }
 
-  if (adventure.state === "active-fight") {
+  if (adventure.state === "active-fight" || adventure.state === "combat-blocked") {
     return [];
   }
 

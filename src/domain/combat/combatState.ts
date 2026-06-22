@@ -181,6 +181,22 @@ export interface CombatSettlementState {
   settledAt?: string;
   reason?: CombatSettlementReason;
   version?: number;
+  resources?: CombatResourceSettlementState;
+  training?: CombatTrainingSettlementState;
+}
+
+export interface CombatResourceSettlementState {
+  status: "applied";
+  appliedAt: string;
+  hpCurrent: number;
+  manaCurrent: number;
+  hpRegenAt: string;
+  manaRegenAt: string;
+}
+
+export interface CombatTrainingSettlementState {
+  availableAt?: string;
+  cooldownClaimedAt?: string;
 }
 
 export interface CombatMessageReference {
@@ -298,7 +314,17 @@ export function cloneCombatState(state: CombatState): CombatState {
     ...(state.id ? { id: state.id } : {}),
     ...(state.source ? { source: state.source } : {}),
     ...(state.life ? { life: { ...state.life } } : {}),
-    ...(state.settlement ? { settlement: { ...state.settlement } } : {}),
+    ...(state.settlement
+      ? {
+          settlement: {
+            ...state.settlement,
+            ...(state.settlement.resources
+              ? { resources: { ...state.settlement.resources } }
+              : {}),
+            ...(state.settlement.training ? { training: { ...state.settlement.training } } : {})
+          }
+        }
+      : {}),
     ...(state.originLocationId ? { originLocationId: state.originLocationId } : {}),
     ...(state.completedAt ? { completedAt: state.completedAt } : {}),
     ...(state.turnExpiresAt ? { turnExpiresAt: state.turnExpiresAt } : {}),
@@ -366,14 +392,16 @@ export function markCombatSettlementCompleted(state: CombatState, now: Date): Co
   if (state.settlement?.status === "completed") {
     return cloneCombatState(state);
   }
+  const current = state.settlement;
 
   return {
     ...cloneCombatState(state),
     settlement: {
+      ...current,
       status: "completed",
       settledAt: now.toISOString(),
       reason: "terminal",
-      version: 1
+      version: current?.version ?? 1
     }
   };
 }
@@ -386,14 +414,16 @@ export function markCombatSettlementForfeitedByRemort(
   if (state.settlement?.status === "forfeited-by-remort") {
     return cloneCombatState(state);
   }
+  const current = state.settlement;
 
   return {
     ...cloneCombatState(state),
     settlement: {
+      ...current,
       status: "forfeited-by-remort",
       settledAt: now.toISOString(),
       reason,
-      version: 1
+      version: current?.version ?? 1
     }
   };
 }

@@ -146,6 +146,11 @@ export type TrainingDoppelgangerTimeoutResult =
       reward: TrainingDoppelgangerRewardClaim | null;
     };
 
+type LeasedSoloCombatSessionLookup =
+  | { state: "none" }
+  | { state: "unsupported"; kind: string; referenceId: string }
+  | { state: "session"; session: SoloCombatSessionRecord };
+
 export interface TrainingCombatMessageReferenceInput {
   chatId: string;
   messageId: number;
@@ -664,9 +669,14 @@ export class TrainingDoppelgangerService {
       };
     }
 
-    const activeSession = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
+    const leasedSession = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
 
-    if (activeSession) {
+    if (leasedSession.state === "unsupported") {
+      return { state: "blocked", result: { state: "another-fight-active", character } };
+    }
+
+    if (leasedSession.state === "session") {
+      const activeSession = leasedSession.session;
       if (!isTrainingDoppelgangerMonsterId(activeSession.monsterId)) {
         return { state: "blocked", result: { state: "another-fight-active", character } };
       }
@@ -807,15 +817,17 @@ export class TrainingDoppelgangerService {
   private async findLeasedSoloCombatSessionForTelegramUser(
     telegramUserId: bigint,
     attempts = 0
-  ): Promise<SoloCombatSessionRecord | null> {
+  ): Promise<LeasedSoloCombatSessionLookup> {
     const lookup = await this.combatSessions.findLeasedByTelegramUserId?.(telegramUserId);
 
     if (!lookup) {
-      return this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+      const session = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+
+      return session ? { state: "session", session } : { state: "none" };
     }
 
     if (lookup.state === "active" || lookup.state === "terminal-pending") {
-      return lookup.session;
+      return { state: "session", session: lookup.session };
     }
 
     if (lookup.state === "terminal-completed" || lookup.state === "terminal-forfeited") {
@@ -823,13 +835,15 @@ export class TrainingDoppelgangerService {
     } else if (lookup.state === "missing-session") {
       await this.combatSessions.releaseLeaseBySessionId?.(lookup.referenceId);
     } else if (lookup.state === "unsupported") {
-      return null;
+      return { state: "unsupported", kind: lookup.kind, referenceId: lookup.referenceId };
     } else {
-      return null;
+      const session = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+
+      return session ? { state: "session", session } : { state: "none" };
     }
 
     return attempts >= 1
-      ? null
+      ? { state: "none" }
       : this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId, attempts + 1);
   }
 
@@ -851,6 +865,16 @@ export class TrainingDoppelgangerService {
       };
     }
 
+    if (session.state.status !== "active") {
+      return {
+        state: "terminal",
+        character,
+        doppelganger: buildDoppelgangerCopy(character, session.state),
+        session,
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, session)
+      };
+    }
+
     if (session.expiresAt <= this.clock()) {
       const expiredState = expireCombat(session.state);
       const expired = await this.combatSessions.updateById(session.id, {
@@ -865,16 +889,6 @@ export class TrainingDoppelgangerService {
         doppelganger: buildDoppelgangerCopy(character, session.state),
         session: terminalSession,
         reward: null
-      };
-    }
-
-    if (session.state.status !== "active") {
-      return {
-        state: "terminal",
-        character,
-        doppelganger: buildDoppelgangerCopy(character, session.state),
-        session,
-        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, session)
       };
     }
 
@@ -937,7 +951,19 @@ export class TrainingDoppelgangerService {
     const replay = buildRewardReplay(session);
 
     if (replay) {
-      await this.completeCombatSettlement(session);
+      const cooldown = await this.ensureTrainingRecoveryCooldown(
+        telegramUserId,
+        character,
+        session,
+        expectedLife
+      );
+      if (!cooldown) {
+        return null;
+      }
+      const stored = await this.completeCombatSettlement(cooldown.session);
+      if (stored?.state?.settlement?.status === "forfeited-by-remort") {
+        return null;
+      }
       return replay;
     }
 
@@ -969,11 +995,23 @@ export class TrainingDoppelgangerService {
     }
 
     if (claim.state === "existing") {
-      await this.completeCombatSettlement(session, {
+      const cooldown = await this.ensureTrainingRecoveryCooldown(
+        telegramUserId,
+        character,
+        session,
+        expectedLife
+      );
+      if (!cooldown) {
+        return null;
+      }
+      const stored = await this.completeCombatSettlement(cooldown.session, {
         rewardXp: claim.action.rewardXp,
         rewardGold: 0,
         itemGrants: []
       });
+      if (stored?.state?.settlement?.status === "forfeited-by-remort") {
+        return null;
+      }
       return {
         state: "already-claimed",
         reward: {
@@ -981,38 +1019,29 @@ export class TrainingDoppelgangerService {
           gold: 0,
           localDate: claim.action.localDate
         },
-        availableAt: null,
+        availableAt: cooldown.availableAt,
         now: this.clock(),
         levelChange: null
       };
     }
 
-    const availableAt = new Date(
-      this.clock().getTime() +
-        getTrainingDoppelgangerRecoveryMs({
-          character,
-          doppelgangerHp: session.state?.monster.hp ?? 0,
-          doppelgangerHpMax: session.state?.monster.hpMax ?? character.hpMax
-        })
+    const cooldown = await this.ensureTrainingRecoveryCooldown(
+      telegramUserId,
+      character,
+      session,
+      expectedLife
     );
-    const cooldownClaim = await this.cooldowns.claimRewardForTelegramUser(telegramUserId, {
-      key: TRAINING_DOPPELGANGER_COOLDOWN_KEY,
-      now: this.clock(),
-      availableAt,
-      rewardXp: 0,
-      rewardGold: 0,
-      itemGrants: [],
-      ...(expectedLife ? { expectedLife } : {})
-    });
-    if (!cooldownClaim && expectedLife) {
-      await this.forfeitCombatSettlement(session, "life-mismatch");
+    if (!cooldown) {
       return null;
     }
-    const stored = await this.completeCombatSettlement(session, {
+    const stored = await this.completeCombatSettlement(cooldown.session, {
       rewardXp: claim.action.rewardXp,
       rewardGold: 0,
       itemGrants: []
     });
+    if (stored?.state?.settlement?.status === "forfeited-by-remort") {
+      return null;
+    }
 
     return {
       state: stored ? "claimed" : "already-claimed",
@@ -1021,7 +1050,7 @@ export class TrainingDoppelgangerService {
         gold: 0,
         localDate: claim.action.localDate
       },
-      availableAt,
+      availableAt: cooldown.availableAt,
       now: this.clock(),
       levelChange: claim.levelChange
     };
@@ -1034,7 +1063,23 @@ export class TrainingDoppelgangerService {
     const replay = buildRewardReplay(session);
 
     if (replay) {
-      await this.completeCombatSettlement(session);
+      const character = await this.characters.findByTelegramUserId(telegramUserId);
+      if (!character) {
+        return null;
+      }
+      const cooldown = await this.ensureTrainingRecoveryCooldown(
+        telegramUserId,
+        summarizeCharacter(character),
+        session,
+        await this.resolveSessionExpectedLife(session)
+      );
+      if (!cooldown) {
+        return null;
+      }
+      const stored = await this.completeCombatSettlement(cooldown.session);
+      if (stored?.state?.settlement?.status === "forfeited-by-remort") {
+        return null;
+      }
       return replay;
     }
 
@@ -1047,7 +1092,25 @@ export class TrainingDoppelgangerService {
       return null;
     }
 
-    await this.completeCombatSettlement(session);
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    if (!character) {
+      return null;
+    }
+    const expectedLife = await this.resolveSessionExpectedLife(session);
+    const cooldown = await this.ensureTrainingRecoveryCooldown(
+      telegramUserId,
+      summarizeCharacter(character),
+      session,
+      expectedLife
+    );
+    if (!cooldown) {
+      return null;
+    }
+
+    const stored = await this.completeCombatSettlement(cooldown.session);
+    if (stored?.state?.settlement?.status === "forfeited-by-remort") {
+      return null;
+    }
 
     return {
       state: "already-claimed",
@@ -1056,9 +1119,81 @@ export class TrainingDoppelgangerService {
         gold: 0,
         localDate: action.localDate
       },
-      availableAt: null,
+      availableAt: cooldown.availableAt,
       now: this.clock(),
       levelChange: null
+    };
+  }
+
+  private async ensureTrainingRecoveryCooldown(
+    telegramUserId: bigint,
+    character: CharacterSummary,
+    session: SoloCombatSessionRecord,
+    expectedLife?: { remortCount: number }
+  ): Promise<{ availableAt: Date; session: SoloCombatSessionRecord } | null> {
+    if (!session.state) {
+      return null;
+    }
+
+    const availableAt = getTrainingRecoveryAvailableAt(session, character);
+    const current = await this.cooldowns.findForTelegramUser(
+      telegramUserId,
+      TRAINING_DOPPELGANGER_COOLDOWN_KEY
+    );
+
+    if (!current) {
+      return null;
+    }
+
+    if (expectedLife && (current.character.remortCount ?? 0) !== expectedLife.remortCount) {
+      await this.forfeitCombatSettlement(session, "life-mismatch");
+      return null;
+    }
+
+    const activeCooldown = current.cooldown && current.cooldown.availableAt > this.clock()
+      ? current.cooldown
+      : null;
+    const cooldownClaim = activeCooldown
+      ? {
+          state: "on-cooldown" as const,
+          cooldown: activeCooldown,
+          character: current.character
+        }
+      : await this.cooldowns.claimRewardForTelegramUser(telegramUserId, {
+          key: TRAINING_DOPPELGANGER_COOLDOWN_KEY,
+          now: this.clock(),
+          availableAt,
+          rewardXp: 0,
+          rewardGold: 0,
+          itemGrants: [],
+          ...(expectedLife ? { expectedLife } : {})
+        });
+
+    if (!cooldownClaim) {
+      if (expectedLife) {
+        await this.forfeitCombatSettlement(session, "life-mismatch");
+      }
+      return null;
+    }
+
+    if (cooldownClaim.state === "insufficient-gold") {
+      throw new Error("Training doppelganger cooldown unexpectedly required gold.");
+    }
+
+    const cooldownAvailableAt = cooldownClaim.cooldown.availableAt;
+    const markedState = markTrainingCooldownSettled(
+      session.state,
+      availableAt,
+      cooldownClaim.cooldown.updatedAt
+    );
+    const markedSession = await this.combatSessions.updateById(session.id, {
+      state: markedState,
+      status: markedState.status
+    });
+
+    return {
+      availableAt: cooldownAvailableAt,
+      session: markedSession ?? { ...session, state: markedState }
     };
   }
 
@@ -1088,13 +1223,37 @@ export class TrainingDoppelgangerService {
       return "completed";
     }
 
+    if (session.state.settlement?.resources?.status === "applied") {
+      const shouldFinalizeSettlement =
+        options.finalizeSettlement ??
+        (session.state.status !== "won" && session.state.status !== "lost");
+
+      if (shouldFinalizeSettlement) {
+        await this.completeCombatSettlement(session);
+      }
+
+      return "completed";
+    }
+
     const life = expectedLife ?? await this.resolveSessionExpectedLife(session);
+    const appliedAt = getTerminalResourceSettlementDate(session);
+    const currentCharacter = await this.characters.findByTelegramUserId(telegramUserId);
     const updated = await this.characters.updateResourcesForTelegramUser?.(telegramUserId, {
       hpCurrent: session.state.hero.hp,
       manaCurrent: session.state.hero.mana,
-      hpRegenAt: this.clock(),
-      manaRegenAt: this.clock(),
-      ...(life ? { expectedLife: life } : {})
+      hpRegenAt: appliedAt,
+      manaRegenAt: appliedAt,
+      ...(life ? { expectedLife: life } : {}),
+      ...(currentCharacter
+        ? {
+            expected: {
+              hpCurrent: currentCharacter.hpCurrent,
+              manaCurrent: currentCharacter.manaCurrent,
+              hpRegenAt: currentCharacter.hpRegenAt ?? null,
+              manaRegenAt: currentCharacter.manaRegenAt ?? null
+            }
+          }
+        : {})
     });
 
     if (!updated && life) {
@@ -1102,12 +1261,23 @@ export class TrainingDoppelgangerService {
       return "forfeited";
     }
 
+    if (!updated) {
+      return "skipped";
+    }
+
+    const markedState = markTerminalResourcesApplied(session.state, appliedAt);
+    const markedSession = await this.combatSessions.updateById(session.id, {
+      state: markedState,
+      status: markedState.status
+    });
+    const settlementSession = markedSession ?? { ...session, state: markedState };
+
     const shouldFinalizeSettlement =
       options.finalizeSettlement ??
       (session.state.status !== "won" && session.state.status !== "lost");
 
     if (shouldFinalizeSettlement) {
-      await this.completeCombatSettlement(session);
+      await this.completeCombatSettlement(settlementSession);
     }
 
     return "completed";
@@ -1272,6 +1442,45 @@ function buildRewardReplay(
   };
 }
 
+function getTrainingRecoveryAvailableAt(
+  session: SoloCombatSessionRecord,
+  character: CharacterSummary
+): Date {
+  const stored = parseStoredDate(session.state?.settlement?.training?.availableAt);
+  if (stored) {
+    return stored;
+  }
+
+  const completedAt = parseStoredDate(session.state?.completedAt) ?? session.updatedAt;
+
+  return new Date(
+    completedAt.getTime() +
+      getTrainingDoppelgangerRecoveryMs({
+        character,
+        doppelgangerHp: session.state?.monster.hp ?? 0,
+        doppelgangerHpMax: session.state?.monster.hpMax ?? character.hpMax
+      })
+  );
+}
+
+function markTrainingCooldownSettled(
+  state: NonNullable<SoloCombatSessionRecord["state"]>,
+  availableAt: Date,
+  cooldownClaimedAt: Date
+): NonNullable<SoloCombatSessionRecord["state"]> {
+  return {
+    ...state,
+    settlement: {
+      ...(state.settlement ?? { status: "pending" as const, version: 1 }),
+      training: {
+        ...state.settlement?.training,
+        availableAt: availableAt.toISOString(),
+        cooldownClaimedAt: cooldownClaimedAt.toISOString()
+      }
+    }
+  };
+}
+
 function getTrainingSessionExpiry(now: Date): Date {
   return new Date(now.getTime() + 30 * 60 * 1000);
 }
@@ -1282,6 +1491,42 @@ function getTrainingTurnExpiry(now: Date): Date {
 
 function isTrainingTurnExpired(state: SoloCombatSessionRecord["state"], now: Date): boolean {
   return Boolean(state?.turnExpiresAt && Date.parse(state.turnExpiresAt) <= now.getTime());
+}
+
+function getTerminalResourceSettlementDate(session: SoloCombatSessionRecord): Date {
+  return parseStoredDate(session.state?.settlement?.resources?.appliedAt) ??
+    parseStoredDate(session.state?.completedAt) ??
+    session.updatedAt;
+}
+
+function markTerminalResourcesApplied(
+  state: NonNullable<SoloCombatSessionRecord["state"]>,
+  appliedAt: Date
+): NonNullable<SoloCombatSessionRecord["state"]> {
+  return {
+    ...state,
+    settlement: {
+      ...(state.settlement ?? { status: "pending" as const, version: 1 }),
+      resources: {
+        status: "applied",
+        appliedAt: appliedAt.toISOString(),
+        hpCurrent: state.hero.hp,
+        manaCurrent: state.hero.mana,
+        hpRegenAt: appliedAt.toISOString(),
+        manaRegenAt: appliedAt.toISOString()
+      }
+    }
+  };
+}
+
+function parseStoredDate(value: string | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function getNextTrainingTimeoutMode(

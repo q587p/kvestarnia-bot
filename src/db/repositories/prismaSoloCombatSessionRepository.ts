@@ -5,9 +5,11 @@ import type {
   CombatDamageKind,
   CombatDebugTrace,
   CombatLifeState,
+  CombatResourceSettlementState,
   CombatSettlementState,
   CombatState,
   CombatStatus,
+  CombatTrainingSettlementState,
   CombatTurnLogEntry,
   CombatTurnOutcome,
   CombatTurnSummary
@@ -368,7 +370,8 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     }).catch(async (error: unknown) => {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
+        error.code === "P2002" &&
+        isActiveCombatLeaseUniqueConflict(error)
       ) {
         const leased = await this.findLeasedByTelegramUserId(telegramUserId);
 
@@ -974,15 +977,62 @@ function parseCombatSettlement(value: unknown): CombatSettlementState | null {
   const settledAt = parseIsoDate(value.settledAt);
   const version = intOrNull(value.version);
   const reason = parseSettlementReason(value.reason);
+  const resources = parseResourceSettlement(value.resources);
+  const training = parseTrainingSettlement(value.training);
 
   return status
     ? {
         status,
         ...(settledAt ? { settledAt: settledAt.toISOString() } : {}),
         ...(reason ? { reason } : {}),
-        ...(version !== null && version > 0 ? { version } : {})
+        ...(version !== null && version > 0 ? { version } : {}),
+        ...(resources ? { resources } : {}),
+        ...(training ? { training } : {})
       }
     : null;
+}
+
+function parseResourceSettlement(value: unknown): CombatResourceSettlementState | null {
+  if (!isRecord(value) || value.status !== "applied") {
+    return null;
+  }
+
+  const appliedAt = parseIsoDate(value.appliedAt);
+  const hpRegenAt = parseIsoDate(value.hpRegenAt);
+  const manaRegenAt = parseIsoDate(value.manaRegenAt);
+  const hpCurrent = intOrNull(value.hpCurrent);
+  const manaCurrent = intOrNull(value.manaCurrent);
+
+  if (!appliedAt || !hpRegenAt || !manaRegenAt || hpCurrent === null || manaCurrent === null) {
+    return null;
+  }
+
+  return {
+    status: "applied",
+    appliedAt: appliedAt.toISOString(),
+    hpCurrent,
+    manaCurrent,
+    hpRegenAt: hpRegenAt.toISOString(),
+    manaRegenAt: manaRegenAt.toISOString()
+  };
+}
+
+function parseTrainingSettlement(value: unknown): CombatTrainingSettlementState | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const availableAt = parseIsoDate(value.availableAt);
+  const cooldownClaimedAt = parseIsoDate(value.cooldownClaimedAt);
+
+  if (!availableAt && !cooldownClaimedAt) {
+    return null;
+  }
+
+  return {
+    ...(availableAt ? { availableAt: availableAt.toISOString() } : {}),
+    ...(cooldownClaimedAt ? { cooldownClaimedAt: cooldownClaimedAt.toISOString() } : {})
+  };
 }
 
 function parseSettlementStatus(value: unknown): CombatSettlementState["status"] | null {
@@ -1677,6 +1727,17 @@ function isSoloCombatSessionRecord(value: unknown): value is SoloCombatSessionRe
 
 function isPrismaNotFound(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025";
+}
+
+function isActiveCombatLeaseUniqueConflict(error: Prisma.PrismaClientKnownRequestError): boolean {
+  const target = error.meta?.target;
+
+  if (Array.isArray(target)) {
+    return target.includes("characterId") || target.includes("character_id");
+  }
+
+  return typeof target === "string" &&
+    (target.includes("active_combat_leases") || target.includes("character_id"));
 }
 
 function hasTransaction(prisma: PrismaClient): boolean {

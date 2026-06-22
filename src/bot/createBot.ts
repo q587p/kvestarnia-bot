@@ -2842,7 +2842,9 @@ async function handleAdventureCallback(
           ? buildAdventureApproachKeyboard(result)
           : result.state === "stale"
             ? buildAdventureOfferKeyboard(result.offer)
-            : buildAdventureResultKeyboard(result)
+            : result.state === "combat-blocked"
+              ? buildAdventureResultKeyboard({ state: "active-fight" })
+              : buildAdventureResultKeyboard(result)
     });
     return;
   }
@@ -2864,7 +2866,9 @@ async function handleAdventureCallback(
           ? buildAdventureApproachKeyboard(result)
           : result.state === "stale"
             ? buildAdventureOfferKeyboard(result.offer)
-            : buildAdventureResultKeyboard(result)
+            : result.state === "combat-blocked"
+              ? buildAdventureResultKeyboard({ state: "active-fight" })
+              : buildAdventureResultKeyboard(result)
     });
     return;
   }
@@ -3020,7 +3024,10 @@ async function handleAdventureCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentAdventureResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildAdventureResultKeyboard(result)
+    reply_markup:
+      result.state === "combat-blocked"
+        ? buildAdventureResultKeyboard({ state: "active-fight" })
+        : buildAdventureResultKeyboard(result)
   });
 }
 
