@@ -62,9 +62,8 @@ describe("hero presenter", () => {
     expect(text).toContain("Вдача 6");
     expect(text).not.toContain("Ріст рівня:");
     expect(text).not.toContain("Ріст:");
-    expect(text).toContain(
-      "\n\n👛 Золото: <b>12</b> <i>(а в манатках ще 0; торба чесна, аж нудно)</i>\n\nЗараз пригодник тут:"
-    );
+    expect(text).toContain("\n\n👛 Золото: <b>12</b>\n\nЗараз пригодник тут:");
+    expect(text).not.toContain("манатках ще 0");
     expect(text).toContain("\n\nЗараз пригодник тут: <b>Льох корчми</b>.");
     expect(text).toContain("<i>Далі: /tavern, /quest або /fight.</i>");
     expect(text).not.toContain("/adventure або /fight");
@@ -112,6 +111,14 @@ describe("hero presenter", () => {
     expect(text).toContain("👛 Золото: <b>12</b>");
     expect(text).toContain("а в манатках ще 28");
     expect(text).toContain("корчмар уже примружився");
+  });
+
+  it("shows zero inventory value only when the value was calculated", () => {
+    const text = presentHero(summary, { inventoryGoldValue: 0 });
+
+    expect(text).toContain(
+      "👛 Золото: <b>12</b> <i>(а в манатках ще 0; торба чесна, аж нудно)</i>"
+    );
   });
 
   it("shows equipment contributions without hiding level growth", () => {

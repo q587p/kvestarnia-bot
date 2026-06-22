@@ -28,7 +28,11 @@ export function presentHero(
             summary.path
           )
         );
-  const inventoryGoldValue = options.inventoryGoldValue ?? 0;
+  const inventoryGoldValue = options.inventoryGoldValue;
+  const goldLine =
+    inventoryGoldValue === undefined
+      ? `👛 Золото: <b>${summary.gold}</b>`
+      : `👛 Золото: <b>${summary.gold}</b> <i>${presentWealthAside(summary.gold, inventoryGoldValue)}</i>`;
   const starterHint =
     summary.level < 3 ? ["", "<i>Далі: /tavern, /quest або /fight.</i>"] : [];
   const equipmentLines = presentHeroEquipmentEffectLines(
@@ -53,7 +57,7 @@ export function presentHero(
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
     ...(equipmentLines.length > 0 ? ["", ...equipmentLines] : []),
     "",
-    `👛 Золото: <b>${summary.gold}</b> <i>${presentWealthAside(summary.gold, inventoryGoldValue)}</i>`,
+    goldLine,
     "",
     `Зараз пригодник тут: <b>${escapeHtml(getLocationName(summary.currentLocationId ?? ""))}</b>.`,
     ...starterHint
