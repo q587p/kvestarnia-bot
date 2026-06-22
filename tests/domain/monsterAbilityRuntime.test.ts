@@ -8,7 +8,11 @@ import {
   getMonsterAbilityEffectContract,
   getMonsterAbilitySlotCount,
   applyHeroActivationMonsterEffects,
+  applyMonsterRuntimeFleePenalty,
+  applyMonsterRuntimeHeroAttackModifiers,
   applyMonsterRuntimeHeroDamage,
+  applyMonsterRuntimeMonsterActionModifiers,
+  consumeMonsterRuntimeDirectHitModifiers,
   isHeroClassSkillLockedByMonster,
   resolveMonsterShieldDamage,
   resolveCombatTurn,
@@ -68,6 +72,12 @@ describe("monster ability runtime", () => {
       new Set(monsters.map((monster) => monster.id))
     );
     expect(validateMonsterAbilityContent()).toEqual([]);
+  });
+
+  it("audits explicit trigger classification for every authored monster ability component", () => {
+    expect(validateMonsterAbilityContent().filter((issue) =>
+      issue.code === "missing-component-trigger"
+    )).toEqual([]);
   });
 
   it("applies slot count gates and freezes explicit ids before deterministic fallback ids", () => {
@@ -537,6 +547,128 @@ describe("monster ability runtime", () => {
     })).toMatchObject({ polarity: "beneficial", removable: false });
   });
 
+  it("applies debuffed-target bonus only for active harmful hero effects", () => {
+    const clean = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.complaint-echo"),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0])
+    });
+    const beneficialHero = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.complaint-echo", {
+        effects: [{
+          id: "hero-beneficial:test",
+          sourceAbilityId: "hero.test",
+          sourceActor: "hero",
+          target: "hero",
+          kind: "outgoing-damage",
+          value: 1.2,
+          polarity: "beneficial",
+          removable: true,
+          remainingTargetActivations: 2
+        }]
+      }),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0])
+    });
+    const beneficialMonster = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.complaint-echo", {
+        effects: [{
+          id: "monster-beneficial:test",
+          sourceAbilityId: "monster.test",
+          target: "monster",
+          kind: "outgoing-damage",
+          value: 1.2,
+          polarity: "beneficial",
+          removable: true,
+          remainingOwnActivations: 2
+        }]
+      }),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0])
+    });
+    const legacyHarmful = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.complaint-echo", {
+        effects: [{
+          id: "legacy-burn:test",
+          sourceAbilityId: "monster.test",
+          target: "hero",
+          kind: "burn",
+          value: 0.1,
+          remainingTargetActivations: 2
+        }]
+      }),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0])
+    });
+
+    expect(beneficialHero.damage).toBe(clean.damage);
+    expect(beneficialMonster.damage).toBe(clean.damage);
+    expect(legacyHarmful.damage).toBeGreaterThan(clean.damage);
+  });
+
+  it("does not reverse future beneficial hero accuracy, evasion or flee effects", () => {
+    const accuracyState = startRuntimeAbilityState("monster.sauce-spit", {
+      effects: [{
+        id: "hero-accuracy-benefit:test",
+        sourceAbilityId: "hero.test",
+        sourceActor: "hero",
+        target: "hero",
+        kind: "accuracy",
+        value: 25,
+        polarity: "beneficial",
+        removable: true,
+        remainingTargetActivations: 2
+      }]
+    });
+    const evasionState = startRuntimeAbilityState("monster.sauce-spit", {
+      effects: [{
+        id: "hero-evasion-benefit:test",
+        sourceAbilityId: "hero.test",
+        sourceActor: "hero",
+        target: "hero",
+        kind: "evasion",
+        value: 25,
+        polarity: "beneficial",
+        removable: true,
+        remainingTargetActivations: 2
+      }]
+    });
+    const fleeState = startRuntimeAbilityState("monster.sauce-spit", {
+      effects: [{
+        id: "hero-flee-benefit:test",
+        sourceAbilityId: "hero.test",
+        sourceActor: "hero",
+        target: "hero",
+        kind: "flee",
+        value: 25,
+        polarity: "beneficial",
+        removable: true,
+        remainingTargetActivations: 2
+      }]
+    });
+    const harmfulEvasionState = startRuntimeAbilityState("monster.sauce-spit", {
+      effects: [{
+        id: "hero-evasion-harm:test",
+        sourceAbilityId: "monster.test",
+        target: "hero",
+        kind: "evasion",
+        value: 25,
+        polarity: "harmful",
+        removable: true,
+        remainingTargetActivations: 2
+      }]
+    });
+
+    expect(applyMonsterRuntimeHeroAttackModifiers(accuracyState, mimic)).toEqual(mimic);
+    expect(applyMonsterRuntimeMonsterActionModifiers(evasionState, mimic)).toEqual(mimic);
+    expect(applyMonsterRuntimeFleePenalty(fleeState, hero)).toEqual(hero);
+    expect(applyMonsterRuntimeMonsterActionModifiers(harmfulEvasionState, mimic).contextModifiers?.accuracyDeltaPp).toBe(25);
+  });
+
   it("treats low-HP damage parameters as bonuses at the half-HP boundary", () => {
     const crumbAbove = resolveMonsterRuntimeAction({
       state: {
@@ -611,6 +743,57 @@ describe("monster ability runtime", () => {
     expect(even.state.monsterRuntime?.effects.some((effect) => effect.kind === "slow")).toBe(true);
   });
 
+  it("requires a landed direct hit for even-turn Temperature Offense chill", () => {
+    const missed = resolveMonsterRuntimeAction({
+      state: cloneCombatState({ ...startRuntimeAbilityState("monster.temperature-offense"), turn: 2 }),
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0, 0.99])
+    });
+    const landed = resolveMonsterRuntimeAction({
+      state: cloneCombatState({ ...startRuntimeAbilityState("monster.temperature-offense"), turn: 2 }),
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(missed.damage).toBe(0);
+    expect(missed.state.monsterRuntime?.effects.some((effect) => effect.kind === "slow")).toBe(false);
+    expect(landed.damage).toBeGreaterThan(0);
+    expect(landed.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
+      sourceAbilityId: "monster.temperature-offense",
+      target: "hero",
+      kind: "slow"
+    }));
+  });
+
+  it("requires a landed direct hit for Internal Memo outgoing-damage reduction", () => {
+    const missed = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.internal-memo"),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0.99])
+    });
+    const landed = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.internal-memo"),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(missed.damage).toBe(0);
+    expect(missed.state.monsterRuntime?.effects.some((effect) =>
+      effect.target === "hero" && effect.kind === "outgoing-damage" && effect.value < 1
+    )).toBe(false);
+    expect(landed.damage).toBeGreaterThan(0);
+    expect(landed.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
+      sourceAbilityId: "monster.internal-memo",
+      target: "hero",
+      kind: "outgoing-damage",
+      value: 0.85
+    }));
+  });
+
   it("advances cycle riders by persisted monster own action count", () => {
     const first = resolveMonsterRuntimeAction({
       state: startRuntimeAbilityState("monster.fire-safety-cycle"),
@@ -649,6 +832,24 @@ describe("monster ability runtime", () => {
     expect(third.damage).toBe(0);
     expect(third.state.monsterRuntime?.shield).toBeUndefined();
     expect(third.state.monsterRuntime?.effects.some((effect) => effect.kind === "burn")).toBe(false);
+  });
+
+  it("keeps cycle potency-down branches independently applicable without a direct hit", () => {
+    const result = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.fire-safety-cycle", { ownActionCount: 2 }),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0.99])
+    });
+
+    expect(result.damage).toBe(0);
+    expect(result.outcome).toBe("hit");
+    expect(result.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
+      sourceAbilityId: "monster.fire-safety-cycle",
+      target: "hero",
+      kind: "outgoing-damage",
+      value: 0.85
+    }));
   });
 
   it("applies repeat penalty only when the committed hero action repeats", () => {
@@ -788,6 +989,38 @@ describe("monster ability runtime", () => {
     ))).toBe(false);
   });
 
+  it("does not merge opposite-polarity same-kind effects into one contract", () => {
+    const result = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.internal-memo", {
+        effects: [{
+          id: "hero-beneficial-outgoing:test",
+          sourceAbilityId: "hero.test",
+          sourceActor: "hero",
+          target: "hero",
+          kind: "outgoing-damage",
+          value: 1.2,
+          polarity: "beneficial",
+          removable: true,
+          trigger: "on-cast",
+          triggerId: "hero.test:buff",
+          remainingTargetActivations: 2
+        }]
+      }),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+    const outgoingEffects = result.state.monsterRuntime?.effects.filter((effect) => (
+      effect.target === "hero" && effect.kind === "outgoing-damage"
+    )) ?? [];
+
+    expect(outgoingEffects).toHaveLength(2);
+    expect(outgoingEffects.map((effect) => getMonsterAbilityEffectContract(effect).polarity).sort()).toEqual([
+      "beneficial",
+      "harmful"
+    ]);
+  });
+
   it("does not map race-source locks to class-skill locks", () => {
     const raceLock = resolveMonsterRuntimeAction({
       state: startRuntimeAbilityState("monster.denied-closure"),
@@ -844,6 +1077,64 @@ describe("monster ability runtime", () => {
     expect(typeof bonus?.value).toBe("number");
     expect(bonus?.value).toBeGreaterThan(1);
     expect(broken.monsterRuntime?.effects.some((effect) => effect.kind === "next-attack-bonus")).toBe(false);
+  });
+
+  it("keeps copied-potency and shield-survival next-hit bonuses collision-safe", () => {
+    const state = startRuntimeAbilityState("monster.no-change", {
+      shield: {
+        sourceAbilityId: "monster.no-change",
+        points: 20
+      },
+      effects: [{
+        id: "monster.mirror-doubt:copy:test",
+        sourceAbilityId: "monster.mirror-doubt",
+        sourceActor: "monster",
+        target: "monster",
+        kind: "next-attack-bonus",
+        value: 1.2,
+        polarity: "beneficial",
+        removable: true,
+        trigger: "on-cast",
+        triggerId: "monster.mirror-doubt:copyLastDirectActionPotency",
+        remainingOwnActivations: 2,
+        charges: 1
+      }]
+    });
+
+    applyMonsterRuntimeHeroDamage({
+      state,
+      heroDamage: 4,
+      monsterHpBeforeDamage: 80,
+      heroAction: "attack"
+    });
+    applyMonsterRuntimeHeroDamage({
+      state,
+      heroDamage: 4,
+      monsterHpBeforeDamage: 80,
+      heroAction: "attack"
+    });
+
+    const bonuses = state.monsterRuntime?.effects.filter((effect) => (
+      effect.target === "monster" && effect.kind === "next-attack-bonus" && effect.value > 1
+    )) ?? [];
+    const shieldBonuses = bonuses.filter((effect) => effect.sourceAbilityId === "monster.no-change");
+
+    expect(bonuses).toHaveLength(2);
+    expect(shieldBonuses).toHaveLength(1);
+    expect(shieldBonuses[0]).toMatchObject({
+      trigger: "on-shield-survived",
+      triggerId: "monster.no-change:nextAttackBonusIfShieldSurvives",
+      charges: 1
+    });
+
+    const modifiedMonster = applyMonsterRuntimeMonsterActionModifiers(state, { ...mimic, attack: 10 });
+    expect(modifiedMonster.contextModifiers?.outgoingDamageMultiplier).toBeGreaterThan(1);
+    const consumed = consumeMonsterRuntimeDirectHitModifiers({ state, damage: 10 });
+
+    expect(consumed.consumedNextAttackBonus).toBe(true);
+    expect(state.monsterRuntime?.effects.some((effect) => (
+      effect.target === "monster" && effect.kind === "next-attack-bonus" && effect.value > 1
+    ))).toBe(false);
   });
 
   it("does not consume armed next attack bonuses on miss, defend evasion, telegraph or support", () => {

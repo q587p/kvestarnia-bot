@@ -53,6 +53,8 @@ This project follows a simple pre-1.0 versioning policy:
 - `statusResistancePp` now resolves as an explicit non-removable `status-resistance` monster effect fallback instead of being stored as an unrelated incoming-damage modifier.
 - Zero-damage monster support abilities that actually change state now persist a successful monster outcome in `lastTurn`, `turnLog`, journal replay and analytics rather than being inferred as misses from damage alone.
 - Direct-hit-required monster components now require a real landed direct hit before applying or consuming their rider effects.
+- Monster ability components now carry an explicit trigger classification, so equivalent hostile riders such as chill, burn and outgoing-damage reductions follow the same landed-hit rule while setup/support branches stay on-cast.
+- Runtime effect consumers now use the polarity contract for debuff checks, accuracy/evasion/flee penalties, slow/confusion/repeat penalties, marks and next-hit bonuses instead of treating every matching target/kind as harmful.
 - Deferred next-hit bonuses now arm only from their real trigger: surviving authored shields or copied persisted direct hero damage. Neutral value-1 placeholders no longer make abilities look actionable, block later bonuses or consume charges.
 - `counterChance` now uses an explicit probabilistic counter runtime effect with injected RNG and damage derived from the authored source/current monster attack, while flat reflect remains deterministic and separate.
 - Monster defend, telegraph and retained timeout-skip paths now preserve resolver outcomes instead of classifying every zero-damage monster action as a miss.
@@ -74,6 +76,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Monster cleanse now removes only harmful removable effects on the monster, so beneficial monster shields, evasion, outgoing-damage buffs, next-hit bonuses, reflect and status resistance survive cleanup.
 - Monster purge now removes only real removable beneficial hero effects. Direct-damage abilities such as Archive Chew keep dealing damage when no purge target exists and do not claim a purge that did not happen.
 - Damaging bleed/burn/control riders no longer apply after ordinary misses, defend evasion, telegraph announcements, monster defend, support-only actions or zero-damage outcomes.
+- `bonusAgainstDebuffedTargets` now counts only active harmful hero effects; beneficial hero buffs, neutral effects, monster self-effects and expired/zero-charge rows do not trigger the bonus.
+- Multiple next-hit bonus sources now use source/trigger identity, so copied-potency and shield-survival bonuses can coexist without duplicate same-source shield charges or accidental shadowing.
 - Legacy eventless terminal journals now synthesize one final `terminal:*` entry when an old same-turn log row has a different summary, while semantically identical old rows still avoid duplicates.
 - Reactive reflect/counter/shield-break damage now resolves before the early victory return; if it drops the hero to zero HP, the combat is recorded as a loss even when the same hit also drops the monster to zero.
 - Terminal persistent combat journal entries now carry stable `terminal:*` event IDs, so `won`, `lost`, `fled` and hard `expired` results appear exactly once after repository round-trip and repeated journal opens.

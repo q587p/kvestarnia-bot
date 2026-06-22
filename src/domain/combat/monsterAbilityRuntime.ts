@@ -30,6 +30,13 @@ export type MonsterAbilityRuntimeActionKind = "attack" | "defend" | "ability" | 
 export type MonsterAbilityEffectTarget = "hero" | "monster";
 export type MonsterAbilityEffectPolarity = "beneficial" | "harmful" | "neutral";
 export type MonsterAbilityEffectSourceActor = "monster" | "hero";
+export type MonsterAbilityComponentTrigger =
+  | "on-cast"
+  | "on-landed-direct-hit"
+  | "on-shield-survived"
+  | "on-hero-damaged-monster"
+  | "on-monster-own-activation"
+  | "on-hero-target-activation";
 export type MonsterAbilityEffectKind =
   | "accuracy"
   | "evasion"
@@ -65,6 +72,8 @@ export interface MonsterAbilityRuntimeEffect {
   value: number;
   polarity?: MonsterAbilityEffectPolarity;
   removable?: boolean;
+  trigger?: MonsterAbilityComponentTrigger;
+  triggerId?: string;
   remainingOwnActivations?: number;
   remainingTargetActivations?: number;
   charges?: number;
@@ -323,6 +332,8 @@ interface MonsterAbilityPlanComponent {
   durationOwnActivations?: number;
   durationTargetActivations?: number;
   charges?: number;
+  trigger: MonsterAbilityComponentTrigger;
+  triggerId?: string;
   directHitRequired: boolean;
   optional: boolean;
   onlyEffect: boolean;
@@ -430,8 +441,13 @@ function compileMonsterAbilityExecutionPlan(input: {
   const includeRider = (rider: string): boolean =>
     authoredRiders.has(rider) && (selectedRider === null || selectedRider === rider);
   const includeGenericComponents = !hasCycleRiders;
-  const addComponent = (component: MonsterAbilityPlanComponent): void => {
-    components.push(component);
+  const addComponent = (
+    component: Omit<MonsterAbilityPlanComponent, "trigger"> & { trigger?: MonsterAbilityComponentTrigger }
+  ): void => {
+    components.push({
+      trigger: "on-cast",
+      ...component
+    });
   };
   const addRuntimeEffect = (inputEffect: {
     sourceParameter: MonsterAbilityPlanComponent["sourceParameter"];
@@ -862,17 +878,20 @@ function compileMonsterAbilityExecutionPlan(input: {
   return {
     directDamage,
     selectedRider,
-    components: components.map((component) => ({
-      ...component,
-      directHitRequired: component.directHitRequired ||
-        isDirectHitRequiredComponent({
-          ability: input.ability,
-          directDamage,
-          sourceParameter: component.sourceParameter,
-          target: component.target,
-          kind: component.kind
-        })
-    }))
+    components: components.map((component) => {
+      const trigger = classifyMonsterAbilityComponentTrigger({
+        ability: input.ability,
+        directDamage,
+        component
+      });
+
+      return {
+        ...component,
+        trigger,
+        triggerId: getMonsterAbilityComponentTriggerId(input.ability, component, trigger),
+        directHitRequired: component.directHitRequired || trigger === "on-landed-direct-hit"
+      };
+    })
   };
 }
 
@@ -892,40 +911,69 @@ function hasPlannedDirectDamage(input: {
   return getRawDamageMultiplier(input.ability) > 0 || directDamageRoles.has(input.ability.role);
 }
 
-const directHitRequiredParameters = new Set<MonsterAbilityPlanComponent["sourceParameter"]>([
-  "markIncomingDamageMultiplier",
-  "burnDamageMultiplier",
-  "bleedDamageMultiplier",
-  "targetAccuracyPenaltyPp",
-  "evasionPenaltyPp",
-  "accuracyAndEvasionPenaltyPp",
-  "critPenaltyPp",
-  "slowAttackerPp",
-  "manaDrain",
-  "extendLongestCooldownBy",
-  "removePositiveEffects",
-  "manaCostIncrease",
-  "fleeChancePenaltyPp",
-  "rider:minor-burn",
-  "rider:fire-damage"
-]);
-
-function isDirectHitRequiredComponent(input: {
+function classifyMonsterAbilityComponentTrigger(input: {
   ability: MonsterAbilityDefinition;
   directDamage: boolean;
-  sourceParameter: MonsterAbilityPlanComponent["sourceParameter"];
-  target: MonsterAbilityEffectTarget;
-  kind: MonsterAbilityPlanComponentKind;
-}): boolean {
-  if (!input.directDamage || input.target !== "hero") {
-    return false;
+  component: MonsterAbilityPlanComponent;
+}): MonsterAbilityComponentTrigger {
+  const { component } = input;
+
+  if (component.kind === "runtime-effect" && component.effectKind === "repeat-penalty") {
+    return "on-hero-target-activation";
   }
 
-  if (input.sourceParameter === "lockAbilitySource" || input.sourceParameter === "lockAnyOneAbility") {
-    return true;
+  if (component.sourceParameter === "groupTargetConfusion" || component.sourceParameter === "rider:enemy-potency-down") {
+    return "on-cast";
   }
 
-  return directHitRequiredParameters.has(input.sourceParameter);
+  if (
+    component.kind === "runtime-effect" &&
+    (component.effectKind === "reflect" || component.effectKind === "counter")
+  ) {
+    return "on-hero-damaged-monster";
+  }
+
+  if (
+    component.kind === "runtime-effect" &&
+    component.effectKind === "next-attack-bonus" &&
+    component.sourceParameter === "copyLastDirectActionPotency"
+  ) {
+    return "on-cast";
+  }
+
+  if (!input.directDamage || component.target !== "hero") {
+    return "on-cast";
+  }
+
+  if (component.kind !== "runtime-effect") {
+    return "on-landed-direct-hit";
+  }
+
+  if (!component.effectKind) {
+    return "on-cast";
+  }
+
+  const contract = getMonsterAbilityEffectContract({
+    sourceAbilityId: input.ability.id,
+    sourceActor: "monster",
+    target: component.target,
+    kind: component.effectKind,
+    value: component.value ?? 0
+  });
+
+  return contract.polarity === "harmful" ? "on-landed-direct-hit" : "on-cast";
+}
+
+function getMonsterAbilityComponentTriggerId(
+  ability: MonsterAbilityDefinition,
+  component: MonsterAbilityPlanComponent,
+  trigger: MonsterAbilityComponentTrigger
+): string {
+  if (component.effectKind === "next-attack-bonus") {
+    return `${ability.id}:${String(component.sourceParameter)}`;
+  }
+
+  return `${ability.id}:${String(component.sourceParameter)}:${trigger}`;
 }
 
 function resolveCopiedPotencyMultiplier(
@@ -1001,6 +1049,14 @@ function validateMonsterAbilityRecipe(
 
   const plan = compileMonsterAbilityExecutionPlan({ ability });
   for (const component of plan.components) {
+    if (!isMonsterAbilityComponentTrigger(component.trigger)) {
+      issues.push({
+        code: "missing-component-trigger",
+        message: `Monster ability ${ability.id} has an unclassified trigger for ${String(component.sourceParameter)}.`,
+        abilityId: ability.id
+      });
+    }
+
     if (component.kind === "runtime-effect" && component.effectKind) {
       const contract = getMonsterAbilityEffectContract({
         sourceAbilityId: ability.id,
@@ -1588,8 +1644,8 @@ export function applyMonsterRuntimeHeroAttackModifiers(
     return monster;
   }
 
-  const heroAccuracyPenalty = sumEffects(runtime, "hero", "accuracy");
-  const monsterEvasionBonus = sumEffects(runtime, "monster", "evasion");
+  const heroAccuracyPenalty = sumEffects(runtime, "hero", "accuracy", "harmful");
+  const monsterEvasionBonus = sumEffects(runtime, "monster", "evasion", "beneficial");
   const evasionDeltaPp = heroAccuracyPenalty + monsterEvasionBonus;
 
   if (evasionDeltaPp === 0) {
@@ -1608,10 +1664,10 @@ export function applyMonsterRuntimeMonsterActionModifiers(
     return monster;
   }
 
-  const heroEvasionPenalty = sumEffects(runtime, "hero", "evasion");
-  const outgoingMultiplier = multiplyEffects(runtime, "monster", "outgoing-damage");
-  const nextAttackBonus = getMonsterNextAttackBonus(runtime);
-  const damageMultiplier = outgoingMultiplier * (nextAttackBonus ? Math.max(1, nextAttackBonus.value) : 1);
+  const heroEvasionPenalty = sumEffects(runtime, "hero", "evasion", "harmful");
+  const outgoingMultiplier = multiplyEffects(runtime, "monster", "outgoing-damage", "beneficial");
+  const nextAttackBonusMultiplier = getMonsterNextAttackBonusMultiplier(runtime);
+  const damageMultiplier = outgoingMultiplier * nextAttackBonusMultiplier;
 
   let modified = heroEvasionPenalty === 0
     ? monster
@@ -1667,7 +1723,7 @@ export function applyMonsterRuntimeFleePenalty(
     return hero;
   }
 
-  const penaltyPp = sumEffects(runtime, "hero", "flee");
+  const penaltyPp = sumEffects(runtime, "hero", "flee", "harmful");
   if (penaltyPp <= 0) {
     return hero;
   }
@@ -1687,7 +1743,7 @@ export function getMonsterRuntimeSkillManaCostIncrease(state: CombatState): numb
     return 0;
   }
 
-  return Math.max(0, Math.floor(sumEffects(runtime, "hero", "mana-cost-pressure")));
+  return Math.max(0, Math.floor(sumEffects(runtime, "hero", "mana-cost-pressure", "harmful")));
 }
 
 export function resolveMonsterRuntimeAction(
@@ -1872,6 +1928,7 @@ function canMonsterAbilityComponentChangeState(
   input: {
     state: CombatState;
     runtime: MonsterAbilityRuntimeStateV1;
+    ability: MonsterAbilityDefinition;
   }
 ): boolean {
   switch (component.kind) {
@@ -1898,16 +1955,17 @@ function canMonsterAbilityComponentChangeState(
       if (!component.effectKind) {
         return false;
       }
-      return wouldRuntimeEffectChange(input.runtime, component);
+      return wouldRuntimeEffectChange(input.runtime, component, input.ability.id);
   }
 }
 
 function wouldRuntimeEffectChange(
   runtime: MonsterAbilityRuntimeStateV1,
-  component: MonsterAbilityPlanComponent
+  component: MonsterAbilityPlanComponent,
+  sourceAbilityId: string
 ): boolean {
-  const existing = runtime.effects.find(
-    (effect) => effect.target === component.target && effect.kind === component.effectKind
+  const existing = runtime.effects.find((effect) =>
+    hasSameRuntimeEffectIdentity(effect, component, sourceAbilityId)
   );
 
   if (!existing) {
@@ -2123,6 +2181,7 @@ function applyMonsterAbilityPlanComponent(
         target: expired.target,
         effectKind: expired.kind,
         value: expired.value,
+        trigger: "on-cast",
         directHitRequired: false,
         optional: true,
         onlyEffect: false,
@@ -2145,13 +2204,13 @@ function addRuntimeEffectFromComponent(
   },
   component: MonsterAbilityPlanComponent
 ): { applied: boolean; text?: string } {
-  if (!component.effectKind || !wouldRuntimeEffectChange(input.runtime, component)) {
+  if (!component.effectKind || !wouldRuntimeEffectChange(input.runtime, component, input.ability.id)) {
     return { applied: false };
   }
 
   const replacement = createRuntimeEffectFromComponent(input, component);
-  const duplicateIndex = input.runtime.effects.findIndex(
-    (existing) => existing.target === replacement.target && existing.kind === replacement.kind
+  const duplicateIndex = input.runtime.effects.findIndex((existing) =>
+    getRuntimeEffectIdentity(existing) === getRuntimeEffectIdentity(replacement)
   );
 
   if (duplicateIndex >= 0) {
@@ -2182,6 +2241,8 @@ function createRuntimeEffectFromComponent(
     target: component.target,
     kind: component.effectKind!,
     value: component.value ?? 0,
+    trigger: component.trigger,
+    ...(component.triggerId ? { triggerId: component.triggerId } : {}),
     ...(component.durationOwnActivations ? { remainingOwnActivations: component.durationOwnActivations } : {}),
     ...(component.durationTargetActivations ? { remainingTargetActivations: component.durationTargetActivations } : {}),
     ...(component.charges ? { charges: component.charges } : {})
@@ -2193,6 +2254,46 @@ function createRuntimeEffectFromComponent(
     polarity: contract.polarity,
     removable: contract.removable
   };
+}
+
+function hasSameRuntimeEffectIdentity(
+  current: MonsterAbilityRuntimeEffect,
+  component: MonsterAbilityPlanComponent,
+  sourceAbilityId: string
+): boolean {
+  if (!component.effectKind) {
+    return false;
+  }
+
+  const prospective: MonsterAbilityRuntimeEffect = {
+    id: "prospective",
+    sourceAbilityId,
+    sourceActor: "monster",
+    target: component.target,
+    kind: component.effectKind,
+    value: component.value ?? 0,
+    trigger: component.trigger,
+    ...(component.triggerId ? { triggerId: component.triggerId } : {})
+  };
+  const contract = getMonsterAbilityEffectContract(prospective);
+
+  return getRuntimeEffectIdentity(current) === getRuntimeEffectIdentity({
+    ...prospective,
+    polarity: contract.polarity,
+    removable: contract.removable
+  });
+}
+
+function getRuntimeEffectIdentity(effect: MonsterAbilityRuntimeEffect): string {
+  const contract = getMonsterAbilityEffectContract(effect);
+  return [
+    effect.target,
+    effect.kind,
+    contract.polarity,
+    effect.sourceAbilityId,
+    effect.trigger ?? "legacy",
+    effect.triggerId ?? "legacy"
+  ].join(":");
 }
 
 function selectTurnRider(input: {
@@ -2291,12 +2392,12 @@ function applyHeroOutgoingDamageEffects(
   heroAction?: CombatActionType
 ): number {
   const multiplier = multiplyEffects(runtime, "hero", "outgoing-damage");
-  const reduction = sumEffects(runtime, "monster", "incoming-damage");
-  const slowReduction = Math.min(0.35, sumEffects(runtime, "hero", "slow") / 100);
-  const critPenaltyReduction = Math.min(0.2, sumEffects(runtime, "hero", "crit") / 200);
-  const confusionReduction = getMonsterEffect(runtime, "hero", "confusion") ? 0.1 : 0;
+  const reduction = sumEffects(runtime, "monster", "incoming-damage", "beneficial");
+  const slowReduction = Math.min(0.35, sumEffects(runtime, "hero", "slow", "harmful") / 100);
+  const critPenaltyReduction = Math.min(0.2, sumEffects(runtime, "hero", "crit", "harmful") / 200);
+  const confusionReduction = getMonsterEffect(runtime, "hero", "confusion", "harmful") ? 0.1 : 0;
   const repeatPenalty = heroAction && runtime.lastHeroAction === heroAction
-    ? getMonsterEffect(runtime, "hero", "repeat-penalty")
+    ? getMonsterEffect(runtime, "hero", "repeat-penalty", "harmful")
     : undefined;
   const repeatPenaltyReduction = repeatPenalty ? Math.min(0.25, repeatPenalty.value / 100) : 0;
   const adjusted = Math.floor(
@@ -2345,8 +2446,8 @@ function consumeReflectDamage(input: {
     return 0;
   }
 
-  const reflect = getMonsterEffect(input.runtime, "monster", "reflect");
-  const counter = getMonsterEffect(input.runtime, "monster", "counter");
+  const reflect = getMonsterEffect(input.runtime, "monster", "reflect", "beneficial");
+  const counter = getMonsterEffect(input.runtime, "monster", "counter", "beneficial");
   let reflectedDamage = 0;
 
   if (reflect) {
@@ -2385,31 +2486,49 @@ function consumeEffectCharge(
 function getMonsterEffect(
   runtime: MonsterAbilityRuntimeStateV1,
   target: MonsterAbilityEffectTarget,
-  kind: MonsterAbilityEffectKind
+  kind: MonsterAbilityEffectKind,
+  polarity?: MonsterAbilityEffectPolarity
 ): MonsterAbilityRuntimeEffect | undefined {
   return runtime.effects.find(
-    (effect) => effect.target === target && effect.kind === kind
+    (effect) => isActiveRuntimeEffect(effect) &&
+      effect.target === target &&
+      effect.kind === kind &&
+      (!polarity || getMonsterAbilityEffectContract(effect).polarity === polarity)
   );
 }
 
 function sumEffects(
   runtime: MonsterAbilityRuntimeStateV1,
   target: MonsterAbilityEffectTarget,
-  kind: MonsterAbilityEffectKind
+  kind: MonsterAbilityEffectKind,
+  polarity?: MonsterAbilityEffectPolarity
 ): number {
   return runtime.effects
-    .filter((effect) => effect.target === target && effect.kind === kind)
+    .filter((effect) => isActiveRuntimeEffect(effect) &&
+      effect.target === target &&
+      effect.kind === kind &&
+      (!polarity || getMonsterAbilityEffectContract(effect).polarity === polarity))
     .reduce((sum, effect) => sum + effect.value, 0);
 }
 
 function multiplyEffects(
   runtime: MonsterAbilityRuntimeStateV1,
   target: MonsterAbilityEffectTarget,
-  kind: MonsterAbilityEffectKind
+  kind: MonsterAbilityEffectKind,
+  polarity?: MonsterAbilityEffectPolarity
 ): number {
   return runtime.effects
-    .filter((effect) => effect.target === target && effect.kind === kind)
+    .filter((effect) => isActiveRuntimeEffect(effect) &&
+      effect.target === target &&
+      effect.kind === kind &&
+      (!polarity || getMonsterAbilityEffectContract(effect).polarity === polarity))
     .reduce((multiplier, effect) => multiplier * effect.value, 1);
+}
+
+function isActiveRuntimeEffect(effect: MonsterAbilityRuntimeEffect): boolean {
+  return (effect.charges ?? 1) > 0 &&
+    (effect.remainingOwnActivations ?? 1) > 0 &&
+    (effect.remainingTargetActivations ?? 1) > 0;
 }
 
 function addMonsterContextDelta(
@@ -2632,7 +2751,7 @@ function getDamageMultiplier(input: {
     multiplier *= 1 + bonus;
   }
 
-  if (isTruthyParameter(params.bonusAgainstDebuffedTargets) && input.runtime.effects.some((effect) => effect.target === "hero")) {
+  if (isTruthyParameter(params.bonusAgainstDebuffedTargets) && hasHarmfulHeroEffect(input.runtime)) {
     multiplier *= 1 + Math.max(0.15, numberParam(params.bonusAgainstDebuffedTargets));
   }
 
@@ -2641,6 +2760,14 @@ function getDamageMultiplier(input: {
   }
 
   return Math.min(1.85, Math.max(0, multiplier));
+}
+
+function hasHarmfulHeroEffect(runtime: MonsterAbilityRuntimeStateV1): boolean {
+  return runtime.effects.some((effect) =>
+    isActiveRuntimeEffect(effect) &&
+    getMonsterAbilityEffectContract(effect).target === "hero" &&
+    getMonsterAbilityEffectContract(effect).polarity === "harmful"
+  );
 }
 
 function getRawDamageMultiplier(ability: MonsterAbilityDefinition): number {
@@ -2710,21 +2837,48 @@ function consumeHeroMark(runtime: MonsterAbilityRuntimeStateV1): number {
 }
 
 function consumeMonsterNextAttackBonus(runtime: MonsterAbilityRuntimeStateV1): boolean {
-  const bonus = getMonsterNextAttackBonus(runtime);
-  if (!bonus) {
+  const bonuses = getMonsterNextAttackBonuses(runtime);
+  if (bonuses.length === 0) {
     return false;
   }
 
-  consumeEffectCharge(runtime, bonus);
+  for (const bonus of bonuses) {
+    consumeEffectCharge(runtime, bonus);
+  }
 
   return true;
 }
 
-function getMonsterNextAttackBonus(
-  runtime: MonsterAbilityRuntimeStateV1
+function getMonsterNextAttackBonuses(runtime: MonsterAbilityRuntimeStateV1): MonsterAbilityRuntimeEffect[] {
+  return runtime.effects.filter((effect) =>
+    isActiveRuntimeEffect(effect) &&
+    effect.target === "monster" &&
+    effect.kind === "next-attack-bonus" &&
+    effect.value > 1 &&
+    getMonsterAbilityEffectContract(effect).polarity === "beneficial"
+  );
+}
+
+function getMonsterNextAttackBonusMultiplier(runtime: MonsterAbilityRuntimeStateV1): number {
+  return Math.min(
+    1.85,
+    getMonsterNextAttackBonuses(runtime).reduce((multiplier, effect) => multiplier * Math.max(1, effect.value), 1)
+  );
+}
+
+function findMonsterNextAttackBonus(
+  runtime: MonsterAbilityRuntimeStateV1,
+  sourceAbilityId: string,
+  triggerId: string
 ): MonsterAbilityRuntimeEffect | undefined {
   return runtime.effects.find(
-    (effect) => effect.target === "monster" && effect.kind === "next-attack-bonus" && effect.value > 1
+    (effect) => isActiveRuntimeEffect(effect) &&
+      effect.target === "monster" &&
+      effect.kind === "next-attack-bonus" &&
+      effect.value > 1 &&
+      effect.sourceAbilityId === sourceAbilityId &&
+      effect.triggerId === triggerId &&
+      getMonsterAbilityEffectContract(effect).polarity === "beneficial"
   );
 }
 
@@ -2739,8 +2893,9 @@ function armNextAttackBonusIfShieldSurvives(
   }
 
   const value = 1 + Math.min(0.6, Math.max(0.05, bonus));
-  const existing = getMonsterNextAttackBonus(runtime);
-  if (existing && existing.sourceAbilityId === sourceAbilityId) {
+  const triggerId = `${sourceAbilityId}:nextAttackBonusIfShieldSurvives`;
+  const existing = findMonsterNextAttackBonus(runtime, sourceAbilityId, triggerId);
+  if (existing) {
     if (existing.value < value) {
       existing.value = value;
     }
@@ -2758,6 +2913,8 @@ function armNextAttackBonusIfShieldSurvives(
     value,
     polarity: "beneficial",
     removable: true,
+    trigger: "on-shield-survived",
+    triggerId,
     remainingOwnActivations: 2,
     charges: 1
   });
@@ -2874,6 +3031,8 @@ function parseRuntimeEffect(value: unknown): MonsterAbilityRuntimeEffect[] {
   const sourceActor = isEffectSourceActor(value.sourceActor) ? value.sourceActor : undefined;
   const polarity = isEffectPolarity(value.polarity) ? value.polarity : undefined;
   const removable = typeof value.removable === "boolean" ? value.removable : undefined;
+  const trigger = isMonsterAbilityComponentTrigger(value.trigger) ? value.trigger : undefined;
+  const triggerId = typeof value.triggerId === "string" ? value.triggerId : undefined;
 
   const effect: MonsterAbilityRuntimeEffect = {
     id: value.id,
@@ -2884,6 +3043,8 @@ function parseRuntimeEffect(value: unknown): MonsterAbilityRuntimeEffect[] {
     value: value.value,
     ...(polarity ? { polarity } : {}),
     ...(removable !== undefined ? { removable } : {}),
+    ...(trigger ? { trigger } : {}),
+    ...(triggerId ? { triggerId } : {}),
     ...(remainingOwnActivations !== null ? { remainingOwnActivations } : {}),
     ...(remainingTargetActivations !== null ? { remainingTargetActivations } : {}),
     ...(charges !== null ? { charges } : {})
@@ -2995,6 +3156,17 @@ function isEffectSourceActor(value: unknown): value is MonsterAbilityEffectSourc
 
 function isEffectPolarity(value: unknown): value is MonsterAbilityEffectPolarity {
   return value === "beneficial" || value === "harmful" || value === "neutral";
+}
+
+function isMonsterAbilityComponentTrigger(value: unknown): value is MonsterAbilityComponentTrigger {
+  return (
+    value === "on-cast" ||
+    value === "on-landed-direct-hit" ||
+    value === "on-shield-survived" ||
+    value === "on-hero-damaged-monster" ||
+    value === "on-monster-own-activation" ||
+    value === "on-hero-target-activation"
+  );
 }
 
 function isEffectKind(value: unknown): value is MonsterAbilityEffectKind {

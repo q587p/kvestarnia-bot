@@ -212,6 +212,8 @@ describe("PrismaSoloCombatSessionRepository", () => {
           kind: "counter",
           sourceAbilityId: "monster.salted-oath",
           value: 0.25,
+          trigger: "on-hero-damaged-monster",
+          triggerId: "monster.salted-oath:counterChance:on-hero-damaged-monster",
           remainingOwnActivations: 2,
           charges: 1
         }]
@@ -687,6 +689,8 @@ function runtimeRoundTripState(): CombatState {
           target: "monster",
           kind: "counter",
           value: 0.25,
+          trigger: "on-hero-damaged-monster",
+          triggerId: "monster.salted-oath:counterChance:on-hero-damaged-monster",
           remainingOwnActivations: 2,
           charges: 1
         }
