@@ -119,7 +119,11 @@ describe("level milestone repository helpers", () => {
   });
 
   it("backfills current remort life levels separately from base-life milestones", async () => {
-    const create = vi.fn((input: unknown) => Promise.resolve(input));
+    const created: Array<{ data: { key: string } }> = [];
+    const create = vi.fn((input: { data: { key: string } }) => {
+      created.push(input);
+      return Promise.resolve(input);
+    });
     const prisma = {
       character: {
         findMany: vi.fn(() =>
@@ -171,13 +175,7 @@ describe("level milestone repository helpers", () => {
         createdAt: new Date("2026-06-16T10:30:00.000Z")
       }
     });
-    expect(create).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          key: buildLevelMilestoneKey(3)
-        })
-      })
-    );
+    expect(created.map((input) => input.data.key)).not.toContain(buildLevelMilestoneKey(3));
   });
 
   it("reads remort detail levels from the life after the selected remort", async () => {
