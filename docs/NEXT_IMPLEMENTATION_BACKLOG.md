@@ -522,6 +522,30 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 - tags use `BESTIARY_TAG_LABELS`, and tests fail if a monster tag lacks a player-facing label;
 - tests cover level list, type list, filtered monster lists, empty-safe fallback, and back buttons.
 
+## Later — Monster Grammar Metadata
+
+**Objective**
+Додати до monster content граматичні підказки для українського тексту: стать/рід, істотність і потрібні відмінкові форми, щоб бойові, preview, бестіарійні й майбутні interaction-картки могли казати `вона`, `його/її`, `Льохову Мишу з Титулом` тощо без ручних нейтральних обходів.
+
+**Scope**
+
+- Спроєктувати невеликий typed grammar block для monster content: grammatical gender/pronoun, animacy and at least nominative/accusative display forms.
+- Додати validation, що активні monster ids або мають повний grammar block, або явно використовують neutral-safe presenter path.
+- Оновити passage previews, combat intro/result copy, bestiary snippets and monster interaction copy to use the grammar helper where available.
+- Keep authored monster names as source of truth; generated case forms are allowed only if covered by tests and easy rollback.
+
+**Non-goals**
+
+- no monster stat, reward, ability or selection changes;
+- no broad natural-language generation system;
+- no player race/class/title grammar rewrite in the same slice.
+
+**Acceptance criteria**
+
+- `Льохова Миша з Титулом` can render in nominative and accusative contexts without awkward fallback text;
+- preview and combat copy chooses `він` / `вона` / neutral wording from content metadata instead of guessing from the name;
+- tests cover at least feminine, masculine, neuter/neutral and multi-word monster names.
+
 ## Later — Глибка Dungeon Location
 
 **Objective**

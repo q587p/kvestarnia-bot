@@ -21,6 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Consuming a pending preview atomically links it to at most one persistent solo combat session; duplicate attack callbacks recover the linked session when available.
 - Ordinary Nyz monster selection now checks bounded recent ordinary fight history before choosing: it avoids the immediately previous monster when alternatives exist, avoids the last three distinct monsters when the legal pool is large enough, and falls back to the original deterministic pool for small candidate sets.
 - Legacy seed-shaped passage callbacks no longer select or start a client-chosen monster; they refresh a current server-owned preview instead.
+- Nyz passage preview copy now avoids monster gender pronouns and accusative-name wording until monster grammar metadata is added.
 
 ### Unchanged
 - Yeger targeted encounters, adventure handoff fights, training doppelgangers, starter fights, monster ability loadouts, timeout auto-defend and reward/Yeger progression rules are unchanged.

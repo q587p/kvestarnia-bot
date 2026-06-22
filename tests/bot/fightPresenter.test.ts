@@ -10,6 +10,7 @@ import {
   presentProblemQuestTurnIn,
   presentQuestProgressAfterFight,
   presentPersistentFight,
+  presentPersistentFightPassagePreview,
   presentPersistentFightIntro,
   presentPersistentFightJournal,
   presentPersistentFightTurn
@@ -73,6 +74,30 @@ describe("fight presenter", () => {
 
   it("prompts /start when no character exists", () => {
     expect(presentFightNoCharacter()).toContain("/start");
+  });
+
+  it("uses neutral passage preview copy for monsters without grammar metadata", () => {
+    const text = presentPersistentFightPassagePreview({
+      state: "persistent-preview",
+      character,
+      questProgress: null,
+      monster: {
+        id: "monster.cellar-mouse-with-title",
+        name: "Льохова Миша з Титулом",
+        description: "Тестова миша з дуже серйозним папірцем.",
+        level: 3,
+        tags: ["beast"]
+      },
+      difficulty: "easy",
+      originLocationId: "location.korchma.deep.level1.right",
+      encounterToken: "token13",
+      expiresAt: new Date("2026-06-22T10:00:00.000Z")
+    });
+
+    expect(text).toContain("Ви у правому проході. Попереду — <b>Льохова Миша з Титулом</b>.");
+    expect(text).toContain("Увага ще не впала на вас.");
+    expect(text).not.toContain("Він вас");
+    expect(text).not.toContain("Бачите перед собою");
   });
 
   it("shows a spent fight screen with an optional quest suggestion", () => {

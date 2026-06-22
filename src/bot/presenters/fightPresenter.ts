@@ -147,7 +147,7 @@ export function presentPersistentFightPassagePreview(
     presentCharacterHeader(result.character),
     "",
     ...(refreshLine ? [refreshLine, ""] : []),
-    `Ви у ${passage.locative}. Бачите перед собою <b>${escapeHtml(result.monster.name)}</b>. Він вас ще не побачив.`
+    `Ви у ${passage.locative}. Попереду — <b>${escapeHtml(result.monster.name)}</b>. Увага ще не впала на вас.`
   ].join("\n");
 }
 
