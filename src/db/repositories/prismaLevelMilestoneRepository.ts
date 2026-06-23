@@ -230,12 +230,11 @@ export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository 
       level,
       limit
     );
-
-    if (level !== LEVEL_MILESTONE_MAX_LEVEL) {
-      return milestoneEntries;
-    }
-
-    const completionEntries = await this.findRemortCompletionEntries(remortNumber + 1, limit);
+    const completionEntries = await this.findRemortCompletionEntries(
+      remortNumber + 1,
+      level,
+      limit
+    );
 
     return mergeMilestoneEntries(milestoneEntries, completionEntries, limit);
   }
@@ -354,6 +353,7 @@ export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository 
 
   private async findRemortCompletionEntries(
     remortNumber: number,
+    level: number,
     limit: number
   ): Promise<LevelMilestoneEntry[]> {
     const rows = await this.prisma.characterRemort.findMany({
@@ -390,7 +390,7 @@ export class PrismaLevelMilestoneRepository implements LevelMilestoneRepository 
       telegramUserId: row.character.user.telegramUserId,
       characterId: row.characterId,
       name: row.displayNameSnapshot,
-      level: LEVEL_MILESTONE_MAX_LEVEL,
+      level,
       reachedAt: row.createdAt
     }));
   }
