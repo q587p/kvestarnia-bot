@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Prisma, type Character, type CharacterItem, type PrismaClient } from "@prisma/client";
 import type { ItemContent } from "../../content/schema";
 import type { CharacterRecord } from "./characterRepository";
@@ -63,7 +64,11 @@ export class PrismaShynokRepository implements ShynokRepository {
       }
     });
 
-    if (!state || state.expiresAt <= now) {
+    if (!state) {
+      return null;
+    }
+    if (state.expiresAt <= now) {
+      await auditExpiredQueuedDrink(this.prisma, state, now);
       return null;
     }
 
@@ -164,11 +169,12 @@ export class PrismaShynokRepository implements ShynokRepository {
       }
 
       if (order.status === "completed") {
+        const replayDrink = parseDrinkActivationSnapshot(order.result) ?? await findDrinkState(tx, character.id);
         return {
           state: "replayed",
           character: toCharacterRecord(character),
           order,
-          drink: await findDrinkState(tx, character.id)
+          drink: replayDrink
         };
       }
 
@@ -189,6 +195,15 @@ export class PrismaShynokRepository implements ShynokRepository {
         return { state: "expired", order: expired };
       }
 
+      if (!(await matchesSelfDrinkReplacementExpectation(tx, character.id, order.replacement, input.now))) {
+        const stale = mapDrinkOrder(await tx.korchmaDrinkOrder.update({
+          where: { id: order.id },
+          data: { status: "cancelled", updatedAt: input.now }
+        })) ?? order;
+
+        return { state: "replacement-changed", order: stale };
+      }
+
       const claimed = await tx.korchmaDrinkOrder.updateMany({
         where: {
           id: order.id,
@@ -204,11 +219,12 @@ export class PrismaShynokRepository implements ShynokRepository {
       if (claimed.count !== 1) {
         const replay = mapDrinkOrder(await tx.korchmaDrinkOrder.findUnique({ where: { id: order.id } }));
         if (replay?.status === "completed") {
+          const replayDrink = parseDrinkActivationSnapshot(replay.result) ?? await findDrinkState(tx, character.id);
           return {
             state: "replayed",
             character: toCharacterRecord(character),
             order: replay,
-            drink: await findDrinkState(tx, character.id)
+            drink: replayDrink
           };
         }
 
@@ -245,12 +261,13 @@ export class PrismaShynokRepository implements ShynokRepository {
         now: input.now,
         metadata: input.result
       });
+      const result = withDrinkActivationSnapshot(input.result, drink, order.priceGold, "self");
 
       const completed = mapDrinkOrder(await tx.korchmaDrinkOrder.update({
         where: { id: order.id },
         data: {
           status: "completed",
-          resultJson: input.result as Prisma.InputJsonValue,
+          resultJson: result as Prisma.InputJsonValue,
           completedAt: input.now,
           updatedAt: input.now
         }
@@ -499,7 +516,7 @@ export class PrismaShynokRepository implements ShynokRepository {
         return {
           state: "replayed",
           offer,
-          drink: await findDrinkState(tx, character.id)
+          drink: parseDrinkActivationSnapshot(offer.result) ?? await findDrinkState(tx, character.id)
         };
       }
 
@@ -529,10 +546,7 @@ export class PrismaShynokRepository implements ShynokRepository {
           state: "replacement-required",
           offer,
           drink: activeDrink,
-          replacementGuard: createRoundReplacementGuard({
-            offerId: offer.id,
-            drinkStateId: activeDrink.id
-          })
+          replacementGuard: createRoundReplacementGuard(buildRoundReplacementGuardInput(offer.id, activeDrink))
         };
       }
 
@@ -540,10 +554,7 @@ export class PrismaShynokRepository implements ShynokRepository {
         if (!activeDrink || !input.replacementGuard) {
           return { state: "stale-replacement", offer };
         }
-        const expectedGuard = createRoundReplacementGuard({
-          offerId: offer.id,
-          drinkStateId: activeDrink.id
-        });
+        const expectedGuard = createRoundReplacementGuard(buildRoundReplacementGuardInput(offer.id, activeDrink));
         if (input.replacementGuard !== expectedGuard) {
           return { state: "stale-replacement", offer };
         }
@@ -1046,6 +1057,59 @@ async function getInventorySnapshot(tx: TxClient, telegramUserId: bigint): Promi
   };
 }
 
+async function auditExpiredQueuedDrink(
+  prisma: PrismaClient,
+  state: {
+    id: string;
+    activationId: string;
+    characterId: string;
+    drinkKey: string;
+    phase: string;
+    sourceType: string;
+    sourceId: string | null;
+    expiresAt: Date;
+  },
+  now: Date
+): Promise<void> {
+  if (state.phase !== "queued" || state.drinkKey !== "drink.pepper-vodka") {
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const current = await tx.characterDrinkState.findUnique({
+      where: { characterId: state.characterId }
+    });
+    if (
+      !current ||
+      current.id !== state.id ||
+      current.activationId !== state.activationId ||
+      current.phase !== "queued" ||
+      current.drinkKey !== "drink.pepper-vodka" ||
+      current.expiresAt > now
+    ) {
+      return;
+    }
+
+    await tx.shynokDrinkActivationAudit.upsert({
+      where: { activationId: current.activationId },
+      create: {
+        characterId: current.characterId,
+        activationId: current.activationId,
+        drinkKey: current.drinkKey,
+        sourceType: current.sourceType,
+        sourceId: current.sourceId,
+        outcome: "expired-unused",
+        occurredAt: current.expiresAt,
+        metadataJson: {
+          kind: "vodka-expired-unused",
+          expiresAt: current.expiresAt.toISOString()
+        }
+      },
+      update: {}
+    });
+  });
+}
+
 async function findCharacter(tx: TxClient, telegramUserId: bigint) {
   return tx.character.findFirst({
     where: { user: { telegramUserId } },
@@ -1063,6 +1127,31 @@ async function findLiveDrinkState(tx: TxClient, characterId: string, now: Date):
   const state = await findDrinkState(tx, characterId);
 
   return state && state.expiresAt > now ? state : null;
+}
+
+async function matchesSelfDrinkReplacementExpectation(
+  tx: TxClient,
+  characterId: string,
+  expectation: unknown,
+  now: Date
+): Promise<boolean> {
+  const current = await findLiveDrinkState(tx, characterId, now);
+  const parsed = parseDrinkReplacementExpectation(expectation);
+
+  if (parsed.expected === "none") {
+    return current === null;
+  }
+
+  if (!current) {
+    return false;
+  }
+
+  return current.id === parsed.drinkStateId &&
+    current.activationId === parsed.activationId &&
+    current.drinkKey === parsed.drinkKey &&
+    current.phase === parsed.phase &&
+    current.startedAt.getTime() === parsed.startedAt.getTime() &&
+    current.expiresAt.getTime() === parsed.expiresAt.getTime();
 }
 
 async function upsertDrinkState(
@@ -1083,12 +1172,14 @@ async function upsertDrinkState(
   const previous = await tx.characterDrinkState.findUnique({
     where: { characterId: input.characterId }
   });
-  const metadata = withPreviousRecoveryWindows(input.metadata, previous);
+  const activationId = randomUUID();
+  const metadata = withPreviousRecoveryWindows(input.metadata, previous, input.now);
   const state = await tx.characterDrinkState.upsert({
     where: {
       characterId: input.characterId
     },
     create: {
+      activationId,
       characterId: input.characterId,
       drinkKey: input.drinkKey,
       phase: effect.phase,
@@ -1100,6 +1191,7 @@ async function upsertDrinkState(
       updatedAt: input.now
     },
     update: {
+      activationId,
       drinkKey: input.drinkKey,
       phase: effect.phase,
       startedAt: effect.startedAt,
@@ -1162,7 +1254,8 @@ async function canMutateShynokByCharacterId(
 
 function withPreviousRecoveryWindows(
   metadata: unknown,
-  previous: { drinkKey: string; phase: string; startedAt: Date; expiresAt: Date; metadataJson: Prisma.JsonValue | null } | null
+  previous: { drinkKey: string; phase: string; startedAt: Date; expiresAt: Date; metadataJson: Prisma.JsonValue | null } | null,
+  replacementAt: Date
 ): unknown {
   const previousWindows = [
     ...parseRecoveryWindows(previous?.metadataJson),
@@ -1170,10 +1263,17 @@ function withPreviousRecoveryWindows(
       ? [{
           drinkKey: previous.drinkKey,
           startsAt: previous.startedAt.toISOString(),
-          expiresAt: previous.expiresAt.toISOString()
+          expiresAt: minDate(previous.expiresAt, replacementAt).toISOString()
         }]
       : [])
-  ].slice(-3);
+  ].filter((window) => {
+    const startsAt = new Date(window.startsAt);
+    const expiresAt = new Date(window.expiresAt);
+
+    return Number.isFinite(startsAt.getTime()) &&
+      Number.isFinite(expiresAt.getTime()) &&
+      expiresAt > startsAt;
+  });
 
   if (previousWindows.length === 0) {
     return metadata;
@@ -1239,11 +1339,16 @@ async function acceptRoundOffer(
     now: input.now,
     metadata: input.result
   });
+  const result = withDrinkActivationSnapshot(input.result, drink, 0, "round");
+  const acceptedWithReplay = mapRoundRecipient(await tx.korchmaRoundRecipient.update({
+    where: { id: accepted.id },
+    data: { resultJson: result as Prisma.InputJsonValue, updatedAt: input.now }
+  })) ?? accepted;
   await refreshRoundTelemetry(tx, input.offer.purchaseId);
 
   return {
     state: "accepted",
-    offer: accepted,
+    offer: acceptedWithReplay,
     drink
   };
 }
@@ -1260,7 +1365,7 @@ function replayRoundOffer(offer: ShynokRoundRecipientRecord | null): ShynokRespo
     return {
       state: "replayed",
       offer,
-      drink: null
+      drink: parseDrinkActivationSnapshot(offer.result)
     };
   }
   if (offer.status === "declined") {
@@ -1271,6 +1376,18 @@ function replayRoundOffer(offer: ShynokRoundRecipientRecord | null): ShynokRespo
   }
 
   return { state: "invalid-offer" };
+}
+
+function buildRoundReplacementGuardInput(offerId: string, drink: ShynokDrinkStateRecord) {
+  return {
+    offerId,
+    drinkStateId: drink.id,
+    activationId: drink.activationId,
+    drinkKey: drink.drinkKey,
+    phase: drink.phase,
+    startedAt: drink.startedAt,
+    expiresAt: drink.expiresAt
+  };
 }
 
 async function refreshRoundTelemetry(tx: TxClient, purchaseId: string): Promise<void> {
@@ -1404,6 +1521,7 @@ function toCharacterItemRecord(record: CharacterItem): CharacterItemRecord {
 
 function mapDrinkState(record: {
   id: string;
+  activationId: string;
   characterId: string;
   drinkKey: string;
   phase: string;
@@ -1421,6 +1539,7 @@ function mapDrinkState(record: {
 
   return {
     id: record.id,
+    activationId: record.activationId,
     characterId: record.characterId,
     drinkKey: record.drinkKey,
     phase,
@@ -1587,6 +1706,10 @@ function parseBigIntValue(value: unknown): bigint | null {
   return null;
 }
 
+function minDate(left: Date, right: Date): Date {
+  return left.getTime() <= right.getTime() ? left : right;
+}
+
 function parseRoundReplay(input: unknown): { purchaseId: string | null; recipientCount: number } {
   if (!isRecord(input)) {
     return { purchaseId: null, recipientCount: 0 };
@@ -1595,6 +1718,125 @@ function parseRoundReplay(input: unknown): { purchaseId: string | null; recipien
   return {
     purchaseId: typeof input.purchaseId === "string" ? input.purchaseId : null,
     recipientCount: Number.isInteger(input.recipientCount) ? Number(input.recipientCount) : 0
+  };
+}
+
+function parseDrinkReplacementExpectation(input: unknown):
+  | { expected: "none" }
+  | {
+      expected: "activation";
+      drinkStateId: string;
+      activationId: string;
+      drinkKey: ShynokDrinkOrderRecord["drinkKey"];
+      phase: "timed" | "queued";
+      startedAt: Date;
+      expiresAt: Date;
+    } {
+  if (!isRecord(input) || input.expected === "none") {
+    return { expected: "none" };
+  }
+
+  const drinkStateId = typeof input.drinkStateId === "string" ? input.drinkStateId : null;
+  const activationId = typeof input.activationId === "string" ? input.activationId : null;
+  const drinkKey = typeof input.drinkKey === "string" && isShynokDrinkKey(input.drinkKey) ? input.drinkKey : null;
+  const phase = input.phase === "queued" ? "queued" : input.phase === "timed" ? "timed" : null;
+  const startedAt = typeof input.startedAt === "string" ? new Date(input.startedAt) : null;
+  const expiresAt = typeof input.expiresAt === "string" ? new Date(input.expiresAt) : null;
+
+  if (
+    !drinkStateId ||
+    !activationId ||
+    !drinkKey ||
+    !phase ||
+    !startedAt ||
+    !expiresAt ||
+    !Number.isFinite(startedAt.getTime()) ||
+    !Number.isFinite(expiresAt.getTime())
+  ) {
+    return { expected: "none" };
+  }
+
+  return {
+    expected: "activation",
+    drinkStateId,
+    activationId,
+    drinkKey,
+    phase,
+    startedAt,
+    expiresAt
+  };
+}
+
+function withDrinkActivationSnapshot(
+  result: unknown,
+  drink: ShynokDrinkStateRecord,
+  spentGold: number,
+  kind: "self" | "round"
+): unknown {
+  return {
+    ...(isRecord(result) ? result : { value: result }),
+    drinkActivation: toDrinkActivationSnapshot(drink, spentGold, kind)
+  };
+}
+
+function toDrinkActivationSnapshot(
+  drink: ShynokDrinkStateRecord,
+  spentGold: number,
+  kind: "self" | "round"
+): Record<string, unknown> {
+  return {
+    id: drink.id,
+    activationId: drink.activationId,
+    characterId: drink.characterId,
+    drinkKey: drink.drinkKey,
+    phase: drink.phase,
+    startedAt: drink.startedAt.toISOString(),
+    expiresAt: drink.expiresAt.toISOString(),
+    sourceType: drink.sourceType,
+    sourceId: drink.sourceId,
+    metadata: drink.metadata,
+    spentGold,
+    replayKind: kind
+  };
+}
+
+function parseDrinkActivationSnapshot(input: unknown): ShynokDrinkStateRecord | null {
+  if (!isRecord(input) || !isRecord(input.drinkActivation)) {
+    return null;
+  }
+  const snapshot = input.drinkActivation;
+  const startedAt = typeof snapshot.startedAt === "string" ? new Date(snapshot.startedAt) : null;
+  const expiresAt = typeof snapshot.expiresAt === "string" ? new Date(snapshot.expiresAt) : null;
+  const drinkKey = typeof snapshot.drinkKey === "string" && isShynokDrinkKey(snapshot.drinkKey)
+    ? snapshot.drinkKey
+    : null;
+  const phase = snapshot.phase === "queued" ? "queued" : snapshot.phase === "timed" ? "timed" : null;
+
+  if (
+    typeof snapshot.id !== "string" ||
+    typeof snapshot.activationId !== "string" ||
+    typeof snapshot.characterId !== "string" ||
+    !drinkKey ||
+    !phase ||
+    !startedAt ||
+    !expiresAt ||
+    !Number.isFinite(startedAt.getTime()) ||
+    !Number.isFinite(expiresAt.getTime())
+  ) {
+    return null;
+  }
+
+  return {
+    id: snapshot.id,
+    activationId: snapshot.activationId,
+    characterId: snapshot.characterId,
+    drinkKey,
+    phase,
+    startedAt,
+    expiresAt,
+    sourceType: snapshot.sourceType === "round" ? "round" : "self_purchase",
+    sourceId: typeof snapshot.sourceId === "string" ? snapshot.sourceId : null,
+    metadata: snapshot.metadata
   };
 }
 

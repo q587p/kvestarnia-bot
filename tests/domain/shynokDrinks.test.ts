@@ -72,18 +72,33 @@ describe("Shynok drinks", () => {
   it("builds compact deterministic round replacement guards", () => {
     const guard = createRoundReplacementGuard({
       offerId: "12345678-1234-4234-9234-123456789abc",
-      drinkStateId: "drink-state-one"
+      drinkStateId: "drink-state-one",
+      activationId: "activation-one",
+      drinkKey: "drink.simple-beer",
+      phase: "timed",
+      startedAt: new Date("2026-06-23T10:00:00.000Z"),
+      expiresAt: new Date("2026-06-23T10:23:00.000Z")
     });
 
     expect(guard).toMatch(/^[0-9a-f]+$/);
     expect(guard).toHaveLength(SHYNOK_ROUND_REPLACEMENT_GUARD_HEX_LENGTH);
     expect(createRoundReplacementGuard({
       offerId: "12345678-1234-4234-9234-123456789abc",
-      drinkStateId: "drink-state-one"
+      drinkStateId: "drink-state-one",
+      activationId: "activation-one",
+      drinkKey: "drink.simple-beer",
+      phase: "timed",
+      startedAt: new Date("2026-06-23T10:00:00.000Z"),
+      expiresAt: new Date("2026-06-23T10:23:00.000Z")
     })).toBe(guard);
     expect(createRoundReplacementGuard({
       offerId: "12345678-1234-4234-9234-123456789abc",
-      drinkStateId: "drink-state-two"
+      drinkStateId: "drink-state-one",
+      activationId: "activation-two",
+      drinkKey: "drink.simple-beer",
+      phase: "timed",
+      startedAt: new Date("2026-06-23T10:00:00.000Z"),
+      expiresAt: new Date("2026-06-23T10:23:00.000Z")
     })).not.toBe(guard);
   });
 });

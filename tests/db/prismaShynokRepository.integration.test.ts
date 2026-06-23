@@ -228,6 +228,67 @@ describe("PrismaShynokRepository integration", () => {
     })).resolves.toMatchObject({ id: "drink-state-new", drinkKey: "drink.fine-beer" });
   });
 
+  it("rejects stale replacement after a real upsert replacement reuses the drink row id", async () => {
+    await seedCharacter({ telegramUserId: 511n, userId: "user-buyer-upsert", characterId: "character-buyer-upsert", gold: 500 });
+    await seedCharacter({ telegramUserId: 512n, userId: "user-recipient-upsert", characterId: "character-recipient-upsert", gold: 100 });
+    await seedCurrentDrink("character-recipient-upsert", "drink-state-upsert", "drink.thyme-tea");
+    const original = await prisma.characterDrinkState.findUniqueOrThrow({
+      where: { characterId: "character-recipient-upsert" }
+    });
+    await seedRoundOffer({
+      purchaseId: "purchase-upsert-stale",
+      offerId: "12345678-1234-4234-9234-000000000512",
+      buyerCharacterId: "character-buyer-upsert",
+      recipientCharacterId: "character-recipient-upsert",
+      drinkKey: "drink.fine-beer"
+    });
+    const preview = await repository.respondToRoundOfferForTelegramUser(512n, {
+      offerId: "12345678-1234-4234-9234-000000000512",
+      action: "accept",
+      now: now(),
+      result: { kind: "round-offer-accept" }
+    });
+    if (preview.state !== "replacement-required") {
+      throw new Error(`Expected replacement preview, got ${preview.state}`);
+    }
+    await prisma.korchmaDrinkOrder.create({
+      data: {
+        id: "order-upsert-replacement",
+        token: "12345678-1234-4234-9234-000000000513",
+        characterId: "character-recipient-upsert",
+        drinkKey: "drink.simple-beer",
+        priceGold: 13,
+        status: "pending",
+        replacementJson: replacementExpectation(original),
+        expiresAt: new Date("2026-06-23T10:05:00.000Z")
+      }
+    });
+    await expect(repository.confirmSelfDrinkOrderForTelegramUser(512n, {
+      token: "12345678-1234-4234-9234-000000000513",
+      now: new Date("2026-06-23T10:01:00.000Z"),
+      result: { kind: "self-drink-confirm" }
+    })).resolves.toMatchObject({ state: "completed" });
+
+    const replaced = await prisma.characterDrinkState.findUniqueOrThrow({
+      where: { characterId: "character-recipient-upsert" }
+    });
+    expect(replaced.id).toBe(original.id);
+    expect(replaced.activationId).not.toBe(original.activationId);
+
+    const result = await repository.respondToRoundOfferForTelegramUser(512n, {
+      offerId: "12345678-1234-4234-9234-000000000512",
+      action: "confirm-replacement",
+      replacementGuard: preview.replacementGuard,
+      now: new Date("2026-06-23T10:02:00.000Z"),
+      result: { kind: "round-offer-confirm-replacement" }
+    });
+
+    expect(result.state).toBe("stale-replacement");
+    await expect(prisma.korchmaRoundRecipient.findUnique({
+      where: { id: "12345678-1234-4234-9234-000000000512" }
+    })).resolves.toMatchObject({ status: "offered" });
+  });
+
   it.each(["expired", "declined", "accepted"] as const)(
     "does not replace when offer became %s after preview",
     async (status) => {
@@ -301,6 +362,275 @@ describe("PrismaShynokRepository integration", () => {
     expect(results.map((result) => result.state).sort()).toEqual(["completed", "replayed"]);
     await expect(prisma.character.findUnique({ where: { id: "character-self" } })).resolves.toMatchObject({ gold: 83 });
     await expect(prisma.characterDrinkState.count({ where: { characterId: "character-self" } })).resolves.toBe(1);
+  });
+
+  it("real upsert replacement preserves row id but changes activation id and clips old recovery", async () => {
+    await seedCharacter({ telegramUserId: 712n, userId: "user-self-upsert", characterId: "character-self-upsert", gold: 100 });
+    await seedCurrentDrink("character-self-upsert", "drink-state-self-upsert", "drink.fine-beer");
+    const original = await prisma.characterDrinkState.findUniqueOrThrow({
+      where: { characterId: "character-self-upsert" }
+    });
+    await prisma.korchmaDrinkOrder.create({
+      data: {
+        id: "order-self-upsert",
+        token: "12345678-1234-4234-9234-000000000712",
+        characterId: "character-self-upsert",
+        drinkKey: "drink.simple-beer",
+        priceGold: 13,
+        status: "pending",
+        replacementJson: replacementExpectation(original),
+        expiresAt: new Date("2026-06-23T10:10:00.000Z")
+      }
+    });
+
+    const result = await repository.confirmSelfDrinkOrderForTelegramUser(712n, {
+      token: "12345678-1234-4234-9234-000000000712",
+      now: new Date("2026-06-23T10:05:00.000Z"),
+      result: { kind: "self-drink-confirm" }
+    });
+
+    expect(result.state).toBe("completed");
+    const replaced = await prisma.characterDrinkState.findUniqueOrThrow({
+      where: { characterId: "character-self-upsert" }
+    });
+    expect(replaced.id).toBe(original.id);
+    expect(replaced.activationId).not.toBe(original.activationId);
+    expect(replaced.metadataJson).toMatchObject({
+      previousRecoveryWindows: [{
+        drinkKey: "drink.fine-beer",
+        startsAt: "2026-06-23T10:00:00.000Z",
+        expiresAt: "2026-06-23T10:05:00.000Z"
+      }]
+    });
+  });
+
+  it("stale self preview expecting no drink fails when a drink appears", async () => {
+    await seedCharacter({ telegramUserId: 713n, userId: "user-self-none-stale", characterId: "character-self-none-stale", gold: 100 });
+    await prisma.korchmaDrinkOrder.create({
+      data: {
+        id: "order-self-none-stale",
+        token: "12345678-1234-4234-9234-000000000713",
+        characterId: "character-self-none-stale",
+        drinkKey: "drink.thyme-tea",
+        priceGold: 17,
+        status: "pending",
+        replacementJson: { expected: "none" },
+        expiresAt: new Date("2026-06-23T10:05:00.000Z")
+      }
+    });
+    await seedCurrentDrink("character-self-none-stale", "drink-state-none-stale", "drink.simple-beer");
+
+    const result = await repository.confirmSelfDrinkOrderForTelegramUser(713n, {
+      token: "12345678-1234-4234-9234-000000000713",
+      now: now(),
+      result: { kind: "self-drink-confirm" }
+    });
+
+    expect(result.state).toBe("replacement-changed");
+    await expect(prisma.character.findUnique({
+      where: { id: "character-self-none-stale" }
+    })).resolves.toMatchObject({ gold: 100 });
+    await expect(prisma.characterDrinkState.findUnique({
+      where: { characterId: "character-self-none-stale" }
+    })).resolves.toMatchObject({ drinkKey: "drink.simple-beer" });
+  });
+
+  it("stale self preview expecting an activation fails after that activation is refreshed", async () => {
+    await seedCharacter({ telegramUserId: 714n, userId: "user-self-activation-stale", characterId: "character-self-activation-stale", gold: 100 });
+    await seedCurrentDrink("character-self-activation-stale", "drink-state-activation-stale", "drink.pepper-vodka");
+    const original = await prisma.characterDrinkState.findUniqueOrThrow({
+      where: { characterId: "character-self-activation-stale" }
+    });
+    await prisma.korchmaDrinkOrder.createMany({
+      data: [
+        {
+          id: "order-self-old-preview",
+          token: "12345678-1234-4234-9234-000000000714",
+          characterId: "character-self-activation-stale",
+          drinkKey: "drink.simple-beer",
+          priceGold: 13,
+          status: "pending",
+          replacementJson: replacementExpectation(original),
+          expiresAt: new Date("2026-06-23T10:10:00.000Z")
+        },
+        {
+          id: "order-self-refresh-vodka",
+          token: "12345678-1234-4234-9234-000000000715",
+          characterId: "character-self-activation-stale",
+          drinkKey: "drink.pepper-vodka",
+          priceGold: 42,
+          status: "pending",
+          replacementJson: replacementExpectation(original),
+          expiresAt: new Date("2026-06-23T10:10:00.000Z")
+        }
+      ]
+    });
+    await expect(repository.confirmSelfDrinkOrderForTelegramUser(714n, {
+      token: "12345678-1234-4234-9234-000000000715",
+      now: new Date("2026-06-23T10:01:00.000Z"),
+      result: { kind: "self-drink-confirm" }
+    })).resolves.toMatchObject({ state: "completed" });
+
+    const refreshed = await prisma.characterDrinkState.findUniqueOrThrow({
+      where: { characterId: "character-self-activation-stale" }
+    });
+    expect(refreshed.id).toBe(original.id);
+    expect(refreshed.activationId).not.toBe(original.activationId);
+
+    const stale = await repository.confirmSelfDrinkOrderForTelegramUser(714n, {
+      token: "12345678-1234-4234-9234-000000000714",
+      now: new Date("2026-06-23T10:02:00.000Z"),
+      result: { kind: "self-drink-confirm" }
+    });
+
+    expect(stale.state).toBe("replacement-changed");
+    await expect(prisma.character.findUnique({
+      where: { id: "character-self-activation-stale" }
+    })).resolves.toMatchObject({ gold: 58 });
+    await expect(prisma.characterDrinkState.findUnique({
+      where: { characterId: "character-self-activation-stale" }
+    })).resolves.toMatchObject({
+      drinkKey: "drink.pepper-vodka",
+      activationId: refreshed.activationId
+    });
+  });
+
+  it("completed self order replays its original activation after later replacement", async () => {
+    await seedCharacter({ telegramUserId: 716n, userId: "user-self-replay-activation", characterId: "character-self-replay-activation", gold: 100 });
+    await prisma.korchmaDrinkOrder.create({
+      data: {
+        id: "order-self-replay-first",
+        token: "12345678-1234-4234-9234-000000000716",
+        characterId: "character-self-replay-activation",
+        drinkKey: "drink.thyme-tea",
+        priceGold: 17,
+        status: "pending",
+        replacementJson: { expected: "none" },
+        expiresAt: new Date("2026-06-23T10:10:00.000Z")
+      }
+    });
+    const first = await repository.confirmSelfDrinkOrderForTelegramUser(716n, {
+      token: "12345678-1234-4234-9234-000000000716",
+      now: now(),
+      result: { kind: "self-drink-confirm" }
+    });
+    if (first.state !== "completed") {
+      throw new Error(`Expected completed, got ${first.state}`);
+    }
+    await prisma.korchmaDrinkOrder.create({
+      data: {
+        id: "order-self-replay-second",
+        token: "12345678-1234-4234-9234-000000000717",
+        characterId: "character-self-replay-activation",
+        drinkKey: "drink.simple-beer",
+        priceGold: 13,
+        status: "pending",
+        replacementJson: replacementExpectation(await prisma.characterDrinkState.findUniqueOrThrow({
+          where: { characterId: "character-self-replay-activation" }
+        })),
+        expiresAt: new Date("2026-06-23T10:10:00.000Z")
+      }
+    });
+    await expect(repository.confirmSelfDrinkOrderForTelegramUser(716n, {
+      token: "12345678-1234-4234-9234-000000000717",
+      now: new Date("2026-06-23T10:01:00.000Z"),
+      result: { kind: "self-drink-confirm" }
+    })).resolves.toMatchObject({ state: "completed" });
+
+    const replay = await repository.confirmSelfDrinkOrderForTelegramUser(716n, {
+      token: "12345678-1234-4234-9234-000000000716",
+      now: new Date("2026-06-23T10:02:00.000Z"),
+      result: { kind: "self-drink-confirm" }
+    });
+
+    expect(replay.state).toBe("replayed");
+    expect(replay.state === "replayed" ? replay.drink?.activationId : null).toBe(first.drink.activationId);
+    expect(replay.state === "replayed" ? replay.drink?.drinkKey : null).toBe("drink.thyme-tea");
+  });
+
+  it("completed round acceptance replays its original activation after later replacement", async () => {
+    await seedCharacter({ telegramUserId: 718n, userId: "user-round-replay-buyer", characterId: "character-round-replay-buyer", gold: 500 });
+    await seedCharacter({ telegramUserId: 719n, userId: "user-round-replay-recipient", characterId: "character-round-replay-recipient", gold: 100 });
+    await seedRoundOffer({
+      purchaseId: "purchase-round-replay",
+      offerId: "12345678-1234-4234-9234-000000000719",
+      buyerCharacterId: "character-round-replay-buyer",
+      recipientCharacterId: "character-round-replay-recipient",
+      drinkKey: "drink.simple-beer"
+    });
+    const accepted = await repository.respondToRoundOfferForTelegramUser(719n, {
+      offerId: "12345678-1234-4234-9234-000000000719",
+      action: "accept",
+      now: now(),
+      result: { kind: "round-offer-accept" }
+    });
+    if (accepted.state !== "accepted") {
+      throw new Error(`Expected accepted, got ${accepted.state}`);
+    }
+    await prisma.korchmaDrinkOrder.create({
+      data: {
+        id: "order-round-replay-replace",
+        token: "12345678-1234-4234-9234-000000000720",
+        characterId: "character-round-replay-recipient",
+        drinkKey: "drink.fine-beer",
+        priceGold: 42,
+        status: "pending",
+        replacementJson: replacementExpectation(await prisma.characterDrinkState.findUniqueOrThrow({
+          where: { characterId: "character-round-replay-recipient" }
+        })),
+        expiresAt: new Date("2026-06-23T10:10:00.000Z")
+      }
+    });
+    await expect(repository.confirmSelfDrinkOrderForTelegramUser(719n, {
+      token: "12345678-1234-4234-9234-000000000720",
+      now: new Date("2026-06-23T10:01:00.000Z"),
+      result: { kind: "self-drink-confirm" }
+    })).resolves.toMatchObject({ state: "completed" });
+
+    const replay = await repository.respondToRoundOfferForTelegramUser(719n, {
+      offerId: "12345678-1234-4234-9234-000000000719",
+      action: "accept",
+      now: new Date("2026-06-23T10:02:00.000Z"),
+      result: { kind: "round-offer-accept" }
+    });
+
+    expect(replay.state).toBe("replayed");
+    expect(replay.state === "replayed" ? replay.drink?.activationId : null).toBe(accepted.drink.activationId);
+    expect(replay.state === "replayed" ? replay.drink?.drinkKey : null).toBe("drink.simple-beer");
+  });
+
+  it("records one expired-unused audit for queued vodka on lazy read", async () => {
+    await seedCharacter({ telegramUserId: 715n, userId: "user-expired-vodka", characterId: "character-expired-vodka", gold: 100 });
+    await prisma.characterDrinkState.create({
+      data: {
+        id: "drink-state-expired-vodka",
+        activationId: "activation-expired-vodka",
+        characterId: "character-expired-vodka",
+        drinkKey: "drink.pepper-vodka",
+        phase: "queued",
+        startedAt: new Date("2026-06-23T10:00:00.000Z"),
+        expiresAt: new Date("2026-06-23T10:23:00.000Z"),
+        sourceType: "self_purchase",
+        sourceId: "order-expired-vodka"
+      }
+    });
+
+    await expect(repository.getActiveDrinkForTelegramUser(
+      715n,
+      new Date("2026-06-23T10:24:00.000Z")
+    )).resolves.toBeNull();
+    await expect(repository.getActiveDrinkForTelegramUser(
+      715n,
+      new Date("2026-06-23T10:25:00.000Z")
+    )).resolves.toBeNull();
+
+    await expect(prisma.shynokDrinkActivationAudit.findMany({
+      where: { activationId: "activation-expired-vodka" }
+    })).resolves.toMatchObject([{
+      outcome: "expired-unused",
+      sourceId: "order-expired-vodka",
+      occurredAt: new Date("2026-06-23T10:23:00.000Z")
+    }]);
   });
 
   it("blocks stale self-drink confirmation after the character leaves the Shynok", async () => {
@@ -690,6 +1020,25 @@ function now(): Date {
   return new Date("2026-06-23T10:00:00.000Z");
 }
 
+function replacementExpectation(state: {
+  id: string;
+  activationId: string;
+  drinkKey: string;
+  phase: string;
+  startedAt: Date;
+  expiresAt: Date;
+}) {
+  return {
+    expected: "activation",
+    drinkStateId: state.id,
+    activationId: state.activationId,
+    drinkKey: state.drinkKey,
+    phase: state.phase,
+    startedAt: state.startedAt.toISOString(),
+    expiresAt: state.expiresAt.toISOString()
+  };
+}
+
 function makeSaleBasket(selection: Array<{ itemId: string; quantity: number }>) {
   const eligible = buildMantokSaleEligibleStacks({
     stacks: selection,
@@ -762,6 +1111,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     )`,
     `CREATE TABLE character_drink_states (
       id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+      activation_id TEXT NOT NULL,
       character_id TEXT NOT NULL UNIQUE,
       drink_key TEXT NOT NULL,
       phase TEXT NOT NULL,
@@ -772,6 +1122,21 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       metadata_json JSONB,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE UNIQUE INDEX character_drink_states_activation_id_key
+      ON character_drink_states(activation_id)`,
+    `CREATE TABLE shynok_drink_activation_audits (
+      id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+      character_id TEXT NOT NULL,
+      activation_id TEXT NOT NULL UNIQUE,
+      drink_key TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT,
+      outcome TEXT NOT NULL,
+      combat_session_id TEXT,
+      occurred_at DATETIME NOT NULL,
+      metadata_json JSONB,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE korchma_drink_orders (
       id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),

@@ -45,6 +45,9 @@ export interface CreateSoloCombatSessionInput {
 
 export interface CombatDrinkStateCommit {
   expectedStateId: string;
+  expectedActivationId: string;
+  expectedStartedAt: Date;
+  expectedExpiresAt: Date;
   drinkKey: string;
   phase: "timed" | "queued";
   now: Date;

@@ -169,9 +169,26 @@ export function applyDrinkDamageMultiplier(baseDamage: number, multiplierBp: num
   return Math.max(1, Math.floor((damage * multiplierBp) / 10000));
 }
 
-export function createRoundReplacementGuard(input: { offerId: string; drinkStateId: string }): string {
+export function createRoundReplacementGuard(input: {
+  offerId: string;
+  drinkStateId: string;
+  activationId: string;
+  drinkKey: ShynokDrinkKey;
+  phase: ShynokDrinkPhase;
+  startedAt: Date;
+  expiresAt: Date;
+}): string {
   return createHash("sha256")
-    .update(`shynok-round-replacement-v1:${input.offerId}:${input.drinkStateId}`)
+    .update([
+      "shynok-round-replacement-v2",
+      input.offerId,
+      input.drinkStateId,
+      input.activationId,
+      input.drinkKey,
+      input.phase,
+      input.startedAt.toISOString(),
+      input.expiresAt.toISOString()
+    ].join(":"))
     .digest("hex")
     .slice(0, SHYNOK_ROUND_REPLACEMENT_GUARD_HEX_LENGTH);
 }

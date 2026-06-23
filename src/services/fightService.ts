@@ -3173,10 +3173,14 @@ export class FightService {
             modifiers: {
               drinkKey: activeDrink.drinkKey,
               sourceId: activeDrink.id,
+              activationId: activeDrink.activationId,
               accuracyPenaltyPp
             },
             commit: {
               expectedStateId: activeDrink.id,
+              expectedActivationId: activeDrink.activationId,
+              expectedStartedAt: activeDrink.startedAt,
+              expectedExpiresAt: activeDrink.expiresAt,
               drinkKey: activeDrink.drinkKey,
               phase: "timed",
               now
@@ -3193,11 +3197,15 @@ export class FightService {
       modifiers: {
         drinkKey: activeDrink.drinkKey,
         sourceId: activeDrink.id,
+        activationId: activeDrink.activationId,
         outgoingDamageMultiplierBp: definition.outgoingDamageMultiplierBp ?? 10000,
         incomingDamageMultiplierBp: definition.incomingDamageMultiplierBp ?? 10000
       },
       commit: {
         expectedStateId: activeDrink.id,
+        expectedActivationId: activeDrink.activationId,
+        expectedStartedAt: activeDrink.startedAt,
+        expectedExpiresAt: activeDrink.expiresAt,
         drinkKey: activeDrink.drinkKey,
         phase: "queued",
         now,

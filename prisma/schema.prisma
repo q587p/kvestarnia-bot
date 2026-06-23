@@ -41,6 +41,7 @@ model Character {
   korchmaRoundRecipients KorchmaRoundRecipient[]
   korchmaDrinkOrders KorchmaDrinkOrder[]
   drinkState CharacterDrinkState?
+  drinkActivationAudits ShynokDrinkActivationAudit[]
   korchmaMantokSales KorchmaMantokSale[]
   huntContracts HuntContract[]
   soloCombatSessions SoloCombatSession[]
@@ -280,6 +281,7 @@ model KorchmaRoundRecipient {
 
 model CharacterDrinkState {
   id          String    @id @default(uuid())
+  activationId String   @default(uuid()) @map("activation_id")
   characterId String    @unique @map("character_id")
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
   drinkKey    String    @map("drink_key")
@@ -292,8 +294,28 @@ model CharacterDrinkState {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
+  @@unique([activationId])
   @@index([expiresAt])
   @@map("character_drink_states")
+}
+
+model ShynokDrinkActivationAudit {
+  id          String    @id @default(uuid())
+  characterId String    @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  activationId String   @unique @map("activation_id")
+  drinkKey    String    @map("drink_key")
+  sourceType  String    @map("source_type")
+  sourceId    String?   @map("source_id")
+  outcome     String
+  combatSessionId String? @map("combat_session_id")
+  occurredAt  DateTime  @map("occurred_at")
+  metadataJson Json?    @map("metadata_json")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([characterId, outcome, occurredAt])
+  @@index([combatSessionId])
+  @@map("shynok_drink_activation_audits")
 }
 
 model KorchmaDrinkOrder {

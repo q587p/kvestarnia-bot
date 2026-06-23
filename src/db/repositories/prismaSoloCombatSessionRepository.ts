@@ -1370,6 +1370,9 @@ function parseDrinkModifiers(value: unknown): DrinkCombatModifiers | null {
   const sourceId = typeof value.sourceId === "string" && value.sourceId.length > 0 && value.sourceId.length <= 128
     ? value.sourceId
     : null;
+  const activationId = typeof value.activationId === "string" && value.activationId.length > 0 && value.activationId.length <= 128
+    ? value.activationId
+    : null;
 
   if (!drinkKey || !sourceId) {
     return null;
@@ -1390,6 +1393,7 @@ function parseDrinkModifiers(value: unknown): DrinkCombatModifiers | null {
   return {
     drinkKey,
     sourceId,
+    ...(activationId ? { activationId } : {}),
     ...(accuracyPenaltyPp !== undefined ? { accuracyPenaltyPp } : {}),
     ...(outgoingDamageMultiplierBp !== undefined ? { outgoingDamageMultiplierBp } : {}),
     ...(incomingDamageMultiplierBp !== undefined ? { incomingDamageMultiplierBp } : {})

@@ -174,6 +174,7 @@ export interface CombatState {
 export interface DrinkCombatModifiers {
   drinkKey?: string;
   sourceId?: string;
+  activationId?: string;
   accuracyPenaltyPp?: number;
   outgoingDamageMultiplierBp?: number;
   incomingDamageMultiplierBp?: number;

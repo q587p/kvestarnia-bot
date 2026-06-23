@@ -5,6 +5,7 @@ import type { ShynokDrinkKey, ShynokDrinkPhase } from "../../domain/shynokDrinks
 
 export interface ShynokDrinkStateRecord {
   id: string;
+  activationId: string;
   characterId: string;
   drinkKey: ShynokDrinkKey;
   phase: ShynokDrinkPhase;
@@ -75,6 +76,7 @@ export interface ShynokRoundRecipientSnapshot {
 export type ShynokConfirmDrinkResult =
   | { state: "no-character" }
   | { state: "invalid-token" }
+  | { state: "replacement-changed"; order: ShynokDrinkOrderRecord }
   | { state: "expired"; order: ShynokDrinkOrderRecord }
   | { state: "not-enough-gold"; character: CharacterRecord; order: ShynokDrinkOrderRecord }
   | { state: "completed"; character: CharacterRecord; order: ShynokDrinkOrderRecord; drink: ShynokDrinkStateRecord }

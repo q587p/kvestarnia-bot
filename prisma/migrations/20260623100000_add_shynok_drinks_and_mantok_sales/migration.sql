@@ -9,6 +9,7 @@ ALTER TABLE "korchma_round_purchases" ADD COLUMN "telemetry_json" JSONB;
 
 CREATE TABLE "character_drink_states" (
   "id" TEXT NOT NULL PRIMARY KEY,
+  "activation_id" TEXT NOT NULL,
   "character_id" TEXT NOT NULL,
   "drink_key" TEXT NOT NULL,
   "phase" TEXT NOT NULL,
@@ -25,8 +26,33 @@ CREATE TABLE "character_drink_states" (
 
 CREATE UNIQUE INDEX "character_drink_states_character_id_key"
   ON "character_drink_states"("character_id");
+CREATE UNIQUE INDEX "character_drink_states_activation_id_key"
+  ON "character_drink_states"("activation_id");
 CREATE INDEX "character_drink_states_expires_at_idx"
   ON "character_drink_states"("expires_at");
+
+CREATE TABLE "shynok_drink_activation_audits" (
+  "id" TEXT NOT NULL PRIMARY KEY,
+  "character_id" TEXT NOT NULL,
+  "activation_id" TEXT NOT NULL,
+  "drink_key" TEXT NOT NULL,
+  "source_type" TEXT NOT NULL,
+  "source_id" TEXT,
+  "outcome" TEXT NOT NULL,
+  "combat_session_id" TEXT,
+  "occurred_at" DATETIME NOT NULL,
+  "metadata_json" JSONB,
+  "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "shynok_drink_activation_audits_character_id_fkey"
+    FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE UNIQUE INDEX "shynok_drink_activation_audits_activation_id_key"
+  ON "shynok_drink_activation_audits"("activation_id");
+CREATE INDEX "shynok_drink_activation_audits_character_id_outcome_occurred_at_idx"
+  ON "shynok_drink_activation_audits"("character_id", "outcome", "occurred_at");
+CREATE INDEX "shynok_drink_activation_audits_combat_session_id_idx"
+  ON "shynok_drink_activation_audits"("combat_session_id");
 
 CREATE TABLE "korchma_drink_orders" (
   "id" TEXT NOT NULL PRIMARY KEY,

@@ -70,7 +70,7 @@ export type ShynokDrinkOrderResult =
     };
 
 export type ShynokDrinkConfirmResult =
-  | { state: ShynokGateState | "invalid-token" | "expired" }
+  | { state: ShynokGateState | "invalid-token" | "expired" | "replacement-changed" }
   | { state: "not-enough-gold"; character: CharacterSummary; priceGold: number }
   | {
       state: "completed" | "replayed";
@@ -236,7 +236,15 @@ export class ShynokService {
       token: randomUUID(),
       drinkKey,
       priceGold: drink.priceGold,
-      replacement: activeDrink ? { drinkKey: activeDrink.drinkKey, expiresAt: activeDrink.expiresAt.toISOString() } : null,
+      replacement: activeDrink ? {
+        expected: "activation",
+        drinkStateId: activeDrink.id,
+        activationId: activeDrink.activationId,
+        drinkKey: activeDrink.drinkKey,
+        phase: activeDrink.phase,
+        startedAt: activeDrink.startedAt.toISOString(),
+        expiresAt: activeDrink.expiresAt.toISOString()
+      } : { expected: "none" },
       now,
       expiresAt: new Date(now.getTime() + SHYNOK_SELF_ORDER_TTL_MS)
     });
@@ -274,6 +282,7 @@ export class ShynokService {
       case "no-character":
       case "invalid-token":
       case "expired":
+      case "replacement-changed":
         return { state: result.state };
       case "not-enough-gold":
         return {
@@ -645,7 +654,7 @@ export class ShynokService {
           state: result.state,
           character: summarizeCharacter(result.character),
           sale: result.sale,
-          items: presentSaleLines(result.sale.selection, eligible, items)
+          items: presentSaleReplayLines(result.sale.result) ?? presentSaleLines(result.sale.selection, eligible, items)
         };
       case "no-character":
       case "invalid-token":
@@ -842,6 +851,37 @@ function presentSaleLines(
         }]
       : [];
   });
+}
+
+function presentSaleReplayLines(result: unknown): PresentedSaleLine[] | null {
+  if (!isRecord(result) || !Array.isArray(result.items)) {
+    return null;
+  }
+  const contentById = new Map(items.map((item) => [item.id, item]));
+  const lines = result.items.flatMap((entry): PresentedSaleLine[] => {
+    if (!isRecord(entry) || typeof entry.itemId !== "string") {
+      return [];
+    }
+    const quantity = Number(entry.quantity);
+    const unitGoldValue = Number(entry.unitGoldValue);
+    const content = contentById.get(entry.itemId);
+    if (!content || !Number.isInteger(quantity) || quantity <= 0 || !Number.isInteger(unitGoldValue) || unitGoldValue < 0) {
+      return [];
+    }
+
+    return [{
+      itemId: entry.itemId,
+      quantity,
+      content,
+      unitGoldValue
+    }];
+  });
+
+  return lines.length > 0 ? lines : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function clampPage(page: number, pageCount: number): number {

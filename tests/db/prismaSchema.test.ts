@@ -125,18 +125,24 @@ describe("Prisma schema", () => {
     );
 
     expect(schema).toContain("model CharacterDrinkState");
+    expect(schema).toContain("activationId String");
+    expect(schema).toContain("model ShynokDrinkActivationAudit");
     expect(schema).toContain("model KorchmaDrinkOrder");
     expect(schema).toContain("model KorchmaRoundRecipient");
     expect(schema).toContain("model KorchmaMantokSale");
     expect(schema).toContain("drinkState CharacterDrinkState?");
+    expect(schema).toContain("drinkActivationAudits ShynokDrinkActivationAudit[]");
     expect(schema).toContain("korchmaDrinkOrders KorchmaDrinkOrder[]");
     expect(schema).toContain("korchmaMantokSales KorchmaMantokSale[]");
     expect(schema).toContain("@@unique([characterId, token])");
     expect(schema).toContain("@@map(\"character_drink_states\")");
+    expect(schema).toContain("@@map(\"shynok_drink_activation_audits\")");
     expect(schema).toContain("@@map(\"korchma_drink_orders\")");
     expect(schema).toContain("@@map(\"korchma_round_recipients\")");
     expect(schema).toContain("@@map(\"korchma_mantok_sales\")");
     expect(migration).toContain("CREATE TABLE \"character_drink_states\"");
+    expect(migration).toContain("\"activation_id\" TEXT NOT NULL");
+    expect(migration).toContain("CREATE TABLE \"shynok_drink_activation_audits\"");
     expect(migration).toContain("CREATE TABLE \"korchma_drink_orders\"");
     expect(migration).toContain("CREATE TABLE \"korchma_round_recipients\"");
     expect(migration).toContain("CREATE TABLE \"korchma_mantok_sales\"");
