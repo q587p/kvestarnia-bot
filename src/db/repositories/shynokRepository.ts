@@ -7,6 +7,7 @@ export interface ShynokDrinkStateRecord {
   id: string;
   activationId: string;
   characterId: string;
+  remortCount: number;
   drinkKey: ShynokDrinkKey;
   phase: ShynokDrinkPhase;
   startedAt: Date;
@@ -20,6 +21,7 @@ export interface ShynokDrinkOrderRecord {
   id: string;
   token: string;
   characterId: string;
+  remortCount: number;
   drinkKey: ShynokDrinkKey;
   priceGold: number;
   status: string;
@@ -33,6 +35,7 @@ export interface ShynokRoundRecipientRecord {
   id: string;
   purchaseId: string;
   characterId: string;
+  remortCount: number;
   drinkKey: ShynokDrinkKey;
   status: "offered" | "accepted" | "declined" | "expired";
   expiresAt: Date;
@@ -44,6 +47,7 @@ export interface ShynokMantokSaleRecord {
   id: string;
   token: string;
   characterId: string;
+  remortCount: number;
   status: "pending" | "completed" | "cancelled" | "expired";
   selection: Array<{ itemId: string; quantity: number }>;
   selectionFingerprint: string;
@@ -71,6 +75,7 @@ export interface ShynokRoundRecipientSnapshot {
   characterId: string;
   telegramUserId: bigint;
   name: string;
+  remortCount: number;
 }
 
 export type ShynokConfirmDrinkResult =

@@ -16,7 +16,6 @@ import type {
 } from "../db/repositories/shynokRepository";
 import {
   buildDrinkEffect,
-  buildShynokRecoveryWindows,
   getShynokDrinkDefinition,
   isShynokDrinkKey,
   SHYNOK_DRINKS,
@@ -36,7 +35,6 @@ import {
   getBarrelRaidPeriod,
   toKorchmaLocalDate
 } from "./tavernRaidService";
-import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import { systemClock, type Clock } from "../shared/time";
 
 export const SHYNOK_SELF_ORDER_TTL_MS = 5 * 60_000;
@@ -271,7 +269,6 @@ export class ShynokService {
       return gate;
     }
 
-    await this.settleResourcesWithCurrentDrink(telegramUserId);
     const result = await this.shynok.confirmSelfDrinkOrderForTelegramUser(telegramUserId, {
       token,
       now: this.clock(),
@@ -342,7 +339,8 @@ export class ShynokService {
       snapshot: recipients.map((recipient) => ({
         characterId: recipient.characterId,
         telegramUserId: recipient.telegramUserId.toString(),
-        name: recipient.name
+        name: recipient.name,
+        remortCount: recipient.remortCount
       })),
       now,
       expiresAt: new Date(now.getTime() + SHYNOK_ROUND_ORDER_TTL_MS)
@@ -425,10 +423,6 @@ export class ShynokService {
     const gate = await this.checkGate(telegramUserId);
     if (gate.state !== "ready") {
       return gate;
-    }
-
-    if (action === "confirm-replacement") {
-      await this.settleResourcesWithCurrentDrink(telegramUserId);
     }
 
     const result = await this.shynok.respondToRoundOfferForTelegramUser(telegramUserId, {
@@ -686,28 +680,6 @@ export class ShynokService {
     return { state: "ready", character: snapshot.character };
   }
 
-  private async settleResourcesWithCurrentDrink(telegramUserId: bigint): Promise<void> {
-    const now = this.clock();
-    const [character, activeDrink] = await Promise.all([
-      this.characters.findByTelegramUserId(telegramUserId),
-      this.shynok.getRecoveryDrinkForTelegramUser?.(telegramUserId) ??
-        this.shynok.getActiveDrinkForTelegramUser(telegramUserId, now)
-    ]);
-
-    if (!character) {
-      return;
-    }
-
-    const multiplierWindows = buildShynokRecoveryWindows(activeDrink);
-
-    await summarizeAndSyncCharacterResources({
-      characters: this.characters,
-      telegramUserId,
-      character,
-      now,
-      ...(multiplierWindows.length > 0 ? { multiplierWindows } : {})
-    });
-  }
 }
 
 export function getRoundPrice(tier: KorchmaRoundTier, recipientCount: number): number {

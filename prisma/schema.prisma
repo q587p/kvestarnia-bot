@@ -242,6 +242,7 @@ model KorchmaRoundPurchase {
   id          String    @id @default(uuid())
   characterId String    @map("character_id")
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount Int      @default(0) @map("remort_count")
   tier        String
   spentGold   Int       @map("spent_gold")
   localDate   String    @map("local_date")
@@ -265,6 +266,7 @@ model KorchmaRoundRecipient {
   purchase   KorchmaRoundPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   characterId String    @map("character_id")
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount Int       @default(0) @map("remort_count")
   drinkKey    String    @map("drink_key")
   status      String    @default("offered")
   offeredAt   DateTime  @map("offered_at")
@@ -284,6 +286,7 @@ model CharacterDrinkState {
   activationId String   @default(uuid()) @map("activation_id")
   characterId String    @unique @map("character_id")
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount Int       @default(0) @map("remort_count")
   drinkKey    String    @map("drink_key")
   phase       String
   startedAt   DateTime  @map("started_at")
@@ -323,6 +326,7 @@ model KorchmaDrinkOrder {
   token       String    @unique
   characterId String    @map("character_id")
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount Int       @default(0) @map("remort_count")
   drinkKey    String    @map("drink_key")
   priceGold   Int       @map("price_gold")
   status      String    @default("pending")
@@ -376,6 +380,7 @@ model KorchmaMantokSale {
   token       String    @unique
   characterId String    @map("character_id")
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount Int       @default(0) @map("remort_count")
   status      String    @default("pending")
   selectionJson Json    @map("selection_json")
   selectionFingerprint String @map("selection_fingerprint")

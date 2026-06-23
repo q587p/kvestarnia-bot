@@ -1,6 +1,7 @@
 -- Add server-owned Shynok drink, social round recipient, and Mantok sale state.
 
 ALTER TABLE "korchma_round_purchases" ADD COLUMN "drink_key" TEXT;
+ALTER TABLE "korchma_round_purchases" ADD COLUMN "remort_count" INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE "korchma_round_purchases" ADD COLUMN "recipient_count" INTEGER;
 ALTER TABLE "korchma_round_purchases" ADD COLUMN "offer_expires_at" DATETIME;
 ALTER TABLE "korchma_round_purchases" ADD COLUMN "rules_version" TEXT;
@@ -11,6 +12,7 @@ CREATE TABLE "character_drink_states" (
   "id" TEXT NOT NULL PRIMARY KEY,
   "activation_id" TEXT NOT NULL,
   "character_id" TEXT NOT NULL,
+  "remort_count" INTEGER NOT NULL DEFAULT 0,
   "drink_key" TEXT NOT NULL,
   "phase" TEXT NOT NULL,
   "started_at" DATETIME NOT NULL,
@@ -58,6 +60,7 @@ CREATE TABLE "korchma_drink_orders" (
   "id" TEXT NOT NULL PRIMARY KEY,
   "token" TEXT NOT NULL,
   "character_id" TEXT NOT NULL,
+  "remort_count" INTEGER NOT NULL DEFAULT 0,
   "drink_key" TEXT NOT NULL,
   "price_gold" INTEGER NOT NULL,
   "status" TEXT NOT NULL DEFAULT 'pending',
@@ -79,6 +82,7 @@ CREATE TABLE "korchma_round_recipients" (
   "id" TEXT NOT NULL PRIMARY KEY,
   "purchase_id" TEXT NOT NULL,
   "character_id" TEXT NOT NULL,
+  "remort_count" INTEGER NOT NULL DEFAULT 0,
   "drink_key" TEXT NOT NULL,
   "status" TEXT NOT NULL DEFAULT 'offered',
   "offered_at" DATETIME NOT NULL,
@@ -102,6 +106,7 @@ CREATE TABLE "korchma_mantok_sales" (
   "id" TEXT NOT NULL PRIMARY KEY,
   "token" TEXT NOT NULL,
   "character_id" TEXT NOT NULL,
+  "remort_count" INTEGER NOT NULL DEFAULT 0,
   "status" TEXT NOT NULL DEFAULT 'pending',
   "selection_json" JSONB NOT NULL,
   "selection_fingerprint" TEXT NOT NULL,

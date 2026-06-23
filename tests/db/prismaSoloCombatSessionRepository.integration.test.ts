@@ -1298,6 +1298,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       id TEXT PRIMARY KEY,
       activation_id TEXT NOT NULL UNIQUE,
       character_id TEXT NOT NULL UNIQUE,
+      remort_count INTEGER NOT NULL DEFAULT 0,
       drink_key TEXT NOT NULL,
       phase TEXT NOT NULL,
       started_at DATETIME NOT NULL,

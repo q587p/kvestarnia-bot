@@ -757,6 +757,7 @@ describe("FightService", () => {
         Promise.resolve({
           id: "drink-state-beer-direct",
           characterId: "character-1",
+          remortCount: 0,
           drinkKey: "drink.fine-beer",
           phase: "timed",
           startedAt: new Date("2026-06-12T09:50:00.000Z"),
@@ -897,6 +898,7 @@ describe("FightService", () => {
         Promise.resolve({
           id: "drink-state-expired-recovery",
           characterId: "character-42",
+          remortCount: 0,
           drinkKey: "drink.fine-beer",
           phase: "timed",
           startedAt: new Date("2026-06-12T10:29:00.000Z"),

@@ -495,6 +495,54 @@ describe("PrismaShynokRepository integration", () => {
     });
   });
 
+  it("blocks old-life self drink orders without spending gold or activating a drink", async () => {
+    await seedCharacter({ telegramUserId: 721n, userId: "user-self-old-life", characterId: "character-self-old-life", gold: 100 });
+    const boundary = new Date("2026-06-23T10:00:00.000Z");
+    await prisma.korchmaDrinkOrder.create({
+      data: {
+        id: "order-self-old-life",
+        token: "12345678-1234-4234-9234-000000000721",
+        characterId: "character-self-old-life",
+        remortCount: 0,
+        drinkKey: "drink.thyme-tea",
+        priceGold: 17,
+        status: "pending",
+        replacementJson: { expected: "none" },
+        expiresAt: new Date("2026-06-23T10:10:00.000Z"),
+        createdAt: boundary,
+        updatedAt: boundary
+      }
+    });
+    await prisma.characterRemort.create({
+      data: {
+        id: "remort-self-old-life",
+        characterId: "character-self-old-life",
+        token: "remort-token-self-old-life",
+        remortNumber: 1,
+        previousLevel: 3,
+        previousXp: 100,
+        previousGold: 100,
+        displayNameSnapshot: "character-self-old-life",
+        preservedPayloadJson: {},
+        createdAt: boundary
+      }
+    });
+
+    const result = await repository.confirmSelfDrinkOrderForTelegramUser(721n, {
+      token: "12345678-1234-4234-9234-000000000721",
+      now: new Date("2026-06-23T10:01:00.000Z"),
+      result: { kind: "self-drink-confirm" }
+    });
+
+    expect(result.state).toBe("invalid-token");
+    await expect(prisma.character.findUnique({
+      where: { id: "character-self-old-life" }
+    })).resolves.toMatchObject({ gold: 100 });
+    await expect(prisma.characterDrinkState.findUnique({
+      where: { characterId: "character-self-old-life" }
+    })).resolves.toBeNull();
+  });
+
   it("completed self order replays its original activation after later replacement", async () => {
     await seedCharacter({ telegramUserId: 716n, userId: "user-self-replay-activation", characterId: "character-self-replay-activation", gold: 100 });
     await prisma.korchmaDrinkOrder.create({
@@ -597,6 +645,52 @@ describe("PrismaShynokRepository integration", () => {
     expect(replay.state).toBe("replayed");
     expect(replay.state === "replayed" ? replay.drink?.activationId : null).toBe(accepted.drink.activationId);
     expect(replay.state === "replayed" ? replay.drink?.drinkKey : null).toBe("drink.simple-beer");
+  });
+
+  it("blocks old-life round offers without accepting or activating a drink", async () => {
+    await seedCharacter({ telegramUserId: 7201n, userId: "user-round-old-life-buyer", characterId: "character-round-old-life-buyer", gold: 500 });
+    await seedCharacter({ telegramUserId: 7202n, userId: "user-round-old-life-recipient", characterId: "character-round-old-life-recipient", gold: 100 });
+    const boundary = new Date("2026-06-23T10:00:00.000Z");
+    await seedRoundOffer({
+      purchaseId: "purchase-round-old-life",
+      offerId: "12345678-1234-4234-9234-000000007202",
+      buyerCharacterId: "character-round-old-life-buyer",
+      recipientCharacterId: "character-round-old-life-recipient",
+      drinkKey: "drink.simple-beer"
+    });
+    await prisma.korchmaRoundRecipient.update({
+      where: { id: "12345678-1234-4234-9234-000000007202" },
+      data: { remortCount: 0, createdAt: boundary, updatedAt: boundary }
+    });
+    await prisma.characterRemort.create({
+      data: {
+        id: "remort-round-old-life",
+        characterId: "character-round-old-life-recipient",
+        token: "remort-token-round-old-life",
+        remortNumber: 1,
+        previousLevel: 3,
+        previousXp: 100,
+        previousGold: 100,
+        displayNameSnapshot: "character-round-old-life-recipient",
+        preservedPayloadJson: {},
+        createdAt: boundary
+      }
+    });
+
+    const result = await repository.respondToRoundOfferForTelegramUser(7202n, {
+      offerId: "12345678-1234-4234-9234-000000007202",
+      action: "accept",
+      now: new Date("2026-06-23T10:01:00.000Z"),
+      result: { kind: "round-offer-accept" }
+    });
+
+    expect(result.state).toBe("invalid-offer");
+    await expect(prisma.korchmaRoundRecipient.findUnique({
+      where: { id: "12345678-1234-4234-9234-000000007202" }
+    })).resolves.toMatchObject({ status: "offered" });
+    await expect(prisma.characterDrinkState.findUnique({
+      where: { characterId: "character-round-old-life-recipient" }
+    })).resolves.toBeNull();
   });
 
   it("records one expired-unused audit for queued vodka on lazy read", async () => {
@@ -785,11 +879,12 @@ describe("PrismaShynokRepository integration", () => {
     await seedCharacter({ telegramUserId: 912n, userId: "user-sale-remort", characterId: "character-sale-remort", gold: 10 });
     await seedSaleItems("character-sale-remort", { "item.test-copper-spoon": 2 });
     const basket = makeSaleBasket([{ itemId: "item.test-copper-spoon", quantity: 2 }]);
+    const boundary = new Date("2026-06-23T09:55:00.000Z");
     await seedSale({
       token: "12345678-1234-4234-9234-000000000912",
       characterId: "character-sale-remort",
       basket,
-      createdAt: new Date("2026-06-23T09:55:00.000Z")
+      createdAt: boundary
     });
     await prisma.characterRemort.create({
       data: {
@@ -802,7 +897,7 @@ describe("PrismaShynokRepository integration", () => {
         previousGold: 10,
         displayNameSnapshot: "character-sale-remort",
         preservedPayloadJson: {},
-        createdAt: new Date("2026-06-23T09:56:00.000Z")
+        createdAt: boundary
       }
     });
 
@@ -1113,6 +1208,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
       activation_id TEXT NOT NULL,
       character_id TEXT NOT NULL UNIQUE,
+      remort_count INTEGER NOT NULL DEFAULT 0,
       drink_key TEXT NOT NULL,
       phase TEXT NOT NULL,
       started_at DATETIME NOT NULL,
@@ -1142,6 +1238,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
       token TEXT NOT NULL UNIQUE,
       character_id TEXT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
       drink_key TEXT NOT NULL,
       price_gold INTEGER NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending',
@@ -1155,6 +1252,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     `CREATE TABLE korchma_round_purchases (
       id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
       character_id TEXT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
       tier TEXT NOT NULL,
       spent_gold INTEGER NOT NULL,
       local_date TEXT NOT NULL,
@@ -1170,6 +1268,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
       purchase_id TEXT NOT NULL,
       character_id TEXT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
       drink_key TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'offered',
       offered_at DATETIME NOT NULL,
@@ -1236,6 +1335,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
       token TEXT NOT NULL UNIQUE,
       character_id TEXT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'pending',
       selection_json JSONB NOT NULL,
       selection_fingerprint TEXT NOT NULL,

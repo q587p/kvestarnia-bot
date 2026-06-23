@@ -195,6 +195,7 @@ function buildDrinkState(overrides: Partial<ShynokDrinkStateRecord> = {}): Shyno
     id: "drink-state-1",
     activationId: "activation-1",
     characterId: "character-42",
+    remortCount: 0,
     drinkKey: "drink.simple-beer",
     phase: "timed",
     startedAt: new Date("2026-06-23T10:00:00.000Z"),

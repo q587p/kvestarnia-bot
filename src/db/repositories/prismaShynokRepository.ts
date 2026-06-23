@@ -18,7 +18,14 @@ import type {
   ShynokRoundRecipientSnapshot
 } from "./shynokRepository";
 import { getIncludedRemortCount } from "./prismaRemortCount";
-import { buildDrinkEffect, createRoundReplacementGuard, isShynokDrinkKey } from "../../domain/shynokDrinks";
+import { summarizeCharacter } from "../../domain/characters/characterSummary";
+import { applyPassiveResourceRegeneration } from "../../domain/resources/resourceRegeneration";
+import {
+  buildDrinkEffect,
+  buildShynokRecoveryWindows,
+  createRoundReplacementGuard,
+  isShynokDrinkKey
+} from "../../domain/shynokDrinks";
 import { buildMantokSaleBasket, buildMantokSaleEligibleStacks } from "../../domain/mantokSales";
 
 type TxClient = Prisma.TransactionClient;
@@ -27,6 +34,12 @@ const PRESENCE_LOCATION_KORCHMA_BAR = "location.korchma.bar";
 class StaleSaleSelectionRollback extends Error {
   constructor(readonly sale: ShynokMantokSaleRecord) {
     super("Mantok sale selection became stale during confirmation.");
+  }
+}
+
+class StaleDrinkActivationRollback extends Error {
+  constructor(readonly kind: "self" | "round", readonly record: ShynokDrinkOrderRecord | ShynokRoundRecipientRecord) {
+    super("Drink activation changed during confirmation.");
   }
 }
 
@@ -150,11 +163,13 @@ export class PrismaShynokRepository implements ShynokRepository {
       result: unknown;
     }
   ): Promise<ShynokConfirmDrinkResult> {
-    return this.prisma.$transaction(async (tx) => {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
       const character = await findCharacter(tx, telegramUserId);
       if (!character) {
         return { state: "no-character" };
       }
+      const remortCount = getIncludedRemortCount(character);
 
       const orderRow = await tx.korchmaDrinkOrder.findFirst({
         where: {
@@ -182,7 +197,7 @@ export class PrismaShynokRepository implements ShynokRepository {
         return { state: "invalid-token" };
       }
 
-      if (!(await canMutateShynok(tx, character, orderRow.createdAt))) {
+      if (order.remortCount !== remortCount || !(await canMutateShynok(tx, character, orderRow.createdAt, order.remortCount))) {
         return { state: "invalid-token" };
       }
 
@@ -195,13 +210,18 @@ export class PrismaShynokRepository implements ShynokRepository {
         return { state: "expired", order: expired };
       }
 
-      if (!(await matchesSelfDrinkReplacementExpectation(tx, character.id, order.replacement, input.now))) {
+      const replacement = await prepareDrinkReplacement(tx, character.id, order.replacement, input.now);
+      if (!replacement) {
         const stale = mapDrinkOrder(await tx.korchmaDrinkOrder.update({
           where: { id: order.id },
           data: { status: "cancelled", updatedAt: input.now }
         })) ?? order;
 
         return { state: "replacement-changed", order: stale };
+      }
+
+      if (!(await settleResourcesBeforeDrinkReplacement(tx, character, replacement.previous, input.now, order.remortCount))) {
+        return { state: "invalid-token" };
       }
 
       const claimed = await tx.korchmaDrinkOrder.updateMany({
@@ -253,14 +273,19 @@ export class PrismaShynokRepository implements ShynokRepository {
         };
       }
 
-      const drink = await upsertDrinkState(tx, {
+      const drink = await activateDrinkState(tx, {
         characterId: character.id,
+        remortCount: order.remortCount,
         drinkKey: order.drinkKey,
         sourceType: "self_purchase",
         sourceId: order.id,
         now: input.now,
-        metadata: input.result
+        metadata: input.result,
+        previous: replacement.previous
       });
+      if (!drink) {
+        throw new StaleDrinkActivationRollback("self", order);
+      }
       const result = withDrinkActivationSnapshot(input.result, drink, order.priceGold, "self");
 
       const completed = mapDrinkOrder(await tx.korchmaDrinkOrder.update({
@@ -283,7 +308,14 @@ export class PrismaShynokRepository implements ShynokRepository {
         order: completed,
         drink
       };
-    });
+      });
+    } catch (error) {
+      if (error instanceof StaleDrinkActivationRollback && error.kind === "self") {
+        return { state: "replacement-changed", order: error.record as ShynokDrinkOrderRecord };
+      }
+
+      throw error;
+    }
   }
 
   async createRoundOrderForTelegramUser(
@@ -319,6 +351,7 @@ export class PrismaShynokRepository implements ShynokRepository {
       if (!character) {
         return { state: "no-character" };
       }
+      const remortCount = getIncludedRemortCount(character);
 
       const orderRow = await tx.korchmaDrinkOrder.findFirst({
         where: {
@@ -347,7 +380,7 @@ export class PrismaShynokRepository implements ShynokRepository {
         return { state: "invalid-token" };
       }
 
-      if (!(await canMutateShynok(tx, character, orderRow.createdAt))) {
+      if (order.remortCount !== remortCount || !(await canMutateShynok(tx, character, orderRow.createdAt, order.remortCount))) {
         return { state: "invalid-token" };
       }
 
@@ -423,6 +456,7 @@ export class PrismaShynokRepository implements ShynokRepository {
       const purchase = await tx.korchmaRoundPurchase.create({
         data: {
           characterId: character.id,
+          remortCount: order.remortCount,
           tier: input.tier,
           spentGold: order.priceGold,
           localDate: input.localDate,
@@ -432,7 +466,8 @@ export class PrismaShynokRepository implements ShynokRepository {
           rulesVersion: "shynok-round-v1",
           snapshotJson: recipients.map((recipient) => ({
             characterId: recipient.characterId,
-            telegramUserId: recipient.telegramUserId.toString()
+            telegramUserId: recipient.telegramUserId.toString(),
+            remortCount: recipient.remortCount
           })),
           telemetryJson: {
             snapshotCount: recipients.length,
@@ -448,6 +483,7 @@ export class PrismaShynokRepository implements ShynokRepository {
           data: {
             purchaseId: purchase.id,
             characterId: recipient.characterId,
+            remortCount: recipient.remortCount,
             drinkKey: order.drinkKey,
             status: "offered",
             offeredAt: input.now,
@@ -494,11 +530,13 @@ export class PrismaShynokRepository implements ShynokRepository {
       result: unknown;
     }
   ): Promise<ShynokRespondRoundOfferResult> {
-    return this.prisma.$transaction(async (tx) => {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
       const character = await findCharacter(tx, telegramUserId);
       if (!character) {
         return { state: "no-character" };
       }
+      const remortCount = getIncludedRemortCount(character);
 
       const offerRow = await tx.korchmaRoundRecipient.findFirst({
         where: {
@@ -536,7 +574,7 @@ export class PrismaShynokRepository implements ShynokRepository {
         return declined ? { state: "declined", offer: declined } : replayRoundOffer(await findRoundOffer(tx, offer.id));
       }
 
-      if (!(await canMutateShynok(tx, character, offerRow.createdAt))) {
+      if (offer.remortCount !== remortCount || !(await canMutateShynok(tx, character, offerRow.createdAt, offer.remortCount))) {
         return { state: "invalid-offer" };
       }
 
@@ -560,13 +598,35 @@ export class PrismaShynokRepository implements ShynokRepository {
         }
       }
 
+      const replacement = input.action === "confirm-replacement"
+        ? activeDrink
+          ? { previous: activeDrink }
+          : null
+        : await prepareDrinkReplacement(tx, character.id, { expected: "none" }, input.now);
+      if (!replacement) {
+        return { state: "stale-replacement", offer };
+      }
+
+      if (!(await settleResourcesBeforeDrinkReplacement(tx, character, replacement.previous, input.now, offer.remortCount))) {
+        return { state: "stale-replacement", offer };
+      }
+
       return acceptRoundOffer(tx, {
         offer,
         characterId: character.id,
+        remortCount: offer.remortCount,
         now: input.now,
-        result: input.result
+        result: input.result,
+        previousDrink: replacement.previous
       });
-    });
+      });
+    } catch (error) {
+      if (error instanceof StaleDrinkActivationRollback && error.kind === "round") {
+        return { state: "stale-replacement", offer: error.record as ShynokRoundRecipientRecord };
+      }
+
+      throw error;
+    }
   }
 
   async listOpenRoundOffersForTelegramUser(
@@ -625,6 +685,9 @@ export class PrismaShynokRepository implements ShynokRepository {
       include: {
         user: {
           select: { telegramUserId: true }
+        },
+        _count: {
+          select: { remorts: true }
         }
       },
       orderBy: [
@@ -635,7 +698,8 @@ export class PrismaShynokRepository implements ShynokRepository {
     const mapped = recipients.map((recipient) => ({
       characterId: recipient.id,
       telegramUserId: recipient.user.telegramUserId,
-      name: recipient.name
+      name: recipient.name,
+      remortCount: getIncludedRemortCount(recipient)
     }));
 
     if (mapped.some((recipient) => recipient.characterId === buyer.id)) {
@@ -644,7 +708,12 @@ export class PrismaShynokRepository implements ShynokRepository {
 
     const buyerRow = await this.prisma.character.findUnique({
       where: { id: buyer.id },
-      include: { user: { select: { telegramUserId: true } } }
+      include: {
+        user: { select: { telegramUserId: true } },
+        _count: {
+          select: { remorts: true }
+        }
+      }
     });
 
     if (!buyerRow) {
@@ -655,7 +724,8 @@ export class PrismaShynokRepository implements ShynokRepository {
       {
         characterId: buyerRow.id,
         telegramUserId: buyerRow.user.telegramUserId,
-        name: buyerRow.name
+        name: buyerRow.name,
+        remortCount: getIncludedRemortCount(buyerRow)
       },
       ...mapped
     ].slice(0, 42);
@@ -675,7 +745,7 @@ export class PrismaShynokRepository implements ShynokRepository {
   ): Promise<ShynokMantokSaleRecord | null> {
     const character = await this.prisma.character.findFirst({
       where: { user: { telegramUserId } },
-      select: { id: true }
+      include: characterRecordInclude
     });
 
     if (!character) {
@@ -686,6 +756,7 @@ export class PrismaShynokRepository implements ShynokRepository {
       data: {
         token: input.token,
         characterId: character.id,
+        remortCount: getIncludedRemortCount(character),
         status: "pending",
         selectionJson: input.selection,
         selectionFingerprint: input.selectionFingerprint,
@@ -715,6 +786,7 @@ export class PrismaShynokRepository implements ShynokRepository {
       if (!character) {
         return null;
       }
+      const remortCount = getIncludedRemortCount(character);
 
       await tx.korchmaMantokSale.updateMany({
         where: {
@@ -740,7 +812,7 @@ export class PrismaShynokRepository implements ShynokRepository {
         return null;
       }
 
-      if (!(await canMutateShynok(tx, character, sale.createdAt))) {
+      if (sale.remortCount !== remortCount || !(await canMutateShynok(tx, character, sale.createdAt, sale.remortCount))) {
         return null;
       }
 
@@ -749,7 +821,8 @@ export class PrismaShynokRepository implements ShynokRepository {
           token: input.token,
           status: "pending",
           expiresAt: { gt: input.now },
-          characterId: character.id
+          characterId: character.id,
+          remortCount: sale.remortCount
         },
         data: {
           selectionJson: input.selection,
@@ -794,7 +867,7 @@ export class PrismaShynokRepository implements ShynokRepository {
   ): Promise<ShynokMantokSaleRecord | null> {
     const character = await this.prisma.character.findFirst({
       where: { user: { telegramUserId } },
-      select: { id: true }
+      include: characterRecordInclude
     });
 
     if (!character) {
@@ -805,6 +878,7 @@ export class PrismaShynokRepository implements ShynokRepository {
       where: {
         token,
         characterId: character.id,
+        remortCount: getIncludedRemortCount(character),
         status: "pending"
       },
       data: {
@@ -868,7 +942,9 @@ export class PrismaShynokRepository implements ShynokRepository {
           return { state: "expired", sale: expired };
         }
 
-        if (!(await canMutateShynokByCharacterId(tx, snapshot.character.id, saleRow.createdAt))) {
+        const remortCount = snapshot.character.remortCount ?? 0;
+        if (sale.remortCount !== remortCount ||
+          !(await canMutateShynokByCharacterId(tx, snapshot.character.id, saleRow.createdAt, sale.remortCount))) {
           return { state: "invalid-token" };
         }
 
@@ -989,7 +1065,7 @@ export class PrismaShynokRepository implements ShynokRepository {
   ): Promise<ShynokDrinkOrderRecord | null> {
     const character = await this.prisma.character.findFirst({
       where: { user: { telegramUserId } },
-      select: { id: true }
+      include: characterRecordInclude
     });
 
     if (!character) {
@@ -1000,6 +1076,7 @@ export class PrismaShynokRepository implements ShynokRepository {
       data: {
         token: input.token,
         characterId: character.id,
+        remortCount: getIncludedRemortCount(character),
         drinkKey: input.drinkKey,
         priceGold: input.priceGold,
         status: input.status,
@@ -1129,21 +1206,21 @@ async function findLiveDrinkState(tx: TxClient, characterId: string, now: Date):
   return state && state.expiresAt > now ? state : null;
 }
 
-async function matchesSelfDrinkReplacementExpectation(
+async function prepareDrinkReplacement(
   tx: TxClient,
   characterId: string,
   expectation: unknown,
   now: Date
-): Promise<boolean> {
-  const current = await findLiveDrinkState(tx, characterId, now);
+): Promise<{ previous: ShynokDrinkStateRecord | null } | null> {
+  const current = await findDrinkState(tx, characterId);
   const parsed = parseDrinkReplacementExpectation(expectation);
 
   if (parsed.expected === "none") {
-    return current === null;
+    return current && current.expiresAt > now ? null : { previous: current };
   }
 
-  if (!current) {
-    return false;
+  if (!current || current.expiresAt <= now) {
+    return null;
   }
 
   return current.id === parsed.drinkStateId &&
@@ -1151,64 +1228,150 @@ async function matchesSelfDrinkReplacementExpectation(
     current.drinkKey === parsed.drinkKey &&
     current.phase === parsed.phase &&
     current.startedAt.getTime() === parsed.startedAt.getTime() &&
-    current.expiresAt.getTime() === parsed.expiresAt.getTime();
+    current.expiresAt.getTime() === parsed.expiresAt.getTime()
+      ? { previous: current }
+      : null;
 }
 
-async function upsertDrinkState(
+async function activateDrinkState(
   tx: TxClient,
   input: {
     characterId: string;
+    remortCount: number;
     drinkKey: ShynokDrinkOrderRecord["drinkKey"];
     sourceType: "self_purchase" | "round";
     sourceId: string;
     now: Date;
     metadata: unknown;
+    previous: ShynokDrinkStateRecord | null;
   }
-): Promise<ShynokDrinkStateRecord> {
+): Promise<ShynokDrinkStateRecord | null> {
   const effect = buildDrinkEffect({
     drinkKey: input.drinkKey,
     startedAt: input.now
   });
-  const previous = await tx.characterDrinkState.findUnique({
-    where: { characterId: input.characterId }
-  });
   const activationId = randomUUID();
-  const metadata = withPreviousRecoveryWindows(input.metadata, previous, input.now);
-  const state = await tx.characterDrinkState.upsert({
-    where: {
-      characterId: input.characterId
-    },
-    create: {
-      activationId,
-      characterId: input.characterId,
-      drinkKey: input.drinkKey,
-      phase: effect.phase,
-      startedAt: effect.startedAt,
-      expiresAt: effect.expiresAt,
-      sourceType: input.sourceType,
-      sourceId: input.sourceId,
-      metadataJson: metadata as Prisma.InputJsonValue,
-      updatedAt: input.now
-    },
-    update: {
-      activationId,
-      drinkKey: input.drinkKey,
-      phase: effect.phase,
-      startedAt: effect.startedAt,
-      expiresAt: effect.expiresAt,
-      sourceType: input.sourceType,
-      sourceId: input.sourceId,
-      metadataJson: metadata as Prisma.InputJsonValue,
-      updatedAt: input.now
+  const metadata = withPreviousRecoveryWindows(input.metadata, input.previous, input.now);
+  const data = {
+    activationId,
+    remortCount: input.remortCount,
+    drinkKey: input.drinkKey,
+    phase: effect.phase,
+    startedAt: effect.startedAt,
+    expiresAt: effect.expiresAt,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    metadataJson: metadata as Prisma.InputJsonValue,
+    updatedAt: input.now
+  };
+
+  if (!input.previous) {
+    try {
+      return mapDrinkState(await tx.characterDrinkState.create({
+        data: {
+          ...data,
+          characterId: input.characterId
+        }
+      }));
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        return null;
+      }
+
+      throw error;
     }
+  }
+
+  const updated = await tx.characterDrinkState.updateMany({
+    where: {
+      characterId: input.characterId,
+      id: input.previous.id,
+      activationId: input.previous.activationId,
+      remortCount: input.previous.remortCount,
+      drinkKey: input.previous.drinkKey,
+      phase: input.previous.phase,
+      startedAt: input.previous.startedAt,
+      expiresAt: input.previous.expiresAt
+    },
+    data
+  });
+
+  if (updated.count !== 1) {
+    return null;
+  }
+
+  const state = await tx.characterDrinkState.findUnique({
+    where: { characterId: input.characterId }
   });
 
   const mapped = mapDrinkState(state);
   if (!mapped) {
-    throw new Error("Drink state mapping failed after upsert.");
+    throw new Error("Drink state mapping failed after activation.");
   }
 
   return mapped;
+}
+
+async function settleResourcesBeforeDrinkReplacement(
+  tx: TxClient,
+  character: Character & {
+    user: { lastSeenLocationId: string | null; currentRaidId?: string | null };
+    _count?: { remorts?: number };
+  },
+  previousDrink: ShynokDrinkStateRecord | null,
+  now: Date,
+  expectedRemortCount: number
+): Promise<boolean> {
+  const record = toCharacterRecord(character);
+  const summary = summarizeCharacter(record);
+  const multiplierWindows = buildShynokRecoveryWindows(previousDrink);
+  const regeneration = applyPassiveResourceRegeneration({
+    resources: {
+      hpCurrent: record.hpCurrent,
+      hpMax: record.hpMax,
+      manaCurrent: record.manaCurrent,
+      manaMax: record.manaMax,
+      ...(record.hpRegenAt === undefined ? {} : { hpRegenAt: record.hpRegenAt }),
+      ...(record.manaRegenAt === undefined ? {} : { manaRegenAt: record.manaRegenAt })
+    },
+    profile: {
+      raceId: summary.raceId,
+      classId: summary.classId,
+      title: summary.title,
+      stats: summary.stats
+    },
+    now,
+    ...(multiplierWindows.length > 0 ? { multiplierWindows } : {})
+  });
+
+  if (!regeneration.changed) {
+    return getIncludedRemortCount(character) === expectedRemortCount;
+  }
+
+  const currentRemortCount = await tx.characterRemort.count({
+    where: { characterId: character.id }
+  });
+  if (currentRemortCount !== expectedRemortCount) {
+    return false;
+  }
+
+  const updated = await tx.character.updateMany({
+    where: {
+      id: character.id,
+      hpCurrent: record.hpCurrent,
+      manaCurrent: record.manaCurrent,
+      hpRegenAt: record.hpRegenAt ?? null,
+      manaRegenAt: record.manaRegenAt ?? null
+    },
+    data: {
+      hpCurrent: regeneration.resources.hpCurrent,
+      manaCurrent: regeneration.resources.manaCurrent,
+      hpRegenAt: regeneration.resources.hpRegenAt,
+      manaRegenAt: regeneration.resources.manaRegenAt
+    }
+  });
+
+  return updated.count === 1;
 }
 
 async function canMutateShynok(
@@ -1217,7 +1380,8 @@ async function canMutateShynok(
     id: string;
     user: { lastSeenLocationId: string | null; currentRaidId?: string | null };
   },
-  operationCreatedAt: Date
+  operationCreatedAt: Date,
+  expectedRemortCount?: number
 ): Promise<boolean> {
   if (character.user.lastSeenLocationId !== PRESENCE_LOCATION_KORCHMA_BAR || character.user.currentRaidId) {
     return false;
@@ -1236,29 +1400,42 @@ async function canMutateShynok(
     })
   ]);
 
-  return !activeLease && newerRemorts === 0;
+  if (activeLease || newerRemorts !== 0) {
+    return false;
+  }
+
+  if (expectedRemortCount !== undefined) {
+    const currentRemortCount = await tx.characterRemort.count({
+      where: { characterId: character.id }
+    });
+
+    return currentRemortCount === expectedRemortCount;
+  }
+
+  return true;
 }
 
 async function canMutateShynokByCharacterId(
   tx: TxClient,
   characterId: string,
-  operationCreatedAt: Date
+  operationCreatedAt: Date,
+  expectedRemortCount?: number
 ): Promise<boolean> {
   const character = await tx.character.findUnique({
     where: { id: characterId },
     include: characterRecordInclude
   });
 
-  return character ? canMutateShynok(tx, character, operationCreatedAt) : false;
+  return character ? canMutateShynok(tx, character, operationCreatedAt, expectedRemortCount) : false;
 }
 
 function withPreviousRecoveryWindows(
   metadata: unknown,
-  previous: { drinkKey: string; phase: string; startedAt: Date; expiresAt: Date; metadataJson: Prisma.JsonValue | null } | null,
+  previous: ShynokDrinkStateRecord | null,
   replacementAt: Date
 ): unknown {
   const previousWindows = [
-    ...parseRecoveryWindows(previous?.metadataJson),
+    ...parseRecoveryWindows(previous?.metadata),
     ...(previous?.phase === "timed" && isShynokDrinkKey(previous.drinkKey)
       ? [{
           drinkKey: previous.drinkKey,
@@ -1323,22 +1500,29 @@ async function acceptRoundOffer(
   input: {
     offer: ShynokRoundRecipientRecord;
     characterId: string;
+    remortCount: number;
     now: Date;
     result: unknown;
+    previousDrink: ShynokDrinkStateRecord | null;
   }
 ): Promise<ShynokRespondRoundOfferResult> {
   const accepted = await setRoundOfferStatus(tx, input.offer.id, "accepted", input.now, input.result);
   if (!accepted) {
     return replayRoundOffer(await findRoundOffer(tx, input.offer.id));
   }
-  const drink = await upsertDrinkState(tx, {
+  const drink = await activateDrinkState(tx, {
     characterId: input.characterId,
+    remortCount: input.remortCount,
     drinkKey: input.offer.drinkKey,
     sourceType: "round",
     sourceId: input.offer.id,
     now: input.now,
-    metadata: input.result
+    metadata: input.result,
+    previous: input.previousDrink
   });
+  if (!drink) {
+    throw new StaleDrinkActivationRollback("round", input.offer);
+  }
   const result = withDrinkActivationSnapshot(input.result, drink, 0, "round");
   const acceptedWithReplay = mapRoundRecipient(await tx.korchmaRoundRecipient.update({
     where: { id: accepted.id },
@@ -1523,6 +1707,7 @@ function mapDrinkState(record: {
   id: string;
   activationId: string;
   characterId: string;
+  remortCount: number;
   drinkKey: string;
   phase: string;
   startedAt: Date;
@@ -1541,6 +1726,7 @@ function mapDrinkState(record: {
     id: record.id,
     activationId: record.activationId,
     characterId: record.characterId,
+    remortCount: record.remortCount,
     drinkKey: record.drinkKey,
     phase,
     startedAt: record.startedAt,
@@ -1555,6 +1741,7 @@ function mapDrinkOrder(record: {
   id: string;
   token: string;
   characterId: string;
+  remortCount: number;
   drinkKey: string;
   priceGold: number;
   status: string;
@@ -1571,6 +1758,7 @@ function mapDrinkOrder(record: {
     id: record.id,
     token: record.token,
     characterId: record.characterId,
+    remortCount: record.remortCount,
     drinkKey: record.drinkKey,
     priceGold: record.priceGold,
     status: record.status,
@@ -1585,6 +1773,7 @@ function mapRoundRecipient(record: {
   id: string;
   purchaseId: string;
   characterId: string;
+  remortCount: number;
   drinkKey: string;
   status: string;
   expiresAt: Date;
@@ -1606,6 +1795,7 @@ function mapRoundRecipient(record: {
     id: record.id,
     purchaseId: record.purchaseId,
     characterId: record.characterId,
+    remortCount: record.remortCount,
     drinkKey: record.drinkKey,
     status,
     expiresAt: record.expiresAt,
@@ -1618,6 +1808,7 @@ function mapSale(record: {
   id: string;
   token: string;
   characterId: string;
+  remortCount: number;
   status: string;
   selectionJson: unknown;
   selectionFingerprint: string;
@@ -1641,6 +1832,7 @@ function mapSale(record: {
     id: record.id,
     token: record.token,
     characterId: record.characterId,
+    remortCount: record.remortCount,
     status,
     selection: parseItems(record.selectionJson),
     selectionFingerprint: record.selectionFingerprint,
@@ -1685,7 +1877,10 @@ function parseRoundSnapshot(input: unknown): ShynokRoundRecipientSnapshot[] {
     return [{
       characterId: entry.characterId,
       telegramUserId,
-      name: typeof entry.name === "string" ? entry.name : ""
+      name: typeof entry.name === "string" ? entry.name : "",
+      remortCount: Number.isInteger(entry.remortCount) && Number(entry.remortCount) >= 0
+        ? Number(entry.remortCount)
+        : 0
     }];
   });
 }
@@ -1788,6 +1983,7 @@ function toDrinkActivationSnapshot(
     id: drink.id,
     activationId: drink.activationId,
     characterId: drink.characterId,
+    remortCount: drink.remortCount,
     drinkKey: drink.drinkKey,
     phase: drink.phase,
     startedAt: drink.startedAt.toISOString(),
@@ -1830,6 +2026,9 @@ function parseDrinkActivationSnapshot(input: unknown): ShynokDrinkStateRecord | 
     id: snapshot.id,
     activationId: snapshot.activationId,
     characterId: snapshot.characterId,
+    remortCount: Number.isInteger(snapshot.remortCount) && Number(snapshot.remortCount) >= 0
+      ? Number(snapshot.remortCount)
+      : 0,
     drinkKey,
     phase,
     startedAt,
