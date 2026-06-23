@@ -4,6 +4,7 @@ import {
   presentAdventureLevelLocked,
   presentAdventureOffer,
   presentAdventureProblem,
+  presentMimicShawarmaStart,
   presentAdventureResult
 } from "../../src/bot/presenters/adventurePresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -137,6 +138,21 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("+10 XP");
     expect(text).not.toContain("ризик 13%");
     expect(text).not.toContain("ризик 42%");
+  });
+
+  it("explains starter shawarma methods like selected problem methods", () => {
+    const text = presentMimicShawarmaStart(character);
+
+    expect(text).toContain("🌯 Підозріла шаурма");
+    expect(text).toContain("Можливі способи:");
+    expect(text).toContain("🔎 Перевірити, чому лаваш дихає не в ритм");
+    expect(text).toContain("<i>Розслідування без поспіху");
+    expect(text).toContain("🍴 Притиснути лаваш виделкою до зʼясування");
+    expect(text).toContain("🧄 Запропонувати зубчик часнику як примирення");
+    expect(text).toContain("<b>Мандрівник</b>, що робимо?");
+    expect(text.indexOf("Можливі способи:")).toBeLessThan(text.indexOf("<b>Мандрівник</b>, що робимо?"));
+    expect(text).not.toContain("ризик 13%");
+    expect(text).not.toContain("шанс ускладнення");
   });
 
   it("does not print the approach reward ladder on the selected problem screen", () => {
