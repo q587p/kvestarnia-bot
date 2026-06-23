@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.24] - 12026-06-23 - Shynok Drinks and Mantok Sales
+## [0.1.24] - 12026-06-24 - Shynok Drinks and Mantok Sales
 
 ### Added
 - Added Shynok self-drinks: `drink.thyme-tea` for 17 gold and 42 minutes of 1.13x out-of-combat recovery, `drink.simple-beer` for 13 gold and 23 minutes of 1.25x recovery with -5 pp PvE accuracy, `drink.fine-beer` for 42 gold and 42 minutes of 1.50x recovery with -10 pp PvE accuracy, and `drink.pepper-vodka` for 42 gold as a queued 23-minute next-eligible-PvE-fight modifier with 1.13x outgoing and incoming damage.
