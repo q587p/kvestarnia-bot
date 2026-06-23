@@ -2751,6 +2751,141 @@ describe("scene callback HTML options", () => {
     expect(fightTexts.some((text) => text.includes("Павук дедлайнів") && text.includes("7/12"))).toBe(true);
   });
 
+  it("refreshes the current passage instead of replaying a duplicate stale passage attack", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const activeSession = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
+    const getFightOverviewForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({
+        state: "persistent-ready" as const,
+        character: {
+          ...character,
+          level: 3
+        },
+        questProgress: null
+      })
+      .mockResolvedValueOnce({
+        state: "persistent-active" as const,
+        started: true,
+        character: {
+          ...character,
+          level: 3
+        },
+        session: activeSession,
+        monster: {
+          id: "monster.deadline-spider",
+          name: "First Passage Monster",
+          description: "Started from the original passage token.",
+          level: 2,
+          tags: ["test"]
+        },
+        questProgress: null
+      })
+      .mockResolvedValue({
+        state: "persistent-ready" as const,
+        character: {
+          ...character,
+          level: 3
+        },
+        questProgress: null
+      });
+    const attackPersistentPassageEncounterForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-active" as const,
+        started: true,
+        character: {
+          ...character,
+          level: 3
+        },
+        session: activeSession,
+        monster: {
+          id: "monster.deadline-spider",
+          name: "First Passage Monster",
+          description: "Started from the original passage token.",
+          level: 2,
+          tags: ["test"]
+        },
+        questProgress: null
+      })
+    );
+    const previewPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "persistent-preview" as const,
+        character: {
+          ...character,
+          level: 3
+        },
+        questProgress: null,
+        monster: {
+          id: "monster.left-door",
+          name: "Left Passage Monster",
+          description: "Recovered from the actual current passage.",
+          level: 6,
+          tags: ["test"]
+        },
+        difficulty: "hard" as const,
+        originLocationId: "location.korchma.deep.level1.left",
+        encounterToken: "lefttoken93"
+      })
+    );
+    const straightPlace = {
+      state: "ready" as const,
+      locationId: "location.korchma.deep.level1.straight",
+      locationName: "Straight passage",
+      insideKorchma: true
+    };
+    const leftPlace = {
+      state: "ready" as const,
+      locationId: "location.korchma.deep.level1.left",
+      locationName: "Left passage",
+      insideKorchma: true
+    };
+    const getCurrentPlaceForTelegramUser = vi.fn()
+      .mockResolvedValueOnce(straightPlace)
+      .mockResolvedValueOnce(straightPlace)
+      .mockResolvedValueOnce(straightPlace)
+      .mockResolvedValue(leftPlace);
+    const calls = await captureRepeatedApiCalls(
+      ["v1:fight:pass:deep-straight:token13", "v1:fight:pass:deep-straight:token13"],
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser,
+          attackPersistentPassageEncounterForTelegramUser,
+          previewPersistentFightForTelegramUser,
+          recordPersistentFightMessageReference: () => Promise.resolve()
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser
+        }
+      })
+    );
+    const refreshedPreview = calls.find(
+      (call) =>
+        call.method === "editMessageText" &&
+        String(call.payload.text).includes("Left Passage Monster")
+    );
+    expect(attackPersistentPassageEncounterForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(attackPersistentPassageEncounterForTelegramUser).toHaveBeenCalledWith(42n, "token13", {
+      callbackOriginLocationId: "location.korchma.deep.level1.straight",
+      currentLocationId: "location.korchma.deep.level1.straight"
+    });
+    expect(previewPersistentFightForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(previewPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
+      difficulty: "hard",
+      originLocationId: "location.korchma.deep.level1.left"
+    });
+    expect(markAction).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep.level1.left",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(String(refreshedPreview?.payload.text)).toContain("Left Passage Monster");
+    expect(JSON.stringify(refreshedPreview?.payload.reply_markup)).toContain(
+      "v1:fight:pass:deep-left:lefttoken93"
+    );
+  });
+
   it("rolls back a complication claim when the follow-up fight needs rest", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
