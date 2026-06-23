@@ -11,6 +11,10 @@ import type {
   ShynokSaleConfirmResult,
   ShynokSaleSelectionResult
 } from "../../services/shynokService";
+import type {
+  KorchmaRoundLeaderboard,
+  KorchmaRoundLeaderboardEntry
+} from "../../db/repositories/korchmaRoundPurchaseRepository";
 import { presentCharacterHeader } from "./telegramHtml";
 import { escapeHtml } from "./telegramHtml";
 
@@ -23,7 +27,7 @@ export function presentShynokGate(result: { state: string }): string {
     case "active-combat":
       return "🍻 Корчмар прикрив рахівницю: спершу завершіть бій, тоді вже напої й манатки.";
     case "pending-raid":
-      return "🍻 Поки триває рейд на Бочку, Шинок не проводить нових покупок. Техніка безпеки пахне піною.";
+      return "🍻 Корчмар ховає кухоль. Спершу завершіть рейд на Бочку в цьому відтинку.";
     default:
       return "🍻 Корчмар не впізнав цей чек. Відкрийте Шинок ще раз.";
   }
@@ -117,14 +121,16 @@ export function presentShynokRoundPreview(result: ShynokRoundPreviewResult): str
       `Одержувачів у збереженому списку: <b>${result.recipientCount}</b>.`,
       `Ціна раунду: <b>${result.priceGold} золота</b>.`,
       "",
-      "Кожен отримає кухоль на вибір: випити або чемно відмовитися. Рейтинг щедрости рахує саму покупку.",
+      "Кожен отримає кухоль: випити або чемно відмовитися.",
+      "",
+      ...presentKorchmaRoundLeaderboard(result.leaderboard),
       "",
       "Ставимо?"
     ].join("\n");
   }
 
   if (result.state === "raid-required") {
-    return "🍻 Корчмар ховає кухоль. Спершу завершіть рейд на Бочку в цьому відтинку.";
+    return presentShynokGate({ state: "pending-raid" });
   }
 
   if (result.state === "not-enough-gold") {
@@ -146,12 +152,14 @@ export function presentShynokRoundConfirm(result: ShynokRoundConfirmResult): str
       `Одержувачів: <b>${result.recipientCount}</b>.`,
       `Списано: <b>${result.priceGold} золота</b>.`,
       "",
-      "Хто схоче, випʼє сам. Хто не схоче, збереже точність і легенду."
+      "Хто схоче, випʼє сам. Хто не схоче, збереже точність і легенду.",
+      "",
+      ...presentKorchmaRoundLeaderboard(result.leaderboard)
     ].join("\n");
   }
 
   if (result.state === "raid-required") {
-    return "🍻 Спершу Бочка, потім щедрість. Корчмар дуже процесний.";
+    return presentShynokGate({ state: "pending-raid" });
   }
 
   if (result.state === "not-enough-gold") {
@@ -319,6 +327,57 @@ function presentDrinkEffectLine(drink: PresentedDrinkDefinition): string {
   }
 
   return "Чекає наступної сутички: ви битимете болючіше й так само чесно отримуватимете більше у відповідь.";
+}
+
+function presentKorchmaRoundLeaderboard(leaderboard: KorchmaRoundLeaderboard): string[] {
+  return [
+    "🏅 Рейтинг щедрості",
+    "",
+    ...presentLeaderboardSection("За добу", leaderboard.day),
+    "",
+    ...presentLeaderboardSection("За тиждень", leaderboard.week),
+    "",
+    ...presentLeaderboardSection("За місяць", leaderboard.month)
+  ];
+}
+
+function presentLeaderboardSection(
+  title: string,
+  entries: KorchmaRoundLeaderboardEntry[]
+): string[] {
+  if (entries.length === 0) {
+    return [`<b>${title}</b>: ще ніхто не пригощав. Корчмар тримає крейду напоготові.`];
+  }
+
+  return [
+    `<b>${title}</b>:`,
+    ...entries.map((entry, index) => presentLeaderboardEntry(entry, index + 1))
+  ];
+}
+
+function presentLeaderboardEntry(entry: KorchmaRoundLeaderboardEntry, rank: number): string {
+  const count = `${entry.roundCount} ${presentRoundCount(entry.roundCount)}`;
+
+  return `${rank}. ${escapeHtml(entry.name)} — ${count} · ${entry.spentGold} золота`;
+}
+
+function presentRoundCount(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+
+  if (lastTwo >= 11 && lastTwo <= 14) {
+    return "частувань";
+  }
+
+  if (last === 1) {
+    return "частування";
+  }
+
+  if (last >= 2 && last <= 4) {
+    return "частування";
+  }
+
+  return "частувань";
 }
 
 function formatTime(date: Date): string {

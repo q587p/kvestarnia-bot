@@ -3,6 +3,7 @@ import type {
   ShynokDrinkOrderResult,
   ShynokOverviewResult,
   ShynokRoundOfferRespondResult,
+  ShynokRoundConfirmResult,
   ShynokRoundPreviewResult,
   ShynokSaleSelectionResult
 } from "../../services/shynokService";
@@ -78,6 +79,10 @@ export function buildShynokDrinkResultKeyboard(): InlineKeyboard {
 
 export function buildShynokRoundPreviewKeyboard(result: ShynokRoundPreviewResult): InlineKeyboard {
   if (result.state !== "preview") {
+    if (result.state === "raid-required") {
+      return buildShynokRaidRequiredKeyboard();
+    }
+
     return buildBackToShynokKeyboard();
   }
 
@@ -85,6 +90,14 @@ export function buildShynokRoundPreviewKeyboard(result: ShynokRoundPreviewResult
     .text(`✅ Поставити за ${result.priceGold}`, makeShynokRoundConfirmCallbackData(result.tier, result.token))
     .row()
     .text("⬅️ До Шинку", makeShynokOverviewCallbackData());
+}
+
+export function buildShynokRoundResultKeyboard(result: ShynokRoundConfirmResult): InlineKeyboard {
+  if (result.state === "raid-required") {
+    return buildShynokRaidRequiredKeyboard();
+  }
+
+  return buildBackToShynokKeyboard();
 }
 
 export function buildShynokRoundOfferResponseKeyboard(result: ShynokRoundOfferRespondResult): InlineKeyboard {
@@ -155,6 +168,13 @@ export function buildShynokSaleSelectionKeyboard(result: ShynokSaleSelectionResu
 export function buildBackToShynokKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("⬅️ До Шинку", makeShynokOverviewCallbackData())
+    .row()
+    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+}
+
+function buildShynokRaidRequiredKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🛢️ До Бочки", makePlaceCallbackData("barrel"))
     .row()
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }

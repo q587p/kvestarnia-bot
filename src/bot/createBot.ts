@@ -213,6 +213,7 @@ import {
   buildShynokOverviewKeyboard,
   buildShynokRoundOfferResponseKeyboard,
   buildShynokRoundPreviewKeyboard,
+  buildShynokRoundResultKeyboard,
   buildShynokSaleSelectionKeyboard
 } from "./keyboards/shynokKeyboard";
 import {
@@ -1668,7 +1669,7 @@ async function handleShynokCallback(
       : { show_alert: result.state !== "replayed" });
     await safeEditMessageText(ctx, presentShynokRoundConfirm(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildBackToShynokKeyboard()
+      reply_markup: buildShynokRoundResultKeyboard(result)
     });
     return;
   }
