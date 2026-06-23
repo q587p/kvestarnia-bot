@@ -21,12 +21,23 @@ import type {
   UpdateSoloCombatSessionInput
 } from "../../src/db/repositories/soloCombatSessionRepository";
 import type {
+  ConsumePendingPassageEncounterInput,
+  ConsumePendingPassageEncounterResult,
+  CreatePendingPassageEncounterInput,
+  PendingPassageEncounterRecord,
+  PendingPassageEncounterRepository
+} from "../../src/db/repositories/pendingPassageEncounterRepository";
+import type {
   CharacterEquipmentRecord,
   CharacterEquipmentSnapshot,
   EquipmentRepository
 } from "../../src/db/repositories/equipmentRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
-import type { CombatState } from "../../src/domain/combat";
+import {
+  markCombatSettlementCompleted,
+  markCombatSettlementForfeitedByRemort,
+  type CombatState
+} from "../../src/domain/combat";
 import { getLevelForXp } from "../../src/domain/progression/level";
 import { buildStarterLevelTwoXpReward } from "../../src/domain/progression/starterRewards";
 import { getItemDropChance } from "../../src/domain/loot";
@@ -36,10 +47,13 @@ import { MIMIC_SHAWARMA_ADVENTURE_KEY } from "../../src/services/adventureServic
 import {
   buildCenterBaselinePersistentFightWinXp,
   buildHardPersistentFightWinXpFloor,
+  applyRecentOrdinaryMonsterExclusions,
   FightService,
   getGoldSensitiveItemDropChance,
   getPersistentFightDifficultyConfig,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
+  PENDING_PASSAGE_ENCOUNTER_TTL_MS,
+  PENDING_PASSAGE_MONSTER_FULL_REGEN_SECONDS,
   PERSISTENT_SOLO_FIGHT_REWARD_KEY,
   PROBLEM_QUEST_BUCKET,
   PROBLEM_QUEST_STAGES,
@@ -1055,6 +1069,400 @@ describe("FightService", () => {
     }
   });
 
+  it("reuses a pending passage preview for the same passage before expiry", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9]),
+      undefined,
+      undefined,
+      pending
+    );
+
+    const first = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    const second = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+
+    expect(first.state).toBe("persistent-preview");
+    expect(second.state).toBe("persistent-preview");
+    if (first.state === "persistent-preview" && second.state === "persistent-preview") {
+      expect(second.encounterToken).toBe(first.encounterToken);
+      expect(second.monster.id).toBe(first.monster.id);
+      expect(second.monster.level).toBe(first.monster.level);
+      expect(first.expiresAt.getTime() - fixedClock().getTime()).toBe(PENDING_PASSAGE_ENCOUNTER_TTL_MS);
+      expect(PENDING_PASSAGE_ENCOUNTER_TTL_MS).toBe(93 * 60 * 1000);
+    }
+    expect(pending.createCount).toBe(1);
+  });
+
+  it("refreshes a passage preview and rejects attack tokens after rules-version drift", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.2, 0.8]),
+      undefined,
+      undefined,
+      pending
+    );
+
+    const first = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (first.state !== "persistent-preview") {
+      throw new Error("Expected first preview");
+    }
+    pending.setRulesVersion(first.encounterToken, "nyz-passage-preview-old");
+
+    const refreshed = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    const attackedOld = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      first.encounterToken
+    );
+
+    expect(refreshed.state).toBe("persistent-preview");
+    expect(attackedOld.state).toBe("persistent-preview");
+    if (refreshed.state === "persistent-preview" && attackedOld.state === "persistent-preview") {
+      expect(refreshed.encounterToken).not.toBe(first.encounterToken);
+      expect(attackedOld.encounterToken).toBe(refreshed.encounterToken);
+      expect(attackedOld.refreshed).toBe("stale");
+    }
+    expect(pending.createCount).toBe(2);
+    expect(pending.consumeCount).toBe(0);
+  });
+
+  it("consumes the exact pending monster and frozen effective level", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 12, xp: 52 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1]),
+      undefined,
+      undefined,
+      pending
+    );
+
+    const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "easy",
+      originLocationId: "location.korchma.deep.level1.right"
+    });
+
+    expect(preview.state).toBe("persistent-preview");
+    if (preview.state !== "persistent-preview") {
+      throw new Error("Expected preview");
+    }
+
+    characters.patch(telegramUserId, { level: 23, xp: 50_000 });
+    const started = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      preview.encounterToken
+    );
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.monster.id).toBe(preview.monster.id);
+      expect(started.monster.level).toBe(preview.monster.level);
+      expect(started.session.state?.monster.debugTrace?.effectiveMonsterLevel).toBe(preview.monster.level);
+    }
+    expect(pending.consumeCount).toBe(1);
+    expect(sessions.createCount).toBe(0);
+  });
+
+  it("keeps a wounded consumed passage monster recoverable until it heals", async () => {
+    let now = fixedClock();
+    const clock = () => now;
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 12, xp: 52 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      clock,
+      sessions,
+      new FakeRandomSource([0.1, 0.2]),
+      undefined,
+      undefined,
+      pending
+    );
+    const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (preview.state !== "persistent-preview") {
+      throw new Error("Expected preview");
+    }
+    const started = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      preview.encounterToken
+    );
+    if (started.state !== "persistent-active" || !started.session.state) {
+      throw new Error("Expected active fight");
+    }
+    const woundedHp = 4;
+    const woundedState = {
+      ...started.session.state,
+      status: "lost" as const,
+      completedAt: now.toISOString(),
+      hero: {
+        ...started.session.state.hero,
+        hp: 0
+      },
+      monster: {
+        ...started.session.state.monster,
+        hp: woundedHp
+      }
+    };
+    await sessions.updateById(started.session.id, { state: woundedState, status: "lost" });
+
+    now = addSeconds(fixedClock(), PENDING_PASSAGE_MONSTER_FULL_REGEN_SECONDS / 2);
+    const woundedPreview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+
+    expect(woundedPreview.state).toBe("persistent-preview");
+    if (woundedPreview.state !== "persistent-preview") {
+      throw new Error("Expected wounded preview");
+    }
+    expect(woundedPreview.encounterToken).toBe(preview.encounterToken);
+    expect(woundedPreview.monster.id).toBe(preview.monster.id);
+    expect(woundedPreview.monsterHp).toEqual({
+      current: woundedHp + Math.floor(started.session.state.monster.hpMax / 2),
+      max: started.session.state.monster.hpMax
+    });
+
+    const restarted = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      woundedPreview.encounterToken
+    );
+
+    expect(restarted.state).toBe("persistent-active");
+    if (restarted.state === "persistent-active") {
+      expect(restarted.monster.id).toBe(preview.monster.id);
+      expect(restarted.session.id).not.toBe(started.session.id);
+      expect(restarted.session.state?.monster.hp).toBe(woundedPreview.monsterHp.current);
+    }
+  });
+
+  it("keeps a full-health surviving passage monster recoverable before trail expiry", async () => {
+    let now = fixedClock();
+    const clock = () => now;
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 12, xp: 52 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      clock,
+      sessions,
+      new FakeRandomSource([0.1, 0.2]),
+      undefined,
+      undefined,
+      pending
+    );
+    const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (preview.state !== "persistent-preview") {
+      throw new Error("Expected preview");
+    }
+    const started = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      preview.encounterToken
+    );
+    if (started.state !== "persistent-active" || !started.session.state) {
+      throw new Error("Expected active fight");
+    }
+    const lostState = {
+      ...started.session.state,
+      status: "lost" as const,
+      completedAt: now.toISOString(),
+      hero: {
+        ...started.session.state.hero,
+        hp: 0
+      },
+      monster: {
+        ...started.session.state.monster,
+        hp: started.session.state.monster.hpMax
+      }
+    };
+    await sessions.updateById(started.session.id, { state: lostState, status: "lost" });
+
+    now = addSeconds(fixedClock(), 60);
+    const survivorPreview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+
+    expect(survivorPreview.state).toBe("persistent-preview");
+    if (survivorPreview.state !== "persistent-preview") {
+      throw new Error("Expected full-health survivor preview");
+    }
+    expect(survivorPreview.encounterToken).toBe(preview.encounterToken);
+    expect(survivorPreview.monster.id).toBe(preview.monster.id);
+    expect(survivorPreview.monsterHp).toBeUndefined();
+
+    const restarted = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      survivorPreview.encounterToken
+    );
+
+    expect(restarted.state).toBe("persistent-active");
+    if (restarted.state === "persistent-active") {
+      expect(restarted.monster.id).toBe(preview.monster.id);
+      expect(restarted.session.id).not.toBe(started.session.id);
+      expect(restarted.session.state?.monster.hp).toBe(started.session.state.monster.hpMax);
+    }
+  });
+
+  it("rerolls after the consumed passage trail expires", async () => {
+    let now = fixedClock();
+    const clock = () => now;
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 12, xp: 52 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      clock,
+      sessions,
+      new FakeRandomSource([0.1, 0.2]),
+      undefined,
+      undefined,
+      pending
+    );
+    const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (preview.state !== "persistent-preview") {
+      throw new Error("Expected preview");
+    }
+    const started = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      preview.encounterToken
+    );
+    if (started.state !== "persistent-active" || !started.session.state) {
+      throw new Error("Expected active fight");
+    }
+    const lostState = {
+      ...started.session.state,
+      status: "lost" as const,
+      completedAt: now.toISOString(),
+      hero: {
+        ...started.session.state.hero,
+        hp: 0
+      },
+      monster: {
+        ...started.session.state.monster,
+        hp: started.session.state.monster.hpMax
+      }
+    };
+    await sessions.updateById(started.session.id, { state: lostState, status: "lost" });
+
+    now = new Date(fixedClock().getTime() + PENDING_PASSAGE_ENCOUNTER_TTL_MS + 1);
+    const freshPreview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+
+    expect(freshPreview.state).toBe("persistent-preview");
+    if (freshPreview.state === "persistent-preview") {
+      expect(freshPreview.encounterToken).not.toBe(preview.encounterToken);
+    }
+  });
+
+  it("refreshes an expired pending passage instead of starting its stale token", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.2]),
+      undefined,
+      undefined,
+      pending
+    );
+    const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (preview.state !== "persistent-preview") {
+      throw new Error("Expected preview");
+    }
+    pending.expireToken(preview.encounterToken);
+
+    const refreshed = await service.attackPersistentPassageEncounterForTelegramUser(telegramUserId, preview.encounterToken);
+
+    expect(refreshed.state).toBe("persistent-preview");
+    if (refreshed.state === "persistent-preview") {
+      expect(refreshed.refreshed).toBe("expired");
+      expect(refreshed.encounterToken).not.toBe(preview.encounterToken);
+    }
+    expect(sessions.createCount).toBe(0);
+  });
+
+  it("excludes recent ordinary monsters when the candidate pool can support it", () => {
+    const candidates = [
+      { id: "monster.a" },
+      { id: "monster.b" },
+      { id: "monster.c" },
+      { id: "monster.d" }
+    ].map((monster, index) => ({
+      ...monster,
+      name: monster.id,
+      description: "",
+      level: index + 1,
+      tags: []
+    }));
+
+    expect(applyRecentOrdinaryMonsterExclusions(candidates, ["monster.a"]).map((monster) => monster.id)).not.toContain("monster.a");
+    expect(
+      applyRecentOrdinaryMonsterExclusions(candidates, ["monster.a", "monster.b", "monster.c"]).map((monster) => monster.id)
+    ).toEqual(["monster.d"]);
+    expect(applyRecentOrdinaryMonsterExclusions(candidates.slice(0, 1), ["monster.a"]).map((monster) => monster.id)).toEqual(["monster.a"]);
+  });
+
   it("selects right-passage monsters three to five levels below when available", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { level: 12, xp: 52 });
@@ -1378,8 +1786,9 @@ describe("FightService", () => {
     if (overview.state === "persistent-terminal") {
       expect(overview.monster).toBeNull();
       expect(overview.session.state?.status).toBe("expired");
+      expect(overview.session.state?.settlement?.status).toBe("completed");
     }
-    expect(sessions.updateCount).toBe(1);
+    expect(sessions.updateCount).toBe(2);
     expect(dailyActions.createCount).toBe(0);
   });
 
@@ -1442,6 +1851,12 @@ describe("FightService", () => {
       manaCurrent: result.state === "updated" ? result.session.state?.hero.mana : undefined
     });
     expect(characters.resourceUpdateCount).toBeGreaterThan(0);
+    expect(sessions.getById(started.session.id)?.state?.settlement?.resources).toMatchObject({
+      status: "applied",
+      appliedAt: "2026-06-12T10:30:00.000Z"
+    });
+    const resourceUpdateCountAfterClaim = characters.resourceUpdateCount;
+    const characterAfterClaim = await characters.findByTelegramUserId(telegramUserId);
 
     const repeated = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: started.session.id,
@@ -1461,6 +1876,11 @@ describe("FightService", () => {
         }
       });
     }
+    expect(characters.resourceUpdateCount).toBe(resourceUpdateCountAfterClaim);
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      hpRegenAt: characterAfterClaim?.hpRegenAt,
+      manaRegenAt: characterAfterClaim?.manaRegenAt
+    });
     expect(rewardRecords).toHaveLength(1);
   });
 
@@ -2191,6 +2611,54 @@ describe("FightService", () => {
       });
     }
     expect(rewardRecords).toHaveLength(1);
+  });
+
+  it("completes a pending won settlement immediately after the resource version handoff", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25, hpCurrent: 24, manaCurrent: 12 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const wonSession = makeTerminalSession(
+      "won",
+      "session-won-pending-settlement",
+      `character-${telegramUserId.toString()}`
+    );
+    wonSession.state = wonSession.state
+      ? {
+          ...wonSession.state,
+          life: { remortCount: 0 },
+          settlement: { status: "pending", version: 1 }
+        }
+      : wonSession.state;
+    sessions.addSession(wonSession);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0])
+    );
+
+    const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: wonSession.id,
+      turn: wonSession.turn,
+      action: "attack"
+    });
+
+    expect(recovered.state).toBe("terminal");
+    if (recovered.state === "terminal") {
+      expect(recovered.fightReward).toMatchObject({
+        state: "claimed",
+        reward: {
+          localDate: wonSession.id
+        }
+      });
+    }
+    const stored = sessions.getById(wonSession.id);
+    expect(stored?.state?.settlement?.status).toBe("completed");
+    expect(stored?.state?.settlement?.version).toBe(3);
+    expect(stored?.state?.settlement?.resources?.status).toBe("applied");
+    expect(stored?.reward).not.toBeNull();
   });
 
   it("counts a won persistent fight toward thirteen small problems", async () => {
@@ -3543,6 +4011,14 @@ class FakeCharacterRepository implements CharacterRepository {
     });
   }
 
+  patch(userTelegramId: bigint, overrides: Partial<CharacterRecord>): void {
+    const character = this.charactersByTelegramUserId.get(userTelegramId);
+    if (!character) {
+      throw new Error("Character not found.");
+    }
+    this.charactersByTelegramUserId.set(userTelegramId, { ...character, ...overrides });
+  }
+
   updateReward(userTelegramId: bigint, xp: number, gold: number): CharacterRecord {
     const character = this.charactersByTelegramUserId.get(userTelegramId);
 
@@ -3598,6 +4074,35 @@ class FakeCharacterRepository implements CharacterRepository {
     this.charactersByTelegramUserId.set(userTelegramId, updated);
 
     return Promise.resolve(updated);
+  }
+
+  updateResourcesByCharacterId(
+    characterId: string,
+    input: {
+      hpCurrent: number;
+      manaCurrent: number;
+      hpRegenAt: Date;
+      manaRegenAt: Date;
+    }
+  ): CharacterRecord | null {
+    for (const [telegramUserId, character] of this.charactersByTelegramUserId.entries()) {
+      if (character.id !== characterId) {
+        continue;
+      }
+
+      this.resourceUpdateCount += 1;
+      const updated = {
+        ...character,
+        hpCurrent: input.hpCurrent,
+        manaCurrent: input.manaCurrent,
+        hpRegenAt: input.hpRegenAt,
+        manaRegenAt: input.manaRegenAt
+      };
+      this.charactersByTelegramUserId.set(telegramUserId, updated);
+      return updated;
+    }
+
+    return null;
   }
 
   deleteByTelegramUserId(userTelegramId: bigint): Promise<boolean> {
@@ -3786,6 +4291,276 @@ class FakeEquipmentRepository implements EquipmentRepository {
   }
 }
 
+class FakePendingPassageEncounterRepository implements PendingPassageEncounterRepository {
+  private readonly encounters = new Map<string, PendingPassageEncounterRecord>();
+  createCount = 0;
+  consumeCount = 0;
+
+  constructor(
+    private readonly characters: FakeCharacterRepository,
+    private readonly sessions: FakeSoloCombatSessionRepository
+  ) {}
+
+  async findReusableForTelegramUser(
+    telegramUserId: bigint,
+    originLocationId: string,
+    now: Date,
+    rulesVersion?: string
+  ): Promise<PendingPassageEncounterRecord | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    if (!character) {
+      return null;
+    }
+
+    return clonePendingEncounter(
+      [...this.encounters.values()].find(
+        (encounter) =>
+          encounter.characterId === character.id &&
+          encounter.originLocationId === originLocationId &&
+          encounter.status === "pending" &&
+          (!rulesVersion || encounter.rulesVersion === rulesVersion) &&
+          encounter.expiresAt > now
+      ) ?? null
+    );
+  }
+
+  async findByTokenForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    rulesVersion?: string
+  ): Promise<PendingPassageEncounterRecord | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    const encounter = this.encounters.get(token);
+
+    return clonePendingEncounter(
+      character &&
+        encounter?.characterId === character.id &&
+        (!rulesVersion || encounter.rulesVersion === rulesVersion)
+        ? encounter
+        : null
+    );
+  }
+
+  async findLatestConsumedForTelegramUser(
+    telegramUserId: bigint,
+    originLocationId: string,
+    now: Date,
+    rulesVersion?: string
+  ): Promise<{ encounter: PendingPassageEncounterRecord; session: SoloCombatSessionRecord | null } | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    if (!character) {
+      return null;
+    }
+
+    const encounter =
+      [...this.encounters.values()]
+        .filter(
+          (candidate) =>
+            candidate.characterId === character.id &&
+            candidate.originLocationId === originLocationId &&
+            candidate.status === "consumed" &&
+            (!rulesVersion || candidate.rulesVersion === rulesVersion) &&
+            candidate.expiresAt > now
+        )
+        .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())[0] ?? null;
+
+    return encounter
+      ? {
+          encounter: clonePendingEncounter(encounter)!,
+          session: encounter.combatSessionId ? this.sessions.getById(encounter.combatSessionId) : null
+        }
+      : null;
+  }
+
+  async createForTelegramUser(
+    telegramUserId: bigint,
+    input: CreatePendingPassageEncounterInput
+  ): Promise<PendingPassageEncounterRecord | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    if (!character) {
+      return null;
+    }
+
+    const existing = await this.findReusableForTelegramUser(
+      telegramUserId,
+      input.originLocationId,
+      fixedClock(),
+      input.rulesVersion
+    );
+    if (existing) {
+      return existing;
+    }
+
+    this.createCount += 1;
+    const encounter: PendingPassageEncounterRecord = {
+      id: `pending-${this.createCount}`,
+      token: input.token,
+      characterId: character.id,
+      originLocationId: input.originLocationId,
+      passage: input.passage,
+      difficulty: input.difficulty,
+      monsterId: input.monsterId,
+      baseMonsterLevel: input.baseMonsterLevel,
+      effectiveMonsterLevel: input.effectiveMonsterLevel,
+      rulesVersion: input.rulesVersion,
+      seedHash: input.seedHash,
+      status: "pending",
+      version: 1,
+      combatSessionId: null,
+      expiresAt: input.expiresAt,
+      consumedAt: null,
+      cancelledAt: null,
+      createdAt: fixedClock(),
+      updatedAt: fixedClock()
+    };
+    this.encounters.set(encounter.token, encounter);
+    return clonePendingEncounter(encounter);
+  }
+
+  expireById(input: {
+    id: string;
+    expectedStatus: "pending";
+    expectedVersion: number;
+    now: Date;
+  }): Promise<
+    | { state: "expired"; encounter: PendingPassageEncounterRecord }
+    | { state: "already-consumed"; encounter: PendingPassageEncounterRecord }
+    | { state: "already-terminal"; encounter: PendingPassageEncounterRecord }
+    | { state: "version-changed"; encounter: PendingPassageEncounterRecord }
+    | { state: "missing" }
+  > {
+    const encounter = [...this.encounters.values()].find((candidate) => candidate.id === input.id);
+    if (!encounter) {
+      return Promise.resolve({ state: "missing" });
+    }
+
+    if (encounter.status === "consumed") {
+      return Promise.resolve({ state: "already-consumed", encounter: clonePendingEncounter(encounter)! });
+    }
+
+    if (encounter.status === "expired" || encounter.status === "cancelled") {
+      return Promise.resolve({ state: "already-terminal", encounter: clonePendingEncounter(encounter)! });
+    }
+
+    if (encounter.status !== input.expectedStatus || encounter.version !== input.expectedVersion) {
+      return Promise.resolve({ state: "version-changed", encounter: clonePendingEncounter(encounter)! });
+    }
+
+    const updated: PendingPassageEncounterRecord = {
+      ...encounter,
+      status: "expired",
+      version: encounter.version + 1,
+      cancelledAt: input.now,
+      updatedAt: input.now
+    };
+    this.encounters.set(updated.token, updated);
+    return Promise.resolve({ state: "expired", encounter: clonePendingEncounter(updated)! });
+  }
+
+  async consumeForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    input: ConsumePendingPassageEncounterInput
+  ): Promise<ConsumePendingPassageEncounterResult> {
+    return this.createSessionForEncounter(telegramUserId, token, input, "pending");
+  }
+
+  async createSessionForConsumedEncounter(
+    telegramUserId: bigint,
+    token: string,
+    input: ConsumePendingPassageEncounterInput
+  ): Promise<ConsumePendingPassageEncounterResult> {
+    return this.createSessionForEncounter(telegramUserId, token, input, "consumed");
+  }
+
+  private async createSessionForEncounter(
+    telegramUserId: bigint,
+    token: string,
+    input: ConsumePendingPassageEncounterInput,
+    expectedStatus: "pending" | "consumed"
+  ): Promise<ConsumePendingPassageEncounterResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    const encounter = this.encounters.get(token);
+
+    if (!character || !encounter || encounter.characterId !== character.id) {
+      return { state: "invalid" };
+    }
+
+    this.consumeCount += 1;
+    if (input.expectedRulesVersion && encounter.rulesVersion !== input.expectedRulesVersion) {
+      return { state: "invalid" };
+    }
+
+    if (encounter.version !== input.expectedEncounterVersion) {
+      return { state: "version-changed", encounter: clonePendingEncounter(encounter)! };
+    }
+
+    if (expectedStatus === "pending" && encounter.status === "consumed") {
+      return {
+        state: "already-consumed",
+        encounter: clonePendingEncounter(encounter)!,
+        session: encounter.combatSessionId ? this.sessions.getById(encounter.combatSessionId) : null
+      };
+    }
+
+    if (encounter.status !== expectedStatus) {
+      return { state: "not-pending", encounter: clonePendingEncounter(encounter)! };
+    }
+
+    if (expectedStatus === "consumed" && encounter.combatSessionId !== input.expectedLinkedSessionId) {
+      return { state: "version-changed", encounter: clonePendingEncounter(encounter)! };
+    }
+
+    const session = this.sessions.addSession({
+      id: input.sessionId,
+      characterId: character.id,
+      monsterId: input.monsterId,
+      status: input.state.status,
+      turn: input.state.turn,
+      state: cloneState(input.state),
+      reward: null,
+      createdAt: input.now,
+      updatedAt: input.now,
+      expiresAt: input.sessionExpiresAt
+    });
+    const updated: PendingPassageEncounterRecord = {
+      ...encounter,
+      status: "consumed",
+      version: encounter.version + 1,
+      combatSessionId: session.id,
+      consumedAt: input.now,
+      updatedAt: input.now
+    };
+    this.encounters.set(updated.token, updated);
+
+    return { state: "consumed", encounter: clonePendingEncounter(updated)!, session };
+  }
+
+  expireToken(token: string): void {
+    const encounter = this.encounters.get(token);
+    if (!encounter) {
+      return;
+    }
+
+    this.encounters.set(token, {
+      ...encounter,
+      expiresAt: new Date(fixedClock().getTime() - 1)
+    });
+  }
+
+  setRulesVersion(token: string, rulesVersion: string): void {
+    const encounter = this.encounters.get(token);
+    if (!encounter) {
+      return;
+    }
+
+    this.encounters.set(token, {
+      ...encounter,
+      rulesVersion
+    });
+  }
+}
+
 class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   private readonly sessions = new Map<string, SoloCombatSessionRecord>();
   private persistRewardReplay = true;
@@ -3843,6 +4618,34 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
           completedAt
         }];
       });
+  }
+
+  async listRecentOrdinaryMonsterIdsByTelegramUserId(
+    telegramUserId: bigint,
+    limit: number
+  ): Promise<string[]> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return [];
+    }
+
+    const result: string[] = [];
+    const seen = new Set<string>();
+    for (const session of [...this.sessions.values()]
+      .filter((candidate) => candidate.characterId === character.id && candidate.state?.source === "normal")
+      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())) {
+      if (seen.has(session.monsterId)) {
+        continue;
+      }
+      result.push(session.monsterId);
+      seen.add(session.monsterId);
+      if (result.length >= limit) {
+        break;
+      }
+    }
+
+    return result;
   }
 
   async findActiveByTelegramUserId(
@@ -3947,6 +4750,64 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     return this.updateById(sessionId, input);
   }
 
+  applyTerminalResourcesById(
+    sessionId: string,
+    input: {
+      appliedAt: Date;
+      resources: {
+        hpCurrent: number;
+        manaCurrent: number;
+        hpRegenAt: Date;
+        manaRegenAt: Date;
+      };
+    }
+  ): Promise<{ outcome: "applied" | "already-applied" | "already-completed" | "already-forfeited"; session: SoloCombatSessionRecord | null }> {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return Promise.resolve({ outcome: "applied", session: session ? cloneSession(session) : null });
+    }
+
+    if (session.state.settlement?.status === "completed") {
+      return Promise.resolve({ outcome: "already-completed", session: cloneSession(session) });
+    }
+
+    if (session.state.settlement?.status === "forfeited-by-remort") {
+      return Promise.resolve({ outcome: "already-forfeited", session: cloneSession(session) });
+    }
+
+    if (session.state.settlement?.resources?.status === "applied") {
+      return Promise.resolve({ outcome: "already-applied", session: cloneSession(session) });
+    }
+
+    this.characters.updateResourcesByCharacterId(session.characterId, input.resources);
+    const state: CombatState = {
+      ...session.state,
+      settlement: {
+        ...(session.state.settlement ?? { status: "pending" as const, version: 1 }),
+        version: (session.state.settlement?.version ?? 1) + 1,
+        resources: {
+          status: "applied",
+          appliedAt: input.appliedAt.toISOString(),
+          hpCurrent: input.resources.hpCurrent,
+          manaCurrent: input.resources.manaCurrent,
+          hpRegenAt: input.resources.hpRegenAt.toISOString(),
+          manaRegenAt: input.resources.manaRegenAt.toISOString()
+        }
+      }
+    };
+    const updated: SoloCombatSessionRecord = {
+      ...session,
+      state,
+      status: state.status,
+      turn: state.turn,
+      updatedAt: fixedClock()
+    };
+    this.sessions.set(sessionId, updated);
+
+    return Promise.resolve({ outcome: "applied", session: cloneSession(updated) });
+  }
+
   recordRewardById(
     sessionId: string,
     input: RecordSoloCombatRewardInput
@@ -3969,6 +4830,101 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     };
     this.sessions.set(sessionId, updated);
     return Promise.resolve(cloneSession(updated));
+  }
+
+  completeSettlementById(
+    sessionId: string,
+    input: {
+      expected?: {
+        settlementVersion?: number;
+      };
+      settledAt: Date;
+      reward?: {
+        rewardXp: number;
+        rewardGold: number;
+        itemGrants: Array<{ itemId: string; quantity: number }>;
+        claimedAt: Date;
+      };
+    }
+  ): Promise<{
+    outcome: "completed" | "already-completed" | "already-forfeited" | "version-changed";
+    session: SoloCombatSessionRecord | null;
+  }> {
+    const session = this.sessions.get(sessionId);
+
+    if (!session) {
+      return Promise.resolve({ outcome: "completed", session: null });
+    }
+
+    if (session.state?.settlement?.status === "completed") {
+      return Promise.resolve({ outcome: "already-completed", session: cloneSession(session) });
+    }
+
+    if (session.state?.settlement?.status === "forfeited-by-remort") {
+      return Promise.resolve({ outcome: "already-forfeited", session: cloneSession(session) });
+    }
+
+    if (
+      input.expected?.settlementVersion !== undefined &&
+      session.state?.settlement?.version !== input.expected.settlementVersion
+    ) {
+      return Promise.resolve({ outcome: "version-changed", session: cloneSession(session) });
+    }
+
+    if (!input.reward) {
+      this.updateCount += 1;
+    }
+    const state = session.state
+      ? markCombatSettlementCompleted(session.state, input.settledAt)
+      : session.state;
+    const updated: SoloCombatSessionRecord = {
+      ...session,
+      ...(state ? { state, status: state.status, turn: state.turn } : {}),
+      ...(input.reward && this.persistRewardReplay
+        ? {
+            reward: {
+              xp: input.reward.rewardXp,
+              gold: input.reward.rewardGold,
+              itemGrants: input.reward.itemGrants,
+              claimedAt: input.reward.claimedAt
+            }
+          }
+        : {}),
+      updatedAt: fixedClock()
+    };
+    this.sessions.set(sessionId, updated);
+    return Promise.resolve({ outcome: "completed", session: cloneSession(updated) });
+  }
+
+  forfeitSettlementById(
+    sessionId: string,
+    input: { settledAt: Date; reason: "remort" | "life-mismatch" | "legacy-life-mismatch" }
+  ): Promise<{ outcome: "forfeited" | "already-completed" | "already-forfeited"; session: SoloCombatSessionRecord | null }> {
+    const session = this.sessions.get(sessionId);
+
+    if (!session) {
+      return Promise.resolve({ outcome: "forfeited", session: null });
+    }
+
+    if (session.state?.settlement?.status === "completed") {
+      return Promise.resolve({ outcome: "already-completed", session: cloneSession(session) });
+    }
+
+    if (session.state?.settlement?.status === "forfeited-by-remort") {
+      return Promise.resolve({ outcome: "already-forfeited", session: cloneSession(session) });
+    }
+
+    this.updateCount += 1;
+    const state = session.state
+      ? markCombatSettlementForfeitedByRemort(session.state, input.settledAt, input.reason)
+      : session.state;
+    const updated: SoloCombatSessionRecord = {
+      ...session,
+      ...(state ? { state, status: state.status, turn: state.turn } : {}),
+      updatedAt: fixedClock()
+    };
+    this.sessions.set(sessionId, updated);
+    return Promise.resolve({ outcome: "forfeited", session: cloneSession(updated) });
   }
 
   dropRewardReplayWrites(): void {
@@ -4208,11 +5164,17 @@ function makeTerminalSession(
   id = `session-${status}`,
   characterId = "character-42",
   monsterId = "monster.deadline-spider",
-  options: { createdAt?: Date; updatedAt?: Date; completedAt?: Date | null } = {}
+  options: {
+    createdAt?: Date;
+    updatedAt?: Date;
+    completedAt?: Date | null;
+    settlement?: "pending" | "completed" | "forfeited-by-remort" | null;
+  } = {}
 ): SoloCombatSessionRecord {
   const createdAt = options.createdAt ?? fixedClock();
   const completedAt = options.completedAt === undefined ? (options.updatedAt ?? createdAt) : options.completedAt;
   const updatedAt = options.updatedAt ?? completedAt ?? createdAt;
+  const settlement = options.settlement === undefined ? "pending" : options.settlement;
 
   return {
     id,
@@ -4223,6 +5185,25 @@ function makeTerminalSession(
     state: {
       id,
       ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
+      life: {
+        characterId,
+        remortCount: 0,
+        startedAt: createdAt.toISOString()
+      },
+      ...(settlement
+        ? {
+            settlement: {
+              status: settlement,
+              version: 1,
+              ...(settlement === "pending"
+                ? {}
+                : {
+                    settledAt: updatedAt.toISOString(),
+                    reason: settlement === "completed" ? "terminal" : "remort"
+                  })
+            }
+          }
+        : {}),
       turn: 2,
       status,
       hero: {
@@ -4304,6 +5285,21 @@ function cloneSession(session: SoloCombatSessionRecord): SoloCombatSessionRecord
       : null,
     state: session.state ? cloneState(session.state) : null
   };
+}
+
+function clonePendingEncounter(
+  encounter: PendingPassageEncounterRecord | null
+): PendingPassageEncounterRecord | null {
+  return encounter
+    ? {
+        ...encounter,
+        expiresAt: new Date(encounter.expiresAt),
+        consumedAt: encounter.consumedAt ? new Date(encounter.consumedAt) : null,
+        cancelledAt: encounter.cancelledAt ? new Date(encounter.cancelledAt) : null,
+        createdAt: new Date(encounter.createdAt),
+        updatedAt: new Date(encounter.updatedAt)
+      }
+    : null;
 }
 
 function cloneState(state: CombatState): CombatState {

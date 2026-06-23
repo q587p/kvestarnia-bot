@@ -11,9 +11,15 @@ import type {
 import type { DailyActionRepository, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import type {
   DueSoloCombatSessionRecord,
+  GuardedResourceSettlementOutcome,
+  GuardedSettlementOutcome,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository
 } from "../db/repositories/soloCombatSessionRepository";
+import type {
+  PendingPassageEncounterRecord,
+  PendingPassageEncounterRepository
+} from "../db/repositories/pendingPassageEncounterRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
@@ -24,10 +30,12 @@ import {
 import {
   deriveMonsterCombatStats,
   expireCombat,
+  freezeCombatLife,
   applyMonsterContextToStats,
   buildCombatWorldContext,
   createCombatBarkState,
   getCombatSkillProfile,
+  isCombatSettlementTerminal,
   markCombatTurnTimeoutMode,
   recordCombatTimeout,
   resetCombatTimeout,
@@ -53,6 +61,7 @@ import {
   summarizeAndSyncCharacterResources,
   type ResourceRecoveryNotice
 } from "./characterResourceService";
+import { HP_BASE_FULL_REGEN_SECONDS } from "../domain/resources/resourceRegeneration";
 import type { CombatBalanceAnalyticsService } from "./combatBalanceAnalyticsService";
 import {
   normalizePresenceLocationId,
@@ -103,6 +112,15 @@ interface RecoveryNoticeField {
   recoveryNotice?: ResourceRecoveryNotice;
 }
 
+type ResourceSettlementFlowResult =
+  | { outcome: "ready" | "completed"; session: SoloCombatSessionRecord }
+  | { outcome: "forfeited" | "blocked"; session: SoloCombatSessionRecord | null };
+
+type SettlementCompletionFlowResult = {
+  outcome: GuardedSettlementOutcome | "unsupported";
+  session: SoloCombatSessionRecord | null;
+};
+
 export const MIMIC_SHAWARMA_COMBAT_REWARDS = {
   attack: {
     xp: 9,
@@ -128,6 +146,9 @@ export const THIRTEEN_SMALL_PROBLEMS_REWARD = {
 export const MONSTER_REST_ELIGIBLE_FIGHT_COUNT = 3;
 export const MONSTER_REST_COOLDOWN_MS = 3 * 60 * 1000;
 export const PERSISTENT_FIGHT_TURN_SECONDS = 23;
+export const PENDING_PASSAGE_ENCOUNTER_TTL_MS = 93 * 60 * 1000;
+export const PENDING_PASSAGE_MONSTER_FULL_REGEN_SECONDS = HP_BASE_FULL_REGEN_SECONDS;
+export const PENDING_PASSAGE_ENCOUNTER_RULES_VERSION = "nyz-passage-preview-v1";
 
 export type ProblemQuestStageId = "13" | "23" | "42" | "93";
 
@@ -267,6 +288,7 @@ export type ProblemQuestProgressLookupResult =
 
 export type FightLookupResult =
   | { state: "no-character" }
+  | ({ state: "combat-blocked"; character: CharacterSummary } & RecoveryNoticeField)
   | ({ state: "level-retired"; character: CharacterSummary; maxLevel: number } & RecoveryNoticeField)
   | ({ state: "needs-rest"; character: CharacterSummary } & RecoveryNoticeField)
   | ({
@@ -310,6 +332,11 @@ export type FightLookupResult =
     } & RecoveryNoticeField)
   | ({ state: "ready"; character: CharacterSummary } & RecoveryNoticeField)
   | ({ state: "already-completed"; character: CharacterSummary; questAvailable: boolean } & RecoveryNoticeField);
+
+type LeasedSoloCombatSessionLookup =
+  | { state: "none" }
+  | { state: "unsupported"; kind: string; referenceId: string }
+  | { state: "session"; session: SoloCombatSessionRecord };
 
 export type FightResult =
   | { state: "no-character" }
@@ -476,8 +503,10 @@ export interface PersistentFightStartOptions {
   };
 }
 
+export type PassagePreviewRefreshReason = "expired" | "missing-monster" | "stale";
+
 export type PersistentFightPreviewResult =
-  | Exclude<FightLookupResult, { state: "persistent-ready" }>
+  | FightLookupResult
   | ({
       state: "persistent-preview";
       character: CharacterSummary;
@@ -485,8 +514,19 @@ export type PersistentFightPreviewResult =
       monster: MonsterContent;
       difficulty: PersistentFightDifficultyId;
       originLocationId: string;
-      encounterSeed: string;
+      encounterToken: string;
+      expiresAt: Date;
+      monsterHp?: {
+        current: number;
+        max: number;
+      };
+      refreshed?: PassagePreviewRefreshReason;
     } & RecoveryNoticeField);
+
+export type PersistentFightPassageAttackResult =
+  | FightLookupResult
+  | (Extract<PersistentFightPreviewResult, { state: "persistent-preview" }> & { refreshed: "expired" | "missing-monster" | "stale" })
+  | { state: "invalid-preview" };
 
 export class FightService {
   constructor(
@@ -496,7 +536,8 @@ export class FightService {
     private readonly combatSessions?: SoloCombatSessionRepository,
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly equipment?: EquipmentRepository,
-    private readonly combatAnalytics?: CombatBalanceAnalyticsService
+    private readonly combatAnalytics?: CombatBalanceAnalyticsService,
+    private readonly pendingPassageEncounters?: PendingPassageEncounterRepository
   ) {}
 
   private async advanceExpiredPersistentTurn(
@@ -569,7 +610,7 @@ export class FightService {
     }
 
     if (updated.status !== "active") {
-      await this.persistCharacterResourcesFromSession(telegramUserId, updated);
+      await this.getOrRecoverPersistentFightReward(telegramUserId, updated, monster, character);
     }
 
     return updated;
@@ -601,7 +642,12 @@ export class FightService {
       return session;
     }
 
-    await this.persistCharacterResourcesFromSession(telegramUserId, updated);
+    await this.persistCharacterResourcesFromSession(
+      telegramUserId,
+      updated,
+      await this.resolveSessionExpectedLife(updated),
+      { finalizeSettlement: true }
+    );
 
     return updated;
   }
@@ -615,7 +661,9 @@ export class FightService {
 
   async previewPersistentFightForTelegramUser(
     telegramUserId: bigint,
-    options: Pick<PersistentFightStartOptions, "difficulty" | "originLocationId" | "encounterSeed"> = {}
+    options: Pick<PersistentFightStartOptions, "difficulty" | "originLocationId"> & {
+      refreshed?: PassagePreviewRefreshReason;
+    } = {}
   ): Promise<PersistentFightPreviewResult> {
     const overview = await this.getFightOverviewForTelegramUser(telegramUserId);
 
@@ -625,13 +673,49 @@ export class FightService {
 
     const difficulty = getPersistentFightDifficultyConfig(options.difficulty);
     const originLocationId = options.originLocationId ?? getDefaultPassageLocationId(difficulty.id);
-    const encounterSeed = options.encounterSeed ?? createPersistentFightEncounterSeed(this.rng);
-    const baseMonster = selectSoloFightMonster(
+    const now = this.clock();
+    const existing = this.pendingPassageEncounters
+      ? await this.pendingPassageEncounters.findReusableForTelegramUser(
+          telegramUserId,
+          originLocationId,
+          now,
+          PENDING_PASSAGE_ENCOUNTER_RULES_VERSION
+        )
+      : null;
+    const recoveredEncounter = existing
+      ? null
+      : await this.findRecoverableConsumedPassageEncounter(telegramUserId, originLocationId, now);
+    const encounter = existing ?? recoveredEncounter?.encounter ?? await this.createPendingPassageEncounter(
+      telegramUserId,
       overview.character,
-      buildPersistentFightEncounterRng(encounterSeed, difficulty, originLocationId),
-      difficulty
+      difficulty,
+      originLocationId,
+      now
     );
-    const monster = applyPersistentFightDifficulty(baseMonster, overview.character, difficulty);
+
+    if (!encounter) {
+      return overview;
+    }
+
+    const baseMonster = findMonster(encounter.monsterId);
+    if (!baseMonster) {
+      await this.pendingPassageEncounters?.expireById({
+        id: encounter.id,
+        expectedStatus: "pending",
+        expectedVersion: encounter.version,
+        now
+      });
+      return this.previewPersistentFightForTelegramUser(telegramUserId, {
+        difficulty: difficulty.id,
+        originLocationId,
+        refreshed: "missing-monster"
+      });
+    }
+
+    const monster = {
+      ...baseMonster,
+      level: encounter.effectiveMonsterLevel
+    };
 
     return {
       state: "persistent-preview",
@@ -641,8 +725,292 @@ export class FightService {
       monster,
       difficulty: difficulty.id,
       originLocationId,
-      encounterSeed
+      encounterToken: encounter.token,
+      expiresAt: encounter.expiresAt,
+      ...(recoveredEncounter?.monsterHp ? { monsterHp: recoveredEncounter.monsterHp } : {}),
+      ...(options.refreshed ? { refreshed: options.refreshed } : {})
     };
+  }
+
+  async attackPersistentPassageEncounterForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    options: {
+      callbackOriginLocationId?: string;
+      currentLocationId?: string;
+    } = {}
+  ): Promise<PersistentFightPassageAttackResult> {
+    if (!this.pendingPassageEncounters || !this.combatSessions) {
+      return { state: "invalid-preview" };
+    }
+
+    const encounter = await this.pendingPassageEncounters.findByTokenForTelegramUser(telegramUserId, token);
+    if (!encounter) {
+      return { state: "invalid-preview" };
+    }
+
+    if (
+      (options.callbackOriginLocationId &&
+        normalizePresenceLocationId(options.callbackOriginLocationId) !== normalizePresenceLocationId(encounter.originLocationId)) ||
+      (options.currentLocationId &&
+        normalizePresenceLocationId(options.currentLocationId) !== normalizePresenceLocationId(encounter.originLocationId))
+    ) {
+      return { state: "invalid-preview" };
+    }
+
+    const now = this.clock();
+    if (!isCurrentPendingPassageEncounterRules(encounter)) {
+      if (encounter.status === "pending") {
+        await this.pendingPassageEncounters.expireById({
+          id: encounter.id,
+          expectedStatus: "pending",
+          expectedVersion: encounter.version,
+          now
+        });
+      }
+      return this.previewPersistentFightForTelegramUser(telegramUserId, {
+        difficulty: encounter.difficulty,
+        originLocationId: encounter.originLocationId,
+        refreshed: "stale"
+      }) as Promise<PersistentFightPassageAttackResult>;
+    }
+
+    const baseMonster = findMonster(encounter.monsterId);
+    if (encounter.status === "consumed" && encounter.combatSessionId) {
+      const snapshot = await this.getPersistentFightSnapshotForTelegramUser(telegramUserId, encounter.combatSessionId);
+      if (snapshot.state === "found" && snapshot.session.state?.status === "active" && snapshot.monster) {
+        return {
+          state: "persistent-active",
+          character: snapshot.character,
+          session: snapshot.session,
+          monster: snapshot.monster,
+          questProgress: snapshot.questProgress
+        };
+      }
+
+      const survivingHp = snapshot.state === "found"
+        ? getSurvivingPassageMonsterHp(snapshot.session, now)
+        : null;
+      if (
+        survivingHp &&
+        baseMonster &&
+        encounter.expiresAt.getTime() > now.getTime() &&
+        snapshot.state === "found"
+      ) {
+        const gate = await this.getFightOverviewForTelegramUser(telegramUserId);
+        if (gate.state !== "persistent-ready") {
+          return gate;
+        }
+
+        const character = await this.characters.findByTelegramUserId(telegramUserId);
+        if (!character) {
+          return { state: "no-character" };
+        }
+
+        const monster = { ...baseMonster, level: encounter.effectiveMonsterLevel };
+        const sessionId = randomUUID();
+        const state = this.buildPersistentFightCombatState({
+          sessionId,
+          character,
+          characterSummary: gate.character,
+          baseMonster,
+          monster,
+          difficulty: getPersistentFightDifficultyConfig(encounter.difficulty),
+          originLocationId: encounter.originLocationId,
+          source: "normal",
+          now,
+          initialMonsterHp: survivingHp.current
+        });
+        const restarted = await this.pendingPassageEncounters.createSessionForConsumedEncounter(telegramUserId, token, {
+          sessionId,
+          expectedEncounterVersion: encounter.version,
+          expectedRulesVersion: PENDING_PASSAGE_ENCOUNTER_RULES_VERSION,
+          expectedLinkedSessionId: encounter.combatSessionId,
+          monsterId: monster.id,
+          state,
+          sessionExpiresAt: getSessionExpiry(now),
+          now
+        });
+
+        if (restarted.state === "consumed") {
+          return {
+            state: "persistent-active",
+            character: gate.character,
+            session: restarted.session,
+            monster,
+            questProgress: gate.questProgress,
+            started: true,
+            ...(gate.recoveryNotice ? { recoveryNotice: gate.recoveryNotice } : {})
+          };
+        }
+
+        if (restarted.state === "already-consumed" && restarted.session) {
+          const activeMonster = findPersistentFightMonster(restarted.session) ?? monster;
+          return {
+            state: "persistent-active",
+            character: gate.character,
+            session: restarted.session,
+            monster: activeMonster,
+            questProgress: gate.questProgress,
+            ...(gate.recoveryNotice ? { recoveryNotice: gate.recoveryNotice } : {})
+          };
+        }
+
+        if (restarted.state === "active-fight") {
+          const activeMonster = findPersistentFightMonster(restarted.session);
+          return activeMonster
+            ? {
+                state: "persistent-active",
+                character: gate.character,
+                session: restarted.session,
+                monster: activeMonster,
+                questProgress: gate.questProgress
+              }
+            : await this.getFightOverviewForTelegramUser(telegramUserId);
+        }
+
+        if (restarted.state === "version-changed" || restarted.state === "not-pending") {
+          return this.previewPersistentFightForTelegramUser(telegramUserId, {
+            difficulty: encounter.difficulty,
+            originLocationId: encounter.originLocationId,
+            refreshed: "stale"
+          }) as Promise<PersistentFightPassageAttackResult>;
+        }
+
+        if (restarted.state === "active-lease-conflict") {
+          return this.getFightOverviewForTelegramUser(telegramUserId);
+        }
+      }
+    }
+
+    if (encounter.status !== "pending") {
+      return this.previewPersistentFightForTelegramUser(telegramUserId, {
+        difficulty: encounter.difficulty,
+        originLocationId: encounter.originLocationId,
+        refreshed: "stale"
+      }) as Promise<PersistentFightPassageAttackResult>;
+    }
+
+    if (encounter.expiresAt.getTime() <= now.getTime()) {
+      await this.pendingPassageEncounters.expireById({
+        id: encounter.id,
+        expectedStatus: "pending",
+        expectedVersion: encounter.version,
+        now
+      });
+      return this.previewPersistentFightForTelegramUser(telegramUserId, {
+        difficulty: encounter.difficulty,
+        originLocationId: encounter.originLocationId,
+        refreshed: "expired"
+      }) as Promise<PersistentFightPassageAttackResult>;
+    }
+
+    if (!baseMonster) {
+      await this.pendingPassageEncounters.expireById({
+        id: encounter.id,
+        expectedStatus: "pending",
+        expectedVersion: encounter.version,
+        now
+      });
+      return this.previewPersistentFightForTelegramUser(telegramUserId, {
+        difficulty: encounter.difficulty,
+        originLocationId: encounter.originLocationId,
+        refreshed: "missing-monster"
+      }) as Promise<PersistentFightPassageAttackResult>;
+    }
+
+    const gate = await this.getFightOverviewForTelegramUser(telegramUserId);
+    if (gate.state !== "persistent-ready") {
+      return gate;
+    }
+
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const monster = { ...baseMonster, level: encounter.effectiveMonsterLevel };
+    const sessionId = randomUUID();
+    const state = this.buildPersistentFightCombatState({
+      sessionId,
+      character,
+      characterSummary: gate.character,
+      baseMonster,
+      monster,
+      difficulty: getPersistentFightDifficultyConfig(encounter.difficulty),
+      originLocationId: encounter.originLocationId,
+      source: "normal",
+      now
+    });
+    const consumed = await this.pendingPassageEncounters.consumeForTelegramUser(telegramUserId, token, {
+      sessionId,
+      expectedEncounterVersion: encounter.version,
+      expectedRulesVersion: PENDING_PASSAGE_ENCOUNTER_RULES_VERSION,
+      expectedLinkedSessionId: null,
+      monsterId: monster.id,
+      state,
+      sessionExpiresAt: getSessionExpiry(now),
+      now
+    });
+
+    if (consumed.state === "consumed") {
+      return {
+        state: "persistent-active",
+        character: gate.character,
+        session: consumed.session,
+        monster,
+        questProgress: gate.questProgress,
+        started: true,
+        ...(gate.recoveryNotice ? { recoveryNotice: gate.recoveryNotice } : {})
+      };
+    }
+
+    if (consumed.state === "already-consumed" && consumed.session) {
+      const activeMonster = findPersistentFightMonster(consumed.session) ?? monster;
+      return {
+        state: "persistent-active",
+        character: gate.character,
+        session: consumed.session,
+        monster: activeMonster,
+        questProgress: gate.questProgress,
+        ...(gate.recoveryNotice ? { recoveryNotice: gate.recoveryNotice } : {})
+      };
+    }
+
+    if (consumed.state === "active-fight") {
+      const activeMonster = findPersistentFightMonster(consumed.session);
+      if (isTrainingDoppelgangerMonsterId(consumed.session.monsterId)) {
+        return {
+          state: "training-active",
+          character: gate.character,
+          session: consumed.session,
+          questProgress: gate.questProgress
+        };
+      }
+      return activeMonster
+        ? {
+            state: "persistent-active",
+            character: gate.character,
+            session: consumed.session,
+            monster: activeMonster,
+            questProgress: gate.questProgress
+          }
+        : await this.getFightOverviewForTelegramUser(telegramUserId);
+    }
+
+    if (consumed.state === "version-changed" || consumed.state === "not-pending") {
+      return this.previewPersistentFightForTelegramUser(telegramUserId, {
+        difficulty: encounter.difficulty,
+        originLocationId: encounter.originLocationId,
+        refreshed: "stale"
+      }) as Promise<PersistentFightPassageAttackResult>;
+    }
+
+    if (consumed.state === "active-lease-conflict") {
+      return this.getFightOverviewForTelegramUser(telegramUserId);
+    }
+
+    return { state: "invalid-preview" };
   }
 
   async getFightOverviewForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
@@ -669,14 +1037,22 @@ export class FightService {
     }
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
-    const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+    const leasedSession = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
     const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
-      syncResources: !activeSession
+      syncResources: leasedSession.state === "none"
     });
     const characterSummary = resourceAware.character;
     const recoveryNotice = resourceAware.recoveryNotice;
 
-    if (!activeSession) {
+    if (leasedSession.state === "unsupported") {
+      return {
+        state: "combat-blocked",
+        character: characterSummary,
+        ...(recoveryNotice ? { recoveryNotice } : {})
+      };
+    }
+
+    if (leasedSession.state === "none") {
       if (!questProgress.issued) {
         return {
           state: "persistent-not-issued",
@@ -704,6 +1080,8 @@ export class FightService {
         ...(recoveryNotice ? { recoveryNotice } : {})
       };
     }
+
+    const activeSession = leasedSession.session;
 
     if (isTrainingDoppelgangerMonsterId(activeSession.monsterId)) {
       return {
@@ -740,7 +1118,6 @@ export class FightService {
         state: expiredState,
         status: expiredState.status
       });
-      await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
       const fallbackSession = expiredSession ?? activeSession;
       const monster = findPersistentFightMonster(fallbackSession);
 
@@ -770,20 +1147,22 @@ export class FightService {
         state: expiredState,
         status: expiredState.status
       });
-      await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
+      const fallbackSession = expiredSession ?? activeSession;
+      const fightReward = await this.getOrRecoverPersistentFightReward(
+        telegramUserId,
+        fallbackSession,
+        monster,
+        characterSummary
+      );
+      const settledSession = await this.reloadSessionAfterSettlement(telegramUserId, fallbackSession);
 
       return {
         state: "persistent-terminal",
         character: characterSummary,
-        session: expiredSession ?? { ...activeSession, state: expiredState, status: expiredState.status },
+        session: settledSession ?? { ...activeSession, state: expiredState, status: expiredState.status },
         monster,
         questProgress,
-        fightReward: await this.getOrRecoverPersistentFightReward(
-          telegramUserId,
-          expiredSession ?? activeSession,
-          monster,
-          characterSummary
-        )
+        fightReward
       };
     }
 
@@ -861,9 +1240,10 @@ export class FightService {
     }
 
     const questProgress = await this.getThirteenSmallProblemsProgress(due.telegramUserId);
+    const dueSession = await this.adoptLegacyLeasedSettlementIfNeeded(due.telegramUserId, due);
     const refreshedSession = await this.advanceExpiredPersistentTurn(
       due.telegramUserId,
-      due,
+      dueSession,
       characterSummary,
       monster
     );
@@ -944,7 +1324,7 @@ export class FightService {
       };
     }
 
-    const session = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, sessionId);
+    let session = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, sessionId);
 
     if (!session || isTrainingDoppelgangerMonsterId(session.monsterId)) {
       return {
@@ -952,6 +1332,8 @@ export class FightService {
         character: characterSummary
       };
     }
+
+    session = await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, session);
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
     const monster = findPersistentFightMonster(session);
@@ -1019,9 +1401,22 @@ export class FightService {
     }
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
-    const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+    const leasedSession = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
 
-    if (activeSession) {
+    if (leasedSession.state === "unsupported") {
+      const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
+        syncResources: false
+      });
+
+      return {
+        state: "combat-blocked",
+        character: resourceAware.character,
+        ...(resourceAware.recoveryNotice ? { recoveryNotice: resourceAware.recoveryNotice } : {})
+      };
+    }
+
+    if (leasedSession.state === "session") {
+      const activeSession = leasedSession.session;
       const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character, {
         syncResources: false
       });
@@ -1043,7 +1438,6 @@ export class FightService {
           state: expiredState,
           status: expiredState.status
         });
-        await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
         const fallbackSession = expiredSession ?? activeSession;
         const monster = findPersistentFightMonster(fallbackSession);
 
@@ -1069,7 +1463,6 @@ export class FightService {
             state: expiredState,
             status: expiredState.status
           });
-          await this.persistCharacterResourcesFromSession(telegramUserId, expiredSession ?? activeSession);
 
           return {
             state: "persistent-terminal",
@@ -1178,9 +1571,12 @@ export class FightService {
           resolvePersistentFightOriginLocationId(options)
         )
       : this.rng;
+    const recentMonsterIds = options.target
+      ? []
+      : await getRecentOrdinaryMonsterIds(this.combatSessions, telegramUserId);
     const baseMonster = options.target
       ? selectTargetedSoloFightMonster(characterSummary, this.rng, options.target)
-      : selectSoloFightMonster(characterSummary, encounterRng, difficulty);
+      : selectSoloFightMonster(characterSummary, encounterRng, difficulty, recentMonsterIds);
     const monster = applyPersistentFightDifficulty(baseMonster, characterSummary, difficulty);
     const sessionId = randomUUID();
     const now = this.clock();
@@ -1201,6 +1597,15 @@ export class FightService {
     });
     state.turnExpiresAt = getTurnExpiry(now).toISOString();
     state.source = options.source ?? "normal";
+    state.life = freezeCombatLife({
+      characterId: character.id,
+      remortCount: character.remortCount ?? 0,
+      now
+    });
+    state.settlement = {
+      status: "pending",
+      version: 1
+    };
     state.originLocationId = resolvePersistentFightOriginLocationId(options);
     if (monsterContext) {
       state.context = monsterContext;
@@ -1232,6 +1637,16 @@ export class FightService {
     });
 
     if (!session) {
+      const lease = await this.combatSessions.findLeasedByTelegramUserId?.(telegramUserId);
+
+      if (lease?.state === "unsupported") {
+        return {
+          state: "combat-blocked",
+          character: characterSummary,
+          ...(recoveryNotice ? { recoveryNotice } : {})
+        };
+      }
+
       return { state: "no-character" };
     }
 
@@ -1410,7 +1825,7 @@ export class FightService {
     }
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
-    const session = await this.combatSessions.findByIdForTelegramUserId(
+    let session = await this.combatSessions.findByIdForTelegramUserId(
       telegramUserId,
       input.sessionId
     );
@@ -1428,6 +1843,8 @@ export class FightService {
         character: characterSummary
       };
     }
+
+    session = await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, session);
 
     if (session.status === "active") {
       const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
@@ -1481,7 +1898,6 @@ export class FightService {
         state: expiredState,
         status: expiredState.status
       });
-      await this.persistCharacterResourcesFromSession(telegramUserId, updated ?? session);
 
       return {
         state: "terminal",
@@ -1653,12 +2069,14 @@ export class FightService {
     }
 
     const fightReward =
-      updated.status === "won" || updated.status === "lost"
-        ? await this.claimPersistentFightReward(telegramUserId, updated, monster, characterSummary)
+      updated.status !== "active"
+        ? await this.getOrRecoverPersistentFightReward(
+            telegramUserId,
+            updated,
+            monster,
+            characterSummary
+          )
         : null;
-    if (updated.status !== "active") {
-      await this.persistCharacterResourcesFromSession(telegramUserId, updated);
-    }
 
     const refreshedQuestProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
 
@@ -1819,7 +2237,8 @@ export class FightService {
     telegramUserId: bigint,
     session: SoloCombatSessionRecord,
     monster: MonsterContent,
-    character: CharacterSummary
+    character: CharacterSummary,
+    expectedLife?: { remortCount: number }
   ): Promise<PersistentFightReward | null> {
     const replay = buildPersistentFightRewardReplay(session);
 
@@ -1839,7 +2258,8 @@ export class FightService {
       localDate: session.id,
       rewardXp: reward.xp,
       rewardGold: reward.gold,
-      itemGrants: reward.itemGrants
+      itemGrants: reward.itemGrants,
+      ...(expectedLife ? { expectedLife } : {})
     });
 
     if (!claim) {
@@ -1851,6 +2271,14 @@ export class FightService {
     }
 
     if (claim.state === "existing") {
+      const stored = await this.completeCombatSettlementWithConvergence(telegramUserId, session, {
+        rewardXp: claim.action.rewardXp,
+        rewardGold: claim.action.rewardGold,
+        itemGrants: []
+      });
+      if (!isSettlementCompletionSuccess(stored.outcome)) {
+        return null;
+      }
       return {
         state: "already-claimed",
         reward: {
@@ -1865,12 +2293,14 @@ export class FightService {
     }
 
     const stored =
-      await this.combatSessions?.recordRewardById(session.id, {
+      await this.completeCombatSettlementWithConvergence(telegramUserId, session, {
         rewardXp: claim.action.rewardXp,
         rewardGold: claim.action.rewardGold,
-        itemGrants: claim.itemGrants,
-        claimedAt: this.clock()
+        itemGrants: claim.itemGrants
       });
+    if (!isSettlementCompletionSuccess(stored.outcome)) {
+      return null;
+    }
 
     return {
       state: "claimed",
@@ -1881,7 +2311,7 @@ export class FightService {
         itemGrants: enrichRewardItemGrants(claim.itemGrants)
       },
       levelChange: claim.levelChange,
-      ...(stored ? {} : { itemReplayUnavailable: claim.itemGrants.length > 0 })
+      ...(stored.session ? {} : { itemReplayUnavailable: claim.itemGrants.length > 0 })
     };
   }
 
@@ -1978,28 +2408,97 @@ export class FightService {
     monster: MonsterContent | null,
     character: CharacterSummary
   ): Promise<PersistentFightReward | null> {
-    await this.combatAnalytics?.recordTerminalSession(session);
+    session = await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, session);
     const replay = buildPersistentFightRewardReplay(session);
 
     if (replay) {
+      const stored = await this.completeCombatSettlementWithConvergence(telegramUserId, session);
+      if (!isSettlementCompletionSuccess(stored.outcome)) {
+        return null;
+      }
       return replay;
     }
 
     const terminalStatus = session.state?.status ?? session.status;
+    if (session.state?.settlement?.status === "forfeited-by-remort") {
+      return null;
+    }
 
-    if (terminalStatus !== "won" && terminalStatus !== "lost") {
+    if (!session.state?.settlement) {
+      const action = await this.dailyActions.findForTelegramUser(telegramUserId, {
+        key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
+        localDate: session.id
+      });
+
+      return action
+        ? {
+            state: "already-claimed",
+            reward: {
+              xp: action.rewardXp,
+              gold: action.rewardGold,
+              localDate: session.id,
+              itemGrants: []
+            },
+            levelChange: null,
+            itemReplayUnavailable: true
+          }
+        : null;
+    }
+
+    const expectedLife = await this.resolveSessionExpectedLife(session);
+    const resources = await this.persistCharacterResourcesFromSession(
+      telegramUserId,
+      session,
+      expectedLife,
+      { finalizeSettlement: terminalStatus !== "won" && terminalStatus !== "lost" }
+    );
+
+    if (resources.outcome === "forfeited" || resources.outcome === "blocked") {
+      return null;
+    }
+
+    const settlementSession = resources.session;
+    if (!settlementSession) {
+      return null;
+    }
+    const settledStatus = settlementSession.state?.status ?? settlementSession.status;
+
+    if (settledStatus !== "won" && settledStatus !== "lost") {
       return null;
     }
 
     const action = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
-      localDate: session.id
+      localDate: settlementSession.id
     });
 
     if (!action) {
-      return monster
-        ? this.claimPersistentFightReward(telegramUserId, session, monster, character)
-        : null;
+      if (!monster) {
+        return null;
+      }
+
+      const claimed = await this.claimPersistentFightReward(
+        telegramUserId,
+        settlementSession,
+        monster,
+        character,
+        expectedLife
+      );
+
+      if (!claimed && expectedLife) {
+        await this.forfeitCombatSettlement(settlementSession, "life-mismatch");
+      }
+
+      return claimed;
+    }
+
+    const stored = await this.completeCombatSettlementWithConvergence(telegramUserId, settlementSession, {
+      rewardXp: action.rewardXp,
+      rewardGold: action.rewardGold,
+      itemGrants: []
+    });
+    if (!isSettlementCompletionSuccess(stored.outcome)) {
+      return null;
     }
 
     return {
@@ -2007,7 +2506,7 @@ export class FightService {
       reward: {
         xp: action.rewardXp,
         gold: action.rewardGold,
-        localDate: session.id,
+        localDate: settlementSession.id,
         itemGrants: []
       },
       levelChange: null,
@@ -2120,21 +2619,514 @@ export class FightService {
     };
   }
 
-  private async persistCharacterResourcesFromSession(
+  private async findLeasedSoloCombatSessionForTelegramUser(
     telegramUserId: bigint,
-    session: SoloCombatSessionRecord
-  ): Promise<void> {
-    if (!session.state) {
-      return;
+    attempts = 0
+  ): Promise<LeasedSoloCombatSessionLookup> {
+    const lookup = await this.combatSessions?.findLeasedByTelegramUserId?.(telegramUserId);
+
+    if (!lookup) {
+      const session = await this.combatSessions?.findActiveByTelegramUserId(telegramUserId);
+
+      return session ? { state: "session", session } : { state: "none" };
     }
 
-    await this.characters.updateResourcesForTelegramUser?.(telegramUserId, {
-      hpCurrent: session.state.hero.hp,
-      manaCurrent: session.state.hero.mana,
-      hpRegenAt: this.clock(),
-      manaRegenAt: this.clock()
+    if (lookup.state === "active" || lookup.state === "terminal-pending") {
+      return {
+        state: "session",
+        session: await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, lookup.session)
+      };
+    }
+
+    if (lookup.state === "terminal-completed" || lookup.state === "terminal-forfeited") {
+      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.session.id);
+    } else if (lookup.state === "missing-session") {
+      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.referenceId);
+    } else if (lookup.state === "unsupported") {
+      return { state: "unsupported", kind: lookup.kind, referenceId: lookup.referenceId };
+    } else {
+      const session = await this.combatSessions?.findActiveByTelegramUserId(telegramUserId);
+
+      return session
+        ? {
+            state: "session",
+            session: await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, session)
+          }
+        : { state: "none" };
+    }
+
+    return attempts >= 1
+      ? { state: "none" }
+      : this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId, attempts + 1);
+  }
+
+  private async adoptLegacyLeasedSettlementIfNeeded(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord
+  ): Promise<SoloCombatSessionRecord> {
+    if (!this.combatSessions?.adoptLegacySettlementById || !needsLegacySettlementAdoption(session)) {
+      return session;
+    }
+
+    const adopted = await this.combatSessions.adoptLegacySettlementById(session.id, {
+      expectedStatus: session.status,
+      expectedTurn: session.state.turn,
+      expectedSettlementVersion: session.state.settlement?.version ?? null,
+      now: this.clock()
     });
-    await this.combatAnalytics?.recordTerminalSession(session);
+
+    if (adopted.outcome === "life-mismatch") {
+      const expired = await this.combatSessions.markStatusById(session.id, "expired");
+      return expired ?? adopted.session ?? session;
+    }
+
+    if (adopted.session) {
+      return adopted.session;
+    }
+
+    const reloaded = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, session.id);
+
+    return reloaded ?? session;
+  }
+
+  private async persistCharacterResourcesFromSession(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    expectedLife?: { remortCount: number },
+    options: { finalizeSettlement?: boolean } = {}
+  ): Promise<ResourceSettlementFlowResult> {
+    let currentSession = session;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await this.persistCharacterResourcesOnce(
+        telegramUserId,
+        currentSession,
+        expectedLife,
+        options
+      );
+
+      if (
+        result.outcome !== "blocked" ||
+        result.reason !== "version-changed" ||
+        attempt >= 1
+      ) {
+        return result;
+      }
+
+      const reloaded = await this.reloadSessionAfterSettlement(telegramUserId, currentSession);
+      if (!reloaded) {
+        return { outcome: "blocked", session: result.session };
+      }
+      currentSession = reloaded;
+    }
+
+    return { outcome: "blocked", session: currentSession };
+  }
+
+  private async persistCharacterResourcesOnce(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    expectedLife?: { remortCount: number },
+    options: { finalizeSettlement?: boolean } = {}
+  ): Promise<ResourceSettlementFlowResult & { reason?: GuardedResourceSettlementOutcome | "unsupported" }> {
+    if (!session.state) {
+      return { outcome: "blocked", session, reason: "unsupported" };
+    }
+
+    if (session.state.settlement?.status === "forfeited-by-remort") {
+      return { outcome: "forfeited", session };
+    }
+
+    if (isCombatSettlementTerminal(session.state)) {
+      return { outcome: "completed", session };
+    }
+
+    if (!session.state.settlement) {
+      return { outcome: "blocked", session, reason: "unsupported" };
+    }
+
+    if (session.state.settlement?.resources?.status === "applied") {
+      const shouldFinalizeSettlement =
+        options.finalizeSettlement ??
+        (session.state.status !== "won" && session.state.status !== "lost");
+
+      if (shouldFinalizeSettlement) {
+        const completed = await this.completeCombatSettlementWithConvergence(telegramUserId, session);
+        if (!isSettlementCompletionSuccess(completed.outcome)) {
+          return { outcome: "blocked", session: completed.session ?? session, reason: completed.outcome as GuardedResourceSettlementOutcome };
+        }
+        return { outcome: "completed", session: completed.session ?? session };
+      }
+
+      return { outcome: "ready", session };
+    }
+
+    const life = expectedLife ?? await this.resolveSessionExpectedLife(session);
+    const appliedAt = getTerminalResourceSettlementDate(session);
+    const currentCharacter = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!life || !currentCharacter || !this.combatSessions?.applyTerminalResourcesById) {
+      return { outcome: "blocked", session, reason: "unsupported" };
+    }
+
+    const resourceSettlement = await this.combatSessions.applyTerminalResourcesById(session.id, {
+      expected: {
+        settlementStatus: "pending",
+        ...(session.state.settlement?.version !== undefined
+          ? { settlementVersion: session.state.settlement.version }
+          : {}),
+        combatStatus: session.state.status,
+        life
+      },
+      appliedAt,
+      resources: {
+        hpCurrent: session.state.hero.hp,
+        manaCurrent: session.state.hero.mana,
+        hpRegenAt: appliedAt,
+        manaRegenAt: appliedAt
+      },
+      expectedResources: {
+        hpCurrent: currentCharacter.hpCurrent,
+        manaCurrent: currentCharacter.manaCurrent,
+        hpRegenAt: currentCharacter.hpRegenAt ?? null,
+        manaRegenAt: currentCharacter.manaRegenAt ?? null
+      }
+    });
+
+    if (
+      resourceSettlement.outcome === "already-forfeited" ||
+      resourceSettlement.outcome === "life-mismatch"
+    ) {
+      if (resourceSettlement.outcome === "life-mismatch") {
+        const forfeited = await this.forfeitCombatSettlement(
+          resourceSettlement.session ?? session,
+          "life-mismatch"
+        );
+        return { outcome: "forfeited", session: forfeited.session ?? resourceSettlement.session ?? session };
+      }
+      return { outcome: "forfeited", session: resourceSettlement.session ?? session };
+    }
+
+    if (resourceSettlement.outcome === "already-completed") {
+      return { outcome: "completed", session: resourceSettlement.session ?? session };
+    }
+
+    if (
+      resourceSettlement.outcome === "missing" ||
+      resourceSettlement.outcome === "resource-cas-conflict" ||
+      resourceSettlement.outcome === "version-changed"
+    ) {
+      return {
+        outcome: "blocked",
+        session: resourceSettlement.session ?? session,
+        reason: resourceSettlement.outcome
+      };
+    }
+
+    const settlementSession = resourceSettlement.session ?? session;
+
+    const shouldFinalizeSettlement =
+      options.finalizeSettlement ??
+      (session.state.status !== "won" && session.state.status !== "lost");
+
+    if (shouldFinalizeSettlement) {
+      const completed = await this.completeCombatSettlementWithConvergence(
+        telegramUserId,
+        settlementSession
+      );
+      if (!isSettlementCompletionSuccess(completed.outcome)) {
+        return { outcome: "blocked", session: completed.session ?? settlementSession, reason: completed.outcome as GuardedResourceSettlementOutcome };
+      }
+      return { outcome: "completed", session: completed.session ?? settlementSession };
+    }
+
+    return { outcome: "ready", session: settlementSession };
+  }
+
+  private async resolveSessionExpectedLife(
+    session: SoloCombatSessionRecord
+  ): Promise<{ remortCount: number } | undefined> {
+    if (session.state?.life) {
+      return { remortCount: session.state.life.remortCount };
+    }
+
+    const legacyLife = await this.combatSessions?.resolveLifeById?.(session.id);
+
+    return legacyLife ? { remortCount: legacyLife.remortCount } : undefined;
+  }
+
+  private async completeCombatSettlementWithConvergence(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    reward?: { rewardXp: number; rewardGold: number; itemGrants: Array<{ itemId: string; quantity: number }> }
+  ): Promise<SettlementCompletionFlowResult> {
+    let currentSession = session;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await this.completeCombatSettlement(currentSession, reward);
+      if (result.outcome !== "version-changed" || attempt >= 1) {
+        return result;
+      }
+
+      const reloaded = await this.reloadSessionAfterSettlement(telegramUserId, currentSession);
+      if (!reloaded) {
+        return result;
+      }
+      currentSession = reloaded;
+    }
+
+    return { outcome: "version-changed", session: currentSession };
+  }
+
+  private async completeCombatSettlement(
+    session: SoloCombatSessionRecord,
+    reward?: { rewardXp: number; rewardGold: number; itemGrants: Array<{ itemId: string; quantity: number }> }
+  ): Promise<SettlementCompletionFlowResult> {
+    if (!session.state || session.state.settlement?.status === "completed") {
+      await this.combatAnalytics?.recordTerminalSession(session);
+      return { outcome: "already-completed", session };
+    }
+
+    if (!session.state.settlement) {
+      await this.combatAnalytics?.recordTerminalSession(session);
+      return { outcome: "already-completed", session };
+    }
+
+    if (session.state.settlement?.status === "forfeited-by-remort") {
+      return { outcome: "already-forfeited", session };
+    }
+
+    const life = await this.resolveSessionExpectedLife(session);
+    const guarded = await this.combatSessions?.completeSettlementById?.(session.id, {
+      expected: {
+        settlementStatus: "pending",
+        ...(session.state.settlement?.version !== undefined
+          ? { settlementVersion: session.state.settlement.version }
+          : {}),
+        combatStatus: session.state.status,
+        ...(life ? { life } : {})
+      },
+      settledAt: this.clock(),
+      ...(reward
+        ? {
+            reward: {
+              ...reward,
+              claimedAt: this.clock()
+            }
+          }
+        : {}),
+      releaseLease: true
+    });
+
+    if (!guarded) {
+      return { outcome: "unsupported", session };
+    }
+
+    if (guarded.session && isSettlementCompletionSuccess(guarded.outcome)) {
+      await this.combatAnalytics?.recordTerminalSession(guarded.session);
+    }
+
+    return guarded;
+  }
+
+  private async forfeitCombatSettlement(
+    session: SoloCombatSessionRecord,
+    reason: "life-mismatch" | "legacy-life-mismatch"
+  ): Promise<SettlementCompletionFlowResult> {
+    if (!session.state || session.state.settlement?.status === "forfeited-by-remort") {
+      return { outcome: "already-forfeited", session };
+    }
+
+    const life = await this.resolveSessionExpectedLife(session);
+    const guarded = await this.combatSessions?.forfeitSettlementById?.(session.id, {
+      expected: {
+        settlementStatus: "pending",
+        ...(session.state.settlement?.version !== undefined
+          ? { settlementVersion: session.state.settlement.version }
+          : {}),
+        combatStatus: session.state.status,
+        ...(life ? { life } : {})
+      },
+      settledAt: this.clock(),
+      reason,
+      releaseLease: true
+    });
+
+    return guarded ?? { outcome: "unsupported", session };
+  }
+
+  private async reloadSessionAfterSettlement(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord
+  ): Promise<SoloCombatSessionRecord | null> {
+    return this.combatSessions?.findByIdForTelegramUserId(telegramUserId, session.id) ?? null;
+  }
+
+  private async createPendingPassageEncounter(
+    telegramUserId: bigint,
+    character: CharacterSummary,
+    difficulty: PersistentFightDifficultyConfig,
+    originLocationId: string,
+    now: Date
+  ): Promise<PendingPassageEncounterRecord | null> {
+    if (!this.pendingPassageEncounters) {
+      const seed = createPersistentFightEncounterSeed(this.rng);
+      const baseMonster = selectSoloFightMonster(
+        character,
+        buildPersistentFightEncounterRng(seed, difficulty, originLocationId),
+        difficulty
+      );
+      const monster = applyPersistentFightDifficulty(baseMonster, character, difficulty);
+
+      return {
+        id: seed,
+        token: seed,
+        characterId: "",
+        originLocationId,
+        passage: passageFromOriginLocationId(originLocationId),
+        difficulty: difficulty.id,
+        monsterId: monster.id,
+        baseMonsterLevel: baseMonster.level,
+        effectiveMonsterLevel: monster.level,
+        rulesVersion: PENDING_PASSAGE_ENCOUNTER_RULES_VERSION,
+        seedHash: seed,
+        status: "pending",
+        version: 1,
+        combatSessionId: null,
+        expiresAt: new Date(now.getTime() + PENDING_PASSAGE_ENCOUNTER_TTL_MS),
+        consumedAt: null,
+        cancelledAt: null,
+        createdAt: now,
+        updatedAt: now
+      };
+    }
+
+    const seed = createPersistentFightEncounterSeed(this.rng);
+    const recentMonsterIds = await getRecentOrdinaryMonsterIds(this.combatSessions, telegramUserId);
+    const baseMonster = selectSoloFightMonster(
+      character,
+      buildPersistentFightEncounterRng(seed, difficulty, originLocationId),
+      difficulty,
+      recentMonsterIds
+    );
+    const monster = applyPersistentFightDifficulty(baseMonster, character, difficulty);
+
+    return this.pendingPassageEncounters.createForTelegramUser(telegramUserId, {
+      now,
+      token: createPendingEncounterToken(),
+      originLocationId,
+      passage: passageFromOriginLocationId(originLocationId),
+      difficulty: difficulty.id,
+      monsterId: monster.id,
+      baseMonsterLevel: baseMonster.level,
+      effectiveMonsterLevel: monster.level,
+      rulesVersion: PENDING_PASSAGE_ENCOUNTER_RULES_VERSION,
+      seedHash: seed,
+      expiresAt: new Date(now.getTime() + PENDING_PASSAGE_ENCOUNTER_TTL_MS)
+    });
+  }
+
+  private async findRecoverableConsumedPassageEncounter(
+    telegramUserId: bigint,
+    originLocationId: string,
+    now: Date
+  ): Promise<{
+    encounter: PendingPassageEncounterRecord;
+    monsterHp?: { current: number; max: number };
+  } | null> {
+    if (!this.pendingPassageEncounters) {
+      return null;
+    }
+
+    const consumed = await this.pendingPassageEncounters.findLatestConsumedForTelegramUser(
+      telegramUserId,
+      originLocationId,
+      now,
+      PENDING_PASSAGE_ENCOUNTER_RULES_VERSION
+    );
+    if (!consumed?.session || !findMonster(consumed.encounter.monsterId)) {
+      return null;
+    }
+
+    const monsterHp = getSurvivingPassageMonsterHp(consumed.session, now);
+
+    return monsterHp
+      ? {
+          encounter: consumed.encounter,
+          ...(monsterHp.current < monsterHp.max ? { monsterHp } : {})
+        }
+      : null;
+  }
+
+  private buildPersistentFightCombatState(input: {
+    sessionId: string;
+    character: CharacterRecord;
+    characterSummary: CharacterSummary;
+    baseMonster: MonsterContent;
+    monster: MonsterContent;
+    difficulty: PersistentFightDifficultyConfig;
+    originLocationId: string;
+    source: NonNullable<PersistentFightStartOptions["source"]>;
+    now: Date;
+    initialMonsterHp?: number;
+  }): CombatState {
+    const worldContext = buildCombatWorldContext({
+      now: input.now,
+      partySize: 1,
+      locationTags: buildPersistentFightLocationTags(input.source)
+    });
+    const monsterContext = resolveMonsterContext({ monster: input.monster, world: worldContext });
+    const monsterStats = applyMonsterContextToStats(
+      deriveMonsterCombatStats(input.monster),
+      monsterContext
+    );
+    const state = startCombat({
+      id: input.sessionId,
+      hero: buildHeroCombatStats(input.characterSummary),
+      monster: monsterStats
+    });
+    if (input.initialMonsterHp !== undefined) {
+      state.monster.hp = Math.min(
+        state.monster.hpMax,
+        Math.max(1, Math.floor(input.initialMonsterHp))
+      );
+    }
+    state.turnExpiresAt = getTurnExpiry(input.now).toISOString();
+    state.source = input.source;
+    state.life = freezeCombatLife({
+      characterId: input.character.id,
+      remortCount: input.character.remortCount ?? 0,
+      now: input.now
+    });
+    state.settlement = {
+      status: "pending",
+      version: 1
+    };
+    state.originLocationId = input.originLocationId;
+    if (monsterContext) {
+      state.context = monsterContext;
+    }
+    state.barks = createCombatBarkState({ monsterId: input.monster.id, seed: input.sessionId, audience: "solo" });
+    state.monster.debugTrace = {
+      ...state.monster.debugTrace,
+      ...buildPersistentFightInterventionTrace(input.baseMonster, input.monster, input.difficulty)
+    };
+    const analytics = this.combatAnalytics?.createInitialState({
+      characterId: input.character.id,
+      character: input.characterSummary,
+      monster: monsterStats,
+      combatSource: mapPersistentFightSourceToAnalyticsSource(input.source),
+      startedAt: input.now,
+      monsterType: getLootExpansionSourceForMonster(input.monster),
+      difficultyTier: input.difficulty.id,
+      baseMonsterLevel: input.baseMonster.level,
+      effectiveMonsterLevel: input.monster.level
+    });
+    if (analytics) {
+      state.analytics = analytics;
+    }
+
+    return state;
   }
 
   private async getMonsterRestCooldown(
@@ -2497,6 +3489,46 @@ function buildHeroCombatStats(
   };
 }
 
+function isSettlementCompletionSuccess(outcome: SettlementCompletionFlowResult["outcome"]): boolean {
+  return outcome === "completed" || outcome === "already-completed";
+}
+
+function needsLegacySettlementAdoption(
+  session: SoloCombatSessionRecord
+): session is SoloCombatSessionRecord & { state: CombatState } {
+  return Boolean(session.state && (!session.state.life || !session.state.settlement));
+}
+
+function isCurrentPendingPassageEncounterRules(encounter: PendingPassageEncounterRecord): boolean {
+  return encounter.rulesVersion === PENDING_PASSAGE_ENCOUNTER_RULES_VERSION;
+}
+
+function getSurvivingPassageMonsterHp(
+  session: SoloCombatSessionRecord,
+  now: Date
+): { current: number; max: number } | null {
+  const state = session.state;
+  if (!state || state.status === "active" || state.status === "won") {
+    return null;
+  }
+
+  const hpMax = Math.max(1, Math.floor(state.monster.hpMax));
+  const hpAtEnd = Math.min(hpMax, Math.max(0, Math.floor(state.monster.hp)));
+  if (hpAtEnd <= 0) {
+    return null;
+  }
+
+  const marker = state.completedAt ? new Date(state.completedAt) : session.updatedAt;
+  const markerTime = Number.isFinite(marker.getTime()) ? marker.getTime() : session.updatedAt.getTime();
+  const elapsedSeconds = Math.max(0, (now.getTime() - markerTime) / 1000);
+  const restored = Math.floor(
+    elapsedSeconds * (hpMax / PENDING_PASSAGE_MONSTER_FULL_REGEN_SECONDS)
+  );
+  const current = Math.min(hpMax, hpAtEnd + restored);
+
+  return { current, max: hpMax };
+}
+
 function getSessionExpiry(now: Date): Date {
   return new Date(now.getTime() + 30 * 60 * 1000);
 }
@@ -2530,6 +3562,22 @@ function withNextTurnExpiry(state: CombatState, now: Date): CombatState {
 
 function isExpired(session: SoloCombatSessionRecord, now: Date): boolean {
   return session.expiresAt.getTime() <= now.getTime();
+}
+
+function getTerminalResourceSettlementDate(session: SoloCombatSessionRecord): Date {
+  return parseStoredDate(session.state?.settlement?.resources?.appliedAt) ??
+    parseStoredDate(session.state?.completedAt) ??
+    session.updatedAt;
+}
+
+function parseStoredDate(value: string | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function stampCombatCompletedAt(state: CombatState, now: Date): CombatState {
@@ -2575,6 +3623,10 @@ function createPersistentFightEncounterSeed(rng: RandomSource): string {
   return rng.nextInt(0, 0x7fffffff).toString(36);
 }
 
+function createPendingEncounterToken(): string {
+  return randomUUID().replace(/-/g, "").slice(0, 16);
+}
+
 function buildPersistentFightEncounterRng(
   encounterSeed: string,
   difficulty: PersistentFightDifficultyConfig,
@@ -2593,6 +3645,22 @@ function getDefaultPassageLocationId(difficulty: PersistentFightDifficultyId): s
   }
 
   return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT;
+}
+
+function passageFromOriginLocationId(
+  originLocationId: string
+): PendingPassageEncounterRecord["passage"] {
+  const normalized = normalizePresenceLocationId(originLocationId);
+
+  if (normalized === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT) {
+    return "deep-left";
+  }
+
+  if (normalized === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT) {
+    return "deep-right";
+  }
+
+  return "deep-straight";
 }
 
 export function selectPersistentFightMonsterLevel(input: {
@@ -2734,7 +3802,8 @@ function getPersistentFightSessionBaseMonsterLevel(
 function selectSoloFightMonster(
   character: CharacterSummary,
   rng: RandomSource,
-  difficulty: PersistentFightDifficultyConfig = PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
+  difficulty: PersistentFightDifficultyConfig = PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal,
+  recentMonsterIds: readonly string[] = []
 ): MonsterContent {
   const maxMonsterLevel = Math.max(3, character.level);
   const closeMonsterLevelFloor = Math.max(1, character.level - 2);
@@ -2746,7 +3815,8 @@ function selectSoloFightMonster(
   );
 
   if (difficultyCandidates.length > 0) {
-    return difficultyCandidates[rng.nextInt(0, difficultyCandidates.length - 1)] ?? difficultyCandidates[0]!;
+    const candidates = applyRecentOrdinaryMonsterExclusions(difficultyCandidates, recentMonsterIds);
+    return candidates[rng.nextInt(0, candidates.length - 1)] ?? candidates[0]!;
   }
 
   const closeCandidates = eligibleMonsters.filter(
@@ -2764,7 +3834,59 @@ function selectSoloFightMonster(
     return fallback;
   }
 
-  return candidates[rng.nextInt(0, candidates.length - 1)] ?? candidates[0] ?? fallback;
+  const antiRepeatCandidates = applyRecentOrdinaryMonsterExclusions(candidates, recentMonsterIds);
+
+  return antiRepeatCandidates[rng.nextInt(0, antiRepeatCandidates.length - 1)] ?? antiRepeatCandidates[0] ?? fallback;
+}
+
+export function applyRecentOrdinaryMonsterExclusions(
+  candidates: readonly MonsterContent[],
+  recentMonsterIds: readonly string[]
+): MonsterContent[] {
+  const original = [...candidates];
+  const distinctRecent = [...new Set(recentMonsterIds)].slice(0, 3);
+  const recentThree = new Set(distinctRecent);
+
+  if (recentThree.size > 0 && original.length > recentThree.size) {
+    const withoutRecentThree = original.filter((monster) => !recentThree.has(monster.id));
+    if (
+      withoutRecentThree.length > 0 &&
+      yegerRelevantShare(withoutRecentThree) <= yegerRelevantShare(original)
+    ) {
+      return withoutRecentThree;
+    }
+  }
+
+  const previousMonsterId = distinctRecent[0];
+  if (previousMonsterId && original.length > 1) {
+    const withoutPrevious = original.filter((monster) => monster.id !== previousMonsterId);
+    if (withoutPrevious.length > 0) {
+      return withoutPrevious;
+    }
+  }
+
+  return original;
+}
+
+const YEGER_RELEVANT_MONSTER_TAGS = new Set(["undead", "ghost", "cursed", "unquiet"]);
+
+function yegerRelevantShare(candidates: readonly MonsterContent[]): number {
+  if (candidates.length === 0) {
+    return 0;
+  }
+
+  const relevant = candidates.filter((monster) =>
+    monster.tags.some((tag) => YEGER_RELEVANT_MONSTER_TAGS.has(tag))
+  ).length;
+
+  return relevant / candidates.length;
+}
+
+async function getRecentOrdinaryMonsterIds(
+  sessions: SoloCombatSessionRepository | undefined,
+  telegramUserId: bigint
+): Promise<string[]> {
+  return sessions?.listRecentOrdinaryMonsterIdsByTelegramUserId?.(telegramUserId, 3) ?? [];
 }
 
 function selectDifficultyMonsterCandidates(

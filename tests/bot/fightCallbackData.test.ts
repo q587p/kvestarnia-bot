@@ -69,7 +69,7 @@ describe("fight callback data", () => {
   it("parses persistent passage attack callbacks", () => {
     const data = makeFightPassageAttackCallbackData({
       passage: "deep-right",
-      encounterSeed: "kvest13"
+      encounterToken: "kvest13"
     });
 
     expect(parseFightCallbackData(data)).toEqual({
@@ -77,7 +77,7 @@ describe("fight callback data", () => {
       value: {
         type: "passage",
         passage: "deep-right",
-        encounterSeed: "kvest13"
+        encounterToken: "kvest13"
       }
     });
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);

@@ -307,6 +307,15 @@ describe("PrismaSoloCombatSessionRepository", () => {
     });
 
     expect(mapped?.state?.originLocationId).toBe("location.korchma.deep.level1");
+    expect(mapped?.state?.life).toEqual({
+      characterId: "character-42",
+      remortCount: 1,
+      startedAt: "2026-06-20T00:00:00.000Z"
+    });
+    expect(mapped?.state?.settlement).toEqual({
+      status: "pending",
+      version: 1
+    });
     expect(mapped?.state?.guard).toEqual({ consecutiveDefends: 2 });
     expect(mapped?.state?.timeout).toEqual({
       consecutiveMissedTurns: 1,
@@ -477,9 +486,14 @@ describe("PrismaSoloCombatSessionRepository", () => {
     const calls: unknown[] = [];
     const repository = new PrismaSoloCombatSessionRepository({
       soloCombatSession: {
-        count: (input: unknown) => {
+        findMany: (input: unknown) => {
           calls.push(input);
-          return Promise.resolve(23);
+          return Promise.resolve([
+            { stateJson: { ...activeCombatState, status: "won", settlement: { status: "completed", version: 1 } } },
+            { stateJson: { ...activeCombatState, status: "won" } },
+            { stateJson: { ...activeCombatState, status: "won", settlement: { status: "pending", version: 1 } } },
+            { stateJson: { ...activeCombatState, status: "won", settlement: { status: "forfeited-by-remort", version: 1 } } }
+          ]);
         }
       }
     } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
@@ -490,7 +504,7 @@ describe("PrismaSoloCombatSessionRepository", () => {
         excludeMonsterIds: ["monster.training-doppelganger"],
         since
       })
-    ).resolves.toBe(23);
+    ).resolves.toBe(2);
 
     expect(calls[0]).toEqual({
       where: {
@@ -506,6 +520,9 @@ describe("PrismaSoloCombatSessionRepository", () => {
             telegramUserId: 42n
           }
         }
+      },
+      select: {
+        stateJson: true
       }
     });
   });
@@ -606,6 +623,15 @@ function runtimeRoundTripState(): CombatState {
     ...activeCombatState,
     id: "session-round-trip",
     originLocationId: "location.korchma.deep.level1",
+    life: {
+      characterId: "character-42",
+      remortCount: 1,
+      startedAt: "2026-06-20T00:00:00.000Z"
+    },
+    settlement: {
+      status: "pending",
+      version: 1
+    },
     turn: 3,
       guard: {
         consecutiveDefends: 2

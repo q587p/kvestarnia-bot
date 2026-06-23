@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { monsterAbilities } from "../../src/content/monsterAbilities";
-import { monsterCombatProfiles } from "../../src/content/monsterCombatProfiles";
+import { monsterCombatProfiles, type MonsterCombatProfile } from "../../src/content/monsterCombatProfiles";
 import { monsters } from "../../src/content/monsters";
 import {
   cloneCombatState,
@@ -13,6 +13,7 @@ import {
   applyMonsterRuntimeHeroDamage,
   applyMonsterRuntimeMonsterActionModifiers,
   consumeMonsterRuntimeDirectHitModifiers,
+  deriveMonsterCombatStats,
   isHeroClassSkillLockedByMonster,
   resolveMonsterShieldDamage,
   resolveCombatTurn,
@@ -119,6 +120,59 @@ describe("monster ability runtime", () => {
     });
     expect(scaled[0]).toBe("monster.sauce-spit");
     expect(scaled).toHaveLength(2);
+  });
+
+  it("resolves legal authored and difficulty-scaled loadouts for every monster profile", () => {
+    for (const profile of monsterCombatProfiles as readonly MonsterCombatProfile[]) {
+      const monster = monsters.find((candidate) => candidate.id === profile.monsterId);
+
+      if (!monster) {
+        throw new Error(`Missing monster fixture for ${profile.monsterId}.`);
+      }
+
+      const explicitIds = new Set([
+        ...profile.abilityIds,
+        ...(profile.upgradeAbilityIds ?? []).map((upgrade) => upgrade.abilityId)
+      ]);
+      const levels = [
+        profile.authoredLevel,
+        Math.max(1, profile.authoredLevel - 2),
+        profile.authoredLevel + 2
+      ];
+
+      for (const level of levels) {
+        const stats = deriveMonsterCombatStats({ ...monster, level });
+        const loadoutIds = resolveMonsterLoadoutIds({
+          monster: stats,
+          profile,
+          seed: `${profile.monsterId}:${level}`
+        });
+
+        expect(loadoutIds.length, `${profile.monsterId} level ${level}`).toBeGreaterThan(0);
+        expect(loadoutIds.length, `${profile.monsterId} level ${level}`).toBeLessThanOrEqual(
+          getMonsterAbilitySlotCount(level, monster.tags, profile)
+        );
+        expect(new Set(loadoutIds).size, `${profile.monsterId} level ${level}`).toBe(loadoutIds.length);
+
+        for (const abilityId of loadoutIds) {
+          const ability = monsterAbilities.find((candidate) => candidate.id === abilityId);
+
+          expect(ability, `${profile.monsterId} level ${level} uses ${abilityId}`).toBeDefined();
+
+          if (ability && !explicitIds.has(abilityId) && level < 7) {
+            expect(["strong", "ultimate"], `${profile.monsterId} level ${level} fallback ${abilityId}`).not.toContain(
+              ability.powerBand
+            );
+          }
+
+          if (ability && !explicitIds.has(abilityId) && level < 4) {
+            expect(ability.telegraphOneEnemyAction, `${profile.monsterId} level ${level} fallback ${abilityId}`).not.toBe(
+              true
+            );
+          }
+        }
+      }
+    }
   });
 
   it("freezes runtime on new ordinary fights and leaves legacy/test fights predictable", () => {

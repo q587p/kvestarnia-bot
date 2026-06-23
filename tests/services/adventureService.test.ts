@@ -21,7 +21,11 @@ import type {
   CharacterEquipmentSnapshot,
   EquipmentRepository
 } from "../../src/db/repositories/equipmentRepository";
-import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
+import type {
+  SoloCombatLeaseLookupResult,
+  SoloCombatSessionRecord,
+  SoloCombatSessionRepository
+} from "../../src/db/repositories/soloCombatSessionRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
 import { buildStarterLevelTwoXpReward } from "../../src/domain/progression/starterRewards";
@@ -720,6 +724,65 @@ describe("AdventureService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
+  it("blocks offers and claims under an unsupported active combat lease without mutation", async () => {
+    const { service, characters, dailyActions } = setup(null, undefined, {
+      state: "unsupported",
+      kind: "turn-duel",
+      referenceId: "duel-session"
+    });
+    characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const offer = buildAdventureOffer(
+      `character-${telegramUserId.toString()}`,
+      buildAdventurePeriod(fixedClock())
+    );
+
+    await expect(service.getAdventureOfferForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "combat-blocked"
+    });
+    await expect(
+      service.completeAdventureApproach(telegramUserId, {
+        periodToken: offer.periodToken,
+        problemId: offer.choices[0].id,
+        methodId: "lower-fire"
+      })
+    ).resolves.toMatchObject({
+      state: "combat-blocked"
+    });
+    expect(dailyActions.createCount).toBe(0);
+  });
+
+  it("blocks adventure mutation behind a hard-expired leased fight", async () => {
+    const expiredFight = {
+      ...fakeSession(),
+      expiresAt: new Date("2026-06-12T10:29:59.000Z")
+    };
+    const { service, characters, dailyActions } = setup(null, undefined, {
+      state: "active",
+      session: expiredFight
+    });
+    characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const offer = buildAdventureOffer(
+      `character-${telegramUserId.toString()}`,
+      buildAdventurePeriod(fixedClock())
+    );
+
+    await expect(service.getAdventureOfferForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "active-fight",
+      session: expiredFight
+    });
+    await expect(
+      service.completeAdventureApproach(telegramUserId, {
+        periodToken: offer.periodToken,
+        problemId: offer.choices[0].id,
+        methodId: "lower-fire"
+      })
+    ).resolves.toMatchObject({
+      state: "active-fight",
+      session: expiredFight
+    });
+    expect(dailyActions.createCount).toBe(0);
+  });
+
   it("keeps a live complication fight visible after the period has an adventure claim", async () => {
     const activeFight = fakeSession();
     const { service, characters, dailyActions } = setup(activeFight);
@@ -768,7 +831,8 @@ function fixedClock(): Date {
 
 function setup(
   activeFight: SoloCombatSessionRecord | null = null,
-  equipment: EquipmentRepository | undefined = undefined
+  equipment: EquipmentRepository | undefined = undefined,
+  leasedFight?: SoloCombatLeaseLookupResult
 ): {
   characters: FakeCharacterRepository;
   dailyActions: FakeDailyActionRepository;
@@ -776,7 +840,10 @@ function setup(
 } {
   const characters = new FakeCharacterRepository();
   const dailyActions = new FakeDailyActionRepository(characters);
-  const fights = {
+  const fights: Pick<SoloCombatSessionRepository, "findActiveByTelegramUserId" | "findLeasedByTelegramUserId"> = {
+    ...(leasedFight
+      ? { findLeasedByTelegramUserId: () => Promise.resolve(leasedFight) }
+      : {}),
     findActiveByTelegramUserId: () => Promise.resolve(activeFight)
   };
 

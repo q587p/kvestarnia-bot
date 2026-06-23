@@ -1,5 +1,6 @@
 ﻿import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
+import { makeMemorialRemortCallbackData } from "../../src/bot/callbacks/memorialCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeYegerOutsideCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
@@ -11,6 +12,7 @@ import {
   sendKorchmaFightingCorner,
   sendKorchmaFront,
   sendKorchmaMemorialBoard,
+  sendKorchmaRemortMilestoneBoard,
   sendTavern
 } from "../../src/bot/commands/tavernCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -18,6 +20,7 @@ import type { CellarGrownupQuestService } from "../../src/services/cellarGrownup
 import type { FightService } from "../../src/services/fightService";
 import type { PresenceService } from "../../src/services/presenceService";
 import type { LevelMilestoneService } from "../../src/services/levelMilestoneService";
+import type { RemortService } from "../../src/services/remortService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 
 describe("tavern command screens", () => {
@@ -531,7 +534,8 @@ describe("tavern command screens", () => {
       readyTavernService(),
       korchmaArrivalService(),
       "reply",
-      levelMilestoneService()
+      levelMilestoneService(),
+      remortService()
     );
 
     expect(replies[0]?.text).toContain("🏅 Пропамʼятна дошка");
@@ -547,8 +551,58 @@ describe("tavern command screens", () => {
         inline_keyboard: [
           [
             {
+              text: "Реморт 1",
+              callback_data: makeMemorialRemortCallbackData(1)
+            },
+            {
+              text: "Реморт 2",
+              callback_data: makeMemorialRemortCallbackData(2)
+            },
+            {
+              text: "Реморт 4",
+              callback_data: makeMemorialRemortCallbackData(4)
+            }
+          ],
+          [
+            {
               text: "🚪 Зайти в корчму",
               callback_data: makePlaceCallbackData("hall")
+            }
+          ],
+          [
+            {
+              text: "⬅️ До дверей",
+              callback_data: makePlaceCallbackData("front")
+            }
+          ]
+        ]
+      }
+    });
+  });
+
+  it("shows remort-specific level firsts from the memorial board", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaRemortMilestoneBoard(
+      makeContext(replies),
+      readyTavernService(),
+      korchmaArrivalService(),
+      "reply",
+      1,
+      levelMilestoneService()
+    );
+
+    expect(replies[0]?.text).toContain("Перші зарубки за рівні після реморту 1:");
+    expect(replies[0]?.text).toContain("рівень 13: 🥇 Astery Tey");
+    expect(replies[0]?.text).toContain("рівень 1: 🥇 Similacrest");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🏅 До пропамʼятної дошки",
+              callback_data: makePlaceCallbackData("memorial")
             }
           ],
           [
@@ -860,8 +914,85 @@ function levelMilestoneService(): LevelMilestoneService {
             ]
           }
         ]
+      }),
+    getBoardForRemort: () =>
+      Promise.resolve({
+        levels: [
+          {
+            level: 13,
+            entries: [
+              {
+                rank: 1,
+                telegramUserId: 77n,
+                characterId: "character-astery",
+                name: "Astery Tey",
+                level: 13,
+                reachedAt: new Date("2026-06-15T12:00:00.000Z")
+              }
+            ]
+          },
+          {
+            level: 1,
+            entries: [
+              {
+                rank: 1,
+                telegramUserId: 88n,
+                characterId: "character-similacrest",
+                name: "Similacrest",
+                level: 1,
+                reachedAt: new Date("2026-06-14T10:00:00.000Z")
+              }
+            ]
+          }
+        ]
       })
   } as unknown as LevelMilestoneService;
+}
+
+function remortService(): Pick<RemortService, "listBoard"> {
+  return {
+    listBoard: () =>
+      Promise.resolve({
+        remorts: [
+          {
+            remortNumber: 4,
+            entries: [
+              {
+                rank: 1,
+                characterId: "character-body-4",
+                name: "Тіло",
+                remortNumber: 4,
+                reachedAt: new Date("2026-06-16T12:00:00.000Z")
+              }
+            ]
+          },
+          {
+            remortNumber: 2,
+            entries: [
+              {
+                rank: 1,
+                characterId: "character-astery",
+                name: "Astery Tey",
+                remortNumber: 2,
+                reachedAt: new Date("2026-06-16T10:00:00.000Z")
+              }
+            ]
+          },
+          {
+            remortNumber: 1,
+            entries: [
+              {
+                rank: 1,
+                characterId: "character-similacrest",
+                name: "Similacrest",
+                remortNumber: 1,
+                reachedAt: new Date("2026-06-15T10:00:00.000Z")
+              }
+            ]
+          }
+        ]
+      })
+  };
 }
 
 function makeContext(replies: Array<{ text: string; options: unknown }>): Context {

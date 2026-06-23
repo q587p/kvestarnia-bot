@@ -84,6 +84,7 @@ import {
   parseMantokChestCallbackData,
   type MantokChestCallback
 } from "./callbacks/mantokChestCallbackData";
+import { parseMemorialCallbackData, type MemorialCallback } from "./callbacks/memorialCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import { parseNearbyDuelCallbackData } from "./callbacks/nearbyDuelCallbackData";
 import { parseNewsCallbackData } from "./callbacks/newsCallbackData";
@@ -157,6 +158,7 @@ import {
   sendKorchmaFightingCorner,
   sendKorchmaFront,
   sendKorchmaMemorialBoard,
+  sendKorchmaRemortMilestoneBoard,
   sendTavern,
   sendTavernBarrel
 } from "./commands/tavernCommand";
@@ -176,6 +178,7 @@ import {
 import {
   buildFightKeyboard,
   buildFightResultKeyboard,
+  buildPersistentFightDifficultyKeyboard,
   buildPersistentFightPassagePreviewKeyboard,
   buildPersistentFightJournalKeyboard,
   buildPersistentFightResultKeyboard,
@@ -208,6 +211,8 @@ import {
 } from "./keyboards/onboardingKeyboard";
 import {
   buildMainMenuKeyboard,
+  getMainMenuLocationButtonText,
+  getMainMenuLocationButtonPresenceId,
   isMainMenuLocationButtonText,
   mainMenuButtons,
   mainMenuLocationButtonTexts
@@ -263,6 +268,7 @@ import {
   presentFightResult,
   presentFightStart,
   presentPersistentFight,
+  presentPersistentFightDifficultyChoice,
   presentPersistentFightIntro,
   presentPersistentFightJournal,
   presentPersistentFightPassagePreview,
@@ -453,6 +459,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   registerTavernCommand(bot, services.tavern, services.presence);
   registerPlannedCommands(bot);
   registerMainMenuKeyboard(bot, services);
+  registerCallbackMainMenuLocationRefresh(bot, services.presence);
 
   bot.callbackQuery(/^v1:onb:/, async (ctx) => {
     const parsed = parseOnboardingCallbackData(ctx.callbackQuery.data);
@@ -569,6 +576,17 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     }
 
     await handlePlaceCallback(ctx, parsed.value, services);
+  });
+
+  bot.callbackQuery(/^v1:mem:/, async (ctx) => {
+    const parsed = parseMemorialCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleMemorialCallback(ctx, parsed.value, services);
   });
 
   bot.callbackQuery(/^v1:quest:/, async (ctx) => {
@@ -1616,13 +1634,15 @@ async function handlePlaceCallback(
   await safeAnswerCallbackQuery(ctx);
 
   if (action === "hall") {
-    await sendTavern(ctx, services.tavern, services.presence, "edit");
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_HALL);
+    await sendTavern(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "front") {
-    await sendKorchmaFront(ctx, services.tavern, services.presence, "edit", services.yeger);
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_FRONT);
+    await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger);
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -1652,19 +1672,22 @@ async function handlePlaceCallback(
   }
 
   if (action === "barrel") {
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_BARREL);
     await sendTavernBarrel(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "bar") {
-    await sendKorchmaBar(ctx, services.tavern, services.presence, "edit", services.cellarGrownup, services.fight);
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_BAR);
+    await sendKorchmaBar(ctx, services.tavern, services.presence, "reply", services.cellarGrownup, services.fight);
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "fighting-corner") {
-    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "edit");
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
+    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -1681,7 +1704,8 @@ async function handlePlaceCallback(
   }
 
   if (action === "ranger-corner") {
-    await sendHuntBoard(ctx, services.yeger, "edit", {
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_RANGER_CORNER);
+    await sendHuntBoard(ctx, services.yeger, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern
     });
@@ -1690,17 +1714,19 @@ async function handlePlaceCallback(
   }
 
   if (action === "quest-table") {
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
     await sendQuestHub(
       ctx,
       buildQuestHubCommandOptions(services),
-      "edit"
+      "reply"
     );
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "deep") {
-    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "edit");
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_DEEP);
+    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -1719,6 +1745,7 @@ async function handlePlaceCallback(
       return;
     }
 
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1);
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
@@ -1732,12 +1759,14 @@ async function handlePlaceCallback(
   const passageFight = placeCallbackToPersistentFightPassage(action);
 
   if (passageFight) {
-    await sendPersistentFightPassagePreview(ctx, services, passageFight, "edit");
+    await sendPlaceMovementNotice(ctx, services.presence, passageFight.locationId);
+    await sendPersistentFightPassagePreview(ctx, services, passageFight, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
   if (action === "cellar") {
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_CELLAR);
     await sendCellarErrandRouted(
       ctx,
       services.cellarErrand,
@@ -1752,6 +1781,7 @@ async function handlePlaceCallback(
     return;
   }
 
+  await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_NEWS_CORNER);
   await markScenePresence(ctx, services.presence, {
     locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
     currentRaidId: null,
@@ -1841,7 +1871,7 @@ async function sendPersistentFightPassagePreview(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildPersistentFightPassagePreviewKeyboard({
       passage: passageFight.passage,
-      encounterSeed: preview.encounterSeed
+      encounterToken: preview.encounterToken
     })
   });
 }
@@ -1904,6 +1934,34 @@ function persistentFightDifficultyToPassageLocationId(
   }
 
   return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT;
+}
+
+async function handleMemorialCallback(
+  ctx: Context,
+  action: MemorialCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
+  }
+
+  await safeAnswerCallbackQuery(ctx);
+
+  await sendKorchmaRemortMilestoneBoard(
+    ctx,
+    services.tavern,
+    services.presence,
+    "edit",
+    action.remortNumber,
+    services.levelMilestones
+  );
 }
 
 async function handleQuestCallback(
@@ -2237,41 +2295,176 @@ async function buildCurrentMainMenuKeyboard(
   });
 }
 
+function registerCallbackMainMenuLocationRefresh(bot: Bot, presenceService: PresenceService): void {
+  bot.on("callback_query:data", async (ctx, next) => {
+    const isPlaceCallback = parsePlaceCallbackData(ctx.callbackQuery.data).ok;
+    if (isPlaceCallback) {
+      await next();
+      return;
+    }
+
+    const previousLocationId = await getCurrentMainMenuLocationId(ctx, presenceService);
+
+    await next();
+
+    if (previousLocationId === undefined) {
+      return;
+    }
+
+    await refreshCurrentMainMenuLocationKeyboard(ctx, presenceService, {
+      previousLocationId
+    });
+  });
+}
+
 async function refreshCurrentMainMenuLocationKeyboard(
   ctx: Context,
-  presenceService: PresenceService
+  presenceService: PresenceService,
+  options: { previousLocationId?: string | null } = {}
 ): Promise<void> {
+  if (options.previousLocationId === undefined) {
+    return;
+  }
+
+  const locationId = await getCurrentMainMenuLocationId(ctx, presenceService);
+
+  if (locationId === undefined) {
+    return;
+  }
+
+  await refreshMainMenuLocationKeyboard(ctx, locationId, options);
+}
+
+async function getCurrentMainMenuLocationId(
+  ctx: Context,
+  presenceService: PresenceService
+): Promise<string | null | undefined> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
-    return;
+    return undefined;
   }
 
   if (typeof presenceService.getCurrentPlaceForTelegramUser !== "function") {
-    return;
+    return undefined;
   }
 
   const place = await presenceService.getCurrentPlaceForTelegramUser(telegramUserId);
-  const locationId = place.state === "ready" ? normalizePresenceLocationId(place.locationId) : null;
 
-  await refreshMainMenuLocationKeyboard(ctx, locationId);
+  return place.state === "ready" ? normalizePresenceLocationId(place.locationId) : null;
 }
 
-function refreshMainMenuLocationKeyboard(
+async function refreshMainMenuLocationKeyboard(
   ctx: Context,
-  locationId: string | null
+  locationId: string | null,
+  options: { previousLocationId?: string | null } = {}
 ): Promise<void> {
-  void ctx;
-  void locationId;
+  if (options.previousLocationId === undefined) {
+    return;
+  }
 
-  // Telegram custom reply keyboards can only be refreshed by sending a visible message.
-  // Keep inline place/fight cards clean; the next regular reply-keyboard render carries
-  // the current location label, and location-button presses still resolve via presence.
-  return Promise.resolve();
+  const previousLocationId =
+    options.previousLocationId === null ? null : normalizePresenceLocationId(options.previousLocationId);
+  const normalizedLocationId = locationId === null ? null : normalizePresenceLocationId(locationId);
+
+  if (previousLocationId === normalizedLocationId) {
+    return;
+  }
+
+  await ctx.reply(getLocationMovementNoticeText(normalizedLocationId, previousLocationId), {
+    reply_markup: buildMainMenuKeyboard({
+      locationId: normalizedLocationId
+    })
+  });
+}
+
+async function sendPlaceMovementNotice(
+  ctx: Context,
+  presenceService: PresenceService,
+  targetLocationId: string
+): Promise<void> {
+  const previousLocationId = await getCurrentMainMenuLocationId(ctx, presenceService);
+  const normalizedTargetLocationId = normalizePresenceLocationId(targetLocationId);
+
+  if (
+    previousLocationId !== undefined &&
+    previousLocationId !== null &&
+    normalizePresenceLocationId(previousLocationId) === normalizedTargetLocationId
+  ) {
+    return;
+  }
+
+  await ctx.reply(getLocationMovementNoticeText(normalizedTargetLocationId, previousLocationId), {
+    reply_markup: buildMainMenuKeyboard({
+      locationId: normalizedTargetLocationId
+    })
+  });
+}
+
+function getLocationMovementNoticeText(
+  locationId: string | null,
+  previousLocationId?: string | null
+): string {
+  if (!locationId) {
+    return "Ви озирнулися до корчми.";
+  }
+
+  const normalizedLocationId = normalizePresenceLocationId(locationId);
+  const normalizedPreviousLocationId =
+    previousLocationId === undefined || previousLocationId === null
+      ? previousLocationId
+      : normalizePresenceLocationId(previousLocationId);
+
+  switch (normalizedLocationId) {
+    case PRESENCE_LOCATION_KORCHMA_HALL:
+      return "Ви повернулися до зали корчми.";
+    case PRESENCE_LOCATION_KORCHMA_FRONT:
+      return "Ви вийшли надвір.";
+    case PRESENCE_LOCATION_KORCHMA_QUEST_TABLE:
+      return "Ви підійшли до столу зі справами.";
+    case PRESENCE_LOCATION_KORCHMA_BAR:
+      return "Ви зайшли до шинку.";
+    case PRESENCE_LOCATION_KORCHMA_BARREL:
+      return "Ви підійшли до Бочки Пінного Міражу.";
+    case PRESENCE_LOCATION_KORCHMA_CELLAR:
+      return "Ви спустилися до льоху корчми.";
+    case PRESENCE_LOCATION_KORCHMA_NEWS_CORNER:
+      return "Ви підійшли до дошки вістей.";
+    case PRESENCE_LOCATION_KORCHMA_RANGER_CORNER:
+      return "Ви підійшли до єгерського кутка.";
+    case PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER:
+      return "Ви рушили до бійцівського кутка.";
+    case PRESENCE_LOCATION_KORCHMA_DEEP:
+      if (isKorchmaDeepLowerLocationId(normalizedPreviousLocationId)) {
+        return "Ви піднялися до спуску до Низу.";
+      }
+
+      return "Ви пішли до Низу.";
+    case PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1:
+      return "Ви спустилися до Сутеренів Корчми.";
+    case PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT:
+      return "Ви пішли у лівий прохід.";
+    case PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT:
+      return "Ви пішли у прямий прохід.";
+    case PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT:
+      return "Ви пішли у правий прохід.";
+    default:
+      return `Ви рушили: ${getMainMenuLocationButtonText(normalizedLocationId)}.`;
+  }
+}
+
+function isKorchmaDeepLowerLocationId(locationId: string | null | undefined): boolean {
+  return (
+    locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1 ||
+    locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT ||
+    locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT ||
+    locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT
+  );
 }
 
 async function sendCurrentLocation(ctx: Context, services: BotServices): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+  const requestedLocationId = getMainMenuLocationButtonPresenceId(ctx.message?.text?.trim());
 
   if (!telegramUserId) {
     await sendTavern(ctx, services.tavern, services.presence, "reply");
@@ -2287,7 +2480,11 @@ async function sendCurrentLocation(ctx: Context, services: BotServices): Promise
     return;
   }
 
-  await sendCurrentPresenceLocation(ctx, normalizePresenceLocationId(place.locationId), services);
+  await sendCurrentPresenceLocation(
+    ctx,
+    normalizePresenceLocationId(requestedLocationId ?? place.locationId),
+    services
+  );
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
 }
 
@@ -2645,7 +2842,9 @@ async function handleAdventureCallback(
           ? buildAdventureApproachKeyboard(result)
           : result.state === "stale"
             ? buildAdventureOfferKeyboard(result.offer)
-            : buildAdventureResultKeyboard(result)
+            : result.state === "combat-blocked"
+              ? buildAdventureResultKeyboard({ state: "active-fight" })
+              : buildAdventureResultKeyboard(result)
     });
     return;
   }
@@ -2667,7 +2866,9 @@ async function handleAdventureCallback(
           ? buildAdventureApproachKeyboard(result)
           : result.state === "stale"
             ? buildAdventureOfferKeyboard(result.offer)
-            : buildAdventureResultKeyboard(result)
+            : result.state === "combat-blocked"
+              ? buildAdventureResultKeyboard({ state: "active-fight" })
+              : buildAdventureResultKeyboard(result)
     });
     return;
   }
@@ -2823,7 +3024,10 @@ async function handleAdventureCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentAdventureResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildAdventureResultKeyboard(result)
+    reply_markup:
+      result.state === "combat-blocked"
+        ? buildAdventureResultKeyboard({ state: "active-fight" })
+        : buildAdventureResultKeyboard(result)
   });
 }
 
@@ -3109,19 +3313,85 @@ async function handleFightCallback(
       return;
     }
 
-    await markScenePresence(ctx, services.presence, {
-      locationId: passageFight.locationId,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
-    });
+    const place = await services.presence.getCurrentPlaceForTelegramUser(telegramUserId);
+    if (place.state !== "ready" || place.locationId !== passageFight.locationId) {
+      await safeAnswerCallbackQuery(ctx);
+      const currentPassage = place.state === "ready"
+        ? presenceLocationToPersistentFightPassage(place.locationId)
+        : null;
+      if (currentPassage) {
+        await sendPersistentFightPassagePreview(ctx, services, currentPassage, "edit");
+        return;
+      }
+      if (gate.state === "persistent-ready") {
+        await safeEditMessageText(ctx, presentPersistentFightDifficultyChoice(gate), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPersistentFightDifficultyKeyboard()
+        });
+        return;
+      }
+      await sendFight(ctx, services.fight, "reply", {
+        presence: services.presence,
+        tavernRaid: services.tavern,
+        requireKorchmaInterior: false
+      });
+      return;
+    }
+
     await safeAnswerCallbackQuery(ctx);
+    const result = await services.fight.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      callback.encounterToken,
+      {
+        callbackOriginLocationId: passageFight.locationId,
+        currentLocationId: place.locationId
+      }
+    );
+
+    if (result.state === "persistent-preview") {
+      const resultPassage = presenceLocationToPersistentFightPassage(result.originLocationId) ?? passageFight;
+      await safeEditMessageText(ctx, presentPersistentFightPassagePreview(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPersistentFightPassagePreviewKeyboard({
+          passage: resultPassage.passage,
+          encounterToken: result.encounterToken
+        })
+      });
+      return;
+    }
+
+    if (result.state === "invalid-preview") {
+      const currentPassage = presenceLocationToPersistentFightPassage(place.locationId);
+      if (currentPassage) {
+        await sendPersistentFightPassagePreview(ctx, services, currentPassage, "edit");
+        return;
+      }
+      if (gate.state === "persistent-ready") {
+        await safeEditMessageText(ctx, presentPersistentFightDifficultyChoice(gate), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPersistentFightDifficultyKeyboard()
+        });
+        return;
+      }
+      await sendFight(ctx, services.fight, "reply", {
+        presence: services.presence,
+        tavernRaid: services.tavern,
+        requireKorchmaInterior: false
+      });
+      return;
+    }
+
+    if (result.state === "persistent-active") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: resolvePersistentFightPresenceLocation(result.session),
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
+    }
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
-      requireKorchmaInterior: false,
-      difficulty: passageFight.difficulty,
-      originLocationId: passageFight.locationId,
-      encounterSeed: callback.encounterSeed
+      requireKorchmaInterior: false
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -3149,11 +3419,13 @@ async function handleFightCallback(
       return;
     }
 
-    await markScenePresence(ctx, services.presence, {
-      locationId: resolvePersistentFightPresenceLocation(result.session),
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
-    });
+    if ((result.session.state?.status ?? result.session.status) === "active") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: resolvePersistentFightPresenceLocation(result.session),
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
+    }
 
     await safeAnswerCallbackQuery(ctx);
 

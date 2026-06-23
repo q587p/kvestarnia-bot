@@ -1,10 +1,14 @@
 import { Prisma } from "@prisma/client";
 
 export const LEVEL_MILESTONE_KEY_PREFIX = "milestone.level.";
+export const REMORT_LEVEL_MILESTONE_KEY_PREFIX = "milestone.remort.";
 export const LEVEL_MILESTONE_LOCAL_DATE = "once";
 export const LEVEL_MILESTONE_MIN_LEVEL = 2;
 export const LEVEL_MILESTONE_MAX_LEVEL = 13;
 export const LEVEL_MILESTONE_VISIBLE_LEVELS = LEVEL_MILESTONE_MAX_LEVEL - LEVEL_MILESTONE_MIN_LEVEL + 1;
+export const REMORT_LEVEL_MILESTONE_MIN_LEVEL = 1;
+export const REMORT_LEVEL_MILESTONE_VISIBLE_LEVELS =
+  LEVEL_MILESTONE_MAX_LEVEL - REMORT_LEVEL_MILESTONE_MIN_LEVEL + 1;
 
 export interface LevelMilestoneEntry {
   rank: number;
@@ -30,12 +34,23 @@ export interface LevelMilestoneRepository {
     maxLevels?: number;
     maxEntriesPerLevel?: number;
   }): Promise<LevelMilestoneBoard>;
+  listFirstReachedLevelsForRemort(
+    remortNumber: number,
+    input?: {
+      maxLevels?: number;
+      maxEntriesPerLevel?: number;
+    }
+  ): Promise<LevelMilestoneBoard>;
 }
 
 type LevelMilestoneWriter = Pick<Prisma.TransactionClient, "dailyAction">;
 
 export function buildLevelMilestoneKey(level: number): string {
   return `${LEVEL_MILESTONE_KEY_PREFIX}${level}`;
+}
+
+export function buildRemortLevelMilestoneKey(remortNumber: number, level: number): string {
+  return `${REMORT_LEVEL_MILESTONE_KEY_PREFIX}${remortNumber}.level.${level}`;
 }
 
 export function parseLevelMilestoneKey(key: string): number | null {
@@ -53,13 +68,16 @@ export async function recordLevelMilestones(
   characterId: string,
   oldLevel: number,
   newLevel: number,
-  reachedAt?: Date
+  reachedAt?: Date,
+  options: { remortCount?: number } = {}
 ): Promise<void> {
   for (const level of getReachedMilestoneLevels(oldLevel, newLevel)) {
     await createLevelMilestone(tx, {
       characterId,
       level,
-      ...(reachedAt ? { reachedAt } : {})
+      ...(reachedAt ? { reachedAt } : {}),
+      remortCount: options.remortCount ?? 0,
+      provenance: "recorded"
     });
   }
 }
@@ -70,16 +88,31 @@ export async function createLevelMilestone(
     characterId: string;
     level: number;
     reachedAt?: Date;
+    remortCount?: number;
+    provenance?: "recorded" | "backfill-current-level";
   }
 ): Promise<void> {
+  const remortCount = input.remortCount ?? 0;
+
   try {
     await tx.dailyAction.create({
       data: {
         characterId: input.characterId,
-        key: buildLevelMilestoneKey(input.level),
+        key:
+          remortCount > 0
+            ? buildRemortLevelMilestoneKey(remortCount, input.level)
+            : buildLevelMilestoneKey(input.level),
         localDate: LEVEL_MILESTONE_LOCAL_DATE,
         rewardXp: 0,
         rewardGold: 0,
+        resultJson: {
+          milestone: {
+            kind: "level",
+            provenance: input.provenance ?? "recorded",
+            remortCount,
+            level: input.level
+          }
+        },
         ...(input.reachedAt ? { createdAt: input.reachedAt } : {})
       }
     });

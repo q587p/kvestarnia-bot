@@ -78,12 +78,12 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Монстри згадали, що в них теж є кнопки");
-    expect(text).toContain("звичайні монстри отримали власні короткі бойові прийоми");
-    expect(text).toContain("Деякі важкі дії спершу попереджають про себе");
-    expect(text).toContain("Старі активні бої не ламаються після оновлення");
-    expect(text).toContain("Тренувальний допельґанґер і далі копіює класові штуки героя");
-    expect(text).toContain("Расові, титульні, предметні й групові бойові фокуси ще не приїхали");
+    expect(text).toContain("Низ навчився памʼятати, кого показував");
+    expect(text).toContain("Прохід у Низі краще памʼятає показаного монстра");
+    expect(text).toContain("Кнопка <code>Атакувати</code> веде до того монстра");
+    expect(text).toContain("Старі або протерміновані сліди тепер не запускають бій мовчки");
+    expect(text).toContain("Звичайні сутички в Низі стали менше повторювати");
+    expect(text).toContain("Єгерські цілі, пригодницькі бійки, тренувальний допельґанґер");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

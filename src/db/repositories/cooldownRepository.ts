@@ -20,6 +20,9 @@ export interface ClaimCooldownRewardInput {
   hpLoss?: number | HpLossRequest;
   resultJson?: unknown;
   itemGrants?: ItemGrant[];
+  expectedLife?: {
+    remortCount: number;
+  };
 }
 
 export type ClaimCooldownRewardResult =

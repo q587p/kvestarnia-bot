@@ -28,6 +28,7 @@ This task should replace the old three-win monster-rest UX for eligible ordinary
 - Show the multi-enemy setup in fight intro/presenter copy:
   - list two or more monsters when threat tier is above one;
   - explain in Ukrainian tavern style that the hero's reputation arrived first and brought witnesses with teeth.
+- Plan for location encounter pools: a location may later keep several visible monster candidates at once; attacking one selected monster can deterministically pull one or more other present monsters into the same fight instead of treating every fight as an isolated one-monster spawn.
 - Add `13` authored Ukrainian escalation lines and choose one deterministically/pseudo-randomly per escalated fight card, replay-safe with the combat session. Tone: fame, curiosity, bad decisions and tavern gossip brought more monsters to watch or participate.
 - During each enemy phase, each living enemy attacks or uses an ability, producing separate enemy action lines.
 - Keep rewards conservative:
@@ -55,6 +56,7 @@ This task should replace the old three-win monster-rest UX for eligible ordinary
 - Starter fights and `/spar` never affect or consume threat tier.
 - Korchmar/problem fights and Yeger fights both use the same threat-tier behavior.
 - Fight intro, turn state, terminal result and replay rendering can show multiple enemies safely.
+- The design leaves room for location-scoped monster pools where several monsters are visible before combat and non-targeted bystanders can join after the player attacks one of them.
 - Fight intro rendering has exactly `13` escalation lines available and replays the stored line for old cards.
 - Each living enemy gets its own attack/ability resolution line per enemy phase.
 - Multi-enemy rewards are idempotent and scaled around `0.75x` per enemy contribution.
@@ -79,6 +81,7 @@ This task should replace the old three-win monster-rest UX for eligible ordinary
 - Fight service tests for `3` one-enemy wins escalating to two enemies, repeat `2`-win escalation at higher enemy counts, one-step defeat de-escalation, starter/doppelganger exclusions and Korchmar/Yeger inclusion.
 - Reward tests for `0.75x` per-enemy scaling and replay idempotency.
 - Presenter tests for multi-enemy intro, the `13` escalation-line pool, stored escalation-line replay, HP rows, enemy action lines and HTML safety.
+- Service tests for location encounter pools: previewing several present monsters, attacking one chosen monster, and deterministic nearby-monster join-in without duplicate rewards.
 - Dev command tests for `/dev_harder` enabled/disabled/no-character paths.
 - Callback/session regression tests for stale turns and active fight restore.
 

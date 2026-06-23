@@ -19,9 +19,17 @@ import type {
   RemortRepository,
   RemortSnapshot
 } from "./remortRepository";
+import { mapSoloCombatSessionRecord } from "./prismaSoloCombatSessionRepository";
+import {
+  expireCombat,
+  markCombatSettlementForfeitedByRemort,
+  type CombatState
+} from "../../domain/combat";
 
 type TxClient = Prisma.TransactionClient;
 type CharacterWithLocation = Character & { user: { lastSeenLocationId: string | null } };
+const SUPPORTED_REMORT_COMBAT_LEASE_KIND = "solo-combat";
+const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
 
 export class PrismaRemortRepository implements RemortRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -224,6 +232,11 @@ export class PrismaRemortRepository implements RemortRepository {
         return validation;
       }
 
+      const activeCombat = await prepareActiveCombatForRemort(tx, character.id, input.now);
+      if (activeCombat.state === "locked") {
+        return { state: "active-combat" };
+      }
+
       const remort = await tx.characterRemort.create({
         data: {
           characterId: character.id,
@@ -301,15 +314,7 @@ export class PrismaRemortRepository implements RemortRepository {
         });
       }
 
-      await tx.soloCombatSession.updateMany({
-        where: {
-          characterId: character.id,
-          status: "active"
-        },
-        data: {
-          status: "expired"
-        }
-      });
+      await cancelLivePendingPassageEncountersForRemort(tx, character.id, input.now);
 
       await tx.mantokChestRun.updateMany({
         where: {
@@ -403,7 +408,7 @@ export class PrismaRemortRepository implements RemortRepository {
   }
 
   async listBoard(input: { maxGroups?: number; maxEntriesPerGroup?: number } = {}): Promise<RemortBoard> {
-    const maxGroups = input.maxGroups ?? 3;
+    const maxGroups = input.maxGroups ?? Number.POSITIVE_INFINITY;
     const maxEntries = input.maxEntriesPerGroup ?? 3;
     const rows = await this.prisma.characterRemort.findMany({
       orderBy: [
@@ -444,6 +449,160 @@ export class PrismaRemortRepository implements RemortRepository {
       }))
     };
   }
+}
+
+async function prepareActiveCombatForRemort(
+  tx: TxClient,
+  characterId: string,
+  now: Date
+): Promise<{ state: "ready" } | { state: "locked" }> {
+  const lease = await tx.activeCombatLease.findUnique({
+    where: {
+      characterId
+    }
+  });
+
+  if (!lease) {
+    return { state: "ready" };
+  }
+
+  if (lease.kind !== SUPPORTED_REMORT_COMBAT_LEASE_KIND) {
+    return { state: "locked" };
+  }
+
+  const session = await tx.soloCombatSession.findFirst({
+    where: {
+      id: lease.referenceId,
+      characterId
+    }
+  });
+
+  if (!session) {
+    await tx.activeCombatLease.deleteMany({
+      where: {
+        characterId,
+        kind: lease.kind,
+        referenceId: lease.referenceId
+      }
+    });
+    return { state: "ready" };
+  }
+
+  const mapped = mapSoloCombatSessionRecord(session);
+
+  if (session.status === "active") {
+    const state = mapped?.state ? expireRemortCombatState(mapped.state, now) : null;
+    await tx.soloCombatSession.update({
+      where: {
+        id: session.id
+      },
+      data: {
+        status: "expired",
+        turn: state?.turn ?? session.turn,
+        ...(state ? { stateJson: state as unknown as Prisma.InputJsonValue } : {})
+      }
+    });
+  } else if (
+    mapped?.state &&
+    mapped.state.settlement?.status !== "completed" &&
+    mapped.state.settlement?.status !== "forfeited-by-remort"
+  ) {
+    const state = markCombatSettlementForfeitedByRemort(mapped.state, now, "remort");
+    await tx.soloCombatSession.update({
+      where: {
+        id: session.id
+      },
+      data: {
+        stateJson: state as unknown as Prisma.InputJsonValue,
+        turn: state.turn
+      }
+    });
+    await deleteOwnedPendingTrainingCooldown(tx, characterId, session.id, mapped.state.life?.remortCount ?? 0);
+  }
+
+  await tx.activeCombatLease.deleteMany({
+    where: {
+      characterId,
+      kind: lease.kind,
+      referenceId: lease.referenceId
+    }
+  });
+
+  return { state: "ready" };
+}
+
+async function deleteOwnedPendingTrainingCooldown(
+  tx: TxClient,
+  characterId: string,
+  sessionId: string,
+  remortCount: number
+): Promise<void> {
+  const cooldown = await tx.characterCooldown.findUnique({
+    where: {
+      characterId_key: {
+        characterId,
+        key: TRAINING_DOPPELGANGER_COOLDOWN_KEY
+      }
+    },
+    select: {
+      id: true,
+      resultJson: true
+    }
+  });
+
+  if (!cooldown) {
+    return;
+  }
+
+  const owner = parseTrainingCooldownOwner(cooldown.resultJson);
+
+  if (owner?.sessionId !== sessionId || owner.remortCount !== remortCount) {
+    return;
+  }
+
+  await tx.characterCooldown.delete({
+    where: {
+      id: cooldown.id
+    }
+  });
+}
+
+function expireRemortCombatState(state: CombatState, now: Date): CombatState {
+  const expired = expireCombat(state);
+  const completedAt = expired.completedAt ?? now.toISOString();
+  const next = markCombatSettlementForfeitedByRemort({
+    ...expired,
+    completedAt
+  }, now, "remort");
+  delete next.turnExpiresAt;
+
+  return next;
+}
+
+async function cancelLivePendingPassageEncountersForRemort(
+  tx: TxClient,
+  characterId: string,
+  now: Date
+): Promise<void> {
+  await tx.pendingPassageEncounter.updateMany({
+    where: {
+      characterId,
+      status: {
+        in: ["pending", "consumed"]
+      },
+      expiresAt: {
+        gt: now
+      }
+    },
+    data: {
+      status: "cancelled",
+      activeKey: null,
+      cancelledAt: now,
+      version: {
+        increment: 1
+      }
+    }
+  });
 }
 
 async function getSnapshot(
@@ -708,6 +867,23 @@ function getPathForRemortPronoun(pronoun: string): string {
 
 function intOrZero(value: unknown): number {
   return typeof value === "number" && Number.isInteger(value) ? value : 0;
+}
+
+function intOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
+
+function parseTrainingCooldownOwner(value: unknown): { sessionId: string; remortCount: number } | null {
+  if (!isRecord(value) || !isRecord(value.trainingSettlement)) {
+    return null;
+  }
+
+  const sessionId = value.trainingSettlement.sessionId;
+  const remortCount = intOrNull(value.trainingSettlement.remortCount);
+
+  return typeof sessionId === "string" && remortCount !== null && remortCount >= 0
+    ? { sessionId, remortCount }
+    : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

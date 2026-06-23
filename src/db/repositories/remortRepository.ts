@@ -79,6 +79,7 @@ export interface RemortCompletionInput {
 export type RemortCompletionResult =
   | { state: "no-character" }
   | { state: "invalid-token" }
+  | { state: "active-combat" }
   | { state: "locked"; level: number }
   | { state: "invalid-draft"; reason: string }
   | { state: "completed"; character: CharacterRecord; remort: RemortRecord }

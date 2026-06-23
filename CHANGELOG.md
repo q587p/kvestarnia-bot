@@ -7,7 +7,48 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.1.22] - 12026-06-21 - Monster Abilities, Titles & Battle Journal
+## [0.1.23] - 12026-06-23 - Encounter Preview Memory and Anti-Repetition
+
+### Added
+- Added durable `pending_passage_encounters` storage for ordinary Nyz passage previews. Each pending row stores a server-owned token, character ownership, passage/origin, difficulty, frozen monster ID, frozen base/effective levels, rules version, seed metadata, expiry and consumed combat-session link.
+- Added a nullable unique active key so one character can keep one live pending preview per passage while consumed/expired rows remain historical.
+- Added focused service coverage for same-passage sticky previews, expired-token refresh, exact frozen monster consumption and ordinary anti-repeat fallback order.
+- Added remort detail buttons on the memorial board so visible `Реморти Тринадцятки` groups can open a remort-specific level-first board.
+- Added Prisma-backed pending encounter repository coverage for same-passage reuse, distinct passages, consume/expiry races, wrong-owner and stale-version rejection, active-lease conflicts, wounded re-attack relinking, and full-health survivor relinking.
+- Added bounded-history repository coverage proving ordinary anti-repeat scans past newer active, Yeger and adventure sessions instead of starving on the first page.
+
+### Changed
+- Nyz passage `Атакувати` buttons now carry compact opaque server tokens instead of Telegram-returned encounter seeds.
+- Reopening the same passage before preview expiry returns the same monster and effective level; opening another passage can keep its own pending preview.
+- Passage previews now stay reusable for 93 minutes when not attacked, then expire into a fresh server-owned preview instead of leaving the same monster parked for hours or days.
+- If an ordinary Nyz passage monster survives a lost, fled or expired fight, the same consumed preview token can show that same survivor again until the original 93-minute trail expires, even when the player dealt no damage; re-attacking starts a fresh combat session at the monster's recovered HP.
+- Nyz passage preview copy now includes the shown monster's level before the player commits to attacking.
+- Wounded passage previews now show the monster's current recovered HP while it is below full health, so fast player recovery can matter before the wound closes.
+- Pressing an expired, stale or catalog-invalid preview button now refreshes the preview with a short explanation instead of silently starting a different monster.
+- Consuming a pending preview atomically links it to at most one persistent solo combat session; duplicate attack callbacks recover the linked session when available.
+- Pending preview expiry and consumption now use guarded status/version transitions. Stale callers reread the current row instead of overwriting consumed session links or turning duplicate races into new fights.
+- Consumed survivor-trail re-attacks now validate the prior linked terminal non-win session in the same transaction before relinking a fresh combat session.
+- Ordinary Nyz monster selection now checks bounded recent ordinary fight history before choosing: it avoids the immediately previous monster when alternatives exist, avoids the last three distinct monsters when the legal pool is large enough, and falls back to the original deterministic pool for small candidate sets.
+- Legacy seed-shaped passage callbacks no longer select or start a client-chosen monster; they refresh a current server-owned preview instead.
+- Nyz passage preview copy now avoids monster gender pronouns and accusative-name wording until monster grammar metadata is added.
+- Cellar start combo flavor now separates the title-in-cellar sentence from the following race/class beat with a blank line.
+- Remort-specific memorial details now treat `Реморт N` as the life after remort N: level 1 comes from that remort ledger start, level rows ignore base-life milestones before it, and level 13 can be derived from the next remort completion when milestone rows are not available.
+
+### Fixed
+- Terminal ordinary and training fight settlement now stores durable resource/training substeps before final completion, so crash/replay recovery can finish rewards without spending HP/mana recovery anchors or training cooldowns twice.
+- Post-remort level milestones now use remort-specific daily-action keys instead of reusing base-life `milestone.level.N` keys, so remort detail boards can show levels 2-13 reached in the current life.
+- Memorial-board backfill now writes missing current-life remort milestones separately from base-life milestones, so already-remorted characters who have climbed again are no longer stuck showing only the remort's level 1 row.
+- Memorial-board remort detail rows now deduplicate legacy and backfilled milestone rows for the same character/level, preferring real recorded rows and preserving provenance in `daily_actions.resultJson`.
+- Location-changing place callbacks now send a short movement line with the updated persistent keyboard before rendering the new place card, so the main place button catches up without a debug-like `📍 Тепер:` status message.
+- Passage attack callbacks are now bound to the server-owned encounter and the player's current passage location; old buttons from another passage refresh the current place instead of moving presence or starting combat.
+- Active persistent fight cards now repeat the fight header, opponent name and monster level, and show the start tip on the card that keeps the combat buttons.
+- Successful remort during active solo or training combat now canonically expires the old session, releases the active combat lease and cancels live pending/consumed passage trails without granting combat rewards or overwriting the new-life starter HP/mana; unsupported turn-based duel leases still block remort without mutation.
+- Ordinary fight, training and Adventure entry points now preserve unsupported active combat leases as blockers instead of treating them as no fight; terminal pending sessions remain recoverable even after wall-clock expiry.
+
+### Unchanged
+- Yeger targeted encounters, adventure handoff fights, training doppelgangers, starter fights, monster ability loadouts, timeout auto-defend and reward/Yeger progression rules are unchanged.
+
+## [0.1.22] - 12026-06-22 - Monster Abilities, Titles & Battle Journal
 
 ### Added
 - Added typed monster ability and combat profile catalogs: 132 stable monster ability definitions and 93 monster loadout profiles are now validated against the current roster.

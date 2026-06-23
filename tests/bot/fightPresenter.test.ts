@@ -10,6 +10,7 @@ import {
   presentProblemQuestTurnIn,
   presentQuestProgressAfterFight,
   presentPersistentFight,
+  presentPersistentFightPassagePreview,
   presentPersistentFightIntro,
   presentPersistentFightJournal,
   presentPersistentFightTurn
@@ -73,6 +74,35 @@ describe("fight presenter", () => {
 
   it("prompts /start when no character exists", () => {
     expect(presentFightNoCharacter()).toContain("/start");
+  });
+
+  it("uses neutral passage preview copy for monsters without grammar metadata", () => {
+    const text = presentPersistentFightPassagePreview({
+      state: "persistent-preview",
+      character,
+      questProgress: null,
+      monster: {
+        id: "monster.cellar-mouse-with-title",
+        name: "Льохова Миша з Титулом",
+        description: "Тестова миша з дуже серйозним папірцем.",
+        level: 3,
+        tags: ["beast"]
+      },
+      difficulty: "easy",
+      originLocationId: "location.korchma.deep.level1.right",
+      encounterToken: "token13",
+      expiresAt: new Date("2026-06-22T10:00:00.000Z"),
+      monsterHp: {
+        current: 7,
+        max: 18
+      }
+    });
+
+    expect(text).toContain("Ви у правому проході. Попереду — <b>Льохова Миша з Титулом</b> · рівень 3.");
+    expect(text).toContain("Поранений слід: 7/18 здоров’я.");
+    expect(text).toContain("Увага ще не впала на вас.");
+    expect(text).not.toContain("Він вас");
+    expect(text).not.toContain("Бачите перед собою");
   });
 
   it("shows a spent fight screen with an optional quest suggestion", () => {
@@ -194,7 +224,9 @@ describe("fight presenter", () => {
     expect(intro).toContain("поки не видає нагород");
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
-    expect(text).not.toContain("Проти вас");
+    expect(text).toContain("⚔️ <b>Бій</b>");
+    expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
+    expect(text).toContain("<i>Порада дня:");
     expect(text).not.toContain("📋 <b>Тринадцять дрібних проблем</b>");
     expect(text).not.toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
@@ -360,7 +392,7 @@ describe("fight presenter", () => {
     });
 
     expect(stale).toContain("поточний стан");
-    expect(stale).not.toContain("Проти вас");
+    expect(stale).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
     expect(noMana).toContain("Мани не стало навіть на драматичний жест");
     expect(noMana).not.toContain("Нагорода");
   });
@@ -403,7 +435,7 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Останній хід: вміння");
     expect(text).not.toContain("критично:");
     expect(text).toContain("⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
-    expect(text).not.toContain("Проти вас");
+    expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
     expect(text).not.toContain("критично дала");
   });
 
@@ -1022,7 +1054,7 @@ describe("fight presenter", () => {
 
     expect(text).toContain("Винагорода вже видана");
     expect(text).toContain("Винагорода за бій:\n<b>+7 XP\n+2 золота</b>");
-    expect(text).not.toContain("Проти вас");
+    expect(text).toContain("Проти вас: <b>&lt;b&gt;Монстр&lt;/b&gt;</b> · рівень 3");
     expect(text).not.toContain("<b>Монстр</b>");
   });
 
@@ -1195,6 +1227,8 @@ function persistentSession(overrides: Partial<NonNullable<SoloCombatSessionRecor
       },
       monster: {
         id: "monster.test",
+        name: "Тестовий монстр",
+        level: 3,
         hp: 18,
         hpMax: 18
       },

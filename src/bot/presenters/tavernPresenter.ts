@@ -78,6 +78,23 @@ export function presentKorchmaMemorialBoard(
   ].join("\n");
 }
 
+export function presentKorchmaRemortMilestoneBoard(
+  character: CharacterSummary,
+  remortNumber: number,
+  milestones?: LevelMilestoneBoard
+): string {
+  return [
+    "🏅 Пропамʼятна дошка",
+    presentCharacterHeader(character),
+    "",
+    `Перші зарубки за рівні після реморту ${remortNumber}:`,
+    "",
+    ...presentRemortLevelMilestoneEntries(milestones),
+    "",
+    "Корчмар каже, що окремі життя рахуються окремо. Дошка киває й просить не сперечатися з хронологією."
+  ].join("\n");
+}
+
 export function presentKorchmaHall(
   character: CharacterSummary,
   presence?: PresenceGroup | null,
@@ -716,6 +733,22 @@ function presentLevelMilestoneEntries(milestones: LevelMilestoneBoard | undefine
       return `• рівень ${group.level}: ${entries}`;
     })
   ];
+}
+
+function presentRemortLevelMilestoneEntries(milestones: LevelMilestoneBoard | undefined): string[] {
+  if (!milestones || milestones.levels.length === 0) {
+    return [
+      "Для цього реморту зарубок за рівні ще немає. Або їх ніхто не зробив, або дошка тоді ще вдавала полицю."
+    ];
+  }
+
+  return milestones.levels.map((group) => {
+    const entries = group.entries
+      .map((entry) => `${presentMilestoneRank(entry.rank)} ${escapeHtml(entry.name)}`)
+      .join(" · ");
+
+    return `• рівень ${group.level}: ${entries}`;
+  });
 }
 
 function presentRemortBoardEntries(remorts: RemortBoard | undefined): string[] {

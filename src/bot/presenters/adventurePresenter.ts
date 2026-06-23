@@ -59,7 +59,7 @@ export function presentAdventureProblem(
     return presentAdventureLevelLocked(result);
   }
 
-  if (result.state === "active-fight") {
+  if (result.state === "active-fight" || result.state === "combat-blocked") {
     return presentAdventureActiveFight();
   }
 
@@ -189,7 +189,7 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
     return presentAdventureLevelLocked(result);
   }
 
-  if (result.state === "active-fight") {
+  if (result.state === "active-fight" || result.state === "combat-blocked") {
     return presentAdventureActiveFight();
   }
 

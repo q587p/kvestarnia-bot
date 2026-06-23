@@ -24,15 +24,22 @@ import type {
 import type {
   CreateSoloCombatSessionInput,
   RecordSoloCombatRewardInput,
+  SoloCombatLeaseLookupResult,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository,
   UpdateSoloCombatSessionInput
 } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
+import { summarizeCharacter } from "../../src/domain/characters/characterSummary";
 import {
+  getTrainingDoppelgangerRecoveryMs,
   TRAINING_DOPPELGANGER_MIN_LEVEL,
   TRAINING_DOPPELGANGER_MONSTER_ID
 } from "../../src/domain/trainingDoppelganger";
+import {
+  markCombatSettlementCompleted,
+  markCombatSettlementForfeitedByRemort
+} from "../../src/domain/combat";
 import { FakeRandomSource } from "../../src/shared/random";
 import {
   TrainingDoppelgangerService,
@@ -87,6 +94,24 @@ describe("TrainingDoppelgangerService", () => {
         { mode: "copy-target" },
         { mode: "random-build" }
       ]
+    });
+    expect(world.sessions.size).toBe(0);
+  });
+
+  it("blocks training start under an unsupported active combat lease", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    world.leaseLookup = {
+      state: "unsupported",
+      kind: "turn-duel",
+      referenceId: "duel-session"
+    };
+    const service = buildService(world);
+
+    const result = await service.getStartOptionsForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "another-fight-active"
     });
     expect(world.sessions.size).toBe(0);
   });
@@ -214,6 +239,17 @@ describe("TrainingDoppelgangerService", () => {
       fixedNow().getTime()
     );
     expect(world.resourceMutations).toBe(1);
+    const settlement = world.sessions.get(started.session.id)?.state?.settlement;
+    expect(settlement).toMatchObject({
+      status: "completed",
+      version: 4,
+      resources: {
+        status: "applied"
+      }
+    });
+    expect(typeof settlement?.training?.availableAt).toBe("string");
+    expect(typeof settlement?.training?.cooldownClaimedAt).toBe("string");
+    expect(world.sessions.get(started.session.id)?.reward).toMatchObject({ gold: 0 });
   });
 
   it("skips the hero action but lets the copy act when an expired turn is recovered from start options", async () => {
@@ -385,6 +421,131 @@ describe("TrainingDoppelgangerService", () => {
     expect(world.actions.size).toBe(1);
     expect(world.cooldowns.size).toBe(1);
     expect(world.resourceMutations).toBe(1);
+  });
+
+  it("repairs a missing cooldown when XP was committed before training settlement completion", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId, { hpCurrent: 10 });
+    const session = makeTerminalTrainingSession("training-crash-after-xp", "won");
+    world.sessions.set(session.id, session);
+    world.actions.set(`${TRAINING_DOPPELGANGER_REWARD_KEY}:${session.id}`, {
+      id: "action-crash-after-xp",
+      characterId: session.characterId,
+      key: TRAINING_DOPPELGANGER_REWARD_KEY,
+      localDate: session.id,
+      rewardXp: 13,
+      rewardGold: 0,
+      spentGold: 0,
+      resultJson: null,
+      createdAt: fixedNow()
+    });
+    const service = buildService(world);
+
+    const result = await service.getStartOptionsForTelegramUser(telegramUserId);
+
+    expect(result.state).toBe("terminal");
+    expect(world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)).toBeDefined();
+    expect(world.sessions.get(session.id)?.reward).toMatchObject({ xp: 13, gold: 0 });
+    const settlement = world.sessions.get(session.id)?.state?.settlement;
+    expect(settlement).toMatchObject({
+      status: "completed",
+      training: {}
+    });
+    expect(typeof settlement?.training?.availableAt).toBe("string");
+    expect(typeof settlement?.training?.cooldownClaimedAt).toBe("string");
+  });
+
+  it("anchors repaired training cooldown to terminal completedAt after a resource-marker crash", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId, { hpCurrent: 10 });
+    const session = makeTerminalTrainingSession("training-crash-after-resources", "lost");
+    world.sessions.set(session.id, {
+      ...session,
+      updatedAt: new Date("2026-06-17T10:30:00.000Z"),
+      state: session.state
+        ? {
+            ...session.state,
+            settlement: {
+              status: "pending",
+              version: 2,
+              resources: {
+                status: "applied",
+                appliedAt: "2026-06-17T09:30:00.000Z",
+                hpCurrent: session.state.hero.hp,
+                manaCurrent: session.state.hero.mana,
+                hpRegenAt: "2026-06-17T09:30:00.000Z",
+                manaRegenAt: "2026-06-17T09:30:00.000Z"
+              }
+            }
+          }
+        : null
+    });
+    world.actions.set(`${TRAINING_DOPPELGANGER_REWARD_KEY}:${session.id}`, {
+      id: "action-crash-after-resources",
+      characterId: session.characterId,
+      key: TRAINING_DOPPELGANGER_REWARD_KEY,
+      localDate: session.id,
+      rewardXp: 7,
+      rewardGold: 0,
+      spentGold: 0,
+      resultJson: null,
+      createdAt: fixedNow()
+    });
+    const service = buildService(world);
+
+    await service.getStartOptionsForTelegramUser(telegramUserId);
+
+    const expectedAvailableAt = new Date(
+      new Date("2026-06-17T09:30:00.000Z").getTime() +
+        getTrainingDoppelgangerRecoveryMs({
+          character: summarizeCharacter(world.findCharacter(telegramUserId)!),
+          doppelgangerHp: session.state?.monster.hp ?? 0,
+          doppelgangerHpMax: session.state?.monster.hpMax ?? 22
+        })
+    );
+    expect(world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)?.availableAt.toISOString()).toBe(
+      expectedAvailableAt.toISOString()
+    );
+    expect(world.sessions.get(session.id)?.state?.settlement?.training?.availableAt).toBe(
+      expectedAvailableAt.toISOString()
+    );
+  });
+
+  it("does not extend an already-claimed training cooldown during duplicate recovery", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId, { hpCurrent: 10 });
+    const session = makeTerminalTrainingSession("training-crash-after-cooldown", "lost");
+    world.sessions.set(session.id, session);
+    world.actions.set(`${TRAINING_DOPPELGANGER_REWARD_KEY}:${session.id}`, {
+      id: "action-crash-after-cooldown",
+      characterId: session.characterId,
+      key: TRAINING_DOPPELGANGER_REWARD_KEY,
+      localDate: session.id,
+      rewardXp: 7,
+      rewardGold: 0,
+      spentGold: 0,
+      resultJson: null,
+      createdAt: fixedNow()
+    });
+    world.cooldowns.set(TRAINING_DOPPELGANGER_COOLDOWN_KEY, {
+      id: "cooldown-crash-after-cooldown",
+      characterId: session.characterId,
+      key: TRAINING_DOPPELGANGER_COOLDOWN_KEY,
+      availableAt: new Date("2026-06-17T10:13:00.000Z"),
+      resultJson: null,
+      updatedAt: new Date("2026-06-17T09:31:00.000Z")
+    });
+    const service = buildService(world);
+
+    await service.getStartOptionsForTelegramUser(telegramUserId);
+    const firstAvailableAt = world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)?.availableAt.toISOString();
+    await service.getStartOptionsForTelegramUser(telegramUserId);
+
+    expect(world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)?.availableAt.toISOString()).toBe(
+      firstAvailableAt
+    );
+    expect(world.sessions.get(session.id)?.state?.settlement?.status).toBe("completed");
+    expect(world.sessions.get(session.id)?.reward).toMatchObject({ xp: 7, gold: 0 });
   });
 
   it("replays a scheduled terminal reward without granting XP or cooldown twice", async () => {
@@ -578,6 +739,54 @@ function buildService(
   );
 }
 
+function makeTerminalTrainingSession(
+  id: string,
+  status: "won" | "lost"
+): SoloCombatSessionRecord {
+  const completedAt = new Date("2026-06-17T09:30:00.000Z");
+
+  return {
+    id,
+    characterId: `character-${telegramUserId.toString()}`,
+    monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
+    status: "active",
+    turn: 3,
+    state: {
+      id,
+      source: "training",
+      life: {
+        characterId: `character-${telegramUserId.toString()}`,
+        remortCount: 0,
+        startedAt: new Date("2026-06-17T09:20:00.000Z").toISOString()
+      },
+      settlement: {
+        status: "pending",
+        version: 1
+      },
+      completedAt: completedAt.toISOString(),
+      turn: 3,
+      status,
+      hero: {
+        hp: status === "won" ? 8 : 0,
+        hpMax: 66,
+        mana: 20,
+        manaMax: 32
+      },
+      monster: {
+        id: TRAINING_DOPPELGANGER_MONSTER_ID,
+        name: "Сумлінний Допельґанґер",
+        level: 9,
+        hp: status === "won" ? 0 : 12,
+        hpMax: 42
+      }
+    },
+    reward: null,
+    createdAt: new Date("2026-06-17T09:20:00.000Z"),
+    updatedAt: completedAt,
+    expiresAt: new Date("2026-06-17T09:25:00.000Z")
+  };
+}
+
 class FakeChampionSource implements TrainingDoppelgangerChampionSource {
   constructor(private readonly records: ResolvedDuelChallengeRecord[]) {}
 
@@ -655,6 +864,7 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
   readonly cooldowns = new Map<string, CharacterCooldownRecord>();
   readonly actions = new Map<string, DailyActionRecord>();
   readonly sessions = new Map<string, SoloCombatSessionRecord>();
+  leaseLookup: SoloCombatLeaseLookupResult | null = null;
   resourceMutations = 0;
 
   addCharacter(userTelegramId: bigint, overrides: Partial<CharacterRecord> = {}): void {
@@ -886,6 +1096,10 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
     );
   }
 
+  findLeasedByTelegramUserId(): Promise<SoloCombatLeaseLookupResult> {
+    return Promise.resolve(this.leaseLookup ?? { state: "none" });
+  }
+
   countWonByTelegramUserId(
     _telegramUserId: bigint,
     options: { excludeMonsterIds?: readonly string[] } = {}
@@ -974,6 +1188,159 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
     return this.updateById(sessionId, input);
   }
 
+  applyTerminalResourcesById(
+    sessionId: string,
+    input: {
+      appliedAt: Date;
+      resources: {
+        hpCurrent: number;
+        manaCurrent: number;
+        hpRegenAt: Date;
+        manaRegenAt: Date;
+      };
+    }
+  ): Promise<{ outcome: "applied" | "already-applied" | "already-completed" | "already-forfeited"; session: SoloCombatSessionRecord | null }> {
+    const existing = this.sessions.get(sessionId);
+
+    if (!existing?.state) {
+      return Promise.resolve({ outcome: "applied", session: existing ?? null });
+    }
+
+    if (existing.state.settlement?.status === "completed") {
+      return Promise.resolve({ outcome: "already-completed", session: existing });
+    }
+
+    if (existing.state.settlement?.status === "forfeited-by-remort") {
+      return Promise.resolve({ outcome: "already-forfeited", session: existing });
+    }
+
+    if (existing.state.settlement?.resources?.status === "applied") {
+      return Promise.resolve({ outcome: "already-applied", session: existing });
+    }
+
+    for (const [telegramUserId, character] of this.charactersByTelegramUserId.entries()) {
+      if (character.id !== existing.characterId) {
+        continue;
+      }
+
+      this.charactersByTelegramUserId.set(telegramUserId, {
+        ...character,
+        hpCurrent: input.resources.hpCurrent,
+        manaCurrent: input.resources.manaCurrent,
+        hpRegenAt: input.resources.hpRegenAt,
+        manaRegenAt: input.resources.manaRegenAt
+      });
+      this.resourceMutations += 1;
+      break;
+    }
+
+    const state = {
+      ...existing.state,
+      settlement: {
+        ...(existing.state.settlement ?? { status: "pending" as const, version: 1 }),
+        version: (existing.state.settlement?.version ?? 1) + 1,
+        resources: {
+          status: "applied" as const,
+          appliedAt: input.appliedAt.toISOString(),
+          hpCurrent: input.resources.hpCurrent,
+          manaCurrent: input.resources.manaCurrent,
+          hpRegenAt: input.resources.hpRegenAt.toISOString(),
+          manaRegenAt: input.resources.manaRegenAt.toISOString()
+        }
+      }
+    };
+    const updated = { ...existing, state, updatedAt: fixedNow() };
+    this.sessions.set(sessionId, updated);
+
+    return Promise.resolve({ outcome: "applied", session: updated });
+  }
+
+  applyTrainingCooldownById(
+    sessionId: string,
+    input: {
+      expected?: {
+        settlementVersion?: number;
+      };
+      now: Date;
+      availableAt: Date;
+      cooldownKey: string;
+    }
+  ): Promise<{
+    outcome: "applied" | "already-applied" | "already-completed" | "already-forfeited" | "cooldown-conflict" | "version-changed";
+    session: SoloCombatSessionRecord | null;
+    availableAt: Date | null;
+  }> {
+    const existing = this.sessions.get(sessionId);
+
+    if (!existing?.state) {
+      return Promise.resolve({ outcome: "cooldown-conflict", session: existing ?? null, availableAt: null });
+    }
+
+    if (existing.state.settlement?.status === "completed") {
+      return Promise.resolve({
+        outcome: "already-completed",
+        session: existing,
+        availableAt: existing.state.settlement.training?.availableAt
+          ? new Date(existing.state.settlement.training.availableAt)
+          : null
+      });
+    }
+
+    if (existing.state.settlement?.status === "forfeited-by-remort") {
+      return Promise.resolve({ outcome: "already-forfeited", session: existing, availableAt: null });
+    }
+
+    if (existing.state.settlement?.training?.availableAt && existing.state.settlement.training.cooldownClaimedAt) {
+      return Promise.resolve({
+        outcome: "already-applied",
+        session: existing,
+        availableAt: new Date(existing.state.settlement.training.availableAt)
+      });
+    }
+
+    if (
+      input.expected?.settlementVersion !== undefined &&
+      existing.state.settlement?.version !== input.expected.settlementVersion
+    ) {
+      return Promise.resolve({ outcome: "version-changed", session: existing, availableAt: null });
+    }
+
+    const current = this.cooldowns.get(input.cooldownKey);
+    const cooldown = current && current.availableAt > input.now
+      ? current
+      : {
+          id: current?.id ?? `cooldown-${this.cooldowns.size + 1}`,
+          characterId: existing.characterId,
+          key: input.cooldownKey,
+          availableAt: input.availableAt,
+          resultJson: {
+            trainingSettlement: {
+              sessionId,
+              remortCount: 0,
+              availableAt: input.availableAt.toISOString()
+            }
+          },
+          updatedAt: fixedNow()
+        };
+    this.cooldowns.set(input.cooldownKey, cooldown);
+
+    const state = {
+      ...existing.state,
+      settlement: {
+        ...(existing.state.settlement ?? { status: "pending" as const, version: 1 }),
+        version: (existing.state.settlement?.version ?? 1) + 1,
+        training: {
+          availableAt: cooldown.availableAt.toISOString(),
+          cooldownClaimedAt: cooldown.updatedAt.toISOString()
+        }
+      }
+    };
+    const updated = { ...existing, state, updatedAt: fixedNow() };
+    this.sessions.set(sessionId, updated);
+
+    return Promise.resolve({ outcome: "applied", session: updated, availableAt: cooldown.availableAt });
+  }
+
   recordRewardById(
     sessionId: string,
     input: RecordSoloCombatRewardInput
@@ -996,6 +1363,99 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
     this.sessions.set(sessionId, updated);
 
     return Promise.resolve(updated);
+  }
+
+  completeSettlementById(
+    sessionId: string,
+    input: {
+      expected?: {
+        settlementVersion?: number;
+      };
+      settledAt: Date;
+      reward?: {
+        rewardXp: number;
+        rewardGold: number;
+        itemGrants: Array<{ itemId: string; quantity: number }>;
+        claimedAt: Date;
+      };
+    }
+  ): Promise<{
+    outcome: "completed" | "already-completed" | "already-forfeited" | "version-changed";
+    session: SoloCombatSessionRecord | null;
+  }> {
+    const existing = this.sessions.get(sessionId);
+
+    if (!existing) {
+      return Promise.resolve({ outcome: "completed", session: null });
+    }
+
+    if (existing.state?.settlement?.status === "completed") {
+      return Promise.resolve({ outcome: "already-completed", session: existing });
+    }
+
+    if (existing.state?.settlement?.status === "forfeited-by-remort") {
+      return Promise.resolve({ outcome: "already-forfeited", session: existing });
+    }
+
+    if (
+      input.expected?.settlementVersion !== undefined &&
+      existing.state?.settlement?.version !== input.expected.settlementVersion
+    ) {
+      return Promise.resolve({ outcome: "version-changed", session: existing });
+    }
+
+    const state = existing.state
+      ? markCombatSettlementCompleted(existing.state, input.settledAt)
+      : existing.state;
+    const updated = {
+      ...existing,
+      ...(state ? { state, status: state.status, turn: state.turn } : {}),
+      ...(input.reward
+        ? {
+            reward: {
+              xp: input.reward.rewardXp,
+              gold: input.reward.rewardGold,
+              itemGrants: input.reward.itemGrants,
+              claimedAt: input.reward.claimedAt
+            }
+          }
+        : {}),
+      updatedAt: fixedNow()
+    };
+    this.sessions.set(sessionId, updated);
+
+    return Promise.resolve({ outcome: "completed", session: updated });
+  }
+
+  forfeitSettlementById(
+    sessionId: string,
+    input: { settledAt: Date; reason: "remort" | "life-mismatch" | "legacy-life-mismatch" }
+  ): Promise<{ outcome: "forfeited" | "already-completed" | "already-forfeited"; session: SoloCombatSessionRecord | null }> {
+    const existing = this.sessions.get(sessionId);
+
+    if (!existing) {
+      return Promise.resolve({ outcome: "forfeited", session: null });
+    }
+
+    if (existing.state?.settlement?.status === "completed") {
+      return Promise.resolve({ outcome: "already-completed", session: existing });
+    }
+
+    if (existing.state?.settlement?.status === "forfeited-by-remort") {
+      return Promise.resolve({ outcome: "already-forfeited", session: existing });
+    }
+
+    const state = existing.state
+      ? markCombatSettlementForfeitedByRemort(existing.state, input.settledAt, input.reason)
+      : existing.state;
+    const updated = {
+      ...existing,
+      ...(state ? { state, status: state.status, turn: state.turn } : {}),
+      updatedAt: fixedNow()
+    };
+    this.sessions.set(sessionId, updated);
+
+    return Promise.resolve({ outcome: "forfeited", session: updated });
   }
 
   markStatusById(

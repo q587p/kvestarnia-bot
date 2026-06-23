@@ -80,11 +80,19 @@ export class PrismaCooldownRepository implements CooldownRepository {
           where
         });
 
+        const characterRecord = toCharacterRecord(character);
+        if (
+          input.expectedLife &&
+          characterRecord.remortCount !== input.expectedLife.remortCount
+        ) {
+          return null;
+        }
+
         if (existing && existing.availableAt > input.now) {
           return {
             state: "on-cooldown",
             cooldown: existing,
-            character: toCharacterRecord(character)
+            character: characterRecord
           };
         }
 
@@ -108,7 +116,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
           if (debit.count !== 1) {
             return {
               state: "insufficient-gold",
-              character: toCharacterRecord(character),
+              character: characterRecord,
               requiredGold: spentGold
             };
           }
@@ -137,7 +145,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
             }
           });
 
-          return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
+          return this.rewardCharacter(tx, characterRecord, cooldown, input);
         }
 
         const cooldown = await tx.characterCooldown.create({
@@ -148,7 +156,7 @@ export class PrismaCooldownRepository implements CooldownRepository {
           }
         });
 
-        return this.rewardCharacter(tx, toCharacterRecord(character), cooldown, input);
+        return this.rewardCharacter(tx, characterRecord, cooldown, input);
         });
       } catch (error) {
         if (error instanceof HpMutationConflictError && attempt < 2) {
@@ -289,7 +297,9 @@ export class PrismaCooldownRepository implements CooldownRepository {
               level: newLevel
             }
           });
-    await recordLevelMilestones(tx, character.id, oldLevel, newLevel);
+    await recordLevelMilestones(tx, character.id, oldLevel, newLevel, undefined, {
+      remortCount
+    });
     const itemGrants = input.itemGrants ?? [];
 
     const appliedItemGrants = await grantItems(tx, character.id, itemGrants);
@@ -349,10 +359,19 @@ export class PrismaCooldownRepository implements CooldownRepository {
       throw new Error("Cooldown unique conflict did not leave an existing row.");
     }
 
+    const characterRecord = toCharacterRecord(character);
+
+    if (
+      input.expectedLife &&
+      characterRecord.remortCount !== input.expectedLife.remortCount
+    ) {
+      return null;
+    }
+
     return {
       state: "on-cooldown",
       cooldown,
-      character: toCharacterRecord(character)
+      character: characterRecord
     };
   }
 }

@@ -34,7 +34,7 @@ export type FightCallback =
   | {
       type: "passage";
       passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
-      encounterSeed: string;
+      encounterToken: string;
     };
 
 const MIMIC_PREFIX = "v1:fight:mimic";
@@ -50,7 +50,7 @@ const passageActions = new Set<Extract<PlaceCallback, "deep-left" | "deep-straig
   "deep-right"
 ]);
 const sessionIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const encounterSeedPattern = /^[a-z0-9]{1,16}$/i;
+const encounterTokenPattern = /^[a-z0-9]{1,16}$/i;
 
 export function makeFightCallbackData(action: CombatProbeAction): string {
   return `${MIMIC_PREFIX}:${action}`;
@@ -77,9 +77,9 @@ export function makeFightJournalCallbackData(input: {
 
 export function makeFightPassageAttackCallbackData(input: {
   passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
-  encounterSeed: string;
+  encounterToken: string;
 }): string {
-  return `${PASSAGE_PREFIX}:${input.passage}:${input.encounterSeed}`;
+  return `${PASSAGE_PREFIX}:${input.passage}:${input.encounterToken}`;
 }
 
 export function parseFightCallbackData(
@@ -181,7 +181,7 @@ export function parseFightCallbackData(
   }
 
   if (data.startsWith(`${PASSAGE_PREFIX}:`)) {
-    const [, section, scene, passage, encounterSeed, ...rest] = data.split(":");
+    const [, section, scene, passage, encounterToken, ...rest] = data.split(":");
 
     if (section !== "fight" || scene !== "pass" || rest.length > 0) {
       return err("invalid-prefix");
@@ -191,14 +191,14 @@ export function parseFightCallbackData(
       return err("invalid-action");
     }
 
-    if (!encounterSeed || !encounterSeedPattern.test(encounterSeed)) {
+    if (!encounterToken || !encounterTokenPattern.test(encounterToken)) {
       return err("invalid-prefix");
     }
 
     return ok({
       type: "passage",
       passage: passage as Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">,
-      encounterSeed
+      encounterToken
     });
   }
 

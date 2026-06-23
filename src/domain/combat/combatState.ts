@@ -17,6 +17,12 @@ export type CombatActionType = "attack" | "defend" | "skill" | "flee" | "skip";
 export type PlayerCombatActionType = Exclude<CombatActionType, "skip">;
 export type CombatDamageKind = "physical" | "spell" | "social" | "trick";
 export type CombatTimeoutMode = "auto-attack" | "auto-defend" | "skip";
+export type CombatSettlementStatus = "pending" | "completed" | "forfeited-by-remort";
+export type CombatSettlementReason =
+  | "terminal"
+  | "remort"
+  | "legacy-life-mismatch"
+  | "life-mismatch";
 export type CombatTurnOutcome =
   | "hit"
   | "critical-hit"
@@ -106,6 +112,8 @@ export interface CombatContextModifiers {
 export interface CombatState {
   id?: string;
   source?: "normal" | "yeger" | "adventure" | "training";
+  life?: CombatLifeState;
+  settlement?: CombatSettlementState;
   originLocationId?: string;
   completedAt?: string;
   turnExpiresAt?: string;
@@ -160,6 +168,35 @@ export interface CombatState {
   monsterRuntime?: MonsterAbilityRuntimeStateV1;
   lastTurn?: CombatTurnSummary;
   turnLog?: CombatTurnLogEntry[];
+}
+
+export interface CombatLifeState {
+  characterId?: string;
+  remortCount: number;
+  startedAt?: string;
+}
+
+export interface CombatSettlementState {
+  status: CombatSettlementStatus;
+  settledAt?: string;
+  reason?: CombatSettlementReason;
+  version?: number;
+  resources?: CombatResourceSettlementState;
+  training?: CombatTrainingSettlementState;
+}
+
+export interface CombatResourceSettlementState {
+  status: "applied";
+  appliedAt: string;
+  hpCurrent: number;
+  manaCurrent: number;
+  hpRegenAt: string;
+  manaRegenAt: string;
+}
+
+export interface CombatTrainingSettlementState {
+  availableAt?: string;
+  cooldownClaimedAt?: string;
 }
 
 export interface CombatMessageReference {
@@ -276,6 +313,18 @@ export function cloneCombatState(state: CombatState): CombatState {
   return {
     ...(state.id ? { id: state.id } : {}),
     ...(state.source ? { source: state.source } : {}),
+    ...(state.life ? { life: { ...state.life } } : {}),
+    ...(state.settlement
+      ? {
+          settlement: {
+            ...state.settlement,
+            ...(state.settlement.resources
+              ? { resources: { ...state.settlement.resources } }
+              : {}),
+            ...(state.settlement.training ? { training: { ...state.settlement.training } } : {})
+          }
+        }
+      : {}),
     ...(state.originLocationId ? { originLocationId: state.originLocationId } : {}),
     ...(state.completedAt ? { completedAt: state.completedAt } : {}),
     ...(state.turnExpiresAt ? { turnExpiresAt: state.turnExpiresAt } : {}),
@@ -311,6 +360,77 @@ export function cloneCombatState(state: CombatState): CombatState {
       : {}),
     ...(state.turnLog ? { turnLog: state.turnLog.map(cloneCombatTurnLogEntry) } : {})
   };
+}
+
+export function freezeCombatLife(input: {
+  characterId?: string;
+  remortCount?: number;
+  now: Date;
+}): CombatLifeState {
+  return {
+    ...(input.characterId ? { characterId: input.characterId } : {}),
+    remortCount: safeNonNegativeInt(input.remortCount ?? 0),
+    startedAt: input.now.toISOString()
+  };
+}
+
+export function ensurePendingCombatSettlement(state: CombatState): CombatState {
+  if (state.settlement) {
+    return cloneCombatState(state);
+  }
+
+  return {
+    ...cloneCombatState(state),
+    settlement: {
+      status: "pending",
+      version: 1
+    }
+  };
+}
+
+export function markCombatSettlementCompleted(state: CombatState, now: Date): CombatState {
+  if (state.settlement?.status === "completed") {
+    return cloneCombatState(state);
+  }
+  const current = state.settlement;
+
+  return {
+    ...cloneCombatState(state),
+    settlement: {
+      ...current,
+      status: "completed",
+      settledAt: now.toISOString(),
+      reason: "terminal",
+      version: (current?.version ?? 1) + 1
+    }
+  };
+}
+
+export function markCombatSettlementForfeitedByRemort(
+  state: CombatState,
+  now: Date,
+  reason: CombatSettlementReason = "remort"
+): CombatState {
+  if (state.settlement?.status === "forfeited-by-remort") {
+    return cloneCombatState(state);
+  }
+  const current = state.settlement;
+
+  return {
+    ...cloneCombatState(state),
+    settlement: {
+      ...current,
+      status: "forfeited-by-remort",
+      settledAt: now.toISOString(),
+      reason,
+      version: (current?.version ?? 1) + 1
+    }
+  };
+}
+
+export function isCombatSettlementTerminal(state: CombatState | null | undefined): boolean {
+  return state?.settlement?.status === "completed" ||
+    state?.settlement?.status === "forfeited-by-remort";
 }
 
 export function getCombatTimeoutStreak(state: CombatState): number {

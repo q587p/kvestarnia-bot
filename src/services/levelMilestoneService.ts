@@ -11,4 +11,10 @@ export class LevelMilestoneService {
 
     return this.milestones.listFirstReachedLevels();
   }
+
+  async getBoardForRemort(remortNumber: number): Promise<LevelMilestoneBoard> {
+    await this.milestones.backfillCurrentLevels();
+
+    return this.milestones.listFirstReachedLevelsForRemort(remortNumber);
+  }
 }

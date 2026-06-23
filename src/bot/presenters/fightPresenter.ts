@@ -131,7 +131,9 @@ export function presentPersistentFightDifficultyChoice(
     "Підсходник сидить на нижній сходинці й крейдою малює три проходи на стіні. Каже, що Низ любить, коли вибір здається простим.",
     "",
     "⬅️ Лівий прохід — глибше й небезпечніше: сильніший монстр, трохи щедріша здобич.",
+    "",
     "🚪 Прямий прохід — як є: чесний корчмарський хаос.",
+    "",
     "➡️ Правий прохід — обережніше: нижчий рівень і скромніша винагорода."
   ].join("\n");
 }
@@ -140,13 +142,44 @@ export function presentPersistentFightPassagePreview(
   result: Extract<PersistentFightPreviewResult, { state: "persistent-preview" }>
 ): string {
   const passage = getPersistentFightPassagePreviewCopy(result.originLocationId);
+  const refreshLine = getPassagePreviewRefreshLine(result.refreshed);
+  const monsterLevel = ` · рівень ${result.monster.level}`;
+  const monsterHpLine = result.monsterHp
+    ? `Поранений слід: ${result.monsterHp.current}/${result.monsterHp.max} здоров’я.`
+    : null;
 
   return [
     `${passage.icon} <b>${escapeHtml(passage.title)}</b>`,
     presentCharacterHeader(result.character),
     "",
-    `Ви у ${passage.locative}. Бачите перед собою <b>${escapeHtml(result.monster.name)}</b>. Він вас ще не побачив.`
+    ...(refreshLine ? [refreshLine, ""] : []),
+    `Ви у ${passage.locative}. Попереду — <b>${escapeHtml(result.monster.name)}</b>${monsterLevel}. Увага ще не впала на вас.`,
+    ...(monsterHpLine ? [monsterHpLine] : [])
   ].join("\n");
+}
+
+export function presentFightCombatBlocked(
+  result: Extract<FightLookupResult, { state: "combat-blocked" }>
+): string {
+  return [
+    "⚔️ <b>Бій уже тримає місце</b>",
+    presentCharacterHeader(result.character),
+    "",
+    "Спершу завершіть поточну бійку. Корчма не ставить другий стіл на той самий лікоть."
+  ].join("\n");
+}
+
+function getPassagePreviewRefreshLine(reason: Extract<PersistentFightPreviewResult, { state: "persistent-preview" }>["refreshed"]): string | null {
+  switch (reason) {
+    case "expired":
+      return "Старий слід розсипався. Низ показав іншу підозрілу тінь.";
+    case "missing-monster":
+      return "Попередня тінь зникла з корчемного обліку. Корчма показала свіжу.";
+    case "stale":
+      return "Цей сувій уже не веде в бій. Ось поточний слід.";
+    default:
+      return null;
+  }
 }
 
 function getPersistentFightPassagePreviewCopy(originLocationId: string): {
@@ -209,12 +242,6 @@ export function presentPersistentFightIntro(
     "",
     "Бій триває. Корчма тримає рахунок ходів, але поки не видає нагород."
   ];
-  const startTip = result.started ? presentBattleStartTip(result.character, result.session.id) : null;
-
-  if (startTip) {
-    lines.push("", startTip);
-  }
-
   lines.push(
     "",
     `Проти вас: <b>${escapeHtml(result.monster?.name ?? "Невідомий монстр")}</b>${monsterLevel}`
@@ -229,6 +256,7 @@ export function presentPersistentFight(
   return presentPersistentFightState({
     character: result.character,
     session: result.session,
+    monster: result.monster,
     questProgress: result.questProgress,
     fightReward: result.state === "persistent-terminal" ? result.fightReward : null
   });
@@ -266,6 +294,7 @@ export function presentPersistentFightTurn(
   return presentPersistentFightState({
     character: result.character,
     session: result.session,
+    monster: "monster" in result ? result.monster : null,
     questProgress: result.questProgress,
     fightReward: result.state === "updated" || result.state === "terminal" ? result.fightReward : null,
     ...(intro ? { statusNote: intro } : {})
@@ -278,6 +307,7 @@ export function presentPersistentFightSnapshot(
   return presentPersistentFightState({
     character: result.character,
     session: result.session,
+    monster: result.monster,
     questProgress: result.questProgress,
     fightReward: result.fightReward
   });
@@ -433,13 +463,22 @@ function presentItemGrantBlock(itemGrants: Array<{ name: string; quantity: numbe
 
 function presentPersistentFightState(input: {
   character: CharacterSummary;
-  session: { state: Extract<PersistentFightTurnResult, { state: "updated" }>["session"]["state"] };
+  session: {
+    id?: string;
+    state: Extract<PersistentFightTurnResult, { state: "updated" }>["session"]["state"];
+  };
+  monster?: { name: string; level: number } | null;
   questProgress: ThirteenSmallProblemsProgress | null;
   fightReward?: Extract<PersistentFightTurnResult, { state: "updated" }>["fightReward"];
   statusNote?: string;
 }): string {
   const state = input.session.state;
+  const monsterName = state?.monster.name ?? input.monster?.name ?? "Невідомий монстр";
+  const monsterLevel = state?.monster.level ?? input.monster?.level;
   const lines = [
+    "⚔️ <b>Бій</b>",
+    `Проти вас: <b>${escapeHtml(monsterName)}</b>${monsterLevel ? ` · рівень ${monsterLevel}` : ""}`,
+    "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
     `👹 Монстр: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
     `Хід: ${state?.turn ?? "?"}`
@@ -460,6 +499,14 @@ function presentPersistentFightState(input: {
 
   if (state?.status === "active" && state.turn === 1 && !state.lastTurn && state.context?.cue) {
     lines.push("", `🌗 <i>${escapeHtml(state.context.cue.text)}</i>`);
+  }
+
+  const startTip =
+    state?.status === "active" && state.turn === 1 && !state.lastTurn
+      ? presentBattleStartTip(input.character, input.session.id ?? state.id ?? "active")
+      : null;
+  if (startTip) {
+    lines.push("", startTip);
   }
 
   if (state?.lastTurn) {

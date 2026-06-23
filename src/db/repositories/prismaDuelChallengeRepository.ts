@@ -848,7 +848,9 @@ async function awardTurnBasedDuelXp(
     });
   }
 
-  await recordLevelMilestones(tx, character.id, oldLevel, newLevel);
+  await recordLevelMilestones(tx, character.id, oldLevel, newLevel, undefined, {
+    remortCount
+  });
 }
 
 async function findChallengeByToken(prisma: PrismaClient, inviteToken: string) {

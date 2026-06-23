@@ -128,7 +128,7 @@ export async function sendAdventure(
     return;
   }
 
-  if (result.state === "active-fight") {
+  if (result.state === "active-fight" || result.state === "combat-blocked") {
     await sendText(ctx, mode, presentAdventureActiveFight(), "active-fight");
     return;
   }

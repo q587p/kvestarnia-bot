@@ -8,6 +8,7 @@ import {
   type CombatSimulationRow,
   type CombatSimulationRunResult
 } from "../../src/tooling/combatSimulation";
+import { monsters } from "../../src/content/monsters";
 
 describe("combatSimulation", () => {
   it("returns deterministic reports for the same options and seed", () => {
@@ -181,10 +182,10 @@ describe("combatSimulation", () => {
 
     expect(formatted).toContain("Combat simulation report");
     expect(formatted).toContain("Warnings summary");
-    expect(report.rows).toHaveLength(1);
+    expect(report.rows).toHaveLength(monsters.filter((monster) => monster.level === 1).length);
   });
 
-  it("uses exact ladder monsters when simulating levels 4 and 13", () => {
+  it("uses every exact ladder monster when simulating levels 4 and 13", () => {
     const report = runCombatSimulation({
       levels: [4, 13],
       monsterLevels: "same",
@@ -195,14 +196,29 @@ describe("combatSimulation", () => {
       maxTurns: 8
     });
 
-    expect(report.rows).toHaveLength(2);
-    expect(report.rows.map((row) => row.heroLevel)).toEqual([4, 13]);
-    expect(report.rows.map((row) => row.monsterLevel)).toEqual([4, 13]);
+    expect(new Set(report.rows.map((row) => row.heroLevel))).toEqual(new Set([4, 13]));
+    expect(new Set(report.rows.map((row) => row.monsterLevel))).toEqual(new Set([4, 13]));
     expect(report.rows.map((row) => row.monsterId)).toEqual(
       expect.arrayContaining([
         "monster.complaint-lantern",
         "monster.quiet-catastrophe-clerk"
       ])
+    );
+  });
+
+  it("covers every authored monster profile across same-level roster simulations", () => {
+    const report = runCombatSimulation({
+      levels: Array.from({ length: 23 }, (_, index) => index + 1),
+      monsterLevels: "same",
+      runsPerMatchup: 1,
+      seed: "full-roster-sanity",
+      classIds: ["class.bureaucramancer"],
+      policy: "aggressive",
+      maxTurns: 1
+    });
+
+    expect(new Set(report.rows.map((row) => row.monsterId))).toEqual(
+      new Set(monsters.map((monster) => monster.id))
     );
   });
 
