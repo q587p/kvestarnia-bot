@@ -43,6 +43,7 @@ export interface CreatePendingPassageEncounterInput {
 export interface ConsumePendingPassageEncounterInput {
   sessionId: string;
   expectedEncounterVersion: number;
+  expectedRulesVersion?: string;
   expectedLinkedSessionId?: string | null;
   monsterId: string;
   state: CombatState;
@@ -75,16 +76,19 @@ export interface PendingPassageEncounterRepository {
   findReusableForTelegramUser(
     telegramUserId: bigint,
     originLocationId: string,
-    now: Date
+    now: Date,
+    rulesVersion?: string
   ): Promise<PendingPassageEncounterRecord | null>;
   findByTokenForTelegramUser(
     telegramUserId: bigint,
-    token: string
+    token: string,
+    rulesVersion?: string
   ): Promise<PendingPassageEncounterRecord | null>;
   findLatestConsumedForTelegramUser(
     telegramUserId: bigint,
     originLocationId: string,
-    now: Date
+    now: Date,
+    rulesVersion?: string
   ): Promise<ConsumedPendingPassageEncounterRecord | null>;
   createForTelegramUser(
     telegramUserId: bigint,

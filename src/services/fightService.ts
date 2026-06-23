@@ -675,7 +675,12 @@ export class FightService {
     const originLocationId = options.originLocationId ?? getDefaultPassageLocationId(difficulty.id);
     const now = this.clock();
     const existing = this.pendingPassageEncounters
-      ? await this.pendingPassageEncounters.findReusableForTelegramUser(telegramUserId, originLocationId, now)
+      ? await this.pendingPassageEncounters.findReusableForTelegramUser(
+          telegramUserId,
+          originLocationId,
+          now,
+          PENDING_PASSAGE_ENCOUNTER_RULES_VERSION
+        )
       : null;
     const recoveredEncounter = existing
       ? null
@@ -754,6 +759,22 @@ export class FightService {
     }
 
     const now = this.clock();
+    if (!isCurrentPendingPassageEncounterRules(encounter)) {
+      if (encounter.status === "pending") {
+        await this.pendingPassageEncounters.expireById({
+          id: encounter.id,
+          expectedStatus: "pending",
+          expectedVersion: encounter.version,
+          now
+        });
+      }
+      return this.previewPersistentFightForTelegramUser(telegramUserId, {
+        difficulty: encounter.difficulty,
+        originLocationId: encounter.originLocationId,
+        refreshed: "stale"
+      }) as Promise<PersistentFightPassageAttackResult>;
+    }
+
     const baseMonster = findMonster(encounter.monsterId);
     if (encounter.status === "consumed" && encounter.combatSessionId) {
       const snapshot = await this.getPersistentFightSnapshotForTelegramUser(telegramUserId, encounter.combatSessionId);
@@ -803,6 +824,7 @@ export class FightService {
         const restarted = await this.pendingPassageEncounters.createSessionForConsumedEncounter(telegramUserId, token, {
           sessionId,
           expectedEncounterVersion: encounter.version,
+          expectedRulesVersion: PENDING_PASSAGE_ENCOUNTER_RULES_VERSION,
           expectedLinkedSessionId: encounter.combatSessionId,
           monsterId: monster.id,
           state,
@@ -923,6 +945,7 @@ export class FightService {
     const consumed = await this.pendingPassageEncounters.consumeForTelegramUser(telegramUserId, token, {
       sessionId,
       expectedEncounterVersion: encounter.version,
+      expectedRulesVersion: PENDING_PASSAGE_ENCOUNTER_RULES_VERSION,
       expectedLinkedSessionId: null,
       monsterId: monster.id,
       state,
@@ -2961,7 +2984,8 @@ export class FightService {
     const consumed = await this.pendingPassageEncounters.findLatestConsumedForTelegramUser(
       telegramUserId,
       originLocationId,
-      now
+      now,
+      PENDING_PASSAGE_ENCOUNTER_RULES_VERSION
     );
     if (!consumed?.session || !findMonster(consumed.encounter.monsterId)) {
       return null;
@@ -3410,6 +3434,10 @@ function buildHeroCombatStats(
 
 function isSettlementCompletionSuccess(outcome: SettlementCompletionFlowResult["outcome"]): boolean {
   return outcome === "completed" || outcome === "already-completed";
+}
+
+function isCurrentPendingPassageEncounterRules(encounter: PendingPassageEncounterRecord): boolean {
+  return encounter.rulesVersion === PENDING_PASSAGE_ENCOUNTER_RULES_VERSION;
 }
 
 function getSurvivingPassageMonsterHp(

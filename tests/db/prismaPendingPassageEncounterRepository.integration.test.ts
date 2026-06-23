@@ -45,6 +45,41 @@ describe("PrismaPendingPassageEncounterRepository integration", () => {
     })).resolves.toBe(3);
   });
 
+  it("refreshes pending rows when passage preview rulesVersion drifts", async () => {
+    await seedCharacter(prisma, "user-rules-version", "character-rules-version", 9217n);
+    const now = new Date("2026-06-22T10:00:00.000Z");
+
+    const old = await repository.createForTelegramUser(9217n, {
+      ...makeEncounterInput("rules-old", "location.korchma.deep.level1.straight", now),
+      rulesVersion: "nyz-passage-preview-old"
+    });
+    const reusableOld = await repository.findReusableForTelegramUser(
+      9217n,
+      "location.korchma.deep.level1.straight",
+      now,
+      "nyz-passage-preview-v1"
+    );
+    const fresh = await repository.createForTelegramUser(
+      9217n,
+      makeEncounterInput("rules-new", "location.korchma.deep.level1.straight", now)
+    );
+
+    expect(old).not.toBeNull();
+    expect(reusableOld).toBeNull();
+    expect(fresh?.id).not.toBe(old?.id);
+    await expect(prisma.pendingPassageEncounter.findUnique({
+      where: { id: old?.id ?? "" }
+    })).resolves.toMatchObject({
+      status: "expired",
+      activeKey: null
+    });
+    await expect(repository.consumeForTelegramUser(
+      9217n,
+      old?.token ?? "",
+      makeConsumeInput("session-rules-old", old!, now)
+    )).resolves.toEqual({ state: "invalid" });
+  });
+
   it("lets one concurrent first-consume create one session and one active lease", async () => {
     await seedCharacter(prisma, "user-consume-race", "character-consume-race", 9202n);
     const now = new Date("2026-06-22T10:00:00.000Z");
@@ -369,6 +404,7 @@ function makeConsumeInput(
   return {
     sessionId,
     expectedEncounterVersion: encounter.version,
+    expectedRulesVersion: "nyz-passage-preview-v1",
     expectedLinkedSessionId,
     monsterId: encounter.monsterId,
     state: makeCombatState(sessionId, encounter),

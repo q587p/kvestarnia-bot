@@ -21,13 +21,15 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
   async findReusableForTelegramUser(
     telegramUserId: bigint,
     originLocationId: string,
-    now: Date
+    now: Date,
+    rulesVersion?: string
   ): Promise<PendingPassageEncounterRecord | null> {
     const record = await this.prisma.pendingPassageEncounter.findFirst({
       where: {
         status: "pending",
         originLocationId,
         expiresAt: { gt: now },
+        ...(rulesVersion ? { rulesVersion } : {}),
         character: { user: { telegramUserId } }
       },
       orderBy: { updatedAt: "desc" }
@@ -38,11 +40,13 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
 
   async findByTokenForTelegramUser(
     telegramUserId: bigint,
-    token: string
+    token: string,
+    rulesVersion?: string
   ): Promise<PendingPassageEncounterRecord | null> {
     const record = await this.prisma.pendingPassageEncounter.findFirst({
       where: {
         token,
+        ...(rulesVersion ? { rulesVersion } : {}),
         character: { user: { telegramUserId } }
       }
     });
@@ -53,13 +57,15 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
   async findLatestConsumedForTelegramUser(
     telegramUserId: bigint,
     originLocationId: string,
-    now: Date
+    now: Date,
+    rulesVersion?: string
   ): Promise<ConsumedPendingPassageEncounterRecord | null> {
     const encounter = await this.prisma.pendingPassageEncounter.findFirst({
       where: {
         status: "consumed",
         originLocationId,
         expiresAt: { gt: now },
+        ...(rulesVersion ? { rulesVersion } : {}),
         character: { user: { telegramUserId } }
       },
       orderBy: { updatedAt: "desc" }
@@ -99,7 +105,14 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
           characterId: character.id,
           originLocationId: input.originLocationId,
           status: "pending",
-          expiresAt: { lte: input.now }
+          OR: [
+            { expiresAt: { lte: input.now } },
+            {
+              NOT: {
+                rulesVersion: input.rulesVersion
+              }
+            }
+          ]
         },
         data: {
           status: "expired",
@@ -132,6 +145,7 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
             status: "pending",
             originLocationId: input.originLocationId,
             expiresAt: { gt: input.now },
+            rulesVersion: input.rulesVersion,
             character: { user: { telegramUserId } }
           },
           orderBy: { updatedAt: "desc" }
@@ -214,7 +228,11 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
   ): Promise<ConsumePendingPassageEncounterResult> {
     const result = await this.prisma.$transaction(async (tx): Promise<ConsumePendingPassageEncounterResult> => {
       const encounter = await tx.pendingPassageEncounter.findFirst({
-        where: { token, character: { user: { telegramUserId } } }
+        where: {
+          token,
+          ...(input.expectedRulesVersion ? { rulesVersion: input.expectedRulesVersion } : {}),
+          character: { user: { telegramUserId } }
+        }
       });
 
       const mappedEncounter = mapPending(encounter);
@@ -281,6 +299,7 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
           id: encounter.id,
           status: expectedStatus,
           version: input.expectedEncounterVersion,
+          ...(input.expectedRulesVersion ? { rulesVersion: input.expectedRulesVersion } : {}),
           expiresAt: { gt: input.now },
           ...(expectedStatus === "consumed"
             ? { combatSessionId: input.expectedLinkedSessionId ?? "__missing__" }

@@ -1107,6 +1107,52 @@ describe("FightService", () => {
     expect(pending.createCount).toBe(1);
   });
 
+  it("refreshes a passage preview and rejects attack tokens after rules-version drift", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.2, 0.8]),
+      undefined,
+      undefined,
+      pending
+    );
+
+    const first = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (first.state !== "persistent-preview") {
+      throw new Error("Expected first preview");
+    }
+    pending.setRulesVersion(first.encounterToken, "nyz-passage-preview-old");
+
+    const refreshed = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    const attackedOld = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      first.encounterToken
+    );
+
+    expect(refreshed.state).toBe("persistent-preview");
+    expect(attackedOld.state).toBe("persistent-preview");
+    if (refreshed.state === "persistent-preview" && attackedOld.state === "persistent-preview") {
+      expect(refreshed.encounterToken).not.toBe(first.encounterToken);
+      expect(attackedOld.encounterToken).toBe(refreshed.encounterToken);
+      expect(attackedOld.refreshed).toBe("stale");
+    }
+    expect(pending.createCount).toBe(2);
+    expect(pending.consumeCount).toBe(0);
+  });
+
   it("consumes the exact pending monster and frozen effective level", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { level: 12, xp: 52 });
@@ -4258,7 +4304,8 @@ class FakePendingPassageEncounterRepository implements PendingPassageEncounterRe
   async findReusableForTelegramUser(
     telegramUserId: bigint,
     originLocationId: string,
-    now: Date
+    now: Date,
+    rulesVersion?: string
   ): Promise<PendingPassageEncounterRecord | null> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
     if (!character) {
@@ -4271,6 +4318,7 @@ class FakePendingPassageEncounterRepository implements PendingPassageEncounterRe
           encounter.characterId === character.id &&
           encounter.originLocationId === originLocationId &&
           encounter.status === "pending" &&
+          (!rulesVersion || encounter.rulesVersion === rulesVersion) &&
           encounter.expiresAt > now
       ) ?? null
     );
@@ -4278,20 +4326,26 @@ class FakePendingPassageEncounterRepository implements PendingPassageEncounterRe
 
   async findByTokenForTelegramUser(
     telegramUserId: bigint,
-    token: string
+    token: string,
+    rulesVersion?: string
   ): Promise<PendingPassageEncounterRecord | null> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
     const encounter = this.encounters.get(token);
 
     return clonePendingEncounter(
-      character && encounter?.characterId === character.id ? encounter : null
+      character &&
+        encounter?.characterId === character.id &&
+        (!rulesVersion || encounter.rulesVersion === rulesVersion)
+        ? encounter
+        : null
     );
   }
 
   async findLatestConsumedForTelegramUser(
     telegramUserId: bigint,
     originLocationId: string,
-    now: Date
+    now: Date,
+    rulesVersion?: string
   ): Promise<{ encounter: PendingPassageEncounterRecord; session: SoloCombatSessionRecord | null } | null> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
     if (!character) {
@@ -4305,6 +4359,7 @@ class FakePendingPassageEncounterRepository implements PendingPassageEncounterRe
             candidate.characterId === character.id &&
             candidate.originLocationId === originLocationId &&
             candidate.status === "consumed" &&
+            (!rulesVersion || candidate.rulesVersion === rulesVersion) &&
             candidate.expiresAt > now
         )
         .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())[0] ?? null;
@@ -4326,7 +4381,12 @@ class FakePendingPassageEncounterRepository implements PendingPassageEncounterRe
       return null;
     }
 
-    const existing = await this.findReusableForTelegramUser(telegramUserId, input.originLocationId, fixedClock());
+    const existing = await this.findReusableForTelegramUser(
+      telegramUserId,
+      input.originLocationId,
+      fixedClock(),
+      input.rulesVersion
+    );
     if (existing) {
       return existing;
     }
@@ -4427,6 +4487,10 @@ class FakePendingPassageEncounterRepository implements PendingPassageEncounterRe
     }
 
     this.consumeCount += 1;
+    if (input.expectedRulesVersion && encounter.rulesVersion !== input.expectedRulesVersion) {
+      return { state: "invalid" };
+    }
+
     if (encounter.version !== input.expectedEncounterVersion) {
       return { state: "version-changed", encounter: clonePendingEncounter(encounter)! };
     }
@@ -4481,6 +4545,18 @@ class FakePendingPassageEncounterRepository implements PendingPassageEncounterRe
     this.encounters.set(token, {
       ...encounter,
       expiresAt: new Date(fixedClock().getTime() - 1)
+    });
+  }
+
+  setRulesVersion(token: string, rulesVersion: string): void {
+    const encounter = this.encounters.get(token);
+    if (!encounter) {
+      return;
+    }
+
+    this.encounters.set(token, {
+      ...encounter,
+      rulesVersion
     });
   }
 }
