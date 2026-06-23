@@ -239,6 +239,17 @@ describe("TrainingDoppelgangerService", () => {
       fixedNow().getTime()
     );
     expect(world.resourceMutations).toBe(1);
+    const settlement = world.sessions.get(started.session.id)?.state?.settlement;
+    expect(settlement).toMatchObject({
+      status: "completed",
+      version: 4,
+      resources: {
+        status: "applied"
+      }
+    });
+    expect(typeof settlement?.training?.availableAt).toBe("string");
+    expect(typeof settlement?.training?.cooldownClaimedAt).toBe("string");
+    expect(world.sessions.get(started.session.id)?.reward).toMatchObject({ gold: 0 });
   });
 
   it("skips the hero action but lets the copy act when an expired turn is recovered from start options", async () => {
@@ -1247,12 +1258,15 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
   applyTrainingCooldownById(
     sessionId: string,
     input: {
+      expected?: {
+        settlementVersion?: number;
+      };
       now: Date;
       availableAt: Date;
       cooldownKey: string;
     }
   ): Promise<{
-    outcome: "applied" | "already-applied" | "already-completed" | "already-forfeited" | "cooldown-conflict";
+    outcome: "applied" | "already-applied" | "already-completed" | "already-forfeited" | "cooldown-conflict" | "version-changed";
     session: SoloCombatSessionRecord | null;
     availableAt: Date | null;
   }> {
@@ -1282,6 +1296,13 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
         session: existing,
         availableAt: new Date(existing.state.settlement.training.availableAt)
       });
+    }
+
+    if (
+      input.expected?.settlementVersion !== undefined &&
+      existing.state.settlement?.version !== input.expected.settlementVersion
+    ) {
+      return Promise.resolve({ outcome: "version-changed", session: existing, availableAt: null });
     }
 
     const current = this.cooldowns.get(input.cooldownKey);
@@ -1347,6 +1368,9 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
   completeSettlementById(
     sessionId: string,
     input: {
+      expected?: {
+        settlementVersion?: number;
+      };
       settledAt: Date;
       reward?: {
         rewardXp: number;
@@ -1355,7 +1379,10 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
         claimedAt: Date;
       };
     }
-  ): Promise<{ outcome: "completed" | "already-completed" | "already-forfeited"; session: SoloCombatSessionRecord | null }> {
+  ): Promise<{
+    outcome: "completed" | "already-completed" | "already-forfeited" | "version-changed";
+    session: SoloCombatSessionRecord | null;
+  }> {
     const existing = this.sessions.get(sessionId);
 
     if (!existing) {
@@ -1368,6 +1395,13 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
 
     if (existing.state?.settlement?.status === "forfeited-by-remort") {
       return Promise.resolve({ outcome: "already-forfeited", session: existing });
+    }
+
+    if (
+      input.expected?.settlementVersion !== undefined &&
+      existing.state?.settlement?.version !== input.expected.settlementVersion
+    ) {
+      return Promise.resolve({ outcome: "version-changed", session: existing });
     }
 
     const state = existing.state

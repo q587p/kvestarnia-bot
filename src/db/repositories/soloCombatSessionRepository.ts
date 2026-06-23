@@ -77,6 +77,7 @@ export type GuardedSettlementOutcome =
   | "forfeited"
   | "already-completed"
   | "already-forfeited"
+  | "substeps-incomplete"
   | "version-changed"
   | "missing";
 

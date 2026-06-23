@@ -53,6 +53,7 @@ const DUE_SESSION_SCAN_CAP = 1000;
 const RECENT_ORDINARY_PAGE_SIZE = 50;
 const RECENT_ORDINARY_SCAN_CAP = 200;
 const RETRY_SOLO_COMBAT_CREATE = Symbol("retry-solo-combat-create");
+const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
 
 export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -991,12 +992,36 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         };
       }
 
+      if (!settlementExpectationMatches(current, state, input.expected)) {
+        return {
+          outcome: "version-changed",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      const lifeMatches = await currentLifeMatchesExpected(tx, current, input.expected);
+      const isLifeMismatchForfeit =
+        target === "forfeited" &&
+        (input as ForfeitSoloCombatSettlementInput).reason === "life-mismatch" &&
+        Boolean(input.expected?.life);
+
       if (
-        !settlementExpectationMatches(current, state, input.expected) ||
-        !await currentLifeMatchesExpected(tx, current, input.expected)
+        (!lifeMatches && !isLifeMismatchForfeit) ||
+        (lifeMatches && isLifeMismatchForfeit) ||
+        (isLifeMismatchForfeit && !(await hasExactSoloCombatLease(tx, current)))
       ) {
         return {
           outcome: "version-changed",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      if (
+        target === "completed" &&
+        !settlementCompletionPrerequisitesMet(current, state, input)
+      ) {
+        return {
+          outcome: "substeps-incomplete",
           session: mapSoloCombatSessionRecord(current)
         };
       }
@@ -1041,6 +1066,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
             referenceId: sessionId
           }
         });
+      }
+
+      if (target === "forfeited" && input.expected?.life) {
+        await deleteOwnedPendingTrainingCooldown(tx, current.characterId, sessionId, input.expected.life.remortCount);
       }
 
       return {
@@ -1424,6 +1453,23 @@ async function validatePendingSettlementSubstep(
   return currentRemortCount === expected.life.remortCount ? "ok" : "life-mismatch";
 }
 
+async function hasExactSoloCombatLease(
+  tx: TxClient,
+  record: NonNullable<PrismaSoloCombatSessionRecord>
+): Promise<boolean> {
+  const lease = await tx.activeCombatLease.findUnique({
+    where: {
+      characterId: record.characterId
+    },
+    select: {
+      kind: true,
+      referenceId: true
+    }
+  });
+
+  return lease?.kind === "solo-combat" && lease.referenceId === record.id;
+}
+
 async function currentLifeMatchesExpected(
   tx: TxClient,
   record: NonNullable<PrismaSoloCombatSessionRecord>,
@@ -1436,6 +1482,74 @@ async function currentLifeMatchesExpected(
   const currentRemortCount = await countCharacterRemorts(tx, record.characterId);
 
   return currentRemortCount === expected.life.remortCount;
+}
+
+function settlementCompletionPrerequisitesMet(
+  record: NonNullable<PrismaSoloCombatSessionRecord>,
+  state: CombatState | null,
+  input: CompleteSoloCombatSettlementInput
+): boolean {
+  if (!state || !terminalStatuses.has(state.status)) {
+    return false;
+  }
+
+  if (state.settlement?.resources?.status !== "applied") {
+    return false;
+  }
+
+  const rewardsRequired = state.status === "won" || state.status === "lost";
+  const rewardPresent = record.rewardXp !== null &&
+    record.rewardGold !== null &&
+    record.rewardClaimedAt !== null;
+
+  if (rewardsRequired && !rewardPresent && !input.reward) {
+    return false;
+  }
+
+  if (state.source === "training" && rewardsRequired) {
+    return Boolean(
+      state.settlement.training?.availableAt &&
+      state.settlement.training.cooldownClaimedAt
+    );
+  }
+
+  return true;
+}
+
+async function deleteOwnedPendingTrainingCooldown(
+  tx: TxClient,
+  characterId: string,
+  sessionId: string,
+  remortCount: number
+): Promise<void> {
+  const cooldown = await tx.characterCooldown.findUnique({
+    where: {
+      characterId_key: {
+        characterId,
+        key: TRAINING_DOPPELGANGER_COOLDOWN_KEY
+      }
+    },
+    select: {
+      id: true,
+      resultJson: true
+    }
+  });
+
+  if (!cooldown) {
+    return;
+  }
+
+  const owner = parseTrainingCooldownOwner(cooldown.resultJson);
+
+  if (owner?.sessionId !== sessionId || owner.remortCount !== remortCount) {
+    return;
+  }
+
+  await tx.characterCooldown.delete({
+    where: {
+      id: cooldown.id
+    }
+  });
 }
 
 function settlementTerminalOutcome(

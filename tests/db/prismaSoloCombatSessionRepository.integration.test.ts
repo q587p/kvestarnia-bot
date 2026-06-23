@@ -492,6 +492,66 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     expect(applied.session?.state?.settlement?.version).toBe(2);
   });
 
+  it("rejects direct settlement completion before durable resource substeps", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-substeps-incomplete",
+      characterId: "character-substeps-incomplete",
+      telegramUserId: 4268n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeSoloSessionData({
+        id: "substeps-incomplete-session",
+        characterId: "character-substeps-incomplete",
+        monsterId: "monster.deadline-spider",
+        status: "won",
+        source: "normal",
+        completedAt: new Date("2026-06-22T10:31:30.000Z"),
+        updatedAt: new Date("2026-06-22T10:31:30.000Z"),
+        settlementStatus: "pending"
+      })
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-substeps-incomplete",
+        characterId: "character-substeps-incomplete",
+        kind: "solo-combat",
+        referenceId: "substeps-incomplete-session"
+      }
+    });
+
+    const completed = await repository.completeSettlementById("substeps-incomplete-session", {
+      expected: {
+        settlementStatus: "pending",
+        settlementVersion: 1,
+        combatStatus: "won",
+        life: { remortCount: 0 }
+      },
+      settledAt: new Date("2026-06-22T10:31:31.000Z"),
+      reward: {
+        rewardXp: 23,
+        rewardGold: 13,
+        itemGrants: [],
+        claimedAt: new Date("2026-06-22T10:31:31.000Z")
+      },
+      releaseLease: true
+    });
+
+    expect(completed.outcome).toBe("substeps-incomplete");
+    const stored = await prisma.soloCombatSession.findUniqueOrThrow({
+      where: { id: "substeps-incomplete-session" }
+    });
+    expect((stored.stateJson as { settlement?: { status?: string; version?: number } }).settlement).toMatchObject({
+      status: "pending",
+      version: 1
+    });
+    expect(stored.rewardXp).toBeNull();
+    await expect(prisma.activeCombatLease.count({
+      where: {
+        characterId: "character-substeps-incomplete"
+      }
+    })).resolves.toBe(1);
+  });
+
   it("guards completion against the current remort count", async () => {
     await seedCharacter(prisma, {
       userId: "user-current-life-guard",
@@ -555,6 +615,73 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
       where: { id: "current-life-guard-session" }
     });
     expect((stored.stateJson as { settlement?: { status?: string } }).settlement?.status).toBe("pending");
+    expect(stored.rewardXp).toBeNull();
+  });
+
+  it("allows life-mismatch forfeiture when the current remort count changed", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-life-mismatch-forfeit",
+      characterId: "character-life-mismatch-forfeit",
+      telegramUserId: 4269n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeSoloSessionData({
+        id: "life-mismatch-forfeit-session",
+        characterId: "character-life-mismatch-forfeit",
+        monsterId: "monster.deadline-spider",
+        status: "won",
+        source: "normal",
+        completedAt: new Date("2026-06-22T10:32:30.000Z"),
+        updatedAt: new Date("2026-06-22T10:32:30.000Z"),
+        settlementStatus: "pending"
+      })
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-life-mismatch-forfeit",
+        characterId: "character-life-mismatch-forfeit",
+        kind: "solo-combat",
+        referenceId: "life-mismatch-forfeit-session"
+      }
+    });
+    await prisma.characterRemort.create({
+      data: {
+        id: "remort-life-mismatch-forfeit",
+        characterId: "character-life-mismatch-forfeit",
+        token: "token-life-mismatch-forfeit",
+        remortNumber: 1,
+        previousLevel: 6,
+        previousXp: 110,
+        previousGold: 0,
+        displayNameSnapshot: "РњР°РЅРґСЂС–РІРЅРёРє",
+        preservedPayloadJson: {},
+        createdAt: new Date("2026-06-22T10:32:31.000Z")
+      }
+    });
+
+    const forfeited = await repository.forfeitSettlementById("life-mismatch-forfeit-session", {
+      expected: {
+        settlementStatus: "pending",
+        settlementVersion: 1,
+        combatStatus: "won",
+        life: { remortCount: 0 }
+      },
+      settledAt: new Date("2026-06-22T10:32:32.000Z"),
+      reason: "life-mismatch",
+      releaseLease: true
+    });
+
+    expect(forfeited.outcome).toBe("forfeited");
+    expect(forfeited.session?.state?.settlement?.status).toBe("forfeited-by-remort");
+    await expect(prisma.activeCombatLease.count({
+      where: {
+        characterId: "character-life-mismatch-forfeit"
+      }
+    })).resolves.toBe(0);
+    const stored = await prisma.soloCombatSession.findUniqueOrThrow({
+      where: { id: "life-mismatch-forfeit-session" }
+    });
+    expect((stored.stateJson as { settlement?: { reason?: string } }).settlement?.reason).toBe("life-mismatch");
     expect(stored.rewardXp).toBeNull();
   });
 

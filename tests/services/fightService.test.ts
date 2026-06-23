@@ -2567,6 +2567,54 @@ describe("FightService", () => {
     expect(rewardRecords).toHaveLength(1);
   });
 
+  it("completes a pending won settlement immediately after the resource version handoff", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25, hpCurrent: 24, manaCurrent: 12 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const wonSession = makeTerminalSession(
+      "won",
+      "session-won-pending-settlement",
+      `character-${telegramUserId.toString()}`
+    );
+    wonSession.state = wonSession.state
+      ? {
+          ...wonSession.state,
+          life: { remortCount: 0 },
+          settlement: { status: "pending", version: 1 }
+        }
+      : wonSession.state;
+    sessions.addSession(wonSession);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0])
+    );
+
+    const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: wonSession.id,
+      turn: wonSession.turn,
+      action: "attack"
+    });
+
+    expect(recovered.state).toBe("terminal");
+    if (recovered.state === "terminal") {
+      expect(recovered.fightReward).toMatchObject({
+        state: "claimed",
+        reward: {
+          localDate: wonSession.id
+        }
+      });
+    }
+    const stored = sessions.getById(wonSession.id);
+    expect(stored?.state?.settlement?.status).toBe("completed");
+    expect(stored?.state?.settlement?.version).toBe(3);
+    expect(stored?.state?.settlement?.resources?.status).toBe("applied");
+    expect(stored?.reward).not.toBeNull();
+  });
+
   it("counts a won persistent fight toward thirteen small problems", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -4711,6 +4759,9 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   completeSettlementById(
     sessionId: string,
     input: {
+      expected?: {
+        settlementVersion?: number;
+      };
       settledAt: Date;
       reward?: {
         rewardXp: number;
@@ -4719,7 +4770,10 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
         claimedAt: Date;
       };
     }
-  ): Promise<{ outcome: "completed" | "already-completed" | "already-forfeited"; session: SoloCombatSessionRecord | null }> {
+  ): Promise<{
+    outcome: "completed" | "already-completed" | "already-forfeited" | "version-changed";
+    session: SoloCombatSessionRecord | null;
+  }> {
     const session = this.sessions.get(sessionId);
 
     if (!session) {
@@ -4732,6 +4786,13 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
 
     if (session.state?.settlement?.status === "forfeited-by-remort") {
       return Promise.resolve({ outcome: "already-forfeited", session: cloneSession(session) });
+    }
+
+    if (
+      input.expected?.settlementVersion !== undefined &&
+      session.state?.settlement?.version !== input.expected.settlementVersion
+    ) {
+      return Promise.resolve({ outcome: "version-changed", session: cloneSession(session) });
     }
 
     if (!input.reward) {

@@ -11,6 +11,8 @@ import type {
 import type { DailyActionRepository, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import type {
   DueSoloCombatSessionRecord,
+  GuardedResourceSettlementOutcome,
+  GuardedSettlementOutcome,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository
 } from "../db/repositories/soloCombatSessionRepository";
@@ -109,6 +111,15 @@ export type FightAction = CombatProbeAction;
 interface RecoveryNoticeField {
   recoveryNotice?: ResourceRecoveryNotice;
 }
+
+type ResourceSettlementFlowResult =
+  | { outcome: "ready" | "completed"; session: SoloCombatSessionRecord }
+  | { outcome: "forfeited" | "blocked"; session: SoloCombatSessionRecord | null };
+
+type SettlementCompletionFlowResult = {
+  outcome: GuardedSettlementOutcome | "unsupported";
+  session: SoloCombatSessionRecord | null;
+};
 
 export const MIMIC_SHAWARMA_COMBAT_REWARDS = {
   attack: {
@@ -2232,12 +2243,12 @@ export class FightService {
     }
 
     if (claim.state === "existing") {
-      const stored = await this.completeCombatSettlement(session, {
+      const stored = await this.completeCombatSettlementWithConvergence(telegramUserId, session, {
         rewardXp: claim.action.rewardXp,
         rewardGold: claim.action.rewardGold,
         itemGrants: []
       });
-      if (stored?.state?.settlement?.status === "forfeited-by-remort") {
+      if (!isSettlementCompletionSuccess(stored.outcome)) {
         return null;
       }
       return {
@@ -2254,12 +2265,12 @@ export class FightService {
     }
 
     const stored =
-      await this.completeCombatSettlement(session, {
+      await this.completeCombatSettlementWithConvergence(telegramUserId, session, {
         rewardXp: claim.action.rewardXp,
         rewardGold: claim.action.rewardGold,
         itemGrants: claim.itemGrants
       });
-    if (stored?.state?.settlement?.status === "forfeited-by-remort") {
+    if (!isSettlementCompletionSuccess(stored.outcome)) {
       return null;
     }
 
@@ -2272,7 +2283,7 @@ export class FightService {
         itemGrants: enrichRewardItemGrants(claim.itemGrants)
       },
       levelChange: claim.levelChange,
-      ...(stored ? {} : { itemReplayUnavailable: claim.itemGrants.length > 0 })
+      ...(stored.session ? {} : { itemReplayUnavailable: claim.itemGrants.length > 0 })
     };
   }
 
@@ -2372,8 +2383,8 @@ export class FightService {
     const replay = buildPersistentFightRewardReplay(session);
 
     if (replay) {
-      const stored = await this.completeCombatSettlement(session);
-      if (stored?.state?.settlement?.status === "forfeited-by-remort") {
+      const stored = await this.completeCombatSettlementWithConvergence(telegramUserId, session);
+      if (!isSettlementCompletionSuccess(stored.outcome)) {
         return null;
       }
       return replay;
@@ -2392,17 +2403,23 @@ export class FightService {
       { finalizeSettlement: terminalStatus !== "won" && terminalStatus !== "lost" }
     );
 
-    if (resources === "forfeited") {
+    if (resources.outcome === "forfeited" || resources.outcome === "blocked") {
       return null;
     }
 
-    if (terminalStatus !== "won" && terminalStatus !== "lost") {
+    const settlementSession = resources.session;
+    if (!settlementSession) {
+      return null;
+    }
+    const settledStatus = settlementSession.state?.status ?? settlementSession.status;
+
+    if (settledStatus !== "won" && settledStatus !== "lost") {
       return null;
     }
 
     const action = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
-      localDate: session.id
+      localDate: settlementSession.id
     });
 
     if (!action) {
@@ -2412,25 +2429,25 @@ export class FightService {
 
       const claimed = await this.claimPersistentFightReward(
         telegramUserId,
-        session,
+        settlementSession,
         monster,
         character,
         expectedLife
       );
 
       if (!claimed && expectedLife) {
-        await this.forfeitCombatSettlement(session, "life-mismatch");
+        await this.forfeitCombatSettlement(settlementSession, "life-mismatch");
       }
 
       return claimed;
     }
 
-    const stored = await this.completeCombatSettlement(session, {
+    const stored = await this.completeCombatSettlementWithConvergence(telegramUserId, settlementSession, {
       rewardXp: action.rewardXp,
       rewardGold: action.rewardGold,
       itemGrants: []
     });
-    if (stored?.state?.settlement?.status === "forfeited-by-remort") {
+    if (!isSettlementCompletionSuccess(stored.outcome)) {
       return null;
     }
 
@@ -2439,7 +2456,7 @@ export class FightService {
       reward: {
         xp: action.rewardXp,
         gold: action.rewardGold,
-        localDate: session.id,
+        localDate: settlementSession.id,
         itemGrants: []
       },
       levelChange: null,
@@ -2590,17 +2607,55 @@ export class FightService {
     session: SoloCombatSessionRecord,
     expectedLife?: { remortCount: number },
     options: { finalizeSettlement?: boolean } = {}
-  ): Promise<"completed" | "forfeited" | "skipped"> {
+  ): Promise<ResourceSettlementFlowResult> {
+    let currentSession = session;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await this.persistCharacterResourcesOnce(
+        telegramUserId,
+        currentSession,
+        expectedLife,
+        options
+      );
+
+      if (
+        result.outcome !== "blocked" ||
+        result.reason !== "version-changed" ||
+        attempt >= 1
+      ) {
+        return result;
+      }
+
+      const reloaded = await this.reloadSessionAfterSettlement(telegramUserId, currentSession);
+      if (!reloaded) {
+        return { outcome: "blocked", session: result.session };
+      }
+      currentSession = reloaded;
+    }
+
+    return { outcome: "blocked", session: currentSession };
+  }
+
+  private async persistCharacterResourcesOnce(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    expectedLife?: { remortCount: number },
+    options: { finalizeSettlement?: boolean } = {}
+  ): Promise<ResourceSettlementFlowResult & { reason?: GuardedResourceSettlementOutcome | "unsupported" }> {
     if (!session.state) {
-      return "skipped";
+      return { outcome: "blocked", session, reason: "unsupported" };
     }
 
     if (session.state.settlement?.status === "forfeited-by-remort") {
-      return "forfeited";
+      return { outcome: "forfeited", session };
     }
 
     if (isCombatSettlementTerminal(session.state)) {
-      return "completed";
+      return { outcome: "completed", session };
+    }
+
+    if (!session.state.settlement) {
+      return { outcome: "ready", session };
     }
 
     if (session.state.settlement?.resources?.status === "applied") {
@@ -2609,10 +2664,14 @@ export class FightService {
         (session.state.status !== "won" && session.state.status !== "lost");
 
       if (shouldFinalizeSettlement) {
-        await this.completeCombatSettlement(session);
+        const completed = await this.completeCombatSettlementWithConvergence(telegramUserId, session);
+        if (!isSettlementCompletionSuccess(completed.outcome)) {
+          return { outcome: "blocked", session: completed.session ?? session, reason: completed.outcome as GuardedResourceSettlementOutcome };
+        }
+        return { outcome: "completed", session: completed.session ?? session };
       }
 
-      return "completed";
+      return { outcome: "ready", session };
     }
 
     const life = expectedLife ?? await this.resolveSessionExpectedLife(session);
@@ -2620,7 +2679,7 @@ export class FightService {
     const currentCharacter = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!life || !currentCharacter || !this.combatSessions?.applyTerminalResourcesById) {
-      return "skipped";
+      return { outcome: "blocked", session, reason: "unsupported" };
     }
 
     const resourceSettlement = await this.combatSessions.applyTerminalResourcesById(session.id, {
@@ -2651,11 +2710,18 @@ export class FightService {
       resourceSettlement.outcome === "already-forfeited" ||
       resourceSettlement.outcome === "life-mismatch"
     ) {
-      return "forfeited";
+      if (resourceSettlement.outcome === "life-mismatch") {
+        const forfeited = await this.forfeitCombatSettlement(
+          resourceSettlement.session ?? session,
+          "life-mismatch"
+        );
+        return { outcome: "forfeited", session: forfeited.session ?? resourceSettlement.session ?? session };
+      }
+      return { outcome: "forfeited", session: resourceSettlement.session ?? session };
     }
 
     if (resourceSettlement.outcome === "already-completed") {
-      return "completed";
+      return { outcome: "completed", session: resourceSettlement.session ?? session };
     }
 
     if (
@@ -2663,7 +2729,11 @@ export class FightService {
       resourceSettlement.outcome === "resource-cas-conflict" ||
       resourceSettlement.outcome === "version-changed"
     ) {
-      return "skipped";
+      return {
+        outcome: "blocked",
+        session: resourceSettlement.session ?? session,
+        reason: resourceSettlement.outcome
+      };
     }
 
     const settlementSession = resourceSettlement.session ?? session;
@@ -2673,10 +2743,17 @@ export class FightService {
       (session.state.status !== "won" && session.state.status !== "lost");
 
     if (shouldFinalizeSettlement) {
-      await this.completeCombatSettlement(settlementSession);
+      const completed = await this.completeCombatSettlementWithConvergence(
+        telegramUserId,
+        settlementSession
+      );
+      if (!isSettlementCompletionSuccess(completed.outcome)) {
+        return { outcome: "blocked", session: completed.session ?? settlementSession, reason: completed.outcome as GuardedResourceSettlementOutcome };
+      }
+      return { outcome: "completed", session: completed.session ?? settlementSession };
     }
 
-    return "completed";
+    return { outcome: "ready", session: settlementSession };
   }
 
   private async resolveSessionExpectedLife(
@@ -2691,17 +2768,52 @@ export class FightService {
     return legacyLife ? { remortCount: legacyLife.remortCount } : undefined;
   }
 
+  private async completeCombatSettlementWithConvergence(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    reward?: { rewardXp: number; rewardGold: number; itemGrants: Array<{ itemId: string; quantity: number }> }
+  ): Promise<SettlementCompletionFlowResult> {
+    let currentSession = session;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await this.completeCombatSettlement(currentSession, reward);
+      if (result.outcome !== "version-changed" || attempt >= 1) {
+        return result;
+      }
+
+      const reloaded = await this.reloadSessionAfterSettlement(telegramUserId, currentSession);
+      if (!reloaded) {
+        return result;
+      }
+      currentSession = reloaded;
+    }
+
+    return { outcome: "version-changed", session: currentSession };
+  }
+
   private async completeCombatSettlement(
     session: SoloCombatSessionRecord,
     reward?: { rewardXp: number; rewardGold: number; itemGrants: Array<{ itemId: string; quantity: number }> }
-  ): Promise<SoloCombatSessionRecord | null> {
+  ): Promise<SettlementCompletionFlowResult> {
     if (!session.state || session.state.settlement?.status === "completed") {
       await this.combatAnalytics?.recordTerminalSession(session);
-      return session;
+      return { outcome: "already-completed", session };
+    }
+
+    if (!session.state.settlement) {
+      const stored = reward
+        ? await this.combatSessions?.recordRewardById(session.id, {
+            ...reward,
+            claimedAt: this.clock()
+          })
+        : session;
+      const updated = stored ?? session;
+      await this.combatAnalytics?.recordTerminalSession(updated);
+      return { outcome: "completed", session: updated };
     }
 
     if (session.state.settlement?.status === "forfeited-by-remort") {
-      return session;
+      return { outcome: "already-forfeited", session };
     }
 
     const life = await this.resolveSessionExpectedLife(session);
@@ -2725,19 +2837,24 @@ export class FightService {
         : {}),
       releaseLease: true
     });
-    const updated = guarded?.session ?? session;
 
-    await this.combatAnalytics?.recordTerminalSession(updated);
+    if (!guarded) {
+      return { outcome: "unsupported", session };
+    }
 
-    return updated;
+    if (guarded.session && isSettlementCompletionSuccess(guarded.outcome)) {
+      await this.combatAnalytics?.recordTerminalSession(guarded.session);
+    }
+
+    return guarded;
   }
 
   private async forfeitCombatSettlement(
     session: SoloCombatSessionRecord,
     reason: "life-mismatch" | "legacy-life-mismatch"
-  ): Promise<SoloCombatSessionRecord | null> {
+  ): Promise<SettlementCompletionFlowResult> {
     if (!session.state || session.state.settlement?.status === "forfeited-by-remort") {
-      return session;
+      return { outcome: "already-forfeited", session };
     }
 
     const life = await this.resolveSessionExpectedLife(session);
@@ -2755,7 +2872,7 @@ export class FightService {
       releaseLease: true
     });
 
-    return guarded?.session ?? session;
+    return guarded ?? { outcome: "unsupported", session };
   }
 
   private async reloadSessionAfterSettlement(
@@ -3289,6 +3406,10 @@ function buildHeroCombatStats(
     weaponDamage: equipment.weaponDamage,
     spellPower: equipment.spellPower
   };
+}
+
+function isSettlementCompletionSuccess(outcome: SettlementCompletionFlowResult["outcome"]): boolean {
+  return outcome === "completed" || outcome === "already-completed";
 }
 
 function getSurvivingPassageMonsterHp(
