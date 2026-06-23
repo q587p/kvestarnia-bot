@@ -596,6 +596,34 @@ describe("PrismaShynokRepository integration", () => {
     expect(replay.state === "replayed" ? replay.drink?.drinkKey : null).toBe("drink.thyme-tea");
   });
 
+  it("completed self order replay does not fall back to the live current drink", async () => {
+    await seedCharacter({ telegramUserId: 717n, userId: "user-self-replay-live-fallback", characterId: "character-self-replay-live-fallback", gold: 100 });
+    await seedCurrentDrink("character-self-replay-live-fallback", "drink-state-self-live-fallback", "drink.fine-beer");
+    await prisma.korchmaDrinkOrder.create({
+      data: {
+        id: "order-self-replay-live-fallback",
+        token: "12345678-1234-4234-9234-000000000727",
+        characterId: "character-self-replay-live-fallback",
+        drinkKey: "drink.thyme-tea",
+        priceGold: 17,
+        status: "completed",
+        replacementJson: { expected: "none" },
+        resultJson: { kind: "legacy-without-activation-snapshot" },
+        completedAt: now(),
+        expiresAt: new Date("2026-06-23T10:10:00.000Z")
+      }
+    });
+
+    const replay = await repository.confirmSelfDrinkOrderForTelegramUser(717n, {
+      token: "12345678-1234-4234-9234-000000000727",
+      now: new Date("2026-06-23T10:02:00.000Z"),
+      result: { kind: "self-drink-confirm" }
+    });
+
+    expect(replay.state).toBe("replayed");
+    expect(replay.state === "replayed" ? replay.drink : "not-replayed").toBeNull();
+  });
+
   it("completed round acceptance replays its original activation after later replacement", async () => {
     await seedCharacter({ telegramUserId: 718n, userId: "user-round-replay-buyer", characterId: "character-round-replay-buyer", gold: 500 });
     await seedCharacter({ telegramUserId: 719n, userId: "user-round-replay-recipient", characterId: "character-round-replay-recipient", gold: 100 });
@@ -645,6 +673,37 @@ describe("PrismaShynokRepository integration", () => {
     expect(replay.state).toBe("replayed");
     expect(replay.state === "replayed" ? replay.drink?.activationId : null).toBe(accepted.drink.activationId);
     expect(replay.state === "replayed" ? replay.drink?.drinkKey : null).toBe("drink.simple-beer");
+  });
+
+  it("completed round acceptance replay does not fall back to the live current drink", async () => {
+    await seedCharacter({ telegramUserId: 7221n, userId: "user-round-replay-live-buyer", characterId: "character-round-replay-live-buyer", gold: 500 });
+    await seedCharacter({ telegramUserId: 7222n, userId: "user-round-replay-live-recipient", characterId: "character-round-replay-live-recipient", gold: 100 });
+    await seedRoundOffer({
+      purchaseId: "purchase-round-replay-live-fallback",
+      offerId: "12345678-1234-4234-9234-000000007222",
+      buyerCharacterId: "character-round-replay-live-buyer",
+      recipientCharacterId: "character-round-replay-live-recipient",
+      drinkKey: "drink.simple-beer"
+    });
+    await prisma.korchmaRoundRecipient.update({
+      where: { id: "12345678-1234-4234-9234-000000007222" },
+      data: {
+        status: "accepted",
+        respondedAt: now(),
+        resultJson: { kind: "legacy-without-activation-snapshot" }
+      }
+    });
+    await seedCurrentDrink("character-round-replay-live-recipient", "drink-state-round-live-fallback", "drink.fine-beer");
+
+    const replay = await repository.respondToRoundOfferForTelegramUser(7222n, {
+      offerId: "12345678-1234-4234-9234-000000007222",
+      action: "accept",
+      now: new Date("2026-06-23T10:02:00.000Z"),
+      result: { kind: "round-offer-accept" }
+    });
+
+    expect(replay.state).toBe("replayed");
+    expect(replay.state === "replayed" ? replay.drink : "not-replayed").toBeNull();
   });
 
   it("blocks old-life round offers without accepting or activating a drink", async () => {

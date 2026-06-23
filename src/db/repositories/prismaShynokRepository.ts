@@ -184,7 +184,7 @@ export class PrismaShynokRepository implements ShynokRepository {
       }
 
       if (order.status === "completed") {
-        const replayDrink = parseDrinkActivationSnapshot(order.result) ?? await findDrinkState(tx, character.id);
+        const replayDrink = parseDrinkActivationSnapshot(order.result);
         return {
           state: "replayed",
           character: toCharacterRecord(character),
@@ -239,7 +239,7 @@ export class PrismaShynokRepository implements ShynokRepository {
       if (claimed.count !== 1) {
         const replay = mapDrinkOrder(await tx.korchmaDrinkOrder.findUnique({ where: { id: order.id } }));
         if (replay?.status === "completed") {
-          const replayDrink = parseDrinkActivationSnapshot(replay.result) ?? await findDrinkState(tx, character.id);
+          const replayDrink = parseDrinkActivationSnapshot(replay.result);
           return {
             state: "replayed",
             character: toCharacterRecord(character),
@@ -554,7 +554,7 @@ export class PrismaShynokRepository implements ShynokRepository {
         return {
           state: "replayed",
           offer,
-          drink: parseDrinkActivationSnapshot(offer.result) ?? await findDrinkState(tx, character.id)
+          drink: parseDrinkActivationSnapshot(offer.result)
         };
       }
 
