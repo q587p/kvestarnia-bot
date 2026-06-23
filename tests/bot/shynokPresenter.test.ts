@@ -3,12 +3,14 @@ import {
   presentShynokGate,
   presentShynokRoundConfirm,
   presentShynokRoundOfferResponse,
-  presentShynokRoundPreview
+  presentShynokRoundPreview,
+  presentShynokSaleSelection
 } from "../../src/bot/presenters/shynokPresenter";
 import type {
   ShynokRoundConfirmResult,
   ShynokRoundOfferRespondResult,
-  ShynokRoundPreviewResult
+  ShynokRoundPreviewResult,
+  ShynokSaleSelectionResult
 } from "../../src/services/shynokService";
 import { summarizeCharacter } from "../../src/domain/characters/characterSummary";
 import type { KorchmaRoundLeaderboard } from "../../src/db/repositories/korchmaRoundPurchaseRepository";
@@ -84,6 +86,39 @@ describe("shynokPresenter", () => {
     expect(html).toContain("Списано: <b>84 золота</b>.");
     expect(html).toContain("🏅 Рейтинг щедрості");
     expect(html).toContain("1. Мандрівник &lt;&amp;&gt; — 2 частування · 84 золота");
+  });
+
+  it("does not expose exact Mantok sale percentage split in the selection copy", () => {
+    const result: ShynokSaleSelectionResult = {
+      state: "selection",
+      character,
+      sale: {
+        id: "sale-1",
+        token: "12345678-1234-4234-9234-123456789abc",
+        characterId: "character-1",
+        status: "pending",
+        selection: [],
+        selectionFingerprint: "empty",
+        nominalValue: 100,
+        payoutGold: 42,
+        result: null,
+        expiresAt: new Date("2026-06-23T10:10:00.000Z"),
+        completedAt: null
+      },
+      items: [],
+      selectedCount: 0,
+      eligibleCount: 0,
+      nominalValue: 100,
+      payoutGold: 42,
+      page: 0,
+      pageCount: 1
+    };
+
+    const html = presentShynokSaleSelection(result);
+
+    expect(html).toContain("Корчмар платить корчмарську частку");
+    expect(html).not.toContain("42%");
+    expect(html).not.toContain("58%");
   });
 
   it("escapes round replacement preview drink names", () => {

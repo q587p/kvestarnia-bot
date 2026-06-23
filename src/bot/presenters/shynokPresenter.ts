@@ -219,7 +219,7 @@ export function presentShynokSaleSelection(result: ShynokSaleSelectionResult): s
     "💰 Оцінка манаток",
     presentCharacterHeader(result.character),
     "",
-    "Корчмар платить 42% від написаної вартости. Решта 58% іде на ризик, пил, полиці та дуже складну математику стійки.",
+    "Корчмар платить корчмарську частку від написаної вартости. Решта іде на ризик, пил, полиці та дуже складну математику стійки.",
     "",
     `Обрано: <b>${result.selectedCount}</b> із <b>${result.eligibleCount}</b> придатних.`,
     `Номінальна вартість: <b>${result.nominalValue} золота</b>.`,
