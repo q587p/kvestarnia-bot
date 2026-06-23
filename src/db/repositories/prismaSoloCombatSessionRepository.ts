@@ -21,6 +21,8 @@ import {
   parseMonsterAbilityRuntimeState
 } from "../../domain/combat";
 import type {
+  AdoptLegacySoloCombatSettlementInput,
+  AdoptLegacySoloCombatSettlementResult,
   ApplyTerminalResourcesInput,
   ApplyTerminalResourcesResult,
   ApplyTrainingCooldownInput,
@@ -942,6 +944,123 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     });
   }
 
+  async adoptLegacySettlementById(
+    sessionId: string,
+    input: AdoptLegacySoloCombatSettlementInput
+  ): Promise<AdoptLegacySoloCombatSettlementResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.soloCombatSession.findUnique({
+        where: {
+          id: sessionId
+        }
+      });
+
+      if (!current) {
+        return { outcome: "missing", session: null };
+      }
+
+      const state = parseCombatState(current.stateJson);
+
+      if (!state) {
+        return {
+          outcome: "missing-state",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      if (state.settlement?.status === "completed" || state.settlement?.status === "forfeited-by-remort") {
+        return {
+          outcome: "already-terminal-settlement",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      if (state.life && state.settlement) {
+        return {
+          outcome: "already-current",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      if (parseStatus(current.status) !== input.expectedStatus || state.turn !== input.expectedTurn) {
+        return {
+          outcome: "stale-status-turn",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      if (
+        (input.expectedSettlementVersion === null && state.settlement) ||
+        (typeof input.expectedSettlementVersion === "number" &&
+          state.settlement?.version !== input.expectedSettlementVersion)
+      ) {
+        return {
+          outcome: "stale-status-turn",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      const lease = await tx.activeCombatLease.findUnique({
+        where: {
+          characterId: current.characterId
+        },
+        select: {
+          kind: true,
+          referenceId: true
+        }
+      });
+
+      if (!lease || lease.kind !== "solo-combat" || lease.referenceId !== current.id) {
+        return {
+          outcome: "missing-mismatched-lease",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      const derivedLife = await deriveCombatLifeAtSessionStart(tx, current);
+      const currentRemortCount = await countCharacterRemorts(tx, current.characterId);
+
+      if (currentRemortCount !== derivedLife.remortCount) {
+        return {
+          outcome: "life-mismatch",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      const rawState = isRecord(current.stateJson)
+        ? current.stateJson
+        : state as unknown as Record<string, unknown>;
+      const nextState = {
+        ...rawState,
+        life: state.life ?? {
+          characterId: current.characterId,
+          remortCount: derivedLife.remortCount,
+          startedAt: current.createdAt.toISOString()
+        },
+        settlement: state.settlement ?? {
+          status: "pending",
+          version: 1
+        }
+      };
+
+      const updated = await tx.soloCombatSession.update({
+        where: {
+          id: current.id
+        },
+        data: {
+          stateJson: nextState as unknown as Prisma.InputJsonValue,
+          status: state.status,
+          turn: state.turn
+        }
+      });
+
+      return {
+        outcome: "adopted",
+        session: mapSoloCombatSessionRecord(updated)
+      };
+    });
+  }
+
   private async guardSettlementById(
     sessionId: string,
     target: "completed" | "forfeited",
@@ -1482,6 +1601,22 @@ async function currentLifeMatchesExpected(
   const currentRemortCount = await countCharacterRemorts(tx, record.characterId);
 
   return currentRemortCount === expected.life.remortCount;
+}
+
+async function deriveCombatLifeAtSessionStart(
+  tx: TxClient,
+  record: NonNullable<PrismaSoloCombatSessionRecord>
+): Promise<SoloCombatSessionLifeRecord> {
+  const remortCount = await tx.characterRemort.count({
+    where: {
+      characterId: record.characterId,
+      createdAt: {
+        lte: record.createdAt
+      }
+    }
+  });
+
+  return { remortCount };
 }
 
 function settlementCompletionPrerequisitesMet(

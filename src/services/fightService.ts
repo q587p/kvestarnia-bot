@@ -1240,9 +1240,10 @@ export class FightService {
     }
 
     const questProgress = await this.getThirteenSmallProblemsProgress(due.telegramUserId);
+    const dueSession = await this.adoptLegacyLeasedSettlementIfNeeded(due.telegramUserId, due);
     const refreshedSession = await this.advanceExpiredPersistentTurn(
       due.telegramUserId,
-      due,
+      dueSession,
       characterSummary,
       monster
     );
@@ -1323,7 +1324,7 @@ export class FightService {
       };
     }
 
-    const session = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, sessionId);
+    let session = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, sessionId);
 
     if (!session || isTrainingDoppelgangerMonsterId(session.monsterId)) {
       return {
@@ -1331,6 +1332,8 @@ export class FightService {
         character: characterSummary
       };
     }
+
+    session = await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, session);
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
     const monster = findPersistentFightMonster(session);
@@ -1822,7 +1825,7 @@ export class FightService {
     }
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
-    const session = await this.combatSessions.findByIdForTelegramUserId(
+    let session = await this.combatSessions.findByIdForTelegramUserId(
       telegramUserId,
       input.sessionId
     );
@@ -1840,6 +1843,8 @@ export class FightService {
         character: characterSummary
       };
     }
+
+    session = await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, session);
 
     if (session.status === "active") {
       const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
@@ -2403,6 +2408,7 @@ export class FightService {
     monster: MonsterContent | null,
     character: CharacterSummary
   ): Promise<PersistentFightReward | null> {
+    session = await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, session);
     const replay = buildPersistentFightRewardReplay(session);
 
     if (replay) {
@@ -2416,6 +2422,27 @@ export class FightService {
     const terminalStatus = session.state?.status ?? session.status;
     if (session.state?.settlement?.status === "forfeited-by-remort") {
       return null;
+    }
+
+    if (!session.state?.settlement) {
+      const action = await this.dailyActions.findForTelegramUser(telegramUserId, {
+        key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
+        localDate: session.id
+      });
+
+      return action
+        ? {
+            state: "already-claimed",
+            reward: {
+              xp: action.rewardXp,
+              gold: action.rewardGold,
+              localDate: session.id,
+              itemGrants: []
+            },
+            levelChange: null,
+            itemReplayUnavailable: true
+          }
+        : null;
     }
 
     const expectedLife = await this.resolveSessionExpectedLife(session);
@@ -2605,7 +2632,10 @@ export class FightService {
     }
 
     if (lookup.state === "active" || lookup.state === "terminal-pending") {
-      return { state: "session", session: lookup.session };
+      return {
+        state: "session",
+        session: await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, lookup.session)
+      };
     }
 
     if (lookup.state === "terminal-completed" || lookup.state === "terminal-forfeited") {
@@ -2617,12 +2647,46 @@ export class FightService {
     } else {
       const session = await this.combatSessions?.findActiveByTelegramUserId(telegramUserId);
 
-      return session ? { state: "session", session } : { state: "none" };
+      return session
+        ? {
+            state: "session",
+            session: await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, session)
+          }
+        : { state: "none" };
     }
 
     return attempts >= 1
       ? { state: "none" }
       : this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId, attempts + 1);
+  }
+
+  private async adoptLegacyLeasedSettlementIfNeeded(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord
+  ): Promise<SoloCombatSessionRecord> {
+    if (!this.combatSessions?.adoptLegacySettlementById || !needsLegacySettlementAdoption(session)) {
+      return session;
+    }
+
+    const adopted = await this.combatSessions.adoptLegacySettlementById(session.id, {
+      expectedStatus: session.status,
+      expectedTurn: session.state.turn,
+      expectedSettlementVersion: session.state.settlement?.version ?? null,
+      now: this.clock()
+    });
+
+    if (adopted.outcome === "life-mismatch") {
+      const expired = await this.combatSessions.markStatusById(session.id, "expired");
+      return expired ?? adopted.session ?? session;
+    }
+
+    if (adopted.session) {
+      return adopted.session;
+    }
+
+    const reloaded = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, session.id);
+
+    return reloaded ?? session;
   }
 
   private async persistCharacterResourcesFromSession(
@@ -2678,7 +2742,7 @@ export class FightService {
     }
 
     if (!session.state.settlement) {
-      return { outcome: "ready", session };
+      return { outcome: "blocked", session, reason: "unsupported" };
     }
 
     if (session.state.settlement?.resources?.status === "applied") {
@@ -2824,15 +2888,8 @@ export class FightService {
     }
 
     if (!session.state.settlement) {
-      const stored = reward
-        ? await this.combatSessions?.recordRewardById(session.id, {
-            ...reward,
-            claimedAt: this.clock()
-          })
-        : session;
-      const updated = stored ?? session;
-      await this.combatAnalytics?.recordTerminalSession(updated);
-      return { outcome: "completed", session: updated };
+      await this.combatAnalytics?.recordTerminalSession(session);
+      return { outcome: "already-completed", session };
     }
 
     if (session.state.settlement?.status === "forfeited-by-remort") {
@@ -3434,6 +3491,12 @@ function buildHeroCombatStats(
 
 function isSettlementCompletionSuccess(outcome: SettlementCompletionFlowResult["outcome"]): boolean {
   return outcome === "completed" || outcome === "already-completed";
+}
+
+function needsLegacySettlementAdoption(
+  session: SoloCombatSessionRecord
+): session is SoloCombatSessionRecord & { state: CombatState } {
+  return Boolean(session.state && (!session.state.life || !session.state.settlement));
 }
 
 function isCurrentPendingPassageEncounterRules(encounter: PendingPassageEncounterRecord): boolean {

@@ -25,7 +25,8 @@ import {
   resetCombatTimeout,
   resolveCombatTurn,
   startCombat,
-  type CombatActionType
+  type CombatActionType,
+  type CombatState
 } from "../domain/combat";
 import {
   buildTrainingDoppelgangerCombatStatsFromState,
@@ -374,6 +375,20 @@ export class TrainingDoppelgangerService {
     });
 
     if (!session) {
+      const leased = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
+
+      if (leased.state === "session") {
+        if (isTrainingDoppelgangerMonsterId(leased.session.monsterId)) {
+          return this.getExistingTrainingSession(telegramUserId, character, leased.session);
+        }
+
+        return { state: "another-fight-active", character };
+      }
+
+      if (leased.state === "unsupported") {
+        return { state: "another-fight-active", character };
+      }
+
       return { state: "no-character" };
     }
 
@@ -420,9 +435,10 @@ export class TrainingDoppelgangerService {
 
     const equippedItems = await this.getEquippedItemContents(due.telegramUserId);
     const character = summarizeCharacter(current.character, { equippedItems });
+    const dueSession = await this.adoptLegacyLeasedSettlementIfNeeded(due.telegramUserId, due);
     const refreshedSession = await this.advanceExpiredTrainingTurn(
       due.telegramUserId,
-      due,
+      dueSession,
       character
     );
 
@@ -498,7 +514,7 @@ export class TrainingDoppelgangerService {
       return { state: "level-gated", character, minLevel: TRAINING_DOPPELGANGER_MIN_LEVEL };
     }
 
-    const session = await this.combatSessions.findByIdForTelegramUserId(
+    let session = await this.combatSessions.findByIdForTelegramUserId(
       telegramUserId,
       input.sessionId
     );
@@ -506,6 +522,8 @@ export class TrainingDoppelgangerService {
     if (!session || !isTrainingDoppelgangerMonsterId(session.monsterId)) {
       return { state: "not-found", character };
     }
+
+    session = await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, session);
 
     const doppelganger = buildDoppelgangerCopy(character, session.state);
 
@@ -536,13 +554,14 @@ export class TrainingDoppelgangerService {
         state: expiredState,
         status: expiredState.status
       });
+      const terminalSession = expired ?? { ...session, state: expiredState, status: "expired" };
 
       return {
         state: "terminal",
         character,
         doppelganger,
-        session: expired ?? { ...session, state: expiredState, status: "expired" },
-        reward: null
+        session: terminalSession,
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, terminalSession)
       };
     }
 
@@ -846,7 +865,10 @@ export class TrainingDoppelgangerService {
     }
 
     if (lookup.state === "active" || lookup.state === "terminal-pending") {
-      return { state: "session", session: lookup.session };
+      return {
+        state: "session",
+        session: await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, lookup.session)
+      };
     }
 
     if (lookup.state === "terminal-completed" || lookup.state === "terminal-forfeited") {
@@ -858,12 +880,44 @@ export class TrainingDoppelgangerService {
     } else {
       const session = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
 
-      return session ? { state: "session", session } : { state: "none" };
+      return session
+        ? {
+            state: "session",
+            session: await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, session)
+          }
+        : { state: "none" };
     }
 
     return attempts >= 1
       ? { state: "none" }
       : this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId, attempts + 1);
+  }
+
+  private async adoptLegacyLeasedSettlementIfNeeded(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord
+  ): Promise<SoloCombatSessionRecord> {
+    if (!this.combatSessions.adoptLegacySettlementById || !needsLegacySettlementAdoption(session)) {
+      return session;
+    }
+
+    const adopted = await this.combatSessions.adoptLegacySettlementById(session.id, {
+      expectedStatus: session.status,
+      expectedTurn: session.state.turn,
+      expectedSettlementVersion: session.state.settlement?.version ?? null,
+      now: this.clock()
+    });
+
+    if (adopted.outcome === "life-mismatch") {
+      const expired = await this.combatSessions.markStatusById(session.id, "expired");
+      return expired ?? adopted.session ?? session;
+    }
+
+    if (adopted.session) {
+      return adopted.session;
+    }
+
+    return await this.combatSessions.findByIdForTelegramUserId(telegramUserId, session.id) ?? session;
   }
 
   private async getExistingTrainingSession(
@@ -907,7 +961,7 @@ export class TrainingDoppelgangerService {
         character,
         doppelganger: buildDoppelgangerCopy(character, session.state),
         session: terminalSession,
-        reward: null
+        reward: await this.claimOrRecoverTerminalReward(telegramUserId, character, terminalSession)
       };
     }
 
@@ -940,9 +994,14 @@ export class TrainingDoppelgangerService {
     character: CharacterSummary,
     session: SoloCombatSessionRecord
   ): Promise<TrainingDoppelgangerRewardClaim | null> {
+    session = await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, session);
     const terminalStatus = session.state?.status ?? session.status;
     if (session.state?.settlement?.status === "forfeited-by-remort") {
       return null;
+    }
+
+    if (!session.state?.settlement) {
+      return this.getHistoricalStoredRewardReplay(telegramUserId, session);
     }
 
     const expectedLife = await this.resolveSessionExpectedLife(session);
@@ -1154,6 +1213,36 @@ export class TrainingDoppelgangerService {
     };
   }
 
+  private async getHistoricalStoredRewardReplay(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord
+  ): Promise<TrainingDoppelgangerRewardClaim | null> {
+    const replay = buildRewardReplay(session);
+
+    if (replay) {
+      return replay;
+    }
+
+    const action = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: TRAINING_DOPPELGANGER_REWARD_KEY,
+      localDate: session.id
+    });
+
+    return action
+      ? {
+          state: "already-claimed",
+          reward: {
+            xp: action.rewardXp,
+            gold: 0,
+            localDate: action.localDate
+          },
+          availableAt: null,
+          now: this.clock(),
+          levelChange: null
+        }
+      : null;
+  }
+
   private async ensureTrainingRecoveryCooldown(
     telegramUserId: bigint,
     character: CharacterSummary,
@@ -1306,7 +1395,7 @@ export class TrainingDoppelgangerService {
     }
 
     if (!session.state.settlement) {
-      return { outcome: "ready", session };
+      return { outcome: "blocked", session, reason: "unsupported" };
     }
 
     if (session.state.settlement?.resources?.status === "applied") {
@@ -1452,15 +1541,8 @@ export class TrainingDoppelgangerService {
     }
 
     if (!session.state.settlement) {
-      const stored = reward
-        ? await this.combatSessions.recordRewardById(session.id, {
-            ...reward,
-            claimedAt: this.clock()
-          })
-        : session;
-      const updated = stored ?? session;
-      await this.combatAnalytics?.recordTerminalSession(updated);
-      return { outcome: "completed", session: updated };
+      await this.combatAnalytics?.recordTerminalSession(session);
+      return { outcome: "already-completed", session };
     }
 
     if (session.state.settlement?.status === "forfeited-by-remort") {
@@ -1640,6 +1722,12 @@ function isTrainingSettlementCompletionSuccess(
   outcome: TrainingSettlementCompletionFlowResult["outcome"]
 ): boolean {
   return outcome === "completed" || outcome === "already-completed";
+}
+
+function needsLegacySettlementAdoption(
+  session: SoloCombatSessionRecord
+): session is SoloCombatSessionRecord & { state: CombatState } {
+  return Boolean(session.state && (!session.state.life || !session.state.settlement));
 }
 
 function getTrainingSessionExpiry(now: Date): Date {

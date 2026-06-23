@@ -211,6 +211,190 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     })).resolves.toBe(1);
   });
 
+  it("atomically adopts an exact leased legacy active session without dropping state fields", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-legacy-adopt",
+      characterId: "character-legacy-adopt",
+      telegramUserId: 4294n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeLegacySoloSessionData({
+        id: "legacy-adopt-session",
+        characterId: "character-legacy-adopt",
+        monsterId: "monster.deadline-spider",
+        status: "active",
+        source: "normal",
+        completedAt: new Date("2026-06-22T10:40:00.000Z"),
+        updatedAt: new Date("2026-06-22T10:40:00.000Z")
+      })
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-legacy-adopt",
+        characterId: "character-legacy-adopt",
+        kind: "solo-combat",
+        referenceId: "legacy-adopt-session"
+      }
+    });
+
+    const adopted = await repository.adoptLegacySettlementById("legacy-adopt-session", {
+      expectedStatus: "active",
+      expectedTurn: 1,
+      expectedSettlementVersion: null,
+      now: new Date("2026-06-22T10:41:00.000Z")
+    });
+
+    expect(adopted.outcome).toBe("adopted");
+    expect(adopted.session?.state).toMatchObject({
+      life: {
+        characterId: "character-legacy-adopt",
+        remortCount: 0,
+        startedAt: "2026-06-22T10:40:00.000Z"
+      },
+      settlement: {
+        status: "pending",
+        version: 1
+      }
+    });
+
+    const stored = await prisma.soloCombatSession.findUniqueOrThrow({
+      where: {
+        id: "legacy-adopt-session"
+      }
+    });
+    expect(stored.stateJson).toMatchObject({
+      legacyMarker: "preserve-me",
+      settlement: {
+        status: "pending",
+        version: 1
+      }
+    });
+  });
+
+  it("does not downgrade completed settlement during legacy adoption", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-legacy-terminal-adopt",
+      characterId: "character-legacy-terminal-adopt",
+      telegramUserId: 4295n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeSoloSessionData({
+        id: "legacy-completed-adopt-session",
+        characterId: "character-legacy-terminal-adopt",
+        monsterId: "monster.deadline-spider",
+        status: "won",
+        source: "normal",
+        completedAt: new Date("2026-06-22T10:45:00.000Z"),
+        updatedAt: new Date("2026-06-22T10:45:00.000Z"),
+        settlementStatus: "completed"
+      })
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-legacy-completed-adopt",
+        characterId: "character-legacy-terminal-adopt",
+        kind: "solo-combat",
+        referenceId: "legacy-completed-adopt-session"
+      }
+    });
+
+    const adopted = await repository.adoptLegacySettlementById("legacy-completed-adopt-session", {
+      expectedStatus: "won",
+      expectedTurn: 1,
+      expectedSettlementVersion: 1,
+      now: new Date("2026-06-22T10:46:00.000Z")
+    });
+
+    expect(adopted.outcome).toBe("already-terminal-settlement");
+    expect(adopted.session?.state?.settlement?.status).toBe("completed");
+  });
+
+  it("refuses legacy adoption without an exact solo-combat lease", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-legacy-no-lease",
+      characterId: "character-legacy-no-lease",
+      telegramUserId: 4296n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeLegacySoloSessionData({
+        id: "legacy-no-lease-session",
+        characterId: "character-legacy-no-lease",
+        monsterId: "monster.deadline-spider",
+        status: "won",
+        source: "normal",
+        completedAt: new Date("2026-06-22T10:50:00.000Z"),
+        updatedAt: new Date("2026-06-22T10:50:00.000Z")
+      })
+    });
+
+    const adopted = await repository.adoptLegacySettlementById("legacy-no-lease-session", {
+      expectedStatus: "won",
+      expectedTurn: 1,
+      expectedSettlementVersion: null,
+      now: new Date("2026-06-22T10:51:00.000Z")
+    });
+
+    expect(adopted.outcome).toBe("missing-mismatched-lease");
+
+    const stored = await prisma.soloCombatSession.findUniqueOrThrow({
+      where: {
+        id: "legacy-no-lease-session"
+      }
+    });
+    expect(stored.stateJson).not.toHaveProperty("settlement");
+  });
+
+  it("refuses legacy adoption after a newer remort life wins", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-legacy-life-mismatch",
+      characterId: "character-legacy-life-mismatch",
+      telegramUserId: 4297n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeLegacySoloSessionData({
+        id: "legacy-life-mismatch-session",
+        characterId: "character-legacy-life-mismatch",
+        monsterId: "monster.deadline-spider",
+        status: "active",
+        source: "normal",
+        completedAt: new Date("2026-06-22T10:55:00.000Z"),
+        updatedAt: new Date("2026-06-22T10:55:00.000Z")
+      })
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-legacy-life-mismatch",
+        characterId: "character-legacy-life-mismatch",
+        kind: "solo-combat",
+        referenceId: "legacy-life-mismatch-session"
+      }
+    });
+    await prisma.characterRemort.create({
+      data: {
+        id: "remort-legacy-life-mismatch",
+        characterId: "character-legacy-life-mismatch",
+        token: "token-legacy-life-mismatch",
+        remortNumber: 1,
+        previousLevel: 6,
+        previousXp: 110,
+        previousGold: 0,
+        displayNameSnapshot: "Legacy",
+        preservedPayloadJson: {},
+        createdAt: new Date("2026-06-22T10:56:00.000Z")
+      }
+    });
+
+    const adopted = await repository.adoptLegacySettlementById("legacy-life-mismatch-session", {
+      expectedStatus: "active",
+      expectedTurn: 1,
+      expectedSettlementVersion: null,
+      now: new Date("2026-06-22T10:57:00.000Z")
+    });
+
+    expect(adopted.outcome).toBe("life-mismatch");
+    expect(adopted.session?.state?.settlement).toBeUndefined();
+  });
+
   it("propagates duplicate session-id unique conflicts instead of treating them as lease races", async () => {
     await seedCharacter(prisma, {
       userId: "user-duplicate-session-id",
@@ -1075,6 +1259,36 @@ function makeSoloSessionData(input: {
           }
         }
       : {}),
+    ...(input.status === "active" ? {} : { completedAt: input.completedAt.toISOString() })
+  };
+
+  return {
+    id: input.id,
+    characterId: input.characterId,
+    monsterId: input.monsterId,
+    stateJson: state,
+    status: input.status,
+    turn: 1,
+    expiresAt: new Date(input.updatedAt.getTime() + 30 * 60_000),
+    createdAt: input.completedAt,
+    updatedAt: input.updatedAt
+  };
+}
+
+function makeLegacySoloSessionData(input: {
+  id: string;
+  characterId: string;
+  monsterId: string;
+  status: "active" | "won" | "lost" | "fled" | "expired";
+  source: NonNullable<CombatState["source"]>;
+  completedAt: Date;
+  updatedAt: Date;
+}) {
+  const state = {
+    ...makeCombatState(input.id, input.monsterId),
+    status: input.status,
+    source: input.source,
+    legacyMarker: "preserve-me",
     ...(input.status === "active" ? {} : { completedAt: input.completedAt.toISOString() })
   };
 

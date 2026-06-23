@@ -172,6 +172,28 @@ export interface ApplyTrainingCooldownResult {
   availableAt: Date | null;
 }
 
+export type LegacySoloCombatSettlementAdoptionOutcome =
+  | "adopted"
+  | "already-current"
+  | "already-terminal-settlement"
+  | "life-mismatch"
+  | "stale-status-turn"
+  | "missing-state"
+  | "missing-mismatched-lease"
+  | "missing";
+
+export interface AdoptLegacySoloCombatSettlementInput {
+  expectedStatus: SoloCombatSessionStatus;
+  expectedTurn: number;
+  expectedSettlementVersion?: number | null;
+  now: Date;
+}
+
+export interface AdoptLegacySoloCombatSettlementResult {
+  outcome: LegacySoloCombatSettlementAdoptionOutcome;
+  session: SoloCombatSessionRecord | null;
+}
+
 export interface SoloCombatSessionRepository {
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<SoloCombatSessionRecord | null>;
   findLeasedByTelegramUserId?(telegramUserId: bigint): Promise<SoloCombatLeaseLookupResult>;
@@ -229,6 +251,10 @@ export interface SoloCombatSessionRepository {
     sessionId: string,
     input: ApplyTrainingCooldownInput
   ): Promise<ApplyTrainingCooldownResult>;
+  adoptLegacySettlementById?(
+    sessionId: string,
+    input: AdoptLegacySoloCombatSettlementInput
+  ): Promise<AdoptLegacySoloCombatSettlementResult>;
   forfeitSettlementById?(
     sessionId: string,
     input: ForfeitSoloCombatSettlementInput

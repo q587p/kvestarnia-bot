@@ -5164,11 +5164,17 @@ function makeTerminalSession(
   id = `session-${status}`,
   characterId = "character-42",
   monsterId = "monster.deadline-spider",
-  options: { createdAt?: Date; updatedAt?: Date; completedAt?: Date | null } = {}
+  options: {
+    createdAt?: Date;
+    updatedAt?: Date;
+    completedAt?: Date | null;
+    settlement?: "pending" | "completed" | "forfeited-by-remort" | null;
+  } = {}
 ): SoloCombatSessionRecord {
   const createdAt = options.createdAt ?? fixedClock();
   const completedAt = options.completedAt === undefined ? (options.updatedAt ?? createdAt) : options.completedAt;
   const updatedAt = options.updatedAt ?? completedAt ?? createdAt;
+  const settlement = options.settlement === undefined ? "pending" : options.settlement;
 
   return {
     id,
@@ -5179,6 +5185,25 @@ function makeTerminalSession(
     state: {
       id,
       ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
+      life: {
+        characterId,
+        remortCount: 0,
+        startedAt: createdAt.toISOString()
+      },
+      ...(settlement
+        ? {
+            settlement: {
+              status: settlement,
+              version: 1,
+              ...(settlement === "pending"
+                ? {}
+                : {
+                    settledAt: updatedAt.toISOString(),
+                    reason: settlement === "completed" ? "terminal" : "remort"
+                  })
+            }
+          }
+        : {}),
       turn: 2,
       status,
       hero: {
