@@ -2751,6 +2751,100 @@ describe("scene callback HTML options", () => {
     expect(fightTexts.some((text) => text.includes("Павук дедлайнів") && text.includes("7/12"))).toBe(true);
   });
 
+  it("keeps rapid duplicate passage attack taps on one active session", async () => {
+    const activeSession = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
+    const monster = {
+      id: "monster.deadline-spider",
+      name: "First Passage Monster",
+      description: "Started from the original passage token.",
+      level: 2,
+      tags: ["test"]
+    };
+    const getFightOverviewForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({
+        state: "persistent-ready" as const,
+        character: {
+          ...character,
+          level: 3
+        },
+        questProgress: null
+      })
+      .mockResolvedValueOnce({
+        state: "persistent-active" as const,
+        started: true,
+        character: {
+          ...character,
+          level: 3
+        },
+        session: activeSession,
+        monster,
+        questProgress: null
+      })
+      .mockResolvedValueOnce({
+        state: "persistent-ready" as const,
+        character: {
+          ...character,
+          level: 3
+        },
+        questProgress: null
+      })
+      .mockResolvedValue({
+        state: "persistent-active" as const,
+        started: false,
+        character: {
+          ...character,
+          level: 3
+        },
+        session: activeSession,
+        monster,
+        questProgress: null
+      });
+    const createdSessionIds: string[] = [];
+    const attackPersistentPassageEncounterForTelegramUser = vi.fn(() => {
+      createdSessionIds.push(activeSession.id);
+      return Promise.resolve({
+        state: "persistent-active" as const,
+        started: false,
+        character: {
+          ...character,
+          level: 3
+        },
+        session: activeSession,
+        monster,
+        questProgress: null
+      });
+    });
+
+    const calls = await captureRepeatedApiCalls(
+      ["v1:fight:pass:deep-straight:token13", "v1:fight:pass:deep-straight:token13"],
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser,
+          attackPersistentPassageEncounterForTelegramUser,
+          recordPersistentFightMessageReference: () => Promise.resolve()
+        },
+        presence: {
+          markAction: () => Promise.resolve(),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.deep.level1.straight",
+              locationName: "Straight passage",
+              insideKorchma: true
+            })
+        }
+      })
+    );
+
+    expect(attackPersistentPassageEncounterForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(attackPersistentPassageEncounterForTelegramUser).toHaveBeenNthCalledWith(1, 42n, "token13", {
+      callbackOriginLocationId: "location.korchma.deep.level1.straight",
+      currentLocationId: "location.korchma.deep.level1.straight"
+    });
+    expect(createdSessionIds).toEqual([activeSession.id]);
+    expect(calls.some((call) => call.method === "sendMessage" || call.method === "editMessageText")).toBe(true);
+  });
+
   it("refreshes the current passage instead of replaying a duplicate stale passage attack", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const activeSession = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
