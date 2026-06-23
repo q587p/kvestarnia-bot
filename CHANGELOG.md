@@ -48,7 +48,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Unchanged
 - Yeger targeted encounters, adventure handoff fights, training doppelgangers, starter fights, monster ability loadouts, timeout auto-defend and reward/Yeger progression rules are unchanged.
 
-## [0.1.22] - 12026-06-21 - Monster Abilities, Titles & Battle Journal
+## [0.1.22] - 12026-06-22 - Monster Abilities, Titles & Battle Journal
 
 ### Added
 - Added typed monster ability and combat profile catalogs: 132 stable monster ability definitions and 93 monster loadout profiles are now validated against the current roster.
