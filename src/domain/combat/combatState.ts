@@ -165,9 +165,18 @@ export interface CombatState {
   context?: MonsterContextSnapshotV1;
   barks?: CombatBarkStateV1;
   analytics?: CombatAnalyticsStateV1;
+  drinkModifiers?: DrinkCombatModifiers;
   monsterRuntime?: MonsterAbilityRuntimeStateV1;
   lastTurn?: CombatTurnSummary;
   turnLog?: CombatTurnLogEntry[];
+}
+
+export interface DrinkCombatModifiers {
+  drinkKey?: string;
+  sourceId?: string;
+  accuracyPenaltyPp?: number;
+  outgoingDamageMultiplierBp?: number;
+  incomingDamageMultiplierBp?: number;
 }
 
 export interface CombatLifeState {
@@ -352,6 +361,7 @@ export function cloneCombatState(state: CombatState): CombatState {
     ...(state.context ? { context: cloneMonsterContextSnapshot(state.context) } : {}),
     ...(state.barks ? { barks: cloneCombatBarkState(state.barks) } : {}),
     ...(state.analytics ? { analytics: cloneCombatAnalyticsState(state.analytics) } : {}),
+    ...(state.drinkModifiers ? { drinkModifiers: { ...state.drinkModifiers } } : {}),
     ...(monsterRuntime ? { monsterRuntime } : {}),
     ...(state.lastTurn
       ? {

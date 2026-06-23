@@ -1,9 +1,11 @@
 # Шинок: напої та продаж манаток
 
-**Статус:** затверджена продуктова специфікація для наступного версійного завдання
+**Статус:** реалізовано у `0.1.24`; лишається канонічною специфікацією для follow-up QA й balance review
 **Дата рішення:** 12026-06-22
 **Рекомендований реліз:** `0.1.24`
 **Головна поверхня:** `🍻 Шинок` у Квестарні
+
+**Implementation note:** runtime slice shipped with a single current drink slot, server-owned self/round/sale tokens, opt-in round offers, transaction-local sale recomputation and no PvP drink power. Coffee, food buffs, item instances, buyback, trading and a broad shop remain out of scope.
 
 ## 1. Мета
 

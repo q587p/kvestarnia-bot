@@ -1,0 +1,46 @@
+import { describe, expect, it } from "vitest";
+import {
+  applyDrinkDamageMultiplier,
+  buildDrinkEffect,
+  getShynokDrinkDefinition,
+  SHYNOK_DRINKS
+} from "../../src/domain/shynokDrinks";
+
+describe("Shynok drinks", () => {
+  it("defines the approved drink catalog", () => {
+    expect(SHYNOK_DRINKS.map((drink) => [drink.key, drink.priceGold, drink.durationMinutes])).toEqual([
+      ["drink.thyme-tea", 17, 42],
+      ["drink.simple-beer", 13, 23],
+      ["drink.fine-beer", 42, 42],
+      ["drink.pepper-vodka", 42, 23]
+    ]);
+    expect(getShynokDrinkDefinition("drink.simple-beer")).toMatchObject({
+      recoveryMultiplierBp: 12500,
+      accuracyPenaltyPp: 5
+    });
+    expect(getShynokDrinkDefinition("drink.pepper-vodka")).toMatchObject({
+      phase: "queued",
+      outgoingDamageMultiplierBp: 11300,
+      incomingDamageMultiplierBp: 11300
+    });
+  });
+
+  it("builds one timed or queued effect with server time", () => {
+    const startedAt = new Date("2026-06-23T10:00:00.000Z");
+
+    expect(buildDrinkEffect({ drinkKey: "drink.fine-beer", startedAt })).toMatchObject({
+      phase: "timed",
+      expiresAt: new Date("2026-06-23T10:42:00.000Z")
+    });
+    expect(buildDrinkEffect({ drinkKey: "drink.pepper-vodka", startedAt })).toMatchObject({
+      phase: "queued",
+      expiresAt: new Date("2026-06-23T10:23:00.000Z")
+    });
+  });
+
+  it("uses floor 113 percent damage with a minimum of one for positive damage", () => {
+    expect(applyDrinkDamageMultiplier(10, 11300)).toBe(11);
+    expect(applyDrinkDamageMultiplier(1, 11300)).toBe(1);
+    expect(applyDrinkDamageMultiplier(0, 11300)).toBe(0);
+  });
+});

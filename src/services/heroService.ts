@@ -2,6 +2,7 @@ import type { CharacterRepository } from "../db/repositories/characterRepository
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import type { InventoryRepository } from "../db/repositories/inventoryRepository";
 import type { RemortRepository } from "../db/repositories/remortRepository";
+import type { ShynokRepository } from "../db/repositories/shynokRepository";
 import type { CharacterSummary } from "../domain/characters/characterSummary";
 import { systemClock, type Clock } from "../shared/time";
 import { summarizeAndSyncCharacterResources } from "./characterResourceService";
@@ -19,13 +20,25 @@ export type HeroLookupResult =
     };
 
 export class HeroService {
+  private readonly shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser"> | undefined;
+  private readonly clock: Clock;
+
   constructor(
     private readonly characters: CharacterRepository,
     private readonly inventory: InventoryRepository,
     private readonly equipment?: EquipmentRepository,
     private readonly remorts?: Pick<RemortRepository, "countByTelegramUserId">,
-    private readonly clock: Clock = systemClock
-  ) {}
+    shynokOrClock?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser"> | Clock,
+    clock: Clock = systemClock
+  ) {
+    if (typeof shynokOrClock === "function") {
+      this.clock = shynokOrClock;
+      this.shynok = undefined;
+    } else {
+      this.shynok = shynokOrClock;
+      this.clock = clock;
+    }
+  }
 
   async findByTelegramUserId(telegramUserId: bigint): Promise<HeroLookupResult> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
@@ -34,10 +47,12 @@ export class HeroService {
       return { state: "no-character" };
     }
 
-    const [inventoryRows, equipmentSnapshot, remortCount] = await Promise.all([
+    const now = this.clock();
+    const [inventoryRows, equipmentSnapshot, remortCount, activeDrink] = await Promise.all([
       this.inventory.listByTelegramUserId(telegramUserId),
       this.equipment?.listByTelegramUserId(telegramUserId) ?? Promise.resolve(null),
-      this.remorts?.countByTelegramUserId(telegramUserId) ?? Promise.resolve(0)
+      this.remorts?.countByTelegramUserId(telegramUserId) ?? Promise.resolve(0),
+      this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now) ?? Promise.resolve(null)
     ]);
 
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
@@ -47,7 +62,16 @@ export class HeroService {
       character,
       equippedItems,
       remortCount,
-      now: this.clock()
+      now,
+      ...(activeDrink?.phase === "timed"
+        ? {
+            multiplierWindow: {
+              startsAt: activeDrink.startedAt,
+              expiresAt: activeDrink.expiresAt,
+              multiplierBp: getDrinkRecoveryMultiplier(activeDrink.drinkKey)
+            }
+          }
+        : {})
     });
 
     return {
@@ -58,5 +82,18 @@ export class HeroService {
         ? { recoveryNotice: resourceAware.recoveryNotice }
         : {})
     };
+  }
+}
+
+function getDrinkRecoveryMultiplier(drinkKey: string): number {
+  switch (drinkKey) {
+    case "drink.thyme-tea":
+      return 11300;
+    case "drink.simple-beer":
+      return 12500;
+    case "drink.fine-beer":
+      return 15000;
+    default:
+      return 10000;
   }
 }

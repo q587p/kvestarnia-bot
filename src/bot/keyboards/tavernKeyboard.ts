@@ -5,6 +5,11 @@ import { makeMemorialRemortCallbackData } from "../callbacks/memorialCallbackDat
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
+import {
+  makeShynokDrinksCallbackData,
+  makeShynokRoundPreviewCallbackData,
+  makeShynokSaleOpenCallbackData
+} from "../callbacks/shynokCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import { makeDuelNewCallbackData, makeDuelNewTurnBasedCallbackData } from "../callbacks/duelCallbackData";
 import { makeTrainingDoppelgangerCallbackData } from "../callbacks/trainingDoppelgangerCallbackData";
@@ -112,7 +117,14 @@ export function buildKorchmaBarKeyboard(
     problemQuestAction?: "turn-in" | "take" | "next";
   } = {}
 ): InlineKeyboard {
-  const keyboard = new InlineKeyboard().text("🍻 Всім пива", makeTavernCallbackData("round")).row();
+  const keyboard = new InlineKeyboard()
+    .text("🍹 Напої для себе", makeShynokDrinksCallbackData())
+    .row()
+    .text("🍺 Просте всім", makeShynokRoundPreviewCallbackData("simple"))
+    .text("🍻 Якісне всім", makeShynokRoundPreviewCallbackData("fine"))
+    .row()
+    .text("💰 Продати манатки", makeShynokSaleOpenCallbackData())
+    .row();
 
   if (options.problemQuestAction === "turn-in") {
     keyboard.text("📋 Здати справу", makeQuestCallbackData("problem")).row();

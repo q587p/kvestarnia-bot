@@ -8,7 +8,7 @@ Keep this file compact. Target: under 250 lines.
 - Player-facing name: `Квестарня`.
 - Technical slug/package/repo prefix: `kvestarnia`.
 - Bot username target: `@kvestarnia_bot`.
-- Current package version in this repository snapshot: `0.1.23`.
+- Current package version in this repository snapshot: `0.1.24`.
 
 ## Language split
 
@@ -136,6 +136,7 @@ For Telegram/gameplay changes, always consider:
 
 - `0.1.23` terminal settlement follow-up: persistent ordinary/training combat JSON freezes a combat life remort count and durable settlement state (`pending`, `completed`, `forfeited-by-remort`). Terminal sessions keep the solo-combat lease until reward/resource/cooldown settlement completes or remort forfeits them; legacy no-life sessions derive expected life from `session.createdAt` versus the remort ledger so stale recovery cannot mutate a newer remort life. New ordinary/passage/Adventure/training starts first follow the active solo-combat lease, recover leased terminal pending sessions, clear exact supported stale completed/forfeited/missing leases, preserve unsupported lease kinds, complete/forfeit settlement through repository guards, and exclude forfeited won sessions from problem-chain/Yeger victory progress while counting completed and valid legacy wins.
 - `0.1.23` combat settlement final hardening: ordinary/training settlement JSON also records durable `resources` and `training` substeps, so crash recovery can replay completion without double-spending HP/mana recovery anchors or extending a training cooldown. Training XP-committed sessions repair the exact missing cooldown before completion; cooldown-committed sessions replay without extension. Exact leased legacy solo/training sessions from the previous deployment are atomically adopted into derived life plus pending settlement metadata before turn, timeout, hard-expiry, resource, reward or cooldown mutation; historical no-lease legacy records remain replay-only and cannot claim fresh rewards. Unsupported active combat leases block ordinary/training/Adventure starts instead of being ignored, terminal pending leases remain recoverable after wall-clock expiry, and duplicate session-id conflicts no longer masquerade as active-lease recovery.
+- `0.1.24` Shynok drinks and manatka sales: Shynok now has one current drink slot with replay-safe pending orders for tea, simple beer, fine beer and pepper vodka. Tea/beer segment passive HP/mana recovery with forward-only multipliers; beer accuracy penalties freeze into eligible persistent solo PvE combat state, and queued pepper vodka is consumed once at eligible PvE fight start, freezing outgoing/incoming damage multipliers. PvP, starter and training fights ignore drink power. `Всім пива` keeps the Barrel-gated generosity purchase log but now creates frozen-snapshot opt-in recipient offers with accept/decline/expiry and dynamic simple/fine prices. `💰 Продати манатки` creates server-owned sale drafts with one/several/all eligible-unit selection, basket-level 42% payout, transaction-local stale checks against inventory/equipment/reservations/content and completed replay. New persistence lives in `CharacterDrinkState`, `KorchmaDrinkOrder`, `KorchmaRoundRecipient`, extended `KorchmaRoundPurchase` and `KorchmaMantokSale`.
 
 ## Current product direction
 

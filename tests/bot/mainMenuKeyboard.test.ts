@@ -218,20 +218,32 @@ describe("main menu and scene keyboards", () => {
       "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard())).toEqual([
-      "🍻 Всім пива",
+      "🍹 Напої для себе",
+      "🍺 Просте всім",
+      "🍻 Якісне всім",
+      "💰 Продати манатки",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaBarKeyboard())).toEqual([
-      "v1:tavern:round",
+      "v1:sh:dr",
+      "v1:sh:rp:simple",
+      "v1:sh:rp:fine",
+      "v1:sh:so",
       "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ includeBottleTurnIn: true }))).toEqual([
-      "🍻 Всім пива",
+      "🍹 Напої для себе",
+      "🍺 Просте всім",
+      "🍻 Якісне всім",
+      "💰 Продати манатки",
       "🍾 Здати пляшку",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaBarKeyboard({ includeBottleTurnIn: true }))).toEqual([
-      "v1:tavern:round",
+      "v1:sh:dr",
+      "v1:sh:rp:simple",
+      "v1:sh:rp:fine",
+      "v1:sh:so",
       "v1:cellar:grownup-turn-in",
       "v1:place:hall"
     ]);

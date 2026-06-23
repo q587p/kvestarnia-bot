@@ -7,6 +7,30 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.24] - 12026-06-23 - Shynok Drinks and Mantok Sales
+
+### Added
+- Added Shynok self-drinks: `drink.thyme-tea` for 17 gold and 42 minutes of 1.13x out-of-combat recovery, `drink.simple-beer` for 13 gold and 23 minutes of 1.25x recovery with -5 pp PvE accuracy, `drink.fine-beer` for 42 gold and 42 minutes of 1.50x recovery with -10 pp PvE accuracy, and `drink.pepper-vodka` for 42 gold as a queued 23-minute next-eligible-PvE-fight modifier with 1.13x outgoing and incoming damage.
+- Added one current drink slot per character with server-owned pending order tokens, explicit replacement preview, atomic confirm, lazy expiry and replay-safe completed callbacks.
+- Added Shynok round-recipient offers for `Всім пива`: confirmed rounds store a frozen recipient snapshot, exact dynamic price, offer expiry, per-recipient accept/decline status and aggregate telemetry while preserving the existing generosity leaderboard purchase row.
+- Added `💰 Продати манатки` in the Shynok with server-owned sale drafts, one/several/all eligible-unit selection, pagination, basket-level 42% payout preview, explicit confirm/cancel and completed replay.
+- Added Prisma persistence for current drink state, self/round drink orders, round recipient offers and manatka sale drafts/results.
+- Added focused tests for drink definitions, sale eligibility/payout, callback encoding, segmented recovery, combat drink modifiers and Shynok schema coverage.
+
+### Changed
+- Tea and beer now segment normal passive HP/mana recovery at drink start/end, so recovery bonuses are forward-only and never retroactive.
+- Eligible persistent solo PvE fights now freeze beer accuracy penalties into `CombatState`; non-expired queued pepper vodka is consumed at fight start and freezes its damage modifiers into that stored state.
+- `Всім пива` now previews launch prices from the frozen recipient count: simple `max(93, 13 * recipient_count)` and fine `max(193, 42 * recipient_count)`.
+- Shynok callbacks revalidate place and active gameplay locks before mutating drink, round or sale state.
+
+### Fixed
+- Manatka sale confirm now rereads inventory, equipment and reservations inside the DB transaction, recomputes eligibility/fingerprint/value/payout and returns `stale-selection` without mutation when the basket drifted.
+- Social round confirm now uses the stored order recipient snapshot rather than a fresh presence list, so duplicate or delayed confirmation cannot silently change the price or recipients.
+
+### Unchanged
+- Coffee, food buffs, PvP drink power, item instances, buyback, general shops, auctions, markets, trading and broad inventory rewrites are still out of scope.
+- Starter fights, training doppelgangers, quick duels and turn-based PvP do not receive drink modifiers.
+
 ## [0.1.23] - 12026-06-23 - Encounter Preview Memory and Anti-Repetition
 
 ### Added

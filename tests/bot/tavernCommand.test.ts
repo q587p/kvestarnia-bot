@@ -23,6 +23,15 @@ import type { LevelMilestoneService } from "../../src/services/levelMilestoneSer
 import type { RemortService } from "../../src/services/remortService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 
+const shynokActionRows = [
+  [{ text: "🍹 Напої для себе", callback_data: "v1:sh:dr" }],
+  [
+    { text: "🍺 Просте всім", callback_data: "v1:sh:rp:simple" },
+    { text: "🍻 Якісне всім", callback_data: "v1:sh:rp:fine" }
+  ],
+  [{ text: "💰 Продати манатки", callback_data: "v1:sh:so" }]
+];
+
 describe("tavern command screens", () => {
   const dayInKyiv = new Date("2026-06-19T09:00:00.000Z");
   const nightInKyiv = new Date("2026-06-19T19:00:00.000Z");
@@ -203,12 +212,7 @@ describe("tavern command screens", () => {
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
-          [
-            {
-              text: "🍻 Всім пива",
-              callback_data: "v1:tavern:round"
-            }
-          ],
+          ...shynokActionRows,
           [
             {
               text: "⬅️ До зали",
@@ -393,7 +397,7 @@ describe("tavern command screens", () => {
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🍻 Всім пива", callback_data: "v1:tavern:round" }],
+          ...shynokActionRows,
           [{ text: "📋 Здати справу", callback_data: makeQuestCallbackData("problem") }],
           [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
@@ -418,7 +422,7 @@ describe("tavern command screens", () => {
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🍻 Всім пива", callback_data: "v1:tavern:round" }],
+          ...shynokActionRows,
           [{ text: "📋 Взяти справу", callback_data: makeQuestCallbackData("problem-next") }],
           [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
@@ -443,7 +447,7 @@ describe("tavern command screens", () => {
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🍻 Всім пива", callback_data: "v1:tavern:round" }],
+          ...shynokActionRows,
           [{ text: "📋 Взяти наступну справу", callback_data: makeQuestCallbackData("problem-next") }],
           [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
@@ -468,7 +472,7 @@ describe("tavern command screens", () => {
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🍻 Всім пива", callback_data: "v1:tavern:round" }],
+          ...shynokActionRows,
           [{ text: "📋 Взяти справу", callback_data: makeQuestCallbackData("problem-next") }],
           [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
@@ -493,7 +497,7 @@ describe("tavern command screens", () => {
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🍻 Всім пива", callback_data: "v1:tavern:round" }],
+          ...shynokActionRows,
           [{ text: "📋 Здати справу", callback_data: makeQuestCallbackData("problem") }],
           [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
@@ -518,7 +522,7 @@ describe("tavern command screens", () => {
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🍻 Всім пива", callback_data: "v1:tavern:round" }],
+          ...shynokActionRows,
           [{ text: "📋 Взяти наступну справу", callback_data: makeQuestCallbackData("problem-next") }],
           [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
@@ -632,12 +636,7 @@ describe("tavern command screens", () => {
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
-          [
-            {
-              text: "🍻 Всім пива",
-              callback_data: "v1:tavern:round"
-            }
-          ],
+          ...shynokActionRows,
           [
             {
               text: "🍾 Здати пляшку",
@@ -670,12 +669,7 @@ describe("tavern command screens", () => {
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
-          [
-            {
-              text: "🍻 Всім пива",
-              callback_data: "v1:tavern:round"
-            }
-          ],
+          ...shynokActionRows,
           [
             {
               text: "⬅️ До зали",

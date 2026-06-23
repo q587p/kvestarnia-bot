@@ -20,6 +20,7 @@ import { PrismaHuntContractRepository } from "./db/repositories/prismaHuntContra
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
 import { PrismaLevelBarterRepository } from "./db/repositories/prismaLevelBarterRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "./db/repositories/prismaKorchmaRoundPurchaseRepository";
+import { PrismaShynokRepository } from "./db/repositories/prismaShynokRepository";
 import { PrismaLevelMilestoneRepository } from "./db/repositories/prismaLevelMilestoneRepository";
 import { PrismaMantokChestRepository } from "./db/repositories/prismaMantokChestRepository";
 import { PrismaPresenceRepository } from "./db/repositories/prismaPresenceRepository";
@@ -50,6 +51,7 @@ import { PresenceService } from "./services/presenceService";
 import { RemortService } from "./services/remortService";
 import { RestartService } from "./services/restartService";
 import { TavernRaidService } from "./services/tavernRaidService";
+import { ShynokService } from "./services/shynokService";
 import { TrainingDoppelgangerService } from "./services/trainingDoppelgangerService";
 import { YegerQuestService } from "./services/yegerQuestService";
 
@@ -69,6 +71,7 @@ const levelBarter = new PrismaLevelBarterRepository(prisma);
 const levelMilestones = new PrismaLevelMilestoneRepository(prisma);
 const mantokChestRuns = new PrismaMantokChestRepository(prisma);
 const roundPurchases = new PrismaKorchmaRoundPurchaseRepository(prisma);
+const shynokRepository = new PrismaShynokRepository(prisma);
 const presence = new PrismaPresenceRepository(prisma);
 const pendingPassageEncounters = new PrismaPendingPassageEncounterRepository(prisma);
 const remorts = new PrismaRemortRepository(prisma);
@@ -85,7 +88,8 @@ const fight = new FightService(
   undefined,
   equipment,
   combatBalanceAnalytics,
-  pendingPassageEncounters
+  pendingPassageEncounters,
+  shynokRepository
 );
 const presenceService = new PresenceService(presence);
 const services = {
@@ -97,12 +101,13 @@ const services = {
   hunt: new HuntService(characters, dailyActions, huntContracts),
   yeger: new YegerQuestService(characters, dailyActions, soloCombatSessions, fight, cooldowns),
   onboarding: new OnboardingService(users, characters),
-  hero: new HeroService(characters, inventory, equipment, remorts),
+  hero: new HeroService(characters, inventory, equipment, remorts, shynokRepository),
   equipment: new EquipmentService(equipment, inventory, characters),
   inventory: new InventoryService(inventory),
   levelBarter: new LevelBarterService(levelBarter),
   levelMilestones: new LevelMilestoneService(levelMilestones),
   mantokChest: new MantokChestService(mantokChestRuns),
+  shynok: new ShynokService(shynokRepository, characters, dailyActions, roundPurchases),
   presence: presenceService,
   devGrant: new DevGrantService(devGrants, config.nodeEnv, config.devGrantCommandsEnabled),
   duel: new DuelChallengeService(duelChallenges, characters, undefined, undefined, presenceService),

@@ -359,7 +359,10 @@ function resolveHeroAttack(
   const nextState = cloneCombatState(input.state);
   const action = skill ? "skill" : input.action === "defend" ? "defend" : "attack";
   const monsterHpBeforeHeroAction = nextState.monster.hp;
-  const defenderStats = applyMonsterRuntimeHeroAttackModifiers(nextState, input.monster);
+  const defenderStats = applyMonsterRuntimeHeroAttackModifiers(
+    nextState,
+    applyDrinkHeroAttackModifiers(input.state, input.monster)
+  );
   const actorAction = resolveActorCombatAction({
     actorState: {
       ...nextState.hero,
@@ -886,8 +889,10 @@ function resolveMonsterResponse(input: {
   input: ResolveCombatTurnInput;
   damageReduction: number;
 }): MonsterResponseResult {
+  const monsterForResponse = applyDrinkMonsterActionModifiers(input.state, input.input.monster);
+
   if (input.state.monsterRuntime) {
-    const runtimeMonster = applyMonsterRuntimeMonsterActionModifiers(input.state, input.input.monster);
+    const runtimeMonster = applyMonsterRuntimeMonsterActionModifiers(input.state, monsterForResponse);
     const response = resolveMonsterRuntimeAction({
       state: input.state,
       hero: input.input.hero,
@@ -931,11 +936,11 @@ function resolveMonsterResponse(input: {
     };
   }
 
-  const monsterSkill = selectMonsterSkill(input.input.state, input.input.monster, input.input.rng);
+  const monsterSkill = selectMonsterSkill(input.input.state, monsterForResponse, input.input.rng);
   if (monsterSkill) {
     const damage = rollMonsterSkillDamage(
       input.input.hero,
-      input.input.monster,
+      monsterForResponse,
       monsterSkill,
       input.input.rng,
       input.damageReduction
@@ -951,7 +956,7 @@ function resolveMonsterResponse(input: {
 
   const monsterDamage = rollMonsterDamage(
     input.input.hero,
-    input.input.monster,
+    monsterForResponse,
     input.input.rng,
     input.damageReduction
   );
@@ -966,6 +971,59 @@ function resolveMonsterResponse(input: {
     damage: defendedMonsterAttack.damage,
     monsterAction: "attack",
     defendCounter: defendedMonsterAttack.counter
+  };
+}
+
+function applyDrinkHeroAttackModifiers(state: CombatState, monster: MonsterCombatStats): MonsterCombatStats {
+  const modifiers = state.drinkModifiers;
+  const accuracyPenaltyPp = Math.max(0, Math.floor(modifiers?.accuracyPenaltyPp ?? 0));
+  const outgoingDamageMultiplierBp = Math.max(0, Math.floor(modifiers?.outgoingDamageMultiplierBp ?? 10000));
+
+  if (accuracyPenaltyPp === 0 && outgoingDamageMultiplierBp === 10000) {
+    return monster;
+  }
+
+  const context = monster.contextModifiers ?? emptyCombatContextModifiers();
+
+  return {
+    ...monster,
+    contextModifiers: {
+      ...context,
+      evasionDeltaPp: context.evasionDeltaPp + accuracyPenaltyPp,
+      incomingDamageMultiplier: context.incomingDamageMultiplier * (outgoingDamageMultiplierBp / 10000)
+    }
+  };
+}
+
+function applyDrinkMonsterActionModifiers(state: CombatState, monster: MonsterCombatStats): MonsterCombatStats {
+  const incomingDamageMultiplierBp = Math.max(0, Math.floor(state.drinkModifiers?.incomingDamageMultiplierBp ?? 10000));
+
+  if (incomingDamageMultiplierBp === 10000) {
+    return monster;
+  }
+
+  const context = monster.contextModifiers ?? emptyCombatContextModifiers();
+
+  return {
+    ...monster,
+    contextModifiers: {
+      ...context,
+      outgoingDamageMultiplier: context.outgoingDamageMultiplier * (incomingDamageMultiplierBp / 10000)
+    }
+  };
+}
+
+function emptyCombatContextModifiers(): NonNullable<MonsterCombatStats["contextModifiers"]> {
+  return {
+    outgoingDamageMultiplier: 1,
+    incomingDamageMultiplier: 1,
+    accuracyDeltaPp: 0,
+    evasionDeltaPp: 0,
+    abilityWeightDelta: 0,
+    signatureCooldownDelta: 0,
+    flatArmorDelta: 0,
+    flatResistDelta: 0,
+    flatDexterityDelta: 0
   };
 }
 
