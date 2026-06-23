@@ -16,6 +16,7 @@ import type {
 } from "../db/repositories/shynokRepository";
 import {
   buildDrinkEffect,
+  buildShynokRecoveryWindows,
   getShynokDrinkDefinition,
   isShynokDrinkKey,
   SHYNOK_DRINKS,
@@ -563,6 +564,7 @@ export class ShynokService {
     telegramUserId: bigint,
     token: string
   ): Promise<ShynokSaleConfirmResult> {
+    const now = this.clock();
     const gate = await this.checkGate(telegramUserId);
     if (gate.state !== "ready") {
       return gate;
@@ -573,13 +575,15 @@ export class ShynokService {
     if (!snapshot) {
       return { state: "no-character" };
     }
-    if (!sale || sale.status !== "pending") {
+    if (!sale) {
       return { state: "invalid-token" };
     }
 
     const eligible = getEligibleSaleStacks(snapshot);
-    const basket = buildMantokSaleBasket(sale.selection, eligible);
-    if (!basket || basket.fingerprint !== sale.selectionFingerprint) {
+    const basket = sale.status === "pending"
+      ? buildMantokSaleBasket(sale.selection, eligible)
+      : null;
+    if (sale.status === "pending" && (!basket || basket.fingerprint !== sale.selectionFingerprint)) {
       return { state: "stale-selection" };
     }
 
@@ -587,11 +591,20 @@ export class ShynokService {
       token,
       itemContents: items,
       result: {
-        nominalValue: basket.nominalValue,
-        payoutGold: basket.payoutGold,
-        unitCount: basket.items.reduce((sum, item) => sum + item.quantity, 0)
+        nominalValue: sale.nominalValue,
+        payoutGold: sale.payoutGold,
+        unitCount: sale.selection.reduce((sum, item) => sum + item.quantity, 0),
+        items: sale.selection.map((item) => {
+          const content = items.find((entry) => entry.id === item.itemId);
+          return {
+            itemId: item.itemId,
+            quantity: item.quantity,
+            unitGoldValue: content?.goldValue ?? 0
+          };
+        }),
+        completedAt: now.toISOString()
       },
-      now: this.clock()
+      now
     });
 
     switch (result.state) {
@@ -601,7 +614,7 @@ export class ShynokService {
           state: result.state,
           character: summarizeCharacter(result.character),
           sale: result.sale,
-          items: presentSaleLines(result.sale.selection, eligible)
+          items: presentSaleLines(result.sale.selection, eligible, items)
         };
       case "no-character":
       case "invalid-token":
@@ -637,27 +650,22 @@ export class ShynokService {
     const now = this.clock();
     const [character, activeDrink] = await Promise.all([
       this.characters.findByTelegramUserId(telegramUserId),
-      this.shynok.getActiveDrinkForTelegramUser(telegramUserId, now)
+      this.shynok.getRecoveryDrinkForTelegramUser?.(telegramUserId) ??
+        this.shynok.getActiveDrinkForTelegramUser(telegramUserId, now)
     ]);
 
     if (!character) {
       return;
     }
 
-    const multiplierWindow = activeDrink?.phase === "timed"
-      ? {
-          startsAt: activeDrink.startedAt,
-          expiresAt: activeDrink.expiresAt,
-          multiplierBp: getShynokDrinkDefinition(activeDrink.drinkKey).recoveryMultiplierBp ?? 10000
-        }
-      : null;
+    const multiplierWindows = buildShynokRecoveryWindows(activeDrink);
 
     await summarizeAndSyncCharacterResources({
       characters: this.characters,
       telegramUserId,
       character,
       now,
-      ...(multiplierWindow ? { multiplierWindow } : {})
+      ...(multiplierWindows.length > 0 ? { multiplierWindows } : {})
     });
   }
 }
@@ -783,18 +791,23 @@ function updateSelection(
 
 function presentSaleLines(
   selection: readonly { itemId: string; quantity: number }[],
-  eligible: MantokSaleEligibleStack[]
+  eligible: MantokSaleEligibleStack[],
+  itemContents: typeof items = items
 ): PresentedSaleLine[] {
   const eligibleById = new Map(eligible.map((item) => [item.itemId, item]));
+  const contentById = new Map(itemContents.map((item) => [item.id, item]));
 
   return selection.flatMap((item) => {
     const stack = eligibleById.get(item.itemId);
-    return stack
+    const content = stack?.content ?? contentById.get(item.itemId);
+    const unitGoldValue = stack?.unitGoldValue ?? content?.goldValue;
+
+    return content && typeof unitGoldValue === "number"
       ? [{
           itemId: item.itemId,
           quantity: item.quantity,
-          content: stack.content,
-          unitGoldValue: stack.unitGoldValue
+          content,
+          unitGoldValue
         }]
       : [];
   });

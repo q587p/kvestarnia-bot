@@ -32,6 +32,7 @@ import type {
   CharacterEquipmentSnapshot,
   EquipmentRepository
 } from "../../src/db/repositories/equipmentRepository";
+import type { ShynokRepository } from "../../src/db/repositories/shynokRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import {
   markCombatSettlementCompleted,
@@ -744,6 +745,50 @@ describe("FightService", () => {
       audience: "solo"
     });
     expect(stored?.state?.monster.contextModifiers).toEqual(stored?.state?.context?.effects);
+  });
+
+  it("freezes active beer modifiers when a direct persistent fight starts", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser"> = {
+      getActiveDrinkForTelegramUser: () =>
+        Promise.resolve({
+          id: "drink-state-beer-direct",
+          characterId: "character-1",
+          drinkKey: "drink.fine-beer",
+          phase: "timed",
+          startedAt: new Date("2026-06-12T09:50:00.000Z"),
+          expiresAt: new Date("2026-06-12T10:32:00.000Z"),
+          sourceType: "self_purchase",
+          sourceId: "order-beer-direct",
+          metadata: null
+        })
+    };
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1]),
+      undefined,
+      undefined,
+      undefined,
+      shynok
+    );
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    expect(sessions.getById(started.session.id)?.state?.drinkModifiers).toEqual({
+      drinkKey: "drink.fine-beer",
+      sourceId: "drink-state-beer-direct",
+      accuracyPenaltyPp: 10
+    });
   });
 
   it("starts a targeted persistent fight at the highest suitable requested monster level", async () => {

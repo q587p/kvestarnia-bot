@@ -5,7 +5,7 @@
 **Рекомендований реліз:** `0.1.24`
 **Головна поверхня:** `🍻 Шинок` у Квестарні
 
-**Implementation note:** runtime slice shipped with a single current drink slot, server-owned self/round/sale tokens, opt-in round offers, transaction-local sale recomputation and no PvP drink power. Coffee, food buffs, item instances, buyback, trading and a broad shop remain out of scope.
+**Implementation note:** runtime slice shipped with a single current drink slot, server-owned self/round/sale tokens, opt-in round offers, transaction-local sale recomputation and no PvP drink power. Follow-up hardening keeps combat drink snapshots repository-verified, consumes queued vodka with session/lease creation, preserves historical timed recovery windows for lazy sync, and replays completed sale results from stored data. Coffee, food buffs, item instances, buyback, trading and a broad shop remain out of scope.
 
 ## 1. Мета
 

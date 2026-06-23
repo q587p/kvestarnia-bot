@@ -40,6 +40,7 @@ export async function summarizeAndSyncCharacterResources(input: {
   now: Date;
   persist?: boolean;
   multiplierWindow?: ResourceRegenerationMultiplierWindow | null;
+  multiplierWindows?: ResourceRegenerationMultiplierWindow[];
   reloadLatest?: () => Promise<CharacterResourceReloadResult | null>;
 }): Promise<CharacterResourceSyncResult> {
   const baseSummary = summarizeCharacter(input.character, {
@@ -64,7 +65,8 @@ export async function summarizeAndSyncCharacterResources(input: {
       stats: baseSummary.stats
     },
     now: input.now,
-    ...(input.multiplierWindow ? { multiplierWindow: input.multiplierWindow } : {})
+    ...(input.multiplierWindow ? { multiplierWindow: input.multiplierWindow } : {}),
+    ...(input.multiplierWindows ? { multiplierWindows: input.multiplierWindows } : {})
   });
   const recoveryNotice =
     baseSummary.hpCurrent < baseSummary.hpMax &&

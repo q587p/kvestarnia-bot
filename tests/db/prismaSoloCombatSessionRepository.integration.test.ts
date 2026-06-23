@@ -71,6 +71,91 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     expect(activeSessions[0]?.id).toBe(first?.id);
   });
 
+  it("atomically consumes exact queued vodka with solo session and lease creation", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-vodka-atomic",
+      characterId: "character-vodka-atomic",
+      telegramUserId: 14260n
+    });
+    const now = new Date("2026-06-23T10:00:00.000Z");
+    await prisma.characterDrinkState.create({
+      data: {
+        id: "drink-state-vodka-atomic",
+        characterId: "character-vodka-atomic",
+        drinkKey: "drink.pepper-vodka",
+        phase: "queued",
+        startedAt: now,
+        expiresAt: new Date("2026-06-23T10:23:00.000Z"),
+        sourceType: "self_purchase"
+      }
+    });
+
+    const input = makeCreateInput("session-vodka-atomic", "monster.deadline-spider");
+    input.state.drinkModifiers = {
+      drinkKey: "drink.pepper-vodka",
+      sourceId: "drink-state-vodka-atomic",
+      outgoingDamageMultiplierBp: 11300,
+      incomingDamageMultiplierBp: 11300
+    };
+    input.drinkStateCommit = {
+      expectedStateId: "drink-state-vodka-atomic",
+      drinkKey: "drink.pepper-vodka",
+      phase: "queued",
+      now
+    };
+
+    const session = await repository.createForTelegramUser(14260n, input);
+
+    expect(session?.state?.drinkModifiers).toEqual(input.state.drinkModifiers);
+    await expect(prisma.characterDrinkState.count({
+      where: { characterId: "character-vodka-atomic" }
+    })).resolves.toBe(0);
+    await expect(prisma.activeCombatLease.count({
+      where: { characterId: "character-vodka-atomic", referenceId: "session-vodka-atomic" }
+    })).resolves.toBe(1);
+  });
+
+  it("does not consume a newer replacement vodka when the expected drink-state id changed", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-vodka-aba",
+      characterId: "character-vodka-aba",
+      telegramUserId: 14261n
+    });
+    const now = new Date("2026-06-23T10:00:00.000Z");
+    await prisma.characterDrinkState.create({
+      data: {
+        id: "drink-state-vodka-new",
+        characterId: "character-vodka-aba",
+        drinkKey: "drink.pepper-vodka",
+        phase: "queued",
+        startedAt: now,
+        expiresAt: new Date("2026-06-23T10:23:00.000Z"),
+        sourceType: "self_purchase"
+      }
+    });
+
+    const input = makeCreateInput("session-vodka-aba", "monster.deadline-spider");
+    input.state.drinkModifiers = {
+      drinkKey: "drink.pepper-vodka",
+      sourceId: "drink-state-vodka-old",
+      outgoingDamageMultiplierBp: 11300,
+      incomingDamageMultiplierBp: 11300
+    };
+    input.drinkStateCommit = {
+      expectedStateId: "drink-state-vodka-old",
+      drinkKey: "drink.pepper-vodka",
+      phase: "queued",
+      now
+    };
+
+    const session = await repository.createForTelegramUser(14261n, input);
+
+    expect(session?.state?.drinkModifiers).toBeUndefined();
+    await expect(prisma.characterDrinkState.findUnique({
+      where: { characterId: "character-vodka-aba" }
+    })).resolves.toMatchObject({ id: "drink-state-vodka-new" });
+  });
+
   it("follows a live lease to a terminal pending session and returns it on create conflict", async () => {
     await seedCharacter(prisma, {
       userId: "user-terminal-pending",
@@ -1136,6 +1221,19 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       character_id TEXT NOT NULL UNIQUE,
       kind TEXT NOT NULL,
       reference_id TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE character_drink_states (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL UNIQUE,
+      drink_key TEXT NOT NULL,
+      phase TEXT NOT NULL,
+      started_at DATETIME NOT NULL,
+      expires_at DATETIME NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT,
+      metadata_json JSONB,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,

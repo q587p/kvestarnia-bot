@@ -250,4 +250,49 @@ describe("applyPassiveResourceRegeneration", () => {
     expect(result.resources.hpCurrent).toBe(50);
     expect(result.resources.manaCurrent).toBe(55);
   });
+
+  it("does not lose fractional progress across drink start and expiry boundaries", () => {
+    const marker = new Date("2026-06-23T10:00:00.000Z");
+    const profile = {
+      raceId: "race.human-ish",
+      classId: "class.rogue",
+      stats: baseStats
+    };
+    const resources = {
+      hpCurrent: 0,
+      hpMax: 100,
+      manaCurrent: 0,
+      manaMax: 100,
+      hpRegenAt: marker,
+      manaRegenAt: marker
+    };
+    const multiplierWindow = {
+      startsAt: new Date("2026-06-23T10:00:02.000Z"),
+      expiresAt: new Date("2026-06-23T10:00:04.000Z"),
+      multiplierBp: 15000
+    };
+
+    const oneShot = applyPassiveResourceRegeneration({
+      resources,
+      profile,
+      now: new Date("2026-06-23T10:00:05.000Z"),
+      multiplierWindow
+    });
+    const firstLazySync = applyPassiveResourceRegeneration({
+      resources,
+      profile,
+      now: new Date("2026-06-23T10:00:03.000Z"),
+      multiplierWindow
+    });
+    const secondLazySync = applyPassiveResourceRegeneration({
+      resources: firstLazySync.resources,
+      profile,
+      now: new Date("2026-06-23T10:00:05.000Z"),
+      multiplierWindow
+    });
+
+    expect(oneShot.resources.hpCurrent).toBe(1);
+    expect(secondLazySync.resources.hpCurrent).toBe(oneShot.resources.hpCurrent);
+    expect(secondLazySync.resources.hpRegenAt.getTime()).toBe(oneShot.resources.hpRegenAt.getTime());
+  });
 });

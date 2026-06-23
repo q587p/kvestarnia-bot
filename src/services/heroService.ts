@@ -4,6 +4,7 @@ import type { InventoryRepository } from "../db/repositories/inventoryRepository
 import type { RemortRepository } from "../db/repositories/remortRepository";
 import type { ShynokRepository } from "../db/repositories/shynokRepository";
 import type { CharacterSummary } from "../domain/characters/characterSummary";
+import { buildShynokRecoveryWindows } from "../domain/shynokDrinks";
 import { systemClock, type Clock } from "../shared/time";
 import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import type { ResourceRecoveryNotice } from "./characterResourceService";
@@ -20,7 +21,9 @@ export type HeroLookupResult =
     };
 
 export class HeroService {
-  private readonly shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser"> | undefined;
+  private readonly shynok:
+    | Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">
+    | undefined;
   private readonly clock: Clock;
 
   constructor(
@@ -28,7 +31,7 @@ export class HeroService {
     private readonly inventory: InventoryRepository,
     private readonly equipment?: EquipmentRepository,
     private readonly remorts?: Pick<RemortRepository, "countByTelegramUserId">,
-    shynokOrClock?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser"> | Clock,
+    shynokOrClock?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | Clock,
     clock: Clock = systemClock
   ) {
     if (typeof shynokOrClock === "function") {
@@ -52,10 +55,13 @@ export class HeroService {
       this.inventory.listByTelegramUserId(telegramUserId),
       this.equipment?.listByTelegramUserId(telegramUserId) ?? Promise.resolve(null),
       this.remorts?.countByTelegramUserId(telegramUserId) ?? Promise.resolve(0),
-      this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now) ?? Promise.resolve(null)
+      this.shynok?.getRecoveryDrinkForTelegramUser?.(telegramUserId) ??
+        this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now) ??
+        Promise.resolve(null)
     ]);
 
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
+    const multiplierWindows = buildShynokRecoveryWindows(activeDrink);
     const resourceAware = await summarizeAndSyncCharacterResources({
       characters: this.characters,
       telegramUserId,
@@ -63,15 +69,7 @@ export class HeroService {
       equippedItems,
       remortCount,
       now,
-      ...(activeDrink?.phase === "timed"
-        ? {
-            multiplierWindow: {
-              startsAt: activeDrink.startedAt,
-              expiresAt: activeDrink.expiresAt,
-              multiplierBp: getDrinkRecoveryMultiplier(activeDrink.drinkKey)
-            }
-          }
-        : {})
+      ...(multiplierWindows.length > 0 ? { multiplierWindows } : {})
     });
 
     return {
@@ -82,18 +80,5 @@ export class HeroService {
         ? { recoveryNotice: resourceAware.recoveryNotice }
         : {})
     };
-  }
-}
-
-function getDrinkRecoveryMultiplier(drinkKey: string): number {
-  switch (drinkKey) {
-    case "drink.thyme-tea":
-      return 11300;
-    case "drink.simple-beer":
-      return 12500;
-    case "drink.fine-beer":
-      return 15000;
-    default:
-      return 10000;
   }
 }

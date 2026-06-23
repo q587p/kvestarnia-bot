@@ -63,6 +63,16 @@ export class PrismaShynokRepository implements ShynokRepository {
     return mapDrinkState(state);
   }
 
+  async getRecoveryDrinkForTelegramUser(telegramUserId: bigint): Promise<ShynokDrinkStateRecord | null> {
+    const state = await this.prisma.characterDrinkState.findFirst({
+      where: {
+        character: { user: { telegramUserId } }
+      }
+    });
+
+    return mapDrinkState(state);
+  }
+
   async consumeQueuedDrinkForTelegramUser(
     telegramUserId: bigint,
     input: {
@@ -418,16 +428,20 @@ export class PrismaShynokRepository implements ShynokRepository {
 
       if (offer.status === "expired" || offer.expiresAt <= input.now) {
         const expired = await setRoundOfferStatus(tx, offer.id, "expired", input.now, offer.result);
-        await incrementRoundTelemetry(tx, offer.purchaseId, "expiredCount");
-        return { state: "expired", offer: expired };
+        await refreshRoundTelemetry(tx, offer.purchaseId);
+        return expired ? { state: "expired", offer: expired } : replayRoundOffer(await findRoundOffer(tx, offer.id));
       }
 
       if (input.action === "decline") {
         const declined = await setRoundOfferStatus(tx, offer.id, "declined", input.now, input.result);
-        await incrementRoundTelemetry(tx, offer.purchaseId, "declinedCount");
-        return { state: "declined", offer: declined };
+        await refreshRoundTelemetry(tx, offer.purchaseId);
+        return declined ? { state: "declined", offer: declined } : replayRoundOffer(await findRoundOffer(tx, offer.id));
       }
 
+      const accepted = await setRoundOfferStatus(tx, offer.id, "accepted", input.now, input.result);
+      if (!accepted) {
+        return replayRoundOffer(await findRoundOffer(tx, offer.id));
+      }
       const drink = await upsertDrinkState(tx, {
         characterId: character.id,
         drinkKey: offer.drinkKey,
@@ -436,8 +450,7 @@ export class PrismaShynokRepository implements ShynokRepository {
         now: input.now,
         metadata: input.result
       });
-      const accepted = await setRoundOfferStatus(tx, offer.id, "accepted", input.now, input.result);
-      await incrementRoundTelemetry(tx, offer.purchaseId, "acceptedCount");
+      await refreshRoundTelemetry(tx, offer.purchaseId);
 
       return {
         state: "accepted",
@@ -588,10 +601,25 @@ export class PrismaShynokRepository implements ShynokRepository {
       now: Date;
     }
   ): Promise<ShynokMantokSaleRecord | null> {
-    const updated = await this.prisma.korchmaMantokSale.updateMany({
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.korchmaMantokSale.updateMany({
+        where: {
+          token: input.token,
+          status: "pending",
+          expiresAt: { lte: input.now },
+          character: { user: { telegramUserId } }
+        },
+        data: {
+          status: "expired",
+          updatedAt: input.now
+        }
+      });
+
+      return tx.korchmaMantokSale.updateMany({
       where: {
         token: input.token,
         status: "pending",
+        expiresAt: { gt: input.now },
         character: { user: { telegramUserId } }
       },
       data: {
@@ -601,6 +629,7 @@ export class PrismaShynokRepository implements ShynokRepository {
         payoutGold: input.payoutGold,
         updatedAt: input.now
       }
+      });
     });
 
     if (updated.count !== 1) {
@@ -870,6 +899,10 @@ async function upsertDrinkState(
     drinkKey: input.drinkKey,
     startedAt: input.now
   });
+  const previous = await tx.characterDrinkState.findUnique({
+    where: { characterId: input.characterId }
+  });
+  const metadata = withPreviousRecoveryWindows(input.metadata, previous);
   const state = await tx.characterDrinkState.upsert({
     where: {
       characterId: input.characterId
@@ -882,7 +915,7 @@ async function upsertDrinkState(
       expiresAt: effect.expiresAt,
       sourceType: input.sourceType,
       sourceId: input.sourceId,
-      metadataJson: input.metadata as Prisma.InputJsonValue,
+      metadataJson: metadata as Prisma.InputJsonValue,
       updatedAt: input.now
     },
     update: {
@@ -892,7 +925,7 @@ async function upsertDrinkState(
       expiresAt: effect.expiresAt,
       sourceType: input.sourceType,
       sourceId: input.sourceId,
-      metadataJson: input.metadata as Prisma.InputJsonValue,
+      metadataJson: metadata as Prisma.InputJsonValue,
       updatedAt: input.now
     }
   });
@@ -905,15 +938,43 @@ async function upsertDrinkState(
   return mapped;
 }
 
+function withPreviousRecoveryWindows(
+  metadata: unknown,
+  previous: { drinkKey: string; phase: string; startedAt: Date; expiresAt: Date; metadataJson: Prisma.JsonValue | null } | null
+): unknown {
+  const previousWindows = [
+    ...parseRecoveryWindows(previous?.metadataJson),
+    ...(previous?.phase === "timed" && isShynokDrinkKey(previous.drinkKey)
+      ? [{
+          drinkKey: previous.drinkKey,
+          startsAt: previous.startedAt.toISOString(),
+          expiresAt: previous.expiresAt.toISOString()
+        }]
+      : [])
+  ].slice(-3);
+
+  if (previousWindows.length === 0) {
+    return metadata;
+  }
+
+  return {
+    ...(isRecord(metadata) ? metadata : { value: metadata }),
+    previousRecoveryWindows: previousWindows
+  };
+}
+
 async function setRoundOfferStatus(
   tx: TxClient,
   offerId: string,
   status: "accepted" | "declined" | "expired",
   now: Date,
   result: unknown
-): Promise<ShynokRoundRecipientRecord> {
-  const updated = await tx.korchmaRoundRecipient.update({
-    where: { id: offerId },
+): Promise<ShynokRoundRecipientRecord | null> {
+  const transition = await tx.korchmaRoundRecipient.updateMany({
+    where: {
+      id: offerId,
+      status: "offered"
+    },
     data: {
       status,
       resultJson: result as Prisma.InputJsonValue,
@@ -921,6 +982,12 @@ async function setRoundOfferStatus(
       updatedAt: now
     }
   });
+
+  if (transition.count !== 1) {
+    return null;
+  }
+
+  const updated = await tx.korchmaRoundRecipient.findUnique({ where: { id: offerId } });
   const mapped = mapRoundRecipient(updated);
   if (!mapped) {
     throw new Error("Round offer mapping failed after update.");
@@ -929,24 +996,47 @@ async function setRoundOfferStatus(
   return mapped;
 }
 
-async function incrementRoundTelemetry(
-  tx: TxClient,
-  purchaseId: string,
-  key: "acceptedCount" | "declinedCount" | "expiredCount"
-): Promise<void> {
-  const purchase = await tx.korchmaRoundPurchase.findUnique({
-    where: { id: purchaseId },
-    select: { telemetryJson: true }
-  });
-  const telemetry = isRecord(purchase?.telemetryJson) ? { ...purchase.telemetryJson } : {};
-  const current = typeof telemetry[key] === "number" ? telemetry[key] : 0;
+async function findRoundOffer(tx: TxClient, offerId: string): Promise<ShynokRoundRecipientRecord | null> {
+  return mapRoundRecipient(await tx.korchmaRoundRecipient.findUnique({ where: { id: offerId } }));
+}
+
+function replayRoundOffer(offer: ShynokRoundRecipientRecord | null): ShynokRespondRoundOfferResult {
+  if (!offer) {
+    return { state: "invalid-offer" };
+  }
+  if (offer.status === "accepted") {
+    return {
+      state: "replayed",
+      offer,
+      drink: null
+    };
+  }
+  if (offer.status === "declined") {
+    return { state: "declined", offer };
+  }
+  if (offer.status === "expired") {
+    return { state: "expired", offer };
+  }
+
+  return { state: "invalid-offer" };
+}
+
+async function refreshRoundTelemetry(tx: TxClient, purchaseId: string): Promise<void> {
+  const [acceptedCount, declinedCount, expiredCount, snapshotCount] = await Promise.all([
+    tx.korchmaRoundRecipient.count({ where: { purchaseId, status: "accepted" } }),
+    tx.korchmaRoundRecipient.count({ where: { purchaseId, status: "declined" } }),
+    tx.korchmaRoundRecipient.count({ where: { purchaseId, status: "expired" } }),
+    tx.korchmaRoundRecipient.count({ where: { purchaseId } })
+  ]);
 
   await tx.korchmaRoundPurchase.update({
     where: { id: purchaseId },
     data: {
       telemetryJson: {
-        ...telemetry,
-        [key]: current + 1
+        snapshotCount,
+        acceptedCount,
+        declinedCount,
+        expiredCount
       }
     }
   });
@@ -1225,6 +1315,29 @@ function parseRoundReplay(input: unknown): { purchaseId: string | null; recipien
     purchaseId: typeof input.purchaseId === "string" ? input.purchaseId : null,
     recipientCount: Number.isInteger(input.recipientCount) ? Number(input.recipientCount) : 0
   };
+}
+
+function parseRecoveryWindows(input: unknown): Array<{ drinkKey: string; startsAt: string; expiresAt: string }> {
+  if (!isRecord(input) || !Array.isArray(input.previousRecoveryWindows)) {
+    return [];
+  }
+
+  return input.previousRecoveryWindows.flatMap((entry) => {
+    if (
+      !isRecord(entry) ||
+      typeof entry.drinkKey !== "string" ||
+      typeof entry.startsAt !== "string" ||
+      typeof entry.expiresAt !== "string"
+    ) {
+      return [];
+    }
+
+    return [{
+      drinkKey: entry.drinkKey,
+      startsAt: entry.startsAt,
+      expiresAt: entry.expiresAt
+    }];
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

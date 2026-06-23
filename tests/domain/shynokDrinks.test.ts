@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyDrinkDamageMultiplier,
   buildDrinkEffect,
+  buildShynokRecoveryWindows,
   getShynokDrinkDefinition,
   SHYNOK_DRINKS
 } from "../../src/domain/shynokDrinks";
@@ -42,5 +43,27 @@ describe("Shynok drinks", () => {
     expect(applyDrinkDamageMultiplier(10, 11300)).toBe(11);
     expect(applyDrinkDamageMultiplier(1, 11300)).toBe(1);
     expect(applyDrinkDamageMultiplier(0, 11300)).toBe(0);
+  });
+
+  it("keeps previous timed recovery windows on queued replacement metadata", () => {
+    const windows = buildShynokRecoveryWindows({
+      drinkKey: "drink.pepper-vodka",
+      phase: "queued",
+      startedAt: new Date("2026-06-23T10:05:00.000Z"),
+      expiresAt: new Date("2026-06-23T10:28:00.000Z"),
+      metadata: {
+        previousRecoveryWindows: [{
+          drinkKey: "drink.simple-beer",
+          startsAt: "2026-06-23T10:00:00.000Z",
+          expiresAt: "2026-06-23T10:23:00.000Z"
+        }]
+      }
+    });
+
+    expect(windows).toEqual([{
+      startsAt: new Date("2026-06-23T10:00:00.000Z"),
+      expiresAt: new Date("2026-06-23T10:23:00.000Z"),
+      multiplierBp: 12500
+    }]);
   });
 });

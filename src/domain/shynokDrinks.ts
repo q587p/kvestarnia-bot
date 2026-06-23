@@ -1,3 +1,5 @@
+import type { ResourceRegenerationMultiplierWindow } from "./resources/resourceRegeneration";
+
 export const SHYNOK_DRINK_RULES_VERSION = "shynok-drinks-v1";
 
 export type ShynokDrinkKey =
@@ -30,6 +32,14 @@ export interface ActiveShynokDrinkEffect {
   accuracyPenaltyPp?: number;
   outgoingDamageMultiplierBp?: number;
   incomingDamageMultiplierBp?: number;
+}
+
+export interface ShynokRecoveryWindowSource {
+  drinkKey: ShynokDrinkKey;
+  phase: ShynokDrinkPhase;
+  startedAt: Date;
+  expiresAt: Date;
+  metadata?: unknown;
 }
 
 export const SHYNOK_DRINKS: readonly ShynokDrinkDefinition[] = [
@@ -126,6 +136,27 @@ export function getActiveTimedDrinkRecoveryMultiplier(
   return effect.startedAt <= now && effect.expiresAt > now ? effect.recoveryMultiplierBp : null;
 }
 
+export function buildShynokRecoveryWindows(
+  state: ShynokRecoveryWindowSource | null | undefined
+): ResourceRegenerationMultiplierWindow[] {
+  if (!state) {
+    return [];
+  }
+
+  const previous = parsePreviousRecoveryWindows(state.metadata);
+  const current = state.phase === "timed"
+    ? [{
+        startsAt: state.startedAt,
+        expiresAt: state.expiresAt,
+        multiplierBp: getShynokDrinkDefinition(state.drinkKey).recoveryMultiplierBp ?? 10000
+      }]
+    : [];
+
+  return [...previous, ...current]
+    .filter((window) => window.expiresAt > window.startsAt)
+    .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
+}
+
 export function applyDrinkDamageMultiplier(baseDamage: number, multiplierBp: number | undefined): number {
   const damage = Math.max(0, Math.floor(baseDamage));
 
@@ -134,4 +165,38 @@ export function applyDrinkDamageMultiplier(baseDamage: number, multiplierBp: num
   }
 
   return Math.max(1, Math.floor((damage * multiplierBp) / 10000));
+}
+
+function parsePreviousRecoveryWindows(value: unknown): ResourceRegenerationMultiplierWindow[] {
+  if (!isRecord(value) || !Array.isArray(value.previousRecoveryWindows)) {
+    return [];
+  }
+
+  return value.previousRecoveryWindows.flatMap((entry) => {
+    if (
+      !isRecord(entry) ||
+      typeof entry.drinkKey !== "string" ||
+      !isShynokDrinkKey(entry.drinkKey) ||
+      typeof entry.startsAt !== "string" ||
+      typeof entry.expiresAt !== "string"
+    ) {
+      return [];
+    }
+
+    const startsAt = new Date(entry.startsAt);
+    const expiresAt = new Date(entry.expiresAt);
+    if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(expiresAt.getTime())) {
+      return [];
+    }
+
+    return [{
+      startsAt,
+      expiresAt,
+      multiplierBp: getShynokDrinkDefinition(entry.drinkKey).recoveryMultiplierBp ?? 10000
+    }];
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

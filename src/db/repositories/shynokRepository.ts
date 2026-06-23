@@ -122,6 +122,7 @@ export interface ShynokRepository {
   getAccessSnapshotForTelegramUser(telegramUserId: bigint): Promise<ShynokAccessSnapshot | null>;
   getInventorySnapshotForTelegramUser(telegramUserId: bigint): Promise<ShynokInventorySnapshot | null>;
   getActiveDrinkForTelegramUser(telegramUserId: bigint, now: Date): Promise<ShynokDrinkStateRecord | null>;
+  getRecoveryDrinkForTelegramUser?(telegramUserId: bigint): Promise<ShynokDrinkStateRecord | null>;
   consumeQueuedDrinkForTelegramUser(
     telegramUserId: bigint,
     input: { expectedDrinkKey: ShynokDrinkKey; now: Date; metadata: unknown }

@@ -26,6 +26,10 @@ This project follows a simple pre-1.0 versioning policy:
 ### Fixed
 - Manatka sale confirm now rereads inventory, equipment and reservations inside the DB transaction, recomputes eligibility/fingerprint/value/payout and returns `stale-selection` without mutation when the basket drifted.
 - Social round confirm now uses the stored order recipient snapshot rather than a fresh presence list, so duplicate or delayed confirmation cannot silently change the price or recipients.
+- Combat drink modifiers now round-trip through persisted solo combat JSON, direct/Yeger/Adventure/passage starts use the same verified drink snapshot, queued pepper vodka is consumed in the same transaction as solo session and lease creation, and exact drink-state IDs prevent replacement races from consuming a newer vodka.
+- Timed drink recovery now keeps historical replacement/expiry windows for lazy resource sync and uses weighted integer regeneration, so sub-point progress is not lost at drink start/end boundaries.
+- Completed Shynok manatka sale callbacks now reach repository replay instead of being pre-rejected as invalid, and sale selection updates lazily expire old drafts before mutating selection state.
+- Round recipient accept/decline/expiry transitions now CAS from `offered`, and round telemetry is refreshed from recipient rows instead of read-modify-write counters.
 
 ### Unchanged
 - Coffee, food buffs, PvP drink power, item instances, buyback, general shops, auctions, markets, trading and broad inventory rewrites are still out of scope.
