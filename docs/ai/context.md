@@ -63,6 +63,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `docs/PLAYTESTING.md` — manual smoke tests.
 - `CHANGELOG.md` — detailed release history.
 - `news.md` — player-facing spoiler-light release news.
+- `docs/PHASE2_MVP_CLOSEOUT_PLAN.md`, `docs/PHASE2_CLOSEOUT_SMOKE.md`, `docs/PHASE2_DEFERRED_0_2.md` — `0.1.x` Phase 2 MVP closeout cutline, smoke gate and `0.2.x` deferred order.
 
 ## Code map
 
@@ -142,7 +143,8 @@ For Telegram/gameplay changes, always consider:
 
 - `0.0.x` foundation is closed after `0.0.30`.
 - `0.1.x` is stabilization, playtest polish, and careful Phase 2 preparation.
-- Phase 2 direction: Social Combat & Interactions, not a group-raid-first roadmap.
+- Phase 2 direction: Social Combat & Interactions, not a group-raid-first roadmap; after `0.1.24`, use `0.1.25` as a docs/release/smoke closeout milestone unless an emergency hotfix consumes that patch.
+- First planned `0.2.x` task is `docs/tasks/0.2.0-safe-gifting-mvp.md`: exactly one eligible item stack unit, explicit recipient accept, transaction/audit/replay safety.
 - Real PvP, trading, party combat, raids, shops, crafting, guilds, and Mini App UI remain small future slices unless a task explicitly targets one.
 
 ## Do not promise as shipped

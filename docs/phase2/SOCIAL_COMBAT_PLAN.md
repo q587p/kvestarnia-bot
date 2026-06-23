@@ -4,6 +4,8 @@ Phase 2 не починається з «великого рейду на всі
 
 Робоча назва Phase 2: **Social Combat & Interactions**.
 
+Closeout cutline lives in [../PHASE2_MVP_CLOSEOUT_PLAN.md](../PHASE2_MVP_CLOSEOUT_PLAN.md). After `0.1.24`, the intended next `0.1.x` step is `0.1.25 - Phase 2 MVP Closeout`: a docs/release/smoke milestone with no new gameplay. Expansion work moves to [../PHASE2_DEFERRED_0_2.md](../PHASE2_DEFERRED_0_2.md).
+
 ## Product promise
 
 Гравець має отримати причину сказати іншому гравцю: «натисни, буде смішно». Це не має бути примус, pay-to-win, токсичне PvP або таблиця сорому.

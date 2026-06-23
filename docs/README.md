@@ -9,6 +9,9 @@
 - [ai/rules-for-future.md](ai/rules-for-future.md) — durable token-economy workflow rules.
 - [ai/prompts/main-new-version-thread.md](ai/prompts/main-new-version-thread.md) — short startup prompt for a fresh main Codex thread.
 - [ai/prompts/second-codex-pr-review.md](ai/prompts/second-codex-pr-review.md) — read-only second Codex PR review prompt; changed files only by default.
+- [ai/prompts/phase2-closeout-main-codex.md](ai/prompts/phase2-closeout-main-codex.md) — main Codex prompt for the `0.1.25` Phase 2 MVP closeout task.
+- [ai/prompts/phase2-regression-audit.md](ai/prompts/phase2-regression-audit.md) — read-only audit prompt for the Phase 2 regression smoke.
+- [ai/prompts/safe-gifting-main-codex.md](ai/prompts/safe-gifting-main-codex.md) — first `0.2.x` implementation prompt for Safe Gifting MVP.
 - [tasks/README.md](tasks/README.md) — version task doc convention and templates.
 
 ## Canonical project docs
@@ -51,6 +54,9 @@
 
 Phase 2 більше не починається з великого групового рейду. Новий напрям: **Social Combat & Interactions** — спершу opt-in дуелі й запрошення, потім картки результатів, реванші, турнірний шум, обмін/дарування, бойова різноманітність, remort-only follow-ups після базового `/remort` з `0.1.2`, multi-enemy combat і тільки після цього party combat / real raids.
 
+- [PHASE2_MVP_CLOSEOUT_PLAN.md](PHASE2_MVP_CLOSEOUT_PLAN.md) — межа `0.1.x`, Phase 2 MVP DoD, backlog disposition і порядок closeout.
+- [PHASE2_CLOSEOUT_SMOKE.md](PHASE2_CLOSEOUT_SMOKE.md) — two-player, Shynok і production smoke для закриття Phase 2 MVP.
+- [PHASE2_DEFERRED_0_2.md](PHASE2_DEFERRED_0_2.md) — що переноситься в `0.2.x`, рекомендований порядок і WIP-limit.
 - [phase2/SOCIAL_COMBAT_PLAN.md](phase2/SOCIAL_COMBAT_PLAN.md) — головний план Phase 2.
 - [phase2/DUELS_AND_INVITES.md](phase2/DUELS_AND_INVITES.md) — перший MVP для дуелей і shareable invite cards.
 - [phase2/GROUP_COMBAT_AND_RAIDS.md](phase2/GROUP_COMBAT_AND_RAIDS.md) — як рейди виростають із дуелей, party sessions і multi-enemy combat.
