@@ -105,6 +105,44 @@ describe("hero presenter", () => {
     expect(text).toContain("Відновлення: HP за ~10 хв\n\nСили 9");
   });
 
+  it("shows the active Shynok buff below HP and mana", () => {
+    const text = presentHero(summary, {
+      activeDrink: {
+        key: "drink.fine-beer",
+        name: "Якісне <пиво>",
+        emoji: "🍻",
+        phase: "timed",
+        startedAt: new Date("2026-06-23T10:00:00.000Z"),
+        expiresAt: new Date("2026-06-23T10:42:00.000Z"),
+        recoveryMultiplierBp: 15000,
+        accuracyPenaltyPp: 10
+      }
+    });
+
+    expect(text).toContain(
+      "❤️ HP 24/24 · 🔮 мана 12/12\n🍻 Баф: <b>Якісне &lt;пиво&gt;</b> до 13:42 — відновлення ×1.50, точність −10.\n\nСили 9"
+    );
+  });
+
+  it("shows queued pepper vodka as a pending PvE combat buff", () => {
+    const text = presentHero(summary, {
+      activeDrink: {
+        key: "drink.pepper-vodka",
+        name: "Горілка з перцем",
+        emoji: "🥃",
+        phase: "queued",
+        startedAt: new Date("2026-06-23T10:00:00.000Z"),
+        expiresAt: new Date("2026-06-23T10:23:00.000Z"),
+        outgoingDamageMultiplierBp: 11300,
+        incomingDamageMultiplierBp: 11300
+      }
+    });
+
+    expect(text).toContain(
+      "🥃 Баф: <b>Горілка з перцем</b> до 13:23 — чекає PvE бою, шкода туди/назад ×1.13."
+    );
+  });
+
   it("shows inventory value next to carried gold", () => {
     const text = presentHero(summary, { inventoryGoldValue: 28 });
 

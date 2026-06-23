@@ -47,7 +47,10 @@ export async function sendHero(
   const result = await heroService.findByTelegramUserId(telegramUserId);
 
   if (result.state === "existing-character") {
-    const heroText = presentHero(result.character, { inventoryGoldValue: result.inventoryGoldValue });
+    const heroText = presentHero(result.character, {
+      activeDrink: result.activeDrink,
+      inventoryGoldValue: result.inventoryGoldValue
+    });
 
     if (result.recoveryNotice && mode === "reply") {
       await sendText(ctx, "reply", presentResourceRecoveryNotice(result.recoveryNotice));

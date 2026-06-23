@@ -3,6 +3,7 @@ import {
   buildLevelGrowthBonus,
   createEmptyEquipmentEffectSummary
 } from "../../domain/progression/effectiveStats";
+import type { HeroActiveDrink } from "../../services/heroService";
 import { getLocationName } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 import { presentLevelBonus } from "./levelGrowthPresenter";
@@ -10,7 +11,7 @@ import { presentHeroEquipmentEffectLines } from "./itemEffectPresenter";
 
 export function presentHero(
   summary: CharacterSummary,
-  options: { inventoryGoldValue?: number } = {}
+  options: { activeDrink?: HeroActiveDrink | null; inventoryGoldValue?: number } = {}
 ): string {
   const progressLine =
     summary.nextLevelXp === null
@@ -39,6 +40,7 @@ export function presentHero(
     summary.equipmentEffects ?? createEmptyEquipmentEffectSummary()
   );
   const resourceRecoveryLines = presentResourceRecovery(summary);
+  const activeDrinkLine = presentActiveDrink(options.activeDrink ?? null);
 
   return [
     `👤 <b>${escapeHtml(summary.name)}</b>`,
@@ -52,7 +54,8 @@ export function presentHero(
     "",
     `❤️ HP ${summary.hpCurrent}/${summary.hpMax} · 🔮 мана ${summary.manaCurrent}/${summary.manaMax}`,
     ...resourceRecoveryLines,
-    ...(resourceRecoveryLines.length > 0 ? [""] : []),
+    ...(activeDrinkLine ? [activeDrinkLine] : []),
+    ...(resourceRecoveryLines.length > 0 || activeDrinkLine ? [""] : []),
     `Сили ${summary.stats.strength} · Спритн. ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
     ...(equipmentLines.length > 0 ? ["", ...equipmentLines] : []),
@@ -100,6 +103,47 @@ function presentResourceRecovery(summary: CharacterSummary): string[] {
   }
 
   return lines;
+}
+
+function presentActiveDrink(drink: HeroActiveDrink | null): string | null {
+  if (!drink) {
+    return null;
+  }
+
+  const effects = presentActiveDrinkEffects(drink);
+  const effectText = effects.length > 0 ? ` — ${effects.join(", ")}` : "";
+
+  return `${drink.emoji} Баф: <b>${escapeHtml(drink.name)}</b> до ${formatTime(drink.expiresAt)}${effectText}.`;
+}
+
+function presentActiveDrinkEffects(drink: HeroActiveDrink): string[] {
+  if (drink.phase === "queued") {
+    return ["чекає PvE бою", "шкода туди/назад ×1.13"];
+  }
+
+  const effects: string[] = [];
+
+  if (drink.recoveryMultiplierBp && drink.recoveryMultiplierBp !== 10000) {
+    effects.push(`відновлення ×${formatMultiplier(drink.recoveryMultiplierBp)}`);
+  }
+
+  if (drink.accuracyPenaltyPp) {
+    effects.push(`точність −${drink.accuracyPenaltyPp}`);
+  }
+
+  return effects;
+}
+
+function formatMultiplier(multiplierBp: number): string {
+  return (multiplierBp / 10_000).toFixed(2);
+}
+
+function formatTime(date: Date): string {
+  return new Intl.DateTimeFormat("uk-UA", {
+    timeZone: "Europe/Kyiv",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
 }
 
 function presentDuration(seconds: number): string {
