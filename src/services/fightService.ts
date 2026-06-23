@@ -51,7 +51,7 @@ import {
   type DrinkCombatModifiers,
   type MonsterCombatStats
 } from "../domain/combat";
-import { getShynokDrinkDefinition } from "../domain/shynokDrinks";
+import { buildShynokRecoveryWindows, getShynokDrinkDefinition } from "../domain/shynokDrinks";
 import { getItemDropChance, rollMonsterLoot } from "../domain/loot";
 import {
   isWithinActivityMaxLevel,
@@ -542,7 +542,7 @@ export class FightService {
     private readonly equipment?: EquipmentRepository,
     private readonly combatAnalytics?: CombatBalanceAnalyticsService,
     private readonly pendingPassageEncounters?: PendingPassageEncounterRepository,
-    private readonly shynok?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser">
+    private readonly shynok?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">
   ) {}
 
   private async advanceExpiredPersistentTurn(
@@ -2613,22 +2613,17 @@ export class FightService {
 
     if (options.syncResources) {
       const now = this.clock();
-      const activeDrink = await this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now);
+      const recoveryDrink =
+        (await this.shynok?.getRecoveryDrinkForTelegramUser?.(telegramUserId)) ??
+        (await this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now));
+      const multiplierWindows = buildShynokRecoveryWindows(recoveryDrink);
       const resourceAware = await summarizeAndSyncCharacterResources({
         characters: this.characters,
         telegramUserId,
         character,
         equippedItems,
         now,
-        ...(activeDrink?.phase === "timed"
-          ? {
-              multiplierWindow: {
-                startsAt: activeDrink.startedAt,
-                expiresAt: activeDrink.expiresAt,
-                multiplierBp: getShynokDrinkDefinition(activeDrink.drinkKey).recoveryMultiplierBp ?? 10000
-              }
-            }
-          : {})
+        ...(multiplierWindows.length > 0 ? { multiplierWindows } : {})
       });
 
       return {

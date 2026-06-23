@@ -21,6 +21,7 @@ import { buildDrinkEffect, createRoundReplacementGuard, isShynokDrinkKey } from 
 import { buildMantokSaleBasket, buildMantokSaleEligibleStacks } from "../../domain/mantokSales";
 
 type TxClient = Prisma.TransactionClient;
+const PRESENCE_LOCATION_KORCHMA_BAR = "location.korchma.bar";
 
 class StaleSaleSelectionRollback extends Error {
   constructor(readonly sale: ShynokMantokSaleRecord) {
@@ -150,14 +151,15 @@ export class PrismaShynokRepository implements ShynokRepository {
         return { state: "no-character" };
       }
 
-      const order = mapDrinkOrder(await tx.korchmaDrinkOrder.findFirst({
+      const orderRow = await tx.korchmaDrinkOrder.findFirst({
         where: {
           token: input.token,
           characterId: character.id
         }
-      }));
+      });
+      const order = mapDrinkOrder(orderRow);
 
-      if (!order) {
+      if (!order || !orderRow) {
         return { state: "invalid-token" };
       }
 
@@ -171,6 +173,10 @@ export class PrismaShynokRepository implements ShynokRepository {
       }
 
       if (order.status !== "pending") {
+        return { state: "invalid-token" };
+      }
+
+      if (!(await canMutateShynok(tx, character, orderRow.createdAt))) {
         return { state: "invalid-token" };
       }
 
@@ -297,14 +303,15 @@ export class PrismaShynokRepository implements ShynokRepository {
         return { state: "no-character" };
       }
 
-      const order = mapDrinkOrder(await tx.korchmaDrinkOrder.findFirst({
+      const orderRow = await tx.korchmaDrinkOrder.findFirst({
         where: {
           token: input.token,
           characterId: character.id
         }
-      }));
+      });
+      const order = mapDrinkOrder(orderRow);
 
-      if (!order) {
+      if (!order || !orderRow) {
         return { state: "invalid-token" };
       }
 
@@ -320,6 +327,10 @@ export class PrismaShynokRepository implements ShynokRepository {
       }
 
       if (order.status !== "pending-round") {
+        return { state: "invalid-token" };
+      }
+
+      if (!(await canMutateShynok(tx, character, orderRow.createdAt))) {
         return { state: "invalid-token" };
       }
 
@@ -472,14 +483,15 @@ export class PrismaShynokRepository implements ShynokRepository {
         return { state: "no-character" };
       }
 
-      const offer = mapRoundRecipient(await tx.korchmaRoundRecipient.findFirst({
+      const offerRow = await tx.korchmaRoundRecipient.findFirst({
         where: {
           id: input.offerId,
           characterId: character.id
         }
-      }));
+      });
+      const offer = mapRoundRecipient(offerRow);
 
-      if (!offer) {
+      if (!offer || !offerRow) {
         return { state: "invalid-offer" };
       }
 
@@ -505,6 +517,10 @@ export class PrismaShynokRepository implements ShynokRepository {
         const declined = await setRoundOfferStatus(tx, offer.id, "declined", input.now, input.result);
         await refreshRoundTelemetry(tx, offer.purchaseId);
         return declined ? { state: "declined", offer: declined } : replayRoundOffer(await findRoundOffer(tx, offer.id));
+      }
+
+      if (!(await canMutateShynok(tx, character, offerRow.createdAt))) {
+        return { state: "invalid-offer" };
       }
 
       const activeDrink = await findLiveDrinkState(tx, character.id, input.now);
@@ -683,13 +699,18 @@ export class PrismaShynokRepository implements ShynokRepository {
       now: Date;
     }
   ): Promise<ShynokMantokSaleRecord | null> {
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const updatedSale = await this.prisma.$transaction(async (tx) => {
+      const character = await findCharacter(tx, telegramUserId);
+      if (!character) {
+        return null;
+      }
+
       await tx.korchmaMantokSale.updateMany({
         where: {
           token: input.token,
           status: "pending",
           expiresAt: { lte: input.now },
-          character: { user: { telegramUserId } }
+          characterId: character.id
         },
         data: {
           status: "expired",
@@ -697,12 +718,27 @@ export class PrismaShynokRepository implements ShynokRepository {
         }
       });
 
-      return tx.korchmaMantokSale.updateMany({
+      const sale = await tx.korchmaMantokSale.findFirst({
+        where: {
+          token: input.token,
+          characterId: character.id
+        }
+      });
+
+      if (!sale || sale.status !== "pending" || sale.expiresAt <= input.now) {
+        return null;
+      }
+
+      if (!(await canMutateShynok(tx, character, sale.createdAt))) {
+        return null;
+      }
+
+      const updated = await tx.korchmaMantokSale.updateMany({
         where: {
           token: input.token,
           status: "pending",
           expiresAt: { gt: input.now },
-          character: { user: { telegramUserId } }
+          characterId: character.id
         },
         data: {
           selectionJson: input.selection,
@@ -712,13 +748,20 @@ export class PrismaShynokRepository implements ShynokRepository {
           updatedAt: input.now
         }
       });
+
+      if (updated.count !== 1) {
+        return null;
+      }
+
+      return tx.korchmaMantokSale.findFirst({
+        where: {
+          token: input.token,
+          characterId: character.id
+        }
+      });
     });
 
-    if (updated.count !== 1) {
-      return null;
-    }
-
-    return this.findSaleForTelegramUser(telegramUserId, input.token);
+    return mapSale(updatedSale);
   }
 
   async findSaleForTelegramUser(
@@ -779,14 +822,15 @@ export class PrismaShynokRepository implements ShynokRepository {
           return { state: "no-character" };
         }
 
-        const sale = mapSale(await tx.korchmaMantokSale.findFirst({
+        const saleRow = await tx.korchmaMantokSale.findFirst({
           where: {
             token: input.token,
             characterId: snapshot.character.id
           }
-        }));
+        });
+        const sale = mapSale(saleRow);
 
-        if (!sale) {
+        if (!sale || !saleRow) {
           return { state: "invalid-token" };
         }
 
@@ -811,6 +855,10 @@ export class PrismaShynokRepository implements ShynokRepository {
             return { state: "cancelled", sale: expired };
           }
           return { state: "expired", sale: expired };
+        }
+
+        if (!(await canMutateShynokByCharacterId(tx, snapshot.character.id, saleRow.createdAt))) {
+          return { state: "invalid-token" };
         }
 
         const eligible = buildMantokSaleEligibleStacks({
@@ -1069,6 +1117,47 @@ async function upsertDrinkState(
   }
 
   return mapped;
+}
+
+async function canMutateShynok(
+  tx: TxClient,
+  character: {
+    id: string;
+    user: { lastSeenLocationId: string | null; currentRaidId?: string | null };
+  },
+  operationCreatedAt: Date
+): Promise<boolean> {
+  if (character.user.lastSeenLocationId !== PRESENCE_LOCATION_KORCHMA_BAR || character.user.currentRaidId) {
+    return false;
+  }
+
+  const [activeLease, newerRemorts] = await Promise.all([
+    tx.activeCombatLease.findUnique({
+      where: { characterId: character.id },
+      select: { id: true }
+    }),
+    tx.characterRemort.count({
+      where: {
+        characterId: character.id,
+        createdAt: { gt: operationCreatedAt }
+      }
+    })
+  ]);
+
+  return !activeLease && newerRemorts === 0;
+}
+
+async function canMutateShynokByCharacterId(
+  tx: TxClient,
+  characterId: string,
+  operationCreatedAt: Date
+): Promise<boolean> {
+  const character = await tx.character.findUnique({
+    where: { id: characterId },
+    include: characterRecordInclude
+  });
+
+  return character ? canMutateShynok(tx, character, operationCreatedAt) : false;
 }
 
 function withPreviousRecoveryWindows(

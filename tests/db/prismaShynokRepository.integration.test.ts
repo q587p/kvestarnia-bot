@@ -40,6 +40,7 @@ describe("PrismaShynokRepository integration", () => {
     await prisma.characterEquipment.deleteMany();
     await prisma.mantokChestRun.deleteMany();
     await prisma.levelBarterExchange.deleteMany();
+    await prisma.activeCombatLease.deleteMany();
     await prisma.characterRemort.deleteMany();
     await prisma.character.deleteMany();
     await prisma.user.deleteMany();
@@ -302,6 +303,42 @@ describe("PrismaShynokRepository integration", () => {
     await expect(prisma.characterDrinkState.count({ where: { characterId: "character-self" } })).resolves.toBe(1);
   });
 
+  it("blocks stale self-drink confirmation after the character leaves the Shynok", async () => {
+    await seedCharacter({
+      telegramUserId: 711n,
+      userId: "user-self-stale-place",
+      characterId: "character-self-stale-place",
+      gold: 100,
+      locationId: "location.korchma.hall"
+    });
+    await prisma.korchmaDrinkOrder.create({
+      data: {
+        id: "order-self-stale-place",
+        token: "12345678-1234-4234-9234-000000000711",
+        characterId: "character-self-stale-place",
+        drinkKey: "drink.thyme-tea",
+        priceGold: 17,
+        status: "pending",
+        replacementJson: null,
+        expiresAt: new Date("2026-06-23T10:05:00.000Z")
+      }
+    });
+
+    const result = await repository.confirmSelfDrinkOrderForTelegramUser(711n, {
+      token: "12345678-1234-4234-9234-000000000711",
+      now: now(),
+      result: { kind: "self-drink-confirm" }
+    });
+
+    expect(result.state).toBe("invalid-token");
+    await expect(prisma.character.findUnique({
+      where: { id: "character-self-stale-place" }
+    })).resolves.toMatchObject({ gold: 100 });
+    await expect(prisma.characterDrinkState.findUnique({
+      where: { characterId: "character-self-stale-place" }
+    })).resolves.toBeNull();
+  });
+
   it("creates one round purchase across duplicate confirmations", async () => {
     await seedCharacter({ telegramUserId: 801n, userId: "user-round", characterId: "character-round", gold: 500 });
     await seedCharacter({ telegramUserId: 802n, userId: "user-round-target", characterId: "character-round-target" });
@@ -376,6 +413,90 @@ describe("PrismaShynokRepository integration", () => {
     })).resolves.toMatchObject({ status: "completed", payoutGold: 8 });
   });
 
+  it("blocks Mantok sale confirmation when an active combat lease appears after preview", async () => {
+    await seedCharacter({ telegramUserId: 911n, userId: "user-sale-lease", characterId: "character-sale-lease", gold: 10 });
+    await seedSaleItems("character-sale-lease", { "item.test-copper-spoon": 2 });
+    const basket = makeSaleBasket([{ itemId: "item.test-copper-spoon", quantity: 2 }]);
+    await seedSale({
+      token: "12345678-1234-4234-9234-000000000911",
+      characterId: "character-sale-lease",
+      basket
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        characterId: "character-sale-lease",
+        kind: "solo-combat",
+        referenceId: "session-sale-lease"
+      }
+    });
+
+    const result = await repository.confirmSaleForTelegramUser(911n, {
+      token: "12345678-1234-4234-9234-000000000911",
+      itemContents: saleItemContents,
+      result: { kind: "sale-confirm" },
+      now: now()
+    });
+
+    expect(result.state).toBe("invalid-token");
+    await expect(prisma.character.findUnique({ where: { id: "character-sale-lease" } })).resolves.toMatchObject({
+      gold: 10
+    });
+    await expect(prisma.characterItem.findUnique({
+      where: {
+        characterId_itemId: {
+          characterId: "character-sale-lease",
+          itemId: "item.test-copper-spoon"
+        }
+      }
+    })).resolves.toMatchObject({ quantity: 2 });
+  });
+
+  it("blocks old Mantok sale drafts after remort life changes", async () => {
+    await seedCharacter({ telegramUserId: 912n, userId: "user-sale-remort", characterId: "character-sale-remort", gold: 10 });
+    await seedSaleItems("character-sale-remort", { "item.test-copper-spoon": 2 });
+    const basket = makeSaleBasket([{ itemId: "item.test-copper-spoon", quantity: 2 }]);
+    await seedSale({
+      token: "12345678-1234-4234-9234-000000000912",
+      characterId: "character-sale-remort",
+      basket,
+      createdAt: new Date("2026-06-23T09:55:00.000Z")
+    });
+    await prisma.characterRemort.create({
+      data: {
+        id: "remort-sale-draft",
+        characterId: "character-sale-remort",
+        token: "remort-token-sale-draft",
+        remortNumber: 1,
+        previousLevel: 3,
+        previousXp: 100,
+        previousGold: 10,
+        displayNameSnapshot: "character-sale-remort",
+        preservedPayloadJson: {},
+        createdAt: new Date("2026-06-23T09:56:00.000Z")
+      }
+    });
+
+    const result = await repository.confirmSaleForTelegramUser(912n, {
+      token: "12345678-1234-4234-9234-000000000912",
+      itemContents: saleItemContents,
+      result: { kind: "sale-confirm" },
+      now: now()
+    });
+
+    expect(result.state).toBe("invalid-token");
+    await expect(prisma.character.findUnique({ where: { id: "character-sale-remort" } })).resolves.toMatchObject({
+      gold: 10
+    });
+    await expect(prisma.characterItem.findUnique({
+      where: {
+        characterId_itemId: {
+          characterId: "character-sale-remort",
+          itemId: "item.test-copper-spoon"
+        }
+      }
+    })).resolves.toMatchObject({ quantity: 2 });
+  });
+
   it("leaves stale Mantok sale selection untouched", async () => {
     await seedCharacter({ telegramUserId: 1001n, userId: "user-sale-stale", characterId: "character-sale-stale", gold: 10 });
     await seedSaleItems("character-sale-stale", {
@@ -429,13 +550,16 @@ describe("PrismaShynokRepository integration", () => {
     userId: string;
     characterId: string;
     gold?: number;
+    locationId?: string;
+    currentRaidId?: string | null;
   }): Promise<void> {
     await prisma.user.create({
       data: {
         id: input.userId,
         telegramUserId: input.telegramUserId,
         displayName: input.characterId,
-        lastSeenLocationId: "korchma.bar"
+        lastSeenLocationId: input.locationId ?? "location.korchma.bar",
+        currentRaidId: input.currentRaidId ?? null
       }
     });
     await prisma.character.create({
@@ -525,6 +649,7 @@ describe("PrismaShynokRepository integration", () => {
     token: string;
     characterId: string;
     basket: NonNullable<ReturnType<typeof buildMantokSaleBasket>>;
+    createdAt?: Date;
   }): Promise<void> {
     await prisma.korchmaMantokSale.create({
       data: {
@@ -535,7 +660,8 @@ describe("PrismaShynokRepository integration", () => {
         selectionFingerprint: input.basket.fingerprint,
         nominalValue: input.basket.nominalValue,
         payoutGold: input.basket.payoutGold,
-        expiresAt: new Date("2026-06-23T10:05:00.000Z")
+        expiresAt: new Date("2026-06-23T10:05:00.000Z"),
+        ...(input.createdAt ? { createdAt: input.createdAt } : {})
       }
     });
   }
@@ -625,6 +751,14 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       display_name_snapshot TEXT NOT NULL,
       preserved_payload_json JSONB NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE active_combat_leases (
+      id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+      character_id TEXT NOT NULL UNIQUE,
+      kind TEXT NOT NULL,
+      reference_id TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE character_drink_states (
       id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),

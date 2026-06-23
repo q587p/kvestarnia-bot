@@ -880,6 +880,54 @@ describe("FightService", () => {
     expect(characters.resourceUpdateCount).toBe(1);
   });
 
+  it("applies historical timed drink recovery when fight-start sync happens after expiry", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, {
+      xp: 25,
+      hpCurrent: 1,
+      manaCurrent: 1,
+      hpRegenAt: new Date("2026-06-12T10:29:00.000Z"),
+      manaRegenAt: new Date("2026-06-12T10:29:00.000Z")
+    });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> = {
+      getActiveDrinkForTelegramUser: () => Promise.resolve(null),
+      getRecoveryDrinkForTelegramUser: () =>
+        Promise.resolve({
+          id: "drink-state-expired-recovery",
+          characterId: "character-42",
+          drinkKey: "drink.fine-beer",
+          phase: "timed",
+          startedAt: new Date("2026-06-12T10:29:00.000Z"),
+          expiresAt: new Date("2026-06-12T10:29:42.000Z"),
+          sourceType: "self_purchase",
+          sourceId: "order-expired-recovery",
+          metadata: null
+        })
+    };
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1]),
+      undefined,
+      undefined,
+      undefined,
+      shynok
+    );
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.session.state?.hero.hp).toBe(5);
+      expect(started.session.state?.drinkModifiers).toBeUndefined();
+    }
+    expect(characters.resourceUpdateCount).toBe(1);
+  });
+
   it("does not start a new persistent fight at zero HP", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, {
