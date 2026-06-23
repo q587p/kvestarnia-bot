@@ -33,6 +33,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Timed drink recovery now keeps historical replacement/expiry windows for lazy resource sync and uses weighted integer regeneration, so sub-point progress is not lost at drink start/end boundaries.
 - Completed Shynok manatka sale callbacks now reach repository replay instead of being pre-rejected as invalid, and sale selection updates lazily expire old drafts before mutating selection state.
 - Round recipient accept/decline/expiry transitions now CAS from `offered`, and round telemetry is refreshed from recipient rows instead of read-modify-write counters.
+- Ready Yeger trail checks now ignore the ordinary Nyz monster-rest gate and can start the targeted unquiet fight immediately, while unrelated active fights still block the trail.
 
 ### Unchanged
 - Coffee, food buffs, PvP drink power, item instances, buyback, general shops, auctions, markets, trading and broad inventory rewrites are still out of scope.

@@ -3215,7 +3215,7 @@ export class FightService {
     telegramUserId: bigint,
     source: NonNullable<PersistentFightStartOptions["source"]>
   ): Promise<{ availableAt: Date; now: Date } | null> {
-    if (!this.combatSessions || source === "adventure") {
+    if (!this.combatSessions || source === "adventure" || source === "yeger") {
       return null;
     }
 

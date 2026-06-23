@@ -23,7 +23,7 @@ import { items, monsters } from "../../src/content";
 import { summarizeCharacter, type CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { isProtectedMantokChestItem } from "../../src/domain/mantokChest";
 import { FakeRandomSource } from "../../src/shared/random";
-import type { FightLookupResult, FightService } from "../../src/services/fightService";
+import type { FightLookupResult, FightService, PersistentFightStartOptions } from "../../src/services/fightService";
 import {
   getYegerUnquietTrialTurnInXp,
   getYegerTrackingExactChance,
@@ -34,6 +34,7 @@ import {
   YEGER_UNQUIET_TRIAL_STARTED_KEY,
   YegerQuestService
 } from "../../src/services/yegerQuestService";
+import { PRESENCE_LOCATION_KORCHMA_RANGER_CORNER } from "../../src/services/presenceService";
 
 const telegramUserId = 42n;
 const startedAt = new Date("2026-06-15T10:00:00.000Z");
@@ -322,7 +323,84 @@ describe("YegerQuestService", () => {
       }
     });
     expect(fightStarts).toBe(1);
+    expect(world.fightStartOptions).toEqual([
+      {
+        source: "yeger",
+        originLocationId: PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+        target: { tagsAny: ["undead", "ghost", "cursed", "unquiet"] }
+      }
+    ]);
     expect(world.cooldowns[0]?.availableAt).toEqual(new Date("2026-06-15T10:08:00.000Z"));
+  });
+
+  it("ignores ordinary monster rest when a ready trail finds a Yeger target", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 5, xp: 110 });
+    world.addAction(YEGER_UNQUIET_TRIAL_STARTED_KEY, startedAt);
+    world.addCooldown(new Date("2026-06-15T10:04:00.000Z"));
+    world.randomValues = [0, 0.1];
+    world.fightOverviewResult = {
+      state: "monster-rest",
+      character: world.characterSummary(),
+      questProgress: {
+        stageId: "13",
+        title: "Тринадцять дрібних проблем",
+        wins: 3,
+        target: 13,
+        completed: false,
+        rewardClaimed: false,
+        issued: true,
+        branchComplete: false
+      },
+      availableAt: new Date("2026-06-15T10:08:00.000Z"),
+      now
+    };
+    let fightStarts = 0;
+    world.fightResult = () => {
+      fightStarts += 1;
+      return Promise.resolve({
+        state: "persistent-active",
+        character: world.characterSummary(),
+        session: {
+          id: "fight-1",
+          characterId: "character-42",
+          monsterId: "monster.complaint-lantern",
+          status: "active",
+          turn: 1,
+          state: null,
+          reward: null,
+          expiresAt: new Date(now.getTime() + 600_000),
+          createdAt: now,
+          updatedAt: now
+        },
+        monster: {
+          id: "monster.complaint-lantern",
+          name: "Скаргова лампа",
+          description: "Світить не там.",
+          level: 4,
+          tags: ["unquiet"]
+        },
+        questProgress: null
+      });
+    };
+
+    const result = await world.service().trackForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "tracking-resolved-success",
+      fight: {
+        state: "persistent-active",
+        monster: { id: "monster.complaint-lantern" }
+      }
+    });
+    expect(fightStarts).toBe(1);
+    expect(world.fightStartOptions).toEqual([
+      {
+        source: "yeger",
+        originLocationId: PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+        target: { tagsAny: ["undead", "ghost", "cursed", "unquiet"] }
+      }
+    ]);
   });
 
   it("does not consume a ready trail while another fight is active", async () => {
@@ -431,6 +509,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
   }> = [];
   readonly itemGrants: Array<{ itemId: string; quantity: number }> = [];
   readonly cooldowns: CharacterCooldownRecord[] = [];
+  readonly fightStartOptions: PersistentFightStartOptions[] = [];
   randomValues: number[] = [0];
   fightOverviewResult: FightLookupResult = { state: "no-character" };
   fightResult: () => ReturnType<FightService["getOrStartPersistentFightForTelegramUser"]> = () =>
@@ -443,7 +522,13 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
       this,
       {
         getFightOverviewForTelegramUser: () => Promise.resolve(this.fightOverviewResult),
-        getOrStartPersistentFightForTelegramUser: () => this.fightResult()
+        getOrStartPersistentFightForTelegramUser: (
+          _telegramUserId: bigint,
+          options?: PersistentFightStartOptions
+        ) => {
+          this.fightStartOptions.push(options ?? {});
+          return this.fightResult();
+        }
       } as unknown as FightService,
       this,
       () => now,
