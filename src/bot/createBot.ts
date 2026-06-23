@@ -211,6 +211,7 @@ import {
   buildShynokDrinkPreviewKeyboard,
   buildShynokDrinkResultKeyboard,
   buildShynokOverviewKeyboard,
+  buildShynokRoundOfferResponseKeyboard,
   buildShynokRoundPreviewKeyboard,
   buildShynokSaleSelectionKeyboard
 } from "./keyboards/shynokKeyboard";
@@ -1672,22 +1673,32 @@ async function handleShynokCallback(
     return;
   }
 
-  if (action.type === "round-accept" || action.type === "round-decline") {
+  if (
+    action.type === "round-accept" ||
+    action.type === "round-decline" ||
+    action.type === "round-replace-confirm"
+  ) {
     const result = await services.shynok.respondToRoundOfferForTelegramUser(
       telegramUserId,
       action.offerId,
-      action.type === "round-accept" ? "accept" : "decline"
+      action.type === "round-accept"
+        ? "accept"
+        : action.type === "round-decline"
+          ? "decline"
+          : "confirm-replacement",
+      action.type === "round-replace-confirm" ? action.replacementGuard : undefined
     );
     await safeAnswerCallbackQuery(ctx, result.state === "accepted"
       ? { text: "Кухоль ваш.", show_alert: false }
       : {
           show_alert:
             result.state !== "replayed" &&
-            result.state !== "declined"
+            result.state !== "declined" &&
+            result.state !== "replacement-preview"
         });
     await safeEditMessageText(ctx, presentShynokRoundOfferResponse(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildBackToShynokKeyboard()
+      reply_markup: buildShynokRoundOfferResponseKeyboard(result)
     });
     return;
   }

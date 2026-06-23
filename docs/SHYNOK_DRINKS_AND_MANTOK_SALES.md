@@ -5,7 +5,7 @@
 **Рекомендований реліз:** `0.1.24`
 **Головна поверхня:** `🍻 Шинок` у Квестарні
 
-**Implementation note:** runtime slice shipped with a single current drink slot, server-owned self/round/sale tokens, opt-in round offers, transaction-local sale recomputation and no PvP drink power. Follow-up hardening keeps combat drink snapshots repository-verified, consumes queued vodka with session/lease creation, preserves historical timed recovery windows for lazy sync, and replays completed sale results from stored data. Coffee, food buffs, item instances, buyback, trading and a broad shop remain out of scope.
+**Implementation note:** runtime slice shipped with a single current drink slot, server-owned self/round/sale tokens, opt-in round offers, transaction-local sale recomputation and no PvP drink power. Follow-up hardening keeps combat drink snapshots repository-verified, consumes queued vodka with session/lease creation, preserves historical timed recovery windows for lazy sync, requires stale-safe final confirmation before a social-round cup can replace a live drink, and replays completed drink/round/sale results from stored data. Coffee, food buffs, item instances, buyback, trading and a broad shop remain out of scope.
 
 ## 1. Мета
 
@@ -156,7 +156,7 @@ adjusted_damage = max(1, floor(base_damage * 113 / 100))
 - `🍺 Випити`
 - `Ні, дякую`
 
-Ефект починається тільки після добровільного прийняття. Якщо в одержувача вже є напій, спершу показується заміна. Відмова або протермінування не дають ефекту.
+Ефект починається тільки після добровільного прийняття. Якщо в одержувача вже є напій, перше `Випити` лише показує коротке попередження про заміну й не змінює offer, drink state або telemetry. Фінальне підтвердження повторно перевіряє того самого одержувача, still-offered кухоль, строк дії, поточний доступ до Шинку і той самий live drink-state guard. Якщо напій або offer змінився, гравець отримує refresh/stale відповідь без заміни. Відмова або протермінування не дають ефекту.
 
 ### 5.2. Одержувачі
 
@@ -264,9 +264,10 @@ Confirm у межах однієї DB transaction:
 3. заново перевіряє content IDs, tags, `goldValue` і кількості;
 4. перераховує selection fingerprint, nominal total і payout;
 5. при drift повертає `stale-selection` без часткових змін;
-6. guarded-decrement/delete вибрані stack units;
-7. increment-ить `Character.gold`;
-8. завершує sale ledger і зберігає replay summary.
+6. claim-ить pending sale коротким guarded status transition;
+7. guarded-decrement/delete вибрані stack units; будь-який decrement failure відкочує весь confirm;
+8. increment-ить `Character.gold`;
+9. завершує sale ledger і зберігає replay summary.
 
 Повторний confirm завершеної операції показує той самий stored result і не продає речі вдруге. Telegram send/edit failure не відкочує committed sale і не створює другу.
 
@@ -393,7 +394,7 @@ Pending + completed sale ledger:
 - Немає refund після спожитого/протермінованого напою чи купленого раунду.
 - Продаж не залежить від статів, RNG або часу доби.
 - Sale payout завжди береться з canonical current content, а не зі старої кнопки.
-- Усі spending/destructive actions atomic та replay-safe.
+- Усі spending/destructive actions atomic та replay-safe; duplicate confirm програє status claim і перечитує canonical completed result.
 - Прямі Telegram повідомлення ніколи не є source of truth.
 - Не змінювати normal no-drink combat simulation.
 - Нова міграція не ламає старі `KorchmaRoundPurchase` rows і старі active combat JSON.

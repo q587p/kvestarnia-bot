@@ -105,6 +105,13 @@ export type ShynokRespondRoundOfferResult =
   | { state: "invalid-offer" }
   | { state: "expired"; offer: ShynokRoundRecipientRecord }
   | { state: "declined"; offer: ShynokRoundRecipientRecord }
+  | {
+      state: "replacement-required";
+      offer: ShynokRoundRecipientRecord;
+      drink: ShynokDrinkStateRecord;
+      replacementGuard: string;
+    }
+  | { state: "stale-replacement"; offer: ShynokRoundRecipientRecord }
   | { state: "accepted"; offer: ShynokRoundRecipientRecord; drink: ShynokDrinkStateRecord }
   | { state: "replayed"; offer: ShynokRoundRecipientRecord; drink: ShynokDrinkStateRecord | null };
 
@@ -171,7 +178,8 @@ export interface ShynokRepository {
     telegramUserId: bigint,
     input: {
       offerId: string;
-      action: "accept" | "decline";
+      action: "accept" | "decline" | "confirm-replacement";
+      replacementGuard?: string;
       now: Date;
       result: unknown;
     }

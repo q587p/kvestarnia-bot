@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import type { ResourceRegenerationMultiplierWindow } from "./resources/resourceRegeneration";
 
 export const SHYNOK_DRINK_RULES_VERSION = "shynok-drinks-v1";
+export const SHYNOK_ROUND_REPLACEMENT_GUARD_HEX_LENGTH = 16;
 
 export type ShynokDrinkKey =
   | "drink.thyme-tea"
@@ -165,6 +167,13 @@ export function applyDrinkDamageMultiplier(baseDamage: number, multiplierBp: num
   }
 
   return Math.max(1, Math.floor((damage * multiplierBp) / 10000));
+}
+
+export function createRoundReplacementGuard(input: { offerId: string; drinkStateId: string }): string {
+  return createHash("sha256")
+    .update(`shynok-round-replacement-v1:${input.offerId}:${input.drinkStateId}`)
+    .digest("hex")
+    .slice(0, SHYNOK_ROUND_REPLACEMENT_GUARD_HEX_LENGTH);
 }
 
 function parsePreviousRecoveryWindows(value: unknown): ResourceRegenerationMultiplierWindow[] {

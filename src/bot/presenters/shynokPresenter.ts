@@ -166,6 +166,17 @@ export function presentShynokRoundConfirm(result: ShynokRoundConfirmResult): str
 }
 
 export function presentShynokRoundOfferResponse(result: ShynokRoundOfferRespondResult): string {
+  if (result.state === "replacement-preview") {
+    return [
+      "🍺 На вас уже діє інший напій.",
+      "",
+      `Зараз: ${result.activeDrink.emoji} <b>${escapeHtml(result.activeDrink.name)}</b> до ${formatTime(result.activeDrink.expiresAt)}.`,
+      `Новий кухоль: ${result.drink.emoji} <b>${escapeHtml(result.drink.name)}</b>.`,
+      "",
+      "Якщо підтвердите, новий кухоль замінить поточний. Поки що нічого не змінено."
+    ].join("\n");
+  }
+
   if (result.state === "accepted" || result.state === "replayed") {
     return [
       result.state === "replayed" ? "🍺 Цей кухоль уже враховано." : "🍺 Ви взяли кухоль.",
@@ -182,6 +193,10 @@ export function presentShynokRoundOfferResponse(result: ShynokRoundOfferRespondR
 
   if (result.state === "expired") {
     return "🍺 Кухоль протермінувався. Корчмар уже пустив його в історію піни.";
+  }
+
+  if (result.state === "stale-replacement") {
+    return "🍺 Напій уже змінився, тож старе підтвердження не годиться. Оновіть Шинок і виберіть знову.";
   }
 
   return presentShynokGate(result);

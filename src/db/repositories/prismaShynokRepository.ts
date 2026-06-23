@@ -17,10 +17,16 @@ import type {
   ShynokRoundRecipientSnapshot
 } from "./shynokRepository";
 import { getIncludedRemortCount } from "./prismaRemortCount";
-import { buildDrinkEffect, isShynokDrinkKey } from "../../domain/shynokDrinks";
+import { buildDrinkEffect, createRoundReplacementGuard, isShynokDrinkKey } from "../../domain/shynokDrinks";
 import { buildMantokSaleBasket, buildMantokSaleEligibleStacks } from "../../domain/mantokSales";
 
 type TxClient = Prisma.TransactionClient;
+
+class StaleSaleSelectionRollback extends Error {
+  constructor(readonly sale: ShynokMantokSaleRecord) {
+    super("Mantok sale selection became stale during confirmation.");
+  }
+}
 
 export class PrismaShynokRepository implements ShynokRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -177,6 +183,32 @@ export class PrismaShynokRepository implements ShynokRepository {
         return { state: "expired", order: expired };
       }
 
+      const claimed = await tx.korchmaDrinkOrder.updateMany({
+        where: {
+          id: order.id,
+          status: "pending",
+          expiresAt: { gt: input.now }
+        },
+        data: {
+          status: "processing",
+          updatedAt: input.now
+        }
+      });
+
+      if (claimed.count !== 1) {
+        const replay = mapDrinkOrder(await tx.korchmaDrinkOrder.findUnique({ where: { id: order.id } }));
+        if (replay?.status === "completed") {
+          return {
+            state: "replayed",
+            character: toCharacterRecord(character),
+            order: replay,
+            drink: await findDrinkState(tx, character.id)
+          };
+        }
+
+        return replay?.status === "expired" ? { state: "expired", order: replay } : { state: "invalid-token" };
+      }
+
       const spent = await tx.character.updateMany({
         where: {
           id: character.id,
@@ -188,6 +220,10 @@ export class PrismaShynokRepository implements ShynokRepository {
       });
 
       if (spent.count !== 1) {
+        await tx.korchmaDrinkOrder.updateMany({
+          where: { id: order.id, status: "processing" },
+          data: { status: "pending", updatedAt: input.now }
+        });
         return {
           state: "not-enough-gold",
           character: toCharacterRecord(character),
@@ -306,6 +342,34 @@ export class PrismaShynokRepository implements ShynokRepository {
         return { state: "invalid-token" };
       }
 
+      const claimed = await tx.korchmaDrinkOrder.updateMany({
+        where: {
+          id: order.id,
+          status: "pending-round",
+          expiresAt: { gt: input.now }
+        },
+        data: {
+          status: "processing-round",
+          updatedAt: input.now
+        }
+      });
+
+      if (claimed.count !== 1) {
+        const replay = mapDrinkOrder(await tx.korchmaDrinkOrder.findUnique({ where: { id: order.id } }));
+        if (replay?.status === "completed-round") {
+          const parsed = parseRoundReplay(replay.result);
+          return {
+            state: "replayed",
+            character: toCharacterRecord(character),
+            order: replay,
+            purchaseId: parsed.purchaseId,
+            recipientCount: parsed.recipientCount
+          };
+        }
+
+        return replay?.status === "expired" ? { state: "expired", order: replay } : { state: "invalid-token" };
+      }
+
       const spent = await tx.character.updateMany({
         where: {
           id: character.id,
@@ -317,6 +381,10 @@ export class PrismaShynokRepository implements ShynokRepository {
       });
 
       if (spent.count !== 1) {
+        await tx.korchmaDrinkOrder.updateMany({
+          where: { id: order.id, status: "processing-round" },
+          data: { status: "pending-round", updatedAt: input.now }
+        });
         return {
           state: "not-enough-gold",
           character: toCharacterRecord(character),
@@ -392,7 +460,8 @@ export class PrismaShynokRepository implements ShynokRepository {
     telegramUserId: bigint,
     input: {
       offerId: string;
-      action: "accept" | "decline";
+      action: "accept" | "decline" | "confirm-replacement";
+      replacementGuard?: string;
       now: Date;
       result: unknown;
     }
@@ -438,25 +507,38 @@ export class PrismaShynokRepository implements ShynokRepository {
         return declined ? { state: "declined", offer: declined } : replayRoundOffer(await findRoundOffer(tx, offer.id));
       }
 
-      const accepted = await setRoundOfferStatus(tx, offer.id, "accepted", input.now, input.result);
-      if (!accepted) {
-        return replayRoundOffer(await findRoundOffer(tx, offer.id));
+      const activeDrink = await findLiveDrinkState(tx, character.id, input.now);
+      if (input.action === "accept" && activeDrink) {
+        return {
+          state: "replacement-required",
+          offer,
+          drink: activeDrink,
+          replacementGuard: createRoundReplacementGuard({
+            offerId: offer.id,
+            drinkStateId: activeDrink.id
+          })
+        };
       }
-      const drink = await upsertDrinkState(tx, {
-        characterId: character.id,
-        drinkKey: offer.drinkKey,
-        sourceType: "round",
-        sourceId: offer.id,
-        now: input.now,
-        metadata: input.result
-      });
-      await refreshRoundTelemetry(tx, offer.purchaseId);
 
-      return {
-        state: "accepted",
-        offer: accepted,
-        drink
-      };
+      if (input.action === "confirm-replacement") {
+        if (!activeDrink || !input.replacementGuard) {
+          return { state: "stale-replacement", offer };
+        }
+        const expectedGuard = createRoundReplacementGuard({
+          offerId: offer.id,
+          drinkStateId: activeDrink.id
+        });
+        if (input.replacementGuard !== expectedGuard) {
+          return { state: "stale-replacement", offer };
+        }
+      }
+
+      return acceptRoundOffer(tx, {
+        offer,
+        characterId: character.id,
+        now: input.now,
+        result: input.result
+      });
     });
   }
 
@@ -616,19 +698,19 @@ export class PrismaShynokRepository implements ShynokRepository {
       });
 
       return tx.korchmaMantokSale.updateMany({
-      where: {
-        token: input.token,
-        status: "pending",
-        expiresAt: { gt: input.now },
-        character: { user: { telegramUserId } }
-      },
-      data: {
-        selectionJson: input.selection,
-        selectionFingerprint: input.selectionFingerprint,
-        nominalValue: input.nominalValue,
-        payoutGold: input.payoutGold,
-        updatedAt: input.now
-      }
+        where: {
+          token: input.token,
+          status: "pending",
+          expiresAt: { gt: input.now },
+          character: { user: { telegramUserId } }
+        },
+        data: {
+          selectionJson: input.selection,
+          selectionFingerprint: input.selectionFingerprint,
+          nominalValue: input.nominalValue,
+          payoutGold: input.payoutGold,
+          updatedAt: input.now
+        }
       });
     });
 
@@ -689,104 +771,149 @@ export class PrismaShynokRepository implements ShynokRepository {
       now: Date;
     }
   ): Promise<ShynokConfirmSaleResult> {
-    return this.prisma.$transaction(async (tx) => {
-      const snapshot = await getInventorySnapshot(tx, telegramUserId);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const snapshot = await getInventorySnapshot(tx, telegramUserId);
 
-      if (!snapshot) {
-        return { state: "no-character" };
-      }
-
-      const sale = mapSale(await tx.korchmaMantokSale.findFirst({
-        where: {
-          token: input.token,
-          characterId: snapshot.character.id
+        if (!snapshot) {
+          return { state: "no-character" };
         }
-      }));
 
-      if (!sale) {
-        return { state: "invalid-token" };
-      }
-
-      if (sale.status === "completed") {
-        return {
-          state: "replayed",
-          character: snapshot.character,
-          sale
-        };
-      }
-
-      if (sale.status === "cancelled") {
-        return { state: "cancelled", sale };
-      }
-
-      if (sale.status === "expired" || sale.expiresAt <= input.now) {
-        const expired = await setSaleStatus(tx, sale.id, "expired", input.now, sale.result);
-        return { state: "expired", sale: expired };
-      }
-
-      const eligible = buildMantokSaleEligibleStacks({
-        stacks: snapshot.items,
-        equippedItemIds: new Set(snapshot.equippedItemIds),
-        reservedItemIds: new Set(snapshot.reservedItemIds),
-        itemContents: input.itemContents
-      });
-      const basket = buildMantokSaleBasket(sale.selection, eligible);
-
-      if (
-        !basket ||
-        sale.selectionFingerprint !== basket.fingerprint ||
-        sale.nominalValue !== basket.nominalValue ||
-        sale.payoutGold !== basket.payoutGold ||
-        JSON.stringify(sale.selection) !== JSON.stringify(basket.items)
-      ) {
-        return { state: "stale-selection", sale };
-      }
-
-      if (sale.payoutGold <= 0) {
-        return { state: "zero-payout", sale };
-      }
-
-      for (const item of sale.selection) {
-        const consumed = await tx.characterItem.updateMany({
+        const sale = mapSale(await tx.korchmaMantokSale.findFirst({
           where: {
-            characterId: snapshot.character.id,
-            itemId: item.itemId,
-            quantity: { gte: item.quantity }
+            token: input.token,
+            characterId: snapshot.character.id
+          }
+        }));
+
+        if (!sale) {
+          return { state: "invalid-token" };
+        }
+
+        if (sale.status === "completed") {
+          return {
+            state: "replayed",
+            character: snapshot.character,
+            sale
+          };
+        }
+
+        if (sale.status === "cancelled") {
+          return { state: "cancelled", sale };
+        }
+
+        if (sale.status === "expired" || sale.expiresAt <= input.now) {
+          const expired = await setSaleStatus(tx, sale.id, "expired", input.now, sale.result, "pending");
+          if (expired.status === "completed") {
+            return { state: "replayed", character: snapshot.character, sale: expired };
+          }
+          if (expired.status === "cancelled") {
+            return { state: "cancelled", sale: expired };
+          }
+          return { state: "expired", sale: expired };
+        }
+
+        const eligible = buildMantokSaleEligibleStacks({
+          stacks: snapshot.items,
+          equippedItemIds: new Set(snapshot.equippedItemIds),
+          reservedItemIds: new Set(snapshot.reservedItemIds),
+          itemContents: input.itemContents
+        });
+        const basket = buildMantokSaleBasket(sale.selection, eligible);
+
+        if (
+          !basket ||
+          sale.selectionFingerprint !== basket.fingerprint ||
+          sale.nominalValue !== basket.nominalValue ||
+          sale.payoutGold !== basket.payoutGold ||
+          JSON.stringify(sale.selection) !== JSON.stringify(basket.items)
+        ) {
+          return { state: "stale-selection", sale };
+        }
+
+        if (sale.payoutGold <= 0) {
+          return { state: "zero-payout", sale };
+        }
+
+        const claimed = await tx.korchmaMantokSale.updateMany({
+          where: {
+            id: sale.id,
+            status: "pending",
+            expiresAt: { gt: input.now }
           },
           data: {
-            quantity: { decrement: item.quantity }
+            status: "processing",
+            updatedAt: input.now
           }
         });
 
-        if (consumed.count !== 1) {
-          return { state: "stale-selection", sale };
+        if (claimed.count !== 1) {
+          const replay = mapSale(await tx.korchmaMantokSale.findUnique({ where: { id: sale.id } }));
+          if (replay?.status === "completed") {
+            return {
+              state: "replayed",
+              character: snapshot.character,
+              sale: replay
+            };
+          }
+          if (replay?.status === "cancelled") {
+            return { state: "cancelled", sale: replay };
+          }
+          if (replay?.status === "expired") {
+            return { state: "expired", sale: replay };
+          }
+
+          return { state: "invalid-token" };
         }
+
+        for (const item of sale.selection) {
+          const consumed = await tx.characterItem.updateMany({
+            where: {
+              characterId: snapshot.character.id,
+              itemId: item.itemId,
+              quantity: { gte: item.quantity }
+            },
+            data: {
+              quantity: { decrement: item.quantity }
+            }
+          });
+
+          if (consumed.count !== 1) {
+            throw new StaleSaleSelectionRollback(sale);
+          }
+        }
+
+        await tx.characterItem.deleteMany({
+          where: {
+            characterId: snapshot.character.id,
+            quantity: { lte: 0 }
+          }
+        });
+
+        await tx.character.update({
+          where: { id: snapshot.character.id },
+          data: { gold: { increment: sale.payoutGold } }
+        });
+
+        const completed = await setSaleStatus(tx, sale.id, "completed", input.now, input.result, "processing");
+        const updated = await tx.character.findUniqueOrThrow({
+          where: { id: snapshot.character.id },
+          include: characterRecordInclude
+        });
+
+        return {
+          state: "sold",
+          character: toCharacterRecord(updated),
+          sale: completed
+        };
+      });
+    } catch (error) {
+      if (error instanceof StaleSaleSelectionRollback) {
+        return { state: "stale-selection", sale: error.sale };
       }
 
-      await tx.characterItem.deleteMany({
-        where: {
-          characterId: snapshot.character.id,
-          quantity: { lte: 0 }
-        }
-      });
-
-      await tx.character.update({
-        where: { id: snapshot.character.id },
-        data: { gold: { increment: sale.payoutGold } }
-      });
-
-      const completed = await setSaleStatus(tx, sale.id, "completed", input.now, input.result);
-      const updated = await tx.character.findUniqueOrThrow({
-        where: { id: snapshot.character.id },
-        include: characterRecordInclude
-      });
-
-      return {
-        state: "sold",
-        character: toCharacterRecord(updated),
-        sale: completed
-      };
-    });
+      throw error;
+    }
   }
 
   private async createDrinkOrderForTelegramUser(
@@ -882,6 +1009,12 @@ async function findDrinkState(tx: TxClient, characterId: string): Promise<Shynok
   return mapDrinkState(await tx.characterDrinkState.findUnique({
     where: { characterId }
   }));
+}
+
+async function findLiveDrinkState(tx: TxClient, characterId: string, now: Date): Promise<ShynokDrinkStateRecord | null> {
+  const state = await findDrinkState(tx, characterId);
+
+  return state && state.expiresAt > now ? state : null;
 }
 
 async function upsertDrinkState(
@@ -996,6 +1129,36 @@ async function setRoundOfferStatus(
   return mapped;
 }
 
+async function acceptRoundOffer(
+  tx: TxClient,
+  input: {
+    offer: ShynokRoundRecipientRecord;
+    characterId: string;
+    now: Date;
+    result: unknown;
+  }
+): Promise<ShynokRespondRoundOfferResult> {
+  const accepted = await setRoundOfferStatus(tx, input.offer.id, "accepted", input.now, input.result);
+  if (!accepted) {
+    return replayRoundOffer(await findRoundOffer(tx, input.offer.id));
+  }
+  const drink = await upsertDrinkState(tx, {
+    characterId: input.characterId,
+    drinkKey: input.offer.drinkKey,
+    sourceType: "round",
+    sourceId: input.offer.id,
+    now: input.now,
+    metadata: input.result
+  });
+  await refreshRoundTelemetry(tx, input.offer.purchaseId);
+
+  return {
+    state: "accepted",
+    offer: accepted,
+    drink
+  };
+}
+
 async function findRoundOffer(tx: TxClient, offerId: string): Promise<ShynokRoundRecipientRecord | null> {
   return mapRoundRecipient(await tx.korchmaRoundRecipient.findUnique({ where: { id: offerId } }));
 }
@@ -1047,16 +1210,45 @@ async function setSaleStatus(
   saleId: string,
   status: "completed" | "cancelled" | "expired",
   now: Date,
-  result: unknown
+  result: unknown,
+  expectedStatus?: string
 ): Promise<ShynokMantokSaleRecord> {
-  const updated = await tx.korchmaMantokSale.update({
-    where: { id: saleId },
-    data: {
-      status,
-      resultJson: result as Prisma.InputJsonValue,
-      ...(status === "completed" ? { completedAt: now } : {}),
-      updatedAt: now
+  if (expectedStatus) {
+    const transition = await tx.korchmaMantokSale.updateMany({
+      where: {
+        id: saleId,
+        status: expectedStatus
+      },
+      data: {
+        status,
+        resultJson: result as Prisma.InputJsonValue,
+        ...(status === "completed" ? { completedAt: now } : {}),
+        updatedAt: now
+      }
+    });
+
+    if (transition.count !== 1) {
+      const replay = mapSale(await tx.korchmaMantokSale.findUnique({ where: { id: saleId } }));
+      if (!replay) {
+        throw new Error("Mantok sale mapping failed after status race.");
+      }
+
+      return replay;
     }
+  } else {
+    await tx.korchmaMantokSale.update({
+      where: { id: saleId },
+      data: {
+        status,
+        resultJson: result as Prisma.InputJsonValue,
+        ...(status === "completed" ? { completedAt: now } : {}),
+        updatedAt: now
+      }
+    });
+  }
+
+  const updated = await tx.korchmaMantokSale.findUnique({
+    where: { id: saleId }
   });
   const sale = mapSale(updated);
   if (!sale) {

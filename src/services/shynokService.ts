@@ -108,6 +108,14 @@ export type ShynokRoundConfirmResult =
 export type ShynokRoundOfferRespondResult =
   | { state: ShynokGateState | "invalid-offer" | "expired" }
   | { state: "declined"; offer: PresentedRoundOffer }
+  | {
+      state: "replacement-preview";
+      offer: PresentedRoundOffer;
+      drink: PresentedDrinkDefinition;
+      activeDrink: PresentedShynokDrinkState;
+      replacementGuard: string;
+    }
+  | { state: "stale-replacement"; offer: PresentedRoundOffer }
   | { state: "accepted" | "replayed"; offer: PresentedRoundOffer; drink: PresentedShynokDrinkState | null };
 
 export type ShynokSaleSelectionResult =
@@ -402,20 +410,22 @@ export class ShynokService {
   async respondToRoundOfferForTelegramUser(
     telegramUserId: bigint,
     offerId: string,
-    action: "accept" | "decline"
+    action: "accept" | "decline" | "confirm-replacement",
+    replacementGuard?: string
   ): Promise<ShynokRoundOfferRespondResult> {
     const gate = await this.checkGate(telegramUserId);
     if (gate.state !== "ready") {
       return gate;
     }
 
-    if (action === "accept") {
+    if (action === "confirm-replacement") {
       await this.settleResourcesWithCurrentDrink(telegramUserId);
     }
 
     const result = await this.shynok.respondToRoundOfferForTelegramUser(telegramUserId, {
       offerId,
       action,
+      ...(replacementGuard ? { replacementGuard } : {}),
       now: this.clock(),
       result: { kind: `round-offer-${action}` }
     });
@@ -428,6 +438,27 @@ export class ShynokService {
       case "declined":
         return {
           state: "declined",
+          offer: presentRoundOffer(result.offer)
+        };
+      case "replacement-required": {
+        const activeDrink = presentDrinkState(result.drink);
+        if (!activeDrink) {
+          return {
+            state: "stale-replacement",
+            offer: presentRoundOffer(result.offer)
+          };
+        }
+        return {
+          state: "replacement-preview",
+          offer: presentRoundOffer(result.offer),
+          drink: presentDrinkDefinition(result.offer.drinkKey),
+          activeDrink,
+          replacementGuard: result.replacementGuard
+        };
+      }
+      case "stale-replacement":
+        return {
+          state: "stale-replacement",
           offer: presentRoundOffer(result.offer)
         };
       case "accepted":

@@ -1,5 +1,9 @@
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
-import { isShynokDrinkKey, type ShynokDrinkKey } from "../../domain/shynokDrinks";
+import {
+  isShynokDrinkKey,
+  SHYNOK_ROUND_REPLACEMENT_GUARD_HEX_LENGTH,
+  type ShynokDrinkKey
+} from "../../domain/shynokDrinks";
 
 const PREFIX = "v1:sh";
 const tokenPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -12,6 +16,7 @@ export type ShynokCallback =
   | { type: "round-preview"; tier: "simple" | "fine" }
   | { type: "round-confirm"; tier: "simple" | "fine"; token: string }
   | { type: "round-accept"; offerId: string }
+  | { type: "round-replace-confirm"; offerId: string; replacementGuard: string }
   | { type: "round-decline"; offerId: string }
   | { type: "sale-open" }
   | { type: "sale-page"; token: string; page: number }
@@ -48,6 +53,10 @@ export function makeShynokRoundConfirmCallbackData(tier: "simple" | "fine", toke
 
 export function makeShynokRoundAcceptCallbackData(offerId: string): string {
   return assertData(`${PREFIX}:ra:${offerId}`);
+}
+
+export function makeShynokRoundReplacementConfirmCallbackData(offerId: string, replacementGuard: string): string {
+  return assertData(`${PREFIX}:rr:${offerId}:${replacementGuard}`);
 }
 
 export function makeShynokRoundDeclineCallbackData(offerId: string): string {
@@ -124,6 +133,16 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
       }
     };
   }
+  if (action === "rr" && isToken(first) && isReplacementGuard(second) && third === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "round-replace-confirm",
+        offerId: first ?? "",
+        replacementGuard: second ?? ""
+      }
+    };
+  }
   if (action === "so" && first === undefined) {
     return { ok: true, value: { type: "sale-open" } };
   }
@@ -180,6 +199,10 @@ function isTooLong(data: string): boolean {
 
 function isToken(value: string | undefined): boolean {
   return tokenPattern.test(value ?? "");
+}
+
+function isReplacementGuard(value: string | undefined): boolean {
+  return new RegExp(`^[0-9a-f]{${SHYNOK_ROUND_REPLACEMENT_GUARD_HEX_LENGTH}}$`, "i").test(value ?? "");
 }
 
 function isSafeIndex(value: string | undefined): boolean {

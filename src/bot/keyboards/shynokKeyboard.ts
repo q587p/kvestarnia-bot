@@ -2,6 +2,7 @@ import { InlineKeyboard } from "grammy";
 import type {
   ShynokDrinkOrderResult,
   ShynokOverviewResult,
+  ShynokRoundOfferRespondResult,
   ShynokRoundPreviewResult,
   ShynokSaleSelectionResult
 } from "../../services/shynokService";
@@ -15,6 +16,7 @@ import {
   makeShynokRoundAcceptCallbackData,
   makeShynokRoundConfirmCallbackData,
   makeShynokRoundDeclineCallbackData,
+  makeShynokRoundReplacementConfirmCallbackData,
   makeShynokRoundPreviewCallbackData,
   makeShynokSaleAddCallbackData,
   makeShynokSaleAllCallbackData,
@@ -81,6 +83,22 @@ export function buildShynokRoundPreviewKeyboard(result: ShynokRoundPreviewResult
 
   return new InlineKeyboard()
     .text(`✅ Поставити за ${result.priceGold}`, makeShynokRoundConfirmCallbackData(result.tier, result.token))
+    .row()
+    .text("⬅️ До Шинку", makeShynokOverviewCallbackData());
+}
+
+export function buildShynokRoundOfferResponseKeyboard(result: ShynokRoundOfferRespondResult): InlineKeyboard {
+  if (result.state !== "replacement-preview") {
+    return buildBackToShynokKeyboard();
+  }
+
+  return new InlineKeyboard()
+    .text(
+      "✅ Замінити й випити",
+      makeShynokRoundReplacementConfirmCallbackData(result.offer.id, result.replacementGuard)
+    )
+    .row()
+    .text("Ні, дякую", makeShynokRoundDeclineCallbackData(result.offer.id))
     .row()
     .text("⬅️ До Шинку", makeShynokOverviewCallbackData());
 }

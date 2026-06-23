@@ -3,7 +3,9 @@ import {
   applyDrinkDamageMultiplier,
   buildDrinkEffect,
   buildShynokRecoveryWindows,
+  createRoundReplacementGuard,
   getShynokDrinkDefinition,
+  SHYNOK_ROUND_REPLACEMENT_GUARD_HEX_LENGTH,
   SHYNOK_DRINKS
 } from "../../src/domain/shynokDrinks";
 
@@ -65,5 +67,23 @@ describe("Shynok drinks", () => {
       expiresAt: new Date("2026-06-23T10:23:00.000Z"),
       multiplierBp: 12500
     }]);
+  });
+
+  it("builds compact deterministic round replacement guards", () => {
+    const guard = createRoundReplacementGuard({
+      offerId: "12345678-1234-4234-9234-123456789abc",
+      drinkStateId: "drink-state-one"
+    });
+
+    expect(guard).toMatch(/^[0-9a-f]+$/);
+    expect(guard).toHaveLength(SHYNOK_ROUND_REPLACEMENT_GUARD_HEX_LENGTH);
+    expect(createRoundReplacementGuard({
+      offerId: "12345678-1234-4234-9234-123456789abc",
+      drinkStateId: "drink-state-one"
+    })).toBe(guard);
+    expect(createRoundReplacementGuard({
+      offerId: "12345678-1234-4234-9234-123456789abc",
+      drinkStateId: "drink-state-two"
+    })).not.toBe(guard);
   });
 });
