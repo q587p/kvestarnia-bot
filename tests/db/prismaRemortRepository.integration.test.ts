@@ -432,6 +432,15 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       preserved_payload_json JSONB NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE character_cooldowns (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      available_at DATETIME NOT NULL,
+      result_json JSONB,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(character_id, key)
+    )`,
     `CREATE TABLE solo_combat_sessions (
       id TEXT PRIMARY KEY,
       character_id TEXT NOT NULL,

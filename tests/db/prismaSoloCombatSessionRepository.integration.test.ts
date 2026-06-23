@@ -200,6 +200,10 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
       referenceId: "duel-session"
     });
     await expect(repository.releaseLeaseBySessionId("duel-session")).resolves.toBe(false);
+    await expect(repository.createForTelegramUser(
+      4252n,
+      makeCreateInput("blocked-by-duel", "monster.preapproval-dragonling")
+    )).resolves.toBeNull();
     await expect(prisma.activeCombatLease.count({
       where: {
         characterId: "character-unsupported-lease"
@@ -306,6 +310,326 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
         characterId: "character-settlement-race"
       }
     })).resolves.toBe(0);
+  });
+
+  it("keeps remort-forfeited settlement authoritative over a stale resource substep", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-resource-remort-wins",
+      characterId: "character-resource-remort-wins",
+      telegramUserId: 4261n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeSoloSessionData({
+        id: "resource-remort-wins-session",
+        characterId: "character-resource-remort-wins",
+        monsterId: "monster.deadline-spider",
+        status: "lost",
+        source: "normal",
+        completedAt: new Date("2026-06-22T10:30:00.000Z"),
+        updatedAt: new Date("2026-06-22T10:30:00.000Z"),
+        settlementStatus: "pending"
+      })
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-resource-remort-wins",
+        characterId: "character-resource-remort-wins",
+        kind: "solo-combat",
+        referenceId: "resource-remort-wins-session"
+      }
+    });
+
+    await repository.forfeitSettlementById("resource-remort-wins-session", {
+      expected: {
+        settlementStatus: "pending",
+        settlementVersion: 1,
+        combatStatus: "lost",
+        life: { remortCount: 0 }
+      },
+      settledAt: new Date("2026-06-22T10:30:13.000Z"),
+      reason: "remort",
+      releaseLease: true
+    });
+    await prisma.characterRemort.create({
+      data: {
+        id: "remort-resource-remort-wins",
+        characterId: "character-resource-remort-wins",
+        token: "token-resource-remort-wins",
+        remortNumber: 1,
+        previousLevel: 6,
+        previousXp: 110,
+        previousGold: 0,
+        displayNameSnapshot: "Мандрівник",
+        preservedPayloadJson: {},
+        createdAt: new Date("2026-06-22T10:30:14.000Z")
+      }
+    });
+
+    const stale = await repository.applyTerminalResourcesById("resource-remort-wins-session", {
+      expected: {
+        settlementStatus: "pending",
+        settlementVersion: 1,
+        combatStatus: "lost",
+        life: { remortCount: 0 }
+      },
+      appliedAt: new Date("2026-06-22T10:30:00.000Z"),
+      resources: {
+        hpCurrent: 0,
+        manaCurrent: 3,
+        hpRegenAt: new Date("2026-06-22T10:30:00.000Z"),
+        manaRegenAt: new Date("2026-06-22T10:30:00.000Z")
+      },
+      expectedResources: {
+        hpCurrent: 22,
+        manaCurrent: 10,
+        hpRegenAt: null,
+        manaRegenAt: null
+      }
+    });
+
+    expect(stale.outcome).toBe("already-forfeited");
+    await expect(prisma.character.findUniqueOrThrow({
+      where: { id: "character-resource-remort-wins" },
+      select: { hpCurrent: true, manaCurrent: true }
+    })).resolves.toEqual({ hpCurrent: 22, manaCurrent: 10 });
+    const stored = await prisma.soloCombatSession.findUniqueOrThrow({
+      where: { id: "resource-remort-wins-session" }
+    });
+    expect((stored.stateJson as { settlement?: { status?: string; resources?: unknown } }).settlement).toMatchObject({
+      status: "forfeited-by-remort"
+    });
+    expect((stored.stateJson as { settlement?: { resources?: unknown } }).settlement?.resources).toBeUndefined();
+  });
+
+  it("applies terminal resources and marker in one guarded transition", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-resource-first",
+      characterId: "character-resource-first",
+      telegramUserId: 4262n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeSoloSessionData({
+        id: "resource-first-session",
+        characterId: "character-resource-first",
+        monsterId: "monster.deadline-spider",
+        status: "lost",
+        source: "normal",
+        completedAt: new Date("2026-06-22T10:31:00.000Z"),
+        updatedAt: new Date("2026-06-22T10:31:00.000Z"),
+        settlementStatus: "pending"
+      })
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-resource-first",
+        characterId: "character-resource-first",
+        kind: "solo-combat",
+        referenceId: "resource-first-session"
+      }
+    });
+
+    const applied = await repository.applyTerminalResourcesById("resource-first-session", {
+      expected: {
+        settlementStatus: "pending",
+        settlementVersion: 1,
+        combatStatus: "lost",
+        life: { remortCount: 0 }
+      },
+      appliedAt: new Date("2026-06-22T10:31:00.000Z"),
+      resources: {
+        hpCurrent: 4,
+        manaCurrent: 7,
+        hpRegenAt: new Date("2026-06-22T10:31:00.000Z"),
+        manaRegenAt: new Date("2026-06-22T10:31:00.000Z")
+      },
+      expectedResources: {
+        hpCurrent: 22,
+        manaCurrent: 10,
+        hpRegenAt: null,
+        manaRegenAt: null
+      }
+    });
+    const replay = await repository.applyTerminalResourcesById("resource-first-session", {
+      expected: {
+        settlementStatus: "pending",
+        settlementVersion: 1,
+        combatStatus: "lost",
+        life: { remortCount: 0 }
+      },
+      appliedAt: new Date("2026-06-22T10:31:00.000Z"),
+      resources: {
+        hpCurrent: 1,
+        manaCurrent: 1,
+        hpRegenAt: new Date("2026-06-22T10:31:23.000Z"),
+        manaRegenAt: new Date("2026-06-22T10:31:23.000Z")
+      },
+      expectedResources: {
+        hpCurrent: 22,
+        manaCurrent: 10,
+        hpRegenAt: null,
+        manaRegenAt: null
+      }
+    });
+
+    expect(applied.outcome).toBe("applied");
+    expect(replay.outcome).toBe("already-applied");
+    await expect(prisma.character.findUniqueOrThrow({
+      where: { id: "character-resource-first" },
+      select: { hpCurrent: true, manaCurrent: true, hpRegenAt: true, manaRegenAt: true }
+    })).resolves.toEqual({
+      hpCurrent: 4,
+      manaCurrent: 7,
+      hpRegenAt: new Date("2026-06-22T10:31:00.000Z"),
+      manaRegenAt: new Date("2026-06-22T10:31:00.000Z")
+    });
+    expect(applied.session?.state?.settlement?.resources).toMatchObject({
+      status: "applied",
+      hpCurrent: 4,
+      manaCurrent: 7,
+      hpRegenAt: "2026-06-22T10:31:00.000Z",
+      manaRegenAt: "2026-06-22T10:31:00.000Z"
+    });
+    expect(applied.session?.state?.settlement?.version).toBe(2);
+  });
+
+  it("guards completion against the current remort count", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-current-life-guard",
+      characterId: "character-current-life-guard",
+      telegramUserId: 4263n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeSoloSessionData({
+        id: "current-life-guard-session",
+        characterId: "character-current-life-guard",
+        monsterId: "monster.deadline-spider",
+        status: "won",
+        source: "normal",
+        completedAt: new Date("2026-06-22T10:32:00.000Z"),
+        updatedAt: new Date("2026-06-22T10:32:00.000Z"),
+        settlementStatus: "pending"
+      })
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-current-life-guard",
+        characterId: "character-current-life-guard",
+        kind: "solo-combat",
+        referenceId: "current-life-guard-session"
+      }
+    });
+    await prisma.characterRemort.create({
+      data: {
+        id: "remort-current-life-guard",
+        characterId: "character-current-life-guard",
+        token: "token-current-life-guard",
+        remortNumber: 1,
+        previousLevel: 6,
+        previousXp: 110,
+        previousGold: 0,
+        displayNameSnapshot: "Мандрівник",
+        preservedPayloadJson: {},
+        createdAt: new Date("2026-06-22T10:32:10.000Z")
+      }
+    });
+
+    const completed = await repository.completeSettlementById("current-life-guard-session", {
+      expected: {
+        settlementStatus: "pending",
+        settlementVersion: 1,
+        combatStatus: "won",
+        life: { remortCount: 0 }
+      },
+      settledAt: new Date("2026-06-22T10:32:11.000Z"),
+      reward: {
+        rewardXp: 23,
+        rewardGold: 13,
+        itemGrants: [],
+        claimedAt: new Date("2026-06-22T10:32:11.000Z")
+      },
+      releaseLease: true
+    });
+
+    expect(completed.outcome).toBe("version-changed");
+    const stored = await prisma.soloCombatSession.findUniqueOrThrow({
+      where: { id: "current-life-guard-session" }
+    });
+    expect((stored.stateJson as { settlement?: { status?: string } }).settlement?.status).toBe("pending");
+    expect(stored.rewardXp).toBeNull();
+  });
+
+  it("claims training cooldown and marker once without extending duplicate recovery", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-training-cooldown-once",
+      characterId: "character-training-cooldown-once",
+      telegramUserId: 4264n
+    });
+    await prisma.soloCombatSession.create({
+      data: makeSoloSessionData({
+        id: "training-cooldown-once-session",
+        characterId: "character-training-cooldown-once",
+        monsterId: "monster.training-doppelganger",
+        status: "lost",
+        source: "training",
+        completedAt: new Date("2026-06-22T10:33:00.000Z"),
+        updatedAt: new Date("2026-06-22T10:40:00.000Z"),
+        settlementStatus: "pending"
+      })
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-training-cooldown-once",
+        characterId: "character-training-cooldown-once",
+        kind: "solo-combat",
+        referenceId: "training-cooldown-once-session"
+      }
+    });
+
+    const availableAt = new Date("2026-06-22T11:33:00.000Z");
+    const applied = await repository.applyTrainingCooldownById("training-cooldown-once-session", {
+      telegramUserId: 4264n,
+      expected: {
+        settlementStatus: "pending",
+        settlementVersion: 1,
+        combatStatus: "lost",
+        life: { remortCount: 0 }
+      },
+      now: new Date("2026-06-22T10:34:00.000Z"),
+      availableAt,
+      cooldownKey: "training.doppelganger.spar"
+    });
+    const duplicate = await repository.applyTrainingCooldownById("training-cooldown-once-session", {
+      telegramUserId: 4264n,
+      expected: {
+        settlementStatus: "pending",
+        settlementVersion: 1,
+        combatStatus: "lost",
+        life: { remortCount: 0 }
+      },
+      now: new Date("2026-06-22T10:35:00.000Z"),
+      availableAt: new Date("2026-06-22T12:33:00.000Z"),
+      cooldownKey: "training.doppelganger.spar"
+    });
+
+    expect(applied.outcome).toBe("applied");
+    expect(duplicate.outcome).toBe("already-applied");
+    expect(duplicate.availableAt?.toISOString()).toBe("2026-06-22T11:33:00.000Z");
+    const cooldown = await prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId: "character-training-cooldown-once",
+          key: "training.doppelganger.spar"
+        }
+      }
+    });
+    expect(cooldown.availableAt.toISOString()).toBe("2026-06-22T11:33:00.000Z");
+    expect(cooldown.resultJson).toMatchObject({
+      trainingSettlement: {
+        sessionId: "training-cooldown-once-session",
+        remortCount: 0,
+        availableAt: "2026-06-22T11:33:00.000Z"
+      }
+    });
   });
 
   it("excludes pending and forfeited wins from victory progress while counting completed and legacy wins", async () => {
@@ -503,6 +827,27 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       reference_id TEXT NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE character_remorts (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      remort_number INTEGER NOT NULL,
+      previous_level INTEGER NOT NULL,
+      previous_xp INTEGER NOT NULL,
+      previous_gold INTEGER NOT NULL,
+      display_name_snapshot TEXT NOT NULL,
+      preserved_payload_json JSONB NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE character_cooldowns (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      available_at DATETIME NOT NULL,
+      result_json JSONB,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(character_id, key)
     )`
   ]) {
     await prisma.$executeRawUnsafe(statement);

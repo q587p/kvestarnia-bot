@@ -401,7 +401,7 @@ export function markCombatSettlementCompleted(state: CombatState, now: Date): Co
       status: "completed",
       settledAt: now.toISOString(),
       reason: "terminal",
-      version: current?.version ?? 1
+      version: (current?.version ?? 1) + 1
     }
   };
 }
@@ -423,7 +423,7 @@ export function markCombatSettlementForfeitedByRemort(
       status: "forfeited-by-remort",
       settledAt: now.toISOString(),
       reason,
-      version: current?.version ?? 1
+      version: (current?.version ?? 1) + 1
     }
   };
 }

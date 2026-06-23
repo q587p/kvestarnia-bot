@@ -1742,7 +1742,7 @@ describe("FightService", () => {
       expect(overview.session.state?.status).toBe("expired");
       expect(overview.session.state?.settlement?.status).toBe("completed");
     }
-    expect(sessions.updateCount).toBe(3);
+    expect(sessions.updateCount).toBe(2);
     expect(dailyActions.createCount).toBe(0);
   });
 
@@ -1789,7 +1789,7 @@ describe("FightService", () => {
         completed: false
       });
     }
-    expect(sessions.updateCount).toBe(2);
+    expect(sessions.updateCount).toBe(1);
     const rewardRecords = dailyActions.records.filter(
       (record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY
     );
@@ -3982,6 +3982,35 @@ class FakeCharacterRepository implements CharacterRepository {
     return Promise.resolve(updated);
   }
 
+  updateResourcesByCharacterId(
+    characterId: string,
+    input: {
+      hpCurrent: number;
+      manaCurrent: number;
+      hpRegenAt: Date;
+      manaRegenAt: Date;
+    }
+  ): CharacterRecord | null {
+    for (const [telegramUserId, character] of this.charactersByTelegramUserId.entries()) {
+      if (character.id !== characterId) {
+        continue;
+      }
+
+      this.resourceUpdateCount += 1;
+      const updated = {
+        ...character,
+        hpCurrent: input.hpCurrent,
+        manaCurrent: input.manaCurrent,
+        hpRegenAt: input.hpRegenAt,
+        manaRegenAt: input.manaRegenAt
+      };
+      this.charactersByTelegramUserId.set(telegramUserId, updated);
+      return updated;
+    }
+
+    return null;
+  }
+
   deleteByTelegramUserId(userTelegramId: bigint): Promise<boolean> {
     return Promise.resolve(this.charactersByTelegramUserId.delete(userTelegramId));
   }
@@ -4595,6 +4624,64 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     }
 
     return this.updateById(sessionId, input);
+  }
+
+  applyTerminalResourcesById(
+    sessionId: string,
+    input: {
+      appliedAt: Date;
+      resources: {
+        hpCurrent: number;
+        manaCurrent: number;
+        hpRegenAt: Date;
+        manaRegenAt: Date;
+      };
+    }
+  ): Promise<{ outcome: "applied" | "already-applied" | "already-completed" | "already-forfeited"; session: SoloCombatSessionRecord | null }> {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return Promise.resolve({ outcome: "applied", session: session ? cloneSession(session) : null });
+    }
+
+    if (session.state.settlement?.status === "completed") {
+      return Promise.resolve({ outcome: "already-completed", session: cloneSession(session) });
+    }
+
+    if (session.state.settlement?.status === "forfeited-by-remort") {
+      return Promise.resolve({ outcome: "already-forfeited", session: cloneSession(session) });
+    }
+
+    if (session.state.settlement?.resources?.status === "applied") {
+      return Promise.resolve({ outcome: "already-applied", session: cloneSession(session) });
+    }
+
+    this.characters.updateResourcesByCharacterId(session.characterId, input.resources);
+    const state: CombatState = {
+      ...session.state,
+      settlement: {
+        ...(session.state.settlement ?? { status: "pending" as const, version: 1 }),
+        version: (session.state.settlement?.version ?? 1) + 1,
+        resources: {
+          status: "applied",
+          appliedAt: input.appliedAt.toISOString(),
+          hpCurrent: input.resources.hpCurrent,
+          manaCurrent: input.resources.manaCurrent,
+          hpRegenAt: input.resources.hpRegenAt.toISOString(),
+          manaRegenAt: input.resources.manaRegenAt.toISOString()
+        }
+      }
+    };
+    const updated: SoloCombatSessionRecord = {
+      ...session,
+      state,
+      status: state.status,
+      turn: state.turn,
+      updatedAt: fixedClock()
+    };
+    this.sessions.set(sessionId, updated);
+
+    return Promise.resolve({ outcome: "applied", session: cloneSession(updated) });
   }
 
   recordRewardById(

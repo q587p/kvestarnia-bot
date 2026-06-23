@@ -114,6 +114,61 @@ describe("paid Prisma claim repositories", () => {
     })).resolves.toBe(0);
   });
 
+  it("rejects an existing daily reward row from another life when expectedLife is supplied", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-daily-existing-life-guard",
+      characterId: "character-daily-existing-life-guard",
+      telegramUserId: 9044n,
+      gold: 0
+    });
+    await prisma.dailyAction.create({
+      data: {
+        id: "daily-existing-life-guard-row",
+        characterId: "character-daily-existing-life-guard",
+        key: "combat.reward.existing.old-life",
+        localDate: "session-existing-old-life",
+        rewardXp: 23,
+        rewardGold: 13
+      }
+    });
+    await seedRemort(prisma, "character-daily-existing-life-guard", 1);
+
+    await expect(dailyActions.claimForTelegramUser(9044n, {
+      key: "combat.reward.existing.old-life",
+      localDate: "session-existing-old-life",
+      rewardXp: 23,
+      rewardGold: 13,
+      expectedLife: { remortCount: 0 }
+    })).resolves.toBeNull();
+  });
+
+  it("rejects an existing cooldown row from another life when expectedLife is supplied", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-cooldown-existing-life-guard",
+      characterId: "character-cooldown-existing-life-guard",
+      telegramUserId: 9045n,
+      gold: 0
+    });
+    await prisma.characterCooldown.create({
+      data: {
+        id: "cooldown-existing-life-guard-row",
+        characterId: "character-cooldown-existing-life-guard",
+        key: "training.doppelganger.spar",
+        availableAt: new Date("2026-06-22T11:00:00.000Z")
+      }
+    });
+    await seedRemort(prisma, "character-cooldown-existing-life-guard", 1);
+
+    await expect(cooldowns.claimRewardForTelegramUser(9045n, {
+      key: "training.doppelganger.spar",
+      now: new Date("2026-06-22T10:00:00.000Z"),
+      availableAt: new Date("2026-06-22T12:00:00.000Z"),
+      rewardXp: 0,
+      rewardGold: 0,
+      expectedLife: { remortCount: 0 }
+    })).resolves.toBeNull();
+  });
+
   it("guards direct combat resource persistence with the expected combat life", async () => {
     await seedCharacter(prisma, {
       userId: "user-resource-life-guard",
@@ -350,7 +405,9 @@ describe("paid Prisma claim repositories", () => {
       state: "insufficient-gold",
       requiredGold: 1
     });
-    await expect(prisma.characterCooldown.count()).resolves.toBe(0);
+    await expect(prisma.characterCooldown.count({
+      where: { characterId: "character-cooldown-poor" }
+    })).resolves.toBe(0);
     await expect(prisma.characterItem.count({ where: { characterId: "character-cooldown-poor" } })).resolves.toBe(0);
     await expect(
       prisma.character.findUniqueOrThrow({ where: { id: "character-cooldown-poor" } })

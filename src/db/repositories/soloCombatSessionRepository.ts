@@ -80,6 +80,26 @@ export type GuardedSettlementOutcome =
   | "version-changed"
   | "missing";
 
+export type GuardedResourceSettlementOutcome =
+  | "applied"
+  | "already-applied"
+  | "already-completed"
+  | "already-forfeited"
+  | "life-mismatch"
+  | "resource-cas-conflict"
+  | "version-changed"
+  | "missing";
+
+export type GuardedTrainingSettlementOutcome =
+  | "applied"
+  | "already-applied"
+  | "already-completed"
+  | "already-forfeited"
+  | "life-mismatch"
+  | "cooldown-conflict"
+  | "version-changed"
+  | "missing";
+
 export interface GuardedSettlementExpectation {
   settlementStatus?: CombatSettlementStatus;
   settlementVersion?: number;
@@ -109,6 +129,46 @@ export interface ForfeitSoloCombatSettlementInput {
 export interface GuardedSettlementResult {
   outcome: GuardedSettlementOutcome;
   session: SoloCombatSessionRecord | null;
+}
+
+export interface ApplyTerminalResourcesInput {
+  expected: GuardedSettlementExpectation & {
+    life: Pick<CombatLifeState, "remortCount">;
+  };
+  appliedAt: Date;
+  resources: {
+    hpCurrent: number;
+    manaCurrent: number;
+    hpRegenAt: Date;
+    manaRegenAt: Date;
+  };
+  expectedResources: {
+    hpCurrent: number;
+    manaCurrent: number;
+    hpRegenAt?: Date | null;
+    manaRegenAt?: Date | null;
+  };
+}
+
+export interface ApplyTerminalResourcesResult {
+  outcome: GuardedResourceSettlementOutcome;
+  session: SoloCombatSessionRecord | null;
+}
+
+export interface ApplyTrainingCooldownInput {
+  telegramUserId: bigint;
+  expected: GuardedSettlementExpectation & {
+    life: Pick<CombatLifeState, "remortCount">;
+  };
+  now: Date;
+  availableAt: Date;
+  cooldownKey: string;
+}
+
+export interface ApplyTrainingCooldownResult {
+  outcome: GuardedTrainingSettlementOutcome;
+  session: SoloCombatSessionRecord | null;
+  availableAt: Date | null;
 }
 
 export interface SoloCombatSessionRepository {
@@ -160,6 +220,14 @@ export interface SoloCombatSessionRepository {
     sessionId: string,
     input: CompleteSoloCombatSettlementInput
   ): Promise<GuardedSettlementResult>;
+  applyTerminalResourcesById?(
+    sessionId: string,
+    input: ApplyTerminalResourcesInput
+  ): Promise<ApplyTerminalResourcesResult>;
+  applyTrainingCooldownById?(
+    sessionId: string,
+    input: ApplyTrainingCooldownInput
+  ): Promise<ApplyTrainingCooldownResult>;
   forfeitSettlementById?(
     sessionId: string,
     input: ForfeitSoloCombatSettlementInput

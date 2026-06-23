@@ -80,20 +80,20 @@ export class PrismaCooldownRepository implements CooldownRepository {
           where
         });
 
-        if (existing && existing.availableAt > input.now) {
-          return {
-            state: "on-cooldown",
-            cooldown: existing,
-            character: toCharacterRecord(character)
-          };
-        }
-
         const characterRecord = toCharacterRecord(character);
         if (
           input.expectedLife &&
           characterRecord.remortCount !== input.expectedLife.remortCount
         ) {
           return null;
+        }
+
+        if (existing && existing.availableAt > input.now) {
+          return {
+            state: "on-cooldown",
+            cooldown: existing,
+            character: characterRecord
+          };
         }
 
         const spentGold = normalizeSpentGold(input.spentGold);
@@ -359,10 +359,19 @@ export class PrismaCooldownRepository implements CooldownRepository {
       throw new Error("Cooldown unique conflict did not leave an existing row.");
     }
 
+    const characterRecord = toCharacterRecord(character);
+
+    if (
+      input.expectedLife &&
+      characterRecord.remortCount !== input.expectedLife.remortCount
+    ) {
+      return null;
+    }
+
     return {
       state: "on-cooldown",
       cooldown,
-      character: toCharacterRecord(character)
+      character: characterRecord
     };
   }
 }

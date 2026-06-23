@@ -844,9 +844,7 @@ export class AdventureService {
     const lookup = await this.combatSessions?.findLeasedByTelegramUserId?.(telegramUserId);
 
     if (lookup?.state === "active") {
-      return lookup.session.expiresAt.getTime() <= this.clock().getTime()
-        ? { state: "none" }
-        : { state: "session", session: lookup.session };
+      return { state: "session", session: lookup.session };
     }
 
     if (lookup?.state === "terminal-pending") {

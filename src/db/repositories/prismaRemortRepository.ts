@@ -29,6 +29,7 @@ import {
 type TxClient = Prisma.TransactionClient;
 type CharacterWithLocation = Character & { user: { lastSeenLocationId: string | null } };
 const SUPPORTED_REMORT_COMBAT_LEASE_KIND = "solo-combat";
+const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
 
 export class PrismaRemortRepository implements RemortRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -516,6 +517,7 @@ async function prepareActiveCombatForRemort(
         turn: state.turn
       }
     });
+    await deleteOwnedPendingTrainingCooldown(tx, characterId, session.id, mapped.state.life?.remortCount ?? 0);
   }
 
   await tx.activeCombatLease.deleteMany({
@@ -527,6 +529,42 @@ async function prepareActiveCombatForRemort(
   });
 
   return { state: "ready" };
+}
+
+async function deleteOwnedPendingTrainingCooldown(
+  tx: TxClient,
+  characterId: string,
+  sessionId: string,
+  remortCount: number
+): Promise<void> {
+  const cooldown = await tx.characterCooldown.findUnique({
+    where: {
+      characterId_key: {
+        characterId,
+        key: TRAINING_DOPPELGANGER_COOLDOWN_KEY
+      }
+    },
+    select: {
+      id: true,
+      resultJson: true
+    }
+  });
+
+  if (!cooldown) {
+    return;
+  }
+
+  const owner = parseTrainingCooldownOwner(cooldown.resultJson);
+
+  if (owner?.sessionId !== sessionId || owner.remortCount !== remortCount) {
+    return;
+  }
+
+  await tx.characterCooldown.delete({
+    where: {
+      id: cooldown.id
+    }
+  });
 }
 
 function expireRemortCombatState(state: CombatState, now: Date): CombatState {
@@ -829,6 +867,23 @@ function getPathForRemortPronoun(pronoun: string): string {
 
 function intOrZero(value: unknown): number {
   return typeof value === "number" && Number.isInteger(value) ? value : 0;
+}
+
+function intOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
+
+function parseTrainingCooldownOwner(value: unknown): { sessionId: string; remortCount: number } | null {
+  if (!isRecord(value) || !isRecord(value.trainingSettlement)) {
+    return null;
+  }
+
+  const sessionId = value.trainingSettlement.sessionId;
+  const remortCount = intOrNull(value.trainingSettlement.remortCount);
+
+  return typeof sessionId === "string" && remortCount !== null && remortCount >= 0
+    ? { sessionId, remortCount }
+    : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

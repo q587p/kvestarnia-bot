@@ -21,6 +21,10 @@ import {
   parseMonsterAbilityRuntimeState
 } from "../../domain/combat";
 import type {
+  ApplyTerminalResourcesInput,
+  ApplyTerminalResourcesResult,
+  ApplyTrainingCooldownInput,
+  ApplyTrainingCooldownResult,
   CompleteSoloCombatSettlementInput,
   CreateSoloCombatSessionInput,
   DueSoloCombatSessionRecord,
@@ -35,10 +39,12 @@ import type {
   SoloCombatSessionStatus,
   UpdateSoloCombatSessionInput
 } from "./soloCombatSessionRepository";
+import { countCharacterRemorts } from "./prismaRemortCount";
 
 type PrismaSoloCombatSessionRecord = Awaited<
   ReturnType<PrismaClient["soloCombatSession"]["findFirst"]>
 >;
+type TxClient = Prisma.TransactionClient;
 
 const terminalStatuses = new Set<CombatStatus>(["won", "lost", "fled", "expired"]);
 const DEFAULT_DUE_SESSION_LIMIT = 20;
@@ -387,6 +393,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         if (leased.state === "missing-session" || leased.state === "none") {
           return RETRY_SOLO_COMBAT_CREATE;
         }
+
+        if (leased.state === "unsupported") {
+          return null;
+        }
       }
 
       throw error;
@@ -696,6 +706,241 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     return this.guardSettlementById(sessionId, "forfeited", input);
   }
 
+  async applyTerminalResourcesById(
+    sessionId: string,
+    input: ApplyTerminalResourcesInput
+  ): Promise<ApplyTerminalResourcesResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.soloCombatSession.findUnique({
+        where: {
+          id: sessionId
+        }
+      });
+
+      if (!current) {
+        return { outcome: "missing", session: null };
+      }
+
+      const state = parseCombatState(current.stateJson);
+      const existingTerminal = settlementTerminalOutcome(state);
+
+      if (existingTerminal) {
+        return {
+          outcome: existingTerminal,
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      if (state?.settlement?.resources?.status === "applied") {
+        return {
+          outcome: "already-applied",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      const preflight = await validatePendingSettlementSubstep(tx, current, state, input.expected);
+
+      if (preflight !== "ok") {
+        return {
+          outcome: preflight,
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      const updatedResources = await tx.character.updateMany({
+        where: {
+          id: current.characterId,
+          hpCurrent: input.expectedResources.hpCurrent,
+          manaCurrent: input.expectedResources.manaCurrent,
+          hpRegenAt: input.expectedResources.hpRegenAt ?? null,
+          manaRegenAt: input.expectedResources.manaRegenAt ?? null
+        },
+        data: {
+          hpCurrent: input.resources.hpCurrent,
+          manaCurrent: input.resources.manaCurrent,
+          hpRegenAt: input.resources.hpRegenAt,
+          manaRegenAt: input.resources.manaRegenAt
+        }
+      });
+
+      if (updatedResources.count !== 1) {
+        return {
+          outcome: "resource-cas-conflict",
+          session: mapSoloCombatSessionRecord(current)
+        };
+      }
+
+      const nextState = markTerminalResourcesAppliedInState(state, input);
+      const updated = await tx.soloCombatSession.update({
+        where: {
+          id: sessionId
+        },
+        data: {
+          stateJson: nextState as unknown as Prisma.InputJsonValue,
+          status: nextState.status,
+          turn: nextState.turn
+        }
+      });
+
+      return {
+        outcome: "applied",
+        session: mapSoloCombatSessionRecord(updated)
+      };
+    });
+  }
+
+  async applyTrainingCooldownById(
+    sessionId: string,
+    input: ApplyTrainingCooldownInput
+  ): Promise<ApplyTrainingCooldownResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.soloCombatSession.findUnique({
+        where: {
+          id: sessionId
+        }
+      });
+
+      if (!current) {
+        return { outcome: "missing", session: null, availableAt: null };
+      }
+
+      const state = parseCombatState(current.stateJson);
+      const existingTerminal = settlementTerminalOutcome(state);
+
+      if (existingTerminal) {
+        return {
+          outcome: existingTerminal,
+          session: mapSoloCombatSessionRecord(current),
+          availableAt: state?.settlement?.training?.availableAt
+            ? new Date(state.settlement.training.availableAt)
+            : null
+        };
+      }
+
+      if (state?.settlement?.training?.availableAt && state.settlement.training.cooldownClaimedAt) {
+        return {
+          outcome: "already-applied",
+          session: mapSoloCombatSessionRecord(current),
+          availableAt: new Date(state.settlement.training.availableAt)
+        };
+      }
+
+      const preflight = await validatePendingSettlementSubstep(tx, current, state, input.expected);
+
+      if (preflight !== "ok") {
+        return {
+          outcome: preflight,
+          session: mapSoloCombatSessionRecord(current),
+          availableAt: null
+        };
+      }
+
+      const character = await tx.character.findFirst({
+        where: {
+          id: current.characterId,
+          user: {
+            telegramUserId: input.telegramUserId
+          }
+        },
+        select: {
+          id: true
+        }
+      });
+
+      if (!character) {
+        return {
+          outcome: "missing",
+          session: mapSoloCombatSessionRecord(current),
+          availableAt: null
+        };
+      }
+
+      const owner = buildTrainingCooldownOwner(sessionId, input.expected.life.remortCount, input.availableAt);
+      const existing = await tx.characterCooldown.findUnique({
+        where: {
+          characterId_key: {
+            characterId: current.characterId,
+            key: input.cooldownKey
+          }
+        }
+      });
+      let cooldown = existing;
+
+      if (existing) {
+        const existingOwner = parseTrainingCooldownOwner(existing.resultJson);
+
+        if (existing.availableAt > input.now) {
+          if (
+            existingOwner?.sessionId !== sessionId ||
+            existingOwner.remortCount !== input.expected.life.remortCount
+          ) {
+            return {
+              outcome: "cooldown-conflict",
+              session: mapSoloCombatSessionRecord(current),
+              availableAt: null
+            };
+          }
+        } else {
+          cooldown = await tx.characterCooldown.update({
+            where: {
+              id: existing.id
+            },
+            data: {
+              availableAt: input.availableAt,
+              resultJson: owner as Prisma.InputJsonValue
+            }
+          });
+        }
+      } else {
+        cooldown = await tx.characterCooldown.create({
+          data: {
+            characterId: current.characterId,
+            key: input.cooldownKey,
+            availableAt: input.availableAt,
+            resultJson: owner as Prisma.InputJsonValue
+          }
+        });
+      }
+
+      if (!cooldown) {
+        return {
+          outcome: "cooldown-conflict",
+          session: mapSoloCombatSessionRecord(current),
+          availableAt: null
+        };
+      }
+
+      if (!parseTrainingCooldownOwner(cooldown.resultJson)) {
+        cooldown = await tx.characterCooldown.update({
+          where: {
+            id: cooldown.id
+          },
+          data: {
+            resultJson: owner as Prisma.InputJsonValue
+          }
+        });
+      }
+
+      const nextState = markTrainingCooldownAppliedInState(state, cooldown.availableAt, cooldown.updatedAt);
+      const updated = await tx.soloCombatSession.update({
+        where: {
+          id: sessionId
+        },
+        data: {
+          stateJson: nextState as unknown as Prisma.InputJsonValue,
+          status: nextState.status,
+          turn: nextState.turn
+        }
+      });
+
+      return {
+        outcome: "applied",
+        session: mapSoloCombatSessionRecord(updated),
+        availableAt: cooldown.availableAt
+      };
+    });
+  }
+
   private async guardSettlementById(
     sessionId: string,
     target: "completed" | "forfeited",
@@ -746,7 +991,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         };
       }
 
-      if (!settlementExpectationMatches(current, state, input.expected)) {
+      if (
+        !settlementExpectationMatches(current, state, input.expected) ||
+        !await currentLifeMatchesExpected(tx, current, input.expected)
+      ) {
         return {
           outcome: "version-changed",
           session: mapSoloCombatSessionRecord(current)
@@ -1141,6 +1389,155 @@ function settlementExpectationMatches(
   }
 
   return true;
+}
+
+async function validatePendingSettlementSubstep(
+  tx: TxClient,
+  record: NonNullable<PrismaSoloCombatSessionRecord>,
+  state: CombatState | null,
+  expected: ApplyTerminalResourcesInput["expected"]
+): Promise<"ok" | "life-mismatch" | "version-changed"> {
+  if (!state || !terminalStatuses.has(state.status)) {
+    return "version-changed";
+  }
+
+  if (!settlementExpectationMatches(record, state, expected)) {
+    return "version-changed";
+  }
+
+  const lease = await tx.activeCombatLease.findUnique({
+    where: {
+      characterId: record.characterId
+    },
+    select: {
+      kind: true,
+      referenceId: true
+    }
+  });
+
+  if (!lease || lease.kind !== "solo-combat" || lease.referenceId !== record.id) {
+    return "version-changed";
+  }
+
+  const currentRemortCount = await countCharacterRemorts(tx, record.characterId);
+
+  return currentRemortCount === expected.life.remortCount ? "ok" : "life-mismatch";
+}
+
+async function currentLifeMatchesExpected(
+  tx: TxClient,
+  record: NonNullable<PrismaSoloCombatSessionRecord>,
+  expected: CompleteSoloCombatSettlementInput["expected"]
+): Promise<boolean> {
+  if (!expected?.life) {
+    return true;
+  }
+
+  const currentRemortCount = await countCharacterRemorts(tx, record.characterId);
+
+  return currentRemortCount === expected.life.remortCount;
+}
+
+function settlementTerminalOutcome(
+  state: CombatState | null
+): "already-completed" | "already-forfeited" | null {
+  if (state?.settlement?.status === "completed") {
+    return "already-completed";
+  }
+
+  if (state?.settlement?.status === "forfeited-by-remort") {
+    return "already-forfeited";
+  }
+
+  return null;
+}
+
+function nextSettlementVersion(state: CombatState): number {
+  return (state.settlement?.version ?? 1) + 1;
+}
+
+function markTerminalResourcesAppliedInState(
+  state: CombatState | null,
+  input: ApplyTerminalResourcesInput
+): CombatState {
+  if (!state) {
+    throw new Error("Cannot mark terminal resources on a missing combat state.");
+  }
+
+  return {
+    ...state,
+    settlement: {
+      status: "pending",
+      ...state.settlement,
+      version: nextSettlementVersion(state),
+      resources: {
+        status: "applied",
+        appliedAt: input.appliedAt.toISOString(),
+        hpCurrent: input.resources.hpCurrent,
+        manaCurrent: input.resources.manaCurrent,
+        hpRegenAt: input.resources.hpRegenAt.toISOString(),
+        manaRegenAt: input.resources.manaRegenAt.toISOString()
+      }
+    }
+  };
+}
+
+function markTrainingCooldownAppliedInState(
+  state: CombatState | null,
+  availableAt: Date,
+  cooldownClaimedAt: Date
+): CombatState {
+  if (!state) {
+    throw new Error("Cannot mark training cooldown on a missing combat state.");
+  }
+
+  return {
+    ...state,
+    settlement: {
+      status: "pending",
+      ...state.settlement,
+      version: nextSettlementVersion(state),
+      training: {
+        availableAt: availableAt.toISOString(),
+        cooldownClaimedAt: cooldownClaimedAt.toISOString()
+      }
+    }
+  };
+}
+
+function buildTrainingCooldownOwner(
+  sessionId: string,
+  remortCount: number,
+  availableAt: Date
+): Record<string, unknown> {
+  return {
+    trainingSettlement: {
+      sessionId,
+      remortCount,
+      availableAt: availableAt.toISOString()
+    }
+  };
+}
+
+function parseTrainingCooldownOwner(value: unknown): {
+  sessionId: string;
+  remortCount: number;
+  availableAt: string;
+} | null {
+  if (!isRecord(value) || !isRecord(value.trainingSettlement)) {
+    return null;
+  }
+
+  const sessionId = value.trainingSettlement.sessionId;
+  const remortCount = intOrNull(value.trainingSettlement.remortCount);
+  const availableAt = value.trainingSettlement.availableAt;
+
+  return typeof sessionId === "string" &&
+    remortCount !== null &&
+    remortCount >= 0 &&
+    typeof availableAt === "string"
+    ? { sessionId, remortCount, availableAt }
+    : null;
 }
 
 function parseIsoDate(value: unknown): Date | null {

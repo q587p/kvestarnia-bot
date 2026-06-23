@@ -1560,6 +1560,15 @@ export class FightService {
     });
     state.turnExpiresAt = getTurnExpiry(now).toISOString();
     state.source = options.source ?? "normal";
+    state.life = freezeCombatLife({
+      characterId: character.id,
+      remortCount: character.remortCount ?? 0,
+      now
+    });
+    state.settlement = {
+      status: "pending",
+      version: 1
+    };
     state.originLocationId = resolvePersistentFightOriginLocationId(options);
     if (monsterContext) {
       state.context = monsterContext;
@@ -1591,6 +1600,16 @@ export class FightService {
     });
 
     if (!session) {
+      const lease = await this.combatSessions.findLeasedByTelegramUserId?.(telegramUserId);
+
+      if (lease?.state === "unsupported") {
+        return {
+          state: "combat-blocked",
+          character: characterSummary,
+          ...(recoveryNotice ? { recoveryNotice } : {})
+        };
+      }
+
       return { state: "no-character" };
     }
 
@@ -2599,40 +2618,55 @@ export class FightService {
     const life = expectedLife ?? await this.resolveSessionExpectedLife(session);
     const appliedAt = getTerminalResourceSettlementDate(session);
     const currentCharacter = await this.characters.findByTelegramUserId(telegramUserId);
-    const updated = await this.characters.updateResourcesForTelegramUser?.(telegramUserId, {
-      hpCurrent: session.state.hero.hp,
-      manaCurrent: session.state.hero.mana,
-      hpRegenAt: appliedAt,
-      manaRegenAt: appliedAt,
-      ...(life ? { expectedLife: life } : {}),
-      ...(currentCharacter
-        ? {
-            expected: {
-              hpCurrent: currentCharacter.hpCurrent,
-              manaCurrent: currentCharacter.manaCurrent,
-              hpRegenAt: currentCharacter.hpRegenAt ?? null,
-              manaRegenAt: currentCharacter.manaRegenAt ?? null
-            }
-          }
-        : {})
-    });
 
-    if (!updated && life) {
-      await this.forfeitCombatSettlement(session, "life-mismatch");
-      return "forfeited";
-    }
-
-    if (!updated) {
+    if (!life || !currentCharacter || !this.combatSessions?.applyTerminalResourcesById) {
       return "skipped";
     }
 
-    const markedState = markTerminalResourcesApplied(session.state, appliedAt);
-    const markedSession =
-      await this.combatSessions?.updateById(session.id, {
-        state: markedState,
-        status: markedState.status
-      });
-    const settlementSession = markedSession ?? { ...session, state: markedState };
+    const resourceSettlement = await this.combatSessions.applyTerminalResourcesById(session.id, {
+      expected: {
+        settlementStatus: "pending",
+        ...(session.state.settlement?.version !== undefined
+          ? { settlementVersion: session.state.settlement.version }
+          : {}),
+        combatStatus: session.state.status,
+        life
+      },
+      appliedAt,
+      resources: {
+        hpCurrent: session.state.hero.hp,
+        manaCurrent: session.state.hero.mana,
+        hpRegenAt: appliedAt,
+        manaRegenAt: appliedAt
+      },
+      expectedResources: {
+        hpCurrent: currentCharacter.hpCurrent,
+        manaCurrent: currentCharacter.manaCurrent,
+        hpRegenAt: currentCharacter.hpRegenAt ?? null,
+        manaRegenAt: currentCharacter.manaRegenAt ?? null
+      }
+    });
+
+    if (
+      resourceSettlement.outcome === "already-forfeited" ||
+      resourceSettlement.outcome === "life-mismatch"
+    ) {
+      return "forfeited";
+    }
+
+    if (resourceSettlement.outcome === "already-completed") {
+      return "completed";
+    }
+
+    if (
+      resourceSettlement.outcome === "missing" ||
+      resourceSettlement.outcome === "resource-cas-conflict" ||
+      resourceSettlement.outcome === "version-changed"
+    ) {
+      return "skipped";
+    }
+
+    const settlementSession = resourceSettlement.session ?? session;
 
     const shouldFinalizeSettlement =
       options.finalizeSettlement ??
@@ -2670,6 +2704,7 @@ export class FightService {
       return session;
     }
 
+    const life = await this.resolveSessionExpectedLife(session);
     const guarded = await this.combatSessions?.completeSettlementById?.(session.id, {
       expected: {
         settlementStatus: "pending",
@@ -2677,7 +2712,7 @@ export class FightService {
           ? { settlementVersion: session.state.settlement.version }
           : {}),
         combatStatus: session.state.status,
-        ...(session.state.life ? { life: { remortCount: session.state.life.remortCount } } : {})
+        ...(life ? { life } : {})
       },
       settledAt: this.clock(),
       ...(reward
@@ -2705,6 +2740,7 @@ export class FightService {
       return session;
     }
 
+    const life = await this.resolveSessionExpectedLife(session);
     const guarded = await this.combatSessions?.forfeitSettlementById?.(session.id, {
       expected: {
         settlementStatus: "pending",
@@ -2712,7 +2748,7 @@ export class FightService {
           ? { settlementVersion: session.state.settlement.version }
           : {}),
         combatStatus: session.state.status,
-        ...(session.state.life ? { life: { remortCount: session.state.life.remortCount } } : {})
+        ...(life ? { life } : {})
       },
       settledAt: this.clock(),
       reason,
@@ -3320,26 +3356,6 @@ function getTerminalResourceSettlementDate(session: SoloCombatSessionRecord): Da
   return parseStoredDate(session.state?.settlement?.resources?.appliedAt) ??
     parseStoredDate(session.state?.completedAt) ??
     session.updatedAt;
-}
-
-function markTerminalResourcesApplied(
-  state: CombatState,
-  appliedAt: Date
-): CombatState {
-  return {
-    ...state,
-    settlement: {
-      ...(state.settlement ?? { status: "pending" as const, version: 1 }),
-      resources: {
-        status: "applied",
-        appliedAt: appliedAt.toISOString(),
-        hpCurrent: state.hero.hp,
-        manaCurrent: state.hero.mana,
-        hpRegenAt: appliedAt.toISOString(),
-        manaRegenAt: appliedAt.toISOString()
-      }
-    }
-  };
 }
 
 function parseStoredDate(value: string | undefined): Date | null {

@@ -80,6 +80,10 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
         if (existing) {
           const remortCount = await countCharacterRemorts(tx, character.id);
 
+          if (input.expectedLife && remortCount !== input.expectedLife.remortCount) {
+            return null;
+          }
+
           return {
             state: "existing",
             action: existing,
@@ -517,6 +521,10 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     }
 
     const remortCount = await countCharacterRemorts(this.prisma, character.id);
+
+    if (input.expectedLife && remortCount !== input.expectedLife.remortCount) {
+      return null;
+    }
 
     return {
       state: "existing",

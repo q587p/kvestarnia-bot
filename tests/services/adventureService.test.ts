@@ -751,6 +751,38 @@ describe("AdventureService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
+  it("blocks adventure mutation behind a hard-expired leased fight", async () => {
+    const expiredFight = {
+      ...fakeSession(),
+      expiresAt: new Date("2026-06-12T10:29:59.000Z")
+    };
+    const { service, characters, dailyActions } = setup(null, undefined, {
+      state: "active",
+      session: expiredFight
+    });
+    characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const offer = buildAdventureOffer(
+      `character-${telegramUserId.toString()}`,
+      buildAdventurePeriod(fixedClock())
+    );
+
+    await expect(service.getAdventureOfferForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "active-fight",
+      session: expiredFight
+    });
+    await expect(
+      service.completeAdventureApproach(telegramUserId, {
+        periodToken: offer.periodToken,
+        problemId: offer.choices[0].id,
+        methodId: "lower-fire"
+      })
+    ).resolves.toMatchObject({
+      state: "active-fight",
+      session: expiredFight
+    });
+    expect(dailyActions.createCount).toBe(0);
+  });
+
   it("keeps a live complication fight visible after the period has an adventure claim", async () => {
     const activeFight = fakeSession();
     const { service, characters, dailyActions } = setup(activeFight);

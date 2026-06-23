@@ -232,7 +232,7 @@ export class TrainingDoppelgangerService {
     });
     const state = resolved.ok
       ? markCombatTurnTimeoutMode(
-          withNextTrainingTurnExpiry(recordCombatTimeout(resolved.state, now), now),
+          withTrainingTerminalCompletedAt(withNextTrainingTurnExpiry(recordCombatTimeout(resolved.state, now), now), now),
           timeoutMode
         )
       : null;
@@ -259,7 +259,7 @@ export class TrainingDoppelgangerService {
       };
     }
 
-    const expiredState = expireCombat(session.state);
+    const expiredState = withTrainingTerminalCompletedAt(expireCombat(session.state), this.clock());
     const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
       state: expiredState,
       status: expiredState.status
@@ -515,7 +515,7 @@ export class TrainingDoppelgangerService {
     }
 
     if (session.expiresAt <= this.clock()) {
-      const expiredState = expireCombat(session.state);
+      const expiredState = withTrainingTerminalCompletedAt(expireCombat(session.state), this.clock());
       const expired = await this.combatSessions.updateById(session.id, {
         state: expiredState,
         status: expiredState.status
@@ -591,7 +591,10 @@ export class TrainingDoppelgangerService {
       };
     }
 
-    const resolvedState = withNextTrainingTurnExpiry(resetCombatTimeout(resolved.state), this.clock());
+    const resolvedState = withTrainingTerminalCompletedAt(
+      withNextTrainingTurnExpiry(resetCombatTimeout(resolved.state), this.clock()),
+      this.clock()
+    );
     const updated = await this.combatSessions.updateByIdIfActiveTurn(currentSession.id, input.turn, {
       state: resolvedState,
       status: resolvedState.status,
@@ -876,7 +879,7 @@ export class TrainingDoppelgangerService {
     }
 
     if (session.expiresAt <= this.clock()) {
-      const expiredState = expireCombat(session.state);
+      const expiredState = withTrainingTerminalCompletedAt(expireCombat(session.state), this.clock());
       const expired = await this.combatSessions.updateById(session.id, {
         state: expiredState,
         status: expiredState.status
@@ -951,6 +954,10 @@ export class TrainingDoppelgangerService {
     const replay = buildRewardReplay(session);
 
     if (replay) {
+      if (session.state?.settlement?.status === "completed") {
+        return replay;
+      }
+
       const cooldown = await this.ensureTrainingRecoveryCooldown(
         telegramUserId,
         character,
@@ -1136,64 +1143,44 @@ export class TrainingDoppelgangerService {
     }
 
     const availableAt = getTrainingRecoveryAvailableAt(session, character);
-    const current = await this.cooldowns.findForTelegramUser(
-      telegramUserId,
-      TRAINING_DOPPELGANGER_COOLDOWN_KEY
-    );
-
-    if (!current) {
+    if (!expectedLife || !this.combatSessions.applyTrainingCooldownById) {
       return null;
     }
 
-    if (expectedLife && (current.character.remortCount ?? 0) !== expectedLife.remortCount) {
+    const cooldownSettlement = await this.combatSessions.applyTrainingCooldownById(session.id, {
+      telegramUserId,
+      expected: {
+        settlementStatus: "pending",
+        ...(session.state.settlement?.version !== undefined
+          ? { settlementVersion: session.state.settlement.version }
+          : {}),
+        combatStatus: session.state.status,
+        life: expectedLife
+      },
+      now: this.clock(),
+      availableAt,
+      cooldownKey: TRAINING_DOPPELGANGER_COOLDOWN_KEY
+    });
+
+    if (cooldownSettlement.outcome === "life-mismatch") {
       await this.forfeitCombatSettlement(session, "life-mismatch");
       return null;
     }
 
-    const activeCooldown = current.cooldown && current.cooldown.availableAt > this.clock()
-      ? current.cooldown
-      : null;
-    const cooldownClaim = activeCooldown
-      ? {
-          state: "on-cooldown" as const,
-          cooldown: activeCooldown,
-          character: current.character
-        }
-      : await this.cooldowns.claimRewardForTelegramUser(telegramUserId, {
-          key: TRAINING_DOPPELGANGER_COOLDOWN_KEY,
-          now: this.clock(),
-          availableAt,
-          rewardXp: 0,
-          rewardGold: 0,
-          itemGrants: [],
-          ...(expectedLife ? { expectedLife } : {})
-        });
-
-    if (!cooldownClaim) {
-      if (expectedLife) {
-        await this.forfeitCombatSettlement(session, "life-mismatch");
-      }
+    if (
+      cooldownSettlement.outcome === "missing" ||
+      cooldownSettlement.outcome === "version-changed" ||
+      cooldownSettlement.outcome === "cooldown-conflict" ||
+      cooldownSettlement.outcome === "already-completed" ||
+      cooldownSettlement.outcome === "already-forfeited" ||
+      !cooldownSettlement.availableAt
+    ) {
       return null;
     }
 
-    if (cooldownClaim.state === "insufficient-gold") {
-      throw new Error("Training doppelganger cooldown unexpectedly required gold.");
-    }
-
-    const cooldownAvailableAt = cooldownClaim.cooldown.availableAt;
-    const markedState = markTrainingCooldownSettled(
-      session.state,
-      availableAt,
-      cooldownClaim.cooldown.updatedAt
-    );
-    const markedSession = await this.combatSessions.updateById(session.id, {
-      state: markedState,
-      status: markedState.status
-    });
-
     return {
-      availableAt: cooldownAvailableAt,
-      session: markedSession ?? { ...session, state: markedState }
+      availableAt: cooldownSettlement.availableAt,
+      session: cooldownSettlement.session ?? session
     };
   }
 
@@ -1238,39 +1225,55 @@ export class TrainingDoppelgangerService {
     const life = expectedLife ?? await this.resolveSessionExpectedLife(session);
     const appliedAt = getTerminalResourceSettlementDate(session);
     const currentCharacter = await this.characters.findByTelegramUserId(telegramUserId);
-    const updated = await this.characters.updateResourcesForTelegramUser?.(telegramUserId, {
-      hpCurrent: session.state.hero.hp,
-      manaCurrent: session.state.hero.mana,
-      hpRegenAt: appliedAt,
-      manaRegenAt: appliedAt,
-      ...(life ? { expectedLife: life } : {}),
-      ...(currentCharacter
-        ? {
-            expected: {
-              hpCurrent: currentCharacter.hpCurrent,
-              manaCurrent: currentCharacter.manaCurrent,
-              hpRegenAt: currentCharacter.hpRegenAt ?? null,
-              manaRegenAt: currentCharacter.manaRegenAt ?? null
-            }
-          }
-        : {})
-    });
 
-    if (!updated && life) {
-      await this.forfeitCombatSettlement(session, "life-mismatch");
-      return "forfeited";
-    }
-
-    if (!updated) {
+    if (!life || !currentCharacter || !this.combatSessions.applyTerminalResourcesById) {
       return "skipped";
     }
 
-    const markedState = markTerminalResourcesApplied(session.state, appliedAt);
-    const markedSession = await this.combatSessions.updateById(session.id, {
-      state: markedState,
-      status: markedState.status
+    const resourceSettlement = await this.combatSessions.applyTerminalResourcesById(session.id, {
+      expected: {
+        settlementStatus: "pending",
+        ...(session.state.settlement?.version !== undefined
+          ? { settlementVersion: session.state.settlement.version }
+          : {}),
+        combatStatus: session.state.status,
+        life
+      },
+      appliedAt,
+      resources: {
+        hpCurrent: session.state.hero.hp,
+        manaCurrent: session.state.hero.mana,
+        hpRegenAt: appliedAt,
+        manaRegenAt: appliedAt
+      },
+      expectedResources: {
+        hpCurrent: currentCharacter.hpCurrent,
+        manaCurrent: currentCharacter.manaCurrent,
+        hpRegenAt: currentCharacter.hpRegenAt ?? null,
+        manaRegenAt: currentCharacter.manaRegenAt ?? null
+      }
     });
-    const settlementSession = markedSession ?? { ...session, state: markedState };
+
+    if (
+      resourceSettlement.outcome === "already-forfeited" ||
+      resourceSettlement.outcome === "life-mismatch"
+    ) {
+      return "forfeited";
+    }
+
+    if (resourceSettlement.outcome === "already-completed") {
+      return "completed";
+    }
+
+    if (
+      resourceSettlement.outcome === "missing" ||
+      resourceSettlement.outcome === "resource-cas-conflict" ||
+      resourceSettlement.outcome === "version-changed"
+    ) {
+      return "skipped";
+    }
+
+    const settlementSession = resourceSettlement.session ?? session;
 
     const shouldFinalizeSettlement =
       options.finalizeSettlement ??
@@ -1308,6 +1311,7 @@ export class TrainingDoppelgangerService {
       return session;
     }
 
+    const life = await this.resolveSessionExpectedLife(session);
     const guarded = await this.combatSessions.completeSettlementById?.(session.id, {
       expected: {
         settlementStatus: "pending",
@@ -1315,7 +1319,7 @@ export class TrainingDoppelgangerService {
           ? { settlementVersion: session.state.settlement.version }
           : {}),
         combatStatus: session.state.status,
-        ...(session.state.life ? { life: { remortCount: session.state.life.remortCount } } : {})
+        ...(life ? { life } : {})
       },
       settledAt: this.clock(),
       ...(reward
@@ -1343,6 +1347,7 @@ export class TrainingDoppelgangerService {
       return session;
     }
 
+    const life = await this.resolveSessionExpectedLife(session);
     const guarded = await this.combatSessions.forfeitSettlementById?.(session.id, {
       expected: {
         settlementStatus: "pending",
@@ -1350,7 +1355,7 @@ export class TrainingDoppelgangerService {
           ? { settlementVersion: session.state.settlement.version }
           : {}),
         combatStatus: session.state.status,
-        ...(session.state.life ? { life: { remortCount: session.state.life.remortCount } } : {})
+        ...(life ? { life } : {})
       },
       settledAt: this.clock(),
       reason,
@@ -1463,24 +1468,6 @@ function getTrainingRecoveryAvailableAt(
   );
 }
 
-function markTrainingCooldownSettled(
-  state: NonNullable<SoloCombatSessionRecord["state"]>,
-  availableAt: Date,
-  cooldownClaimedAt: Date
-): NonNullable<SoloCombatSessionRecord["state"]> {
-  return {
-    ...state,
-    settlement: {
-      ...(state.settlement ?? { status: "pending" as const, version: 1 }),
-      training: {
-        ...state.settlement?.training,
-        availableAt: availableAt.toISOString(),
-        cooldownClaimedAt: cooldownClaimedAt.toISOString()
-      }
-    }
-  };
-}
-
 function getTrainingSessionExpiry(now: Date): Date {
   return new Date(now.getTime() + 30 * 60 * 1000);
 }
@@ -1499,23 +1486,17 @@ function getTerminalResourceSettlementDate(session: SoloCombatSessionRecord): Da
     session.updatedAt;
 }
 
-function markTerminalResourcesApplied(
+function withTrainingTerminalCompletedAt(
   state: NonNullable<SoloCombatSessionRecord["state"]>,
-  appliedAt: Date
+  completedAt: Date
 ): NonNullable<SoloCombatSessionRecord["state"]> {
+  if (state.status === "active" || state.completedAt) {
+    return state;
+  }
+
   return {
     ...state,
-    settlement: {
-      ...(state.settlement ?? { status: "pending" as const, version: 1 }),
-      resources: {
-        status: "applied",
-        appliedAt: appliedAt.toISOString(),
-        hpCurrent: state.hero.hp,
-        manaCurrent: state.hero.mana,
-        hpRegenAt: appliedAt.toISOString(),
-        manaRegenAt: appliedAt.toISOString()
-      }
-    }
+    completedAt: completedAt.toISOString()
   };
 }
 
