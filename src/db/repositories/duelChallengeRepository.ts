@@ -196,7 +196,7 @@ export interface DuelChallengeRepository {
     inviteToken: string,
     telegramUserId: bigint,
     now: Date
-  ): Promise<DuelChallengeRecord | null>;
+  ): Promise<TransitionResult<DuelChallengeRecord>>;
 
   acceptByTokenForTelegramUser(
     inviteToken: string,

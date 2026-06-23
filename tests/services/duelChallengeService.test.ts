@@ -118,6 +118,30 @@ describe("DuelChallengeService", () => {
     });
   });
 
+  it("marks targeted decline transitions once for notification replay safety", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createTargetedChallengeForTelegramUser(1n, 2n, {
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    await expect(service.declineForTelegramUser(2n, created.challenge.inviteToken)).resolves.toMatchObject({
+      state: "declined",
+      transitioned: true
+    });
+    const replay = await service.declineForTelegramUser(2n, created.challenge.inviteToken);
+
+    expect(replay).toMatchObject({ state: "declined" });
+    expect(replay.transitioned).toBeUndefined();
+    expect(world.challenges.get(created.challenge.inviteToken)?.status).toBe("declined");
+  });
+
   it("rejects a targeted nearby invite when the target is no longer active nearby", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n);
@@ -1357,8 +1381,21 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     return Promise.resolve({ record: this.refreshChallenge(challenge), transitioned: false });
   }
 
-  declineByTokenForTelegramUser(): Promise<DuelChallengeRecord | null> {
-    return Promise.resolve(null);
+  declineByTokenForTelegramUser(
+    inviteToken: string,
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<{ record: DuelChallengeRecord | null; transitioned: boolean }> {
+    const challenge = this.challenges.get(inviteToken);
+
+    if (challenge?.status === "pending" && challenge.target?.telegramUserId === telegramUserId) {
+      const updated = { ...challenge, status: "declined" as const, updatedAt: now };
+      this.challenges.set(inviteToken, updated);
+
+      return Promise.resolve({ record: this.refreshChallenge(updated), transitioned: true });
+    }
+
+    return Promise.resolve({ record: this.refreshChallenge(challenge), transitioned: false });
   }
 
   acceptByTokenForTelegramUser(

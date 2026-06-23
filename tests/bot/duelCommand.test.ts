@@ -306,6 +306,51 @@ describe("handleDuelCallback", () => {
     expect(reply).not.toHaveBeenCalled();
   });
 
+  it("notifies the challenger when a targeted invite is declined", async () => {
+    const target = makeCharacter(99n, "Ціль & Виклику");
+    const service = serviceWith({
+      declineForTelegramUser: vi.fn().mockResolvedValue({
+        state: "declined",
+        transitioned: true,
+        challenge: makeChallenge("declined", target),
+        challenger: makeCharacterSummary("Автор Виклику")
+      })
+    });
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext(99);
+
+    await handleDuelCallback(ctx, { type: "decline", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Виклик відхилено");
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("<b>Ціль &amp; Виклику</b> не приймає ваш виклик");
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:quest:list");
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).not.toContain(`v1:duel:accept:${TOKEN}`);
+  });
+
+  it("does not notify the challenger again on replayed decline", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const service = serviceWith({
+      declineForTelegramUser: vi.fn().mockResolvedValue({
+        state: "declined",
+        transitioned: false,
+        challenge: makeChallenge("declined", target),
+        challenger: makeCharacterSummary("Автор Виклику")
+      })
+    });
+    const { ctx, sendMessage } = createCallbackContext(99);
+
+    await handleDuelCallback(ctx, { type: "decline", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("keeps a pending open invite card stable when the challenger accepts their own invite", async () => {
     const challenger = makeCharacterSummary("Автор Виклику");
     const acceptForTelegramUser = vi.fn().mockResolvedValue({

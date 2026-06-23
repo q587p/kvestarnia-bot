@@ -4,7 +4,11 @@ import {
   getInitialDuelInviteTemplateIndex,
   getNextDuelInviteTemplateIndex
 } from "../../content/duelInviteFlavor";
-import type { DuelChallengeService, DuelChallengeView } from "../../services/duelChallengeService";
+import type {
+  DuelChallengeService,
+  DuelChallengeView,
+  DuelDeclineResult
+} from "../../services/duelChallengeService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   PRESENCE_ADVENTURE_DUEL_CHALLENGE,
@@ -32,6 +36,7 @@ import {
   presentDuelCancel,
   presentDuelCreate,
   presentDuelDecline,
+  presentDuelDeclineNotification,
   presentDuelInviteShare,
   presentDuelEntry,
   presentDuelKorchmaGate,
@@ -48,6 +53,8 @@ const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
 };
 type AnswerCallbackQueryOptions = Parameters<Context["answerCallbackQuery"]>[0];
+type DeclinedDuelChallengeView =
+  Extract<DuelChallengeView, { state: "expired" | "cancelled" | "declined" }> & { state: "declined" };
 
 export interface DuelCommandOptions {
   presence: PresenceService;
@@ -401,6 +408,9 @@ export async function handleDuelCallback(
       presentDuelDecline(result, { inviteUrl: getInviteUrl(options.botUsername, result) }),
       result.state === "pending" ? { state: "pending", result } : "result"
     );
+    if (isDeclinedDuelChallengeView(result) && result.transitioned) {
+      await notifyDuelChallengerDecline(ctx, result);
+    }
     return;
   }
 
@@ -716,6 +726,30 @@ async function notifyTargetedDuelCancellation(
 
 function buildDuelCancellationKeyboard() {
   return buildDuelNavigationKeyboard();
+}
+
+async function notifyDuelChallengerDecline(
+  ctx: Context,
+  result: DeclinedDuelChallengeView
+): Promise<void> {
+  const chatId = result.challenge.challenger.telegramUserId;
+
+  if (!chatId || (ctx.chat?.id && BigInt(ctx.chat.id) === chatId)) {
+    return;
+  }
+
+  try {
+    await ctx.api.sendMessage(Number(chatId), presentDuelDeclineNotification(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildDuelCancellationKeyboard()
+    });
+  } catch {
+    // Telegram delivery is best-effort; the declined challenge remains canonical.
+  }
+}
+
+function isDeclinedDuelChallengeView(result: DuelDeclineResult): result is DeclinedDuelChallengeView {
+  return result.state === "declined";
 }
 
 async function notifyOtherQuickDuelResultParticipant(

@@ -202,6 +202,21 @@ export function presentDuelDecline(
   return presentDuelView(result, options);
 }
 
+export function presentDuelDeclineNotification(
+  result: Extract<DuelChallengeView, { state: "expired" | "cancelled" | "declined" }> & { state: "declined" }
+): string {
+  const targetName = result.challenge.target
+    ? `<b>${escapeHtml(result.challenge.target.name)}</b>`
+    : "Інший пригодник";
+
+  return [
+    `${presentDuelModeBadge(result.challenge.mode)} <b>Виклик відхилено</b>`,
+    "",
+    `${targetName} не приймає ваш виклик на дуель.`,
+    "Корчмар занотував: добровільність усе ще добровільна."
+  ].join("\n");
+}
+
 export function presentDuelRematch(
   result: DuelRematchResult,
   options: DuelPresenterOptions = {}
