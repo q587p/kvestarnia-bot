@@ -76,6 +76,7 @@ describe("presence routing", () => {
     ["v1:quest:fight", {}],
     ["v1:quest:archive", {}],
     ["v1:quest:list", {}],
+    ["v1:place:current", {}],
     ["v1:place:hall", {}],
     ["v1:place:front", {}],
     ["v1:place:fighting-corner", {}],
@@ -142,6 +143,7 @@ describe("presence routing", () => {
   );
 
   it.each([
+    "v1:place:current",
     "v1:place:hall",
     "v1:place:front",
     "v1:place:fighting-corner",

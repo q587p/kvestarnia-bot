@@ -27,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Decline, cancel and expiry race losers now replay the canonical stored transfer state instead of reporting the originally requested terminal action.
 - Decline, cancel and expiry leave the sender item untouched and release the gift reservation.
 - Sender cancel and recipient decline now send a best-effort terminal gift notice to the other side only on the actual state transition.
+- Gift flow and terminal result cards now return to the actor's current location instead of always sending them to the Shynok.
 - Shynok social-round cards keep the generosity rating visible even when the player cannot afford the frozen round price.
 
 ## [0.1.25] - 12026-06-24 - Phase 2 MVP Closeout

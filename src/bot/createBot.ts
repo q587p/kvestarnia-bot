@@ -1864,6 +1864,11 @@ async function handlePlaceCallback(
 
   await safeAnswerCallbackQuery(ctx);
 
+  if (action === "current") {
+    await sendCurrentLocation(ctx, services);
+    return;
+  }
+
   if (action === "hall") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_HALL);
     await sendTavern(ctx, services.tavern, services.presence, "reply");

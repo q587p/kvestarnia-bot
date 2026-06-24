@@ -121,6 +121,10 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
+  if (data === "v1:place:current") {
+    return {};
+  }
+
   if (data === "v1:place:hall") {
     return {};
   }

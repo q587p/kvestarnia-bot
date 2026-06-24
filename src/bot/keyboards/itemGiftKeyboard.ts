@@ -46,7 +46,7 @@ export function buildItemGiftCandidatesKeyboard(result: ItemGiftCandidatesResult
     keyboard.text("🔎 Оновити", makeItemGiftOpenCallbackData(result.page)).row();
   }
 
-  return keyboard.text("⬅️ До Шинку", makePlaceCallbackData("bar"));
+  return keyboard.text("↩️ До місцини", makePlaceCallbackData("current"));
 }
 
 export function buildItemGiftSelectionKeyboard(result: ItemGiftSelectionResult): InlineKeyboard {
@@ -76,7 +76,7 @@ export function buildItemGiftSelectionKeyboard(result: ItemGiftSelectionResult):
   }
 
   return keyboard.text("⬅️ До присутніх", makeItemGiftOpenCallbackData()).row()
-    .text("⬅️ До Шинку", makePlaceCallbackData("bar"));
+    .text("↩️ До місцини", makePlaceCallbackData("current"));
 }
 
 export function buildItemGiftCreateKeyboard(result: ItemGiftCreateResult): InlineKeyboard {
@@ -85,7 +85,7 @@ export function buildItemGiftCreateKeyboard(result: ItemGiftCreateResult): Inlin
     keyboard.text("🧹 Скасувати", makeItemGiftCancelCallbackData(result.transfer.token)).row();
   }
 
-  return keyboard.text("⬅️ До Шинку", makePlaceCallbackData("bar"));
+  return keyboard.text("↩️ До місцини", makePlaceCallbackData("current"));
 }
 
 export function buildItemGiftOfferKeyboard(result: Extract<ItemGiftCreateResult, { state: "created" }>): InlineKeyboard {
@@ -97,14 +97,14 @@ export function buildItemGiftOfferKeyboard(result: Extract<ItemGiftCreateResult,
 
 export function buildItemGiftResultKeyboard(_result: ItemGiftRespondResult): InlineKeyboard {
   void _result;
-  return new InlineKeyboard().text("⬅️ До Шинку", makePlaceCallbackData("bar"));
+  return new InlineKeyboard().text("↩️ До місцини", makePlaceCallbackData("current"));
 }
 
 function buildBackToGiftStartKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("⬅️ До присутніх", makeItemGiftOpenCallbackData())
     .row()
-    .text("⬅️ До Шинку", makePlaceCallbackData("bar"));
+    .text("↩️ До місцини", makePlaceCallbackData("current"));
 }
 
 function buttonName(name: string): string {

@@ -21,6 +21,8 @@ describe("handleItemGiftCallback", () => {
     await handleItemGiftCallback(ctx, { type: "cancel", token: TOKEN }, service);
 
     expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(editMessageText.mock.calls[0]?.[1])).toContain("v1:place:current");
+    expect(JSON.stringify(editMessageText.mock.calls[0]?.[1])).not.toContain("v1:place:bar");
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]?.[0]).toBe(2);
     expect(sendMessage.mock.calls[0]?.[1]).toContain("🎁 <b>Подарунок скасовано</b>");
