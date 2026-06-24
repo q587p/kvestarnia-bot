@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parseCombatState } from "../../src/db/repositories/prismaSoloCombatSessionRepository";
 import { classes } from "../../src/content/classes";
 import { monsters } from "../../src/content/monsters";
 import {
@@ -255,8 +256,42 @@ describe("combat domain engine", () => {
 
     expect(result.ok).toBe(true);
     expect(result.state.status).toBe("active");
-    expect(normalizeCombatEnemies(result.state).map((enemy) => enemy.hp)).toEqual([0, expect.any(Number)]);
+    expectPrimaryEnemyMirror(result.state, "enemy:2");
+    expect(normalizeCombatEnemies(result.state).map((enemy) => [enemy.enemyId, enemy.hp])).toEqual([
+      ["enemy:2", expect.any(Number)],
+      ["enemy:1", 0]
+    ]);
     expect(getPrimaryCombatEnemy(result.state).id).toBe(secondMonster.monsterId);
+  });
+
+  it("keeps the multi-enemy collection canonical when only one enemy remains", () => {
+    const first = makeStateAfterPrimaryEnemyDeath();
+    const firstRoundTrip = parseCombatState(JSON.parse(JSON.stringify(first)));
+
+    expect(firstRoundTrip).not.toBeNull();
+    expectPrimaryEnemyMirror(firstRoundTrip ?? first, "enemy:2");
+
+    const beforeSecondHp = normalizeCombatEnemies(firstRoundTrip ?? first)[0]!.hp;
+    const second = resolveCombatTurn({
+      state: firstRoundTrip ?? first,
+      action: "attack",
+      hero: warrior,
+      monster: secondMonster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99])
+    });
+
+    expect(second.ok).toBe(true);
+    expect(second.state.status).toBe("active");
+    expectPrimaryEnemyMirror(second.state, "enemy:2");
+    expect(parseCombatState(JSON.parse(JSON.stringify(second.state)))).not.toBeNull();
+    expect(normalizeCombatEnemies(second.state).map((enemy) => enemy.enemyId)).toEqual([
+      "enemy:2",
+      "enemy:1"
+    ]);
+    expect(normalizeCombatEnemies(second.state)[0]!.hp).toBeLessThan(beforeSecondHp);
+    expect(normalizeCombatEnemies(second.state)[1]).toMatchObject({ enemyId: "enemy:1", hp: 0 });
+    expect(second.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:2"]);
   });
 
   it("lets every living enemy act separately during the enemy phase", () => {
@@ -305,6 +340,49 @@ describe("combat domain engine", () => {
 
     expect(second.ok).toBe(true);
     expect(second.state.status).toBe("won");
+    expect(normalizeCombatEnemies(second.state).every((enemy) => enemy.hp === 0)).toBe(true);
+    expect(parseCombatState(JSON.parse(JSON.stringify(second.state)))).not.toBeNull();
+  });
+
+  it.each([
+    { name: "skip", action: "skip" as const, rng: [0.99, 0.99, 0.99] },
+    { name: "defend", action: "defend" as const, rng: [0.99, 0.99, 0.99] },
+    { name: "flee", action: "flee" as const, rng: [0.99, 0.99, 0.99] },
+    {
+      name: "timeout defend",
+      action: "defend" as const,
+      actionOrigin: "timeout-auto-defend" as const,
+      rng: [0.99, 0.99, 0.99]
+    }
+  ])("preserves the enemy invariant through $name after primary death", ({ action, actionOrigin, rng }) => {
+    const state = makeStateAfterPrimaryEnemyDeath();
+    const result = resolveCombatTurn({
+      state,
+      action,
+      ...(actionOrigin ? { actionOrigin } : {}),
+      hero: warrior,
+      monster: secondMonster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource(rng)
+    });
+
+    expect(result.ok).toBe(true);
+    expectPrimaryEnemyMirror(result.state, "enemy:2");
+    expect(parseCombatState(JSON.parse(JSON.stringify(result.state)))).not.toBeNull();
+    expect(normalizeCombatEnemies(result.state)[1]).toMatchObject({ enemyId: "enemy:1", hp: 0 });
+    expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).not.toContain("enemy:1");
+  });
+
+  it("preserves the enemy invariant when an active two-enemy fight expires after primary death", () => {
+    const expired = expireCombat(makeStateAfterPrimaryEnemyDeath());
+
+    expect(expired.status).toBe("expired");
+    expectPrimaryEnemyMirror(expired, "enemy:2");
+    expect(expired.turnLog?.at(-1)?.enemies).toEqual([
+      { enemyId: "enemy:2", hp: expired.monster.hp },
+      { enemyId: "enemy:1", hp: 0 }
+    ]);
+    expect(parseCombatState(JSON.parse(JSON.stringify(expired)))).not.toBeNull();
   });
 
   it("applies stored beer accuracy penalties to PvE hero attacks", () => {
@@ -1337,3 +1415,38 @@ describe("combat domain engine", () => {
     expect(levelThirteen.attack).toBeGreaterThan(levelFive.attack * 2.5);
   });
 });
+
+function makeStateAfterPrimaryEnemyDeath(): CombatState {
+  const state = startCombat({ hero: warrior, monster, enemies: [secondMonster] });
+  state.enemies![0]!.hp = 1;
+  state.enemies![1]!.hp = 30;
+  state.enemies![1]!.hpMax = 30;
+  state.monster.hp = 1;
+
+  const result = resolveCombatTurn({
+    state,
+    action: "attack",
+    hero: warrior,
+    monster,
+    enemies: [monster, secondMonster],
+    rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99])
+  });
+
+  if (!result.ok) {
+    throw new Error("Expected primary enemy death setup to resolve.");
+  }
+
+  return result.state;
+}
+
+function expectPrimaryEnemyMirror(state: CombatState, enemyId: string): void {
+  const enemies = normalizeCombatEnemies(state);
+
+  expect(state.enemies).toBeDefined();
+  expect(enemies[0]).toMatchObject({
+    enemyId,
+    id: state.monster.id,
+    hp: state.monster.hp,
+    hpMax: state.monster.hpMax
+  });
+}

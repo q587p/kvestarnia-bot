@@ -35,6 +35,7 @@ import {
   getLivingCombatEnemies,
   getPrimaryCombatEnemy,
   getTerminalCombatTurnLogEventId,
+  hasCombatEnemyCollection,
   syncPrimaryCombatEnemy,
   turnLogEnemies,
   updateCombatEnemy,
@@ -310,7 +311,7 @@ export function resolveCombatTurn(input: ResolveCombatTurnInput): ResolveCombatT
 }
 
 function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
-  if (getLivingCombatEnemies(input.state).length > 1) {
+  if (hasCombatEnemyCollection(input.state)) {
     return resolveMultiEnemyHeroSkip(input);
   }
 
@@ -369,7 +370,7 @@ function resolveHeroAttack(
   input: ResolveCombatTurnInput,
   skill?: ReturnType<typeof getCombatSkillProfile>
 ): ResolveCombatTurnResult {
-  if (getLivingCombatEnemies(input.state).length > 1) {
+  if (hasCombatEnemyCollection(input.state)) {
     return resolveMultiEnemyHeroAttack(input, skill);
   }
 
@@ -529,7 +530,7 @@ function resolveHeroAttack(
 }
 
 function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
-  if (getLivingCombatEnemies(input.state).length > 1) {
+  if (hasCombatEnemyCollection(input.state)) {
     return resolveMultiEnemyFlee(input);
   }
 

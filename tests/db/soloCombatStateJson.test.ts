@@ -49,6 +49,95 @@ describe("solo combat state JSON parser", () => {
     ]);
   });
 
+  it("round-trips a two-enemy state after primary death", () => {
+    const state = {
+      ...legacyState,
+      monster: {
+        id: "monster.second",
+        hp: 7,
+        hpMax: 7
+      },
+      enemies: [
+        {
+          enemyId: "enemy:2",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        },
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 0,
+          hpMax: 5
+        }
+      ]
+    };
+
+    expect(parseCombatState(JSON.parse(JSON.stringify(state)))).toMatchObject({
+      monster: {
+        id: "monster.second",
+        hp: 7,
+        hpMax: 7
+      },
+      enemies: [
+        {
+          enemyId: "enemy:2",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        },
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 0,
+          hpMax: 5
+        }
+      ]
+    });
+  });
+
+  it.each(["won", "lost", "fled", "expired"] as const)(
+    "round-trips terminal %s two-enemy state",
+    (status) => {
+      const state = {
+        ...legacyState,
+        status,
+        ...(status === "lost"
+          ? {
+              hero: {
+                ...legacyState.hero,
+                hp: 0
+              }
+            }
+          : {}),
+        monster: {
+          id: "monster.second",
+          hp: status === "won" ? 0 : 3,
+          hpMax: 7
+        },
+        enemies: [
+          {
+            enemyId: "enemy:2",
+            id: "monster.second",
+            hp: status === "won" ? 0 : 3,
+            hpMax: 7
+          },
+          {
+            enemyId: "enemy:1",
+            id: "monster.legacy",
+            hp: 0,
+            hpMax: 5
+          }
+        ]
+      };
+
+      const parsed = parseCombatState(JSON.parse(JSON.stringify(state)));
+
+      expect(parsed?.status).toBe(status);
+      expect(parsed?.enemies).toHaveLength(2);
+    }
+  );
+
   it("rejects malformed duplicate enemy identities safely", () => {
     expect(parseCombatState({
       ...legacyState,
@@ -61,6 +150,31 @@ describe("solo combat state JSON parser", () => {
         },
         {
           enemyId: "enemy:1",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        }
+      ]
+    })).toBeNull();
+  });
+
+  it("rejects a malformed primary enemy mirror safely", () => {
+    expect(parseCombatState({
+      ...legacyState,
+      monster: {
+        id: "monster.second",
+        hp: 7,
+        hpMax: 7
+      },
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 5,
+          hpMax: 5
+        },
+        {
+          enemyId: "enemy:2",
           id: "monster.second",
           hp: 7,
           hpMax: 7

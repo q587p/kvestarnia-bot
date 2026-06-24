@@ -389,6 +389,10 @@ export function normalizeCombatEnemies(state: CombatState): CombatEnemyState[] {
   return [combatMonsterToEnemy(state.monster, "enemy:1", state.monsterRuntime)];
 }
 
+export function hasCombatEnemyCollection(state: CombatState): boolean {
+  return Array.isArray(state.enemies);
+}
+
 export function getLivingCombatEnemies(state: CombatState): CombatEnemyState[] {
   return normalizeCombatEnemies(state).filter((enemy) => enemy.hp > 0);
 }
@@ -398,22 +402,30 @@ export function getPrimaryCombatEnemy(state: CombatState): CombatEnemyState {
 }
 
 export function syncPrimaryCombatEnemy(state: CombatState): void {
+  const hasEnemyCollection = hasCombatEnemyCollection(state);
   const enemies = normalizeCombatEnemies(state);
   const primary = enemies.find((enemy) => enemy.hp > 0) ?? enemies[0]!;
+  const primaryMirror = combatMonsterToEnemy(
+    combatEnemyToMonster(primary),
+    primary.enemyId,
+    primary.monsterRuntime
+  );
+  const orderedEnemies = [
+    primaryMirror,
+    ...enemies
+      .filter((enemy) => enemy.enemyId !== primary.enemyId)
+      .map(cloneCombatEnemyState)
+  ];
 
-  state.monster = combatEnemyToMonster(primary);
-  if (primary.monsterRuntime) {
-    state.monsterRuntime = cloneMonsterAbilityRuntimeState(primary.monsterRuntime)!;
+  state.monster = combatEnemyToMonster(primaryMirror);
+  if (primaryMirror.monsterRuntime) {
+    state.monsterRuntime = cloneMonsterAbilityRuntimeState(primaryMirror.monsterRuntime)!;
   } else {
     delete state.monsterRuntime;
   }
 
-  if (enemies.length > 1) {
-    state.enemies = enemies.map((enemy) =>
-      enemy.enemyId === primary.enemyId
-        ? combatMonsterToEnemy(state.monster, enemy.enemyId, state.monsterRuntime)
-        : enemy
-    );
+  if (hasEnemyCollection || enemies.length > 1) {
+    state.enemies = orderedEnemies;
   } else {
     delete state.enemies;
   }
@@ -424,6 +436,7 @@ export function updateCombatEnemy(
   enemyId: string,
   enemy: CombatEnemyState
 ): void {
+  const hasEnemyCollection = hasCombatEnemyCollection(state);
   const enemies = normalizeCombatEnemies(state).map((candidate) =>
     candidate.enemyId === enemyId ? cloneCombatEnemyState(enemy) : candidate
   );
@@ -432,7 +445,7 @@ export function updateCombatEnemy(
     return;
   }
 
-  if (enemies.length > 1) {
+  if (hasEnemyCollection || enemies.length > 1) {
     state.enemies = enemies;
   } else {
     delete state.enemies;

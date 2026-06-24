@@ -37,6 +37,7 @@ import type { TelegramUserProfile } from "../../src/db/repositories/userReposito
 import {
   markCombatSettlementCompleted,
   markCombatSettlementForfeitedByRemort,
+  normalizeCombatEnemies,
   type CombatState
 } from "../../src/domain/combat";
 import { getLevelForXp } from "../../src/domain/progression/level";
@@ -3712,6 +3713,120 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
+  it("persists and reloads a two-enemy fight after the primary enemy dies", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, {
+      xp: 25,
+      hpCurrent: 80,
+      hpMax: 80,
+      statsJson: {
+        strength: 30,
+        dexterity: 8,
+        intelligence: 6,
+        charisma: 6,
+        luck: 6
+      }
+    });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.99, 0.99, 0.1, 0.9, 0.99, 0.99])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId, {
+      enemyCount: 2,
+      devBypassAvailability: true
+    });
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    const reloadedAfterPrimaryDeath = moveSessionToPostPrimaryDeath(sessions, started.session.id);
+    expect(normalizeCombatEnemies(reloadedAfterPrimaryDeath).map((enemy) => enemy.enemyId)).toEqual([
+      "enemy:2",
+      "enemy:1"
+    ]);
+
+    const second = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: reloadedAfterPrimaryDeath.turn,
+      action: "attack"
+    });
+
+    expect(second.state).toBe("updated");
+    if (second.state === "updated") {
+      expect(second.session.state?.monster.id).toBe(normalizeCombatEnemies(second.session.state!)[0]!.id);
+      expect(normalizeCombatEnemies(second.session.state!)[1]).toMatchObject({ enemyId: "enemy:1", hp: 0 });
+      if (second.session.state?.status === "won") {
+        expect(normalizeCombatEnemies(second.session.state).every((enemy) => enemy.hp === 0)).toBe(true);
+      }
+    }
+
+    const stale = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(stale.state).toBe("stale-turn");
+    if (stale.state === "stale-turn") {
+      expect(stale.session.state?.monster.id).toBe(normalizeCombatEnemies(stale.session.state!)[0]!.id);
+    }
+  });
+
+  it("keeps two-enemy timeout replay safe after primary death", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, {
+      xp: 25,
+      hpCurrent: 80,
+      hpMax: 80,
+      statsJson: {
+        strength: 30,
+        dexterity: 8,
+        intelligence: 6,
+        charisma: 6,
+        luck: 6
+      }
+    });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.99, 0.99, 0.99, 0.99])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId, {
+      enemyCount: 2,
+      devBypassAvailability: true
+    });
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    moveSessionToPostPrimaryDeath(sessions, started.session.id);
+    sessions.setTurnExpiresAt(started.session.id, new Date("2026-06-12T10:29:59.000Z"));
+    const due: DueSoloCombatSessionRecord = {
+      ...sessions.getById(started.session.id)!,
+      telegramUserId
+    };
+
+    const timeout = await service.resolveDuePersistentFightTurn(due);
+    const duplicate = await service.resolveDuePersistentFightTurn(due);
+
+    expect(timeout.state).toBe("updated");
+    expect(duplicate.state).toBe("skipped");
+    if (timeout.state === "updated") {
+      expect(timeout.session.state?.lastTurn?.actionOrigin).toBe("timeout-auto-defend");
+      expect(timeout.session.state?.monster.id).toBe(normalizeCombatEnemies(timeout.session.state!)[0]!.id);
+      expect(normalizeCombatEnemies(timeout.session.state!)[1]).toMatchObject({ enemyId: "enemy:1", hp: 0 });
+    }
+  });
+
   it("does not let an older duplicate active session keep fighting", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -5539,6 +5654,49 @@ function clonePendingEncounter(
         updatedAt: new Date(encounter.updatedAt)
       }
     : null;
+}
+
+function moveSessionToPostPrimaryDeath(
+  sessions: FakeSoloCombatSessionRepository,
+  sessionId: string
+): CombatState {
+  const session = sessions.getById(sessionId);
+  const enemies = session?.state?.enemies;
+
+  if (!session?.state || !enemies?.[0] || !enemies[1]) {
+    throw new Error("Expected a two-enemy session.");
+  }
+
+  const livingEnemy = {
+    ...enemies[1],
+    hp: 60,
+    hpMax: 60
+  };
+  const deadEnemy = {
+    ...enemies[0],
+    hp: 0
+  };
+  const monster = { ...livingEnemy } as CombatState["monster"] & {
+    enemyId?: string;
+    monsterRuntime?: unknown;
+  };
+  delete monster.enemyId;
+  delete monster.monsterRuntime;
+  const state: CombatState = {
+    ...session.state,
+    turn: 2,
+    monster,
+    ...(livingEnemy.monsterRuntime ? { monsterRuntime: livingEnemy.monsterRuntime } : {}),
+    enemies: [livingEnemy, deadEnemy]
+  };
+
+  sessions.addSession({
+    ...session,
+    turn: 2,
+    state
+  });
+
+  return state;
 }
 
 function cloneState(state: CombatState): CombatState {

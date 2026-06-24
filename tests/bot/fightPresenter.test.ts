@@ -243,6 +243,97 @@ describe("fight presenter", () => {
     expect(text).not.toContain("золота</b>");
   });
 
+  it("marks the reloaded living primary enemy as the target", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 2,
+        monster: {
+          id: "monster.second",
+          name: "<i>Другий</i>",
+          level: 3,
+          hp: 7,
+          hpMax: 16
+        },
+        enemies: [
+          {
+            enemyId: "enemy:2",
+            id: "monster.second",
+            name: "<i>Другий</i>",
+            level: 3,
+            hp: 7,
+            hpMax: 16
+          },
+          {
+            enemyId: "enemy:1",
+            id: "monster.first",
+            name: "<b>Перший</b>",
+            level: 2,
+            hp: 0,
+            hpMax: 18
+          }
+        ]
+      }),
+      monster: {
+        id: "monster.second",
+        name: "<i>Другий</i>",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("👹 1. &lt;i&gt;Другий&lt;/i&gt;: 7/16 ← ціль");
+    expect(text).toContain("👹 2. &lt;b&gt;Перший&lt;/b&gt;: 0/18");
+    expect(text).not.toContain("<i>Другий</i>");
+    expect(text).not.toContain("<b>Перший</b>");
+  });
+
+  it("does not render active prompts for terminal multi-enemy state", () => {
+    const text = presentPersistentFight({
+      state: "persistent-terminal",
+      character,
+      session: persistentSession({
+        status: "won",
+        monster: {
+          id: "monster.second",
+          name: "Другий",
+          level: 3,
+          hp: 0,
+          hpMax: 16
+        },
+        enemies: [
+          {
+            enemyId: "enemy:2",
+            id: "monster.second",
+            name: "Другий",
+            level: 3,
+            hp: 0,
+            hpMax: 16
+          },
+          {
+            enemyId: "enemy:1",
+            id: "monster.first",
+            name: "Перший",
+            level: 2,
+            hp: 0,
+            hpMax: 18
+          }
+        ]
+      }),
+      monster: null,
+      questProgress: questProgress(4),
+      fightReward: null
+    });
+
+    expect(text).toContain("👹 1. Другий: 0/16");
+    expect(text).toContain("👹 2. Перший: 0/18");
+    expect(text).not.toContain("що робимо?");
+    expect(text).not.toContain("На хід є 23 секунди");
+  });
+
   it("names the skill that is still on cooldown", () => {
     const text = presentPersistentFight({
       state: "persistent-active",
