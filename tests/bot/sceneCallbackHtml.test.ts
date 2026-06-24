@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
+import {
+  clearMessageFreshnessTracking,
+  rememberLatestMessageForChat
+} from "../../src/bot/messageFreshness";
 import { toQuestCallbackKey } from "../../src/content/questResolution";
 import {
   makeAdventureApproachCallbackData,
@@ -43,6 +47,8 @@ type MarkPresenceInput = Parameters<NonNullable<BotServices["presence"]>["markAc
 describe("scene callback HTML options", () => {
   afterEach(() => {
     vi.useRealTimers();
+    clearMessageFreshnessTracking();
+    vi.restoreAllMocks();
   });
 
   it.each([
@@ -1315,7 +1321,8 @@ describe("scene callback HTML options", () => {
     ).toBe(false);
   });
 
-  it("shows a visible combat-lock explanation when a place button is pressed during a fight", async () => {
+  it("records the edited callback message as the active persistent fight card", async () => {
+    rememberLatestMessageForChat(42, 10);
     const markAction = vi.fn(() => Promise.resolve());
     const recordPersistentFightMessageReference = vi.fn(() => Promise.resolve());
     const calls = await captureApiCalls(
@@ -1366,6 +1373,101 @@ describe("scene callback HTML options", () => {
       chatId: "42",
       messageId: 10
     });
+  });
+
+  it("records the new reply message when a stale combat-lock callback falls back to sendMessage", async () => {
+    rememberLatestMessageForChat(42, 12);
+    const markAction = vi.fn(() => Promise.resolve());
+    const recordPersistentFightMessageReference = vi.fn(() => Promise.resolve());
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("hall"),
+      servicesWith({
+        fight: {
+          recordPersistentFightMessageReference,
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-active" as const,
+              character,
+              session: {
+                ...persistentSession("monster.deadline-spider"),
+                state: {
+                  ...persistentSession("monster.deadline-spider").state,
+                  source: "adventure",
+                  originLocationId: "location.korchma.quest_table"
+                }
+              },
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null
+            })
+        },
+        presence: {
+          markAction
+        }
+      }),
+      { messageResults: true }
+    );
+    const reply = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("⚔️ <b>Бій тримає вас за рукав</b>")
+    );
+
+    expect(calls.some((call) => call.method === "editMessageText")).toBe(false);
+    expect(reply?.payload.parse_mode).toBe("HTML");
+    expect(JSON.stringify(reply?.payload.reply_markup)).toContain("v1:fight:turn:");
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.quest_table",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(recordPersistentFightMessageReference).toHaveBeenCalledWith(42n, "session-1", {
+      chatId: "42",
+      messageId: 3
+    });
+    expect(recordPersistentFightMessageReference).not.toHaveBeenCalledWith(42n, "session-1", {
+      chatId: "42",
+      messageId: 10
+    });
+  });
+
+  it("does not record a fabricated combat-lock reference when stale fallback delivery fails", async () => {
+    rememberLatestMessageForChat(42, 12);
+    const recordPersistentFightMessageReference = vi.fn(() => Promise.resolve());
+
+    await expect(
+      captureApiCalls(
+        makePlaceCallbackData("hall"),
+        servicesWith({
+          fight: {
+            recordPersistentFightMessageReference,
+            getFightOverviewForTelegramUser: () =>
+              Promise.resolve({
+                state: "persistent-active" as const,
+                character,
+                session: persistentSession("monster.deadline-spider"),
+                monster: {
+                  id: "monster.deadline-spider",
+                  name: "Павук дедлайнів",
+                  description: "Плете павутину з «сьогодні швиденько».",
+                  level: 2,
+                  tags: ["beast", "time", "web"]
+                },
+                questProgress: null
+              })
+          }
+        }),
+        { failSendMessage: true }
+      )
+    ).rejects.toThrow("send failed");
+
+    expect(recordPersistentFightMessageReference).not.toHaveBeenCalled();
   });
 
   it("records a combat-lock reply as the active persistent fight card", async () => {
@@ -4311,7 +4413,7 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
 async function captureApiCalls(
   callbackData: string,
   services: BotServices,
-  options: { messageResults?: boolean } = {}
+  options: { messageResults?: boolean; failSendMessage?: boolean } = {}
 ): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services);
   const calls: ApiCall[] = [];
@@ -4332,6 +4434,10 @@ async function captureApiCalls(
           username: "kvestarnia_bot"
         }
       });
+    }
+
+    if (options.failSendMessage && method === "sendMessage") {
+      return Promise.reject(new Error("send failed"));
     }
 
     if (options.messageResults && method === "sendMessage") {

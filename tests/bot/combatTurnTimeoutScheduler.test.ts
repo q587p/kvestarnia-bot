@@ -168,6 +168,43 @@ describe("combat turn timeout scheduler", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
+  it("uses the recorded combat-lock card reference on the following due timeout tick", async () => {
+    const session = persistentSession();
+    session.state!.message = {
+      chatId: "42",
+      messageId: 612
+    };
+    const result: PersistentFightTimeoutResult = {
+      state: "updated",
+      telegramUserId: 42n,
+      character,
+      session,
+      monster,
+      questProgress: null,
+      fightReward: null
+    };
+    const fight = {
+      listDuePersistentFightTurns: vi.fn(() => Promise.resolve([session])),
+      resolveDuePersistentFightTurn: vi.fn(() => Promise.resolve(result)),
+      recordPersistentFightMessageReference: vi.fn(() => Promise.resolve())
+    };
+    const { bot, editMessageText, sendMessage } = fakeBot();
+    const scheduler = createCombatTurnTimeoutScheduler(
+      { fight: fight as unknown as FightService },
+      bot,
+      { intervalMs: 60_000 }
+    );
+
+    scheduler.start();
+
+    await vi.waitFor(() => expect(editMessageText).toHaveBeenCalled());
+    scheduler.stop();
+
+    expect(firstEditCall(editMessageText)?.[1]).toBe(612);
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(fight.recordPersistentFightMessageReference).not.toHaveBeenCalled();
+  });
+
   it("sends a replacement card and records its reference when Telegram cannot edit the old card", async () => {
     const session = persistentSession();
     const result: PersistentFightTimeoutResult = {

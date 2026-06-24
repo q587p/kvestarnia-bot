@@ -372,7 +372,7 @@ import {
 } from "./presenters/tavernPresenter";
 import { safeAnswerCallbackQuery } from "./safeAnswerCallbackQuery";
 import { safeEditMessageText } from "./safeEditMessageText";
-import { installMessageFreshnessTracking } from "./messageFreshness";
+import { getCallbackMessageFreshness, installMessageFreshnessTracking } from "./messageFreshness";
 import { getPresenceContext, type PresenceContext } from "./presence/presenceRouting";
 
 export interface BotServices {
@@ -1159,6 +1159,11 @@ async function sendCombatLockText(
   };
 
   if (ctx.callbackQuery) {
+    if (getCallbackMessageFreshness(ctx) === "stale") {
+      const message = await ctx.reply(text, messageOptions);
+      return message.message_id;
+    }
+
     await safeEditMessageText(ctx, text, messageOptions);
     return ctx.callbackQuery.message?.message_id ?? null;
   }
