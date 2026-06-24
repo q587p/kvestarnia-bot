@@ -133,7 +133,7 @@ describe("hero presenter", () => {
     );
   });
 
-  it("shows queued pepper vodka as a pending PvE combat buff", () => {
+  it("shows queued pepper vodka as a pending monster combat buff", () => {
     const text = presentHero(summary, {
       activeDrink: {
         key: "drink.pepper-vodka",
@@ -148,8 +148,10 @@ describe("hero presenter", () => {
     });
 
     expect(text).toContain(
-      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🥃 Баф: <b>Горілка з перцем</b> ще 23 хв — чекає PvE бою, шкода туди/назад ×1.13."
+      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🥃 Баф: <b>Горілка з перцем</b> ще 23 хв — чекає бою з монстром, завдана й отримана шкода +13%."
     );
+    expect(text).not.toContain("PvE");
+    expect(text).not.toContain("×1.13");
   });
 
   it("shows inventory value next to carried gold", () => {

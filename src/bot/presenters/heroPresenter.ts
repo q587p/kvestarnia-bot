@@ -118,7 +118,7 @@ function presentActiveDrink(drink: HeroActiveDrink | null): string | null {
 
 function presentActiveDrinkEffects(drink: HeroActiveDrink): string[] {
   if (drink.phase === "queued") {
-    return ["чекає PvE бою", "шкода туди/назад ×1.13"];
+    return ["чекає бою з монстром", "завдана й отримана шкода +13%"];
   }
 
   const effects: string[] = [];
