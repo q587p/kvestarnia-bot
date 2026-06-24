@@ -10,7 +10,7 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.2.0] - 12026-06-24 - Safe Gifting MVP
 
 ### Added
-- Added `🎁 Подарувати манатку` from the Shynok/bar surface for offering exactly one eligible manatka stack unit to an active same-location player.
+- Added `🎁 Подарувати манатку` from `👀 Хто поруч` and the Shynok/bar surface for offering exactly one eligible manatka stack unit to an active same-location player.
 - Added recipient accept/decline and sender cancel callbacks backed by short server-owned transfer tokens.
 - Added `ItemTransfer` persistence with frozen sender, receiver, item, quantity, result and terminal-state audit data.
 - Added pending Barrel raid shortcuts to the generosity rating and news archive, with both routes returning to the raid card.

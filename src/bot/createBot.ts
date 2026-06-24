@@ -472,7 +472,10 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   });
   registerInventoryCommand(bot, services.inventory);
   registerEquipmentCommand(bot, services.equipment);
-  registerOnlineCommand(bot, services.presence, { duelEnabled: Boolean(services.duel) });
+  registerOnlineCommand(bot, services.presence, {
+    duelEnabled: Boolean(services.duel),
+    itemGiftEnabled: Boolean(services.itemTransfers)
+  });
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset, services.devGrant, {
     buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence)
@@ -2491,7 +2494,10 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
   });
 
   bot.hears(mainMenuButtons.participants, async (ctx) => {
-    await sendOnline(ctx, services.presence, { duelEnabled: Boolean(services.duel) });
+    await sendOnline(ctx, services.presence, {
+      duelEnabled: Boolean(services.duel),
+      itemGiftEnabled: Boolean(services.itemTransfers)
+    });
   });
 
   bot.hears(mainMenuButtons.help, async (ctx) => {
