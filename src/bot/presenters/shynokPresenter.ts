@@ -318,7 +318,7 @@ function presentReplacementWarning(
 
   return [
     "",
-    `На вас іще діє «${escapeHtml(activeDrink.name)}». «${escapeHtml(drink.name)}» замінить цей ефект. Перелити долю в інший кухоль?`
+    `На вас іще діє ${activeDrink.emoji} <b>${escapeHtml(activeDrink.name)}</b>. ${drink.emoji} <b>${escapeHtml(drink.name)}</b> замінить цей ефект. Перелити долю в інший кухоль?`
   ];
 }
 

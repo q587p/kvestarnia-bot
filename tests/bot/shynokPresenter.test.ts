@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   presentShynokGate,
   presentShynokDrinkMenu,
+  presentShynokDrinkPreview,
   presentShynokDrinkConfirmResult,
   presentShynokRoundConfirm,
   presentShynokRoundOfferResponse,
@@ -10,6 +11,7 @@ import {
 } from "../../src/bot/presenters/shynokPresenter";
 import type {
   ShynokDrinkConfirmResult,
+  ShynokDrinkOrderResult,
   ShynokRoundConfirmResult,
   ShynokRoundOfferRespondResult,
   ShynokRoundPreviewResult,
@@ -240,6 +242,41 @@ describe("shynokPresenter", () => {
     expect(html).toContain("Чай &amp; чебрець");
     expect(html).toContain("Поки що нічого не змінено.");
     expect(html).not.toContain("Просте <пиво>");
+  });
+
+  it("marks both drink names in self-drink replacement preview", () => {
+    const result: ShynokDrinkOrderResult = {
+      state: "preview",
+      character,
+      token: "12345678-1234-4234-9234-123456789abc",
+      drink: {
+        key: "drink.simple-beer",
+        name: "Просте <пиво>",
+        emoji: "🍺",
+        priceGold: 13,
+        durationMinutes: 23,
+        recoveryMultiplierBp: 12500,
+        accuracyPenaltyPp: 5
+      },
+      activeDrink: {
+        key: "drink.thyme-tea",
+        name: "Чай & чебрець",
+        emoji: "🍵",
+        priceGold: 17,
+        durationMinutes: 42,
+        phase: "timed",
+        startedAt: new Date("2026-06-23T10:00:00.000Z"),
+        expiresAt: new Date("2026-06-23T10:42:00.000Z"),
+        recoveryMultiplierBp: 11300
+      }
+    };
+
+    const html = presentShynokDrinkPreview(result);
+
+    expect(html).toContain(
+      "На вас іще діє 🍵 <b>Чай &amp; чебрець</b>. 🍺 <b>Просте &lt;пиво&gt;</b> замінить цей ефект."
+    );
+    expect(html).toContain("Наливаємо?");
   });
 
   it("shows remaining minutes for a confirmed drink instead of an end time", () => {
