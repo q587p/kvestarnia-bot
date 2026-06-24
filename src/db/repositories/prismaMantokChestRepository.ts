@@ -383,7 +383,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint): Promise<Mantok
     return null;
   }
 
-  const [items, equipment] = await Promise.all([
+  const [items, equipment, pendingTransfers] = await Promise.all([
     tx.characterItem.findMany({
       where: {
         characterId: character.id
@@ -404,14 +404,35 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint): Promise<Mantok
       select: {
         itemId: true
       }
-    })
+    }),
+    findPendingTransferItems(tx, character.id)
   ]);
 
   return {
     characterId: character.id,
     items: items.map(toCharacterItemRecord),
-    equippedItemIds: equipment.map((row) => row.itemId)
+    equippedItemIds: equipment.map((row) => row.itemId),
+    reservedItemIds: pendingTransfers.map((row) => row.itemId)
   };
+}
+
+function findPendingTransferItems(tx: TxClient, characterId: string): Promise<Array<{ itemId: string }>> {
+  const itemTransfer = (tx as TxClient & { itemTransfer?: TxClient["itemTransfer"] }).itemTransfer;
+  if (!itemTransfer) {
+    return Promise.resolve([]);
+  }
+
+  return itemTransfer.findMany({
+    where: {
+      senderCharacterId: characterId,
+      status: {
+        in: ["pending", "processing"]
+      }
+    },
+    select: {
+      itemId: true
+    }
+  });
 }
 
 function mapRun(record: PrismaMantokChestRunRecord): MantokChestRunRecord | null {

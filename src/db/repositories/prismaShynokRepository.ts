@@ -1096,7 +1096,7 @@ async function getInventorySnapshot(tx: TxClient, telegramUserId: bigint): Promi
     return null;
   }
 
-  const [items, equipment, pendingChestRuns, pendingLevelBarters] = await Promise.all([
+  const [items, equipment, pendingChestRuns, pendingLevelBarters, pendingTransfers] = await Promise.all([
     tx.characterItem.findMany({
       where: { characterId: character.id },
       orderBy: [{ createdAt: "asc" }, { itemId: "asc" }]
@@ -1112,7 +1112,8 @@ async function getInventorySnapshot(tx: TxClient, telegramUserId: bigint): Promi
     tx.levelBarterExchange.findMany({
       where: { characterId: character.id, status: "pending" },
       select: { inputItemsJson: true }
-    })
+    }),
+    findPendingTransferItems(tx, character.id)
   ]);
   const reservedItemIds = new Set<string>();
   for (const run of pendingChestRuns) {
@@ -1125,6 +1126,9 @@ async function getInventorySnapshot(tx: TxClient, telegramUserId: bigint): Promi
       reservedItemIds.add(item.itemId);
     }
   }
+  for (const transfer of pendingTransfers) {
+    reservedItemIds.add(transfer.itemId);
+  }
 
   return {
     character: toCharacterRecord(character),
@@ -1132,6 +1136,18 @@ async function getInventorySnapshot(tx: TxClient, telegramUserId: bigint): Promi
     equippedItemIds: equipment.map((row) => row.itemId),
     reservedItemIds: [...reservedItemIds]
   };
+}
+
+function findPendingTransferItems(tx: TxClient, characterId: string): Promise<Array<{ itemId: string }>> {
+  const itemTransfer = (tx as TxClient & { itemTransfer?: TxClient["itemTransfer"] }).itemTransfer;
+  if (!itemTransfer) {
+    return Promise.resolve([]);
+  }
+
+  return itemTransfer.findMany({
+    where: { senderCharacterId: characterId, status: { in: ["pending", "processing"] } },
+    select: { itemId: true }
+  });
 }
 
 async function auditExpiredQueuedDrink(

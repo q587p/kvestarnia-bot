@@ -37,18 +37,20 @@ export interface MantokChestInputSelection {
 export function buildMantokChestEligibleStacks(input: {
   stacks: readonly MantokChestStackInput[];
   equippedItemIds?: ReadonlySet<string>;
+  reservedItemIds?: ReadonlySet<string>;
   itemContents: readonly ItemContent[];
   mode?: "auto" | "manual";
 }): MantokChestEligibleStack[] {
   const contentById = new Map(input.itemContents.map((item) => [item.id, item]));
   const equippedItemIds = input.equippedItemIds ?? new Set<string>();
+  const reservedItemIds = input.reservedItemIds ?? new Set<string>();
   const mode = input.mode ?? "auto";
 
   return input.stacks.flatMap((stack) => {
     const quantity = Math.max(0, Math.floor(stack.quantity));
     const content = contentById.get(stack.itemId);
 
-    if (!content || quantity <= 0 || equippedItemIds.has(stack.itemId)) {
+    if (!content || quantity <= 0 || equippedItemIds.has(stack.itemId) || reservedItemIds.has(stack.itemId)) {
       return [];
     }
 

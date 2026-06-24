@@ -1,6 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
 import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbackData";
+import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeMemorialRemortCallbackData } from "../callbacks/memorialCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
@@ -124,6 +125,8 @@ export function buildKorchmaBarKeyboard(
     .text("🍻 Якісне всім", makeShynokRoundPreviewCallbackData("fine"))
     .row()
     .text("💰 Продати манатки", makeShynokSaleOpenCallbackData())
+    .row()
+    .text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData())
     .row();
 
   if (options.problemQuestAction === "turn-in") {

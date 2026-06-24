@@ -140,7 +140,7 @@ Future equipment/trading notes:
 - Item content metadata includes `goldValue` for priced items or an explicit `priceless` marker for story trophies and special collectibles. Current code displays this in item detail, inventory total value, hero wallet context, Скриня Манаток eligibility, and Манчкін-скупник level exchange eligibility; it still does not provide a general sell/trade market. Скриня auto-pick excludes protected/priceless/story items, while manual selection can include them with an explicit warning; Манчкін still refuses them.
 - `character_items` stays the ownership/count table. Actual equipment slots, temporary permission effects, cursed exceptions, attunement, respec/form-change state, and trade offers should be separate rows or state machines.
 - Equipping must validate ownership, level, restrictions, and any active bypass in one domain/service path; callbacks should never trust button text or stale presenter state.
-- Player-to-player exchange/gifting needs an idempotent transaction: remove/decrement from sender, create/increment for receiver, write an audit/transfer row, and fail cleanly if the sender no longer owns the item.
+- `0.2.0` adds the first player-to-player gift path through `item_transfers`: one eligible stack unit, explicit recipient acceptance, sender cancel, terminal replay, audit/result JSON and a guarded transaction that decrements the sender and upserts the receiver exactly once.
 - `0.0.29` adds a narrow Манчкін-скупник item/gold-to-level exchange. Confirm recomputes the auto-pick fingerprint inside a transaction, rejects stale preview tokens, ignores/rejects equipped/priceless/protected/zero-value items, consumes selected stacks with guarded decrements, requires at least `587` gold value from eligible manatky before wallet gold can fill the rest, grants exactly one allowed level, preserves XP carry, and records level milestones. It deliberately blocks the `12 → 13` exchange: 13 рівень має приходити тільки через бої.
 - `0.0.30` hardens that exchange with `level_barter_exchanges`: repeated confirm for an already completed token returns replay/audit data instead of attempting a second spend or showing a misleading stale-selection error. Gold-heavy exchange is intentionally denied; at least `587` gold value from eligible manatky must be part of the exchange, while wallet gold may only fill the missing value. Level-barter callbacks are blocked during pending Barrel raids like other progression/spending actions.
 - `0.1.0` does not widen this economy surface. `level_barter_exchanges` remains a narrow idempotency/audit table for the Munchkin barter path, not a general sale, trade, shop, or item-instance ledger.
@@ -272,8 +272,8 @@ Rules:
 - Startup/lazy due-turn paths repair malformed active duel sessions to a non-rewarding expired state and remove orphan `turn-based-duel` leases whose referenced active session no longer owns the character.
 - Telegram edit/send failures may fall back to a fresh message, but never roll back or duplicate gameplay state.
 
-### future item_transfers
-Planned for Phase 2 trading/gifting after duel invite primitives are proven; not present in `0.1.0`.
+### item_transfers
+Shipped first in `0.2.0` for safe one-unit gifts. This is not bilateral trade: callbacks carry only short action data and server-owned tokens, while the row freezes sender/receiver/item names, remort counts, item fingerprint, result data and terminal status. Shynok sale, Mantok Chest, Munchkin barter and future item sinks must treat pending/processing transfers as active reservations.
 
 - `id` UUID
 - `sender_character_id` FK

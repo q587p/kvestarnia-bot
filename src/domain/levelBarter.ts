@@ -52,10 +52,12 @@ interface Candidate {
 export function buildLevelBarterEligibleStacks(input: {
   stacks: readonly LevelBarterStackInput[];
   equippedItemIds?: ReadonlySet<string>;
+  reservedItemIds?: ReadonlySet<string>;
   itemContents: readonly ItemContent[];
 }): LevelBarterEligibleStack[] {
   const contentById = new Map(input.itemContents.map((item) => [item.id, item]));
   const equippedItemIds = input.equippedItemIds ?? new Set<string>();
+  const reservedItemIds = input.reservedItemIds ?? new Set<string>();
 
   return input.stacks.flatMap((stack) => {
     const quantity = Math.max(0, Math.floor(stack.quantity));
@@ -67,6 +69,7 @@ export function buildLevelBarterEligibleStacks(input: {
       quantity <= 0 ||
       unitGoldValue <= 0 ||
       equippedItemIds.has(stack.itemId) ||
+      reservedItemIds.has(stack.itemId) ||
       isProtectedMantokChestItem(content)
     ) {
       return [];

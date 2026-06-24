@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.0] - 12026-06-24 - Safe Gifting MVP
+
+### Added
+- Added `🎁 Подарувати манатку` from the Shynok/bar surface for offering exactly one eligible manatka stack unit to an active same-location player.
+- Added recipient accept/decline and sender cancel callbacks backed by short server-owned transfer tokens.
+- Added `ItemTransfer` persistence with frozen sender, receiver, item, quantity, result and terminal-state audit data.
+- Added focused domain, callback, presenter, schema and Prisma transaction tests for eligibility, duplicate accept replay, stale content and competing reservations.
+
+### Changed
+- Shynok sale, Mantok Chest and Munchkin level barter eligibility now treat pending/processing gift transfers as active item reservations.
+- Remort cleanup cancels pending/processing gifts for either participant so old life-boundary reservations do not survive into the next life.
+
+### Fixed
+- Gift accept rereads ownership, equipment, content fingerprint, active combat leases, remort counts, location state and competing reservations inside the transaction before moving the unit.
+- Duplicate accept replays the completed gift instead of moving another unit.
+- Decline, cancel and expiry leave the sender item untouched and release the gift reservation.
+
 ## [0.1.25] - 12026-06-24 - Phase 2 MVP Closeout
 
 ### Added

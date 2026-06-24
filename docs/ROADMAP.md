@@ -130,14 +130,14 @@ Canonical docs:
 Closeout cutline:
 - `0.1.24` is the final feature release of the `0.1.x` Phase 2 MVP line.
 - `0.1.25` closes the line as a docs/release/smoke milestone with no new gameplay.
-- Trading/gifting, multi-enemy, item tags/equipment and party/raid runtime move to `0.2.x` rather than keeping `0.1.x` open indefinitely.
+- Safe gifting shipped first in `0.2.0`; broader trading, multi-enemy, item tags/equipment and party/raid runtime stay in later `0.2.x+` slices.
 - The next implementation prompt remains [docs/ai/prompts/safe-gifting-main-codex.md](ai/prompts/safe-gifting-main-codex.md).
 
 Deliverables:
 - Бійцівський куток із тренувальним `Сумлінним Допельґанґером`: копія поточного героя для level 3+ спарингу перед справжніми дуелями з гравцями. Майбутні дуелі також стартують з 3 рівня, якщо окремий балансний PR не змінить це явно.
 - First duel invite MVP shipped in `0.1.10`: challenge, accept/decline/cancel/expire, quick rewardless resolve, replay-safe result, generated deep links via `BOT_USERNAME`, a dedicated Fighting Corner screen and a rewardless winners board. `0.1.11` adds manual targeted rematches and shareable saved-result cards without rerolls; `0.1.18` adds persistent turn-based duels with small XP-only terminal rewards and no gold/items/manatky rewards.
 - Tournament cards without exact hidden formulas or toxic pressure.
-- Trading/gifting MVP: transfer one eligible манатка or stack unit with explicit confirmation and audit row.
+- `0.2.0` Safe Gifting MVP: transfer one eligible манатка stack unit with explicit recipient acceptance, audit row, reservation checks and replay-safe terminal states.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
 - Remort follow-ups after the `0.1.2` base loop: remort-only advanced options, richer legacy flavor and future cosmetic/social records, without hidden wipe or power snowball.
 - Multi-enemy combat foundation: ordinary monster fights should replace the three-win monster-rest block with threat escalation. After `3` eligible one-enemy wins the next fight brings a second monster; at higher enemy counts, `2` more wins add another monster, while each defeat steps the future enemy count down by one. Extra enemies each act on enemy turns, rewards scale conservatively, and fight intros draw from 13 authored gossip/escalation lines; see `docs/tasks/archive/queued-threat-streak-multi-enemy-fights.md`.

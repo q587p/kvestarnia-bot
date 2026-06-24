@@ -199,6 +199,7 @@ function buildPlanForSnapshot(
   const eligibleStacks = buildLevelBarterEligibleStacks({
     stacks: snapshot.items,
     equippedItemIds: new Set(snapshot.equippedItemIds),
+    reservedItemIds: new Set(snapshot.reservedItemIds ?? []),
     itemContents: items
   });
   const eligibleTotalValue = getLevelBarterEligibleTotalValue(eligibleStacks);

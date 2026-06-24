@@ -27,6 +27,7 @@ export interface MantokChestSnapshot {
   characterId: string;
   items: CharacterItemRecord[];
   equippedItemIds: string[];
+  reservedItemIds?: string[];
 }
 
 export type MantokChestConfirmResult =

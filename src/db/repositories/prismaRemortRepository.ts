@@ -655,6 +655,26 @@ async function cancelShynokLifecycleForRemort(
       updatedAt: now
     }
   });
+
+  await tx.itemTransfer.updateMany({
+    where: {
+      OR: [
+        { senderCharacterId: characterId },
+        { receiverCharacterId: characterId }
+      ],
+      status: {
+        in: ["pending", "processing"]
+      }
+    },
+    data: {
+      status: "cancelled",
+      respondedAt: now,
+      updatedAt: now,
+      resultJson: {
+        kind: "remort-cancelled-gift"
+      }
+    }
+  });
 }
 
 async function getSnapshot(

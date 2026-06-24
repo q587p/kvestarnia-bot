@@ -226,6 +226,7 @@ describe("main menu and scene keyboards", () => {
       "🍺 Просте всім",
       "🍻 Якісне всім",
       "💰 Продати манатки",
+      "🎁 Подарувати манатку",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaBarKeyboard())).toEqual([
@@ -233,6 +234,7 @@ describe("main menu and scene keyboards", () => {
       "v1:sh:rp:simple",
       "v1:sh:rp:fine",
       "v1:sh:so",
+      "v1:gift:open",
       "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ includeBottleTurnIn: true }))).toEqual([
@@ -240,6 +242,7 @@ describe("main menu and scene keyboards", () => {
       "🍺 Просте всім",
       "🍻 Якісне всім",
       "💰 Продати манатки",
+      "🎁 Подарувати манатку",
       "🍾 Здати пляшку",
       "⬅️ До зали"
     ]);
@@ -248,6 +251,7 @@ describe("main menu and scene keyboards", () => {
       "v1:sh:rp:simple",
       "v1:sh:rp:fine",
       "v1:sh:so",
+      "v1:gift:open",
       "v1:cellar:grownup-turn-in",
       "v1:place:hall"
     ]);

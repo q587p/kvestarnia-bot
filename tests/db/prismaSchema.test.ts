@@ -411,6 +411,32 @@ describe("Prisma schema", () => {
     expect(migration).toContain("CREATE INDEX \"level_barter_exchanges_character_id_status_idx\"");
   });
 
+  it("stores item transfers for replay-safe one-unit gifts", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260624100000_add_item_transfers",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model ItemTransfer");
+    expect(schema).toContain("itemTransfersSent ItemTransfer[]");
+    expect(schema).toContain("itemTransfersReceived ItemTransfer[]");
+    expect(schema).toContain("@map(\"sender_character_id\")");
+    expect(schema).toContain("@map(\"receiver_character_id\")");
+    expect(schema).toContain("@map(\"item_fingerprint\")");
+    expect(schema).toContain("@@map(\"item_transfers\")");
+    expect(migration).toContain("CREATE TABLE \"item_transfers\"");
+    expect(migration).toContain("CREATE UNIQUE INDEX \"item_transfers_token_key\"");
+    expect(migration).toContain("item_transfers_sender_character_id_status_expires_at_idx");
+    expect(migration).toContain("item_transfers_receiver_character_id_status_expires_at_idx");
+  });
+
   it("stores remort drafts and completed remort history", () => {
     const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
     const migration = readFileSync(

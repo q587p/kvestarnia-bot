@@ -25,6 +25,7 @@ import type { YegerQuestService } from "../services/yegerQuestService";
 import { isYegerUnquietTarget } from "../services/yegerQuestService";
 import type { EquipmentService } from "../services/equipmentService";
 import type { InventoryService } from "../services/inventoryService";
+import type { ItemTransferService } from "../services/itemTransferService";
 import type { LevelBarterService } from "../services/levelBarterService";
 import type { LevelMilestoneService } from "../services/levelMilestoneService";
 import type { MantokChestService } from "../services/mantokChestService";
@@ -70,6 +71,7 @@ import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
 import { parseDuelCallbackData } from "./callbacks/duelCallbackData";
 import { parseFightCallbackData, type FightCallback } from "./callbacks/fightCallbackData";
 import { parseHuntCallbackData, type HuntCallback } from "./callbacks/huntCallbackData";
+import { parseItemGiftCallbackData } from "./callbacks/itemGiftCallbackData";
 import {
   parseLevelBarterCallbackData,
   type LevelBarterCallback
@@ -133,6 +135,7 @@ import {
   sendYegerCorner
 } from "./commands/huntCommand";
 import { registerInventoryCommand, sendInventory } from "./commands/inventoryCommand";
+import { handleItemGiftCallback } from "./commands/itemGiftCommand";
 import { registerLookCommand } from "./commands/lookCommand";
 import { handleNearbyDuelCallback } from "./commands/nearbyDuelCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
@@ -380,6 +383,7 @@ export interface BotServices {
   hero: HeroService;
   equipment: EquipmentService;
   inventory: InventoryService;
+  itemTransfers?: ItemTransferService;
   levelBarter: LevelBarterService;
   levelMilestones?: LevelMilestoneService;
   mantokChest: MantokChestService;
@@ -551,6 +555,17 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     }
 
     await handleShynokCallback(ctx, parsed.value, services);
+  });
+
+  bot.callbackQuery(/^v1:gift:/, async (ctx) => {
+    const parsed = parseItemGiftCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok || !services.itemTransfers) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleItemGiftCallback(ctx, parsed.value, services.itemTransfers);
   });
 
   bot.callbackQuery(/^v1:lvlx:/, async (ctx) => {

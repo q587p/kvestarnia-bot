@@ -407,6 +407,7 @@ function getEligibleStacks(snapshot: MantokChestSnapshot) {
   return buildMantokChestEligibleStacks({
     stacks: snapshot.items,
     equippedItemIds: new Set(snapshot.equippedItemIds),
+    reservedItemIds: new Set(snapshot.reservedItemIds ?? []),
     itemContents: items,
     mode: "auto"
   });
@@ -416,6 +417,7 @@ function getManualEligibleStacks(snapshot: MantokChestSnapshot) {
   return buildMantokChestEligibleStacks({
     stacks: snapshot.items,
     equippedItemIds: new Set(snapshot.equippedItemIds),
+    reservedItemIds: new Set(snapshot.reservedItemIds ?? []),
     itemContents: items,
     mode: "manual"
   });

@@ -10,6 +10,18 @@
 
 Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
 
+## 0.2.0 — Safe gifting smoke
+
+1. Два персонажі стоять активними в одній безпечній місцині.
+2. Дарувальник відкриває `🎁 Подарувати манатку`, обирає отримувача й одну придатну манатку.
+3. Отримувач приймає: у дарувальника мінус одна одиниця, в отримувача плюс одна.
+4. Повторити старі accept/cancel/decline кнопки: кількість не змінюється вдруге.
+5. Спробувати екіпіровану, priceless/protected/story, reserved sale/chest/barter/gift річ: подарунок не створюється або accept stale-иться без мутації.
+6. Змінити stack/equipment/content між preview і accept: transfer fails safely.
+7. Decline, cancel and expired offers replay their terminal state.
+8. Спробувати, коли будь-хто в incompatible combat lease: подарунок блокується.
+9. Перезапустити процес між offer і accept: canonical transfer row лишається usable.
+
 ## 0.1.0 — Closeout smoke
 
 Канонічний release gate для Phase 1 closure живе в [`docs/PHASE1_CLOSEOUT_SMOKE.md`](PHASE1_CLOSEOUT_SMOKE.md). Для `0.1.0` він має покривати new player route, level 3+ persistent fight, HP/mana recovery, equipment effective stats, Mantok Chest auto/manual, Yeger tracking, Munchkin barter safety, Barrel/Shynok/presence, and public health/news/presence surfaces.

@@ -6,6 +6,7 @@ export interface LevelBarterSnapshot {
   remortCount: number;
   items: CharacterItemRecord[];
   equippedItemIds: string[];
+  reservedItemIds?: string[];
 }
 
 export interface LevelBarterExchangePlan {

@@ -43,6 +43,8 @@ model Character {
   drinkState CharacterDrinkState?
   drinkActivationAudits ShynokDrinkActivationAudit[]
   korchmaMantokSales KorchmaMantokSale[]
+  itemTransfersSent ItemTransfer[] @relation("ItemTransferSender")
+  itemTransfersReceived ItemTransfer[] @relation("ItemTransferReceiver")
   huntContracts HuntContract[]
   soloCombatSessions SoloCombatSession[]
   pendingPassageEncounters PendingPassageEncounter[]
@@ -394,6 +396,38 @@ model KorchmaMantokSale {
 
   @@index([characterId, status, expiresAt])
   @@map("korchma_mantok_sales")
+}
+
+model ItemTransfer {
+  id                     String    @id @default(uuid())
+  token                  String    @unique
+  senderCharacterId      String    @map("sender_character_id")
+  senderCharacter        Character @relation("ItemTransferSender", fields: [senderCharacterId], references: [id], onDelete: Cascade)
+  receiverCharacterId    String    @map("receiver_character_id")
+  receiverCharacter      Character @relation("ItemTransferReceiver", fields: [receiverCharacterId], references: [id], onDelete: Cascade)
+  senderTelegramUserId   BigInt    @map("sender_telegram_user_id")
+  receiverTelegramUserId BigInt    @map("receiver_telegram_user_id")
+  senderName             String    @map("sender_name")
+  receiverName           String    @map("receiver_name")
+  senderRemortCount      Int       @default(0) @map("sender_remort_count")
+  receiverRemortCount    Int       @default(0) @map("receiver_remort_count")
+  locationId             String?   @map("location_id")
+  itemId                 String    @map("item_id")
+  itemName               String    @map("item_name")
+  itemFingerprint        String    @map("item_fingerprint")
+  quantity               Int       @default(1)
+  status                 String    @default("pending")
+  resultJson             Json?     @map("result_json")
+  expiresAt              DateTime  @map("expires_at")
+  completedAt            DateTime? @map("completed_at")
+  respondedAt            DateTime? @map("responded_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  @@index([senderCharacterId, status, expiresAt])
+  @@index([receiverCharacterId, status, expiresAt])
+  @@index([itemId, status])
+  @@map("item_transfers")
 }
 
 model BarrelRaidNotification {
