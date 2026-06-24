@@ -13,6 +13,8 @@ export interface ApplicationRuntime {
   stop(): Promise<void>;
 }
 
+type RuntimeState = "new" | "started" | "stopping" | "stopped";
+
 interface RuntimeDependencies {
   createBot: typeof createBot;
   createCombatTurnTimeoutScheduler: typeof createCombatTurnTimeoutScheduler;
@@ -43,8 +45,8 @@ export function createRuntime(input: {
       }
     : {};
   const botLinkOptions = config.botUsername ? { botUsername: config.botUsername } : {};
-  let started = false;
-  let stopped = false;
+  let state: RuntimeState = "new";
+  let stopPromise: Promise<void> | null = null;
   let bot: Bot | null = null;
   let healthServer: ReturnType<typeof startHealthServer> | null = null;
   let duelTurnTimeoutScheduler: ReturnType<typeof createDuelTurnTimeoutScheduler> | null = null;
@@ -52,11 +54,11 @@ export function createRuntime(input: {
 
   return {
     start() {
-      if (started) {
+      if (state !== "new") {
         return;
       }
 
-      started = true;
+      state = "started";
       healthServer = dependencies.startHealthServer({
         presence: services.presence,
         ...supportJarOptions
@@ -105,19 +107,36 @@ export function createRuntime(input: {
       });
     },
     async stop() {
-      if (stopped) {
+      if (stopPromise) {
+        await stopPromise;
         return;
       }
 
-      stopped = true;
-      combatTurnTimeoutScheduler?.stop();
-      duelTurnTimeoutScheduler?.stop();
-      if (bot) {
-        await bot.stop();
-      }
+      state = state === "new" ? "stopped" : "stopping";
+      stopPromise = (async () => {
+        let shutdownError: Error | null = null;
 
-      healthServer?.close();
-      await prisma.$disconnect();
+        combatTurnTimeoutScheduler?.stop();
+        duelTurnTimeoutScheduler?.stop();
+
+        try {
+          if (bot) {
+            await bot.stop();
+          }
+        } catch (error) {
+          shutdownError = error instanceof Error ? error : new Error(String(error));
+        } finally {
+          healthServer?.close();
+          await prisma.$disconnect();
+          state = "stopped";
+        }
+
+        if (shutdownError) {
+          throw shutdownError;
+        }
+      })();
+
+      await stopPromise;
     }
   };
 }

@@ -10,15 +10,15 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.2.2] - 12026-06-24 - Architecture Stabilization
 
 ### Changed
-- Split bot assembly into explicit core, character, inventory, tavern, quest, combat and social registrars while keeping command and callback behavior unchanged.
+- Split bot assembly into explicit core, character, inventory, tavern, quest, combat and social modules while keeping command and callback behavior unchanged.
 - Moved bot-facing `BotServices` and `BotOptions` into explicit typed contracts.
 - Extracted combat-lock, presence and pending-raid guard middleware into named modules while preserving allow/block/redirect policy.
 - Moved production repository and service construction into `src/app` factories.
-- Added an explicit runtime lifecycle for health server, polling, schedulers, Telegram menu sync, deploy notifications and shutdown.
+- Added an explicit runtime lifecycle for health server, polling, schedulers, Telegram menu sync, deploy notifications and shutdown; shutdown is idempotent/concurrency-safe and still closes health plus disconnects Prisma if `bot.stop()` rejects.
 
 ### Added
-- Added architecture tests for domain import boundaries, `createBot` orchestration, entry-point delegation and callback namespace ownership.
-- Added runtime lifecycle tests for BOT_TOKEN-missing mode and scheduler start/stop behavior.
+- Added architecture tests for domain import boundaries, `createBot` orchestration, entry-point delegation, module-file inventory, command/alias inventory, callback namespace ownership and module import cycles.
+- Added runtime lifecycle tests for BOT_TOKEN-missing mode, scheduler start/stop behavior, concurrent stop, stop-before-start, optional duel absence and `bot.stop()` rejection cleanup.
 
 ### Unchanged
 - No gameplay feature, combat formula, reward, content, callback payload, stored combat JSON, Prisma schema or migration change ships in this release.

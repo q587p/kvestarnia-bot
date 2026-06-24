@@ -2,7 +2,7 @@
 
 This is a move map, not a requirement to use every exact filename. Recheck the post-`0.2.1` tree before editing.
 
-`0.2.2` implementation note: the shipped code keeps the coarse registrar implementation in `src/bot/featureRegistrars.ts` while `src/bot/createBot.ts` remains the ordered shell. Middleware and app composition follow the target file split.
+`0.2.2` implementation note: the final PR removes the central `src/bot/featureRegistrars.ts` router. `src/bot/createBot.ts` remains the ordered shell and imports seven vertical modules from `src/bot/modules/`, plus narrow shared helpers for main-menu/current-location refresh, quest-hub options, level-up follow-ups, scene presence, Barrel notification scheduling and persistent-fight passage navigation.
 
 ## Source-to-target map
 
@@ -13,15 +13,16 @@ This is a move map, not a requirement to use every exact filename. Recheck the p
 | combat lock registration/helpers | `src/bot/middleware/registerCombatLockMiddleware.ts` | preserve allowlist, redirect and presence behavior |
 | presence middleware registration | `src/bot/middleware/registerPresenceMiddleware.ts` | continue using `presence/presenceRouting.ts` |
 | pending raid edit/block helper | `src/bot/middleware/pendingRaidGuard.ts` if clean | do not invent a universal policy engine |
-| onboarding/menu callbacks | character/core registrar | choose one owner and document it |
-| item/equipment/chest/level barter callbacks | inventory registrar | gifting may remain social if that ownership is clearer |
-| tavern/place/Shynok/cellar callbacks | tavern registrar | keep location movement/presence helpers nearby |
-| adventure/quest/Yeger/hunt/bestiary callbacks | quest registrar | persistent fight start can be delegated to a narrow combat helper |
-| fight/training callbacks | combat registrar | keep duel separate if it reduces coupling |
-| duel/nearby duel/gifting notices | social registrar | do not duplicate notification helpers |
+| menu/news callbacks and main-menu reply buttons | `src/bot/modules/core.ts`, `src/bot/modules/mainMenu.ts` | core owns `/help`, `/news`, `/support`, `/version`, online/look/planned commands and menu/news callback namespaces |
+| onboarding/bestiary/dev/restart/remort callbacks | `src/bot/modules/character.ts` | character owns identity, account-reset/restart and remort callbacks |
+| item/equipment/chest/level barter callbacks | `src/bot/modules/inventory.ts` | inventory owns all non-social manatka inventory/equipment/chest/barter callbacks |
+| tavern/place/Shynok/cellar callbacks | `src/bot/modules/tavern.ts` | tavern owns location, Shynok, memorial, Barrel and cellar orchestration; shared current-location helpers live in `mainMenu.ts` |
+| adventure/quest/Yeger/hunt callbacks | `src/bot/modules/quest.ts` | quest owns Adventure Choice, quest hub, hunt and Yeger routes |
+| fight/training callbacks | `src/bot/modules/combat.ts` | combat owns persistent fight and training doppelganger callbacks |
+| duel/nearby duel/gifting callbacks | `src/bot/modules/social.ts` | social owns opt-in duel and safe gifting callbacks |
 | repository construction in `src/bot.ts` | `src/app/createRepositories.ts` | concrete Prisma implementations |
 | service construction in `src/bot.ts` | `src/app/createServices.ts` | explicit typed object |
-| health/bot/scheduler/deploy lifecycle | `src/app/createRuntime.ts`, `runtimeLifecycle.ts` | no import-time start |
+| health/bot/scheduler/deploy lifecycle | `src/app/createRuntime.ts` | explicit idempotent start/stop lifecycle; no import-time start |
 
 ## Files intentionally left in place
 

@@ -139,7 +139,7 @@ Deliverables:
 - Tournament cards without exact hidden formulas or toxic pressure.
 - `0.2.0` Safe Gifting MVP: transfer one eligible манатка stack unit with explicit recipient acceptance, audit row, reservation checks and replay-safe terminal states.
 - `0.2.1` Multi-Enemy Foundation: persistent PvE combat can store and resolve exactly two enemies behind a dev-only route while production starts remain one-enemy and rewards stay single-encounter.
-- `0.2.2` Architecture Stabilization: shipped modular bot registrars, extracted cross-cutting middleware, explicit composition root/runtime lifecycle and architecture boundary tests without gameplay, schema, callback or copy changes.
+- `0.2.2` Architecture Stabilization: shipped real vertical bot modules, extracted cross-cutting middleware, explicit composition root/runtime lifecycle and architecture boundary tests without gameplay, schema, callback or copy changes.
 - Later postal/courier gifting: paid delivery of one eligible манатка to a known recipient without same-location presence, after safe gifting proves stable.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
 - Remort follow-ups after the `0.1.2` base loop: remort-only advanced options, richer legacy flavor and future cosmetic/social records, without hidden wipe or power snowball.

@@ -1,23 +1,21 @@
 import { Bot } from "grammy";
 import type { BotOptions } from "./botOptions";
 import type { BotServices } from "./botServices";
-import {
-  registerCharacterBotModule,
-  registerCombatBotModule,
-  registerCoreBotModule,
-  registerInventoryBotModule,
-  registerQuestBotModule,
-  registerSocialBotModule,
-  registerTavernBotModule,
-  resumeBotNotifications
-} from "./featureRegistrars";
 import { installMessageFreshnessTracking } from "./messageFreshness";
 import { registerCombatLockMiddleware } from "./middleware/registerCombatLockMiddleware";
 import { registerPresenceMiddleware } from "./middleware/registerPresenceMiddleware";
+import { registerCharacterBotModule } from "./modules/character";
+import { registerCombatBotModule } from "./modules/combat";
+import { registerCoreBotModule } from "./modules/core";
+import { registerInventoryBotModule } from "./modules/inventory";
+import { resumeBotNotifications } from "./modules/notifications";
+import { registerQuestBotModule } from "./modules/quest";
+import { registerSocialBotModule } from "./modules/social";
+import { registerTavernBotModule } from "./modules/tavern";
 
 export type { BotOptions } from "./botOptions";
 export type { BotServices } from "./botServices";
-export { buildQuestHubCommandOptions } from "./featureRegistrars";
+export { buildQuestHubCommandOptions } from "./modules/questHubOptions";
 
 export function createBot(token: string, services: BotServices, options: BotOptions = {}): Bot {
   const bot = new Bot(token);
