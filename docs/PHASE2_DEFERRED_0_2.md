@@ -54,9 +54,9 @@ Add a clear content contract for trade/use/duel/raid eligibility and one narrow 
 
 - paid postal/courier manatka delivery for known recipients who are not currently nearby;
 - item-for-item trade;
-- party skeleton;
+- party skeleton, starting with [tasks/0.2.x-raid-party-session-foundation.md](tasks/0.2.x-raid-party-session-foundation.md) when explicitly activated;
 - party vs one boss;
-- real raids;
+- real raids, with the Senior Barrel Brother planning package preserved in [SENIOR_BARREL_BROTHER_GROUP_RAID_PACKAGE.md](SENIOR_BARREL_BROTHER_GROUP_RAID_PACKAGE.md) and [tasks/0.2.x-senior-barrel-brother-group-raid.md](tasks/0.2.x-senior-barrel-brother-group-raid.md);
 - tournament recognition;
 - remort/social achievement-board ideas;
 - richer remort-only social records;
@@ -97,4 +97,5 @@ Do not put PR numbers in artifact filenames. PR numbers can appear inside closeo
 | `origin/codex/remort-memorial-inferred-levels` | absorbed into memorial-board release work | `0.1.24` |
 | `origin/codex/remort-achievement-board` | deferred with achievements/social records | later `0.2.x`/alpha |
 | `origin/codex/group-hook-design` | preserved as party/raid design input | after multi-enemy/social sessions |
+| Senior Barrel Brother planning package | preserved as future docs-only party/raid design input | after party-session foundation |
 | `docs/tasks/archive/queued-threat-streak-multi-enemy-fights.md` | split into multi-enemy foundation plus later threat escalation | `0.2.x` |

@@ -12,6 +12,10 @@
 - [ai/prompts/phase2-closeout-main-codex.md](ai/prompts/phase2-closeout-main-codex.md) — main Codex prompt for the `0.1.25` Phase 2 MVP closeout task.
 - [ai/prompts/phase2-regression-audit.md](ai/prompts/phase2-regression-audit.md) — read-only audit prompt for the Phase 2 regression smoke.
 - [ai/prompts/safe-gifting-main-codex.md](ai/prompts/safe-gifting-main-codex.md) — first `0.2.x` implementation prompt for Safe Gifting MVP.
+- [ai/prompts/raid-party-session-foundation-main-codex.md](ai/prompts/raid-party-session-foundation-main-codex.md) — future party-session foundation prompt; use only when that docs-only planning slice becomes active.
+- [ai/prompts/senior-barrel-brother-group-raid-main-codex.md](ai/prompts/senior-barrel-brother-group-raid-main-codex.md) — future Senior Barrel Brother group raid prompt after the party-session foundation exists.
+- [ai/prompts/senior-barrel-brother-balance-review.md](ai/prompts/senior-barrel-brother-balance-review.md) — future balance review prompt for the Senior Barrel Brother planning package.
+- [ai/prompts/senior-barrel-brother-group-raid-readonly-review.md](ai/prompts/senior-barrel-brother-group-raid-readonly-review.md) — future read-only review prompt for the Senior Barrel Brother planning package.
 - [tasks/README.md](tasks/README.md) — version task doc convention and templates.
 
 ## Canonical project docs
@@ -65,6 +69,23 @@ Phase 2 більше не починається з великого групо�
 - [phase2/REMORT.md](phase2/REMORT.md) — shipped `/remort` після 13 рівня з capped legacy, preview і вибором preserved manatky без power snowball, плюс follow-up нотатки.
 - [phase2/ITEM_TAGS_AND_CONSUMABLES.md](phase2/ITEM_TAGS_AND_CONSUMABLES.md) — item tags, одноразові манатки й бойові дії від предметів.
 - [phase2/UNSTABLE_BALANCE_PRINCIPLES.md](phase2/UNSTABLE_BALANCE_PRINCIPLES.md) — як лишати баланс веселим, але не токсичним.
+
+## Future raid planning package
+
+The Senior Barrel Brother package is preserved as docs-only future design input. It does not implement party sessions, raids, schema changes, runtime callbacks or rewards in the current PR.
+
+- [SENIOR_BARREL_BROTHER_GROUP_RAID_PACKAGE.md](SENIOR_BARREL_BROTHER_GROUP_RAID_PACKAGE.md) — package overview and recommended ordering.
+- [SENIOR_BARREL_BROTHER_GROUP_RAID_MANIFEST.md](SENIOR_BARREL_BROTHER_GROUP_RAID_MANIFEST.md) — source manifest and scope statement.
+- [design/SENIOR_BARREL_BROTHER_GROUP_RAID.md](design/SENIOR_BARREL_BROTHER_GROUP_RAID.md) — proposed gameplay flow for the future group raid.
+- [design/SENIOR_BARREL_BROTHER_BALANCE.md](design/SENIOR_BARREL_BROTHER_BALANCE.md) — future balance model, scaling and reward guardrails.
+- [content/SENIOR_BARREL_BROTHER_UA_COPY.md](content/SENIOR_BARREL_BROTHER_UA_COPY.md) — Ukrainian copy bank and style guardrails for the future raid.
+- [architecture/GROUP_RAID_SESSION_MODEL.md](architecture/GROUP_RAID_SESSION_MODEL.md) — proposed party/raid session model.
+- [implementation/REPOSITORY_CHANGE_MAP.md](implementation/REPOSITORY_CHANGE_MAP.md) — future repository change map.
+- [tasks/0.2.x-raid-party-session-foundation.md](tasks/0.2.x-raid-party-session-foundation.md) — draft prerequisite task for party sessions.
+- [tasks/0.2.x-senior-barrel-brother-group-raid.md](tasks/0.2.x-senior-barrel-brother-group-raid.md) — draft production raid task after the foundation.
+- [qa/SENIOR_BARREL_BROTHER_GROUP_RAID_QA.md](qa/SENIOR_BARREL_BROTHER_GROUP_RAID_QA.md) — future automated and manual QA matrix.
+- [backlog/SENIOR_BARREL_BROTHER_TARGETABLE_ADDS.md](backlog/SENIOR_BARREL_BROTHER_TARGETABLE_ADDS.md) — deferred targetable-adds slice.
+- [references/RAID_INSPIRATION_NOTES.md](references/RAID_INSPIRATION_NOTES.md) — inspiration notes without copying external content.
 
 ## Earlier planning docs that remain useful
 
