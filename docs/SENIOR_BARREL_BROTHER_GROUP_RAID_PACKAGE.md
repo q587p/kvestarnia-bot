@@ -20,22 +20,29 @@
 
 Не пришивати фічу до конкретних номерів наперед. Якщо запропонована черга після `0.2.1` не зміниться, природні місця — приблизно:
 
-1. наступний вільний `0.2.x` після архітектурної стабілізації, threat escalation та item-tag/one-use роботи — **Raid Party Session Foundation**;
-2. наступний вільний `0.2.x` — **Senior Barrel Brother Group Raid**.
+1. `0.2.3` — **Threat Escalation**;
+2. `0.2.4` — **Item Tags / One-Use Manatky**, with one narrow consumable candidate such as `бинти` if balance still supports it;
+3. наступний вільний `0.2.x` — **Raid Party Session Foundation** as a temporary party/session slice;
+4. наступний вільний `0.2.x` — **Party Vs One Boss** as the first production party-combat proof;
+5. пізніший вільний `0.2.x` — **Senior Barrel Brother Group Raid** as real raid content with several people.
 
-За нинішньої черги це орієнтовно `0.2.5–0.2.6`, але перед роботою файли `0.2.x-*` треба перейменувати на фактичні вільні версії. Номери PR до назв артефактів не додавати.
+За нинішньої черги party/raid сходинки починаються орієнтовно з `0.2.5+`, але перед роботою файли `0.2.x-*` треба перейменувати на фактичні вільні версії. Номери PR до назв артефактів не додавати.
 
-## Чому два slices
+## Чому окремі slices
 
 ### 1. Party Session Foundation
 
 Dev-only або feature-flagged фундамент: сесія, учасники, join/leave, передавання лідерства, ліміт, непрозорий токен, deep link, `Хто поруч`, expiry, restart recovery та concurrency-тести. Без нового production-боса й без економіки.
 
-### 2. Senior Barrel Brother Group Raid
+### 2. Party Vs One Boss
+
+Production proof: тимчасова party входить у бій проти одного спільного боса без targetable adds, broad party-vs-many runtime або raid-scale reward faucet. Цей slice доводить UI, черги ходів, stale callbacks, AFK fallback, restart recovery й exactly-once settlement на меншому ризику.
+
+### 3. Senior Barrel Brother Group Raid
 
 Production-активація для рівня 8+: бій, раунди, таймери, HP/мана, екіпіровка й бафи, фази боса, винагороди, exactly-once settlement, старий fallback для рівнів 1–7.
 
-Це не роздуває один PR одночасно міграцією, соціяльним маршрутом, новим combat runtime, економікою й великим обсягом тексту.
+Це не роздуває один PR одночасно міграцією, соціяльним маршрутом, новим combat runtime, економікою, real-raid content і великим обсягом тексту.
 
 ## Ключові рішення
 

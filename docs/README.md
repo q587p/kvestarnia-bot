@@ -82,7 +82,8 @@ The Senior Barrel Brother package is preserved as docs-only future design input.
 - [architecture/GROUP_RAID_SESSION_MODEL.md](architecture/GROUP_RAID_SESSION_MODEL.md) — proposed party/raid session model.
 - [implementation/REPOSITORY_CHANGE_MAP.md](implementation/REPOSITORY_CHANGE_MAP.md) — future repository change map.
 - [tasks/0.2.x-raid-party-session-foundation.md](tasks/0.2.x-raid-party-session-foundation.md) — draft prerequisite task for party sessions.
-- [tasks/0.2.x-senior-barrel-brother-group-raid.md](tasks/0.2.x-senior-barrel-brother-group-raid.md) — draft production raid task after the foundation.
+- [tasks/0.2.x-party-vs-one-boss.md](tasks/0.2.x-party-vs-one-boss.md) — draft bridge from temporary party sessions to real raids.
+- [tasks/0.2.x-senior-barrel-brother-group-raid.md](tasks/0.2.x-senior-barrel-brother-group-raid.md) — draft production raid task after the temporary party and one-boss proof.
 - [qa/SENIOR_BARREL_BROTHER_GROUP_RAID_QA.md](qa/SENIOR_BARREL_BROTHER_GROUP_RAID_QA.md) — future automated and manual QA matrix.
 - [backlog/SENIOR_BARREL_BROTHER_TARGETABLE_ADDS.md](backlog/SENIOR_BARREL_BROTHER_TARGETABLE_ADDS.md) — deferred targetable-adds slice.
 - [references/RAID_INSPIRATION_NOTES.md](references/RAID_INSPIRATION_NOTES.md) — inspiration notes without copying external content.
