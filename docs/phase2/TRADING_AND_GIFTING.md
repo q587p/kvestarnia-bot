@@ -5,9 +5,10 @@ Trading/gifting should arrive after duel invites prove that Квестарня c
 ## MVP order
 
 1. **Gift one item unit.** Sender chooses an eligible манатка, target accepts, item moves once.
-2. **Item-for-item trade.** Both players lock one offer, both confirm, transaction swaps safely.
-3. **Gold add-on.** Only after item movement and audit rows are proven.
-4. **Market.** Later, not Phase 2 first slice.
+2. **Postal manatka delivery.** Sender can offer one eligible манатка to a known recipient without same-location presence, paying an extra delivery fee and preserving recipient opt-in.
+3. **Item-for-item trade.** Both players lock one offer, both confirm, transaction swaps safely.
+4. **Gold add-on.** Only after item movement and audit rows are proven.
+5. **Market.** Later, not Phase 2 first slice.
 
 ## Eligibility
 
@@ -17,6 +18,7 @@ Do not allow:
 - priceless/story/protected items;
 - apology keepsakes;
 - items involved in another pending transfer;
+- items involved in a future live mail/delivery reservation;
 - items whose stack changed after preview without a new confirmation.
 
 ## Data sketch
@@ -44,6 +46,7 @@ item_transfers
 - Receiver sees exact item and accepts explicitly.
 - Confirmation copy says this is not selling and not a gold faucet.
 - Repeated callbacks replay completed/expired state.
+- Future postal delivery must be framed as paid delivery, not a way to reveal where a player currently is.
 
 ## Acceptance criteria
 
@@ -52,4 +55,5 @@ item_transfers
 - Accept/confirm is transactional and idempotent.
 - Audit payload can explain what moved.
 - Tests cover stale preview, repeated confirm, declined/expired transfer and concurrent transfer attempts.
+- A later postal delivery slice keeps the same item reservation and replay guarantees, adds a tested delivery-fee rule, and does not disclose recipient location or online status.
 
