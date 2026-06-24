@@ -137,6 +137,107 @@ describe("dev adventure reset command", () => {
     expect(replies).toHaveLength(1);
     expect(replies[0]).toContain("локаль");
   });
+
+  it("records the active two-enemy fight card for timeout edits", async () => {
+    const replies: string[] = [];
+    const recorded: Array<[bigint, string, { chatId: string; messageId: number }]> = [];
+    const bot = createTestBot(replies, {
+      devReset: enabledDevReset(),
+      adventure: {
+        resetCurrentPeriodForTelegramUser: () => Promise.resolve({ state: "reset", periodToken: "period93" })
+      } as unknown as AdventureService,
+      fight: {
+        getOrStartPersistentFightForTelegramUser: () =>
+          Promise.resolve({
+            state: "persistent-active",
+            started: true,
+            character: {
+              name: "Тест",
+              pronoun: "they",
+              pronounLabel: "Вони",
+              path: "boundary",
+              raceId: "race.human-ish",
+              raceName: "Людисько",
+              classId: "class.warrior",
+              className: "Воїн",
+              title: "Тестер",
+              level: 3,
+              xp: 25,
+              nextLevelXp: 50,
+              xpToNextLevel: 25,
+              gold: 0,
+              hpCurrent: 30,
+              hpMax: 30,
+              manaCurrent: 10,
+              manaMax: 10,
+              stats: {
+                strength: 10,
+                dexterity: 6,
+                intelligence: 6,
+                charisma: 6,
+                luck: 6
+              },
+              levelBonus: {
+                hpMax: 6,
+                manaMax: 3,
+                primaryStat: {
+                  stat: "strength",
+                  bonus: 2
+                }
+              }
+            },
+            session: {
+              id: "session-two-enemies",
+              characterId: "character-42",
+              monsterId: "monster.deadline-spider",
+              status: "active",
+              turn: 1,
+              reward: null,
+              createdAt: new Date("2026-06-12T10:30:00.000Z"),
+              updatedAt: new Date("2026-06-12T10:30:00.000Z"),
+              expiresAt: new Date("2026-06-12T10:40:00.000Z"),
+              state: {
+                id: "session-two-enemies",
+                source: "normal",
+                turn: 1,
+                status: "active",
+                turnExpiresAt: "2026-06-12T10:30:23.000Z",
+                hero: { hp: 30, hpMax: 30, mana: 10, manaMax: 10 },
+                monster: { id: "monster.deadline-spider", hp: 12, hpMax: 12 },
+                enemies: [
+                  { enemyId: "enemy:1", id: "monster.deadline-spider", hp: 12, hpMax: 12 },
+                  { enemyId: "enemy:2", id: "monster.preapproval-dragonling", hp: 10, hpMax: 10 }
+                ]
+              }
+            },
+            monster: {
+              id: "monster.deadline-spider",
+              name: "Павук дедлайнів",
+              description: "Тестовий монстр.",
+              level: 2,
+              tags: ["beast"]
+            },
+            questProgress: null
+          }),
+        recordPersistentFightMessageReference: (
+          telegramUserId: bigint,
+          sessionId: string,
+          reference: { chatId: string; messageId: number }
+        ) => {
+          recorded.push([telegramUserId, sessionId, reference]);
+          return Promise.resolve();
+        },
+        resetMonsterRestCooldownForDev: () => Promise.resolve({ state: "no-cooldown" })
+      } as unknown as FightService
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_two_enemies"));
+
+    expect(replies).toHaveLength(2);
+    expect(recorded).toEqual([
+      [42n, "session-two-enemies", { chatId: "42", messageId: 2 }]
+    ]);
+  });
 });
 
 function createTestBot(
@@ -145,7 +246,10 @@ function createTestBot(
     devReset: Pick<DevResetService, "isEnabled" | "resetCurrentUser">;
     adventure: Pick<AdventureService, "resetCurrentPeriodForTelegramUser">;
     tavern?: Pick<TavernRaidService, "stopPendingFridayBarrelRaidForDev">;
-    fight?: Pick<FightService, "getOrStartPersistentFightForTelegramUser" | "resetMonsterRestCooldownForDev">;
+    fight?: Pick<
+      FightService,
+      "getOrStartPersistentFightForTelegramUser" | "recordPersistentFightMessageReference" | "resetMonsterRestCooldownForDev"
+    >;
   }
 ): Bot {
   const bot = new Bot("test-token", {

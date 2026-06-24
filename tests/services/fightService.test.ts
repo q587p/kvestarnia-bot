@@ -3874,6 +3874,55 @@ describe("FightService", () => {
     }
   });
 
+  it("advances a two-living-enemy fight on a due timeout and preserves the active card reference", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, {
+      xp: 25,
+      hpCurrent: 80,
+      hpMax: 80,
+      statsJson: {
+        strength: 8,
+        dexterity: 8,
+        intelligence: 6,
+        charisma: 6,
+        luck: 6
+      }
+    });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId, {
+      enemyCount: 2,
+      devBypassAvailability: true
+    });
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setTurnExpiresAt(started.session.id, new Date("2026-06-12T10:29:59.000Z"));
+    sessions.setMessageReference(started.session.id, { chatId: "42", messageId: 587 });
+    const due: DueSoloCombatSessionRecord = {
+      ...sessions.getById(started.session.id)!,
+      telegramUserId
+    };
+
+    const timeout = await service.resolveDuePersistentFightTurn(due);
+
+    expect(timeout.state).toBe("updated");
+    if (timeout.state === "updated") {
+      expect(timeout.session.state?.turn).toBe(2);
+      expect(timeout.session.state?.lastTurn?.actionOrigin).toBe("timeout-auto-defend");
+      expect(timeout.session.state?.message).toEqual({ chatId: "42", messageId: 587 });
+      expect(normalizeCombatEnemies(timeout.session.state!)).toHaveLength(2);
+    }
+  });
+
   it("does not let an older duplicate active session keep fighting", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });

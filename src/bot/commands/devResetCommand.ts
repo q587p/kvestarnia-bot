@@ -26,7 +26,10 @@ export function registerDevResetCommand(
   devResetService: DevResetService,
   adventureService?: Pick<AdventureService, "resetCurrentPeriodForTelegramUser">,
   tavernRaidService?: Pick<TavernRaidService, "stopPendingFridayBarrelRaidForDev">,
-  fightService?: Pick<FightService, "getOrStartPersistentFightForTelegramUser" | "resetMonsterRestCooldownForDev">
+  fightService?: Pick<
+    FightService,
+    "getOrStartPersistentFightForTelegramUser" | "recordPersistentFightMessageReference" | "resetMonsterRestCooldownForDev"
+  >
 ): void {
   bot.command("dev_reset_me", async (ctx) => {
     if (!devResetService.isEnabled()) {
@@ -155,10 +158,16 @@ export function registerDevResetCommand(
       if (result.started) {
         await ctx.reply(presentPersistentFightIntro(result), { parse_mode: "HTML" });
       }
-      await ctx.reply(presentPersistentFight(result), {
+      const activeMessage = await ctx.reply(presentPersistentFight(result), {
         parse_mode: "HTML",
         reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
       });
+      if (ctx.chat?.id && activeMessage.message_id) {
+        await fightService.recordPersistentFightMessageReference(telegramUserId, result.session.id, {
+          chatId: String(ctx.chat.id),
+          messageId: activeMessage.message_id
+        });
+      }
       return;
     }
 
