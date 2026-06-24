@@ -985,9 +985,10 @@ async function redirectCombatLockIfNeeded(
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
     });
-    await sendCombatLockText(ctx, presentCombatLockRedirect(presentPersistentFight(lock)), {
+    const messageId = await sendCombatLockText(ctx, presentCombatLockRedirect(presentPersistentFight(lock)), {
       reply_markup: buildPersistentFightResultKeyboard(lock.session, lock.character)
     });
+    await recordCombatLockPersistentFightMessage(ctx, services.fight, telegramUserId, lock.session.id, messageId);
     return true;
   }
 
@@ -1151,7 +1152,7 @@ async function sendCombatLockText(
   ctx: Context,
   text: string,
   options: { reply_markup: InlineKeyboard }
-): Promise<void> {
+): Promise<number | null> {
   const messageOptions = {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: options.reply_markup
@@ -1159,10 +1160,29 @@ async function sendCombatLockText(
 
   if (ctx.callbackQuery) {
     await safeEditMessageText(ctx, text, messageOptions);
+    return ctx.callbackQuery.message?.message_id ?? null;
+  }
+
+  const message = await ctx.reply(text, messageOptions);
+  return message.message_id;
+}
+
+async function recordCombatLockPersistentFightMessage(
+  ctx: Context,
+  fightService: FightService,
+  telegramUserId: bigint,
+  sessionId: string,
+  messageId: number | null
+): Promise<void> {
+  const chatId = ctx.chat?.id ?? ctx.callbackQuery?.message?.chat.id;
+  if (!messageId || !chatId || typeof fightService.recordPersistentFightMessageReference !== "function") {
     return;
   }
 
-  await ctx.reply(text, messageOptions);
+  await fightService.recordPersistentFightMessageReference(telegramUserId, sessionId, {
+    chatId: String(chatId),
+    messageId
+  });
 }
 
 async function handleOnboardingCallback(

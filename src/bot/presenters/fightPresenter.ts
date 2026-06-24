@@ -267,8 +267,11 @@ function presentPersistentFightIntroOpponents(
       "Проти вас:",
       ...enemies.map((enemy, index) => {
         const level = enemy.level ? ` · рівень ${enemy.level}` : "";
+        const name =
+          enemy.name ??
+          (index === 0 && state?.monster.name ? state.monster.name : `Монстр ${index + 1}`);
 
-        return `👹 ${index + 1}. <b>${escapeHtml(enemy.name ?? "Невідомий монстр")}</b>${level}`;
+        return `👹 ${index + 1}. <b>${escapeHtml(name)}</b>${level}`;
       })
     ];
   }
@@ -911,7 +914,11 @@ function presentEnemyHpRows(state: NonNullable<Parameters<typeof presentPersiste
 
   return enemies.map((enemy, index) => {
     const marker = enemy.hp > 0 && enemy.enemyId === primaryEnemyId ? " ← ціль" : "";
-    const name = enemy.name ? ` ${escapeHtml(enemy.name)}` : "";
+    const fallbackName =
+      index === 0 && state.monster.name
+        ? state.monster.name
+        : `Монстр ${index + 1}`;
+    const name = ` ${escapeHtml(enemy.name ?? fallbackName)}`;
 
     return `👹 ${index + 1}.${name}: ${enemy.hp}/${enemy.hpMax}${marker}`;
   });

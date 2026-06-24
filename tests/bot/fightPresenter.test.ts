@@ -300,6 +300,52 @@ describe("fight presenter", () => {
     expect(text).not.toContain("<b>Перший</b>");
   });
 
+  it("falls back to stable labels when multi-enemy HP rows lack names", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 4,
+        monster: {
+          id: "monster.sourdough-golem",
+          name: "Квасний голем на заквасці",
+          level: 5,
+          hp: 32,
+          hpMax: 32
+        },
+        enemies: [
+          {
+            enemyId: "enemy:1",
+            id: "monster.sourdough-golem",
+            level: 5,
+            hp: 32,
+            hpMax: 32
+          },
+          {
+            enemyId: "enemy:2",
+            id: "monster.second",
+            level: 3,
+            hp: 26,
+            hpMax: 26
+          }
+        ]
+      }),
+      monster: {
+        id: "monster.sourdough-golem",
+        name: "Квасний голем на заквасці",
+        description: "Тестовий монстр.",
+        level: 5,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("👹 1. Квасний голем на заквасці: 32/32 ← ціль");
+    expect(text).toContain("👹 2. Монстр 2: 26/26");
+    expect(text).not.toContain("👹 1.:");
+    expect(text).not.toContain("👹 2.:");
+  });
+
   it("does not render active prompts for terminal multi-enemy state", () => {
     const text = presentPersistentFight({
       state: "persistent-terminal",
