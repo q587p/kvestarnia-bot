@@ -153,20 +153,20 @@ describe("main menu and scene keyboards", () => {
       "📋 Стіл зі справами",
       "🛢️ Бочка",
       "🍻 Шинок",
-      "🪜 Спуск до Низу",
-      "🐭 Льох",
       "📰 Дошка вістей",
-      "🚪 Надвір"
+      "🐭 Льох",
+      "🚪 Надвір",
+      "🪜 Спуск до Низу"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard())).toEqual([
       "v1:place:fighting-corner",
       "v1:place:quest-table",
       "v1:place:barrel",
       "v1:place:bar",
-      "v1:place:deep",
-      "v1:place:cellar",
       "v1:place:news-corner",
-      "v1:place:front"
+      "v1:place:cellar",
+      "v1:place:front",
+      "v1:place:deep"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ characterLevel: 13 }))).toEqual([
       "🕯️ Реморт",
@@ -174,10 +174,10 @@ describe("main menu and scene keyboards", () => {
       "📋 Стіл зі справами",
       "🛢️ Бочка",
       "🍻 Шинок",
-      "🪜 Спуск до Низу",
-      "🐭 Льох",
       "📰 Дошка вістей",
-      "🚪 Надвір"
+      "🐭 Льох",
+      "🚪 Надвір",
+      "🪜 Спуск до Низу"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaHallKeyboard({ characterLevel: 13 }))).toEqual([
       "v1:rm:open",
@@ -185,10 +185,10 @@ describe("main menu and scene keyboards", () => {
       "v1:place:quest-table",
       "v1:place:barrel",
       "v1:place:bar",
-      "v1:place:deep",
-      "v1:place:cellar",
       "v1:place:news-corner",
-      "v1:place:front"
+      "v1:place:cellar",
+      "v1:place:front",
+      "v1:place:deep"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ characterLevel: 1 }))).not.toContain(
       "🪜 Спуск до Низу"
@@ -205,8 +205,8 @@ describe("main menu and scene keyboards", () => {
     expect(inlineButtonRows(buildKorchmaHallKeyboard())).toEqual([
       ["🥊 Бійцівський куток", "📋 Стіл зі справами"],
       ["🛢️ Бочка", "🍻 Шинок"],
-      ["🪜 Спуск до Низу", "🐭 Льох"],
-      ["📰 Дошка вістей", "🚪 Надвір"]
+      ["📰 Дошка вістей", "🐭 Льох"],
+      ["🚪 Надвір", "🪜 Спуск до Низу"]
     ]);
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard())).toEqual([
       "🥊 Потренуватися",

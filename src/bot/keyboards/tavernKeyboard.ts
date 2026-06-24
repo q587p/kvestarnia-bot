@@ -87,15 +87,15 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = 
     .text("🍻 Шинок", makePlaceCallbackData("bar"))
     .row();
 
+  keyboard
+    .text("📰 Дошка вістей", makePlaceCallbackData("news-corner"))
+    .text("🐭 Льох", makePlaceCallbackData("cellar"))
+    .row()
+    .text("🚪 Надвір", makePlaceCallbackData("front"));
+
   if (showNyz) {
     keyboard.text("🪜 Спуск до Низу", makePlaceCallbackData("deep"));
   }
-
-  keyboard
-    .text("🐭 Льох", makePlaceCallbackData("cellar"))
-    .row()
-    .text("📰 Дошка вістей", makePlaceCallbackData("news-corner"))
-    .text("🚪 Надвір", makePlaceCallbackData("front"));
 
   return keyboard;
 }
