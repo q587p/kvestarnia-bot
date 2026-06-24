@@ -75,9 +75,10 @@ For implementation work:
 3. Activate one main skill: `$kvestarnia-version-task`.
 4. Point Codex to a short task doc in `docs/tasks/` and the compact context in `docs/ai/context.md`.
 5. Do not paste long repeated rules into prompts; rely on `AGENTS.md` and `$skill`.
-6. Inspect changed/relevant files first; avoid repository-wide scans unless necessary.
-7. Prefer `medium` reasoning for ordinary scoped work; reserve `high` for state, routing, concurrency, persistence, or difficult debugging.
-8. Final output must be short: changed files, behavior changed, tests run, risks, completion status. No tutorial.
+6. Use `$ukrainian-rpg-content` for substantial player-facing Ukrainian battle, tip, location, item/monster, or news copy instead of pasting the style guide into the prompt.
+7. Inspect changed/relevant files first; avoid repository-wide scans unless necessary.
+8. Prefer `medium` reasoning for ordinary scoped work; reserve `high` for state, routing, concurrency, persistence, or difficult debugging.
+9. Final output must be short: changed files, behavior changed, tests run, risks, completion status. No tutorial.
 
 For second Codex review:
 
@@ -207,6 +208,15 @@ Avoid:
 - Bringing unrelated project layers such as Chornolis, Twin Peaks, Dante, Shakespeare, Amber/LARP, or other personal/project material into Kvestarnia.
 
 ## Tests and quality
+
+## Isolated local bot runtime
+
+- `run-local-bot.cmd` runs the manual-test bot from an external isolated snapshot with separate `node_modules`, Prisma Client, and SQLite database. See `docs/LOCAL_BOT_RUNTIME.md`.
+- During normal implementation/review, do not stop, refresh, or replace the isolated bot unless the user explicitly asks.
+- Run lint, typecheck, build, Prisma generation, and tests in the main checkout; they must not depend on the running manual-test bot.
+- Never use a global `taskkill node.exe` or stop unrelated Node processes.
+- At a manual-test checkpoint, tell the user to run `refresh-local-bot.cmd`; do not promote an intermediate snapshot automatically.
+- `scripts/recover-prisma-client.ps1` is a legacy in-place fallback, not the default local workflow.
 
 For significant runtime changes, add or update:
 

@@ -1,5 +1,6 @@
 import type {
   PresentedDrinkDefinition,
+  PresentedRoundRecipientNotice,
   PresentedShynokDrinkState,
   ShynokDrinkConfirmResult,
   ShynokDrinkMenuResult,
@@ -142,7 +143,9 @@ export function presentShynokRoundPreview(result: ShynokRoundPreviewResult): str
     return [
       "🍻 Корчмар рахує монети.",
       "",
-      `Раунд коштує <b>${result.priceGold} золота</b>, а у вас <b>${result.gold}</b>.`
+      `Раунд коштує <b>${result.priceGold} золота</b>, а у вас <b>${result.gold}</b>.`,
+      "",
+      ...presentKorchmaRoundLeaderboard(result.leaderboard)
     ].join("\n");
   }
 
@@ -157,7 +160,7 @@ export function presentShynokRoundConfirm(result: ShynokRoundConfirmResult): str
       `Одержувачів: <b>${result.recipientCount}</b>.`,
       `Списано: <b>${result.priceGold} золота</b>.`,
       "",
-      "Хто схоче, випʼє сам. Хто не схоче, збереже точність і легенду.",
+      "Кожен отримає окрему записку: випити або чемно відмовитися.",
       "",
       ...presentKorchmaRoundLeaderboard(result.leaderboard)
     ].join("\n");
@@ -176,6 +179,17 @@ export function presentShynokRoundConfirm(result: ShynokRoundConfirmResult): str
   }
 
   return presentShynokGate(result);
+}
+
+export function presentShynokRoundOfferNotification(
+  buyerName: string,
+  recipient: PresentedRoundRecipientNotice
+): string {
+  return [
+    `${recipient.offer.drink.emoji} <b>${escapeHtml(buyerName)}</b> ставить вам <b>${escapeHtml(recipient.offer.drink.name)}</b>.`,
+    "",
+    "Можна випити зараз або чемно відмовитися й лишити точність при собі."
+  ].join("\n");
 }
 
 export function presentShynokRoundOfferResponse(result: ShynokRoundOfferRespondResult): string {
@@ -287,7 +301,7 @@ export function presentShynokSaleConfirm(result: ShynokSaleConfirmResult): strin
 
 function presentActiveDrinkLines(drink: PresentedShynokDrinkState | null): string[] {
   if (!drink) {
-    return ["Поточний напій: <i>немає</i>."];
+    return [];
   }
 
   return [
@@ -316,7 +330,7 @@ function presentReplacementWarning(
 
   return [
     "",
-    `На вас іще діє «${escapeHtml(activeDrink.name)}». «${escapeHtml(drink.name)}» замінить цей ефект. Перелити долю в інший кухоль?`
+    `На вас іще діє ${activeDrink.emoji} <b>${escapeHtml(activeDrink.name)}</b>. ${drink.emoji} <b>${escapeHtml(drink.name)}</b> замінить цей ефект. Перелити долю в інший кухоль?`
   ];
 }
 

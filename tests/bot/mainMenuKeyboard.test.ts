@@ -47,6 +47,7 @@ import {
 } from "../../src/bot/keyboards/levelBarterKeyboard";
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
 import {
+  buildBackToShynokKeyboard,
   buildShynokRoundPreviewKeyboard,
   buildShynokRoundResultKeyboard
 } from "../../src/bot/keyboards/shynokKeyboard";
@@ -226,6 +227,7 @@ describe("main menu and scene keyboards", () => {
       "🍺 Просте всім",
       "🍻 Якісне всім",
       "💰 Продати манатки",
+      "🎁 Подарувати манатку",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaBarKeyboard())).toEqual([
@@ -233,6 +235,7 @@ describe("main menu and scene keyboards", () => {
       "v1:sh:rp:simple",
       "v1:sh:rp:fine",
       "v1:sh:so",
+      "v1:gift:open",
       "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ includeBottleTurnIn: true }))).toEqual([
@@ -240,6 +243,7 @@ describe("main menu and scene keyboards", () => {
       "🍺 Просте всім",
       "🍻 Якісне всім",
       "💰 Продати манатки",
+      "🎁 Подарувати манатку",
       "🍾 Здати пляшку",
       "⬅️ До зали"
     ]);
@@ -248,6 +252,7 @@ describe("main menu and scene keyboards", () => {
       "v1:sh:rp:simple",
       "v1:sh:rp:fine",
       "v1:sh:so",
+      "v1:gift:open",
       "v1:cellar:grownup-turn-in",
       "v1:place:hall"
     ]);
@@ -288,22 +293,26 @@ describe("main menu and scene keyboards", () => {
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual([
-      "🍻 Всім пива",
+      "🍺 Просте всім",
+      "🍻 Якісне всім",
       "🧥 Єгер",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildTavernResultKeyboard("completed"))).toEqual([
-      "v1:tavern:round",
+      "v1:sh:brp:simple",
+      "v1:sh:brp:fine",
       "v1:tavern:ranger",
       "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([
-      "🍻 Всім пива",
+      "🍺 Просте всім",
+      "🍻 Якісне всім",
       "🧥 Єгер",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildTavernResultKeyboard("already-completed"))).toEqual([
-      "v1:tavern:round",
+      "v1:sh:brp:simple",
+      "v1:sh:brp:fine",
       "v1:tavern:ranger",
       "v1:place:hall"
     ]);
@@ -312,10 +321,14 @@ describe("main menu and scene keyboards", () => {
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("pending"))).toEqual([
-      "🍺 Перевірити бочку"
+      "🍺 Перевірити бочку",
+      "🏅 Перевірити рейтинг",
+      "📰 Перевірити новини"
     ]);
     expect(flatInlineButtonCallbacks(buildTavernResultKeyboard("pending"))).toEqual([
-      "v1:tavern:raid"
+      "v1:tavern:raid",
+      "v1:tavern:raid-leaderboard",
+      "v1:tavern:raid-news"
     ]);
     expect(flatInlineButtonTexts(buildTavernParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
     expect(flatInlineButtonCallbacks(buildTavernParticipantsKeyboard())).toEqual(["v1:place:barrel"]);
@@ -466,6 +479,17 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonCallbacks(buildShynokRoundResultKeyboard(blockedRoundResult))).toEqual([
       "v1:place:barrel",
+      "v1:place:hall"
+    ]);
+  });
+
+  it("routes stale Shynok fallback cards through the bar place callback", () => {
+    expect(flatInlineButtonTexts(buildBackToShynokKeyboard())).toEqual([
+      "⬅️ До Шинку",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildBackToShynokKeyboard())).toEqual([
+      "v1:place:bar",
       "v1:place:hall"
     ]);
   });

@@ -18,6 +18,7 @@ import { PrismaDuelChallengeRepository } from "./db/repositories/prismaDuelChall
 import { PrismaEquipmentRepository } from "./db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "./db/repositories/prismaHuntContractRepository";
 import { PrismaInventoryRepository } from "./db/repositories/prismaInventoryRepository";
+import { PrismaItemTransferRepository } from "./db/repositories/prismaItemTransferRepository";
 import { PrismaLevelBarterRepository } from "./db/repositories/prismaLevelBarterRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "./db/repositories/prismaKorchmaRoundPurchaseRepository";
 import { PrismaShynokRepository } from "./db/repositories/prismaShynokRepository";
@@ -43,6 +44,7 @@ import { FightService } from "./services/fightService";
 import { HeroService } from "./services/heroService";
 import { HuntService } from "./services/huntService";
 import { InventoryService } from "./services/inventoryService";
+import { ItemTransferService } from "./services/itemTransferService";
 import { LevelMilestoneService } from "./services/levelMilestoneService";
 import { LevelBarterService } from "./services/levelBarterService";
 import { MantokChestService } from "./services/mantokChestService";
@@ -67,6 +69,7 @@ const duelChallenges = new PrismaDuelChallengeRepository(prisma);
 const equipment = new PrismaEquipmentRepository(prisma);
 const huntContracts = new PrismaHuntContractRepository(prisma);
 const inventory = new PrismaInventoryRepository(prisma);
+const itemTransfers = new PrismaItemTransferRepository(prisma);
 const levelBarter = new PrismaLevelBarterRepository(prisma);
 const levelMilestones = new PrismaLevelMilestoneRepository(prisma);
 const mantokChestRuns = new PrismaMantokChestRepository(prisma);
@@ -104,6 +107,7 @@ const services = {
   hero: new HeroService(characters, inventory, equipment, remorts, shynokRepository),
   equipment: new EquipmentService(equipment, inventory, characters),
   inventory: new InventoryService(inventory),
+  itemTransfers: new ItemTransferService(itemTransfers, presenceService),
   levelBarter: new LevelBarterService(levelBarter),
   levelMilestones: new LevelMilestoneService(levelMilestones),
   mantokChest: new MantokChestService(mantokChestRuns),

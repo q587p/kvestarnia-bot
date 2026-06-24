@@ -140,7 +140,9 @@ describe("fight presenter", () => {
 
     expect(text).toContain("Пригодник ще не тримається на ногах");
     expect(text).toContain("Орієнтовно до повного HP: ~10 хв.");
-    expect(text).toContain("Спершу /hero");
+    expect(text).toContain("Спершу трохи відновіться");
+    expect(text).toContain("коли HP буде хоча б 1");
+    expect(text).not.toContain("/hero");
   });
 
   it("shows combat preview and reward for a completed action", () => {
@@ -349,7 +351,7 @@ describe("fight presenter", () => {
     });
 
     expect(text).toContain("💤 Ви програли.");
-    expect(text).not.toContain("Спершу /hero, тоді новий бій.");
+    expect(text).not.toContain("/hero");
   });
 
   it("shows stale and mana failure persistent turns without mutating reward copy", () => {
@@ -395,6 +397,28 @@ describe("fight presenter", () => {
     expect(stale).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
     expect(noMana).toContain("Мани не стало навіть на драматичний жест");
     expect(noMana).not.toContain("Нагорода");
+  });
+
+  it("shows a short recovery note for persistent turn callbacks at zero HP", () => {
+    const text = presentPersistentFightTurn({
+      state: "needs-rest",
+      character: { ...character, hpCurrent: 0 },
+      session: persistentSession({
+        hero: {
+          hp: 0,
+          hpMax: 24,
+          mana: 4,
+          manaMax: 12
+        }
+      }),
+      monster: null,
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("Спершу прийдіть до тями");
+    expect(text).toContain("Відновіться хоча б до 1 HP");
+    expect(text).toContain("Корчма цінує бойовий запал");
+    expect(text).not.toContain("Нагорода");
   });
 
   it("uses neutral grammar for skill turn summaries without service-log clutter", () => {

@@ -1,9 +1,11 @@
 import { InlineKeyboard } from "grammy";
 import {
   makeNewsEntryCallbackData,
-  makeNewsListCallbackData
+  makeNewsListCallbackData,
+  type NewsCallbackSource
 } from "../callbacks/newsCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import type { NewsEntry } from "../../news/newsMarkdown";
 import { escapeHtml } from "./telegramHtml";
 
@@ -16,7 +18,11 @@ export interface NewsPage {
   keyboard?: InlineKeyboard;
 }
 
-export function presentNewsIndex(entries: readonly NewsEntry[], requestedPage = 0): NewsPage {
+export function presentNewsIndex(
+  entries: readonly NewsEntry[],
+  requestedPage = 0,
+  source: NewsCallbackSource = "hall"
+): NewsPage {
   if (entries.length === 0) {
     return {
       text: "Новини Квестарні поки недоступні: news.md порожній або не читається."
@@ -43,17 +49,18 @@ export function presentNewsIndex(entries: readonly NewsEntry[], requestedPage = 
       "",
       `Архів: ${rangeStart}-${rangeEnd} з ${entries.length}. Оберіть версію кнопкою.`
     ].join("\n"),
-    keyboard: buildNewsIndexKeyboard(entries, page, totalPages)
+    keyboard: buildNewsIndexKeyboard(entries, page, totalPages, source)
   };
 }
 
 export function presentNewsEntry(
   entries: readonly NewsEntry[],
   requestedEntryIndex: number,
-  requestedListPage = 0
+  requestedListPage = 0,
+  source: NewsCallbackSource = "hall"
 ): NewsPage {
   if (entries.length === 0) {
-    return presentNewsIndex(entries, requestedListPage);
+    return presentNewsIndex(entries, requestedListPage, source);
   }
 
   const entryIndex = clamp(requestedEntryIndex, 0, entries.length - 1);
@@ -66,63 +73,70 @@ export function presentNewsEntry(
       "",
       entry ? renderNewsEntry(entry) : "Новину не знайдено."
     ].join("\n"),
-    keyboard: buildNewsEntryKeyboard(entryIndex, requestedListPage, entries.length)
+    keyboard: buildNewsEntryKeyboard(entryIndex, requestedListPage, entries.length, source)
   };
 }
 
 function buildNewsIndexKeyboard(
   entries: readonly NewsEntry[],
   page: number,
-  totalPages: number
+  totalPages: number,
+  source: NewsCallbackSource
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   const start = page * NEWS_PAGE_SIZE;
   const pageEntries = entries.slice(start, start + NEWS_PAGE_SIZE);
 
   for (const entry of pageEntries) {
-    keyboard.text(entry.version, makeNewsEntryCallbackData(entry.index, page)).row();
+    keyboard.text(entry.version, makeNewsEntryCallbackData(entry.index, page, source)).row();
   }
 
   if (totalPages > 1) {
     if (page > 0) {
-      keyboard.text("⏮️ Початок", makeNewsListCallbackData(0));
-      keyboard.text("◀️ Назад", makeNewsListCallbackData(page - 1));
+      keyboard.text("⏮️ Початок", makeNewsListCallbackData(0, source));
+      keyboard.text("◀️ Назад", makeNewsListCallbackData(page - 1, source));
       keyboard.row();
     }
 
-    keyboard.text(`${page + 1}/${totalPages}`, makeNewsListCallbackData(page)).row();
+    keyboard.text(`${page + 1}/${totalPages}`, makeNewsListCallbackData(page, source)).row();
 
     if (page < totalPages - 1) {
-      keyboard.text("Далі ▶️", makeNewsListCallbackData(page + 1));
-      keyboard.text("Кінець ⏭️", makeNewsListCallbackData(totalPages - 1));
+      keyboard.text("Далі ▶️", makeNewsListCallbackData(page + 1, source));
+      keyboard.text("Кінець ⏭️", makeNewsListCallbackData(totalPages - 1, source));
     }
   }
 
-  return keyboard.row().text("⬅️ До зали", makePlaceCallbackData("hall"));
+  return addReturnButton(keyboard.row(), source);
 }
 
 function buildNewsEntryKeyboard(
   entryIndex: number,
   requestedListPage: number,
-  totalEntries: number
+  totalEntries: number,
+  source: NewsCallbackSource
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   if (entryIndex > 0) {
-    keyboard.text("◀️ Новіша", makeNewsEntryCallbackData(entryIndex - 1, requestedListPage));
+    keyboard.text("◀️ Новіша", makeNewsEntryCallbackData(entryIndex - 1, requestedListPage, source));
   }
 
   if (entryIndex < totalEntries - 1) {
-    keyboard.text("Старіша ▶️", makeNewsEntryCallbackData(entryIndex + 1, requestedListPage));
+    keyboard.text("Старіша ▶️", makeNewsEntryCallbackData(entryIndex + 1, requestedListPage, source));
   }
 
   if (entryIndex > 0 || entryIndex < totalEntries - 1) {
     keyboard.row();
   }
 
-  keyboard.text("↩️ До архіву", makeNewsListCallbackData(requestedListPage)).row();
-  keyboard.text("⬅️ До зали", makePlaceCallbackData("hall"));
-  return keyboard;
+  keyboard.text("↩️ До архіву", makeNewsListCallbackData(requestedListPage, source)).row();
+  return addReturnButton(keyboard, source);
+}
+
+function addReturnButton(keyboard: InlineKeyboard, source: NewsCallbackSource): InlineKeyboard {
+  return source === "raid"
+    ? keyboard.text("⬅️ До рейду", makeTavernCallbackData("raid"))
+    : keyboard.text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
 function clamp(value: number, min: number, max: number): number {

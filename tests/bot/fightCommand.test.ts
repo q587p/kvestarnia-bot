@@ -252,6 +252,69 @@ describe("fight command", () => {
     });
   });
 
+  it("does not show active fight buttons for a zero-HP terminalized persistent overview", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const terminalSession = {
+      ...persistentSession(),
+      status: "lost" as const,
+      state: {
+        ...persistentSession().state!,
+        status: "lost" as const,
+        hero: {
+          hp: 0,
+          hpMax: 24,
+          mana: 12,
+          manaMax: 12
+        },
+        lastTurn: {
+          action: "skip" as const,
+          heroOutcome: "lost" as const,
+          heroDamage: 0,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false
+        }
+      }
+    };
+    const fightService = {
+      getFightOverviewForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-terminal" as const,
+          character: {
+            ...character,
+            level: 3,
+            hpCurrent: 0
+          },
+          session: terminalSession,
+          monster: {
+            id: "monster.deadline-spider",
+            name: "Павук дедлайнів",
+            description: "Плете павутину з «сьогодні швиденько».",
+            level: 2,
+            tags: ["beast", "time", "web"]
+          },
+          questProgress: questProgress(2),
+          fightReward: null
+        })
+    } as unknown as FightService;
+
+    await sendFight(makeContext(replies), fightService, "reply");
+
+    expect(replies[0]?.text).toContain("Ви програли");
+    const options = replies[0]?.options as {
+      parse_mode: string;
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+    const keyboard = JSON.stringify(options.reply_markup);
+
+    expect(options.parse_mode).toBe("HTML");
+    expect(keyboard).not.toContain("v1:fight:turn");
+    expect(keyboard).not.toContain(":attack");
+    expect(keyboard).not.toContain(":defend");
+    expect(keyboard).not.toContain(":skill");
+    expect(keyboard).not.toContain(":flee");
+  });
+
   it.each([
     [PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT, "deep-left"],
     [PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT, "deep-straight"],

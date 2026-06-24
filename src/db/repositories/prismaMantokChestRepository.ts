@@ -8,6 +8,7 @@ import type {
   MantokChestRunStatus,
   MantokChestSnapshot
 } from "./mantokChestRepository";
+import { findActiveTransferReservedItems } from "./itemTransferReservations";
 
 type TxClient = Prisma.TransactionClient;
 type PrismaMantokChestRunRecord = Awaited<ReturnType<PrismaClient["mantokChestRun"]["findFirst"]>>;
@@ -15,8 +16,8 @@ type PrismaMantokChestRunRecord = Awaited<ReturnType<PrismaClient["mantokChestRu
 export class PrismaMantokChestRepository implements MantokChestRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async getSnapshotForTelegramUser(telegramUserId: bigint): Promise<MantokChestSnapshot | null> {
-    return this.prisma.$transaction((tx) => getSnapshot(tx, telegramUserId));
+  async getSnapshotForTelegramUser(telegramUserId: bigint, now: Date): Promise<MantokChestSnapshot | null> {
+    return this.prisma.$transaction((tx) => getSnapshot(tx, telegramUserId, now));
   }
 
   async createPendingRunForTelegramUser(
@@ -186,7 +187,7 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
   ): Promise<MantokChestConfirmResult> {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const snapshot = await getSnapshot(tx, telegramUserId);
+        const snapshot = await getSnapshot(tx, telegramUserId, input.now);
 
         if (!snapshot) {
           return { state: "no-character" };
@@ -367,7 +368,7 @@ class MantokChestStaleInputsError extends Error {
   }
 }
 
-async function getSnapshot(tx: TxClient, telegramUserId: bigint): Promise<MantokChestSnapshot | null> {
+async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Promise<MantokChestSnapshot | null> {
   const character = await tx.character.findFirst({
     where: {
       user: {
@@ -383,7 +384,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint): Promise<Mantok
     return null;
   }
 
-  const [items, equipment] = await Promise.all([
+  const [items, equipment, pendingTransfers] = await Promise.all([
     tx.characterItem.findMany({
       where: {
         characterId: character.id
@@ -404,13 +405,18 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint): Promise<Mantok
       select: {
         itemId: true
       }
+    }),
+    findActiveTransferReservedItems(tx, {
+      senderCharacterId: character.id,
+      now
     })
   ]);
 
   return {
     characterId: character.id,
     items: items.map(toCharacterItemRecord),
-    equippedItemIds: equipment.map((row) => row.itemId)
+    equippedItemIds: equipment.map((row) => row.itemId),
+    reservedItemIds: pendingTransfers.map((row) => row.itemId)
   };
 }
 

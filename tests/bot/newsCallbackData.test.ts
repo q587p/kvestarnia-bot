@@ -9,14 +9,22 @@ describe("news callback data", () => {
   it("accepts valid list callbacks", () => {
     expect(parseNewsCallbackData(makeNewsListCallbackData(2))).toEqual({
       ok: true,
-      value: { type: "list", page: 2 }
+      value: { type: "list", page: 2, source: "hall" }
+    });
+    expect(parseNewsCallbackData(makeNewsListCallbackData(2, "raid"))).toEqual({
+      ok: true,
+      value: { type: "list", page: 2, source: "raid" }
     });
   });
 
   it("accepts valid entry callbacks", () => {
     expect(parseNewsCallbackData(makeNewsEntryCallbackData(3, 1))).toEqual({
       ok: true,
-      value: { type: "entry", entryIndex: 3, listPage: 1 }
+      value: { type: "entry", entryIndex: 3, listPage: 1, source: "hall" }
+    });
+    expect(parseNewsCallbackData(makeNewsEntryCallbackData(3, 1, "raid"))).toEqual({
+      ok: true,
+      value: { type: "entry", entryIndex: 3, listPage: 1, source: "raid" }
     });
   });
 

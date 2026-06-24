@@ -93,10 +93,11 @@ describe("hero presenter", () => {
     });
 
     expect(text).toContain("Відновлення: HP за ~10 хв");
-    expect(text).toContain("Стан: HP 0 — спершу відпочиньте, тоді /fight.");
+    expect(text).toContain("Стан: HP 0 — спершу відпочиньте; бій дочекається хоча б 1 HP.");
     expect(text).toContain(
-      "Відновлення: HP за ~10 хв\nСтан: HP 0 — спершу відпочиньте, тоді /fight.\n\nСили 9"
+      "Відновлення: HP за ~10 хв\nСтан: HP 0 — спершу відпочиньте; бій дочекається хоча б 1 HP.\n\nСили 9"
     );
+    expect(text).not.toContain("/fight");
   });
 
   it("separates recovery timing from stats for readability", () => {
@@ -123,17 +124,17 @@ describe("hero presenter", () => {
         phase: "timed",
         startedAt: new Date("2026-06-23T10:00:00.000Z"),
         expiresAt: new Date("2026-06-23T10:42:00.000Z"),
-        recoveryMultiplierBp: 15000,
+        recoveryMultiplierBp: 14200,
         accuracyPenaltyPp: 10
       }
     });
 
     expect(text).toContain(
-      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🍻 Баф: <b>Якісне &lt;пиво&gt;</b> ще 42 хв — відновлення ×1.50, точність −10.\n\nСили 9"
+      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🍻 Баф: <b>Якісне &lt;пиво&gt;</b> ще 42 хв — відновлення швидше на 42%, точність −10.\n\nСили 9"
     );
   });
 
-  it("shows queued pepper vodka as a pending PvE combat buff", () => {
+  it("shows queued pepper vodka as a pending monster combat buff", () => {
     const text = presentHero(summary, {
       activeDrink: {
         key: "drink.pepper-vodka",
@@ -148,8 +149,10 @@ describe("hero presenter", () => {
     });
 
     expect(text).toContain(
-      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🥃 Баф: <b>Горілка з перцем</b> ще 23 хв — чекає PvE бою, шкода туди/назад ×1.13."
+      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🥃 Баф: <b>Горілка з перцем</b> ще 23 хв — чекає бою з монстром, завдана й отримана шкода +13%."
     );
+    expect(text).not.toContain("PvE");
+    expect(text).not.toContain("×1.13");
   });
 
   it("shows inventory value next to carried gold", () => {

@@ -15,6 +15,7 @@ import type {
   ShynokRepository,
   ShynokRespondRoundOfferResult,
   ShynokRoundRecipientRecord,
+  ShynokRoundRecipientNotice,
   ShynokRoundRecipientSnapshot
 } from "./shynokRepository";
 import { getIncludedRemortCount } from "./prismaRemortCount";
@@ -27,6 +28,7 @@ import {
   isShynokDrinkKey
 } from "../../domain/shynokDrinks";
 import { buildMantokSaleBasket, buildMantokSaleEligibleStacks } from "../../domain/mantokSales";
+import { findActiveTransferReservedItems } from "./itemTransferReservations";
 
 type TxClient = Prisma.TransactionClient;
 const PRESENCE_LOCATION_KORCHMA_BAR = "location.korchma.bar";
@@ -63,8 +65,11 @@ export class PrismaShynokRepository implements ShynokRepository {
     return character ? toAccessSnapshot(character) : null;
   }
 
-  async getInventorySnapshotForTelegramUser(telegramUserId: bigint): Promise<ShynokInventorySnapshot | null> {
-    return this.prisma.$transaction((tx) => getInventorySnapshot(tx, telegramUserId));
+  async getInventorySnapshotForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<ShynokInventorySnapshot | null> {
+    return this.prisma.$transaction((tx) => getInventorySnapshot(tx, telegramUserId, now));
   }
 
   async getActiveDrinkForTelegramUser(
@@ -478,8 +483,9 @@ export class PrismaShynokRepository implements ShynokRepository {
         }
       });
 
+      const recipientNotices: ShynokRoundRecipientNotice[] = [];
       for (const recipient of recipients) {
-        await tx.korchmaRoundRecipient.create({
+        const offer = mapRoundRecipient(await tx.korchmaRoundRecipient.create({
           data: {
             purchaseId: purchase.id,
             characterId: recipient.characterId,
@@ -489,7 +495,15 @@ export class PrismaShynokRepository implements ShynokRepository {
             offeredAt: input.now,
             expiresAt: input.offerExpiresAt
           }
-        });
+        }));
+
+        if (offer) {
+          recipientNotices.push({
+            telegramUserId: recipient.telegramUserId,
+            name: recipient.name,
+            offer
+          });
+        }
       }
 
       const replay = {
@@ -515,7 +529,8 @@ export class PrismaShynokRepository implements ShynokRepository {
         character: toCharacterRecord(updated),
         order: completed,
         purchaseId: purchase.id,
-        recipientCount: recipients.length
+        recipientCount: recipients.length,
+        recipients: recipientNotices
       };
     });
   }
@@ -901,7 +916,7 @@ export class PrismaShynokRepository implements ShynokRepository {
   ): Promise<ShynokConfirmSaleResult> {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const snapshot = await getInventorySnapshot(tx, telegramUserId);
+        const snapshot = await getInventorySnapshot(tx, telegramUserId, input.now);
 
         if (!snapshot) {
           return { state: "no-character" };
@@ -1090,13 +1105,17 @@ export class PrismaShynokRepository implements ShynokRepository {
   }
 }
 
-async function getInventorySnapshot(tx: TxClient, telegramUserId: bigint): Promise<ShynokInventorySnapshot | null> {
+async function getInventorySnapshot(
+  tx: TxClient,
+  telegramUserId: bigint,
+  now: Date
+): Promise<ShynokInventorySnapshot | null> {
   const character = await findCharacter(tx, telegramUserId);
   if (!character) {
     return null;
   }
 
-  const [items, equipment, pendingChestRuns, pendingLevelBarters] = await Promise.all([
+  const [items, equipment, pendingChestRuns, pendingLevelBarters, pendingTransfers] = await Promise.all([
     tx.characterItem.findMany({
       where: { characterId: character.id },
       orderBy: [{ createdAt: "asc" }, { itemId: "asc" }]
@@ -1112,6 +1131,10 @@ async function getInventorySnapshot(tx: TxClient, telegramUserId: bigint): Promi
     tx.levelBarterExchange.findMany({
       where: { characterId: character.id, status: "pending" },
       select: { inputItemsJson: true }
+    }),
+    findActiveTransferReservedItems(tx, {
+      senderCharacterId: character.id,
+      now
     })
   ]);
   const reservedItemIds = new Set<string>();
@@ -1124,6 +1147,9 @@ async function getInventorySnapshot(tx: TxClient, telegramUserId: bigint): Promi
     for (const item of parseItems(exchange.inputItemsJson)) {
       reservedItemIds.add(item.itemId);
     }
+  }
+  for (const transfer of pendingTransfers) {
+    reservedItemIds.add(transfer.itemId);
   }
 
   return {

@@ -61,7 +61,7 @@ export const SHYNOK_DRINKS: readonly ShynokDrinkDefinition[] = [
     priceGold: 13,
     durationMinutes: 23,
     phase: "timed",
-    recoveryMultiplierBp: 12500,
+    recoveryMultiplierBp: 12300,
     accuracyPenaltyPp: 5
   },
   {
@@ -71,7 +71,7 @@ export const SHYNOK_DRINKS: readonly ShynokDrinkDefinition[] = [
     priceGold: 42,
     durationMinutes: 42,
     phase: "timed",
-    recoveryMultiplierBp: 15000,
+    recoveryMultiplierBp: 14200,
     accuracyPenaltyPp: 10
   },
   {

@@ -35,7 +35,14 @@ export function presentHero(
       ? `👛 Золото: <b>${summary.gold}</b>`
       : `👛 Золото: <b>${summary.gold}</b> <i>${presentWealthAside(summary.gold, inventoryGoldValue)}</i>`;
   const starterHint =
-    summary.level < 3 ? ["", "<i>Далі: /tavern, /quest або /fight.</i>"] : [];
+    summary.level < 3
+      ? [
+          "",
+          summary.hpCurrent <= 0
+            ? "<i>Далі: перепочити, а тоді вже знову шукати справу чи сутичку.</i>"
+            : "<i>Далі: /tavern, /quest або /fight.</i>"
+        ]
+      : [];
   const equipmentLines = presentHeroEquipmentEffectLines(
     summary.equipmentEffects ?? createEmptyEquipmentEffectSummary()
   );
@@ -99,7 +106,7 @@ function presentResourceRecovery(summary: CharacterSummary): string[] {
   const lines = parts.length > 0 ? [`Відновлення: ${parts.join(" · ")}`] : [];
 
   if (summary.hpCurrent <= 0) {
-    lines.push("Стан: HP 0 — спершу відпочиньте, тоді /fight.");
+    lines.push("Стан: HP 0 — спершу відпочиньте; бій дочекається хоча б 1 HP.");
   }
 
   return lines;
@@ -118,13 +125,13 @@ function presentActiveDrink(drink: HeroActiveDrink | null): string | null {
 
 function presentActiveDrinkEffects(drink: HeroActiveDrink): string[] {
   if (drink.phase === "queued") {
-    return ["чекає PvE бою", "шкода туди/назад ×1.13"];
+    return ["чекає бою з монстром", "завдана й отримана шкода +13%"];
   }
 
   const effects: string[] = [];
 
   if (drink.recoveryMultiplierBp && drink.recoveryMultiplierBp !== 10000) {
-    effects.push(`відновлення ×${formatMultiplier(drink.recoveryMultiplierBp)}`);
+    effects.push(`відновлення швидше на ${formatRecoveryBonusPercent(drink.recoveryMultiplierBp)}%`);
   }
 
   if (drink.accuracyPenaltyPp) {
@@ -134,8 +141,8 @@ function presentActiveDrinkEffects(drink: HeroActiveDrink): string[] {
   return effects;
 }
 
-function formatMultiplier(multiplierBp: number): string {
-  return (multiplierBp / 10_000).toFixed(2);
+function formatRecoveryBonusPercent(multiplierBp: number): number {
+  return Math.round((multiplierBp - 10_000) / 100);
 }
 
 function formatRemainingMinutes(expiresAt: Date): string {

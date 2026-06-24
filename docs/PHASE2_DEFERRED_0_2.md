@@ -31,6 +31,7 @@ Add a clear content contract for trade/use/duel/raid eligibility and one narrow 
 
 ## Later After Evidence
 
+- paid postal/courier manatka delivery for known recipients who are not currently nearby;
 - item-for-item trade;
 - party skeleton;
 - party vs one boss;

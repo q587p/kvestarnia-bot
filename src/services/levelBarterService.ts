@@ -95,7 +95,7 @@ export class LevelBarterService {
   ) {}
 
   async getOfferForTelegramUser(telegramUserId: bigint): Promise<LevelBarterOfferResult> {
-    const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId);
+    const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId, this.clock());
 
     if (!snapshot) {
       return { state: "no-character" };
@@ -199,6 +199,7 @@ function buildPlanForSnapshot(
   const eligibleStacks = buildLevelBarterEligibleStacks({
     stacks: snapshot.items,
     equippedItemIds: new Set(snapshot.equippedItemIds),
+    reservedItemIds: new Set(snapshot.reservedItemIds ?? []),
     itemContents: items
   });
   const eligibleTotalValue = getLevelBarterEligibleTotalValue(eligibleStacks);

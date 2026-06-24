@@ -38,7 +38,12 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     };
   }
 
-  if (data === "v1:tavern:raid" || data === "v1:tavern:participants") {
+  if (
+    data === "v1:tavern:raid" ||
+    data === "v1:tavern:raid-leaderboard" ||
+    data === "v1:tavern:raid-news" ||
+    data === "v1:tavern:participants"
+  ) {
     return {
       locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
       currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
@@ -116,6 +121,10 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
+  if (data === "v1:place:current") {
+    return {};
+  }
+
   if (data === "v1:place:hall") {
     return {};
   }
@@ -164,6 +173,14 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     data === "v1:place:duel-winners"
   ) {
     return {};
+  }
+
+  if (data.startsWith("v1:news:r")) {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+      currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
+      currentAdventureId: null
+    };
   }
 
   if (data.startsWith("v1:news:")) {

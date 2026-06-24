@@ -2,6 +2,7 @@ import type {
   KorchmaRoundLeaderboardPeriod,
   TavernLookupResult,
   TavernPendingRaidResult,
+  TavernRoundLeaderboardResult,
   TavernRaidResult,
   TavernRoundOfferResult,
   TavernRoundResult
@@ -488,6 +489,18 @@ export function presentTavernRoundOffer(
     options,
     "",
     `У кишені: <b>${result.gold} золота</b>`,
+    "",
+    ...presentKorchmaRoundLeaderboard(result.leaderboard)
+  ].join("\n");
+}
+
+export function presentTavernRoundLeaderboard(
+  result: Exclude<TavernRoundLeaderboardResult, { state: "no-character" }>
+): string {
+  return [
+    "🍺 Рейдовий доступ до рейтингу",
+    "",
+    "Корчмар дозволяє дивитися в крейду навіть під час рейду. Торкатися крейди не дозволяє.",
     "",
     ...presentKorchmaRoundLeaderboard(result.leaderboard)
   ].join("\n");

@@ -25,10 +25,11 @@ import type { YegerQuestService } from "../services/yegerQuestService";
 import { isYegerUnquietTarget } from "../services/yegerQuestService";
 import type { EquipmentService } from "../services/equipmentService";
 import type { InventoryService } from "../services/inventoryService";
+import type { ItemTransferService } from "../services/itemTransferService";
 import type { LevelBarterService } from "../services/levelBarterService";
 import type { LevelMilestoneService } from "../services/levelMilestoneService";
 import type { MantokChestService } from "../services/mantokChestService";
-import type { ShynokService } from "../services/shynokService";
+import type { ShynokRoundConfirmResult, ShynokService } from "../services/shynokService";
 import type { OnboardingService } from "../services/onboardingService";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
@@ -70,6 +71,7 @@ import { parseDevResetCallbackData } from "./callbacks/devResetCallbackData";
 import { parseDuelCallbackData } from "./callbacks/duelCallbackData";
 import { parseFightCallbackData, type FightCallback } from "./callbacks/fightCallbackData";
 import { parseHuntCallbackData, type HuntCallback } from "./callbacks/huntCallbackData";
+import { parseItemGiftCallbackData } from "./callbacks/itemGiftCallbackData";
 import {
   parseLevelBarterCallbackData,
   type LevelBarterCallback
@@ -133,6 +135,7 @@ import {
   sendYegerCorner
 } from "./commands/huntCommand";
 import { registerInventoryCommand, sendInventory } from "./commands/inventoryCommand";
+import { handleItemGiftCallback } from "./commands/itemGiftCommand";
 import { registerLookCommand } from "./commands/lookCommand";
 import { handleNearbyDuelCallback } from "./commands/nearbyDuelCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "./commands/newsCommand";
@@ -211,6 +214,7 @@ import {
   buildShynokDrinkPreviewKeyboard,
   buildShynokDrinkResultKeyboard,
   buildShynokOverviewKeyboard,
+  buildShynokRoundOfferNotificationKeyboard,
   buildShynokRoundOfferResponseKeyboard,
   buildShynokRoundPreviewKeyboard,
   buildShynokRoundResultKeyboard,
@@ -232,6 +236,7 @@ import {
 } from "./keyboards/mainMenuKeyboard";
 import {
   buildBackToKorchmaHallKeyboard,
+  buildBackToTavernRaidKeyboard,
   buildEnterKorchmaKeyboard,
   buildKorchmaBarKeyboard,
   buildKorchmaRoundOfferKeyboard,
@@ -322,6 +327,7 @@ import {
   presentShynokGate,
   presentShynokOverview,
   presentShynokRoundConfirm,
+  presentShynokRoundOfferNotification,
   presentShynokRoundOfferResponse,
   presentShynokRoundPreview,
   presentShynokSaleConfirm,
@@ -360,6 +366,7 @@ import {
   presentKorchmaDeepLevelLocked,
   presentPendingRaidActionBlock,
   presentTavernRaidResult,
+  presentTavernRoundLeaderboard,
   presentTavernRoundOffer,
   presentTavernRoundResult
 } from "./presenters/tavernPresenter";
@@ -380,6 +387,7 @@ export interface BotServices {
   hero: HeroService;
   equipment: EquipmentService;
   inventory: InventoryService;
+  itemTransfers?: ItemTransferService;
   levelBarter: LevelBarterService;
   levelMilestones?: LevelMilestoneService;
   mantokChest: MantokChestService;
@@ -466,7 +474,10 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   });
   registerInventoryCommand(bot, services.inventory);
   registerEquipmentCommand(bot, services.equipment);
-  registerOnlineCommand(bot, services.presence, { duelEnabled: Boolean(services.duel) });
+  registerOnlineCommand(bot, services.presence, {
+    duelEnabled: Boolean(services.duel),
+    itemGiftEnabled: Boolean(services.itemTransfers)
+  });
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset, services.devGrant, {
     buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence)
@@ -553,6 +564,17 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     await handleShynokCallback(ctx, parsed.value, services);
   });
 
+  bot.callbackQuery(/^v1:gift:/, async (ctx) => {
+    const parsed = parseItemGiftCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok || !services.itemTransfers) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleItemGiftCallback(ctx, parsed.value, services.itemTransfers);
+  });
+
   bot.callbackQuery(/^v1:lvlx:/, async (ctx) => {
     const parsed = parseLevelBarterCallbackData(ctx.callbackQuery.data);
 
@@ -575,11 +597,11 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     await safeAnswerCallbackQuery(ctx);
 
     if (parsed.value.type === "list") {
-      await sendNewsList(ctx, parsed.value.page);
+      await sendNewsList(ctx, parsed.value.page, "edit", { source: parsed.value.source });
       return;
     }
 
-    await sendNewsEntry(ctx, parsed.value.entryIndex, parsed.value.listPage);
+    await sendNewsEntry(ctx, parsed.value.entryIndex, parsed.value.listPage, { source: parsed.value.source });
   });
 
   bot.callbackQuery(/^v1:tavern:/, async (ctx) => {
@@ -841,6 +863,7 @@ function registerCombatLockMiddleware(bot: Bot, services: BotServices): void {
 
     if (
       ctx.callbackQuery &&
+      !isPendingRaidSafeCallback(callbackData) &&
       typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
       (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
     ) {
@@ -887,6 +910,14 @@ function isCombatLockSafeCallback(data: string): boolean {
     data.startsWith("v1:equip:") ||
     data.startsWith("v1:restart:") ||
     data.startsWith("v1:rm:")
+  );
+}
+
+function isPendingRaidSafeCallback(data: string | undefined): boolean {
+  return (
+    data === "v1:tavern:raid-leaderboard" ||
+    data === "v1:tavern:raid-news" ||
+    data?.startsWith("v1:news:r") === true
   );
 }
 
@@ -1648,7 +1679,15 @@ async function handleShynokCallback(
     return;
   }
 
-  if (action.type === "round-preview") {
+  if (action.type === "round-preview" || action.type === "barrel-round-preview") {
+    if (action.type === "barrel-round-preview") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+        currentRaidId: null,
+        currentAdventureId: null
+      });
+    }
+
     const result = await services.shynok.createRoundOrderForTelegramUser(telegramUserId, action.tier);
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "preview" });
     await safeEditMessageText(ctx, presentShynokRoundPreview(result), {
@@ -1667,6 +1706,9 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, result.state === "completed"
       ? { text: "Кухлі поставлено.", show_alert: false }
       : { show_alert: result.state !== "replayed" });
+    if (result.state === "completed") {
+      await notifyShynokRoundRecipients(ctx, result);
+    }
     await safeEditMessageText(ctx, presentShynokRoundConfirm(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildShynokRoundResultKeyboard(result)
@@ -1759,6 +1801,26 @@ async function handleShynokCallback(
   });
 }
 
+async function notifyShynokRoundRecipients(
+  ctx: Context,
+  result: ShynokRoundConfirmResult
+): Promise<void> {
+  if (result.state !== "completed") {
+    return;
+  }
+
+  await Promise.allSettled(result.recipients.map((recipient) =>
+    ctx.api.sendMessage(
+      Number(recipient.telegramUserId),
+      presentShynokRoundOfferNotification(result.character.name, recipient),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildShynokRoundOfferNotificationKeyboard(recipient.offer.id)
+      }
+    )
+  ));
+}
+
 async function handleLevelBarterCallback(
   ctx: Context,
   action: LevelBarterCallback,
@@ -1843,6 +1905,11 @@ async function handlePlaceCallback(
   }
 
   await safeAnswerCallbackQuery(ctx);
+
+  if (action === "current") {
+    await sendCurrentLocation(ctx, services);
+    return;
+  }
 
   if (action === "hall") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_HALL);
@@ -2474,7 +2541,10 @@ function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
   });
 
   bot.hears(mainMenuButtons.participants, async (ctx) => {
-    await sendOnline(ctx, services.presence, { duelEnabled: Boolean(services.duel) });
+    await sendOnline(ctx, services.presence, {
+      duelEnabled: Boolean(services.duel),
+      itemGiftEnabled: Boolean(services.itemTransfers)
+    });
   });
 
   bot.hears(mainMenuButtons.help, async (ctx) => {
@@ -2798,6 +2868,29 @@ async function handleTavernCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (action === "raid-news") {
+    await safeAnswerCallbackQuery(ctx);
+    await sendNewsList(ctx, 0, "edit", { source: "raid" });
+    return;
+  }
+
+  if (action === "raid-leaderboard") {
+    const result = await tavernRaidService.getRoundLeaderboardForTelegramUser(telegramUserId);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentTavernNoCharacter());
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentTavernRoundLeaderboard(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildBackToTavernRaidKeyboard()
+    });
     return;
   }
 
@@ -3669,7 +3762,7 @@ async function handleFightCallback(
       return;
     }
 
-    if (result.state !== "not-found") {
+    if (result.state !== "not-found" && result.state !== "needs-rest") {
       await markScenePresence(ctx, services.presence, {
         locationId: resolvePersistentFightPresenceLocation(result.session),
         currentRaidId: null,
@@ -3680,7 +3773,7 @@ async function handleFightCallback(
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentPersistentFightTurn(result), {
       ...HTML_MESSAGE_OPTIONS,
-      ...(result.state === "not-found"
+      ...(result.state === "not-found" || result.state === "needs-rest"
         ? {}
         : {
             reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)

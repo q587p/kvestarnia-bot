@@ -14,6 +14,7 @@ export type ShynokCallback =
   | { type: "drink-preview"; drinkKey: ShynokDrinkKey }
   | { type: "drink-confirm"; token: string }
   | { type: "round-preview"; tier: "simple" | "fine" }
+  | { type: "barrel-round-preview"; tier: "simple" | "fine" }
   | { type: "round-confirm"; tier: "simple" | "fine"; token: string }
   | { type: "round-accept"; offerId: string }
   | { type: "round-replace-confirm"; offerId: string; replacementGuard: string }
@@ -45,6 +46,10 @@ export function makeShynokDrinkConfirmCallbackData(token: string): string {
 
 export function makeShynokRoundPreviewCallbackData(tier: "simple" | "fine"): string {
   return assertData(`${PREFIX}:rp:${tier}`);
+}
+
+export function makeShynokBarrelRoundPreviewCallbackData(tier: "simple" | "fine"): string {
+  return assertData(`${PREFIX}:brp:${tier}`);
 }
 
 export function makeShynokRoundConfirmCallbackData(tier: "simple" | "fine", token: string): string {
@@ -120,6 +125,9 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
   }
   if (action === "rp" && isTier(first) && second === undefined) {
     return { ok: true, value: { type: "round-preview", tier: first } };
+  }
+  if (action === "brp" && isTier(first) && second === undefined) {
+    return { ok: true, value: { type: "barrel-round-preview", tier: first } };
   }
   if (action === "rc" && isTier(first) && isToken(second) && third === undefined) {
     return { ok: true, value: { type: "round-confirm", tier: first, token: second ?? "" } };

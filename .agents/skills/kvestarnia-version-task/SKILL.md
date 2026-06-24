@@ -21,9 +21,10 @@ Do:
 5. Prefer minimal, reviewable diffs.
 6. Keep player-facing text Ukrainian.
 7. Keep domain code free of Telegram imports.
-8. Add or update tests for runtime behavior.
-9. Run targeted tests first, then broader checks if useful.
-10. End with a compact PR-ready summary.
+8. For substantial player-facing Ukrainian copy, use `$ukrainian-rpg-content` instead of pasting style rules.
+9. Add or update tests for runtime behavior.
+10. Run targeted tests first, then broader checks if useful.
+11. End with a compact PR-ready summary.
 
 Do not:
 1. Start another feature unless the user explicitly changes the active version task.

@@ -18,7 +18,7 @@ describe("Shynok drinks", () => {
       ["drink.pepper-vodka", 42, 23]
     ]);
     expect(getShynokDrinkDefinition("drink.simple-beer")).toMatchObject({
-      recoveryMultiplierBp: 12500,
+      recoveryMultiplierBp: 12300,
       accuracyPenaltyPp: 5
     });
     expect(getShynokDrinkDefinition("drink.pepper-vodka")).toMatchObject({
@@ -65,7 +65,7 @@ describe("Shynok drinks", () => {
     expect(windows).toEqual([{
       startsAt: new Date("2026-06-23T10:00:00.000Z"),
       expiresAt: new Date("2026-06-23T10:23:00.000Z"),
-      multiplierBp: 12500
+      multiplierBp: 12300
     }]);
   });
 

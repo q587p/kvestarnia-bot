@@ -12,6 +12,7 @@ import type {
   LevelBarterRepository,
   LevelBarterSnapshot
 } from "./levelBarterRepository";
+import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 
 type TxClient = Prisma.TransactionClient;
@@ -19,8 +20,8 @@ type TxClient = Prisma.TransactionClient;
 export class PrismaLevelBarterRepository implements LevelBarterRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async getSnapshotForTelegramUser(telegramUserId: bigint): Promise<LevelBarterSnapshot | null> {
-    return this.prisma.$transaction((tx) => getSnapshot(tx, telegramUserId));
+  async getSnapshotForTelegramUser(telegramUserId: bigint, now: Date): Promise<LevelBarterSnapshot | null> {
+    return this.prisma.$transaction((tx) => getSnapshot(tx, telegramUserId, now));
   }
 
   async confirmAutoExchangeForTelegramUser(
@@ -33,7 +34,7 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
   ): Promise<LevelBarterConfirmRepositoryResult> {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const snapshot = await getSnapshot(tx, telegramUserId);
+        const snapshot = await getSnapshot(tx, telegramUserId, input.now);
 
         if (!snapshot) {
           return { state: "no-character" };
@@ -258,7 +259,7 @@ class LevelBarterStaleSelectionError extends Error {
   }
 }
 
-async function getSnapshot(tx: TxClient, telegramUserId: bigint): Promise<LevelBarterSnapshot | null> {
+async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Promise<LevelBarterSnapshot | null> {
   const character = await tx.character.findFirst({
     where: {
       user: {
@@ -283,7 +284,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint): Promise<LevelB
     return null;
   }
 
-  const [items, equipment] = await Promise.all([
+  const [items, equipment, pendingTransfers] = await Promise.all([
     tx.characterItem.findMany({
       where: {
         characterId: character.id
@@ -304,6 +305,10 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint): Promise<LevelB
       select: {
         itemId: true
       }
+    }),
+    findActiveTransferReservedItems(tx, {
+      senderCharacterId: character.id,
+      now
     })
   ]);
 
@@ -311,7 +316,8 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint): Promise<LevelB
     character: toCharacterRecord(character),
     remortCount: getIncludedRemortCount(character),
     items: items.map(toCharacterItemRecord),
-    equippedItemIds: equipment.map((row) => row.itemId)
+    equippedItemIds: equipment.map((row) => row.itemId),
+    reservedItemIds: pendingTransfers.map((row) => row.itemId)
   };
 }
 

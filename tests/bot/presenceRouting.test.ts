@@ -41,6 +41,22 @@ describe("presence routing", () => {
       }
     ],
     [
+      "v1:tavern:raid-leaderboard",
+      {
+        locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+        currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
+        currentAdventureId: null
+      }
+    ],
+    [
+      "v1:tavern:raid-news",
+      {
+        locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+        currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
+        currentAdventureId: null
+      }
+    ],
+    [
       "v1:tavern:ranger",
       {
         locationId: PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
@@ -60,6 +76,7 @@ describe("presence routing", () => {
     ["v1:quest:fight", {}],
     ["v1:quest:archive", {}],
     ["v1:quest:list", {}],
+    ["v1:place:current", {}],
     ["v1:place:hall", {}],
     ["v1:place:front", {}],
     ["v1:place:fighting-corner", {}],
@@ -92,6 +109,14 @@ describe("presence routing", () => {
         currentAdventureId: null
       }
     ],
+    [
+      "v1:news:rlist:0",
+      {
+        locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+        currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
+        currentAdventureId: null
+      }
+    ],
     ["v1:menu:hero", {}],
     ["v1:devreset:cancel", {}],
     ["v1:restart:confirm", {}]
@@ -118,6 +143,7 @@ describe("presence routing", () => {
   );
 
   it.each([
+    "v1:place:current",
     "v1:place:hall",
     "v1:place:front",
     "v1:place:fighting-corner",

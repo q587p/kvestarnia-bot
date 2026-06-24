@@ -91,7 +91,7 @@ export function presentFightNeedsRest(
     "",
     `Зараз HP ${result.character.hpCurrent}/${result.character.hpMax}, мана ${result.character.manaCurrent}/${result.character.manaMax}.${hpEta}`,
     "",
-    "Спершу /hero: бій знову відчиниться, коли HP буде хоча б 1."
+    "Спершу трохи відновіться: бій знову відчиниться, коли HP буде хоча б 1."
   ].join("\n");
 }
 
@@ -270,6 +270,20 @@ export function presentPersistentFightTurn(
       "⚔️ Бій не знайшовся.",
       "",
       "Можливо, старий сувій уже прибрали зі столу. Спробуйте /fight ще раз."
+    ].join("\n");
+  }
+
+  if (result.state === "needs-rest") {
+    const hpMax = result.session?.state?.hero.hpMax ?? result.character.hpMax;
+    const hpCurrent = result.session?.state?.hero.hp ?? result.character.hpCurrent;
+
+    return [
+      "❤️ <b>Спершу прийдіть до тями</b>",
+      presentCharacterHeader(result.character),
+      "",
+      `Зараз HP ${hpCurrent}/${hpMax}. Корчма цінує бойовий запал, але не приймає удари з горизонтального положення.`,
+      "",
+      "Відновіться хоча б до 1 HP, тоді монстри знову матимуть шанс пошкодувати про знайомство."
     ].join("\n");
   }
 

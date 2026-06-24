@@ -2,14 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import {
   presentShynokGate,
   presentShynokDrinkMenu,
+  presentShynokDrinkPreview,
   presentShynokDrinkConfirmResult,
   presentShynokRoundConfirm,
+  presentShynokRoundOfferNotification,
   presentShynokRoundOfferResponse,
   presentShynokRoundPreview,
   presentShynokSaleSelection
 } from "../../src/bot/presenters/shynokPresenter";
 import type {
   ShynokDrinkConfirmResult,
+  ShynokDrinkOrderResult,
   ShynokRoundConfirmResult,
   ShynokRoundOfferRespondResult,
   ShynokRoundPreviewResult,
@@ -63,7 +66,7 @@ describe("shynokPresenter", () => {
           phase: "timed",
           startedAt: new Date("2026-06-23T09:50:00.000Z"),
           expiresAt: new Date("2026-06-23T10:13:00.000Z"),
-          recoveryMultiplierBp: 12500,
+          recoveryMultiplierBp: 12300,
           accuracyPenaltyPp: 5
         }
       });
@@ -74,6 +77,17 @@ describe("shynokPresenter", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("omits current drink copy when no drink is active", () => {
+    const html = presentShynokDrinkMenu({
+      state: "ready",
+      character,
+      activeDrink: null
+    });
+
+    expect(html).not.toContain("Поточний напій");
+    expect(html).toContain("У кишені: <b>125 золота</b>.");
   });
 
   it("shows the generosity leaderboard immediately in round preview", () => {
@@ -88,7 +102,7 @@ describe("shynokPresenter", () => {
         emoji: "🍻",
         priceGold: 42,
         durationMinutes: 42,
-        recoveryMultiplierBp: 15000,
+        recoveryMultiplierBp: 14200,
         accuracyPenaltyPp: 10
       },
       priceGold: 84,
@@ -118,6 +132,22 @@ describe("shynokPresenter", () => {
     expect(html).toContain("1. Мандрівник &lt;&amp;&gt; — 2 частування · 84 золота");
   });
 
+  it("keeps the generosity leaderboard visible when a round is too expensive", () => {
+    const result: ShynokRoundPreviewResult = {
+      state: "not-enough-gold",
+      character,
+      gold: 24,
+      priceGold: 93,
+      leaderboard
+    };
+
+    const html = presentShynokRoundPreview(result);
+
+    expect(html).toContain("Раунд коштує <b>93 золота</b>, а у вас <b>24</b>.");
+    expect(html).toContain("🏅 Рейтинг щедрості");
+    expect(html).toContain("1. Мандрівник &lt;&amp;&gt; — 2 частування · 84 золота");
+  });
+
   it("keeps the leaderboard visible after a round is placed", () => {
     const result: ShynokRoundConfirmResult = {
       state: "completed",
@@ -125,6 +155,7 @@ describe("shynokPresenter", () => {
       tier: "fine",
       priceGold: 84,
       recipientCount: 2,
+      recipients: [],
       leaderboard
     };
 
@@ -179,7 +210,7 @@ describe("shynokPresenter", () => {
           emoji: "🍺",
           priceGold: 13,
           durationMinutes: 23,
-          recoveryMultiplierBp: 12500,
+          recoveryMultiplierBp: 12300,
           accuracyPenaltyPp: 5
         },
         expiresAt: new Date("2026-06-23T10:05:00.000Z")
@@ -190,7 +221,7 @@ describe("shynokPresenter", () => {
         emoji: "🍺",
         priceGold: 13,
         durationMinutes: 23,
-        recoveryMultiplierBp: 12500,
+        recoveryMultiplierBp: 12300,
         accuracyPenaltyPp: 5
       },
       activeDrink: {
@@ -215,6 +246,65 @@ describe("shynokPresenter", () => {
     expect(html).not.toContain("Просте <пиво>");
   });
 
+  it("uses direct recipient copy for round offers", () => {
+    const html = presentShynokRoundOfferNotification("Мандрівник <&>", {
+      telegramUserId: 42n,
+      name: "Дара",
+      offer: {
+        id: "offer-1",
+        expiresAt: new Date("2026-06-23T10:23:00.000Z"),
+        drink: {
+          key: "drink.simple-beer",
+          name: "Просте пиво",
+          emoji: "🍺",
+          priceGold: 13,
+          durationMinutes: 23,
+          recoveryMultiplierBp: 12300,
+          accuracyPenaltyPp: 5
+        }
+      }
+    });
+
+    expect(html).toContain("<b>Мандрівник &lt;&amp;&gt;</b> ставить вам <b>Просте пиво</b>.");
+    expect(html).toContain("Можна випити зараз або чемно відмовитися й лишити точність при собі.");
+    expect(html).not.toContain("легенд");
+  });
+
+  it("marks both drink names in self-drink replacement preview", () => {
+    const result: ShynokDrinkOrderResult = {
+      state: "preview",
+      character,
+      token: "12345678-1234-4234-9234-123456789abc",
+      drink: {
+        key: "drink.simple-beer",
+        name: "Просте <пиво>",
+        emoji: "🍺",
+        priceGold: 13,
+        durationMinutes: 23,
+        recoveryMultiplierBp: 12300,
+        accuracyPenaltyPp: 5
+      },
+      activeDrink: {
+        key: "drink.thyme-tea",
+        name: "Чай & чебрець",
+        emoji: "🍵",
+        priceGold: 17,
+        durationMinutes: 42,
+        phase: "timed",
+        startedAt: new Date("2026-06-23T10:00:00.000Z"),
+        expiresAt: new Date("2026-06-23T10:42:00.000Z"),
+        recoveryMultiplierBp: 11300
+      }
+    };
+
+    const html = presentShynokDrinkPreview(result);
+
+    expect(html).toContain(
+      "На вас іще діє 🍵 <b>Чай &amp; чебрець</b>. 🍺 <b>Просте &lt;пиво&gt;</b> замінить цей ефект."
+    );
+    expect(html).toContain("Наливаємо?");
+  });
+
   it("shows remaining minutes for a confirmed drink instead of an end time", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-23T10:00:00.000Z"));
@@ -232,7 +322,7 @@ describe("shynokPresenter", () => {
           phase: "timed",
           startedAt: new Date("2026-06-23T10:00:00.000Z"),
           expiresAt: new Date("2026-06-23T10:23:00.000Z"),
-          recoveryMultiplierBp: 12500,
+          recoveryMultiplierBp: 12300,
           accuracyPenaltyPp: 5
         },
         spentGold: 13

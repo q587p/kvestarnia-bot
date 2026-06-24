@@ -44,6 +44,7 @@ Default QA depth:
 - List missing unit/integration tests only if they affect correctness.
 - Do not produce an exhaustive QA matrix unless explicitly requested.
 - Escalate to `$kvestarnia-telegram-qa` only when the user asks for a full QA plan, or when the PR changes Telegram player flow, routing, presence, state, sessions, persistence, or release-critical behavior.
+- Use `$ukrainian-rpg-content` only when the review is mainly about substantial Ukrainian battle, tip, location, item/monster, or news copy.
 
 Telegram RPG risk focus:
 - Telegram commands and callbacks

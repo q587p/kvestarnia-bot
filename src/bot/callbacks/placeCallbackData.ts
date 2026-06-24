@@ -2,6 +2,7 @@ import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type PlaceCallback =
+  | "current"
   | "hall"
   | "fighting-corner"
   | "quest-table"
@@ -23,6 +24,7 @@ export type PlaceCallbackError = "invalid-version" | "invalid-prefix" | "invalid
 
 const PREFIX = "v1:place";
 const placeCallbacks = new Set<PlaceCallback>([
+  "current",
   "hall",
   "fighting-corner",
   "quest-table",

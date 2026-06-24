@@ -21,7 +21,11 @@ npm.cmd run build
 run-local-bot.cmd
 ```
 
-Launcher створює `.env` з `.env.example`, якщо файла ще немає, встановлює залежності, коли відсутній `node_modules`, запускає Prisma generate/migrate і стартує `npm run dev`.
+Launcher створює `.env` з `.env.example`, якщо файла ще немає, готує ізольований runtime поза checkout-ом, запускає Prisma generate/migrate у цьому runtime і стартує там `npm run dev`.
+
+### Isolated Windows local bot
+
+Use `run-local-bot.cmd` for manual Telegram testing. It runs from a separate snapshot with independent `node_modules`, Prisma Client, and SQLite database, so development checks do not have to stop the bot. Use `refresh-local-bot.cmd` only when promoting a deliberate test checkpoint. See [`docs/LOCAL_BOT_RUNTIME.md`](LOCAL_BOT_RUNTIME.md).
 
 ## Ручний локальний запуск
 

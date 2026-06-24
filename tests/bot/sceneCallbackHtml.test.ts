@@ -28,6 +28,10 @@ import {
   makeRemortConfirmCallbackData,
   makeRemortOpenCallbackData
 } from "../../src/bot/callbacks/remortCallbackData";
+import {
+  makeShynokBarrelRoundPreviewCallbackData,
+  makeShynokRoundConfirmCallbackData
+} from "../../src/bot/callbacks/shynokCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import { makeYegerTrackCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -642,8 +646,10 @@ describe("scene callback HTML options", () => {
     expect(edit?.payload).toMatchObject({
       parse_mode: "HTML"
     });
-    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("🍻 Всім пива");
-    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeTavernCallbackData("round"));
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("🍺 Просте всім");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("🍻 Якісне всім");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v1:sh:brp:simple");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v1:sh:brp:fine");
   });
 
   it("offers immediate Shynok turn-in after issuing a recovered completed problem paper", async () => {
@@ -1366,6 +1372,136 @@ describe("scene callback HTML options", () => {
     expect(keyboard).toContain("v1:sh:dr");
   });
 
+  it("opens Shynok round preview from completed Barrel shortcut", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const createRoundOrder = vi.fn(() =>
+      Promise.resolve({
+        state: "preview" as const,
+        character,
+        token: "12345678-1234-4234-9234-123456789abc",
+        tier: "simple" as const,
+        drink: {
+          key: "drink.simple-beer" as const,
+          name: "Просте пиво",
+          emoji: "🍺",
+          priceGold: 13,
+          durationMinutes: 23,
+          recoveryMultiplierBp: 12300,
+          accuracyPenaltyPp: 5
+        },
+        priceGold: 26,
+        recipientCount: 2,
+        leaderboard: { day: [], week: [], month: [] }
+      })
+    );
+    const calls = await captureApiCalls(
+      makeShynokBarrelRoundPreviewCallbackData("simple"),
+      servicesWith({
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.barrel",
+              locationName: "Біля Бочки Пінного Міражу",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
+        shynok: {
+          createRoundOrderForTelegramUser: createRoundOrder
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.bar",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(createRoundOrder).toHaveBeenCalledWith(42n, "simple");
+    expect(String(edit?.payload.text)).toContain("🍺 Просте всім");
+    expect(String(edit?.payload.text)).toContain("Одержувачів у збереженому списку: <b>2</b>");
+    expect(String(edit?.payload.text)).not.toContain("несвіжий");
+    expect(keyboard).toContain("v1:sh:rc:simple:12345678-1234-4234-9234-123456789abc");
+  });
+
+  it("notifies round recipients when a Shynok round is placed", async () => {
+    const calls = await captureApiCalls(
+      makeShynokRoundConfirmCallbackData("simple", "12345678-1234-4234-9234-123456789abc"),
+      servicesWith({
+        shynok: {
+          confirmRoundOrderForTelegramUser: () =>
+            Promise.resolve({
+              state: "completed",
+              character,
+              tier: "simple",
+              priceGold: 26,
+              recipientCount: 2,
+              recipients: [{
+                telegramUserId: 93n,
+                name: "Сусідній Пригодник",
+                offer: {
+                  id: "round-offer-93",
+                  drink: {
+                    key: "drink.simple-beer",
+                    name: "Просте пиво",
+                    emoji: "🍺",
+                    priceGold: 13,
+                    durationMinutes: 23,
+                    recoveryMultiplierBp: 12300,
+                    accuracyPenaltyPp: 5
+                  },
+                  expiresAt: new Date("2026-06-24T11:05:00.000Z")
+                }
+              }],
+              leaderboard: { day: [], week: [], month: [] }
+            })
+        }
+      }),
+      { messageResults: true }
+    );
+    const recipientMessage = calls.find((call) =>
+      call.method === "sendMessage" && call.payload.chat_id === 93
+    );
+
+    expect(String(recipientMessage?.payload.text)).toContain("<b>Мандрівник</b> ставить вам <b>Просте пиво</b>");
+    expect(JSON.stringify(recipientMessage?.payload.reply_markup)).toContain("v1:sh:ra:round-offer-93");
+    expect(JSON.stringify(recipientMessage?.payload.reply_markup)).toContain("v1:sh:rd:round-offer-93");
+  });
+
+  it("does not notify round recipients again on replayed Shynok round confirm", async () => {
+    const calls = await captureApiCalls(
+      makeShynokRoundConfirmCallbackData("simple", "12345678-1234-4234-9234-123456789abc"),
+      servicesWith({
+        shynok: {
+          confirmRoundOrderForTelegramUser: () =>
+            Promise.resolve({
+              state: "replayed",
+              character,
+              tier: "simple",
+              priceGold: 26,
+              recipientCount: 2,
+              recipients: [],
+              leaderboard: { day: [], week: [], month: [] }
+            })
+        }
+      }),
+      { messageResults: true }
+    );
+
+    expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+  });
+
   it("opens the pressed location label when the persistent reply keyboard is stale", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const calls = await captureTextApiCalls(
@@ -2064,6 +2200,47 @@ describe("scene callback HTML options", () => {
     expect(String(edits[0]?.payload.text)).toContain("🎉 Ви перемогли");
     expect(String(edits[1]?.payload.text)).toContain("поточний стан");
     expect(levelUps).toHaveLength(1);
+  });
+
+  it("removes combat action buttons when a persistent turn callback needs recovery", async () => {
+    const session = {
+      ...persistentSession("monster.deadline-spider"),
+      state: {
+        ...persistentSession("monster.deadline-spider").state,
+        hero: {
+          hp: 0,
+          hpMax: 24,
+          mana: 4,
+          manaMax: 12
+        }
+      }
+    };
+    const resolvePersistentFightTurn = vi.fn(() =>
+      Promise.resolve({
+        state: "needs-rest" as const,
+        character: { ...character, hpCurrent: 0 },
+        session,
+        monster: null,
+        questProgress: null
+      })
+    );
+
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: "123e4567-e89b-42d3-a456-426614174000",
+        turn: 1,
+        action: "attack"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn
+        }
+      })
+    );
+
+    const edit = calls.find((call) => call.method === "editMessageText");
+    expect(String(edit?.payload.text)).toContain("Спершу прийдіть до тями");
+    expect(JSON.stringify(edit?.payload.reply_markup ?? null)).not.toContain("Вдарити");
   });
 
   it.each([
@@ -3346,6 +3523,71 @@ describe("scene callback HTML options", () => {
     const edit = calls.find((call) => call.method === "editMessageText");
 
     expect(String(edit?.payload.text)).toContain("Ви зараз у рейді");
+  });
+
+  it("allows the raid leaderboard shortcut while the Barrel raid is pending", async () => {
+    const getRoundLeaderboardForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "ready" as const,
+        character,
+        leaderboard: {
+          day: [],
+          week: [],
+          month: []
+        }
+      })
+    );
+    const calls = await captureApiCalls(
+      makeTavernCallbackData("raid-leaderboard"),
+      servicesWith({
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({
+              state: "pending",
+              character,
+              availableAt: new Date("2026-06-16T10:08:00.000Z"),
+              now: new Date("2026-06-16T10:03:00.000Z")
+            }),
+          getRoundLeaderboardForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(getRoundLeaderboardForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(String(edit?.payload.text)).toContain("Рейдовий доступ до рейтингу");
+    expect(String(edit?.payload.text)).not.toContain("Ви зараз у рейді");
+  });
+
+  it.each([
+    makeTavernCallbackData("raid-news"),
+    "v1:news:rlist:0"
+  ])("allows raid news callback %s while the Barrel raid is pending", async (callbackData) => {
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({
+              state: "pending",
+              character,
+              availableAt: new Date("2026-06-16T10:08:00.000Z"),
+              now: new Date("2026-06-16T10:03:00.000Z")
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(String(edit?.payload.text)).not.toContain("Ви зараз у рейді");
+    expect(keyboard).toContain(makeTavernCallbackData("raid"));
   });
 
   it("returns from night Munchkin barter to the Nyz descent", async () => {

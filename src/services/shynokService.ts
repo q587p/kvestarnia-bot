@@ -80,7 +80,13 @@ export type ShynokDrinkConfirmResult =
 export type ShynokRoundPreviewResult =
   | { state: ShynokGateState }
   | { state: "raid-required"; character: CharacterSummary; leaderboard: KorchmaRoundLeaderboard }
-  | { state: "not-enough-gold"; character: CharacterSummary; gold: number; priceGold: number }
+  | {
+      state: "not-enough-gold";
+      character: CharacterSummary;
+      gold: number;
+      priceGold: number;
+      leaderboard: KorchmaRoundLeaderboard;
+    }
   | {
       state: "preview";
       character: CharacterSummary;
@@ -101,6 +107,7 @@ export type ShynokRoundConfirmResult =
       tier: KorchmaRoundTier;
       priceGold: number;
       recipientCount: number;
+      recipients: PresentedRoundRecipientNotice[];
       leaderboard: KorchmaRoundLeaderboard;
     };
 
@@ -159,6 +166,12 @@ export interface PresentedRoundOffer {
   id: string;
   drink: PresentedDrinkDefinition;
   expiresAt: Date;
+}
+
+export interface PresentedRoundRecipientNotice {
+  telegramUserId: bigint;
+  name: string;
+  offer: PresentedRoundOffer;
 }
 
 export interface PresentedSaleItem {
@@ -333,7 +346,8 @@ export class ShynokService {
         state: "not-enough-gold",
         character: summarizeCharacter(gate.character),
         gold: gate.character.gold,
-        priceGold
+        priceGold,
+        leaderboard
       };
     }
 
@@ -414,6 +428,13 @@ export class ShynokService {
           tier,
           priceGold: result.order.priceGold,
           recipientCount: result.recipientCount,
+          recipients: result.state === "completed"
+            ? result.recipients.map((recipient) => ({
+                telegramUserId: recipient.telegramUserId,
+                name: recipient.name,
+                offer: presentRoundOffer(recipient.offer)
+              }))
+            : [],
           leaderboard
         };
     }
@@ -488,7 +509,8 @@ export class ShynokService {
       return gate;
     }
 
-    const snapshot = await this.shynok.getInventorySnapshotForTelegramUser(telegramUserId);
+    const now = this.clock();
+    const snapshot = await this.shynok.getInventorySnapshotForTelegramUser(telegramUserId, now);
     if (!snapshot) {
       return { state: "no-character" };
     }
@@ -500,7 +522,6 @@ export class ShynokService {
       payoutGold: 0,
       fingerprint: "empty"
     };
-    const now = this.clock();
     const sale = await this.shynok.createSaleForTelegramUser(telegramUserId, {
       token: randomUUID(),
       selection: basket.items,
@@ -526,8 +547,9 @@ export class ShynokService {
     if (gate.state !== "ready") {
       return gate;
     }
+    const now = this.clock();
     const [snapshot, sale] = await Promise.all([
-      this.shynok.getInventorySnapshotForTelegramUser(telegramUserId),
+      this.shynok.getInventorySnapshotForTelegramUser(telegramUserId, now),
       this.shynok.findSaleForTelegramUser(telegramUserId, input.token)
     ]);
 
@@ -553,7 +575,7 @@ export class ShynokService {
       selectionFingerprint: basket.fingerprint,
       nominalValue: basket.nominalValue,
       payoutGold: basket.payoutGold,
-      now: this.clock()
+      now
     });
 
     if (!updated) {
@@ -572,8 +594,9 @@ export class ShynokService {
     if (gate.state !== "ready") {
       return gate;
     }
+    const now = this.clock();
     const [snapshot, sale] = await Promise.all([
-      this.shynok.getInventorySnapshotForTelegramUser(telegramUserId),
+      this.shynok.getInventorySnapshotForTelegramUser(telegramUserId, now),
       this.shynok.findSaleForTelegramUser(telegramUserId, token)
     ]);
     if (!snapshot) {
@@ -608,7 +631,7 @@ export class ShynokService {
     if (gate.state !== "ready") {
       return gate;
     }
-    const snapshot = await this.shynok.getInventorySnapshotForTelegramUser(telegramUserId);
+    const snapshot = await this.shynok.getInventorySnapshotForTelegramUser(telegramUserId, now);
     const sale = await this.shynok.findSaleForTelegramUser(telegramUserId, token);
 
     if (!snapshot) {
@@ -689,7 +712,7 @@ export class ShynokService {
 
 export function getRoundPrice(tier: KorchmaRoundTier, recipientCount: number): number {
   const count = Math.max(1, Math.floor(recipientCount));
-  return tier === "fine" ? Math.max(193, 42 * count) : Math.max(93, 13 * count);
+  return tier === "fine" ? Math.min(193, 42 * count) : Math.min(93, 13 * count);
 }
 
 export function presentDrinkDefinition(key: ShynokDrinkKey): PresentedDrinkDefinition {

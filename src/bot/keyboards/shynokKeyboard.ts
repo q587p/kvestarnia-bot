@@ -8,6 +8,7 @@ import type {
   ShynokSaleSelectionResult
 } from "../../services/shynokService";
 import { listShynokDrinkDefinitions } from "../../services/shynokService";
+import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
   makeShynokDrinkConfirmCallbackData,
@@ -37,6 +38,8 @@ export function buildShynokOverviewKeyboard(result?: ShynokOverviewResult): Inli
     .text("🍻 Якісне всім", makeShynokRoundPreviewCallbackData("fine"))
     .row()
     .text("💰 Продати манатки", makeShynokSaleOpenCallbackData())
+    .row()
+    .text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData())
     .row();
 
   if (result?.state === "ready") {
@@ -116,6 +119,14 @@ export function buildShynokRoundOfferResponseKeyboard(result: ShynokRoundOfferRe
     .text("⬅️ До Шинку", makeShynokOverviewCallbackData());
 }
 
+export function buildShynokRoundOfferNotificationKeyboard(offerId: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🍺 Випити", makeShynokRoundAcceptCallbackData(offerId))
+    .text("Ні, дякую", makeShynokRoundDeclineCallbackData(offerId))
+    .row()
+    .text("⬅️ До Шинку", makePlaceCallbackData("bar"));
+}
+
 export function buildShynokSaleSelectionKeyboard(result: ShynokSaleSelectionResult): InlineKeyboard {
   if (result.state !== "selection") {
     return buildBackToShynokKeyboard();
@@ -167,7 +178,7 @@ export function buildShynokSaleSelectionKeyboard(result: ShynokSaleSelectionResu
 
 export function buildBackToShynokKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
-    .text("⬅️ До Шинку", makeShynokOverviewCallbackData())
+    .text("⬅️ До Шинку", makePlaceCallbackData("bar"))
     .row()
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }

@@ -7,6 +7,38 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.0] - 12026-06-24 - Safe Gifting MVP
+
+### Added
+- Added `🎁 Подарувати манатку` from `👀 Хто поруч` and the Shynok/bar surface for offering exactly one eligible manatka stack unit to an active same-location player.
+- Added recipient accept/decline and sender cancel callbacks backed by short server-owned transfer tokens.
+- Added `ItemTransfer` persistence with frozen sender, receiver, item, quantity, result and terminal-state audit data.
+- Added pending Barrel raid shortcuts to the generosity rating and news archive, with both routes returning to the raid card.
+- Added focused domain, callback, presenter, schema and Prisma transaction tests for eligibility, duplicate accept replay, stale content, terminal race replay and competing reservations.
+
+### Changed
+- Completed Barrel raid cards now link directly to the current Shynok social-round previews instead of the older fixed-price Korchma round flow.
+- Shynok sale, Mantok Chest and Munchkin level barter eligibility now treat pending/processing gift transfers as active whole-`itemId` stack reservations.
+- Remort cleanup cancels pending/processing gifts for either participant so old life-boundary reservations do not survive into the next life.
+
+### Fixed
+- Gift accept rereads ownership, equipment, content fingerprint, active combat leases, remort counts, location state and competing reservations inside the transaction before moving the unit.
+- Duplicate gift creates for the same sender and `itemId` now serialize on the sender stack and converge to one live pending reservation plus one controlled stale result.
+- Duplicate accept replays the completed gift instead of moving another unit.
+- Decline, cancel and expiry race losers now replay the canonical stored transfer state instead of reporting the originally requested terminal action.
+- Decline, cancel and expiry leave the sender item untouched and release the gift reservation.
+- Sender cancel and recipient decline now send a best-effort terminal gift notice to the other side only on the actual state transition.
+- Gift flow and terminal result cards now return to the actor's current location instead of always sending them to the Shynok.
+- Pending Barrel raid rating and news shortcuts now bypass the pending-raid blocker, so waiting players can actually read them from the raid card.
+- Shynok social-round cards keep the generosity rating visible even when the player cannot afford the frozen round price.
+- Stale Shynok fallback cards now send `До Шинку` through the bar place route instead of replaying an old Shynok callback from the Barrel.
+- Shynok social rounds now send best-effort private drink offer cards to recipients on the real completed purchase, and small-group launch prices are capped at 93/193 instead of using those numbers as the minimum.
+- Active persistent fights found with hero combat HP at `0` now terminalize as canonical losses through the existing settlement path, so `/fight` and old attack callbacks cannot keep an active attack surface or stuck lease.
+- Active pepper-vodka buff copy now says it waits for a monster fight and shows the risk as `+13%` damage instead of technical `PvE` / `×1.13` notation; duels remain excluded from drink power.
+- Completed Barrel raid drink buttons now move into the current Shynok round preview instead of being rejected as stale Shynok checks while the player is still marked near the Barrel.
+- Simple and fine beer recovery bonuses now match the visible tavern numbers: `+23%` and `+42%`, and recipient offer copy no longer uses unclear wording.
+- Zero-HP rest guidance no longer points players at raw commands and instead says plainly that combat reopens after at least `1 HP`.
+
 ## [0.1.25] - 12026-06-24 - Phase 2 MVP Closeout
 
 ### Added
@@ -37,7 +69,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Tea and beer now segment normal passive HP/mana recovery at drink start/end, so recovery bonuses are forward-only and never retroactive.
 - Eligible persistent solo PvE fights now freeze beer accuracy penalties into `CombatState`; non-expired queued pepper vodka is consumed at fight start and freezes its damage modifiers into that stored state.
-- `Всім пива` now previews launch prices from the frozen recipient count: simple `max(93, 13 * recipient_count)` and fine `max(193, 42 * recipient_count)`.
+- `Всім пива` now previews launch prices from the frozen recipient count: simple `min(93, 13 * recipient_count)` and fine `min(193, 42 * recipient_count)`.
 - Shynok callbacks revalidate place and active gameplay locks before mutating drink, round or sale state.
 
 ### Fixed

@@ -6,6 +6,7 @@ export interface LevelBarterSnapshot {
   remortCount: number;
   items: CharacterItemRecord[];
   equippedItemIds: string[];
+  reservedItemIds?: string[];
 }
 
 export interface LevelBarterExchangePlan {
@@ -37,7 +38,7 @@ export type LevelBarterConfirmRepositoryResult =
   | { state: "replayed"; character: CharacterRecord; remortCount: number; plan: LevelBarterExchangePlan };
 
 export interface LevelBarterRepository {
-  getSnapshotForTelegramUser(telegramUserId: bigint): Promise<LevelBarterSnapshot | null>;
+  getSnapshotForTelegramUser(telegramUserId: bigint, now: Date): Promise<LevelBarterSnapshot | null>;
   confirmAutoExchangeForTelegramUser(
     telegramUserId: bigint,
     input: {
