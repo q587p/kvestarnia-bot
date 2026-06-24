@@ -2,6 +2,8 @@
 
 This is a move map, not a requirement to use every exact filename. Recheck the post-`0.2.1` tree before editing.
 
+`0.2.2` implementation note: the shipped code keeps the coarse registrar implementation in `src/bot/featureRegistrars.ts` while `src/bot/createBot.ts` remains the ordered shell. Middleware and app composition follow the target file split.
+
 ## Source-to-target map
 
 | Current owner | Extract to | Notes |

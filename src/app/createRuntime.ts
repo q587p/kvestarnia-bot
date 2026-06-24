@@ -1,0 +1,123 @@
+import type { PrismaClient } from "@prisma/client";
+import type { Bot } from "grammy";
+import { getTelegramMenuCommands } from "../bot/botCommandCatalog";
+import { createCombatTurnTimeoutScheduler } from "../bot/combatTurnTimeoutScheduler";
+import { createBot } from "../bot/createBot";
+import { createDuelTurnTimeoutScheduler } from "../bot/duelTurnTimeoutScheduler";
+import type { AppConfig } from "../config/env";
+import { startHealthServer } from "../health/server";
+import type { ApplicationServices } from "./createServices";
+
+export interface ApplicationRuntime {
+  start(): void;
+  stop(): Promise<void>;
+}
+
+interface RuntimeDependencies {
+  createBot: typeof createBot;
+  createCombatTurnTimeoutScheduler: typeof createCombatTurnTimeoutScheduler;
+  createDuelTurnTimeoutScheduler: typeof createDuelTurnTimeoutScheduler;
+  getTelegramMenuCommands: typeof getTelegramMenuCommands;
+  startHealthServer: typeof startHealthServer;
+}
+
+export function createRuntime(input: {
+  config: AppConfig;
+  prisma: Pick<PrismaClient, "$disconnect">;
+  services: ApplicationServices;
+  dependencies?: Partial<RuntimeDependencies>;
+}): ApplicationRuntime {
+  const { config, prisma, services } = input;
+  const dependencies: RuntimeDependencies = {
+    createBot,
+    createCombatTurnTimeoutScheduler,
+    createDuelTurnTimeoutScheduler,
+    getTelegramMenuCommands,
+    startHealthServer,
+    ...input.dependencies
+  };
+  const supportJarOptions = config.supportJarUrl
+    ? {
+        supportJarUrl: config.supportJarUrl,
+        ...(config.supportJarStatus ? { supportJarStatus: config.supportJarStatus } : {})
+      }
+    : {};
+  const botLinkOptions = config.botUsername ? { botUsername: config.botUsername } : {};
+  let started = false;
+  let stopped = false;
+  let bot: Bot | null = null;
+  let healthServer: ReturnType<typeof startHealthServer> | null = null;
+  let duelTurnTimeoutScheduler: ReturnType<typeof createDuelTurnTimeoutScheduler> | null = null;
+  let combatTurnTimeoutScheduler: ReturnType<typeof createCombatTurnTimeoutScheduler> | null = null;
+
+  return {
+    start() {
+      if (started) {
+        return;
+      }
+
+      started = true;
+      healthServer = dependencies.startHealthServer({
+        presence: services.presence,
+        ...supportJarOptions
+      });
+
+      if (!config.botToken) {
+        console.log("Квестарня: BOT_TOKEN не задано, Telegram polling не запускається.");
+        return;
+      }
+
+      bot = dependencies.createBot(config.botToken, services, {
+        ...supportJarOptions,
+        ...botLinkOptions
+      });
+      if (services.duel) {
+        duelTurnTimeoutScheduler = dependencies.createDuelTurnTimeoutScheduler(services.duel, bot);
+        duelTurnTimeoutScheduler.start();
+      }
+      combatTurnTimeoutScheduler = dependencies.createCombatTurnTimeoutScheduler(
+        services.trainingDoppelganger
+          ? {
+              fight: services.fight,
+              trainingDoppelganger: services.trainingDoppelganger
+            }
+          : { fight: services.fight },
+        bot
+      );
+      combatTurnTimeoutScheduler.start();
+
+      void services.mantokChest.cleanupExpiredPendingRuns().catch((error) => {
+        console.error("Квестарня: старі бланки Дружньої Скрині не прибрались.", error);
+      });
+
+      void bot.api.setMyCommands(dependencies.getTelegramMenuCommands({
+        includeDevReset: services.devReset.isEnabled(),
+        includeDevGrant: services.devGrant?.isEnabled() === true
+      })).catch((error) => {
+        console.error("Квестарня: бокове меню команд не оновилось.", error);
+      });
+
+      console.log("Квестарня: бот запускається в polling-режимі.");
+      void bot.start();
+
+      void services.deployNotifications.announceIfNeeded(bot).catch((error) => {
+        console.error("Квестарня: нотифікація про нову версію не відправилась.", error);
+      });
+    },
+    async stop() {
+      if (stopped) {
+        return;
+      }
+
+      stopped = true;
+      combatTurnTimeoutScheduler?.stop();
+      duelTurnTimeoutScheduler?.stop();
+      if (bot) {
+        await bot.stop();
+      }
+
+      healthServer?.close();
+      await prisma.$disconnect();
+    }
+  };
+}

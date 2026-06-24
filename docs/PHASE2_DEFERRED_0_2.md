@@ -22,9 +22,11 @@ Status: shipped in `0.2.1` as dev-only two-enemy exposure plus compatibility sta
 
 ### `0.2.2` - Architecture Stabilization
 
-Before adding threat behavior, run a behavior-preserving architecture release that makes bot registration, cross-cutting middleware, runtime lifecycle and application composition easier to review.
+Shipped a behavior-preserving architecture release that makes bot registration, cross-cutting middleware, runtime lifecycle and application composition easier to review before adding threat behavior.
 
 Task: [tasks/0.2.2-architecture-stabilization.md](tasks/0.2.2-architecture-stabilization.md).
+
+Status: shipped in `0.2.2` with no gameplay, schema, callback payload or stored-state changes.
 
 Supporting docs:
 
