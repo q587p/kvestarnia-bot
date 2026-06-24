@@ -56,6 +56,8 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         return { state: "location-mismatch" };
       }
 
+      await lockSenderItemStack(tx, sender.id, input.item.id, input.now);
+
       const [items, equipment, reservedItemIds] = await Promise.all([
         getItems(tx, sender.id),
         getEquippedItemIds(tx, sender.id),
@@ -393,6 +395,18 @@ async function getItems(tx: TxClient, characterId: string): Promise<CharacterIte
   return tx.characterItem.findMany({
     where: { characterId },
     orderBy: [{ createdAt: "asc" }, { itemId: "asc" }]
+  });
+}
+
+async function lockSenderItemStack(
+  tx: TxClient,
+  characterId: string,
+  itemId: string,
+  now: Date
+): Promise<void> {
+  await tx.characterItem.updateMany({
+    where: { characterId, itemId },
+    data: { updatedAt: now }
   });
 }
 

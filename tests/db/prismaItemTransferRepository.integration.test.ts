@@ -97,6 +97,41 @@ describe("PrismaItemTransferRepository integration", () => {
     await expectQuantities({ sender: 1, receiver: 1 });
   });
 
+  it("keeps duplicate concurrent gift creates to one live reservation", async () => {
+    await seedCharacter(1n, "sender", "Р”Р°СЂСѓРІР°Р»СЊРЅРёРє");
+    await seedCharacter(2n, "receiver", "РћС‚СЂРёРјСѓРІР°С‡");
+    await seedItem("sender", 1);
+
+    const attempts = await Promise.allSettled([
+      createGift("gift-token-1"),
+      createGift("gift-token-2")
+    ]);
+
+    expect(attempts).toEqual([
+      expect.objectContaining({ status: "fulfilled" }),
+      expect.objectContaining({ status: "fulfilled" })
+    ]);
+    const states = attempts.map((attempt) => {
+      if (attempt.status !== "fulfilled") {
+        throw attempt.reason;
+      }
+
+      return attempt.value.state;
+    }).sort();
+    expect(states).toEqual(["created", "stale-selection"]);
+
+    const liveTransfers = await prisma.itemTransfer.findMany({
+      where: {
+        senderCharacterId: "sender",
+        itemId: item.id,
+        status: { in: ["pending", "processing"] }
+      }
+    });
+    expect(liveTransfers).toHaveLength(1);
+    expect(liveTransfers[0]?.status).toBe("pending");
+    await expectQuantities({ sender: 1, receiver: 0 });
+  });
+
   it("keeps accept and decline races consistent with the canonical terminal state", async () => {
     await seedCharacter(1n, "sender", "Дарувальник");
     await seedCharacter(2n, "receiver", "Отримувач");

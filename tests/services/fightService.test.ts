@@ -3783,7 +3783,48 @@ describe("FightService", () => {
     expect(sessions.updateCount).toBe(0);
   });
 
-  it("does not advance an active persistent turn when combat HP is zero", async () => {
+  it("terminalizes an active persistent fight shown from overview when combat HP is zero", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setHeroHp(started.session.id, 0);
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview.state).toBe("persistent-terminal");
+    if (overview.state === "persistent-terminal") {
+      expect(overview.session.state?.status).toBe("lost");
+      expect(overview.session.state?.settlement?.status).toBe("completed");
+      expect(overview.session.state?.completedAt).toBe("2026-06-12T10:30:00.000Z");
+      expect(overview.session.state?.turnLog?.at(-1)).toMatchObject({
+        eventId: "terminal:lost",
+        summary: {
+          action: "skip",
+          heroOutcome: "lost"
+        },
+        hero: {
+          hp: 0
+        }
+      });
+    }
+    expect(sessions.getById(started.session.id)?.status).toBe("lost");
+    expect(dailyActions.createCount).toBe(1);
+  });
+
+  it("terminalizes an old active persistent turn when combat HP is zero", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -3808,13 +3849,58 @@ describe("FightService", () => {
       action: "attack"
     });
 
-    expect(result.state).toBe("needs-rest");
-    if (result.state === "needs-rest") {
-      expect(result.session?.state?.turn).toBe(1);
-      expect(result.session?.state?.lastTurn).toBeUndefined();
+    expect(result.state).toBe("terminal");
+    if (result.state === "terminal") {
+      expect(result.session.state?.status).toBe("lost");
+      expect(result.session.state?.settlement?.status).toBe("completed");
+      expect(result.session.state?.lastTurn).toMatchObject({
+        action: "skip",
+        heroOutcome: "lost"
+      });
+      expect(result.session.state?.turnLog?.at(-1)?.eventId).toBe("terminal:lost");
     }
-    expect(sessions.updateCount).toBe(0);
-    expect(dailyActions.createCount).toBe(0);
+    expect(sessions.getById(started.session.id)?.status).toBe("lost");
+    expect(dailyActions.createCount).toBe(1);
+  });
+
+  it("replays terminal state for duplicate zero-HP persistent turn callbacks", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setHeroHp(started.session.id, 0);
+
+    const first = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+    const replayed = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(first.state).toBe("terminal");
+    expect(replayed.state).toBe("terminal");
+    if (first.state === "terminal" && replayed.state === "terminal") {
+      expect(first.session.state?.status).toBe("lost");
+      expect(replayed.session.state?.status).toBe("lost");
+      expect(replayed.session.state?.turnLog?.filter((entry) => entry.eventId === "terminal:lost")).toHaveLength(1);
+    }
+    expect(dailyActions.createCount).toBe(1);
   });
 
   it("uses a basic defend for an expired persistent combat turn before handling late buttons", async () => {

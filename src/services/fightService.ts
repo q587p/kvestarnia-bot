@@ -33,9 +33,12 @@ import {
   deriveMonsterCombatStats,
   expireCombat,
   freezeCombatLife,
+  appendCombatTurnLogEntry,
   applyMonsterContextToStats,
   buildCombatWorldContext,
+  cloneCombatState,
   createCombatBarkState,
+  getTerminalCombatTurnLogEventId,
   getCombatSkillProfile,
   isCombatSettlementTerminal,
   markCombatTurnTimeoutMode,
@@ -1214,6 +1217,29 @@ export class FightService {
       };
     }
 
+    if (refreshedSession.state.hero.hp <= 0) {
+      const terminalSession = await this.terminalizeZeroHpActiveSession(
+        telegramUserId,
+        refreshedSession
+      );
+      const fightReward = await this.getOrRecoverPersistentFightReward(
+        telegramUserId,
+        terminalSession,
+        monster,
+        characterSummary
+      );
+      const settledSession = await this.reloadSessionAfterSettlement(telegramUserId, terminalSession);
+
+      return {
+        state: "persistent-terminal",
+        character: characterSummary,
+        session: settledSession ?? terminalSession,
+        monster,
+        questProgress,
+        fightReward
+      };
+    }
+
     return {
       state: "persistent-active",
       character: characterSummary,
@@ -2022,12 +2048,25 @@ export class FightService {
     }
 
     if (currentSession.state.hero.hp <= 0) {
-      return {
-        state: "needs-rest",
-        character: characterSummary,
-        session: currentSession,
+      const terminalSession = await this.terminalizeZeroHpActiveSession(
+        telegramUserId,
+        currentSession
+      );
+      const fightReward = await this.getOrRecoverPersistentFightReward(
+        telegramUserId,
+        terminalSession,
         monster,
-        questProgress
+        characterSummary
+      );
+      const settledSession = await this.reloadSessionAfterSettlement(telegramUserId, terminalSession);
+
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: settledSession ?? terminalSession,
+        monster,
+        questProgress,
+        fightReward
       };
     }
 
@@ -2553,6 +2592,28 @@ export class FightService {
       levelChange: null,
       itemReplayUnavailable: true
     };
+  }
+
+  private async terminalizeZeroHpActiveSession(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord
+  ): Promise<SoloCombatSessionRecord> {
+    if (!session.state || session.status !== "active" || session.state.status !== "active") {
+      return session;
+    }
+
+    const lostState = stampCombatCompletedAt(loseZeroHpCombat(session.state), this.clock());
+    const updated = await this.combatSessions?.updateByIdIfActiveTurn(session.id, session.turn, {
+      state: lostState,
+      status: lostState.status
+    });
+
+    if (updated) {
+      return updated;
+    }
+
+    return await this.combatSessions?.findByIdForTelegramUserId(telegramUserId, session.id) ??
+      { ...session, state: lostState, status: lostState.status };
   }
 
   private async getCurrentProblemQuestStage(telegramUserId: bigint): Promise<
@@ -3699,6 +3760,44 @@ function stampCombatCompletedAt(state: CombatState, now: Date): CombatState {
     ...state,
     completedAt: now.toISOString()
   };
+}
+
+function loseZeroHpCombat(state: CombatState): CombatState {
+  if (state.status !== "active") {
+    return cloneCombatState(state);
+  }
+
+  const next = {
+    ...cloneCombatState(state),
+    status: "lost" as const,
+    hero: {
+      ...state.hero,
+      hp: Math.min(0, state.hero.hp)
+    },
+    lastTurn: {
+      action: "skip" as const,
+      heroOutcome: "lost" as const,
+      heroDamage: 0,
+      monsterDamage: 0,
+      manaSpent: 0,
+      critical: false
+    }
+  };
+
+  appendCombatTurnLogEntry(next, {
+    eventId: getTerminalCombatTurnLogEventId("lost"),
+    turn: Math.max(1, state.turn),
+    summary: next.lastTurn,
+    hero: {
+      hp: next.hero.hp,
+      mana: next.hero.mana
+    },
+    monster: {
+      hp: next.monster.hp
+    }
+  });
+
+  return next;
 }
 
 function findMonster(monsterId: string): MonsterContent | null {

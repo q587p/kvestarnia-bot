@@ -23,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Fixed
 - Gift accept rereads ownership, equipment, content fingerprint, active combat leases, remort counts, location state and competing reservations inside the transaction before moving the unit.
+- Duplicate gift creates for the same sender and `itemId` now serialize on the sender stack and converge to one live pending reservation plus one controlled stale result.
 - Duplicate accept replays the completed gift instead of moving another unit.
 - Decline, cancel and expiry race losers now replay the canonical stored transfer state instead of reporting the originally requested terminal action.
 - Decline, cancel and expiry leave the sender item untouched and release the gift reservation.
@@ -30,6 +31,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Gift flow and terminal result cards now return to the actor's current location instead of always sending them to the Shynok.
 - Pending Barrel raid rating and news shortcuts now bypass the pending-raid blocker, so waiting players can actually read them from the raid card.
 - Shynok social-round cards keep the generosity rating visible even when the player cannot afford the frozen round price.
+- Active persistent fights found with hero combat HP at `0` now terminalize as canonical losses through the existing settlement path, so `/fight` and old attack callbacks cannot keep an active attack surface or stuck lease.
 
 ## [0.1.25] - 12026-06-24 - Phase 2 MVP Closeout
 
