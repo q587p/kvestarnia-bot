@@ -224,11 +224,12 @@ describe("fight presenter", () => {
     expect(intro).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
     expect(intro).toContain("Проти вас: <b>&lt;i&gt;Монстр&lt;/i&gt;</b> · рівень 3");
     expect(intro).toContain("поки не видає нагород");
+    expect(intro).toContain("<i>Порада дня:");
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
     expect(text).toContain("⚔️ <b>Бій</b>");
     expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
-    expect(text).toContain("<i>Порада дня:");
+    expect(text).not.toContain("<i>Порада дня:");
     expect(text).not.toContain("📋 <b>Тринадцять дрібних проблем</b>");
     expect(text).not.toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
@@ -244,7 +245,7 @@ describe("fight presenter", () => {
   });
 
   it("marks the reloaded living primary enemy as the target", () => {
-    const text = presentPersistentFight({
+    const result = {
       state: "persistent-active",
       character,
       session: persistentSession({
@@ -283,10 +284,18 @@ describe("fight presenter", () => {
         tags: ["test"]
       },
       questProgress: questProgress(4)
-    });
+    } as const;
+    const intro = presentPersistentFightIntro(result);
+    const text = presentPersistentFight(result);
+
+    expect(intro).toContain("Проти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
+    expect(intro).toContain("<i>Порада дня:");
+    expect(intro).not.toContain("<i>Другий</i>");
+    expect(intro).not.toContain("<b>Перший</b>");
 
     expect(text).toContain("👹 1. &lt;i&gt;Другий&lt;/i&gt;: 7/16 ← ціль");
     expect(text).toContain("👹 2. &lt;b&gt;Перший&lt;/b&gt;: 0/18");
+    expect(text).not.toContain("<i>Порада дня:");
     expect(text).not.toContain("<i>Другий</i>");
     expect(text).not.toContain("<b>Перший</b>");
   });

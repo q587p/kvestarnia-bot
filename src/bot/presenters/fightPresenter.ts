@@ -240,19 +240,44 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
 export function presentPersistentFightIntro(
   result: Extract<FightLookupResult, { state: "persistent-active" }>
 ): string {
-  const monsterLevel = result.monster?.level ? ` · рівень ${result.monster.level}` : "";
   const lines = [
     "⚔️ Бій",
     presentCharacterHeader(result.character),
     "",
     "Бій триває. Корчма тримає рахунок ходів, але поки не видає нагород."
   ];
-  lines.push(
-    "",
-    `Проти вас: <b>${escapeHtml(result.monster?.name ?? "Невідомий монстр")}</b>${monsterLevel}`
-  );
+  lines.push("", ...presentPersistentFightIntroOpponents(result));
+
+  const startTip = presentBattleStartTip(result.character, result.session.id ?? result.session.state?.id ?? "active");
+  if (startTip) {
+    lines.push("", startTip);
+  }
 
   return lines.join("\n");
+}
+
+function presentPersistentFightIntroOpponents(
+  result: Extract<FightLookupResult, { state: "persistent-active" }>
+): string[] {
+  const state = result.session.state;
+  const enemies = state?.enemies ? normalizeCombatEnemies(state) : [];
+
+  if (enemies.length > 1) {
+    return [
+      "Проти вас:",
+      ...enemies.map((enemy, index) => {
+        const level = enemy.level ? ` · рівень ${enemy.level}` : "";
+
+        return `👹 ${index + 1}. <b>${escapeHtml(enemy.name ?? "Невідомий монстр")}</b>${level}`;
+      })
+    ];
+  }
+
+  const monsterName = result.monster?.name ?? state?.monster.name ?? "Невідомий монстр";
+  const monsterLevel = result.monster?.level ?? state?.monster.level;
+  const level = monsterLevel ? ` · рівень ${monsterLevel}` : "";
+
+  return [`Проти вас: <b>${escapeHtml(monsterName)}</b>${level}`];
 }
 
 export function presentPersistentFight(
@@ -519,14 +544,6 @@ function presentPersistentFightState(input: {
 
   if (state?.status === "active" && state.turn === 1 && !state.lastTurn && state.context?.cue) {
     lines.push("", `🌗 <i>${escapeHtml(state.context.cue.text)}</i>`);
-  }
-
-  const startTip =
-    state?.status === "active" && state.turn === 1 && !state.lastTurn
-      ? presentBattleStartTip(input.character, input.session.id ?? state.id ?? "active")
-      : null;
-  if (startTip) {
-    lines.push("", startTip);
   }
 
   if (state?.lastTurn) {
