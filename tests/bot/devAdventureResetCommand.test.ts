@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { registerDevResetCommand } from "../../src/bot/commands/devResetCommand";
 import type { AdventureService } from "../../src/services/adventureService";
 import type { DevResetService } from "../../src/services/devResetService";
+import type { FightService } from "../../src/services/fightService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 
 describe("dev adventure reset command", () => {
@@ -94,6 +95,48 @@ describe("dev adventure reset command", () => {
 
     expect(replies).toEqual(["Ця команда доступна лише в локальній майстерні."]);
   });
+  it("resets the monster rest cooldown in local environments", async () => {
+    const replies: string[] = [];
+    const bot = createTestBot(replies, {
+      devReset: enabledDevReset(),
+      adventure: {
+        resetCurrentPeriodForTelegramUser: () => Promise.resolve({ state: "reset", periodToken: "period93" })
+      } as unknown as AdventureService,
+      fight: {
+        resetMonsterRestCooldownForDev: () =>
+          Promise.resolve({ state: "reset", clearedSessions: 3 })
+      } as unknown as FightService
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_reset_monster_rest"));
+
+    expect(replies).toEqual([
+      "Перерву монстрів скинуто. Низ знову вдає, що готовий до бою. Зістарено записів: 3."
+    ]);
+  });
+
+  it("keeps monster rest reset disabled in production", async () => {
+    const replies: string[] = [];
+    let called = false;
+    const bot = createTestBot(replies, {
+      devReset: disabledDevReset(),
+      adventure: {
+        resetCurrentPeriodForTelegramUser: () => Promise.resolve({ state: "reset", periodToken: "period93" })
+      } as unknown as AdventureService,
+      fight: {
+        resetMonsterRestCooldownForDev: () => {
+          called = true;
+          return Promise.resolve({ state: "reset", clearedSessions: 3 });
+        }
+      } as unknown as FightService
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_reset_monster_rest"));
+
+    expect(called).toBe(false);
+    expect(replies).toHaveLength(1);
+    expect(replies[0]).toContain("локаль");
+  });
 });
 
 function createTestBot(
@@ -102,6 +145,7 @@ function createTestBot(
     devReset: Pick<DevResetService, "isEnabled" | "resetCurrentUser">;
     adventure: Pick<AdventureService, "resetCurrentPeriodForTelegramUser">;
     tavern?: Pick<TavernRaidService, "stopPendingFridayBarrelRaidForDev">;
+    fight?: Pick<FightService, "getOrStartPersistentFightForTelegramUser" | "resetMonsterRestCooldownForDev">;
   }
 ): Bot {
   const bot = new Bot("test-token", {
@@ -126,7 +170,8 @@ function createTestBot(
     bot,
     services.devReset as DevResetService,
     services.adventure,
-    services.tavern
+    services.tavern,
+    services.fight
   );
   return bot;
 }

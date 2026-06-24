@@ -1167,6 +1167,72 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     ]);
   });
 
+  it("clears monster rest cooldown by aging recent ordinary completion times", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-monster-rest-clear",
+      characterId: "character-monster-rest-clear",
+      telegramUserId: 4255n
+    });
+    await seedCharacter(prisma, {
+      userId: "user-monster-rest-other",
+      characterId: "character-monster-rest-other",
+      telegramUserId: 4256n
+    });
+    const since = new Date("2026-06-22T11:00:00.000Z");
+    const agedCompletedAt = new Date("2026-06-22T10:59:59.999Z");
+    await prisma.soloCombatSession.createMany({
+      data: [
+        makeSoloSessionData({
+          id: "monster-rest-clear-normal-a",
+          characterId: "character-monster-rest-clear",
+          monsterId: "monster.deadline-spider",
+          status: "won",
+          source: "normal",
+          completedAt: new Date("2026-06-22T11:01:00.000Z"),
+          updatedAt: new Date("2026-06-22T11:01:00.000Z")
+        }),
+        makeSoloSessionData({
+          id: "monster-rest-clear-normal-b",
+          characterId: "character-monster-rest-clear",
+          monsterId: "monster.preapproval-dragonling",
+          status: "lost",
+          source: "normal",
+          completedAt: new Date("2026-06-22T11:02:00.000Z"),
+          updatedAt: new Date("2026-06-22T11:02:00.000Z")
+        }),
+        makeSoloSessionData({
+          id: "monster-rest-clear-adventure",
+          characterId: "character-monster-rest-clear",
+          monsterId: "monster.paper-golem",
+          status: "won",
+          source: "adventure",
+          completedAt: new Date("2026-06-22T11:03:00.000Z"),
+          updatedAt: new Date("2026-06-22T11:03:00.000Z")
+        }),
+        makeSoloSessionData({
+          id: "monster-rest-clear-other-user",
+          characterId: "character-monster-rest-other",
+          monsterId: "monster.deadline-spider",
+          status: "won",
+          source: "normal",
+          completedAt: new Date("2026-06-22T11:04:00.000Z"),
+          updatedAt: new Date("2026-06-22T11:04:00.000Z")
+        })
+      ]
+    });
+
+    await expect(repository.clearMonsterRestCooldownForTelegramUser(4255n, {
+      since,
+      completedAt: agedCompletedAt
+    })).resolves.toBe(2);
+    await expect(repository.listCompletedByTelegramUserIdSince(4255n, since)).resolves.toMatchObject([
+      { monsterId: "monster.paper-golem", status: "won" }
+    ]);
+    await expect(repository.listCompletedByTelegramUserIdSince(4256n, since)).resolves.toMatchObject([
+      { monsterId: "monster.deadline-spider", status: "won" }
+    ]);
+  });
+
   it("scans past newer active and non-ordinary sessions for recent ordinary monsters", async () => {
     await seedCharacter(prisma, {
       userId: "user-history",

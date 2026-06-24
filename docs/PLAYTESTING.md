@@ -403,6 +403,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_add_level [число]` — у локальному режимі додає вказану кількість рівнів; без числа додає 1 рівень.
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
+- `/dev_reset_monster_rest` — у локальному режимі скидає коротку перерву монстрів після серії ordinary боїв у Низі.
 - `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation без production threat escalation.
 
 ## `0.1.0` Phase 1 Definition of Done

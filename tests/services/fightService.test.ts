@@ -3031,6 +3031,53 @@ describe("FightService", () => {
     });
   });
 
+  it("resets the monster rest cooldown for local dev commands", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:40.000Z"),
+      new Date("2026-06-12T10:29:41.000Z"),
+      new Date("2026-06-12T10:29:42.000Z")
+    ].entries()) {
+      const session = makeTerminalSession(
+        "won",
+        `ordinary-dev-reset-${index + 1}`,
+        `character-${telegramUserId.toString()}`,
+        "monster.deadline-spider",
+        {
+          createdAt: new Date("2026-06-12T10:28:00.000Z"),
+          updatedAt: completedAt
+        }
+      );
+      sessions.addSession({
+        ...session,
+        state: {
+          ...session.state!,
+          source: "normal"
+        }
+      });
+    }
+
+    await expect(service.getFightOverviewForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "monster-rest"
+    });
+
+    await expect(service.resetMonsterRestCooldownForDev(telegramUserId)).resolves.toEqual({
+      state: "reset",
+      clearedSessions: 3
+    });
+
+    await expect(service.getFightOverviewForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "persistent-ready"
+    });
+  });
+
   it("keeps monster rest active until the exact third-completion boundary", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -4972,6 +5019,42 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
           completedAt
         }];
       });
+  }
+
+  async clearMonsterRestCooldownForTelegramUser(
+    telegramUserId: bigint,
+    input: { since: Date; completedAt: Date }
+  ): Promise<number> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return 0;
+    }
+
+    let updated = 0;
+    for (const session of this.sessions.values()) {
+      const completedAt = getSessionCompletionTime(session);
+      const state = session.state;
+      if (
+        session.characterId !== character.id ||
+        state?.source !== "normal" ||
+        !completedAt ||
+        completedAt < input.since
+      ) {
+        continue;
+      }
+
+      this.sessions.set(session.id, {
+        ...session,
+        state: {
+          ...state,
+          completedAt: input.completedAt.toISOString()
+        }
+      });
+      updated += 1;
+    }
+
+    return updated;
   }
 
   async listRecentOrdinaryMonsterIdsByTelegramUserId(

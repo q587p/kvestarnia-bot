@@ -261,6 +261,12 @@ export interface PersistentFightReward {
   itemReplayUnavailable?: boolean;
 }
 
+export type DevMonsterRestCooldownResetResult =
+  | { state: "reset"; clearedSessions: number }
+  | { state: "no-cooldown" }
+  | { state: "no-character" }
+  | { state: "unavailable" };
+
 export type ProblemQuestTurnInLookupResult =
   | { state: "no-character" }
   | { state: "not-ready"; character: CharacterSummary; progress: ProblemQuestProgress }
@@ -676,6 +682,42 @@ export class FightService {
     options: PersistentFightStartOptions = {}
   ): Promise<FightLookupResult> {
     return this.getFightForTelegramUser(telegramUserId, options);
+  }
+
+  async resetMonsterRestCooldownForDev(
+    telegramUserId: bigint
+  ): Promise<DevMonsterRestCooldownResetResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    if (!this.combatSessions?.clearMonsterRestCooldownForTelegramUser) {
+      return { state: "unavailable" };
+    }
+
+    const cooldown = await this.getMonsterRestCooldown(telegramUserId, "normal");
+
+    if (!cooldown) {
+      return { state: "no-cooldown" };
+    }
+
+    const since = new Date(
+      cooldown.now.getTime() - MONSTER_REST_COOLDOWN_MS * MONSTER_REST_ELIGIBLE_FIGHT_COUNT
+    );
+    const completedAt = new Date(since.getTime() - 1);
+    const clearedSessions = await this.combatSessions.clearMonsterRestCooldownForTelegramUser(
+      telegramUserId,
+      {
+        since,
+        completedAt
+      }
+    );
+
+    return clearedSessions > 0
+      ? { state: "reset", clearedSessions }
+      : { state: "no-cooldown" };
   }
 
   async previewPersistentFightForTelegramUser(

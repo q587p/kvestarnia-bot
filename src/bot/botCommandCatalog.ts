@@ -216,6 +216,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "reset"
   },
   {
+    command: "dev_reset_monster_rest",
+    icon: "⌛",
+    description: "скинути перерву монстрів локально",
+    includeInMenu: false,
+    devOnly: "reset"
+  },
+  {
     command: "dev_two_enemies",
     icon: "🧬",
     description: "почати локальний бій із двома ворогами",

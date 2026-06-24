@@ -238,6 +238,71 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     });
   }
 
+  async clearMonsterRestCooldownForTelegramUser(
+    telegramUserId: bigint,
+    input: { since: Date; completedAt: Date }
+  ): Promise<number> {
+    const records = await this.prisma.soloCombatSession.findMany({
+      where: {
+        OR: [{ updatedAt: { gte: input.since } }, { createdAt: { gte: input.since } }],
+        character: {
+          user: {
+            telegramUserId
+          }
+        }
+      },
+      orderBy: {
+        updatedAt: "asc"
+      },
+      select: {
+        id: true,
+        status: true,
+        stateJson: true,
+        createdAt: true
+      }
+    });
+
+    const completedAt = input.completedAt.toISOString();
+    const updates = records.flatMap((record) => {
+      const status = parseStatus(record.status);
+      const state = parseCombatState(record.stateJson);
+      const sessionCompletedAt = getSessionCompletionTime({
+        status,
+        state,
+        createdAt: record.createdAt
+      });
+
+      if (!state || state.source !== "normal" || !sessionCompletedAt || sessionCompletedAt < input.since) {
+        return [];
+      }
+
+      if (status === "won" && !isVictoryProgressEligible(status, state)) {
+        return [];
+      }
+
+      return [{
+        id: record.id,
+        stateJson: {
+          ...state,
+          completedAt
+        } as unknown as Prisma.InputJsonValue
+      }];
+    });
+
+    for (const update of updates) {
+      await this.prisma.soloCombatSession.update({
+        where: {
+          id: update.id
+        },
+        data: {
+          stateJson: update.stateJson
+        }
+      });
+    }
+
+    return updates.length;
+  }
+
   async listRecentOrdinaryMonsterIdsByTelegramUserId(
     telegramUserId: bigint,
     limit: number
