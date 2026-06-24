@@ -5,7 +5,7 @@ export type ItemGiftCallback =
   | { type: "open"; page: number }
   | { type: "select-target"; targetTelegramUserId: bigint; page: number }
   | { type: "select-page"; targetTelegramUserId: bigint; page: number }
-  | { type: "create"; targetTelegramUserId: bigint; page: number; index: number }
+  | { type: "create"; targetTelegramUserId: bigint; page: number; index: number; selectionGuard: string }
   | { type: "accept"; token: string }
   | { type: "decline"; token: string }
   | { type: "cancel"; token: string };
@@ -18,12 +18,14 @@ export type ItemGiftCallbackError =
   | "invalid-target"
   | "invalid-page"
   | "invalid-index"
+  | "invalid-selection"
   | "too-long";
 
 const PREFIX = "v1:gift";
 const pagePattern = /^[0-9a-z]{1,3}$/;
 const targetPattern = /^[0-9a-z]{1,13}$/;
 const indexPattern = /^[0-9a-z]{1,3}$/;
+const selectionGuardPattern = /^[0-9A-Za-z_-]{8,16}$/;
 const tokenPattern = /^[0-9A-Za-z_-]{8,64}$/;
 
 export function makeItemGiftOpenCallbackData(page = 0): string {
@@ -38,8 +40,13 @@ export function makeItemGiftSelectionPageCallbackData(targetTelegramUserId: bigi
   return `${PREFIX}:sp:${targetTelegramUserId.toString(36)}:${page.toString(36)}`;
 }
 
-export function makeItemGiftCreateCallbackData(targetTelegramUserId: bigint, page: number, index: number): string {
-  return `${PREFIX}:i:${targetTelegramUserId.toString(36)}:${page.toString(36)}:${index.toString(36)}`;
+export function makeItemGiftCreateCallbackData(
+  targetTelegramUserId: bigint,
+  page: number,
+  index: number,
+  selectionGuard: string
+): string {
+  return `${PREFIX}:i:${targetTelegramUserId.toString(36)}:${page.toString(36)}:${index.toString(36)}:${selectionGuard}`;
 }
 
 export function makeItemGiftAcceptCallbackData(token: string): string {
@@ -73,7 +80,7 @@ export function parseItemGiftCallbackData(
     return err("invalid-prefix");
   }
 
-  const [, section, action, first, second, third, ...rest] = data.split(":");
+  const [, section, action, first, second, third, fourth, ...rest] = data.split(":");
   if (section !== "gift" || rest.length > 0) {
     return err("invalid-prefix");
   }
@@ -90,7 +97,7 @@ export function parseItemGiftCallbackData(
     if (!first || !targetPattern.test(first)) {
       return err("invalid-target");
     }
-    if (!second || !pagePattern.test(second) || third !== undefined) {
+    if (!second || !pagePattern.test(second) || third !== undefined || fourth !== undefined) {
       return err("invalid-page");
     }
 
@@ -111,12 +118,16 @@ export function parseItemGiftCallbackData(
     if (!third || !indexPattern.test(third)) {
       return err("invalid-index");
     }
+    if (!fourth || !selectionGuardPattern.test(fourth) || rest.length > 0) {
+      return err("invalid-selection");
+    }
 
     return ok({
       type: "create",
       targetTelegramUserId: parseBase36BigInt(first),
       page: Number.parseInt(second, 36),
-      index: Number.parseInt(third, 36)
+      index: Number.parseInt(third, 36),
+      selectionGuard: fourth
     });
   }
 

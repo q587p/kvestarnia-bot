@@ -63,6 +63,7 @@ export async function handleItemGiftCallback(
       telegramUserId,
       callback.targetTelegramUserId,
       callback.index,
+      callback.selectionGuard,
       callback.page
     );
     await safeAnswerCallbackQuery(ctx, result.state === "created"

@@ -27,6 +27,7 @@ import {
   isShynokDrinkKey
 } from "../../domain/shynokDrinks";
 import { buildMantokSaleBasket, buildMantokSaleEligibleStacks } from "../../domain/mantokSales";
+import { findActiveTransferReservedItems } from "./itemTransferReservations";
 
 type TxClient = Prisma.TransactionClient;
 const PRESENCE_LOCATION_KORCHMA_BAR = "location.korchma.bar";
@@ -63,8 +64,11 @@ export class PrismaShynokRepository implements ShynokRepository {
     return character ? toAccessSnapshot(character) : null;
   }
 
-  async getInventorySnapshotForTelegramUser(telegramUserId: bigint): Promise<ShynokInventorySnapshot | null> {
-    return this.prisma.$transaction((tx) => getInventorySnapshot(tx, telegramUserId));
+  async getInventorySnapshotForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<ShynokInventorySnapshot | null> {
+    return this.prisma.$transaction((tx) => getInventorySnapshot(tx, telegramUserId, now));
   }
 
   async getActiveDrinkForTelegramUser(
@@ -901,7 +905,7 @@ export class PrismaShynokRepository implements ShynokRepository {
   ): Promise<ShynokConfirmSaleResult> {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const snapshot = await getInventorySnapshot(tx, telegramUserId);
+        const snapshot = await getInventorySnapshot(tx, telegramUserId, input.now);
 
         if (!snapshot) {
           return { state: "no-character" };
@@ -1090,7 +1094,11 @@ export class PrismaShynokRepository implements ShynokRepository {
   }
 }
 
-async function getInventorySnapshot(tx: TxClient, telegramUserId: bigint): Promise<ShynokInventorySnapshot | null> {
+async function getInventorySnapshot(
+  tx: TxClient,
+  telegramUserId: bigint,
+  now: Date
+): Promise<ShynokInventorySnapshot | null> {
   const character = await findCharacter(tx, telegramUserId);
   if (!character) {
     return null;
@@ -1113,7 +1121,10 @@ async function getInventorySnapshot(tx: TxClient, telegramUserId: bigint): Promi
       where: { characterId: character.id, status: "pending" },
       select: { inputItemsJson: true }
     }),
-    findPendingTransferItems(tx, character.id)
+    findActiveTransferReservedItems(tx, {
+      senderCharacterId: character.id,
+      now
+    })
   ]);
   const reservedItemIds = new Set<string>();
   for (const run of pendingChestRuns) {
@@ -1136,18 +1147,6 @@ async function getInventorySnapshot(tx: TxClient, telegramUserId: bigint): Promi
     equippedItemIds: equipment.map((row) => row.itemId),
     reservedItemIds: [...reservedItemIds]
   };
-}
-
-function findPendingTransferItems(tx: TxClient, characterId: string): Promise<Array<{ itemId: string }>> {
-  const itemTransfer = (tx as TxClient & { itemTransfer?: TxClient["itemTransfer"] }).itemTransfer;
-  if (!itemTransfer) {
-    return Promise.resolve([]);
-  }
-
-  return itemTransfer.findMany({
-    where: { senderCharacterId: characterId, status: { in: ["pending", "processing"] } },
-    select: { itemId: true }
-  });
 }
 
 async function auditExpiredQueuedDrink(

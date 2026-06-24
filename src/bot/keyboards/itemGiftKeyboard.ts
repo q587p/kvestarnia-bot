@@ -57,7 +57,10 @@ export function buildItemGiftSelectionKeyboard(result: ItemGiftSelectionResult):
   const keyboard = new InlineKeyboard();
   for (const item of result.items) {
     keyboard
-      .text(`🎁 ${buttonName(item.content.name)}`, makeItemGiftCreateCallbackData(result.target.telegramUserId, result.page, item.index))
+      .text(
+        `🎁 ${buttonName(item.content.name)}`,
+        makeItemGiftCreateCallbackData(result.target.telegramUserId, result.page, item.index, item.selectionGuard)
+      )
       .row();
   }
 

@@ -5,6 +5,36 @@ const telegramUserId = 42n;
 const fixedNow = new Date("2026-06-15T07:30:00.000Z");
 
 describe("PrismaMantokChestRepository", () => {
+  it("ignores expired untouched pending gift reservations in snapshots", async () => {
+    const prisma = new FakeMantokChestPrisma();
+    prisma.disableConcurrencyGate = true;
+    prisma.transferReservations = [{
+      itemId: "item.suspicious-shawarma-wrapper",
+      status: "pending",
+      expiresAt: new Date("2026-06-15T07:29:59.000Z")
+    }];
+    const repository = new PrismaMantokChestRepository(prisma.client);
+
+    const snapshot = await repository.getSnapshotForTelegramUser(telegramUserId, fixedNow);
+
+    expect(snapshot?.reservedItemIds).not.toContain("item.suspicious-shawarma-wrapper");
+  });
+
+  it("keeps processing gift reservations in Mantok Chest snapshots", async () => {
+    const prisma = new FakeMantokChestPrisma();
+    prisma.disableConcurrencyGate = true;
+    prisma.transferReservations = [{
+      itemId: "item.suspicious-shawarma-wrapper",
+      status: "processing",
+      expiresAt: new Date("2026-06-15T07:29:59.000Z")
+    }];
+    const repository = new PrismaMantokChestRepository(prisma.client);
+
+    const snapshot = await repository.getSnapshotForTelegramUser(telegramUserId, fixedNow);
+
+    expect(snapshot?.reservedItemIds).toContain("item.suspicious-shawarma-wrapper");
+  });
+
   it("guards the same token so concurrent confirms consume and output only once", async () => {
     const prisma = new FakeMantokChestPrisma();
     const repository = new PrismaMantokChestRepository(prisma.client);
@@ -38,6 +68,9 @@ describe("PrismaMantokChestRepository", () => {
 });
 
 class FakeMantokChestPrisma {
+  transferReservations: FakeTransferReservation[] = [];
+  disableConcurrencyGate = false;
+
   private readonly shared = {
     character: {
       id: "character-1",
@@ -96,11 +129,11 @@ class FakeMantokChestPrisma {
         findFirst: async (input: { where: { user: { telegramUserId: bigint } } }) => {
           this.characterFindFirstCount += 1;
 
-          if (this.characterFindFirstCount === 1) {
+          if (!this.disableConcurrencyGate && this.characterFindFirstCount === 1) {
             await new Promise<void>((resolve) => {
               this.releaseCharacterFindFirst = resolve;
             });
-          } else if (this.characterFindFirstCount === 2) {
+          } else if (!this.disableConcurrencyGate && this.characterFindFirstCount === 2) {
             this.releaseCharacterFindFirst?.();
             this.releaseCharacterFindFirst = null;
           }
@@ -259,6 +292,12 @@ class FakeMantokChestPrisma {
 
           return input.where.characterId === this.shared.character.id ? equipmentView.map((row) => ({ ...row })) : [];
         }
+      },
+      itemTransfer: {
+        findMany: (input: FakeTransferReservationFindManyInput) =>
+          Promise.resolve(this.transferReservations
+            .filter((row) => isReservedByInput(row, input))
+            .map((row) => ({ itemId: row.itemId })))
       }
     };
   }
@@ -296,6 +335,22 @@ interface FakeMantokChestTx {
   };
   characterEquipment: {
     findMany: (input: { where: { characterId: string } }) => Promise<Array<{ characterId: string; itemId: string }>>;
+  };
+  itemTransfer?: {
+    findMany: (input: FakeTransferReservationFindManyInput) => Promise<Array<{ itemId: string }>>;
+  };
+}
+
+interface FakeTransferReservation {
+  itemId: string;
+  status: string;
+  expiresAt: Date;
+}
+
+interface FakeTransferReservationFindManyInput {
+  where: {
+    senderCharacterId: string;
+    OR: Array<{ status: string; expiresAt?: { gt: Date } }>;
   };
 }
 
@@ -338,4 +393,14 @@ function cloneRun(run: FakeMantokChestRun): FakeMantokChestRun {
 
 function cloneItem(item: FakeMantokChestItem): FakeMantokChestItem {
   return { ...item };
+}
+
+function isReservedByInput(
+  row: FakeTransferReservation,
+  input: FakeTransferReservationFindManyInput
+): boolean {
+  void input;
+
+  return row.status === "processing" ||
+    (row.status === "pending" && row.expiresAt > fixedNow);
 }

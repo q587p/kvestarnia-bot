@@ -10,8 +10,8 @@ import type {
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   buildItemGiftEligibleStacks,
+  createItemGiftSelectionGuard,
   ITEM_GIFT_PAGE_SIZE,
-  selectGiftStackByIndex,
   type ItemGiftEligibleStack
 } from "../domain/itemTransfers";
 import type { NearbyDuelCandidatesSnapshot, PresencePerson, PresenceService } from "./presenceService";
@@ -60,6 +60,7 @@ export interface PresentedGiftItem {
   itemId: string;
   quantity: number;
   content: ItemContent;
+  selectionGuard: string;
 }
 
 export const ITEM_GIFT_TTL_MS = 23 * 60 * 1000;
@@ -85,7 +86,7 @@ export class ItemTransferService {
       return { state: "target-not-found" };
     }
 
-    const snapshot = await this.transfers.getSnapshotForTelegramUser(telegramUserId);
+    const snapshot = await this.transfers.getSnapshotForTelegramUser(telegramUserId, this.clock());
     if (!snapshot) {
       return { state: "no-character" };
     }
@@ -123,13 +124,15 @@ export class ItemTransferService {
     telegramUserId: bigint,
     targetTelegramUserId: bigint,
     index: number,
+    selectionGuard: string,
     page = 0
   ): Promise<ItemGiftCreateResult> {
     if (!(await this.presence.isNearbyDuelTargetAvailable(telegramUserId, targetTelegramUserId))) {
       return { state: "target-not-found" };
     }
 
-    const snapshot = await this.transfers.getSnapshotForTelegramUser(telegramUserId);
+    const now = this.clock();
+    const snapshot = await this.transfers.getSnapshotForTelegramUser(telegramUserId, now);
     if (!snapshot) {
       return { state: "no-character" };
     }
@@ -140,14 +143,14 @@ export class ItemTransferService {
       reservedItemIds: new Set(snapshot.reservedItemIds),
       itemContents: items
     }));
-    const selected = selectGiftStackByIndex(eligible, index);
+    const selected = selectGiftStackByGuard(eligible, selectionGuard);
 
     if (!selected) {
-      return eligible.length === 0 ? { state: "no-items" } : { state: "stale-selection" };
+      return { state: "stale-selection" };
     }
 
+    void index;
     void page;
-    const now = this.clock();
     const result = await this.transfers.createGiftForTelegramUser(telegramUserId, {
       token: randomUUID(),
       receiverTelegramUserId: targetTelegramUserId,
@@ -235,8 +238,26 @@ function presentGiftItem(item: ItemGiftEligibleStack, index: number): PresentedG
     index,
     itemId: item.itemId,
     quantity: item.quantity,
-    content: item.content
+    content: item.content,
+    selectionGuard: createItemGiftSelectionGuard({
+      itemId: item.itemId,
+      fingerprint: item.fingerprint
+    })
   };
+}
+
+function selectGiftStackByGuard(
+  stacks: readonly ItemGiftEligibleStack[],
+  selectionGuard: string
+): ItemGiftEligibleStack | null {
+  const matches = stacks.filter((stack) =>
+    createItemGiftSelectionGuard({
+      itemId: stack.itemId,
+      fingerprint: stack.fingerprint
+    }) === selectionGuard
+  );
+
+  return matches.length === 1 ? matches[0]! : null;
 }
 
 function mapCreateResult(result: ItemTransferCreateResult): ItemGiftCreateResult {

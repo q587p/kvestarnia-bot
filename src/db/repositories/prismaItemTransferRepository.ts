@@ -15,6 +15,7 @@ import type {
   ItemTransferSnapshot,
   ItemTransferStatus
 } from "./itemTransferRepository";
+import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 
 type TxClient = Prisma.TransactionClient;
@@ -22,8 +23,8 @@ type TxClient = Prisma.TransactionClient;
 export class PrismaItemTransferRepository implements ItemTransferRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async getSnapshotForTelegramUser(telegramUserId: bigint): Promise<ItemTransferSnapshot | null> {
-    return this.prisma.$transaction((tx) => getSnapshot(tx, telegramUserId));
+  async getSnapshotForTelegramUser(telegramUserId: bigint, now: Date): Promise<ItemTransferSnapshot | null> {
+    return this.prisma.$transaction((tx) => getSnapshot(tx, telegramUserId, now));
   }
 
   async createGiftForTelegramUser(
@@ -58,7 +59,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
       const [items, equipment, reservedItemIds] = await Promise.all([
         getItems(tx, sender.id),
         getEquippedItemIds(tx, sender.id),
-        getReservedItemIds(tx, sender.id)
+        getReservedItemIds(tx, sender.id, input.now)
       ]);
       const eligible = buildItemGiftEligibleStacks({
         stacks: items,
@@ -197,7 +198,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         const [items, equipment, reservedItemIds] = await Promise.all([
           getItems(tx, sender.id),
           getEquippedItemIds(tx, sender.id),
-          getReservedItemIds(tx, sender.id, transfer.id)
+          getReservedItemIds(tx, sender.id, input.now, transfer.id)
         ]);
         const eligible = buildItemGiftEligibleStacks({
           stacks: items,
@@ -357,7 +358,7 @@ const characterInclude = {
   }
 };
 
-async function getSnapshot(tx: TxClient, telegramUserId: bigint): Promise<ItemTransferSnapshot | null> {
+async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Promise<ItemTransferSnapshot | null> {
   const character = await findCharacter(tx, telegramUserId);
   if (!character) {
     return null;
@@ -366,7 +367,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint): Promise<ItemTr
   const [items, equippedItemIds, reservedItemIds] = await Promise.all([
     getItems(tx, character.id),
     getEquippedItemIds(tx, character.id),
-    getReservedItemIds(tx, character.id)
+    getReservedItemIds(tx, character.id, now)
   ]);
 
   return {
@@ -407,6 +408,7 @@ async function getEquippedItemIds(tx: TxClient, characterId: string): Promise<st
 async function getReservedItemIds(
   tx: TxClient,
   characterId: string,
+  now: Date,
   exceptTransferId?: string
 ): Promise<string[]> {
   const [pendingChestRuns, pendingLevelBarters, pendingSales, pendingTransfers] = await Promise.all([
@@ -422,13 +424,10 @@ async function getReservedItemIds(
       where: { characterId, status: { in: ["pending", "processing"] } },
       select: { selectionJson: true }
     }),
-    tx.itemTransfer.findMany({
-      where: {
-        senderCharacterId: characterId,
-        status: { in: ["pending", "processing"] },
-        ...(exceptTransferId ? { id: { not: exceptTransferId } } : {})
-      },
-      select: { itemId: true }
+    findActiveTransferReservedItems(tx, {
+      senderCharacterId: characterId,
+      now,
+      ...(exceptTransferId ? { exceptTransferId } : {})
     })
   ]);
   const reserved = new Set<string>();

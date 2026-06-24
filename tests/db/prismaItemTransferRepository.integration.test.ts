@@ -238,6 +238,30 @@ describe("PrismaItemTransferRepository integration", () => {
     await expectQuantities({ sender: 2, receiver: 0 });
   });
 
+  it("releases an untouched expired pending gift reservation for a later gift", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedItem("sender", 2);
+
+    await expect(createGift("gift-token-1", past())).resolves.toMatchObject({ state: "created" });
+    await expect(createGift("gift-token-2", future())).resolves.toMatchObject({ state: "created" });
+    await expectQuantities({ sender: 2, receiver: 0 });
+  });
+
+  it("keeps processing gifts reserved even after their expiry time", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedItem("sender", 2);
+    await createGift("gift-token-1", past());
+    await prisma.itemTransfer.update({
+      where: { token: "gift-token-1" },
+      data: { status: "processing", updatedAt: now() }
+    });
+
+    await expect(createGift("gift-token-2", future())).resolves.toMatchObject({ state: "stale-selection" });
+    await expectQuantities({ sender: 2, receiver: 0 });
+  });
+
   it("expires a stale gift without moving the item", async () => {
     await seedCharacter(1n, "sender", "Дарувальник");
     await seedCharacter(2n, "receiver", "Отримувач");
@@ -252,6 +276,39 @@ describe("PrismaItemTransferRepository integration", () => {
     });
 
     expect(result.state).toBe("expired");
+    await expectQuantities({ sender: 1, receiver: 0 });
+  });
+
+  it("canonicalizes old decline and cancel callbacks after passive expiry", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedItem("sender", 1);
+    await createGift("gift-token-1", past());
+
+    const decline = await repository.declineGiftForTelegramUser(2n, "gift-token-1", now());
+    const cancel = await repository.cancelGiftForTelegramUser(1n, "gift-token-1", now());
+
+    expect(decline).toMatchObject({ state: "expired", transfer: { status: "expired" } });
+    expect(cancel).toMatchObject({ state: "expired", transfer: { status: "expired" } });
+    await expectQuantities({ sender: 1, receiver: 0 });
+  });
+
+  it("rejects create when the item fingerprint no longer matches the rendered card", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedItem("sender", 1);
+
+    const result = await repository.createGiftForTelegramUser(1n, {
+      token: "gift-token-1",
+      receiverTelegramUserId: 2n,
+      item,
+      itemFingerprint: createItemGiftFingerprint({ ...item, name: "Old rendered spoon" }),
+      now: now(),
+      expiresAt: future()
+    });
+
+    expect(result.state).toBe("stale-selection");
+    await expect(prisma.itemTransfer.count()).resolves.toBe(0);
     await expectQuantities({ sender: 1, receiver: 0 });
   });
 

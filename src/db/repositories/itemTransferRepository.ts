@@ -69,7 +69,7 @@ export type ItemTransferRespondResult =
   | { state: "replayed"; transfer: ItemTransferRecord; sender: CharacterRecord | null; receiver: CharacterRecord | null };
 
 export interface ItemTransferRepository {
-  getSnapshotForTelegramUser(telegramUserId: bigint): Promise<ItemTransferSnapshot | null>;
+  getSnapshotForTelegramUser(telegramUserId: bigint, now: Date): Promise<ItemTransferSnapshot | null>;
   createGiftForTelegramUser(
     senderTelegramUserId: bigint,
     input: ItemTransferCreateInput

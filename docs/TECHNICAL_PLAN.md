@@ -273,7 +273,7 @@ Rules:
 - Telegram edit/send failures may fall back to a fresh message, but never roll back or duplicate gameplay state.
 
 ### item_transfers
-Shipped first in `0.2.0` for safe one-unit gifts. This is not bilateral trade: callbacks carry only short action data and server-owned tokens, while the row freezes sender/receiver/item names, remort counts, item fingerprint, result data and terminal status. Because inventory is still stack-based by `itemId`, one pending/processing gift reserves the sender's whole `itemId` stack until it completes, declines, cancels or expires. Shynok sale, Mantok Chest, Munchkin barter and future item sinks must treat pending/processing transfers as active whole-stack reservations.
+Shipped first in `0.2.0` for safe one-unit gifts. This is not bilateral trade: callbacks carry only short action data and server-owned tokens, while the row freezes sender/receiver/item names, remort counts, item fingerprint, result data and terminal status. Sender item create callbacks include a compact server-derived selection guard for the exact `itemId` + item fingerprint rendered on the card; the create path recomputes live eligibility and must return `stale-selection` rather than falling through to a shifted index. Because inventory is still stack-based by `itemId`, one `processing` gift, or one `pending` gift with `expires_at > now`, reserves the sender's whole `itemId` stack until it completes, declines, cancels or expires. Shynok sale, Mantok Chest, Munchkin barter and future item sinks must use the same active-transfer reservation contract. Expired untouched `pending` rows may remain for callback replay, but they must no longer reserve inventory.
 
 - `id` UUID
 - `sender_character_id` FK

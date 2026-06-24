@@ -5,6 +5,34 @@ const telegramUserId = 42n;
 const fixedNow = new Date("2026-06-16T09:30:00.000Z");
 
 describe("PrismaLevelBarterRepository", () => {
+  it("ignores expired untouched pending gift reservations in snapshots", async () => {
+    const prisma = new FakeLevelBarterPrisma();
+    prisma.transferReservations = [{
+      itemId: "item.pan-of-persuasion",
+      status: "pending",
+      expiresAt: new Date("2026-06-16T09:29:59.000Z")
+    }];
+    const repository = new PrismaLevelBarterRepository(prisma.client);
+
+    const snapshot = await repository.getSnapshotForTelegramUser(telegramUserId, fixedNow);
+
+    expect(snapshot?.reservedItemIds).not.toContain("item.pan-of-persuasion");
+  });
+
+  it("keeps processing gift reservations in level barter snapshots", async () => {
+    const prisma = new FakeLevelBarterPrisma();
+    prisma.transferReservations = [{
+      itemId: "item.pan-of-persuasion",
+      status: "processing",
+      expiresAt: new Date("2026-06-16T09:29:59.000Z")
+    }];
+    const repository = new PrismaLevelBarterRepository(prisma.client);
+
+    const snapshot = await repository.getSnapshotForTelegramUser(telegramUserId, fixedNow);
+
+    expect(snapshot?.reservedItemIds).toContain("item.pan-of-persuasion");
+  });
+
   it("rolls back a pending exchange row when gold spend becomes stale after ledger creation", async () => {
     const prisma = new FakeLevelBarterPrisma();
     const repository = new PrismaLevelBarterRepository(prisma.client);
@@ -39,6 +67,8 @@ describe("PrismaLevelBarterRepository", () => {
 });
 
 class FakeLevelBarterPrisma {
+  transferReservations: FakeTransferReservation[] = [];
+
   private readonly initial: FakeLevelBarterState = {
     character: {
       id: "character-1",
@@ -173,6 +203,12 @@ class FakeLevelBarterPrisma {
             : []
         )
     },
+    itemTransfer: {
+      findMany: (input: FakeTransferReservationFindManyInput) =>
+        Promise.resolve(this.transferReservations
+          .filter((row) => isReservedByInput(row, input))
+          .map((row) => ({ itemId: row.itemId })))
+    },
     levelBarterExchange: {
       findUnique: (input) =>
         Promise.resolve(
@@ -243,6 +279,9 @@ interface FakeLevelBarterTx {
   };
   characterEquipment: {
     findMany: (input: { where: { characterId: string }; select: { itemId: true } }) => Promise<Array<{ itemId: string }>>;
+  };
+  itemTransfer?: {
+    findMany: (input: FakeTransferReservationFindManyInput) => Promise<Array<{ itemId: string }>>;
   };
   levelBarterExchange: {
     findUnique: (input: {
@@ -318,6 +357,19 @@ interface FakeLevelBarterExchange extends FakeLevelBarterExchangeCreateInput {
   updatedAt: Date;
 }
 
+interface FakeTransferReservation {
+  itemId: string;
+  status: string;
+  expiresAt: Date;
+}
+
+interface FakeTransferReservationFindManyInput {
+  where: {
+    senderCharacterId: string;
+    OR: Array<{ status: string; expiresAt?: { gt: Date } }>;
+  };
+}
+
 function cloneState(state: FakeLevelBarterState): FakeLevelBarterState {
   return {
     character: cloneCharacter(state.character),
@@ -338,4 +390,14 @@ function cloneCharacter(character: FakeCharacter): FakeCharacter {
     user: { ...character.user },
     statsJson: { ...character.statsJson }
   };
+}
+
+function isReservedByInput(
+  row: FakeTransferReservation,
+  input: FakeTransferReservationFindManyInput
+): boolean {
+  void input;
+
+  return row.status === "processing" ||
+    (row.status === "pending" && row.expiresAt > fixedNow);
 }

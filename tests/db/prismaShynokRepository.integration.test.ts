@@ -1029,6 +1029,48 @@ describe("PrismaShynokRepository integration", () => {
     })).resolves.toMatchObject({ status: "pending" });
   });
 
+  it("does not reserve Shynok sale items for expired untouched pending gifts", async () => {
+    await seedCharacter({ telegramUserId: 1002n, userId: "user-sale-expired-gift", characterId: "character-sale-expired-gift", gold: 10 });
+    await seedSaleItems("character-sale-expired-gift", { "item.test-copper-spoon": 1 });
+    await seedTransferReservation({
+      token: "expired-gift-sale-reservation",
+      characterId: "character-sale-expired-gift",
+      itemId: "item.test-copper-spoon",
+      status: "pending",
+      expiresAt: new Date("2026-06-23T09:59:00.000Z")
+    });
+
+    const snapshot = await repository.getInventorySnapshotForTelegramUser(1002n, now());
+
+    expect(snapshot?.reservedItemIds).not.toContain("item.test-copper-spoon");
+    expect(buildMantokSaleEligibleStacks({
+      stacks: snapshot?.items ?? [],
+      reservedItemIds: new Set(snapshot?.reservedItemIds ?? []),
+      itemContents: saleItemContents
+    }).map((stack) => stack.itemId)).toContain("item.test-copper-spoon");
+  });
+
+  it("keeps processing gifts reserved from Shynok sale eligibility", async () => {
+    await seedCharacter({ telegramUserId: 1003n, userId: "user-sale-processing-gift", characterId: "character-sale-processing-gift", gold: 10 });
+    await seedSaleItems("character-sale-processing-gift", { "item.test-copper-spoon": 1 });
+    await seedTransferReservation({
+      token: "processing-gift-sale-reservation",
+      characterId: "character-sale-processing-gift",
+      itemId: "item.test-copper-spoon",
+      status: "processing",
+      expiresAt: new Date("2026-06-23T09:59:00.000Z")
+    });
+
+    const snapshot = await repository.getInventorySnapshotForTelegramUser(1003n, now());
+
+    expect(snapshot?.reservedItemIds).toContain("item.test-copper-spoon");
+    expect(buildMantokSaleEligibleStacks({
+      stacks: snapshot?.items ?? [],
+      reservedItemIds: new Set(snapshot?.reservedItemIds ?? []),
+      itemContents: saleItemContents
+    }).map((stack) => stack.itemId)).not.toContain("item.test-copper-spoon");
+  });
+
   async function seedCharacter(input: {
     telegramUserId: bigint;
     userId: string;
@@ -1127,6 +1169,34 @@ describe("PrismaShynokRepository integration", () => {
         }
       });
     }
+  }
+
+  async function seedTransferReservation(input: {
+    token: string;
+    characterId: string;
+    itemId: string;
+    status: string;
+    expiresAt: Date;
+  }): Promise<void> {
+    await prisma.itemTransfer.create({
+      data: {
+        token: input.token,
+        senderCharacterId: input.characterId,
+        receiverCharacterId: "character-transfer-reservation-receiver",
+        senderTelegramUserId: 1002n,
+        receiverTelegramUserId: 2002n,
+        senderName: input.characterId,
+        receiverName: "receiver",
+        locationId: "location.korchma.bar",
+        itemId: input.itemId,
+        itemName: input.itemId,
+        itemFingerprint: "test-fingerprint",
+        quantity: 1,
+        status: input.status,
+        expiresAt: input.expiresAt,
+        updatedAt: now()
+      }
+    });
   }
 
   async function seedSale(input: {

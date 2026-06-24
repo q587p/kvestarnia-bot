@@ -41,7 +41,7 @@ export type MantokChestConfirmResult =
   | { state: "replayed"; run: MantokChestRunRecord };
 
 export interface MantokChestRepository {
-  getSnapshotForTelegramUser(telegramUserId: bigint): Promise<MantokChestSnapshot | null>;
+  getSnapshotForTelegramUser(telegramUserId: bigint, now: Date): Promise<MantokChestSnapshot | null>;
   createPendingRunForTelegramUser(
     telegramUserId: bigint,
     input: {

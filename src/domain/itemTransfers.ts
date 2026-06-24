@@ -4,6 +4,7 @@ import { isProtectedMantokChestItem } from "./mantokChest";
 
 export const ITEM_GIFT_PAGE_SIZE = 5;
 export const ITEM_GIFT_QUANTITY = 1;
+export const ITEM_GIFT_SELECTION_GUARD_LENGTH = 12;
 
 export interface ItemGiftStackInput {
   itemId: string;
@@ -74,4 +75,11 @@ export function createItemGiftFingerprint(item: ItemContent): string {
   };
 
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 24);
+}
+
+export function createItemGiftSelectionGuard(input: { itemId: string; fingerprint: string }): string {
+  return createHash("sha256")
+    .update(`${input.itemId}:${input.fingerprint}`)
+    .digest("base64url")
+    .slice(0, ITEM_GIFT_SELECTION_GUARD_LENGTH);
 }

@@ -95,7 +95,7 @@ export class LevelBarterService {
   ) {}
 
   async getOfferForTelegramUser(telegramUserId: bigint): Promise<LevelBarterOfferResult> {
-    const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId);
+    const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId, this.clock());
 
     if (!snapshot) {
       return { state: "no-character" };

@@ -14,14 +14,16 @@
 
 1. Два персонажі стоять активними в одній безпечній місцині.
 2. Дарувальник відкриває `🎁 Подарувати манатку`, обирає отримувача й одну придатну манатку.
-3. Отримувач приймає: у дарувальника мінус одна одиниця, в отримувача плюс одна.
-4. Повторити старі accept/cancel/decline кнопки: кількість не змінюється вдруге.
-5. Спробувати екіпіровану, priceless/protected/story, reserved sale/chest/barter/gift річ: подарунок не створюється або accept stale-иться без мутації.
-6. Поки gift pending, спробувати продати/скинути/бартерити/подарувати ще одну одиницю того ж `itemId`: увесь stack лишається reserved.
-7. Змінити stack/equipment/content між preview і accept: transfer fails safely.
-8. Decline, cancel and expired offers replay their terminal state.
-9. Спробувати, коли будь-хто в incompatible combat lease: подарунок блокується.
-10. Перезапустити процес між offer і accept: canonical transfer row лишається usable.
+3. Перед натисканням старої item-кнопки змінити порядок інвентаря або прибрати попередню в сортуванні річ: має обратися саме показана манатка або повернутися stale-selection, не сусідній shifted item.
+4. Отримувач приймає: у дарувальника мінус одна одиниця, в отримувача плюс одна.
+5. Повторити старі accept/cancel/decline кнопки: кількість не змінюється вдруге.
+6. Спробувати екіпіровану, priceless/protected/story, reserved sale/chest/barter/gift річ: подарунок не створюється або accept stale-иться без мутації.
+7. Поки gift pending і `expires_at` ще в майбутньому, спробувати продати/скинути/бартерити/подарувати ще одну одиницю того ж `itemId`: увесь stack лишається reserved.
+8. Дочекатися пасивного expiry без натискання кнопок і перевірити, що той самий `itemId` знову доступний для gift/sale/chest/barter; старі accept/decline/cancel кнопки replay-ять `expired`.
+9. Змінити stack/equipment/content між preview і accept: transfer fails safely.
+10. Decline, cancel and expired offers replay their terminal state.
+11. Спробувати, коли будь-хто в incompatible combat lease: подарунок блокується.
+12. Перезапустити процес між offer і accept: canonical transfer row лишається usable.
 
 ## 0.1.0 — Closeout smoke
 
