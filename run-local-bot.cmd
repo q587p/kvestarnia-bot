@@ -55,14 +55,52 @@ if not exist node_modules (
   )
 )
 
+set /a PRISMA_GENERATE_ATTEMPT=1
+set /a PRISMA_GENERATE_MAX_ATTEMPTS=3
+
+:prisma_generate_retry
 echo.
-echo Generating Prisma Client...
-call npm.cmd run db:generate
-if errorlevel 1 (
-  echo Prisma generate failed.
-  pause
-  exit /b 1
+if !PRISMA_GENERATE_ATTEMPT! EQU 1 (
+  echo Generating Prisma Client...
+) else (
+  echo Retrying Prisma Client generation ^(attempt !PRISMA_GENERATE_ATTEMPT! of !PRISMA_GENERATE_MAX_ATTEMPTS!^)...
 )
+
+set "PRISMA_GENERATE_LOG=%TEMP%\kvestarnia-prisma-generate-%RANDOM%-%RANDOM%.log"
+call npm.cmd run db:generate >"!PRISMA_GENERATE_LOG!" 2>&1
+set "PRISMA_GENERATE_EXIT=!ERRORLEVEL!"
+type "!PRISMA_GENERATE_LOG!"
+
+if "!PRISMA_GENERATE_EXIT!"=="0" goto prisma_generate_ok
+
+set "PRISMA_EPERM_ERROR="
+set "PRISMA_ENGINE_ERROR="
+findstr /I /C:"EPERM" "!PRISMA_GENERATE_LOG!" >nul 2>nul
+if not errorlevel 1 set "PRISMA_EPERM_ERROR=1"
+findstr /I /C:"query_engine-windows.dll.node" "!PRISMA_GENERATE_LOG!" >nul 2>nul
+if not errorlevel 1 set "PRISMA_ENGINE_ERROR=1"
+
+if not defined PRISMA_EPERM_ERROR goto prisma_generate_failed
+if not defined PRISMA_ENGINE_ERROR goto prisma_generate_failed
+if !PRISMA_GENERATE_ATTEMPT! GEQ !PRISMA_GENERATE_MAX_ATTEMPTS! goto prisma_generate_failed
+
+echo.
+echo Prisma engine is locked by a previous local Node process.
+echo Attempting automatic recovery...
+call :release_prisma_engine_lock
+if errorlevel 1 echo Recovery reported a warning; Prisma generation will still be retried.
+
+if exist "node_modules\.prisma\client\query_engine-windows.dll.node.tmp*" (
+  del /F /Q "node_modules\.prisma\client\query_engine-windows.dll.node.tmp*" >nul 2>nul
+)
+
+if exist "!PRISMA_GENERATE_LOG!" del /Q "!PRISMA_GENERATE_LOG!" >nul 2>nul
+set /a PRISMA_GENERATE_ATTEMPT+=1
+timeout /T 2 /NOBREAK >nul
+goto prisma_generate_retry
+
+:prisma_generate_ok
+if exist "!PRISMA_GENERATE_LOG!" del /Q "!PRISMA_GENERATE_LOG!" >nul 2>nul
 
 echo.
 echo Applying local SQLite migrations...
@@ -105,5 +143,25 @@ if errorlevel 1 (
 echo.
 echo Starting local bot dev server...
 call npm.cmd run dev
+set "BOT_EXIT=!ERRORLEVEL!"
 
-endlocal
+endlocal & exit /b %BOT_EXIT%
+
+:prisma_generate_failed
+echo.
+echo Prisma generate failed after !PRISMA_GENERATE_ATTEMPT! attempt^(s^).
+echo Diagnostic log: !PRISMA_GENERATE_LOG!
+echo No files were changed automatically outside node_modules\.prisma\client.
+pause
+exit /b 1
+
+:release_prisma_engine_lock
+set "PRISMA_RECOVERY_SCRIPT=%CD%\scripts\recover-prisma-client.ps1"
+
+if not exist "!PRISMA_RECOVERY_SCRIPT!" (
+  echo Prisma recovery helper not found: !PRISMA_RECOVERY_SCRIPT!
+  exit /b 1
+)
+
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "!PRISMA_RECOVERY_SCRIPT!" -RepositoryRoot "%CD%"
+exit /b !ERRORLEVEL!
