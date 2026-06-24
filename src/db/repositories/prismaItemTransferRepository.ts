@@ -31,81 +31,91 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
     senderTelegramUserId: bigint,
     input: ItemTransferCreateInput
   ): Promise<ItemTransferCreateResult> {
-    return this.prisma.$transaction(async (tx) => {
-      const sender = await findCharacter(tx, senderTelegramUserId);
-      if (!sender) {
-        return { state: "no-character" };
-      }
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const sender = await findCharacter(tx, senderTelegramUserId);
+        if (!sender) {
+          return { state: "no-character" };
+        }
 
-      const receiver = await findCharacter(tx, input.receiverTelegramUserId);
-      if (!receiver) {
-        return { state: "target-not-found" };
-      }
+        const receiver = await findCharacter(tx, input.receiverTelegramUserId);
+        if (!receiver) {
+          return { state: "target-not-found" };
+        }
 
-      if (sender.id === receiver.id) {
-        return { state: "self-gift" };
-      }
+        if (sender.id === receiver.id) {
+          return { state: "self-gift" };
+        }
 
-      if (sender.activeCombatLease || receiver.activeCombatLease) {
-        return { state: "combat-locked" };
-      }
+        if (sender.activeCombatLease || receiver.activeCombatLease) {
+          return { state: "combat-locked" };
+        }
 
-      const senderLocation = sender.user.lastSeenLocationId;
-      const receiverLocation = receiver.user.lastSeenLocationId;
-      if (!senderLocation || senderLocation !== receiverLocation) {
-        return { state: "location-mismatch" };
-      }
+        const senderLocation = sender.user.lastSeenLocationId;
+        const receiverLocation = receiver.user.lastSeenLocationId;
+        if (!senderLocation || senderLocation !== receiverLocation) {
+          return { state: "location-mismatch" };
+        }
 
-      await lockSenderItemStack(tx, sender.id, input.item.id, input.now);
+        await releaseExpiredGiftReservation(tx, sender.id, input.item.id, input.now);
+        await lockSenderItemStack(tx, sender.id, input.item.id, input.now);
 
-      const [items, equipment, reservedItemIds] = await Promise.all([
-        getItems(tx, sender.id),
-        getEquippedItemIds(tx, sender.id),
-        getReservedItemIds(tx, sender.id, input.now)
-      ]);
-      const eligible = buildItemGiftEligibleStacks({
-        stacks: items,
-        equippedItemIds: new Set(equipment),
-        reservedItemIds: new Set(reservedItemIds),
-        itemContents: [input.item]
+        const [items, equipment, reservedItemIds] = await Promise.all([
+          getItems(tx, sender.id),
+          getEquippedItemIds(tx, sender.id),
+          getReservedItemIds(tx, sender.id, input.now)
+        ]);
+        const eligible = buildItemGiftEligibleStacks({
+          stacks: items,
+          equippedItemIds: new Set(equipment),
+          reservedItemIds: new Set(reservedItemIds),
+          itemContents: [input.item]
+        });
+        const selected = eligible.find((stack) => stack.itemId === input.item.id);
+
+        if (!selected || selected.fingerprint !== input.itemFingerprint) {
+          return { state: "stale-selection" };
+        }
+
+        const transfer = await tx.itemTransfer.create({
+          data: {
+            token: input.token,
+            senderCharacterId: sender.id,
+            receiverCharacterId: receiver.id,
+            senderTelegramUserId,
+            receiverTelegramUserId: input.receiverTelegramUserId,
+            senderName: sender.name,
+            receiverName: receiver.name,
+            senderRemortCount: getIncludedRemortCount(sender),
+            receiverRemortCount: getIncludedRemortCount(receiver),
+            locationId: senderLocation,
+            itemId: input.item.id,
+            itemName: input.item.name,
+            itemFingerprint: input.itemFingerprint,
+            quantity: 1,
+            status: "pending",
+            reservationKey: createTransferReservationKey(sender.id, input.item.id),
+            expiresAt: input.expiresAt,
+            updatedAt: input.now
+          }
+        });
+
+        return {
+          state: "created",
+          transfer: mapTransfer(transfer) ?? (() => {
+            throw new Error("Item transfer mapping failed after create.");
+          })(),
+          sender: toCharacterRecord(sender),
+          receiver: toCharacterRecord(receiver)
+        };
       });
-      const selected = eligible.find((stack) => stack.itemId === input.item.id);
-
-      if (!selected || selected.fingerprint !== input.itemFingerprint) {
+    } catch (error) {
+      if (isLiveReservationConflict(error)) {
         return { state: "stale-selection" };
       }
 
-      const transfer = await tx.itemTransfer.create({
-        data: {
-          token: input.token,
-          senderCharacterId: sender.id,
-          receiverCharacterId: receiver.id,
-          senderTelegramUserId,
-          receiverTelegramUserId: input.receiverTelegramUserId,
-          senderName: sender.name,
-          receiverName: receiver.name,
-          senderRemortCount: getIncludedRemortCount(sender),
-          receiverRemortCount: getIncludedRemortCount(receiver),
-          locationId: senderLocation,
-          itemId: input.item.id,
-          itemName: input.item.name,
-          itemFingerprint: input.itemFingerprint,
-          quantity: 1,
-          status: "pending",
-          expiresAt: input.expiresAt,
-          updatedAt: input.now
-        }
-      });
-
-      return {
-        state: "created",
-        transfer: mapTransfer(transfer) ?? (() => {
-          throw new Error("Item transfer mapping failed after create.");
-        })(),
-        sender: toCharacterRecord(sender),
-        receiver: toCharacterRecord(receiver)
-      };
-    });
+      throw error;
+    }
   }
 
   async findGiftForTelegramUser(telegramUserId: bigint, token: string): Promise<ItemTransferRecord | null> {
@@ -410,6 +420,31 @@ async function lockSenderItemStack(
   });
 }
 
+async function releaseExpiredGiftReservation(
+  tx: TxClient,
+  senderCharacterId: string,
+  itemId: string,
+  now: Date
+): Promise<void> {
+  await tx.itemTransfer.updateMany({
+    where: {
+      senderCharacterId,
+      itemId,
+      status: "pending",
+      expiresAt: { lte: now }
+    },
+    data: {
+      status: "expired",
+      reservationKey: null,
+      respondedAt: now,
+      updatedAt: now,
+      resultJson: {
+        kind: "expired"
+      }
+    }
+  });
+}
+
 async function getEquippedItemIds(tx: TxClient, characterId: string): Promise<string[]> {
   const rows = await tx.characterEquipment.findMany({
     where: { characterId },
@@ -550,6 +585,7 @@ async function setTransferStatus(
 ): Promise<{ transfer: ItemTransferRecord; changed: boolean }> {
   const data = {
     status,
+    reservationKey: null,
     resultJson: result as Prisma.InputJsonValue,
     ...(status === "completed" ? { completedAt: now } : { respondedAt: now }),
     updatedAt: now
@@ -663,6 +699,25 @@ function parseStatus(status: string): ItemTransferStatus {
     status === "cancelled"
     ? status
     : "pending";
+}
+
+function createTransferReservationKey(senderCharacterId: string, itemId: string): string {
+  return `gift:${senderCharacterId}:${itemId}`;
+}
+
+function isLiveReservationConflict(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+    return false;
+  }
+
+  const target = error.meta?.target;
+  const targets = Array.isArray(target)
+    ? target.filter((entry): entry is string => typeof entry === "string")
+    : typeof target === "string"
+      ? [target]
+      : [];
+
+  return targets.some((entry) => entry.includes("reservationKey") || entry.includes("reservation_key"));
 }
 
 function parseItems(value: unknown): Array<{ itemId: string; quantity: number }> {

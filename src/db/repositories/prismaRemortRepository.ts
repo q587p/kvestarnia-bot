@@ -668,6 +668,7 @@ async function cancelShynokLifecycleForRemort(
     },
     data: {
       status: "cancelled",
+      reservationKey: null,
       respondedAt: now,
       updatedAt: now,
       resultJson: {

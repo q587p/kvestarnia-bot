@@ -417,6 +417,7 @@ model ItemTransfer {
   itemFingerprint        String    @map("item_fingerprint")
   quantity               Int       @default(1)
   status                 String    @default("pending")
+  reservationKey         String?   @unique @map("reservation_key")
   resultJson             Json?     @map("result_json")
   expiresAt              DateTime  @map("expires_at")
   completedAt            DateTime? @map("completed_at")

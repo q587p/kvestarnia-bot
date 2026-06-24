@@ -69,7 +69,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Tea and beer now segment normal passive HP/mana recovery at drink start/end, so recovery bonuses are forward-only and never retroactive.
 - Eligible persistent solo PvE fights now freeze beer accuracy penalties into `CombatState`; non-expired queued pepper vodka is consumed at fight start and freezes its damage modifiers into that stored state.
-- `Всім пива` now previews launch prices from the frozen recipient count: simple `max(93, 13 * recipient_count)` and fine `max(193, 42 * recipient_count)`.
+- `Всім пива` now previews launch prices from the frozen recipient count: simple `min(93, 13 * recipient_count)` and fine `min(193, 42 * recipient_count)`.
 - Shynok callbacks revalidate place and active gameplay locks before mutating drink, round or sale state.
 
 ### Fixed

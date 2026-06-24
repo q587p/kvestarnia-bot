@@ -129,6 +129,7 @@ describe("PrismaItemTransferRepository integration", () => {
     });
     expect(liveTransfers).toHaveLength(1);
     expect(liveTransfers[0]?.status).toBe("pending");
+    expect(liveTransfers[0]?.reservationKey).toBe(`gift:sender:${item.id}`);
     await expectQuantities({ sender: 1, receiver: 0 });
   });
 
@@ -288,6 +289,10 @@ describe("PrismaItemTransferRepository integration", () => {
 
     await expect(createGift("gift-token-1", past())).resolves.toMatchObject({ state: "created" });
     await expect(createGift("gift-token-2", future())).resolves.toMatchObject({ state: "created" });
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "gift-token-1" } })).resolves.toMatchObject({
+      status: "expired",
+      reservationKey: null
+    });
     await expectQuantities({ sender: 2, receiver: 0 });
   });
 
@@ -688,6 +693,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       "item_fingerprint" TEXT NOT NULL,
       "quantity" INTEGER NOT NULL DEFAULT 1,
       "status" TEXT NOT NULL DEFAULT 'pending',
+      "reservation_key" TEXT UNIQUE,
       "result_json" JSONB,
       "expires_at" DATETIME NOT NULL,
       "completed_at" DATETIME,

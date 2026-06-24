@@ -1493,6 +1493,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       item_fingerprint TEXT NOT NULL,
       quantity INTEGER NOT NULL DEFAULT 1,
       status TEXT NOT NULL DEFAULT 'pending',
+      reservation_key TEXT UNIQUE,
       result_json JSONB,
       expires_at DATETIME NOT NULL,
       completed_at DATETIME,
