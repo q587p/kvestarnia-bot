@@ -1,4 +1,5 @@
 import type { CombatState } from "../../domain/combat";
+import type { CombatDrinkStateCommit } from "./soloCombatSessionRepository";
 import type { PersistentFightDifficultyId } from "../../services/fightService";
 import type { SoloCombatSessionRecord } from "./soloCombatSessionRepository";
 
@@ -49,6 +50,7 @@ export interface ConsumePendingPassageEncounterInput {
   state: CombatState;
   sessionExpiresAt: Date;
   now: Date;
+  drinkStateCommit?: CombatDrinkStateCommit;
 }
 
 export interface ConsumedPendingPassageEncounterRecord {

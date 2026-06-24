@@ -9,6 +9,7 @@ import {
 } from "../domain/characters/characterSummary";
 import {
   applyPassiveResourceRegeneration,
+  type ResourceRegenerationMultiplierWindow,
   type ResourceRegenerationResult
 } from "../domain/resources/resourceRegeneration";
 
@@ -38,6 +39,8 @@ export async function summarizeAndSyncCharacterResources(input: {
   remortCount?: number;
   now: Date;
   persist?: boolean;
+  multiplierWindow?: ResourceRegenerationMultiplierWindow | null;
+  multiplierWindows?: ResourceRegenerationMultiplierWindow[];
   reloadLatest?: () => Promise<CharacterResourceReloadResult | null>;
 }): Promise<CharacterResourceSyncResult> {
   const baseSummary = summarizeCharacter(input.character, {
@@ -61,7 +64,9 @@ export async function summarizeAndSyncCharacterResources(input: {
       title: baseSummary.title,
       stats: baseSummary.stats
     },
-    now: input.now
+    now: input.now,
+    ...(input.multiplierWindow ? { multiplierWindow: input.multiplierWindow } : {}),
+    ...(input.multiplierWindows ? { multiplierWindows: input.multiplierWindows } : {})
   });
   const recoveryNotice =
     baseSummary.hpCurrent < baseSummary.hpMax &&

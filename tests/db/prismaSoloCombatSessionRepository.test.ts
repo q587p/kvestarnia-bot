@@ -184,6 +184,11 @@ describe("PrismaSoloCombatSessionRepository", () => {
           remainingTurns: 1
         }
       },
+      drinkModifiers: {
+        drinkKey: "drink.fine-beer",
+        sourceId: "drink-state.beer",
+        accuracyPenaltyPp: 10
+      },
       monsterRuntime: {
         loadoutIds: ["monster.deadline-web"],
         lastHeroAction: "attack",
@@ -651,6 +656,11 @@ function runtimeRoundTripState(): CombatState {
         id: "skill.forceful-strike",
         remainingTurns: 1
       }
+    },
+    drinkModifiers: {
+      drinkKey: "drink.fine-beer",
+      sourceId: "drink-state.beer",
+      accuracyPenaltyPp: 10
     },
     monster: {
       ...activeCombatState.monster,

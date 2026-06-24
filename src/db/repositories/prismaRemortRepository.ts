@@ -315,6 +315,7 @@ export class PrismaRemortRepository implements RemortRepository {
       }
 
       await cancelLivePendingPassageEncountersForRemort(tx, character.id, input.now);
+      await cancelShynokLifecycleForRemort(tx, character.id, input.now);
 
       await tx.mantokChestRun.updateMany({
         where: {
@@ -601,6 +602,57 @@ async function cancelLivePendingPassageEncountersForRemort(
       version: {
         increment: 1
       }
+    }
+  });
+}
+
+async function cancelShynokLifecycleForRemort(
+  tx: TxClient,
+  characterId: string,
+  now: Date
+): Promise<void> {
+  await tx.characterDrinkState.deleteMany({
+    where: { characterId }
+  });
+
+  await tx.korchmaDrinkOrder.updateMany({
+    where: {
+      characterId,
+      status: {
+        in: ["pending", "processing", "pending-round", "processing-round"]
+      }
+    },
+    data: {
+      status: "cancelled",
+      updatedAt: now
+    }
+  });
+
+  await tx.korchmaRoundRecipient.updateMany({
+    where: {
+      characterId,
+      status: "offered"
+    },
+    data: {
+      status: "expired",
+      respondedAt: now,
+      updatedAt: now,
+      resultJson: {
+        kind: "remort-expired-round-offer"
+      }
+    }
+  });
+
+  await tx.korchmaMantokSale.updateMany({
+    where: {
+      characterId,
+      status: {
+        in: ["pending", "processing"]
+      }
+    },
+    data: {
+      status: "cancelled",
+      updatedAt: now
     }
   });
 }

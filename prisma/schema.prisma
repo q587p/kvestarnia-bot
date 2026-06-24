@@ -38,6 +38,11 @@ model Character {
   items     CharacterItem[]
   equipment CharacterEquipment[]
   korchmaRoundPurchases KorchmaRoundPurchase[]
+  korchmaRoundRecipients KorchmaRoundRecipient[]
+  korchmaDrinkOrders KorchmaDrinkOrder[]
+  drinkState CharacterDrinkState?
+  drinkActivationAudits ShynokDrinkActivationAudit[]
+  korchmaMantokSales KorchmaMantokSale[]
   huntContracts HuntContract[]
   soloCombatSessions SoloCombatSession[]
   pendingPassageEncounters PendingPassageEncounter[]
@@ -237,14 +242,103 @@ model KorchmaRoundPurchase {
   id          String    @id @default(uuid())
   characterId String    @map("character_id")
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount Int      @default(0) @map("remort_count")
   tier        String
   spentGold   Int       @map("spent_gold")
   localDate   String    @map("local_date")
+  drinkKey    String?   @map("drink_key")
+  recipientCount Int?   @map("recipient_count")
+  offerExpiresAt DateTime? @map("offer_expires_at")
+  rulesVersion String?  @map("rules_version")
+  snapshotJson Json?    @map("snapshot_json")
+  telemetryJson Json?   @map("telemetry_json")
   createdAt   DateTime  @default(now()) @map("created_at")
+  recipients  KorchmaRoundRecipient[]
 
   @@index([characterId])
   @@index([localDate])
   @@map("korchma_round_purchases")
+}
+
+model KorchmaRoundRecipient {
+  id          String    @id @default(uuid())
+  purchaseId String    @map("purchase_id")
+  purchase   KorchmaRoundPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  characterId String    @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount Int       @default(0) @map("remort_count")
+  drinkKey    String    @map("drink_key")
+  status      String    @default("offered")
+  offeredAt   DateTime  @map("offered_at")
+  expiresAt   DateTime  @map("expires_at")
+  respondedAt DateTime? @map("responded_at")
+  resultJson  Json?     @map("result_json")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([purchaseId, characterId])
+  @@index([characterId, status, expiresAt])
+  @@map("korchma_round_recipients")
+}
+
+model CharacterDrinkState {
+  id          String    @id @default(uuid())
+  activationId String   @default(uuid()) @map("activation_id")
+  characterId String    @unique @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount Int       @default(0) @map("remort_count")
+  drinkKey    String    @map("drink_key")
+  phase       String
+  startedAt   DateTime  @map("started_at")
+  expiresAt   DateTime  @map("expires_at")
+  sourceType  String    @map("source_type")
+  sourceId    String?   @map("source_id")
+  metadataJson Json?    @map("metadata_json")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([activationId])
+  @@index([expiresAt])
+  @@map("character_drink_states")
+}
+
+model ShynokDrinkActivationAudit {
+  id          String    @id @default(uuid())
+  characterId String    @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  activationId String   @unique @map("activation_id")
+  drinkKey    String    @map("drink_key")
+  sourceType  String    @map("source_type")
+  sourceId    String?   @map("source_id")
+  outcome     String
+  combatSessionId String? @map("combat_session_id")
+  occurredAt  DateTime  @map("occurred_at")
+  metadataJson Json?    @map("metadata_json")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([characterId, outcome, occurredAt])
+  @@index([combatSessionId])
+  @@map("shynok_drink_activation_audits")
+}
+
+model KorchmaDrinkOrder {
+  id          String    @id @default(uuid())
+  token       String    @unique
+  characterId String    @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount Int       @default(0) @map("remort_count")
+  drinkKey    String    @map("drink_key")
+  priceGold   Int       @map("price_gold")
+  status      String    @default("pending")
+  replacementJson Json? @map("replacement_json")
+  resultJson  Json?     @map("result_json")
+  expiresAt   DateTime  @map("expires_at")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([characterId, status, expiresAt])
+  @@map("korchma_drink_orders")
 }
 
 model CharacterItem {
@@ -279,6 +373,27 @@ model MantokChestRun {
 
   @@index([characterId, status])
   @@map("mantok_chest_runs")
+}
+
+model KorchmaMantokSale {
+  id          String    @id @default(uuid())
+  token       String    @unique
+  characterId String    @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount Int       @default(0) @map("remort_count")
+  status      String    @default("pending")
+  selectionJson Json    @map("selection_json")
+  selectionFingerprint String @map("selection_fingerprint")
+  nominalValue Int      @default(0) @map("nominal_value")
+  payoutGold   Int      @default(0) @map("payout_gold")
+  resultJson   Json?    @map("result_json")
+  expiresAt    DateTime @map("expires_at")
+  completedAt  DateTime? @map("completed_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([characterId, status, expiresAt])
+  @@map("korchma_mantok_sales")
 }
 
 model BarrelRaidNotification {

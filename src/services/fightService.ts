@@ -13,6 +13,7 @@ import type {
   DueSoloCombatSessionRecord,
   GuardedResourceSettlementOutcome,
   GuardedSettlementOutcome,
+  CombatDrinkStateCommit,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository
 } from "../db/repositories/soloCombatSessionRepository";
@@ -20,6 +21,7 @@ import type {
   PendingPassageEncounterRecord,
   PendingPassageEncounterRepository
 } from "../db/repositories/pendingPassageEncounterRepository";
+import type { ShynokRepository } from "../db/repositories/shynokRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
@@ -46,8 +48,10 @@ import {
   type CombatActorStats,
   type CombatBalanceSource,
   type CombatState,
+  type DrinkCombatModifiers,
   type MonsterCombatStats
 } from "../domain/combat";
+import { buildShynokRecoveryWindows, getShynokDrinkDefinition } from "../domain/shynokDrinks";
 import { getItemDropChance, rollMonsterLoot } from "../domain/loot";
 import {
   isWithinActivityMaxLevel,
@@ -537,7 +541,8 @@ export class FightService {
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly equipment?: EquipmentRepository,
     private readonly combatAnalytics?: CombatBalanceAnalyticsService,
-    private readonly pendingPassageEncounters?: PendingPassageEncounterRepository
+    private readonly pendingPassageEncounters?: PendingPassageEncounterRepository,
+    private readonly shynok?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">
   ) {}
 
   private async advanceExpiredPersistentTurn(
@@ -809,6 +814,7 @@ export class FightService {
 
         const monster = { ...baseMonster, level: encounter.effectiveMonsterLevel };
         const sessionId = randomUUID();
+        const drinkSnapshot = await this.buildDrinkCombatSnapshot(telegramUserId, now);
         const state = this.buildPersistentFightCombatState({
           sessionId,
           character,
@@ -819,7 +825,8 @@ export class FightService {
           originLocationId: encounter.originLocationId,
           source: "normal",
           now,
-          initialMonsterHp: survivingHp.current
+          initialMonsterHp: survivingHp.current,
+          ...(drinkSnapshot ? { drinkModifiers: drinkSnapshot.modifiers } : {})
         });
         const restarted = await this.pendingPassageEncounters.createSessionForConsumedEncounter(telegramUserId, token, {
           sessionId,
@@ -829,7 +836,8 @@ export class FightService {
           monsterId: monster.id,
           state,
           sessionExpiresAt: getSessionExpiry(now),
-          now
+          now,
+          ...(drinkSnapshot ? { drinkStateCommit: drinkSnapshot.commit } : {})
         });
 
         if (restarted.state === "consumed") {
@@ -931,6 +939,7 @@ export class FightService {
 
     const monster = { ...baseMonster, level: encounter.effectiveMonsterLevel };
     const sessionId = randomUUID();
+    const drinkSnapshot = await this.buildDrinkCombatSnapshot(telegramUserId, now);
     const state = this.buildPersistentFightCombatState({
       sessionId,
       character,
@@ -940,7 +949,8 @@ export class FightService {
       difficulty: getPersistentFightDifficultyConfig(encounter.difficulty),
       originLocationId: encounter.originLocationId,
       source: "normal",
-      now
+      now,
+      ...(drinkSnapshot ? { drinkModifiers: drinkSnapshot.modifiers } : {})
     });
     const consumed = await this.pendingPassageEncounters.consumeForTelegramUser(telegramUserId, token, {
       sessionId,
@@ -950,7 +960,8 @@ export class FightService {
       monsterId: monster.id,
       state,
       sessionExpiresAt: getSessionExpiry(now),
-      now
+      now,
+      ...(drinkSnapshot ? { drinkStateCommit: drinkSnapshot.commit } : {})
     });
 
     if (consumed.state === "consumed") {
@@ -1580,6 +1591,7 @@ export class FightService {
     const monster = applyPersistentFightDifficulty(baseMonster, characterSummary, difficulty);
     const sessionId = randomUUID();
     const now = this.clock();
+    const drinkSnapshot = await this.buildDrinkCombatSnapshot(telegramUserId, now);
     const worldContext = buildCombatWorldContext({
       now,
       partySize: 1,
@@ -1611,6 +1623,9 @@ export class FightService {
       state.context = monsterContext;
     }
     state.barks = createCombatBarkState({ monsterId: monster.id, seed: sessionId, audience: "solo" });
+    if (drinkSnapshot) {
+      state.drinkModifiers = drinkSnapshot.modifiers;
+    }
     state.monster.debugTrace = {
       ...state.monster.debugTrace,
       ...buildPersistentFightInterventionTrace(baseMonster, monster, difficulty)
@@ -1633,7 +1648,8 @@ export class FightService {
       id: sessionId,
       monsterId: monster.id,
       state,
-      expiresAt: getSessionExpiry(now)
+      expiresAt: getSessionExpiry(now),
+      ...(drinkSnapshot ? { drinkStateCommit: drinkSnapshot.commit } : {})
     });
 
     if (!session) {
@@ -2596,12 +2612,18 @@ export class FightService {
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
 
     if (options.syncResources) {
+      const now = this.clock();
+      const recoveryDrink =
+        (await this.shynok?.getRecoveryDrinkForTelegramUser?.(telegramUserId)) ??
+        (await this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now));
+      const multiplierWindows = buildShynokRecoveryWindows(recoveryDrink);
       const resourceAware = await summarizeAndSyncCharacterResources({
         characters: this.characters,
         telegramUserId,
         character,
         equippedItems,
-        now: this.clock()
+        now,
+        ...(multiplierWindows.length > 0 ? { multiplierWindows } : {})
       });
 
       return {
@@ -3069,6 +3091,7 @@ export class FightService {
     source: NonNullable<PersistentFightStartOptions["source"]>;
     now: Date;
     initialMonsterHp?: number;
+    drinkModifiers?: DrinkCombatModifiers;
   }): CombatState {
     const worldContext = buildCombatWorldContext({
       now: input.now,
@@ -3103,6 +3126,9 @@ export class FightService {
       version: 1
     };
     state.originLocationId = input.originLocationId;
+    if (input.drinkModifiers) {
+      state.drinkModifiers = input.drinkModifiers;
+    }
     if (monsterContext) {
       state.context = monsterContext;
     }
@@ -3129,11 +3155,70 @@ export class FightService {
     return state;
   }
 
+  private async buildDrinkCombatSnapshot(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<{ modifiers: DrinkCombatModifiers; commit: CombatDrinkStateCommit } | null> {
+    const activeDrink = await this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now);
+    if (!activeDrink) {
+      return null;
+    }
+
+    const definition = getShynokDrinkDefinition(activeDrink.drinkKey);
+    if (activeDrink.phase === "timed") {
+      const accuracyPenaltyPp = definition.accuracyPenaltyPp ?? 0;
+
+      return accuracyPenaltyPp > 0
+        ? {
+            modifiers: {
+              drinkKey: activeDrink.drinkKey,
+              sourceId: activeDrink.id,
+              activationId: activeDrink.activationId,
+              accuracyPenaltyPp
+            },
+            commit: {
+              expectedStateId: activeDrink.id,
+              expectedActivationId: activeDrink.activationId,
+              expectedStartedAt: activeDrink.startedAt,
+              expectedExpiresAt: activeDrink.expiresAt,
+              drinkKey: activeDrink.drinkKey,
+              phase: "timed",
+              now
+            }
+          }
+        : null;
+    }
+
+    if (activeDrink.drinkKey !== "drink.pepper-vodka") {
+      return null;
+    }
+
+    return {
+      modifiers: {
+        drinkKey: activeDrink.drinkKey,
+        sourceId: activeDrink.id,
+        activationId: activeDrink.activationId,
+        outgoingDamageMultiplierBp: definition.outgoingDamageMultiplierBp ?? 10000,
+        incomingDamageMultiplierBp: definition.incomingDamageMultiplierBp ?? 10000
+      },
+      commit: {
+        expectedStateId: activeDrink.id,
+        expectedActivationId: activeDrink.activationId,
+        expectedStartedAt: activeDrink.startedAt,
+        expectedExpiresAt: activeDrink.expiresAt,
+        drinkKey: activeDrink.drinkKey,
+        phase: "queued",
+        now,
+        metadata: { kind: "persistent-fight-start" }
+      }
+    };
+  }
+
   private async getMonsterRestCooldown(
     telegramUserId: bigint,
     source: NonNullable<PersistentFightStartOptions["source"]>
   ): Promise<{ availableAt: Date; now: Date } | null> {
-    if (!this.combatSessions || source === "adventure") {
+    if (!this.combatSessions || source === "adventure" || source === "yeger") {
       return null;
     }
 

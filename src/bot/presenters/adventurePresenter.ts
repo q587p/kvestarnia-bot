@@ -5,7 +5,7 @@ import type {
   MimicShawarmaLookupResult,
   MimicShawarmaResult
 } from "../../services/adventureService";
-import { getAdventureProblemIcon } from "../../services/adventureService";
+import { buildStarterMethodOptions, getAdventureProblemIcon } from "../../services/adventureService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
@@ -39,6 +39,11 @@ export function presentAdventureStart(character: CharacterSummary): string {
 
 export function presentMimicShawarmaStart(character: CharacterSummary): string {
   const flavor = presentCharacterFlavor(character, "quest.start", "shawarma");
+  const methodLines = buildStarterMethodOptions("shawarma", character).flatMap((method, index, methods) => [
+    `${escapeHtml(method.label)}`,
+    `<i>${escapeHtml(formatApproachHint(method.hint, method.chanceHint, method.goldCost))}</i>`,
+    ...(index < methods.length - 1 ? [""] : [])
+  ]);
 
   return [
     "🌯 Підозріла шаурма",
@@ -47,6 +52,10 @@ export function presentMimicShawarmaStart(character: CharacterSummary): string {
     "",
     npcQuote("Корчмар", "То не моя."),
     ...flavor,
+    "",
+    "Можливі способи:",
+    "",
+    ...methodLines,
     "",
     `<b>${escapeHtml(character.name)}</b>, що робимо?`
   ].join("\n");

@@ -138,6 +138,7 @@ Sources:
 - PvE fights.
 - Daily.
 - Raid rewards.
+- Обережний продаж придатних манаток у `🍻 Шинку`: `floor(sum(canonical_gold_value * quantity) * 42 / 100)`, без статів, RNG, торгу або продажу екіпірованого/захищеного.
 - Бардівський виступ у `🍻 Шинку`: малий capped gold payout із cooldown-ом, якщо клас/перевірка й манатки це дозволяють.
 
 Sinks:
@@ -145,9 +146,21 @@ Sinks:
 - Reroll одного stat на предметі.
 - Cosmetic title.
 - Створення ґільдії.
+- Напої в `🍻 Шинку`: короткі recovery/risk choices за золото, без XP, луту, activity bypass або PvP power.
 - Їжа в `🍻 Шинку` з короткими бафами: золото витрачається на підготовку, а не на прямий shortcut до XP, луту або прогресії.
 
 У MVP не давати гравцям багато gold без sinks.
+
+### Напої Шинку
+
+`0.1.24` додає перший вузький drinks slice:
+- чай і пиво прискорюють тільки звичайне out-of-combat HP/мана відновлення, сегментовано за часом дії;
+- просте/якісне пиво заморожують малий penalty до PvE accuracy roll у новому eligible persistent solo fight;
+- горілка з перцем є queued next-fight ризиком: у придатному PvE бою герой і монстр обоє множать додатну шкоду на `1.13`, після чого ефект зникає;
+- один персонаж має один current drink slot, без stacking;
+- starter, training and PvP fights do not read drink power.
+
+Це gold sink і тактичний вибір, а не обовʼязкова підготовка до 75-90% normal win-rate. No-drink simulations мають лишатися baseline для майбутніх balance reports.
 
 ### Їжа шинку і тимчасові бафи
 

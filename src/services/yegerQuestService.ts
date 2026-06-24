@@ -250,16 +250,6 @@ export class YegerQuestService {
     if (current.tracking.state === "tracking-ready") {
       const activeFight = await this.fight.getFightOverviewForTelegramUser(telegramUserId);
 
-      if (activeFight.state === "monster-rest") {
-        return {
-          state: "tracking-blocked-by-monster-rest",
-          character: current.character,
-          progress: current.progress,
-          tracking: current.tracking,
-          fight: activeFight
-        };
-      }
-
       if (activeFight.state === "persistent-active" && !isYegerUnquietTarget(activeFight.monster)) {
         return {
           state: "tracking-blocked-by-other-fight",

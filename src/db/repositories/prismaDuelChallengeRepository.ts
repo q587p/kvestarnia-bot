@@ -225,9 +225,9 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     inviteToken: string,
     telegramUserId: bigint,
     now: Date
-  ): Promise<DuelChallengeRecord | null> {
+  ): Promise<{ record: DuelChallengeRecord | null; transitioned: boolean }> {
     await this.expireIfNeeded(inviteToken, now);
-    await this.prisma.duelChallenge.updateMany({
+    const updated = await this.prisma.duelChallenge.updateMany({
       where: {
         inviteToken,
         status: "pending",
@@ -242,7 +242,10 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       }
     });
 
-    return this.findByToken(inviteToken);
+    return {
+      record: await this.findByToken(inviteToken),
+      transitioned: updated.count === 1
+    };
   }
 
   async acceptByTokenForTelegramUser(

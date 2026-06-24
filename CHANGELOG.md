@@ -7,6 +7,39 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.24] - 12026-06-24 - Shynok Drinks and Mantok Sales
+
+### Added
+- Added Shynok self-drinks: `drink.thyme-tea` for 17 gold and 42 minutes of 1.13x out-of-combat recovery, `drink.simple-beer` for 13 gold and 23 minutes of 1.25x recovery with -5 pp PvE accuracy, `drink.fine-beer` for 42 gold and 42 minutes of 1.50x recovery with -10 pp PvE accuracy, and `drink.pepper-vodka` for 42 gold as a queued 23-minute next-eligible-PvE-fight modifier with 1.13x outgoing and incoming damage.
+- Added one current drink slot per character with server-owned pending order tokens, explicit replacement preview, atomic confirm, lazy expiry and replay-safe completed callbacks.
+- Added Shynok round-recipient offers for `Всім пива`: confirmed rounds store a frozen recipient snapshot, exact dynamic price, offer expiry, per-recipient accept/decline status and aggregate telemetry while preserving the existing generosity leaderboard purchase row.
+- Added `💰 Продати манатки` in the Shynok with server-owned sale drafts, one/several/all eligible-unit selection, pagination, basket-level 42% payout preview, explicit confirm/cancel and completed replay.
+- Added Prisma persistence for current drink state, self/round drink orders, round recipient offers and manatka sale drafts/results.
+- Added focused tests for drink definitions, sale eligibility/payout, callback encoding, segmented recovery, combat drink modifiers and Shynok schema coverage.
+
+### Changed
+- Tea and beer now segment normal passive HP/mana recovery at drink start/end, so recovery bonuses are forward-only and never retroactive.
+- Eligible persistent solo PvE fights now freeze beer accuracy penalties into `CombatState`; non-expired queued pepper vodka is consumed at fight start and freezes its damage modifiers into that stored state.
+- `Всім пива` now previews launch prices from the frozen recipient count: simple `max(93, 13 * recipient_count)` and fine `max(193, 42 * recipient_count)`.
+- Shynok callbacks revalidate place and active gameplay locks before mutating drink, round or sale state.
+
+### Fixed
+- Manatka sale confirm now rereads inventory, equipment and reservations inside the DB transaction, recomputes eligibility/fingerprint/value/payout and returns `stale-selection` without mutation when the basket drifted.
+- Social round confirm now uses the stored order recipient snapshot rather than a fresh presence list, so duplicate or delayed confirmation cannot silently change the price or recipients.
+- Social round offer accept now requires a second stale-safe replacement confirmation when the recipient already has a live timed or queued drink; the first `Випити` preview does not mutate the offer, drink state or telemetry.
+- Self-drink, social-round and manatka-sale confirmations now use guarded status claims before destructive mutations, so duplicate confirms replay canonical completed state instead of spending, creating purchases or consuming inventory again.
+- Mantok sale confirmation now rolls back the whole transaction if any guarded item decrement fails after the sale is claimed.
+- Combat drink modifiers now round-trip through persisted solo combat JSON, direct/Yeger/Adventure/passage starts use the same verified drink snapshot, queued pepper vodka is consumed in the same transaction as solo session and lease creation, and exact drink-state IDs prevent replacement races from consuming a newer vodka.
+- Timed drink recovery now keeps historical replacement/expiry windows for lazy resource sync and uses weighted integer regeneration, so sub-point progress is not lost at drink start/end boundaries.
+- Completed Shynok manatka sale callbacks now reach repository replay instead of being pre-rejected as invalid, and sale selection updates lazily expire old drafts before mutating selection state.
+- Round recipient accept/decline/expiry transitions now CAS from `offered`, and round telemetry is refreshed from recipient rows instead of read-modify-write counters.
+- Ready Yeger trail checks now ignore the ordinary Nyz monster-rest gate and can start the targeted unquiet fight immediately, while unrelated active fights still block the trail.
+- Targeted duel declines now send the challenger a best-effort notice only on the actual decline transition, so repeated old decline callbacks do not duplicate notifications.
+
+### Unchanged
+- Coffee, food buffs, PvP drink power, item instances, buyback, general shops, auctions, markets, trading and broad inventory rewrites are still out of scope.
+- Starter fights, training doppelgangers, quick duels and turn-based PvP do not receive drink modifiers.
+
 ## [0.1.23] - 12026-06-23 - Encounter Preview Memory and Anti-Repetition
 
 ### Added
@@ -38,6 +71,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Terminal ordinary and training fight settlement now stores durable resource/training substeps before final completion, so crash/replay recovery can finish rewards without spending HP/mana recovery anchors or training cooldowns twice.
 - Post-remort level milestones now use remort-specific daily-action keys instead of reusing base-life `milestone.level.N` keys, so remort detail boards can show levels 2-13 reached in the current life.
 - Memorial-board backfill now writes missing current-life remort milestones separately from base-life milestones, so already-remorted characters who have climbed again are no longer stuck showing only the remort's level 1 row.
+- Memorial-board remort detail rows now infer missing historic levels 2-12 from the next completed remort, so older lives that already reached level 13 no longer disappear from intermediate level rows.
 - Memorial-board remort detail rows now deduplicate legacy and backfilled milestone rows for the same character/level, preferring real recorded rows and preserving provenance in `daily_actions.resultJson`.
 - Location-changing place callbacks now send a short movement line with the updated persistent keyboard before rendering the new place card, so the main place button catches up without a debug-like `📍 Тепер:` status message.
 - Passage attack callbacks are now bound to the server-owned encounter and the player's current passage location; old buttons from another passage refresh the current place instead of moving presence or starting combat.

@@ -9,6 +9,7 @@ import type {
   PendingPassageEncounterRepository,
   PendingPassageEncounterStatus
 } from "./pendingPassageEncounterRepository";
+import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import { mapSoloCombatSessionRecord } from "./prismaSoloCombatSessionRepository";
 
 type PrismaPendingPassageEncounterRecord = Awaited<
@@ -327,14 +328,21 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
         return currentMapped ? { state: "not-pending", encounter: currentMapped } : { state: "invalid" };
       }
 
+      const committedState = await applyCombatDrinkStateCommit(
+        tx,
+        encounter.characterId,
+        input.state,
+        input.drinkStateCommit
+      );
+
       const session = await tx.soloCombatSession.create({
         data: {
           id: input.sessionId,
           characterId: encounter.characterId,
           monsterId: input.monsterId,
-          stateJson: input.state as unknown as Prisma.InputJsonValue,
-          status: input.state.status,
-          turn: input.state.turn,
+          stateJson: committedState as unknown as Prisma.InputJsonValue,
+          status: committedState.status,
+          turn: committedState.turn,
           expiresAt: input.sessionExpiresAt
         }
       });

@@ -38,28 +38,39 @@ export interface ResourceRegenerationResult {
   manaFullRegenSeconds: number;
 }
 
+export interface ResourceRegenerationMultiplierWindow {
+  startsAt: Date;
+  expiresAt: Date;
+  multiplierBp: number;
+}
+
 export function applyPassiveResourceRegeneration(input: {
   resources: CharacterResourceState;
   profile: CharacterResourceProfile;
   now: Date;
+  multiplierWindow?: ResourceRegenerationMultiplierWindow | null;
+  multiplierWindows?: ResourceRegenerationMultiplierWindow[];
 }): ResourceRegenerationResult {
   const hpMax = safePositiveInt(input.resources.hpMax);
   const manaMax = safeNonNegativeInt(input.resources.manaMax);
   const hpFullRegenSeconds = getHpFullRegenSeconds(input.profile);
   const manaFullRegenSeconds = getManaFullRegenSeconds(input.profile);
+  const multiplierWindows = getMultiplierWindows(input);
   const hp = regenerateResource({
     current: input.resources.hpCurrent,
     max: hpMax,
     ...(input.resources.hpRegenAt === undefined ? {} : { marker: input.resources.hpRegenAt }),
     now: input.now,
-    fullRegenSeconds: hpFullRegenSeconds
+    fullRegenSeconds: hpFullRegenSeconds,
+    ...(multiplierWindows ? { multiplierWindows } : {})
   });
   const mana = regenerateResource({
     current: input.resources.manaCurrent,
     max: manaMax,
     ...(input.resources.manaRegenAt === undefined ? {} : { marker: input.resources.manaRegenAt }),
     now: input.now,
-    fullRegenSeconds: manaFullRegenSeconds
+    fullRegenSeconds: manaFullRegenSeconds,
+    ...(multiplierWindows ? { multiplierWindows } : {})
   });
 
   return {
@@ -116,6 +127,7 @@ function regenerateResource(input: {
   marker?: Date | null;
   now: Date;
   fullRegenSeconds: number;
+  multiplierWindows?: ResourceRegenerationMultiplierWindow[];
 }): { current: number; marker: Date; changed: boolean } {
   const current = clampResource(input.current, input.max);
   const markerWasMissing = input.marker == null;
@@ -137,9 +149,13 @@ function regenerateResource(input: {
     };
   }
 
-  const elapsedSeconds = Math.max(0, (input.now.getTime() - marker.getTime()) / 1000);
-  const pointsPerSecond = input.max / input.fullRegenSeconds;
-  const restored = Math.floor(elapsedSeconds * pointsPerSecond);
+  const restored = calculateRestoredPoints({
+    from: marker,
+    to: input.now,
+    max: input.max,
+    fullRegenSeconds: input.fullRegenSeconds,
+    ...(input.multiplierWindows ? { multiplierWindows: input.multiplierWindows } : {})
+  });
 
   if (restored <= 0) {
     return {
@@ -149,6 +165,7 @@ function regenerateResource(input: {
     };
   }
 
+  const pointsPerSecond = input.max / input.fullRegenSeconds;
   const nextCurrent = Math.min(input.max, current + restored);
 
   if (nextCurrent >= input.max) {
@@ -161,9 +178,153 @@ function regenerateResource(input: {
 
   return {
     current: nextCurrent,
-    marker: addSeconds(marker, restored / pointsPerSecond),
+    marker: advanceMarkerByRestoredPoints({
+      from: marker,
+      to: input.now,
+      max: input.max,
+      fullRegenSeconds: input.fullRegenSeconds,
+      restored,
+      ...(input.multiplierWindows ? { multiplierWindows: input.multiplierWindows } : {})
+    }) ?? addSeconds(marker, restored / pointsPerSecond),
     changed: true
   };
+}
+
+function calculateRestoredPoints(input: {
+  from: Date;
+  to: Date;
+  max: number;
+  fullRegenSeconds: number;
+  multiplierWindows?: ResourceRegenerationMultiplierWindow[];
+}): number {
+  const weightedUnits = getRegenerationSegments({
+    from: input.from,
+    to: input.to,
+    ...(input.multiplierWindows ? { multiplierWindows: input.multiplierWindows } : {})
+  }).reduce((sum, segment) => {
+    const elapsedMs = Math.max(0, segment.to.getTime() - segment.from.getTime());
+    const multiplierBp = Math.max(0, Math.floor(segment.multiplierBp));
+
+    return sum + BigInt(elapsedMs) * BigInt(input.max) * BigInt(multiplierBp);
+  }, 0n);
+  const denominator = BigInt(input.fullRegenSeconds) * 1000n * 10000n;
+
+  return denominator <= 0n ? 0 : Number(weightedUnits / denominator);
+}
+
+function advanceMarkerByRestoredPoints(input: {
+  from: Date;
+  to: Date;
+  max: number;
+  fullRegenSeconds: number;
+  restored: number;
+  multiplierWindows?: ResourceRegenerationMultiplierWindow[];
+}): Date | null {
+  let remainingUnits = BigInt(input.restored) * BigInt(input.fullRegenSeconds) * 1000n * 10000n;
+
+  if (remainingUnits <= 0n) {
+    return input.from;
+  }
+
+  for (const segment of getRegenerationSegments({
+    from: input.from,
+    to: input.to,
+    ...(input.multiplierWindows ? { multiplierWindows: input.multiplierWindows } : {})
+  })) {
+    const elapsedMs = Math.max(0, segment.to.getTime() - segment.from.getTime());
+    const multiplierBp = Math.max(0, Math.floor(segment.multiplierBp));
+    const segmentUnits = BigInt(elapsedMs) * BigInt(input.max) * BigInt(multiplierBp);
+
+    if (remainingUnits > segmentUnits) {
+      remainingUnits -= segmentUnits;
+      continue;
+    }
+
+    if (multiplierBp <= 0 || input.max <= 0) {
+      return segment.from;
+    }
+
+    const unitsPerMs = BigInt(input.max) * BigInt(multiplierBp);
+    const milliseconds = ceilDiv(remainingUnits, unitsPerMs);
+
+    return new Date(Math.min(segment.to.getTime(), segment.from.getTime() + Number(milliseconds)));
+  }
+
+  return input.to;
+}
+
+function getRegenerationSegments(input: {
+  from: Date;
+  to: Date;
+  multiplierWindows?: ResourceRegenerationMultiplierWindow[];
+}): Array<{ from: Date; to: Date; multiplierBp: number }> {
+  if (input.to <= input.from) {
+    return [];
+  }
+
+  const windows = normalizeMultiplierWindows(input.multiplierWindows);
+  if (windows.length === 0) {
+    return [{ from: input.from, to: input.to, multiplierBp: 10000 }];
+  }
+
+  const boundaries = new Set<number>([input.from.getTime(), input.to.getTime()]);
+  for (const window of windows) {
+    if (window.expiresAt > input.from && window.startsAt < input.to) {
+      boundaries.add(Math.max(input.from.getTime(), window.startsAt.getTime()));
+      boundaries.add(Math.min(input.to.getTime(), window.expiresAt.getTime()));
+    }
+  }
+  const sortedBoundaries = [...boundaries].sort((left, right) => left - right);
+  const segments: Array<{ from: Date; to: Date; multiplierBp: number }> = [];
+
+  for (let index = 0; index < sortedBoundaries.length - 1; index += 1) {
+    const from = new Date(sortedBoundaries[index]!);
+    const to = new Date(sortedBoundaries[index + 1]!);
+    const active = [...windows].reverse().find((window) => window.startsAt < to && window.expiresAt > from);
+    const multiplierBp = active?.multiplierBp ?? 10000;
+    const previous = segments.at(-1);
+
+    if (previous && previous.multiplierBp === multiplierBp && previous.to.getTime() === from.getTime()) {
+      previous.to = to;
+    } else {
+      segments.push({ from, to, multiplierBp });
+    }
+  }
+
+  return segments;
+}
+
+function getMultiplierWindows(input: {
+  multiplierWindow?: ResourceRegenerationMultiplierWindow | null;
+  multiplierWindows?: ResourceRegenerationMultiplierWindow[];
+}): ResourceRegenerationMultiplierWindow[] | undefined {
+  const windows = [
+    ...(input.multiplierWindows ?? []),
+    ...(input.multiplierWindow ? [input.multiplierWindow] : [])
+  ];
+
+  return windows.length > 0 ? windows : undefined;
+}
+
+function normalizeMultiplierWindows(
+  windows: ResourceRegenerationMultiplierWindow[] | undefined
+): ResourceRegenerationMultiplierWindow[] {
+  return (windows ?? [])
+    .filter((window) => window.expiresAt > window.startsAt)
+    .map((window) => ({
+      startsAt: window.startsAt,
+      expiresAt: window.expiresAt,
+      multiplierBp: Math.max(0, Math.floor(window.multiplierBp))
+    }))
+    .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
+}
+
+function ceilDiv(value: bigint, divisor: bigint): bigint {
+  if (divisor <= 0n) {
+    return 0n;
+  }
+
+  return (value + divisor - 1n) / divisor;
 }
 
 function getSecondsToFull(current: number, max: number, fullRegenSeconds: number): number {

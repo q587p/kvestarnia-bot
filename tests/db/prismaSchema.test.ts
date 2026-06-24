@@ -111,6 +111,47 @@ describe("Prisma schema", () => {
     expect(migration).toContain("CREATE INDEX \"korchma_round_purchases_local_date_idx\"");
   });
 
+  it("stores Shynok drinks, round offers and manatka sales", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260623100000_add_shynok_drinks_and_mantok_sales",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model CharacterDrinkState");
+    expect(schema).toContain("activationId String");
+    expect(schema).toContain("model ShynokDrinkActivationAudit");
+    expect(schema).toContain("model KorchmaDrinkOrder");
+    expect(schema).toContain("model KorchmaRoundRecipient");
+    expect(schema).toContain("model KorchmaMantokSale");
+    expect(schema).toContain("drinkState CharacterDrinkState?");
+    expect(schema).toContain("drinkActivationAudits ShynokDrinkActivationAudit[]");
+    expect(schema).toContain("korchmaDrinkOrders KorchmaDrinkOrder[]");
+    expect(schema).toContain("korchmaMantokSales KorchmaMantokSale[]");
+    expect(schema).toContain("@@unique([characterId, token])");
+    expect(schema).toContain("@@map(\"character_drink_states\")");
+    expect(schema).toContain("@@map(\"shynok_drink_activation_audits\")");
+    expect(schema).toContain("@@map(\"korchma_drink_orders\")");
+    expect(schema).toContain("@@map(\"korchma_round_recipients\")");
+    expect(schema).toContain("@@map(\"korchma_mantok_sales\")");
+    expect(migration).toContain("CREATE TABLE \"character_drink_states\"");
+    expect(migration).toContain("\"activation_id\" TEXT NOT NULL");
+    expect(migration).toContain("CREATE TABLE \"shynok_drink_activation_audits\"");
+    expect(migration).toContain("CREATE TABLE \"korchma_drink_orders\"");
+    expect(migration).toContain("CREATE TABLE \"korchma_round_recipients\"");
+    expect(migration).toContain("CREATE TABLE \"korchma_mantok_sales\"");
+    expect(migration).toContain("ALTER TABLE \"korchma_round_purchases\" ADD COLUMN \"drink_key\" TEXT");
+    expect(migration).toContain("CREATE UNIQUE INDEX \"character_drink_states_character_id_key\"");
+    expect(migration).toContain("CREATE UNIQUE INDEX \"korchma_drink_orders_token_key\"");
+    expect(migration).toContain("CREATE UNIQUE INDEX \"korchma_mantok_sales_token_key\"");
+  });
+
   it("stores persistent equipment rows per character slot", () => {
     const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
     const migration = readFileSync(

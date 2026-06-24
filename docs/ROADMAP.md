@@ -118,6 +118,14 @@ Canonical docs:
 - [docs/phase2/COMBAT_TACTICS_AND_FLAVOR.md](phase2/COMBAT_TACTICS_AND_FLAVOR.md)
 - [docs/phase2/TRADING_AND_GIFTING.md](phase2/TRADING_AND_GIFTING.md)
 - [docs/phase2/GROUP_COMBAT_AND_RAIDS.md](phase2/GROUP_COMBAT_AND_RAIDS.md)
+- [docs/PHASE2_MVP_CLOSEOUT_PLAN.md](PHASE2_MVP_CLOSEOUT_PLAN.md)
+- [docs/PHASE2_CLOSEOUT_SMOKE.md](PHASE2_CLOSEOUT_SMOKE.md)
+- [docs/PHASE2_DEFERRED_0_2.md](PHASE2_DEFERRED_0_2.md)
+
+Closeout cutline:
+- `0.1.24` is the intended final feature release of the `0.1.x` Phase 2 MVP line.
+- `0.1.25` is reserved as a docs/release/smoke closeout milestone with no new gameplay; if a runtime hotfix consumes that version, move closeout to the next free patch.
+- Trading/gifting, multi-enemy, item tags and party/raid runtime move to `0.2.x` rather than keeping `0.1.x` open indefinitely.
 
 Deliverables:
 - Бійцівський куток із тренувальним `Сумлінним Допельґанґером`: копія поточного героя для level 3+ спарингу перед справжніми дуелями з гравцями. Майбутні дуелі також стартують з 3 рівня, якщо окремий балансний PR не змінить це явно.
@@ -137,6 +145,7 @@ Done when:
 - Social rewards are capped and do not create PvP/economy snowball.
 - Remort follow-ups and raid reward paths are explicit, idempotent and do not create veteran runaway power.
 - The data shape does not block later party combat, group raids, trading and gifting.
+- The closeout smoke records that the shipped social-combat vertical slice has no blocker duplicate-reward, combat-lease, presence/privacy, remort-boundary or Shynok isolation regression.
 
 Non-goals for the first Phase 2 runtime slice:
 - No item loss, gold steal, wagers, auction house, guild wars, paid power or forced PvP.

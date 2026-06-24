@@ -351,6 +351,11 @@ describe("level milestone repository helpers", () => {
         characterId: "character-remort-one",
         name: "Після Першого",
         reachedAt: afterFirstRemortAt
+      }),
+      expect.objectContaining({
+        characterId: "character-remort-two",
+        name: "Після Першого",
+        reachedAt: secondRemortAt
       })
     ]);
     expect(board.levels.find((group) => group.level === 13)?.entries).toEqual([
@@ -358,6 +363,111 @@ describe("level milestone repository helpers", () => {
         characterId: "character-remort-two",
         name: "Після Першого",
         reachedAt: secondRemortAt
+      })
+    ]);
+  });
+
+  it("infers missing historic remort-life levels from the next completed remort", async () => {
+    const firstRemortAt = new Date("2026-06-16T10:00:00.000Z");
+    const secondRemortAt = new Date("2026-06-17T10:00:00.000Z");
+    const thirdRemortAt = new Date("2026-06-18T10:00:00.000Z");
+    const explicitLevelAt = new Date("2026-06-16T10:42:00.000Z");
+    const prisma = {
+      dailyAction: {
+        findMany: vi.fn((input: { where?: { key?: string | { in?: string[] } } }) => {
+          const key = input.where?.key;
+          const requestedKeys = typeof key === "string" ? [key] : (key?.in ?? []);
+
+          if (
+            !requestedKeys.includes(buildLevelMilestoneKey(12)) &&
+            !requestedKeys.includes(buildRemortLevelMilestoneKey(1, 12))
+          ) {
+            return Promise.resolve([]);
+          }
+
+          return Promise.resolve([
+            makeMilestoneRecord({
+              characterId: "character-explicit",
+              name: "Реальна Зарубка",
+              telegramUserId: 301n,
+              key: buildRemortLevelMilestoneKey(1, 12),
+              reachedAt: explicitLevelAt,
+              remorts: [{ remortNumber: 1, createdAt: firstRemortAt }]
+            })
+          ]);
+        })
+      },
+      characterRemort: {
+        findMany: vi.fn((input: { where?: { remortNumber?: number } }) => {
+          if (input.where?.remortNumber === 1) {
+            return Promise.resolve([
+              makeRemortRow({
+                characterId: "character-explicit",
+                name: "Реальна Зарубка",
+                displayNameSnapshot: "До Першого",
+                telegramUserId: 301n,
+                reachedAt: firstRemortAt
+              }),
+              makeRemortRow({
+                characterId: "character-inferred",
+                name: "Пізніший Герой",
+                displayNameSnapshot: "До Першого Пізнього",
+                telegramUserId: 302n,
+                reachedAt: firstRemortAt
+              })
+            ]);
+          }
+
+          if (input.where?.remortNumber === 2) {
+            return Promise.resolve([
+              makeRemortRow({
+                characterId: "character-inferred",
+                name: "Пізніший Герой",
+                displayNameSnapshot: "Життя Після Першого",
+                telegramUserId: 302n,
+                reachedAt: secondRemortAt
+              }),
+              makeRemortRow({
+                characterId: "character-too-late",
+                name: "Вже Третій",
+                displayNameSnapshot: "Життя Після Першого Теж",
+                telegramUserId: 303n,
+                reachedAt: thirdRemortAt
+              })
+            ]);
+          }
+
+          return Promise.resolve([]);
+        })
+      }
+    };
+    const repository = new PrismaLevelMilestoneRepository(
+      prisma as unknown as ConstructorParameters<typeof PrismaLevelMilestoneRepository>[0]
+    );
+
+    const board = await repository.listFirstReachedLevelsForRemort(1, {
+      maxLevels: REMORT_LEVEL_MILESTONE_VISIBLE_LEVELS,
+      maxEntriesPerLevel: 3
+    });
+
+    expect(board.levels.find((group) => group.level === 12)?.entries).toEqual([
+      expect.objectContaining({
+        rank: 1,
+        characterId: "character-explicit",
+        name: "Реальна Зарубка",
+        reachedAt: explicitLevelAt
+      }),
+      expect.objectContaining({
+        rank: 2,
+        characterId: "character-inferred",
+        name: "Життя Після Першого",
+        reachedAt: secondRemortAt
+      }),
+      expect.objectContaining({
+        rank: 3,
+        characterId: "character-too-late",
+        name: "Життя Після Першого Теж",
+        reachedAt: thirdRemortAt
       })
     ]);
   });

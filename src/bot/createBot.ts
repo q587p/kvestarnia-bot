@@ -28,6 +28,7 @@ import type { InventoryService } from "../services/inventoryService";
 import type { LevelBarterService } from "../services/levelBarterService";
 import type { LevelMilestoneService } from "../services/levelMilestoneService";
 import type { MantokChestService } from "../services/mantokChestService";
+import type { ShynokService } from "../services/shynokService";
 import type { OnboardingService } from "../services/onboardingService";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
@@ -84,6 +85,7 @@ import {
   parseMantokChestCallbackData,
   type MantokChestCallback
 } from "./callbacks/mantokChestCallbackData";
+import { parseShynokCallbackData, type ShynokCallback } from "./callbacks/shynokCallbackData";
 import { parseMemorialCallbackData, type MemorialCallback } from "./callbacks/memorialCallbackData";
 import { parseMenuCallbackData } from "./callbacks/menuCallbackData";
 import { parseNearbyDuelCallbackData } from "./callbacks/nearbyDuelCallbackData";
@@ -204,6 +206,17 @@ import {
   buildMantokChestResultKeyboard
 } from "./keyboards/mantokChestKeyboard";
 import {
+  buildBackToShynokKeyboard,
+  buildShynokDrinkMenuKeyboard,
+  buildShynokDrinkPreviewKeyboard,
+  buildShynokDrinkResultKeyboard,
+  buildShynokOverviewKeyboard,
+  buildShynokRoundOfferResponseKeyboard,
+  buildShynokRoundPreviewKeyboard,
+  buildShynokRoundResultKeyboard,
+  buildShynokSaleSelectionKeyboard
+} from "./keyboards/shynokKeyboard";
+import {
   buildClassKeyboard,
   buildConfirmationKeyboard,
   buildGenderKeyboard,
@@ -303,6 +316,18 @@ import {
   presentMantokChestRecycleResult
 } from "./presenters/mantokChestPresenter";
 import {
+  presentShynokDrinkConfirmResult,
+  presentShynokDrinkMenu,
+  presentShynokDrinkPreview,
+  presentShynokGate,
+  presentShynokOverview,
+  presentShynokRoundConfirm,
+  presentShynokRoundOfferResponse,
+  presentShynokRoundPreview,
+  presentShynokSaleConfirm,
+  presentShynokSaleSelection
+} from "./presenters/shynokPresenter";
+import {
   presentCharacterCreated,
   presentClassSelected,
   presentGenderSelected,
@@ -358,6 +383,7 @@ export interface BotServices {
   levelBarter: LevelBarterService;
   levelMilestones?: LevelMilestoneService;
   mantokChest: MantokChestService;
+  shynok?: ShynokService;
   presence: PresenceService;
   devGrant?: DevGrantService;
   duel?: DuelChallengeService;
@@ -514,6 +540,17 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     }
 
     await handleMantokChestCallback(ctx, parsed.value, services);
+  });
+
+  bot.callbackQuery(/^v1:sh:/, async (ctx) => {
+    const parsed = parseShynokCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleShynokCallback(ctx, parsed.value, services);
   });
 
   bot.callbackQuery(/^v1:lvlx:/, async (ctx) => {
@@ -1545,6 +1582,180 @@ async function handleMantokChestCallback(
   await safeEditMessageText(ctx, presentMantokChestRecycleResult(result), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildMantokChestResultKeyboard(outputItem)
+  });
+}
+
+async function handleShynokCallback(
+  ctx: Context,
+  action: ShynokCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (!services.shynok) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    await safeEditMessageText(ctx, presentShynokGate({ state: "invalid-token" }), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildBackToShynokKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "overview") {
+    const result = await services.shynok.getOverviewForTelegramUser(telegramUserId);
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
+    await safeEditMessageText(ctx, presentShynokOverview(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: result.state === "ready" ? buildShynokOverviewKeyboard(result) : buildBackToShynokKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "drinks") {
+    const result = await services.shynok.getDrinkMenuForTelegramUser(telegramUserId);
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
+    await safeEditMessageText(ctx, presentShynokDrinkMenu(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: result.state === "ready" ? buildShynokDrinkMenuKeyboard() : buildBackToShynokKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "drink-preview") {
+    const result = await services.shynok.createSelfDrinkOrderForTelegramUser(telegramUserId, action.drinkKey);
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "preview" });
+    await safeEditMessageText(ctx, presentShynokDrinkPreview(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildShynokDrinkPreviewKeyboard(result)
+    });
+    return;
+  }
+
+  if (action.type === "drink-confirm") {
+    const result = await services.shynok.confirmSelfDrinkOrderForTelegramUser(telegramUserId, action.token);
+    await safeAnswerCallbackQuery(ctx, result.state === "completed"
+      ? { text: "Налито.", show_alert: false }
+      : { show_alert: result.state !== "replayed" });
+    await safeEditMessageText(ctx, presentShynokDrinkConfirmResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildShynokDrinkResultKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "round-preview") {
+    const result = await services.shynok.createRoundOrderForTelegramUser(telegramUserId, action.tier);
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "preview" });
+    await safeEditMessageText(ctx, presentShynokRoundPreview(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildShynokRoundPreviewKeyboard(result)
+    });
+    return;
+  }
+
+  if (action.type === "round-confirm") {
+    const result = await services.shynok.confirmRoundOrderForTelegramUser(
+      telegramUserId,
+      action.token,
+      action.tier
+    );
+    await safeAnswerCallbackQuery(ctx, result.state === "completed"
+      ? { text: "Кухлі поставлено.", show_alert: false }
+      : { show_alert: result.state !== "replayed" });
+    await safeEditMessageText(ctx, presentShynokRoundConfirm(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildShynokRoundResultKeyboard(result)
+    });
+    return;
+  }
+
+  if (
+    action.type === "round-accept" ||
+    action.type === "round-decline" ||
+    action.type === "round-replace-confirm"
+  ) {
+    const result = await services.shynok.respondToRoundOfferForTelegramUser(
+      telegramUserId,
+      action.offerId,
+      action.type === "round-accept"
+        ? "accept"
+        : action.type === "round-decline"
+          ? "decline"
+          : "confirm-replacement",
+      action.type === "round-replace-confirm" ? action.replacementGuard : undefined
+    );
+    await safeAnswerCallbackQuery(ctx, result.state === "accepted"
+      ? { text: "Кухоль ваш.", show_alert: false }
+      : {
+          show_alert:
+            result.state !== "replayed" &&
+            result.state !== "declined" &&
+            result.state !== "replacement-preview"
+        });
+    await safeEditMessageText(ctx, presentShynokRoundOfferResponse(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildShynokRoundOfferResponseKeyboard(result)
+    });
+    return;
+  }
+
+  if (action.type === "sale-open") {
+    const result = await services.shynok.startSaleForTelegramUser(telegramUserId);
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "selection" });
+    await safeEditMessageText(ctx, presentShynokSaleSelection(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildShynokSaleSelectionKeyboard(result)
+    });
+    return;
+  }
+
+  if (
+    action.type === "sale-page" ||
+    action.type === "sale-add" ||
+    action.type === "sale-remove" ||
+    action.type === "sale-all" ||
+    action.type === "sale-clear"
+  ) {
+    const result =
+      action.type === "sale-page"
+        ? await services.shynok.getSaleSelectionForTelegramUser(telegramUserId, action.token, action.page)
+        : await services.shynok.updateSaleSelectionForTelegramUser(telegramUserId, {
+            token: action.token,
+            page: action.page,
+            action:
+              action.type === "sale-add"
+                ? "add"
+                : action.type === "sale-remove"
+                  ? "remove"
+                  : action.type === "sale-all"
+                    ? "all"
+                    : "clear",
+            ...("index" in action ? { index: action.index } : {})
+          });
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentShynokSaleSelection(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildShynokSaleSelectionKeyboard(result)
+    });
+    return;
+  }
+
+  const result =
+    action.type === "sale-cancel"
+      ? await services.shynok.cancelSaleForTelegramUser(telegramUserId, action.token)
+      : await services.shynok.confirmSaleForTelegramUser(telegramUserId, action.token);
+
+  await safeAnswerCallbackQuery(ctx, result.state === "sold"
+    ? { text: "Продано.", show_alert: false }
+    : { show_alert: result.state !== "replayed" && result.state !== "cancelled" });
+  await safeEditMessageText(ctx, presentShynokSaleConfirm(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildBackToShynokKeyboard()
   });
 }
 

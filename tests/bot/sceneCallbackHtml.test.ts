@@ -1362,8 +1362,8 @@ describe("scene callback HTML options", () => {
       })
     );
     expect(String(reply?.payload.text)).toContain("🍻 Шинок");
-    expect(keyboard).toContain("🍻 Всім пива");
-    expect(keyboard).toContain("v1:tavern:round");
+    expect(keyboard).toContain("🍹 Напої для себе");
+    expect(keyboard).toContain("v1:sh:dr");
   });
 
   it("opens the pressed location label when the persistent reply keyboard is stale", async () => {

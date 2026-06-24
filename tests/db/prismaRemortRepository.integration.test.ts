@@ -97,6 +97,79 @@ describe("PrismaRemortRepository integration", () => {
       expiresAt: new Date(now.getTime() + 93 * 60_000),
       version: 4
     });
+    await prisma.characterDrinkState.create({
+      data: {
+        id: "drink-remort-live",
+        activationId: "activation-remort-live",
+        characterId: "character-remort-solo",
+        drinkKey: "drink.simple-beer",
+        phase: "timed",
+        startedAt: new Date(now.getTime() - 60_000),
+        expiresAt: new Date(now.getTime() + 22 * 60_000),
+        sourceType: "self_purchase",
+        sourceId: "order-remort-pending"
+      }
+    });
+    await prisma.korchmaDrinkOrder.createMany({
+      data: [
+        {
+          id: "order-remort-pending",
+          token: "token-order-remort-pending",
+          characterId: "character-remort-solo",
+          drinkKey: "drink.simple-beer",
+          priceGold: 13,
+          status: "pending",
+          expiresAt: new Date(now.getTime() + 5 * 60_000)
+        },
+        {
+          id: "order-remort-completed",
+          token: "token-order-remort-completed",
+          characterId: "character-remort-solo",
+          drinkKey: "drink.thyme-tea",
+          priceGold: 17,
+          status: "completed",
+          resultJson: { kind: "kept-history" },
+          completedAt: new Date(now.getTime() - 60_000),
+          expiresAt: new Date(now.getTime() + 5 * 60_000)
+        }
+      ]
+    });
+    await prisma.korchmaRoundPurchase.create({
+      data: {
+        id: "purchase-remort-offer",
+        characterId: "character-remort-solo",
+        tier: "simple",
+        spentGold: 93,
+        localDate: "2026-06-22",
+        drinkKey: "drink.simple-beer",
+        recipientCount: 1,
+        offerExpiresAt: new Date(now.getTime() + 5 * 60_000)
+      }
+    });
+    await prisma.korchmaRoundRecipient.create({
+      data: {
+        id: "offer-remort-open",
+        purchaseId: "purchase-remort-offer",
+        characterId: "character-remort-solo",
+        drinkKey: "drink.simple-beer",
+        status: "offered",
+        offeredAt: now,
+        expiresAt: new Date(now.getTime() + 5 * 60_000)
+      }
+    });
+    await prisma.korchmaMantokSale.create({
+      data: {
+        id: "sale-remort-pending",
+        token: "token-sale-remort-pending",
+        characterId: "character-remort-solo",
+        status: "pending",
+        selectionJson: [{ itemId: "item.old-life", quantity: 1 }],
+        selectionFingerprint: "old-life",
+        nominalValue: 100,
+        payoutGold: 42,
+        expiresAt: new Date(now.getTime() + 5 * 60_000)
+      }
+    });
 
     const result = await repository.completeDraftForTelegramUser(
       9301n,
@@ -159,6 +232,21 @@ describe("PrismaRemortRepository integration", () => {
       "token-pending-live",
       makeConsumeInput("session-stale-callback", now)
     )).resolves.toMatchObject({ state: "not-pending" });
+    await expect(prisma.characterDrinkState.findUnique({
+      where: { characterId: "character-remort-solo" }
+    })).resolves.toBeNull();
+    await expect(prisma.korchmaDrinkOrder.findUnique({
+      where: { id: "order-remort-pending" }
+    })).resolves.toMatchObject({ status: "cancelled" });
+    await expect(prisma.korchmaDrinkOrder.findUnique({
+      where: { id: "order-remort-completed" }
+    })).resolves.toMatchObject({ status: "completed" });
+    await expect(prisma.korchmaRoundRecipient.findUnique({
+      where: { id: "offer-remort-open" }
+    })).resolves.toMatchObject({ status: "expired", respondedAt: now });
+    await expect(prisma.korchmaMantokSale.findUnique({
+      where: { id: "sale-remort-pending" }
+    })).resolves.toMatchObject({ status: "cancelled" });
 
     await repository.completeDraftForTelegramUser(9301n, makeCompletionInput("token-remort-solo", now));
     const replayedSession = await prisma.soloCombatSession.findUnique({ where: { id: "session-remort-solo" } });
@@ -440,6 +528,81 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       result_json JSONB,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(character_id, key)
+    )`,
+    `CREATE TABLE character_drink_states (
+      id TEXT PRIMARY KEY,
+      activation_id TEXT NOT NULL UNIQUE,
+      character_id TEXT NOT NULL UNIQUE,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      drink_key TEXT NOT NULL,
+      phase TEXT NOT NULL,
+      started_at DATETIME NOT NULL,
+      expires_at DATETIME NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT,
+      metadata_json JSONB,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE korchma_drink_orders (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      character_id TEXT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      drink_key TEXT NOT NULL,
+      price_gold INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      replacement_json JSONB,
+      result_json JSONB,
+      expires_at DATETIME NOT NULL,
+      completed_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE korchma_round_purchases (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      tier TEXT NOT NULL,
+      spent_gold INTEGER NOT NULL,
+      local_date TEXT NOT NULL,
+      drink_key TEXT,
+      recipient_count INTEGER,
+      offer_expires_at DATETIME,
+      rules_version TEXT,
+      snapshot_json JSONB,
+      telemetry_json JSONB,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE korchma_round_recipients (
+      id TEXT PRIMARY KEY,
+      purchase_id TEXT NOT NULL,
+      character_id TEXT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      drink_key TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'offered',
+      offered_at DATETIME NOT NULL,
+      expires_at DATETIME NOT NULL,
+      responded_at DATETIME,
+      result_json JSONB,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE korchma_mantok_sales (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      character_id TEXT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending',
+      selection_json JSONB NOT NULL,
+      selection_fingerprint TEXT NOT NULL,
+      nominal_value INTEGER NOT NULL DEFAULT 0,
+      payout_gold INTEGER NOT NULL DEFAULT 0,
+      result_json JSONB,
+      expires_at DATETIME NOT NULL,
+      completed_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE solo_combat_sessions (
       id TEXT PRIMARY KEY,

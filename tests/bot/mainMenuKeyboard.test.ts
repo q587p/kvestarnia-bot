@@ -47,6 +47,10 @@ import {
 } from "../../src/bot/keyboards/levelBarterKeyboard";
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
 import {
+  buildShynokRoundPreviewKeyboard,
+  buildShynokRoundResultKeyboard
+} from "../../src/bot/keyboards/shynokKeyboard";
+import {
   buildEnterKorchmaKeyboard,
   buildKorchmaArrivalBoardKeyboard,
   buildKorchmaBarKeyboard,
@@ -218,20 +222,32 @@ describe("main menu and scene keyboards", () => {
       "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard())).toEqual([
-      "🍻 Всім пива",
+      "🍹 Напої для себе",
+      "🍺 Просте всім",
+      "🍻 Якісне всім",
+      "💰 Продати манатки",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaBarKeyboard())).toEqual([
-      "v1:tavern:round",
+      "v1:sh:dr",
+      "v1:sh:rp:simple",
+      "v1:sh:rp:fine",
+      "v1:sh:so",
       "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ includeBottleTurnIn: true }))).toEqual([
-      "🍻 Всім пива",
+      "🍹 Напої для себе",
+      "🍺 Просте всім",
+      "🍻 Якісне всім",
+      "💰 Продати манатки",
       "🍾 Здати пляшку",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaBarKeyboard({ includeBottleTurnIn: true }))).toEqual([
-      "v1:tavern:round",
+      "v1:sh:dr",
+      "v1:sh:rp:simple",
+      "v1:sh:rp:fine",
+      "v1:sh:so",
       "v1:cellar:grownup-turn-in",
       "v1:place:hall"
     ]);
@@ -423,6 +439,27 @@ describe("main menu and scene keyboards", () => {
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaRoundResultKeyboard(blockedByBarrel))).toEqual([
+      "v1:place:barrel",
+      "v1:place:hall"
+    ]);
+  });
+
+  it("links to the Barrel and hall when Shynok rounds are blocked by an active raid", () => {
+    const blockedByBarrel = { state: "raid-required" as const };
+
+    expect(flatInlineButtonTexts(buildShynokRoundPreviewKeyboard(blockedByBarrel))).toEqual([
+      "🛢️ До Бочки",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildShynokRoundPreviewKeyboard(blockedByBarrel))).toEqual([
+      "v1:place:barrel",
+      "v1:place:hall"
+    ]);
+    expect(flatInlineButtonTexts(buildShynokRoundResultKeyboard(blockedByBarrel))).toEqual([
+      "🛢️ До Бочки",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildShynokRoundResultKeyboard(blockedByBarrel))).toEqual([
       "v1:place:barrel",
       "v1:place:hall"
     ]);

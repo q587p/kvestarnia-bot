@@ -98,7 +98,8 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     data.startsWith("v1:item:") ||
     data.startsWith("v1:equip:") ||
     data.startsWith("v1:chest:") ||
-    data.startsWith("v1:lvlx:")
+    data.startsWith("v1:lvlx:") ||
+    data.startsWith("v1:sh:")
   ) {
     return {};
   }

@@ -4,6 +4,7 @@ import type {
   CombatCopiedEquipment,
   CombatDamageKind,
   CombatDebugTrace,
+  DrinkCombatModifiers,
   CombatLifeState,
   CombatResourceSettlementState,
   CombatSettlementState,
@@ -20,6 +21,8 @@ import {
   parseCombatAnalyticsState,
   parseMonsterAbilityRuntimeState
 } from "../../domain/combat";
+import { isShynokDrinkKey } from "../../domain/shynokDrinks";
+import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import type {
   AdoptLegacySoloCombatSettlementInput,
   AdoptLegacySoloCombatSettlementResult,
@@ -355,14 +358,21 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         return null;
       }
 
+      const committedState = await applyCombatDrinkStateCommit(
+        tx,
+        character.id,
+        input.state,
+        input.drinkStateCommit
+      );
+
       const session = await tx.soloCombatSession.create({
         data: {
           ...(sessionId ? { id: sessionId } : {}),
           characterId: character.id,
           monsterId: input.monsterId,
-          stateJson: input.state as unknown as Prisma.InputJsonValue,
-          status: input.state.status,
-          turn: input.state.turn,
+          stateJson: committedState as unknown as Prisma.InputJsonValue,
+          status: committedState.status,
+          turn: committedState.turn,
           expiresAt: input.expiresAt
         }
       });
@@ -1315,6 +1325,7 @@ function parseCombatState(value: unknown): CombatState | null {
   const monsterRuntime = parseMonsterAbilityRuntimeState(value.monsterRuntime);
   const lastTurn = parseTurnSummary(value.lastTurn);
   const turnLog = parseTurnLog(value.turnLog);
+  const drinkModifiers = parseDrinkModifiers(value.drinkModifiers);
 
   if (turn === null || !status || !hero || !monster) {
     return null;
@@ -1341,10 +1352,62 @@ function parseCombatState(value: unknown): CombatState | null {
     ...(context ? { context } : {}),
     ...(barks ? { barks } : {}),
     ...(analytics ? { analytics } : {}),
+    ...(drinkModifiers ? { drinkModifiers } : {}),
     ...(monsterRuntime ? { monsterRuntime } : {}),
     ...(lastTurn ? { lastTurn } : {}),
     ...(turnLog.length > 0 ? { turnLog } : {})
   };
+}
+
+function parseDrinkModifiers(value: unknown): DrinkCombatModifiers | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const drinkKey = typeof value.drinkKey === "string" && isShynokDrinkKey(value.drinkKey)
+    ? value.drinkKey
+    : null;
+  const sourceId = typeof value.sourceId === "string" && value.sourceId.length > 0 && value.sourceId.length <= 128
+    ? value.sourceId
+    : null;
+  const activationId = typeof value.activationId === "string" && value.activationId.length > 0 && value.activationId.length <= 128
+    ? value.activationId
+    : null;
+
+  if (!drinkKey || !sourceId) {
+    return null;
+  }
+
+  const accuracyPenaltyPp = boundedOptionalInt(value.accuracyPenaltyPp, 0, 50);
+  const outgoingDamageMultiplierBp = boundedOptionalInt(value.outgoingDamageMultiplierBp, 0, 20000);
+  const incomingDamageMultiplierBp = boundedOptionalInt(value.incomingDamageMultiplierBp, 0, 20000);
+
+  if (
+    accuracyPenaltyPp === undefined &&
+    outgoingDamageMultiplierBp === undefined &&
+    incomingDamageMultiplierBp === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    drinkKey,
+    sourceId,
+    ...(activationId ? { activationId } : {}),
+    ...(accuracyPenaltyPp !== undefined ? { accuracyPenaltyPp } : {}),
+    ...(outgoingDamageMultiplierBp !== undefined ? { outgoingDamageMultiplierBp } : {}),
+    ...(incomingDamageMultiplierBp !== undefined ? { incomingDamageMultiplierBp } : {})
+  };
+}
+
+function boundedOptionalInt(value: unknown, min: number, max: number): number | undefined {
+  const parsed = intOrNull(value);
+
+  if (parsed === null || parsed < min || parsed > max) {
+    return undefined;
+  }
+
+  return parsed;
 }
 
 function parseCombatLife(value: unknown): CombatLifeState | null {

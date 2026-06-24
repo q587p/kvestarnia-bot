@@ -78,12 +78,12 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Низ навчився памʼятати, кого показував");
-    expect(text).toContain("Прохід у Низі краще памʼятає показаного монстра");
-    expect(text).toContain("Кнопка <code>Атакувати</code> веде до того монстра");
-    expect(text).toContain("Старі або протерміновані сліди тепер не запускають бій мовчки");
-    expect(text).toContain("Звичайні сутички в Низі стали менше повторювати");
-    expect(text).toContain("Єгерські цілі, пригодницькі бійки, тренувальний допельґанґер");
+    expect(text).toContain("Шинок налив напої й навчився викуповувати манатки");
+    expect(text).toContain("У Шинку зʼявилися напої для себе");
+    expect(text).toContain("<code>Всім пива</code> тепер не заливає всіх автоматично");
+    expect(text).toContain("У Шинку зʼявився продаж манаток");
+    expect(text).toContain("Кава, їжа, похмілля");
+    expect(text).toContain("Напої не працюють у дуелях між гравцями");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

@@ -71,6 +71,161 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     expect(activeSessions[0]?.id).toBe(first?.id);
   });
 
+  it("atomically consumes exact queued vodka with solo session and lease creation", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-vodka-atomic",
+      characterId: "character-vodka-atomic",
+      telegramUserId: 14260n
+    });
+    const now = new Date("2026-06-23T10:00:00.000Z");
+    await prisma.characterDrinkState.create({
+      data: {
+        id: "drink-state-vodka-atomic",
+        activationId: "activation-vodka-atomic",
+        characterId: "character-vodka-atomic",
+        drinkKey: "drink.pepper-vodka",
+        phase: "queued",
+        startedAt: now,
+        expiresAt: new Date("2026-06-23T10:23:00.000Z"),
+        sourceType: "self_purchase"
+      }
+    });
+
+    const input = makeCreateInput("session-vodka-atomic", "monster.deadline-spider");
+    input.state.drinkModifiers = {
+      drinkKey: "drink.pepper-vodka",
+      sourceId: "drink-state-vodka-atomic",
+      activationId: "activation-vodka-atomic",
+      outgoingDamageMultiplierBp: 11300,
+      incomingDamageMultiplierBp: 11300
+    };
+    input.drinkStateCommit = {
+      expectedStateId: "drink-state-vodka-atomic",
+      expectedActivationId: "activation-vodka-atomic",
+      expectedStartedAt: now,
+      expectedExpiresAt: new Date("2026-06-23T10:23:00.000Z"),
+      drinkKey: "drink.pepper-vodka",
+      phase: "queued",
+      now
+    };
+
+    const session = await repository.createForTelegramUser(14260n, input);
+
+    expect(session?.state?.drinkModifiers).toEqual(input.state.drinkModifiers);
+    await expect(prisma.characterDrinkState.count({
+      where: { characterId: "character-vodka-atomic" }
+    })).resolves.toBe(0);
+    await expect(prisma.activeCombatLease.count({
+      where: { characterId: "character-vodka-atomic", referenceId: "session-vodka-atomic" }
+    })).resolves.toBe(1);
+    await expect(prisma.shynokDrinkActivationAudit.findUnique({
+      where: { activationId: "activation-vodka-atomic" }
+    })).resolves.toMatchObject({
+      outcome: "consumed",
+      combatSessionId: "session-vodka-atomic",
+      drinkKey: "drink.pepper-vodka"
+    });
+  });
+
+  it("does not consume a newer replacement vodka when the expected drink-state id changed", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-vodka-aba",
+      characterId: "character-vodka-aba",
+      telegramUserId: 14261n
+    });
+    const now = new Date("2026-06-23T10:00:00.000Z");
+    await prisma.characterDrinkState.create({
+      data: {
+        id: "drink-state-vodka-new",
+        activationId: "activation-vodka-new",
+        characterId: "character-vodka-aba",
+        drinkKey: "drink.pepper-vodka",
+        phase: "queued",
+        startedAt: now,
+        expiresAt: new Date("2026-06-23T10:23:00.000Z"),
+        sourceType: "self_purchase"
+      }
+    });
+
+    const input = makeCreateInput("session-vodka-aba", "monster.deadline-spider");
+    input.state.drinkModifiers = {
+      drinkKey: "drink.pepper-vodka",
+      sourceId: "drink-state-vodka-old",
+      activationId: "activation-vodka-old",
+      outgoingDamageMultiplierBp: 11300,
+      incomingDamageMultiplierBp: 11300
+    };
+    input.drinkStateCommit = {
+      expectedStateId: "drink-state-vodka-old",
+      expectedActivationId: "activation-vodka-old",
+      expectedStartedAt: now,
+      expectedExpiresAt: new Date("2026-06-23T10:23:00.000Z"),
+      drinkKey: "drink.pepper-vodka",
+      phase: "queued",
+      now
+    };
+
+    const session = await repository.createForTelegramUser(14261n, input);
+
+    expect(session?.state?.drinkModifiers).toBeUndefined();
+    await expect(prisma.characterDrinkState.findUnique({
+      where: { characterId: "character-vodka-aba" }
+    })).resolves.toMatchObject({ id: "drink-state-vodka-new" });
+  });
+
+  it("does not consume a refreshed vodka when the row id is reused but activation changed", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-vodka-refresh-aba",
+      characterId: "character-vodka-refresh-aba",
+      telegramUserId: 14262n
+    });
+    const now = new Date("2026-06-23T10:00:00.000Z");
+    const refreshedAt = new Date("2026-06-23T10:05:00.000Z");
+    await prisma.characterDrinkState.create({
+      data: {
+        id: "drink-state-vodka-reused",
+        activationId: "activation-vodka-refreshed",
+        characterId: "character-vodka-refresh-aba",
+        drinkKey: "drink.pepper-vodka",
+        phase: "queued",
+        startedAt: refreshedAt,
+        expiresAt: new Date("2026-06-23T10:28:00.000Z"),
+        sourceType: "self_purchase"
+      }
+    });
+
+    const input = makeCreateInput("session-vodka-refresh-aba", "monster.deadline-spider");
+    input.state.drinkModifiers = {
+      drinkKey: "drink.pepper-vodka",
+      sourceId: "drink-state-vodka-reused",
+      activationId: "activation-vodka-old",
+      outgoingDamageMultiplierBp: 11300,
+      incomingDamageMultiplierBp: 11300
+    };
+    input.drinkStateCommit = {
+      expectedStateId: "drink-state-vodka-reused",
+      expectedActivationId: "activation-vodka-old",
+      expectedStartedAt: now,
+      expectedExpiresAt: new Date("2026-06-23T10:23:00.000Z"),
+      drinkKey: "drink.pepper-vodka",
+      phase: "queued",
+      now
+    };
+
+    const session = await repository.createForTelegramUser(14262n, input);
+
+    expect(session?.state?.drinkModifiers).toBeUndefined();
+    await expect(prisma.characterDrinkState.findUnique({
+      where: { characterId: "character-vodka-refresh-aba" }
+    })).resolves.toMatchObject({
+      id: "drink-state-vodka-reused",
+      activationId: "activation-vodka-refreshed"
+    });
+    await expect(prisma.shynokDrinkActivationAudit.count({
+      where: { activationId: "activation-vodka-refreshed" }
+    })).resolves.toBe(0);
+  });
+
   it("follows a live lease to a terminal pending session and returns it on create conflict", async () => {
     await seedCharacter(prisma, {
       userId: "user-terminal-pending",
@@ -1138,6 +1293,34 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       reference_id TEXT NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE character_drink_states (
+      id TEXT PRIMARY KEY,
+      activation_id TEXT NOT NULL UNIQUE,
+      character_id TEXT NOT NULL UNIQUE,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      drink_key TEXT NOT NULL,
+      phase TEXT NOT NULL,
+      started_at DATETIME NOT NULL,
+      expires_at DATETIME NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT,
+      metadata_json JSONB,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE shynok_drink_activation_audits (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      activation_id TEXT NOT NULL UNIQUE,
+      drink_key TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT,
+      outcome TEXT NOT NULL,
+      combat_session_id TEXT,
+      occurred_at DATETIME NOT NULL,
+      metadata_json JSONB,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE character_remorts (
       id TEXT PRIMARY KEY,

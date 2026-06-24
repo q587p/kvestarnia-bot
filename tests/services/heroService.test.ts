@@ -14,6 +14,7 @@ import type {
   CharacterEquipmentSnapshot,
   EquipmentRepository
 } from "../../src/db/repositories/equipmentRepository";
+import type { ShynokDrinkStateRecord } from "../../src/db/repositories/shynokRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { HeroService } from "../../src/services/heroService";
 
@@ -100,6 +101,42 @@ describe("HeroService", () => {
     });
     expect(characters.resourceUpdateCount).toBe(1);
   });
+
+  it("returns the current Shynok drink for hero presentation", async () => {
+    const activeDrink = buildDrinkState({
+      drinkKey: "drink.pepper-vodka",
+      phase: "queued",
+      expiresAt: new Date("2026-06-23T10:23:00.000Z")
+    });
+    const historicalDrink = buildDrinkState({
+      drinkKey: "drink.fine-beer",
+      phase: "timed",
+      startedAt: new Date("2026-06-23T09:00:00.000Z"),
+      expiresAt: new Date("2026-06-23T09:42:00.000Z")
+    });
+    const service = new HeroService(
+      new FakeCharacterRepository(buildCharacter()),
+      new FakeInventoryRepository([]),
+      undefined,
+      undefined,
+      new FakeShynokRepository(activeDrink, historicalDrink),
+      () => new Date("2026-06-23T10:05:00.000Z")
+    );
+
+    const result = await service.findByTelegramUserId(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "existing-character",
+      activeDrink: {
+        key: "drink.pepper-vodka",
+        name: "Горілка з перцем",
+        emoji: "🥃",
+        phase: "queued",
+        outgoingDamageMultiplierBp: 11300,
+        incomingDamageMultiplierBp: 11300
+      }
+    });
+  });
 });
 
 function buildCharacter(overrides: Partial<CharacterRecord> = {}): CharacterRecord {
@@ -149,6 +186,23 @@ function buildItem(overrides: Partial<CharacterItemRecord>): CharacterItemRecord
     quantity: 1,
     createdAt: new Date("2026-06-13T12:00:00.000Z"),
     updatedAt: new Date("2026-06-13T12:00:00.000Z"),
+    ...overrides
+  };
+}
+
+function buildDrinkState(overrides: Partial<ShynokDrinkStateRecord> = {}): ShynokDrinkStateRecord {
+  return {
+    id: "drink-state-1",
+    activationId: "activation-1",
+    characterId: "character-42",
+    remortCount: 0,
+    drinkKey: "drink.simple-beer",
+    phase: "timed",
+    startedAt: new Date("2026-06-23T10:00:00.000Z"),
+    expiresAt: new Date("2026-06-23T10:23:00.000Z"),
+    sourceType: "self_purchase",
+    sourceId: "order-1",
+    metadata: null,
     ...overrides
   };
 }
@@ -230,5 +284,20 @@ class FakeEquipmentRepository implements EquipmentRepository {
 
   unequipForCharacter(): Promise<boolean> {
     throw new Error("Not needed in this test.");
+  }
+}
+
+class FakeShynokRepository {
+  constructor(
+    private readonly activeDrink: ShynokDrinkStateRecord | null,
+    private readonly recoveryDrink: ShynokDrinkStateRecord | null
+  ) {}
+
+  getActiveDrinkForTelegramUser(): Promise<ShynokDrinkStateRecord | null> {
+    return Promise.resolve(this.activeDrink);
+  }
+
+  getRecoveryDrinkForTelegramUser(): Promise<ShynokDrinkStateRecord | null> {
+    return Promise.resolve(this.recoveryDrink);
   }
 }

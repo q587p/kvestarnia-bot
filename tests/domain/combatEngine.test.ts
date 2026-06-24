@@ -230,6 +230,67 @@ describe("combat domain engine", () => {
     expect(result.state).not.toBe(state);
   });
 
+  it("applies stored beer accuracy penalties to PvE hero attacks", () => {
+    const baseline = resolveCombatTurn({
+      state: startCombat({ hero: warrior, monster }),
+      action: "attack",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.85, 0.9, 0.99])
+    });
+    const tipsy = resolveCombatTurn({
+      state: {
+        ...startCombat({ hero: warrior, monster }),
+        drinkModifiers: {
+          drinkKey: "drink.fine-beer",
+          sourceId: "drink-state.test",
+          accuracyPenaltyPp: 10
+        }
+      },
+      action: "attack",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.85, 0.9, 0.99])
+    });
+
+    expect(baseline.ok).toBe(true);
+    expect(tipsy.ok).toBe(true);
+    expect(baseline.summary.heroDamage).toBeGreaterThan(0);
+    expect(tipsy.summary.heroDamage).toBe(0);
+    expect(tipsy.summary.heroOutcome).toBe("miss");
+  });
+
+  it("applies stored pepper-vodka damage modifiers to PvE combat", () => {
+    const sturdyMonster = { ...monster, hpMax: 80, attack: 12 };
+    const baseline = resolveCombatTurn({
+      state: startCombat({ hero: warrior, monster: sturdyMonster }),
+      action: "attack",
+      hero: warrior,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    });
+    const peppered = resolveCombatTurn({
+      state: {
+        ...startCombat({ hero: warrior, monster: sturdyMonster }),
+        drinkModifiers: {
+          drinkKey: "drink.pepper-vodka",
+          sourceId: "drink-state.test",
+          outgoingDamageMultiplierBp: 11300,
+          incomingDamageMultiplierBp: 11300
+        }
+      },
+      action: "attack",
+      hero: warrior,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    });
+
+    expect(baseline.ok).toBe(true);
+    expect(peppered.ok).toBe(true);
+    expect(peppered.summary.heroDamage).toBeGreaterThan(baseline.summary.heroDamage);
+    expect(peppered.summary.monsterDamage).toBeGreaterThan(baseline.summary.monsterDamage);
+  });
+
   it("lets the monster response make the hero lose", () => {
     const result = resolveCombatTurn({
       state: {

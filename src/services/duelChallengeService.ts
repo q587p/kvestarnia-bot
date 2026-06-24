@@ -568,7 +568,9 @@ export class DuelChallengeService {
 
     const updated = await this.challenges.declineByTokenForTelegramUser(inviteToken, telegramUserId, now);
 
-    return updated ? this.viewChallenge(updated, now) : { state: "not-found" };
+    return updated.record
+      ? { ...this.viewChallenge(updated.record, now), transitioned: updated.transitioned }
+      : { state: "not-found" };
   }
 
   async getByToken(inviteToken: string): Promise<DuelChallengeView | { state: "not-found" }> {

@@ -32,6 +32,7 @@ import type {
   CharacterEquipmentSnapshot,
   EquipmentRepository
 } from "../../src/db/repositories/equipmentRepository";
+import type { ShynokRepository } from "../../src/db/repositories/shynokRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import {
   markCombatSettlementCompleted,
@@ -746,6 +747,51 @@ describe("FightService", () => {
     expect(stored?.state?.monster.contextModifiers).toEqual(stored?.state?.context?.effects);
   });
 
+  it("freezes active beer modifiers when a direct persistent fight starts", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser"> = {
+      getActiveDrinkForTelegramUser: () =>
+        Promise.resolve({
+          id: "drink-state-beer-direct",
+          characterId: "character-1",
+          remortCount: 0,
+          drinkKey: "drink.fine-beer",
+          phase: "timed",
+          startedAt: new Date("2026-06-12T09:50:00.000Z"),
+          expiresAt: new Date("2026-06-12T10:32:00.000Z"),
+          sourceType: "self_purchase",
+          sourceId: "order-beer-direct",
+          metadata: null
+        })
+    };
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1]),
+      undefined,
+      undefined,
+      undefined,
+      shynok
+    );
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    expect(sessions.getById(started.session.id)?.state?.drinkModifiers).toEqual({
+      drinkKey: "drink.fine-beer",
+      sourceId: "drink-state-beer-direct",
+      accuracyPenaltyPp: 10
+    });
+  });
+
   it("starts a targeted persistent fight at the highest suitable requested monster level", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { level: 4, xp: 45 });
@@ -831,6 +877,55 @@ describe("FightService", () => {
     if (started.state === "persistent-active") {
       expect(started.session.state?.hero.hp).toBeGreaterThan(1);
       expect(started.session.state?.hero.mana).toBeGreaterThan(1);
+    }
+    expect(characters.resourceUpdateCount).toBe(1);
+  });
+
+  it("applies historical timed drink recovery when fight-start sync happens after expiry", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, {
+      xp: 25,
+      hpCurrent: 1,
+      manaCurrent: 1,
+      hpRegenAt: new Date("2026-06-12T10:29:00.000Z"),
+      manaRegenAt: new Date("2026-06-12T10:29:00.000Z")
+    });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> = {
+      getActiveDrinkForTelegramUser: () => Promise.resolve(null),
+      getRecoveryDrinkForTelegramUser: () =>
+        Promise.resolve({
+          id: "drink-state-expired-recovery",
+          characterId: "character-42",
+          remortCount: 0,
+          drinkKey: "drink.fine-beer",
+          phase: "timed",
+          startedAt: new Date("2026-06-12T10:29:00.000Z"),
+          expiresAt: new Date("2026-06-12T10:29:42.000Z"),
+          sourceType: "self_purchase",
+          sourceId: "order-expired-recovery",
+          metadata: null
+        })
+    };
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1]),
+      undefined,
+      undefined,
+      undefined,
+      shynok
+    );
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.session.state?.hero.hp).toBe(5);
+      expect(started.session.state?.drinkModifiers).toBeUndefined();
     }
     expect(characters.resourceUpdateCount).toBe(1);
   });
