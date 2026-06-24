@@ -91,16 +91,16 @@ Second Codex must not:
 
 ## Skills policy
 
-Use one main skill by default:
+Use one main skill by default. Active repo skills live in `.agents/skills/`:
 
 - Main implementation: `$kvestarnia-version-task`.
 - Second review: `$kvestarnia-second-codex-readonly`.
 - QA-only or high-risk Telegram flow: `$kvestarnia-telegram-qa`.
 - Closeout/handoff: `$kvestarnia-release-checklist`.
 - Balance/economy review: `$balance-review`.
-- Ukrainian content review: `$ukrainian-rpg-content`.
+- Ukrainian player-facing battle/tip/location/news/content copy: `$ukrainian-rpg-content`.
 
-Avoid activating multiple skills when one is enough.
+Avoid activating multiple skills when one is enough. For copy work, use `$ukrainian-rpg-content` instead of pasting `docs/CONTENT_STYLE_GUIDE.md` into the prompt. A focused copy prompt lives in `docs/ai/prompts/ukrainian-content-review.md`.
 
 ## New thread rule
 

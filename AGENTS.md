@@ -75,9 +75,10 @@ For implementation work:
 3. Activate one main skill: `$kvestarnia-version-task`.
 4. Point Codex to a short task doc in `docs/tasks/` and the compact context in `docs/ai/context.md`.
 5. Do not paste long repeated rules into prompts; rely on `AGENTS.md` and `$skill`.
-6. Inspect changed/relevant files first; avoid repository-wide scans unless necessary.
-7. Prefer `medium` reasoning for ordinary scoped work; reserve `high` for state, routing, concurrency, persistence, or difficult debugging.
-8. Final output must be short: changed files, behavior changed, tests run, risks, completion status. No tutorial.
+6. Use `$ukrainian-rpg-content` for substantial player-facing Ukrainian battle, tip, location, item/monster, or news copy instead of pasting the style guide into the prompt.
+7. Inspect changed/relevant files first; avoid repository-wide scans unless necessary.
+8. Prefer `medium` reasoning for ordinary scoped work; reserve `high` for state, routing, concurrency, persistence, or difficult debugging.
+9. Final output must be short: changed files, behavior changed, tests run, risks, completion status. No tutorial.
 
 For second Codex review:
 

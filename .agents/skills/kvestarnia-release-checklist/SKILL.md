@@ -12,10 +12,11 @@ Checklist:
 4. Confirm migrations, schemas, config, generated files, snapshots, and lockfiles changed only when required.
 5. Confirm relevant tests/checks were run, or blockers are named.
 6. Confirm player-facing text is Ukrainian and Telegram-friendly.
-7. Confirm changelog/news/package version surfaces are updated only when the task is release-oriented.
-8. Confirm manual Telegram QA is listed for behavior changes.
-9. Confirm risks and follow-ups are documented.
-10. Prepare a compact handoff for the next fresh Codex thread.
+7. If substantial player-facing copy changed, confirm it follows `$ukrainian-rpg-content` / `docs/CONTENT_STYLE_GUIDE.md`.
+8. Confirm changelog/news/package version surfaces are updated only when the task is release-oriented.
+9. Confirm manual Telegram QA is listed for behavior changes.
+10. Confirm risks and follow-ups are documented.
+11. Prepare a compact handoff for the next fresh Codex thread.
 
 Handoff format for the next thread:
 - Version completed:

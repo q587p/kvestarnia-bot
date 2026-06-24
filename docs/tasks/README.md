@@ -23,6 +23,7 @@ The prompt should point to a task doc instead of repeating a long rule block.
 ## Main Codex prompt
 
 Use `docs/ai/prompts/main-new-version-thread.md`.
+If the task substantially changes player-facing Ukrainian copy, add `$ukrainian-rpg-content` rather than pasting the full style guide.
 
 ## Second Codex prompt
 
