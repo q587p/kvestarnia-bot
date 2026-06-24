@@ -26,6 +26,17 @@ describe("tavern callback data", () => {
     });
   });
 
+  it("parses pending raid side-panel callbacks", () => {
+    expect(parseTavernCallbackData(makeTavernCallbackData("raid-leaderboard"))).toEqual({
+      ok: true,
+      value: "raid-leaderboard"
+    });
+    expect(parseTavernCallbackData(makeTavernCallbackData("raid-news"))).toEqual({
+      ok: true,
+      value: "raid-news"
+    });
+  });
+
   it("parses a valid ranger callback", () => {
     const data = makeTavernCallbackData("ranger");
 

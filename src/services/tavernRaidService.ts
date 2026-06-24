@@ -122,6 +122,10 @@ export type TavernPendingRaidResult =
   | { state: "none" }
   | { state: "pending"; character: CharacterSummary; availableAt: Date; now: Date; periodId: string };
 
+export type TavernRoundLeaderboardResult =
+  | { state: "no-character" }
+  | { state: "ready"; character: CharacterSummary; leaderboard: KorchmaRoundLeaderboard };
+
 export type TavernDevRaidStopResult =
   | { state: "no-character" }
   | { state: "unavailable" }
@@ -557,6 +561,21 @@ export class TavernRaidService {
       canBuySimple: character.gold >= KORCHMA_SIMPLE_ROUND_COST,
       canBuyFine: character.gold >= KORCHMA_FINE_ROUND_COST,
       leaderboard
+    };
+  }
+
+  async getRoundLeaderboardForTelegramUser(telegramUserId: bigint): Promise<TavernRoundLeaderboardResult> {
+    const now = this.clock();
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "ready",
+      character: summarizeCharacter(character),
+      leaderboard: await this.roundPurchases.getLeaderboard(toKorchmaLocalDate(now))
     };
   }
 

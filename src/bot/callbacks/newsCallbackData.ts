@@ -2,8 +2,10 @@ import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type NewsCallback =
-  | { type: "list"; page: number }
-  | { type: "entry"; entryIndex: number; listPage: number };
+  | { type: "list"; page: number; source: NewsCallbackSource }
+  | { type: "entry"; entryIndex: number; listPage: number; source: NewsCallbackSource };
+
+export type NewsCallbackSource = "hall" | "raid";
 
 export type NewsCallbackError =
   | "invalid-version"
@@ -14,12 +16,18 @@ export type NewsCallbackError =
 
 const PREFIX = "v1:news";
 
-export function makeNewsListCallbackData(page: number): string {
-  return `${PREFIX}:list:${page}`;
+export function makeNewsListCallbackData(page: number, source: NewsCallbackSource = "hall"): string {
+  return source === "raid" ? `${PREFIX}:rlist:${page}` : `${PREFIX}:list:${page}`;
 }
 
-export function makeNewsEntryCallbackData(entryIndex: number, listPage: number): string {
-  return `${PREFIX}:entry:${entryIndex}:${listPage}`;
+export function makeNewsEntryCallbackData(
+  entryIndex: number,
+  listPage: number,
+  source: NewsCallbackSource = "hall"
+): string {
+  return source === "raid"
+    ? `${PREFIX}:rentry:${entryIndex}:${listPage}`
+    : `${PREFIX}:entry:${entryIndex}:${listPage}`;
 }
 
 export function parseNewsCallbackData(
@@ -43,12 +51,14 @@ export function parseNewsCallbackData(
     return err("invalid-prefix");
   }
 
-  if (action === "list") {
+  if (action === "list" || action === "rlist") {
     const page = parseNonNegativeInteger(first);
-    return page === null ? err("invalid-page") : ok({ type: "list", page });
+    return page === null
+      ? err("invalid-page")
+      : ok({ type: "list", page, source: action === "rlist" ? "raid" : "hall" });
   }
 
-  if (action === "entry") {
+  if (action === "entry" || action === "rentry") {
     const entryIndex = parseNonNegativeInteger(first);
     const listPage = parseNonNegativeInteger(second);
 
@@ -56,7 +66,12 @@ export function parseNewsCallbackData(
       return err("invalid-page");
     }
 
-    return ok({ type: "entry", entryIndex, listPage });
+    return ok({
+      type: "entry",
+      entryIndex,
+      listPage,
+      source: action === "rentry" ? "raid" : "hall"
+    });
   }
 
   return err("invalid-action");

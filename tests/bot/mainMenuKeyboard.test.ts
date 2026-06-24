@@ -316,10 +316,14 @@ describe("main menu and scene keyboards", () => {
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("pending"))).toEqual([
-      "🍺 Перевірити бочку"
+      "🍺 Перевірити бочку",
+      "🏅 Перевірити рейтинг",
+      "📰 Перевірити новини"
     ]);
     expect(flatInlineButtonCallbacks(buildTavernResultKeyboard("pending"))).toEqual([
-      "v1:tavern:raid"
+      "v1:tavern:raid",
+      "v1:tavern:raid-leaderboard",
+      "v1:tavern:raid-news"
     ]);
     expect(flatInlineButtonTexts(buildTavernParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
     expect(flatInlineButtonCallbacks(buildTavernParticipantsKeyboard())).toEqual(["v1:place:barrel"]);

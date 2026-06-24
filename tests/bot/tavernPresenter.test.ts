@@ -18,6 +18,7 @@ import {
   presentTavernRaidPending,
   presentTavernRaidReadyToComplete,
   presentTavernRaidResult,
+  presentTavernRoundLeaderboard,
   presentTavernRoundOffer,
   presentTavernRoundResult
 } from "../../src/bot/presenters/tavernPresenter";
@@ -831,6 +832,19 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("&lt;b&gt;Дара&lt;/b&gt; — 1 частування · 10 золота");
     expect(text).not.toContain("<b>Дара</b>");
+  });
+
+  it("presents the round leaderboard from the pending raid", () => {
+    const text = presentTavernRoundLeaderboard({
+      state: "ready",
+      character,
+      leaderboard: roundLeaderboard
+    });
+
+    expect(text).toContain("🍺 Рейдовий доступ до рейтингу");
+    expect(text).toContain("Рейтинг щедрості");
+    expect(text).toContain("Мандрівник — 2 частування · 110 золота");
+    expect(text).not.toContain("Списано");
   });
 
   it("presents a round offer before any gold is spent", () => {

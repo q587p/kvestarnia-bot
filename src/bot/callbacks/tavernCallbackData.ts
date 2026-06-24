@@ -3,6 +3,8 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type TavernCallback =
   | "raid"
+  | "raid-leaderboard"
+  | "raid-news"
   | "participants"
   | "ranger"
   | "round"
@@ -17,6 +19,8 @@ export type TavernCallbackError =
 const PREFIX = "v1:tavern";
 const tavernActions = new Set<TavernCallback>([
   "raid",
+  "raid-leaderboard",
+  "raid-news",
   "participants",
   "ranger",
   "round",

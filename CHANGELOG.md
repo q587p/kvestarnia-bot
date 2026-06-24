@@ -13,6 +13,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `🎁 Подарувати манатку` from the Shynok/bar surface for offering exactly one eligible manatka stack unit to an active same-location player.
 - Added recipient accept/decline and sender cancel callbacks backed by short server-owned transfer tokens.
 - Added `ItemTransfer` persistence with frozen sender, receiver, item, quantity, result and terminal-state audit data.
+- Added pending Barrel raid shortcuts to the generosity rating and news archive, with both routes returning to the raid card.
 - Added focused domain, callback, presenter, schema and Prisma transaction tests for eligibility, duplicate accept replay, stale content and competing reservations.
 
 ### Changed

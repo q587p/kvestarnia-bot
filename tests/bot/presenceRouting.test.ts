@@ -41,6 +41,22 @@ describe("presence routing", () => {
       }
     ],
     [
+      "v1:tavern:raid-leaderboard",
+      {
+        locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+        currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
+        currentAdventureId: null
+      }
+    ],
+    [
+      "v1:tavern:raid-news",
+      {
+        locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+        currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
+        currentAdventureId: null
+      }
+    ],
+    [
       "v1:tavern:ranger",
       {
         locationId: PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
@@ -89,6 +105,14 @@ describe("presence routing", () => {
       {
         locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
         currentRaidId: null,
+        currentAdventureId: null
+      }
+    ],
+    [
+      "v1:news:rlist:0",
+      {
+        locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+        currentRaidId: PRESENCE_RAID_FRIDAY_BARREL,
         currentAdventureId: null
       }
     ],

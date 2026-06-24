@@ -235,6 +235,7 @@ import {
 } from "./keyboards/mainMenuKeyboard";
 import {
   buildBackToKorchmaHallKeyboard,
+  buildBackToTavernRaidKeyboard,
   buildEnterKorchmaKeyboard,
   buildKorchmaBarKeyboard,
   buildKorchmaRoundOfferKeyboard,
@@ -363,6 +364,7 @@ import {
   presentKorchmaDeepLevelLocked,
   presentPendingRaidActionBlock,
   presentTavernRaidResult,
+  presentTavernRoundLeaderboard,
   presentTavernRoundOffer,
   presentTavernRoundResult
 } from "./presenters/tavernPresenter";
@@ -590,11 +592,11 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     await safeAnswerCallbackQuery(ctx);
 
     if (parsed.value.type === "list") {
-      await sendNewsList(ctx, parsed.value.page);
+      await sendNewsList(ctx, parsed.value.page, "edit", { source: parsed.value.source });
       return;
     }
 
-    await sendNewsEntry(ctx, parsed.value.entryIndex, parsed.value.listPage);
+    await sendNewsEntry(ctx, parsed.value.entryIndex, parsed.value.listPage, { source: parsed.value.source });
   });
 
   bot.callbackQuery(/^v1:tavern:/, async (ctx) => {
@@ -2813,6 +2815,29 @@ async function handleTavernCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (action === "raid-news") {
+    await safeAnswerCallbackQuery(ctx);
+    await sendNewsList(ctx, 0, "edit", { source: "raid" });
+    return;
+  }
+
+  if (action === "raid-leaderboard") {
+    const result = await tavernRaidService.getRoundLeaderboardForTelegramUser(telegramUserId);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentTavernNoCharacter());
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentTavernRoundLeaderboard(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildBackToTavernRaidKeyboard()
+    });
     return;
   }
 

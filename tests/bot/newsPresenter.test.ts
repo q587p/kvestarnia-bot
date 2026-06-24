@@ -33,6 +33,18 @@ describe("news presenter", () => {
     expect(flatInlineButtonCallbacks(page.keyboard)).toContain("v1:place:hall");
   });
 
+  it("returns raid-opened news back to the raid", () => {
+    const index = presentNewsIndex(entries, 0, "raid");
+    const entry = presentNewsEntry(entries, 1, 0, "raid");
+
+    expect(flatInlineButtonTexts(index.keyboard)).toContain("⬅️ До рейду");
+    expect(flatInlineButtonCallbacks(index.keyboard)).toContain("v1:tavern:raid");
+    expect(flatInlineButtonCallbacks(index.keyboard)).toContain("v1:news:rentry:0:0");
+    expect(flatInlineButtonTexts(entry.keyboard)).toContain("⬅️ До рейду");
+    expect(flatInlineButtonCallbacks(entry.keyboard)).toContain("v1:tavern:raid");
+    expect(flatInlineButtonCallbacks(entry.keyboard)).toContain("v1:news:rlist:0");
+  });
+
   it("escapes selected news titles for Telegram HTML", () => {
     const page = presentNewsEntry(entries, 2, 0);
 

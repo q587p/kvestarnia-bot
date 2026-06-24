@@ -211,7 +211,12 @@ export function buildTavernResultKeyboard(
   state: TavernResultKeyboardState
 ): InlineKeyboard {
   if (state === "pending" || state === "pending-started") {
-    return new InlineKeyboard().text("🍺 Перевірити бочку", makeTavernCallbackData("raid"));
+    return new InlineKeyboard()
+      .text("🍺 Перевірити бочку", makeTavernCallbackData("raid"))
+      .row()
+      .text("🏅 Перевірити рейтинг", makeTavernCallbackData("raid-leaderboard"))
+      .row()
+      .text("📰 Перевірити новини", makeTavernCallbackData("raid-news"));
   }
 
   if (state === "completed" || state === "already-completed") {
@@ -229,6 +234,10 @@ export function buildTavernResultKeyboard(
   }
 
   return buildTavernKeyboard();
+}
+
+export function buildBackToTavernRaidKeyboard(): InlineKeyboard {
+  return new InlineKeyboard().text("⬅️ До рейду", makeTavernCallbackData("raid"));
 }
 
 export function buildTavernParticipantsKeyboard(): InlineKeyboard {
