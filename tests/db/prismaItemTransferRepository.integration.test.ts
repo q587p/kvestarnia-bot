@@ -221,10 +221,18 @@ describe("PrismaItemTransferRepository integration", () => {
     await createGift("gift-token-1");
     await expect(createGift("gift-token-2")).resolves.toMatchObject({ state: "stale-selection" });
 
-    await repository.declineGiftForTelegramUser(2n, "gift-token-1", now());
+    const decline = await repository.declineGiftForTelegramUser(2n, "gift-token-1", now());
+    expect(decline).toMatchObject({ state: "declined", transitioned: true });
+    const declineReplay = await repository.declineGiftForTelegramUser(2n, "gift-token-1", now());
+    expect(declineReplay).toMatchObject({ state: "declined" });
+    expect(declineReplay).not.toHaveProperty("transitioned");
     await expect(createGift("gift-token-3")).resolves.toMatchObject({ state: "created" });
 
-    await repository.cancelGiftForTelegramUser(1n, "gift-token-3", now());
+    const cancel = await repository.cancelGiftForTelegramUser(1n, "gift-token-3", now());
+    expect(cancel).toMatchObject({ state: "cancelled", transitioned: true });
+    const cancelReplay = await repository.cancelGiftForTelegramUser(1n, "gift-token-3", now());
+    expect(cancelReplay).toMatchObject({ state: "cancelled" });
+    expect(cancelReplay).not.toHaveProperty("transitioned");
     await expect(createGift("gift-token-4")).resolves.toMatchObject({ state: "created" });
   });
 

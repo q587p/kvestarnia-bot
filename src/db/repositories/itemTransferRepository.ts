@@ -62,9 +62,9 @@ export type ItemTransferRespondResult =
   | { state: "combat-locked"; transfer: ItemTransferRecord }
   | { state: "location-mismatch"; transfer: ItemTransferRecord }
   | { state: "stale-selection"; transfer: ItemTransferRecord }
-  | { state: "expired"; transfer: ItemTransferRecord }
-  | { state: "declined"; transfer: ItemTransferRecord }
-  | { state: "cancelled"; transfer: ItemTransferRecord }
+  | { state: "expired"; transfer: ItemTransferRecord; transitioned?: boolean }
+  | { state: "declined"; transfer: ItemTransferRecord; transitioned?: boolean }
+  | { state: "cancelled"; transfer: ItemTransferRecord; transitioned?: boolean }
   | { state: "completed"; transfer: ItemTransferRecord; sender: CharacterRecord; receiver: CharacterRecord }
   | { state: "replayed"; transfer: ItemTransferRecord; sender: CharacterRecord | null; receiver: CharacterRecord | null };
 

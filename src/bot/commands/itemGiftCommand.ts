@@ -94,6 +94,12 @@ export async function handleItemGiftCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildItemGiftResultKeyboard(result)
   });
+
+  if (result.state === "cancelled" && result.transitioned) {
+    await notifyGiftReceiverTerminal(ctx, result);
+  } else if (result.state === "declined" && result.transitioned) {
+    await notifyGiftSenderTerminal(ctx, result);
+  }
 }
 
 async function notifyGiftRecipient(
@@ -107,5 +113,31 @@ async function notifyGiftRecipient(
     });
   } catch {
     // Delivery is best-effort; the stored gift remains canonical.
+  }
+}
+
+async function notifyGiftReceiverTerminal(
+  ctx: Context,
+  result: Extract<Awaited<ReturnType<ItemTransferService["cancelGiftForTelegramUser"]>>, { state: "cancelled" }>
+): Promise<void> {
+  try {
+    await ctx.api.sendMessage(Number(result.transfer.receiverTelegramUserId), presentItemGiftRespond(result), {
+      ...HTML_MESSAGE_OPTIONS
+    });
+  } catch {
+    // Delivery is best-effort; the cancelled gift remains canonical.
+  }
+}
+
+async function notifyGiftSenderTerminal(
+  ctx: Context,
+  result: Extract<Awaited<ReturnType<ItemTransferService["declineGiftForTelegramUser"]>>, { state: "declined" }>
+): Promise<void> {
+  try {
+    await ctx.api.sendMessage(Number(result.transfer.senderTelegramUserId), presentItemGiftRespond(result), {
+      ...HTML_MESSAGE_OPTIONS
+    });
+  } catch {
+    // Delivery is best-effort; the declined gift remains canonical.
   }
 }

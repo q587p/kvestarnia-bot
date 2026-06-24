@@ -483,7 +483,7 @@ async function guardedTerminalResult(
 ): Promise<ItemTransferRespondResult> {
   const transition = await setTransferStatus(tx, transferId, status, now, result, expectedStatus);
   if (transition.changed) {
-    return { state: status, transfer: transition.transfer };
+    return { state: status, transfer: transition.transfer, transitioned: true };
   }
 
   return canonicalTransferResult(tx, transition.transfer);

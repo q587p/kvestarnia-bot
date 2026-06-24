@@ -21,7 +21,7 @@
 7. Поки gift pending і `expires_at` ще в майбутньому, спробувати продати/скинути/бартерити/подарувати ще одну одиницю того ж `itemId`: увесь stack лишається reserved.
 8. Дочекатися пасивного expiry без натискання кнопок і перевірити, що той самий `itemId` знову доступний для gift/sale/chest/barter; старі accept/decline/cancel кнопки replay-ять `expired`.
 9. Змінити stack/equipment/content між preview і accept: transfer fails safely.
-10. Decline, cancel and expired offers replay their terminal state.
+10. Decline, cancel and expired offers replay their terminal state; cancel notifies the receiver, decline notifies the sender, and repeated old terminal buttons do not send duplicate notices.
 11. Спробувати, коли будь-хто в incompatible combat lease: подарунок блокується.
 12. Перезапустити процес між offer і accept: canonical transfer row лишається usable.
 
