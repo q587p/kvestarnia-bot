@@ -3391,6 +3391,71 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("Ви зараз у рейді");
   });
 
+  it("allows the raid leaderboard shortcut while the Barrel raid is pending", async () => {
+    const getRoundLeaderboardForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "ready" as const,
+        character,
+        leaderboard: {
+          day: [],
+          week: [],
+          month: []
+        }
+      })
+    );
+    const calls = await captureApiCalls(
+      makeTavernCallbackData("raid-leaderboard"),
+      servicesWith({
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({
+              state: "pending",
+              character,
+              availableAt: new Date("2026-06-16T10:08:00.000Z"),
+              now: new Date("2026-06-16T10:03:00.000Z")
+            }),
+          getRoundLeaderboardForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(getRoundLeaderboardForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(String(edit?.payload.text)).toContain("Рейдовий доступ до рейтингу");
+    expect(String(edit?.payload.text)).not.toContain("Ви зараз у рейді");
+  });
+
+  it.each([
+    makeTavernCallbackData("raid-news"),
+    "v1:news:rlist:0"
+  ])("allows raid news callback %s while the Barrel raid is pending", async (callbackData) => {
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({
+              state: "pending",
+              character,
+              availableAt: new Date("2026-06-16T10:08:00.000Z"),
+              now: new Date("2026-06-16T10:03:00.000Z")
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(String(edit?.payload.text)).not.toContain("Ви зараз у рейді");
+    expect(keyboard).toContain(makeTavernCallbackData("raid"));
+  });
+
   it("returns from night Munchkin barter to the Nyz descent", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-19T18:30:00.000Z"));

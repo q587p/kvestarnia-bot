@@ -28,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Decline, cancel and expiry leave the sender item untouched and release the gift reservation.
 - Sender cancel and recipient decline now send a best-effort terminal gift notice to the other side only on the actual state transition.
 - Gift flow and terminal result cards now return to the actor's current location instead of always sending them to the Shynok.
+- Pending Barrel raid rating and news shortcuts now bypass the pending-raid blocker, so waiting players can actually read them from the raid card.
 - Shynok social-round cards keep the generosity rating visible even when the player cannot afford the frozen round price.
 
 ## [0.1.25] - 12026-06-24 - Phase 2 MVP Closeout

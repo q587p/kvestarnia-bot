@@ -861,6 +861,7 @@ function registerCombatLockMiddleware(bot: Bot, services: BotServices): void {
 
     if (
       ctx.callbackQuery &&
+      !isPendingRaidSafeCallback(callbackData) &&
       typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
       (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
     ) {
@@ -907,6 +908,14 @@ function isCombatLockSafeCallback(data: string): boolean {
     data.startsWith("v1:equip:") ||
     data.startsWith("v1:restart:") ||
     data.startsWith("v1:rm:")
+  );
+}
+
+function isPendingRaidSafeCallback(data: string | undefined): boolean {
+  return (
+    data === "v1:tavern:raid-leaderboard" ||
+    data === "v1:tavern:raid-news" ||
+    data?.startsWith("v1:news:r") === true
   );
 }
 
