@@ -57,6 +57,9 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 - [0.1.25-phase2-mvp-closeout.md](0.1.25-phase2-mvp-closeout.md) — docs/release/smoke closeout task for the `0.1.x` Phase 2 MVP line.
 - [future-deploy-notification-visti.md](future-deploy-notification-visti.md) — future copy polish for deploy notifications as `вісти` with the first release paragraph.
 - [0.2.0-safe-gifting-mvp.md](0.2.0-safe-gifting-mvp.md) — draft first `0.2.x` task for exactly-one-unit safe gifting after closeout.
+- [0.2.1-multi-enemy-foundation.md](0.2.1-multi-enemy-foundation.md) — task for backward-compatible two-enemy combat state and dev-only two-enemy exposure.
+- [0.2.2-architecture-stabilization.md](0.2.2-architecture-stabilization.md) — queued behavior-preserving architecture stabilization before threat escalation.
+- [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
 - [0.2.x-postal-mantok-delivery.md](0.2.x-postal-mantok-delivery.md) — draft future paid postal/courier delivery for sending one eligible manatka to a known non-nearby recipient.
 - [0.2.x-shynok-resale-and-korchmar-recycling.md](0.2.x-shynok-resale-and-korchmar-recycling.md) — draft future Shynok resale and Korchmar recycling loop for sold manatky.
 - [0.2.x-mantok-equipment-rebalance.md](0.2.x-mantok-equipment-rebalance.md) — draft `0.2.x` task for expanded manatka equipment slots and a global item/equipment rebalance.
