@@ -160,7 +160,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         }
 
         if (transfer.expiresAt <= input.now) {
-          return { state: "expired", transfer: await setTransferStatus(tx, transfer.id, "expired", input.now, { kind: "expired" }, "pending") };
+          return guardedTerminalResult(tx, transfer.id, "expired", input.now, { kind: "expired" }, "pending");
         }
 
         const sender = await tx.character.findUnique({
@@ -273,6 +273,9 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         });
 
         const completed = await setTransferStatus(tx, transfer.id, "completed", input.now, input.result, "processing");
+        if (!completed.changed) {
+          return canonicalTransferResult(tx, completed.transfer);
+        }
         const [updatedSender, updatedReceiver] = await Promise.all([
           tx.character.findUniqueOrThrow({ where: { id: sender.id }, include: characterInclude }),
           tx.character.findUniqueOrThrow({ where: { id: receiver.id }, include: characterInclude })
@@ -280,7 +283,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
 
         return {
           state: "completed",
-          transfer: completed,
+          transfer: completed.transfer,
           sender: toCharacterRecord(updatedSender),
           receiver: toCharacterRecord(updatedReceiver)
         };
@@ -325,11 +328,10 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
       }
 
       if (transfer.expiresAt <= now) {
-        return { state: "expired", transfer: await setTransferStatus(tx, transfer.id, "expired", now, { kind: "expired" }, "pending") };
+        return guardedTerminalResult(tx, transfer.id, "expired", now, { kind: "expired" }, "pending");
       }
 
-      const updated = await setTransferStatus(tx, transfer.id, status, now, { kind: status }, "pending");
-      return { state: status, transfer: updated };
+      return guardedTerminalResult(tx, transfer.id, status, now, { kind: status }, "pending");
     });
   }
 }
@@ -472,6 +474,37 @@ async function replayIfTerminal(
   return { state: "invalid-token" };
 }
 
+async function guardedTerminalResult(
+  tx: TxClient,
+  transferId: string,
+  status: "declined" | "expired" | "cancelled",
+  now: Date,
+  result: unknown,
+  expectedStatus: string
+): Promise<ItemTransferRespondResult> {
+  const transition = await setTransferStatus(tx, transferId, status, now, result, expectedStatus);
+  if (transition.changed) {
+    return { state: status, transfer: transition.transfer };
+  }
+
+  return canonicalTransferResult(tx, transition.transfer);
+}
+
+async function canonicalTransferResult(
+  tx: TxClient,
+  transfer: ItemTransferRecord
+): Promise<ItemTransferRespondResult> {
+  if (transfer.status === "completed") {
+    return replayTransfer(tx, transfer);
+  }
+
+  if (transfer.status === "declined" || transfer.status === "expired" || transfer.status === "cancelled") {
+    return { state: transfer.status, transfer };
+  }
+
+  return { state: "stale-selection", transfer };
+}
+
 async function replayTransfer(tx: TxClient, transfer: ItemTransferRecord): Promise<ItemTransferRespondResult> {
   if (transfer.status !== "completed") {
     if (transfer.status === "declined" || transfer.status === "expired" || transfer.status === "cancelled") {
@@ -501,7 +534,7 @@ async function setTransferStatus(
   now: Date,
   result: unknown,
   expectedStatus?: string
-): Promise<ItemTransferRecord> {
+): Promise<{ transfer: ItemTransferRecord; changed: boolean }> {
   const data = {
     status,
     resultJson: result as Prisma.InputJsonValue,
@@ -521,7 +554,7 @@ async function setTransferStatus(
         throw new Error("Item transfer disappeared during status race.");
       }
 
-      return replay;
+      return { transfer: replay, changed: false };
     }
   } else {
     await tx.itemTransfer.update({
@@ -535,7 +568,7 @@ async function setTransferStatus(
     throw new Error("Item transfer mapping failed after status update.");
   }
 
-  return transfer;
+  return { transfer, changed: true };
 }
 
 function toCharacterRecord(

@@ -14,16 +14,17 @@ This project follows a simple pre-1.0 versioning policy:
 - Added recipient accept/decline and sender cancel callbacks backed by short server-owned transfer tokens.
 - Added `ItemTransfer` persistence with frozen sender, receiver, item, quantity, result and terminal-state audit data.
 - Added pending Barrel raid shortcuts to the generosity rating and news archive, with both routes returning to the raid card.
-- Added focused domain, callback, presenter, schema and Prisma transaction tests for eligibility, duplicate accept replay, stale content and competing reservations.
+- Added focused domain, callback, presenter, schema and Prisma transaction tests for eligibility, duplicate accept replay, stale content, terminal race replay and competing reservations.
 
 ### Changed
 - Completed Barrel raid cards now link directly to the current Shynok social-round previews instead of the older fixed-price Korchma round flow.
-- Shynok sale, Mantok Chest and Munchkin level barter eligibility now treat pending/processing gift transfers as active item reservations.
+- Shynok sale, Mantok Chest and Munchkin level barter eligibility now treat pending/processing gift transfers as active whole-`itemId` stack reservations.
 - Remort cleanup cancels pending/processing gifts for either participant so old life-boundary reservations do not survive into the next life.
 
 ### Fixed
 - Gift accept rereads ownership, equipment, content fingerprint, active combat leases, remort counts, location state and competing reservations inside the transaction before moving the unit.
 - Duplicate accept replays the completed gift instead of moving another unit.
+- Decline, cancel and expiry race losers now replay the canonical stored transfer state instead of reporting the originally requested terminal action.
 - Decline, cancel and expiry leave the sender item untouched and release the gift reservation.
 - Shynok social-round cards keep the generosity rating visible even when the player cannot afford the frozen round price.
 

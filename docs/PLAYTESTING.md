@@ -17,10 +17,11 @@
 3. Отримувач приймає: у дарувальника мінус одна одиниця, в отримувача плюс одна.
 4. Повторити старі accept/cancel/decline кнопки: кількість не змінюється вдруге.
 5. Спробувати екіпіровану, priceless/protected/story, reserved sale/chest/barter/gift річ: подарунок не створюється або accept stale-иться без мутації.
-6. Змінити stack/equipment/content між preview і accept: transfer fails safely.
-7. Decline, cancel and expired offers replay their terminal state.
-8. Спробувати, коли будь-хто в incompatible combat lease: подарунок блокується.
-9. Перезапустити процес між offer і accept: canonical transfer row лишається usable.
+6. Поки gift pending, спробувати продати/скинути/бартерити/подарувати ще одну одиницю того ж `itemId`: увесь stack лишається reserved.
+7. Змінити stack/equipment/content між preview і accept: transfer fails safely.
+8. Decline, cancel and expired offers replay their terminal state.
+9. Спробувати, коли будь-хто в incompatible combat lease: подарунок блокується.
+10. Перезапустити процес між offer і accept: canonical transfer row лишається usable.
 
 ## 0.1.0 — Closeout smoke
 

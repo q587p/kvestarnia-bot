@@ -35,6 +35,7 @@ describe("PrismaItemTransferRepository integration", () => {
   }, 60_000);
 
   beforeEach(async () => {
+    await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS item_transfer_terminal_race`);
     await prisma.itemTransfer.deleteMany();
     await prisma.korchmaMantokSale.deleteMany();
     await prisma.mantokChestRun.deleteMany();
@@ -77,6 +78,76 @@ describe("PrismaItemTransferRepository integration", () => {
     expect(replay.state).toBe("replayed");
 
     await expectQuantities({ sender: 1, receiver: 1 });
+  });
+
+  it("moves one item unit exactly once with duplicate concurrent accepts", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedItem("sender", 2);
+    await createGift();
+
+    const results = await Promise.all([
+      acceptGift({ kind: "test-concurrent-accept-1" }),
+      acceptGift({ kind: "test-concurrent-accept-2" })
+    ]);
+    const states = results.map((result) => result.state).sort();
+
+    expect(states).toEqual(["completed", "replayed"]);
+    await expectFinalTransfer("completed");
+    await expectQuantities({ sender: 1, receiver: 1 });
+  });
+
+  it("keeps accept and decline races consistent with the canonical terminal state", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedItem("sender", 1);
+    await createGift();
+
+    const [accept, decline] = await Promise.all([
+      acceptGift({ kind: "test-accept-decline-race" }),
+      repository.declineGiftForTelegramUser(2n, "gift-token-1", now())
+    ]);
+    const final = await getFinalTransfer();
+
+    expect(final.status === "completed" || final.status === "declined").toBe(true);
+    expect(accept).toMatchObject({ transfer: { status: final.status } });
+    expect(decline).toMatchObject({ transfer: { status: final.status } });
+    expect(accept.state === "completed" || accept.state === "replayed" || accept.state === "declined").toBe(true);
+    expect(decline.state === "replayed" || decline.state === "declined").toBe(true);
+    await expectQuantities(final.status === "completed" ? { sender: 0, receiver: 1 } : { sender: 1, receiver: 0 });
+  });
+
+  it("keeps accept and cancel races consistent with the canonical terminal state", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedItem("sender", 1);
+    await createGift();
+
+    const [accept, cancel] = await Promise.all([
+      acceptGift({ kind: "test-accept-cancel-race" }),
+      repository.cancelGiftForTelegramUser(1n, "gift-token-1", now())
+    ]);
+    const final = await getFinalTransfer();
+
+    expect(final.status === "completed" || final.status === "cancelled").toBe(true);
+    expect(accept).toMatchObject({ transfer: { status: final.status } });
+    expect(cancel).toMatchObject({ transfer: { status: final.status } });
+    expect(accept.state === "completed" || accept.state === "replayed" || accept.state === "cancelled").toBe(true);
+    expect(cancel.state === "replayed" || cancel.state === "cancelled").toBe(true);
+    await expectQuantities(final.status === "completed" ? { sender: 0, receiver: 1 } : { sender: 1, receiver: 0 });
+  });
+
+  it("replays canonical completed state when an expired accept loses the status race", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedItem("sender", 1);
+    await createGift("gift-token-1", past());
+    await installTerminalRaceTrigger("expired", "completed");
+
+    const result = await acceptGift({ kind: "test-expired-race" });
+
+    expect(result.state).toBe("replayed");
+    expect(result).toMatchObject({ transfer: { status: "completed" } });
   });
 
   it.each([
@@ -157,6 +228,16 @@ describe("PrismaItemTransferRepository integration", () => {
     await expect(createGift("gift-token-4")).resolves.toMatchObject({ state: "created" });
   });
 
+  it("reserves the whole itemId stack while a gift is pending", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedItem("sender", 2);
+
+    await expect(createGift("gift-token-1")).resolves.toMatchObject({ state: "created" });
+    await expect(createGift("gift-token-2")).resolves.toMatchObject({ state: "stale-selection" });
+    await expectQuantities({ sender: 2, receiver: 0 });
+  });
+
   it("expires a stale gift without moving the item", async () => {
     await seedCharacter(1n, "sender", "Дарувальник");
     await seedCharacter(2n, "receiver", "Отримувач");
@@ -190,6 +271,33 @@ describe("PrismaItemTransferRepository integration", () => {
 
     expect(result.state).toBe("stale-selection");
     await expectQuantities({ sender: 1, receiver: 0 });
+  });
+
+  it("fails safely when the sender stack changes before accept", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedItem("sender", 1);
+    await createGift();
+    await prisma.characterItem.deleteMany({ where: { characterId: "sender", itemId: item.id } });
+
+    const result = await acceptGift({ kind: "test-stale-stack" });
+
+    expect(result.state).toBe("stale-selection");
+    await expectQuantities({ sender: 0, receiver: 0 });
+  });
+
+  it("replays completed state for old sender cancel buttons", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedItem("sender", 1);
+    await createGift();
+
+    await expect(acceptGift({ kind: "test-complete-before-cancel" })).resolves.toMatchObject({ state: "completed" });
+    const cancel = await repository.cancelGiftForTelegramUser(1n, "gift-token-1", now());
+
+    expect(cancel.state).toBe("replayed");
+    expect(cancel).toMatchObject({ transfer: { status: "completed" } });
+    await expectQuantities({ sender: 0, receiver: 1 });
   });
 
   it("blocks active combat before creating a gift", async () => {
@@ -232,6 +340,44 @@ describe("PrismaItemTransferRepository integration", () => {
       now: now(),
       expiresAt
     });
+  }
+
+  function acceptGift(result: unknown) {
+    return repository.acceptGiftForTelegramUser(2n, {
+      token: "gift-token-1",
+      itemContents: [item],
+      now: now(),
+      result
+    });
+  }
+
+  async function getFinalTransfer() {
+    const transfer = await prisma.itemTransfer.findUniqueOrThrow({ where: { token: "gift-token-1" } });
+    expect(["completed", "declined", "cancelled", "expired"]).toContain(transfer.status);
+    return transfer;
+  }
+
+  async function expectFinalTransfer(status: string) {
+    const transfer = await prisma.itemTransfer.findUniqueOrThrow({ where: { token: "gift-token-1" } });
+    expect(transfer.status).toBe(status);
+  }
+
+  async function installTerminalRaceTrigger(requestedStatus: string, canonicalStatus: string) {
+    await prisma.$executeRawUnsafe(`
+      CREATE TRIGGER item_transfer_terminal_race
+      BEFORE UPDATE OF status ON item_transfers
+      WHEN OLD.token = 'gift-token-1' AND NEW.status = '${requestedStatus}'
+      BEGIN
+        UPDATE item_transfers
+        SET status = '${canonicalStatus}',
+            result_json = '{"kind":"forced-terminal-race"}',
+            completed_at = CASE WHEN '${canonicalStatus}' = 'completed' THEN NEW.updated_at ELSE completed_at END,
+            responded_at = CASE WHEN '${canonicalStatus}' <> 'completed' THEN NEW.updated_at ELSE responded_at END,
+            updated_at = NEW.updated_at
+        WHERE id = OLD.id;
+        SELECT RAISE(IGNORE);
+      END
+    `);
   }
 
   async function seedCharacter(telegramUserId: bigint, characterId: string, name: string) {
