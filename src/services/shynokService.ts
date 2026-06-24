@@ -80,7 +80,13 @@ export type ShynokDrinkConfirmResult =
 export type ShynokRoundPreviewResult =
   | { state: ShynokGateState }
   | { state: "raid-required"; character: CharacterSummary; leaderboard: KorchmaRoundLeaderboard }
-  | { state: "not-enough-gold"; character: CharacterSummary; gold: number; priceGold: number }
+  | {
+      state: "not-enough-gold";
+      character: CharacterSummary;
+      gold: number;
+      priceGold: number;
+      leaderboard: KorchmaRoundLeaderboard;
+    }
   | {
       state: "preview";
       character: CharacterSummary;
@@ -333,7 +339,8 @@ export class ShynokService {
         state: "not-enough-gold",
         character: summarizeCharacter(gate.character),
         gold: gate.character.gold,
-        priceGold
+        priceGold,
+        leaderboard
       };
     }
 

@@ -118,6 +118,22 @@ describe("shynokPresenter", () => {
     expect(html).toContain("1. Мандрівник &lt;&amp;&gt; — 2 частування · 84 золота");
   });
 
+  it("keeps the generosity leaderboard visible when a round is too expensive", () => {
+    const result: ShynokRoundPreviewResult = {
+      state: "not-enough-gold",
+      character,
+      gold: 24,
+      priceGold: 93,
+      leaderboard
+    };
+
+    const html = presentShynokRoundPreview(result);
+
+    expect(html).toContain("Раунд коштує <b>93 золота</b>, а у вас <b>24</b>.");
+    expect(html).toContain("🏅 Рейтинг щедрості");
+    expect(html).toContain("1. Мандрівник &lt;&amp;&gt; — 2 частування · 84 золота");
+  });
+
   it("keeps the leaderboard visible after a round is placed", () => {
     const result: ShynokRoundConfirmResult = {
       state: "completed",

@@ -142,7 +142,9 @@ export function presentShynokRoundPreview(result: ShynokRoundPreviewResult): str
     return [
       "🍻 Корчмар рахує монети.",
       "",
-      `Раунд коштує <b>${result.priceGold} золота</b>, а у вас <b>${result.gold}</b>.`
+      `Раунд коштує <b>${result.priceGold} золота</b>, а у вас <b>${result.gold}</b>.`,
+      "",
+      ...presentKorchmaRoundLeaderboard(result.leaderboard)
     ].join("\n");
   }
 

@@ -642,8 +642,10 @@ describe("scene callback HTML options", () => {
     expect(edit?.payload).toMatchObject({
       parse_mode: "HTML"
     });
-    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("🍻 Всім пива");
-    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeTavernCallbackData("round"));
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("🍺 Просте всім");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("🍻 Якісне всім");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v1:sh:rp:simple");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v1:sh:rp:fine");
   });
 
   it("offers immediate Shynok turn-in after issuing a recovered completed problem paper", async () => {

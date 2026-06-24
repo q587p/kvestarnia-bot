@@ -221,7 +221,8 @@ export function buildTavernResultKeyboard(
 
   if (state === "completed" || state === "already-completed") {
     return new InlineKeyboard()
-      .text("🍻 Всім пива", makeTavernCallbackData("round"))
+      .text("🍺 Просте всім", makeShynokRoundPreviewCallbackData("simple"))
+      .text("🍻 Якісне всім", makeShynokRoundPreviewCallbackData("fine"))
       .row()
       .text("🧥 Єгер", makeTavernCallbackData("ranger"))
       .text("⬅️ До зали", makePlaceCallbackData("hall"));
