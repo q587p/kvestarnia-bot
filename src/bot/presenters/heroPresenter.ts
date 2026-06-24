@@ -124,7 +124,7 @@ function presentActiveDrinkEffects(drink: HeroActiveDrink): string[] {
   const effects: string[] = [];
 
   if (drink.recoveryMultiplierBp && drink.recoveryMultiplierBp !== 10000) {
-    effects.push(`відновлення ×${formatMultiplier(drink.recoveryMultiplierBp)}`);
+    effects.push(`відновлення швидше на ${formatRecoveryBonusPercent(drink.recoveryMultiplierBp)}%`);
   }
 
   if (drink.accuracyPenaltyPp) {
@@ -134,8 +134,8 @@ function presentActiveDrinkEffects(drink: HeroActiveDrink): string[] {
   return effects;
 }
 
-function formatMultiplier(multiplierBp: number): string {
-  return (multiplierBp / 10_000).toFixed(2);
+function formatRecoveryBonusPercent(multiplierBp: number): number {
+  return Math.round((multiplierBp - 10_000) / 100);
 }
 
 function formatRemainingMinutes(expiresAt: Date): string {
