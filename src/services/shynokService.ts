@@ -78,7 +78,8 @@ export type ShynokDrinkConfirmResult =
     };
 
 export type ShynokRoundPreviewResult =
-  | { state: ShynokGateState | "raid-required" }
+  | { state: ShynokGateState }
+  | { state: "raid-required"; character: CharacterSummary; leaderboard: KorchmaRoundLeaderboard }
   | { state: "not-enough-gold"; character: CharacterSummary; gold: number; priceGold: number }
   | {
       state: "preview";
@@ -315,7 +316,11 @@ export class ShynokService {
     const leaderboard = await this.roundPurchases.getLeaderboard(toKorchmaLocalDate(now));
 
     if (!raid) {
-      return { state: "raid-required" };
+      return {
+        state: "raid-required",
+        character: summarizeCharacter(gate.character),
+        leaderboard
+      };
     }
 
     const recipients = await this.shynok.listRoundRecipientsForTelegramUser(telegramUserId, now);

@@ -63,6 +63,7 @@ export function presentShynokDrinkMenu(result: ShynokDrinkMenuResult): string {
     "Корчмар виставив чотири варіянти. Три з них рідкі. Четвертий теж, але має характер.",
     "",
     ...presentActiveDrinkLines(result.activeDrink),
+    `У кишені: <b>${result.character.gold} золота</b>.`,
     "",
     "Золото спишеться лише після підтвердження."
   ].join("\n");
@@ -90,7 +91,7 @@ export function presentShynokDrinkConfirmResult(result: ShynokDrinkConfirmResult
       result.state === "replayed" ? "🍹 Цей напій уже записано." : "🍹 Налито.",
       "",
       result.drink
-        ? `${result.drink.emoji} <b>${escapeHtml(result.drink.name)}</b> діє до ${formatTime(result.drink.expiresAt)}.`
+        ? `${result.drink.emoji} <b>${escapeHtml(result.drink.name)}</b> діє ще ${formatRemainingMinutes(result.drink.expiresAt)}.`
         : "У журналі є запис, але кухоль соромиться опису.",
       "",
       `Списано: <b>${result.spentGold} золота</b>.`
@@ -130,7 +131,11 @@ export function presentShynokRoundPreview(result: ShynokRoundPreviewResult): str
   }
 
   if (result.state === "raid-required") {
-    return presentShynokGate({ state: "pending-raid" });
+    return [
+      presentShynokGate({ state: "pending-raid" }),
+      "",
+      ...presentKorchmaRoundLeaderboard(result.leaderboard)
+    ].join("\n");
   }
 
   if (result.state === "not-enough-gold") {
@@ -178,7 +183,7 @@ export function presentShynokRoundOfferResponse(result: ShynokRoundOfferRespondR
     return [
       "🍺 На вас уже діє інший напій.",
       "",
-      `Зараз: ${result.activeDrink.emoji} <b>${escapeHtml(result.activeDrink.name)}</b> до ${formatTime(result.activeDrink.expiresAt)}.`,
+      `Зараз: ${result.activeDrink.emoji} <b>${escapeHtml(result.activeDrink.name)}</b> ще ${formatRemainingMinutes(result.activeDrink.expiresAt)}.`,
       `Новий кухоль: ${result.drink.emoji} <b>${escapeHtml(result.drink.name)}</b>.`,
       "",
       "Якщо підтвердите, новий кухоль замінить поточний. Поки що нічого не змінено."
@@ -190,7 +195,7 @@ export function presentShynokRoundOfferResponse(result: ShynokRoundOfferRespondR
       result.state === "replayed" ? "🍺 Цей кухоль уже враховано." : "🍺 Ви взяли кухоль.",
       "",
       result.drink
-        ? `${result.drink.emoji} <b>${escapeHtml(result.drink.name)}</b> діє до ${formatTime(result.drink.expiresAt)}.`
+        ? `${result.drink.emoji} <b>${escapeHtml(result.drink.name)}</b> діє ще ${formatRemainingMinutes(result.drink.expiresAt)}.`
         : "Журнал каже, що кухоль був. Кухоль каже, що його вже нема."
     ].join("\n");
   }
@@ -286,7 +291,7 @@ function presentActiveDrinkLines(drink: PresentedShynokDrinkState | null): strin
   }
 
   return [
-    `Поточний напій: ${drink.emoji} <b>${escapeHtml(drink.name)}</b> до ${formatTime(drink.expiresAt)}.`
+    `Поточний напій: ${drink.emoji} <b>${escapeHtml(drink.name)}</b> ще ${formatRemainingMinutes(drink.expiresAt)}.`
   ];
 }
 
@@ -380,10 +385,12 @@ function presentRoundCount(count: number): string {
   return "частувань";
 }
 
-function formatTime(date: Date): string {
-  return new Intl.DateTimeFormat("uk-UA", {
-    timeZone: "Europe/Kyiv",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(date);
+function formatRemainingMinutes(expiresAt: Date): string {
+  const remainingMinutes = Math.ceil((expiresAt.getTime() - Date.now()) / 60_000);
+
+  if (remainingMinutes <= 0) {
+    return "менше 1 хв";
+  }
+
+  return `${remainingMinutes} хв`;
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { presentHero, presentHeroMissing } from "../../src/bot/presenters/heroPresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
@@ -40,6 +40,15 @@ const summary: CharacterSummary = {
 };
 
 describe("hero presenter", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-23T10:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("shows race, class, stats, and a next step for an existing character", () => {
     const text = presentHero(summary);
 
@@ -120,7 +129,7 @@ describe("hero presenter", () => {
     });
 
     expect(text).toContain(
-      "❤️ HP 24/24 · 🔮 мана 12/12\n🍻 Баф: <b>Якісне &lt;пиво&gt;</b> до 13:42 — відновлення ×1.50, точність −10.\n\nСили 9"
+      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🍻 Баф: <b>Якісне &lt;пиво&gt;</b> ще 42 хв — відновлення ×1.50, точність −10.\n\nСили 9"
     );
   });
 
@@ -139,7 +148,7 @@ describe("hero presenter", () => {
     });
 
     expect(text).toContain(
-      "🥃 Баф: <b>Горілка з перцем</b> до 13:23 — чекає PvE бою, шкода туди/назад ×1.13."
+      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🥃 Баф: <b>Горілка з перцем</b> ще 23 хв — чекає PvE бою, шкода туди/назад ×1.13."
     );
   });
 

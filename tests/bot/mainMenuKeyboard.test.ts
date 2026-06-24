@@ -445,21 +445,26 @@ describe("main menu and scene keyboards", () => {
   });
 
   it("links to the Barrel and hall when Shynok rounds are blocked by an active raid", () => {
-    const blockedByBarrel = { state: "raid-required" as const };
+    const blockedRoundPreview = {
+      state: "raid-required" as const,
+      character,
+      leaderboard: emptyRoundLeaderboard
+    };
+    const blockedRoundResult = { state: "raid-required" as const };
 
-    expect(flatInlineButtonTexts(buildShynokRoundPreviewKeyboard(blockedByBarrel))).toEqual([
+    expect(flatInlineButtonTexts(buildShynokRoundPreviewKeyboard(blockedRoundPreview))).toEqual([
       "🛢️ До Бочки",
       "⬅️ До зали"
     ]);
-    expect(flatInlineButtonCallbacks(buildShynokRoundPreviewKeyboard(blockedByBarrel))).toEqual([
+    expect(flatInlineButtonCallbacks(buildShynokRoundPreviewKeyboard(blockedRoundPreview))).toEqual([
       "v1:place:barrel",
       "v1:place:hall"
     ]);
-    expect(flatInlineButtonTexts(buildShynokRoundResultKeyboard(blockedByBarrel))).toEqual([
+    expect(flatInlineButtonTexts(buildShynokRoundResultKeyboard(blockedRoundResult))).toEqual([
       "🛢️ До Бочки",
       "⬅️ До зали"
     ]);
-    expect(flatInlineButtonCallbacks(buildShynokRoundResultKeyboard(blockedByBarrel))).toEqual([
+    expect(flatInlineButtonCallbacks(buildShynokRoundResultKeyboard(blockedRoundResult))).toEqual([
       "v1:place:barrel",
       "v1:place:hall"
     ]);
