@@ -123,13 +123,13 @@ describe("hero presenter", () => {
         phase: "timed",
         startedAt: new Date("2026-06-23T10:00:00.000Z"),
         expiresAt: new Date("2026-06-23T10:42:00.000Z"),
-        recoveryMultiplierBp: 15000,
+        recoveryMultiplierBp: 14200,
         accuracyPenaltyPp: 10
       }
     });
 
     expect(text).toContain(
-      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🍻 Баф: <b>Якісне &lt;пиво&gt;</b> ще 42 хв — відновлення швидше на 50%, точність −10.\n\nСили 9"
+      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🍻 Баф: <b>Якісне &lt;пиво&gt;</b> ще 42 хв — відновлення швидше на 42%, точність −10.\n\nСили 9"
     );
   });
 

@@ -1386,7 +1386,7 @@ describe("scene callback HTML options", () => {
           emoji: "🍺",
           priceGold: 13,
           durationMinutes: 23,
-          recoveryMultiplierBp: 12500,
+          recoveryMultiplierBp: 12300,
           accuracyPenaltyPp: 5
         },
         priceGold: 26,
@@ -1458,7 +1458,7 @@ describe("scene callback HTML options", () => {
                     emoji: "🍺",
                     priceGold: 13,
                     durationMinutes: 23,
-                    recoveryMultiplierBp: 12500,
+                    recoveryMultiplierBp: 12300,
                     accuracyPenaltyPp: 5
                   },
                   expiresAt: new Date("2026-06-24T11:05:00.000Z")

@@ -36,6 +36,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Active persistent fights found with hero combat HP at `0` now terminalize as canonical losses through the existing settlement path, so `/fight` and old attack callbacks cannot keep an active attack surface or stuck lease.
 - Active pepper-vodka buff copy now says it waits for a monster fight and shows the risk as `+13%` damage instead of technical `PvE` / `×1.13` notation; duels remain excluded from drink power.
 - Completed Barrel raid drink buttons now move into the current Shynok round preview instead of being rejected as stale Shynok checks while the player is still marked near the Barrel.
+- Simple and fine beer recovery bonuses now match the visible tavern numbers: `+23%` and `+42%`, and recipient offer copy no longer uses unclear wording.
 
 ## [0.1.25] - 12026-06-24 - Phase 2 MVP Closeout
 

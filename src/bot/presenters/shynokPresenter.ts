@@ -160,7 +160,7 @@ export function presentShynokRoundConfirm(result: ShynokRoundConfirmResult): str
       `Одержувачів: <b>${result.recipientCount}</b>.`,
       `Списано: <b>${result.priceGold} золота</b>.`,
       "",
-      "Хто схоче, випʼє сам. Хто не схоче, збереже точність і легенду.",
+      "Кожен отримає окрему записку: випити або чемно відмовитися.",
       "",
       ...presentKorchmaRoundLeaderboard(result.leaderboard)
     ].join("\n");
@@ -188,7 +188,7 @@ export function presentShynokRoundOfferNotification(
   return [
     `${recipient.offer.drink.emoji} <b>${escapeHtml(buyerName)}</b> ставить вам <b>${escapeHtml(recipient.offer.drink.name)}</b>.`,
     "",
-    "Випити зараз чи чемно зберегти точність і легенду?"
+    "Можна випити зараз або чемно відмовитися й лишити точність при собі."
   ].join("\n");
 }
 
