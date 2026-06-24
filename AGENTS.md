@@ -209,6 +209,15 @@ Avoid:
 
 ## Tests and quality
 
+## Isolated local bot runtime
+
+- `run-local-bot.cmd` runs the manual-test bot from an external isolated snapshot with separate `node_modules`, Prisma Client, and SQLite database. See `docs/LOCAL_BOT_RUNTIME.md`.
+- During normal implementation/review, do not stop, refresh, or replace the isolated bot unless the user explicitly asks.
+- Run lint, typecheck, build, Prisma generation, and tests in the main checkout; they must not depend on the running manual-test bot.
+- Never use a global `taskkill node.exe` or stop unrelated Node processes.
+- At a manual-test checkpoint, tell the user to run `refresh-local-bot.cmd`; do not promote an intermediate snapshot automatically.
+- `scripts/recover-prisma-client.ps1` is a legacy in-place fallback, not the default local workflow.
+
 For significant runtime changes, add or update:
 
 - Unit tests for formulas, combat, loot, level-up, resources, idempotency helpers.

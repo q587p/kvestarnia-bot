@@ -9,7 +9,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-node.exe scripts\local-bot-runtime.cjs run --source-root "%CD%"
+node.exe scripts\local-bot-runtime.cjs refresh --source-root "%CD%"
 set "EXIT_CODE=%ERRORLEVEL%"
 
 if not "%EXIT_CODE%"=="0" pause
