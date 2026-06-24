@@ -953,6 +953,30 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(0);
   });
 
+  it("does not show a persistent fight overview as ready at zero HP", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, {
+      xp: 25,
+      hpCurrent: 0,
+      hpRegenAt: fixedClock()
+    });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview.state).toBe("needs-rest");
+    expect(sessions.createCount).toBe(0);
+  });
+
   it("prefers the closest available solo fight monster level for higher-level characters", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 225 });
@@ -3757,6 +3781,40 @@ describe("FightService", () => {
       expect(result.session.state?.lastTurn).toBeUndefined();
     }
     expect(sessions.updateCount).toBe(0);
+  });
+
+  it("does not advance an active persistent turn when combat HP is zero", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setHeroHp(started.session.id, 0);
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("needs-rest");
+    if (result.state === "needs-rest") {
+      expect(result.session?.state?.turn).toBe(1);
+      expect(result.session?.state?.lastTurn).toBeUndefined();
+    }
+    expect(sessions.updateCount).toBe(0);
+    expect(dailyActions.createCount).toBe(0);
   });
 
   it("uses a basic defend for an expired persistent combat turn before handling late buttons", async () => {

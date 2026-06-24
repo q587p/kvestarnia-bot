@@ -397,6 +397,28 @@ describe("fight presenter", () => {
     expect(noMana).not.toContain("Нагорода");
   });
 
+  it("shows a short recovery note for persistent turn callbacks at zero HP", () => {
+    const text = presentPersistentFightTurn({
+      state: "needs-rest",
+      character: { ...character, hpCurrent: 0 },
+      session: persistentSession({
+        hero: {
+          hp: 0,
+          hpMax: 24,
+          mana: 4,
+          manaMax: 12
+        }
+      }),
+      monster: null,
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("Спершу прийдіть до тями");
+    expect(text).toContain("Відновіться хоча б до 1 HP");
+    expect(text).toContain("Корчма цінує бойовий запал");
+    expect(text).not.toContain("Нагорода");
+  });
+
   it("uses neutral grammar for skill turn summaries without service-log clutter", () => {
     const text = presentPersistentFightTurn({
       state: "updated",

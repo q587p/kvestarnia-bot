@@ -2068,6 +2068,47 @@ describe("scene callback HTML options", () => {
     expect(levelUps).toHaveLength(1);
   });
 
+  it("removes combat action buttons when a persistent turn callback needs recovery", async () => {
+    const session = {
+      ...persistentSession("monster.deadline-spider"),
+      state: {
+        ...persistentSession("monster.deadline-spider").state,
+        hero: {
+          hp: 0,
+          hpMax: 24,
+          mana: 4,
+          manaMax: 12
+        }
+      }
+    };
+    const resolvePersistentFightTurn = vi.fn(() =>
+      Promise.resolve({
+        state: "needs-rest" as const,
+        character: { ...character, hpCurrent: 0 },
+        session,
+        monster: null,
+        questProgress: null
+      })
+    );
+
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: "123e4567-e89b-42d3-a456-426614174000",
+        turn: 1,
+        action: "attack"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn
+        }
+      })
+    );
+
+    const edit = calls.find((call) => call.method === "editMessageText");
+    expect(String(edit?.payload.text)).toContain("Спершу прийдіть до тями");
+    expect(JSON.stringify(edit?.payload.reply_markup ?? null)).not.toContain("Вдарити");
+  });
+
   it.each([
     ["result replay", makeFightViewCallbackData("123e4567-e89b-42d3-a456-426614174321")],
     ["journal page", makeFightJournalCallbackData({ sessionId: "123e4567-e89b-42d3-a456-426614174321", page: 0 })]

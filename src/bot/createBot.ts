@@ -3709,7 +3709,7 @@ async function handleFightCallback(
       return;
     }
 
-    if (result.state !== "not-found") {
+    if (result.state !== "not-found" && result.state !== "needs-rest") {
       await markScenePresence(ctx, services.presence, {
         locationId: resolvePersistentFightPresenceLocation(result.session),
         currentRaidId: null,
@@ -3720,7 +3720,7 @@ async function handleFightCallback(
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentPersistentFightTurn(result), {
       ...HTML_MESSAGE_OPTIONS,
-      ...(result.state === "not-found"
+      ...(result.state === "not-found" || result.state === "needs-rest"
         ? {}
         : {
             reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)

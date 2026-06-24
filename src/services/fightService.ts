@@ -363,6 +363,13 @@ export type PersistentFightTurnResult =
   | { state: "no-character" }
   | { state: "not-found"; character: CharacterSummary }
   | {
+      state: "needs-rest";
+      character: CharacterSummary;
+      session?: SoloCombatSessionRecord;
+      monster?: MonsterContent | null;
+      questProgress?: ThirteenSmallProblemsProgress | null;
+    }
+  | {
       state: "stale-turn";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
@@ -1064,6 +1071,14 @@ export class FightService {
     }
 
     if (leasedSession.state === "none") {
+      if (characterSummary.hpCurrent <= 0) {
+        return {
+          state: "needs-rest",
+          character: characterSummary,
+          ...(recoveryNotice ? { recoveryNotice } : {})
+        };
+      }
+
       if (!questProgress.issued) {
         return {
           state: "persistent-not-issued",
@@ -1999,6 +2014,16 @@ export class FightService {
     if (currentSession.state.turn !== input.turn) {
       return {
         state: "stale-turn",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress
+      };
+    }
+
+    if (currentSession.state.hero.hp <= 0) {
+      return {
+        state: "needs-rest",
         character: characterSummary,
         session: currentSession,
         monster,

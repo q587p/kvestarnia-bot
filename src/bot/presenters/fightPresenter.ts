@@ -273,6 +273,20 @@ export function presentPersistentFightTurn(
     ].join("\n");
   }
 
+  if (result.state === "needs-rest") {
+    const hpMax = result.session?.state?.hero.hpMax ?? result.character.hpMax;
+    const hpCurrent = result.session?.state?.hero.hp ?? result.character.hpCurrent;
+
+    return [
+      "❤️ <b>Спершу прийдіть до тями</b>",
+      presentCharacterHeader(result.character),
+      "",
+      `Зараз HP ${hpCurrent}/${hpMax}. Корчма цінує бойовий запал, але не приймає удари з горизонтального положення.`,
+      "",
+      "Відновіться хоча б до 1 HP, тоді монстри знову матимуть шанс пошкодувати про знайомство."
+    ].join("\n");
+  }
+
   const intro = (() => {
     if (result.state === "stale-turn") {
       return "Цей хід уже не перший у черзі. Корчма показує поточний стан, без повторного удару.";
