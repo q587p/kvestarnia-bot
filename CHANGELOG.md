@@ -31,6 +31,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Gift flow and terminal result cards now return to the actor's current location instead of always sending them to the Shynok.
 - Pending Barrel raid rating and news shortcuts now bypass the pending-raid blocker, so waiting players can actually read them from the raid card.
 - Shynok social-round cards keep the generosity rating visible even when the player cannot afford the frozen round price.
+- Stale Shynok fallback cards now send `До Шинку` through the bar place route instead of replaying an old Shynok callback from the Barrel.
 - Active persistent fights found with hero combat HP at `0` now terminalize as canonical losses through the existing settlement path, so `/fight` and old attack callbacks cannot keep an active attack surface or stuck lease.
 
 ## [0.1.25] - 12026-06-24 - Phase 2 MVP Closeout

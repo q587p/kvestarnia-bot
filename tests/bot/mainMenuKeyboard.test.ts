@@ -47,6 +47,7 @@ import {
 } from "../../src/bot/keyboards/levelBarterKeyboard";
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
 import {
+  buildBackToShynokKeyboard,
   buildShynokRoundPreviewKeyboard,
   buildShynokRoundResultKeyboard
 } from "../../src/bot/keyboards/shynokKeyboard";
@@ -478,6 +479,17 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonCallbacks(buildShynokRoundResultKeyboard(blockedRoundResult))).toEqual([
       "v1:place:barrel",
+      "v1:place:hall"
+    ]);
+  });
+
+  it("routes stale Shynok fallback cards through the bar place callback", () => {
+    expect(flatInlineButtonTexts(buildBackToShynokKeyboard())).toEqual([
+      "⬅️ До Шинку",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildBackToShynokKeyboard())).toEqual([
+      "v1:place:bar",
       "v1:place:hall"
     ]);
   });

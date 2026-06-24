@@ -170,7 +170,7 @@ export function buildShynokSaleSelectionKeyboard(result: ShynokSaleSelectionResu
 
 export function buildBackToShynokKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
-    .text("⬅️ До Шинку", makeShynokOverviewCallbackData())
+    .text("⬅️ До Шинку", makePlaceCallbackData("bar"))
     .row()
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
