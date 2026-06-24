@@ -1,8 +1,8 @@
 # Phase 2 MVP Closeout Plan
 
-Snapshot date: 12026-06-23.
+Snapshot date: 12026-06-24.
 
-This document defines the cutline for closing the `0.1.x` Phase 2 Social Combat MVP line. It is a planning and release-readiness source of truth, not a claim that the closeout release has already shipped.
+This document records the cutline for closing the `0.1.x` Phase 2 Social Combat MVP line. The final release summary lives in [PHASE2_MVP_RELEASE_NOTES.md](PHASE2_MVP_RELEASE_NOTES.md).
 
 ## Formal Status
 
@@ -16,10 +16,10 @@ Phase 1 is closed in `0.1.0`. It should not receive new feature work. The remain
 
 Phase 2 MVP proves that two players can safely and voluntarily interact through Telegram-native combat/social flows, while stale callbacks, retries and restarts do not corrupt state or duplicate rewards.
 
-The MVP can be considered closed after:
+The MVP is considered closed after:
 
 - `0.1.24` Shynok drinks, opt-in rounds and manatka sales are merged and deployed;
-- a two-account social-combat regression smoke is recorded;
+- a two-account social-combat regression smoke is recorded and accepted;
 - migration, idempotency and combat-lease paths are checked;
 - `0.1.25 - Phase 2 MVP Closeout` ships as a docs/release/smoke milestone;
 - shipped and deferred Phase 2 scope is explicitly separated.
@@ -102,11 +102,11 @@ These do not block closeout:
 
 ## Work Order
 
-1. Accept the active Shynok release: keep scope frozen, run independent review, fix only blockers or important findings, refresh the PR body and verify exact-head CI.
-2. Run manual Telegram QA, merge and deploy `0.1.24`.
-3. Run the Phase 2 regression smoke and record a pass/fail matrix.
-4. Implement `0.1.25 - Phase 2 MVP Closeout` as a release/docs/smoke task with no new gameplay.
-5. Merge/tag/deploy the closeout, then start one fresh `0.2.0` thread.
+1. Accepted: Shynok release kept scope frozen, received review/follow-up hardening and merged as `0.1.24`.
+2. Accepted: `0.1.24` was deployed and the manual two-account regression audit/QA was accepted before closeout.
+3. Accepted: Phase 2 regression smoke is recorded in [PHASE2_CLOSEOUT_SMOKE.md](PHASE2_CLOSEOUT_SMOKE.md) and [tasks/phase2-regression-smoke.md](tasks/phase2-regression-smoke.md).
+4. Current: implement `0.1.25 - Phase 2 MVP Closeout` as a release/docs/smoke task with no new gameplay.
+5. Next: merge/deploy the closeout, then start one fresh `0.2.0` thread.
 
 If a blocker appears after deploy, create a narrow fix task. Do not hide it inside closeout docs. If the next patch version must be used by a runtime hotfix, move the closeout task to the next free patch.
 
@@ -131,6 +131,17 @@ If a blocker appears after deploy, create a narrow fix task. Do not hide it insi
 | Achievements and collections | Backlog | closed alpha/content phase | Not a social-combat MVP blocker. |
 | Monster gender/case metadata | Backlog | content-quality slice | Useful, but not correctness-critical. |
 | Broad balance rewrite | Separate evidence-driven releases | later | Do not rebalance everything during closeout. |
+
+## Branch And Task Disposition
+
+| Branch / task | Disposition | Notes |
+|---|---|---|
+| `origin/codex/0.1.24-shynok-drinks-mantok-sales` | merged | Final Phase 2 MVP feature branch, merged as PR #76. |
+| `origin/codex/fight-buttons-one-row` | superseded | Covered by later combat-card and keyboard presentation work. |
+| `origin/codex/remort-memorial-inferred-levels` | absorbed | Folded into the `0.1.24` memorial-board follow-up. |
+| `origin/codex/remort-achievement-board` | deferred | Remort/social records and achievements move after the MVP closeout. |
+| `origin/codex/group-hook-design` | future design input | Party/raid work moves to `0.2.x+`, not this closeout. |
+| `docs/tasks/archive/queued-threat-streak-multi-enemy-fights.md` | preserved and split | Multi-enemy foundation starts small in `0.2.x`; threat escalation follows later. |
 
 ## Definition Of Done
 

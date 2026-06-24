@@ -4,6 +4,12 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.1.25 — Phase 2 MVP closeout smoke
+
+Канонічний closeout gate для бойово-соціяльного зрізу живе в [`docs/PHASE2_CLOSEOUT_SMOKE.md`](PHASE2_CLOSEOUT_SMOKE.md), а підсумок релізу — в [`docs/PHASE2_MVP_RELEASE_NOTES.md`](PHASE2_MVP_RELEASE_NOTES.md).
+
+Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
+
 ## 0.1.0 — Closeout smoke
 
 Канонічний release gate для Phase 1 closure живе в [`docs/PHASE1_CLOSEOUT_SMOKE.md`](PHASE1_CLOSEOUT_SMOKE.md). Для `0.1.0` він має покривати new player route, level 3+ persistent fight, HP/mana recovery, equipment effective stats, Mantok Chest auto/manual, Yeger tracking, Munchkin barter safety, Barrel/Shynok/presence, and public health/news/presence surfaces.

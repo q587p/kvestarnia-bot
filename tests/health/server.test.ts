@@ -78,12 +78,12 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Шинок налив напої й навчився викуповувати манатки");
-    expect(text).toContain("У Шинку зʼявилися напої для себе");
-    expect(text).toContain("<code>Всім пива</code> тепер не заливає всіх автоматично");
-    expect(text).toContain("У Шинку зʼявився продаж манаток");
-    expect(text).toContain("Кава, їжа, похмілля");
-    expect(text).toContain("Напої не працюють у дуелях між гравцями");
+    expect(text).toContain("Бойово-соціяльний зріз закрито, наступні двері підписано");
+    expect(text).toContain("Перша ігрова петля лишається закритою");
+    expect(text).toContain("Бойово-соціяльний зріз тепер теж позначено як доставлений");
+    expect(text).toContain("ручна перевірка з двома акаунтами");
+    expect(text).toContain("Подарунки й обміни між гравцями переходять");
+    expect(text).toContain("Нового ґеймплею в цьому оновленні немає");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

@@ -1,12 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   presentShynokGate,
+  presentShynokDrinkMenu,
+  presentShynokDrinkConfirmResult,
   presentShynokRoundConfirm,
   presentShynokRoundOfferResponse,
   presentShynokRoundPreview,
   presentShynokSaleSelection
 } from "../../src/bot/presenters/shynokPresenter";
 import type {
+  ShynokDrinkConfirmResult,
   ShynokRoundConfirmResult,
   ShynokRoundOfferRespondResult,
   ShynokRoundPreviewResult,
@@ -43,6 +46,36 @@ describe("shynokPresenter", () => {
     );
   });
 
+  it("shows current gold on the self-drink menu", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-23T10:00:00.000Z"));
+
+    try {
+      const html = presentShynokDrinkMenu({
+        state: "ready",
+        character,
+        activeDrink: {
+          key: "drink.simple-beer",
+          name: "Просте пиво",
+          emoji: "🍺",
+          priceGold: 13,
+          durationMinutes: 23,
+          phase: "timed",
+          startedAt: new Date("2026-06-23T09:50:00.000Z"),
+          expiresAt: new Date("2026-06-23T10:13:00.000Z"),
+          recoveryMultiplierBp: 12500,
+          accuracyPenaltyPp: 5
+        }
+      });
+
+      expect(html).toContain("Поточний напій: 🍺 <b>Просте пиво</b> ще 13 хв.");
+      expect(html).toContain("У кишені: <b>125 золота</b>.");
+      expect(html).not.toContain("хв..");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("shows the generosity leaderboard immediately in round preview", () => {
     const result: ShynokRoundPreviewResult = {
       state: "preview",
@@ -69,6 +102,20 @@ describe("shynokPresenter", () => {
     expect(html).toContain("1. Мандрівник &lt;&amp;&gt; — 2 частування · 84 золота");
     expect(html).toContain("1. Дара — 1 частування · 42 золота");
     expect(html).toContain("<b>За місяць</b>: ще ніхто не пригощав");
+  });
+
+  it("keeps the generosity leaderboard visible when a round is blocked by the Barrel raid", () => {
+    const result: ShynokRoundPreviewResult = {
+      state: "raid-required",
+      character,
+      leaderboard
+    };
+
+    const html = presentShynokRoundPreview(result);
+
+    expect(html).toContain("🍻 Корчмар ховає кухоль. Спершу завершіть рейд на Бочку в цьому відтинку.");
+    expect(html).toContain("🏅 Рейтинг щедрості");
+    expect(html).toContain("1. Мандрівник &lt;&amp;&gt; — 2 частування · 84 золота");
   });
 
   it("keeps the leaderboard visible after a round is placed", () => {
@@ -166,5 +213,38 @@ describe("shynokPresenter", () => {
     expect(html).toContain("Чай &amp; чебрець");
     expect(html).toContain("Поки що нічого не змінено.");
     expect(html).not.toContain("Просте <пиво>");
+  });
+
+  it("shows remaining minutes for a confirmed drink instead of an end time", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-23T10:00:00.000Z"));
+
+    try {
+      const result: ShynokDrinkConfirmResult = {
+        state: "completed",
+        character,
+        drink: {
+          key: "drink.simple-beer",
+          name: "Просте <пиво>",
+          emoji: "🍺",
+          priceGold: 13,
+          durationMinutes: 23,
+          phase: "timed",
+          startedAt: new Date("2026-06-23T10:00:00.000Z"),
+          expiresAt: new Date("2026-06-23T10:23:00.000Z"),
+          recoveryMultiplierBp: 12500,
+          accuracyPenaltyPp: 5
+        },
+        spentGold: 13
+      };
+
+      const html = presentShynokDrinkConfirmResult(result);
+
+      expect(html).toContain("діє ще 23 хв.");
+      expect(html).not.toContain("10:23");
+      expect(html).toContain("Просте &lt;пиво&gt;");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

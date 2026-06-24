@@ -93,6 +93,11 @@ Current repeatable slice:
 ## 0.1.x — Stabilization / Playtest line
 Мета: стабілізувати закриту Phase 1 петлю, виправити реальні playtest-болі й лише потім обережно відкривати Phase 2.
 
+Status:
+- Closed by `0.1.25 — Phase 2 MVP Closeout`.
+- `0.1.x` should receive only emergency hotfixes after this closeout.
+- Next implementation line is `0.2.x`, starting with `docs/tasks/0.2.0-safe-gifting-mvp.md`.
+
 Current order:
 1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, smoke fallout.
 2. `0.1.2` — presence interior/routing cleanup plus first runtime `/remort` at level 13, because playtest reached the cap sooner than the old Phase 2 plan expected.
@@ -101,7 +106,7 @@ Current order:
 5. `0.1.5` — перший вузький Phase 2 runtime prep з 3 рівня: Бійцівський куток і тренувальний Сумлінний Допельґанґер з малим XP-only результатом, без золота/items/манаток, `Тринадцять дрібних проблем` progress і реального PvP.
 6. `0.1.6` — Корчмарський problem-chain follow-up: `13 -> 23 -> 42 -> 93`, bar turn-in, fresh counters from issue time, no training/PvP/group-raid progress.
 7. `0.1.9` — combat flavor intent foundation: class-aware `/spar` counter flavor as a presentation-only step toward monster signature moves and duel result cards.
-8. Later `0.1.x` — Shynok item-for-beer, bestiary filters, Yeger bait/lure/reputation and other small scoped expansions only if they do not steal the Phase 2 spine.
+8. `0.1.25` — release/docs/smoke closeout: Phase 2 MVP status, accepted two-account regression, deferred `0.2.x` order and no gameplay runtime changes.
 
 Guardrails:
 - No new large gameplay system in `0.1.0`.
@@ -123,9 +128,10 @@ Canonical docs:
 - [docs/PHASE2_DEFERRED_0_2.md](PHASE2_DEFERRED_0_2.md)
 
 Closeout cutline:
-- `0.1.24` is the intended final feature release of the `0.1.x` Phase 2 MVP line.
-- `0.1.25` is reserved as a docs/release/smoke closeout milestone with no new gameplay; if a runtime hotfix consumes that version, move closeout to the next free patch.
-- Trading/gifting, multi-enemy, item tags and party/raid runtime move to `0.2.x` rather than keeping `0.1.x` open indefinitely.
+- `0.1.24` is the final feature release of the `0.1.x` Phase 2 MVP line.
+- `0.1.25` closes the line as a docs/release/smoke milestone with no new gameplay.
+- Trading/gifting, multi-enemy, item tags/equipment and party/raid runtime move to `0.2.x` rather than keeping `0.1.x` open indefinitely.
+- The next implementation prompt remains [docs/ai/prompts/safe-gifting-main-codex.md](ai/prompts/safe-gifting-main-codex.md).
 
 Deliverables:
 - Бійцівський куток із тренувальним `Сумлінним Допельґанґером`: копія поточного героя для level 3+ спарингу перед справжніми дуелями з гравцями. Майбутні дуелі також стартують з 3 рівня, якщо окремий балансний PR не змінить це явно.
@@ -146,6 +152,7 @@ Done when:
 - Remort follow-ups and raid reward paths are explicit, idempotent and do not create veteran runaway power.
 - The data shape does not block later party combat, group raids, trading and gifting.
 - The closeout smoke records that the shipped social-combat vertical slice has no blocker duplicate-reward, combat-lease, presence/privacy, remort-boundary or Shynok isolation regression.
+- The accepted two-account regression/manual QA after `0.1.24` is referenced by the closeout docs.
 
 Non-goals for the first Phase 2 runtime slice:
 - No item loss, gold steal, wagers, auction house, guild wars, paid power or forced PvP.

@@ -8,7 +8,7 @@ Keep this file compact. Target: under 250 lines.
 - Player-facing name: `Квестарня`.
 - Technical slug/package/repo prefix: `kvestarnia`.
 - Bot username target: `@kvestarnia_bot`.
-- Current package version in this repository snapshot: `0.1.24`.
+- Current package version in this repository snapshot: `0.1.25`.
 
 ## Language split
 
@@ -63,7 +63,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `docs/PLAYTESTING.md` — manual smoke tests.
 - `CHANGELOG.md` — detailed release history.
 - `news.md` — player-facing spoiler-light release news.
-- `docs/PHASE2_MVP_CLOSEOUT_PLAN.md`, `docs/PHASE2_CLOSEOUT_SMOKE.md`, `docs/PHASE2_DEFERRED_0_2.md` — `0.1.x` Phase 2 MVP closeout cutline, smoke gate and `0.2.x` deferred order.
+- `docs/PHASE2_MVP_RELEASE_NOTES.md`, `docs/PHASE2_MVP_CLOSEOUT_PLAN.md`, `docs/PHASE2_CLOSEOUT_SMOKE.md`, `docs/PHASE2_DEFERRED_0_2.md` — `0.1.x` Phase 2 MVP closeout summary, smoke gate and `0.2.x` deferred order.
 
 ## Code map
 
@@ -139,12 +139,13 @@ For Telegram/gameplay changes, always consider:
 - `0.1.23` terminal settlement follow-up: persistent ordinary/training combat JSON freezes a combat life remort count and durable settlement state (`pending`, `completed`, `forfeited-by-remort`). Terminal sessions keep the solo-combat lease until reward/resource/cooldown settlement completes or remort forfeits them; legacy no-life sessions derive expected life from `session.createdAt` versus the remort ledger so stale recovery cannot mutate a newer remort life. New ordinary/passage/Adventure/training starts first follow the active solo-combat lease, recover leased terminal pending sessions, clear exact supported stale completed/forfeited/missing leases, preserve unsupported lease kinds, complete/forfeit settlement through repository guards, and exclude forfeited won sessions from problem-chain/Yeger victory progress while counting completed and valid legacy wins.
 - `0.1.23` combat settlement final hardening: ordinary/training settlement JSON also records durable `resources` and `training` substeps, so crash recovery can replay completion without double-spending HP/mana recovery anchors or extending a training cooldown. Training XP-committed sessions repair the exact missing cooldown before completion; cooldown-committed sessions replay without extension. Exact leased legacy solo/training sessions from the previous deployment are atomically adopted into derived life plus pending settlement metadata before turn, timeout, hard-expiry, resource, reward or cooldown mutation; historical no-lease legacy records remain replay-only and cannot claim fresh rewards. Unsupported active combat leases block ordinary/training/Adventure starts instead of being ignored, terminal pending leases remain recoverable after wall-clock expiry, and duplicate session-id conflicts no longer masquerade as active-lease recovery.
 - `0.1.24` Shynok drinks and manatka sales: Shynok now has one current drink slot with replay-safe pending orders for tea, simple beer, fine beer and pepper vodka. Tea/beer segment passive HP/mana recovery with forward-only multipliers, durable historical windows for lazy expiry/replacement sync and weighted integer boundary math; beer accuracy penalties freeze into eligible persistent solo PvE combat state, and queued pepper vodka is consumed once in the same repository transaction that creates the solo session and lease, using exact drink-state ids. PvP, starter and training fights ignore drink power. `Всім пива` keeps the Barrel-gated generosity purchase log but now creates frozen-snapshot opt-in recipient offers with accept/decline/expiry, CAS-safe recipient transitions, explicit stale-safe final replacement confirmation when a recipient already has a live timed/queued drink, derived telemetry and dynamic simple/fine prices. `💰 Продати манатки` creates server-owned sale drafts with one/several/all eligible-unit selection, basket-level 42% payout, transaction-local stale checks against inventory/equipment/reservations/content, guarded status claims and completed replay from stored result data. New persistence lives in `CharacterDrinkState`, `KorchmaDrinkOrder`, `KorchmaRoundRecipient`, extended `KorchmaRoundPurchase` and `KorchmaMantokSale`.
+- `0.1.25` Phase 2 MVP closeout: no gameplay runtime, schema, migration, formula, balance or economy change. Phase 1 stays closed by `0.1.0`; `0.1.x` closes after the accepted post-`0.1.24` two-account regression/manual QA; shipped Phase 2 MVP is training, opt-in instant/turn-based duels, nearby invites, result/rematch/share, combat locks, combat actions/timeouts, monster abilities/journal, Nyz preview memory, remort boundaries and Shynok economy prep. Safe gifting, later trading, multi-enemy, item tags/equipment, party/raids, tournaments, food, coffee and achievements move to `0.2.x` or later.
 
 ## Current product direction
 
 - `0.0.x` foundation is closed after `0.0.30`.
-- `0.1.x` is stabilization, playtest polish, and careful Phase 2 preparation.
-- Phase 2 direction: Social Combat & Interactions, not a group-raid-first roadmap; after `0.1.24`, use `0.1.25` as a docs/release/smoke closeout milestone unless an emergency hotfix consumes that patch.
+- `0.1.x` is closed after `0.1.25` unless an emergency hotfix is needed.
+- Phase 2 direction stays Social Combat & Interactions, not a group-raid-first roadmap; the first shipped MVP is closed, and expansion continues in `0.2.x`.
 - First planned `0.2.x` task is `docs/tasks/0.2.0-safe-gifting-mvp.md`: exactly one eligible item stack unit, explicit recipient accept, transaction/audit/replay safety.
 - Real PvP, trading, party combat, raids, shops, crafting, guilds, and Mini App UI remain small future slices unless a task explicitly targets one.
 

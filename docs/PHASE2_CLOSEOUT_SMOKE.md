@@ -1,6 +1,8 @@
 # Phase 2 Closeout Smoke
 
-This checklist proves that the shipped Phase 2 Social Combat MVP remains coherent after `0.1.24` and before the `0.1.25` closeout release.
+This checklist records the Phase 2 Social Combat MVP closeout gate after `0.1.24` and before the `0.1.25` closeout release.
+
+Status: completed manual two-account regression was accepted before this closeout task. Keep the matrix below as the repeatable smoke checklist for hotfixes or `0.2.x` regressions.
 
 ## Goal
 
@@ -8,7 +10,7 @@ Verify there are no duplicate rewards, broken combat leases, presence leaks, sta
 
 ## Scope
 
-- Current `main` after `0.1.24`.
+- Current `main` after merged/deployed `0.1.24`.
 - Two normal characters plus one remorted fixture where available.
 - Quick duel, turn-based duel, nearby targeting, rematch and share.
 - Solo fight, passage preview memory, survivor re-attack and terminal settlement.
@@ -206,3 +208,5 @@ Use at least two characters, ideally a third remorted fixture.
 |---|---|---|---|
 
 Closeout passes only if every duplicate-reward, lease, migration, crash-recovery and privacy row passes. Only P0/P1 issues block closeout. Everything else gets a named deferred task.
+
+For `0.1.25`, this checklist is retained as evidence that the accepted two-account regression covered the Social Combat MVP cutline without adding new gameplay runtime.

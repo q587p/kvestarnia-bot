@@ -54,7 +54,7 @@ export function presentHero(
     "",
     `❤️ HP ${summary.hpCurrent}/${summary.hpMax} · 🔮 мана ${summary.manaCurrent}/${summary.manaMax}`,
     ...resourceRecoveryLines,
-    ...(activeDrinkLine ? [activeDrinkLine] : []),
+    ...(activeDrinkLine ? ["", activeDrinkLine] : []),
     ...(resourceRecoveryLines.length > 0 || activeDrinkLine ? [""] : []),
     `Сили ${summary.stats.strength} · Спритн. ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
@@ -113,7 +113,7 @@ function presentActiveDrink(drink: HeroActiveDrink | null): string | null {
   const effects = presentActiveDrinkEffects(drink);
   const effectText = effects.length > 0 ? ` — ${effects.join(", ")}` : "";
 
-  return `${drink.emoji} Баф: <b>${escapeHtml(drink.name)}</b> до ${formatTime(drink.expiresAt)}${effectText}.`;
+  return `${drink.emoji} Баф: <b>${escapeHtml(drink.name)}</b> ще ${formatRemainingMinutes(drink.expiresAt)}${effectText}.`;
 }
 
 function presentActiveDrinkEffects(drink: HeroActiveDrink): string[] {
@@ -138,12 +138,14 @@ function formatMultiplier(multiplierBp: number): string {
   return (multiplierBp / 10_000).toFixed(2);
 }
 
-function formatTime(date: Date): string {
-  return new Intl.DateTimeFormat("uk-UA", {
-    timeZone: "Europe/Kyiv",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(date);
+function formatRemainingMinutes(expiresAt: Date): string {
+  const remainingMinutes = Math.ceil((expiresAt.getTime() - Date.now()) / 60_000);
+
+  if (remainingMinutes <= 0) {
+    return "менше 1 хв";
+  }
+
+  return `${remainingMinutes} хв`;
 }
 
 function presentDuration(seconds: number): string {

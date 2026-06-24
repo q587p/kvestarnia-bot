@@ -52,8 +52,9 @@
 
 ## Phase 2 roadmap reset
 
-Phase 2 більше не починається з великого групового рейду. Новий напрям: **Social Combat & Interactions** — спершу opt-in дуелі й запрошення, потім картки результатів, реванші, турнірний шум, обмін/дарування, бойова різноманітність, remort-only follow-ups після базового `/remort` з `0.1.2`, multi-enemy combat і тільки після цього party combat / real raids.
+Phase 2 більше не починається з великого групового рейду. `0.1.25` закриває перший **Social Combat & Interactions** MVP: opt-in дуелі, реванші, картки результатів, nearby invites, combat locks, remort boundaries, Nyz preview memory and Shynok economy prep. Далі `0.2.x` починається з safe gifting і лише потім рухається до trading, multi-enemy combat, item tags/equipment, party combat / real raids.
 
+- [PHASE2_MVP_RELEASE_NOTES.md](PHASE2_MVP_RELEASE_NOTES.md) — канонічний підсумок `0.1.25` Phase 2 MVP closeout.
 - [PHASE2_MVP_CLOSEOUT_PLAN.md](PHASE2_MVP_CLOSEOUT_PLAN.md) — межа `0.1.x`, Phase 2 MVP DoD, backlog disposition і порядок closeout.
 - [PHASE2_CLOSEOUT_SMOKE.md](PHASE2_CLOSEOUT_SMOKE.md) — two-player, Shynok і production smoke для закриття Phase 2 MVP.
 - [PHASE2_DEFERRED_0_2.md](PHASE2_DEFERRED_0_2.md) — що переноситься в `0.2.x`, рекомендований порядок і WIP-limit.
