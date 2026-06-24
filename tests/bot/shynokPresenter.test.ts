@@ -76,6 +76,17 @@ describe("shynokPresenter", () => {
     }
   });
 
+  it("omits current drink copy when no drink is active", () => {
+    const html = presentShynokDrinkMenu({
+      state: "ready",
+      character,
+      activeDrink: null
+    });
+
+    expect(html).not.toContain("Поточний напій");
+    expect(html).toContain("У кишені: <b>125 золота</b>.");
+  });
+
   it("shows the generosity leaderboard immediately in round preview", () => {
     const result: ShynokRoundPreviewResult = {
       state: "preview",

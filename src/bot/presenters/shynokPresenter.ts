@@ -289,7 +289,7 @@ export function presentShynokSaleConfirm(result: ShynokSaleConfirmResult): strin
 
 function presentActiveDrinkLines(drink: PresentedShynokDrinkState | null): string[] {
   if (!drink) {
-    return ["Поточний напій: <i>немає</i>."];
+    return [];
   }
 
   return [
