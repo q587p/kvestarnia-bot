@@ -28,7 +28,10 @@ import {
   makeRemortConfirmCallbackData,
   makeRemortOpenCallbackData
 } from "../../src/bot/callbacks/remortCallbackData";
-import { makeShynokRoundConfirmCallbackData } from "../../src/bot/callbacks/shynokCallbackData";
+import {
+  makeShynokBarrelRoundPreviewCallbackData,
+  makeShynokRoundConfirmCallbackData
+} from "../../src/bot/callbacks/shynokCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import { makeYegerTrackCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -645,8 +648,8 @@ describe("scene callback HTML options", () => {
     });
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain("🍺 Просте всім");
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain("🍻 Якісне всім");
-    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v1:sh:rp:simple");
-    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v1:sh:rp:fine");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v1:sh:brp:simple");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v1:sh:brp:fine");
   });
 
   it("offers immediate Shynok turn-in after issuing a recovered completed problem paper", async () => {
@@ -1367,6 +1370,69 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).toContain("🍻 Шинок");
     expect(keyboard).toContain("🍹 Напої для себе");
     expect(keyboard).toContain("v1:sh:dr");
+  });
+
+  it("opens Shynok round preview from completed Barrel shortcut", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const createRoundOrder = vi.fn(() =>
+      Promise.resolve({
+        state: "preview" as const,
+        character,
+        token: "12345678-1234-4234-9234-123456789abc",
+        tier: "simple" as const,
+        drink: {
+          key: "drink.simple-beer" as const,
+          name: "Просте пиво",
+          emoji: "🍺",
+          priceGold: 13,
+          durationMinutes: 23,
+          recoveryMultiplierBp: 12500,
+          accuracyPenaltyPp: 5
+        },
+        priceGold: 26,
+        recipientCount: 2,
+        leaderboard: { day: [], week: [], month: [] }
+      })
+    );
+    const calls = await captureApiCalls(
+      makeShynokBarrelRoundPreviewCallbackData("simple"),
+      servicesWith({
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.barrel",
+              locationName: "Біля Бочки Пінного Міражу",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
+        shynok: {
+          createRoundOrderForTelegramUser: createRoundOrder
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.bar",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(createRoundOrder).toHaveBeenCalledWith(42n, "simple");
+    expect(String(edit?.payload.text)).toContain("🍺 Просте всім");
+    expect(String(edit?.payload.text)).toContain("Одержувачів у збереженому списку: <b>2</b>");
+    expect(String(edit?.payload.text)).not.toContain("несвіжий");
+    expect(keyboard).toContain("v1:sh:rc:simple:12345678-1234-4234-9234-123456789abc");
   });
 
   it("notifies round recipients when a Shynok round is placed", async () => {

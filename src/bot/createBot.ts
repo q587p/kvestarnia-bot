@@ -1679,7 +1679,15 @@ async function handleShynokCallback(
     return;
   }
 
-  if (action.type === "round-preview") {
+  if (action.type === "round-preview" || action.type === "barrel-round-preview") {
+    if (action.type === "barrel-round-preview") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+        currentRaidId: null,
+        currentAdventureId: null
+      });
+    }
+
     const result = await services.shynok.createRoundOrderForTelegramUser(telegramUserId, action.tier);
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "preview" });
     await safeEditMessageText(ctx, presentShynokRoundPreview(result), {

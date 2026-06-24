@@ -299,8 +299,8 @@ describe("main menu and scene keyboards", () => {
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildTavernResultKeyboard("completed"))).toEqual([
-      "v1:sh:rp:simple",
-      "v1:sh:rp:fine",
+      "v1:sh:brp:simple",
+      "v1:sh:brp:fine",
       "v1:tavern:ranger",
       "v1:place:hall"
     ]);
@@ -311,8 +311,8 @@ describe("main menu and scene keyboards", () => {
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildTavernResultKeyboard("already-completed"))).toEqual([
-      "v1:sh:rp:simple",
-      "v1:sh:rp:fine",
+      "v1:sh:brp:simple",
+      "v1:sh:brp:fine",
       "v1:tavern:ranger",
       "v1:place:hall"
     ]);

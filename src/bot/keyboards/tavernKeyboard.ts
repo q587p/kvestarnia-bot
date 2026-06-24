@@ -7,6 +7,7 @@ import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 import {
+  makeShynokBarrelRoundPreviewCallbackData,
   makeShynokDrinksCallbackData,
   makeShynokRoundPreviewCallbackData,
   makeShynokSaleOpenCallbackData
@@ -221,8 +222,8 @@ export function buildTavernResultKeyboard(
 
   if (state === "completed" || state === "already-completed") {
     return new InlineKeyboard()
-      .text("🍺 Просте всім", makeShynokRoundPreviewCallbackData("simple"))
-      .text("🍻 Якісне всім", makeShynokRoundPreviewCallbackData("fine"))
+      .text("🍺 Просте всім", makeShynokBarrelRoundPreviewCallbackData("simple"))
+      .text("🍻 Якісне всім", makeShynokBarrelRoundPreviewCallbackData("fine"))
       .row()
       .text("🧥 Єгер", makeTavernCallbackData("ranger"))
       .text("⬅️ До зали", makePlaceCallbackData("hall"));

@@ -35,6 +35,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Shynok social rounds now send best-effort private drink offer cards to recipients on the real completed purchase, and small-group launch prices are capped at 93/193 instead of using those numbers as the minimum.
 - Active persistent fights found with hero combat HP at `0` now terminalize as canonical losses through the existing settlement path, so `/fight` and old attack callbacks cannot keep an active attack surface or stuck lease.
 - Active pepper-vodka buff copy now says it waits for a monster fight and shows the risk as `+13%` damage instead of technical `PvE` / `×1.13` notation; duels remain excluded from drink power.
+- Completed Barrel raid drink buttons now move into the current Shynok round preview instead of being rejected as stale Shynok checks while the player is still marked near the Barrel.
 
 ## [0.1.25] - 12026-06-24 - Phase 2 MVP Closeout
 
