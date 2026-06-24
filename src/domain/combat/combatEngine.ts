@@ -31,10 +31,18 @@ import {
   cloneCombatState,
   cloneCombatTurnSummary,
   appendCombatTurnLogEntry,
+  combatEnemyToMonster,
+  getLivingCombatEnemies,
+  getPrimaryCombatEnemy,
   getTerminalCombatTurnLogEventId,
+  syncPrimaryCombatEnemy,
+  turnLogEnemies,
+  updateCombatEnemy,
   type CombatActionOrigin,
   type CombatActionType,
   type CombatActorStats,
+  type CombatEnemyState,
+  type CombatEnemyTurnSummary,
   type CombatGuardState,
   type CombatState,
   type CombatTurnSummary,
@@ -48,6 +56,7 @@ export interface ResolveCombatTurnInput {
   actionOrigin?: CombatActionOrigin;
   hero: CombatActorStats;
   monster: MonsterCombatStats;
+  enemies?: MonsterCombatStats[];
   rng: RandomSource;
 }
 
@@ -301,6 +310,10 @@ export function resolveCombatTurn(input: ResolveCombatTurnInput): ResolveCombatT
 }
 
 function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
+  if (getLivingCombatEnemies(input.state).length > 1) {
+    return resolveMultiEnemyHeroSkip(input);
+  }
+
   const nextState = cloneCombatState(input.state);
   tickSkillCooldown(nextState);
 
@@ -356,6 +369,10 @@ function resolveHeroAttack(
   input: ResolveCombatTurnInput,
   skill?: ReturnType<typeof getCombatSkillProfile>
 ): ResolveCombatTurnResult {
+  if (getLivingCombatEnemies(input.state).length > 1) {
+    return resolveMultiEnemyHeroAttack(input, skill);
+  }
+
   const nextState = cloneCombatState(input.state);
   const action = skill ? "skill" : input.action === "defend" ? "defend" : "attack";
   const monsterHpBeforeHeroAction = nextState.monster.hp;
@@ -512,6 +529,10 @@ function resolveHeroAttack(
 }
 
 function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
+  if (getLivingCombatEnemies(input.state).length > 1) {
+    return resolveMultiEnemyFlee(input);
+  }
+
   const nextState = cloneCombatState(input.state);
   const fled = rollFleeSuccess(
     applyMonsterRuntimeFleePenalty(nextState, input.hero),
@@ -568,6 +589,222 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
     ...(monsterResponse.monsterEffectText ? { monsterEffectText: monsterResponse.monsterEffectText } : {}),
     ...(monsterResponse.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: monsterResponse.monsterTelegraphAbilityId } : {}),
     ...(bark?.barkId ? { monsterBarkId: bark.barkId } : {})
+  });
+  nextState.lastTurn = summary;
+  appendCombatTurnLog(nextState, input.state.turn, summary);
+
+  return {
+    ok: true,
+    state: recordCombatAnalyticsTurn(nextState, summary),
+    summary
+  };
+}
+
+function resolveMultiEnemyHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
+  const nextState = cloneCombatState(input.state);
+  tickSkillCooldown(nextState);
+
+  const enemyPhase = resolveLivingEnemyPhase(nextState, input, 0);
+  nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
+  nextState.turn += 1;
+  syncPrimaryCombatEnemy(nextState);
+  const summary = buildSummary({
+    action: "skip",
+    ...summaryActionOrigin(input),
+    heroOutcome: "inactive",
+    monsterOutcome: nextState.status === "lost" ? "lost" : enemyPhase.monsterOutcome,
+    heroDamage: 0,
+    monsterDamage: enemyPhase.monsterDamage,
+    manaSpent: 0,
+    critical: false,
+    ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
+    ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {})
+  });
+  nextState.lastTurn = summary;
+  appendCombatTurnLog(nextState, input.state.turn, summary);
+
+  return {
+    ok: true,
+    state: recordCombatAnalyticsTurn(nextState, summary),
+    summary
+  };
+}
+
+function resolveMultiEnemyHeroAttack(
+  input: ResolveCombatTurnInput,
+  skill?: ReturnType<typeof getCombatSkillProfile>
+): ResolveCombatTurnResult {
+  const nextState = cloneCombatState(input.state);
+  syncPrimaryCombatEnemy(nextState);
+  const action = skill ? "skill" : input.action === "defend" ? "defend" : "attack";
+  const primary = getPrimaryCombatEnemy(nextState);
+  const primaryStats = findEnemyStats(input, primary);
+  const monsterHpBeforeHeroAction = primary.hp;
+  const defenderStats = applyMonsterRuntimeHeroAttackModifiers(
+    nextState,
+    applyDrinkHeroAttackModifiers(input.state, primaryStats)
+  );
+  const actorAction = resolveActorCombatAction({
+    actorState: {
+      ...nextState.hero,
+      cooldowns: nextState.cooldowns,
+      ...(nextState.guard ? { guard: nextState.guard } : {})
+    },
+    defenderState: {
+      hp: primary.hp,
+      hpMax: primary.hpMax,
+      mana: 0,
+      manaMax: 0
+    },
+    actorStats: input.hero,
+    defenderStats,
+    action,
+    rng: input.rng
+  });
+  nextState.hero.hp = actorAction.actorState.hp;
+  nextState.hero.mana = actorAction.actorState.mana;
+  const manaPressure = skill ? getMonsterRuntimeSkillManaCostIncrease(nextState) : 0;
+  if (manaPressure > 0) {
+    nextState.hero.mana = clampResource(nextState.hero.mana - manaPressure, nextState.hero.manaMax);
+  }
+  setStateGuard(nextState, actorAction.actorState.guard);
+  setStateCooldowns(nextState, actorAction.actorState.cooldowns);
+  primary.hp = actorAction.defenderState.hp;
+  nextState.monster = combatEnemyToMonster(primary);
+  const runtimeHeroDamage = applyMonsterRuntimeHeroDamage({
+    state: nextState,
+    heroDamage: actorAction.summary.actorDamage,
+    monsterHpBeforeDamage: monsterHpBeforeHeroAction,
+    heroAction: action,
+    rng: input.rng
+  });
+  primary.hp = nextState.monster.hp;
+  if (nextState.monsterRuntime) {
+    primary.monsterRuntime = nextState.monsterRuntime;
+  } else {
+    delete primary.monsterRuntime;
+  }
+  updateCombatEnemy(nextState, primary.enemyId, primary);
+  const heroDamage = runtimeHeroDamage.heroDamage;
+  const manaSpent = actorAction.summary.manaSpent + manaPressure;
+  let monsterDamage = runtimeHeroDamage.reflectedDamage;
+  let counterDamage = 0;
+
+  if (nextState.hero.hp <= 0) {
+    nextState.status = "lost";
+  } else if (getLivingCombatEnemies(nextState).length === 0) {
+    nextState.status = "won";
+  } else {
+    const heroEffect = applyHeroActivationMonsterEffects(nextState);
+    monsterDamage += heroEffect.damage;
+    const enemyPhase = resolveLivingEnemyPhase(nextState, input, skill?.monsterDamageReduction ?? 0);
+    monsterDamage += enemyPhase.monsterDamage;
+    if (nextState.hero.hp > 0 && enemyPhase.defendCounter && monsterDamage > 0) {
+      counterDamage = rollDefendCounterDamage(input.hero, primaryStats, input.rng);
+      const counterTarget = getPrimaryCombatEnemy(nextState);
+      counterTarget.hp = Math.max(0, counterTarget.hp - counterDamage);
+      updateCombatEnemy(nextState, counterTarget.enemyId, counterTarget);
+    }
+    nextState.status = nextState.hero.hp <= 0
+      ? "lost"
+      : getLivingCombatEnemies(nextState).length === 0
+        ? "won"
+        : "active";
+    const heroOutcome = nextState.status === "won"
+      ? "won"
+      : primary.hp <= 0 && actorAction.summary.actorOutcome === "won"
+        ? "hit"
+        : actorAction.summary.actorOutcome === "won"
+          ? "hit"
+          : actorAction.summary.actorOutcome;
+    nextState.turn += 1;
+    syncPrimaryCombatEnemy(nextState);
+    const summary = buildSummary({
+      action: input.action,
+      ...summaryActionOrigin(input),
+      heroOutcome,
+      monsterOutcome: nextState.status === "lost" ? "lost" : enemyPhase.monsterOutcome,
+      heroDamage,
+      monsterDamage,
+      heroCounterDamage: counterDamage,
+      manaSpent,
+      critical: actorAction.summary.critical,
+      ...(skill ? { skill } : {}),
+      ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
+      ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {})
+    });
+    nextState.lastTurn = summary;
+    appendCombatTurnLog(nextState, input.state.turn, summary);
+
+    return {
+      ok: true,
+      state: recordCombatAnalyticsTurn(nextState, summary),
+      summary
+    };
+  }
+
+  nextState.turn += 1;
+  syncPrimaryCombatEnemy(nextState);
+  const summary = buildSummary({
+    action: input.action,
+    ...summaryActionOrigin(input),
+    heroOutcome: nextState.status === "won" ? "won" : actorAction.summary.actorOutcome,
+    heroDamage,
+    monsterDamage,
+    manaSpent,
+    critical: actorAction.summary.critical,
+    ...(skill ? { skill } : {})
+  });
+  nextState.lastTurn = summary;
+  appendCombatTurnLog(nextState, input.state.turn, summary);
+
+  return {
+    ok: true,
+    state: recordCombatAnalyticsTurn(nextState, summary),
+    summary
+  };
+}
+
+function resolveMultiEnemyFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
+  const nextState = cloneCombatState(input.state);
+  const primary = getPrimaryCombatEnemy(nextState);
+  const fled = rollFleeSuccess(
+    applyMonsterRuntimeFleePenalty(nextState, input.hero),
+    findEnemyStats(input, primary),
+    input.rng
+  );
+  tickSkillCooldown(nextState);
+
+  let enemyPhase: ReturnType<typeof resolveLivingEnemyPhase> = {
+    monsterDamage: 0,
+    enemyActions: [],
+    defendCounter: false
+  };
+
+  if (fled) {
+    nextState.status = "fled";
+  } else {
+    const heroEffect = applyHeroActivationMonsterEffects(nextState);
+    enemyPhase = resolveLivingEnemyPhase(nextState, input, 0);
+    enemyPhase.monsterDamage += heroEffect.damage;
+    nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
+  }
+
+  nextState.turn += 1;
+  syncPrimaryCombatEnemy(nextState);
+  const summary = buildSummary({
+    action: "flee",
+    ...summaryActionOrigin(input),
+    heroOutcome: fled ? "fled" : "flee-failed",
+    ...(!fled
+      ? { monsterOutcome: nextState.status === "lost" ? "lost" : enemyPhase.monsterOutcome }
+      : {}),
+    heroDamage: 0,
+    monsterDamage: enemyPhase.monsterDamage,
+    manaSpent: 0,
+    critical: false,
+    ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
+    ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {})
   });
   nextState.lastTurn = summary;
   appendCombatTurnLog(nextState, input.state.turn, summary);
@@ -639,7 +876,8 @@ function appendCombatTurnLog(
     },
     monster: {
       hp: state.monster.hp
-    }
+    },
+    ...turnLogEnemies(state)
   });
 }
 
@@ -771,6 +1009,7 @@ function buildSummary(input: {
   critical: boolean;
   skill?: CombatSkillProfile;
   monsterSkill?: CombatSkillProfile;
+  enemyActions?: CombatEnemyTurnSummary[];
   debugTrace?: ReturnType<typeof buildTurnDebugTrace>;
 }): CombatTurnSummary {
   return {
@@ -805,7 +1044,114 @@ function buildSummary(input: {
     ...(input.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: input.monsterTelegraphAbilityId } : {}),
     ...(input.heroCounterDamage ? { heroCounterDamage: input.heroCounterDamage } : {}),
     ...(input.monsterBarkId ? { monsterBarkId: input.monsterBarkId } : {}),
+    ...(input.enemyActions ? { enemyActions: input.enemyActions } : {}),
     ...(input.debugTrace ? { debugTrace: input.debugTrace } : {})
+  };
+}
+
+function resolveLivingEnemyPhase(
+  state: CombatState,
+  input: ResolveCombatTurnInput,
+  damageReduction: number
+): {
+  monsterDamage: number;
+  monsterOutcome?: CombatTurnSummary["monsterOutcome"];
+  primaryAction?: CombatEnemyTurnSummary;
+  enemyActions: CombatEnemyTurnSummary[];
+  defendCounter: boolean;
+} {
+  let monsterDamage = 0;
+  let monsterOutcome: CombatTurnSummary["monsterOutcome"] | undefined;
+  let defendCounter = false;
+  const enemyActions: CombatEnemyTurnSummary[] = [];
+
+  for (const enemy of getLivingCombatEnemies(state)) {
+    if (state.hero.hp <= 0) {
+      break;
+    }
+
+    state.monster = combatEnemyToMonster(enemy);
+    if (enemy.monsterRuntime) {
+      state.monsterRuntime = enemy.monsterRuntime;
+    } else {
+      delete state.monsterRuntime;
+    }
+
+    const response = resolveMonsterResponse({
+      state,
+      input: {
+        ...input,
+        monster: findEnemyStats(input, enemy)
+      },
+      damageReduction
+    });
+    const updatedEnemy: CombatEnemyState = {
+      ...enemy,
+      ...state.monster,
+      ...(state.monsterRuntime ? { monsterRuntime: state.monsterRuntime } : {})
+    };
+    updateCombatEnemy(state, enemy.enemyId, updatedEnemy);
+    monsterDamage += response.damage;
+    monsterOutcome = state.hero.hp <= 0
+      ? "lost"
+      : response.outcome ?? (response.damage > 0 ? "hit" : "miss");
+    defendCounter = defendCounter || Boolean(response.defendCounter);
+    enemyActions.push({
+      enemyId: enemy.enemyId,
+      monsterId: enemy.id,
+      ...(enemy.name ? { monsterName: enemy.name } : {}),
+      ...(monsterOutcome ? { monsterOutcome } : {}),
+      monsterDamage: response.damage,
+      ...(response.monsterAction ? { monsterAction: response.monsterAction } : {}),
+      ...(response.monsterSkill ? { monsterSkillId: response.monsterSkill.id } : {}),
+      ...(response.monsterSkill?.damageKind ? { monsterDamageKind: response.monsterSkill.damageKind } : {}),
+      ...(response.monsterEffectText ? { monsterEffectText: response.monsterEffectText } : {}),
+      ...(response.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: response.monsterTelegraphAbilityId } : {})
+    });
+  }
+
+  syncPrimaryCombatEnemy(state);
+
+  return {
+    monsterDamage,
+    ...(monsterOutcome ? { monsterOutcome } : {}),
+    ...(enemyActions[0] ? { primaryAction: enemyActions[0] } : {}),
+    enemyActions,
+    defendCounter
+  };
+}
+
+function enemyActionToSummaryFields(action: CombatEnemyTurnSummary): {
+  monsterOutcome?: CombatTurnSummary["monsterOutcome"];
+  monsterAction?: CombatTurnSummary["monsterAction"];
+  monsterEffectText?: string;
+  monsterTelegraphAbilityId?: string;
+} {
+  return {
+    ...(action.monsterOutcome ? { monsterOutcome: action.monsterOutcome } : {}),
+    ...(action.monsterAction ? { monsterAction: action.monsterAction } : {}),
+    ...(action.monsterEffectText ? { monsterEffectText: action.monsterEffectText } : {}),
+    ...(action.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: action.monsterTelegraphAbilityId } : {})
+  };
+}
+
+function findEnemyStats(input: ResolveCombatTurnInput, enemy: CombatEnemyState): MonsterCombatStats {
+  const stats = input.enemies?.find((candidate) => candidate.monsterId === enemy.id);
+  const fallback = stats ?? input.monster;
+
+  return {
+    ...fallback,
+    monsterId: enemy.id,
+    ...(enemy.name ? { name: enemy.name } : {}),
+    level: enemy.level ?? fallback.level,
+    hpMax: enemy.hpMax,
+    attack: enemy.attack ?? fallback.attack,
+    armor: enemy.armor ?? fallback.armor,
+    resist: enemy.resist ?? fallback.resist,
+    dexterity: enemy.dexterity ?? fallback.dexterity,
+    ...(enemy.spellPower !== undefined ? { spellPower: enemy.spellPower } : {}),
+    ...(enemy.contextModifiers ? { contextModifiers: { ...enemy.contextModifiers } } : {}),
+    ...(enemy.debugTrace ? { debugTrace: { ...enemy.debugTrace } } : {})
   };
 }
 

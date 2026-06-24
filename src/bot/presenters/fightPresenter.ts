@@ -1,6 +1,11 @@
 import { MIMIC_SHAWARMA_HP } from "../../domain/combat/combatProbe";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import { getTerminalCombatTurnLogEventId, type CombatTurnLogEntry, type CombatTurnSummary } from "../../domain/combat";
+import {
+  getTerminalCombatTurnLogEventId,
+  normalizeCombatEnemies,
+  type CombatTurnLogEntry,
+  type CombatTurnSummary
+} from "../../domain/combat";
 import type {
   FightLookupResult,
   FightResult,
@@ -489,12 +494,13 @@ function presentPersistentFightState(input: {
   const state = input.session.state;
   const monsterName = state?.monster.name ?? input.monster?.name ?? "Невідомий монстр";
   const monsterLevel = state?.monster.level ?? input.monster?.level;
+  const enemyRows = state ? presentEnemyHpRows(state) : [`👹 Монстр: ?/?`];
   const lines = [
     "⚔️ <b>Бій</b>",
     `Проти вас: <b>${escapeHtml(monsterName)}</b>${monsterLevel ? ` · рівень ${monsterLevel}` : ""}`,
     "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
-    `👹 Монстр: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
+    ...enemyRows,
     `Хід: ${state?.turn ?? "?"}`
   ];
 
@@ -608,7 +614,10 @@ function getPersistentFightJournalEntries(
     },
     monster: {
       hp: state.monster.hp
-    }
+    },
+    ...(state.enemies
+      ? { enemies: normalizeCombatEnemies(state).map((enemy) => ({ enemyId: enemy.enemyId, hp: enemy.hp })) }
+      : {})
   });
 
   return entries;
@@ -805,12 +814,13 @@ function presentTurnSummary(
 ): string {
   const heading = options.includeHeading === false ? [] : ["Остання дія"];
   const monsterResponse = presentMonsterResponse(summary);
+  const enemyResponses = presentEnemyResponses(summary);
 
   if (summary.heroOutcome === "not-enough-mana") {
     return withMonsterBark(summary, [
       ...heading,
       "Мани не стало навіть на драматичний жест.",
-      monsterResponse || "Монстр скористався паузою, але перечепився об власну впевненість."
+      enemyResponses || monsterResponse || "Монстр скористався паузою, але перечепився об власну впевненість."
     ]);
   }
 
@@ -818,7 +828,7 @@ function presentTurnSummary(
     return withMonsterBark(summary, [
       ...heading,
       "Навичка ще відсапується. Пригодник зробив вигляд, що так і планував.",
-      monsterResponse || "Монстр промахнувся й теж назвав це планом."
+      enemyResponses || monsterResponse || "Монстр промахнувся й теж назвав це планом."
     ]);
   }
 
@@ -826,7 +836,7 @@ function presentTurnSummary(
     return withMonsterBark(summary, [
       ...heading,
       "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.",
-      monsterResponse || "Монстр не знайшов переконливого кута атаки.",
+      enemyResponses || monsterResponse || "Монстр не знайшов переконливого кута атаки.",
       summary.heroCounterDamage
         ? `Контрудар зачепив монстра на ${summary.heroCounterDamage} шкоди.`
         : ""
@@ -849,7 +859,7 @@ function presentTurnSummary(
     return withMonsterBark(summary, [
       ...heading,
       "Ви не встигли обрати дію.",
-      monsterResponse || "Монстр скористався паузою, але не знайшов переконливого кута."
+      enemyResponses || monsterResponse || "Монстр скористався паузою, але не знайшов переконливого кута."
     ]);
   }
 
@@ -864,12 +874,55 @@ function presentTurnSummary(
       ? `${action} не влучає.`
       : `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
   const response =
+    enemyResponses ||
     monsterResponse ||
     (summary.monsterOutcome === "miss"
       ? "Монстр промахнувся й зробив вигляд, що так і планував."
       : "");
 
   return withMonsterBark(summary, [...heading, hit, response].filter(Boolean));
+}
+
+function presentEnemyHpRows(state: NonNullable<Parameters<typeof presentPersistentFightState>[0]["session"]["state"]>): string[] {
+  const enemies = normalizeCombatEnemies(state);
+
+  if (enemies.length <= 1) {
+    return [`👹 Монстр: ${state.monster.hp}/${state.monster.hpMax}`];
+  }
+
+  const primaryEnemyId = enemies.find((enemy) => enemy.hp > 0)?.enemyId ?? enemies[0]?.enemyId;
+
+  return enemies.map((enemy, index) => {
+    const marker = enemy.hp > 0 && enemy.enemyId === primaryEnemyId ? " ← ціль" : "";
+    const name = enemy.name ? ` ${escapeHtml(enemy.name)}` : "";
+
+    return `👹 ${index + 1}.${name}: ${enemy.hp}/${enemy.hpMax}${marker}`;
+  });
+}
+
+function presentEnemyResponses(summary: CombatTurnSummary): string {
+  if (!summary.enemyActions || summary.enemyActions.length <= 1) {
+    return "";
+  }
+
+  return summary.enemyActions
+    .map((entry, index) => {
+      const name = entry.monsterName ? escapeHtml(entry.monsterName) : `Монстр ${index + 1}`;
+      if (entry.monsterDamage > 0) {
+        return `${name} діє окремо й завдає ${entry.monsterDamage} шкоди.`;
+      }
+
+      if (entry.monsterAction === "telegraph") {
+        return `${name} готує неприємність і дуже пишається паузою.`;
+      }
+
+      if (entry.monsterAction === "defend") {
+        return `${name} стає в захист.`;
+      }
+
+      return `${name} діє окремо, але шкоди цього разу не додає.`;
+    })
+    .join("\n");
 }
 
 function presentMonsterResponse(summary: CombatTurnSummary): string {

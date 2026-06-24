@@ -10,6 +10,19 @@
 
 Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
 
+## 0.2.1 — Multi-enemy foundation smoke
+
+1. Увімкнути локальні dev-команди й стартувати `/dev_two_enemies`.
+2. Перевірити, що бойова картка показує два окремі HP-рядки ворогів і позначає поточну ціль.
+3. Атакувати або застосувати класову дію: шкода має йти тільки в першу живу ціль.
+4. Добити першу ціль: друга має стати primary target, а мертва ціль не має діяти в enemy phase.
+5. На ході ворогів кожен живий ворог має отримати окремий короткий рядок дії.
+6. Перемога настає тільки після смерті обох ворогів; flee/loss/expiry лишаються terminal для всього encounter.
+7. Повторити старі turn/result кнопки після terminal state: settlement/reward replay має відбутися один раз, без per-enemy множника.
+8. Перезапустити процес під час бою й перевірити, що `enemies` відновлюються з JSON, а legacy `monster` лишається primary mirror.
+9. Стартувати звичайний `/fight`, Yeger, Adventure complication, training і duel routes: усі вони мають лишатися one-enemy.
+10. Вимкнути dev-команди й перевірити, що `/dev_two_enemies` не зʼявляється в `/dev_help`.
+
 ## 0.2.0 — Safe gifting smoke
 
 1. Два персонажі стоять активними в одній безпечній місцині.
@@ -390,6 +403,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_add_level [число]` — у локальному режимі додає вказану кількість рівнів; без числа додає 1 рівень.
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
+- `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation без production threat escalation.
 
 ## `0.1.0` Phase 1 Definition of Done
 

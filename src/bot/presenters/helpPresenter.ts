@@ -104,7 +104,7 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     description: "допомога"
   },
   {
-    commands: ["dev_help", "dev_reset_me", "dev_adventure_reset", "dev_raid_stop"],
+    commands: ["dev_help", "dev_reset_me", "dev_adventure_reset", "dev_raid_stop", "dev_two_enemies"],
     icon: "🧪",
     description: "локальні скидання для тестів",
     devOnly: "reset"

@@ -12,9 +12,13 @@ This is the smallest remaining social-interaction promise after duels, nearby ta
 
 Prompt: [ai/prompts/safe-gifting-main-codex.md](ai/prompts/safe-gifting-main-codex.md).
 
+Status: shipped in `0.2.0`.
+
 ### `0.2.1` - Multi-Enemy Foundation
 
 Add backward-compatible state and exactly two enemies first. Do not include threat streaks, Yeger integration, location pools or a new reward faucet in the foundation PR.
+
+Status: shipped in `0.2.1` as dev-only two-enemy exposure plus compatibility state. Production ordinary/Yeger/Adventure/training/duel starts remain one-enemy.
 
 ### `0.2.2` - Threat Escalation
 

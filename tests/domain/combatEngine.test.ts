@@ -7,6 +7,8 @@ import {
   cloneCombatState,
   getCombatSkillProfile,
   getCombatActionAvailability,
+  getPrimaryCombatEnemy,
+  normalizeCombatEnemies,
   rollBasicAttack,
   rollFleeSuccess,
   rollMonsterDamage,
@@ -54,6 +56,13 @@ const monster: MonsterCombatStats = {
   resist: 1,
   dexterity: 6,
   tags: ["test"]
+};
+
+const secondMonster: MonsterCombatStats = {
+  ...monster,
+  monsterId: "monster.test-auditor",
+  hpMax: 16,
+  attack: 3
 };
 
 const oldHotSpellNumbers = {
@@ -228,6 +237,74 @@ describe("combat domain engine", () => {
     expect(result.ok).toBe(true);
     expect(state).toEqual(before);
     expect(result.state).not.toBe(state);
+  });
+
+  it("targets only the primary living enemy in a two-enemy fight", () => {
+    const state = startCombat({ hero: warrior, monster, enemies: [secondMonster] });
+    state.enemies![0]!.hp = 1;
+    state.monster.hp = 1;
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: warrior,
+      monster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("active");
+    expect(normalizeCombatEnemies(result.state).map((enemy) => enemy.hp)).toEqual([0, expect.any(Number)]);
+    expect(getPrimaryCombatEnemy(result.state).id).toBe(secondMonster.monsterId);
+  });
+
+  it("lets every living enemy act separately during the enemy phase", () => {
+    const result = resolveCombatTurn({
+      state: startCombat({ hero: warrior, monster, enemies: [secondMonster] }),
+      action: "defend",
+      hero: warrior,
+      monster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary.enemyActions?.map((entry) => entry.monsterId)).toEqual([
+      monster.monsterId,
+      secondMonster.monsterId
+    ]);
+  });
+
+  it("wins a two-enemy fight only after every enemy is defeated", () => {
+    const state = startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster, enemies: [secondMonster] });
+    state.enemies![0]!.hp = 1;
+    state.enemies![1]!.hp = 1;
+    state.monster.hp = 1;
+
+    const first = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: { ...warrior, weaponDamage: 50 },
+      monster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99])
+    });
+
+    expect(first.ok).toBe(true);
+    expect(first.state.status).toBe("active");
+
+    const second = resolveCombatTurn({
+      state: first.state,
+      action: "attack",
+      hero: { ...warrior, weaponDamage: 50 },
+      monster: secondMonster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+
+    expect(second.ok).toBe(true);
+    expect(second.state.status).toBe("won");
   });
 
   it("applies stored beer accuracy penalties to PvE hero attacks", () => {

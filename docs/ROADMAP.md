@@ -96,7 +96,7 @@ Current repeatable slice:
 Status:
 - Closed by `0.1.25 — Phase 2 MVP Closeout`.
 - `0.1.x` should receive only emergency hotfixes after this closeout.
-- Next implementation line is `0.2.x`, starting with `docs/tasks/0.2.0-safe-gifting-mvp.md`.
+- Current implementation line is `0.2.x`: safe gifting shipped in `0.2.0`, and multi-enemy foundation shipped in `0.2.1`.
 
 Current order:
 1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, smoke fallout.
@@ -130,18 +130,19 @@ Canonical docs:
 Closeout cutline:
 - `0.1.24` is the final feature release of the `0.1.x` Phase 2 MVP line.
 - `0.1.25` closes the line as a docs/release/smoke milestone with no new gameplay.
-- Safe gifting shipped first in `0.2.0`; broader trading, multi-enemy, item tags/equipment and party/raid runtime stay in later `0.2.x+` slices.
-- The next implementation prompt remains [docs/ai/prompts/safe-gifting-main-codex.md](ai/prompts/safe-gifting-main-codex.md).
+- Safe gifting shipped first in `0.2.0`; `0.2.1` shipped only the backward-compatible two-enemy foundation. Broader trading, threat escalation, item tags/equipment and party/raid runtime stay in later `0.2.x+` slices.
+- The next implementation prompt should be chosen from the current `0.2.x` task docs, with threat escalation or item tags remaining evidence-gated follow-ups.
 
 Deliverables:
 - Бійцівський куток із тренувальним `Сумлінним Допельґанґером`: копія поточного героя для level 3+ спарингу перед справжніми дуелями з гравцями. Майбутні дуелі також стартують з 3 рівня, якщо окремий балансний PR не змінить це явно.
 - First duel invite MVP shipped in `0.1.10`: challenge, accept/decline/cancel/expire, quick rewardless resolve, replay-safe result, generated deep links via `BOT_USERNAME`, a dedicated Fighting Corner screen and a rewardless winners board. `0.1.11` adds manual targeted rematches and shareable saved-result cards without rerolls; `0.1.18` adds persistent turn-based duels with small XP-only terminal rewards and no gold/items/manatky rewards.
 - Tournament cards without exact hidden formulas or toxic pressure.
 - `0.2.0` Safe Gifting MVP: transfer one eligible манатка stack unit with explicit recipient acceptance, audit row, reservation checks and replay-safe terminal states.
+- `0.2.1` Multi-Enemy Foundation: persistent PvE combat can store and resolve exactly two enemies behind a dev-only route while production starts remain one-enemy and rewards stay single-encounter.
 - Later postal/courier gifting: paid delivery of one eligible манатка to a known recipient without same-location presence, after safe gifting proves stable.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
 - Remort follow-ups after the `0.1.2` base loop: remort-only advanced options, richer legacy flavor and future cosmetic/social records, without hidden wipe or power snowball.
-- Multi-enemy combat foundation: ordinary monster fights should replace the three-win monster-rest block with threat escalation. After `3` eligible one-enemy wins the next fight brings a second monster; at higher enemy counts, `2` more wins add another monster, while each defeat steps the future enemy count down by one. Extra enemies each act on enemy turns, rewards scale conservatively, and fight intros draw from 13 authored gossip/escalation lines; see `docs/tasks/archive/queued-threat-streak-multi-enemy-fights.md`.
+- Threat escalation follow-up: ordinary monster fights can later replace the three-win monster-rest block with a second enemy after `3` eligible one-enemy wins, conservative de-escalation, careful reward scaling and authored gossip/escalation lines; see `docs/tasks/archive/queued-threat-streak-multi-enemy-fights.md`.
 - Party combat and real raids after duel/session/invite and multi-enemy primitives are proven, with capped contribution-aware rare/serious manatky rewards.
 
 Done when:

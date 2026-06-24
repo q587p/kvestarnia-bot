@@ -4,6 +4,8 @@ import type {
   CombatCopiedEquipment,
   CombatDamageKind,
   CombatDebugTrace,
+  CombatEnemyState,
+  CombatEnemyTurnSummary,
   DrinkCombatModifiers,
   CombatLifeState,
   CombatResourceSettlementState,
@@ -1302,7 +1304,7 @@ function clampDueSessionLimit(value: number | undefined): number {
   return Math.min(100, Math.max(1, Math.floor(value)));
 }
 
-function parseCombatState(value: unknown): CombatState | null {
+export function parseCombatState(value: unknown): CombatState | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -1314,6 +1316,7 @@ function parseCombatState(value: unknown): CombatState | null {
   const settlement = parseCombatSettlement(value.settlement);
   const hero = parseResourceBlock(value.hero);
   const monster = parseMonsterBlock(value.monster);
+  const enemies = parseEnemies(value.enemies, monster);
   const completedAt = parseIsoDate(value.completedAt);
   const turnExpiresAt = parseIsoDate(value.turnExpiresAt);
   const message = parseMessageReference(value.message);
@@ -1327,7 +1330,7 @@ function parseCombatState(value: unknown): CombatState | null {
   const turnLog = parseTurnLog(value.turnLog);
   const drinkModifiers = parseDrinkModifiers(value.drinkModifiers);
 
-  if (turn === null || !status || !hero || !monster) {
+  if (turn === null || !status || !hero || !monster || enemies === "malformed") {
     return null;
   }
 
@@ -1347,6 +1350,7 @@ function parseCombatState(value: unknown): CombatState | null {
     status,
     hero,
     monster,
+    ...(enemies ? { enemies } : {}),
     ...(cooldowns ? { cooldowns } : {}),
     ...(guard ? { guard } : {}),
     ...(context ? { context } : {}),
@@ -1972,6 +1976,50 @@ function parseMonsterBlock(value: unknown): CombatState["monster"] | null {
       };
 }
 
+function parseEnemies(
+  value: unknown,
+  primaryMonster: CombatState["monster"] | null
+): CombatEnemyState[] | "malformed" | null {
+  if (value === undefined) {
+    return null;
+  }
+
+  if (!Array.isArray(value) || value.length < 1 || value.length > 2 || !primaryMonster) {
+    return "malformed";
+  }
+
+  const enemies = value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.enemyId !== "string") {
+      return [];
+    }
+
+    const monster = parseMonsterBlock(entry);
+    const runtime = parseMonsterAbilityRuntimeState(entry.monsterRuntime);
+
+    return monster
+      ? [{
+          enemyId: entry.enemyId,
+          ...monster,
+          ...(runtime ? { monsterRuntime: runtime } : {})
+        }]
+      : [];
+  });
+  const enemyIds = new Set(enemies.map((enemy) => enemy.enemyId));
+
+  if (
+    enemies.length !== value.length ||
+    enemyIds.size !== enemies.length ||
+    !enemies[0] ||
+    enemies[0].id !== primaryMonster.id ||
+    enemies[0].hp !== primaryMonster.hp ||
+    enemies[0].hpMax !== primaryMonster.hpMax
+  ) {
+    return "malformed";
+  }
+
+  return enemies;
+}
+
 function parseStateStatus(value: unknown): CombatStatus | null {
   return value === "active" || terminalStatuses.has(value as CombatStatus)
     ? (value as CombatStatus)
@@ -1995,6 +2043,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const debugTrace = parseCombatDebugTrace(value.debugTrace);
   const actionOrigin = parseActionOrigin(value.actionOrigin);
   const monsterAction = parseMonsterAction(value.monsterAction);
+  const enemyActions = parseEnemyTurnSummaries(value.enemyActions);
 
   if (
     !action ||
@@ -2025,8 +2074,41 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(typeof value.monsterTelegraphAbilityId === "string" ? { monsterTelegraphAbilityId: value.monsterTelegraphAbilityId } : {}),
     ...(heroCounterDamage !== null ? { heroCounterDamage } : {}),
     ...(typeof value.monsterBarkId === "string" ? { monsterBarkId: value.monsterBarkId } : {}),
+    ...(enemyActions.length > 0 ? { enemyActions } : {}),
     ...(debugTrace ? { debugTrace } : {})
   };
+}
+
+function parseEnemyTurnSummaries(value: unknown): CombatEnemyTurnSummary[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.enemyId !== "string" || typeof entry.monsterId !== "string") {
+      return [];
+    }
+
+    const monsterOutcome = parseTurnOutcome(entry.monsterOutcome);
+    const monsterDamage = intOrNull(entry.monsterDamage);
+    const monsterAction = parseMonsterAction(entry.monsterAction);
+    const monsterDamageKind = parseDamageKind(entry.monsterDamageKind);
+
+    return monsterDamage === null
+      ? []
+      : [{
+          enemyId: entry.enemyId,
+          monsterId: entry.monsterId,
+          ...(typeof entry.monsterName === "string" ? { monsterName: entry.monsterName } : {}),
+          ...(monsterOutcome ? { monsterOutcome } : {}),
+          monsterDamage,
+          ...(monsterAction ? { monsterAction } : {}),
+          ...(typeof entry.monsterSkillId === "string" ? { monsterSkillId: entry.monsterSkillId } : {}),
+          ...(monsterDamageKind ? { monsterDamageKind } : {}),
+          ...(typeof entry.monsterEffectText === "string" ? { monsterEffectText: entry.monsterEffectText } : {}),
+          ...(typeof entry.monsterTelegraphAbilityId === "string" ? { monsterTelegraphAbilityId: entry.monsterTelegraphAbilityId } : {})
+        }];
+  });
 }
 
 function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
@@ -2043,6 +2125,7 @@ function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
     const summary = parseTurnSummary(entry.summary);
     const hero = parseTurnLogHero(entry.hero);
     const monster = parseTurnLogMonster(entry.monster);
+    const enemies = parseTurnLogEnemies(entry.enemies);
     const eventId = parseTurnLogEventId(entry.eventId);
 
     return turn === null || turn < 1 || !summary || !hero || !monster
@@ -2052,8 +2135,25 @@ function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
           turn,
           summary,
           hero,
-          monster
+          monster,
+          ...(enemies.length > 0 ? { enemies } : {})
         }];
+  });
+}
+
+function parseTurnLogEnemies(value: unknown): NonNullable<CombatTurnLogEntry["enemies"]> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.enemyId !== "string") {
+      return [];
+    }
+
+    const hp = intOrNull(entry.hp);
+
+    return hp === null ? [] : [{ enemyId: entry.enemyId, hp }];
   });
 }
 

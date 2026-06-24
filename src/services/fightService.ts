@@ -42,6 +42,7 @@ import {
   getCombatSkillProfile,
   isCombatSettlementTerminal,
   markCombatTurnTimeoutMode,
+  normalizeCombatEnemies,
   recordCombatTimeout,
   resetCombatTimeout,
   resolveCombatTurn,
@@ -515,6 +516,8 @@ export interface PersistentFightStartOptions {
     tagsAny?: string[];
     monsterIds?: string[];
   };
+  enemyCount?: 1 | 2;
+  devBypassAvailability?: boolean;
 }
 
 export type PassagePreviewRefreshReason = "expired" | "missing-monster" | "stale";
@@ -603,6 +606,7 @@ export class FightService {
       actionOrigin: timeoutMode === "skip" ? "timeout-skip" : "timeout-auto-defend",
       hero: buildHeroCombatStats(character),
       monster: buildPersistentMonsterCombatStats(monster, activeSession.state),
+      ...withPersistentEnemyCombatStats(activeSession.state),
       rng: this.rng
     });
     const resolvedState = resolved.ok
@@ -1593,7 +1597,7 @@ export class FightService {
       };
     }
 
-    if (!questProgress.issued && options.source !== "adventure") {
+    if (!questProgress.issued && options.source !== "adventure" && !options.devBypassAvailability) {
       return {
         state: "persistent-not-issued",
         character: characterSummary,
@@ -1602,7 +1606,9 @@ export class FightService {
       };
     }
 
-    const monsterRest = await this.getMonsterRestCooldown(telegramUserId, options.source ?? "normal");
+    const monsterRest = options.devBypassAvailability
+      ? null
+      : await this.getMonsterRestCooldown(telegramUserId, options.source ?? "normal");
     if (monsterRest) {
       return {
         state: "monster-rest",
@@ -1630,6 +1636,18 @@ export class FightService {
       ? selectTargetedSoloFightMonster(characterSummary, this.rng, options.target)
       : selectSoloFightMonster(characterSummary, encounterRng, difficulty, recentMonsterIds);
     const monster = applyPersistentFightDifficulty(baseMonster, characterSummary, difficulty);
+    const extraMonsters = options.enemyCount === 2
+      ? [
+          applyPersistentFightDifficulty(
+            selectSoloFightMonster(characterSummary, encounterRng, difficulty, [
+              baseMonster.id,
+              ...recentMonsterIds
+            ]),
+            characterSummary,
+            difficulty
+          )
+        ]
+      : [];
     const sessionId = randomUUID();
     const now = this.clock();
     const drinkSnapshot = await this.buildDrinkCombatSnapshot(telegramUserId, now);
@@ -1643,10 +1661,16 @@ export class FightService {
       deriveMonsterCombatStats(monster),
       monsterContext
     );
+    const extraMonsterStats = extraMonsters.map((enemy) => {
+      const context = resolveMonsterContext({ monster: enemy, world: worldContext });
+
+      return applyMonsterContextToStats(deriveMonsterCombatStats(enemy), context);
+    });
     const state = startCombat({
       id: sessionId,
       hero: buildHeroCombatStats(characterSummary),
-      monster: monsterStats
+      monster: monsterStats,
+      ...(extraMonsterStats.length > 0 ? { enemies: extraMonsterStats } : {})
     });
     state.turnExpiresAt = getTurnExpiry(now).toISOString();
     state.source = options.source ?? "normal";
@@ -2075,6 +2099,7 @@ export class FightService {
       action: input.action,
       hero: buildHeroCombatStats(characterSummary),
       monster: buildPersistentMonsterCombatStats(monster, currentSession.state),
+      ...withPersistentEnemyCombatStats(currentSession.state),
       rng: this.rng
     });
 
@@ -3971,6 +3996,41 @@ function buildPersistentMonsterCombatStats(
     ...(stored.contextModifiers ? { contextModifiers: { ...stored.contextModifiers } } : {}),
     ...(stored.debugTrace ? { debugTrace: { ...stored.debugTrace } } : {})
   };
+}
+
+function buildPersistentEnemyCombatStats(state?: CombatState | null): MonsterCombatStats[] | undefined {
+  if (!state?.enemies || state.enemies.length <= 1) {
+    return undefined;
+  }
+
+  return normalizeCombatEnemies(state).flatMap((enemy) => {
+    const content = findMonster(enemy.id);
+    if (!content) {
+      return [];
+    }
+    const derived = deriveMonsterCombatStats(content);
+
+    return [{
+      ...derived,
+      monsterId: enemy.id,
+      ...(enemy.name ? { name: enemy.name } : {}),
+      level: enemy.level ?? derived.level,
+      hpMax: enemy.hpMax,
+      attack: enemy.attack ?? derived.attack,
+      armor: enemy.armor ?? derived.armor,
+      resist: enemy.resist ?? derived.resist,
+      dexterity: enemy.dexterity ?? derived.dexterity,
+      ...(enemy.spellPower !== undefined ? { spellPower: enemy.spellPower } : {}),
+      ...(enemy.contextModifiers ? { contextModifiers: { ...enemy.contextModifiers } } : {}),
+      ...(enemy.debugTrace ? { debugTrace: { ...enemy.debugTrace } } : {})
+    }];
+  });
+}
+
+function withPersistentEnemyCombatStats(state?: CombatState | null): { enemies?: MonsterCombatStats[] } {
+  const enemies = buildPersistentEnemyCombatStats(state);
+
+  return enemies && enemies.length > 0 ? { enemies } : {};
 }
 
 function getPersistentFightSessionDifficulty(
