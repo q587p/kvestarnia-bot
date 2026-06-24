@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.1.25] - 12026-06-24 - Phase 2 MVP Closeout
+
+### Added
+- Added canonical Phase 2 MVP release notes in `docs/PHASE2_MVP_RELEASE_NOTES.md`.
+- Added closeout status for the accepted two-account regression/manual QA after merged and deployed `0.1.24`.
+- Added explicit branch/task disposition for superseded, absorbed, deferred and future-input Phase 2 work.
+
+### Changed
+- Marked the `0.1.x` Phase 2 Social Combat MVP line closed after this release unless an emergency hotfix is needed.
+- Moved safe gifting, later trading, multi-enemy combat, item tags/equipment, party/raids, tournament work, food, coffee and achievements into `0.2.x` or later planning.
+- Kept `docs/ai/prompts/safe-gifting-main-codex.md` as the next implementation prompt and `docs/tasks/0.2.0-safe-gifting-mvp.md` as the next versioned task.
+- Bumped the package and lockfile version to `0.1.25` so `/version`, changelog and news agree.
+
+### Unchanged
+- No gameplay runtime, Prisma schema, migration, formula, balance, economy, trading/gifting, multi-enemy, party, raid, tournament, food, coffee or achievements implementation ships in this closeout.
+- Phase 1 remains closed by `0.1.0`.
+
 ## [0.1.24] - 12026-06-24 - Shynok Drinks and Mantok Sales
 
 ### Added

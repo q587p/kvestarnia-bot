@@ -10,6 +10,8 @@ Move exactly one eligible item stack unit from one player to another through sen
 
 This is the smallest remaining social-interaction promise after duels, nearby targeting and Shynok sale reservations.
 
+Prompt: [ai/prompts/safe-gifting-main-codex.md](ai/prompts/safe-gifting-main-codex.md).
+
 ### `0.2.1` - Multi-Enemy Foundation
 
 Add backward-compatible state and exactly two enemies first. Do not include threat streaks, Yeger integration, location pools or a new reward faucet in the foundation PR.
@@ -34,6 +36,7 @@ Add a clear content contract for trade/use/duel/raid eligibility and one narrow 
 - party vs one boss;
 - real raids;
 - tournament recognition;
+- remort/social achievement-board ideas;
 - richer remort-only social records;
 - achievements and collections;
 - monster gender/case metadata;
@@ -62,3 +65,14 @@ Closed unmerged PRs and old design branches should be classified during closeout
 - preserved as future design input.
 
 Do not put PR numbers in artifact filenames. PR numbers can appear inside closeout notes when they explain why something was archived or absorbed.
+
+## Closeout Disposition
+
+| Branch / task | Decision | Target |
+|---|---|---|
+| `origin/codex/0.1.24-shynok-drinks-mantok-sales` | shipped | `0.1.24` |
+| `origin/codex/fight-buttons-one-row` | superseded by later combat UI | closed |
+| `origin/codex/remort-memorial-inferred-levels` | absorbed into memorial-board release work | `0.1.24` |
+| `origin/codex/remort-achievement-board` | deferred with achievements/social records | later `0.2.x`/alpha |
+| `origin/codex/group-hook-design` | preserved as party/raid design input | after multi-enemy/social sessions |
+| `docs/tasks/archive/queued-threat-streak-multi-enemy-fights.md` | split into multi-enemy foundation plus later threat escalation | `0.2.x` |

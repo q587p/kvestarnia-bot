@@ -65,3 +65,5 @@ After a versioned task is done:
 1. Use `$kvestarnia-release-checklist` if release-oriented.
 2. Produce a compact handoff.
 3. Start the next versioned task in a new Codex thread.
+
+After `0.1.25`, do not keep adding ordinary feature slices to `0.1.x`; use `0.2.0-safe-gifting-mvp.md` unless an emergency hotfix explicitly reopens the line.
