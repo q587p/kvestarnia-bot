@@ -1,5 +1,6 @@
 import type {
   PresentedDrinkDefinition,
+  PresentedRoundRecipientNotice,
   PresentedShynokDrinkState,
   ShynokDrinkConfirmResult,
   ShynokDrinkMenuResult,
@@ -178,6 +179,17 @@ export function presentShynokRoundConfirm(result: ShynokRoundConfirmResult): str
   }
 
   return presentShynokGate(result);
+}
+
+export function presentShynokRoundOfferNotification(
+  buyerName: string,
+  recipient: PresentedRoundRecipientNotice
+): string {
+  return [
+    `${recipient.offer.drink.emoji} <b>${escapeHtml(buyerName)}</b> ставить вам <b>${escapeHtml(recipient.offer.drink.name)}</b>.`,
+    "",
+    "Випити зараз чи чемно зберегти точність і легенду?"
+  ].join("\n");
 }
 
 export function presentShynokRoundOfferResponse(result: ShynokRoundOfferRespondResult): string {

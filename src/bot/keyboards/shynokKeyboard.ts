@@ -119,6 +119,14 @@ export function buildShynokRoundOfferResponseKeyboard(result: ShynokRoundOfferRe
     .text("⬅️ До Шинку", makeShynokOverviewCallbackData());
 }
 
+export function buildShynokRoundOfferNotificationKeyboard(offerId: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🍺 Випити", makeShynokRoundAcceptCallbackData(offerId))
+    .text("Ні, дякую", makeShynokRoundDeclineCallbackData(offerId))
+    .row()
+    .text("⬅️ До Шинку", makePlaceCallbackData("bar"));
+}
+
 export function buildShynokSaleSelectionKeyboard(result: ShynokSaleSelectionResult): InlineKeyboard {
   if (result.state !== "selection") {
     return buildBackToShynokKeyboard();

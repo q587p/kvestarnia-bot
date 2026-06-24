@@ -29,7 +29,7 @@ import type { ItemTransferService } from "../services/itemTransferService";
 import type { LevelBarterService } from "../services/levelBarterService";
 import type { LevelMilestoneService } from "../services/levelMilestoneService";
 import type { MantokChestService } from "../services/mantokChestService";
-import type { ShynokService } from "../services/shynokService";
+import type { ShynokRoundConfirmResult, ShynokService } from "../services/shynokService";
 import type { OnboardingService } from "../services/onboardingService";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
@@ -214,6 +214,7 @@ import {
   buildShynokDrinkPreviewKeyboard,
   buildShynokDrinkResultKeyboard,
   buildShynokOverviewKeyboard,
+  buildShynokRoundOfferNotificationKeyboard,
   buildShynokRoundOfferResponseKeyboard,
   buildShynokRoundPreviewKeyboard,
   buildShynokRoundResultKeyboard,
@@ -326,6 +327,7 @@ import {
   presentShynokGate,
   presentShynokOverview,
   presentShynokRoundConfirm,
+  presentShynokRoundOfferNotification,
   presentShynokRoundOfferResponse,
   presentShynokRoundPreview,
   presentShynokSaleConfirm,
@@ -1696,6 +1698,9 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, result.state === "completed"
       ? { text: "Кухлі поставлено.", show_alert: false }
       : { show_alert: result.state !== "replayed" });
+    if (result.state === "completed") {
+      await notifyShynokRoundRecipients(ctx, result);
+    }
     await safeEditMessageText(ctx, presentShynokRoundConfirm(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildShynokRoundResultKeyboard(result)
@@ -1786,6 +1791,26 @@ async function handleShynokCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildBackToShynokKeyboard()
   });
+}
+
+async function notifyShynokRoundRecipients(
+  ctx: Context,
+  result: ShynokRoundConfirmResult
+): Promise<void> {
+  if (result.state !== "completed") {
+    return;
+  }
+
+  await Promise.allSettled(result.recipients.map((recipient) =>
+    ctx.api.sendMessage(
+      Number(recipient.telegramUserId),
+      presentShynokRoundOfferNotification(result.character.name, recipient),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildShynokRoundOfferNotificationKeyboard(recipient.offer.id)
+      }
+    )
+  ));
 }
 
 async function handleLevelBarterCallback(

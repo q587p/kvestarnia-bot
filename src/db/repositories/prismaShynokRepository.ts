@@ -15,6 +15,7 @@ import type {
   ShynokRepository,
   ShynokRespondRoundOfferResult,
   ShynokRoundRecipientRecord,
+  ShynokRoundRecipientNotice,
   ShynokRoundRecipientSnapshot
 } from "./shynokRepository";
 import { getIncludedRemortCount } from "./prismaRemortCount";
@@ -482,8 +483,9 @@ export class PrismaShynokRepository implements ShynokRepository {
         }
       });
 
+      const recipientNotices: ShynokRoundRecipientNotice[] = [];
       for (const recipient of recipients) {
-        await tx.korchmaRoundRecipient.create({
+        const offer = mapRoundRecipient(await tx.korchmaRoundRecipient.create({
           data: {
             purchaseId: purchase.id,
             characterId: recipient.characterId,
@@ -493,7 +495,15 @@ export class PrismaShynokRepository implements ShynokRepository {
             offeredAt: input.now,
             expiresAt: input.offerExpiresAt
           }
-        });
+        }));
+
+        if (offer) {
+          recipientNotices.push({
+            telegramUserId: recipient.telegramUserId,
+            name: recipient.name,
+            offer
+          });
+        }
       }
 
       const replay = {
@@ -519,7 +529,8 @@ export class PrismaShynokRepository implements ShynokRepository {
         character: toCharacterRecord(updated),
         order: completed,
         purchaseId: purchase.id,
-        recipientCount: recipients.length
+        recipientCount: recipients.length,
+        recipients: recipientNotices
       };
     });
   }

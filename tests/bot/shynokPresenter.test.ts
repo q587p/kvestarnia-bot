@@ -154,6 +154,7 @@ describe("shynokPresenter", () => {
       tier: "fine",
       priceGold: 84,
       recipientCount: 2,
+      recipients: [],
       leaderboard
     };
 

@@ -32,6 +32,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Pending Barrel raid rating and news shortcuts now bypass the pending-raid blocker, so waiting players can actually read them from the raid card.
 - Shynok social-round cards keep the generosity rating visible even when the player cannot afford the frozen round price.
 - Stale Shynok fallback cards now send `До Шинку` through the bar place route instead of replaying an old Shynok callback from the Barrel.
+- Shynok social rounds now send best-effort private drink offer cards to recipients on the real completed purchase, and small-group launch prices are capped at 93/193 instead of using those numbers as the minimum.
 - Active persistent fights found with hero combat HP at `0` now terminalize as canonical losses through the existing settlement path, so `/fight` and old attack callbacks cannot keep an active attack surface or stuck lease.
 
 ## [0.1.25] - 12026-06-24 - Phase 2 MVP Closeout

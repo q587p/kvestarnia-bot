@@ -28,6 +28,7 @@ import {
   makeRemortConfirmCallbackData,
   makeRemortOpenCallbackData
 } from "../../src/bot/callbacks/remortCallbackData";
+import { makeShynokRoundConfirmCallbackData } from "../../src/bot/callbacks/shynokCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import { makeYegerTrackCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -1366,6 +1367,73 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).toContain("🍻 Шинок");
     expect(keyboard).toContain("🍹 Напої для себе");
     expect(keyboard).toContain("v1:sh:dr");
+  });
+
+  it("notifies round recipients when a Shynok round is placed", async () => {
+    const calls = await captureApiCalls(
+      makeShynokRoundConfirmCallbackData("simple", "12345678-1234-4234-9234-123456789abc"),
+      servicesWith({
+        shynok: {
+          confirmRoundOrderForTelegramUser: () =>
+            Promise.resolve({
+              state: "completed",
+              character,
+              tier: "simple",
+              priceGold: 26,
+              recipientCount: 2,
+              recipients: [{
+                telegramUserId: 93n,
+                name: "Сусідній Пригодник",
+                offer: {
+                  id: "round-offer-93",
+                  drink: {
+                    key: "drink.simple-beer",
+                    name: "Просте пиво",
+                    emoji: "🍺",
+                    priceGold: 13,
+                    durationMinutes: 23,
+                    recoveryMultiplierBp: 12500,
+                    accuracyPenaltyPp: 5
+                  },
+                  expiresAt: new Date("2026-06-24T11:05:00.000Z")
+                }
+              }],
+              leaderboard: { day: [], week: [], month: [] }
+            })
+        }
+      }),
+      { messageResults: true }
+    );
+    const recipientMessage = calls.find((call) =>
+      call.method === "sendMessage" && call.payload.chat_id === 93
+    );
+
+    expect(String(recipientMessage?.payload.text)).toContain("<b>Мандрівник</b> ставить вам <b>Просте пиво</b>");
+    expect(JSON.stringify(recipientMessage?.payload.reply_markup)).toContain("v1:sh:ra:round-offer-93");
+    expect(JSON.stringify(recipientMessage?.payload.reply_markup)).toContain("v1:sh:rd:round-offer-93");
+  });
+
+  it("does not notify round recipients again on replayed Shynok round confirm", async () => {
+    const calls = await captureApiCalls(
+      makeShynokRoundConfirmCallbackData("simple", "12345678-1234-4234-9234-123456789abc"),
+      servicesWith({
+        shynok: {
+          confirmRoundOrderForTelegramUser: () =>
+            Promise.resolve({
+              state: "replayed",
+              character,
+              tier: "simple",
+              priceGold: 26,
+              recipientCount: 2,
+              recipients: [],
+              leaderboard: { day: [], week: [], month: [] }
+            })
+        }
+      }),
+      { messageResults: true }
+    );
+
+    expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 
   it("opens the pressed location label when the persistent reply keyboard is stale", async () => {

@@ -107,6 +107,7 @@ export type ShynokRoundConfirmResult =
       tier: KorchmaRoundTier;
       priceGold: number;
       recipientCount: number;
+      recipients: PresentedRoundRecipientNotice[];
       leaderboard: KorchmaRoundLeaderboard;
     };
 
@@ -165,6 +166,12 @@ export interface PresentedRoundOffer {
   id: string;
   drink: PresentedDrinkDefinition;
   expiresAt: Date;
+}
+
+export interface PresentedRoundRecipientNotice {
+  telegramUserId: bigint;
+  name: string;
+  offer: PresentedRoundOffer;
 }
 
 export interface PresentedSaleItem {
@@ -421,6 +428,13 @@ export class ShynokService {
           tier,
           priceGold: result.order.priceGold,
           recipientCount: result.recipientCount,
+          recipients: result.state === "completed"
+            ? result.recipients.map((recipient) => ({
+                telegramUserId: recipient.telegramUserId,
+                name: recipient.name,
+                offer: presentRoundOffer(recipient.offer)
+              }))
+            : [],
           leaderboard
         };
     }
@@ -698,7 +712,7 @@ export class ShynokService {
 
 export function getRoundPrice(tier: KorchmaRoundTier, recipientCount: number): number {
   const count = Math.max(1, Math.floor(recipientCount));
-  return tier === "fine" ? Math.max(193, 42 * count) : Math.max(93, 13 * count);
+  return tier === "fine" ? Math.min(193, 42 * count) : Math.min(93, 13 * count);
 }
 
 export function presentDrinkDefinition(key: ShynokDrinkKey): PresentedDrinkDefinition {

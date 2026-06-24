@@ -175,8 +175,8 @@ Snapshot формується під час підтвердження поку�
 Launch defaults, винесені в явні константи:
 
 ```text
-simple_round_cost = max(93, 13 * recipient_count)
-fine_round_cost   = max(193, 42 * recipient_count)
+simple_round_cost = min(93, 13 * recipient_count)
+fine_round_cost   = min(193, 42 * recipient_count)
 ```
 
 `recipient_count` береться зі збереженого snapshot і включає покупця.

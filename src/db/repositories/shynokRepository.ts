@@ -78,6 +78,12 @@ export interface ShynokRoundRecipientSnapshot {
   remortCount: number;
 }
 
+export interface ShynokRoundRecipientNotice {
+  telegramUserId: bigint;
+  name: string;
+  offer: ShynokRoundRecipientRecord;
+}
+
 export type ShynokConfirmDrinkResult =
   | { state: "no-character" }
   | { state: "invalid-token" }
@@ -98,6 +104,7 @@ export type ShynokConfirmRoundResult =
       order: ShynokDrinkOrderRecord;
       purchaseId: string;
       recipientCount: number;
+      recipients: ShynokRoundRecipientNotice[];
     }
   | {
       state: "replayed";
