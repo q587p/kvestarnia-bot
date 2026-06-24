@@ -139,7 +139,7 @@ function presentProblemQuestRow(
 
 function presentFightRow(fight: Exclude<FightLookupResult, { state: "no-character" }>): string | null {
   if (fight.state === "needs-rest") {
-    return "🪜 <i>Низ</i> — герой ще не тримається на ногах, спершу /hero.";
+    return "🪜 <i>Низ</i> — герой ще не тримається на ногах; потрібен хоча б 1 HP.";
   }
 
   if (fight.state === "level-retired") {
@@ -408,7 +408,7 @@ function presentQuestHubFooter(snapshot: QuestHubSnapshot): string {
   };
 
   if (snapshot.character.hpCurrent <= 0) {
-    return withRemortHint("HP 0? Спершу /hero, тоді /fight. Справи почекають.");
+    return withRemortHint("HP 0? Спершу трохи відновіться. Справи почекають, доки буде хоча б 1 HP.");
   }
 
   if (hasReadyQuestAction(snapshot)) {

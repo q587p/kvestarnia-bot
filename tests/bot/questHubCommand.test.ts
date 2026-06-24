@@ -592,9 +592,11 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain(
-      "🪜 <i>Низ</i> — герой ще не тримається на ногах, спершу /hero."
+      "🪜 <i>Низ</i> — герой ще не тримається на ногах; потрібен хоча б 1 HP."
     );
-    expect(replies[0]?.text).toContain("HP 0? Спершу /hero, тоді /fight. Справи почекають.");
+    expect(replies[0]?.text).toContain("HP 0? Спершу трохи відновіться. Справи почекають, доки буде хоча б 1 HP.");
+    expect(replies[0]?.text).not.toContain("/hero");
+    expect(replies[0]?.text).not.toContain("/fight");
   });
 
   it("uses the fight resource snapshot after lazy recovery sync", async () => {
@@ -639,7 +641,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).toContain(
       "🧾 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
     );
-    expect(replies[0]?.text).not.toContain("HP 0? Спершу /hero, тоді /fight. Справи почекають.");
+    expect(replies[0]?.text).not.toContain("HP 0? Спершу трохи відновіться. Справи почекають, доки буде хоча б 1 HP.");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };

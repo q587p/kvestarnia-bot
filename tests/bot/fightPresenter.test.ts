@@ -140,7 +140,9 @@ describe("fight presenter", () => {
 
     expect(text).toContain("Пригодник ще не тримається на ногах");
     expect(text).toContain("Орієнтовно до повного HP: ~10 хв.");
-    expect(text).toContain("Спершу /hero");
+    expect(text).toContain("Спершу трохи відновіться");
+    expect(text).toContain("коли HP буде хоча б 1");
+    expect(text).not.toContain("/hero");
   });
 
   it("shows combat preview and reward for a completed action", () => {
@@ -349,7 +351,7 @@ describe("fight presenter", () => {
     });
 
     expect(text).toContain("💤 Ви програли.");
-    expect(text).not.toContain("Спершу /hero, тоді новий бій.");
+    expect(text).not.toContain("/hero");
   });
 
   it("shows stale and mana failure persistent turns without mutating reward copy", () => {

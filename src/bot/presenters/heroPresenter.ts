@@ -35,7 +35,14 @@ export function presentHero(
       ? `👛 Золото: <b>${summary.gold}</b>`
       : `👛 Золото: <b>${summary.gold}</b> <i>${presentWealthAside(summary.gold, inventoryGoldValue)}</i>`;
   const starterHint =
-    summary.level < 3 ? ["", "<i>Далі: /tavern, /quest або /fight.</i>"] : [];
+    summary.level < 3
+      ? [
+          "",
+          summary.hpCurrent <= 0
+            ? "<i>Далі: перепочити, а тоді вже знову шукати справу чи сутичку.</i>"
+            : "<i>Далі: /tavern, /quest або /fight.</i>"
+        ]
+      : [];
   const equipmentLines = presentHeroEquipmentEffectLines(
     summary.equipmentEffects ?? createEmptyEquipmentEffectSummary()
   );
@@ -99,7 +106,7 @@ function presentResourceRecovery(summary: CharacterSummary): string[] {
   const lines = parts.length > 0 ? [`Відновлення: ${parts.join(" · ")}`] : [];
 
   if (summary.hpCurrent <= 0) {
-    lines.push("Стан: HP 0 — спершу відпочиньте, тоді /fight.");
+    lines.push("Стан: HP 0 — спершу відпочиньте; бій дочекається хоча б 1 HP.");
   }
 
   return lines;

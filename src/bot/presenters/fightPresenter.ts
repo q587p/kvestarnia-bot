@@ -91,7 +91,7 @@ export function presentFightNeedsRest(
     "",
     `Зараз HP ${result.character.hpCurrent}/${result.character.hpMax}, мана ${result.character.manaCurrent}/${result.character.manaMax}.${hpEta}`,
     "",
-    "Спершу /hero: бій знову відчиниться, коли HP буде хоча б 1."
+    "Спершу трохи відновіться: бій знову відчиниться, коли HP буде хоча б 1."
   ].join("\n");
 }
 

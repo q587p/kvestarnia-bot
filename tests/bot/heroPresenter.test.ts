@@ -93,10 +93,11 @@ describe("hero presenter", () => {
     });
 
     expect(text).toContain("Відновлення: HP за ~10 хв");
-    expect(text).toContain("Стан: HP 0 — спершу відпочиньте, тоді /fight.");
+    expect(text).toContain("Стан: HP 0 — спершу відпочиньте; бій дочекається хоча б 1 HP.");
     expect(text).toContain(
-      "Відновлення: HP за ~10 хв\nСтан: HP 0 — спершу відпочиньте, тоді /fight.\n\nСили 9"
+      "Відновлення: HP за ~10 хв\nСтан: HP 0 — спершу відпочиньте; бій дочекається хоча б 1 HP.\n\nСили 9"
     );
+    expect(text).not.toContain("/fight");
   });
 
   it("separates recovery timing from stats for readability", () => {
